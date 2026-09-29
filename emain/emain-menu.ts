@@ -20,7 +20,7 @@ import {
     WaveBrowserWindow,
 } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
-import { updater } from "./updater";
+// MORPHTERM-PATCH (#5): `updater` is no longer imported; the menu has no update item.
 
 type AppMenuCallbacks = {
     createNewWaveWindow: () => Promise<void>;
@@ -179,12 +179,8 @@ function makeAppMenuItems(webContents: electron.WebContents): Electron.MenuItemC
                 (getWindowWebContents(window) ?? webContents)?.send("menu-item-about");
             },
         },
-        {
-            label: "Check for Updates",
-            click: () => {
-                fireAndForget(() => updater?.checkForUpdates(true));
-            },
-        },
+        // MORPHTERM-PATCH (#5): no "Check for Updates" item: it polled Wave's
+        // update feed even with auto-update disabled.
         { type: "separator" },
     ];
     if (unamePlatform === "darwin") {
