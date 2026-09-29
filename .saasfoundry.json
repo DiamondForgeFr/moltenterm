@@ -1,0 +1,211 @@
+{
+  "$schema": "https://raw.githubusercontent.com/DiamondForgeFr/SaasFoundryAI/master/schemas/saasfoundry-manifest.schema.json",
+  "manifestVersion": 3,
+  "version": "1.0.0",
+  "generatedAt": "2026-09-29T14:42:05.256Z",
+  "structure": "cli",
+  "projectName": "morphterm",
+  "mainBranch": "main",
+  "modules": {
+    "harness": {
+      "version": 1,
+      "managed": true,
+      "agents": [
+        "claude-code",
+        "codex"
+      ]
+    },
+    "advancedSkills": []
+  },
+  "language": {
+    "srs": "en",
+    "tickets": "en",
+    "codeComments": "en"
+  },
+  "fileHashes": {
+    ".claude/skills/sf-git-commit/SKILL.md": "312b18d0ef1014e8386983a5bfe443945953c1ec531a8d41a6898c4d584576f4",
+    ".claude/skills/sf-git-create-pr/SKILL.md": "8c07da84034e7efb07e833468d65e7b1bb897b87d48be071ccb1ed0b38744edb",
+    ".claude/skills/sf-git-fix-pr-comments/SKILL.md": "6a44c0d5da82aaaf0720fe0f7d9a69c2c814f696c7a2e3e3070d0a25ac3b7939",
+    ".claude/skills/sf-git-merge/SKILL.md": "1eb231cadede24df1003ca121b54534237b9bdfb7652eb49e2cc2cf5eb10ced6",
+    ".claude/skills/sf-integration-rules/SKILL.md": "6054a0e4c9630dcfe549d7eb380d6ceb2853f28053530158f580e723cb1432e2",
+    ".claude/skills/sf-integration-rules/backend.md": "e3444b0f38762686070b7cf88eaec7a92b4bae320d0ebf33a39191833f9e5739",
+    ".claude/skills/sf-integration-rules/frontend.md": "4e4b63e24fe00e075e55c6cb430683cb3dfa18d99abc4cce693fb90cd32c90fc",
+    ".claude/skills/sf-integration-rules/topology.md": "fa43b6840bb8dd8822b27002c2320f0c3a9b5b2dca2ef37c2732e14502903b00",
+    ".claude/skills/sf-srs/SKILL.md": "a78fc4bf167944cfcd7fbfc684030e0c752c5161d1d01f5bd1f670dab2fcccae",
+    ".claude/skills/sf-srs/data/clustering-rules.json": "3110294b18bf3229a320ea70f5878d18c1e874b8bbc511e61ee0c948dcf0bfee",
+    ".claude/skills/sf-srs/eval-datasets/intent-detector.jsonl": "d8ef4ae99c55f494487cead919eb0b3ca325894260cf91163972738084336a20",
+    ".claude/skills/sf-srs/scripts/detect-eval-signals.sh": "66dff12ed1bb9ffb0e961df566170eabe82e624a306855687baa3568e2224f99",
+    ".claude/skills/sf-srs/scripts/srs-cli.sh": "68a4399f930e2632081b94f3b3a6c10cdcb01bf0aaf5a18d11e58702e2f4a280",
+    ".claude/skills/sf-srs/scripts/srs-intent-hook.sh": "1ed433e31ceefcc54305ecef924944749d1fe4fcf8bba76343ecfd621241dcce",
+    ".claude/skills/sf-srs/templates/examples/example-epic.md": "e15fb18ee92bd9515e9dc899ba6e0e59668ecbba796e7755f321e21061ff1f46",
+    ".claude/skills/sf-srs/templates/examples/example-epic.spec.json": "028ec65c05b42717ad94ef207263754625431ad3ce2b482d0439dd994acbc52d",
+    ".claude/skills/sf-srs/templates/examples/example-three-levels.spec.json": "f3cf233b768bda917393d77887562177d150cbb86a0d1160f5af30a5a2792d8a",
+    ".claude/skills/sf-srs/templates/pages/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    ".claude/skills/sf-srs/templates/pages/README.md": "26193f29c06dab58f4f8cec209bb2efaefbc2b824b5474714f32c8dc07280011",
+    ".claude/skills/sf-srs/templates/tickets/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    ".claude/skills/sf-srs/templates/tickets/README.md": "86a02da6116ff743c16415bfe0288abf46cd67a7b3424571a245a693768f873f",
+    ".claude/skills/sf-srs/templates/tickets/examples/epic.md": "b6c842ae45690513a552b3e1d7f49e5b51e12c30ea7a854748ef2807a99478c3",
+    ".claude/skills/sf-srs/templates/tickets/examples/issue.md": "94a670bcf7b3124026b3515dc96d0abc2f4801e8294fc0229bbcbfe815623cdd",
+    ".claude/skills/sf-srs/templates/tickets/examples/story.md": "b061472b1540b1342f3424b777a0ddb5849ce1e62d2544627645a07e2f7a301f",
+    ".claude/skills/sf-srs/templates/tickets/examples/task.md": "d3e00d8872d580137055917cce2729d1100a36e5cc9e655b0612333ea84c6364",
+    ".claude/skills/sf-tool-github-projects/SKILL.md": "5372cc2f6cd025f283a2b1c355d85cfa001b9cb2327a8dfd5fd3bf7f5eb3c949",
+    ".claude/skills/sf-tool-github-projects/github-projects-cli.sh": "ce08038e47301a3a32b7cecddc5d6ca1eec32d81b013bb1896f93fa69ba22eaa",
+    ".claude/skills/sf-utils-fix-errors/SKILL.md": "0e71d2fc89c85b0d676ee710d43936b9b6a1c651f91bf66392046247b0741bf6",
+    ".claude/skills/sf-utils-fix-grammar/SKILL.md": "dc90f0a273d92201b1c088c9c31ef2dd7da81f762be73b27c7bb8bdadcd9930e",
+    ".claude/skills/sf-workflow/SKILL.md": "c0793e5e57494be1df6145c3750840fb80f15cf5c14cc6598a3fbf2d91818a5d",
+    ".claude/skills/sf-workflow/complexity/README.md": "3e93fe1cdc75aa14c4cbed5bc90f193d5b5d58153ccb65cbd820a237619c3017",
+    ".claude/skills/sf-workflow/complexity/bug.yml": "9a45279f1c34c556f57a771fa7f954ad85299e1779aa6babcd7a35e060e4cb0a",
+    ".claude/skills/sf-workflow/complexity/complex.yml": "bfc5a0e1398a7e37d735f7d153aa11bc499d78e02c77b81b0121bd2705ed6d06",
+    ".claude/skills/sf-workflow/complexity/low.yml": "c929f225b7749343bbc267b6cb15f0a20680ad5fd86947b16d0439baebc64ab3",
+    ".claude/skills/sf-workflow/complexity/medium.yml": "c0fbe20d03587c2354b0188aae85db24f7724bff2edaaed82f5b817c121455c3",
+    ".claude/skills/sf-workflow/github/pr-review-sync.yml": "58e653c3b159ee398070e0fb6809263f9c535c9d6c4a45a96492bc09a54010f0",
+    ".claude/skills/sf-workflow/scripts/analyze.sh": "5ea95a5854c3f592354c1ac16308de80ce8aa4c75892545eb54df3d90a76b53d",
+    ".claude/skills/sf-workflow/scripts/detect-complexity.sh": "fe3e1b3b572e92124059615f6297104b05cdccfe5031ce76678ed82129becb51",
+    ".claude/skills/sf-workflow/scripts/examine.sh": "41660c2beb101766f2c93528fd627d6af02582a4e26ef1b70d36e8e4eae5f320",
+    ".claude/skills/sf-workflow/scripts/plan.sh": "c78508ed837e3cd1f98d30555c266c806a5d19b1da10d4d434f65caf94d5d594",
+    ".claude/skills/sf-workflow/statuses/1-backlog.md": "739891b70826c30ca60cb70486146086f115645d5a0e7b555749c1701234cd4c",
+    ".claude/skills/sf-workflow/statuses/2-in-progress.md": "65661f6e6d3774ef770e2f146efdcc1998234c01290de7ff652fe4e5931e6520",
+    ".claude/skills/sf-workflow/statuses/2a-ai-drafting.md": "04726153795bb71dff98320b53435d238576b12848064c8f1b8a5ac01149e8cb",
+    ".claude/skills/sf-workflow/statuses/2b-human-review.md": "67b316a5a91ab4644a2d5f09248a3fa6c578e32fb295a457ab6216c3d52f8465",
+    ".claude/skills/sf-workflow/statuses/2c-spawning.md": "9587e5be3459750899bb0b4e44e51d9b2eecfe8e9e344c8cadb4bde68f1bcfce",
+    ".claude/skills/sf-workflow/statuses/3-ai-testing.md": "ce54a46fed981eaf7d859ee8b7910850df81b9cf9a0f13d74c6a084d46cac6ba",
+    ".claude/skills/sf-workflow/statuses/4-in-review.md": "9740962ff10885c7317ce04a06d1263691db1d1c94d7a07a63621c1121880403",
+    ".claude/skills/sf-workflow/statuses/5-done.md": "c2142db8097ce25a648ac06d61163803a65c0b9647ed5672a1fe354751f5d7b1",
+    ".claude/skills/sf-workflow/workflow-cli.sh": "7b50e20d02c74e96d758f5904b057c3214eb4e310e164ddab3a3d0fbc941337d",
+    ".claude/docs/architecture-skills.md": "19e5cbf39ee026a7688f6f35f6f3018c68cc094b32bbe099a3cef24b8377ae57",
+    ".claude/docs/exit-codes.md": "96cefae43050e025b96fc8f05a2431f57dbe859262288995456d8df28f2fd6db",
+    ".claude/docs/github-labels.md": "2e5c75094cfe6a69937455a5356a15e4204a0ce2d96e64702ce3d69b492af5d3",
+    ".claude/docs/manifest-schema.md": "0e3ea5e69513c145bee7fecd75a065a6ae881b82a719cf33f5cd6f4643deac9a",
+    ".claude/docs/multi-agent-harness.md": "c5de8623f58e374eac463857d46438b76a4138d6ce851d9f67c77c63b5e561a5",
+    "AGENTS.md": "fcd645d0302fa91a0e98d056f0aa158c88d06118fbeafb350f3bb8cce48d978c",
+    "GEMINI.md": "bc151271e752fb7d81079960549699344f07dc69c33508d296d888987a34b8f9",
+    ".agents/skills/sf-git-commit/SKILL.md": "c7c5b6c31fbba628d00f7f758d51d3c67d4d2d3812dc2f784bb81e1691072e1c",
+    ".agents/skills/sf-git-create-pr/SKILL.md": "16f929b864c9b570d8d031fb74c5e964d51fd7f7d8f0f94b9c0159323736463b",
+    ".agents/skills/sf-git-fix-pr-comments/SKILL.md": "377a956bb7eacf132807c158c837cd40d420f858009521f0d1f0411e4707ad27",
+    ".agents/skills/sf-git-merge/SKILL.md": "8cadcc11c1b0b35f46c45b3f057ccbe4bbccedc1fb3ba6485198ba57f003d225",
+    ".agents/skills/sf-integration-rules/backend.md": "e3444b0f38762686070b7cf88eaec7a92b4bae320d0ebf33a39191833f9e5739",
+    ".agents/skills/sf-integration-rules/frontend.md": "4e4b63e24fe00e075e55c6cb430683cb3dfa18d99abc4cce693fb90cd32c90fc",
+    ".agents/skills/sf-integration-rules/SKILL.md": "9468c2b7117b0f1457e18513c7c65b8ecfeda03b7e52bb055aaaa06ddace9898",
+    ".agents/skills/sf-integration-rules/topology.md": "fa43b6840bb8dd8822b27002c2320f0c3a9b5b2dca2ef37c2732e14502903b00",
+    ".agents/skills/sf-tool-github-projects/github-projects-cli.sh": "ce08038e47301a3a32b7cecddc5d6ca1eec32d81b013bb1896f93fa69ba22eaa",
+    ".agents/skills/sf-tool-github-projects/SKILL.md": "6c2b0cf04f83ae93b73137df14ae95a64b2f0a3824665f999d7e50d0c2a86835",
+    ".agents/skills/sf-utils-fix-errors/SKILL.md": "90bfa7cc4c35de434d38dfafb1a5242ba0d518afcaad4981712454a983b44ef6",
+    ".agents/skills/sf-utils-fix-grammar/SKILL.md": "d32e7bac91030a741d28c865fe1cd1a0a00e8e19204cc38d827e9fb68bdde955",
+    ".agents/skills/sf-workflow/complexity/bug.yml": "9a45279f1c34c556f57a771fa7f954ad85299e1779aa6babcd7a35e060e4cb0a",
+    ".agents/skills/sf-workflow/complexity/complex.yml": "bfc5a0e1398a7e37d735f7d153aa11bc499d78e02c77b81b0121bd2705ed6d06",
+    ".agents/skills/sf-workflow/complexity/low.yml": "c929f225b7749343bbc267b6cb15f0a20680ad5fd86947b16d0439baebc64ab3",
+    ".agents/skills/sf-workflow/complexity/medium.yml": "c0fbe20d03587c2354b0188aae85db24f7724bff2edaaed82f5b817c121455c3",
+    ".agents/skills/sf-workflow/complexity/README.md": "3e93fe1cdc75aa14c4cbed5bc90f193d5b5d58153ccb65cbd820a237619c3017",
+    ".agents/skills/sf-workflow/github/pr-review-sync.yml": "58e653c3b159ee398070e0fb6809263f9c535c9d6c4a45a96492bc09a54010f0",
+    ".agents/skills/sf-workflow/scripts/analyze.sh": "5ea95a5854c3f592354c1ac16308de80ce8aa4c75892545eb54df3d90a76b53d",
+    ".agents/skills/sf-workflow/scripts/detect-complexity.sh": "fe3e1b3b572e92124059615f6297104b05cdccfe5031ce76678ed82129becb51",
+    ".agents/skills/sf-workflow/scripts/examine.sh": "41660c2beb101766f2c93528fd627d6af02582a4e26ef1b70d36e8e4eae5f320",
+    ".agents/skills/sf-workflow/scripts/plan.sh": "c78508ed837e3cd1f98d30555c266c806a5d19b1da10d4d434f65caf94d5d594",
+    ".agents/skills/sf-workflow/SKILL.md": "03507c9aa7458691b4c4cfa6ce470acf1ca4a0d0c43bf877e4b42cda9e74d8f5",
+    ".agents/skills/sf-workflow/statuses/1-backlog.md": "739891b70826c30ca60cb70486146086f115645d5a0e7b555749c1701234cd4c",
+    ".agents/skills/sf-workflow/workflow-cli.sh": "7b50e20d02c74e96d758f5904b057c3214eb4e310e164ddab3a3d0fbc941337d"
+  },
+  "workflow": {
+    "template": "SaaSFoundry Solo",
+    "tool": "github-projects",
+    "projectUrl": "https://github.com/orgs/DiamondForgeFr/projects/5",
+    "workingBranch": "develop",
+    "prTargetBranch": "develop",
+    "requireCodeReview": true,
+    "statuses": [
+      {
+        "name": "Backlog",
+        "description": "Raw ideas and specs waiting to be challenged. AI must challenge the ticket with the developer to clarify requirements, identify edge cases, and validate approach before starting. Complexity label is mandatory before leaving Backlog.",
+        "color": "GRAY"
+      },
+      {
+        "name": "In Progress",
+        "description": "Task currently being worked on by AI after the developer confirmed pickup. One commit per subtask. When all subtasks are done: run existing tests (unit, E2E, lint, TypeScript), commit and push all changes, then move to AI Testing and generate a test plan.",
+        "color": "BLUE"
+      },
+      {
+        "name": "AI Testing",
+        "description": "Validation phase. Execute the generated test plan step by step, document findings in ticket comments, fix and re-test on failure. When all tests pass: post the test report, create the pull request and move to In Review — the PR review is where the developer validates.",
+        "color": "PURPLE"
+      },
+      {
+        "name": "In Review",
+        "description": "Pull request open — this is the human gate of the solo workflow. The developer reviews the changes (and tests manually if needed); AI monitors CI and review comments and addresses feedback. The developer merging the PR is what moves the ticket to Done.",
+        "color": "PINK"
+      },
+      {
+        "name": "Done",
+        "description": "PR merged to the working branch. Close the ticket, clean up local branches, and update any related documentation.",
+        "color": "GREEN"
+      }
+    ],
+    "issueTypes": [
+      {
+        "name": "sf-epic",
+        "description": "Grouper for related sf-stories/sf-tasks (no PR, no branch)",
+        "color": "PURPLE"
+      },
+      {
+        "name": "sf-story",
+        "description": "Delivers user-observable value",
+        "color": "BLUE"
+      },
+      {
+        "name": "sf-task",
+        "description": "Delivers a technical action (refactor, infra, tooling)",
+        "color": "GRAY"
+      },
+      {
+        "name": "sf-issue",
+        "description": "Defect or unexpected behavior to investigate and fix",
+        "color": "RED"
+      }
+    ],
+    "branchNaming": {
+      "feature": "feature/{N}-{description}",
+      "fix": "fix/{N}-{description}",
+      "release": "rc-{version}"
+    },
+    "commitFormat": {
+      "pattern": "type(#N): description",
+      "requireTicket": true,
+      "types": [
+        "feat",
+        "fix",
+        "docs",
+        "style",
+        "refactor",
+        "perf",
+        "test",
+        "chore",
+        "ci",
+        "build",
+        "revert"
+      ]
+    },
+    "validated": false
+  },
+  "aiRules": {
+    "alwaysCreateBranchFromWorking": true,
+    "alwaysCreateTicketBeforeCode": true,
+    "autoUpdateTicketStatus": true,
+    "requireHumanCheckOnPushedBranch": true
+  },
+  "tools": {
+    "srs": {
+      "enabled": true,
+      "backend": "notion",
+      "rootPage": {
+        "id": "3eaa31bb-4f3f-81e3-937a-cc319bec706a",
+        "url": "https://app.notion.com/p/morphterm-srs-3eaa31bb4f3f81e3937acc319bec706a",
+        "name": "morphterm-srs"
+      }
+    },
+    "tracker": {
+      "name": "github-projects"
+    },
+    "docs": {
+      "name": "notion"
+    }
+  }
+}
