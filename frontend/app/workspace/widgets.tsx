@@ -322,19 +322,8 @@ const SettingsFloatingWindow = memo(
                     onClose();
                 },
             },
-            {
-                icon: "circle-question",
-                label: "Help",
-                onClick: () => {
-                    const blockDef: BlockDef = {
-                        meta: {
-                            view: "help",
-                        },
-                    };
-                    env.createBlock(blockDef);
-                    onClose();
-                },
-            },
+            // MORPHTERM-PATCH (#5): no "Help" item; it opened Wave's online docs
+            // (docs.waveterm.dev). It comes back when Morphterm has docs of its own.
         ];
 
         return (
