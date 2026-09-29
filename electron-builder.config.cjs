@@ -117,10 +117,9 @@ const config = {
         // this should remove /usr/lib/.build-id/ links which can conflict with other electron apps like slack
         fpm: ["--rpm-rpmbuild-define", "_build_id_links none"],
     },
-    publish: {
-        provider: "generic",
-        url: "https://dl.waveterm.dev/releases-w2",
-    },
+    // MORPHTERM-PATCH (#5): no update feed. `null` rather than a deleted key:
+    // without the key, electron-builder infers a GitHub feed from the git remote.
+    publish: null,
     afterPack: (context) => {
         // This is a workaround to restore file permissions to the wavesrv binaries on macOS after packaging the universal binary.
         if (context.electronPlatformName === "darwin" && context.arch === Arch.universal) {
