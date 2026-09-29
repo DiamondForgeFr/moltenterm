@@ -10,7 +10,9 @@ import (
 	"strings"
 )
 
-const DefaultAIEndpoint = "https://cfapi.waveterm.dev/api/waveai"
+// MORPHTERM-PATCH (#5): no default endpoint, so a "wave" mode can never reach
+// Wave's cloud proxy. Users bring their own provider or local model.
+const DefaultAIEndpoint = ""
 const WaveAIEndpointEnvName = "WAVETERM_WAVEAI_ENDPOINT"
 const DefaultAnthropicModel = "claude-sonnet-4-5"
 const DefaultOpenAIModel = "gpt-5-mini"

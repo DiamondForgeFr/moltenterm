@@ -84,7 +84,9 @@ func getWaveAISettings(premium bool, builderMode bool, rtInfo waveobj.ObjRTInfo,
 		return nil, err
 	}
 	if config.WaveAICloud && !telemetry.IsTelemetryEnabled() {
-		return nil, fmt.Errorf("Wave AI cloud modes require telemetry to be enabled")
+		// MORPHTERM-PATCH (#5): telemetry can never be enabled, so this always
+		// applies; the message points to what the user can actually do.
+		return nil, fmt.Errorf("Wave AI cloud modes are not available in Morphterm: configure your own AI provider or local model in waveai.json")
 	}
 	apiToken := config.APIToken
 	if apiToken == "" && config.APITokenSecretName != "" {
