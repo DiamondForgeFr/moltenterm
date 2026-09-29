@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/telemetry"
@@ -27,9 +26,6 @@ const WCloudEndpoint = "https://api.waveterm.dev/central"
 const WCloudEndpointVarName = "WCLOUD_ENDPOINT"
 const WCloudPingEndpoint = "https://ping.waveterm.dev/central"
 const WCloudPingEndpointVarName = "WCLOUD_PING_ENDPOINT"
-
-var WCloudEndpoint_VarCache string
-var WCloudPingEndpoint_VarCache string
 
 const APIVersion = 1
 const MaxPtyUpdateSize = (128 * 1024)
@@ -49,42 +45,22 @@ const NoTelemetryUrl = "/no-telemetry"
 const WebShareUpdateUrl = "/auth/web-share-update"
 const PingUrl = "/ping"
 
+// MORPHTERM-PATCH (#5): Morphterm never contacts Wave's cloud. Both endpoints are
+// empty in every build mode, so telemetry, no-telemetry and ping requests stop
+// before any connection is made. The endpoint variables are still removed from
+// the environment, but dev mode no longer requires them.
 func CacheAndRemoveEnvVars() error {
-	WCloudEndpoint_VarCache = os.Getenv(WCloudEndpointVarName)
-	err := checkEndpointVar(WCloudEndpoint_VarCache, "wcloud endpoint", WCloudEndpointVarName)
-	if err != nil {
-		return err
-	}
 	os.Unsetenv(WCloudEndpointVarName)
-	WCloudPingEndpoint_VarCache = os.Getenv(WCloudPingEndpointVarName)
 	os.Unsetenv(WCloudPingEndpointVarName)
 	return nil
 }
 
-func checkEndpointVar(endpoint string, debugName string, varName string) error {
-	if !wavebase.IsDevMode() {
-		return nil
-	}
-	if endpoint == "" || !strings.HasPrefix(endpoint, "https://") {
-		return fmt.Errorf("invalid %s, %s not set or invalid", debugName, varName)
-	}
-	return nil
-}
-
 func GetEndpoint() string {
-	if !wavebase.IsDevMode() {
-		return WCloudEndpoint
-	}
-	endpoint := WCloudEndpoint_VarCache
-	return endpoint
+	return ""
 }
 
 func GetPingEndpoint() string {
-	if !wavebase.IsDevMode() {
-		return WCloudPingEndpoint
-	}
-	endpoint := WCloudPingEndpoint_VarCache
-	return endpoint
+	return ""
 }
 
 func makeAnonPostReq(ctx context.Context, apiUrl string, data interface{}) (*http.Request, error) {
