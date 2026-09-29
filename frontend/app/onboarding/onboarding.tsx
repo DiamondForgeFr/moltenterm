@@ -7,13 +7,12 @@ import { FlexiModal } from "@/app/modals/modal";
 import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
 import { OnboardingFeatures } from "@/app/onboarding/onboarding-features";
 import { ClientModel } from "@/app/store/client-model";
-import { useSettingsKeyAtom } from "@/app/store/global";
+// MORPHTERM-PATCH (#5): useSettingsKeyAtom and WorkspaceLayoutModel imports removed with the telemetry row.
 import { disableGlobalKeybindings, enableGlobalKeybindings, globalRefocus } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
 import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import * as services from "@/store/services";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtom, useAtomValue, useSetAtom } from "jotai";
@@ -31,14 +30,12 @@ const pageNameAtom: PrimitiveAtom<PageName> = atom<PageName>("init");
 
 const InitPage = ({
     isCompact,
-    telemetryUpdateFn,
+    telemetryUpdateFn: _telemetryUpdateFn, // MORPHTERM-PATCH (#5): telemetry cannot be changed
 }: {
     isCompact: boolean;
     telemetryUpdateFn: (value: boolean) => Promise<void>;
 }) => {
-    const telemetrySetting = useSettingsKeyAtom("telemetry:enabled");
     const clientData = useAtomValue(ClientModel.getInstance().clientAtom);
-    const [telemetryEnabled, setTelemetryEnabled] = useState<boolean>(!!telemetrySetting);
     const setPageName = useSetAtom(pageNameAtom);
 
     const handleStarClick = async () => {
@@ -61,21 +58,10 @@ const InitPage = ({
         if (!clientData?.tosagreed) {
             fireAndForget(() => services.ClientService.AgreeTos());
         }
-        if (telemetryEnabled) {
-            WorkspaceLayoutModel.getInstance().setAIPanelVisible(true);
-        }
-        setPageName(telemetryEnabled ? "features" : "notelemetrystar");
+        // MORPHTERM-PATCH (#5): no telemetry choice, so no "star us" page, and the
+        // AI panel is not opened automatically (it needs a user-defined mode).
+        setPageName("features");
     };
-
-    const setTelemetry = (value: boolean) => {
-        fireAndForget(() =>
-            telemetryUpdateFn(value).then(() => {
-                setTelemetryEnabled(value);
-            })
-        );
-    };
-
-    const label = telemetryEnabled ? "Enabled" : "Disabled";
 
     return (
         <div className="flex flex-col h-full">
@@ -149,32 +135,13 @@ const InitPage = ({
                             </div>
                         </div>
                     </div>
+                    {/* MORPHTERM-PATCH (#5): no telemetry toggle; Morphterm sends no usage data. */}
                     <div className="flex w-full items-center gap-[18px]">
                         <div>
-                            <i className="text-[32px] text-white/50 fa-solid fa-chart-line"></i>
+                            <i className="text-[32px] text-white/50 fa-solid fa-shield-halved"></i>
                         </div>
                         <div className="flex flex-col items-start gap-1 flex-1">
-                            <div className="text-secondary leading-5">
-                                Anonymous usage data helps us improve features you use.
-                                <br />
-                                <a
-                                    className="text-secondary! hover:underline!"
-                                    target="_blank"
-                                    href="https://waveterm.dev/privacy"
-                                    rel="noopener"
-                                >
-                                    Privacy Policy
-                                </a>
-                            </div>
-                            <label className="flex items-center gap-2 cursor-pointer text-secondary">
-                                <input
-                                    type="checkbox"
-                                    checked={telemetryEnabled}
-                                    onChange={(e) => setTelemetry(e.target.checked)}
-                                    className="cursor-pointer accent-gray-500"
-                                />
-                                <span>{label}</span>
-                            </label>
+                            <div className="text-secondary leading-5">Morphterm sends no usage data.</div>
                         </div>
                     </div>
                 </div>
