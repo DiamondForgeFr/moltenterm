@@ -87,4 +87,38 @@ Use the `sf-workflow` skill CLI to check your current status and next steps:
 
 ## Development Commands
 
-Document this project's build, test, and lint commands here so the AI can validate its changes — SaaSFoundryAI does not manage this project's technical stack.
+Morphterm is a soft fork of Wave Terminal, so the toolchain and commands are Wave's. `UPSTREAM.md` holds the details and the upstream sync procedure.
+
+- **Toolchain:** Go ≥ 1.25.6, Task v3, Node 22 with npm 10.9.2, Zig (CGO builds on Linux and Windows only).
+- `task init`: install dependencies and generate code (first run, and after dependency changes).
+- `task dev`: run the app through the Vite dev server. The renderer hot-reloads; Electron main needs a restart; re-run the task to rebuild wavesrv. Dev mode uses the `waveterm-dev` configuration and data directories.
+- `task start` runs the app without the dev server; `task package` builds a distributable into `make/`.
+- **Validation:** `task check:ts` (TypeScript, frontend and Electron), `npx vitest run` (frontend unit tests), `go test ./cmd/... ./pkg/...` (backend). Run `task generate` after changing Go RPC types. Never call `go build` directly; use the Task targets.
+
+## Git remotes
+
+- `origin` is Morphterm. `upstream` is Wave Terminal, fetch-only, without tags.
+- `gh` resolves a remote named `upstream` before `origin`. Pin the default repository once per clone with `gh repo set-default DiamondForgeFr/morphterm`, otherwise ticket and PR commands target Wave's repository.
+
+## Codebase conventions (upstream Wave)
+
+Wave's own agent instructions stay in the repository and apply to its code. Where they disagree with the SaaSFoundryAI workflow above (tickets, branches, commits, output language), the workflow wins.
+
+@.kilocode/rules/rules.md
+
+---
+
+## Skill Guides
+
+This project uses a set of "skill" guides — focused how-to documents for common implementation tasks. When your task matches one of the descriptions below, **read the linked SKILL.md file before proceeding** and follow its instructions precisely.
+
+| Skill        | File                                     | Description                                                                                                                                                                                                                                 |
+| ------------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| add-config   | `.kilocode/skills/add-config/SKILL.md`   | Guide for adding new configuration settings to Wave Terminal. Use when adding a new setting to the configuration system, implementing a new config key, or adding user-customizable settings.                                               |
+| add-rpc      | `.kilocode/skills/add-rpc/SKILL.md`      | Guide for adding new RPC calls to Wave Terminal. Use when implementing new RPC commands, adding server-client communication methods, or extending the RPC interface with new functionality.                                                 |
+| add-wshcmd   | `.kilocode/skills/add-wshcmd/SKILL.md`   | Guide for adding new wsh commands to Wave Terminal. Use when implementing new CLI commands, adding command-line functionality, or extending the wsh command interface.                                                                      |
+| context-menu | `.kilocode/skills/context-menu/SKILL.md` | Guide for creating and displaying context menus in Wave Terminal. Use when implementing right-click menus, adding context menu items, creating submenus, or handling menu interactions with checkboxes and separators.                      |
+| create-view  | `.kilocode/skills/create-view/SKILL.md`  | Guide for implementing a new view type in Wave Terminal. Use when creating a new view component, implementing the ViewModel interface, registering a new view type in BlockRegistry, or adding a new content type to display within blocks. |
+| electron-api | `.kilocode/skills/electron-api/SKILL.md` | Guide for adding new Electron APIs to Wave Terminal. Use when implementing new frontend-to-electron communications via preload/IPC.                                                                                                         |
+| waveenv      | `.kilocode/skills/waveenv/SKILL.md`      | Guide for creating WaveEnv narrowings in Wave Terminal. Use when writing a named subset type of WaveEnv for a component tree, documenting environmental dependencies, or enabling mock environments for preview/test server usage.          |
+| wps-events   | `.kilocode/skills/wps-events/SKILL.md`   | Guide for working with Wave Terminal's WPS (Wave PubSub) event system. Use when implementing new event types, publishing events, subscribing to events, or adding asynchronous communication between components.                            |
