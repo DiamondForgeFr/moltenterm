@@ -27,7 +27,7 @@ import { AIPanelMessages } from "./aipanelmessages";
 import { AIRateLimitStrip } from "./airatelimitstrip";
 import { WaveUIMessage } from "./aitypes";
 import { BYOKAnnouncement } from "./byokannouncement";
-import { TelemetryRequiredMessage } from "./telemetryrequired";
+import { NoAIModeMessage } from "./morphterm-noaimode"; // MORPHTERM-PATCH (#5): replaces TelemetryRequiredMessage
 import { WaveAIModel } from "./waveai-model";
 
 const AIBlockMask = memo(() => {
@@ -262,16 +262,15 @@ const AIPanelComponentInner = memo(({ roundTopLeft }: AIPanelComponentInnerProps
     const showOverlayBlockNums = jotai.useAtomValue(getSettingsKeyAtom("app:showoverlayblocknums")) ?? true;
     const isFocused = jotai.useAtomValue(model.isWaveAIFocusedAtom);
     const focusFollowsCursorMode = jotai.useAtomValue(getSettingsKeyAtom("app:focusfollowscursor")) ?? "off";
-    const telemetryEnabled = jotai.useAtomValue(getSettingsKeyAtom("telemetry:enabled")) ?? false;
     const isPanelVisible = jotai.useAtomValue(model.getPanelVisibleAtom());
     const tabModel = useTabModelMaybe();
     const [tabBorderColor, tabActiveBorderColor] = useTabBackground(waveEnv, tabModel?.tabId);
-    const defaultMode = jotai.useAtomValue(getSettingsKeyAtom("waveai:defaultmode")) ?? "waveai@balanced";
     const aiModeConfigs = jotai.useAtomValue(model.aiModeConfigs);
 
+    // MORPHTERM-PATCH (#5): no Wave cloud modes and no telemetry gate. The panel
+    // works as soon as the user defines a mode of their own.
     const hasCustomModes = Object.keys(aiModeConfigs).some((key) => !key.startsWith("waveai@"));
-    const isUsingCustomMode = !defaultMode.startsWith("waveai@");
-    const allowAccess = telemetryEnabled || (hasCustomModes && isUsingCustomMode);
+    const allowAccess = hasCustomModes;
 
     const { messages, sendMessage, status, setMessages, error, stop } = useChat<WaveUIMessage>({
         transport: new DefaultChatTransport({
@@ -587,7 +586,7 @@ const AIPanelComponentInner = memo(({ roundTopLeft }: AIPanelComponentInnerProps
 
             <div key="main-content" className="flex-1 flex flex-col min-h-0">
                 {!allowAccess ? (
-                    <TelemetryRequiredMessage />
+                    <NoAIModeMessage />
                 ) : (
                     <>
                         {messages.length === 0 && initialLoadDone ? (
