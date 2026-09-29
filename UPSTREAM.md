@@ -76,6 +76,22 @@ file. Code that lives in new files is not listed.
 | `.gitignore` | Drops the `.claude` rule; ignores `.claude/settings.local.json` and `.env*.local` | The harness lives in `.claude/` and must stay tracked | #3 |
 | `CLAUDE.md` | Replaced by the harness instructions, which import Wave's rules | One entry point for agents | #3 |
 | `.github/workflows/*` (9 files), `.github/dependabot.yml`, `.github/FUNDING.yml`, `CNAME` | Deleted | They would build, publish, open pull requests or redirect on Morphterm's repository | #3 |
+| `pkg/wcloud/wcloud.go` | Endpoints always empty; dev mode no longer requires `WCLOUD_*` | Telemetry, no-telemetry and ping stop before any connection | #5 |
+| `pkg/telemetry/telemetry.go` | `IsTelemetryEnabled` always false | Telemetry is never uploaded | #5 |
+| `pkg/wconfig/settingsconfig.go` | `ReadFullConfig` forces `telemetry:enabled` off | A user setting cannot turn telemetry on; frontend and backend agree | #5 |
+| `pkg/aiusechat/uctypes/uctypes.go` | `DefaultAIEndpoint` empty | "wave" AI modes can never reach Wave's cloud proxy | #5 |
+| `pkg/aiusechat/usechat.go` | Error message for cloud modes | Points to user-defined providers instead of "enable telemetry" | #5 |
+| `pkg/wconfig/defaultconfig/settings.json` | Telemetry, auto-update and cloud modes off; no `waveai:defaultmode` | Defaults match the product (JSON, no marker) | #5 |
+| `pkg/wconfig/defaultconfig/waveai.json` | Emptied | No Wave cloud AI modes (JSON, no marker) | #5 |
+| `pkg/wconfig/defaultconfig/presets/ai.json` | `ai@wave` removed | No Wave proxy preset (JSON, no marker) | #5 |
+| `emain/updater.ts` | Updater never configured (`MorphtermUpdateFeedEnabled`) | No update check against Wave's feed | #5 |
+| `emain/emain-menu.ts` | "Check for Updates" removed | It polled Wave's feed even with auto-update off | #5 |
+| `electron-builder.config.cjs` | `publish: null` | No update feed in packaged builds | #5 |
+| `frontend/app/aipanel/aipanel.tsx` | Access depends on user-defined modes; "bring your own AI" screen | No telemetry gate, no Wave cloud modes | #5 |
+| `frontend/app/aipanel/waveai-model.tsx` | Default to the user's first mode | Instead of "unknown" when no default is set | #5 |
+| `frontend/app/onboarding/onboarding.tsx` | Telemetry toggle, opt-out page and AI panel auto-open removed | Morphterm sends no usage data | #5 |
+| `frontend/app/workspace/widgets.tsx` | "Help" item removed | It opened Wave's online docs | #5 |
+| `Taskfile.yml` | No `WCLOUD_*` or `WAVETERM_ENVFILE` in dev tasks | No Wave dev cloud; the SRS token in `.env` stays out of the app | #5 |
 
 ## Known upstream items
 
@@ -83,8 +99,9 @@ file. Code that lives in new files is not listed.
   not Apache-2.0. They are replaced by an openly licensed icon set in #6 (FR-FORK-004).
 - **Identity:** `emain/emain-platform.ts` hardcodes `waveterm` for the configuration and data directories, so a build of
   this repository shares them with an installed Wave. Fixed by #4 (FR-FORK-002).
-- **Outbound services:** auto-update from Wave's servers, Wave cloud and telemetry are still enabled. Fixed by #5
-  (FR-FORK-003).
+- **Outbound services:** resolved by #5 (FR-FORK-003). No update feed, no Wave cloud, no telemetry upload, and the Wave AI
+  panel runs only on user-defined modes. Events are still recorded locally (dormant), and "wave" mode definitions are
+  still parsed but always refused.
 - **Baseline failures inherited from v0.14.5** (unchanged on upstream `main` when #3 was merged):
   - `task check:ts` reports 17 errors, all in `frontend/preview/` (the component preview server's mocks lag behind the
     types: `ProcessInfo.numthreads`, `FullConfigType.version`/`buildtime`, `ElectronApi.getPathForFile`). The app and
@@ -93,9 +110,7 @@ file. Code that lives in new files is not listed.
     a one-line `WaveEventName` union while the generator (and the committed generated file) uses a multi-line union.
   - `package-lock.json` still says `0.14.5-beta.1`, so any `npm install` rewrites its version field. Leave that change
     uncommitted until #4 renames the package.
-- **Default content:** the first-run layout opens a web block on Wave's GitHub page and the Wave AI panel, which uses
-  Wave's cloud proxy by default. Addressed by #4 and #5.
-- **`task dev` environment:** `Taskfile.yml` points the dev build at Wave's development cloud (`WCLOUD_ENDPOINT`,
-  `WCLOUD_PING_ENDPOINT`) and loads the repository's `.env` into the app (`WAVETERM_ENVFILE`). That file holds the
-  SaaSFoundryAI SRS token, which then reaches every shell opened in the dev build. Also addressed by #5; until then, run
-  `npm run dev` directly with those variables overridden (see #3 for the command).
+- **Default content:** the first-run layout opens a web block on Wave's GitHub page, and onboarding still links to
+  Wave's GitHub and Discord. Addressed by #4 (the Wave AI panel no longer opens by default since #5).
+- **`task dev` environment:** resolved by #5. The dev tasks no longer set `WCLOUD_*` (Wave's development cloud) or
+  `WAVETERM_ENVFILE`, so the SRS token in `.env` stays out of the app.
