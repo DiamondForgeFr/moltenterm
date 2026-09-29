@@ -85,6 +85,16 @@ file. Code that lives in new files is not listed.
   this repository shares them with an installed Wave. Fixed by #4 (FR-FORK-002).
 - **Outbound services:** auto-update from Wave's servers, Wave cloud and telemetry are still enabled. Fixed by #5
   (FR-FORK-003).
+- **Baseline failures inherited from v0.14.5** (unchanged on upstream `main` when #3 was merged):
+  - `task check:ts` reports 17 errors, all in `frontend/preview/` (the component preview server's mocks lag behind the
+    types: `ProcessInfo.numthreads`, `FullConfigType.version`/`buildtime`, `ElectronApi.getPathForFile`). The app and
+    Electron code type-check.
+  - `go test ./cmd/... ./pkg/...`: 24 packages pass; `pkg/tsgen` `TestGenerateWaveEventTypes` fails because it expects
+    a one-line `WaveEventName` union while the generator (and the committed generated file) uses a multi-line union.
+  - `package-lock.json` still says `0.14.5-beta.1`, so any `npm install` rewrites its version field. Leave that change
+    uncommitted until #4 renames the package.
+- **Default content:** the first-run layout opens a web block on Wave's GitHub page and the Wave AI panel, which uses
+  Wave's cloud proxy by default. Addressed by #4 and #5.
 - **`task dev` environment:** `Taskfile.yml` points the dev build at Wave's development cloud (`WCLOUD_ENDPOINT`,
   `WCLOUD_PING_ENDPOINT`) and loads the repository's `.env` into the app (`WAVETERM_ENVFILE`). That file holds the
   SaaSFoundryAI SRS token, which then reaches every shell opened in the dev build. Also addressed by #5; until then, run
