@@ -37,11 +37,13 @@ code.
 | Quick checks | Always, drafts included | `node scripts/moltenterm-check-ledger.mjs`, `node scripts/moltenterm-check-icons.mjs` |
 | Frontend | Skipped on draft pull requests | `npm ci`, `npx tsc --noEmit` (the command behind `task check:ts`), `npx eslint . --quiet`, `npx vitest run`, `npm run build:prod` |
 | Backend | Skipped on draft pull requests | `go test ./cmd/... ./pkg/...`, `task build:backend` (Linux; wavesrv's CGO build uses Zig) |
-| Required gate | Always | Fails unless Quick checks passed and Frontend and Backend passed, or were skipped on a draft |
+| Required gate | Always; named "Draft gate" on drafts | Fails unless Quick checks passed and Frontend and Backend passed, or were skipped on a draft |
 
 Marking a draft pull request ready for review starts the full run, and returning it to draft cancels that run.
-"Required gate" is the one check a branch ruleset should require. Run the same commands locally before pushing: the
-ledger check reads the working tree, so it also sees uncommitted changes.
+"Required gate" is the one check a branch ruleset should require. A draft's run reports it as "Draft gate", so that a
+pull request just marked ready cannot satisfy the ruleset with its draft's result while the full run is still going.
+Run the same commands locally before pushing: the ledger check reads the working tree, so it also sees uncommitted
+changes.
 
 ## Remotes, once per clone
 
