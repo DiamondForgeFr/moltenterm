@@ -66,6 +66,21 @@ Never push Wave's tags: `git push` without `--tags`, and `tagOpt` keeps them out
 | `LICENSE` | Upstream's file (Apache-2.0). |
 | `.claude/`, `.agents/`, `.saasfoundry.json`, `AGENTS.md`, `GEMINI.md`, `MANIFESTO.md`, `UPSTREAM.md` | Moltenterm only; no upstream counterpart. |
 
+## Identity and rename procedure
+
+Moltenterm's identity lives in a few places, so renaming the product is a short, mechanical change:
+
+1. `frontend/util/moltenterm-identity.ts`: product names, window title, tagline, repository URL, directory base name and
+   the `MOLTENTERM_*` override variables.
+2. `pkg/wavebase/moltenterm_identity.go`: directory base name and repository URL for Go.
+3. `package.json`: `name`, `productName`, `description`, `homepage`, `build.appId` (then `npm install
+   --package-lock-only`).
+4. `build/moltenterm/`: `icon.svg` (source), `icon.png`, `icon.icns`, `deb-postinstall.tpl`; `public/logos/moltenterm-logo.png`;
+   `frontend/app/asset/logo.svg`.
+
+Everything else (directories, lock, socket, menus, About panel, permission prompts) derives from these. Changing
+`build.appId` or the directory name makes the OS treat the result as a new application, with fresh settings and data.
+
 ## Patch ledger
 
 Every change to a Wave file is listed here and, where the format allows comments, marked with `MOLTENTERM-PATCH` in the
@@ -92,13 +107,26 @@ file. Code that lives in new files is not listed.
 | `frontend/app/onboarding/onboarding.tsx` | Telemetry toggle, opt-out page and AI panel auto-open removed | Moltenterm sends no usage data | #5 |
 | `frontend/app/workspace/widgets.tsx` | "Help" item removed | It opened Wave's online docs | #5 |
 | `Taskfile.yml` | No `WCLOUD_*` or `WAVETERM_ENVFILE` in dev tasks | No Wave dev cloud; the SRS token in `.env` stays out of the app | #5 |
+| `package.json`, `package-lock.json` | Name, product name, description, homepage, author, `build.appId: fr.diamondforge.moltenterm` (JSON, no marker) | Moltenterm is its own application | #4 |
+| `emain/emain-platform.ts` | Directory and app names from `frontend/util/moltenterm-identity.ts`; user overrides read from `MOLTENTERM_*`; Electron `userData` moved to `<data>/electron` | Separate directories, lock and socket from Wave | #4 |
+| `pkg/wavebase/wavebase.go` | Cache directory from `MoltentermDirName` | Never Wave's cache | #4 |
+| `electron-builder.config.cjs` | Icons from `build/moltenterm/`, deb script path, permission prompts from the product name | Packaged builds carry Moltenterm's identity | #4 |
+| `frontend/wave.ts`, `index.html` | Window title | Moltenterm, not Wave Terminal | #4 |
+| `emain/emain-menu.ts` | "About Moltenterm" | Moltenterm's menu | #4 |
+| `frontend/app/modals/modalregistry.tsx` | Registers `moltenterm-about.tsx` as "AboutModal" | Moltenterm's About panel | #4 |
+| `frontend/app/asset/logo.svg` | Moltenterm mark | Used by About and onboarding | #4 |
+| `emain/emain-window.ts`, `emain/emain-builder.ts` | Linux window icon `public/logos/moltenterm-logo.png` | Moltenterm's icon | #4 |
+| `pkg/wcore/layout.go`, `pkg/wconfig/defaultconfig/settings.json` | Starter web block and default web URL point to the Moltenterm repository | No Wave page on first run | #4 |
+| `Taskfile.yml` | Dev helper tasks target `moltenterm-dev` directories | `dev:cleardata` and friends must not touch Wave's directories | #4 |
 
 ## Known upstream items
 
 - **Font Awesome Pro 6** files in `public/fontawesome/` and `docs/static/fontawesome/` are under a commercial licence,
   not Apache-2.0. They are replaced by an openly licensed icon set in #6 (FR-FORK-004).
-- **Identity:** `emain/emain-platform.ts` hardcodes `waveterm` for the configuration and data directories, so a build of
-  this repository shares them with an installed Wave. Fixed by #4 (FR-FORK-002).
+- **Identity:** resolved by #4 (FR-FORK-002). Still shared with Wave, on purpose or for later: `~/.waveterm` on remote
+  hosts reached over SSH or WSL (WSL uses a fixed socket there), `~/waveapps` (app builder only), `TERM_PROGRAM=waveterm`
+  (kept so that tools which detect Wave keep working), the `WAVETERM_*` variables that hand directories to wavesrv, and
+  the version number (0.14.5, Wave's) until Moltenterm's own numbering is decided.
 - **Outbound services:** resolved by #5 (FR-FORK-003). No update feed, no Wave cloud, no telemetry upload, and the Wave AI
   panel runs only on user-defined modes. Events are still recorded locally (dormant), and "wave" mode definitions are
   still parsed but always refused.
@@ -108,8 +136,6 @@ file. Code that lives in new files is not listed.
     Electron code type-check.
   - `go test ./cmd/... ./pkg/...`: 24 packages pass; `pkg/tsgen` `TestGenerateWaveEventTypes` fails because it expects
     a one-line `WaveEventName` union while the generator (and the committed generated file) uses a multi-line union.
-  - `package-lock.json` still says `0.14.5-beta.1`, so any `npm install` rewrites its version field. Leave that change
-    uncommitted until #4 renames the package.
 - **Default content:** the first-run layout opens a web block on Wave's GitHub page, and onboarding still links to
   Wave's GitHub and Discord. Addressed by #4 (the Wave AI panel no longer opens by default since #5).
 - **`task dev` environment:** resolved by #5. The dev tasks no longer set `WCLOUD_*` (Wave's development cloud) or
