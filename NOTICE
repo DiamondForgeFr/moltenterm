@@ -1,1 +1,13 @@
 Copyright 2025, Command Line Inc.
+
+Moltenterm
+Copyright 2026, DiamondForge
+
+Moltenterm is a fork of Wave Terminal (https://github.com/wavetermdev/waveterm), developed by
+Command Line Inc. and licensed under the Apache License, Version 2.0. The notice above is Wave
+Terminal's and is kept as the licence requires. Moltenterm is an independent project and is not
+affiliated with, sponsored by or endorsed by Command Line Inc.
+
+This product bundles Font Awesome Free 6.7.2 by Fonticons, Inc. (https://fontawesome.com):
+icons under CC BY 4.0, fonts under the SIL Open Font License 1.1, code under the MIT License.
+See public/fontawesome-free/LICENSE.txt.
