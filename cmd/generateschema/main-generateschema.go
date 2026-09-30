@@ -122,6 +122,9 @@ func allowNullValues(schema *jsonschema.Schema) {
 
 func generateSchema(template any, dir string, allowNull bool) error {
 	settingsSchema := jsonschema.Reflect(template)
+	if dir == WaveSchemaSettingsFileName { // MOLTENTERM-PATCH (#25): no AI settings offered
+		moltentermDropAISettings(settingsSchema)
+	}
 	if allowNull {
 		allowNullValues(settingsSchema)
 	}
