@@ -17,6 +17,7 @@ import {
     MoltentermDirName,
     MoltentermHomeVarName,
     MoltentermProductName,
+    MoltentermRepoUrl,
 } from "../frontend/util/moltenterm-identity";
 
 // This is a little trick to ensure that Electron puts all its runtime data into a subdirectory to avoid conflicts with our own data.
@@ -61,8 +62,9 @@ export function checkIfRunningUnderARM64Translation(fullConfig: FullConfigType) 
         const dialogOpts: Electron.MessageBoxOptions = {
             type: "warning",
             buttons: ["Dismiss", "Learn More"],
-            title: "Wave has detected a performance issue",
-            message: `Wave is running in ARM64 translation mode which may impact performance.\n\nRecommendation: Download the native ARM64 version from our website for optimal performance.`,
+            // MOLTENTERM-PATCH (#6): product name and Moltenterm's download advice.
+            title: `${MoltentermProductName} has detected a performance issue`,
+            message: `${MoltentermProductName} is running in ARM64 translation mode which may impact performance.\n\nRecommendation: install the native ARM64 build of ${MoltentermProductName} for optimal performance.`,
         };
 
         const choice = dialog.showMessageBoxSync(null, dialogOpts);
@@ -70,9 +72,7 @@ export function checkIfRunningUnderARM64Translation(fullConfig: FullConfigType) 
             // Open the documentation URL
             console.log("User chose to learn more");
             fireAndForget(() =>
-                shell.openExternal(
-                    "https://docs.waveterm.dev/faq#why-does-wave-warn-me-about-arm64-translation-when-it-launches"
-                )
+                shell.openExternal(MoltentermRepoUrl) // MOLTENTERM-PATCH (#6)
             );
             throw new Error("User redirected to docsite to learn more about ARM64 translation, exiting");
         } else {

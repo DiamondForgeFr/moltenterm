@@ -5,7 +5,8 @@ import { Tooltip } from "@/app/element/tooltip";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { useWaveEnv, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import { shouldIncludeWidgetForWorkspace } from "@/app/workspace/widgetfilter";
-import { modalsModel } from "@/store/modalmodel";
+// MOLTENTERM-PATCH (#6): modalsModel import removed with the "Release Notes" item.
+import { MoltentermProductName } from "@/util/moltenterm-identity";
 import { fireAndForget, isBlank, makeIconClass } from "@/util/util";
 import {
     autoUpdate,
@@ -314,14 +315,7 @@ const SettingsFloatingWindow = memo(
                     onClose();
                 },
             },
-            {
-                icon: "book-open",
-                label: "Release Notes",
-                onClick: () => {
-                    modalsModel.pushModal("UpgradeOnboardingPatch", { isReleaseNotes: true });
-                    onClose();
-                },
-            },
+            // MOLTENTERM-PATCH (#6): no "Release Notes" item; it showed Wave Terminal's release notes.
             // MOLTENTERM-PATCH (#5): no "Help" item; it opened Wave's online docs
             // (docs.waveterm.dev). It comes back when Moltenterm has docs of its own.
         ];
@@ -551,7 +545,7 @@ const Widgets = memo(() => {
                 {env.isDev() ? (
                     <div
                         className="flex justify-center items-center w-full py-1 text-accent text-[30px]"
-                        title="Running Wave Dev Build"
+                        title={`Running ${MoltentermProductName} Dev Build`} // MOLTENTERM-PATCH (#6)
                     >
                         <i className="fa fa-brands fa-dev fa-fw" />
                     </div>
@@ -598,7 +592,7 @@ const Widgets = memo(() => {
                 {env.isDev() ? (
                     <div
                         className="flex justify-center items-center w-full py-1 text-accent text-[30px]"
-                        title="Running Wave Dev Build"
+                        title={`Running ${MoltentermProductName} Dev Build`} // MOLTENTERM-PATCH (#6)
                     >
                         <i className="fa fa-brands fa-dev fa-fw" />
                     </div>

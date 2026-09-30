@@ -14,6 +14,7 @@ import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import * as services from "@/store/services";
+import { MoltentermProductName, MoltentermRepoUrl } from "@/util/moltenterm-identity"; // MOLTENTERM-PATCH (#6)
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
@@ -71,7 +72,10 @@ const InitPage = ({
                 <div className={`${isCompact ? "" : "mb-2.5"} flex justify-center`}>
                     <Logo />
                 </div>
-                <div className="text-center text-[25px] font-normal text-foreground">Welcome to Wave Terminal</div>
+                <div className="text-center text-[25px] font-normal text-foreground">
+                    {/* MOLTENTERM-PATCH (#6) */}
+                    Welcome to {MoltentermProductName}
+                </div>
             </header>
             <OverlayScrollbarsComponent
                 className="flex-1 overflow-y-auto min-h-0"
@@ -82,7 +86,7 @@ const InitPage = ({
                         <div>
                             <a
                                 target="_blank"
-                                href="https://github.com/wavetermdev/waveterm?ref=install"
+                                href={MoltentermRepoUrl}
                                 rel="noopener"
                                 className="text-accent"
                                 onClick={handleStarClick}
@@ -91,50 +95,23 @@ const InitPage = ({
                             </a>
                         </div>
                         <div className="flex flex-col items-start gap-1 flex-1">
-                            <div className="text-foreground text-base leading-[18px]">Support us on GitHub</div>
+                            {/* MOLTENTERM-PATCH (#6): Moltenterm's repository instead of Wave's */}
+                            <div className="text-foreground text-base leading-[18px]">Moltenterm is open source</div>
                             <div className="text-secondary leading-5">
-                                We're <i>open source</i>, <i>open-model</i>, and committed to providing a free terminal
-                                for individual users. Please show your support by giving us a star on{" "}
+                                Follow the project, report bugs and share ideas on{" "}
                                 <a
                                     target="_blank"
-                                    href="https://github.com/wavetermdev/waveterm?ref=install"
+                                    href={MoltentermRepoUrl}
                                     rel="noopener"
                                     className="text-accent"
                                     onClick={handleStarClick}
                                 >
-                                    Github&nbsp;(wavetermdev/waveterm)
+                                    GitHub&nbsp;(DiamondForgeFr/moltenterm)
                                 </a>
                             </div>
                         </div>
                     </div>
-                    <div className="flex w-full items-center gap-[18px]">
-                        <div>
-                            <a
-                                target="_blank"
-                                href="https://discord.gg/XfvZ334gwU"
-                                rel="noopener"
-                                className="text-accent"
-                            >
-                                <i className="text-[25px] text-white/50 fa-solid fa-people-group"></i>
-                            </a>
-                        </div>
-                        <div className="flex flex-col items-start gap-1 flex-1">
-                            <div className="text-foreground text-base leading-[18px]">Join our Community</div>
-                            <div className="text-secondary leading-5">
-                                Get help, submit feature requests, report bugs, or just chat with fellow terminal
-                                enthusiasts.
-                                <br />
-                                <a
-                                    target="_blank"
-                                    href="https://discord.gg/XfvZ334gwU"
-                                    rel="noopener"
-                                    className="text-accent"
-                                >
-                                    Join the Wave&nbsp;Discord&nbsp;Channel
-                                </a>
-                            </div>
-                        </div>
-                    </div>
+                    {/* MOLTENTERM-PATCH (#6): no row for Wave's Discord community */}
                     {/* MOLTENTERM-PATCH (#5): no telemetry toggle; Moltenterm sends no usage data. */}
                     <div className="flex w-full items-center gap-[18px]">
                         <div>

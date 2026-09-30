@@ -9,6 +9,7 @@ import { useState } from "react";
 import { CurrentOnboardingVersion } from "./onboarding-common";
 import { OnboardingFooter } from "./onboarding-features-footer";
 import { TailDeployLogCommand } from "./onboarding-layout-term";
+import { MoltentermProductName } from "@/util/moltenterm-identity"; // MOLTENTERM-PATCH (#6)
 
 export const DurableSessionPage = ({
     onNext,
@@ -51,7 +52,7 @@ export const DurableSessionPage = ({
                         </div>
 
                         <div className="flex flex-col items-start gap-4 text-secondary">
-                            <p>Close your laptop, switch networks, restart Wave — your remote sessions keep running.</p>
+                            <p>Close your laptop, switch networks, restart {MoltentermProductName} — your remote sessions keep running.</p>
 
                             <div className="flex items-start gap-3 w-full">
                                 <i className="fa-sharp fa-solid fa-link text-accent text-lg mt-1 flex-shrink-0" />

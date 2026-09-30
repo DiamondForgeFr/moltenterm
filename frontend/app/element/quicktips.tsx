@@ -4,6 +4,7 @@
 import { MagnifyIcon } from "@/app/element/magnify";
 import { PLATFORM, PlatformMacOS } from "@/util/platformutil";
 import { cn } from "@/util/util";
+import { MoltentermRepoUrl } from "@/util/moltenterm-identity"; // MOLTENTERM-PATCH (#6)
 
 const KeyCap = ({ children }: { children: React.ReactNode }) => {
     return (
@@ -284,15 +285,16 @@ const QuickTips = () => {
                 <div className="grid grid-cols-1 @sm:grid-cols-2 gap-2">
                     <div className="flex items-center gap-3 p-3 rounded-md bg-black/20 hover:bg-black/30 transition-colors cursor-pointer">
                         <IconBox variant="secondary">
-                            <i className="fa-brands fa-discord fa-fw" />
+                            {/* MOLTENTERM-PATCH (#6): Moltenterm's repository instead of Wave's Discord */}
+                            <i className="fa-brands fa-github fa-fw" />
                         </IconBox>
                         <a
                             target="_blank"
-                            href="https://discord.gg/XfvZ334gwU"
+                            href={MoltentermRepoUrl}
                             rel="noopener"
                             className="hover:text-accent-400 hover:underline transition-colors font-medium"
                         >
-                            Join Our Discord
+                            Moltenterm on GitHub
                         </a>
                     </div>
                     <div className="flex items-center gap-3 p-3 rounded-md bg-black/20 hover:bg-black/30 transition-colors cursor-pointer">

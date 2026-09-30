@@ -8,6 +8,7 @@ import { globalEvents } from "emain/emain-events";
 import { sprintf } from "sprintf-js";
 import * as services from "../frontend/app/store/services";
 import { initElectronWshrpc, shutdownWshrpc } from "../frontend/app/store/wshrpcutil-base";
+import { MoltentermProductName } from "../frontend/util/moltenterm-identity"; // MOLTENTERM-PATCH (#6)
 import { fireAndForget, sleep } from "../frontend/util/util";
 import { AuthKey, configureAuthKeyRequestInjection } from "./authkey";
 import {
@@ -279,7 +280,7 @@ electronApp.on("before-quit", (e) => {
             type: "question",
             buttons: ["Cancel", "Quit"],
             title: "Confirm Quit",
-            message: "Are you sure you want to quit Wave Terminal?",
+            message: `Are you sure you want to quit ${MoltentermProductName}?`, // MOLTENTERM-PATCH (#6)
             defaultId: 0,
             cancelId: 0,
         });
