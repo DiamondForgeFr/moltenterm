@@ -21,4 +21,6 @@ export const DefaultFullConfig: FullConfigType = {
     waveai: waveaiJson as unknown as { [key: string]: AIModeConfigType },
     backgrounds: backgroundsJson as { [key: string]: BackgroundConfigType },
     configerrors: [],
+    version: "", // MOLTENTERM-PATCH (#7): the mock lagged behind FullConfigType
+    buildtime: "", // MOLTENTERM-PATCH (#7)
 };
