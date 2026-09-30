@@ -29,6 +29,7 @@ import { WaveUIMessage } from "./aitypes";
 import { BYOKAnnouncement } from "./byokannouncement";
 import { NoAIModeMessage } from "./moltenterm-noaimode"; // MOLTENTERM-PATCH (#5): replaces TelemetryRequiredMessage
 import { WaveAIModel } from "./waveai-model";
+import { MoltentermRepoUrl } from "@/util/moltenterm-identity"; // MOLTENTERM-PATCH (#6)
 
 const AIBlockMask = memo(() => {
     return (
@@ -156,17 +157,18 @@ const AIWelcomeMessage = memo(() => {
                         </div>
                         <div className="flex items-start gap-3">
                             <div className="w-4 text-center flex-shrink-0">
-                                <i className="fa-brands fa-discord text-accent"></i>
+                                {/* MOLTENTERM-PATCH (#6): Moltenterm's issues instead of Wave's Discord */}
+                                <i className="fa-brands fa-github text-accent"></i>
                             </div>
                             <div>
                                 Questions or feedback?{" "}
                                 <a
                                     target="_blank"
-                                    href="https://discord.gg/XfvZ334gwU"
+                                    href={`${MoltentermRepoUrl}/issues`}
                                     rel="noopener"
                                     className="text-accent hover:underline cursor-pointer"
                                 >
-                                    Join our Discord
+                                    Open an issue on GitHub
                                 </a>
                             </div>
                         </div>
