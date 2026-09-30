@@ -93,7 +93,8 @@ Moltenterm is a soft fork of Wave Terminal, so the toolchain and commands are Wa
 - `task init`: install the npm dependencies (app and docs site) and tidy the Go modules (first run, and after dependency changes).
 - `task dev`: run the app through the Vite dev server. The renderer hot-reloads; Electron main needs a restart; re-run the task to rebuild wavesrv. Dev mode uses the `waveterm-dev` configuration and data directories.
 - `task start` runs the app without the dev server; `task package` builds a distributable into `make/`.
-- **Validation:** `task check:ts` (TypeScript, frontend and Electron), `npx vitest run` (frontend unit tests), `go test ./cmd/... ./pkg/...` (backend). Run `task generate` after changing Go RPC types. Never call `go build` directly; use the Task targets.
+- **Validation:** `task check:ts` (TypeScript, frontend and Electron), `npx vitest run` (frontend unit tests), `go test ./cmd/... ./pkg/...` (backend), `node scripts/moltenterm-check-ledger.mjs` (every changed Wave file is ledgered and marked). Run `task generate` after changing Go RPC types. Never call `go build` directly; use the Task targets.
+- **CI:** `.github/workflows/ci.yml` runs these checks, ESLint and the builds on pull requests; drafts get only the quick checks (see `UPSTREAM.md`, "Continuous integration").
 
 ## Git remotes
 

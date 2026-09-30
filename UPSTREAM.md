@@ -26,6 +26,22 @@ code.
 | `npx vitest run`                    | Frontend unit tests.                                                                  |
 | `go test ./cmd/... ./pkg/...`       | Backend tests.                                                                        |
 | `task generate`                     | Regenerate TypeScript bindings after changing Go RPC types.                           |
+| `node scripts/moltenterm-check-ledger.mjs` | Check the patch ledger against the last merged Wave release.                   |
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request to `develop` or `main` and on every push to them.
+
+| Job | When | Steps |
+| --- | --- | --- |
+| Quick checks | Always, drafts included | `node scripts/moltenterm-check-ledger.mjs`, `node scripts/moltenterm-check-icons.mjs` |
+| Frontend | Skipped on draft pull requests | `npm ci`, `npx tsc --noEmit` (the command behind `task check:ts`), `npx eslint . --quiet`, `npx vitest run`, `npm run build:prod` |
+| Backend | Skipped on draft pull requests | `go test ./cmd/... ./pkg/...`, `task build:backend` (Linux; wavesrv's CGO build uses Zig) |
+| Required gate | Always | Fails unless Quick checks passed and Frontend and Backend passed, or were skipped on a draft |
+
+Marking a draft pull request ready for review starts the full run, and returning it to draft cancels that run.
+"Required gate" is the one check a branch ruleset should require. Run the same commands locally before pushing: the
+ledger check reads the working tree, so it also sees uncommitted changes.
 
 ## Remotes, once per clone
 
@@ -51,11 +67,25 @@ gh repo set-default DiamondForgeFr/moltenterm
 5. Validate: `task init`, `node scripts/moltenterm-check-icons.mjs` (Wave targets Font Awesome Pro: any new Pro-only
    icon must get an alias in `public/moltenterm-icons.css`), `task check:ts`, `npx vitest run`,
    `go test ./cmd/... ./pkg/...`, then `task dev`.
-6. Update the "Current base" table and the patch ledger.
+6. Update the "Current base" table, then the patch ledger until `node scripts/moltenterm-check-ledger.mjs` passes: it
+   names every Wave file Moltenterm still changes without an entry or a marker, and every entry the new release made
+   pointless.
 7. Open the pull request to `develop` and merge it with a **merge commit**. Never squash or rebase: both drop Wave's
    history and make every later merge a conflict.
 
 Never push Wave's tags: `git push` without `--tags`, and `tagOpt` keeps them out of the local repository.
+
+## Merge methods
+
+| Pull request | Method |
+| --- | --- |
+| Moltenterm features and fixes into `develop` | Rebase or squash |
+| Wave release merges into `develop` | Merge commit only |
+| Releases `develop` → `main` | Merge commit (or fast-forward), never rebase or squash |
+
+Rebasing or squashing a branch that carries Wave's history rewrites its commits, and every later upstream merge then
+conflicts. Never rebase locally a branch that contains an upstream merge. On `main`, a ruleset accepts changes through
+pull requests only and allows merge commits only (repository admins can bypass it).
 
 ## Files Moltenterm owns
 
