@@ -8,7 +8,7 @@ interface NoAIModeMessageProps {
     className?: string;
 }
 
-// Replaces Wave's "telemetry required" screen: Morphterm ships no AI of its own,
+// Replaces Wave's "telemetry required" screen: Moltenterm ships no AI of its own,
 // so the panel waits for a mode that the user defines in waveai.json.
 const NoAIModeMessage = ({ className }: NoAIModeMessageProps) => {
     return (
@@ -20,7 +20,7 @@ const NoAIModeMessage = ({ className }: NoAIModeMessageProps) => {
                         <i className="fa fa-sparkles text-accent text-5xl"></i>
                         <h2 className="text-2xl font-semibold text-foreground">Bring your own AI</h2>
                         <p className="text-secondary leading-relaxed">
-                            Morphterm ships no AI model and sends nothing to a cloud of its own. Add a mode that uses
+                            Moltenterm ships no AI model and sends nothing to a cloud of its own. Add a mode that uses
                             your own provider key or a local model (Ollama, LM Studio…) to waveai.json, and this panel
                             will use it.
                         </p>

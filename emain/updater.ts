@@ -224,17 +224,17 @@ ipcMain.on("get-updater-channel", (event) => {
 
 let autoUpdateLock = false;
 
-// MORPHTERM-PATCH (#5): flip once Morphterm publishes its own update feed.
-const MorphtermUpdateFeedEnabled = false;
+// MOLTENTERM-PATCH (#5): flip once Moltenterm publishes its own update feed.
+const MoltentermUpdateFeedEnabled = false;
 
 /**
  * Configures the auto-updater based on the user's preference
  */
 export async function configureAutoUpdater() {
-    // MORPHTERM-PATCH (#5): Morphterm has no update feed yet and must never poll
+    // MOLTENTERM-PATCH (#5): Moltenterm has no update feed yet and must never poll
     // Wave's, so the updater is never configured, in any build.
-    if (!MorphtermUpdateFeedEnabled) {
-        console.log("auto-updater disabled: Morphterm has no update feed");
+    if (!MoltentermUpdateFeedEnabled) {
+        console.log("auto-updater disabled: Moltenterm has no update feed");
         return;
     }
     if (isDev()) {

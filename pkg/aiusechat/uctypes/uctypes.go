@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// MORPHTERM-PATCH (#5): no default endpoint, so a "wave" mode can never reach
+// MOLTENTERM-PATCH (#5): no default endpoint, so a "wave" mode can never reach
 // Wave's cloud proxy. Users bring their own provider or local model.
 const DefaultAIEndpoint = ""
 const WaveAIEndpointEnvName = "WAVETERM_WAVEAI_ENDPOINT"

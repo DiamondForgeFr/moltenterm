@@ -1,10 +1,10 @@
-# morphterm
+# moltenterm
 
 AI-assisted workflow harness installed by SaaSFoundryAI (CLI v1.0.0). This project keeps its own technical stack — SaaSFoundryAI only manages the AI collaboration layer (workflow, skills, SRS).
 
 ## Product vision
 
-Read `MANIFESTO.md` before proposing features or architecture: it defines what Morphterm is, its principles (non-negotiables), its non-goals and its roadmap phases.
+Read `MANIFESTO.md` before proposing features or architecture: it defines what Moltenterm is, its principles (non-negotiables), its non-goals and its roadmap phases.
 
 ## 🧭 Preconditions first (read before asking questions)
 
@@ -87,7 +87,7 @@ Use the `sf-workflow` skill CLI to check your current status and next steps:
 
 ## Development Commands
 
-Morphterm is a soft fork of Wave Terminal, so the toolchain and commands are Wave's. `UPSTREAM.md` holds the details and the upstream sync procedure.
+Moltenterm is a soft fork of Wave Terminal, so the toolchain and commands are Wave's. `UPSTREAM.md` holds the details and the upstream sync procedure.
 
 - **Toolchain:** Go ≥ 1.25.6, Task v3, Node 22 with npm 10.9.2, Zig (CGO builds on Linux and Windows only).
 - `task init`: install the npm dependencies (app and docs site) and tidy the Go modules (first run, and after dependency changes).
@@ -97,8 +97,8 @@ Morphterm is a soft fork of Wave Terminal, so the toolchain and commands are Wav
 
 ## Git remotes
 
-- `origin` is Morphterm. `upstream` is Wave Terminal, fetch-only, without tags.
-- `gh` resolves a remote named `upstream` before `origin`. Pin the default repository once per clone with `gh repo set-default DiamondForgeFr/morphterm`, otherwise ticket and PR commands target Wave's repository.
+- `origin` is Moltenterm. `upstream` is Wave Terminal, fetch-only, without tags.
+- `gh` resolves a remote named `upstream` before `origin`. Pin the default repository once per clone with `gh repo set-default DiamondForgeFr/moltenterm`, otherwise ticket and PR commands target Wave's repository.
 
 ## Codebase conventions (upstream Wave)
 

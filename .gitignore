@@ -43,8 +43,8 @@ docsite/
 .superpowers
 docs/superpowers
 
-# MORPHTERM-PATCH: upstream ignores `.claude`, which holds the SaaSFoundryAI
-# harness in Morphterm. Only local, per-developer files are ignored here.
+# MOLTENTERM-PATCH: upstream ignores `.claude`, which holds the SaaSFoundryAI
+# harness in Moltenterm. Only local, per-developer files are ignored here.
 .claude/settings.local.json
 .env.local
 .env*.local

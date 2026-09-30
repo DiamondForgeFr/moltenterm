@@ -27,7 +27,7 @@ import { AIPanelMessages } from "./aipanelmessages";
 import { AIRateLimitStrip } from "./airatelimitstrip";
 import { WaveUIMessage } from "./aitypes";
 import { BYOKAnnouncement } from "./byokannouncement";
-import { NoAIModeMessage } from "./morphterm-noaimode"; // MORPHTERM-PATCH (#5): replaces TelemetryRequiredMessage
+import { NoAIModeMessage } from "./moltenterm-noaimode"; // MOLTENTERM-PATCH (#5): replaces TelemetryRequiredMessage
 import { WaveAIModel } from "./waveai-model";
 
 const AIBlockMask = memo(() => {
@@ -267,7 +267,7 @@ const AIPanelComponentInner = memo(({ roundTopLeft }: AIPanelComponentInnerProps
     const [tabBorderColor, tabActiveBorderColor] = useTabBackground(waveEnv, tabModel?.tabId);
     const aiModeConfigs = jotai.useAtomValue(model.aiModeConfigs);
 
-    // MORPHTERM-PATCH (#5): no Wave cloud modes and no telemetry gate. The panel
+    // MOLTENTERM-PATCH (#5): no Wave cloud modes and no telemetry gate. The panel
     // works as soon as the user defines a mode of their own.
     const hasCustomModes = Object.keys(aiModeConfigs).some((key) => !key.startsWith("waveai@"));
     const allowAccess = hasCustomModes;

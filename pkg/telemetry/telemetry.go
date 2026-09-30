@@ -95,7 +95,7 @@ func (tdata *TelemetryData) Scan(val interface{}) error {
 	return dbutil.QuickScanJson(tdata, val)
 }
 
-// MORPHTERM-PATCH (#5): usage telemetry cannot be enabled, whatever the settings
+// MOLTENTERM-PATCH (#5): usage telemetry cannot be enabled, whatever the settings
 // say. Events may still be recorded locally, but they are never uploaded.
 func IsTelemetryEnabled() bool {
 	return false

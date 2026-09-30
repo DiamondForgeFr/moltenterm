@@ -699,7 +699,7 @@ func ReadFullConfig() FullConfigType {
 			utilfn.ReUnmarshal(fieldPtr, configPart)
 		}
 	}
-	// MORPHTERM-PATCH (#5): telemetry cannot be turned on, even from a user's
+	// MOLTENTERM-PATCH (#5): telemetry cannot be turned on, even from a user's
 	// settings.json, so the frontend and the backend always agree it is off.
 	fullConfig.Settings.TelemetryEnabled = false
 	fullConfig.Version = wavebase.WaveVersion

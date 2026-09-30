@@ -45,7 +45,7 @@ const NoTelemetryUrl = "/no-telemetry"
 const WebShareUpdateUrl = "/auth/web-share-update"
 const PingUrl = "/ping"
 
-// MORPHTERM-PATCH (#5): Morphterm never contacts Wave's cloud. Both endpoints are
+// MOLTENTERM-PATCH (#5): Moltenterm never contacts Wave's cloud. Both endpoints are
 // empty in every build mode, so telemetry, no-telemetry and ping requests stop
 // before any connection is made. The endpoint variables are still removed from
 // the environment, but dev mode no longer requires them.

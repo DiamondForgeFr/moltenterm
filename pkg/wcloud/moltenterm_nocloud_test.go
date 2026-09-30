@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// Morphterm never contacts Wave's cloud (FR-FORK-003): the endpoints stay empty
+// Moltenterm never contacts Wave's cloud (FR-FORK-003): the endpoints stay empty
 // even when the historical environment variables point somewhere.
 func TestNoWaveCloudEndpoints(t *testing.T) {
 	t.Setenv(WCloudEndpointVarName, "https://api.example.invalid/central")

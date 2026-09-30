@@ -25,7 +25,7 @@ tasks:
             - build:backend
             - build:tsunamiscaffold
         env:
-            # MORPHTERM-PATCH (#5): no WCLOUD_* (Wave's dev cloud) and no WAVETERM_ENVFILE (.env holds the SRS token).
+            # MOLTENTERM-PATCH (#5): no WCLOUD_* (Wave's dev cloud) and no WAVETERM_ENVFILE (.env holds the SRS token).
             WAVETERM_NOCONFIRMQUIT: "1"
 
     electron:start:
@@ -36,7 +36,7 @@ tasks:
         deps:
             - npm:install
             - build:backend
-        # MORPHTERM-PATCH (#5): no WCLOUD_* (Wave's dev cloud) and no WAVETERM_ENVFILE (.env holds the SRS token).
+        # MOLTENTERM-PATCH (#5): no WCLOUD_* (Wave's dev cloud) and no WAVETERM_ENVFILE (.env holds the SRS token).
 
     electron:quickdev:
         desc: Run the Electron application via the Vite dev server (quick dev - no docsite, arm64 only, no generate, no wsh).
@@ -45,7 +45,7 @@ tasks:
             - npm:install
             - build:backend:quickdev
         env:
-            # MORPHTERM-PATCH (#5): no WCLOUD_* (Wave's dev cloud) and no WAVETERM_ENVFILE (.env holds the SRS token).
+            # MOLTENTERM-PATCH (#5): no WCLOUD_* (Wave's dev cloud) and no WAVETERM_ENVFILE (.env holds the SRS token).
             WAVETERM_NOCONFIRMQUIT: "1"
 
     preview:
@@ -68,7 +68,7 @@ tasks:
         deps:
             - npm:install
             - build:backend:quickdev:windows
-        # MORPHTERM-PATCH (#5): no WCLOUD_* (Wave's dev cloud) and no WAVETERM_ENVFILE (.env holds the SRS token).
+        # MOLTENTERM-PATCH (#5): no WCLOUD_* (Wave's dev cloud) and no WAVETERM_ENVFILE (.env holds the SRS token).
 
     docs:npm:install:
         desc: Runs `npm install` in docs directory

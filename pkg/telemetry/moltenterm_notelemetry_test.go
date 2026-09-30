@@ -5,7 +5,7 @@ package telemetry
 
 import "testing"
 
-// Morphterm never uploads usage telemetry (FR-FORK-003).
+// Moltenterm never uploads usage telemetry (FR-FORK-003).
 func TestTelemetryIsAlwaysDisabled(t *testing.T) {
 	if IsTelemetryEnabled() {
 		t.Fatalf("IsTelemetryEnabled must always report false")
