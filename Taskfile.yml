@@ -422,6 +422,7 @@ tasks:
         cmd: |
             wingetcreate update {{.WINGET_PACKAGE}} -s -v {{.UP_VERSION}} -u "https://{{.RELEASES_BUCKET}}/{{.APP_NAME}}-win32-x64-{{.UP_VERSION}}.msi" -t {{.GITHUB_TOKEN}}
 
+    # MOLTENTERM-PATCH (#4): dev helper tasks target Moltenterm's dev directories (moltenterm-dev).
     dev:installwsh:
         desc: quick shortcut to rebuild wsh and install for macos arm64
         requires:
@@ -432,14 +433,14 @@ tasks:
               vars:
                   GOOS: darwin
                   GOARCH: arm64
-            - cp dist/bin/wsh-{{.VERSION}}-darwin.arm64 ~/Library/Application\ Support/waveterm-dev/bin/wsh
+            - cp dist/bin/wsh-{{.VERSION}}-darwin.arm64 ~/Library/Application\ Support/moltenterm-dev/bin/wsh
 
     dev:clearconfig:
-        desc: Clear the config directory for waveterm-dev
-        cmd: "{{.RMRF}} ~/.config/waveterm-dev"
+        desc: Clear the config directory for moltenterm-dev
+        cmd: "{{.RMRF}} ~/.config/moltenterm-dev"
 
     dev:cleardata:
-        desc: Clear the data directory for waveterm-dev
+        desc: Clear the data directory for moltenterm-dev
         cmds:
             - task: dev:cleardata:windows
             - task: dev:cleardata:linux
@@ -461,17 +462,17 @@ tasks:
     dev:cleardata:windows:
         internal: true
         platforms: [windows]
-        cmd: '{{.RMRF}} %LOCALAPPDATA%\waveterm-dev\Data'
+        cmd: '{{.RMRF}} %LOCALAPPDATA%\moltenterm-dev\Data'
 
     dev:cleardata:linux:
         internal: true
         platforms: [linux]
-        cmd: "rm -rf ~/.local/share/waveterm-dev"
+        cmd: "rm -rf ~/.local/share/moltenterm-dev"
 
     dev:cleardata:macos:
         internal: true
         platforms: [darwin]
-        cmd: 'rm -rf ~/Library/Application\ Support/waveterm-dev'
+        cmd: 'rm -rf ~/Library/Application\ Support/moltenterm-dev'
 
     npm:install:
         desc: Runs `npm install`
