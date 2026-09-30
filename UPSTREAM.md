@@ -132,6 +132,8 @@ file. Code that lives in new files is not listed.
 | `frontend/app/onboarding/onboarding-durable.tsx`, `onboarding-command.tsx` | Product name; the demo shows the Moltenterm logo | Same | #6 |
 | `frontend/app/element/quicktips.tsx`, `frontend/app/aipanel/aipanel.tsx` | Discord links replaced by Moltenterm's GitHub | Same | #6 |
 | `tsunami/frontend/public/wave-logo-256.png` | Image replaced by the Moltenterm logo (binary, no marker) | Waveapp favicon | #6 |
+| `frontend/preview/mock/defaultconfig.ts`, `frontend/preview/mock/preview-electron-api.ts`, `frontend/preview/previews/processviewer.preview.tsx` | Mocks completed: `version`, `buildtime`, `getPathForFile`, `numthreads` | They lagged behind the types, so `task check:ts` failed on v0.14.5 | #7 |
+| `pkg/tsgen/tsgenevent_test.go` | Expects the multi-line `WaveEventName` union | The generator and the committed `frontend/types/waveevent.d.ts` use it; the test failed on v0.14.5 | #7 |
 
 ## Known upstream items
 
@@ -148,12 +150,10 @@ file. Code that lives in new files is not listed.
 - **Outbound services:** resolved by #5 (FR-FORK-003). No update feed, no Wave cloud, no telemetry upload, and the Wave AI
   panel runs only on user-defined modes. Events are still recorded locally (dormant), and "wave" mode definitions are
   still parsed but always refused.
-- **Baseline failures inherited from v0.14.5** (unchanged on upstream `main` when #3 was merged):
-  - `task check:ts` reports 17 errors, all in `frontend/preview/` (the component preview server's mocks lag behind the
-    types: `ProcessInfo.numthreads`, `FullConfigType.version`/`buildtime`, `ElectronApi.getPathForFile`). The app and
-    Electron code type-check.
-  - `go test ./cmd/... ./pkg/...`: 24 packages pass; `pkg/tsgen` `TestGenerateWaveEventTypes` fails because it expects
-    a one-line `WaveEventName` union while the generator (and the committed generated file) uses a multi-line union.
+- **Baseline failures inherited from v0.14.5:** resolved by #7 (FR-FORK-005); still present on upstream `main` on
+  2026-09-30. `task check:ts` reported 17 errors from three stale mocks in `frontend/preview/`, and `pkg/tsgen`
+  `TestGenerateWaveEventTypes` expected a one-line `WaveEventName` union while the generator emits a multi-line one.
+  Both fixes stay Moltenterm patches (decision of 2026-09-30: not offered upstream).
 - **Default content:** the first-run layout opens a web block on Wave's GitHub page, and onboarding still links to
   Wave's GitHub and Discord. Addressed by #4 (the Wave AI panel no longer opens by default since #5).
 - **`task dev` environment:** resolved by #5. The dev tasks no longer set `WCLOUD_*` (Wave's development cloud) or
