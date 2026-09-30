@@ -8,6 +8,7 @@ import { ClientModel } from "@/app/store/client-model";
 import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { MoltentermNoAI, MoltentermOnboardingSkippedSteps } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
 import { isMacOS } from "@/util/platformutil";
 import { useEffect, useState } from "react";
 import { FakeChat } from "./fakechat";
@@ -167,7 +168,13 @@ export const MagnifyBlocksPage = ({
                     <FakeLayout />
                 </div>
             </div>
-            <OnboardingFooter currentStep={3} totalSteps={4} onNext={onNext} onPrev={onPrev} onSkip={onSkip} />
+            <OnboardingFooter
+                currentStep={3 - MoltentermOnboardingSkippedSteps} // MOLTENTERM-PATCH (#25): no Wave AI step
+                totalSteps={4 - MoltentermOnboardingSkippedSteps}
+                onNext={onNext}
+                onPrev={onPrev}
+                onSkip={onSkip}
+            />
         </div>
     );
 };
@@ -259,13 +266,19 @@ export const FilesPage = ({ onFinish, onPrev }: { onFinish: () => void; onPrev?:
                     {commands[commandIndex](handleCommandComplete)}
                 </div>
             </div>
-            <OnboardingFooter currentStep={4} totalSteps={4} onNext={onFinish} onPrev={onPrev} />
+            <OnboardingFooter
+                currentStep={4 - MoltentermOnboardingSkippedSteps} // MOLTENTERM-PATCH (#25): no Wave AI step
+                totalSteps={4 - MoltentermOnboardingSkippedSteps}
+                onNext={onFinish}
+                onPrev={onPrev}
+            />
         </div>
     );
 };
 
 export const OnboardingFeatures = ({ onComplete }: { onComplete: () => void }) => {
-    const [currentPage, setCurrentPage] = useState<FeaturePageName>("waveai");
+    // MOLTENTERM-PATCH (#25): the tour starts at durable sessions; its Wave AI page is never shown.
+    const [currentPage, setCurrentPage] = useState<FeaturePageName>(MoltentermNoAI ? "durable" : "waveai");
 
     useEffect(() => {
         const clientId = ClientModel.getInstance().clientId;

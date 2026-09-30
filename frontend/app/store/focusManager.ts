@@ -7,6 +7,7 @@ import { getBlockComponentModel } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { focusedBlockId } from "@/util/focusutil";
+import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
 import { Atom, atom, type PrimitiveAtom } from "jotai";
 
 export type FocusStrType = "node" | "waveai";
@@ -36,6 +37,9 @@ export class FocusManager {
     }
 
     setWaveAIFocused(force: boolean = false) {
+        if (MoltentermNoAI) {
+            return; // MOLTENTERM-PATCH (#25): focus never moves to the (absent) AI panel
+        }
         const isAlreadyFocused = globalStore.get(this.focusType) == "waveai";
         if (!force && isAlreadyFocused) {
             return;
@@ -66,6 +70,9 @@ export class FocusManager {
     }
 
     requestWaveAIFocus(): void {
+        if (MoltentermNoAI) {
+            return; // MOLTENTERM-PATCH (#25): focus never moves to the (absent) AI panel
+        }
         globalStore.set(this.focusType, "waveai");
     }
 

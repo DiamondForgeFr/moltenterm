@@ -24,6 +24,7 @@ import { getActiveTabModel } from "@/app/store/tab-model";
 import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import { deleteLayoutModelForTab, getLayoutModelForStaticTab, NavigateDirection } from "@/layout/index";
 import * as keyutil from "@/util/keyutil";
+import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
 import { isWindows } from "@/util/platformutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
@@ -677,7 +678,10 @@ function registerGlobalKeys() {
             return true;
         });
     }
-    if (isWindows()) {
+    // MOLTENTERM-PATCH (#25): no "focus Wave AI" shortcut.
+    if (MoltentermNoAI) {
+        // bound to nothing: the keys reach the focused block
+    } else if (isWindows()) {
         globalKeyMap.set("Alt:c{Digit0}", () => {
             WaveAIModel.getInstance().focusInput();
             return true;
@@ -735,11 +739,14 @@ function registerGlobalKeys() {
         }
         return false;
     });
-    globalKeyMap.set("Cmd:Shift:a", () => {
-        const currentVisible = WorkspaceLayoutModel.getInstance().getAIPanelVisible();
-        WorkspaceLayoutModel.getInstance().setAIPanelVisible(!currentVisible);
-        return true;
-    });
+    // MOLTENTERM-PATCH (#25): no AI panel shortcut; Cmd+Shift+A reaches the terminal like any other key.
+    if (!MoltentermNoAI) {
+        globalKeyMap.set("Cmd:Shift:a", () => {
+            const currentVisible = WorkspaceLayoutModel.getInstance().getAIPanelVisible();
+            WorkspaceLayoutModel.getInstance().setAIPanelVisible(!currentVisible);
+            return true;
+        });
+    }
     const allKeys = Array.from(globalKeyMap.keys());
     // special case keys, handled by web view
     allKeys.push("Cmd:l", "Cmd:r", "Cmd:ArrowRight", "Cmd:ArrowLeft", "Cmd:o");

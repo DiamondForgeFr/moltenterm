@@ -702,6 +702,8 @@ func ReadFullConfig() FullConfigType {
 	// MOLTENTERM-PATCH (#5): telemetry cannot be turned on, even from a user's
 	// settings.json, so the frontend and the backend always agree it is off.
 	fullConfig.Settings.TelemetryEnabled = false
+	// MOLTENTERM-PATCH (#25): Moltenterm ships no built-in AI, so the tab bars never show the AI panel button.
+	fullConfig.Settings.AppHideAiButton = true
 	fullConfig.Version = wavebase.WaveVersion
 	fullConfig.BuildTime = wavebase.BuildTime
 	return fullConfig

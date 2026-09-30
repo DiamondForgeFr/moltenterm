@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { MagnifyIcon } from "@/app/element/magnify";
+import { MoltentermRepoUrl } from "@/util/moltenterm-identity"; // MOLTENTERM-PATCH (#6)
+import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
 import { PLATFORM, PlatformMacOS } from "@/util/platformutil";
 import { cn } from "@/util/util";
-import { MoltentermRepoUrl } from "@/util/moltenterm-identity"; // MOLTENTERM-PATCH (#6)
 
 const KeyCap = ({ children }: { children: React.ReactNode }) => {
     return (
@@ -157,10 +158,13 @@ const QuickTips = () => {
                             <span className="text-[15px]">New Terminal Block</span>
                             <KeyBinding keyDecl="Cmd:n" />
                         </div>
-                        <div className="flex flex-col gap-0.5 p-2 rounded-md hover:bg-white/5 transition-colors">
-                            <span className="text-[15px]">Open Wave AI Panel</span>
-                            <KeyBinding keyDecl="Cmd:Shift:a" />
-                        </div>
+                        {/* MOLTENTERM-PATCH (#25): no Wave AI tips */}
+                        {!MoltentermNoAI && (
+                            <div className="flex flex-col gap-0.5 p-2 rounded-md hover:bg-white/5 transition-colors">
+                                <span className="text-[15px]">Open Wave AI Panel</span>
+                                <KeyBinding keyDecl="Cmd:Shift:a" />
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex flex-col gap-1.5">
@@ -193,10 +197,12 @@ const QuickTips = () => {
                             <span className="text-[15px]">Focus Nth Block</span>
                             <KeyBinding keyDecl="Ctrl:Shift:Digit" />
                         </div>
-                        <div className="flex flex-col gap-0.5 p-2 rounded-md hover:bg-white/5 transition-colors">
-                            <span className="text-[15px]">Focus Wave AI</span>
-                            <KeyBinding keyDecl="Ctrl:Shift:0" />
-                        </div>
+                        {!MoltentermNoAI && (
+                            <div className="flex flex-col gap-0.5 p-2 rounded-md hover:bg-white/5 transition-colors">
+                                <span className="text-[15px]">Focus Wave AI</span>
+                                <KeyBinding keyDecl="Ctrl:Shift:0" />
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex flex-col gap-1.5">
