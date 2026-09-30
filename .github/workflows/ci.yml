@@ -51,9 +51,9 @@ jobs:
         timeout-minutes: 30
         env:
             NODE_OPTIONS: --max-old-space-size=4096
-            # Type checks, tests and bundling need neither the native-module rebuild for Electron nor its binary.
+            # Tests run under Node, so they do not need native modules rebuilt for Electron. They still need Electron's
+            # binary: some test files import `electron`, whose entry point throws when the binary is missing.
             WAVETERM_SKIP_APP_DEPS: "1"
-            ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
