@@ -1,14 +1,14 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { firstUserAIMode, isUserAIMode } from "@/app/aipanel/morphterm-aimodes";
+import { firstUserAIMode, isUserAIMode } from "@/app/aipanel/moltenterm-aimodes";
 import { describe, expect, it } from "vitest";
 
 function mode(name: string, order?: number): AIModeConfigType {
     return { "display:name": name, "display:order": order };
 }
 
-describe("Morphterm AI modes", () => {
+describe("Moltenterm AI modes", () => {
     it("treats waveai@ modes as Wave's, everything else as the user's", () => {
         expect(isUserAIMode("waveai@balanced")).toBe(false);
         expect(isUserAIMode("ollama@llama")).toBe(true);

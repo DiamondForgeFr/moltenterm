@@ -31,7 +31,7 @@ import {
     validateFileSizeFromInfo,
 } from "./ai-utils";
 import type { AIPanelInputRef } from "./aipanelinput";
-import { firstUserAIMode } from "./morphterm-aimodes"; // MORPHTERM-PATCH (#5)
+import { firstUserAIMode } from "./moltenterm-aimodes"; // MOLTENTERM-PATCH (#5)
 
 export interface DroppedFile {
     id: string;
@@ -125,8 +125,8 @@ export class WaveAIModel {
             if (!telemetryEnabled) {
                 let mode = get(getSettingsKeyAtom("waveai:defaultmode"));
                 if (mode == null || mode.startsWith("waveai@")) {
-                    // MORPHTERM-PATCH (#5): fall back to the user's first mode
-                    // rather than "unknown"; Morphterm has no Wave cloud modes.
+                    // MOLTENTERM-PATCH (#5): fall back to the user's first mode
+                    // rather than "unknown"; Moltenterm has no Wave cloud modes.
                     return firstUserAIMode(aiModeConfigs) ?? "unknown";
                 }
                 return mode;

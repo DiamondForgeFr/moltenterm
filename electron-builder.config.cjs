@@ -117,7 +117,7 @@ const config = {
         // this should remove /usr/lib/.build-id/ links which can conflict with other electron apps like slack
         fpm: ["--rpm-rpmbuild-define", "_build_id_links none"],
     },
-    // MORPHTERM-PATCH (#5): no update feed. `null` rather than a deleted key:
+    // MOLTENTERM-PATCH (#5): no update feed. `null` rather than a deleted key:
     // without the key, electron-builder infers a GitHub feed from the git remote.
     publish: null,
     afterPack: (context) => {

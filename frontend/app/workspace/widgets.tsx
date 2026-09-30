@@ -322,8 +322,8 @@ const SettingsFloatingWindow = memo(
                     onClose();
                 },
             },
-            // MORPHTERM-PATCH (#5): no "Help" item; it opened Wave's online docs
-            // (docs.waveterm.dev). It comes back when Morphterm has docs of its own.
+            // MOLTENTERM-PATCH (#5): no "Help" item; it opened Wave's online docs
+            // (docs.waveterm.dev). It comes back when Moltenterm has docs of its own.
         ];
 
         return (

@@ -1,7 +1,7 @@
 # Upstream: Wave Terminal
 
-Morphterm is a soft fork of [Wave Terminal](https://github.com/wavetermdev/waveterm) (Apache-2.0, Command Line Inc.).
-This file explains how the fork is built, how Wave releases are merged, and every place where Morphterm changes Wave's
+Moltenterm is a soft fork of [Wave Terminal](https://github.com/wavetermdev/waveterm) (Apache-2.0, Command Line Inc.).
+This file explains how the fork is built, how Wave releases are merged, and every place where Moltenterm changes Wave's
 code.
 
 ## Current base
@@ -34,7 +34,7 @@ git remote add upstream https://github.com/wavetermdev/waveterm.git
 git config remote.upstream.tagOpt --no-tags          # never fetch Wave's tags
 git remote set-url --push upstream NO_PUSH_TO_UPSTREAM
 git config rerere.enabled true                       # replay conflict resolutions
-gh repo set-default DiamondForgeFr/morphterm
+gh repo set-default DiamondForgeFr/moltenterm
 ```
 
 `gh` resolves a remote named `upstream` before `origin`. Without `gh repo set-default`, ticket and pull request commands
@@ -47,7 +47,7 @@ gh repo set-default DiamondForgeFr/morphterm
    `git fetch upstream <sha>` if the release is not on `main`).
 3. `git merge --no-ff <sha>` and resolve conflicts with the policy below.
 4. Check that no Wave automation came back: `git diff --name-status <sha> HEAD -- .github CNAME` must list only
-   Morphterm's own files. Delete any new Wave workflow, Dependabot or funding file.
+   Moltenterm's own files. Delete any new Wave workflow, Dependabot or funding file.
 5. Validate: `task init`, `task check:ts`, `npx vitest run`, `go test ./cmd/... ./pkg/...`, then `task dev`.
 6. Update the "Current base" table and the patch ledger.
 7. Open the pull request to `develop` and merge it with a **merge commit**. Never squash or rebase: both drop Wave's
@@ -55,7 +55,7 @@ gh repo set-default DiamondForgeFr/morphterm
 
 Never push Wave's tags: `git push` without `--tags`, and `tagOpt` keeps them out of the local repository.
 
-## Files Morphterm owns
+## Files Moltenterm owns
 
 | Path | Policy when merging |
 | --- | --- |
@@ -64,18 +64,18 @@ Never push Wave's tags: `git push` without `--tags`, and `tagOpt` keeps them out
 | `.github/` | Keep ours. Delete any new upstream workflow, `dependabot.yml` or `FUNDING.yml`. |
 | `CNAME` | Stays deleted: it points to Wave's documentation domain. |
 | `LICENSE` | Upstream's file (Apache-2.0). |
-| `.claude/`, `.agents/`, `.saasfoundry.json`, `AGENTS.md`, `GEMINI.md`, `MANIFESTO.md`, `UPSTREAM.md` | Morphterm only; no upstream counterpart. |
+| `.claude/`, `.agents/`, `.saasfoundry.json`, `AGENTS.md`, `GEMINI.md`, `MANIFESTO.md`, `UPSTREAM.md` | Moltenterm only; no upstream counterpart. |
 
 ## Patch ledger
 
-Every change to a Wave file is listed here and, where the format allows comments, marked with `MORPHTERM-PATCH` in the
+Every change to a Wave file is listed here and, where the format allows comments, marked with `MOLTENTERM-PATCH` in the
 file. Code that lives in new files is not listed.
 
 | Wave file | Change | Why | Ticket |
 | --- | --- | --- | --- |
 | `.gitignore` | Drops the `.claude` rule; ignores `.claude/settings.local.json` and `.env*.local` | The harness lives in `.claude/` and must stay tracked | #3 |
 | `CLAUDE.md` | Replaced by the harness instructions, which import Wave's rules | One entry point for agents | #3 |
-| `.github/workflows/*` (9 files), `.github/dependabot.yml`, `.github/FUNDING.yml`, `CNAME` | Deleted | They would build, publish, open pull requests or redirect on Morphterm's repository | #3 |
+| `.github/workflows/*` (9 files), `.github/dependabot.yml`, `.github/FUNDING.yml`, `CNAME` | Deleted | They would build, publish, open pull requests or redirect on Moltenterm's repository | #3 |
 | `pkg/wcloud/wcloud.go` | Endpoints always empty; dev mode no longer requires `WCLOUD_*` | Telemetry, no-telemetry and ping stop before any connection | #5 |
 | `pkg/telemetry/telemetry.go` | `IsTelemetryEnabled` always false | Telemetry is never uploaded | #5 |
 | `pkg/wconfig/settingsconfig.go` | `ReadFullConfig` forces `telemetry:enabled` off | A user setting cannot turn telemetry on; frontend and backend agree | #5 |
@@ -84,12 +84,12 @@ file. Code that lives in new files is not listed.
 | `pkg/wconfig/defaultconfig/settings.json` | Telemetry, auto-update and cloud modes off; no `waveai:defaultmode` | Defaults match the product (JSON, no marker) | #5 |
 | `pkg/wconfig/defaultconfig/waveai.json` | Emptied | No Wave cloud AI modes (JSON, no marker) | #5 |
 | `pkg/wconfig/defaultconfig/presets/ai.json` | `ai@wave` removed | No Wave proxy preset (JSON, no marker) | #5 |
-| `emain/updater.ts` | Updater never configured (`MorphtermUpdateFeedEnabled`) | No update check against Wave's feed | #5 |
+| `emain/updater.ts` | Updater never configured (`MoltentermUpdateFeedEnabled`) | No update check against Wave's feed | #5 |
 | `emain/emain-menu.ts` | "Check for Updates" removed | It polled Wave's feed even with auto-update off | #5 |
 | `electron-builder.config.cjs` | `publish: null` | No update feed in packaged builds | #5 |
 | `frontend/app/aipanel/aipanel.tsx` | Access depends on user-defined modes; "bring your own AI" screen | No telemetry gate, no Wave cloud modes | #5 |
 | `frontend/app/aipanel/waveai-model.tsx` | Default to the user's first mode | Instead of "unknown" when no default is set | #5 |
-| `frontend/app/onboarding/onboarding.tsx` | Telemetry toggle, opt-out page and AI panel auto-open removed | Morphterm sends no usage data | #5 |
+| `frontend/app/onboarding/onboarding.tsx` | Telemetry toggle, opt-out page and AI panel auto-open removed | Moltenterm sends no usage data | #5 |
 | `frontend/app/workspace/widgets.tsx` | "Help" item removed | It opened Wave's online docs | #5 |
 | `Taskfile.yml` | No `WCLOUD_*` or `WAVETERM_ENVFILE` in dev tasks | No Wave dev cloud; the SRS token in `.env` stays out of the app | #5 |
 

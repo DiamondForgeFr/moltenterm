@@ -1,4 +1,4 @@
-# Morphterm — Manifesto
+# Moltenterm — Manifesto
 
 > **The terminal that takes your shape.**
 > An open-source terminal workspace you reshape by talking to the AI you already use.
@@ -17,35 +17,35 @@ Coding agents live in the terminal. The tools around them do not fit the people 
   and the only way to remove them is to wait for the maintainers.
 
 Every developer's ideal workspace is different. Today the developer adapts to the tool.
-**Morphterm turns this around: the tool adapts to the developer.**
+**Moltenterm turns this around: the tool adapts to the developer.**
 
 ## The idea
 
-Morphterm is a terminal workspace (terminals, a built-in browser, dashboards) that can **change shape**.
+Moltenterm is a terminal workspace (terminals, a built-in browser, dashboards) that can **change shape**.
 
 You ask the coding agent running inside it for a feature, a panel or a layout. The agent writes a **mod**,
-Morphterm reloads, and the workspace has changed. Mods combine into a **morph pack**: *your* version of Morphterm.
+Moltenterm reloads, and the workspace has changed. Mods combine into a **morph pack**: *your* version of Moltenterm.
 You can keep it, fork someone else's, or publish yours for the community, the way players share mods and
 modpacks for a game.
 
-Morphterm does not ship an AI. **Any CLI coding agent can morph it, as long as it can write good code.**
+Moltenterm does not ship an AI. **Any CLI coding agent can morph it, as long as it can write good code.**
 
 ## Principles
 
 These are the non-negotiables. A feature that breaks one of them does not ship in the core.
 
-1. **Bring your own agent.** No built-in model, no API keys, no token proxying. Morphterm runs Claude Code, Codex,
+1. **Bring your own agent.** No built-in model, no API keys, no token proxying. Moltenterm runs Claude Code, Codex,
    Gemini CLI, OpenCode or anything else exactly as they run in any terminal, so every subscription keeps working
    as it does today.
 2. **Terminal first, CLI friendly.** Anything the interface can do, a command can do. The `morph` CLI is how agents
-   (and people) drive Morphterm. *(The CLI name is provisional.)*
+   (and people) drive Moltenterm. *(The CLI name is provisional.)*
 3. **Lean by default.** The core ships the essentials: terminals, a browser, dashboards and workspaces.
    Everything else is a mod, including what other tools force on you.
 4. **Projects, not repositories.** A workspace can hold one repository, several, or none at all:
    a notes vault, a docs folder, an ops runbook.
 5. **Everything is reversible.** Every morph is versioned. Undo is one command away. Safe mode always boots,
    even when a mod broke everything.
-6. **Open by design.** Open source code, an open mod format and an open registry. Your version of Morphterm is
+6. **Open by design.** Open source code, an open mod format and an open registry. Your version of Moltenterm is
    something you can share, not a local configuration that nobody else can use.
 7. **Safe to share.** Mods declare what they touch. Declarative mods are safe by construction.
    Mods that run code ask for explicit trust.
@@ -56,7 +56,7 @@ The core provides four surfaces. Mods extend, rearrange or replace them.
 
 | Surface       | What it is |
 | ------------- | ---------- |
-| **Terminal**  | The heart of Morphterm. Agents run here, in any folder, with any shell. |
+| **Terminal**  | The heart of Moltenterm. Agents run here, in any folder, with any shell. |
 | **Browser**   | An embedded, privacy-first browser: Chromium with Brave's open-source ad and tracker blocking engine. Agents open pages from the CLI and use them to check their own work. An optional bridge drives your installed Brave, with your real sessions, through the DevTools protocol. |
 | **Dashboard** | A new kind of tab: the state of a project at a glance, with the actions next to it (see below). |
 | **Workspace** | A named set of tabs and layouts for one project, restored exactly as you left it. |
@@ -96,14 +96,14 @@ Mods come in two tiers:
 - **Declarative** (themes, layouts, cards bound to commands): data only, safe to install from anyone.
 - **Code** (panels, hooks): they declare permissions (files, shell, network, browser) and require explicit trust.
 
-A **morph pack** is a pinned set of mods plus settings and layouts. It is a complete version of Morphterm that
+A **morph pack** is a pinned set of mods plus settings and layouts. It is a complete version of Moltenterm that
 someone can install, fork and publish again.
 
 ```yaml
 # Illustrative only. The mod format is not designed yet.
 name: release-radar
 version: 0.1.0
-morphterm: ">=0.1"
+moltenterm: ">=0.1"
 permissions:
   shell: [git, gh]
   network: [api.github.com]
@@ -119,10 +119,10 @@ contributes:
 
 ## How a morph happens
 
-1. In a Morphterm terminal, you ask your agent: *"Add a card that shows which branches are deployed to staging."*
-2. The agent reads the mod API documentation that ships with Morphterm, creates a mod with `morph mod new`,
+1. In a Moltenterm terminal, you ask your agent: *"Add a card that shows which branches are deployed to staging."*
+2. The agent reads the mod API documentation that ships with Moltenterm, creates a mod with `morph mod new`,
    writes it and checks it with `morph validate`.
-3. Morphterm reloads the mod. The change is recorded in your morph history.
+3. Moltenterm reloads the mod. The change is recorded in your morph history.
 4. You don't like it: `morph undo`. It broke something: restart in safe mode.
 5. You like it: `morph publish`.
 
@@ -133,7 +133,7 @@ contributes:
 - **Built on [Wave Terminal](https://github.com/wavetermdev/waveterm)** (Apache-2.0): an Electron app with a
   React/TypeScript interface and a Go backend, with terminals, a web view, workspaces and a CLI already in place.
   Its interface uses web technologies, which is what makes reshaping it at runtime possible.
-- **A thin mod host rather than deep patches.** Morphterm should keep following upstream Wave, and should contribute
+- **A thin mod host rather than deep patches.** Moltenterm should keep following upstream Wave, and should contribute
   back to it whenever that makes sense.
 - **Why not a native base.** A native interface (such as cmux, built in Swift) cannot be reshaped at runtime
   without recompiling.
@@ -153,12 +153,12 @@ These phases have no dates. Each one validates the next.
 
 ## Non-goals
 
-- **Not an AI provider, and not an agent.** Morphterm ships no model, proxies no tokens and never touches your
+- **Not an AI provider, and not an agent.** Moltenterm ships no model, proxies no tokens and never touches your
   credentials.
 - **Not an IDE.** It can show and edit files, but it does not compete with your editor.
 - **Not a workflow enforcer.** Worktrees, one-PR-per-task flows and review queues are fine as mods, never as
   requirements.
-- **Not a Brave fork.** The real Brave cannot be embedded in another application. Morphterm uses Brave's open
+- **Not a Brave fork.** The real Brave cannot be embedded in another application. Moltenterm uses Brave's open
   blocking engine and connects to your installed Brave.
 
 ## Open questions
@@ -174,4 +174,7 @@ These phases have no dates. Each one validates the next.
 
 ## The name
 
-**Morphterm**: *morph* + *terminal*. A terminal that changes shape to fit the person using it.
+**Moltenterm**: *molten* + *terminal*. In the forge, molten metal is the moment when it can still take any shape
+before it is cast. Moltenterm is a terminal kept in that state: it changes shape to fit the person using it.
+
+The name belongs to the same forge as the other DiamondForge products, such as SaaSFoundry.

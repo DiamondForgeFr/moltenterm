@@ -7,7 +7,7 @@ import { FlexiModal } from "@/app/modals/modal";
 import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
 import { OnboardingFeatures } from "@/app/onboarding/onboarding-features";
 import { ClientModel } from "@/app/store/client-model";
-// MORPHTERM-PATCH (#5): useSettingsKeyAtom and WorkspaceLayoutModel imports removed with the telemetry row.
+// MOLTENTERM-PATCH (#5): useSettingsKeyAtom and WorkspaceLayoutModel imports removed with the telemetry row.
 import { disableGlobalKeybindings, enableGlobalKeybindings, globalRefocus } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
 import * as WOS from "@/app/store/wos";
@@ -30,7 +30,7 @@ const pageNameAtom: PrimitiveAtom<PageName> = atom<PageName>("init");
 
 const InitPage = ({
     isCompact,
-    telemetryUpdateFn: _telemetryUpdateFn, // MORPHTERM-PATCH (#5): telemetry cannot be changed
+    telemetryUpdateFn: _telemetryUpdateFn, // MOLTENTERM-PATCH (#5): telemetry cannot be changed
 }: {
     isCompact: boolean;
     telemetryUpdateFn: (value: boolean) => Promise<void>;
@@ -58,7 +58,7 @@ const InitPage = ({
         if (!clientData?.tosagreed) {
             fireAndForget(() => services.ClientService.AgreeTos());
         }
-        // MORPHTERM-PATCH (#5): no telemetry choice, so no "star us" page, and the
+        // MOLTENTERM-PATCH (#5): no telemetry choice, so no "star us" page, and the
         // AI panel is not opened automatically (it needs a user-defined mode).
         setPageName("features");
     };
@@ -135,13 +135,13 @@ const InitPage = ({
                             </div>
                         </div>
                     </div>
-                    {/* MORPHTERM-PATCH (#5): no telemetry toggle; Morphterm sends no usage data. */}
+                    {/* MOLTENTERM-PATCH (#5): no telemetry toggle; Moltenterm sends no usage data. */}
                     <div className="flex w-full items-center gap-[18px]">
                         <div>
                             <i className="text-[32px] text-white/50 fa-solid fa-shield-halved"></i>
                         </div>
                         <div className="flex flex-col items-start gap-1 flex-1">
-                            <div className="text-secondary leading-5">Morphterm sends no usage data.</div>
+                            <div className="text-secondary leading-5">Moltenterm sends no usage data.</div>
                         </div>
                     </div>
                 </div>

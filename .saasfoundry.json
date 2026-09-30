@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "generatedAt": "2026-09-29T14:42:05.256Z",
   "structure": "cli",
-  "projectName": "morphterm",
+  "projectName": "moltenterm",
   "mainBranch": "main",
   "modules": {
     "harness": {
@@ -197,8 +197,8 @@
       "backend": "notion",
       "rootPage": {
         "id": "3eaa31bb-4f3f-81e3-937a-cc319bec706a",
-        "url": "https://app.notion.com/p/morphterm-srs-3eaa31bb4f3f81e3937acc319bec706a",
-        "name": "morphterm-srs"
+        "url": "https://app.notion.com/p/moltenterm-srs-3eaa31bb4f3f81e3937acc319bec706a",
+        "name": "moltenterm-srs"
       }
     },
     "tracker": {
