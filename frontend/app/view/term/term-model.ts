@@ -35,6 +35,7 @@ import {
 } from "@/store/global";
 import * as services from "@/store/services";
 import * as keyutil from "@/util/keyutil";
+import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
 import { isMacOS, isWindows } from "@/util/platformutil";
 import { boundNumber, fireAndForget, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
@@ -840,21 +841,24 @@ export class TermViewModel implements ViewModel {
                     }
                 },
             });
-            menu.push({ type: "separator" });
-            menu.push({
-                label: "Send to Wave AI",
-                click: () => {
-                    if (selection) {
-                        const aiModel = WaveAIModel.getInstance();
-                        aiModel.appendText(selection, true, { scrollToBottom: true });
-                        const layoutModel = WorkspaceLayoutModel.getInstance();
-                        if (!layoutModel.getAIPanelVisible()) {
-                            layoutModel.setAIPanelVisible(true);
+            // MOLTENTERM-PATCH (#25): no "Send to Wave AI"; Moltenterm ships no built-in AI.
+            if (!MoltentermNoAI) {
+                menu.push({ type: "separator" });
+                menu.push({
+                    label: "Send to Wave AI",
+                    click: () => {
+                        if (selection) {
+                            const aiModel = WaveAIModel.getInstance();
+                            aiModel.appendText(selection, true, { scrollToBottom: true });
+                            const layoutModel = WorkspaceLayoutModel.getInstance();
+                            if (!layoutModel.getAIPanelVisible()) {
+                                layoutModel.setAIPanelVisible(true);
+                            }
+                            aiModel.focusInput();
                         }
-                        aiModel.focusInput();
-                    }
-                },
-            });
+                    },
+                });
+            }
 
             menu.push({ type: "separator" });
         }

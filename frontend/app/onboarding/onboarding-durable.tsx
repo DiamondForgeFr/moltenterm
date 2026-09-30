@@ -5,11 +5,12 @@ import Logo from "@/app/asset/logo.svg";
 import { EmojiButton } from "@/app/element/emojibutton";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { MoltentermProductName } from "@/util/moltenterm-identity"; // MOLTENTERM-PATCH (#6)
+import { MoltentermOnboardingSkippedSteps } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
 import { useState } from "react";
 import { CurrentOnboardingVersion } from "./onboarding-common";
 import { OnboardingFooter } from "./onboarding-features-footer";
 import { TailDeployLogCommand } from "./onboarding-layout-term";
-import { MoltentermProductName } from "@/util/moltenterm-identity"; // MOLTENTERM-PATCH (#6)
 
 export const DurableSessionPage = ({
     onNext,
@@ -52,7 +53,10 @@ export const DurableSessionPage = ({
                         </div>
 
                         <div className="flex flex-col items-start gap-4 text-secondary">
-                            <p>Close your laptop, switch networks, restart {MoltentermProductName} — your remote sessions keep running.</p>
+                            <p>
+                                Close your laptop, switch networks, restart {MoltentermProductName} — your remote
+                                sessions keep running.
+                            </p>
 
                             <div className="flex items-start gap-3 w-full">
                                 <i className="fa-sharp fa-solid fa-link text-accent text-lg mt-1 flex-shrink-0" />
@@ -83,7 +87,13 @@ export const DurableSessionPage = ({
                     <TailDeployLogCommand />
                 </div>
             </div>
-            <OnboardingFooter currentStep={2} totalSteps={4} onNext={onNext} onPrev={onPrev} onSkip={onSkip} />
+            <OnboardingFooter
+                currentStep={2 - MoltentermOnboardingSkippedSteps} // MOLTENTERM-PATCH (#25): no Wave AI step before this one
+                totalSteps={4 - MoltentermOnboardingSkippedSteps}
+                onNext={onNext}
+                onPrev={onPrev}
+                onSkip={onSkip}
+            />
         </div>
     );
 };

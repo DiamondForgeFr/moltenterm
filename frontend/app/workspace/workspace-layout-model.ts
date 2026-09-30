@@ -9,6 +9,7 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/lib/layoutModelHooks";
 import { atoms, getApi, getOrefMetaKeyAtom, getSettingsKeyAtom, recordTEvent, refocusNode } from "@/store/global";
+import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
 import debug from "debug";
 import * as jotai from "jotai";
 import { debounce } from "lodash-es";
@@ -146,7 +147,8 @@ class WorkspaceLayoutModel {
             const savedVisible = globalStore.get(this.getPanelOpenAtom());
             const savedAIWidth = globalStore.get(this.getPanelWidthAtom());
             const savedVTabWidth = globalStore.get(this.getVTabBarWidthAtom());
-            if (savedVisible != null) {
+            // MOLTENTERM-PATCH (#25): a tab saved with the AI panel open does not reopen it.
+            if (savedVisible != null && !MoltentermNoAI) {
                 this.aiPanelVisible = savedVisible;
                 globalStore.set(this.panelVisibleAtom, savedVisible);
             }
@@ -386,6 +388,10 @@ class WorkspaceLayoutModel {
     // ---- Toggle visibility ----
 
     setAIPanelVisible(visible: boolean, opts?: { nofocus?: boolean }): void {
+        // MOLTENTERM-PATCH (#25): the AI panel never opens; hiding it still clears a saved open state.
+        if (visible && MoltentermNoAI) {
+            return;
+        }
         if (this.focusTimeoutRef != null) {
             clearTimeout(this.focusTimeoutRef);
             this.focusTimeoutRef = null;
