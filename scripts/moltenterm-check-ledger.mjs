@@ -1,0 +1,212 @@
+#!/usr/bin/env node
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+// Keeps the patch ledger in UPSTREAM.md honest. Compares the working tree with the Wave release named in
+// "Current base" and fails when:
+//   - a modified, deleted or retyped Wave file matches no entry of "Patch ledger" or "Files Moltenterm owns";
+//   - a "Patch ledger" entry matches no changed Wave file (stale or mistyped entry);
+//   - a modified Wave file whose format accepts comments has no MOLTENTERM-PATCH marker.
+// Added files are Moltenterm's own and are never listed. Needs the full history (the base commit must exist).
+//
+// Usage: node scripts/moltenterm-check-ledger.mjs   (exit code 1 on a ledger problem, 2 when it cannot run)
+
+/* global console, process */
+
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+export const LedgerHeading = "## Patch ledger";
+export const OwnedHeading = "## Files Moltenterm owns";
+export const BaseHeading = "## Current base";
+export const PatchMarker = "MOLTENTERM-PATCH";
+export const CommentableExts = new Set([
+    ...[".ts", ".tsx", ".js", ".cjs", ".mjs", ".go", ".yml", ".yaml"],
+    ...[".html", ".css", ".scss", ".svg", ".sh"],
+]);
+
+const StatusWords = { M: "modified", D: "deleted", T: "changed type" };
+
+// Data rows of the table under a "## ..." heading, as { line, cells } with 1-based line numbers.
+export function tableRows(markdown, heading) {
+    const lines = markdown.split("\n");
+    const start = lines.findIndex((l) => l.trim() === heading);
+    if (start === -1) {
+        return null;
+    }
+    const rows = [];
+    for (let i = start + 1; i < lines.length && !lines[i].startsWith("## "); i++) {
+        const line = lines[i].trim();
+        if (!line.startsWith("|")) {
+            continue;
+        }
+        const cells = line
+            .slice(1, line.endsWith("|") ? -1 : undefined)
+            .split(/(?<!\\)\|/)
+            .map((c) => c.trim());
+        if (cells.every((c) => /^:?-+:?$/.test(c))) {
+            continue;
+        }
+        rows.push({ line: i + 1, cells });
+    }
+    // The first row is the header.
+    return rows.slice(1);
+}
+
+export function backtickTokens(cell) {
+    return [...cell.matchAll(/`([^`]+)`/g)].map((m) => m[1].trim());
+}
+
+export function parseCurrentBase(markdown) {
+    const rows = tableRows(markdown, BaseHeading);
+    if (rows == null || rows.length === 0) {
+        return null;
+    }
+    const last = rows[rows.length - 1];
+    const commit = backtickTokens(last.cells[1] ?? "")[0];
+    if (!commit) {
+        return null;
+    }
+    return { release: last.cells[0], commit };
+}
+
+// A token is a full path, a directory ending in "/", or a glob whose "*" stays within one path segment.
+export function tokenMatcher(token) {
+    if (token.endsWith("/")) {
+        return (p) => p.startsWith(token);
+    }
+    if (!token.includes("*")) {
+        return (p) => p === token;
+    }
+    const source = token
+        .split("*")
+        .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+        .join("[^/]*");
+    const re = new RegExp(`^${source}$`);
+    return (p) => re.test(p);
+}
+
+export function ledgerEntries(markdown, heading) {
+    const rows = tableRows(markdown, heading);
+    if (rows == null) {
+        return null;
+    }
+    return rows.flatMap((row) =>
+        backtickTokens(row.cells[0] ?? "").map((token) => ({ token, line: row.line, matches: tokenMatcher(token) }))
+    );
+}
+
+// Parses `git diff --name-status --no-renames -z` output into [{ status, path }].
+export function parseNameStatus(output) {
+    const fields = output.split("\0").filter((f) => f !== "");
+    const changes = [];
+    for (let i = 0; i + 1 < fields.length; i += 2) {
+        changes.push({ status: fields[i][0], path: fields[i + 1] });
+    }
+    return changes;
+}
+
+// Pure core of the check. `changes` lists every path that differs from the base; `readFile(path)` returns the
+// working-tree content of a modified file, or null when it cannot be read.
+export function checkLedger({ markdown, base, changes, readFile }) {
+    const ledger = ledgerEntries(markdown, LedgerHeading);
+    const owned = ledgerEntries(markdown, OwnedHeading);
+    if (ledger == null || owned == null) {
+        const missing = ledger == null ? LedgerHeading : OwnedHeading;
+        return { waveFiles: 0, problems: [{ file: "UPSTREAM.md", message: `missing "${missing}" table` }] };
+    }
+    const waveChanges = changes.filter((c) => c.status !== "A");
+    const used = new Set();
+    const problems = [];
+    for (const change of waveChanges) {
+        const hits = ledger.filter((e) => e.matches(change.path));
+        hits.forEach((e) => used.add(e));
+        const isOwned = owned.some((e) => e.matches(change.path));
+        const what = StatusWords[change.status] ?? "changed";
+        if (hits.length === 0 && !isOwned) {
+            problems.push({
+                file: change.path,
+                message: `${what} since ${base.release} but listed in neither "Patch ledger" nor "Files Moltenterm owns" (UPSTREAM.md)`,
+            });
+        }
+        if (change.status !== "M" || isOwned || !CommentableExts.has(path.extname(change.path))) {
+            continue;
+        }
+        const content = readFile(change.path);
+        if (content != null && !content.includes(PatchMarker)) {
+            problems.push({ file: change.path, message: `modified Wave file without a ${PatchMarker} marker` });
+        }
+    }
+    for (const entry of ledger) {
+        if (!used.has(entry)) {
+            problems.push({
+                file: "UPSTREAM.md",
+                line: entry.line,
+                message: `patch ledger entry \`${entry.token}\` matches no Wave file changed since ${base.release} (write full paths; new files are not listed)`,
+            });
+        }
+    }
+    return { waveFiles: waveChanges.length, problems };
+}
+
+function git(root, args) {
+    return execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+}
+
+function fail(message) {
+    console.error(`patch ledger: ${message}`);
+    process.exit(2);
+}
+
+function main() {
+    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+    const markdown = fs.readFileSync(path.join(root, "UPSTREAM.md"), "utf8");
+    const base = parseCurrentBase(markdown);
+    if (base == null) {
+        fail(`cannot read the base commit from the "${BaseHeading}" table of UPSTREAM.md`);
+    }
+    let baseSha;
+    try {
+        baseSha = git(root, ["rev-parse", "--verify", "--quiet", `${base.commit}^{commit}`]).trim();
+    } catch {
+        fail(
+            `base commit ${base.commit} (${base.release}) is not in this clone; fetch the full history (actions/checkout: fetch-depth: 0)`
+        );
+    }
+    try {
+        git(root, ["merge-base", "--is-ancestor", baseSha, "HEAD"]);
+    } catch {
+        fail(
+            `HEAD does not contain ${base.release} (${base.commit}); run the check on a branch that includes the Wave merge`
+        );
+    }
+    const changes = parseNameStatus(git(root, ["diff", "--name-status", "--no-renames", "-z", baseSha, "--"]));
+    const readFile = (rel) => {
+        try {
+            return fs.readFileSync(path.join(root, rel), "utf8");
+        } catch {
+            return null;
+        }
+    };
+    const { waveFiles, problems } = checkLedger({ markdown, base, changes, readFile });
+    const summary = `patch ledger: base ${base.release} (${base.commit}), ${waveFiles} Wave files changed`;
+    if (problems.length === 0) {
+        console.log(`${summary}, all ledgered and marked`);
+        process.exit(0);
+    }
+    console.log(`${summary}, ${problems.length} problem${problems.length === 1 ? "" : "s"}:`);
+    for (const p of problems) {
+        const where = p.line ? `${p.file}:${p.line}` : p.file;
+        console.log(`  ${where}: ${p.message}`);
+        if (process.env.GITHUB_ACTIONS === "true") {
+            console.log(`::error file=${p.file}${p.line ? `,line=${p.line}` : ""}::${p.message}`);
+        }
+    }
+    process.exit(1);
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    main();
+}

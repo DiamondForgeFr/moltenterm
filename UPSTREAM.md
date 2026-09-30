@@ -90,6 +90,13 @@ Everything else (directories, lock, socket, menus, About panel, permission promp
 Every change to a Wave file is listed here and, where the format allows comments, marked with `MOLTENTERM-PATCH` in the
 file. Code that lives in new files is not listed.
 
+`node scripts/moltenterm-check-ledger.mjs` enforces this against the release in "Current base". It fails when a
+modified, deleted or retyped Wave file matches no entry here or in "Files Moltenterm owns", when an entry here matches no
+changed Wave file, or when a modified Wave file in a format that accepts comments (`.ts`, `.tsx`, `.js`, `.cjs`, `.mjs`,
+`.go`, `.yml`, `.yaml`, `.html`, `.css`, `.scss`, `.svg`, `.sh`) has no `MOLTENTERM-PATCH` marker; files Moltenterm owns
+need no marker. It reads only the backticked tokens of the first column: each is a full path, a directory ending in
+`/`, or a glob whose `*` stays within one path segment.
+
 | Wave file | Change | Why | Ticket |
 | --- | --- | --- | --- |
 | `.gitignore` | Drops the `.claude` rule; ignores `.claude/settings.local.json` and `.env*.local` | The harness lives in `.claude/` and must stay tracked | #3 |
@@ -129,7 +136,7 @@ file. Code that lives in new files is not listed.
 | `frontend/app/onboarding/onboarding.tsx` | Welcome, GitHub row point to Moltenterm; Discord row removed | Moltenterm is not presented as Wave | #6 |
 | `frontend/app/workspace/widgets.tsx` | "Release Notes" item removed; dev-build badge names the product | Same | #6 |
 | `emain/emain.ts`, `emain/emain-platform.ts` | Quit and ARM64 dialogs name the product; ARM64 "Learn More" opens the repository | Same | #6 |
-| `frontend/app/onboarding/onboarding-durable.tsx`, `onboarding-command.tsx` | Product name; the demo shows the Moltenterm logo | Same | #6 |
+| `frontend/app/onboarding/onboarding-durable.tsx`, `frontend/app/onboarding/onboarding-command.tsx` | Product name; the demo shows the Moltenterm logo | Same | #6 |
 | `frontend/app/element/quicktips.tsx`, `frontend/app/aipanel/aipanel.tsx` | Discord links replaced by Moltenterm's GitHub | Same | #6 |
 | `tsunami/frontend/public/wave-logo-256.png` | Image replaced by the Moltenterm logo (binary, no marker) | Waveapp favicon | #6 |
 | `frontend/preview/mock/defaultconfig.ts`, `frontend/preview/mock/preview-electron-api.ts`, `frontend/preview/previews/processviewer.preview.tsx` | Mocks completed: `version`, `buildtime`, `getPathForFile`, `numthreads` | They lagged behind the types, so `task check:ts` failed on v0.14.5 | #7 |
