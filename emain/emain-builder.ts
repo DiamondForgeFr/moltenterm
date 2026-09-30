@@ -60,7 +60,7 @@ export async function createBuilderWindow(appId: string): Promise<BuilderWindowT
         titleBarStyle: unamePlatform === "darwin" ? "hiddenInset" : "default",
         icon:
             unamePlatform === "linux"
-                ? path.join(getElectronAppBasePath(), "public/logos/wave-logo-dark.png")
+                ? path.join(getElectronAppBasePath(), "public/logos/moltenterm-logo.png") // MOLTENTERM-PATCH (#4)
                 : undefined,
         show: false,
         backgroundColor: "#222222",

@@ -56,28 +56,31 @@ const config = {
             },
         ],
         category: "public.app-category.developer-tools",
+        icon: "build/moltenterm/icon.icns", // MOLTENTERM-PATCH (#4)
         minimumSystemVersion: "10.15.0",
         mergeASARs: true,
         singleArchFiles: "**/dist/bin/wavesrv.*",
         entitlements: "build/entitlements.mac.plist",
         entitlementsInherit: "build/entitlements.mac.plist",
+        // MOLTENTERM-PATCH (#4): permission prompts name the product from package.json.
         extendInfo: {
-            NSContactsUsageDescription: "A CLI application running in Wave wants to use your contacts.",
-            NSRemindersUsageDescription: "A CLI application running in Wave wants to use your reminders.",
+            NSContactsUsageDescription: `A CLI application running in ${pkg.productName} wants to use your contacts.`,
+            NSRemindersUsageDescription: `A CLI application running in ${pkg.productName} wants to use your reminders.`,
             NSLocationWhenInUseUsageDescription:
-                "A CLI application running in Wave wants to use your location information while active.",
+                `A CLI application running in ${pkg.productName} wants to use your location information while active.`,
             NSLocationAlwaysUsageDescription:
-                "A CLI application running in Wave wants to use your location information, even in the background.",
-            NSCameraUsageDescription: "A CLI application running in Wave wants to use the camera.",
-            NSMicrophoneUsageDescription: "A CLI application running in Wave wants to use your microphone.",
-            NSCalendarsUsageDescription: "A CLI application running in Wave wants to use Calendar data.",
-            NSLocationUsageDescription: "A CLI application running in Wave wants to use your location information.",
-            NSAppleEventsUsageDescription: "A CLI application running in Wave wants to use AppleScript.",
+                `A CLI application running in ${pkg.productName} wants to use your location information, even in the background.`,
+            NSCameraUsageDescription: `A CLI application running in ${pkg.productName} wants to use the camera.`,
+            NSMicrophoneUsageDescription: `A CLI application running in ${pkg.productName} wants to use your microphone.`,
+            NSCalendarsUsageDescription: `A CLI application running in ${pkg.productName} wants to use Calendar data.`,
+            NSLocationUsageDescription: `A CLI application running in ${pkg.productName} wants to use your location information.`,
+            NSAppleEventsUsageDescription: `A CLI application running in ${pkg.productName} wants to use AppleScript.`,
         },
     },
     linux: {
         artifactName: "${name}-${platform}-${arch}-${version}.${ext}",
         category: "TerminalEmulator",
+        icon: "build/moltenterm/icon.png", // MOLTENTERM-PATCH (#4)
         executableName: pkg.name,
         target: ["zip", "deb", "rpm", "snap", "AppImage", "pacman"],
         synopsis: pkg.description,
@@ -93,10 +96,11 @@ const config = {
         executableArgs: ["--enable-features", "UseOzonePlatform", "--ozone-platform-hint", "auto"], // Hint Electron to use Ozone abstraction layer for native Wayland support
     },
     deb: {
-        afterInstall: "build/deb-postinstall.tpl",
+        afterInstall: "build/moltenterm/deb-postinstall.tpl", // MOLTENTERM-PATCH (#4): Moltenterm paths
     },
     win: {
         target: ["nsis", "msi", "zip"],
+        icon: "build/moltenterm/icon.png", // MOLTENTERM-PATCH (#4)
         signtoolOptions: windowsShouldSign && {
             signingHashAlgorithms: ["sha256"],
             publisherName: "Command Line Inc",
