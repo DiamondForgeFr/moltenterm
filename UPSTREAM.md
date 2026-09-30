@@ -173,22 +173,39 @@ need no marker. It reads only the backticked tokens of the first column: each is
 | `tsunami/frontend/public/wave-logo-256.png` | Image replaced by the Moltenterm logo (binary, no marker) | Waveapp favicon | #6 |
 | `frontend/preview/mock/defaultconfig.ts`, `frontend/preview/mock/preview-electron-api.ts`, `frontend/preview/previews/processviewer.preview.tsx` | Mocks completed: `version`, `buildtime`, `getPathForFile`, `numthreads` | They lagged behind the types, so `task check:ts` failed on v0.14.5 | #7 |
 | `pkg/tsgen/tsgenevent_test.go` | Expects the multi-line `WaveEventName` union | The generator and the committed `frontend/types/waveevent.d.ts` use it; the test failed on v0.14.5 | #7 |
+| `pkg/aiusechat/usechat.go` | The chat entry points (`WaveAIPostMessageHandler`, `WaveAIPostMessageWrap`) return `ErrMoltentermNoAI` (`pkg/aiusechat/moltenterm_noai.go`) before reading input or reaching a provider | Moltenterm ships no built-in AI (FR-MORPH-008) | #25 |
+| `cmd/wsh/cmd/wshcmd-ai.go` | Deleted | No `wsh ai` | #25 |
+| `pkg/wconfig/settingsconfig.go` | `ReadFullConfig` forces `app:hideaibutton` | The tab bars never show the AI panel button | #25 |
+| `frontend/app/workspace/workspace-layout-model.ts` | The AI panel never opens, not even from a tab saved with it open | No built-in AI | #25 |
+| `frontend/app/workspace/workspace.tsx` | The AI panel is not mounted | Nothing can focus its hidden input | #25 |
+| `frontend/app/store/keymodel.ts` | `Cmd+Shift+A` and `Ctrl+Shift+0` (`Alt+0` on Windows) are not bound | No AI shortcut; the keys reach the focused block | #25 |
+| `frontend/app/store/focusManager.ts` | Focus never moves to the AI panel | Keyboard navigation stays on blocks | #25 |
+| `frontend/app/view/term/term-model.ts` | "Send to Wave AI" removed from the terminal context menu | No built-in AI | #25 |
+| `frontend/app/onboarding/onboarding-features.tsx`, `frontend/app/onboarding/onboarding-durable.tsx` | The feature tour starts at durable sessions and counts three steps | Its Wave AI page is never shown | #25 |
+| `frontend/app/element/quicktips.tsx` | The two Wave AI tips are hidden | Same | #25 |
+| `frontend/app/view/waveconfig/waveconfig-model.ts` | No "Wave AI Modes" or "AI Presets" entry | No AI setting in the config editor | #25 |
+| `cmd/generateschema/main-generateschema.go`, `schema/settings.json` | The settings schema drops `ai:*`, `waveai:*` and `app:hideaibutton` (filter in `cmd/generateschema/moltenterm_noai.go`; the JSON is regenerated, no marker) | The config editor offers no AI setting | #25 |
+| `Taskfile.yml` | `build:schema` runs the generator as a package | So that Moltenterm's schema filter is compiled in | #25 |
 
 ## Known upstream items
 
 - **Font Awesome Pro 6:** resolved by #6 (FR-FORK-004). HEAD ships Font Awesome Free plus `public/moltenterm-icons.css`;
   the Pro files remain in Wave's history, which Moltenterm keeps (decision of 2026-09-29).
-- **Wave branding left on purpose:** "Wave AI" (renamed with the Automorph decision on the AI panel), links to
-  docs.waveterm.dev (still the only documentation of the configuration), `wsh` help texts, the AI system prompt, and
-  pages that are no longer reachable (the opt-out "star us" page, release notes and upgrade modals). The `docs/` site is
-  Wave's documentation (Algolia index, Plausible analytics); it is not built or shipped.
+- **Wave branding left on purpose:** links to docs.waveterm.dev (still the only documentation of the configuration),
+  `wsh` help texts, and pages that are no longer reachable (the opt-out "star us" page, release notes and upgrade
+  modals). The `docs/` site is Wave's documentation (Algolia index, Plausible analytics); it is not built or shipped.
+- **Built-in AI:** removed by #25 (FR-MORPH-008). Wave's AI code stays in the tree, unreachable: the panel is not mounted
+  and never opens, its buttons, shortcuts, menu entry, tour page, tips, config entries and settings are gone, `wsh ai` is
+  deleted, and the chat entry points refuse every request. The "Wave AI" strings left in that code are never shown, so
+  the planned rename is dropped. The constants `MoltentermNoAI` (`frontend/util/moltenterm-noai.ts` and
+  `pkg/aiusechat/moltenterm_noai.go`) mark every place that depends on it.
 - **Identity:** resolved by #4 (FR-FORK-002). Still shared with Wave, on purpose or for later: `~/.waveterm` on remote
   hosts reached over SSH or WSL (WSL uses a fixed socket there), `~/waveapps` (app builder only), `TERM_PROGRAM=waveterm`
   (kept so that tools which detect Wave keep working), the `WAVETERM_*` variables that hand directories to wavesrv, and
   the version number (0.14.5, Wave's) until Moltenterm's own numbering is decided.
-- **Outbound services:** resolved by #5 (FR-FORK-003). No update feed, no Wave cloud, no telemetry upload, and the Wave AI
-  panel runs only on user-defined modes. Events are still recorded locally (dormant), and "wave" mode definitions are
-  still parsed but always refused.
+- **Outbound services:** resolved by #5 (FR-FORK-003). No update feed, no Wave cloud, no telemetry upload. Events are
+  still recorded locally (dormant). #5's AI patches (user-defined modes only, "wave" modes refused) stay as a second
+  line behind #25's refusal.
 - **Baseline failures inherited from v0.14.5:** resolved by #7 (FR-FORK-005); still present on upstream `main` on
   2026-09-30. `task check:ts` reported 17 errors from three stale mocks in `frontend/preview/`, and `pkg/tsgen`
   `TestGenerateWaveEventTypes` expected a one-line `WaveEventName` union while the generator emits a multi-line one.
