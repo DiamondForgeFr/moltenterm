@@ -1,16 +1,15 @@
 {
-    "name": "waveterm",
+    "name": "moltenterm",
     "author": {
-        "name": "Command Line Inc",
-        "email": "info@commandline.dev"
+        "name": "DiamondForge"
     },
-    "productName": "Wave",
-    "description": "Open-Source AI-Native Terminal Built for Seamless Workflows",
+    "productName": "Moltenterm",
+    "description": "The terminal that takes your shape. A soft fork of Wave Terminal.",
     "license": "Apache-2.0",
     "version": "0.14.5",
-    "homepage": "https://waveterm.dev",
+    "homepage": "https://github.com/DiamondForgeFr/moltenterm",
     "build": {
-        "appId": "dev.commandline.waveterm"
+        "appId": "fr.diamondforge.moltenterm"
     },
     "private": true,
     "main": "./dist/main/index.js",

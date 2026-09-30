@@ -207,9 +207,10 @@ func EnsureWavePresetsDir() error {
 
 func resolveWaveCachesDir() string {
 	var cacheDir string
-	appBundle := "waveterm"
+	// MOLTENTERM-PATCH (#4): Moltenterm's own cache directory, never Wave's.
+	appBundle := MoltentermDirName
 	if IsDevMode() {
-		appBundle = "waveterm-dev"
+		appBundle = MoltentermDirName + "-dev"
 	}
 
 	switch runtime.GOOS {

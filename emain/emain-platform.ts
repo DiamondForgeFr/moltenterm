@@ -9,6 +9,15 @@ import os from "os";
 import path from "path";
 import { WaveDevVarName, WaveDevViteVarName } from "../frontend/util/isdev";
 import * as keyutil from "../frontend/util/keyutil";
+// MOLTENTERM-PATCH (#4): directory and application names come from Moltenterm's identity module.
+import {
+    MoltentermConfigHomeVarName,
+    MoltentermDataHomeVarName,
+    MoltentermDevProductName,
+    MoltentermDirName,
+    MoltentermHomeVarName,
+    MoltentermProductName,
+} from "../frontend/util/moltenterm-identity";
 
 // This is a little trick to ensure that Electron puts all its runtime data into a subdirectory to avoid conflicts with our own data.
 // On macOS, it will store to ~/Library/Application \Support/waveterm/electron
@@ -26,20 +35,25 @@ if (isDevVite) {
     process.env[WaveDevViteVarName] = "1";
 }
 
-const waveDirNamePrefix = "waveterm";
+const waveDirNamePrefix = MoltentermDirName; // MOLTENTERM-PATCH (#4)
 const waveDirNameSuffix = isDev ? "dev" : "";
 const waveDirName = `${waveDirNamePrefix}${waveDirNameSuffix ? `-${waveDirNameSuffix}` : ""}`;
 
-const paths = envPaths("waveterm", { suffix: waveDirNameSuffix });
+const paths = envPaths(MoltentermDirName, { suffix: waveDirNameSuffix }); // MOLTENTERM-PATCH (#4)
 
-app.setName(isDev ? "Wave (Dev)" : "Wave");
+app.setName(isDev ? MoltentermDevProductName : MoltentermProductName); // MOLTENTERM-PATCH (#4)
 const unamePlatform = process.platform;
 const unameArch: string = process.arch;
 keyutil.setKeyUtilPlatform(unamePlatform);
 
 const WaveConfigHomeVarName = "WAVETERM_CONFIG_HOME";
 const WaveDataHomeVarName = "WAVETERM_DATA_HOME";
-const WaveHomeVarName = "WAVETERM_HOME";
+// MOLTENTERM-PATCH (#4): WAVETERM_HOME is no longer read; the legacy home comes from MOLTENTERM_HOME.
+
+// MOLTENTERM-PATCH (#4): keep Electron's own data (Chromium profile, single-instance lock) in <data>/electron.
+// With the product name "Moltenterm", Electron's default userData folder would be the data directory itself on
+// case-insensitive disks. This must run before the single-instance lock is requested (emain.ts).
+app.setPath("userData", path.join(getWaveDataDir(), "electron"));
 
 export function checkIfRunningUnderARM64Translation(fullConfig: FullConfigType) {
     if (!fullConfig.settings["app:dismissarchitecturewarning"] && app.runningUnderARM64Translation) {
@@ -72,7 +86,7 @@ export function checkIfRunningUnderARM64Translation(fullConfig: FullConfigType) 
  * @returns The path to the directory if it exists and contains valid data for the current app, otherwise null.
  */
 function getWaveHomeDir(): string {
-    let home = process.env[WaveHomeVarName];
+    let home = process.env[MoltentermHomeVarName]; // MOLTENTERM-PATCH (#4): never Wave's WAVETERM_HOME
     if (!home) {
         const homeDir = app.getPath("home");
         if (homeDir) {
@@ -110,7 +124,7 @@ function getWaveConfigDir(): string {
         return path.join(waveHomeDir, "config");
     }
 
-    const override = process.env[WaveConfigHomeVarName];
+    const override = process.env[MoltentermConfigHomeVarName]; // MOLTENTERM-PATCH (#4)
     const xdgConfigHome = process.env.XDG_CONFIG_HOME;
     let retVal: string;
     if (override) {
@@ -135,7 +149,7 @@ function getWaveDataDir(): string {
         return waveHomeDir;
     }
 
-    const override = process.env[WaveDataHomeVarName];
+    const override = process.env[MoltentermDataHomeVarName]; // MOLTENTERM-PATCH (#4)
     const xdgDataHome = process.env.XDG_DATA_HOME;
     let retVal: string;
     if (override) {

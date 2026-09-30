@@ -1,0 +1,22 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+// Moltenterm's application identity. A rename starts here, in
+// pkg/wavebase/moltenterm_identity.go, in package.json (name, productName,
+// build.appId) and in build/moltenterm/ (see UPSTREAM.md, "Identity and
+// rename procedure").
+
+export const MoltentermProductName = "Moltenterm";
+export const MoltentermDevProductName = "Moltenterm (Dev)";
+export const MoltentermWindowTitle = "Moltenterm";
+export const MoltentermTagline = "The terminal that takes your shape.";
+export const MoltentermRepoUrl = "https://github.com/DiamondForgeFr/moltenterm";
+
+// Base name of the configuration and data directories; dev builds append "-dev".
+export const MoltentermDirName = "moltenterm";
+
+// Directory overrides read from the user's environment. Wave's WAVETERM_*
+// variables are only used to hand the resolved directories to wavesrv.
+export const MoltentermConfigHomeVarName = "MOLTENTERM_CONFIG_HOME";
+export const MoltentermDataHomeVarName = "MOLTENTERM_DATA_HOME";
+export const MoltentermHomeVarName = "MOLTENTERM_HOME";
