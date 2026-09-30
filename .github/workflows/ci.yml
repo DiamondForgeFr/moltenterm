@@ -100,7 +100,10 @@ jobs:
               run: task build:backend
 
     gate:
-        name: Required gate
+        # A draft's run reports under another name: while the full run of a pull request just marked ready is still
+        # going, its gate job does not exist yet, and a "Required gate" success left by the draft's run on the same
+        # commit would satisfy a ruleset.
+        name: ${{ (github.event_name == 'pull_request' && github.event.pull_request.draft) && 'Draft gate' || 'Required gate' }}
         needs: [quick, frontend, backend]
         if: ${{ !cancelled() }}
         runs-on: ubuntu-latest
