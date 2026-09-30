@@ -48,7 +48,9 @@ gh repo set-default DiamondForgeFr/moltenterm
 3. `git merge --no-ff <sha>` and resolve conflicts with the policy below.
 4. Check that no Wave automation came back: `git diff --name-status <sha> HEAD -- .github CNAME` must list only
    Moltenterm's own files. Delete any new Wave workflow, Dependabot or funding file.
-5. Validate: `task init`, `task check:ts`, `npx vitest run`, `go test ./cmd/... ./pkg/...`, then `task dev`.
+5. Validate: `task init`, `node scripts/moltenterm-check-icons.mjs` (Wave targets Font Awesome Pro: any new Pro-only
+   icon must get an alias in `public/moltenterm-icons.css`), `task check:ts`, `npx vitest run`,
+   `go test ./cmd/... ./pkg/...`, then `task dev`.
 6. Update the "Current base" table and the patch ledger.
 7. Open the pull request to `develop` and merge it with a **merge commit**. Never squash or rebase: both drop Wave's
    history and make every later merge a conflict.
@@ -63,6 +65,8 @@ Never push Wave's tags: `git push` without `--tags`, and `tagOpt` keeps them out
 | `.gitignore` | Union of both, but never ignore `.claude` (it holds the SaaSFoundryAI harness). |
 | `.github/` | Keep ours. Delete any new upstream workflow, `dependabot.yml` or `FUNDING.yml`. |
 | `CNAME` | Stays deleted: it points to Wave's documentation domain. |
+| `README.md`, `NOTICE` | Keep ours. `NOTICE` must keep Wave Terminal's notice line. `README.ko.md` and `README.zh-TW.md` stay deleted. |
+| `public/fontawesome/`, `docs/static/fontawesome/` | Stay deleted: Font Awesome Pro is not redistributable. If Wave adds or updates Pro files, delete them again and extend `public/moltenterm-icons.css`. |
 | `LICENSE` | Upstream's file (Apache-2.0). |
 | `.claude/`, `.agents/`, `.saasfoundry.json`, `AGENTS.md`, `GEMINI.md`, `MANIFESTO.md`, `UPSTREAM.md` | Moltenterm only; no upstream counterpart. |
 
@@ -118,11 +122,25 @@ file. Code that lives in new files is not listed.
 | `emain/emain-window.ts`, `emain/emain-builder.ts` | Linux window icon `public/logos/moltenterm-logo.png` | Moltenterm's icon | #4 |
 | `pkg/wcore/layout.go`, `pkg/wconfig/defaultconfig/settings.json` | Starter web block and default web URL point to the Moltenterm repository | No Wave page on first run | #4 |
 | `Taskfile.yml` | Dev helper tasks target `moltenterm-dev` directories | `dev:cleardata` and friends must not touch Wave's directories | #4 |
+| `public/fontawesome/` (11 files), `docs/static/fontawesome/` (5 files) | Deleted; replaced by `public/fontawesome-free/` and `public/moltenterm-icons.css` (new files) | Font Awesome Pro is not redistributable | #6 |
+| `index.html`, `frontend/preview/index.html`, `docs/docusaurus.config.ts` | Load Font Awesome Free and the compatibility layer; preview page title and icon | Same | #6 |
+| `frontend/app/asset/dots-anim-4.svg` | Original animation | The previous file was a Nucleo icon (commercial licence) | #6 |
+| `README.md`, `NOTICE` (Moltenterm-owned); `README.ko.md`, `README.zh-TW.md` deleted | Moltenterm README, NOTICE with Wave's line kept | Attribution and non-affiliation | #6 |
+| `frontend/app/onboarding/onboarding.tsx` | Welcome, GitHub row point to Moltenterm; Discord row removed | Moltenterm is not presented as Wave | #6 |
+| `frontend/app/workspace/widgets.tsx` | "Release Notes" item removed; dev-build badge names the product | Same | #6 |
+| `emain/emain.ts`, `emain/emain-platform.ts` | Quit and ARM64 dialogs name the product; ARM64 "Learn More" opens the repository | Same | #6 |
+| `frontend/app/onboarding/onboarding-durable.tsx`, `onboarding-command.tsx` | Product name; the demo shows the Moltenterm logo | Same | #6 |
+| `frontend/app/element/quicktips.tsx`, `frontend/app/aipanel/aipanel.tsx` | Discord links replaced by Moltenterm's GitHub | Same | #6 |
+| `tsunami/frontend/public/wave-logo-256.png` | Image replaced by the Moltenterm logo (binary, no marker) | Waveapp favicon | #6 |
 
 ## Known upstream items
 
-- **Font Awesome Pro 6** files in `public/fontawesome/` and `docs/static/fontawesome/` are under a commercial licence,
-  not Apache-2.0. They are replaced by an openly licensed icon set in #6 (FR-FORK-004).
+- **Font Awesome Pro 6:** resolved by #6 (FR-FORK-004). HEAD ships Font Awesome Free plus `public/moltenterm-icons.css`;
+  the Pro files remain in Wave's history, which Moltenterm keeps (decision of 2026-09-29).
+- **Wave branding left on purpose:** "Wave AI" (renamed with the Automorph decision on the AI panel), links to
+  docs.waveterm.dev (still the only documentation of the configuration), `wsh` help texts, the AI system prompt, and
+  pages that are no longer reachable (the opt-out "star us" page, release notes and upgrade modals). The `docs/` site is
+  Wave's documentation (Algolia index, Plausible analytics); it is not built or shipped.
 - **Identity:** resolved by #4 (FR-FORK-002). Still shared with Wave, on purpose or for later: `~/.waveterm` on remote
   hosts reached over SSH or WSL (WSL uses a fixed socket there), `~/waveapps` (app builder only), `TERM_PROGRAM=waveterm`
   (kept so that tools which detect Wave keep working), the `WAVETERM_*` variables that hand directories to wavesrv, and
