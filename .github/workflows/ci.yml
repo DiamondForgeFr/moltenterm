@@ -100,26 +100,38 @@ jobs:
               run: task build:backend
 
     gate:
-        # A draft's run reports under another name: while the full run of a pull request just marked ready is still
-        # going, its gate job does not exist yet, and a "Required gate" success left by the draft's run on the same
-        # commit would satisfy a ruleset.
-        name: ${{ (github.event_name == 'pull_request' && github.event.pull_request.draft) && 'Draft gate' || 'Required gate' }}
-        needs: [quick, frontend, backend]
-        if: ${{ !cancelled() }}
+        # No `needs`: a job that waits on others gets its check only when they finish, so after a pull request is
+        # marked ready the "Required gate" success of its draft's run on the same commit would satisfy a ruleset until
+        # then. Starting with the run keeps the check pending from the first second, and a cancelled run leaves a check
+        # that the next run on the same commit replaces.
+        name: Required gate
         runs-on: ubuntu-latest
-        timeout-minutes: 5
+        timeout-minutes: 45
+        permissions:
+            actions: read
         steps:
-            - name: Check that every expected job passed
+            - name: Wait for the other jobs and check their results
               env:
+                  GH_TOKEN: ${{ github.token }}
+                  JOBS: repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs
                   DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
-                  QUICK: ${{ needs.quick.result }}
-                  FRONTEND: ${{ needs.frontend.result }}
-                  BACKEND: ${{ needs.backend.result }}
               run: |
                   heavy=success
                   if [ "$DRAFT" = "true" ]; then heavy=skipped; fi
-                  echo "quick=$QUICK frontend=$FRONTEND backend=$BACKEND (frontend and backend expected: $heavy)"
-                  if [ "$QUICK" != success ] || [ "$FRONTEND" != "$heavy" ] || [ "$BACKEND" != "$heavy" ]; then
+                  want="{\"Quick checks\": \"success\", \"Frontend\": \"$heavy\", \"Backend\": \"$heavy\"}"
+                  verdict="wait"
+                  while [ "$verdict" = "wait" ]; do
+                      sleep 10
+                      jobs=$(gh api "$JOBS" --jq '[.jobs[] | {name, status, conclusion}]') || continue
+                      verdict=$(echo "$jobs" | jq -r --argjson want "$want" '
+                          [.[] | select($want[.name] != null)] as $ours
+                          | if any($ours[]; .status == "completed" and .conclusion != $want[.name]) then "fail"
+                            elif ($ours | length) == ($want | length) and all($ours[]; .status == "completed") then "pass"
+                            else "wait" end')
+                  done
+                  echo "$jobs" | jq -r '.[] | select(.name != "Required gate") | "\(.name): \(.conclusion // .status)"'
+                  echo "Frontend and Backend expected: $heavy"
+                  if [ "$verdict" = fail ]; then
                       echo "::error::The validation did not complete"
                       exit 1
                   fi
