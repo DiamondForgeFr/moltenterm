@@ -8,6 +8,8 @@
 //
 // Usage: node scripts/moltenterm-check-icons.mjs   (exit code 1 when a name does not resolve)
 
+/* global console, process */
+
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
