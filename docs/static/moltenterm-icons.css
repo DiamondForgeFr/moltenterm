@@ -1,0 +1,192 @@
+/* Copyright 2026, DiamondForge
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Font Awesome compatibility layer for Moltenterm.
+ *
+ * Wave Terminal ships Font Awesome 6 Pro, which is not redistributable. Moltenterm ships
+ * Font Awesome Free 6.7.2 (public/fontawesome-free/) and this file, loaded after it, so that
+ * the class names Wave's code and user configurations rely on keep rendering:
+ *   1. Pro-only styles (Sharp, Light, Thin, Duotone, Kit) are drawn with the Free families.
+ *   2. Regular icons missing from Free Regular fall back to the Free Solid glyph.
+ *   3. Pro-only icon names get the closest Free glyph.
+ *   4. Wave's custom kit icons get Moltenterm replacements.
+ * scripts/moltenterm-check-icons.mjs verifies that every icon name used in the code resolves.
+ */
+
+/* A private face with the Free Solid glyphs, declared at weight 400 so that it can serve as a
+   glyph-by-glyph fallback for the (much smaller) Free Regular set. */
+@font-face {
+    font-family: "Moltenterm FA Solid Fallback";
+    font-style: normal;
+    font-weight: 400;
+    font-display: block;
+    src: url(./fontawesome-free/webfonts/fa-solid-900.woff2) format("woff2");
+}
+
+/* 1. Pro-only styles use the Free families. */
+.fa-sharp,
+.fa-sharp-solid,
+.fa-sharp-regular,
+.fa-sharp-light,
+.fa-sharp-thin,
+.fa-sharp-duotone,
+.fa-light,
+.fa-thin,
+.fa-duotone,
+.fa-kit,
+.fass,
+.fasr,
+.fasl,
+.fast,
+.fal,
+.fat,
+.fad {
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-font-smoothing: antialiased;
+    display: var(--fa-display, inline-block);
+    font-family: "Font Awesome 6 Free";
+    font-style: normal;
+    font-variant: normal;
+    font-weight: 900;
+    line-height: 1;
+    text-rendering: auto;
+}
+
+.fa-sharp::before,
+.fa-sharp-solid::before,
+.fa-sharp-regular::before,
+.fa-sharp-light::before,
+.fa-sharp-thin::before,
+.fa-sharp-duotone::before,
+.fa-light::before,
+.fa-thin::before,
+.fa-duotone::before,
+.fass::before,
+.fasr::before,
+.fasl::before,
+.fast::before,
+.fal::before,
+.fat::before,
+.fad::before {
+    content: var(--fa);
+}
+
+/* Light and Thin are closest to Regular; an explicit style class wins over the Sharp family. */
+.fa-light,
+.fa-thin,
+.fal,
+.fat,
+.fasl,
+.fast,
+.fa-sharp-light,
+.fa-sharp-thin,
+.fa-sharp.fa-regular,
+.fa-sharp-regular,
+.fasr {
+    font-weight: 400;
+}
+
+.fa-sharp.fa-solid,
+.fa-sharp-solid {
+    font-weight: 900;
+}
+
+/* 2. Regular falls back to Solid, glyph by glyph (Free Regular has about 160 icons). */
+.fa-regular,
+.far,
+.fa-light,
+.fa-thin,
+.fal,
+.fat,
+.fasl,
+.fast,
+.fa-sharp-light,
+.fa-sharp-thin,
+.fa-sharp.fa-regular,
+.fa-sharp-regular,
+.fasr {
+    font-family: "Font Awesome 6 Free", "Moltenterm FA Solid Fallback";
+}
+
+/* 3. Pro-only icons: closest Free glyph. */
+.fa-sparkles {
+    --fa: "\e2ca"; /* wand-magic-sparkles */
+}
+.fa-xmark-large {
+    --fa: "\f00d"; /* xmark */
+}
+.fa-circle-small {
+    --fa: "\f111"; /* circle, drawn at half size */
+}
+.fa-circle-small::before {
+    display: inline-block;
+    transform: scale(0.5);
+}
+.fa-square-terminal {
+    --fa: "\f120"; /* terminal */
+}
+.fa-list-tree {
+    --fa: "\f0ca"; /* list-ul */
+}
+.fa-browser,
+.fa-window {
+    --fa: "\f2d0"; /* window-maximize */
+}
+.fa-volume {
+    --fa: "\f028"; /* volume-high */
+}
+.fa-volume-slash {
+    --fa: "\f6a9"; /* volume-xmark */
+}
+.fa-signal-bars-slash {
+    --fa: "\f127"; /* link-slash */
+}
+.fa-wifi-slash {
+    --fa: "\e560"; /* plug-circle-xmark */
+}
+.fa-triangle {
+    --fa: "\f04b"; /* play, turned to point up */
+}
+.fa-triangle::before {
+    display: inline-block;
+    transform: rotate(-90deg);
+}
+.fa-book-font {
+    --fa: "\f031"; /* font */
+}
+.fa-lightbulb-on {
+    --fa: "\f0eb"; /* lightbulb */
+}
+
+/* 4. Wave's custom kit icons. */
+.fa-kit.fa-regex::before,
+.fa-kit.fa-whole-word::before,
+.fa-kit.fa-case-sensitive::before {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.85em;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+.fa-kit.fa-regex::before {
+    content: ".*";
+}
+.fa-kit.fa-whole-word::before {
+    content: "ab";
+    text-decoration: underline;
+}
+.fa-kit.fa-case-sensitive::before {
+    content: "Aa";
+}
+
+/* Wave's logo, the historical default workspace icon, becomes the Moltenterm mark. */
+.fa-kit.fa-wave-logo-solid::before,
+.fa-kit.fa-wave-logo-outline::before {
+    content: "";
+    display: inline-block;
+    width: 1.25em;
+    height: 1em;
+    vertical-align: -0.125em;
+    background-color: currentColor;
+    -webkit-mask: url(./moltenterm-mark.svg) center / contain no-repeat;
+    mask: url(./moltenterm-mark.svg) center / contain no-repeat;
+}

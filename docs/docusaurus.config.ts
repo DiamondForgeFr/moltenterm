@@ -157,7 +157,7 @@ const config: Config = {
                 as: "font",
                 type: "font/woff2",
                 "data-next-font": "size-adjust",
-                href: `${baseUrl}fontawesome/webfonts/fa-sharp-regular-400.woff2`,
+                href: `${baseUrl}fontawesome-free/webfonts/fa-regular-400.woff2`, // MOLTENTERM-PATCH (#6): Font Awesome Free
             },
         },
         {
@@ -167,7 +167,7 @@ const config: Config = {
                 as: "font",
                 type: "font/woff2",
                 "data-next-font": "size-adjust",
-                href: `${baseUrl}fontawesome/webfonts/fa-sharp-solid-900.woff2`,
+                href: `${baseUrl}fontawesome-free/webfonts/fa-solid-900.woff2`, // MOLTENTERM-PATCH (#6): Font Awesome Free
             },
         },
         {
@@ -188,10 +188,13 @@ const config: Config = {
             },
         },
     ].filter((v) => v),
+    // MOLTENTERM-PATCH (#6): Font Awesome Free + Moltenterm compatibility layer (Wave ships Font Awesome Pro)
     stylesheets: [
-        `${baseUrl}fontawesome/css/fontawesome.min.css`,
-        `${baseUrl}fontawesome/css/sharp-regular.min.css`,
-        `${baseUrl}fontawesome/css/sharp-solid.min.css`,
+        `${baseUrl}fontawesome-free/css/fontawesome.min.css`,
+        `${baseUrl}fontawesome-free/css/solid.min.css`,
+        `${baseUrl}fontawesome-free/css/regular.min.css`,
+        `${baseUrl}fontawesome-free/css/brands.min.css`,
+        `${baseUrl}moltenterm-icons.css`,
     ],
     staticDirectories: ["static", "storybook"],
 };
