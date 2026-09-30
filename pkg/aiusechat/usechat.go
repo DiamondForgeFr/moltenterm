@@ -549,6 +549,9 @@ func ResolveToolCall(toolDef *uctypes.ToolDefinition, toolCall uctypes.WaveToolC
 }
 
 func WaveAIPostMessageWrap(ctx context.Context, sseHandler *sse.SSEHandlerCh, message *uctypes.AIMessage, chatOpts uctypes.WaveChatOpts) error {
+	if MoltentermNoAI { // MOLTENTERM-PATCH (#25): no built-in AI; refused before any provider is reached
+		return ErrMoltentermNoAI
+	}
 	startTime := time.Now()
 
 	// Convert AIMessage to native chat message using backend
@@ -635,6 +638,10 @@ type PostMessageRequest struct {
 }
 
 func WaveAIPostMessageHandler(w http.ResponseWriter, r *http.Request) {
+	if MoltentermNoAI { // MOLTENTERM-PATCH (#25): refused before the request is read
+		http.Error(w, ErrMoltentermNoAI.Error(), http.StatusForbidden)
+		return
+	}
 	// Only allow POST method
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
