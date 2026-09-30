@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="34" viewBox="0 0 48 34">
+	<!-- Moltenterm mark, single colour: used as a CSS mask (default workspace icon). -->
+	<path d="M5 5 L17 14 L5 23" fill="none" stroke="#000" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+	<rect x="22" y="19" width="21" height="5" rx="2.5" fill="#000"/>
+	<path d="M26.5 23.5 C28 24.5 28.6 25.4 28.6 26.6 C27.8 27.4 27.3 28.3 27.3 29.3 A2.7 2.7 0 1 0 32.7 29.3 C32.7 28.3 32.2 27.4 31.4 26.6 C31.4 25.4 32 24.5 33.5 23.5 Z" fill="#000"/>
+</svg>
