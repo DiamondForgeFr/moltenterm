@@ -9,6 +9,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { SecretsContent } from "@/app/view/waveconfig/secretscontent";
 import { WaveConfigView } from "@/app/view/waveconfig/waveconfig";
 import type { WaveConfigEnv } from "@/app/view/waveconfig/waveconfigenv";
+import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
 import { base64ToString, stringToBase64 } from "@/util/util";
 import { atom, type Atom, type PrimitiveAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
@@ -103,7 +104,7 @@ function makeConfigFiles(isWindows: boolean): ConfigFile[] {
             hasJsonView: false,
             visualComponent: SecretsContent,
         },
-    ];
+    ].filter((file) => !MoltentermNoAI || file.path !== "waveai.json"); // MOLTENTERM-PATCH (#25): no AI modes file
 }
 
 const deprecatedConfigFiles: ConfigFile[] = [
@@ -123,7 +124,7 @@ const deprecatedConfigFiles: ConfigFile[] = [
         validator: validateAiJson,
         hasJsonView: true,
     },
-];
+].filter((file) => !MoltentermNoAI || file.path !== "presets/ai.json"); // MOLTENTERM-PATCH (#25): no AI presets file
 
 export class WaveConfigViewModel implements ViewModel {
     blockId: string;

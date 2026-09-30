@@ -152,7 +152,8 @@ tasks:
         generates:
             - "dist/schema/**/*"
         cmds:
-            - go run cmd/generateschema/main-generateschema.go
+            # MOLTENTERM-PATCH (#25): run the whole package, so that Moltenterm's schema filter is compiled in.
+            - go run ./cmd/generateschema
             - cmd: '{{.RMRF}} "dist/schema"'
               ignore_error: true
             - task: copyfiles:'schema':'dist/schema'
