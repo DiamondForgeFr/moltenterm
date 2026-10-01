@@ -19,6 +19,23 @@ A mod runs only once it is enabled. The enabled mods are listed in `<config>/mol
 (`{"enabled": ["<mod-id>", …]}`), outside the mod folders, and `molten mod enable|disable` changes it; every open tab
 applies the change at once. A mod that is not listed is reported as `disabled` and none of its code is read.
 
+## Trust
+
+A mod runs inside Moltenterm with the user's rights: it can read and change files and run commands. So no mod code
+runs before the user trusts it. The first `molten mod enable <id>` shows a prompt in the tab with the mod's name,
+version, description, declared capabilities and folder, and `molten` waits for the answer:
+
+- **Trust and enable:** the mod is enabled and starts in every tab. Trust is remembered per mod id in
+  `<data>/molten/trust.json`, so the agent can keep editing the mod without a prompt on every save.
+- **Don't trust**, Escape or closing the prompt: the mod stays disabled and `molten` exits 1.
+- **No answer within 5 minutes:** the prompt closes and `molten` exits 1; run the command again.
+
+A mod enabled in `mods.json` but not trusted is reported as `untrusted`, and none of its code is read.
+`molten mod untrust <id>` stops the mod and forgets the trust; `molten mod remove` forgets it too.
+
+Mods are not sandboxed in this version. The prompt keeps code from running by mistake; it does not stop a program
+that already runs with the user's rights, such as a hostile agent, from writing the trust file itself.
+
 ## `mod.json`
 
 | Field          | Required | Meaning                                                                                       |
@@ -79,10 +96,11 @@ command accepts `--json` and exits non-zero on failure; with `--json` an error i
 ```
 molten mod new <id> [--name <name>] [--description <text>]   # a working mod from a template, disabled
 molten mod validate [<id>…]   # manifest, API version, syntax: file:line:column of each problem; runs no code
-molten mod enable <id>        # in every open tab
+molten mod enable <id>        # in every open tab; asks you to trust the mod first
+molten mod untrust <id>       # stops the mod and forgets the trust
 molten mod disable <id>
-molten mod list               # ID, state (disabled, active, failed, refused), version, commands, error
-molten mod remove <id>        # disables the mod and moves its folder to the trash
+molten mod list               # ID, state (disabled, untrusted, active, failed, refused), version, commands, error
+molten mod remove <id>        # disables the mod, forgets its trust and moves its folder to the trash
 molten help                   # built-in commands and the commands of the enabled mods
 molten [--json] [--timeout <seconds>] <command> [args…]   # runs a mod command (default timeout 60 s)
 ```
@@ -91,9 +109,9 @@ Options of `molten` itself go before the command name; everything after it goes 
 its own copy of every enabled mod, and `molten` talks to the tab it runs in.
 
 The usual loop for an agent: `molten mod new <id>`, edit `main.js`, `molten mod validate <id>`,
-`molten mod enable <id>`, `molten <command>`, `molten mod list` to see errors.
+`molten mod enable <id>` (the user answers the trust prompt), `molten <command>`, `molten mod list` to see errors.
 
 ## Not in API version 1 yet
 
-Reloading on save (#19), undo and safe mode (#20), the trust prompt (#21), and boxes and panels (#24). Until #20,
+Reloading on save (#19), undo and safe mode (#20), and boxes and panels (#24). Until #20,
 `molten mod remove` moves the folder to the system trash on macOS and to `<data>/molten/removed/` elsewhere.
