@@ -130,6 +130,8 @@ var moltenHelpCmd = &cobra.Command{
 var moltenModCmd = &cobra.Command{
 	Use:   "mod",
 	Short: "manage mods",
+	Args:  cobra.ArbitraryArgs,
+	RunE:  moltenModRun,
 }
 
 var moltenModNewCmd = &cobra.Command{
@@ -295,6 +297,15 @@ func moltenAnnounceChange(ids ...string) {
 	if err != nil {
 		WriteStderr("molten: the change is saved but the open tabs were not told (%v)\n", err)
 	}
+}
+
+// Without RunE, cobra answers an unknown subcommand with its help and exit code 0; agents need a failure.
+func moltenModRun(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return cmd.Help()
+	}
+	moltenReportError(fmt.Errorf("unknown mod subcommand %q (see molten help)", args[0]))
+	return nil
 }
 
 func moltenModListRun(cmd *cobra.Command, args []string) error {
