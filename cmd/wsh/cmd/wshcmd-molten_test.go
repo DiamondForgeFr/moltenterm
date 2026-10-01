@@ -224,6 +224,7 @@ func TestMoltenRemoveMod(t *testing.T) {
 			t.Fatal(err)
 		}
 		moltenSetEnabled(configDir, "gone", true)
+		moltenSetTrusted(dataDir, "gone", "Gone", now)
 		dest, err := moltenRemoveMod(configDir, dataDir, trashDir, "gone", now)
 		if err != nil {
 			t.Fatal(err)
@@ -242,6 +243,9 @@ func TestMoltenRemoveMod(t *testing.T) {
 	state, _ := moltenReadState(moltenStateFile(configDir))
 	if len(state.Enabled) != 0 {
 		t.Fatal("a removed mod must be disabled")
+	}
+	if trusted, _ := moltenIsTrusted(dataDir, "gone"); trusted {
+		t.Fatal("removing a mod must forget that it was trusted")
 	}
 	moltenNewMod(configDir, "other", "", "")
 	dest, err := moltenRemoveMod(configDir, dataDir, "", "other", now)
@@ -302,5 +306,56 @@ func TestMoltenUnknownModSubcommandFails(t *testing.T) {
 	moltenModRun(moltenModCmd, []string{"nope"})
 	if WshExitCode != 1 {
 		t.Fatalf("an unknown mod subcommand must exit 1, got %d", WshExitCode)
+	}
+}
+
+func TestMoltenTrustFile(t *testing.T) {
+	dataDir := t.TempDir()
+	now := time.Date(2026, 10, 1, 12, 30, 0, 0, time.FixedZone("CEST", 2*3600))
+	if trusted, err := moltenIsTrusted(dataDir, "a"); err != nil || trusted {
+		t.Fatalf("a missing trust file trusts nothing: %v %v", trusted, err)
+	}
+	if err := moltenSetTrusted(dataDir, "a", "Mod A", now); err != nil {
+		t.Fatal(err)
+	}
+	moltenSetTrusted(dataDir, "b", "Mod B", now)
+	trust, err := moltenReadTrust(moltenTrustFile(dataDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if trust.Trusted["a"] != (MoltenTrustEntry{Name: "Mod A", TrustedAt: "2026-10-01T10:30:00Z"}) || len(trust.Trusted) != 2 {
+		t.Fatalf("unexpected trust file: %+v", trust)
+	}
+	forgotten, err := moltenForgetTrust(dataDir, "a")
+	if err != nil || !forgotten {
+		t.Fatalf("forget a: %v %v", forgotten, err)
+	}
+	forgotten, _ = moltenForgetTrust(dataDir, "a")
+	if forgotten {
+		t.Fatal("forgetting twice must report no change")
+	}
+	if trusted, _ := moltenIsTrusted(dataDir, "b"); !trusted {
+		t.Fatal("other mods keep their trust")
+	}
+	os.WriteFile(moltenTrustFile(dataDir), []byte("{oops"), 0644)
+	if err := moltenSetTrusted(dataDir, "c", "C", now); err == nil {
+		t.Fatal("an invalid trust file must be reported, not overwritten")
+	}
+}
+
+func TestMoltenTrustAnswerError(t *testing.T) {
+	if err := moltenTrustAnswerError("m", "trusted"); err != nil {
+		t.Fatal(err)
+	}
+	cases := map[string]string{
+		"declined": "was not trusted: it stays disabled",
+		"timeout":  "no answer within 5 minutes",
+		"maybe":    "unexpected answer",
+	}
+	for answer, want := range cases {
+		err := moltenTrustAnswerError("m", answer)
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("answer %q: got %v, want %q", answer, err, want)
+		}
 	}
 }

@@ -35,12 +35,23 @@ const (
 	MoltenModListRpcCommand     = "moltenmodlist"
 	MoltenModValidateRpcCommand = "moltenmodvalidate"
 	MoltenRunRpcCommand         = "moltenrun"
+	MoltenTrustPromptRpcCommand = "moltentrustprompt"
 	MoltenModsChangedEvent      = "molten:modschanged"
 )
 
 const MoltenRpcTimeoutMs = 5000
 const MoltenRunDefaultTimeoutSec = 60
 const MoltenMaxStdinBytes = 1 << 20
+
+// must match MoltenTrustTimeoutMs in frontend/molten/molten-trust.tsx; molten waits a little longer than the prompt
+const MoltenTrustTimeoutMs = 5 * 60 * 1000
+const MoltenTrustRpcTimeoutMs = MoltenTrustTimeoutMs + 10*1000
+
+const (
+	MoltenTrustAnswerTrusted  = "trusted"
+	MoltenTrustAnswerDeclined = "declined"
+	MoltenTrustAnswerTimeout  = "timeout"
+)
 
 type MoltenModStatus struct {
 	Id       string   `json:"id"`
@@ -103,6 +114,11 @@ type MoltenModChange struct {
 	Action  string `json:"action"`
 	Changed bool   `json:"changed"`
 	Path    string `json:"path,omitempty"`
+	Trust   string `json:"trust,omitempty"`
+}
+
+type MoltenTrustPromptResult struct {
+	Answer string `json:"answer"`
 }
 
 var moltenJson bool
@@ -159,7 +175,7 @@ var moltenModValidateCmd = &cobra.Command{
 
 var moltenModEnableCmd = &cobra.Command{
 	Use:     "enable <id>",
-	Short:   "enable a mod in every tab",
+	Short:   "enable a mod in every tab (asks you to trust it first)",
 	Args:    cobra.ExactArgs(1),
 	RunE:    moltenWrap(func(cmd *cobra.Command, args []string) error { return moltenModToggle(args[0], true) }),
 	PreRunE: preRunSetupRpcClient,
@@ -170,6 +186,14 @@ var moltenModDisableCmd = &cobra.Command{
 	Short:   "disable a mod in every tab",
 	Args:    cobra.ExactArgs(1),
 	RunE:    moltenWrap(func(cmd *cobra.Command, args []string) error { return moltenModToggle(args[0], false) }),
+	PreRunE: preRunSetupRpcClient,
+}
+
+var moltenModUntrustCmd = &cobra.Command{
+	Use:     "untrust <id>",
+	Short:   "stop a mod in every tab and forget that you trusted it",
+	Args:    cobra.ExactArgs(1),
+	RunE:    moltenWrap(moltenModUntrustRun),
 	PreRunE: preRunSetupRpcClient,
 }
 
@@ -187,7 +211,7 @@ func init() {
 	os.Args = moltenRewriteArgs(os.Args)
 
 	for _, cmd := range []*cobra.Command{moltenHelpCmd, moltenModNewCmd, moltenModListCmd, moltenModValidateCmd,
-		moltenModEnableCmd, moltenModDisableCmd, moltenModRemoveCmd} {
+		moltenModEnableCmd, moltenModDisableCmd, moltenModUntrustCmd, moltenModRemoveCmd} {
 		cmd.Flags().BoolVar(&moltenJson, "json", false, "print the result as JSON")
 	}
 	moltenModNewCmd.Flags().StringVar(&moltenNewName, "name", "", "name shown to the user (default: the id)")
@@ -196,7 +220,7 @@ func init() {
 	moltenCmd.AddCommand(moltenHelpCmd)
 	moltenCmd.AddCommand(moltenModCmd)
 	for _, cmd := range []*cobra.Command{moltenModNewCmd, moltenModListCmd, moltenModValidateCmd, moltenModEnableCmd,
-		moltenModDisableCmd, moltenModRemoveCmd} {
+		moltenModDisableCmd, moltenModUntrustCmd, moltenModRemoveCmd} {
 		moltenModCmd.AddCommand(cmd)
 	}
 }
@@ -377,15 +401,22 @@ func moltenModToggle(id string, enable bool) error {
 	if err != nil {
 		return err
 	}
+	trustState := ""
 	if enable {
 		if _, err := os.Stat(filepath.Join(dir, MoltenManifestFileName)); err != nil {
 			return fmt.Errorf("mod %q has no %s", id, MoltenManifestFileName)
+		}
+		trustState, err = moltenEnsureTrusted(id)
+		if err != nil {
+			return err
 		}
 	}
 	changed, err := moltenSetEnabled(configDir, id, enable)
 	if err != nil {
 		return err
 	}
+	// An enabled but untrusted mod (mods.json edited by hand) starts once trusted, though its state did not change.
+	changed = changed || trustState == MoltenTrustAnswerTrusted
 	action := "disable"
 	if enable {
 		action = "enable"
@@ -394,7 +425,7 @@ func moltenModToggle(id string, enable bool) error {
 		moltenAnnounceChange(id)
 	}
 	if moltenJson {
-		return moltenWriteJson(MoltenModChange{Id: id, Action: action, Changed: changed, Path: dir})
+		return moltenWriteJson(MoltenModChange{Id: id, Action: action, Changed: changed, Path: dir, Trust: trustState})
 	}
 	switch {
 	case changed && enable:
@@ -406,6 +437,105 @@ func moltenModToggle(id string, enable bool) error {
 	default:
 		WriteStdout("mod %q is already disabled\n", id)
 	}
+	return nil
+}
+
+// Asks the calling tab whether the user trusts the mod, unless they already did, and records the answer. Nothing of
+// the mod runs before this returns "trusted".
+func moltenEnsureTrusted(id string) (string, error) {
+	dataDir, err := moltenGetPath("data")
+	if err != nil {
+		return "", err
+	}
+	trusted, err := moltenIsTrusted(dataDir, id)
+	if err != nil {
+		return "", err
+	}
+	if trusted {
+		return "already", nil
+	}
+	WriteStderr("molten: waiting for your approval of mod %q in Moltenterm…\n", id)
+	var result MoltenTrustPromptResult
+	err = moltenTabRequest(MoltenTrustPromptRpcCommand, map[string]any{"id": id}, MoltenTrustRpcTimeoutMs, &result)
+	if err != nil {
+		return "", err
+	}
+	err = moltenTrustAnswerError(id, result.Answer)
+	if err != nil {
+		return "", err
+	}
+	name := id
+	if manifest, readErr := moltenReadTemplateManifest(id); readErr == nil && manifest.Name != "" {
+		name = manifest.Name
+	}
+	err = moltenSetTrusted(dataDir, id, name, time.Now())
+	if err != nil {
+		return "", err
+	}
+	return MoltenTrustAnswerTrusted, nil
+}
+
+func moltenTrustAnswerError(id string, answer string) error {
+	switch answer {
+	case MoltenTrustAnswerTrusted:
+		return nil
+	case MoltenTrustAnswerDeclined:
+		return fmt.Errorf("mod %q was not trusted: it stays disabled", id)
+	case MoltenTrustAnswerTimeout:
+		return fmt.Errorf("mod %q waits for your approval: no answer within %d minutes, run molten mod enable %s again", id, MoltenTrustTimeoutMs/60000, id)
+	default:
+		return fmt.Errorf("unexpected answer %q from the trust prompt", answer)
+	}
+}
+
+func moltenReadTemplateManifest(id string) (MoltenTemplateManifest, error) {
+	var manifest MoltenTemplateManifest
+	configDir, err := moltenGetPath("config")
+	if err != nil {
+		return manifest, err
+	}
+	data, err := os.ReadFile(filepath.Join(moltenModsDir(configDir), id, MoltenManifestFileName))
+	if err != nil {
+		return manifest, err
+	}
+	err = json.Unmarshal(data, &manifest)
+	return manifest, err
+}
+
+func moltenModUntrustRun(cmd *cobra.Command, args []string) error {
+	id := args[0]
+	err := moltenCheckModId(id)
+	if err != nil {
+		return err
+	}
+	configDir, err := moltenGetPath("config")
+	if err != nil {
+		return err
+	}
+	dataDir, err := moltenGetPath("data")
+	if err != nil {
+		return err
+	}
+	forgotten, err := moltenForgetTrust(dataDir, id)
+	if err != nil {
+		return err
+	}
+	disabled, err := moltenSetEnabled(configDir, id, false)
+	if err != nil {
+		return err
+	}
+	changed := forgotten || disabled
+	if changed {
+		moltenAnnounceChange(id)
+	}
+	if moltenJson {
+		return moltenWriteJson(MoltenModChange{Id: id, Action: "untrust", Changed: changed})
+	}
+	if !changed {
+		WriteStdout("mod %q was not trusted\n", id)
+		return nil
+	}
+	WriteStdout("mod %q is stopped and no longer trusted; enabling it again asks you first\n", id)
 	return nil
 }
 
@@ -506,8 +636,9 @@ var moltenBuiltinHelp = [][2]string{
 	{"mod new <id>", "create a mod from a template (disabled until enabled)"},
 	{"mod list", "list the mods of this tab and their state"},
 	{"mod validate [id...]", "check mods without running them"},
-	{"mod enable <id>", "enable a mod in every tab"},
+	{"mod enable <id>", "enable a mod in every tab (asks you to trust it first)"},
 	{"mod disable <id>", "disable a mod in every tab"},
+	{"mod untrust <id>", "stop a mod and forget that you trusted it"},
 	{"mod remove <id>", "disable a mod and move its folder to the trash"},
 	{"help", "this list"},
 	{"<command> [args...]", "run a command provided by an enabled mod"},
