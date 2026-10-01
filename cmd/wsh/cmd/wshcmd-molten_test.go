@@ -294,3 +294,13 @@ func TestMoltenModSubcommandAfterOptions(t *testing.T) {
 		t.Fatalf("found %q with %q (%v)", sub.Name(), rest, err)
 	}
 }
+
+func TestMoltenUnknownModSubcommandFails(t *testing.T) {
+	saved := WshExitCode
+	defer func() { WshExitCode = saved }()
+	WshExitCode = 0
+	moltenModRun(moltenModCmd, []string{"nope"})
+	if WshExitCode != 1 {
+		t.Fatalf("an unknown mod subcommand must exit 1, got %d", WshExitCode)
+	}
+}
