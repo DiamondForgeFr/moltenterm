@@ -859,6 +859,10 @@ func moltenAgentInstallRun(cmd *cobra.Command, args []string) error {
 	if moltenJson {
 		return moltenWriteJson(status)
 	}
+	if profile.Id == "generic" {
+		WriteStdout("installed. Tell your coding agent:\n  %s\n", status.Invocation)
+		return nil
+	}
 	WriteStdout("installed. In %s, type:\n  %s\n", profile.Name, status.Invocation)
 	return nil
 }
