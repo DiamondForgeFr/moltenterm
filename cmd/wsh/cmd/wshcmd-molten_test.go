@@ -422,3 +422,27 @@ func TestFormatMoltenHistory(t *testing.T) {
 		}
 	}
 }
+
+func TestMoltenAgentCommands(t *testing.T) {
+	for line, want := range map[string]*cobra.Command{
+		"molten agent list --json":         moltenAgentListCmd,
+		"molten agent install codex --yes": moltenAgentInstallCmd,
+		"molten agent remove kimi":         moltenAgentRemoveCmd,
+		"molten docs":                      moltenDocsCmd,
+	} {
+		found, _, err := rootCmd.Find(strings.Fields(line))
+		if err != nil || found != want {
+			t.Errorf("%q routes to %q (%v)", line, found.Name(), err)
+		}
+	}
+	out := formatMoltenAgents([]molten.AgentStatus{
+		{Id: "claude-code", Installed: true, Version: "0.14.5", Format: "skill", Path: "/h/.claude/skills/molten-feature/SKILL.md"},
+		{Id: "codex", Foreign: true, Format: "skill", Path: "/h/.agents/skills/molten-feature/SKILL.md"},
+		{Id: "kimi", Format: "skill", Path: "/k"},
+	})
+	for _, want := range []string{"v0.14.5", "no (path taken)", "molten agent install <agent>"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("agent list misses %q:\n%s", want, out)
+		}
+	}
+}
