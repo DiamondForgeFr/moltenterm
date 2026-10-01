@@ -359,3 +359,32 @@ func TestMoltenTrustAnswerError(t *testing.T) {
 		}
 	}
 }
+
+func TestMoltenBuiltinState(t *testing.T) {
+	configDir := t.TempDir()
+	moltenSetEnabled(configDir, "mine", true)
+	changed, err := moltenSetBuiltinEnabled(configDir, "copy-box", false)
+	if err != nil || !changed {
+		t.Fatalf("disable a built-in: %v %v", changed, err)
+	}
+	changed, _ = moltenSetBuiltinEnabled(configDir, "copy-box", false)
+	if changed {
+		t.Fatal("disabling twice must report no change")
+	}
+	state, _ := moltenReadState(moltenStateFile(configDir))
+	if strings.Join(state.Disabled, ",") != "copy-box" || strings.Join(state.Enabled, ",") != "mine" {
+		t.Fatalf("unexpected state: %+v", state)
+	}
+	moltenSetBuiltinEnabled(configDir, "copy-box", true)
+	data, _ := os.ReadFile(moltenStateFile(configDir))
+	if strings.Contains(string(data), "disabled") {
+		t.Fatalf("an empty disabled list must not be written: %s", data)
+	}
+}
+
+func TestFormatMoltenModListMarksBuiltins(t *testing.T) {
+	out := formatMoltenModList(&MoltenModList{Mods: []MoltenModStatus{{Id: "copy-box", State: "active", Builtin: true, Commands: []string{"copy"}}}})
+	if !strings.Contains(out, "copy-box (built-in)") {
+		t.Fatalf("built-in mods must be marked:\n%s", out)
+	}
+}
