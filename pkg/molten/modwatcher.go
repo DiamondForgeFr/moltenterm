@@ -44,8 +44,10 @@ type ModWatcher struct {
 	trustFile string
 	debounce  time.Duration
 	publish   func(ids []string)
-	pending   map[string]bool
-	timer     *time.Timer
+	// Records each change before it is announced (FR-MORPH-003); nil in tests that only check events.
+	history *History
+	pending map[string]bool
+	timer   *time.Timer
 	// Last seen content of mods.json and trust.json, so that a change to them reloads only the mods it concerns.
 	lastState map[string]string
 }
@@ -89,16 +91,16 @@ func MakeModWatcher(modsDir string, stateFile string, trustFile string, debounce
 func StartModWatcher() {
 	configDir := wavebase.GetWaveConfigDir()
 	dataDir := wavebase.GetWaveDataDir()
-	mw, err := MakeModWatcher(
-		filepath.Join(configDir, "mods"),
-		filepath.Join(configDir, "molten", StateFileName),
-		filepath.Join(dataDir, "molten", TrustFileName),
-		ModWatcherDebounce,
-		publishModsChanged,
-	)
+	modsDir := filepath.Join(configDir, "mods")
+	stateFile := filepath.Join(configDir, "molten", StateFileName)
+	mw, err := MakeModWatcher(modsDir, stateFile, filepath.Join(dataDir, "molten", TrustFileName), ModWatcherDebounce, publishModsChanged)
 	if err != nil {
 		log.Printf("molten: mod watcher not started: %v\n", err)
 		return
+	}
+	mw.history = MakeHistory(HistoryDir(dataDir), modsDir, stateFile)
+	if _, err := mw.history.Record(HistoryKindStart, nil, 0, time.Now()); err != nil {
+		log.Printf("molten: recording the mods at start: %v\n", err)
 	}
 	go mw.Run()
 }
@@ -225,6 +227,11 @@ func (mw *ModWatcher) flush() {
 	ids := mw.takePending()
 	if len(ids) == 0 {
 		return
+	}
+	if mw.history != nil {
+		if _, err := mw.history.Record(HistoryKindChange, ids, 0, time.Now()); err != nil {
+			log.Printf("molten: recording the change of %v: %v\n", ids, err)
+		}
 	}
 	mw.publish(ids)
 }
