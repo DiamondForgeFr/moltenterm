@@ -1,0 +1,10 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* Moltenterm's shell style (Workspace shell, FR-SHELL-004/005). Imported last from frontend/wave.ts, so it overrides
+   Wave's theme without editing its files. Corner radii are capped at build time (build/cap-radius.ts). */
+
+/* A thin focus border: the terminal, not its frame, holds the eye. Wave's no-highlight rule uses !important too. */
+.block .block-mask {
+    border-width: 1px !important;
+}

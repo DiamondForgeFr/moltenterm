@@ -7,6 +7,7 @@ import { defineConfig } from "electron-vite";
 import { ViteImageOptimizer } from "vite-plugin-image-optimizer";
 import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
+import { moltentermCapRadius } from "./frontend/moltenterm-shell/build/cap-radius"; // MOLTENTERM-PATCH (#48)
 
 // from our electron build
 const CHROME = "chrome140";
@@ -168,6 +169,8 @@ export default defineConfig({
             },
         },
         css: {
+            // MOLTENTERM-PATCH (#48): no corner above 3 px in the built CSS
+            postcss: { plugins: [moltentermCapRadius()] },
             preprocessorOptions: {
                 scss: {
                     silenceDeprecations: ["mixed-decls"],
