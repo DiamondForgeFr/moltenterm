@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 )
 
@@ -386,5 +387,26 @@ func TestFormatMoltenModListMarksBuiltins(t *testing.T) {
 	out := formatMoltenModList(&MoltenModList{Mods: []MoltenModStatus{{Id: "copy-box", State: "active", Builtin: true, Commands: []string{"copy"}}}})
 	if !strings.Contains(out, "copy-box (built-in)") {
 		t.Fatalf("built-in mods must be marked:\n%s", out)
+	}
+}
+
+func TestFormatMoltenHistory(t *testing.T) {
+	entries := []molten.HistoryEntry{
+		{Seq: 1, Time: "2026-10-01T10:00:00Z", Kind: "start", Ids: []string{}},
+		{Seq: 2, Time: "2026-10-01T10:01:00Z", Kind: "change", Ids: []string{"greet"}},
+		{Seq: 3, Time: "2026-10-01T10:02:00Z", Kind: "undo", Ids: []string{"greet"}, Target: 1},
+	}
+	lines := strings.Split(strings.TrimRight(formatMoltenHistory(entries, 1), "\n"), "\n")
+	if len(lines) != 4 || !strings.Contains(lines[1], "undo (back to #1)") || !strings.HasPrefix(strings.TrimSpace(lines[3]), "-> ") {
+		t.Fatalf("unexpected history output:\n%s", strings.Join(lines, "\n"))
+	}
+	if formatMoltenHistory(nil, 0) != "no recorded change yet\n" {
+		t.Fatal("empty history output")
+	}
+	for line, want := range map[string]string{"molten undo": "undo", "molten history --json": "history"} {
+		found, _, err := rootCmd.Find(strings.Fields(line))
+		if err != nil || found.Name() != want {
+			t.Errorf("%q routes to %v (%v)", line, found.Name(), err)
+		}
 	}
 }

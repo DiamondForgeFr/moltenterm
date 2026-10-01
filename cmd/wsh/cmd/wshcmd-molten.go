@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
@@ -144,6 +145,22 @@ var moltenHelpCmd = &cobra.Command{
 	PreRunE: preRunSetupRpcClient,
 }
 
+var moltenUndoCmd = &cobra.Command{
+	Use:     "undo",
+	Short:   "restore the mods as they were before the last change; repeat to keep going back",
+	Args:    cobra.NoArgs,
+	RunE:    moltenWrap(moltenUndoRun),
+	PreRunE: preRunSetupRpcClient,
+}
+
+var moltenHistoryCmd = &cobra.Command{
+	Use:     "history",
+	Short:   "list the recorded changes to the mods",
+	Args:    cobra.NoArgs,
+	RunE:    moltenWrap(moltenHistoryRun),
+	PreRunE: preRunSetupRpcClient,
+}
+
 var moltenModCmd = &cobra.Command{
 	Use:   "mod",
 	Short: "manage mods",
@@ -211,7 +228,7 @@ func init() {
 	// `wsh molten x`.
 	os.Args = moltenRewriteArgs(os.Args)
 
-	for _, cmd := range []*cobra.Command{moltenHelpCmd, moltenModNewCmd, moltenModListCmd, moltenModValidateCmd,
+	for _, cmd := range []*cobra.Command{moltenHelpCmd, moltenUndoCmd, moltenHistoryCmd, moltenModNewCmd, moltenModListCmd, moltenModValidateCmd,
 		moltenModEnableCmd, moltenModDisableCmd, moltenModUntrustCmd, moltenModRemoveCmd} {
 		cmd.Flags().BoolVar(&moltenJson, "json", false, "print the result as JSON")
 	}
@@ -219,6 +236,8 @@ func init() {
 	moltenModNewCmd.Flags().StringVar(&moltenNewDescription, "description", "", "one sentence describing the mod")
 	rootCmd.AddCommand(moltenCmd)
 	moltenCmd.AddCommand(moltenHelpCmd)
+	moltenCmd.AddCommand(moltenUndoCmd)
+	moltenCmd.AddCommand(moltenHistoryCmd)
 	moltenCmd.AddCommand(moltenModCmd)
 	for _, cmd := range []*cobra.Command{moltenModNewCmd, moltenModListCmd, moltenModValidateCmd, moltenModEnableCmd,
 		moltenModDisableCmd, moltenModUntrustCmd, moltenModRemoveCmd} {
@@ -604,6 +623,95 @@ func moltenModUntrustRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func moltenGetHistory() (*molten.History, error) {
+	configDir, err := moltenGetPath("config")
+	if err != nil {
+		return nil, err
+	}
+	dataDir, err := moltenGetPath("data")
+	if err != nil {
+		return nil, err
+	}
+	return molten.MakeHistory(molten.HistoryDir(dataDir), moltenModsDir(configDir), moltenStateFile(configDir)), nil
+}
+
+func moltenUndoRun(cmd *cobra.Command, args []string) error {
+	history, err := moltenGetHistory()
+	if err != nil {
+		return err
+	}
+	target, undoEntry, err := history.Undo(time.Now())
+	if err != nil {
+		return err
+	}
+	moltenAnnounceChange(undoEntry.Ids...)
+	if moltenJson {
+		return moltenWriteJson(map[string]any{"restored": target, "recorded": undoEntry})
+	}
+	changed := strings.Join(undoEntry.Ids, ", ")
+	if changed == "" {
+		changed = "no mod"
+	}
+	WriteStdout("restored the mods as after change #%d (%s); changed: %s\n", target.Seq, moltenFormatTime(target.Time), changed)
+	return nil
+}
+
+func moltenHistoryRun(cmd *cobra.Command, args []string) error {
+	history, err := moltenGetHistory()
+	if err != nil {
+		return err
+	}
+	entries, err := history.Entries()
+	if err != nil {
+		return err
+	}
+	position, _ := molten.HistoryPosition(entries)
+	if moltenJson {
+		if entries == nil {
+			entries = []molten.HistoryEntry{}
+		}
+		return moltenWriteJson(map[string]any{"position": position, "entries": entries})
+	}
+	WriteStdout("%s", formatMoltenHistory(entries, position))
+	return nil
+}
+
+func moltenFormatTime(rfc3339 string) string {
+	t, err := time.Parse(time.RFC3339, rfc3339)
+	if err != nil {
+		return rfc3339
+	}
+	return t.Local().Format("2006-01-02 15:04:05")
+}
+
+// Newest first; the arrow marks the change whose state the mods are in.
+func formatMoltenHistory(entries []molten.HistoryEntry, position int) string {
+	if len(entries) == 0 {
+		return "no recorded change yet\n"
+	}
+	var sb strings.Builder
+	tw := tabwriter.NewWriter(&sb, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(tw, "\t#\tTIME\tKIND\tMODS\n")
+	for i := len(entries) - 1; i >= 0; i-- {
+		entry := entries[i]
+		mark := ""
+		if entry.Seq == position {
+			mark = "->"
+		}
+		kind := entry.Kind
+		if entry.Kind == molten.HistoryKindUndo {
+			kind = fmt.Sprintf("undo (back to #%d)", entry.Target)
+		}
+		mods := strings.Join(entry.Ids, ",")
+		if mods == "" {
+			mods = "-"
+		}
+		fmt.Fprintf(tw, "%s\t%d\t%s\t%s\t%s\n", mark, entry.Seq, moltenFormatTime(entry.Time), kind, mods)
+	}
+	tw.Flush()
+	return sb.String()
+}
+
 func moltenModRemoveRun(cmd *cobra.Command, args []string) error {
 	configDir, err := moltenGetPath("config")
 	if err != nil {
@@ -709,6 +817,8 @@ var moltenBuiltinHelp = [][2]string{
 	{"mod disable <id>", "disable a mod in every tab"},
 	{"mod untrust <id>", "stop a mod and forget that you trusted it"},
 	{"mod remove <id>", "disable a mod and move its folder to the trash"},
+	{"undo", "restore the mods as they were before the last change (repeat to go further back)"},
+	{"history", "list the recorded changes to the mods"},
 	{"help", "this list"},
 	{"<command> [args...]", "run a command provided by an enabled mod"},
 }
