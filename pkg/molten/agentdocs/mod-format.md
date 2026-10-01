@@ -1,5 +1,8 @@
 # Moltenterm mods
 
+`molten docs` prints the folder holding this page, the `molten-feature.md` guide for coding agents and complete
+example mods, all matching the installed version.
+
 A mod changes Moltenterm from the outside: it is a folder in the configuration directory that Moltenterm loads when a
 tab opens. Mods only see `MoltenApi`, described below, and never Wave's internal modules. This page documents API
 version 1.
@@ -121,10 +124,33 @@ the app: they need no trust prompt and run unless turned off with `molten mod di
 `"disabled"` in `mods.json`). `molten mod list` marks them `(built-in)`; they cannot be removed or untrusted. A
 folder in `<config>/mods/` named like a built-in mod is ignored.
 
+## Coding agents: /molten-feature
+
+The user asks their own coding agent for a change with `/molten-feature <request>`; the agent follows the
+`molten-feature.md` guide to build the mod with `molten`. Install it once per agent, at user level:
+
+```
+molten agent list                 # supported agents, where the guide goes, what is installed
+molten agent install <agent>      # shows the path, asks, writes (--yes to skip the question)
+molten agent remove <agent>       # deletes only a file molten wrote
+```
+
+| Agent | Installed as | The user types |
+| --- | --- | --- |
+| `claude-code` | skill `~/.claude/skills/molten-feature/SKILL.md` | `/molten-feature <request>` |
+| `codex` | skill `~/.agents/skills/molten-feature/SKILL.md` | `$molten-feature <request>` |
+| `gemini-cli` | command `~/.gemini/commands/molten-feature.toml` | `/molten-feature <request>` |
+| `qwen-code` | command `~/.qwen/commands/molten-feature.md` | `/molten-feature <request>` |
+| `kimi` | skill `~/.kimi-code/skills/molten-feature/SKILL.md` | `/skill:molten-feature <request>` |
+| `generic` | file `<data>/molten/agents/molten-feature.md` | "Read <file> and follow it with my request: …" |
+
+The agents follow the SaaSFoundryAI agent catalog. `~/.agents/skills/` is also read by Gemini CLI and Kimi.
+
 ## A complete example: the copy box
 
 The copy box is the first built-in mod and the reference example: its source is
-`frontend/molten/builtin/copy-box/` in the Moltenterm repository. It registers one command:
+`examples/copy-box/` next to this file (`frontend/molten/builtin/copy-box/` in the Moltenterm repository). It
+registers one command:
 
 ```
 molten copy [--title <title>] <text…>

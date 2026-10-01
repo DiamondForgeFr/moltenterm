@@ -1,0 +1,9 @@
+{
+    "id": "copy-box",
+    "name": "Copy box",
+    "version": "1.0.0",
+    "description": "Shows text to copy in a box next to the terminal, with a copy button: molten copy",
+    "apiVersion": 1,
+    "main": "main.js",
+    "capabilities": ["commands", "boxes", "clipboard"]
+}
