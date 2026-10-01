@@ -8,6 +8,7 @@ import { ViteImageOptimizer } from "vite-plugin-image-optimizer";
 import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { moltentermCapRadius } from "./frontend/moltenterm-shell/build/cap-radius"; // MOLTENTERM-PATCH (#48)
+import { makeMoltentermBuildInfo } from "./frontend/moltenterm-shell/build/build-info"; // MOLTENTERM-PATCH (#55)
 
 // from our electron build
 const CHROME = "chrome140";
@@ -124,6 +125,8 @@ export default defineConfig({
     },
     renderer: {
         root: ".",
+        // MOLTENTERM-PATCH (#55): the build facts the status bar shows
+        define: { __MOLTENTERM_BUILD__: JSON.stringify(makeMoltentermBuildInfo()) },
         build: {
             target: CHROME,
             sourcemap: true,
