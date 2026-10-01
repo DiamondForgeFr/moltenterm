@@ -508,4 +508,44 @@ describe("MoltenHost", () => {
             title: 'Mod folder "same" ignored',
         });
     });
+
+    it("merges reload requests made while one waits, so a save reloads each mod once", async () => {
+        const activations: string[] = [];
+        const mods: Record<string, FakeMod> = {
+            a: { manifest: manifestFor("a"), module: { activate: () => void activations.push("a") } },
+            b: { manifest: manifestFor("b"), module: { activate: () => void activations.push("b") } },
+        };
+        await host.start(makeEnv(mods));
+        activations.length = 0;
+        const first = host.reload(["a"]);
+        const second = host.reload(["a", "b"]);
+        const third = host.reload(["b"]);
+        expect(second).toBe(first);
+        expect(third).toBe(first);
+        await Promise.all([first, second, third]);
+        expect(activations).toEqual(["a", "b"]);
+        await host.reload(["a"]);
+        expect(activations).toEqual(["a", "b", "a"]);
+    });
+
+    it("picks up a new version of a mod on reload, without the old registrations", async () => {
+        let version = 1;
+        const mods: Record<string, FakeMod> = {
+            m: {
+                manifest: manifestFor("m"),
+                module: {
+                    activate: (api: MoltenApi) => {
+                        const v = version;
+                        api.commands.register("say", () => `v${v}`);
+                    },
+                },
+            },
+        };
+        await host.start(makeEnv(mods));
+        expect((await host.runCommand({ command: "say" })).output).toBe("v1");
+        version = 2;
+        await host.reload(["m"]);
+        expect((await host.runCommand({ command: "say" })).output).toBe("v2");
+        expect(host.listMods().commands.filter((c) => c.name === "say")).toHaveLength(1);
+    });
 });
