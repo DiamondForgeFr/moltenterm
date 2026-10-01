@@ -582,10 +582,34 @@ func moltenRootRun(cmd *cobra.Command, args []string) error {
 		moltenReportError(err)
 		return nil
 	}
-	if opts.Help || opts.Command == "" {
+	if opts.Help || opts.Command == "" || opts.Command == "help" {
 		return moltenWrap(moltenHelpRun)(cmd, nil)
 	}
+	// `molten --json mod list` reaches here because the options come first: hand it to the mod subcommand.
+	if opts.Command == moltenModCmd.Name() {
+		return moltenRunModSubcommand(opts)
+	}
 	return moltenWrap(func(cmd *cobra.Command, _ []string) error { return moltenRunModCommand(opts) })(cmd, nil)
+}
+
+func moltenRunModSubcommand(opts moltenRunOptions) error {
+	sub, rest, err := moltenModCmd.Find(opts.Args)
+	if err != nil || sub == moltenModCmd || sub.RunE == nil {
+		moltenReportError(fmt.Errorf("unknown mod subcommand %q (see molten help)", strings.Join(opts.Args, " ")))
+		return nil
+	}
+	err = sub.ParseFlags(rest)
+	if err != nil {
+		moltenReportError(err)
+		return nil
+	}
+	moltenJson = moltenJson || opts.Json
+	err = sub.ValidateArgs(sub.Flags().Args())
+	if err != nil {
+		moltenReportError(err)
+		return nil
+	}
+	return sub.RunE(sub, sub.Flags().Args())
 }
 
 func moltenReadStdin() (string, error) {
@@ -628,12 +652,11 @@ func moltenRunModCommand(opts moltenRunOptions) error {
 	}
 	WshExitCode = result.ExitCode
 	if opts.Json {
-		return moltenWriteJson(map[string]any{
-			"command":  opts.Command,
-			"output":   result.Output,
-			"exitcode": result.ExitCode,
-			"error":    result.Error,
-		})
+		out := map[string]any{"command": opts.Command, "output": result.Output, "exitcode": result.ExitCode}
+		if result.Error != "" {
+			out["error"] = result.Error
+		}
+		return moltenWriteJson(out)
 	}
 	if result.Output != "" {
 		WriteStdout("%s", result.Output)
