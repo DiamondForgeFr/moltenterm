@@ -190,6 +190,7 @@ need no marker. It reads only the backticked tokens of the first column: each is
 | `pkg/util/shellutil/shellutil.go` | Installs `molten` next to `wsh` (`InstallMoltenCommand` in `moltenterm_molten.go`) | The `molten` command (FR-MORPH-005) | #22 |
 | `package.json`, `package-lock.json` | `acorn` becomes a direct dependency (JSON, no marker) | `molten mod validate` parses mods without running them | #22 |
 | `cmd/server/main-server.go` | Starts the mod watcher (`pkg/molten/modwatcher.go`) next to the config watcher | Mods reload on save (FR-MORPH-002) | #19 |
+| `emain/emain-menu.ts` | "Restart in Safe Mode" / "Restart Normally" in the app menu (`emain/moltenterm-safemode.ts`) | Moltenterm always starts, even when a mod broke it (FR-MORPH-003) | #20 |
 
 ## Known upstream items
 

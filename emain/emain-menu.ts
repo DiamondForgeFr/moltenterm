@@ -21,6 +21,7 @@ import {
     WaveBrowserWindow,
 } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
+import { makeMoltentermSafeModeMenuItem } from "./moltenterm-safemode"; // MOLTENTERM-PATCH (#20)
 // MOLTENTERM-PATCH (#5): `updater` is no longer imported; the menu has no update item.
 
 type AppMenuCallbacks = {
@@ -182,6 +183,8 @@ function makeAppMenuItems(webContents: electron.WebContents): Electron.MenuItemC
         },
         // MOLTENTERM-PATCH (#5): no "Check for Updates" item: it polled Wave's
         // update feed even with auto-update disabled.
+        { type: "separator" },
+        makeMoltentermSafeModeMenuItem(), // MOLTENTERM-PATCH (#20): start without mods to repair them
         { type: "separator" },
     ];
     if (unamePlatform === "darwin") {
