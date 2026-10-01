@@ -19,6 +19,15 @@ A mod runs only once it is enabled. The enabled mods are listed in `<config>/mol
 (`{"enabled": ["<mod-id>", …]}`), outside the mod folders, and `molten mod enable|disable` changes it; every open tab
 applies the change at once. A mod that is not listed is reported as `disabled` and none of its code is read.
 
+## Reload on save
+
+Moltenterm watches `<config>/mods/`, `mods.json` and the trust file. Saving a file of a mod reloads that mod in every
+open tab within about a second: everything the previous version registered (commands, boxes, notifications) is
+undone first, so nothing appears twice. A save that breaks the mod stops it and reports why, as when it fails to
+load; the next valid save brings it back. A new mod folder appears in `molten mod list` as soon as it is created,
+and editing `mods.json` by hand takes effect the same way. Files whose name starts with `.` or ends with `~`, `.swp`
+or `.tmp` are ignored, so an editor's temporary files never reload a mod.
+
 ## Trust
 
 A mod runs inside Moltenterm with the user's rights: it can read and change files and run commands. So no mod code
@@ -172,5 +181,5 @@ The usual loop for an agent: `molten mod new <id>`, edit `main.js`, `molten mod 
 
 ## Not in API version 1 yet
 
-Reloading on save (#19), undo and safe mode (#20), and free-form panels (Mission Control, #31). Until #20,
+Undo and safe mode (#20), and free-form panels (Mission Control, #31). Until #20,
 `molten mod remove` moves the folder to the system trash on macOS and to `<data>/molten/removed/` elsewhere.
