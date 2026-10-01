@@ -22,6 +22,8 @@ import {
     PanelGroup,
     PanelResizeHandle,
 } from "react-resizable-panels";
+import { MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44)
+import { WorkspaceRail } from "../../moltenterm-shell/workspace-rail"; // MOLTENTERM-PATCH (#44)
 
 const MacOSTabBarSpacer = memo(() => {
     return (
@@ -112,6 +114,9 @@ const WorkspaceElem = memo(() => {
         <div className="flex flex-col w-full flex-grow overflow-hidden">
             {!(showLeftTabBar && isMacOS()) && <TabBar key={ws.oid} workspace={ws} noTabs={showLeftTabBar} />}
             {showLeftTabBar && isMacOS() && <MacOSTabBarSpacer />}
+            {/* MOLTENTERM-PATCH (#44): the workspace rail on the left of the content row */}
+            <div className="flex flex-row flex-grow overflow-hidden">
+            {MoltentermWorkspaceRail && <WorkspaceRail />}
             <div ref={panelContainerRef} className="flex flex-row flex-grow overflow-hidden">
                 <ErrorBoundary key={tabId}>
                     <PanelGroup
@@ -168,6 +173,7 @@ const WorkspaceElem = memo(() => {
                     </PanelGroup>
                     <ModalsRenderer />
                 </ErrorBoundary>
+            </div>
             </div>
         </div>
     );

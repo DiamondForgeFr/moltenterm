@@ -17,6 +17,7 @@ import "./tabbar.scss";
 import { TabBarEnv } from "./tabbarenv";
 import { UpdateStatusBanner } from "./updatebanner";
 import { WorkspaceSwitcher } from "./workspaceswitcher";
+import { MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44)
 
 const TabDefaultWidth = 130;
 const TabMinWidth = 100;
@@ -614,15 +615,18 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
                 </div>
             )}
             <WaveAIButton divRef={waveAIButtonRef} />
-            <Tooltip
-                content="Workspace Switcher"
-                placement="bottom"
-                hideOnClick
-                divRef={workspaceSwitcherRef}
-                divClassName="flex items-center"
-            >
-                <WorkspaceSwitcher />
-            </Tooltip>
+            {/* MOLTENTERM-PATCH (#44): workspaces are switched from the rail on the left (frontend/moltenterm-shell/workspace-rail.tsx) */}
+            {!MoltentermWorkspaceRail && (
+                <Tooltip
+                    content="Workspace Switcher"
+                    placement="bottom"
+                    hideOnClick
+                    divRef={workspaceSwitcherRef}
+                    divClassName="flex items-center"
+                >
+                    <WorkspaceSwitcher />
+                </Tooltip>
+            )}
             <div className="tab-bar" ref={tabBarRef} data-overlayscrollbars-initialize>
                 <div
                     className="tabs-wrapper"
