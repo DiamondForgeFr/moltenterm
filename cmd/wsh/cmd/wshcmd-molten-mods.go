@@ -26,8 +26,10 @@ const MoltenTemplateMainFileName = "main.js"
 // must match ModIdPattern in frontend/molten/molten-manifest.ts
 var moltenModIdRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
 
+// Enabled lists the user's mods that run; Disabled lists the built-in mods turned off (they run by default).
 type MoltenState struct {
-	Enabled []string `json:"enabled"`
+	Enabled  []string `json:"enabled"`
+	Disabled []string `json:"disabled,omitempty"`
 }
 
 // Trust is recorded per mod id (FR-MORPH-004), so an agent keeps editing a trusted mod without a prompt on every
@@ -89,17 +91,56 @@ func moltenReadState(path string) (MoltenState, error) {
 	return state, nil
 }
 
-func moltenWriteState(path string, state MoltenState) error {
+func moltenSortedUnique(ids []string) []string {
 	seen := make(map[string]bool)
-	enabled := []string{}
-	for _, id := range state.Enabled {
+	rtn := []string{}
+	for _, id := range ids {
 		if !seen[id] {
 			seen[id] = true
-			enabled = append(enabled, id)
+			rtn = append(rtn, id)
 		}
 	}
-	sort.Strings(enabled)
-	return moltenWriteJsonFile(path, MoltenState{Enabled: enabled})
+	sort.Strings(rtn)
+	return rtn
+}
+
+func moltenWriteState(path string, state MoltenState) error {
+	disabled := moltenSortedUnique(state.Disabled)
+	if len(disabled) == 0 {
+		disabled = nil
+	}
+	return moltenWriteJsonFile(path, MoltenState{Enabled: moltenSortedUnique(state.Enabled), Disabled: disabled})
+}
+
+func moltenListWith(ids []string, id string, present bool) ([]string, bool) {
+	has := false
+	kept := []string{}
+	for _, existing := range ids {
+		if existing == id {
+			has = true
+			continue
+		}
+		kept = append(kept, existing)
+	}
+	if present {
+		kept = append(kept, id)
+	}
+	return kept, has != present
+}
+
+// Built-in mods run unless listed under "disabled", so enabling one removes it from that list.
+func moltenSetBuiltinEnabled(configDir string, id string, enabled bool) (bool, error) {
+	statePath := moltenStateFile(configDir)
+	state, err := moltenReadState(statePath)
+	if err != nil {
+		return false, err
+	}
+	var changed bool
+	state.Disabled, changed = moltenListWith(state.Disabled, id, !enabled)
+	if !changed {
+		return false, nil
+	}
+	return true, moltenWriteState(statePath, state)
 }
 
 func moltenReadTrust(path string) (MoltenTrust, error) {
@@ -189,20 +230,10 @@ func moltenSetEnabled(configDir string, id string, enabled bool) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	wasEnabled := moltenIsEnabled(state, id)
-	if wasEnabled == enabled {
+	var changed bool
+	state.Enabled, changed = moltenListWith(state.Enabled, id, enabled)
+	if !changed {
 		return false, nil
-	}
-	if enabled {
-		state.Enabled = append(state.Enabled, id)
-	} else {
-		kept := []string{}
-		for _, enabledId := range state.Enabled {
-			if enabledId != id {
-				kept = append(kept, enabledId)
-			}
-		}
-		state.Enabled = kept
 	}
 	return true, moltenWriteState(statePath, state)
 }

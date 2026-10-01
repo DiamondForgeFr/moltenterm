@@ -61,6 +61,7 @@ type MoltenModStatus struct {
 	State    string   `json:"state"`
 	Error    string   `json:"error,omitempty"`
 	Commands []string `json:"commands"`
+	Builtin  bool     `json:"builtin,omitempty"`
 }
 
 type MoltenCommandInfo struct {
@@ -368,7 +369,11 @@ func formatMoltenModList(list *MoltenModList) string {
 		if errText == "" {
 			errText = "-"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", mod.Id, mod.State, version, commands, errText)
+		id := mod.Id
+		if mod.Builtin {
+			id += " (built-in)"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", id, mod.State, version, commands, errText)
 	}
 	tw.Flush()
 	return sb.String()
@@ -392,10 +397,66 @@ func moltenModNewRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// Built-in mods have no folder: the calling tab knows them. A tab that cannot answer means no built-in check, and the
+// command goes on with the mod folders.
+func moltenIsBuiltin(id string) bool {
+	list, err := moltenGetModList()
+	if err != nil {
+		return false
+	}
+	for _, mod := range list.Mods {
+		if mod.Id == id {
+			return mod.Builtin
+		}
+	}
+	return false
+}
+
+func moltenRefuseBuiltin(id string, action string) error {
+	if moltenIsBuiltin(id) {
+		return fmt.Errorf("%q is a built-in mod and cannot be %s; turn it off with molten mod disable %s", id, action, id)
+	}
+	return nil
+}
+
+func moltenBuiltinToggle(configDir string, id string, enable bool) error {
+	changed, err := moltenSetBuiltinEnabled(configDir, id, enable)
+	if err != nil {
+		return err
+	}
+	if changed {
+		moltenAnnounceChange(id)
+	}
+	action := "disable"
+	if enable {
+		action = "enable"
+	}
+	if moltenJson {
+		return moltenWriteJson(MoltenModChange{Id: id, Action: action, Changed: changed, Path: "builtin:" + id, Trust: "builtin"})
+	}
+	switch {
+	case changed && enable:
+		WriteStdout("enabled built-in mod %q\n", id)
+	case changed:
+		WriteStdout("disabled built-in mod %q\n", id)
+	case enable:
+		WriteStdout("built-in mod %q is already enabled\n", id)
+	default:
+		WriteStdout("built-in mod %q is already disabled\n", id)
+	}
+	return nil
+}
+
 func moltenModToggle(id string, enable bool) error {
 	configDir, err := moltenGetPath("config")
 	if err != nil {
 		return err
+	}
+	if err := moltenCheckModId(id); err != nil {
+		return err
+	}
+	if moltenIsBuiltin(id) {
+		return moltenBuiltinToggle(configDir, id, enable)
 	}
 	dir, err := moltenExistingModDir(configDir, id)
 	if err != nil {
@@ -508,6 +569,10 @@ func moltenModUntrustRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	err = moltenRefuseBuiltin(id, "untrusted")
+	if err != nil {
+		return err
+	}
 	configDir, err := moltenGetPath("config")
 	if err != nil {
 		return err
@@ -549,6 +614,10 @@ func moltenModRemoveRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	id := args[0]
+	err = moltenRefuseBuiltin(id, "removed")
+	if err != nil {
+		return err
+	}
 	dest, err := moltenRemoveMod(configDir, dataDir, moltenSystemTrashDir(), id, time.Now())
 	if err != nil {
 		return err
