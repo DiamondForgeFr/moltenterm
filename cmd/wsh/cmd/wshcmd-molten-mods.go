@@ -266,7 +266,7 @@ func moltenTemplateCommandName(id string) string {
 	return name
 }
 
-const moltenTemplateMainSource = `// {{name}}, a Moltenterm mod. Format and API: docs/molten/mod-format.md in the Moltenterm repository.
+const moltenTemplateMainSource = `// {{name}}, a Moltenterm mod. Format and API: run "molten docs" and read mod-format.md.
 // Check it with "molten mod validate {{id}}", turn it on with "molten mod enable {{id}}", then run "molten {{command}}".
 
 export function activate(api) {

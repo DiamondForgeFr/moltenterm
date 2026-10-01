@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
+	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
@@ -160,6 +161,47 @@ var moltenHistoryCmd = &cobra.Command{
 	PreRunE: preRunSetupRpcClient,
 }
 
+var moltenAgentYes bool
+
+var moltenAgentCmd = &cobra.Command{
+	Use:   "agent",
+	Short: "install /molten-feature for your coding agent",
+	Args:  cobra.ArbitraryArgs,
+	RunE:  moltenAgentRun,
+}
+
+var moltenAgentListCmd = &cobra.Command{
+	Use:     "list",
+	Short:   "list the supported coding agents and where /molten-feature is installed",
+	Args:    cobra.NoArgs,
+	RunE:    moltenWrap(moltenAgentListRun),
+	PreRunE: preRunSetupRpcClient,
+}
+
+var moltenAgentInstallCmd = &cobra.Command{
+	Use:     "install <agent>",
+	Short:   "install /molten-feature for a coding agent (at user level)",
+	Args:    cobra.ExactArgs(1),
+	RunE:    moltenWrap(moltenAgentInstallRun),
+	PreRunE: preRunSetupRpcClient,
+}
+
+var moltenAgentRemoveCmd = &cobra.Command{
+	Use:     "remove <agent>",
+	Short:   "remove /molten-feature from a coding agent",
+	Args:    cobra.ExactArgs(1),
+	RunE:    moltenWrap(moltenAgentRemoveRun),
+	PreRunE: preRunSetupRpcClient,
+}
+
+var moltenDocsCmd = &cobra.Command{
+	Use:     "docs",
+	Short:   "write the offline mod documentation of this version and print its folder",
+	Args:    cobra.NoArgs,
+	RunE:    moltenWrap(moltenDocsRun),
+	PreRunE: preRunSetupRpcClient,
+}
+
 var moltenModCmd = &cobra.Command{
 	Use:   "mod",
 	Short: "manage mods",
@@ -229,7 +271,9 @@ func init() {
 	// Set here, not in the literal: moltenRootRun looks up moltenCmd's subcommands, which would be an init cycle.
 	moltenCmd.RunE = moltenRootRun
 
-	for _, cmd := range []*cobra.Command{moltenHelpCmd, moltenUndoCmd, moltenHistoryCmd, moltenModNewCmd, moltenModListCmd, moltenModValidateCmd,
+	moltenAgentInstallCmd.Flags().BoolVarP(&moltenAgentYes, "yes", "y", false, "write without asking")
+	for _, cmd := range []*cobra.Command{moltenAgentListCmd, moltenAgentInstallCmd, moltenAgentRemoveCmd, moltenDocsCmd,
+		moltenHelpCmd, moltenUndoCmd, moltenHistoryCmd, moltenModNewCmd, moltenModListCmd, moltenModValidateCmd,
 		moltenModEnableCmd, moltenModDisableCmd, moltenModUntrustCmd, moltenModRemoveCmd} {
 		cmd.Flags().BoolVar(&moltenJson, "json", false, "print the result as JSON")
 	}
@@ -238,6 +282,11 @@ func init() {
 	rootCmd.AddCommand(moltenCmd)
 	moltenCmd.AddCommand(moltenHelpCmd)
 	moltenCmd.AddCommand(moltenUndoCmd)
+	moltenCmd.AddCommand(moltenDocsCmd)
+	moltenCmd.AddCommand(moltenAgentCmd)
+	moltenAgentCmd.AddCommand(moltenAgentListCmd)
+	moltenAgentCmd.AddCommand(moltenAgentInstallCmd)
+	moltenAgentCmd.AddCommand(moltenAgentRemoveCmd)
 	moltenCmd.AddCommand(moltenHistoryCmd)
 	moltenCmd.AddCommand(moltenModCmd)
 	for _, cmd := range []*cobra.Command{moltenModNewCmd, moltenModListCmd, moltenModValidateCmd, moltenModEnableCmd,
@@ -713,6 +762,148 @@ func formatMoltenHistory(entries []molten.HistoryEntry, position int) string {
 	return sb.String()
 }
 
+// Like `mod`: without RunE cobra would answer an unknown subcommand with exit code 0.
+func moltenAgentRun(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return cmd.Help()
+	}
+	moltenReportError(fmt.Errorf("unknown agent subcommand %q (see molten help)", args[0]))
+	return nil
+}
+
+func moltenAgentEnv() (molten.AgentEnv, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return molten.AgentEnv{}, err
+	}
+	dataDir, err := moltenGetPath("data")
+	if err != nil {
+		return molten.AgentEnv{}, err
+	}
+	return molten.AgentEnv{Home: home, DataDir: dataDir, Getenv: os.Getenv}, nil
+}
+
+func moltenAgentListRun(cmd *cobra.Command, args []string) error {
+	env, err := moltenAgentEnv()
+	if err != nil {
+		return err
+	}
+	statuses := []molten.AgentStatus{}
+	for _, profile := range molten.AgentProfiles {
+		statuses = append(statuses, profile.Status(env))
+	}
+	if moltenJson {
+		return moltenWriteJson(statuses)
+	}
+	WriteStdout("%s", formatMoltenAgents(statuses))
+	return nil
+}
+
+func formatMoltenAgents(statuses []molten.AgentStatus) string {
+	var sb strings.Builder
+	tw := tabwriter.NewWriter(&sb, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(tw, "AGENT\tINSTALLED\tTYPE\tPATH\n")
+	for _, status := range statuses {
+		installed := "no"
+		switch {
+		case status.Installed:
+			installed = "v" + status.Version
+		case status.Foreign:
+			installed = "no (path taken)"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", status.Id, installed, status.Format, status.Path)
+	}
+	tw.Flush()
+	sb.WriteString("\ninstall with: molten agent install <agent>\n")
+	return sb.String()
+}
+
+// The user sees where molten writes before it writes (FR-MORPH-006); --yes is for scripts and agents.
+func moltenConfirm(question string) bool {
+	if moltenAgentYes || !moltenStdinIsTerminal() {
+		return true
+	}
+	WriteStderr("%s [y/N] ", question)
+	var answer string
+	fmt.Fscanln(os.Stdin, &answer)
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	return answer == "y" || answer == "yes"
+}
+
+func moltenStdinIsTerminal() bool {
+	info, err := os.Stdin.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
+}
+
+func moltenAgentInstallRun(cmd *cobra.Command, args []string) error {
+	profile, err := molten.FindAgent(args[0])
+	if err != nil {
+		return err
+	}
+	env, err := moltenAgentEnv()
+	if err != nil {
+		return err
+	}
+	path := profile.Path(env)
+	if !moltenJson {
+		WriteStdout("molten will write the %s %s for %s:\n  %s\n", "molten-feature", profile.Format, profile.Name, path)
+	}
+	if !moltenConfirm("write it?") {
+		return fmt.Errorf("nothing written")
+	}
+	_, err = profile.Install(env, wavebase.WaveVersion)
+	if err != nil {
+		return err
+	}
+	status := profile.Status(env)
+	if moltenJson {
+		return moltenWriteJson(status)
+	}
+	WriteStdout("installed. In %s, type:\n  %s\n", profile.Name, status.Invocation)
+	return nil
+}
+
+func moltenAgentRemoveRun(cmd *cobra.Command, args []string) error {
+	profile, err := molten.FindAgent(args[0])
+	if err != nil {
+		return err
+	}
+	env, err := moltenAgentEnv()
+	if err != nil {
+		return err
+	}
+	path, removed, err := profile.Remove(env)
+	if err != nil {
+		return err
+	}
+	if moltenJson {
+		return moltenWriteJson(map[string]any{"id": profile.Id, "path": path, "removed": removed})
+	}
+	if !removed {
+		WriteStdout("molten-feature is not installed for %s\n", profile.Name)
+		return nil
+	}
+	WriteStdout("removed %s\n", path)
+	return nil
+}
+
+func moltenDocsRun(cmd *cobra.Command, args []string) error {
+	dataDir, err := moltenGetPath("data")
+	if err != nil {
+		return err
+	}
+	dir := molten.DocsDir(dataDir, wavebase.WaveVersion)
+	err = molten.WriteDocs(dir)
+	if err != nil {
+		return err
+	}
+	if moltenJson {
+		return moltenWriteJson(map[string]any{"path": dir, "version": wavebase.WaveVersion})
+	}
+	WriteStdout("%s\n", dir)
+	return nil
+}
+
 func moltenModRemoveRun(cmd *cobra.Command, args []string) error {
 	configDir, err := moltenGetPath("config")
 	if err != nil {
@@ -820,6 +1011,10 @@ var moltenBuiltinHelp = [][2]string{
 	{"mod remove <id>", "disable a mod and move its folder to the trash"},
 	{"undo", "restore the mods as they were before the last change (repeat to go further back)"},
 	{"history", "list the recorded changes to the mods"},
+	{"docs", "write the offline mod documentation and print its folder"},
+	{"agent list", "the supported coding agents and where /molten-feature is installed"},
+	{"agent install <agent>", "install /molten-feature for a coding agent"},
+	{"agent remove <agent>", "remove /molten-feature from a coding agent"},
 	{"help", "this list"},
 	{"<command> [args...]", "run a command provided by an enabled mod"},
 }
