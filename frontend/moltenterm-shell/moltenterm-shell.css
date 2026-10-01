@@ -12,3 +12,33 @@
 .block.block-frame-default.block-focused.block-preview .block-mask {
     border-width: 1px !important;
 }
+
+/* Workspace accent (FR-SHELL-004). accent.ts sets --mt-accent from the active workspace's colour and --mt-accent-fg
+   for text drawn on it; every accent token of Wave's theme and Tailwind derives from them, so no component needs a
+   change. Unlayered, these win over Tailwind's @layer theme and come after Wave's theme.scss. */
+:root {
+    --mt-accent: rgb(88, 193, 66);
+    --mt-accent-fg: #000000;
+    --accent-color: var(--mt-accent);
+    --form-element-primary-color: var(--mt-accent);
+    --toggle-checked-bg-color: var(--mt-accent);
+    --color-accent: var(--mt-accent);
+    --color-accent-50: color-mix(in srgb, var(--mt-accent) 10%, white);
+    --color-accent-100: color-mix(in srgb, var(--mt-accent) 22%, white);
+    --color-accent-200: color-mix(in srgb, var(--mt-accent) 40%, white);
+    --color-accent-300: color-mix(in srgb, var(--mt-accent) 70%, white);
+    --color-accent-400: var(--mt-accent);
+    --color-accent-500: color-mix(in srgb, var(--mt-accent) 85%, black);
+    --color-accent-600: color-mix(in srgb, var(--mt-accent) 70%, black);
+    --color-accent-700: color-mix(in srgb, var(--mt-accent) 55%, black);
+    --color-accent-800: color-mix(in srgb, var(--mt-accent) 40%, black);
+    --color-accent-900: color-mix(in srgb, var(--mt-accent) 28%, black);
+    --color-accentbg: color-mix(in srgb, var(--mt-accent) 50%, transparent);
+    --color-accenthover: color-mix(in srgb, var(--mt-accent) 80%, white);
+}
+
+/* Text on a solid accent stays readable whatever the workspace colour (NFR-SHELL-003). */
+.bg-accent,
+[class*="bg-accent/"] {
+    color: var(--mt-accent-fg);
+}

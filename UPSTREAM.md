@@ -192,6 +192,7 @@ need no marker. It reads only the backticked tokens of the first column: each is
 | `cmd/server/main-server.go` | Starts the mod watcher (`pkg/molten/modwatcher.go`) next to the config watcher | Mods reload on save (FR-MORPH-002) | #19 |
 | `emain/emain-menu.ts` | "Restart in Safe Mode" / "Restart Normally" in the app menu (`emain/moltenterm-safemode.ts`) | Moltenterm always starts, even when a mod broke it (FR-MORPH-003) | #20 |
 | `electron.vite.config.ts`, `frontend/wave.ts` | A PostCSS plugin caps every corner radius at 3 px (`frontend/moltenterm-shell/build/cap-radius.ts`); `wave.ts` imports the shell stylesheet | Dense visual style (FR-SHELL-005) | #48 |
+| `frontend/wave.ts` | Applies the active workspace's colour as the accent before the first render (`frontend/moltenterm-shell/accent.ts`) | Workspace accent colours (FR-SHELL-004) | #47 |
 
 ## Known upstream items
 
