@@ -162,6 +162,11 @@ export class MoltenHost {
     nextBoxId = 1;
     // Starts and reloads run one at a time: an enable arriving while the mods load must see the finished state.
     queue: Promise<void> = Promise.resolve();
+    // A save seen by the watcher of #19 and announced by molten, or a quick series of saves, asks for the same reload
+    // several times: requests made while one is waiting to run are merged into it.
+    pendingReloadIds = new Set<string>();
+    pendingReloadAll = false;
+    scheduledReload: Promise<void> = null;
 
     private constructor() {}
 
@@ -195,7 +200,23 @@ export class MoltenHost {
         if (!this.started || this.safeMode) {
             return Promise.resolve();
         }
-        return this.enqueue(() => this.syncMods(ids));
+        if (ids == null) {
+            this.pendingReloadAll = true;
+        } else {
+            ids.forEach((id) => this.pendingReloadIds.add(id));
+        }
+        if (this.scheduledReload != null) {
+            return this.scheduledReload;
+        }
+        this.scheduledReload = this.enqueue(() => {
+            const all = this.pendingReloadAll;
+            const pending = [...this.pendingReloadIds].sort();
+            this.pendingReloadIds = new Set();
+            this.pendingReloadAll = false;
+            this.scheduledReload = null;
+            return this.syncMods(all ? null : pending);
+        });
+        return this.scheduledReload;
     }
 
     enqueue(fn: () => Promise<void>): Promise<void> {
