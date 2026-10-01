@@ -34,6 +34,7 @@ import { loadFonts } from "@/util/fontutil";
 import { setKeyUtilPlatform } from "@/util/keyutil";
 import { isMacOS, setMacOSVersion } from "@/util/platformutil";
 import { MoltentermWindowTitle } from "@/util/moltenterm-identity"; // MOLTENTERM-PATCH (#4)
+import { startMoltenHost } from "./molten/molten-start"; // MOLTENTERM-PATCH (#18)
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -209,6 +210,7 @@ async function initWave(initOpts: WaveInitOpts) {
     await firstRenderPromise;
     console.log("Wave First Render Done");
     getApi().setWindowInitStatus("wave-ready");
+    startMoltenHost(); // MOLTENTERM-PATCH (#18): load the user's mods once the workspace is on screen
 }
 
 async function initBuilderWrap(initOpts: BuilderInitOpts) {

@@ -186,6 +186,7 @@ need no marker. It reads only the backticked tokens of the first column: each is
 | `frontend/app/view/waveconfig/waveconfig-model.ts` | No "Wave AI Modes" or "AI Presets" entry | No AI setting in the config editor | #25 |
 | `cmd/generateschema/main-generateschema.go`, `schema/settings.json` | The settings schema drops `ai:*`, `waveai:*` and `app:hideaibutton` (filter in `cmd/generateschema/moltenterm_noai.go`; the JSON is regenerated, no marker) | The config editor offers no AI setting | #25 |
 | `Taskfile.yml` | `build:schema` runs the generator as a package | So that Moltenterm's schema filter is compiled in | #25 |
+| `frontend/wave.ts` | Starts the mod host (`frontend/molten/`) once the workspace has rendered | Loads the user's mods (FR-MORPH-001) | #18 |
 
 ## Known upstream items
 
