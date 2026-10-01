@@ -240,12 +240,29 @@ describe("MoltenHost", () => {
         expect(globalStore.get(host.notificationsAtom).map((n) => n.title)).toEqual(['Mod "n" stopped']);
     });
 
-    it("loads no mod in safe mode", async () => {
-        const env = makeEnv({ good: { manifest: manifestFor("good"), module: { activate() {} } } });
-        const listDir = vi.spyOn(env, "listDir");
+    it("loads no mod in safe mode but lists them, so the user can disable the broken one", async () => {
+        const env = makeEnv(
+            {
+                good: { manifest: manifestFor("good"), module: { activate() {} } },
+                off: { manifest: manifestFor("off"), module: { activate() {} } },
+            },
+            [],
+            { ids: ["good"] }
+        );
+        const importModule = vi.spyOn(env, "importModule");
+        const readTextFile = vi.spyOn(env, "readTextFile");
         await host.start(env, { safeMode: true });
-        expect(listDir).not.toHaveBeenCalled();
-        expect(host.listMods()).toMatchObject({ safemode: true, mods: [] });
+        expect(importModule).not.toHaveBeenCalled();
+        expect(readTextFile.mock.calls.some(([path]) => path.startsWith(ModsDir))).toBe(false);
+        expect(host.listMods()).toMatchObject({
+            safemode: true,
+            mods: [
+                { id: "good", state: "safemode" },
+                { id: "off", state: "disabled" },
+            ],
+        });
+        await host.reload(["good"]);
+        expect(modState(host, "good").state).toBe("safemode");
     });
 
     it("reports an unreadable mods directory without throwing", async () => {

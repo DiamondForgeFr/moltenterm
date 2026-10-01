@@ -134,7 +134,6 @@ var moltenCmd = &cobra.Command{
 	// (moltenParseRunOptions).
 	DisableFlagParsing: true,
 	Args:               cobra.ArbitraryArgs,
-	RunE:               moltenRootRun,
 }
 
 var moltenHelpCmd = &cobra.Command{
@@ -227,6 +226,8 @@ func init() {
 	// Installed as a link to wsh named molten (pkg/util/shellutil/moltenterm_molten.go): `molten x` runs as
 	// `wsh molten x`.
 	os.Args = moltenRewriteArgs(os.Args)
+	// Set here, not in the literal: moltenRootRun looks up moltenCmd's subcommands, which would be an init cycle.
+	moltenCmd.RunE = moltenRootRun
 
 	for _, cmd := range []*cobra.Command{moltenHelpCmd, moltenUndoCmd, moltenHistoryCmd, moltenModNewCmd, moltenModListCmd, moltenModValidateCmd,
 		moltenModEnableCmd, moltenModDisableCmd, moltenModUntrustCmd, moltenModRemoveCmd} {
@@ -903,21 +904,33 @@ func moltenRootRun(cmd *cobra.Command, args []string) error {
 		moltenReportError(err)
 		return nil
 	}
-	if opts.Help || opts.Command == "" || opts.Command == "help" {
+	if opts.Help || opts.Command == "" {
 		return moltenWrap(moltenHelpRun)(cmd, nil)
 	}
-	// `molten --json mod list` reaches here because the options come first: hand it to the mod subcommand.
-	if opts.Command == moltenModCmd.Name() {
-		return moltenRunModSubcommand(opts)
+	// `molten --json history` reaches here because the options come first: hand it to the built-in subcommand.
+	if moltenIsBuiltinSubcommand(opts.Command) {
+		return moltenRunSubcommand(opts)
 	}
 	return moltenWrap(func(cmd *cobra.Command, _ []string) error { return moltenRunModCommand(opts) })(cmd, nil)
 }
 
-func moltenRunModSubcommand(opts moltenRunOptions) error {
-	sub, rest, err := moltenModCmd.Find(opts.Args)
-	if err != nil || sub == moltenModCmd || sub.RunE == nil {
-		moltenReportError(fmt.Errorf("unknown mod subcommand %q (see molten help)", strings.Join(opts.Args, " ")))
+func moltenIsBuiltinSubcommand(name string) bool {
+	for _, sub := range moltenCmd.Commands() {
+		if sub.Name() == name {
+			return true
+		}
+	}
+	return false
+}
+
+func moltenRunSubcommand(opts moltenRunOptions) error {
+	sub, rest, err := moltenCmd.Find(append([]string{opts.Command}, opts.Args...))
+	if err != nil || sub == moltenCmd || sub.RunE == nil {
+		moltenReportError(fmt.Errorf("unknown subcommand %q (see molten help)", strings.Join(append([]string{opts.Command}, opts.Args...), " ")))
 		return nil
+	}
+	if sub == moltenModCmd && len(rest) > 0 {
+		return moltenModRun(sub, rest)
 	}
 	err = sub.ParseFlags(rest)
 	if err != nil {
