@@ -60,12 +60,31 @@ export function MoltenNotifications({ host }: { host: MoltenHost }) {
     );
 }
 
-export function mountMoltenNotifications(host: MoltenHost): void {
+// Safe mode must be impossible to miss: the user started without mods to repair them, and a normal start is needed
+// to get them back.
+function MoltenSafeModeBanner() {
+    return (
+        <div
+            role="status"
+            className="pointer-events-auto fixed top-12 left-1/2 z-[10000] max-w-[calc(100vw-32px)] -translate-x-1/2 rounded border border-warning/60 bg-modalbg px-3 py-2 text-sm text-primary shadow-lg"
+        >
+            <i className="fa fa-solid fa-life-ring mr-2 text-warning" />
+            <span className="font-semibold">Safe mode: no mod is loaded.</span>{" "}
+            <span className="text-secondary">
+                Repair with molten mod disable, molten mod remove or molten undo, then choose Restart Normally in the
+                app menu.
+            </span>
+        </div>
+    );
+}
+
+export function mountMoltenNotifications(host: MoltenHost, safeMode = false): void {
     const elem = document.createElement("div");
     elem.id = "molten-notifications";
     document.body.appendChild(elem);
     createRoot(elem).render(
         <>
+            {safeMode ? <MoltenSafeModeBanner /> : null}
             <MoltenBoxes host={host} />
             <MoltenNotifications host={host} />
             <MoltenTrustDialog />

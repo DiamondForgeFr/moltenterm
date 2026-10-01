@@ -8,6 +8,7 @@ import { getApi } from "@/app/store/global";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { MoltentermSafeModeVarName } from "@/util/moltenterm-safemode";
 import { base64ToString, fireAndForget } from "@/util/util";
 import { MoltenBuiltinMods } from "./molten-builtins";
 import { MoltenDirEntry, MoltenHost, MoltenHostEnv, MoltenRunRequest } from "./molten-host";
@@ -122,6 +123,7 @@ export function startMoltenHost(): void {
             fireAndForget(() => host.reload(Array.isArray(ids) && ids.length > 0 ? ids : null));
         },
     });
-    mountMoltenNotifications(host);
-    fireAndForget(() => host.start(env));
+    const safeMode = getApi().getEnv(MoltentermSafeModeVarName) === "1";
+    mountMoltenNotifications(host, safeMode);
+    fireAndForget(() => host.start(env, { safeMode }));
 }
