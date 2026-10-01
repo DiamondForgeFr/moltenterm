@@ -24,6 +24,8 @@ export type MoltenDirEntry = { name: string; isDir: boolean };
 
 export type MoltenHostEnv = {
     modsDir: string;
+    // `<config>/molten/mods.json`, written by `molten mod enable|disable` (cmd/wsh/cmd/wshcmd-molten-mods.go).
+    stateFile: string;
     // Returns [] when the directory does not exist.
     listDir(path: string): Promise<MoltenDirEntry[]>;
     // Returns null when the file does not exist.
@@ -32,7 +34,7 @@ export type MoltenHostEnv = {
     writeClipboard(text: string): Promise<void>;
 };
 
-export type MoltenModState = "loading" | "active" | "failed" | "refused";
+export type MoltenModState = "disabled" | "loading" | "active" | "failed" | "refused";
 
 export type MoltenModStatus = {
     id: string;
@@ -44,11 +46,33 @@ export type MoltenModStatus = {
     commands: string[];
 };
 
+export type MoltenCommandInfo = {
+    name: string;
+    modid: string;
+    description: string;
+};
+
 export type MoltenModList = {
     apiversions: number[];
     safemode: boolean;
     modsdir: string;
     mods: MoltenModStatus[];
+    commands: MoltenCommandInfo[];
+};
+
+export type MoltenRunRequest = {
+    command: string;
+    args?: string[];
+    stdin?: string;
+    blockid?: string;
+};
+
+export type MoltenRunResult = {
+    found: boolean;
+    output?: string;
+    exitcode?: number;
+    error?: string;
+    commands?: string[];
 };
 
 export type MoltenNotificationEntry = {
@@ -103,6 +127,8 @@ export class MoltenHost {
     runtimes = new Map<string, ModRuntime>();
     commands = new Map<string, MoltenCommandEntry>();
     nextNotificationId = 1;
+    // Starts and reloads run one at a time: an enable arriving while the mods load must see the finished state.
+    queue: Promise<void> = Promise.resolve();
 
     private constructor() {}
 
@@ -127,19 +153,111 @@ export class MoltenHost {
         if (this.safeMode) {
             return;
         }
-        let entries: MoltenDirEntry[];
+        await this.enqueue(() => this.syncMods(null));
+    }
+
+    // Applies a change announced by `molten` (enable, disable, remove), or by the watcher of #19. With ids, only those
+    // mods are stopped and loaded again; with null, every mod is.
+    reload(ids: string[]): Promise<void> {
+        if (!this.started || this.safeMode) {
+            return Promise.resolve();
+        }
+        return this.enqueue(() => this.syncMods(ids));
+    }
+
+    enqueue(fn: () => Promise<void>): Promise<void> {
+        const next = this.queue.then(fn, fn);
+        this.queue = next.catch(() => {});
+        return next;
+    }
+
+    async syncMods(ids: string[]): Promise<void> {
+        let folders: string[];
+        let enabled: Set<string>;
         try {
-            entries = await env.listDir(env.modsDir);
+            const entries = await this.env.listDir(this.env.modsDir);
+            folders = entries
+                .filter((entry) => entry.isDir && !entry.name.startsWith("."))
+                .map((entry) => entry.name)
+                .sort();
+            enabled = await this.readEnabled();
         } catch (e) {
             this.notify({ title: "Mods could not be read", message: errorMessage(e), kind: "error" });
             return;
         }
-        const folders = entries
-            .filter((entry) => entry.isDir && !entry.name.startsWith("."))
-            .map((entry) => entry.name)
-            .sort();
-        for (const folder of folders) {
-            await this.loadMod(folder);
+        const targets = ids ?? [...new Set([...this.runtimes.keys(), ...folders])].sort();
+        for (const id of targets) {
+            this.unloadMod(id);
+            if (!folders.includes(id)) {
+                continue;
+            }
+            if (!enabled.has(id)) {
+                this.runtimes.set(id, {
+                    status: { id, path: joinPath(this.env.modsDir, id), state: "disabled", commands: [] },
+                    disposers: [],
+                    stopped: true,
+                });
+                continue;
+            }
+            await this.loadMod(id);
+        }
+        this.sortRuntimes();
+        this.publish();
+    }
+
+    async readEnabled(): Promise<Set<string>> {
+        const text = await this.env.readTextFile(this.env.stateFile);
+        if (text == null || text.trim() === "") {
+            return new Set();
+        }
+        let state: any;
+        try {
+            state = JSON.parse(text);
+        } catch (e) {
+            throw new Error(`${this.env.stateFile} is not valid JSON: ${errorMessage(e)}`);
+        }
+        const list = Array.isArray(state?.enabled) ? state.enabled : [];
+        return new Set(list.filter((id: unknown) => typeof id === "string"));
+    }
+
+    // Stops a mod without reporting it as failed: the user asked for it.
+    unloadMod(id: string): void {
+        const runtime = this.runtimes.get(id);
+        if (runtime == null) {
+            return;
+        }
+        this.disposeRuntime(runtime);
+        this.runtimes.delete(id);
+        this.publish();
+    }
+
+    sortRuntimes(): void {
+        const sorted = [...this.runtimes.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+        this.runtimes = new Map(sorted);
+    }
+
+    async runCommand(req: MoltenRunRequest): Promise<MoltenRunResult> {
+        const entry = this.commands.get(req?.command);
+        if (entry == null) {
+            return { found: false, commands: [...this.commands.keys()].sort() };
+        }
+        try {
+            const result = await entry.handler({
+                args: req.args ?? [],
+                stdin: req.stdin,
+                blockId: req.blockid,
+            });
+            if (result == null) {
+                return { found: true, output: "", exitcode: 0 };
+            }
+            if (typeof result === "string") {
+                return { found: true, output: result, exitcode: 0 };
+            }
+            const obj = result as { output?: string; exitCode?: number };
+            const exitcode = Number.isInteger(obj.exitCode) ? obj.exitCode : 0;
+            return { found: true, output: obj.output == null ? "" : String(obj.output), exitcode };
+        } catch (e) {
+            return { found: true, output: "", exitcode: 1, error: errorMessage(e) };
         }
     }
 
@@ -149,6 +267,9 @@ export class MoltenHost {
             safemode: this.safeMode,
             modsdir: this.env?.modsDir ?? "",
             mods: this.snapshot(),
+            commands: [...this.commands.values()]
+                .map((c) => ({ name: c.name, modid: c.modId, description: c.description }))
+                .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
         };
     }
 
@@ -264,22 +385,12 @@ export class MoltenHost {
         };
     }
 
-    // Stops a mod: undoes its registrations in reverse order, records why and tells the user. One failing disposer
-    // must not keep the others from running.
+    // Stops a failed or refused mod: undoes its registrations, records why and tells the user.
     stopRuntime(runtime: ModRuntime, state: MoltenModState, error: string): void {
         if (runtime.stopped) {
             return;
         }
-        runtime.stopped = true;
-        const disposers = [...runtime.disposers].reverse();
-        for (const dispose of disposers) {
-            try {
-                dispose();
-            } catch (e) {
-                console.error(`[molten:${runtime.status.id}] disposer failed`, e);
-            }
-        }
-        runtime.disposers = [];
+        this.disposeRuntime(runtime);
         runtime.status.state = state;
         runtime.status.error = error;
         runtime.status.commands = [];
@@ -290,6 +401,20 @@ export class MoltenHost {
             message: error,
             kind: state === "refused" ? "warning" : "error",
         });
+    }
+
+    // Undoes a mod's registrations in reverse order. One failing disposer must not keep the others from running.
+    disposeRuntime(runtime: ModRuntime): void {
+        runtime.stopped = true;
+        const disposers = [...runtime.disposers].reverse();
+        for (const dispose of disposers) {
+            try {
+                dispose();
+            } catch (e) {
+                console.error(`[molten:${runtime.status.id}] disposer failed`, e);
+            }
+        }
+        runtime.disposers = [];
     }
 
     notify(opts: MoltenNotificationOptions, modId?: string): MoltenDisposer {
