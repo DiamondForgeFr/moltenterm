@@ -22,7 +22,8 @@ import {
     PanelGroup,
     PanelResizeHandle,
 } from "react-resizable-panels";
-import { MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44)
+import { MoltentermStatusBar, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44, #55)
+import { StatusBar } from "../../moltenterm-shell/status-bar"; // MOLTENTERM-PATCH (#55)
 import { WorkspaceRail } from "../../moltenterm-shell/workspace-rail"; // MOLTENTERM-PATCH (#44)
 
 const MacOSTabBarSpacer = memo(() => {
@@ -175,6 +176,8 @@ const WorkspaceElem = memo(() => {
                 </ErrorBoundary>
             </div>
             </div>
+            {/* MOLTENTERM-PATCH (#55): the status bar under the content */}
+            {MoltentermStatusBar && <StatusBar />}
         </div>
     );
 });
