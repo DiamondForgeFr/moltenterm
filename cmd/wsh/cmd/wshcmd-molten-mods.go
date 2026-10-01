@@ -30,6 +30,17 @@ type MoltenState struct {
 	Enabled []string `json:"enabled"`
 }
 
+// Trust is recorded per mod id (FR-MORPH-004), so an agent keeps editing a trusted mod without a prompt on every
+// save. It lives in the data directory, apart from the configuration that agents and dotfile managers edit.
+type MoltenTrustEntry struct {
+	Name      string `json:"name"`
+	TrustedAt string `json:"trustedat"`
+}
+
+type MoltenTrust struct {
+	Trusted map[string]MoltenTrustEntry `json:"trusted"`
+}
+
 type MoltenTemplateManifest struct {
 	Id           string   `json:"id"`
 	Name         string   `json:"name"`
@@ -46,6 +57,10 @@ func moltenModsDir(configDir string) string {
 
 func moltenStateFile(configDir string) string {
 	return filepath.Join(configDir, "molten", "mods.json")
+}
+
+func moltenTrustFile(dataDir string) string {
+	return filepath.Join(dataDir, "molten", "trust.json")
 }
 
 func moltenCheckModId(id string) error {
@@ -84,7 +99,65 @@ func moltenWriteState(path string, state MoltenState) error {
 		}
 	}
 	sort.Strings(enabled)
-	data, err := json.MarshalIndent(MoltenState{Enabled: enabled}, "", "  ")
+	return moltenWriteJsonFile(path, MoltenState{Enabled: enabled})
+}
+
+func moltenReadTrust(path string) (MoltenTrust, error) {
+	trust := MoltenTrust{Trusted: map[string]MoltenTrustEntry{}}
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return trust, nil
+	}
+	if err != nil {
+		return trust, fmt.Errorf("reading %s: %w", path, err)
+	}
+	if strings.TrimSpace(string(data)) == "" {
+		return trust, nil
+	}
+	err = json.Unmarshal(data, &trust)
+	if err != nil {
+		return trust, fmt.Errorf("%s is not valid JSON: %w", path, err)
+	}
+	if trust.Trusted == nil {
+		trust.Trusted = map[string]MoltenTrustEntry{}
+	}
+	return trust, nil
+}
+
+func moltenIsTrusted(dataDir string, id string) (bool, error) {
+	trust, err := moltenReadTrust(moltenTrustFile(dataDir))
+	if err != nil {
+		return false, err
+	}
+	_, ok := trust.Trusted[id]
+	return ok, nil
+}
+
+func moltenSetTrusted(dataDir string, id string, name string, now time.Time) error {
+	path := moltenTrustFile(dataDir)
+	trust, err := moltenReadTrust(path)
+	if err != nil {
+		return err
+	}
+	trust.Trusted[id] = MoltenTrustEntry{Name: name, TrustedAt: now.UTC().Format(time.RFC3339)}
+	return moltenWriteJsonFile(path, trust)
+}
+
+func moltenForgetTrust(dataDir string, id string) (bool, error) {
+	path := moltenTrustFile(dataDir)
+	trust, err := moltenReadTrust(path)
+	if err != nil {
+		return false, err
+	}
+	if _, ok := trust.Trusted[id]; !ok {
+		return false, nil
+	}
+	delete(trust.Trusted, id)
+	return true, moltenWriteJsonFile(path, trust)
+}
+
+func moltenWriteJsonFile(path string, value any) error {
+	data, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -245,6 +318,10 @@ func moltenRemoveMod(configDir string, dataDir string, trashDir string, id strin
 		return "", err
 	}
 	_, err = moltenSetEnabled(configDir, id, false)
+	if err != nil {
+		return "", err
+	}
+	_, err = moltenForgetTrust(dataDir, id)
 	if err != nil {
 		return "", err
 	}
