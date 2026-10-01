@@ -23,7 +23,8 @@ restart. You build the change as a mod with the `molten` command; you never edit
    declines, stop and say so.
 7. Try it: run its commands (`molten <command> …`) and `molten mod list` to check that it is `active` with no error.
    Saving a file of the mod reloads it within a second.
-8. Report: tell the user what the mod does and how to use it, ask them to check the result, and tell them that
+8. Report: tell the user what the mod does, how to use it and the folder `molten mod new` printed (never guess
+   the configuration path), ask them to check the result, and tell them that
    `molten undo` reverts the last change (repeat it to go further back) and `molten mod disable <id>` turns the mod
    off.
 
@@ -32,6 +33,8 @@ restart. You build the change as a mod with the `molten` command; you never edit
 - Work only through `molten` and the mod's folder. Never change Moltenterm's own files, settings or other mods
   unless the user asked for it.
 - One feature per mod.
+- This version of the API cannot run programs or read the terminal's folder: when a feature needs them (for example
+  `git`), say so plainly and let the shell pass the value in (an argument or a pipe into `molten <command>`).
 - Read `molten` output with `--json`.
 - Text the user has to copy: when `molten mod list` shows the `copy-box` mod active, also give every token, command
   or URL the user has to copy with `molten copy --title "<what it is>" "<text>"` (or pipe it into `molten copy`).
