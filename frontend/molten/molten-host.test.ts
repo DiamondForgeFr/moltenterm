@@ -8,6 +8,7 @@ import { MoltenActivateTimeoutMs, MoltenHost, MoltenHostEnv } from "./molten-hos
 
 const ModsDir = "/cfg/mods";
 const StateFile = "/cfg/molten/mods.json";
+const TrustFile = "/data/molten/trust.json";
 
 type FakeMod = { manifest?: any; manifestText?: string; module?: any; importError?: Error };
 
@@ -15,11 +16,17 @@ function manifestFor(id: string, extra?: any) {
     return { id, name: id, version: "1.0.0", apiVersion: 1, main: "main.js", ...extra };
 }
 
-// `enabled` defaults to every mod; tests that change it keep the holder and mutate `ids`.
-function makeEnv(mods: Record<string, FakeMod>, extraDirs: string[] = [], enabled?: { ids: string[] }): MoltenHostEnv {
+// `enabled` and `trusted` default to every mod; tests that change them keep the holder and mutate `ids`.
+function makeEnv(
+    mods: Record<string, FakeMod>,
+    extraDirs: string[] = [],
+    enabled?: { ids: string[] },
+    trusted?: { ids: string[] }
+): MoltenHostEnv {
     return {
         modsDir: ModsDir,
         stateFile: StateFile,
+        trustFile: TrustFile,
         listDir: async () => [
             ...Object.keys(mods).map((name) => ({ name, isDir: true })),
             ...extraDirs.map((name) => ({ name, isDir: true })),
@@ -28,6 +35,10 @@ function makeEnv(mods: Record<string, FakeMod>, extraDirs: string[] = [], enable
         readTextFile: async (path: string) => {
             if (path === StateFile) {
                 return JSON.stringify({ enabled: enabled?.ids ?? Object.keys(mods) });
+            }
+            if (path === TrustFile) {
+                const ids = trusted?.ids ?? Object.keys(mods);
+                return JSON.stringify({ trusted: Object.fromEntries(ids.map((id) => [id, { name: id }])) });
             }
             const [id, file] = path.slice(ModsDir.length + 1).split("/");
             const mod = mods[id];
@@ -362,5 +373,41 @@ describe("MoltenHost", () => {
             error: "kaput",
         });
         expect(modState(host, "c").state).toBe("failed");
+    });
+
+    it("never reads the code of an enabled mod the user has not trusted (FR-MORPH-004)", async () => {
+        const trusted = { ids: ["ok"] };
+        const env = makeEnv(
+            {
+                ok: { manifest: manifestFor("ok"), module: { activate() {} } },
+                sneaky: { manifest: manifestFor("sneaky"), module: { activate() {} } },
+            },
+            [],
+            undefined,
+            trusted
+        );
+        const readTextFile = vi.spyOn(env, "readTextFile");
+        const importModule = vi.spyOn(env, "importModule");
+        await host.start(env);
+        expect(modState(host, "sneaky")).toMatchObject({ state: "untrusted", commands: [] });
+        expect(modState(host, "ok").state).toBe("active");
+        expect(importModule).toHaveBeenCalledTimes(1);
+        expect(readTextFile.mock.calls.some(([path]) => path.startsWith(`${ModsDir}/sneaky/`))).toBe(false);
+
+        trusted.ids = ["ok", "sneaky"];
+        await host.reload(["sneaky"]);
+        expect(modState(host, "sneaky").state).toBe("active");
+
+        trusted.ids = ["ok"];
+        await host.reload(["sneaky"]);
+        expect(modState(host, "sneaky").state).toBe("untrusted");
+    });
+
+    it("treats a missing trust file as nothing trusted", async () => {
+        const env = makeEnv({ a: { manifest: manifestFor("a"), module: { activate() {} } } });
+        const read = env.readTextFile;
+        env.readTextFile = async (path: string) => (path === TrustFile ? null : read(path));
+        await host.start(env);
+        expect(modState(host, "a").state).toBe("untrusted");
     });
 });

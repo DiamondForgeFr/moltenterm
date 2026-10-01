@@ -26,6 +26,8 @@ export type MoltenHostEnv = {
     modsDir: string;
     // `<config>/molten/mods.json`, written by `molten mod enable|disable` (cmd/wsh/cmd/wshcmd-molten-mods.go).
     stateFile: string;
+    // `<data>/molten/trust.json`, written by `molten` once the user trusted a mod (FR-MORPH-004).
+    trustFile: string;
     // Returns [] when the directory does not exist.
     listDir(path: string): Promise<MoltenDirEntry[]>;
     // Returns null when the file does not exist.
@@ -34,7 +36,7 @@ export type MoltenHostEnv = {
     writeClipboard(text: string): Promise<void>;
 };
 
-export type MoltenModState = "disabled" | "loading" | "active" | "failed" | "refused";
+export type MoltenModState = "disabled" | "untrusted" | "loading" | "active" | "failed" | "refused";
 
 export type MoltenModStatus = {
     id: string;
@@ -174,6 +176,7 @@ export class MoltenHost {
     async syncMods(ids: string[]): Promise<void> {
         let folders: string[];
         let enabled: Set<string>;
+        let trusted: Set<string>;
         try {
             const entries = await this.env.listDir(this.env.modsDir);
             folders = entries
@@ -181,6 +184,7 @@ export class MoltenHost {
                 .map((entry) => entry.name)
                 .sort();
             enabled = await this.readEnabled();
+            trusted = await this.readTrusted();
         } catch (e) {
             this.notify({ title: "Mods could not be read", message: errorMessage(e), kind: "error" });
             return;
@@ -191,9 +195,15 @@ export class MoltenHost {
             if (!folders.includes(id)) {
                 continue;
             }
-            if (!enabled.has(id)) {
+            // No code of a mod is read before the user trusted it, even when mods.json enables it by hand.
+            if (!enabled.has(id) || !trusted.has(id)) {
                 this.runtimes.set(id, {
-                    status: { id, path: joinPath(this.env.modsDir, id), state: "disabled", commands: [] },
+                    status: {
+                        id,
+                        path: joinPath(this.env.modsDir, id),
+                        state: enabled.has(id) ? "untrusted" : "disabled",
+                        commands: [],
+                    },
                     disposers: [],
                     stopped: true,
                 });
@@ -205,19 +215,31 @@ export class MoltenHost {
         this.publish();
     }
 
-    async readEnabled(): Promise<Set<string>> {
-        const text = await this.env.readTextFile(this.env.stateFile);
+    async readJsonFile(path: string): Promise<any> {
+        const text = await this.env.readTextFile(path);
         if (text == null || text.trim() === "") {
-            return new Set();
+            return null;
         }
-        let state: any;
         try {
-            state = JSON.parse(text);
+            return JSON.parse(text);
         } catch (e) {
-            throw new Error(`${this.env.stateFile} is not valid JSON: ${errorMessage(e)}`);
+            throw new Error(`${path} is not valid JSON: ${errorMessage(e)}`);
         }
+    }
+
+    async readEnabled(): Promise<Set<string>> {
+        const state = await this.readJsonFile(this.env.stateFile);
         const list = Array.isArray(state?.enabled) ? state.enabled : [];
         return new Set(list.filter((id: unknown) => typeof id === "string"));
+    }
+
+    async readTrusted(): Promise<Set<string>> {
+        const trust = await this.readJsonFile(this.env.trustFile);
+        const map = trust?.trusted;
+        if (map == null || typeof map !== "object" || Array.isArray(map)) {
+            return new Set();
+        }
+        return new Set(Object.keys(map));
     }
 
     // Stops a mod without reporting it as failed: the user asked for it.
