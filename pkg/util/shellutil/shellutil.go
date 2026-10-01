@@ -459,6 +459,10 @@ func initCustomShellStartupFilesInternal() error {
 	}
 	wshBaseName := filepath.Base(wshFullPath)
 	log.Printf("wsh binary successfully copied from %q to %q\n", wshBaseName, wshDstPath)
+	// MOLTENTERM-PATCH (#22): install the molten command next to wsh
+	if err := InstallMoltenCommand(binDir, wshDstPath); err != nil {
+		log.Printf("error (non-fatal), could not install the molten command: %v\n", err)
+	}
 	return nil
 }
 
