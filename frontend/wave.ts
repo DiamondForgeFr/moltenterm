@@ -36,6 +36,7 @@ import { isMacOS, setMacOSVersion } from "@/util/platformutil";
 import { MoltentermWindowTitle } from "@/util/moltenterm-identity"; // MOLTENTERM-PATCH (#4)
 import { startMoltenHost } from "./molten/molten-start"; // MOLTENTERM-PATCH (#18)
 import "./moltenterm-shell/moltenterm-shell.css"; // MOLTENTERM-PATCH (#48)
+import { startMoltentermAccent } from "./moltenterm-shell/accent"; // MOLTENTERM-PATCH (#47)
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -204,6 +205,7 @@ async function initWave(initOpts: WaveInitOpts) {
     const firstRenderPromise = new Promise<void>((resolve) => {
         firstRenderResolveFn = resolve;
     });
+    startMoltentermAccent(atoms.workspace); // MOLTENTERM-PATCH (#47): before the first render, so no green flash
     const reactElem = createElement(App, { onFirstRender: firstRenderResolveFn }, null);
     const elem = document.getElementById("main");
     const root = createRoot(elem);
