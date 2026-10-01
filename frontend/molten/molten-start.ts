@@ -5,15 +5,23 @@
 // through its only Moltenterm patch for the host.
 
 import { getApi } from "@/app/store/global";
+import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { base64ToString, fireAndForget } from "@/util/util";
-import { MoltenDirEntry, MoltenHost, MoltenHostEnv } from "./molten-host";
+import { MoltenDirEntry, MoltenHost, MoltenHostEnv, MoltenRunRequest } from "./molten-host";
 import { mountMoltenNotifications } from "./molten-notifications";
+import { validateMoltenMod } from "./molten-validate";
 
-// The RPC command `molten mod list` sends to this tab (cmd/wsh/cmd/wshcmd-molten.go). The tab client dispatches
-// incoming commands on `handle_<command>`, so the handler is added here and pkg/wshrpc stays untouched.
+// The RPC commands `molten` sends to this tab (cmd/wsh/cmd/wshcmd-molten.go). The tab client dispatches incoming
+// commands on `handle_<command>`, so the handlers are added here and pkg/wshrpc stays untouched.
 export const MoltenModListRpcCommand = "moltenmodlist";
+export const MoltenModValidateRpcCommand = "moltenmodvalidate";
+export const MoltenRunRpcCommand = "moltenrun";
+
+// Published by `molten mod enable|disable|remove` with `{ids}`. It is not declared in pkg/wps, so that Wave's event
+// list stays unpatched; the broker routes any event name.
+export const MoltenModsChangedEvent = "molten:modschanged";
 
 async function listDir(path: string): Promise<MoltenDirEntry[]> {
     const info = await RpcApi.FileInfoCommand(TabRpcClient, { info: { path } });
@@ -48,6 +56,7 @@ function makeMoltenHostEnv(): MoltenHostEnv {
     const configDir = getApi().getConfigDir();
     return {
         modsDir: `${configDir}/mods`,
+        stateFile: `${configDir}/molten/mods.json`,
         listDir,
         readTextFile,
         importModule,
@@ -60,7 +69,31 @@ export function startMoltenHost(): void {
     if (host.started) {
         return;
     }
-    (TabRpcClient as any)[`handle_${MoltenModListRpcCommand}`] = () => host.listMods();
+    const env = makeMoltenHostEnv();
+    const client = TabRpcClient as any;
+    client[`handle_${MoltenModListRpcCommand}`] = () => host.listMods();
+    client[`handle_${MoltenRunRpcCommand}`] = (_rh: unknown, req: MoltenRunRequest) => host.runCommand(req);
+    client[`handle_${MoltenModValidateRpcCommand}`] = async (_rh: unknown, req: { ids?: string[] }) => {
+        let ids = req?.ids ?? [];
+        if (ids.length === 0) {
+            ids = (await env.listDir(env.modsDir))
+                .filter((entry) => entry.isDir && !entry.name.startsWith("."))
+                .map((entry) => entry.name)
+                .sort();
+        }
+        const results = [];
+        for (const id of ids) {
+            results.push(await validateMoltenMod(env.modsDir, id, env.readTextFile));
+        }
+        return { results };
+    };
+    waveEventSubscribeSingle({
+        eventType: MoltenModsChangedEvent as WaveEventName,
+        handler: (event) => {
+            const ids = (event.data as { ids?: string[] })?.ids;
+            fireAndForget(() => host.reload(Array.isArray(ids) && ids.length > 0 ? ids : null));
+        },
+    });
     mountMoltenNotifications(host);
-    fireAndForget(() => host.start(makeMoltenHostEnv()));
+    fireAndForget(() => host.start(env));
 }
