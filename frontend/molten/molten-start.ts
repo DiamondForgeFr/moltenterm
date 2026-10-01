@@ -10,7 +10,9 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { base64ToString, fireAndForget } from "@/util/util";
 import { MoltenDirEntry, MoltenHost, MoltenHostEnv, MoltenRunRequest } from "./molten-host";
+import { MoltenManifestFileName, parseMoltenManifest } from "./molten-manifest";
 import { mountMoltenNotifications } from "./molten-notifications";
+import { MoltenTrustModel } from "./molten-trust";
 import { validateMoltenMod } from "./molten-validate";
 
 // The RPC commands `molten` sends to this tab (cmd/wsh/cmd/wshcmd-molten.go). The tab client dispatches incoming
@@ -18,6 +20,7 @@ import { validateMoltenMod } from "./molten-validate";
 export const MoltenModListRpcCommand = "moltenmodlist";
 export const MoltenModValidateRpcCommand = "moltenmodvalidate";
 export const MoltenRunRpcCommand = "moltenrun";
+export const MoltenTrustPromptRpcCommand = "moltentrustprompt";
 
 // Published by `molten mod enable|disable|remove` with `{ids}`. It is not declared in pkg/wps, so that Wave's event
 // list stays unpatched; the broker routes any event name.
@@ -57,6 +60,7 @@ function makeMoltenHostEnv(): MoltenHostEnv {
     return {
         modsDir: `${configDir}/mods`,
         stateFile: `${configDir}/molten/mods.json`,
+        trustFile: `${getApi().getDataDir()}/molten/trust.json`,
         listDir,
         readTextFile,
         importModule,
@@ -86,6 +90,28 @@ export function startMoltenHost(): void {
             results.push(await validateMoltenMod(env.modsDir, id, env.readTextFile));
         }
         return { results };
+    };
+    client[`handle_${MoltenTrustPromptRpcCommand}`] = async (_rh: unknown, req: { id?: string }) => {
+        const id = req?.id ?? "";
+        const path = `${env.modsDir}/${id}`;
+        const manifestText = await env.readTextFile(`${path}/${MoltenManifestFileName}`);
+        if (manifestText == null) {
+            throw new Error(`no ${MoltenManifestFileName} in ${path}`);
+        }
+        const parsed = parseMoltenManifest(id, manifestText);
+        if (parsed.ok === false) {
+            throw new Error(parsed.error);
+        }
+        const m = parsed.manifest;
+        const answer = await MoltenTrustModel.getInstance().ask({
+            id: m.id,
+            name: m.name,
+            version: m.version,
+            description: m.description,
+            capabilities: m.capabilities,
+            path,
+        });
+        return { answer };
     };
     waveEventSubscribeSingle({
         eventType: MoltenModsChangedEvent as WaveEventName,

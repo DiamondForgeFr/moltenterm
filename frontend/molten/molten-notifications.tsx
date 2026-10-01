@@ -9,6 +9,7 @@ import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { createRoot } from "react-dom/client";
 import type { MoltenHost, MoltenNotificationEntry } from "./molten-host";
+import { MoltenTrustDialog } from "./molten-trust";
 
 const KindBorder: Record<MoltenNotificationEntry["kind"], string> = {
     info: "border-l-accent",
@@ -62,5 +63,10 @@ export function mountMoltenNotifications(host: MoltenHost): void {
     const elem = document.createElement("div");
     elem.id = "molten-notifications";
     document.body.appendChild(elem);
-    createRoot(elem).render(<MoltenNotifications host={host} />);
+    createRoot(elem).render(
+        <>
+            <MoltenNotifications host={host} />
+            <MoltenTrustDialog />
+        </>
+    );
 }
