@@ -291,6 +291,8 @@ func (h *History) restore(seq int) ([]string, error) {
 	} else if err != nil {
 		return nil, err
 	}
+	oldState, _ := os.ReadFile(h.StateFile)
+	changed = append(changed, stateDiff(oldState, stateData)...)
 	err = os.MkdirAll(filepath.Dir(h.StateFile), 0755)
 	if err != nil {
 		return nil, err
@@ -304,8 +306,37 @@ func (h *History) restore(seq int) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(changed)
-	return changed, nil
+	return uniqueSorted(changed), nil
+}
+
+// The mods whose enabled or disabled state differs between two contents of mods.json.
+func stateDiff(oldData []byte, newData []byte) []string {
+	marks := func(data []byte) map[string]string {
+		var state stateFileContent
+		json.Unmarshal(data, &state)
+		rtn := make(map[string]string)
+		for _, id := range state.Enabled {
+			rtn[id] += "e"
+		}
+		for _, id := range state.Disabled {
+			rtn[id] += "d"
+		}
+		return rtn
+	}
+	return diffSnapshots(marks(oldData), marks(newData))
+}
+
+func uniqueSorted(ids []string) []string {
+	seen := make(map[string]bool)
+	rtn := []string{}
+	for _, id := range ids {
+		if !seen[id] {
+			seen[id] = true
+			rtn = append(rtn, id)
+		}
+	}
+	sort.Strings(rtn)
+	return rtn
 }
 
 func modFolders(dir string) (map[string]bool, error) {

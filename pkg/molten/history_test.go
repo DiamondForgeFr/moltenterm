@@ -97,10 +97,14 @@ func TestHistoryUndoStepsBack(t *testing.T) {
 	if target := f.undo(); target.Seq != 1 || f.read("greet/main.js") != "<missing>" {
 		t.Fatalf("third undo restored #%d, main.js = %q", target.Seq, f.read("greet/main.js"))
 	}
+	entries, _ := f.h.Entries()
+	if last := entries[len(entries)-1]; strings.Join(last.Ids, ",") != "greet" {
+		t.Fatalf("an undo names the mods whose enabled state it changed: %+v", last)
+	}
 	if _, _, err := f.h.Undo(f.now); err == nil || !strings.Contains(err.Error(), "nothing to undo") {
 		t.Fatalf("undo past the start must stop, got %v", err)
 	}
-	entries, _ := f.h.Entries()
+	entries, _ = f.h.Entries()
 	kinds := []string{}
 	for _, e := range entries {
 		kinds = append(kinds, e.Kind)

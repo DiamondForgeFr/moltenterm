@@ -47,7 +47,7 @@ export type MoltenHostEnv = {
     builtins?: MoltenBuiltinMod[];
 };
 
-export type MoltenModState = "disabled" | "untrusted" | "loading" | "active" | "failed" | "refused";
+export type MoltenModState = "disabled" | "untrusted" | "safemode" | "loading" | "active" | "failed" | "refused";
 
 export type MoltenModStatus = {
     id: string;
@@ -189,6 +189,7 @@ export class MoltenHost {
         this.env = env;
         this.safeMode = !!opts?.safeMode;
         if (this.safeMode) {
+            await this.enqueue(() => this.listForSafeMode());
             return;
         }
         await this.enqueue(() => this.syncMods(null));
@@ -293,6 +294,37 @@ export class MoltenHost {
                 kind: "warning",
             });
         }
+    }
+
+    // In safe mode no mod code is read, but the mods are still listed, so the user knows which one to disable.
+    async listForSafeMode(): Promise<void> {
+        let folders: string[] = [];
+        let state: ModState = { enabled: new Set(), disabled: new Set() };
+        try {
+            folders = (await this.env.listDir(this.env.modsDir))
+                .filter((entry) => entry.isDir && !entry.name.startsWith("."))
+                .map((entry) => entry.name);
+            state = await this.readState();
+        } catch (e) {
+            console.error("[molten] safe mode: mods could not be listed", e);
+        }
+        const builtinIds = (this.env.builtins ?? []).map((b) => b.id);
+        for (const id of [...new Set([...folders, ...builtinIds])].sort()) {
+            const builtin = builtinIds.includes(id);
+            const off = builtin ? state.disabled.has(id) : !state.enabled.has(id);
+            this.runtimes.set(id, {
+                status: {
+                    id,
+                    path: builtin ? `builtin:${id}` : joinPath(this.env.modsDir, id),
+                    state: off ? "disabled" : "safemode",
+                    commands: [],
+                    ...(builtin ? { builtin } : {}),
+                },
+                disposers: [],
+                stopped: true,
+            });
+        }
+        this.publish();
     }
 
     async readJsonFile(path: string): Promise<any> {

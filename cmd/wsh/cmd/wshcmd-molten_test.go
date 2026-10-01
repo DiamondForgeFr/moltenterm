@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 )
@@ -288,15 +289,26 @@ func TestFormatMoltenHelpAndUnknown(t *testing.T) {
 	}
 }
 
-// `molten --json mod list` puts the options before the subcommand; moltenRunModSubcommand finds it on moltenModCmd.
-func TestMoltenModSubcommandAfterOptions(t *testing.T) {
-	opts, err := moltenParseRunOptions([]string{"--json", "mod", "validate", "a", "b"})
-	if err != nil || opts.Command != "mod" {
-		t.Fatalf("unexpected options: %+v, %v", opts, err)
+// `molten --json history` puts the options before the subcommand; moltenRunSubcommand finds it on moltenCmd.
+func TestMoltenSubcommandAfterOptions(t *testing.T) {
+	cases := map[string]*cobra.Command{
+		"--json mod validate a b": moltenModValidateCmd,
+		"--json history":          moltenHistoryCmd,
+		"--json undo":             moltenUndoCmd,
+		"--json help":             moltenHelpCmd,
 	}
-	sub, rest, err := moltenModCmd.Find(opts.Args)
-	if err != nil || sub != moltenModValidateCmd || strings.Join(rest, " ") != "a b" {
-		t.Fatalf("found %q with %q (%v)", sub.Name(), rest, err)
+	for line, want := range cases {
+		opts, err := moltenParseRunOptions(strings.Fields(line))
+		if err != nil || !moltenIsBuiltinSubcommand(opts.Command) {
+			t.Fatalf("%q: %+v, %v", line, opts, err)
+		}
+		sub, _, err := moltenCmd.Find(append([]string{opts.Command}, opts.Args...))
+		if err != nil || sub != want {
+			t.Errorf("%q found %q (%v)", line, sub.Name(), err)
+		}
+	}
+	if moltenIsBuiltinSubcommand("greet") {
+		t.Fatal("a mod command is not a built-in subcommand")
 	}
 }
 
