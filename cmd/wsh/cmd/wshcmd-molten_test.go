@@ -282,3 +282,15 @@ func TestFormatMoltenHelpAndUnknown(t *testing.T) {
 		t.Fatalf("unexpected message: %s", msg)
 	}
 }
+
+// `molten --json mod list` puts the options before the subcommand; moltenRunModSubcommand finds it on moltenModCmd.
+func TestMoltenModSubcommandAfterOptions(t *testing.T) {
+	opts, err := moltenParseRunOptions([]string{"--json", "mod", "validate", "a", "b"})
+	if err != nil || opts.Command != "mod" {
+		t.Fatalf("unexpected options: %+v, %v", opts, err)
+	}
+	sub, rest, err := moltenModCmd.Find(opts.Args)
+	if err != nil || sub != moltenModValidateCmd || strings.Join(rest, " ") != "a b" {
+		t.Fatalf("found %q with %q (%v)", sub.Name(), rest, err)
+	}
+}
