@@ -37,6 +37,25 @@ export type MoltenNotificationOptions = {
     kind?: MoltenNotificationKind;
 };
 
+// A box shows text next to a terminal (FR-MORPH-007). It is declarative: mods describe it and Moltenterm draws it,
+// so a mod stays one plain file that never depends on React or Wave's components.
+export type MoltenBoxAction = {
+    // A Font Awesome icon name, such as "copy".
+    icon?: string;
+    label: string;
+    // May return a short message shown on the button for a moment, such as "Copied".
+    run: () => string | void | Promise<string | void>;
+};
+
+export type MoltenBoxOptions = {
+    // The terminal block to show the box next to; without it the box goes to the window's corner.
+    blockId?: string;
+    title?: string;
+    text: string;
+    monospace?: boolean;
+    actions?: MoltenBoxAction[];
+};
+
 export type MoltenApi = {
     apiVersion: number;
     mod: { id: string; name: string; version: string };
@@ -45,6 +64,9 @@ export type MoltenApi = {
     };
     notifications: {
         show(opts: MoltenNotificationOptions): MoltenDisposer;
+    };
+    boxes: {
+        show(opts: MoltenBoxOptions): MoltenDisposer;
     };
     clipboard: {
         writeText(text: string): Promise<void>;
@@ -64,6 +86,7 @@ export type MoltenApiBackend = {
     fail(err: unknown): void;
     registerCommand(name: string, description: string, handler: MoltenCommandHandler): MoltenDisposer;
     showNotification(opts: MoltenNotificationOptions): MoltenDisposer;
+    showBox(opts: MoltenBoxOptions): MoltenDisposer;
     writeClipboard(text: string): Promise<void>;
 };
 
@@ -97,6 +120,17 @@ export function makeMoltenApi(manifest: MoltenModManifest, backend: MoltenApiBac
             }
         };
     };
+    const wrapAction = (run: MoltenBoxAction["run"]): MoltenBoxAction["run"] => {
+        return async () => {
+            ensureRunning();
+            try {
+                return await run();
+            } catch (e) {
+                backend.fail(e);
+                throw e;
+            }
+        };
+    };
     return Object.freeze({
         apiVersion: MoltenApiVersion,
         mod: Object.freeze({ id: manifest.id, name: manifest.name, version: manifest.version }),
@@ -120,6 +154,21 @@ export function makeMoltenApi(manifest: MoltenModManifest, backend: MoltenApiBac
                     throw new Error("notifications.show: a non-empty title is required");
                 }
                 return backend.track(backend.showNotification(opts));
+            },
+        }),
+        boxes: Object.freeze({
+            show(opts: MoltenBoxOptions): MoltenDisposer {
+                ensureRunning();
+                if (opts == null || typeof opts.text !== "string") {
+                    throw new Error("boxes.show: text must be a string");
+                }
+                const actions = (opts.actions ?? []).map((action) => {
+                    if (action == null || typeof action.label !== "string" || typeof action.run !== "function") {
+                        throw new Error("boxes.show: every action needs a label and a run function");
+                    }
+                    return { icon: action.icon, label: action.label, run: wrapAction(action.run) };
+                });
+                return backend.track(backend.showBox({ ...opts, actions }));
             },
         }),
         clipboard: Object.freeze({

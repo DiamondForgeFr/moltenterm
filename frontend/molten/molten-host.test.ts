@@ -410,4 +410,102 @@ describe("MoltenHost", () => {
         await host.start(env);
         expect(modState(host, "a").state).toBe("untrusted");
     });
+
+    it("shows boxes for a mod and closes them when the mod stops", async () => {
+        let api: MoltenApi;
+        await host.start(
+            makeEnv({
+                b: {
+                    manifest: manifestFor("b"),
+                    module: {
+                        activate(a: MoltenApi) {
+                            api = a;
+                            a.commands.register("fail", () => {
+                                throw new Error("down");
+                            });
+                        },
+                    },
+                },
+            })
+        );
+        const dispose = api.boxes.show({ blockId: "blk", title: "T", text: "one" });
+        api.boxes.show({ text: "two", monospace: true });
+        expect(globalStore.get(host.boxesAtom).map((b) => [b.text, b.blockId, b.monospace])).toEqual([
+            ["one", "blk", false],
+            ["two", undefined, true],
+        ]);
+        dispose();
+        expect(globalStore.get(host.boxesAtom).map((b) => b.text)).toEqual(["two"]);
+        expect(() => api.boxes.show({ text: 3 as any })).toThrow("text must be a string");
+        await host.runCommand({ command: "fail" });
+        expect(globalStore.get(host.boxesAtom)).toEqual([]);
+    });
+
+    it("stops a mod whose box action throws", async () => {
+        let api: MoltenApi;
+        await host.start(
+            makeEnv({ b: { manifest: manifestFor("b"), module: { activate: (a: MoltenApi) => void (api = a) } } })
+        );
+        api.boxes.show({
+            text: "x",
+            actions: [
+                {
+                    label: "Boom",
+                    run: () => {
+                        throw new Error("action failed");
+                    },
+                },
+            ],
+        });
+        const action = globalStore.get(host.boxesAtom)[0].actions[0];
+        await expect(action.run()).rejects.toThrow("action failed");
+        expect(modState(host, "b")).toMatchObject({ state: "failed", error: "action failed" });
+        expect(globalStore.get(host.boxesAtom)).toEqual([]);
+    });
+
+    it("loads built-in mods without trust and keeps them off when disabled", async () => {
+        const builtin = {
+            id: "inside",
+            files: {
+                "mod.json": JSON.stringify(manifestFor("inside")),
+                "main.js": "// built in",
+            },
+        };
+        const importModule = vi.fn(async (_source: string, name: string) => ({
+            activate: (api: MoltenApi) => api.commands.register("inside-cmd", () => name),
+        }));
+        const env = { ...makeEnv({}, [], { ids: [] }, { ids: [] }), builtins: [builtin], importModule };
+        await host.start(env);
+        expect(modState(host, "inside")).toMatchObject({
+            state: "active",
+            builtin: true,
+            path: "builtin:inside",
+            commands: ["inside-cmd"],
+        });
+        expect(importModule).toHaveBeenCalledWith("// built in", "inside/main.js");
+
+        const read = env.readTextFile;
+        env.readTextFile = async (path: string) =>
+            path === StateFile ? JSON.stringify({ enabled: [], disabled: ["inside"] }) : read(path);
+        await host.reload(["inside"]);
+        expect(modState(host, "inside")).toMatchObject({ state: "disabled", builtin: true });
+        expect(host.commands.has("inside-cmd")).toBe(false);
+    });
+
+    it("ignores a user folder named like a built-in mod and says so", async () => {
+        const builtin = {
+            id: "same",
+            files: { "mod.json": JSON.stringify(manifestFor("same")), "main.js": "" },
+        };
+        const env = {
+            ...makeEnv({ same: { manifest: manifestFor("same"), module: { activate() {} } } }),
+            builtins: [builtin],
+        };
+        await host.start(env);
+        expect(modState(host, "same").builtin).toBe(true);
+        expect(globalStore.get(host.notificationsAtom)[0]).toMatchObject({
+            kind: "warning",
+            title: 'Mod folder "same" ignored',
+        });
+    });
 });

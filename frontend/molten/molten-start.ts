@@ -9,6 +9,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { base64ToString, fireAndForget } from "@/util/util";
+import { MoltenBuiltinMods } from "./molten-builtins";
 import { MoltenDirEntry, MoltenHost, MoltenHostEnv, MoltenRunRequest } from "./molten-host";
 import { MoltenManifestFileName, parseMoltenManifest } from "./molten-manifest";
 import { mountMoltenNotifications } from "./molten-notifications";
@@ -65,6 +66,7 @@ function makeMoltenHostEnv(): MoltenHostEnv {
         readTextFile,
         importModule,
         writeClipboard: (text: string) => navigator.clipboard.writeText(text),
+        builtins: MoltenBuiltinMods,
     };
 }
 

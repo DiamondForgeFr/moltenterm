@@ -10,6 +10,8 @@ import { atom, PrimitiveAtom } from "jotai";
 import {
     makeMoltenApi,
     MoltenApiBackend,
+    MoltenBoxAction,
+    MoltenBoxOptions,
     MoltenCommandHandler,
     MoltenDisposer,
     MoltenNotificationKind,
@@ -21,6 +23,14 @@ export const MoltenActivateTimeoutMs = 10000;
 export const MoltenNotificationTimeoutMs = 8000;
 
 export type MoltenDirEntry = { name: string; isDir: boolean };
+
+// A mod shipped inside Moltenterm (frontend/molten/builtin/). It is part of the app, so it needs no trust prompt and
+// is enabled unless `mods.json` lists it under "disabled".
+export type MoltenBuiltinMod = {
+    id: string;
+    // File name → content, at least mod.json and the file its "main" names.
+    files: Record<string, string>;
+};
 
 export type MoltenHostEnv = {
     modsDir: string;
@@ -34,6 +44,7 @@ export type MoltenHostEnv = {
     readTextFile(path: string): Promise<string>;
     importModule(source: string, sourceName: string): Promise<any>;
     writeClipboard(text: string): Promise<void>;
+    builtins?: MoltenBuiltinMod[];
 };
 
 export type MoltenModState = "disabled" | "untrusted" | "loading" | "active" | "failed" | "refused";
@@ -46,6 +57,7 @@ export type MoltenModStatus = {
     state: MoltenModState;
     error?: string;
     commands: string[];
+    builtin?: boolean;
 };
 
 export type MoltenCommandInfo = {
@@ -85,11 +97,28 @@ export type MoltenNotificationEntry = {
     modId?: string;
 };
 
+export type MoltenBoxEntry = {
+    id: number;
+    modId: string;
+    blockId?: string;
+    title?: string;
+    text: string;
+    monospace: boolean;
+    actions: MoltenBoxAction[];
+};
+
 export type MoltenCommandEntry = {
     modId: string;
     name: string;
     description: string;
     handler: MoltenCommandHandler;
+};
+
+type ModFileReader = (name: string) => Promise<string>;
+
+type ModState = {
+    enabled: Set<string>;
+    disabled: Set<string>;
 };
 
 type ModRuntime = {
@@ -122,6 +151,7 @@ export class MoltenHost {
 
     modsAtom = atom<MoltenModStatus[]>([]) as PrimitiveAtom<MoltenModStatus[]>;
     notificationsAtom = atom<MoltenNotificationEntry[]>([]) as PrimitiveAtom<MoltenNotificationEntry[]>;
+    boxesAtom = atom<MoltenBoxEntry[]>([]) as PrimitiveAtom<MoltenBoxEntry[]>;
 
     env: MoltenHostEnv = null;
     started = false;
@@ -129,6 +159,7 @@ export class MoltenHost {
     runtimes = new Map<string, ModRuntime>();
     commands = new Map<string, MoltenCommandEntry>();
     nextNotificationId = 1;
+    nextBoxId = 1;
     // Starts and reloads run one at a time: an enable arriving while the mods load must see the finished state.
     queue: Promise<void> = Promise.resolve();
 
@@ -175,7 +206,7 @@ export class MoltenHost {
 
     async syncMods(ids: string[]): Promise<void> {
         let folders: string[];
-        let enabled: Set<string>;
+        let state: ModState;
         let trusted: Set<string>;
         try {
             const entries = await this.env.listDir(this.env.modsDir);
@@ -183,18 +214,25 @@ export class MoltenHost {
                 .filter((entry) => entry.isDir && !entry.name.startsWith("."))
                 .map((entry) => entry.name)
                 .sort();
-            enabled = await this.readEnabled();
+            state = await this.readState();
             trusted = await this.readTrusted();
         } catch (e) {
             this.notify({ title: "Mods could not be read", message: errorMessage(e), kind: "error" });
             return;
         }
-        const targets = ids ?? [...new Set([...this.runtimes.keys(), ...folders])].sort();
+        const builtins = this.env.builtins ?? [];
+        const targets = ids ?? [...new Set([...this.runtimes.keys(), ...folders, ...builtins.map((b) => b.id)])].sort();
         for (const id of targets) {
             this.unloadMod(id);
+            const builtin = builtins.find((b) => b.id === id);
+            if (builtin != null) {
+                await this.syncBuiltin(builtin, state, folders.includes(id));
+                continue;
+            }
             if (!folders.includes(id)) {
                 continue;
             }
+            const enabled = state.enabled;
             // No code of a mod is read before the user trusted it, even when mods.json enables it by hand.
             if (!enabled.has(id) || !trusted.has(id)) {
                 this.runtimes.set(id, {
@@ -209,10 +247,31 @@ export class MoltenHost {
                 });
                 continue;
             }
-            await this.loadMod(id);
+            const dir = joinPath(this.env.modsDir, id);
+            await this.loadMod(id, dir, (name) => this.env.readTextFile(joinPath(dir, name)));
         }
         this.sortRuntimes();
         this.publish();
+    }
+
+    async syncBuiltin(builtin: MoltenBuiltinMod, state: ModState, shadowed: boolean): Promise<void> {
+        const path = `builtin:${builtin.id}`;
+        if (state.disabled.has(builtin.id)) {
+            this.runtimes.set(builtin.id, {
+                status: { id: builtin.id, path, state: "disabled", commands: [], builtin: true },
+                disposers: [],
+                stopped: true,
+            });
+            return;
+        }
+        await this.loadMod(builtin.id, path, async (name) => builtin.files[name] ?? null, true);
+        if (shadowed) {
+            this.notify({
+                title: `Mod folder "${builtin.id}" ignored`,
+                message: `"${builtin.id}" is a built-in mod; rename the folder in ${this.env.modsDir} to load it.`,
+                kind: "warning",
+            });
+        }
     }
 
     async readJsonFile(path: string): Promise<any> {
@@ -227,10 +286,11 @@ export class MoltenHost {
         }
     }
 
-    async readEnabled(): Promise<Set<string>> {
+    async readState(): Promise<ModState> {
         const state = await this.readJsonFile(this.env.stateFile);
-        const list = Array.isArray(state?.enabled) ? state.enabled : [];
-        return new Set(list.filter((id: unknown) => typeof id === "string"));
+        const ids = (list: unknown): Set<string> =>
+            new Set(Array.isArray(list) ? list.filter((id: unknown) => typeof id === "string") : []);
+        return { enabled: ids(state?.enabled), disabled: ids(state?.disabled) };
     }
 
     async readTrusted(): Promise<Set<string>> {
@@ -295,24 +355,23 @@ export class MoltenHost {
         };
     }
 
-    async loadMod(folder: string): Promise<void> {
-        const dir = joinPath(this.env.modsDir, folder);
+    async loadMod(id: string, path: string, read: ModFileReader, builtin = false): Promise<void> {
         const runtime: ModRuntime = {
-            status: { id: folder, path: dir, state: "loading", commands: [] },
+            status: { id, path, state: "loading", commands: [], ...(builtin ? { builtin } : {}) },
             disposers: [],
             stopped: false,
         };
-        this.runtimes.set(folder, runtime);
+        this.runtimes.set(id, runtime);
         this.publish();
         try {
-            await this.activateMod(runtime, folder, dir);
+            await this.activateMod(runtime, id, read);
         } catch (e) {
             this.stopRuntime(runtime, "failed", errorMessage(e));
         }
     }
 
-    async activateMod(runtime: ModRuntime, folder: string, dir: string): Promise<void> {
-        const manifestText = await this.env.readTextFile(joinPath(dir, MoltenManifestFileName));
+    async activateMod(runtime: ModRuntime, folder: string, read: ModFileReader): Promise<void> {
+        const manifestText = await read(MoltenManifestFileName);
         if (manifestText == null) {
             this.stopRuntime(runtime, "failed", `${MoltenManifestFileName} not found`);
             return;
@@ -325,7 +384,7 @@ export class MoltenHost {
         const manifest = parsed.manifest;
         runtime.status.name = manifest.name;
         runtime.status.version = manifest.version;
-        const source = await this.env.readTextFile(joinPath(dir, manifest.main));
+        const source = await read(manifest.main);
         if (source == null) {
             this.stopRuntime(runtime, "failed", `main file "${manifest.main}" not found`);
             return;
@@ -379,6 +438,7 @@ export class MoltenHost {
             fail: (err: unknown) => this.stopRuntime(runtime, "failed", errorMessage(err)),
             registerCommand: (name, description, handler) => this.registerCommand(runtime, name, description, handler),
             showNotification: (opts: MoltenNotificationOptions) => this.notify(opts, modId),
+            showBox: (opts: MoltenBoxOptions) => this.showBox(opts, modId),
             writeClipboard: (text: string) => this.env.writeClipboard(text),
         };
     }
@@ -455,6 +515,32 @@ export class MoltenHost {
             setTimeout(dismiss, MoltenNotificationTimeoutMs);
         }
         return dismiss;
+    }
+
+    showBox(opts: MoltenBoxOptions, modId: string): MoltenDisposer {
+        const id = this.nextBoxId++;
+        const entry: MoltenBoxEntry = {
+            id,
+            modId,
+            blockId: opts.blockId || undefined,
+            title: opts.title,
+            text: opts.text,
+            monospace: !!opts.monospace,
+            actions: opts.actions ?? [],
+        };
+        globalStore.set(this.boxesAtom, [...globalStore.get(this.boxesAtom), entry]);
+        return () => this.dismissBox(id);
+    }
+
+    dismissBox(id: number): void {
+        const current = globalStore.get(this.boxesAtom);
+        if (!current.some((b) => b.id === id)) {
+            return;
+        }
+        globalStore.set(
+            this.boxesAtom,
+            current.filter((b) => b.id !== id)
+        );
     }
 
     dismissNotification(id: number): void {

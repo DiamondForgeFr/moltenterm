@@ -8,6 +8,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { createRoot } from "react-dom/client";
+import { MoltenBoxes } from "./molten-boxes";
 import type { MoltenHost, MoltenNotificationEntry } from "./molten-host";
 import { MoltenTrustDialog } from "./molten-trust";
 
@@ -65,6 +66,7 @@ export function mountMoltenNotifications(host: MoltenHost): void {
     document.body.appendChild(elem);
     createRoot(elem).render(
         <>
+            <MoltenBoxes host={host} />
             <MoltenNotifications host={host} />
             <MoltenTrustDialog />
         </>
