@@ -15,6 +15,10 @@ version 1.
 `<config>` is Moltenterm's configuration directory (`~/.config/moltenterm` on macOS and Linux, `moltenterm-dev` for
 development builds; `wsh wavepath config` prints it). Folders whose name starts with `.` are ignored.
 
+A mod runs only once it is enabled. The enabled mods are listed in `<config>/molten/mods.json`
+(`{"enabled": ["<mod-id>", …]}`), outside the mod folders, and `molten mod enable|disable` changes it; every open tab
+applies the change at once. A mod that is not listed is reported as `disabled` and none of its code is read.
+
 ## `mod.json`
 
 | Field          | Required | Meaning                                                                                       |
@@ -46,10 +50,12 @@ export function activate(api) {
 
 - `api.apiVersion`: `1`.
 - `api.mod`: `{ id, name, version }` from `mod.json`.
-- `api.commands.register(name, handler, { description })`: registers a command that `molten` will call. `name` uses
+- `api.commands.register(name, handler, { description })`: registers a command that `molten <name> [args…]` runs. `name` uses
   lowercase letters, digits and `-` and starts with a letter; `mod`, `help`, `undo`, `history`, `agent` and `docs` are
   reserved, and a name another mod already registered is refused. `handler({ args, stdin, blockId })` returns a
-  string, `{ output, exitCode }` or nothing, possibly through a promise.
+  string, `{ output, exitCode }` or nothing, possibly through a promise. `args` are the words after the command name,
+  `stdin` the text piped into `molten` (up to 1 MB), `blockId` the terminal it was run from. The output is printed
+  and `exitCode` (default 0) becomes the exit code of `molten`; a handler that throws exits with 1.
 - `api.notifications.show({ title, message, kind })`: shows a notification in the tab; `kind` is `info` (default),
   `success`, `warning` or `error`. Errors stay until closed; the others disappear after 8 seconds.
 - `api.clipboard.writeText(text)`: copies text to the system clipboard.
@@ -61,19 +67,33 @@ mod stops.
 ## Failures
 
 A mod that throws while loading, in `activate`, or later in one of its handlers is stopped: everything it registered is
-undone, a notification gives the error, and `wsh molten mod list` shows the mod as `failed` with its error. The tab and
+undone, a notification gives the error, and `molten mod list` shows the mod as `failed` with its error. The tab and
 the other mods keep working.
 
-## Checking the mods of a tab
+## The molten command
 
-Each tab loads its own copy of every mod. In a terminal of that tab:
+`molten` is installed next to `wsh` in every local Moltenterm terminal (`wsh molten …` is the same command). Every
+command accepts `--json` and exits non-zero on failure; with `--json` an error is printed on stderr as
+`{"error": "…"}`.
 
 ```
-wsh molten mod list          # ID, state (active, failed, refused), version, commands, error
-wsh molten mod list --json
+molten mod new <id> [--name <name>] [--description <text>]   # a working mod from a template, disabled
+molten mod validate [<id>…]   # manifest, API version, syntax: file:line:column of each problem; runs no code
+molten mod enable <id>        # in every open tab
+molten mod disable <id>
+molten mod list               # ID, state (disabled, active, failed, refused), version, commands, error
+molten mod remove <id>        # disables the mod and moves its folder to the trash
+molten help                   # built-in commands and the commands of the enabled mods
+molten [--json] [--timeout <seconds>] <command> [args…]   # runs a mod command (default timeout 60 s)
 ```
+
+Options of `molten` itself go before the command name; everything after it goes to the mod command. Each tab loads
+its own copy of every enabled mod, and `molten` talks to the tab it runs in.
+
+The usual loop for an agent: `molten mod new <id>`, edit `main.js`, `molten mod validate <id>`,
+`molten mod enable <id>`, `molten <command>`, `molten mod list` to see errors.
 
 ## Not in API version 1 yet
 
-Reloading on save (#19), undo and safe mode (#20), the trust prompt (#21), the `molten` command itself and calling mod
-commands from the terminal (#22), and boxes and panels (#24).
+Reloading on save (#19), undo and safe mode (#20), the trust prompt (#21), and boxes and panels (#24). Until #20,
+`molten mod remove` moves the folder to the system trash on macOS and to `<data>/molten/removed/` elsewhere.
