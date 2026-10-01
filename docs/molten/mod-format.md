@@ -28,6 +28,25 @@ load; the next valid save brings it back. A new mod folder appears in `molten mo
 and editing `mods.json` by hand takes effect the same way. Files whose name starts with `.` or ends with `~`, `.swp`
 or `.tmp` are ignored, so an editor's temporary files never reload a mod.
 
+## History, undo and safe mode
+
+Every change to the mods is recorded: a file of a mod added, edited or removed, a mod enabled or disabled. Each
+record is a snapshot of `<config>/mods/` and `mods.json` under `<data>/molten/history/`, and the last 50 are kept;
+no system git is needed. The trust file is not part of the history, so undoing never grants trust: a restored mod
+that is no longer trusted comes back `untrusted`.
+
+```
+molten history [--json]   # newest first; -> marks the change the mods are at now
+molten undo [--json]      # restores the mods as before that change; repeat to keep going back
+```
+
+An undo is itself recorded, and an edit made after undoing can be undone too.
+
+Safe mode starts Moltenterm with no mod loaded, so a mod that breaks the workspace can always be repaired. Choose
+**Restart in Safe Mode** in the app menu, or start Moltenterm with `MOLTENTERM_SAFE_MODE=1`. A banner says so in
+every window and `molten mod list` reports it. `molten mod disable`, `molten mod remove` and `molten undo` still
+work; then choose **Restart Normally** in the app menu.
+
 ## Trust
 
 A mod runs inside Moltenterm with the user's rights: it can read and change files and run commands. So no mod code
@@ -169,6 +188,8 @@ molten mod untrust <id>       # stops the mod and forgets the trust
 molten mod disable <id>
 molten mod list               # ID, state (disabled, untrusted, active, failed, refused), version, commands, error
 molten mod remove <id>        # disables the mod, forgets its trust and moves its folder to the trash
+molten undo                   # restores the mods as before the last change
+molten history                # the recorded changes
 molten help                   # built-in commands and the commands of the enabled mods
 molten [--json] [--timeout <seconds>] <command> [args…]   # runs a mod command (default timeout 60 s)
 ```
@@ -181,5 +202,5 @@ The usual loop for an agent: `molten mod new <id>`, edit `main.js`, `molten mod 
 
 ## Not in API version 1 yet
 
-Undo and safe mode (#20), and free-form panels (Mission Control, #31). Until #20,
-`molten mod remove` moves the folder to the system trash on macOS and to `<data>/molten/removed/` elsewhere.
+Free-form panels (Mission Control, #31). `molten mod remove` also moves the folder to the system trash on macOS
+(`<data>/molten/removed/` elsewhere), and `molten undo` brings the mod back.
