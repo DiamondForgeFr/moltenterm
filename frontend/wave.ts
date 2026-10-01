@@ -35,6 +35,7 @@ import { setKeyUtilPlatform } from "@/util/keyutil";
 import { isMacOS, setMacOSVersion } from "@/util/platformutil";
 import { MoltentermWindowTitle } from "@/util/moltenterm-identity"; // MOLTENTERM-PATCH (#4)
 import { startMoltenHost } from "./molten/molten-start"; // MOLTENTERM-PATCH (#18)
+import "./moltenterm-shell/moltenterm-shell.css"; // MOLTENTERM-PATCH (#48)
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
