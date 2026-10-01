@@ -189,6 +189,7 @@ need no marker. It reads only the backticked tokens of the first column: each is
 | `frontend/wave.ts` | Starts the mod host (`frontend/molten/`) once the workspace has rendered | Loads the user's mods (FR-MORPH-001) | #18 |
 | `pkg/util/shellutil/shellutil.go` | Installs `molten` next to `wsh` (`InstallMoltenCommand` in `moltenterm_molten.go`) | The `molten` command (FR-MORPH-005) | #22 |
 | `package.json`, `package-lock.json` | `acorn` becomes a direct dependency (JSON, no marker) | `molten mod validate` parses mods without running them | #22 |
+| `cmd/server/main-server.go` | Starts the mod watcher (`pkg/molten/modwatcher.go`) next to the config watcher | Mods reload on save (FR-MORPH-002) | #19 |
 
 ## Known upstream items
 

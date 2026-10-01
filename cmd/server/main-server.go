@@ -21,6 +21,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/filebackup"
 	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
+	"github.com/wavetermdev/waveterm/pkg/molten" // MOLTENTERM-PATCH (#19)
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/remote/fileshare/wshfs"
@@ -563,6 +564,7 @@ func main() {
 	sigutil.InstallSIGUSR1Handler()
 	wconfig.MigratePresetsBackgrounds()
 	startConfigWatcher()
+	molten.StartModWatcher() // MOLTENTERM-PATCH (#19): reload mods on save
 	aiusechat.InitAIModeConfigWatcher()
 	maybeStartPprofServer()
 	go stdinReadWatch()
