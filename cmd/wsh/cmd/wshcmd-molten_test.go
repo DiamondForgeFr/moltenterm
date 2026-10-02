@@ -438,9 +438,9 @@ func TestMoltenAgentCommands(t *testing.T) {
 	out := formatMoltenAgents([]molten.AgentStatus{
 		{Id: "claude-code", Installed: true, Version: "0.14.5", Format: "skill", Path: "/h/.claude/skills/molten-feature/SKILL.md"},
 		{Id: "codex", Foreign: true, Format: "skill", Path: "/h/.agents/skills/molten-feature/SKILL.md"},
-		{Id: "kimi", Format: "skill", Path: "/k"},
+		{Id: "kimi", Format: "skill", Path: "/k", Guides: []molten.AgentGuideStatus{{Name: "molten-feature"}, {Name: "molten-pipeline", Installed: true, Version: "0.15.0"}}},
 	})
-	for _, want := range []string{"v0.14.5", "no (path taken)", "molten agent install <agent>"} {
+	for _, want := range []string{"v0.14.5", "no (path taken)", "molten agent install <agent>", "MOLTEN-PIPELINE", "v0.15.0"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("agent list misses %q:\n%s", want, out)
 		}
