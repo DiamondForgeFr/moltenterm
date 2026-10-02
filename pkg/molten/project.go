@@ -86,6 +86,9 @@ func ResolveProjectDir(arg string, cwd string) (string, error) {
 	}
 	dir = filepath.Clean(dir)
 	info, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		return "", fmt.Errorf("there is no folder %s", dir)
+	}
 	if err != nil {
 		return "", err
 	}

@@ -12,6 +12,7 @@ import {
     ProjectLogoMetaKey,
     ProjectLogoOfferMetaKey,
     ProjectMetaKey,
+    projectName,
     readmeFirstImage,
     readWorkspaceProject,
     shouldOfferLogo,
@@ -96,5 +97,16 @@ describe("logo offer and link updates", () => {
         expect(logoUrl("http://127.0.0.1:1", "/p/a b.png")).toBe(
             "http://127.0.0.1:1/wave/stream-local-file?path=%2Fp%2Fa%20b.png"
         );
+    });
+});
+
+describe("projectName", () => {
+    it("follows molten's order", () => {
+        expect(projectName("/a/morphterm", { name: "Pipe" }, { projectName: "moltenterm" }, { name: "pkg" })).toBe(
+            "Pipe"
+        );
+        expect(projectName("/a/morphterm", null, { projectName: "moltenterm" }, { name: "pkg" })).toBe("moltenterm");
+        expect(projectName("/a/morphterm", null, null, { name: "pkg" })).toBe("pkg");
+        expect(projectName("/a/morphterm", null, null, null)).toBe("morphterm");
     });
 });
