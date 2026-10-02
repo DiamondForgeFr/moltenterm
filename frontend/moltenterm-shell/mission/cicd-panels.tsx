@@ -21,7 +21,8 @@ import {
     summarizeChecks,
     WorkflowRun,
 } from "./github";
-import { githubStateMessage, MissionGit, MissionGithub, PipelineReport } from "./mission-model";
+import { githubStateMessage, MissionGit, MissionGithub, PipelineReport, RunRecord } from "./mission-model";
+import { RecentBuilds } from "./runs-view";
 import { isPrereleaseTag } from "./tree";
 
 const ToneClasses: Record<CheckState, string> = {
@@ -308,21 +309,31 @@ export function makeDeliveries(git: MissionGit, github: MissionGithub): Delivery
     return rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
-export function CdTab({ git, github, pipeline }: { git: MissionGit; github: MissionGithub; pipeline: PipelineReport }) {
+export function CdTab({
+    git,
+    github,
+    pipeline,
+    runs,
+}: {
+    git: MissionGit;
+    github: MissionGithub;
+    pipeline: PipelineReport;
+    runs: RunRecord[];
+}) {
     const deliveries = makeDeliveries(git, github);
     const repoUrl = github?.url || git?.remoteurl;
     const builds = pipeline?.valid ? (pipeline.pipeline?.builds ?? []) : [];
     return (
         <div className="flex flex-col gap-5">
             <section className="flex flex-col gap-2">
-                <BlockHeader title="Gold builds" hint="the local build you use every day" />
-                <Notice
-                    text={
-                        builds.length > 0
-                            ? `The pipeline declares ${builds.map((b) => b.title || b.id).join(", ")}; keeping a build as gold from here is coming next.`
-                            : "No gold build yet: they appear here once the project's pipeline declares a local build."
-                    }
-                />
+                <BlockHeader title="Local builds" hint="gold and other builds made on this machine" />
+                {builds.length === 0 ? (
+                    <Notice text="No local build declared: they appear here once the project's pipeline declares one." />
+                ) : (
+                    <div className="overflow-hidden rounded border border-border">
+                        <RecentBuilds runs={runs} />
+                    </div>
+                )}
             </section>
             <section className="flex flex-col gap-2">
                 <BlockHeader title="Releases and release candidates" hint="from the project's version tags" />

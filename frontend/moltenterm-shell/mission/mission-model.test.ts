@@ -5,12 +5,16 @@ import { describe, expect, it } from "vitest";
 import { makeDeliveries } from "./cicd-panels";
 import {
     formatAge,
+    formatElapsed,
     githubStateMessage,
     jobsByLane,
+    latestRun,
+    logTail,
     MissionGit,
     pipelineStage,
     prsByBranch,
     toTreeData,
+    upsertRun,
 } from "./mission-model";
 
 const git: MissionGit = {
@@ -113,5 +117,28 @@ describe("helpers", () => {
             ["main", ["lint"]],
         ]);
         expect(jobsByLane(null)).toEqual([]);
+    });
+});
+
+describe("runs", () => {
+    const run = (id: string, startedat: number, kind = "build") => ({ id, startedat, kind }) as any;
+
+    it("keeps the runs newest first and replaces an updated one", () => {
+        const runs = upsertRun([run("a", 1), run("b", 2)], { ...run("a", 1), state: "success" });
+        expect(runs.map((r) => r.id)).toEqual(["b", "a"]);
+        expect(runs[1].state).toBe("success");
+        expect(latestRun([run("c", 3, "ci"), run("b", 2)], "build").id).toBe("b");
+        expect(latestRun([], "build")).toBeNull();
+    });
+
+    it("shows the last lines of a log without colours or the exit marker", () => {
+        expect(logTail("\x1b[32mok\x1b[0m\n\nstep 2\r\nexit=0\n", 5)).toEqual(["ok", "step 2"]);
+        expect(logTail("a\nb\nc", 2)).toEqual(["b", "c"]);
+    });
+
+    it("formats elapsed times", () => {
+        expect(formatElapsed(42_000)).toBe("42 s");
+        expect(formatElapsed(125_000)).toBe("2 min 05");
+        expect(formatElapsed(3_725_000)).toBe("1 h 02");
     });
 });

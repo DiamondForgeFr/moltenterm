@@ -9,8 +9,9 @@ import { cn } from "@/util/util";
 import { atom } from "jotai";
 import { useState } from "react";
 import { BlockHeader, CdTab, Notice, RemoteCiTab } from "./cicd-panels";
+import { useMissionRuns } from "./mission-client";
 import { ActiveProject, MissionFrame, MissionHeader, PipelineBanner } from "./mission-frame";
-import { jobsByLane, PipelineReport } from "./mission-model";
+import { jobsByLane, MissionSnapshot, PipelineReport } from "./mission-model";
 
 export const MoltentermCicdView = "molten-cicd";
 
@@ -95,38 +96,55 @@ function CicdView() {
     return (
         <MissionFrame title="CI/CD">
             {({ project, snapshot, refresh }) => (
-                <>
-                    <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
-                        <div role="tablist" className="flex items-center gap-0.5 rounded border border-border p-0.5">
-                            {Tabs.map((t) => (
-                                <button
-                                    key={t.id}
-                                    type="button"
-                                    role="tab"
-                                    aria-selected={tab === t.id}
-                                    onClick={() => setTab(t.id)}
-                                    className={cn(
-                                        "flex cursor-pointer items-center gap-1.5 rounded px-2 py-0.5 text-xs transition-colors",
-                                        tab === t.id ? "bg-hover text-primary" : "text-muted hover:text-primary"
-                                    )}
-                                >
-                                    <i className={cn("fa fa-solid text-[10px]", `fa-${t.icon}`)} />
-                                    {t.label}
-                                </button>
-                            ))}
-                        </div>
-                    </MissionHeader>
-                    <div className="min-h-0 flex-1 overflow-auto p-3">
-                        {tab === "local" ? <LocalCiTab project={project} report={snapshot?.pipeline} /> : null}
-                        {tab === "remote" ? (
-                            <RemoteCiTab github={snapshot?.github} trunk={snapshot?.git?.trunk} />
-                        ) : null}
-                        {tab === "cd" ? (
-                            <CdTab git={snapshot?.git} github={snapshot?.github} pipeline={snapshot?.pipeline} />
-                        ) : null}
-                    </div>
-                </>
+                <CicdContent project={project} snapshot={snapshot} refresh={refresh} tab={tab} setTab={setTab} />
             )}
         </MissionFrame>
+    );
+}
+
+function CicdContent({
+    project,
+    snapshot,
+    refresh,
+    tab,
+    setTab,
+}: {
+    project: ActiveProject;
+    snapshot: MissionSnapshot;
+    refresh: () => void;
+    tab: TabId;
+    setTab: (tab: TabId) => void;
+}) {
+    const runs = useMissionRuns(project.dir);
+    return (
+        <>
+            <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
+                <div role="tablist" className="flex items-center gap-0.5 rounded border border-border p-0.5">
+                    {Tabs.map((t) => (
+                        <button
+                            key={t.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={tab === t.id}
+                            onClick={() => setTab(t.id)}
+                            className={cn(
+                                "flex cursor-pointer items-center gap-1.5 rounded px-2 py-0.5 text-xs transition-colors",
+                                tab === t.id ? "bg-hover text-primary" : "text-muted hover:text-primary"
+                            )}
+                        >
+                            <i className={cn("fa fa-solid text-[10px]", `fa-${t.icon}`)} />
+                            {t.label}
+                        </button>
+                    ))}
+                </div>
+            </MissionHeader>
+            <div className="min-h-0 flex-1 overflow-auto p-3">
+                {tab === "local" ? <LocalCiTab project={project} report={snapshot?.pipeline} /> : null}
+                {tab === "remote" ? <RemoteCiTab github={snapshot?.github} trunk={snapshot?.git?.trunk} /> : null}
+                {tab === "cd" ? (
+                    <CdTab git={snapshot?.git} github={snapshot?.github} pipeline={snapshot?.pipeline} runs={runs} />
+                ) : null}
+            </div>
+        </>
     );
 }

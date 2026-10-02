@@ -8,13 +8,19 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useState } from "react";
-import { MissionSnapshot } from "./mission-model";
+import { LogChunk, MissionSnapshot, RunRecord, RunResult, upsertRun } from "./mission-model";
 
 // must match the names in pkg/molten/mission/collector.go
 export const MissionRouteId = "molten:mission";
 export const MissionGetCommand = "moltenmissionget";
 export const MissionRefreshCommand = "moltenmissionrefresh";
 export const MissionUpdateEvent = "molten:mission:update";
+export const MissionRunCommand = "moltenmissionrun";
+export const MissionRunsCommand = "moltenmissionruns";
+export const MissionLogCommand = "moltenmissionlog";
+export const MissionCancelCommand = "moltenmissioncancel";
+export const MissionTrustCommand = "moltenmissiontrust";
+export const MissionRunEvent = "molten:mission:run";
 
 const MissionRpcTimeoutMs = 15000;
 // A request is cheap (the cached snapshot and the pipeline file); the collector itself refreshes at most once a minute.
@@ -93,4 +99,57 @@ export function useMissionSnapshot(dir: string): MissionState {
     }, [dir, ask]);
     const refresh = useCallback(() => ask(missionRefresh), [ask]);
     return { snapshot, error, refresh };
+}
+
+function missionCall<T>(command: string, data: any): Promise<T> {
+    return TabRpcClient.wshRpcCall(command, data, { route: MissionRouteId, timeout: MissionRpcTimeoutMs });
+}
+
+export function missionRun(dir: string, kind: string, id: string, version?: string): Promise<RunResult> {
+    return missionCall(MissionRunCommand, { dir, kind, id, version });
+}
+
+export function missionLog(dir: string, runid: string, from: number): Promise<LogChunk> {
+    return missionCall(MissionLogCommand, { dir, runid, from });
+}
+
+export function missionCancel(dir: string, runid: string): Promise<void> {
+    return missionCall(MissionCancelCommand, { dir, runid });
+}
+
+export function missionTrust(dir: string, hash: string): Promise<void> {
+    return missionCall(MissionTrustCommand, { dir, hash });
+}
+
+// The project's runs, newest first, kept current by the collector's run events.
+export function useMissionRuns(dir: string): RunRecord[] {
+    const [runs, setRuns] = useState<RunRecord[]>([]);
+    useEffect(() => {
+        setRuns([]);
+        if (!dir) {
+            return;
+        }
+        let cancelled = false;
+        fireAndForget(async () => {
+            const list = await missionCall<RunRecord[]>(MissionRunsCommand, { dir });
+            if (!cancelled) {
+                setRuns(list ?? []);
+            }
+        });
+        const unsubscribe = waveEventSubscribeSingle({
+            eventType: MissionRunEvent as WaveEventName,
+            scope: dir,
+            handler: (event) => {
+                const run = event.data as RunRecord;
+                if (run?.dir === dir) {
+                    setRuns((current) => upsertRun(current, run));
+                }
+            },
+        });
+        return () => {
+            cancelled = true;
+            unsubscribe();
+        };
+    }, [dir]);
+    return runs;
 }
