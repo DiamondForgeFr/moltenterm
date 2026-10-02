@@ -151,7 +151,7 @@ export function NotificationCenter() {
                                     now={now}
                                     onOpen={() => {
                                         setOpen(false);
-                                        model.open(entry);
+                                        fireAndForget(() => model.open(entry));
                                     }}
                                 />
                             ))

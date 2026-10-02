@@ -50,12 +50,16 @@ export class MoltentermNotifications {
         return globalStore.get(this.entriesAtom);
     }
 
-    write(update: MetaUpdate): void {
+    async writeNow(update: MetaUpdate): Promise<void> {
         const clientId = ClientModel.getInstance().clientId;
         if (clientId == null || Object.keys(update).length === 0) {
             return;
         }
-        fireAndForget(() => RpcApi.SetMetaCommand(TabRpcClient, { oref: makeORef("client", clientId), meta: update }));
+        await RpcApi.SetMetaCommand(TabRpcClient, { oref: makeORef("client", clientId), meta: update });
+    }
+
+    write(update: MetaUpdate): void {
+        fireAndForget(() => this.writeNow(update));
     }
 
     // Without a workspace or a tab, the notification belongs to where it is raised.
@@ -78,8 +82,9 @@ export class MoltentermNotifications {
     }
 
     // Goes to where the notification comes from: its workspace, then its tab, then its block.
-    open(entry: MoltentermNotification): void {
-        this.markRead([entry.id]);
+    async open(entry: MoltentermNotification): Promise<void> {
+        // Switching workspace replaces this view: the read mark must reach wavesrv first.
+        await this.writeNow(readUpdate(this.entries(), [entry.id]));
         const workspace = globalStore.get(atoms.workspace);
         if (entry.workspaceid && entry.workspaceid !== workspace?.oid) {
             getApi().switchWorkspace(entry.workspaceid);
