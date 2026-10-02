@@ -75,26 +75,12 @@ contextBridge.exposeInMainWorld("api", {
     setIsActive: () => ipcRenderer.invoke("set-is-active"),
 });
 
-// MOLTENTERM-PATCH (#50): webviews without data-webcontentsid (Moltenterm's browser tabs) are found by asking each
-function findWebviewByContentsId(webContentsId: number): HTMLElement {
-    for (const elem of Array.from(document.querySelectorAll("webview"))) {
-        try {
-            if ((elem as any).getWebContentsId?.() === webContentsId) {
-                return elem as HTMLElement;
-            }
-        } catch {
-            // not attached yet
-        }
-    }
-    return null;
-}
-
 // Custom event for "new-window"
 ipcRenderer.on("webview-new-window", (e, webContentsId, details) => {
     const event = new CustomEvent("new-window", { detail: details });
     // MOLTENTERM-PATCH (#50): the webview the window comes from, not the page's first one (browser tabs, two web panels)
     const source = document.querySelector(`webview[data-webcontentsid="${webContentsId}"]`) as HTMLElement;
-    const target = source ?? findWebviewByContentsId(webContentsId) ?? document.getElementById("webview");
+    const target = source ?? document.getElementById("webview");
     target?.dispatchEvent(event);
 });
 
