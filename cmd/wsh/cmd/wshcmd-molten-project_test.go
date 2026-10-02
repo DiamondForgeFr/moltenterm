@@ -93,3 +93,27 @@ func TestFormatMoltenProjectDetails(t *testing.T) {
 		t.Errorf("missing folder not reported:\n%s", out)
 	}
 }
+
+func TestFormatMoltenPipelineReport(t *testing.T) {
+	absent := formatMoltenPipelineReport(molten.PipelineReport{Path: "/p/.molten/project.json"})
+	if !strings.Contains(absent, "no pipeline") || !strings.Contains(absent, "/molten-pipeline") {
+		t.Errorf("absent:\n%s", absent)
+	}
+	valid := formatMoltenPipelineReport(molten.PipelineReport{
+		Path: "/p/.molten/project.json", Present: true, Valid: true, Warnings: []string{"builds[0] (gold): no artifact"},
+		Pipeline: &molten.Pipeline{Ci: &molten.PipelineCi{Jobs: []molten.PipelineJob{{Name: "a"}, {Name: "b"}}}, Builds: []molten.PipelineBuild{{Id: "gold"}}},
+	})
+	for _, want := range []string{"the pipeline is valid", "2 CI jobs, 1 build, 0 RC steps", "warning: builds[0] (gold): no artifact"} {
+		if !strings.Contains(valid, want) {
+			t.Errorf("valid misses %q:\n%s", want, valid)
+		}
+	}
+	invalid := formatMoltenPipelineReport(molten.PipelineReport{Path: "/p", Present: true, Errors: []string{"name is required"}})
+	if !strings.Contains(invalid, "1 problem") || !strings.Contains(invalid, "error: name is required") {
+		t.Errorf("invalid:\n%s", invalid)
+	}
+	found, _, err := rootCmd.Find(strings.Fields("molten project validate --json"))
+	if err != nil || found.Name() != "validate" {
+		t.Errorf("validate routing: %v %v", found, err)
+	}
+}

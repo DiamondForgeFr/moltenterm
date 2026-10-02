@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/agentdocs"
 )
 
 func testAgentEnv(t *testing.T) AgentEnv {
@@ -179,5 +181,95 @@ func TestWriteDocsAndExampleMatchesBuiltin(t *testing.T) {
 		if !bytes.Equal(embedded, builtin) {
 			t.Errorf("pkg/molten/agentdocs/examples/copy-box/%s differs from frontend/molten/builtin/copy-box/%s: copy it again", name, name)
 		}
+	}
+}
+
+func TestPipelineGuideForEveryAgent(t *testing.T) {
+	env := AgentEnv{Home: "/h", DataDir: "/d", Getenv: func(string) string { return "" }}
+	guide, err := FindGuide(PipelineGuideName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := map[string]string{
+		"claude-code": "/h/.claude/skills/molten-pipeline/SKILL.md",
+		"codex":       "/h/.agents/skills/molten-pipeline/SKILL.md",
+		"gemini-cli":  "/h/.gemini/commands/molten-pipeline.toml",
+		"qwen-code":   "/h/.qwen/commands/molten-pipeline.md",
+		"kimi":        "/h/.kimi-code/skills/molten-pipeline/SKILL.md",
+		"generic":     "/d/molten/agents/molten-pipeline.md",
+	}
+	for _, p := range AgentProfiles {
+		if got := filepath.ToSlash(p.GuidePath(env, guide)); got != paths[p.Id] {
+			t.Errorf("%s pipeline path %q, want %q", p.Id, got, paths[p.Id])
+		}
+		content, err := p.RenderGuide(guide, "2.0.0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(content, agentRequestPlaceholder) || !strings.Contains(content, "molten project validate") {
+			t.Errorf("%s: the pipeline guide must be complete and in the agent's form", p.Id)
+		}
+		if m := agentMarkerRegex.FindStringSubmatch(content); m == nil || m[1] != "2.0.0" || !strings.Contains(content, "molten-pipeline v2.0.0") {
+			t.Errorf("%s: missing pipeline marker", p.Id)
+		}
+		if p.Format == "skill" && !strings.HasPrefix(content, "---\nname: molten-pipeline\n") {
+			t.Errorf("%s: skill name must be the guide's", p.Id)
+		}
+		status := p.GuideStatus(env, guide)
+		if p.Id != "generic" && !strings.Contains(status.Invocation, "molten-pipeline") {
+			t.Errorf("%s invocation %q", p.Id, status.Invocation)
+		}
+	}
+}
+
+func TestAgentInstallsEveryGuide(t *testing.T) {
+	env := testAgentEnv(t)
+	claude, _ := FindAgent("claude-code")
+	if _, err := claude.Install(env, "1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	status := claude.Status(env)
+	if len(status.Guides) != 2 || !status.Guides[0].Installed || !status.Guides[1].Installed || status.Guides[1].Name != PipelineGuideName {
+		t.Fatalf("both guides installed: %+v", status.Guides)
+	}
+	// A molten-feature file must not be mistaken for the pipeline guide.
+	pipeline, _ := FindGuide(PipelineGuideName)
+	featureContent, _ := claude.Render("1.0.0")
+	os.WriteFile(claude.GuidePath(env, pipeline), []byte(featureContent), 0644)
+	if s := claude.GuideStatus(env, pipeline); !s.Foreign {
+		t.Fatalf("another guide's file at the pipeline path is foreign: %+v", s)
+	}
+	os.Remove(claude.GuidePath(env, pipeline))
+	claude.Install(env, "1.0.0")
+	_, removed, err := claude.Remove(env)
+	if err != nil || !removed {
+		t.Fatalf("remove: %v %v", removed, err)
+	}
+	for _, g := range claude.Status(env).Guides {
+		if g.Installed {
+			t.Fatalf("%s still installed", g.Name)
+		}
+	}
+}
+
+func TestPipelineFormatExampleIsValid(t *testing.T) {
+	doc, err := agentdocs.Files.ReadFile("pipeline-format.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(doc)
+	start := strings.Index(text, "```json\n")
+	end := strings.Index(text[start+8:], "```")
+	if start < 0 || end < 0 {
+		t.Fatal("no JSON example in pipeline-format.md")
+	}
+	dir := t.TempDir()
+	writeProjectFile(t, dir, ".molten/project.json", text[start+8:start+8+end])
+	for _, script := range []string{"scripts/build-local.sh", "scripts/release.sh", "scripts/promote.mjs", "scripts/verify.mjs", "src-tauri/Cargo.toml"} {
+		writeProjectFile(t, dir, script, "")
+	}
+	report := ValidatePipeline(dir)
+	if !report.Valid || len(report.Warnings) != 0 {
+		t.Fatalf("the documented example must validate cleanly: %v %v", report.Errors, report.Warnings)
 	}
 }

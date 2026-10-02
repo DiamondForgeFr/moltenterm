@@ -25,11 +25,12 @@ var moltenProjectNoLogo bool
 var moltenProjectLogoClear bool
 
 type MoltenProjectStatus struct {
-	Workspace string              `json:"workspace"`
-	Linked    bool                `json:"linked"`
-	Logo      string              `json:"logo,omitempty"`
-	Project   *molten.ProjectInfo `json:"project,omitempty"`
-	Logos     []string            `json:"logos,omitempty"`
+	Workspace string                 `json:"workspace"`
+	Linked    bool                   `json:"linked"`
+	Logo      string                 `json:"logo,omitempty"`
+	Project   *molten.ProjectInfo    `json:"project,omitempty"`
+	Logos     []string               `json:"logos,omitempty"`
+	Pipeline  *molten.PipelineReport `json:"pipeline,omitempty"`
 }
 
 var moltenProjectCmd = &cobra.Command{
@@ -63,6 +64,14 @@ var moltenProjectShowCmd = &cobra.Command{
 	PreRunE: preRunSetupRpcClient,
 }
 
+var moltenProjectValidateCmd = &cobra.Command{
+	Use:     "validate [folder]",
+	Short:   "check the project's pipeline (.molten/project.json) without running anything",
+	Args:    cobra.MaximumNArgs(1),
+	RunE:    moltenWrap(moltenProjectValidateRun),
+	PreRunE: preRunSetupRpcClient,
+}
+
 var moltenProjectLogoCmd = &cobra.Command{
 	Use:     "logo [file]",
 	Short:   "use an image of the project as the workspace icon (no file: list the images found)",
@@ -76,7 +85,7 @@ func init() {
 	moltenProjectLinkCmd.Flags().BoolVar(&moltenProjectNoLogo, "no-logo", false, "keep the workspace's icon")
 	moltenProjectLogoCmd.Flags().BoolVar(&moltenProjectLogoClear, "clear", false, "go back to the workspace's icon")
 	moltenCmd.AddCommand(moltenProjectCmd)
-	for _, cmd := range []*cobra.Command{moltenProjectLinkCmd, moltenProjectUnlinkCmd, moltenProjectShowCmd, moltenProjectLogoCmd} {
+	for _, cmd := range []*cobra.Command{moltenProjectLinkCmd, moltenProjectUnlinkCmd, moltenProjectShowCmd, moltenProjectLogoCmd, moltenProjectValidateCmd} {
 		cmd.Flags().BoolVar(&moltenJson, "json", false, "print the result as JSON")
 		moltenProjectCmd.AddCommand(cmd)
 	}
@@ -204,6 +213,8 @@ func moltenMakeProjectStatus(oref waveobj.ORef, dir string, logo string) MoltenP
 	status.Project = &info
 	if info.Exists {
 		status.Logos = molten.FindProjectLogos(dir)
+		report := molten.ValidatePipeline(dir)
+		status.Pipeline = &report
 	}
 	return status
 }
@@ -311,13 +322,14 @@ func formatMoltenProjectDetails(status MoltenProjectStatus) string {
 		sb.WriteString("  the folder no longer exists: link the workspace again or unlink it\n")
 		return sb.String()
 	}
+	report := status.Pipeline
 	switch {
-	case info.HasPipeline:
-		fmt.Fprintf(&sb, "  pipeline: %s\n", molten.ProjectPipelineFile)
-	case info.PipelineError != "":
-		fmt.Fprintf(&sb, "  pipeline: %s cannot be read (%s)\n", molten.ProjectPipelineFile, info.PipelineError)
+	case report != nil && report.Valid:
+		fmt.Fprintf(&sb, "  pipeline: %s (%s)\n", molten.ProjectPipelineFile, formatMoltenPipelineSummary(report.Pipeline))
+	case report != nil && report.Present:
+		fmt.Fprintf(&sb, "  pipeline: %s has %d problem(s): run molten project validate\n", molten.ProjectPipelineFile, len(report.Errors))
 	default:
-		sb.WriteString("  pipeline: none yet (Mission Control will offer to have your agent create it)\n")
+		sb.WriteString("  pipeline: none yet (ask your coding agent: /molten-pipeline)\n")
 	}
 	if conv := info.Conventions; conv != nil {
 		fmt.Fprintf(&sb, "  harness: SaaSFoundryAI (%s)\n", molten.ProjectSaaSFoundryFile)
@@ -358,4 +370,91 @@ func formatMoltenProjectLogos(status MoltenProjectStatus) string {
 	}
 	sb.WriteString("  use one with: molten project logo <file> (or from the workspace editor)\n")
 	return sb.String()
+}
+
+func moltenCount(n int, singular string, plural string) string {
+	if n == 1 {
+		return "1 " + singular
+	}
+	return fmt.Sprintf("%d %s", n, plural)
+}
+
+func formatMoltenPipelineSummary(p *molten.Pipeline) string {
+	if p == nil {
+		return ""
+	}
+	jobs, rc, public := 0, 0, 0
+	if p.Ci != nil {
+		jobs = len(p.Ci.Jobs)
+	}
+	if p.Release != nil {
+		rc, public = len(p.Release.Rc), len(p.Release.Public)
+	}
+	return strings.Join([]string{
+		moltenCount(jobs, "CI job", "CI jobs"),
+		moltenCount(len(p.Builds), "build", "builds"),
+		moltenCount(rc, "RC step", "RC steps"),
+		moltenCount(public, "release step", "release steps"),
+		moltenCount(len(p.Steps), "extra step", "extra steps"),
+	}, ", ")
+}
+
+func formatMoltenPipelineReport(report molten.PipelineReport) string {
+	var sb strings.Builder
+	if !report.Present {
+		fmt.Fprintf(&sb, "no pipeline: %s does not exist (ask your coding agent: /molten-pipeline)\n", report.Path)
+		return sb.String()
+	}
+	if report.Valid {
+		fmt.Fprintf(&sb, "the pipeline is valid: %s\n  %s\n", report.Path, formatMoltenPipelineSummary(report.Pipeline))
+	} else {
+		fmt.Fprintf(&sb, "the pipeline has %s: %s\n", moltenCount(len(report.Errors), "problem", "problems"), report.Path)
+		for _, msg := range report.Errors {
+			fmt.Fprintf(&sb, "  error: %s\n", msg)
+		}
+	}
+	for _, msg := range report.Warnings {
+		fmt.Fprintf(&sb, "  warning: %s\n", msg)
+	}
+	return sb.String()
+}
+
+// The folder to check: the one given, else this workspace's project, else the terminal's folder (raised to its git
+// root), so an agent can validate before the workspace is linked.
+func moltenProjectValidateDir(args []string) (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	if len(args) > 0 {
+		return molten.ResolveProjectDir(args[0], cwd)
+	}
+	if oref, err := moltenProjectWorkspace(); err == nil {
+		if meta, err := moltenProjectGetMeta(oref); err == nil {
+			if dir := moltenMetaString(meta, molten.ProjectMetaKey); dir != "" {
+				return dir, nil
+			}
+		}
+	}
+	return molten.ResolveProjectDir("", cwd)
+}
+
+func moltenProjectValidateRun(cmd *cobra.Command, args []string) error {
+	dir, err := moltenProjectValidateDir(args)
+	if err != nil {
+		return err
+	}
+	report := molten.ValidatePipeline(dir)
+	if moltenJson {
+		if err := moltenWriteJson(report); err != nil {
+			return err
+		}
+	} else {
+		WriteStdout("%s", formatMoltenPipelineReport(report))
+	}
+	if !report.Valid {
+		// The report is already printed; only the exit code is left to set.
+		WshExitCode = 1
+	}
+	return nil
 }

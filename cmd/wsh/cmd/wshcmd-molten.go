@@ -165,14 +165,14 @@ var moltenAgentYes bool
 
 var moltenAgentCmd = &cobra.Command{
 	Use:   "agent",
-	Short: "install /molten-feature for your coding agent",
+	Short: "install the molten guides (/molten-feature, /molten-pipeline) for your coding agent",
 	Args:  cobra.ArbitraryArgs,
 	RunE:  moltenAgentRun,
 }
 
 var moltenAgentListCmd = &cobra.Command{
 	Use:     "list",
-	Short:   "list the supported coding agents and where /molten-feature is installed",
+	Short:   "list the supported coding agents and where the molten guides are installed",
 	Args:    cobra.NoArgs,
 	RunE:    moltenWrap(moltenAgentListRun),
 	PreRunE: preRunSetupRpcClient,
@@ -180,7 +180,7 @@ var moltenAgentListCmd = &cobra.Command{
 
 var moltenAgentInstallCmd = &cobra.Command{
 	Use:     "install <agent>",
-	Short:   "install /molten-feature for a coding agent (at user level)",
+	Short:   "install /molten-feature and /molten-pipeline for a coding agent (at user level)",
 	Args:    cobra.ExactArgs(1),
 	RunE:    moltenWrap(moltenAgentInstallRun),
 	PreRunE: preRunSetupRpcClient,
@@ -188,7 +188,7 @@ var moltenAgentInstallCmd = &cobra.Command{
 
 var moltenAgentRemoveCmd = &cobra.Command{
 	Use:     "remove <agent>",
-	Short:   "remove /molten-feature from a coding agent",
+	Short:   "remove the molten guides from a coding agent",
 	Args:    cobra.ExactArgs(1),
 	RunE:    moltenWrap(moltenAgentRemoveRun),
 	PreRunE: preRunSetupRpcClient,
@@ -799,22 +799,42 @@ func moltenAgentListRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func moltenGuideState(installed bool, foreign bool, version string) string {
+	switch {
+	case installed:
+		return "v" + version
+	case foreign:
+		return "no (path taken)"
+	}
+	return "no"
+}
+
 func formatMoltenAgents(statuses []molten.AgentStatus) string {
 	var sb strings.Builder
 	tw := tabwriter.NewWriter(&sb, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(tw, "AGENT\tINSTALLED\tTYPE\tPATH\n")
+	header := []string{"AGENT"}
+	for _, guide := range molten.AgentGuides {
+		header = append(header, strings.ToUpper(guide.Name))
+	}
+	fmt.Fprintf(tw, "%s\tTYPE\tPATH\n", strings.Join(header, "\t"))
 	for _, status := range statuses {
-		installed := "no"
-		switch {
-		case status.Installed:
-			installed = "v" + status.Version
-		case status.Foreign:
-			installed = "no (path taken)"
+		cells := []string{status.Id}
+		for i := range molten.AgentGuides {
+			if i < len(status.Guides) {
+				g := status.Guides[i]
+				cells = append(cells, moltenGuideState(g.Installed, g.Foreign, g.Version))
+				continue
+			}
+			if i == 0 {
+				cells = append(cells, moltenGuideState(status.Installed, status.Foreign, status.Version))
+				continue
+			}
+			cells = append(cells, "no")
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", status.Id, installed, status.Format, status.Path)
+		fmt.Fprintf(tw, "%s\t%s\t%s\n", strings.Join(cells, "\t"), status.Format, filepath.Dir(status.Path))
 	}
 	tw.Flush()
-	sb.WriteString("\ninstall with: molten agent install <agent>\n")
+	sb.WriteString("\ninstall or update with: molten agent install <agent>\n")
 	return sb.String()
 }
 
@@ -844,27 +864,33 @@ func moltenAgentInstallRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	path := profile.Path(env)
 	if !moltenJson {
-		WriteStdout("molten will write the %s %s for %s:\n  %s\n", "molten-feature", profile.Format, profile.Name, path)
+		WriteStdout("molten will write these %s files for %s:\n", profile.Format, profile.Name)
+		for _, guide := range molten.AgentGuides {
+			WriteStdout("  %s\n", profile.GuidePath(env, guide))
+		}
 	}
 	if !moltenConfirm("write it?") {
 		return fmt.Errorf("nothing written")
 	}
-	_, err = profile.Install(env, wavebase.WaveVersion)
-	if err != nil {
-		return err
-	}
+	_, installErr := profile.Install(env, wavebase.WaveVersion)
 	status := profile.Status(env)
 	if moltenJson {
+		if installErr != nil {
+			return installErr
+		}
 		return moltenWriteJson(status)
 	}
+	where := "In " + profile.Name + ", type:"
 	if profile.Id == "generic" {
-		WriteStdout("installed. Tell your coding agent:\n  %s\n", status.Invocation)
-		return nil
+		where = "Tell your coding agent:"
 	}
-	WriteStdout("installed. In %s, type:\n  %s\n", profile.Name, status.Invocation)
-	return nil
+	for _, guide := range status.Guides {
+		if guide.Installed {
+			WriteStdout("%s installed. %s\n  %s\n", guide.Name, where, guide.Invocation)
+		}
+	}
+	return installErr
 }
 
 func moltenAgentRemoveRun(cmd *cobra.Command, args []string) error {
@@ -884,7 +910,7 @@ func moltenAgentRemoveRun(cmd *cobra.Command, args []string) error {
 		return moltenWriteJson(map[string]any{"id": profile.Id, "path": path, "removed": removed})
 	}
 	if !removed {
-		WriteStdout("molten-feature is not installed for %s\n", profile.Name)
+		WriteStdout("no molten guide is installed for %s\n", profile.Name)
 		return nil
 	}
 	WriteStdout("removed %s\n", path)
@@ -1016,12 +1042,13 @@ var moltenBuiltinHelp = [][2]string{
 	{"undo", "restore the mods as they were before the last change (repeat to go further back)"},
 	{"history", "list the recorded changes to the mods"},
 	{"docs", "write the offline mod documentation and print its folder"},
-	{"agent list", "the supported coding agents and where /molten-feature is installed"},
-	{"agent install <agent>", "install /molten-feature for a coding agent"},
-	{"agent remove <agent>", "remove /molten-feature from a coding agent"},
+	{"agent list", "the supported coding agents and where the molten guides are installed"},
+	{"agent install <agent>", "install /molten-feature and /molten-pipeline for a coding agent"},
+	{"agent remove <agent>", "remove the molten guides from a coding agent"},
 	{"project link [folder]", "link this workspace to its project (default: this terminal's folder)"},
 	{"project show", "show this workspace's project, its pipeline and its conventions"},
 	{"project logo [file]", "use an image of the project as the workspace icon"},
+	{"project validate [folder]", "check the project's pipeline (.molten/project.json) without running it"},
 	{"project unlink", "remove this workspace's project link"},
 	{"help", "this list"},
 	{"<command> [args...]", "run a command provided by an enabled mod"},
