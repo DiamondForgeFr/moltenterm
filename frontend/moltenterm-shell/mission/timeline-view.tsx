@@ -101,7 +101,7 @@ function TimelineView() {
                     <TimelineBody
                         days={days}
                         header={(state) => (
-                            <MissionHeader title="Timeline" project={project} snapshot={snapshot} onRefresh={refresh}>
+                            <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
                                 <select
                                     value={days}
                                     onChange={(e) => setDays(Number(e.target.value))}

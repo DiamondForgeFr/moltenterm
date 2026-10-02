@@ -63,7 +63,7 @@ function CicdView() {
         <MissionFrame title="CI/CD">
             {({ project, snapshot, refresh }) => (
                 <>
-                    <MissionHeader title="CI/CD" project={project} snapshot={snapshot} onRefresh={refresh}>
+                    <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
                         <div role="tablist" className="flex items-center gap-0.5 rounded border border-border p-0.5">
                             {Tabs.map((t) => (
                                 <button

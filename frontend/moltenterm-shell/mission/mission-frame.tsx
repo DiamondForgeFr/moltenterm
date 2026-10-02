@@ -126,13 +126,11 @@ export function PipelineBanner({ dir, facts }: { dir: string; facts: ProjectFact
 }
 
 export function MissionHeader({
-    title,
     project,
     snapshot,
     onRefresh,
     children,
 }: {
-    title: string;
     project: ActiveProject;
     snapshot: MissionSnapshot;
     onRefresh: () => void;
@@ -148,8 +146,7 @@ export function MissionHeader({
     return (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-2">
             <div className="flex min-w-0 items-baseline gap-2">
-                <span className="text-sm font-semibold">{title}</span>
-                <span className="truncate text-xs text-muted" title={project.dir}>
+                <span className="truncate text-xs text-secondary" title={project.dir}>
                     {name}
                     {snapshot?.git ? ` · ${snapshot.git.trunk}` : ""}
                 </span>
