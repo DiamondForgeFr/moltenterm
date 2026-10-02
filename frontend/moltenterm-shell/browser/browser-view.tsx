@@ -180,12 +180,17 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
             model.nodeModel.focusNode();
         };
         const onBlur = () => getApi().setWebviewFocus(null);
+        // emain/preload.ts routes a page's new window by this attribute; the preload cannot call the element's methods.
+        const onDomReady = () => {
+            webview.dataset.webcontentsid = String(webview.getWebContentsId());
+        };
         webview.addEventListener("did-navigate", onNavigate);
         webview.addEventListener("did-navigate-in-page", onNavigate);
         webview.addEventListener("page-title-updated", onTitle);
         webview.addEventListener("new-window", onNewWindow);
         webview.addEventListener("focus", onFocus);
         webview.addEventListener("blur", onBlur);
+        webview.addEventListener("dom-ready", onDomReady);
         return () => {
             webview.removeEventListener("did-navigate", onNavigate);
             webview.removeEventListener("did-navigate-in-page", onNavigate);
@@ -193,6 +198,7 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
             webview.removeEventListener("new-window", onNewWindow);
             webview.removeEventListener("focus", onFocus);
             webview.removeEventListener("blur", onBlur);
+            webview.removeEventListener("dom-ready", onDomReady);
             if (model.webviews.get(tab.id) === webview) {
                 model.webviews.delete(tab.id);
             }
