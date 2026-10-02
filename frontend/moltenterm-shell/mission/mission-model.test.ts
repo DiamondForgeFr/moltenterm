@@ -3,7 +3,15 @@
 
 import { describe, expect, it } from "vitest";
 import { makeDeliveries } from "./cicd-panels";
-import { formatAge, githubStateMessage, MissionGit, pipelineRequest, prsByBranch, toTreeData } from "./mission-model";
+import {
+    formatAge,
+    githubStateMessage,
+    jobsByLane,
+    MissionGit,
+    pipelineStage,
+    prsByBranch,
+    toTreeData,
+} from "./mission-model";
 
 const git: MissionGit = {
     trunk: "develop",
@@ -83,8 +91,27 @@ describe("helpers", () => {
         );
     });
 
-    it("writes the request for the user's agent with the project folder", () => {
-        expect(pipelineRequest("/p/notulia")).toContain("/p/notulia");
-        expect(pipelineRequest("/p/notulia")).toContain(".molten/project.json");
+    it("reads the pipeline's stage and groups jobs by lane", () => {
+        expect(pipelineStage(null)).toBe("loading");
+        expect(pipelineStage({ path: "p", present: false, valid: false, errors: [], warnings: [] })).toBe("absent");
+        expect(pipelineStage({ path: "p", present: true, valid: false, errors: ["x"], warnings: [] })).toBe("invalid");
+        const lanes = jobsByLane({
+            schema: 1,
+            name: "x",
+            ci: {
+                jobs: [
+                    { name: "check", lane: "web", run: "a" },
+                    { name: "rust", lane: "rust", run: "b" },
+                    { name: "e2e", lane: "web", run: "c" },
+                    { name: "lint", run: "d" },
+                ],
+            },
+        });
+        expect(lanes.map((l) => [l.lane, l.jobs.map((j) => j.name)])).toEqual([
+            ["web", ["check", "e2e"]],
+            ["rust", ["rust"]],
+            ["main", ["lint"]],
+        ]);
+        expect(jobsByLane(null)).toEqual([]);
     });
 });

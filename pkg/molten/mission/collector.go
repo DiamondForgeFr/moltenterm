@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -46,6 +47,8 @@ type Snapshot struct {
 	Github     *GithubSnapshot `json:"github,omitempty"`
 	GithubAt   int64           `json:"githubat,omitempty"`
 	Refreshing bool            `json:"refreshing,omitempty"`
+	// Read and validated on every request (FR-MC-008): the agent writing the file sees the panels follow at once.
+	Pipeline *molten.PipelineReport `json:"pipeline,omitempty"`
 }
 
 type GetRequest struct {
@@ -203,6 +206,10 @@ func (c *Collector) Get(dir string, maxAge time.Duration, forced bool) (Snapshot
 	if start {
 		go c.refresh(dir, plan)
 	}
+	if !snap.Missing {
+		report := molten.ValidatePipeline(dir)
+		snap.Pipeline = &report
+	}
 	return snap, nil
 }
 
@@ -226,6 +233,8 @@ func (c *Collector) refresh(dir string, plan refreshPlan) {
 		githubSnap = CollectGithub(ctx, c.run, dir)
 	}
 	snap := c.applyRefresh(dir, plan, gitSnap, gitErr, githubSnap)
+	report := molten.ValidatePipeline(dir)
+	snap.Pipeline = &report
 	c.saveCache(snap)
 	if c.publish != nil {
 		c.publish(snap)

@@ -93,10 +93,18 @@ function TimelineView() {
             {({ project, snapshot, refresh }) => {
                 const git = snapshot?.git;
                 const github = snapshot?.github;
-                const hasPipeline = project.facts?.hasPipeline === true;
-                const note = hasPipeline
-                    ? "Builds and releases run from the pipeline's declared steps; launching them from here is coming next."
-                    : "Needs the project's pipeline: create it first (see the banner).";
+                const report = snapshot?.pipeline;
+                const pipeline = report?.valid ? report.pipeline : null;
+                const note = pipeline
+                    ? "Declared in the pipeline; launching builds and releases from here is coming next."
+                    : "Needs the project's pipeline: connect it first (see the banner).";
+                const builds = (pipeline?.builds ?? []).map((b) => ({
+                    label: b.title || b.id,
+                    detail: b.artifact ? `→ ${b.artifact}` : b.run,
+                    disabled: true,
+                }));
+                const rcSteps = pipeline?.release?.rc ?? [];
+                const publicSteps = pipeline?.release?.public ?? [];
                 return (
                     <TimelineBody
                         days={days}
@@ -118,10 +126,22 @@ function TimelineView() {
                                     icon="hammer"
                                     label="Build local"
                                     note={note}
-                                    items={[
-                                        { label: "Gold", detail: "the build you use every day", disabled: true },
-                                        { label: "Release candidate", detail: "a local RC build", disabled: true },
-                                    ]}
+                                    items={
+                                        builds.length > 0
+                                            ? builds
+                                            : [
+                                                  {
+                                                      label: "Gold",
+                                                      detail: "the build you use every day",
+                                                      disabled: true,
+                                                  },
+                                                  {
+                                                      label: "Release candidate",
+                                                      detail: "a local RC build",
+                                                      disabled: true,
+                                                  },
+                                              ]
+                                    }
                                 />
                                 <HeaderMenu
                                     icon="rocket"
@@ -132,21 +152,25 @@ function TimelineView() {
                                             label: state?.rcTag
                                                 ? `Release candidate ${state.rcTag}`
                                                 : "Release candidate",
-                                            detail: "cut, build and publish an RC",
+                                            detail: rcSteps.length
+                                                ? rcSteps.map((st) => st.title || st.id).join(" → ")
+                                                : "not declared by the pipeline",
                                             disabled: true,
                                         },
                                         {
                                             label: state?.publicTag
                                                 ? `Public release ${state.publicTag}`
                                                 : "Public release",
-                                            detail: "the next public version",
+                                            detail: publicSteps.length
+                                                ? publicSteps.map((st) => st.title || st.id).join(" → ")
+                                                : "not declared by the pipeline",
                                             disabled: true,
                                         },
                                     ]}
                                 />
                             </MissionHeader>
                         )}
-                        banner={<PipelineBanner dir={project.dir} facts={project.facts} />}
+                        banner={<PipelineBanner dir={project.dir} report={snapshot?.pipeline} />}
                         git={git}
                         github={github}
                     />

@@ -5,14 +5,14 @@
 // action that fixes a missing piece (link a project, create the pipeline), and frame the collector's snapshot with
 // its age and a refresh button.
 
-import { atoms } from "@/app/store/global";
+import { atoms, createBlock } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 import { pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { chooseMoltentermPath, linkWorkspaceProject, ProjectFacts, readProjectFacts } from "../workspace-project-store";
 import { useMissionSnapshot } from "./mission-client";
-import { formatAge, MissionSnapshot, pipelineRequest } from "./mission-model";
+import { formatAge, MissionSnapshot, PipelineInvocations, PipelineReport, pipelineStage } from "./mission-model";
 
 export type ActiveProject = { workspace: Workspace; dir: string; facts: ProjectFacts };
 
@@ -26,23 +26,14 @@ export function useActiveProject(): ActiveProject {
             return;
         }
         let cancelled = false;
-        const read = () =>
-            fireAndForget(async () => {
-                const next = await readProjectFacts(dir);
-                if (!cancelled) {
-                    setFacts(next);
-                }
-            });
-        read();
-        // The user's agent writes the pipeline file while the panel is open: notice it without a restart.
-        const timer = setInterval(() => {
-            if (document.visibilityState === "visible") {
-                read();
+        fireAndForget(async () => {
+            const next = await readProjectFacts(dir);
+            if (!cancelled) {
+                setFacts(next);
             }
-        }, 15000);
+        });
         return () => {
             cancelled = true;
-            clearInterval(timer);
         };
     }, [dir]);
     return { workspace, dir, facts };
@@ -101,26 +92,68 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
     );
 }
 
-// A project without a pipeline still shows its history; the banner says how to get the rest.
-export function PipelineBanner({ dir, facts }: { dir: string; facts: ProjectFacts }) {
-    if (facts == null || facts.hasPipeline || !facts.exists) {
+function openProjectTerminal(dir: string) {
+    fireAndForget(() => createBlock({ meta: { view: "term", controller: "shell", "cmd:cwd": dir } }));
+}
+
+// A project without a valid pipeline still shows its history; the banner says how the user's agent connects it.
+export function PipelineBanner({ dir, report }: { dir: string; report: PipelineReport }) {
+    const stage = pipelineStage(report);
+    if (stage === "loading" || stage === "valid") {
         return null;
     }
-    const request = pipelineRequest(dir);
+    const invalid = stage === "invalid";
     return (
-        <div className="flex items-start gap-3 rounded border border-accent/40 bg-accent/10 px-3 py-2">
-            <i className="fa fa-solid fa-wand-magic-sparkles mt-0.5 text-accent" />
+        <div
+            className={cn(
+                "flex items-start gap-3 rounded border px-3 py-2",
+                invalid ? "border-warning/40 bg-warning/10" : "border-accent/40 bg-accent/10"
+            )}
+        >
+            <i
+                className={cn(
+                    "fa fa-solid mt-0.5",
+                    invalid ? "fa-triangle-exclamation text-warning" : "fa-wand-magic-sparkles text-accent"
+                )}
+            />
             <div className="min-w-0 flex-1 text-xs">
-                <div className="font-semibold text-primary">Create the pipeline</div>
-                <div className="mt-0.5 text-secondary">
-                    This project has no pipeline yet (local CI, builds, releases). Ask your coding agent to create it
-                    with this request; it follows the project's own workflow and writes .molten/project.json last.
+                <div className="font-semibold text-primary">
+                    {invalid ? "The pipeline has problems" : "Connect the pipeline"}
                 </div>
-                <div className="mt-1.5 line-clamp-2 font-mono text-[11px] text-muted" title={request}>
-                    {request}
+                {invalid ? (
+                    <ul className="mt-1 flex flex-col gap-0.5 font-mono text-[11px] text-secondary">
+                        {report.errors.slice(0, 5).map((e) => (
+                            <li key={e}>• {e}</li>
+                        ))}
+                        {report.errors.length > 5 ? <li>… and {report.errors.length - 5} more</li> : null}
+                    </ul>
+                ) : (
+                    <div className="mt-0.5 text-secondary">
+                        Mission Control runs this project's own CI, builds and releases once they are described in
+                        .molten/project.json. Your coding agent connects what the project already has and creates what
+                        is missing, following the project's workflow: open a terminal in the project, start your agent
+                        and type the command below.
+                    </div>
+                )}
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+                    {PipelineInvocations.map((i) => (
+                        <span key={i.invocation}>
+                            {i.agent}: <code className="text-secondary">{i.invocation}</code>
+                        </span>
+                    ))}
+                </div>
+                <div className="mt-1 text-[11px] text-muted">
+                    Command not found in your agent? Run <code>molten agent install &lt;agent&gt;</code> once.
+                    {invalid ? " Check again with molten project validate." : ""}
                 </div>
             </div>
-            <CopyButton text={request} label="Copy the request" />
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+                <CopyButton text="/molten-pipeline" label="Copy /molten-pipeline" />
+                <button type="button" onClick={() => openProjectTerminal(dir)} className={PlainButton}>
+                    <i className="fa fa-solid fa-terminal mr-1.5" />
+                    Open a terminal here
+                </button>
+            </div>
         </div>
     );
 }
