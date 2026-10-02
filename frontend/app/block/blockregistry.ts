@@ -19,6 +19,7 @@ import { HelpViewModel } from "@/view/helpview/helpview";
 import { TermViewModel } from "@/view/term/term-model";
 import { WaveAiModel } from "@/view/waveai/waveai";
 import { WebViewModel } from "@/view/webview/webview";
+import { BrowserViewModel, MoltentermBrowserView } from "../../moltenterm-shell/browser/browser-view"; // MOLTENTERM-PATCH (#50)
 
 const BlockRegistry: Map<string, ViewModelClass> = new Map();
 BlockRegistry.set("term", TermViewModel);
@@ -35,6 +36,7 @@ BlockRegistry.set("tsunami", TsunamiViewModel);
 BlockRegistry.set("aifilediff", AiFileDiffViewModel);
 BlockRegistry.set("waveconfig", WaveConfigViewModel);
 BlockRegistry.set("processviewer", ProcessViewerViewModel);
+BlockRegistry.set(MoltentermBrowserView, BrowserViewModel); // MOLTENTERM-PATCH (#50): the browser panel with tabs
 
 function makeDefaultViewModel(viewType: string): ViewModel {
     const viewModel: ViewModel = {

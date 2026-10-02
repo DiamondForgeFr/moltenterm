@@ -1,0 +1,350 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+// The browser panel (FR-SHELL-007, DS-SHELL-007): pages in tabs, like a browser window. Each tab keeps its own live
+// <webview>, hidden when inactive, so its page and history survive switching. Wave's web view (one page per panel)
+// stays for the links Moltenterm opens elsewhere.
+
+import type { BlockNodeModel } from "@/app/block/blocktypes";
+import { getApi, getSettingsKeyAtom } from "@/app/store/global";
+import { globalStore } from "@/app/store/jotaiStore";
+import * as WOS from "@/app/store/wos";
+import { makeORef } from "@/app/store/wos";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { checkKeyPressed } from "@/util/keyutil";
+import { cn, fireAndForget } from "@/util/util";
+import type { WebviewTag } from "electron";
+import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { useEffect, useRef, useState } from "react";
+import {
+    activateTab,
+    addTab,
+    browserMeta,
+    BrowserState,
+    BrowserTab,
+    closeTab,
+    moveTab,
+    readBrowserState,
+    toBrowserUrl,
+    updateTab,
+} from "./browser-model";
+
+export const MoltentermBrowserView = "molten-browser";
+
+const PersistDelayMs = 400;
+const FallbackUrl = "about:blank";
+
+function webviewPreloadUrl(): string {
+    const path = getApi().getWebviewPreload();
+    return path ? "file://" + path : undefined;
+}
+
+export class BrowserViewModel implements ViewModel {
+    viewType = MoltentermBrowserView;
+    blockId: string;
+    nodeModel: BlockNodeModel;
+    viewIcon = atom("globe");
+    viewName = atom("Browser");
+    noPadding = atom(true);
+    stateAtom: PrimitiveAtom<BrowserState>;
+    viewText: Atom<string>;
+    webviews = new Map<string, WebviewTag>();
+    urlInputRef: React.RefObject<HTMLInputElement> = { current: null };
+    persistTimer: ReturnType<typeof setTimeout> = null;
+
+    constructor({ blockId, nodeModel }: ViewModelInitType) {
+        this.blockId = blockId;
+        this.nodeModel = nodeModel;
+        this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
+        this.viewText = atom((get) => {
+            const state = get(this.stateAtom);
+            const tab = state.tabs.find((t) => t.id === state.activeId);
+            return tab?.title || "";
+        });
+    }
+
+    initialState(): BrowserState {
+        const blockAtom = makeBlockAtom(this.blockId);
+        const meta = globalStore.get(blockAtom)?.meta ?? {};
+        const defaultUrl = globalStore.get(getSettingsKeyAtom("web:defaulturl")) || FallbackUrl;
+        return readBrowserState(meta, defaultUrl);
+    }
+
+    get viewComponent(): ViewComponent {
+        return BrowserView;
+    }
+
+    state(): BrowserState {
+        return globalStore.get(this.stateAtom);
+    }
+
+    setState(next: BrowserState): void {
+        if (next === this.state()) {
+            return;
+        }
+        globalStore.set(this.stateAtom, next);
+        if (this.persistTimer != null) {
+            clearTimeout(this.persistTimer);
+        }
+        this.persistTimer = setTimeout(() => {
+            this.persistTimer = null;
+            fireAndForget(() =>
+                RpcApi.SetMetaCommand(TabRpcClient, {
+                    oref: makeORef("block", this.blockId),
+                    meta: browserMeta(this.state()),
+                })
+            );
+        }, PersistDelayMs);
+    }
+
+    activeWebview(): WebviewTag {
+        return this.webviews.get(this.state().activeId);
+    }
+
+    newTab(url?: string): void {
+        const defaultUrl = globalStore.get(getSettingsKeyAtom("web:defaulturl")) || FallbackUrl;
+        this.setState(addTab(this.state(), url || defaultUrl));
+    }
+
+    closeTab(id: string): void {
+        this.webviews.delete(id);
+        this.setState(closeTab(this.state(), id));
+    }
+
+    giveFocus(): boolean {
+        const webview = this.activeWebview();
+        if (webview == null) {
+            return false;
+        }
+        webview.focus();
+        return true;
+    }
+
+    // Cmd+T opens a tab and Cmd+W closes the active one; with one tab left, Cmd+W goes to Wave, which closes the panel.
+    keyDownHandler(e: WaveKeyboardEvent): boolean {
+        if (checkKeyPressed(e, "Cmd:t")) {
+            this.newTab();
+            return true;
+        }
+        if (checkKeyPressed(e, "Cmd:w") && this.state().tabs.length > 1) {
+            this.closeTab(this.state().activeId);
+            return true;
+        }
+        if (checkKeyPressed(e, "Cmd:l")) {
+            this.urlInputRef.current?.focus();
+            this.urlInputRef.current?.select();
+            return true;
+        }
+        return false;
+    }
+
+    dispose(): void {
+        if (this.persistTimer != null) {
+            clearTimeout(this.persistTimer);
+        }
+    }
+}
+
+function makeBlockAtom(blockId: string): Atom<Block> {
+    return WOS.getWaveObjectAtom<Block>(makeORef("block", blockId));
+}
+
+function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: BrowserTab; active: boolean }) {
+    const ref = useRef<WebviewTag>(null);
+    // The src is set once: later navigation happens inside the page, and re-rendering with a new src would reload it.
+    const [initialUrl] = useState(tab.url);
+    useEffect(() => {
+        const webview = ref.current;
+        if (webview == null) {
+            return;
+        }
+        model.webviews.set(tab.id, webview);
+        const onNavigate = (e: any) => {
+            if (e.isMainFrame === false) {
+                return;
+            }
+            model.setState(updateTab(model.state(), tab.id, { url: e.url }));
+        };
+        const onTitle = (e: any) => model.setState(updateTab(model.state(), tab.id, { title: e.title }));
+        // emain turns window.open and target=_blank into this event (emain/preload.ts dispatches it to this webview).
+        const onNewWindow = (e: any) => {
+            e.preventDefault?.();
+            const url = e.detail?.url;
+            if (url) {
+                model.newTab(url);
+            }
+        };
+        const onFocus = () => {
+            getApi().setWebviewFocus(webview.getWebContentsId());
+            model.nodeModel.focusNode();
+        };
+        const onBlur = () => getApi().setWebviewFocus(null);
+        webview.addEventListener("did-navigate", onNavigate);
+        webview.addEventListener("did-navigate-in-page", onNavigate);
+        webview.addEventListener("page-title-updated", onTitle);
+        webview.addEventListener("new-window", onNewWindow);
+        webview.addEventListener("focus", onFocus);
+        webview.addEventListener("blur", onBlur);
+        return () => {
+            webview.removeEventListener("did-navigate", onNavigate);
+            webview.removeEventListener("did-navigate-in-page", onNavigate);
+            webview.removeEventListener("page-title-updated", onTitle);
+            webview.removeEventListener("new-window", onNewWindow);
+            webview.removeEventListener("focus", onFocus);
+            webview.removeEventListener("blur", onBlur);
+            if (model.webviews.get(tab.id) === webview) {
+                model.webviews.delete(tab.id);
+            }
+        };
+    }, [model, tab.id]);
+    return (
+        <webview
+            ref={ref as any}
+            src={initialUrl}
+            data-blockid={model.blockId}
+            data-browsertab={tab.id}
+            preload={webviewPreloadUrl()}
+            // @ts-expect-error React types allowpopups as a boolean, Chromium's webview tag expects a string.
+            allowpopups="true"
+            className={cn("absolute inset-0 h-full w-full", !active && "invisible pointer-events-none")}
+        />
+    );
+}
+
+function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: BrowserState }) {
+    const [dragId, setDragId] = useState<string>(null);
+    return (
+        <div className="flex h-8 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-border px-1">
+            {state.tabs.map((tab, index) => (
+                <div
+                    key={tab.id}
+                    draggable
+                    onDragStart={() => setDragId(tab.id)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                        if (dragId != null) {
+                            model.setState(moveTab(model.state(), dragId, index));
+                        }
+                        setDragId(null);
+                    }}
+                    onClick={() => model.setState(activateTab(model.state(), tab.id))}
+                    onAuxClick={(e) => {
+                        if (e.button === 1) {
+                            e.preventDefault();
+                            model.closeTab(tab.id);
+                        }
+                    }}
+                    title={tab.url}
+                    className={cn(
+                        "molten-browser-tab group flex h-7 max-w-[200px] min-w-[90px] cursor-pointer items-center gap-1 rounded-t border border-b-0 px-2 text-xs",
+                        tab.id === state.activeId
+                            ? "border-border bg-hover text-primary"
+                            : "border-transparent text-secondary hover:bg-hover/50"
+                    )}
+                >
+                    <span className="min-w-0 flex-1 truncate">{tab.title || tab.url}</span>
+                    {state.tabs.length > 1 ? (
+                        <button
+                            type="button"
+                            aria-label="Close tab"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                model.closeTab(tab.id);
+                            }}
+                            className="cursor-pointer rounded px-0.5 text-secondary opacity-60 hover:bg-hover hover:opacity-100"
+                        >
+                            <i className="fa fa-solid fa-xmark text-[10px]" />
+                        </button>
+                    ) : null}
+                </div>
+            ))}
+            <button
+                type="button"
+                aria-label="New tab"
+                title="New tab (Cmd+T)"
+                onClick={() => model.newTab()}
+                className="mb-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary"
+            >
+                <i className="fa fa-solid fa-plus text-xs" />
+            </button>
+        </div>
+    );
+}
+
+function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: BrowserState }) {
+    const active = state.tabs.find((t) => t.id === state.activeId);
+    const [draft, setDraft] = useState(active?.url ?? "");
+    const [editing, setEditing] = useState(false);
+    useEffect(() => {
+        if (!editing) {
+            setDraft(active?.url ?? "");
+        }
+    }, [active?.url, active?.id, editing]);
+    const navButton = (icon: string, label: string, run: () => void) => (
+        <button
+            type="button"
+            aria-label={label}
+            title={label}
+            onClick={run}
+            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary"
+        >
+            <i className={`fa fa-solid fa-${icon} text-xs`} />
+        </button>
+    );
+    return (
+        <div className="flex h-8 shrink-0 items-center gap-1 border-b border-border px-1">
+            {navButton(
+                "arrow-left",
+                "Back",
+                () => model.activeWebview()?.canGoBack() && model.activeWebview().goBack()
+            )}
+            {navButton(
+                "arrow-right",
+                "Forward",
+                () => model.activeWebview()?.canGoForward() && model.activeWebview().goForward()
+            )}
+            {navButton("rotate-right", "Reload", () => model.activeWebview()?.reload())}
+            <input
+                ref={model.urlInputRef}
+                value={draft}
+                spellCheck={false}
+                onFocus={() => setEditing(true)}
+                onBlur={() => setEditing(false)}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                        setDraft(active?.url ?? "");
+                        e.currentTarget.blur();
+                        return;
+                    }
+                    if (e.key !== "Enter") {
+                        return;
+                    }
+                    const url = toBrowserUrl(draft);
+                    if (url != null) {
+                        model.activeWebview()?.loadURL(url);
+                        model.setState(updateTab(model.state(), state.activeId, { url }));
+                    }
+                    e.currentTarget.blur();
+                }}
+                className="h-6 min-w-0 flex-1 rounded border border-border bg-transparent px-2 text-xs text-primary outline-none focus:border-accent"
+            />
+        </div>
+    );
+}
+
+function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
+    const state = useAtomValue(model.stateAtom);
+    return (
+        <div className="molten-browser flex h-full w-full flex-col">
+            <BrowserTabStrip model={model} state={state} />
+            <BrowserNavBar model={model} state={state} />
+            <div className="relative min-h-0 flex-1">
+                {state.tabs.map((tab) => (
+                    <TabWebview key={tab.id} model={model} tab={tab} active={tab.id === state.activeId} />
+                ))}
+            </div>
+        </div>
+    );
+}
