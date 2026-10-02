@@ -196,6 +196,7 @@ need no marker. It reads only the backticked tokens of the first column: each is
 | `frontend/app/workspace/workspace.tsx`, `frontend/app/tab/tabbar.tsx` | The workspace rail (`frontend/moltenterm-shell/workspace-rail.tsx`) is mounted left of the content; the tab bar no longer shows the workspace switcher (`MoltentermWorkspaceRail`) | Workspace rail (FR-SHELL-001) | #44 |
 | `frontend/app/tab/tabbar.tsx` | The notification center's bell (`frontend/moltenterm-shell/notification-center.tsx`) in the right container (`MoltentermNotificationCenter`) | Notification center (FR-SHELL-002) | #45 |
 | `electron.vite.config.ts`, `frontend/app/workspace/workspace.tsx` | The renderer build defines `__MOLTENTERM_BUILD__` (`frontend/moltenterm-shell/build/build-info.ts`); the status bar (`frontend/moltenterm-shell/status-bar.tsx`) is mounted under the content | Status bar (FR-SHELL-008) | #55 |
+| `frontend/app/view/term/termwrap.ts` | The bell, OSC 9 and OSC 777 are forwarded to `frontend/moltenterm-shell/agent-attention.ts` | Coding agents waiting for the user raise a notification of their workspace (FR-SHELL-003) | #46 |
 
 ## Known upstream items
 
