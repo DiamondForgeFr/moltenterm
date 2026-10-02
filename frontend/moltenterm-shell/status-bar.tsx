@@ -8,6 +8,7 @@ import { cn } from "@/util/util";
 import { useMemo } from "react";
 import type { MoltentermBuildInfo } from "./build/build-info";
 import { makeStatusBarView, StatusBarChannel } from "./status-bar-model";
+import { GoldUpdateButton } from "./update/update-dialog";
 
 // Badges keep a fixed colour per channel, apart from the workspace accent: a gold or dev build must be recognisable
 // in any workspace.
@@ -51,7 +52,10 @@ export function StatusBar() {
                     {view.dirty ? <span title="uncommitted changes"> ●</span> : null}
                 </span>
             ) : null}
-            <span className="ml-auto">Moltenterm {view.version}</span>
+            <span className="ml-auto flex items-center gap-3">
+                <GoldUpdateButton />
+                <span>Moltenterm {view.version}</span>
+            </span>
         </footer>
     );
 }
