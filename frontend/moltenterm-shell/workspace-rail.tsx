@@ -16,10 +16,10 @@ import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { unreadByWorkspace } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
+import { ProjectLinkDetector } from "./project-link-modal";
 import { WorkspaceIcon } from "./workspace-icon";
 import { readWorkspaceProject } from "./workspace-project";
 import { WorkspaceProjectSection } from "./workspace-project-section";
-import { offerProjectLogo } from "./workspace-project-store";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
 
 export async function loadWorkspaceSources(): Promise<WorkspaceRailSource[]> {
@@ -88,8 +88,9 @@ function WorkspaceEditPanel({
     return (
         <div
             ref={panelRef}
-            className="workspace-switcher-content fixed z-[9500] w-[280px] rounded border border-border bg-modalbg p-2 shadow-lg"
-            style={{ top: anchor.top, left: anchor.left }}
+            className="workspace-switcher-content fixed z-[9500] rounded border border-border bg-modalbg p-2 shadow-lg"
+            // Wave's .workspace-switcher-content (unlayered) would win over Tailwind's width and padding classes.
+            style={{ top: anchor.top, left: anchor.left, width: 300, padding: 8 }}
         >
             <WorkspaceEditor
                 title={draft.name}
@@ -211,13 +212,6 @@ export function WorkspaceRail() {
         return waveEventSubscribeSingle({ eventType: "workspace:update", handler: refresh });
     }, [refresh]);
     useEffect(refresh, [active?.oid, active?.name, active?.icon, active?.color, refresh]);
-    const activeProject = readWorkspaceProject(active).dir;
-    useEffect(() => {
-        if (active == null || activeProject === "") {
-            return;
-        }
-        fireAndForget(() => offerProjectLogo(globalStore.get(atoms.workspace)));
-    }, [active?.oid, activeProject]);
 
     const entries = makeWorkspaceRailEntries(sources, active);
     const notifications = useAtomValue(MoltentermNotifications.getInstance().entriesAtom);
@@ -257,6 +251,7 @@ export function WorkspaceRail() {
                 <i className="fa fa-solid fa-plus" />
             </button>
             <RailTooltip label={tooltip?.label} anchor={tooltip?.anchor} />
+            <ProjectLinkDetector />
             {editing ? (
                 <WorkspaceEditPanel entry={editing.entry} anchor={editing.anchor} onClose={closeEditor} />
             ) : null}
