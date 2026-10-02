@@ -260,3 +260,18 @@ func TestStartRefreshThrottlesGithub(t *testing.T) {
 		t.Fatalf("forced within a minute of the last GitHub read: %+v", plan)
 	}
 }
+
+func TestCollectorReportsThePipeline(t *testing.T) {
+	dir := makeGitFlowRepo(t)
+	c := MakeCollector(t.TempDir(), plainRunner, nil)
+	snap, _ := c.Get(dir, time.Hour, false)
+	if snap.Pipeline == nil || snap.Pipeline.Present {
+		t.Fatalf("no pipeline yet: %+v", snap.Pipeline)
+	}
+	os.MkdirAll(filepath.Join(dir, ".molten"), 0755)
+	os.WriteFile(filepath.Join(dir, ".molten", "project.json"), []byte(`{"schema":1,"name":"x","ci":{"jobs":[{"name":"check","run":"make check"}]}}`), 0644)
+	snap, _ = c.Get(dir, time.Hour, false)
+	if snap.Pipeline == nil || !snap.Pipeline.Valid || len(snap.Pipeline.Pipeline.Ci.Jobs) != 1 {
+		t.Fatalf("the pipeline is read on the next request: %+v", snap.Pipeline)
+	}
+}

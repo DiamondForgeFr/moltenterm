@@ -46,6 +46,32 @@ export type MissionGithub = {
     errors?: Record<string, string>;
 };
 
+export type PipelineCommand = { run: string; cwd?: string; env?: Record<string, string> };
+
+export type PipelineDef = {
+    schema: number;
+    name: string;
+    branches?: { trunk?: string; release?: string };
+    versions?: { tagprefix?: string; notes?: string };
+    ci?: { jobs: (PipelineCommand & { name: string; title?: string; lane?: string })[] };
+    builds?: (PipelineCommand & { id: string; title?: string; artifact?: string })[];
+    release?: {
+        rc?: (PipelineCommand & { id: string; title?: string })[];
+        public?: (PipelineCommand & { id: string; title?: string })[];
+    };
+    steps?: (PipelineCommand & { id: string; title: string; section: string })[];
+};
+
+// must match PipelineReport in pkg/molten/pipeline.go
+export type PipelineReport = {
+    path: string;
+    present: boolean;
+    valid: boolean;
+    errors: string[];
+    warnings: string[];
+    pipeline?: PipelineDef;
+};
+
 export type MissionSnapshot = {
     dir: string;
     missing?: boolean;
@@ -55,6 +81,7 @@ export type MissionSnapshot = {
     github?: MissionGithub;
     githubat?: number;
     refreshing?: boolean;
+    pipeline?: PipelineReport;
 };
 
 export function toTreeData(git: MissionGit): TreeData {
@@ -111,12 +138,37 @@ export function prsByBranch(prs: readonly PullRequest[]): Map<string, { number: 
     return new Map((prs ?? []).map((pr) => [pr.headRefName, { number: pr.number, url: pr.url }]));
 }
 
-// The request the user gives their coding agent when the project has no pipeline yet (FR-MC-008 builds on it).
-export function pipelineRequest(dir: string): string {
-    return [
-        `Set up Moltenterm's Mission Control pipeline for the project in ${dir}.`,
-        "Run `molten docs` and read the pipeline guide, detect the project's harness (.saasfoundry.json, AGENTS.md, CLAUDE.md)",
-        "and follow its workflow; reuse the scripts and CI workflows the project already has, add only what is missing",
-        "(local CI, local build, gold, release candidate, release), and write .molten/project.json last.",
-    ].join(" ");
+// How to start the molten-pipeline guide in each agent (`molten agent list` shows the same).
+// must match the invocations in pkg/molten/agents.go
+export const PipelineInvocations = [
+    { agent: "Claude Code, Gemini CLI, Qwen Code", invocation: "/molten-pipeline" },
+    { agent: "Codex", invocation: "$molten-pipeline" },
+    { agent: "Kimi Code", invocation: "/skill:molten-pipeline" },
+];
+
+export type PipelineStage = "loading" | "absent" | "invalid" | "valid";
+
+export function pipelineStage(report: PipelineReport): PipelineStage {
+    if (report == null) {
+        return "loading";
+    }
+    if (!report.present) {
+        return "absent";
+    }
+    return report.valid ? "valid" : "invalid";
+}
+
+// The ci jobs grouped by lane, in the order the file gives them.
+export function jobsByLane(pipeline: PipelineDef): { lane: string; jobs: PipelineDef["ci"]["jobs"] }[] {
+    const lanes: { lane: string; jobs: PipelineDef["ci"]["jobs"] }[] = [];
+    for (const job of pipeline?.ci?.jobs ?? []) {
+        const lane = job.lane || "main";
+        let entry = lanes.find((l) => l.lane === lane);
+        if (entry == null) {
+            entry = { lane, jobs: [] };
+            lanes.push(entry);
+        }
+        entry.jobs.push(job);
+    }
+    return lanes;
 }

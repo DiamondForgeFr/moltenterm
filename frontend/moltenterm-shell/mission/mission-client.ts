@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The panels' side of Mission Control's collector (DS-MC-001): they ask wavesrv, show the cached answer at once, and
-// take the refreshed snapshot from the event bus. Panels poll slowly, and only while the window is visible.
+// take the refreshed snapshot from the event bus. Panels poll only while the window is visible.
 
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -17,7 +17,8 @@ export const MissionRefreshCommand = "moltenmissionrefresh";
 export const MissionUpdateEvent = "molten:mission:update";
 
 const MissionRpcTimeoutMs = 15000;
-const MissionPollMs = 60000;
+// A request is cheap (the cached snapshot and the pipeline file); the collector itself refreshes at most once a minute.
+const MissionPollMs = 15000;
 
 export function missionGet(dir: string, maxAgeSec?: number): Promise<MissionSnapshot> {
     return TabRpcClient.wshRpcCall(
