@@ -42,3 +42,9 @@
 [class*="bg-accent/"] {
     color: var(--mt-accent-fg);
 }
+
+/* An unread notification is tinted, not filled: its text keeps the panel's colours (the bg-accent rule above would
+   turn it to the accent's text colour). */
+.molten-notification-unread {
+    background-color: color-mix(in srgb, var(--mt-accent) 7%, transparent);
+}
