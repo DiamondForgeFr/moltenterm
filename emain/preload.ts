@@ -73,6 +73,8 @@ contextBridge.exposeInMainWorld("api", {
     getPathForFile: (file: File): string => webUtils.getPathForFile(file),
     saveTextFile: (fileName: string, content: string) => ipcRenderer.invoke("save-text-file", fileName, content),
     setIsActive: () => ipcRenderer.invoke("set-is-active"),
+    // MOLTENTERM-PATCH (#30): native pickers of the Moltenterm shell (emain/moltenterm-dialogs.ts)
+    moltentermChoosePath: (opts: any) => ipcRenderer.invoke("moltenterm-choose-path", opts),
 });
 
 // Custom event for "new-window"

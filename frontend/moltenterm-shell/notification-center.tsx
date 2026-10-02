@@ -5,12 +5,14 @@
 // workspace, newest first; an entry opens where it comes from.
 
 import { globalStore } from "@/app/store/jotaiStore";
-import { cn, fireAndForget, makeIconClass } from "@/util/util";
+import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatAge, MoltentermNotification } from "./notifications-model";
 import { MoltentermNotifications, startNotificationAutoRead } from "./notifications-store";
+import { WorkspaceIcon } from "./workspace-icon";
+import { readWorkspaceProject } from "./workspace-project";
 import { loadWorkspaceSources } from "./workspace-rail";
 
 const KindIcons: Record<MoltentermNotification["kind"], string> = {
@@ -58,7 +60,11 @@ function NotificationRow({
                 <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
                     {workspace ? (
                         <>
-                            <i className={makeIconClass(workspace.icon, false)} style={{ color: workspace.color }} />
+                            <WorkspaceIcon
+                                icon={workspace.icon}
+                                color={workspace.color}
+                                logo={readWorkspaceProject(workspace).logo}
+                            />
                             <span className="truncate">{workspace.name}</span>
                             <span>·</span>
                         </>
