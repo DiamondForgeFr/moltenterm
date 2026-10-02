@@ -138,15 +138,31 @@ func insideProject(dir string, rel string) bool {
 	return full == filepath.Clean(dir) || strings.HasPrefix(full, filepath.Clean(dir)+string(filepath.Separator))
 }
 
-// The script a command starts, when it names a file of the project (`./scripts/x.sh`, `scripts/x.mjs`, `bun x.ts`).
+var scriptInterpreters = map[string]bool{
+	"sh": true, "bash": true, "zsh": true, "node": true, "bun": true, "deno": true, "python": true, "python3": true,
+	"ruby": true, "perl": true, "tsx": true,
+}
+
+// The script a command starts, when it names a file of the project: the program itself (`./scripts/x.sh`, after any
+// VAR=value), or the script an interpreter runs (`bun scripts/x.mjs`). Arguments such as `./cmd/...` are not files.
 func referencedScript(run string) string {
-	for _, field := range strings.Fields(run) {
-		if strings.ContainsAny(field, "{}$`'\"|&;<>=") {
-			continue
-		}
-		if strings.HasPrefix(field, "./") || strings.HasPrefix(field, "scripts/") {
-			return field
-		}
+	fields := strings.Fields(run)
+	i := 0
+	for i < len(fields) && strings.Contains(fields[i], "=") && !strings.HasPrefix(fields[i], "-") {
+		i++
+	}
+	if i >= len(fields) {
+		return ""
+	}
+	candidate := fields[i]
+	if scriptInterpreters[candidate] && i+1 < len(fields) {
+		candidate = fields[i+1]
+	}
+	if strings.ContainsAny(candidate, "{}$`'\"|&;<>=*") || strings.HasPrefix(candidate, "-") {
+		return ""
+	}
+	if strings.HasPrefix(candidate, "./") || strings.HasPrefix(candidate, "scripts/") {
+		return candidate
 	}
 	return ""
 }
