@@ -113,6 +113,14 @@ const SwapScript = `#!/bin/sh
 # status.
 pid="$1"; staged="$2"; target="$3"; reopen="$4"; build="$5"; status="$6"
 grace="\${MOLTENTERM_SWAP_GRACE:-${SwapGraceSeconds}}"
+# Tests start the binary directly so the reopened app keeps their isolated profile; users get a normal launch.
+reopen_app() {
+    if [ -n "$MOLTENTERM_SWAP_DIRECT" ]; then
+        "$1/Contents/MacOS/Moltenterm" >/dev/null 2>&1 &
+    else
+        open "$1"
+    fi
+}
 i=0
 while kill -0 "$pid" 2>/dev/null; do
     i=$((i + 1))
@@ -124,7 +132,7 @@ if ! mv "$target" "$aside"; then echo "failed: the installed app could not be mo
 if ! mv "$staged" "$target"; then
     mv "$aside" "$target"
     echo "failed: the new build could not be put in place" > "$status"
-    [ "$reopen" = 1 ] && open "$target"
+    [ "$reopen" = 1 ] && reopen_app "$target"
     exit 1
 fi
 xattr -dr com.apple.quarantine "$target" 2>/dev/null
@@ -133,7 +141,7 @@ if [ "$reopen" != 1 ]; then
     echo "installed $build" > "$status"
     exit 0
 fi
-open "$target"
+reopen_app "$target"
 sleep "$grace"
 if pgrep -f "$target/Contents/MacOS/" >/dev/null; then
     rm -rf "$aside"
@@ -143,7 +151,7 @@ fi
 mv "$target" "$target.did-not-stay-open-$$" && mv "$aside" "$target"
 rm -rf "$target.did-not-stay-open-$$"
 echo "rolledback $build" > "$status"
-open "$target"
+reopen_app "$target"
 `;
 
 type PendingSwap = { staged: string; target: string; buildId: number };
