@@ -29,7 +29,13 @@ const (
 	RouteId           = "molten:mission"
 	GetCommand        = "moltenmissionget"
 	RefreshCommand    = "moltenmissionrefresh"
+	RunCommand        = "moltenmissionrun"
+	RunsCommand       = "moltenmissionruns"
+	LogCommand        = "moltenmissionlog"
+	CancelCommand     = "moltenmissioncancel"
+	TrustCommand      = "moltenmissiontrust"
 	UpdateEvent       = "molten:mission:update"
+	RunEvent          = "molten:mission:run"
 	DefaultMaxAgeSec  = 60
 	collectTimeout    = 2 * time.Minute
 	fetchEvery        = 5 * time.Minute
@@ -87,9 +93,14 @@ func CacheDir(dataDir string) string {
 	return filepath.Join(dataDir, "molten", "mission")
 }
 
-func (c *Collector) cacheFile(dir string) string {
+// cacheKey names a project's files in MoltenTerm's data: its cache, its runs.
+func cacheKey(dir string) string {
 	sum := sha256.Sum256([]byte(dir))
-	return filepath.Join(c.cacheDir, hex.EncodeToString(sum[:8])+".json")
+	return hex.EncodeToString(sum[:8])
+}
+
+func (c *Collector) cacheFile(dir string) string {
+	return filepath.Join(c.cacheDir, cacheKey(dir)+".json")
 }
 
 func (c *Collector) loadCache(dir string) Snapshot {
@@ -274,10 +285,20 @@ func publishSnapshot(snap Snapshot) {
 	})
 }
 
+func publishRun(rec RunRecord) {
+	wps.Broker.Publish(wps.WaveEvent{
+		Event:  RunEvent,
+		Scopes: []string{rec.Dir},
+		Data:   rec,
+	})
+}
+
 // Start registers the collector on wavesrv's router; wavesrv calls it once at start.
 func Start() {
-	collector := MakeCollector(CacheDir(wavebase.GetWaveDataDir()), ExecRunner, publishSnapshot)
-	if err := registerRoute(collector); err != nil {
+	dataDir := wavebase.GetWaveDataDir()
+	collector := MakeCollector(CacheDir(dataDir), ExecRunner, publishSnapshot)
+	runs := MakeRuns(RunsDir(dataDir), MakeTrustStore(filepath.Join(CacheDir(dataDir), TrustFileName)), publishRun)
+	if err := registerRoute(collector, runs); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
 }
