@@ -25,8 +25,9 @@ ARCH=$(uname -m)
 echo "▶ phase: build"
 task build:backend
 MOLTENTERM_BUILD_CHANNEL=gold MOLTENTERM_BUILD_ID=$BUILD_ID npm run build:prod
+# The gold has an icon of its own (scripts/moltenterm-gen-icons.mjs), so it is told apart from dev builds in the Dock.
 CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder -c electron-builder.config.cjs -c.buildVersion="$BUILD_ID" \
-    -p never --mac dir --"$ARCH"
+    -c.mac.icon=build/moltenterm/icon-gold.icns -p never --mac dir --"$ARCH"
 
 APP_DIR=make/mac-$ARCH
 [ "$ARCH" = "x64" ] && APP_DIR=make/mac
