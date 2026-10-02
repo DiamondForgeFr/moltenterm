@@ -16,11 +16,13 @@ import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
 import { addMoltentermNotification } from "../notifications-store";
 import {
+    installedSince,
     shouldOffer,
     summarizeTerminals,
     TerminalSummary,
     UpdateCheckIntervalMs,
     updateLabel,
+    UpdateLastBuildMetaKey,
     UpdateNotifiedMetaKey,
     UpdateSkippedMetaKey,
 } from "./update-model";
@@ -85,7 +87,7 @@ export class GoldUpdateModel {
             return () => {};
         }
         this.started = true;
-        fireAndForget(() => this.reportLastSwap());
+        this.announceInstalled();
         this.check();
         const timer = setInterval(() => this.check(), UpdateCheckIntervalMs);
         const onFocus = () => this.check();
@@ -97,10 +99,30 @@ export class GoldUpdateModel {
         };
     }
 
+    // The swap writes its outcome after the new build has stayed open a while: the new build announces itself instead.
+    announceInstalled() {
+        const own = readBuild().buildId;
+        const last = clientMetaNumber(UpdateLastBuildMetaKey);
+        if (own <= last) {
+            return;
+        }
+        setClientMeta({ [UpdateLastBuildMetaKey]: own });
+        if (!installedSince(own, last)) {
+            return;
+        }
+        addMoltentermNotification({
+            source: "moltenterm",
+            kind: "success",
+            title: `Moltenterm updated (build ${own})`,
+            message: "Your configuration and workspaces are as you left them.",
+        });
+    }
+
     check() {
         if (document.visibilityState !== "visible") {
             return;
         }
+        fireAndForget(() => this.reportLastSwap());
         fireAndForget(async () => {
             const result = await updateApi().moltentermUpdateCheck(readBuild().buildId);
             const manifest = result?.available ? result.manifest : null;
@@ -124,13 +146,9 @@ export class GoldUpdateModel {
             return;
         }
         if (status.state === "installed") {
-            addMoltentermNotification({
-                source: "moltenterm",
-                kind: "success",
-                title: `Moltenterm updated (build ${status.buildId})`,
-                message: "Your configuration and workspaces are as you left them.",
-            });
-        } else if (status.state === "rolledback") {
+            return;
+        }
+        if (status.state === "rolledback") {
             setClientMeta({ [UpdateSkippedMetaKey]: status.buildId });
             addMoltentermNotification({
                 source: "moltenterm",
