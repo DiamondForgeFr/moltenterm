@@ -184,6 +184,8 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
 
 export function ProjectLinkDetector() {
     const ws = useAtomValue(atoms.workspace);
+    // Waits for Wave's own modals (the welcome tour, About…) to close.
+    const waveModalOpen = useAtomValue(atoms.modalOpen);
     const focusedAtom = useMemo(() => getLayoutModelForStaticTab()?.focusedNode ?? NoFocusedNode, []);
     const focused = useAtomValue(focusedAtom);
     const blockId = focused?.data?.blockId;
@@ -206,11 +208,17 @@ export function ProjectLinkDetector() {
     const offer = ws == null ? null : nextProjectOffer(project, terminalProject, dismissed, getApi().getEnv("HOME"));
     const offerKey = offer ? `${offer.mode}:${offer.dir}` : "";
     useEffect(() => {
-        if (offer == null || shown != null || answered.includes(offerKey) || document.visibilityState !== "visible") {
+        if (
+            offer == null ||
+            shown != null ||
+            waveModalOpen ||
+            answered.includes(offerKey) ||
+            document.visibilityState !== "visible"
+        ) {
             return;
         }
         setShown(offer);
-    }, [offerKey, shown, answered]);
+    }, [offerKey, shown, answered, waveModalOpen]);
     return (
         <>
             {blockId ? <TerminalFolder key={blockId} blockId={blockId} onFolder={onFolder} /> : null}
