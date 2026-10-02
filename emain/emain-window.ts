@@ -21,6 +21,14 @@ import { getElectronAppBasePath, isDev, unamePlatform } from "./emain-platform";
 import { getOrCreateWebViewForTab, getWaveTabViewByWebContentsId, WaveTabView } from "./emain-tabview";
 import { delay, ensureBoundsAreVisible, waveKeyToElectronKey } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
+import {
+    MoltentermFirstRenderTimeoutMs,
+    MoltentermReinitTimeoutMs,
+    nextWaveReady,
+    releaseTabViewFromOtherWindow,
+    tabViewsToCloseOnLeave,
+    withTimeout,
+} from "./moltenterm-workspace-switch"; // MOLTENTERM-PATCH (#68)
 import { updater } from "./updater";
 
 const DevInitTimeoutMs = 5000;
@@ -402,11 +410,15 @@ export class WaveBrowserWindow extends BaseWindow {
         await this._queueActionInternal({ op: "switchtab", tabId, setInBackend, primaryStartupTab });
     }
 
-    private async initializeTab(tabView: WaveTabView, primaryStartupTab: boolean) {
+    private async initializeTab(tabView: WaveTabView, primaryStartupTab: boolean, offScreen = false) {
         const clientId = await getClientId();
         await this.awaitWithDevTimeout(tabView.initPromise, "initPromise", tabView.waveTabId);
         const winBounds = this.getContentBounds();
         tabView.setBounds({ x: 0, y: 0, width: winBounds.width, height: winBounds.height });
+        // MOLTENTERM-PATCH (#68): rendered off-screen first, so the previous workspace stays visible until it is ready
+        if (offScreen) {
+            tabView.positionTabOffScreen(winBounds);
+        }
         this.contentView.addChildView(tabView);
         const initOpts: WaveInitOpts = {
             tabId: tabView.waveTabId,
@@ -427,7 +439,11 @@ export class WaveBrowserWindow extends BaseWindow {
             primaryStartupTab ? "(primary startup)" : ""
         );
         tabView.webContents.send("wave-init", initOpts);
-        await this.awaitWithDevTimeout(tabView.waveReadyPromise, "waveReadyPromise", tabView.waveTabId);
+        // MOLTENTERM-PATCH (#68): never leave the window on the previous workspace when a renderer does not answer
+        const waveReady = offScreen
+            ? withTimeout(tabView.waveReadyPromise, MoltentermFirstRenderTimeoutMs)
+            : tabView.waveReadyPromise;
+        await this.awaitWithDevTimeout(waveReady, "waveReadyPromise", tabView.waveTabId);
         console.log("wave-ready init time", Date.now() - startTime + "ms");
     }
 
@@ -457,7 +473,13 @@ export class WaveBrowserWindow extends BaseWindow {
         }
     }
 
-    private async setTabViewIntoWindow(tabView: WaveTabView, tabInitialized: boolean, primaryStartupTab = false) {
+    // MOLTENTERM-PATCH (#68): waitReady shows the view only once it has rendered (workspace switch)
+    private async setTabViewIntoWindow(
+        tabView: WaveTabView,
+        tabInitialized: boolean,
+        primaryStartupTab = false,
+        waitReady = false
+    ) {
         if (this.activeTabView == tabView) {
             return;
         }
@@ -470,11 +492,15 @@ export class WaveBrowserWindow extends BaseWindow {
         this.allLoadedTabViews.set(tabView.waveTabId, tabView);
         if (!tabInitialized) {
             console.log("initializing a new tab", primaryStartupTab ? "(primary startup)" : "");
-            await this.initializeTab(tabView, primaryStartupTab);
+            await this.initializeTab(tabView, primaryStartupTab, waitReady);
             this.finalizePositioning();
         } else {
             console.log("reusing an existing tab, calling wave-init", tabView.waveTabId);
+            const reinitDone = waitReady ? nextWaveReady(tabView) : null; // MOLTENTERM-PATCH (#68)
             tabView.webContents.send("wave-init", tabView.savedInitOpts); // reinit
+            if (reinitDone != null) {
+                await withTimeout(reinitDone, MoltentermReinitTimeoutMs); // MOLTENTERM-PATCH (#68)
+            }
             this.finalizePositioning();
         }
 
@@ -544,6 +570,7 @@ export class WaveBrowserWindow extends BaseWindow {
                 }
                 const entry = this.actionQueue[0];
                 let tabId: string = null;
+                let tabViewsToClose: string[] = []; // MOLTENTERM-PATCH (#68)
                 // have to use "===" here to get the typechecker to work :/
                 switch (entry.op) {
                     case "createtab":
@@ -582,16 +609,19 @@ export class WaveBrowserWindow extends BaseWindow {
                         break;
                     }
                     case "switchworkspace": {
+                        // MOLTENTERM-PATCH (#68): read before the switch, which deletes an unsaved workspace
+                        const leftWs = await WorkspaceService.GetWorkspace(this.workspaceId);
                         const newWs = await WindowService.SwitchWorkspace(this.waveWindowId, entry.workspaceId);
                         if (!newWs) {
                             return;
                         }
                         console.log("processActionQueue switchworkspace newWs", newWs);
-                        this.removeAllChildViews();
-                        console.log("destroyed all tabs", this.waveWindowId);
+                        // MOLTENTERM-PATCH (#68): the views of the workspace left are kept (off-screen, in the tab
+                        // cache) instead of destroyed, so switching back is as instant as switching tabs
                         this.workspaceId = entry.workspaceId;
-                        this.allLoadedTabViews = new Map();
                         tabId = newWs.activetabid;
+                        releaseTabViewFromOtherWindow(tabId, this.waveWindowId, getWaveWindowById);
+                        tabViewsToClose = tabViewsToCloseOnLeave(leftWs);
                         break;
                     }
                 }
@@ -600,7 +630,11 @@ export class WaveBrowserWindow extends BaseWindow {
                 }
                 const [tabView, tabInitialized] = await getOrCreateWebViewForTab(this.waveWindowId, tabId);
                 const primaryStartupTabFlag = entry.op === "switchtab" ? (entry.primaryStartupTab ?? false) : false;
-                await this.setTabViewIntoWindow(tabView, tabInitialized, primaryStartupTabFlag);
+                const waitReady = entry.op === "switchworkspace"; // MOLTENTERM-PATCH (#68)
+                await this.setTabViewIntoWindow(tabView, tabInitialized, primaryStartupTabFlag, waitReady);
+                for (const closeId of tabViewsToClose) {
+                    this.removeTabView(closeId, false); // MOLTENTERM-PATCH (#68)
+                }
             } catch (e) {
                 console.log("error caught in processActionQueue", e);
             } finally {
