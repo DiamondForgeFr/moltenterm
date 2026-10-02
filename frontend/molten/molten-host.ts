@@ -159,6 +159,8 @@ export class MoltenHost {
     runtimes = new Map<string, ModRuntime>();
     commands = new Map<string, MoltenCommandEntry>();
     nextNotificationId = 1;
+    // Called for every notification the host shows; the shell records mod failures in its notification center.
+    notificationListener: (entry: MoltenNotificationEntry) => void = null;
     nextBoxId = 1;
     // Starts and reloads run one at a time: an enable arriving while the mods load must see the finished state.
     queue: Promise<void> = Promise.resolve();
@@ -562,6 +564,7 @@ export class MoltenHost {
             modId,
         };
         globalStore.set(this.notificationsAtom, [...globalStore.get(this.notificationsAtom), entry]);
+        this.notificationListener?.(entry);
         const dismiss = () => this.dismissNotification(id);
         // Errors stay until the user closes them: they explain why a mod is gone.
         if (entry.kind !== "error") {

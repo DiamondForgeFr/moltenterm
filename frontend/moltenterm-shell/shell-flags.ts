@@ -5,3 +5,4 @@
 // constants, so the original code stays in place and upstream merges stay simple.
 export const MoltentermWorkspaceRail = true;
 export const MoltentermStatusBar = true;
+export const MoltentermNotificationCenter = true;

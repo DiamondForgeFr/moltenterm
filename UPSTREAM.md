@@ -194,6 +194,7 @@ need no marker. It reads only the backticked tokens of the first column: each is
 | `electron.vite.config.ts`, `frontend/wave.ts` | A PostCSS plugin caps every corner radius at 3 px (`frontend/moltenterm-shell/build/cap-radius.ts`); `wave.ts` imports the shell stylesheet | Dense visual style (FR-SHELL-005) | #48 |
 | `frontend/wave.ts` | Applies the active workspace's colour as the accent before the first render (`frontend/moltenterm-shell/accent.ts`) | Workspace accent colours (FR-SHELL-004) | #47 |
 | `frontend/app/workspace/workspace.tsx`, `frontend/app/tab/tabbar.tsx` | The workspace rail (`frontend/moltenterm-shell/workspace-rail.tsx`) is mounted left of the content; the tab bar no longer shows the workspace switcher (`MoltentermWorkspaceRail`) | Workspace rail (FR-SHELL-001) | #44 |
+| `frontend/app/tab/tabbar.tsx` | The notification center's bell (`frontend/moltenterm-shell/notification-center.tsx`) in the right container (`MoltentermNotificationCenter`) | Notification center (FR-SHELL-002) | #45 |
 | `electron.vite.config.ts`, `frontend/app/workspace/workspace.tsx` | The renderer build defines `__MOLTENTERM_BUILD__` (`frontend/moltenterm-shell/build/build-info.ts`); the status bar (`frontend/moltenterm-shell/status-bar.tsx`) is mounted under the content | Status bar (FR-SHELL-008) | #55 |
 
 ## Known upstream items

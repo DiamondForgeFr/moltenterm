@@ -10,6 +10,7 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MoltentermSafeModeVarName } from "@/util/moltenterm-safemode";
 import { base64ToString, fireAndForget } from "@/util/util";
+import { addMoltentermNotification } from "../moltenterm-shell/notifications-store";
 import { MoltenBuiltinMods } from "./molten-builtins";
 import { MoltenDirEntry, MoltenHost, MoltenHostEnv, MoltenRunRequest } from "./molten-host";
 import { MoltenManifestFileName, parseMoltenManifest } from "./molten-manifest";
@@ -123,6 +124,13 @@ export function startMoltenHost(): void {
             fireAndForget(() => host.reload(Array.isArray(ids) && ids.length > 0 ? ids : null));
         },
     });
+    // A mod that stops or is refused is worth keeping in the notification center; a mod's own messages stay toasts.
+    host.notificationListener = (entry) => {
+        if (entry.modId != null || (entry.kind !== "error" && entry.kind !== "warning")) {
+            return;
+        }
+        addMoltentermNotification({ source: "mod", title: entry.title, message: entry.message, kind: entry.kind });
+    };
     const safeMode = getApi().getEnv(MoltentermSafeModeVarName) === "1";
     mountMoltenNotifications(host, safeMode);
     fireAndForget(() => host.start(env, { safeMode }));
