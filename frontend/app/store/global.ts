@@ -314,8 +314,12 @@ function getBlockTermDurableAtom(blockId: string): Atom<null | boolean> {
 
         // 2. Check if connection is local or WSL (not eligible for durability)
         const connName = block.meta?.connection ?? "";
-        if (isLocalConnName(connName) || isWslConnName(connName)) {
+        if (isWslConnName(connName)) {
             return null;
+        }
+        // MOLTENTERM-PATCH (#72): local shells survive a restart unless the block says otherwise
+        if (isLocalConnName(connName)) {
+            return block.meta?.["term:durable"] ?? true;
         }
 
         // 3. Check config hierarchy: blockmeta → connection → global (default true)
