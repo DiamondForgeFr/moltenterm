@@ -1019,6 +1019,10 @@ var moltenBuiltinHelp = [][2]string{
 	{"agent list", "the supported coding agents and where /molten-feature is installed"},
 	{"agent install <agent>", "install /molten-feature for a coding agent"},
 	{"agent remove <agent>", "remove /molten-feature from a coding agent"},
+	{"project link [folder]", "link this workspace to its project (default: this terminal's folder)"},
+	{"project show", "show this workspace's project, its pipeline and its conventions"},
+	{"project logo [file]", "use an image of the project as the workspace icon"},
+	{"project unlink", "remove this workspace's project link"},
 	{"help", "this list"},
 	{"<command> [args...]", "run a command provided by an enabled mod"},
 }
