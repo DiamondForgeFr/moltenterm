@@ -8,7 +8,7 @@
 //
 // usage: node scripts/moltenterm-gen-icons.mjs   (writes build/moltenterm/icon.icns and icon-gold.icns)
 
-/* global console, process */
+/* global Buffer, console, process */
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
