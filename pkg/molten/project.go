@@ -20,6 +20,8 @@ import (
 const (
 	ProjectMetaKey     = "molten:project"
 	ProjectLogoMetaKey = "molten:projectlogo"
+	// The project the logo was last offered for, by the rail (frontend only).
+	ProjectLogoOfferMetaKey = "molten:projectlogooffer"
 )
 
 const ProjectPipelineFile = ".molten/project.json"

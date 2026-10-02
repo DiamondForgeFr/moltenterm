@@ -218,7 +218,7 @@ func moltenProjectUnlinkRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	dir := moltenMetaString(meta, molten.ProjectMetaKey)
-	err = moltenProjectSetMeta(oref, map[string]any{molten.ProjectMetaKey: nil, molten.ProjectLogoMetaKey: nil})
+	err = moltenProjectSetMeta(oref, map[string]any{molten.ProjectMetaKey: nil, molten.ProjectLogoMetaKey: nil, molten.ProjectLogoOfferMetaKey: nil})
 	if err != nil {
 		return err
 	}
