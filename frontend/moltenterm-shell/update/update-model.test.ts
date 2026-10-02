@@ -33,24 +33,27 @@ describe("update model", () => {
         expect(updateLabel(manifest)).toBe("07e51a7 · build 200");
     });
 
-    it("says what a restart stops", () => {
+    it("says what a restart stops, and what keeps running", () => {
         const summary = summarizeTerminals([
-            { workspace: "Notulia", tab: "T1", shellState: "running-command", lastCommand: "claude" },
-            { workspace: "Notulia", tab: "T2", shellState: "ready", lastCommand: "ls" },
-            { workspace: "Moltenterm", tab: "T1", shellState: "running-command", lastCommand: "" },
+            { workspace: "Notulia", tab: "T1", shellState: "running-command", lastCommand: "claude", durable: true },
+            { workspace: "Notulia", tab: "T2", shellState: "ready", lastCommand: "ls", durable: true },
+            { workspace: "Server", tab: "T1", shellState: "running-command", lastCommand: "" },
         ]);
         expect(summary).toEqual({
             total: 3,
-            running: [
-                { workspace: "Notulia", tab: "T1", command: "claude" },
-                { workspace: "Moltenterm", tab: "T1", command: "a command" },
-            ],
+            kept: 2,
+            running: [{ workspace: "Server", tab: "T1", command: "a command" }],
         });
-        expect(restartWarning(summary)).toBe("Restarting closes 3 terminals, and 2 are running a command:");
-        expect(restartWarning({ total: 1, running: [] })).toBe(
-            "Restarting closes 1 terminal; none is running a command."
+        expect(restartWarning(summary)).toBe(
+            "2 terminals keep running and reattach after the restart; restarting closes 1 terminal, and 1 is running a command:"
         );
-        expect(restartWarning({ total: 0, running: [] })).toBe("No terminal is open.");
+        expect(restartWarning({ total: 2, kept: 2, running: [] })).toBe(
+            "Your 2 terminals keep running and reattach after the restart."
+        );
+        expect(restartWarning({ total: 1, kept: 0, running: [] })).toBe(
+            "Restarting closes 1 terminal, none running a command."
+        );
+        expect(restartWarning({ total: 0, kept: 0, running: [] })).toBe("No terminal is open.");
     });
 
     it("knows an update was installed", () => {
