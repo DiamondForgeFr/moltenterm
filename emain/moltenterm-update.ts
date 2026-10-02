@@ -116,7 +116,8 @@ grace="\${MOLTENTERM_SWAP_GRACE:-${SwapGraceSeconds}}"
 # Tests start the binary directly so the reopened app keeps their isolated profile; users get a normal launch.
 reopen_app() {
     if [ -n "$MOLTENTERM_SWAP_DIRECT" ]; then
-        "$1/Contents/MacOS/Moltenterm" >/dev/null 2>&1 &
+        # shellcheck disable=SC2086
+        "$1/Contents/MacOS/Moltenterm" $MOLTENTERM_SWAP_ARGS >/dev/null 2>&1 &
     else
         open "$1"
     fi
