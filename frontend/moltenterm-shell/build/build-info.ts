@@ -13,6 +13,8 @@ export type MoltentermBuildInfo = {
     shortCommit: string;
     dirty: boolean;
     builtAt: string;
+    // Unix seconds; the gold delivery sets it (MOLTENTERM_BUILD_ID) so the app and its manifest agree (#64).
+    buildId: number;
 };
 
 type Git = (args: string[]) => string;
@@ -35,6 +37,7 @@ export function makeMoltentermBuildInfo(
     now: Date = new Date()
 ): MoltentermBuildInfo {
     const commit = tryGit(git, ["rev-parse", "HEAD"]);
+    const envBuildId = Number(env.MOLTENTERM_BUILD_ID);
     return {
         channel: env.MOLTENTERM_BUILD_CHANNEL || "local",
         branch: tryGit(git, ["rev-parse", "--abbrev-ref", "HEAD"]),
@@ -42,5 +45,6 @@ export function makeMoltentermBuildInfo(
         shortCommit: commit.slice(0, 7),
         dirty: tryGit(git, ["status", "--porcelain", "--untracked-files=no"]) !== "",
         builtAt: now.toISOString(),
+        buildId: Number.isInteger(envBuildId) && envBuildId > 0 ? envBuildId : Math.floor(now.getTime() / 1000),
     };
 }
