@@ -92,6 +92,18 @@ func TestRunNeedsTrustFirst(t *testing.T) {
 	}
 }
 
+func TestArtifactPath(t *testing.T) {
+	if got := artifactPath("/p", "dist/App.app"); got != "/p/dist/App.app" {
+		t.Errorf("relative artifact: %q", got)
+	}
+	if got := artifactPath("/p", "/abs/App.app"); got != "/abs/App.app" {
+		t.Errorf("absolute artifact: %q", got)
+	}
+	if got := artifactPath("/p", ""); got != "" {
+		t.Errorf("no artifact: %q", got)
+	}
+}
+
 func TestRunSucceedsWithPhasesAndLog(t *testing.T) {
 	r, dir := makeRunsFixture(t, `{"id":"gold","run":"echo '▶ phase: build'; echo working; echo '▶ phase: deliver'; pwd"}`)
 	rec := waitRun(t, r, dir, trustAndStart(t, r, dir, "gold").Id)
