@@ -6,6 +6,7 @@ package mission
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/baseds"
@@ -21,6 +22,7 @@ const routeQueueSize = 64
 
 type routeLink struct {
 	collector *Collector
+	runs      *Runs
 	output    chan []byte
 }
 
@@ -50,7 +52,7 @@ func (l *routeLink) answer(req wshutil.RpcMessage) {
 		panichandler.PanicHandler("molten:mission:route", recover())
 	}()
 	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := l.handle(req.Command, req.Data)
+	data, err := l.handle(req.Command, req.Source, req.Data)
 	if err != nil {
 		resp.Error = err.Error()
 	} else {
@@ -63,7 +65,69 @@ func (l *routeLink) answer(req wshutil.RpcMessage) {
 	l.output <- out
 }
 
-func (l *routeLink) handle(command string, data any) (any, error) {
+type runIdRequest struct {
+	Dir   string `json:"dir"`
+	RunId string `json:"runid"`
+	From  int64  `json:"from,omitempty"`
+}
+
+type trustRequest struct {
+	Dir  string `json:"dir"`
+	Hash string `json:"hash"`
+}
+
+// isWindowSource tells a request from a MoltenTerm window apart from one sent by a terminal: the router stamps the
+// source of every link that has a route of its own (wsh in a shell), so a terminal cannot pass for a tab.
+func isWindowSource(source string) bool {
+	return strings.HasPrefix(source, wshutil.RoutePrefix_Tab)
+}
+
+func (l *routeLink) handleRun(command string, source string, data any) (any, error) {
+	switch command {
+	case RunCommand:
+		var req RunRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.runs.Start(req)
+	case RunsCommand:
+		var req GetRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		if err := checkDir(req.Dir); err != nil {
+			return nil, err
+		}
+		return l.runs.List(req.Dir), nil
+	case LogCommand, CancelCommand:
+		var req runIdRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		if err := checkDir(req.Dir); err != nil {
+			return nil, err
+		}
+		if command == CancelCommand {
+			return nil, l.runs.Cancel(req.Dir, req.RunId)
+		}
+		return l.runs.ReadLog(req.Dir, req.RunId, req.From)
+	case TrustCommand:
+		if !isWindowSource(source) {
+			return nil, fmt.Errorf("a project's commands can only be trusted from a MoltenTerm window")
+		}
+		var req trustRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return nil, l.runs.GrantTrust(req.Dir, req.Hash)
+	}
+	return nil, fmt.Errorf("unknown mission control command %q", command)
+}
+
+func (l *routeLink) handle(command string, source string, data any) (any, error) {
+	if command != GetCommand && command != RefreshCommand {
+		return l.handleRun(command, source, data)
+	}
 	var req GetRequest
 	if err := utilfn.ReUnmarshal(&req, data); err != nil {
 		return nil, fmt.Errorf("reading the request: %w", err)
@@ -81,8 +145,8 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
 
-func registerRoute(collector *Collector) error {
-	link := &routeLink{collector: collector, output: make(chan []byte, routeQueueSize)}
+func registerRoute(collector *Collector, runs *Runs) error {
+	link := &routeLink{collector: collector, runs: runs, output: make(chan []byte, routeQueueSize)}
 	_, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId)
 	return err
 }
