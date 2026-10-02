@@ -197,6 +197,7 @@ need no marker. It reads only the backticked tokens of the first column: each is
 | `frontend/app/tab/tabbar.tsx` | The notification center's bell (`frontend/moltenterm-shell/notification-center.tsx`) in the right container (`MoltentermNotificationCenter`) | Notification center (FR-SHELL-002) | #45 |
 | `electron.vite.config.ts`, `frontend/app/workspace/workspace.tsx` | The renderer build defines `__MOLTENTERM_BUILD__` (`frontend/moltenterm-shell/build/build-info.ts`); the status bar (`frontend/moltenterm-shell/status-bar.tsx`) is mounted under the content | Status bar (FR-SHELL-008) | #55 |
 | `pkg/blockcontroller/blockcontroller.go` | Terminal output is scanned for the bell, OSC 9 and OSC 777 (`pkg/molten/attention/`) as it is stored | Coding agents waiting for the user raise a notification of their workspace, even in a workspace no window shows (FR-SHELL-003) | #46 |
+| `frontend/app/workspace/widgets.tsx` | The widget bar shows one "+" that opens Wave's launcher view (`frontend/moltenterm-shell/add-panel.ts`, `MoltentermAddPanel`); the settings button stays | Add-panel button (FR-SHELL-006) | #49 |
 
 ## Known upstream items
 
