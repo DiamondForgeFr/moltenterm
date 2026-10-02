@@ -809,6 +809,14 @@ func moltenGuideState(installed bool, foreign bool, version string) string {
 	return "no"
 }
 
+// The folder holding the agent's guides: a skill is a folder of its own inside it, a command a file.
+func moltenGuidesDir(status molten.AgentStatus) string {
+	if status.Format == "skill" {
+		return filepath.Dir(filepath.Dir(status.Path))
+	}
+	return filepath.Dir(status.Path)
+}
+
 func formatMoltenAgents(statuses []molten.AgentStatus) string {
 	var sb strings.Builder
 	tw := tabwriter.NewWriter(&sb, 0, 0, 2, ' ', 0)
@@ -831,7 +839,7 @@ func formatMoltenAgents(statuses []molten.AgentStatus) string {
 			}
 			cells = append(cells, "no")
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\n", strings.Join(cells, "\t"), status.Format, filepath.Dir(status.Path))
+		fmt.Fprintf(tw, "%s\t%s\t%s\n", strings.Join(cells, "\t"), status.Format, moltenGuidesDir(status))
 	}
 	tw.Flush()
 	sb.WriteString("\ninstall or update with: molten agent install <agent>\n")
