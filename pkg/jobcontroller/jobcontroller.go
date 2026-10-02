@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/blocklogger"
 	"github.com/wavetermdev/waveterm/pkg/filestore"
+	"github.com/wavetermdev/waveterm/pkg/molten/attention" // MOLTENTERM-PATCH (#72)
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/streamclient"
@@ -806,6 +807,10 @@ func handleAppendJobFile(ctx context.Context, jobId string, fileName string, dat
 		if err != nil {
 			return fmt.Errorf("error appending to block file: %w", err)
 		}
+		// MOLTENTERM-PATCH (#72): durable shells raise agents' notifications too (#46)
+		if fileName == JobOutputFileName {
+			attention.ScanTerminalOutput(job.AttachedBlockId, data)
+		}
 	}
 
 	return nil
@@ -1362,8 +1367,16 @@ func IsBlockTermDurable(block *waveobj.Block) bool {
 
 	// 2. Check if connection is local or WSL (not durable)
 	connName := block.Meta.GetString(waveobj.MetaKey_Connection, "")
-	if conncontroller.IsLocalConnName(connName) || conncontroller.IsWslConnName(connName) {
+	if conncontroller.IsWslConnName(connName) {
 		return false
+	}
+	// MOLTENTERM-PATCH (#72): local shells survive a restart unless the block says otherwise; Wave's global
+	// term:durable (false by default) keeps applying to remote connections only
+	if conncontroller.IsLocalConnName(connName) {
+		if val, ok := block.Meta[waveobj.MetaKey_TermDurable].(bool); ok {
+			return val
+		}
+		return true
 	}
 
 	// 3. Check config hierarchy: blockmeta → connection → global (default true)

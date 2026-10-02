@@ -142,11 +142,11 @@ func (dsc *DurableShellController) Start(ctx context.Context, blockMeta waveobj.
 		return fmt.Errorf("error getting block: %w", err)
 	}
 
-	if conncontroller.IsLocalConnName(dsc.ConnName) {
-		return fmt.Errorf("durable shell controller requires a remote connection")
-	}
-
+	// MOLTENTERM-PATCH (#72): local shells are durable too (moltenterm_localjob.go)
 	var jobId string
+	if blockData.JobId != "" && dsc.releaseIncompatibleLocalJob(ctx, blockData.JobId) {
+		blockData.JobId = ""
+	}
 	if blockData.JobId != "" {
 		status, err := jobcontroller.GetJobManagerStatus(ctx, blockData.JobId)
 		if err != nil {
@@ -231,6 +231,9 @@ func (dsc *DurableShellController) startNewJob(ctx context.Context, blockMeta wa
 	}
 	if rtOpts != nil && rtOpts.TermSize.Rows > 0 && rtOpts.TermSize.Cols > 0 {
 		termSize = rtOpts.TermSize
+	}
+	if conncontroller.IsLocalConnName(connName) {
+		return dsc.startNewLocalJob(ctx, blockMeta, rtOpts) // MOLTENTERM-PATCH (#72)
 	}
 	cmdStr := blockMeta.GetString(waveobj.MetaKey_Cmd, "")
 	cwd := blockMeta.GetString(waveobj.MetaKey_CmdCwd, "")
