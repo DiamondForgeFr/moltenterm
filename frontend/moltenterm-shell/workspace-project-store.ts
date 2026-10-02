@@ -15,11 +15,11 @@ import {
     linkUpdate,
     logoProbeOrder,
     MaxProjectLogos,
-    pathBaseName,
     pathParent,
     projectFilePath,
     ProjectLogoMetaKey,
     ProjectLogoOfferMetaKey,
+    projectName,
     ProjectPipelineFile,
     ProjectSaaSFoundryFile,
     readmeFirstImage,
@@ -30,8 +30,9 @@ import {
 
 const MaxGitRootDepth = 40;
 const MaxReadmeBytes = 256 * 1024;
+const MaxJsonBytes = 1024 * 1024;
 
-export type ProjectFacts = { exists: boolean; hasPipeline: boolean; harness: string };
+export type ProjectFacts = { exists: boolean; hasPipeline: boolean; harness: string; name: string };
 
 type MoltentermElectronApi = ElectronApi & {
     moltentermChoosePath: (opts: MoltentermChoosePathOpts) => Promise<string>;
@@ -66,33 +67,47 @@ export async function resolveProjectDir(dir: string): Promise<string> {
     return dir;
 }
 
+async function readText(path: string, maxBytes: number): Promise<string> {
+    try {
+        const data = await RpcApi.FileReadCommand(TabRpcClient, { info: { path }, at: { offset: 0, size: maxBytes } });
+        return data?.data64 ? base64ToString(data.data64) : null;
+    } catch {
+        return null;
+    }
+}
+
+async function readJson(path: string): Promise<any> {
+    const text = await readText(path, MaxJsonBytes);
+    if (text == null) {
+        return null;
+    }
+    try {
+        return JSON.parse(text);
+    } catch {
+        return null;
+    }
+}
+
 export async function readProjectFacts(dir: string): Promise<ProjectFacts> {
-    const [folder, pipeline, saasfoundry] = await Promise.all([
+    const [folder, pipeline, saasfoundry, pkg] = await Promise.all([
         statPath(dir),
-        statPath(projectFilePath(dir, ProjectPipelineFile)),
-        statPath(projectFilePath(dir, ProjectSaaSFoundryFile)),
+        readJson(projectFilePath(dir, ProjectPipelineFile)),
+        readJson(projectFilePath(dir, ProjectSaaSFoundryFile)),
+        readJson(projectFilePath(dir, "package.json")),
     ]);
     return {
         exists: folder?.isdir === true,
-        hasPipeline: pipeline != null && !pipeline.isdir,
+        hasPipeline: pipeline != null,
         harness: saasfoundry != null ? "SaaSFoundryAI" : "",
+        name: projectName(dir, pipeline, saasfoundry, pkg),
     };
 }
 
 async function readReadme(dir: string): Promise<string> {
     for (const name of ["README.md", "readme.md", "Readme.md"]) {
-        const info = await statPath(projectFilePath(dir, name));
-        if (info == null || info.isdir) {
-            continue;
-        }
-        try {
-            const data = await RpcApi.FileReadCommand(TabRpcClient, {
-                info: { path: info.path },
-                at: { offset: 0, size: MaxReadmeBytes },
-            });
-            return data?.data64 ? base64ToString(data.data64) : "";
-        } catch {
-            return "";
+        const text = await readText(projectFilePath(dir, name), MaxReadmeBytes);
+        if (text != null) {
+            return text;
         }
     }
     return "";
@@ -142,10 +157,11 @@ export async function offerProjectLogo(ws: Workspace): Promise<void> {
         return;
     }
     await setWorkspaceMeta(ws.oid, { [ProjectLogoOfferMetaKey]: project.dir });
+    const facts = await readProjectFacts(project.dir);
     addMoltentermNotification({
         source: "moltenterm",
         kind: "info",
-        title: `Use ${pathBaseName(project.dir)}'s logo for this workspace?`,
+        title: `Use ${facts.name}'s logo for this workspace?`,
         message: "Right-click the workspace in the rail, then Edit workspace…, to pick an image or keep the icon.",
         workspaceid: ws.oid,
     });

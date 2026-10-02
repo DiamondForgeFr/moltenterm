@@ -90,6 +90,18 @@ export function pathParent(path: string): string {
     return index === 0 ? trimmed.slice(0, 1) : trimmed.slice(0, index);
 }
 
+function jsonName(value: any, key: string): string {
+    const name = value?.[key];
+    return typeof name === "string" ? name : "";
+}
+
+// The same order as molten: the pipeline's name, then SaaSFoundryAI's project name, package.json, the folder name.
+export function projectName(dir: string, pipeline: any, saasfoundry: any, pkg: any): string {
+    return (
+        jsonName(pipeline, "name") || jsonName(saasfoundry, "projectName") || jsonName(pkg, "name") || pathBaseName(dir)
+    );
+}
+
 export function isLogoFile(path: string): boolean {
     const match = /\.([a-z0-9]+)$/i.exec(path ?? "");
     return match != null && LogoExtensions.includes(match[1].toLowerCase());

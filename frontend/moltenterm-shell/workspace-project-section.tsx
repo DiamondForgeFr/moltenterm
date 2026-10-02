@@ -154,7 +154,7 @@ export function WorkspaceProjectSection({ workspaceId }: { workspaceId: string }
                 <>
                     <div className="flex items-center gap-2">
                         <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm">{pathBaseName(project.dir)}</div>
+                            <div className="truncate text-sm">{facts?.name ?? pathBaseName(project.dir)}</div>
                             <div className="truncate text-xs text-muted" title={project.dir}>
                                 {project.dir}
                             </div>
