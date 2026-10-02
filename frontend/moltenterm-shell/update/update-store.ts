@@ -7,7 +7,7 @@
 import { ClientModel } from "@/app/store/client-model";
 import { getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
-import { WorkspaceService } from "@/app/store/services";
+import { ObjectService, WorkspaceService } from "@/app/store/services";
 import { makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -207,12 +207,19 @@ export async function readTerminals(): Promise<TerminalSummary> {
             } catch {
                 rtInfo = null;
             }
+            let jobId = "";
+            try {
+                jobId = ((await ObjectService.GetObject(makeORef("block", block.blockid))) as Block)?.jobid ?? "";
+            } catch {
+                jobId = "";
+            }
             const tabIndex = workspace?.tabids?.indexOf(block.tabid) ?? -1;
             sources.push({
                 workspace: workspace?.name || "Unsaved workspace",
                 tab: tabIndex >= 0 ? `T${tabIndex + 1}` : "",
                 shellState: rtInfo?.["shell:state"] ?? "",
                 lastCommand: rtInfo?.["shell:lastcmd"] ?? "",
+                durable: jobId !== "",
             });
         }
     }

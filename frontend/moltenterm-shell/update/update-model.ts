@@ -44,30 +44,44 @@ export function updateLabel(manifest: GoldManifest): string {
 
 export type RunningTerminal = { workspace: string; tab: string; command: string };
 
-export type TerminalSummary = { total: number; running: RunningTerminal[] };
+// Durable terminals (#72) keep running across the restart; only the others stop.
+export type TerminalSummary = { total: number; kept: number; running: RunningTerminal[] };
 
-type TerminalSource = { workspace: string; tab: string; shellState: string; lastCommand: string };
+type TerminalSource = { workspace: string; tab: string; shellState: string; lastCommand: string; durable?: boolean };
 
 export function summarizeTerminals(sources: readonly TerminalSource[]): TerminalSummary {
     return {
         total: sources.length,
+        kept: sources.filter((s) => s.durable).length,
         running: sources
-            .filter((s) => s.shellState === "running-command")
+            .filter((s) => !s.durable && s.shellState === "running-command")
             .map((s) => ({ workspace: s.workspace, tab: s.tab, command: s.lastCommand || "a command" })),
     };
+}
+
+function terminals(n: number): string {
+    return n === 1 ? "1 terminal" : `${n} terminals`;
 }
 
 export function restartWarning(summary: TerminalSummary): string {
     if (summary == null || summary.total === 0) {
         return "No terminal is open.";
     }
-    const shells = summary.total === 1 ? "1 terminal" : `${summary.total} terminals`;
+    const kept = summary.kept ?? 0;
+    const closed = summary.total - kept;
+    const keptText = kept > 0 ? `${terminals(kept)} keep running and reattach after the restart` : "";
+    if (closed === 0) {
+        return `Your ${keptText}.`;
+    }
+    const prefix = keptText
+        ? `${keptText[0].toUpperCase()}${keptText.slice(1)}; restarting closes `
+        : "Restarting closes ";
     if (summary.running.length === 0) {
-        return `Restarting closes ${shells}; none is running a command.`;
+        return `${prefix}${terminals(closed)}, none running a command.`;
     }
     const running =
         summary.running.length === 1 ? "1 is running a command" : `${summary.running.length} are running a command`;
-    return `Restarting closes ${shells}, and ${running}:`;
+    return `${prefix}${terminals(closed)}, and ${running}:`;
 }
 
 // At launch: an update was installed when this build is newer than the last one that ran (never on a first run).
