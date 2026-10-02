@@ -1,0 +1,274 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+// Mission Control's collector (DS-MC-001): one place in wavesrv reads git and GitHub for the linked projects, caches
+// the result, and publishes it. Every tab runs its own renderer: the panels only ask and display, so a second tab
+// never runs the collection twice.
+package mission
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
+	"github.com/wavetermdev/waveterm/pkg/wavebase"
+	"github.com/wavetermdev/waveterm/pkg/wps"
+)
+
+// must match the names in frontend/moltenterm-shell/mission/mission-client.ts
+const (
+	RouteId           = "molten:mission"
+	GetCommand        = "moltenmissionget"
+	RefreshCommand    = "moltenmissionrefresh"
+	UpdateEvent       = "molten:mission:update"
+	DefaultMaxAgeSec  = 60
+	collectTimeout    = 2 * time.Minute
+	fetchEvery        = 5 * time.Minute
+	minForcedInterval = 10 * time.Second
+	// NFR-MC-003: GitHub is read at most once a minute per project, however many panels ask.
+	minGithubInterval = time.Minute
+)
+
+type Snapshot struct {
+	Dir        string          `json:"dir"`
+	Missing    bool            `json:"missing,omitempty"`
+	Git        *GitSnapshot    `json:"git,omitempty"`
+	GitError   string          `json:"giterror,omitempty"`
+	GitAt      int64           `json:"gitat,omitempty"`
+	Github     *GithubSnapshot `json:"github,omitempty"`
+	GithubAt   int64           `json:"githubat,omitempty"`
+	Refreshing bool            `json:"refreshing,omitempty"`
+}
+
+type GetRequest struct {
+	Dir       string `json:"dir"`
+	MaxAgeSec int    `json:"maxagesec,omitempty"`
+}
+
+type projectState struct {
+	snap       Snapshot
+	loaded     bool
+	refreshing bool
+	fetchedAt  time.Time
+	forcedAt   time.Time
+}
+
+type Collector struct {
+	lock     sync.Mutex
+	cacheDir string
+	run      Runner
+	publish  func(Snapshot)
+	now      func() time.Time
+	projects map[string]*projectState
+}
+
+func MakeCollector(cacheDir string, run Runner, publish func(Snapshot)) *Collector {
+	return &Collector{
+		cacheDir: cacheDir,
+		run:      run,
+		publish:  publish,
+		now:      time.Now,
+		projects: map[string]*projectState{},
+	}
+}
+
+func CacheDir(dataDir string) string {
+	return filepath.Join(dataDir, "molten", "mission")
+}
+
+func (c *Collector) cacheFile(dir string) string {
+	sum := sha256.Sum256([]byte(dir))
+	return filepath.Join(c.cacheDir, hex.EncodeToString(sum[:8])+".json")
+}
+
+func (c *Collector) loadCache(dir string) Snapshot {
+	snap := Snapshot{Dir: dir}
+	data, err := os.ReadFile(c.cacheFile(dir))
+	if err != nil {
+		return snap
+	}
+	var cached Snapshot
+	if json.Unmarshal(data, &cached) == nil && cached.Dir == dir {
+		cached.Refreshing = false
+		return cached
+	}
+	return snap
+}
+
+func (c *Collector) saveCache(snap Snapshot) {
+	if c.cacheDir == "" {
+		return
+	}
+	if err := os.MkdirAll(c.cacheDir, 0700); err != nil {
+		return
+	}
+	data, err := json.Marshal(snap)
+	if err != nil {
+		return
+	}
+	tmp := c.cacheFile(snap.Dir) + ".tmp"
+	if os.WriteFile(tmp, data, 0600) == nil {
+		os.Rename(tmp, c.cacheFile(snap.Dir))
+	}
+}
+
+func checkDir(dir string) error {
+	if dir == "" || !filepath.IsAbs(dir) {
+		return fmt.Errorf("a project folder must be an absolute path (got %q)", dir)
+	}
+	return nil
+}
+
+func (c *Collector) stateLocked(dir string) *projectState {
+	state := c.projects[dir]
+	if state == nil {
+		state = &projectState{}
+		c.projects[dir] = state
+	}
+	if !state.loaded {
+		state.snap = c.loadCache(dir)
+		state.loaded = true
+	}
+	return state
+}
+
+type refreshPlan struct {
+	git    bool
+	fetch  bool
+	github bool
+}
+
+// startRefreshLocked decides what to read again and marks the project as refreshing; the caller runs it outside the
+// lock. A refresh already running is never doubled.
+func (c *Collector) startRefreshLocked(state *projectState, maxAge time.Duration, forced bool) (refreshPlan, bool) {
+	now := c.now()
+	if state.refreshing {
+		return refreshPlan{}, false
+	}
+	if forced && now.Sub(state.forcedAt) < minForcedInterval {
+		forced = false
+	}
+	gitAge := now.Sub(time.UnixMilli(state.snap.GitAt))
+	githubAge := now.Sub(time.UnixMilli(state.snap.GithubAt))
+	plan := refreshPlan{
+		git:    forced || gitAge >= maxAge,
+		github: githubAge >= minGithubInterval && (forced || githubAge >= maxAge),
+	}
+	if !plan.git && !plan.github {
+		return plan, false
+	}
+	plan.fetch = plan.git && (forced || now.Sub(state.fetchedAt) >= fetchEvery)
+	if forced {
+		state.forcedAt = now
+	}
+	state.refreshing = true
+	return plan, true
+}
+
+func (c *Collector) snapshotLocked(state *projectState) Snapshot {
+	snap := state.snap
+	snap.Refreshing = state.refreshing
+	return snap
+}
+
+func (c *Collector) prepareGet(dir string, maxAge time.Duration, forced bool) (Snapshot, refreshPlan, bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	state := c.stateLocked(dir)
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		state.snap.Missing = true
+		return c.snapshotLocked(state), refreshPlan{}, false
+	}
+	state.snap.Missing = false
+	plan, start := c.startRefreshLocked(state, maxAge, forced)
+	return c.snapshotLocked(state), plan, start
+}
+
+// Get answers at once with what is known (cached data first, NFR-MC-002) and starts a refresh when it is older than
+// maxAge; the refreshed snapshot comes as an event.
+func (c *Collector) Get(dir string, maxAge time.Duration, forced bool) (Snapshot, error) {
+	if err := checkDir(dir); err != nil {
+		return Snapshot{}, err
+	}
+	dir = filepath.Clean(dir)
+	snap, plan, start := c.prepareGet(dir, maxAge, forced)
+	if start {
+		go c.refresh(dir, plan)
+	}
+	return snap, nil
+}
+
+func (c *Collector) refresh(dir string, plan refreshPlan) {
+	defer func() {
+		if r := recover(); r != nil {
+			panichandler.PanicHandler("molten:mission:refresh", r)
+			// A refresh that never ends would block every later one.
+			c.applyRefresh(dir, refreshPlan{}, nil, nil, nil)
+		}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), collectTimeout)
+	defer cancel()
+	var gitSnap *GitSnapshot
+	var gitErr error
+	if plan.git {
+		gitSnap, gitErr = CollectGit(ctx, c.run, dir, plan.fetch)
+	}
+	var githubSnap *GithubSnapshot
+	if plan.github {
+		githubSnap = CollectGithub(ctx, c.run, dir)
+	}
+	snap := c.applyRefresh(dir, plan, gitSnap, gitErr, githubSnap)
+	c.saveCache(snap)
+	if c.publish != nil {
+		c.publish(snap)
+	}
+}
+
+func (c *Collector) applyRefresh(dir string, plan refreshPlan, gitSnap *GitSnapshot, gitErr error, githubSnap *GithubSnapshot) Snapshot {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	state := c.stateLocked(dir)
+	now := c.now()
+	if plan.git {
+		state.snap.GitAt = now.UnixMilli()
+		if gitErr != nil {
+			state.snap.GitError = gitErr.Error()
+		} else {
+			state.snap.Git = gitSnap
+			state.snap.GitError = ""
+		}
+		if plan.fetch {
+			state.fetchedAt = now
+		}
+	}
+	if plan.github {
+		state.snap.Github = githubSnap
+		state.snap.GithubAt = now.UnixMilli()
+	}
+	state.refreshing = false
+	return c.snapshotLocked(state)
+}
+
+func publishSnapshot(snap Snapshot) {
+	wps.Broker.Publish(wps.WaveEvent{
+		Event:  UpdateEvent,
+		Scopes: []string{snap.Dir},
+		Data:   snap,
+	})
+}
+
+// Start registers the collector on wavesrv's router; wavesrv calls it once at start.
+func Start() {
+	collector := MakeCollector(CacheDir(wavebase.GetWaveDataDir()), ExecRunner, publishSnapshot)
+	if err := registerRoute(collector); err != nil {
+		log.Printf("molten: mission control collector not started: %v\n", err)
+	}
+}
