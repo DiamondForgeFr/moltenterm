@@ -27,7 +27,7 @@
         "label": "web",
         "blockdef": {
             "meta": {
-                "view": "web"
+                "view": "molten-browser"
             }
         }
     },
