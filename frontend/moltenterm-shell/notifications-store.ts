@@ -5,7 +5,7 @@
 // notifications-model.ts).
 
 import { ClientModel } from "@/app/store/client-model";
-import { atoms, getApi } from "@/app/store/global";
+import { atoms, getApi, getFocusedBlockId } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { activeTabIdAtom } from "@/app/store/tab-model";
 import { makeORef } from "@/app/store/wos";
@@ -102,6 +102,31 @@ export class MoltentermNotifications {
             }
         }
     }
+}
+
+// wavesrv records agents' signals as unread (pkg/molten/attention): it cannot know what the user looks at. A signal
+// from the block the user has in front of them is marked read as soon as it arrives.
+export const AutoReadWindowMs = 15000;
+
+export function startNotificationAutoRead(): () => void {
+    const model = MoltentermNotifications.getInstance();
+    return globalStore.sub(model.entriesAtom, () => {
+        if (!document.hasFocus() || document.visibilityState !== "visible") {
+            return;
+        }
+        const focused = getFocusedBlockId();
+        if (focused == null) {
+            return;
+        }
+        const now = Date.now();
+        const ids = model
+            .entries()
+            .filter((e) => !e.read && e.blockid === focused && now - e.time < AutoReadWindowMs)
+            .map((e) => e.id);
+        if (ids.length > 0) {
+            model.markRead(ids);
+        }
+    });
 }
 
 export function addMoltentermNotification(input: MoltentermNotificationInput): void {

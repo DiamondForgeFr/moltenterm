@@ -36,12 +36,6 @@ import {
     isClaudeCodeCommand,
     type ShellIntegrationStatus,
 } from "./osc-handlers";
-// MOLTENTERM-PATCH (#46): agents' bell, OSC 9 and OSC 777 become notifications of the workspace
-import {
-    handleAttentionBell,
-    handleAttentionOsc777,
-    handleAttentionOsc9,
-} from "../../../moltenterm-shell/agent-attention";
 import {
     bufferLinesToText,
     createTempFileFromBlob,
@@ -203,11 +197,6 @@ export class TermWrap {
                 return false;
             }
         });
-        // MOLTENTERM-PATCH (#46): notification sequences from coding agents
-        this.terminal.parser.registerOscHandler(9, (data: string) => handleAttentionOsc9(data, this.blockId, this.loaded));
-        this.terminal.parser.registerOscHandler(777, (data: string) =>
-            handleAttentionOsc777(data, this.blockId, this.loaded)
-        );
         this.terminal.parser.registerOscHandler(16162, (data: string) => {
             try {
                 return handleOsc16162Command(data, this.blockId, this.loaded, this);
@@ -269,7 +258,6 @@ export class TermWrap {
                     return true;
                 }
                 console.log("BEL received in terminal", this.blockId);
-                handleAttentionBell(this.blockId); // MOLTENTERM-PATCH (#46)
                 const bellSoundEnabled =
                     globalStore.get(getOverrideConfigAtom(this.blockId, "term:bellsound")) ?? false;
                 if (bellSoundEnabled) {
