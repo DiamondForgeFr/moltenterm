@@ -201,6 +201,7 @@ need no marker. It reads only the backticked tokens of the first column: each is
 | `frontend/app/block/blockregistry.ts`, `emain/preload.ts`, `pkg/wconfig/defaultconfig/widgets.json` | The `molten-browser` view (`frontend/moltenterm-shell/browser/`) is registered; a page's new window goes to the webview it comes from; the default "web" widget opens it (JSON, no marker) | Browser tabs (FR-SHELL-007) | #50 |
 | `emain/emain-ipc.ts`, `emain/preload.ts` | Native folder and image pickers for the Moltenterm shell (`emain/moltenterm-dialogs.ts`, `moltenterm-choose-path`) | Linking a workspace to its project and choosing its logo (FR-MC-001); 2 of Mission Control's 8 Wave files | #30 |
 | `frontend/app/block/blockregistry.ts`, `pkg/wconfig/defaultconfig/widgets.json`, `cmd/server/main-server.go` | Moltenterm's views are registered in one call (`frontend/moltenterm-shell/views.ts`: browser, Timeline, CI/CD); the launcher offers Timeline and CI/CD (JSON, no marker); wavesrv starts Mission Control's collector (`pkg/molten/mission/`, router leaf `molten:mission`) | Timeline and CI/CD panels (FR-MC-002); files already patched, Mission Control stays at 2 of 8 | #31 |
+| `emain/emain-window.ts` | A workspace switch keeps the views of the saved workspace left (off-screen, in the tab cache) instead of destroying them, and shows the next view only once it has rendered (`emain/moltenterm-workspace-switch.ts`) | Switching workspace changes only the content; the rail, tab bar and status bar no longer flash (file already patched) | #68 |
 
 ## Known upstream items
 
