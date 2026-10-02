@@ -211,7 +211,7 @@ export function BuildRunCard({ run }: { run: RunRecord }) {
                 <i className="fa fa-solid fa-hammer text-accent" /> Build local
             </div>
             <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 text-sm font-medium" title={run.command}>
+                <div className="min-w-0 text-sm font-medium text-primary" title={run.command}>
                     {run.title}
                 </div>
                 <RunStateBadge state={run.state} />
@@ -279,7 +279,7 @@ export function RecentBuilds({ runs }: { runs: RunRecord[] }) {
             {builds.map((run) => (
                 <div key={run.id} className="flex items-center gap-2 border-b border-border px-3 py-2 last:border-b-0">
                     <RunStateBadge state={run.state} />
-                    <span className="min-w-0 flex-1 truncate text-sm" title={run.command}>
+                    <span className="min-w-0 flex-1 truncate text-sm text-primary" title={run.command}>
                         {run.title}
                     </span>
                     <span className="text-xs text-muted">{timeAgo(new Date(run.startedat).toISOString())}</span>
