@@ -34,6 +34,7 @@ describe("makeMoltentermBuildInfo", () => {
             shortCommit: "a4e3b72",
             dirty: false,
             builtAt: "2026-10-02T08:00:00.000Z",
+            buildId: 1790928000,
         });
     });
 
@@ -53,5 +54,10 @@ describe("makeMoltentermBuildInfo", () => {
     it("works outside a git checkout", () => {
         const info = makeMoltentermBuildInfo({}, fakeGit({}), now);
         expect(info).toMatchObject({ branch: "", commit: "", shortCommit: "", dirty: false, channel: "local" });
+    });
+
+    it("takes the build id from the gold delivery", () => {
+        expect(makeMoltentermBuildInfo({ MOLTENTERM_BUILD_ID: "1790930000" }, fakeGit({}), now).buildId).toBe(1790930000);
+        expect(makeMoltentermBuildInfo({ MOLTENTERM_BUILD_ID: "x" }, fakeGit({}), now).buildId).toBe(1790928000);
     });
 });

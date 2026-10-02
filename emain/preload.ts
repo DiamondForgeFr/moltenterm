@@ -75,6 +75,11 @@ contextBridge.exposeInMainWorld("api", {
     setIsActive: () => ipcRenderer.invoke("set-is-active"),
     // MOLTENTERM-PATCH (#30): native pickers of the Moltenterm shell (emain/moltenterm-dialogs.ts)
     moltentermChoosePath: (opts: any) => ipcRenderer.invoke("moltenterm-choose-path", opts),
+    // MOLTENTERM-PATCH (#64): gold updates (emain/moltenterm-update.ts)
+    moltentermUpdateCheck: (ownBuildId: number) => ipcRenderer.invoke("moltenterm-update-check", ownBuildId),
+    moltentermUpdateApply: (buildId: number, when: string) =>
+        ipcRenderer.invoke("moltenterm-update-apply", buildId, when),
+    moltentermUpdateLast: () => ipcRenderer.invoke("moltenterm-update-last"),
 });
 
 // Custom event for "new-window"

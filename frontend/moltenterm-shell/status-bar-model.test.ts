@@ -11,6 +11,7 @@ const build = {
     shortCommit: "a4e3b72",
     dirty: true,
     builtAt: "2026-10-02T08:00:00.000Z",
+    buildId: 1790928000,
 };
 
 describe("makeStatusBarView", () => {
