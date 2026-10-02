@@ -17,7 +17,8 @@ import "./tabbar.scss";
 import { TabBarEnv } from "./tabbarenv";
 import { UpdateStatusBanner } from "./updatebanner";
 import { WorkspaceSwitcher } from "./workspaceswitcher";
-import { MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44)
+import { MoltentermNotificationCenter, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44, #45)
+import { NotificationCenter } from "../../moltenterm-shell/notification-center"; // MOLTENTERM-PATCH (#45)
 
 const TabDefaultWidth = 130;
 const TabMinWidth = 100;
@@ -670,6 +671,8 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
             </button>
             <div className="flex-1" />
             <div ref={rightContainerRef} className="flex flex-row gap-1 items-end">
+                {/* MOLTENTERM-PATCH (#45): the notification center's bell */}
+                {MoltentermNotificationCenter && <NotificationCenter />}
                 <UpdateStatusBanner />
                 <div
                     className="h-full shrink-0 z-window-drag"

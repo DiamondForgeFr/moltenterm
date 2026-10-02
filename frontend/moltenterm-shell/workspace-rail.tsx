@@ -14,9 +14,11 @@ import { WorkspaceEditor } from "@/app/tab/workspaceeditor";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { unreadByWorkspace } from "./notifications-model";
+import { MoltentermNotifications } from "./notifications-store";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
 
-async function loadWorkspaceSources(): Promise<WorkspaceRailSource[]> {
+export async function loadWorkspaceSources(): Promise<WorkspaceRailSource[]> {
     const list = await WorkspaceService.ListWorkspaces();
     const sources: WorkspaceRailSource[] = [];
     for (const entry of list ?? []) {
@@ -104,10 +106,12 @@ function WorkspaceEditPanel({
 
 function RailButton({
     entry,
+    unread,
     onHover,
     onEdit,
 }: {
     entry: WorkspaceRailEntry;
+    unread: number;
     onHover: (label: string, anchor: Anchor) => void;
     onEdit: (entry: WorkspaceRailEntry, anchor: Anchor) => void;
 }) {
@@ -153,7 +157,13 @@ function RailButton({
             data-workspace-id={entry.id}
             onClick={onClick}
             onContextMenu={onContextMenu}
-            onMouseEnter={() => onHover(entry.saved ? entry.name : "Unsaved workspace: click to save it", anchorOf())}
+            onMouseEnter={() =>
+                onHover(
+                    (entry.saved ? entry.name : "Unsaved workspace: click to save it") +
+                        (unread > 0 ? ` · ${unread} unread` : ""),
+                    anchorOf()
+                )
+            }
             onMouseLeave={() => onHover(null, null)}
             className={cn(
                 "molten-rail-item relative flex h-9 w-9 cursor-pointer items-center justify-center rounded text-[17px] transition-colors hover:bg-hover",
@@ -169,7 +179,12 @@ function RailButton({
             ) : (
                 <i className="fa fa-solid fa-floppy-disk text-secondary" />
             )}
-            {/* The notification dot of FR-SHELL-002 (#45) goes here. */}
+            {unread > 0 ? (
+                <span
+                    className="molten-rail-dot absolute top-1 right-1 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-[var(--color-background)]"
+                    aria-label={`${unread} unread`}
+                />
+            ) : null}
         </button>
     );
 }
@@ -190,6 +205,8 @@ export function WorkspaceRail() {
     useEffect(refresh, [active?.oid, active?.name, active?.icon, active?.color, refresh]);
 
     const entries = makeWorkspaceRailEntries(sources, active);
+    const notifications = useAtomValue(MoltentermNotifications.getInstance().entriesAtom);
+    const unread = unreadByWorkspace(notifications);
     const closeEditor = useCallback(() => setEditing(null), []);
     return (
         <nav
@@ -200,6 +217,7 @@ export function WorkspaceRail() {
                 <RailButton
                     key={entry.id}
                     entry={entry}
+                    unread={unread.get(entry.id) ?? 0}
                     onHover={(label, anchor) => setTooltip(label == null ? null : { label, anchor })}
                     onEdit={(e, anchor) => {
                         setTooltip(null);
