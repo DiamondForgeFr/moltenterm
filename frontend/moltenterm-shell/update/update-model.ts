@@ -9,6 +9,8 @@ import type { GoldManifest, GoldNote } from "@/util/moltenterm-gold";
 // Client meta keys, shared by every window: the build the user put off, and the build already announced.
 export const UpdateSkippedMetaKey = "molten:update:skipped";
 export const UpdateNotifiedMetaKey = "molten:update:notified";
+// The newest build that ran: a higher one at launch means an update was installed.
+export const UpdateLastBuildMetaKey = "molten:update:lastbuild";
 
 export const UpdateCheckIntervalMs = 60_000;
 
@@ -66,4 +68,9 @@ export function restartWarning(summary: TerminalSummary): string {
     const running =
         summary.running.length === 1 ? "1 is running a command" : `${summary.running.length} are running a command`;
     return `Restarting closes ${shells}, and ${running}:`;
+}
+
+// At launch: an update was installed when this build is newer than the last one that ran (never on a first run).
+export function installedSince(ownBuildId: number, lastBuildId: number): boolean {
+    return lastBuildId > 0 && ownBuildId > lastBuildId;
 }

@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { groupNotes, restartWarning, shouldOffer, summarizeTerminals, updateLabel } from "./update-model";
+import {
+    groupNotes,
+    installedSince,
+    restartWarning,
+    shouldOffer,
+    summarizeTerminals,
+    updateLabel,
+} from "./update-model";
 
 const manifest = { buildId: 200, commit: "07e51a72fed3" } as any;
 
@@ -44,5 +51,12 @@ describe("update model", () => {
             "Restarting closes 1 terminal; none is running a command."
         );
         expect(restartWarning({ total: 0, running: [] })).toBe("No terminal is open.");
+    });
+
+    it("knows an update was installed", () => {
+        expect(installedSince(200, 100)).toBe(true);
+        expect(installedSince(200, 0)).toBe(false);
+        expect(installedSince(100, 200)).toBe(false);
+        expect(installedSince(200, 200)).toBe(false);
     });
 });
