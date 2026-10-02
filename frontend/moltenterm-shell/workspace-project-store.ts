@@ -5,12 +5,13 @@
 // is ever written in the project.
 
 import { getApi } from "@/app/store/global";
+import { WorkspaceService } from "@/app/store/services";
 import { makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MoltentermChoosePathOpts } from "@/util/moltenterm-dialogs";
 import { base64ToString } from "@/util/util";
-import { addMoltentermNotification } from "./notifications-store";
+import { ProjectDismissedMetaKey } from "./project-detect";
 import {
     linkUpdate,
     logoProbeOrder,
@@ -24,7 +25,6 @@ import {
     ProjectSaaSFoundryFile,
     readmeFirstImage,
     readWorkspaceProject,
-    shouldOfferLogo,
     unlinkUpdate,
 } from "./workspace-project";
 
@@ -51,8 +51,8 @@ async function statPath(path: string): Promise<FileInfo> {
     }
 }
 
-// The closest folder at or above dir holding a ".git" entry, as molten does; the folder itself without one.
-export async function resolveProjectDir(dir: string): Promise<string> {
+// The closest folder at or above dir holding a ".git" entry, or "" when dir is in no repository.
+export async function findProjectRoot(dir: string): Promise<string> {
     let current = dir.replace(/[/\\]+$/, "") || dir;
     for (let i = 0; i < MaxGitRootDepth && current !== ""; i++) {
         if ((await statPath(projectFilePath(current, ".git") ?? "")) != null) {
@@ -64,7 +64,12 @@ export async function resolveProjectDir(dir: string): Promise<string> {
         }
         current = parent;
     }
-    return dir;
+    return "";
+}
+
+// The closest folder at or above dir holding a ".git" entry, as molten does; the folder itself without one.
+export async function resolveProjectDir(dir: string): Promise<string> {
+    return (await findProjectRoot(dir)) || dir;
 }
 
 async function readText(path: string, maxBytes: number): Promise<string> {
@@ -145,24 +150,16 @@ export async function setWorkspaceLogo(workspaceId: string, logo: string): Promi
     await setWorkspaceMeta(workspaceId, { [ProjectLogoMetaKey]: logo || null });
 }
 
-// Once per linked project: when it has images and the workspace still shows its own icon, a notification points to
-// the editor. Recorded before the notification, so a second window or a quick relink never offers it twice.
-export async function offerProjectLogo(ws: Workspace): Promise<void> {
-    const project = readWorkspaceProject(ws);
-    if (project.dir === "" || project.logo !== "" || project.logoOffer === project.dir) {
-        return;
-    }
-    const logos = await findProjectLogos(project.dir);
-    if (!shouldOfferLogo(project, logos)) {
-        return;
-    }
-    await setWorkspaceMeta(ws.oid, { [ProjectLogoOfferMetaKey]: project.dir });
-    const facts = await readProjectFacts(project.dir);
-    addMoltentermNotification({
-        source: "moltenterm",
-        kind: "info",
-        title: `Use ${facts.name}'s logo for this workspace?`,
-        message: "Right-click the workspace in the rail, then Edit workspace…, to pick an image or keep the icon.",
-        workspaceid: ws.oid,
-    });
+// The offer of the project's logo is made once per linked project (#77): remembered whatever the answer.
+export async function markLogoOffered(workspaceId: string, dir: string): Promise<void> {
+    await setWorkspaceMeta(workspaceId, { [ProjectLogoOfferMetaKey]: dir });
+}
+
+export async function dismissProject(workspaceId: string, dismissed: string[]): Promise<void> {
+    await setWorkspaceMeta(workspaceId, { [ProjectDismissedMetaKey]: dismissed });
+}
+
+export async function renameWorkspace(ws: Workspace, name: string): Promise<void> {
+    // Saving a workspace needs an icon and a colour: Wave fills the missing ones.
+    await WorkspaceService.UpdateWorkspace(ws.oid, name, ws.icon ?? "", ws.color ?? "", !ws.icon || !ws.color);
 }

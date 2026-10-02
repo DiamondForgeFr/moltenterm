@@ -137,7 +137,7 @@ export function WorkspaceProjectSection({ workspaceId }: { workspaceId: string }
             }
         });
     return (
-        <div className="molten-workspace-project mt-2 border-t border-border px-1 pt-2">
+        <div className="molten-workspace-project mt-2 w-full min-w-0 self-stretch border-t border-border px-1 pt-2 text-left">
             <div className="mb-1 text-xs font-semibold tracking-wide text-secondary uppercase">Project</div>
             {project.dir === "" ? (
                 <div className="flex items-center justify-between gap-2">
