@@ -1,0 +1,26 @@
+{
+    "schema": 1,
+    "name": "Moltenterm",
+    "ci": {
+        "jobs": [
+            {
+                "name": "ledger",
+                "title": "Patch ledger and icons",
+                "lane": "quick",
+                "run": "node scripts/moltenterm-check-ledger.mjs && node scripts/moltenterm-check-icons.mjs"
+            },
+            { "name": "typecheck", "title": "TypeScript", "lane": "frontend", "run": "task check:ts" },
+            { "name": "lint", "title": "ESLint", "lane": "frontend", "run": "npx eslint . --quiet" },
+            { "name": "vitest", "title": "Frontend tests", "lane": "frontend", "run": "npx vitest run" },
+            { "name": "gotest", "title": "Backend tests", "lane": "backend", "run": "go test ./cmd/... ./pkg/..." }
+        ]
+    },
+    "builds": [
+        {
+            "id": "gold",
+            "title": "Gold",
+            "run": "./scripts/moltenterm-build-gold.sh",
+            "artifact": "~/Library/Application Support/Moltenterm Local Builds/gold/Moltenterm.app"
+        }
+    ]
+}

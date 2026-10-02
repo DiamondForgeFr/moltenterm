@@ -137,6 +137,9 @@ func TestReferencedScript(t *testing.T) {
 		"FOO=1 ./x.sh":                   "./x.sh",
 		"sh -c './scripts/$NAME.sh'":     "",
 		"./scripts/release.sh {version}": "./scripts/release.sh",
+		"go test ./cmd/... ./pkg/...":    "",
+		"node scripts/a.mjs && node x":   "scripts/a.mjs",
+		"npx eslint ./src":               "",
 	}
 	for run, want := range cases {
 		if got := referencedScript(run); got != want {
