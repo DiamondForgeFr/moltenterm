@@ -3,7 +3,7 @@
     "author": {
         "name": "DiamondForge"
     },
-    "productName": "Moltenterm",
+    "productName": "MoltenTerm",
     "description": "The terminal that takes your shape. A soft fork of Wave Terminal.",
     "license": "Apache-2.0",
     "version": "0.14.5",

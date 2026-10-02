@@ -1,9 +1,9 @@
-# Moltenterm mods
+# MoltenTerm mods
 
 `molten docs` prints the folder holding this page, the `molten-feature.md` guide for coding agents and complete
 example mods, all matching the installed version.
 
-A mod changes Moltenterm from the outside: it is a folder in the configuration directory that Moltenterm loads when a
+A mod changes MoltenTerm from the outside: it is a folder in the configuration directory that MoltenTerm loads when a
 tab opens. Mods only see `MoltenApi`, described below, and never Wave's internal modules. This page documents API
 version 1.
 
@@ -15,7 +15,7 @@ version 1.
     main.js
 ```
 
-`<config>` is Moltenterm's configuration directory (`~/.config/moltenterm` on macOS and Linux, `moltenterm-dev` for
+`<config>` is MoltenTerm's configuration directory (`~/.config/moltenterm` on macOS and Linux, `moltenterm-dev` for
 development builds; `wsh wavepath config` prints it). Folders whose name starts with `.` are ignored.
 
 A mod runs only once it is enabled. The enabled mods are listed in `<config>/molten/mods.json`
@@ -24,7 +24,7 @@ applies the change at once. A mod that is not listed is reported as `disabled` a
 
 ## Reload on save
 
-Moltenterm watches `<config>/mods/`, `mods.json` and the trust file. Saving a file of a mod reloads that mod in every
+MoltenTerm watches `<config>/mods/`, `mods.json` and the trust file. Saving a file of a mod reloads that mod in every
 open tab within about a second: everything the previous version registered (commands, boxes, notifications) is
 undone first, so nothing appears twice. A save that breaks the mod stops it and reports why, as when it fails to
 load; the next valid save brings it back. A new mod folder appears in `molten mod list` as soon as it is created,
@@ -45,14 +45,14 @@ molten undo [--json]      # restores the mods as before that change; repeat to k
 
 An undo is itself recorded, and an edit made after undoing can be undone too.
 
-Safe mode starts Moltenterm with no mod loaded, so a mod that breaks the workspace can always be repaired. Choose
-**Restart in Safe Mode** in the app menu, or start Moltenterm with `MOLTENTERM_SAFE_MODE=1`. A banner says so in
+Safe mode starts MoltenTerm with no mod loaded, so a mod that breaks the workspace can always be repaired. Choose
+**Restart in Safe Mode** in the app menu, or start MoltenTerm with `MOLTENTERM_SAFE_MODE=1`. A banner says so in
 every window and `molten mod list` reports it. `molten mod disable`, `molten mod remove` and `molten undo` still
 work; then choose **Restart Normally** in the app menu.
 
 ## Trust
 
-A mod runs inside Moltenterm with the user's rights: it can read and change files and run commands. So no mod code
+A mod runs inside MoltenTerm with the user's rights: it can read and change files and run commands. So no mod code
 runs before the user trusts it. The first `molten mod enable <id>` shows a prompt in the tab with the mod's name,
 version, description, declared capabilities and folder, and `molten` waits for the answer:
 
@@ -81,7 +81,7 @@ that already runs with the user's rights, such as a hostile agent, from writing 
 
 ## `main`
 
-`main` is one self-contained ES module: it cannot import other files, relative or from npm, because Moltenterm loads it
+`main` is one self-contained ES module: it cannot import other files, relative or from npm, because MoltenTerm loads it
 from memory. Bundle it first if needed. It exports `activate`:
 
 ```js
@@ -114,12 +114,12 @@ export function activate(api) {
 - `api.clipboard.writeText(text)`: copies text to the system clipboard.
 - `api.log.info|warn|error(...)`: writes to the tab's developer console, prefixed with the mod id.
 
-Every `register` and `show` returns a function that undoes it. Moltenterm calls them all, in reverse order, when the
+Every `register` and `show` returns a function that undoes it. MoltenTerm calls them all, in reverse order, when the
 mod stops.
 
 ## Built-in mods
 
-Some mods ship inside Moltenterm. They are written exactly like user mods, against the same API, and are part of
+Some mods ship inside MoltenTerm. They are written exactly like user mods, against the same API, and are part of
 the app: they need no trust prompt and run unless turned off with `molten mod disable <id>` (listed under
 `"disabled"` in `mods.json`). `molten mod list` marks them `(built-in)`; they cannot be removed or untrusted. A
 folder in `<config>/mods/` named like a built-in mod is ignored.
@@ -149,7 +149,7 @@ The agents follow the SaaSFoundryAI agent catalog. `~/.agents/skills/` is also r
 ## A complete example: the copy box
 
 The copy box is the first built-in mod and the reference example: its source is
-`examples/copy-box/` next to this file (`frontend/molten/builtin/copy-box/` in the Moltenterm repository). It
+`examples/copy-box/` next to this file (`frontend/molten/builtin/copy-box/` in the MoltenTerm repository). It
 registers one command:
 
 ```
@@ -202,7 +202,7 @@ the other mods keep working.
 
 ## The molten command
 
-`molten` is installed next to `wsh` in every local Moltenterm terminal (`wsh molten …` is the same command). Every
+`molten` is installed next to `wsh` in every local MoltenTerm terminal (`wsh molten …` is the same command). Every
 command accepts `--json` and exits non-zero on failure; with `--json` an error is printed on stderr as
 `{"error": "…"}`.
 

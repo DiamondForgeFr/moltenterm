@@ -72,7 +72,7 @@ async function plistValue(app: string, key: string): Promise<string> {
 async function verifyBundle(app: string, buildId: number): Promise<string> {
     try {
         if ((await plistValue(app, "CFBundleIdentifier")) !== GoldIdentifier) {
-            return "the app is not Moltenterm";
+            return "the app is not MoltenTerm";
         }
         if ((await plistValue(app, "CFBundleVersion")) !== String(buildId)) {
             return "the app's build does not match its manifest";
@@ -117,7 +117,8 @@ grace="\${MOLTENTERM_SWAP_GRACE:-${SwapGraceSeconds}}"
 reopen_app() {
     if [ -n "$MOLTENTERM_SWAP_DIRECT" ]; then
         # shellcheck disable=SC2086
-        "$1/Contents/MacOS/Moltenterm" $MOLTENTERM_SWAP_ARGS >/dev/null 2>&1 &
+        exe=$(ls "$1/Contents/MacOS" | head -1)
+        "$1/Contents/MacOS/$exe" $MOLTENTERM_SWAP_ARGS >/dev/null 2>&1 &
     else
         open "$1"
     fi
@@ -125,7 +126,7 @@ reopen_app() {
 i=0
 while kill -0 "$pid" 2>/dev/null; do
     i=$((i + 1))
-    if [ "$i" -gt 240 ]; then echo "failed: Moltenterm did not quit" > "$status"; exit 1; fi
+    if [ "$i" -gt 240 ]; then echo "failed: MoltenTerm did not quit" > "$status"; exit 1; fi
     sleep 0.5
 done
 aside="$target.previous-$$"
@@ -177,10 +178,10 @@ function startSwap(swap: PendingSwap, reopen: boolean) {
 async function stage(buildId: number): Promise<PendingSwap> {
     const target = appBundleOf(process.execPath);
     if (target == null) {
-        throw new Error("Moltenterm does not run from an app bundle");
+        throw new Error("MoltenTerm does not run from an app bundle");
     }
     if (target.includes("/AppTranslocation/")) {
-        throw new Error("Moltenterm runs from a translocated copy: move it to Applications first");
+        throw new Error("MoltenTerm runs from a translocated copy: move it to Applications first");
     }
     const source = path.join(goldDir(), GoldAppName);
     const problem = await verifyBundle(source, buildId);

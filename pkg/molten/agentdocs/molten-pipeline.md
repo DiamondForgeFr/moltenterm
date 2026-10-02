@@ -1,6 +1,6 @@
 # molten-pipeline: connect a project to Mission Control
 
-The user asked you to connect the project in the current folder to Moltenterm's Mission Control:
+The user asked you to connect the project in the current folder to MoltenTerm's Mission Control:
 
 {{REQUEST}}
 
@@ -11,8 +11,8 @@ what is missing, and only after the user agreed.
 
 ## Steps
 
-1. Check that you run inside Moltenterm: `molten help` must work. If `molten` is not found, tell the user to run
-   this request from a Moltenterm terminal, and stop.
+1. Check that you run inside MoltenTerm: `molten help` must work. If `molten` is not found, tell the user to run
+   this request from a MoltenTerm terminal, and stop.
 2. Read the format: run `molten docs`, then read `pipeline-format.md` in the folder it prints.
 3. Link the workspace if it is not: `molten project show --json`; when it says the workspace is not linked, run
    `molten project link` from the project's folder.
@@ -52,6 +52,6 @@ what is missing, and only after the user agreed.
 - Commands run from the project's root unless `cwd` says otherwise; keep `cwd` inside the project.
 - Prefer the project's existing entry points (`bun run check`, `task build`, `./scripts/release.sh`) over long
   inline shell lines.
-- Steps that push, tag or publish are fine to declare: Moltenterm always asks the user before running a release
+- Steps that push, tag or publish are fine to declare: MoltenTerm always asks the user before running a release
   step.
 - Read `molten` output with `--json`.

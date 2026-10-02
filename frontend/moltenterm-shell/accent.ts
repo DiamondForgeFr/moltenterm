@@ -8,7 +8,7 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import type { Atom } from "jotai";
 
-export const MoltentermDefaultAccent = "rgb(88, 193, 66)";
+export const MoltentermDefaultAccent = "#FF7C0D";
 
 type Rgb = { r: number; g: number; b: number };
 

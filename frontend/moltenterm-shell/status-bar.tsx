@@ -54,7 +54,7 @@ export function StatusBar() {
             ) : null}
             <span className="ml-auto flex items-center gap-3">
                 <GoldUpdateButton />
-                <span>Moltenterm {view.version}</span>
+                <span>MoltenTerm {view.version}</span>
             </span>
         </footer>
     );

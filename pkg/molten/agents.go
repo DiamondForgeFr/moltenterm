@@ -24,7 +24,7 @@ import (
 const AgentGuideName = "molten-feature"
 const PipelineGuideName = "molten-pipeline"
 const agentRequestPlaceholder = "{{REQUEST}}"
-const agentDescription = "Turn a plain-language request into a Moltenterm mod with the molten command"
+const agentDescription = "Turn a plain-language request into a MoltenTerm mod with the molten command"
 
 type AgentGuide struct {
 	Name         string
@@ -42,7 +42,7 @@ var AgentGuides = []AgentGuide{
 	},
 	{
 		Name:         PipelineGuideName,
-		Description:  "Connect this project to Moltenterm's Mission Control: reuse its scripts and CI, create what is missing, write .molten/project.json",
+		Description:  "Connect this project to MoltenTerm's Mission Control: reuse its scripts and CI, create what is missing, write .molten/project.json",
 		File:         agentdocs.PipelineGuideFile,
 		ArgumentHint: "[what to connect or create]",
 	},

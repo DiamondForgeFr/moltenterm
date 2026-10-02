@@ -112,7 +112,12 @@ Moltenterm's identity lives in a few places, so renaming the product is a short,
 3. `package.json`: `name`, `productName`, `description`, `homepage`, `build.appId` (then `npm install
    --package-lock-only`).
 4. `build/moltenterm/`: `icon.svg` (source), `icon.png`, `icon.icns`, `deb-postinstall.tpl`; `public/logos/moltenterm-logo.png`;
-   `frontend/app/asset/logo.svg`.
+   `frontend/app/asset/logo.svg`; `public/moltenterm-mark.svg` (CSS mask). The brand kit itself (symbol, lockups, app
+   icons, colours) is `build/moltenterm/brand/`; `icon.icns` is built from its PNGs with `iconutil`.
+
+The name is written MoltenTerm wherever people read it; identifiers keep the lowercase form (`moltenterm` directories,
+`fr.diamondforge.moltenterm`, `MOLTENTERM_*`, the `molten` command). The gold folder keeps `Moltenterm Local Builds/…/
+Moltenterm.app`, so golds installed before the rename keep recognising their updates.
 
 Everything else (directories, lock, socket, menus, About panel, permission prompts) derives from these. Changing
 `build.appId` or the directory name makes the OS treat the result as a new application, with fresh settings and data.
@@ -203,6 +208,7 @@ need no marker. It reads only the backticked tokens of the first column: each is
 | `frontend/app/block/blockregistry.ts`, `pkg/wconfig/defaultconfig/widgets.json`, `cmd/server/main-server.go` | Moltenterm's views are registered in one call (`frontend/moltenterm-shell/views.ts`: browser, Timeline, CI/CD); the launcher offers Timeline and CI/CD (JSON, no marker); wavesrv starts Mission Control's collector (`pkg/molten/mission/`, router leaf `molten:mission`) | Timeline and CI/CD panels (FR-MC-002); files already patched, Mission Control stays at 2 of 8 | #31 |
 | `emain/emain-window.ts` | A workspace switch keeps the views of the saved workspace left (off-screen, in the tab cache) instead of destroying them, and shows the next view only once it has rendered (`emain/moltenterm-workspace-switch.ts`) | Switching workspace changes only the content; the rail, tab bar and status bar no longer flash (file already patched) | #68 |
 | `pkg/jobcontroller/jobcontroller.go`, `pkg/blockcontroller/durableshellcontroller.go`, `frontend/app/store/global.ts` | Local terminals are durable jobs by default (`term:durable` per block; Wave's global setting keeps applying to remote connections), started by `pkg/shellexec/moltenterm_localjob.go` and `pkg/blockcontroller/moltenterm_localjob.go` (folder and SIGHUP restored by a zsh launcher, protocol recorded with the job); the durable output path also feeds agents' notifications (`pkg/molten/attention`) | Local terminals survive quitting and updating MoltenTerm and reattach at the next start | #72 |
+| `pkg/wcore/workspace.go`, `pkg/wcore/wcore.go` | MoltenTerm's orange `#FF7C0D` is first in the workspace palette (Wave's green replaces its orange) and colours the starter workspace; the brand mark (`frontend/app/asset/logo.svg`, already ledgered) and the texts already patched now say MoltenTerm | Brand kit (`build/moltenterm/brand/`) | #73 |
 
 ## Known upstream items
 

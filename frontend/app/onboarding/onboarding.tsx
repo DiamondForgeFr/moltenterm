@@ -96,7 +96,7 @@ const InitPage = ({
                         </div>
                         <div className="flex flex-col items-start gap-1 flex-1">
                             {/* MOLTENTERM-PATCH (#6): Moltenterm's repository instead of Wave's */}
-                            <div className="text-foreground text-base leading-[18px]">Moltenterm is open source</div>
+                            <div className="text-foreground text-base leading-[18px]">MoltenTerm is open source</div>
                             <div className="text-secondary leading-5">
                                 Follow the project, report bugs and share ideas on{" "}
                                 <a
@@ -118,7 +118,7 @@ const InitPage = ({
                             <i className="text-[32px] text-white/50 fa-solid fa-shield-halved"></i>
                         </div>
                         <div className="flex flex-col items-start gap-1 flex-1">
-                            <div className="text-secondary leading-5">Moltenterm sends no usage data.</div>
+                            <div className="text-secondary leading-5">MoltenTerm sends no usage data.</div>
                         </div>
                     </div>
                 </div>

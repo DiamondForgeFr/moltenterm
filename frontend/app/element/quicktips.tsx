@@ -300,7 +300,7 @@ const QuickTips = () => {
                             rel="noopener"
                             className="hover:text-accent-400 hover:underline transition-colors font-medium"
                         >
-                            Moltenterm on GitHub
+                            MoltenTerm on GitHub
                         </a>
                     </div>
                     <div className="flex items-center gap-3 p-3 rounded-md bg-black/20 hover:bg-black/30 transition-colors cursor-pointer">

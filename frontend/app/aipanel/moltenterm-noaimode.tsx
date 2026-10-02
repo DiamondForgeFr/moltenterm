@@ -20,7 +20,7 @@ const NoAIModeMessage = ({ className }: NoAIModeMessageProps) => {
                         <i className="fa fa-sparkles text-accent text-5xl"></i>
                         <h2 className="text-2xl font-semibold text-foreground">Bring your own AI</h2>
                         <p className="text-secondary leading-relaxed">
-                            Moltenterm ships no AI model and sends nothing to a cloud of its own. Add a mode that uses
+                            MoltenTerm ships no AI model and sends nothing to a cloud of its own. Add a mode that uses
                             your own provider key or a local model (Ollama, LM Studio…) to waveai.json, and this panel
                             will use it.
                         </p>

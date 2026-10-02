@@ -35,7 +35,7 @@ export function makeStatusBarView(
 ): StatusBarView {
     const channel = opts.isDev ? "dev" : asChannel(opts.runtimeChannel || build?.channel || "local");
     const release = channel === "release";
-    const tooltipLines = [`Moltenterm ${opts.version}`];
+    const tooltipLines = [`MoltenTerm ${opts.version}`];
     if (build?.builtAt) {
         tooltipLines.push(`built ${build.builtAt}`);
     }

@@ -32,4 +32,5 @@ APP_DIR=make/mac-$ARCH
 [ "$ARCH" = "x64" ] && APP_DIR=make/mac
 
 echo "▶ phase: deliver"
-node scripts/moltenterm-gold-deliver.mjs --app "$APP_DIR/Moltenterm.app" --build-id "$BUILD_ID"
+APP=$(ls -d "$APP_DIR"/*.app | head -1)
+node scripts/moltenterm-gold-deliver.mjs --app "$APP" --build-id "$BUILD_ID"

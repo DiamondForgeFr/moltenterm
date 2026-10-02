@@ -47,7 +47,7 @@ describe("makeStatusBarView", () => {
     it("puts the build time and the full commit in the tooltip", () => {
         const view = makeStatusBarView(build, { isDev: false, version: "0.14.5" });
         expect(view.tooltip).toBe(
-            "Moltenterm 0.14.5\nbuilt 2026-10-02T08:00:00.000Z\ncommit a4e3b72d9f00 (uncommitted changes)"
+            "MoltenTerm 0.14.5\nbuilt 2026-10-02T08:00:00.000Z\ncommit a4e3b72d9f00 (uncommitted changes)"
         );
     });
 

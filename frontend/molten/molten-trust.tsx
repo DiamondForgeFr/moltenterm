@@ -136,7 +136,7 @@ export function MoltenTrustDialog() {
             <div className="flex max-w-[560px] flex-col gap-3 text-sm">
                 <div className="text-lg font-semibold">Trust the mod “{req.name}”?</div>
                 <div className="text-secondary">
-                    A coding agent asked to enable this mod. It runs inside Moltenterm with your rights: it can read and
+                    A coding agent asked to enable this mod. It runs inside MoltenTerm with your rights: it can read and
                     change your files and run commands. Trust it only if you know where it comes from.
                 </div>
                 <div className="flex flex-col gap-1">
