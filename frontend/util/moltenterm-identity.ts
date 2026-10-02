@@ -6,9 +6,9 @@
 // build.appId) and in build/moltenterm/ (see UPSTREAM.md, "Identity and
 // rename procedure").
 
-export const MoltentermProductName = "Moltenterm";
-export const MoltentermDevProductName = "Moltenterm (Dev)";
-export const MoltentermWindowTitle = "Moltenterm";
+export const MoltentermProductName = "MoltenTerm";
+export const MoltentermDevProductName = "MoltenTerm (Dev)";
+export const MoltentermWindowTitle = "MoltenTerm";
 export const MoltentermTagline = "The terminal that takes your shape.";
 export const MoltentermRepoUrl = "https://github.com/DiamondForgeFr/moltenterm";
 

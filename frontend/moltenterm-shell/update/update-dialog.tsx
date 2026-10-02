@@ -65,7 +65,7 @@ function UpdateDialog() {
                 className="flex max-h-[80vh] w-[520px] flex-col rounded border border-border bg-modalbg shadow-xl"
             >
                 <div className="border-b border-border px-4 py-3">
-                    <div className="text-sm font-semibold">A new Moltenterm gold is ready</div>
+                    <div className="text-sm font-semibold">A new MoltenTerm gold is ready</div>
                     <div className="text-xs text-muted">
                         {updateLabel(offer)} · built {new Date(offer.builtAt).toLocaleString("en-GB")}
                     </div>
@@ -146,7 +146,7 @@ export function GoldUpdateButton() {
             <button
                 type="button"
                 onClick={() => globalStore.set(model.dialogOpenAtom, true)}
-                title={pendingOnQuit ? "Installs when you quit Moltenterm" : `Update to ${updateLabel(offer)}`}
+                title={pendingOnQuit ? "Installs when you quit MoltenTerm" : `Update to ${updateLabel(offer)}`}
                 className="flex cursor-pointer items-center gap-1 rounded border border-accent/60 px-1.5 leading-[16px] text-accent hover:bg-accent/15"
             >
                 <i className="fa fa-solid fa-circle-arrow-up text-[10px]" />

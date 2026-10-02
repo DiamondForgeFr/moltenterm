@@ -17,6 +17,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const GoldManifestSchema = 1;
+// The name inside the gold folder, kept from the first golds so they keep recognising their updates; the app
+// itself is MoltenTerm.app.
 export const GoldAppName = "Moltenterm.app";
 export const GoldIdentifier = "fr.diamondforge.moltenterm";
 const MaxNotes = 50;
@@ -64,7 +66,7 @@ export function makeManifest({ version, buildId, builtAt, commit, notes }) {
     return {
         schema: GoldManifestSchema,
         identifier: GoldIdentifier,
-        productName: "Moltenterm",
+        productName: "MoltenTerm",
         version,
         buildId,
         builtAt,
@@ -136,7 +138,7 @@ function main() {
     const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
     const { app, buildId } = parseArgs(process.argv.slice(2));
     if (!app || !fs.existsSync(app) || !Number.isInteger(buildId) || buildId <= 0) {
-        console.error("usage: moltenterm-gold-deliver.mjs --app <Moltenterm.app> --build-id <unix seconds>");
+        console.error("usage: moltenterm-gold-deliver.mjs --app <MoltenTerm.app> --build-id <unix seconds>");
         process.exit(1);
     }
     const dir = goldDir();

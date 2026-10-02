@@ -6,12 +6,12 @@ if type update-alternatives 2>/dev/null >&1; then
     if [ -L '/usr/bin/moltenterm' -a -e '/usr/bin/moltenterm' -a "`readlink '/usr/bin/moltenterm'`" != '/etc/alternatives/moltenterm' ]; then
         rm -f '/usr/bin/moltenterm'
     fi
-    update-alternatives --install '/usr/bin/moltenterm' 'moltenterm' '/opt/Moltenterm/moltenterm' 100 || ln -sf '/opt/Moltenterm/moltenterm' '/usr/bin/moltenterm'
+    update-alternatives --install '/usr/bin/moltenterm' 'moltenterm' '/opt/MoltenTerm/moltenterm' 100 || ln -sf '/opt/MoltenTerm/moltenterm' '/usr/bin/moltenterm'
 else
-    ln -sf '/opt/Moltenterm/moltenterm' '/usr/bin/moltenterm'
+    ln -sf '/opt/MoltenTerm/moltenterm' '/usr/bin/moltenterm'
 fi
 
-chmod 4755 '/opt/Moltenterm/chrome-sandbox' || true
+chmod 4755 '/opt/MoltenTerm/chrome-sandbox' || true
 
 if hash update-mime-database 2>/dev/null; then
     update-mime-database /usr/share/mime || true

@@ -45,9 +45,9 @@ describe("applyAccent", () => {
         expect(style.props).toEqual({ "--mt-accent": "rgb(191, 85, 236)", "--mt-accent-fg": "#000000" });
     });
 
-    it("falls back to Moltenterm's default for a workspace without a colour", () => {
+    it("falls back to MoltenTerm's orange for a workspace without a colour", () => {
         const style = fakeStyle();
         applyAccent(undefined, style);
-        expect(style.props["--mt-accent"]).toBe("rgb(88, 193, 66)");
+        expect(style.props).toEqual({ "--mt-accent": "rgb(255, 124, 13)", "--mt-accent-fg": "#000000" });
     });
 });

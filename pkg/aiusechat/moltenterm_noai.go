@@ -10,4 +10,4 @@ import "errors"
 // returns ErrMoltentermNoAI before reading its input or reaching a provider.
 const MoltentermNoAI = true
 
-var ErrMoltentermNoAI = errors.New("AI chat is not available in Moltenterm: use your own coding agent in a terminal")
+var ErrMoltentermNoAI = errors.New("AI chat is not available in MoltenTerm: use your own coding agent in a terminal")

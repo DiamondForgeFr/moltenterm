@@ -86,7 +86,7 @@ func getWaveAISettings(premium bool, builderMode bool, rtInfo waveobj.ObjRTInfo,
 	if config.WaveAICloud && !telemetry.IsTelemetryEnabled() {
 		// MOLTENTERM-PATCH (#5): telemetry can never be enabled, so this always
 		// applies; the message points to what the user can actually do.
-		return nil, fmt.Errorf("Wave AI cloud modes are not available in Moltenterm: configure your own AI provider or local model in waveai.json")
+		return nil, fmt.Errorf("Wave AI cloud modes are not available in MoltenTerm: configure your own AI provider or local model in waveai.json")
 	}
 	apiToken := config.APIToken
 	if apiToken == "" && config.APITokenSecretName != "" {

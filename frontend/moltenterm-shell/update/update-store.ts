@@ -113,7 +113,7 @@ export class GoldUpdateModel {
         addMoltentermNotification({
             source: "moltenterm",
             kind: "success",
-            title: `Moltenterm updated (build ${own})`,
+            title: `MoltenTerm updated (build ${own})`,
             message: "Your configuration and workspaces are as you left them.",
         });
     }
@@ -133,7 +133,7 @@ export class GoldUpdateModel {
                 addMoltentermNotification({
                     source: "moltenterm",
                     kind: "info",
-                    title: `A new Moltenterm gold is ready (${updateLabel(offer)})`,
+                    title: `A new MoltenTerm gold is ready (${updateLabel(offer)})`,
                     message: `${offer.notes.length} change(s). Click Update in the status bar.`,
                 });
             }
@@ -153,7 +153,7 @@ export class GoldUpdateModel {
             addMoltentermNotification({
                 source: "moltenterm",
                 kind: "warning",
-                title: `The new gold did not start: Moltenterm went back to the previous one`,
+                title: `The new gold did not start: MoltenTerm went back to the previous one`,
                 message: `Build ${status.buildId} will not be offered again; a newer gold will.`,
             });
         } else {

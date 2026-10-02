@@ -1,6 +1,6 @@
 {
     "schema": 1,
-    "name": "Moltenterm",
+    "name": "MoltenTerm",
     "ci": {
         "jobs": [
             {

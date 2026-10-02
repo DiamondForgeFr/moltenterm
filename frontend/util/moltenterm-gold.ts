@@ -6,6 +6,7 @@
 
 // must match scripts/moltenterm-gold-deliver.mjs
 export const GoldManifestSchema = 1;
+// The name inside the gold folder, kept from the first golds so they keep recognising their updates.
 export const GoldAppName = "Moltenterm.app";
 export const GoldIdentifier = "fr.diamondforge.moltenterm";
 export const GoldMaxManifestBytes = 1 << 20;

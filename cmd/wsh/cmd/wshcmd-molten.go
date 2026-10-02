@@ -130,7 +130,7 @@ var moltenNewDescription string
 
 var moltenCmd = &cobra.Command{
 	Use:   "molten [command] [args...]",
-	Short: "manage Moltenterm mods and run the commands they provide",
+	Short: "manage MoltenTerm mods and run the commands they provide",
 	// Flags after a mod command belong to that command, so molten parses its own options by hand
 	// (moltenParseRunOptions).
 	DisableFlagParsing: true,
@@ -346,7 +346,7 @@ func moltenWriteJson(value any) error {
 func moltenTabRequest(command string, data any, timeoutMs int, out any) error {
 	tabId := getTabIdFromEnv()
 	if tabId == "" {
-		return fmt.Errorf("molten must run in a Moltenterm terminal (WAVETERM_TABID is not set)")
+		return fmt.Errorf("molten must run in a MoltenTerm terminal (WAVETERM_TABID is not set)")
 	}
 	resp, err := RpcClient.SendRpcRequest(command, data, &wshrpc.RpcOpts{
 		Route:   wshutil.MakeTabRouteId(tabId),
@@ -584,7 +584,7 @@ func moltenEnsureTrusted(id string) (string, error) {
 	if trusted {
 		return "already", nil
 	}
-	WriteStderr("molten: waiting for your approval of mod %q in Moltenterm…\n", id)
+	WriteStderr("molten: waiting for your approval of mod %q in MoltenTerm…\n", id)
 	var result MoltenTrustPromptResult
 	err = moltenTabRequest(MoltenTrustPromptRpcCommand, map[string]any{"id": id}, MoltenTrustRpcTimeoutMs, &result)
 	if err != nil {

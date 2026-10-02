@@ -23,13 +23,14 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
+// MOLTENTERM-PATCH (#73): MoltenTerm's orange comes first; Wave's green takes the place of its orange, too close to it
 var WorkspaceColors = [...]string{
-	"#58C142", // Green (accent)
+	"#FF7C0D", // MoltenTerm orange (accent)
 	"#00FFDB", // Teal
 	"#429DFF", // Blue
 	"#BF55EC", // Purple
 	"#FF453A", // Red
-	"#FF9500", // Orange
+	"#58C142", // Green
 	"#FFE900", // Yellow
 }
 

@@ -17,7 +17,7 @@
    for text drawn on it; every accent token of Wave's theme and Tailwind derives from them, so no component needs a
    change. Unlayered, these win over Tailwind's @layer theme and come after Wave's theme.scss. */
 :root {
-    --mt-accent: rgb(88, 193, 66);
+    --mt-accent: rgb(255, 124, 13);
     --mt-accent-fg: #000000;
     --accent-color: var(--mt-accent);
     --form-element-primary-color: var(--mt-accent);

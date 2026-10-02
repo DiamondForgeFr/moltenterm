@@ -231,10 +231,10 @@ const MoltentermUpdateFeedEnabled = false;
  * Configures the auto-updater based on the user's preference
  */
 export async function configureAutoUpdater() {
-    // MOLTENTERM-PATCH (#5): Moltenterm has no update feed yet and must never poll
+    // MOLTENTERM-PATCH (#5): MoltenTerm has no update feed yet and must never poll
     // Wave's, so the updater is never configured, in any build.
     if (!MoltentermUpdateFeedEnabled) {
-        console.log("auto-updater disabled: Moltenterm has no update feed");
+        console.log("auto-updater disabled: MoltenTerm has no update feed");
         return;
     }
     if (isDev()) {
