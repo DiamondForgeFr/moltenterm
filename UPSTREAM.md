@@ -113,7 +113,8 @@ Moltenterm's identity lives in a few places, so renaming the product is a short,
    --package-lock-only`).
 4. `build/moltenterm/`: `icon.svg` (source), `icon.png`, `icon.icns`, `deb-postinstall.tpl`; `public/logos/moltenterm-logo.png`;
    `frontend/app/asset/logo.svg`; `public/moltenterm-mark.svg` (CSS mask). The brand kit itself (symbol, lockups, app
-   icons, colours) is `build/moltenterm/brand/`; `icon.icns` is built from its PNGs with `iconutil`.
+   icons, colours) is `build/moltenterm/brand/`. The macOS icons (`icon.icns`, and `icon-gold.icns` for gold builds) are
+   drawn on Apple's icon grid by `node scripts/moltenterm-gen-icons.mjs` from the kit's symbol.
 
 The name is written MoltenTerm wherever people read it; identifiers keep the lowercase form (`moltenterm` directories,
 `fr.diamondforge.moltenterm`, `MOLTENTERM_*`, the `molten` command). The gold folder keeps `Moltenterm Local Builds/…/
