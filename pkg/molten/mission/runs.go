@@ -128,6 +128,18 @@ func expandHome(path string) string {
 	return path
 }
 
+// An artifact is declared with ~ or relative to the project folder.
+func artifactPath(dir string, artifact string) string {
+	if artifact == "" {
+		return ""
+	}
+	path := expandHome(artifact)
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(dir, path)
+	}
+	return filepath.Clean(path)
+}
+
 // The variables a release step may use; a build has none.
 func expandVariables(run string, version string) string {
 	if version == "" {
@@ -228,7 +240,7 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 		Title:     command.Title,
 		Command:   expandVariables(command.Run, version),
 		Cwd:       command.Cwd,
-		Artifact:  expandHome(artifact),
+		Artifact:  artifactPath(dir, artifact),
 		StartedAt: now.UnixMilli(),
 		State:     RunStateRunning,
 		Phases:    []string{},
