@@ -8,14 +8,18 @@ import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { WorkspaceService } from "@/app/store/services";
-import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
+import { getWaveObjectAtom, makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { WorkspaceEditor } from "@/app/tab/workspaceeditor";
-import { cn, fireAndForget, makeIconClass } from "@/util/util";
+import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { unreadByWorkspace } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
+import { WorkspaceIcon } from "./workspace-icon";
+import { readWorkspaceProject } from "./workspace-project";
+import { WorkspaceProjectSection } from "./workspace-project-section";
+import { offerProjectLogo } from "./workspace-project-store";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
 
 export async function loadWorkspaceSources(): Promise<WorkspaceRailSource[]> {
@@ -100,6 +104,7 @@ function WorkspaceEditPanel({
                     getApi().deleteWorkspace(entry.id);
                 }}
             />
+            <WorkspaceProjectSection workspaceId={entry.id} />
         </div>
     );
 }
@@ -116,6 +121,9 @@ function RailButton({
     onEdit: (entry: WorkspaceRailEntry, anchor: Anchor) => void;
 }) {
     const ref = useRef<HTMLButtonElement>(null);
+    // Read live: the logo can change from the editor or from molten while the rail's list is not refreshed.
+    const [workspace] = useWaveObjectValue<Workspace>(makeORef("workspace", entry.id));
+    const logo = readWorkspaceProject(workspace).logo;
     const anchorOf = (): Anchor => {
         const rect = ref.current.getBoundingClientRect();
         return { top: rect.top + rect.height / 2, left: rect.right + 8 };
@@ -175,7 +183,7 @@ function RailButton({
                 <span className="absolute top-1.5 bottom-1.5 -left-1.5 w-[2px] rounded bg-accent" aria-hidden />
             ) : null}
             {entry.saved ? (
-                <i className={makeIconClass(entry.icon, false)} style={{ color: entry.color }} />
+                <WorkspaceIcon icon={entry.icon} color={entry.color} logo={logo} />
             ) : (
                 <i className="fa fa-solid fa-floppy-disk text-secondary" />
             )}
@@ -203,6 +211,13 @@ export function WorkspaceRail() {
         return waveEventSubscribeSingle({ eventType: "workspace:update", handler: refresh });
     }, [refresh]);
     useEffect(refresh, [active?.oid, active?.name, active?.icon, active?.color, refresh]);
+    const activeProject = readWorkspaceProject(active).dir;
+    useEffect(() => {
+        if (active == null || activeProject === "") {
+            return;
+        }
+        fireAndForget(() => offerProjectLogo(globalStore.get(atoms.workspace)));
+    }, [active?.oid, activeProject]);
 
     const entries = makeWorkspaceRailEntries(sources, active);
     const notifications = useAtomValue(MoltentermNotifications.getInstance().entriesAtom);
