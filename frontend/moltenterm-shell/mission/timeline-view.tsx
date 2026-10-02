@@ -8,11 +8,14 @@ import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { cn } from "@/util/util";
 import { atom } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { pathBaseName } from "../workspace-project";
 import { BranchTree } from "./branch-tree";
-import { Notice } from "./cicd-panels";
-import { MissionFrame, MissionHeader, PipelineBanner } from "./mission-frame";
-import { MissionGit, MissionGithub, prsByBranch, toTreeData } from "./mission-model";
+import { Notice, Problem } from "./cicd-panels";
+import { useMissionRuns } from "./mission-client";
+import { ActiveProject, MissionFrame, MissionHeader, PipelineBanner } from "./mission-frame";
+import { latestRun, MissionGit, MissionGithub, MissionSnapshot, prsByBranch, toTreeData } from "./mission-model";
 import { ReleaseStatePanel } from "./release-state-panel";
+import { BuildRunCard, useStartRun } from "./runs-view";
 import { nextRc, releaseState } from "./versions";
 
 export const MoltentermTimelineView = "molten-timeline";
@@ -37,7 +40,7 @@ export class TimelineViewModel implements ViewModel {
     }
 }
 
-type MenuItem = { label: string; detail?: string; disabled: boolean };
+type MenuItem = { label: string; detail?: string; disabled: boolean; onClick?: () => void };
 
 function HeaderMenu({ icon, label, items, note }: { icon: string; label: string; items: MenuItem[]; note: string }) {
     const [open, setOpen] = useState(false);
@@ -66,20 +69,30 @@ function HeaderMenu({ icon, label, items, note }: { icon: string; label: string;
                 <i className="fa fa-solid fa-chevron-down text-[9px]" />
             </button>
             {open ? (
-                <div className="absolute top-full right-0 z-20 mt-1 w-64 rounded border border-border bg-modalbg p-1 shadow-lg">
+                <div className="absolute top-full right-0 z-20 mt-1 w-72 rounded border border-border bg-modalbg p-1 shadow-lg">
                     {items.map((item) => (
-                        <div
+                        <button
+                            type="button"
                             key={item.label}
+                            disabled={item.disabled}
+                            onClick={() => {
+                                setOpen(false);
+                                item.onClick?.();
+                            }}
                             className={cn(
-                                "flex flex-col rounded px-2 py-1.5 text-xs",
-                                item.disabled ? "text-muted" : "cursor-pointer hover:bg-hover"
+                                "flex w-full flex-col rounded px-2 py-1.5 text-left text-xs",
+                                item.disabled ? "text-muted" : "cursor-pointer text-primary hover:bg-hover"
                             )}
                         >
                             <span className="font-medium">{item.label}</span>
                             {item.detail ? <span className="text-[11px] text-muted">{item.detail}</span> : null}
-                        </div>
+                        </button>
                     ))}
-                    <div className="mt-1 border-t border-border px-2 pt-1.5 pb-1 text-[11px] text-muted">{note}</div>
+                    {note ? (
+                        <div className="mt-1 border-t border-border px-2 pt-1.5 pb-1 text-[11px] text-muted">
+                            {note}
+                        </div>
+                    ) : null}
                 </div>
             ) : null}
         </div>
@@ -90,93 +103,139 @@ function TimelineView() {
     const [days, setDays] = useState(21);
     return (
         <MissionFrame title="Timeline">
-            {({ project, snapshot, refresh }) => {
-                const git = snapshot?.git;
-                const github = snapshot?.github;
-                const report = snapshot?.pipeline;
-                const pipeline = report?.valid ? report.pipeline : null;
-                const note = pipeline
-                    ? "Declared in the pipeline; launching builds and releases from here is coming next."
-                    : "Needs the project's pipeline: connect it first (see the banner).";
-                const builds = (pipeline?.builds ?? []).map((b) => ({
-                    label: b.title || b.id,
-                    detail: b.artifact ? `→ ${b.artifact}` : b.run,
-                    disabled: true,
-                }));
-                const rcSteps = pipeline?.release?.rc ?? [];
-                const publicSteps = pipeline?.release?.public ?? [];
-                return (
-                    <TimelineBody
-                        days={days}
-                        header={(state) => (
-                            <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
-                                <select
-                                    value={days}
-                                    onChange={(e) => setDays(Number(e.target.value))}
-                                    className="cursor-pointer rounded border border-border bg-transparent px-1.5 py-1 text-xs text-secondary"
-                                    aria-label="Period"
-                                >
-                                    {DayChoices.map((d) => (
-                                        <option key={d} value={d} className="bg-modalbg">
-                                            {d} days
-                                        </option>
-                                    ))}
-                                </select>
-                                <HeaderMenu
-                                    icon="hammer"
-                                    label="Build local"
-                                    note={note}
-                                    items={
-                                        builds.length > 0
-                                            ? builds
-                                            : [
-                                                  {
-                                                      label: "Gold",
-                                                      detail: "the build you use every day",
-                                                      disabled: true,
-                                                  },
-                                                  {
-                                                      label: "Release candidate",
-                                                      detail: "a local RC build",
-                                                      disabled: true,
-                                                  },
-                                              ]
-                                    }
-                                />
-                                <HeaderMenu
-                                    icon="rocket"
-                                    label="Release"
-                                    note={note}
-                                    items={[
-                                        {
-                                            label: state?.rcTag
-                                                ? `Release candidate ${state.rcTag}`
-                                                : "Release candidate",
-                                            detail: rcSteps.length
-                                                ? rcSteps.map((st) => st.title || st.id).join(" → ")
-                                                : "not declared by the pipeline",
-                                            disabled: true,
-                                        },
-                                        {
-                                            label: state?.publicTag
-                                                ? `Public release ${state.publicTag}`
-                                                : "Public release",
-                                            detail: publicSteps.length
-                                                ? publicSteps.map((st) => st.title || st.id).join(" → ")
-                                                : "not declared by the pipeline",
-                                            disabled: true,
-                                        },
-                                    ]}
-                                />
-                            </MissionHeader>
-                        )}
-                        banner={<PipelineBanner dir={project.dir} report={snapshot?.pipeline} />}
-                        git={git}
-                        github={github}
-                    />
-                );
-            }}
+            {({ project, snapshot, refresh }) => (
+                <TimelineContent
+                    project={project}
+                    snapshot={snapshot}
+                    refresh={refresh}
+                    days={days}
+                    setDays={setDays}
+                />
+            )}
         </MissionFrame>
+    );
+}
+
+function TimelineContent({
+    project,
+    snapshot,
+    refresh,
+    days,
+    setDays,
+}: {
+    project: ActiveProject;
+    snapshot: MissionSnapshot;
+    refresh: () => void;
+    days: number;
+    setDays: (days: number) => void;
+}) {
+    const projectName = project.facts?.name ?? pathBaseName(project.dir);
+    const runs = useMissionRuns(project.dir);
+    const { start, prompt, error, clearError } = useStartRun(project.dir, projectName);
+    const git = snapshot?.git;
+    const github = snapshot?.github;
+    const report = snapshot?.pipeline;
+    const pipeline = report?.valid ? report.pipeline : null;
+    const lastBuild = latestRun(runs, "build");
+    const building = lastBuild?.state === "running";
+    const buildNote = !pipeline
+        ? "Needs the project's pipeline: connect it first (see the banner)."
+        : building
+          ? `${lastBuild.title} is running.`
+          : "";
+    const builds: MenuItem[] = (pipeline?.builds ?? []).map((b) => ({
+        label: b.title || b.id,
+        detail: b.artifact ? `→ ${b.artifact}` : b.run,
+        disabled: building,
+        onClick: () => start("build", b.id),
+    }));
+    const rcSteps = pipeline?.release?.rc ?? [];
+    const publicSteps = pipeline?.release?.public ?? [];
+    const releaseNote = pipeline
+        ? "Declared in the pipeline; running releases from here is coming next."
+        : "Needs the project's pipeline: connect it first (see the banner).";
+    return (
+        <>
+            <TimelineBody
+                days={days}
+                header={(state) => (
+                    <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
+                        <select
+                            value={days}
+                            onChange={(e) => setDays(Number(e.target.value))}
+                            className="cursor-pointer rounded border border-border bg-transparent px-1.5 py-1 text-xs text-secondary"
+                            aria-label="Period"
+                        >
+                            {DayChoices.map((d) => (
+                                <option key={d} value={d} className="bg-modalbg">
+                                    {d} days
+                                </option>
+                            ))}
+                        </select>
+                        <HeaderMenu
+                            icon="hammer"
+                            label={building ? "Building…" : "Build local"}
+                            note={buildNote}
+                            items={
+                                builds.length > 0
+                                    ? builds
+                                    : [
+                                          {
+                                              label: "No build declared",
+                                              detail: "the pipeline has no builds",
+                                              disabled: true,
+                                          },
+                                      ]
+                            }
+                        />
+                        <HeaderMenu
+                            icon="rocket"
+                            label="Release"
+                            note={releaseNote}
+                            items={[
+                                {
+                                    label: state?.rcTag ? `Release candidate ${state.rcTag}` : "Release candidate",
+                                    detail: rcSteps.length
+                                        ? rcSteps.map((st) => st.title || st.id).join(" → ")
+                                        : "not declared by the pipeline",
+                                    disabled: true,
+                                },
+                                {
+                                    label: state?.publicTag ? `Public release ${state.publicTag}` : "Public release",
+                                    detail: publicSteps.length
+                                        ? publicSteps.map((st) => st.title || st.id).join(" → ")
+                                        : "not declared by the pipeline",
+                                    disabled: true,
+                                },
+                            ]}
+                        />
+                    </MissionHeader>
+                )}
+                banner={
+                    <>
+                        <PipelineBanner dir={project.dir} report={snapshot?.pipeline} />
+                        {error ? (
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1">
+                                    <Problem text={error} />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={clearError}
+                                    className="cursor-pointer text-xs text-muted hover:text-primary"
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                        ) : null}
+                    </>
+                }
+                aside={lastBuild ? <BuildRunCard run={lastBuild} /> : null}
+                git={git}
+                github={github}
+            />
+            {prompt}
+        </>
     );
 }
 
@@ -186,12 +245,14 @@ function TimelineBody({
     days,
     header,
     banner,
+    aside,
     git,
     github,
 }: {
     days: number;
     header: (state: TimelineHeaderState) => React.ReactNode;
     banner: React.ReactNode;
+    aside?: React.ReactNode;
     git: MissionGit;
     github: MissionGithub;
 }) {
@@ -235,7 +296,8 @@ function TimelineBody({
                             <div className="h-full w-full animate-pulse bg-hover/40" />
                         )}
                     </div>
-                    <div className="min-w-0">
+                    <div className="flex min-w-0 flex-col gap-3">
+                        {aside}
                         <ReleaseStatePanel
                             state={state}
                             milestones={github?.milestones}

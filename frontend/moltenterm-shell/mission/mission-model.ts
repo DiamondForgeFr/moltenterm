@@ -172,3 +172,84 @@ export function jobsByLane(pipeline: PipelineDef): { lane: string; jobs: Pipelin
     }
     return lanes;
 }
+
+// must match RunRecord in pkg/molten/mission/runs.go
+export type RunState = "running" | "success" | "failure" | "cancelled" | "lost";
+
+export type RunRecord = {
+    id: string;
+    dir: string;
+    kind: string;
+    stepid: string;
+    title?: string;
+    command: string;
+    cwd?: string;
+    artifact?: string;
+    pid?: number;
+    startedat: number;
+    finishedat?: number;
+    state: RunState;
+    exit?: number;
+    phases: string[];
+    cancelled?: boolean;
+    logsize: number;
+};
+
+export type TrustedCommand = {
+    kind: string;
+    id: string;
+    title?: string;
+    run: string;
+    cwd?: string;
+    env?: Record<string, string>;
+};
+
+export type UntrustedInfo = { hash: string; commands: TrustedCommand[] };
+
+export type RunResult = { run?: RunRecord; untrusted?: UntrustedInfo };
+
+export type LogChunk = { text: string; size: number };
+
+export const RunStateLabels: Record<RunState, string> = {
+    running: "running",
+    success: "succeeded",
+    failure: "failed",
+    cancelled: "cancelled",
+    lost: "interrupted",
+};
+
+// Puts a record from the event bus into the list the panel shows, newest first.
+export function upsertRun(runs: readonly RunRecord[], run: RunRecord): RunRecord[] {
+    const rest = (runs ?? []).filter((r) => r.id !== run.id);
+    return [run, ...rest].sort((a, b) => b.startedat - a.startedat);
+}
+
+export function latestRun(runs: readonly RunRecord[], kind: string): RunRecord {
+    return (runs ?? []).find((r) => r.kind === kind) ?? null;
+}
+
+// Terminal colour codes start with ESC: the regex has to match that control character.
+// eslint-disable-next-line no-control-regex
+const AnsiRegex = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07/g;
+
+// The last lines a run printed, without colours or the exit marker the runner adds.
+export function logTail(text: string, lines: number): string[] {
+    return (text ?? "")
+        .replace(AnsiRegex, "")
+        .split(/\r?\n|\r/)
+        .filter((l) => l.trim() !== "" && !/^exit=-?\d+$/.test(l.trim()))
+        .slice(-lines);
+}
+
+export function formatElapsed(ms: number): string {
+    const seconds = Math.max(0, Math.round(ms / 1000));
+    const minutes = Math.floor(seconds / 60);
+    if (minutes === 0) {
+        return `${seconds} s`;
+    }
+    const hours = Math.floor(minutes / 60);
+    if (hours === 0) {
+        return `${minutes} min ${String(seconds % 60).padStart(2, "0")}`;
+    }
+    return `${hours} h ${String(minutes % 60).padStart(2, "0")}`;
+}
