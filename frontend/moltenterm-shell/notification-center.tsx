@@ -8,6 +8,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { formatAge, MoltentermNotification } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 import { loadWorkspaceSources } from "./workspace-rail";
@@ -36,7 +37,7 @@ function NotificationRow({
             onClick={onOpen}
             className={cn(
                 "flex w-full cursor-pointer items-start gap-2 border-b border-border px-3 py-2 text-left hover:bg-hover",
-                !entry.read && "bg-accent/5"
+                !entry.read && "molten-notification-unread"
             )}
         >
             <i
@@ -78,6 +79,8 @@ export function NotificationCenter() {
     const [open, setOpen] = useState(false);
     const [workspaces, setWorkspaces] = useState<Map<string, Workspace>>(new Map());
     const rootRef = useRef<HTMLDivElement>(null);
+    const panelRef = useRef<HTMLDivElement>(null);
+    const [anchor, setAnchor] = useState<{ top: number; right: number }>(null);
 
     useEffect(() => {
         if (!open) {
@@ -88,7 +91,8 @@ export function NotificationCenter() {
             setWorkspaces(new Map(sources.map((s) => [s.workspace.oid, s.workspace])));
         });
         const onPointerDown = (e: PointerEvent) => {
-            if (!rootRef.current?.contains(e.target as Node)) {
+            const target = e.target as Node;
+            if (!rootRef.current?.contains(target) && !panelRef.current?.contains(target)) {
                 setOpen(false);
             }
         };
@@ -116,7 +120,11 @@ export function NotificationCenter() {
                 type="button"
                 aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
                 title="Notifications"
-                onClick={() => setOpen(!open)}
+                onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setAnchor({ top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) });
+                    setOpen(!open);
+                }}
                 className="relative flex h-7 w-7 cursor-pointer items-center justify-center rounded text-secondary transition-colors hover:bg-hover hover:text-primary"
             >
                 <i className="fa fa-regular fa-bell" />
@@ -126,39 +134,49 @@ export function NotificationCenter() {
                     </span>
                 ) : null}
             </button>
-            {open ? (
-                <div className="molten-notification-panel absolute top-full right-0 z-[9500] mt-1 flex max-h-[60vh] w-[380px] flex-col rounded border border-border bg-modalbg text-sm text-primary shadow-lg">
-                    <div className="flex items-center border-b border-border px-3 py-2">
-                        <span className="flex-1 font-semibold">Notifications</span>
-                        <button
-                            type="button"
-                            disabled={unread === 0}
-                            onClick={() => model.markAllRead()}
-                            className="cursor-pointer rounded px-1.5 py-0.5 text-xs text-secondary hover:bg-hover hover:text-primary disabled:opacity-40"
-                        >
-                            Mark all as read
-                        </button>
-                    </div>
-                    <div className="overflow-y-auto">
-                        {entries.length === 0 ? (
-                            <div className="px-3 py-6 text-center text-secondary">Nothing needs your attention.</div>
-                        ) : (
-                            entries.map((entry) => (
-                                <NotificationRow
-                                    key={entry.id}
-                                    entry={entry}
-                                    workspace={workspaces.get(entry.workspaceid)}
-                                    now={now}
-                                    onOpen={() => {
-                                        setOpen(false);
-                                        fireAndForget(() => model.open(entry));
-                                    }}
-                                />
-                            ))
-                        )}
-                    </div>
-                </div>
-            ) : null}
+            {/* Portaled to the body: inside the tab bar the panel would sit under the blocks' stacking context. */}
+            {open && anchor
+                ? createPortal(
+                      <div
+                          ref={panelRef}
+                          style={{ top: anchor.top, right: anchor.right }}
+                          className="molten-notification-panel fixed z-[9500] flex max-h-[60vh] w-[380px] flex-col rounded border border-border bg-modalbg text-sm text-primary shadow-lg"
+                      >
+                          <div className="flex items-center border-b border-border px-3 py-2">
+                              <span className="flex-1 font-semibold">Notifications</span>
+                              <button
+                                  type="button"
+                                  disabled={unread === 0}
+                                  onClick={() => model.markAllRead()}
+                                  className="cursor-pointer rounded px-1.5 py-0.5 text-xs text-secondary hover:bg-hover hover:text-primary disabled:opacity-40"
+                              >
+                                  Mark all as read
+                              </button>
+                          </div>
+                          <div className="overflow-y-auto">
+                              {entries.length === 0 ? (
+                                  <div className="px-3 py-6 text-center text-secondary">
+                                      Nothing needs your attention.
+                                  </div>
+                              ) : (
+                                  entries.map((entry) => (
+                                      <NotificationRow
+                                          key={entry.id}
+                                          entry={entry}
+                                          workspace={workspaces.get(entry.workspaceid)}
+                                          now={now}
+                                          onOpen={() => {
+                                              setOpen(false);
+                                              fireAndForget(() => model.open(entry));
+                                          }}
+                                      />
+                                  ))
+                              )}
+                          </div>
+                      </div>,
+                      document.body
+                  )
+                : null}
         </div>
     );
 }
