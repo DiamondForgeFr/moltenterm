@@ -10,7 +10,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatAge, MoltentermNotification } from "./notifications-model";
-import { MoltentermNotifications } from "./notifications-store";
+import { MoltentermNotifications, startNotificationAutoRead } from "./notifications-store";
 import { loadWorkspaceSources } from "./workspace-rail";
 
 const KindIcons: Record<MoltentermNotification["kind"], string> = {
@@ -80,6 +80,7 @@ export function NotificationCenter() {
     const [workspaces, setWorkspaces] = useState<Map<string, Workspace>>(new Map());
     const rootRef = useRef<HTMLDivElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
+    useEffect(() => startNotificationAutoRead(), []);
     const [anchor, setAnchor] = useState<{ top: number; right: number }>(null);
 
     useEffect(() => {

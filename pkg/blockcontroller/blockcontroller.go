@@ -17,6 +17,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/blocklogger"
 	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
+	"github.com/wavetermdev/waveterm/pkg/molten/attention" // MOLTENTERM-PATCH (#46)
 	"github.com/wavetermdev/waveterm/pkg/remote"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/util/ds"
@@ -372,6 +373,10 @@ func HandleAppendBlockFile(blockId string, blockFile string, data []byte) error 
 	err := filestore.WFS.AppendData(ctx, blockId, blockFile, data)
 	if err != nil {
 		return fmt.Errorf("error appending to blockfile: %w", err)
+	}
+	// MOLTENTERM-PATCH (#46): coding agents' bell, OSC 9 and OSC 777 become notifications of the workspace
+	if blockFile == wavebase.BlockFile_Term {
+		attention.ScanTerminalOutput(blockId, data)
 	}
 	wps.Broker.Publish(wps.WaveEvent{
 		Event: wps.Event_BlockFile,
