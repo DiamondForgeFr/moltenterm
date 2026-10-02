@@ -82,13 +82,18 @@ function readManifest(file) {
     }
 }
 
-// APFS clones: instant and free of extra space; falls back to a plain copy elsewhere.
+// APFS clones: instant and free of extra space; a plain copy elsewhere (the tests also run on Linux).
 function copyApp(from, to) {
-    try {
-        execFileSync("cp", ["-c", "-R", from, to], { stdio: "ignore" });
-    } catch {
-        execFileSync("ditto", [from, to], { stdio: "ignore" });
+    if (process.platform === "darwin") {
+        try {
+            execFileSync("cp", ["-c", "-R", from, to], { stdio: "ignore" });
+            return;
+        } catch {
+            execFileSync("ditto", [from, to], { stdio: "ignore" });
+            return;
+        }
     }
+    fs.cpSync(from, to, { recursive: true, verbatimSymlinks: true });
 }
 
 export function deliverGold({ app, dir, manifest }) {
