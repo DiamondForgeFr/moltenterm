@@ -20,6 +20,8 @@ import {
 import clsx from "clsx";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { MoltentermAddPanelWidget } from "../../moltenterm-shell/add-panel"; // MOLTENTERM-PATCH (#49)
+import { MoltentermAddPanel } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#49)
 
 export type WidgetsEnv = WaveEnvSubset<{
     isDev: WaveEnv["isDev"];
@@ -365,7 +367,8 @@ const Widgets = memo(() => {
     const filteredWidgets = Object.fromEntries(
         Object.entries(widgetsMap).filter(([_key, widget]) => shouldIncludeWidgetForWorkspace(widget, workspaceId))
     );
-    const widgets = sortByDisplayOrder(filteredWidgets);
+    // MOLTENTERM-PATCH (#49): one "+" that opens the launcher, where the new panel is chosen
+    const widgets = MoltentermAddPanel ? [MoltentermAddPanelWidget] : sortByDisplayOrder(filteredWidgets);
 
     const [isAppsOpen, setIsAppsOpen] = useState(false);
     const appsButtonRef = useRef<HTMLDivElement>(null);
