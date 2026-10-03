@@ -14,7 +14,11 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { GoldApplyResult, GoldApplyWhen, GoldCheck, GoldManifest, GoldSwapStatus } from "@/util/moltenterm-gold";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
-import { addMoltentermNotification } from "../notifications-store";
+import {
+    addMoltentermNotification,
+    registerNotificationGesture,
+    resolveMoltentermNotification,
+} from "../notifications-store";
 import {
     installedSince,
     shouldOffer,
@@ -56,6 +60,14 @@ function setClientMeta(meta: Record<string, any>) {
     );
 }
 
+// The notification's "Update…" button opens the update dialog (FR-MC-010). A waiting gold is a situation, keyed and
+// resolved once installed or skipped; what happened during an update is a moment, told once.
+const UpdateReviewGesture = "update:review";
+
+function updateAvailableKey(buildId: number): string {
+    return `update:available:${buildId}`;
+}
+
 export class GoldUpdateModel {
     private static instance: GoldUpdateModel = null;
 
@@ -87,6 +99,10 @@ export class GoldUpdateModel {
             return () => {};
         }
         this.started = true;
+        const unregister = registerNotificationGesture(UpdateReviewGesture, async () => {
+            globalStore.set(this.dialogOpenAtom, true);
+            return { ok: true };
+        });
         this.announceInstalled();
         this.check();
         const timer = setInterval(() => this.check(), UpdateCheckIntervalMs);
@@ -95,6 +111,7 @@ export class GoldUpdateModel {
         return () => {
             clearInterval(timer);
             window.removeEventListener("focus", onFocus);
+            unregister();
             this.started = false;
         };
     }
@@ -107,6 +124,7 @@ export class GoldUpdateModel {
             return;
         }
         setClientMeta({ [UpdateLastBuildMetaKey]: own });
+        resolveMoltentermNotification(updateAvailableKey(own));
         if (!installedSince(own, last)) {
             return;
         }
@@ -131,10 +149,12 @@ export class GoldUpdateModel {
             if (offer != null && clientMetaNumber(UpdateNotifiedMetaKey) < offer.buildId) {
                 setClientMeta({ [UpdateNotifiedMetaKey]: offer.buildId });
                 addMoltentermNotification({
+                    key: updateAvailableKey(offer.buildId),
                     source: "moltenterm",
                     kind: "info",
                     title: `A new MoltenTerm gold is ready (${updateLabel(offer)})`,
-                    message: `${offer.notes.length} change(s). Click Update in the status bar.`,
+                    message: `${offer.notes.length} change(s). Review them, then update now or when you quit.`,
+                    actions: [{ id: "review", label: "Update…", kind: "gesture", gesture: UpdateReviewGesture }],
                 });
             }
         });
@@ -150,6 +170,7 @@ export class GoldUpdateModel {
         }
         if (status.state === "rolledback") {
             setClientMeta({ [UpdateSkippedMetaKey]: status.buildId });
+            resolveMoltentermNotification(updateAvailableKey(status.buildId));
             addMoltentermNotification({
                 source: "moltenterm",
                 kind: "warning",
@@ -168,6 +189,7 @@ export class GoldUpdateModel {
 
     skip(manifest: GoldManifest) {
         setClientMeta({ [UpdateSkippedMetaKey]: manifest.buildId });
+        resolveMoltentermNotification(updateAvailableKey(manifest.buildId));
         globalStore.set(this.offerAtom, null);
         globalStore.set(this.dialogOpenAtom, false);
     }
