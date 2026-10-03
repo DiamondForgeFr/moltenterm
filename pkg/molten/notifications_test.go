@@ -1,0 +1,115 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+package molten
+
+import (
+	"encoding/json"
+	"reflect"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/waveobj"
+)
+
+func notif(fields map[string]any) map[string]any {
+	value := map[string]any{"source": "build", "title": "t", "kind": "info", "time": float64(1), "read": false}
+	for k, v := range fields {
+		value[k] = v
+	}
+	return value
+}
+
+func TestNotificationPublishAddsAndUpdatesByKey(t *testing.T) {
+	now := time.UnixMilli(1000)
+	ready := NotificationInput{Key: "build:gold", Source: "build", Title: "Gold is ready", Message: "Build 9c425c4",
+		Actions: []NotificationAction{{Id: "reveal", Label: "Show in Finder", Kind: "gesture", Gesture: "path:reveal", Lasting: true}}}
+	update := NotificationPublishUpdate(nil, ready, now, "a")
+	value, _ := update["molten:notif:a"].(map[string]any)
+	if value["key"] != "build:gold" || value["time"] != float64(1000) || value["updated"] != float64(1000) || value["read"] != false {
+		t.Fatalf("new notification: %+v", value)
+	}
+	meta := waveobj.MetaMapType{"molten:notif:a": func() map[string]any {
+		v := map[string]any{}
+		for k, x := range value {
+			v[k] = x
+		}
+		v["read"] = true
+		return v
+	}()}
+	// Through JSON, as the meta comes back from the database.
+	if NotificationPublishUpdate(roundTrip(t, meta), ready, now.Add(time.Second), "b") != nil {
+		t.Fatal("the same content must change nothing")
+	}
+	ready.Message = "Build 1234567"
+	changed := NotificationPublishUpdate(roundTrip(t, meta), ready, now.Add(2*time.Second), "b")
+	got, _ := changed["molten:notif:a"].(map[string]any)
+	if len(changed) != 1 || got["message"] != "Build 1234567" || got["read"] != false || got["updated"] != float64(3000) || got["time"] != float64(1000) {
+		t.Fatalf("changed content updates in place and is unread again: %+v", changed)
+	}
+}
+
+func TestNotificationResolveThenNewEpisode(t *testing.T) {
+	now := time.UnixMilli(5000)
+	meta := waveobj.MetaMapType{"molten:notif:a": notif(map[string]any{"key": "k"}), "molten:notif:b": notif(map[string]any{"key": "other"})}
+	update := NotificationResolveUpdate(meta, "k", now)
+	if len(update) != 1 || update["molten:notif:a"].(map[string]any)["resolved"] != float64(5000) {
+		t.Fatalf("resolve: %+v", update)
+	}
+	meta["molten:notif:a"] = update["molten:notif:a"]
+	next := NotificationPublishUpdate(meta, NotificationInput{Key: "k", Source: "build", Title: "again"}, now, "c")
+	if _, ok := next["molten:notif:c"]; !ok {
+		t.Fatalf("a resolved key starts a new notification: %+v", next)
+	}
+}
+
+func TestNotificationRetention(t *testing.T) {
+	now := time.UnixMilli(NotificationClosedRetention.Milliseconds() + 10000)
+	recent := float64(now.UnixMilli() - 100)
+	meta := waveobj.MetaMapType{
+		"molten:notif:old":     notif(map[string]any{"read": true}),
+		"molten:notif:openOld": notif(map[string]any{"key": "k", "read": true}),
+	}
+	for i := 0; i < MaxClosedNotificationsPerKey+2; i++ {
+		meta["molten:notif:r"+string(rune('a'+i))] = notif(map[string]any{"key": "same", "time": recent + float64(i), "resolved": recent + float64(i)})
+	}
+	update := NotificationPublishUpdate(meta, NotificationInput{Source: "agent", Title: "bell"}, now, "new")
+	var dropped []string
+	for k, v := range update {
+		if v == nil {
+			dropped = append(dropped, strings.TrimPrefix(k, NotificationKeyPrefix))
+		}
+	}
+	want := []string{"old", "ra", "rb"}
+	if !reflect.DeepEqual(sortedStrings(dropped), want) {
+		t.Fatalf("dropped %v, want %v (open ones never dropped)", dropped, want)
+	}
+}
+
+func TestNotificationActionsCapped(t *testing.T) {
+	input := NotificationInput{Source: "build", Title: "t", Actions: []NotificationAction{{Id: "a", Label: "A", Kind: "open"}, {Id: "b", Label: "B", Kind: "open"}, {Id: "c", Label: "C", Kind: "open"}}}
+	value := NotificationPublishUpdate(nil, input, time.UnixMilli(1), "x")["molten:notif:x"].(map[string]any)
+	if actions, _ := value["actions"].([]any); len(actions) != MaxNotificationActions {
+		t.Fatalf("actions: %+v", value["actions"])
+	}
+}
+
+func roundTrip(t *testing.T, meta waveobj.MetaMapType) waveobj.MetaMapType {
+	t.Helper()
+	data, err := json.Marshal(meta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rtn waveobj.MetaMapType
+	if err := json.Unmarshal(data, &rtn); err != nil {
+		t.Fatal(err)
+	}
+	return rtn
+}
+
+func sortedStrings(s []string) []string {
+	sort.Strings(s)
+	return s
+}

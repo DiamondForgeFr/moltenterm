@@ -16,21 +16,17 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
-
-// must match NotificationKeyPrefix and MaxNotifications in frontend/moltenterm-shell/notifications-model.ts
-const NotificationKeyPrefix = "molten:notif:"
-const MaxNotifications = 500
 
 // An agent rings or notifies several times for one event: one entry per block and text within this window.
 const AttentionDedup = 5 * time.Second
@@ -208,31 +204,6 @@ func makeNotificationId(now time.Time) string {
 	return strconv.FormatInt(now.UnixMilli(), 36) + "-" + strconv.FormatInt(rand.Int63n(2176782336), 36)
 }
 
-// The meta update that adds the entry and drops the oldest ones beyond MaxNotifications.
-func notificationUpdate(existing waveobj.MetaMapType, entry map[string]any, id string) waveobj.MetaMapType {
-	type keyed struct {
-		key  string
-		time float64
-	}
-	var current []keyed
-	for key, value := range existing {
-		if !strings.HasPrefix(key, NotificationKeyPrefix) {
-			continue
-		}
-		var t float64
-		if m, ok := value.(map[string]any); ok {
-			t, _ = m["time"].(float64)
-		}
-		current = append(current, keyed{key, t})
-	}
-	sort.Slice(current, func(i, j int) bool { return current[i].time < current[j].time })
-	update := waveobj.MetaMapType{NotificationKeyPrefix + id: entry}
-	for i := 0; i < len(current)-(MaxNotifications-1); i++ {
-		update[current[i].key] = nil
-	}
-	return update
-}
-
 func recordAttention(blockId string, signal AttentionSignal) {
 	defer func() {
 		panichandler.PanicHandler("molten:recordAttention", recover())
@@ -258,21 +229,17 @@ func writeAttention(ctx context.Context, blockId string, signal AttentionSignal,
 	if err != nil {
 		return fmt.Errorf("reading the client: %w", err)
 	}
-	entry := map[string]any{
-		"source":      "agent",
-		"title":       signal.Title,
-		"kind":        "warning",
-		"workspaceid": workspaceId,
-		"tabid":       tabId,
-		"blockid":     blockId,
-		"time":        float64(now.UnixMilli()),
-		"read":        false,
-	}
-	if signal.Message != "" {
-		entry["message"] = signal.Message
+	input := molten.NotificationInput{
+		Source:      "agent",
+		Title:       signal.Title,
+		Message:     signal.Message,
+		Kind:        "warning",
+		WorkspaceId: workspaceId,
+		TabId:       tabId,
+		BlockId:     blockId,
 	}
 	oref := waveobj.MakeORef(waveobj.OType_Client, client.OID)
-	err = wstore.UpdateObjectMeta(ctx, oref, notificationUpdate(client.Meta, entry, makeNotificationId(now)), false)
+	err = wstore.UpdateObjectMeta(ctx, oref, molten.NotificationPublishUpdate(client.Meta, input, now, makeNotificationId(now)), false)
 	if err != nil {
 		return err
 	}
