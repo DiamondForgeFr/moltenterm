@@ -156,7 +156,7 @@ export function makePaneView(folder: string, state: PaneState, ws: Workspace): P
         if (state.upstream) {
             branchLines.push(`${state.ahead ?? 0} ahead, ${state.behind ?? 0} behind ${state.upstream}`);
         } else if ((state.ahead ?? 0) > 0) {
-            branchLines.push(`${state.ahead} commits on no remote`);
+            branchLines.push(`${state.ahead} commit${state.ahead === 1 ? "" : "s"} on no remote`);
         }
         if (state.dirty) {
             branchLines.push("uncommitted changes");
