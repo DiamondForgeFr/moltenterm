@@ -18,7 +18,14 @@ import {
     useInteractions,
 } from "@floating-ui/react";
 import * as jotai from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
+// MOLTENTERM-PATCH (#107): MoltenTerm's texts for local durable terminals
+import {
+    DurableLocalContext,
+    LocalDurableAttachedContent,
+    LocalDurableDetachedContent,
+    LocalStandardSessionContent,
+} from "../../moltenterm-shell/durable-local";
 import { BlockEnv } from "./blockenv";
 
 function isTermViewModel(viewModel: ViewModel): viewModel is TermViewModel {
@@ -27,6 +34,11 @@ function isTermViewModel(viewModel: ViewModel): viewModel is TermViewModel {
 
 function LearnMoreButton() {
     const waveEnv = useWaveEnv<BlockEnv>();
+    // MOLTENTERM-PATCH (#107): no link to Wave's documentation from a local terminal
+    const isLocal = useContext(DurableLocalContext);
+    if (isLocal) {
+        return null;
+    }
     return (
         <button
             className="text-muted text-xs hover:underline cursor-pointer text-left"
@@ -266,17 +278,24 @@ function getContentToRender(
     onClose: () => void,
     jobStatus: BlockJobStatusData,
     connStatus: ConnStatus,
-    isConfigedDurable?: boolean | null
+    isConfigedDurable?: boolean | null,
+    isLocal?: boolean // MOLTENTERM-PATCH (#107)
 ): string | React.ReactNode {
     if (isConfigedDurable === false) {
+        // MOLTENTERM-PATCH (#107)
+        if (isLocal) {
+            return <LocalStandardSessionContent viewModel={viewModel} onClose={onClose} />;
+        }
         return <StandardSessionContent viewModel={viewModel} onClose={onClose} />;
     }
 
     const status = jobStatus?.status;
     if (status === "connected") {
-        return <DurableAttachedContent onClose={onClose} />;
+        // MOLTENTERM-PATCH (#107)
+        return isLocal ? <LocalDurableAttachedContent /> : <DurableAttachedContent onClose={onClose} />;
     } else if (status === "disconnected") {
-        return <DurableDetachedContent onClose={onClose} />;
+        // MOLTENTERM-PATCH (#107)
+        return isLocal ? <LocalDurableDetachedContent /> : <DurableDetachedContent onClose={onClose} />;
     } else if (status === "init") {
         return <DurableStartingContent onClose={onClose} />;
     } else if (status === "done") {
@@ -404,7 +423,16 @@ export function DurableSessionFlyover({
         return null;
     }
 
-    const content = getContentToRender(viewModel, handleClose, termDurableStatus, connStatus, termConfigedDurable);
+    // MOLTENTERM-PATCH (#107): local terminals get MoltenTerm's texts
+    const isLocal = util.isLocalConnName(connName);
+    const content = getContentToRender(
+        viewModel,
+        handleClose,
+        termDurableStatus,
+        connStatus,
+        termConfigedDurable,
+        isLocal
+    );
     if (content == null) {
         return null;
     }
@@ -431,7 +459,8 @@ export function DurableSessionFlyover({
                         onFocusCapture={(e) => e.stopPropagation()}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        {content}
+                        {/* MOLTENTERM-PATCH (#107) */}
+                        <DurableLocalContext.Provider value={isLocal}>{content}</DurableLocalContext.Provider>
                     </div>
                 </FloatingPortal>
             )}

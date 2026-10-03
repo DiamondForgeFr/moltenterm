@@ -22,6 +22,7 @@ import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { MoltentermAddPanelWidget } from "../../moltenterm-shell/add-panel"; // MOLTENTERM-PATCH (#49)
 import { MoltentermAddPanel } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#49)
+import { MoltentermDevChannelText } from "../../moltenterm-shell/status-bar-model"; // MOLTENTERM-PATCH (#107)
 
 export type WidgetsEnv = WaveEnvSubset<{
     isDev: WaveEnv["isDev"];
@@ -547,7 +548,11 @@ const Widgets = memo(() => {
                 )}
                 {env.isDev() ? (
                     <div
-                        className="flex justify-center items-center w-full py-1 text-accent text-[30px]"
+                        // MOLTENTERM-PATCH (#107): the dev channel's fixed colour, as in the status bar
+                        className={clsx(
+                            "flex justify-center items-center w-full py-1 text-[30px]",
+                            MoltentermDevChannelText
+                        )}
                         title={`Running ${MoltentermProductName} Dev Build`} // MOLTENTERM-PATCH (#6)
                     >
                         <i className="fa fa-brands fa-dev fa-fw" />

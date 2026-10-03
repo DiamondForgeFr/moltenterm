@@ -113,3 +113,16 @@ export function toBrowserUrl(input: string, searchTemplate = "https://duckduckgo
     }
     return searchTemplate.replace("%s", encodeURIComponent(text));
 }
+
+// The panel header names the page: its title, or its host while the title is unknown.
+export function browserHeaderTitle(tab: BrowserTab): string {
+    const title = tab?.title?.trim();
+    if (title) {
+        return title;
+    }
+    try {
+        return new URL(tab?.url).hostname;
+    } catch {
+        return "";
+    }
+}

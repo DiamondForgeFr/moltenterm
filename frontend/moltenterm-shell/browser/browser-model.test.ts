@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
     activateTab,
     addTab,
+    browserHeaderTitle,
     browserMeta,
     BrowserState,
     closeTab,
@@ -89,5 +90,20 @@ describe("toBrowserUrl", () => {
         ["   ", null],
     ])("turns %j into %j", (input, want) => {
         expect(toBrowserUrl(input)).toBe(want);
+    });
+});
+
+describe("browserHeaderTitle", () => {
+    it("shows the page title", () => {
+        expect(browserHeaderTitle({ id: "a", url: "https://github.com/x", title: " GitHub - x " })).toBe("GitHub - x");
+    });
+
+    it("falls back to the host while the title is unknown", () => {
+        expect(browserHeaderTitle({ id: "a", url: "https://github.com/x" })).toBe("github.com");
+    });
+
+    it("is empty for a page without a host", () => {
+        expect(browserHeaderTitle({ id: "a", url: "about:blank" })).toBe("");
+        expect(browserHeaderTitle(null)).toBe("");
     });
 });
