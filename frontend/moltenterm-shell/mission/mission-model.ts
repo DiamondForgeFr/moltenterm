@@ -192,6 +192,7 @@ export type RunRecord = {
     exit?: number;
     phases: string[];
     cancelled?: boolean;
+    closed?: boolean;
     logsize: number;
 };
 

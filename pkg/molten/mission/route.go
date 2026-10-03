@@ -99,7 +99,7 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 			return nil, err
 		}
 		return l.runs.List(req.Dir), nil
-	case LogCommand, CancelCommand:
+	case LogCommand, CancelCommand, CloseCommand:
 		var req runIdRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
@@ -109,6 +109,9 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 		}
 		if command == CancelCommand {
 			return nil, l.runs.Cancel(req.Dir, req.RunId)
+		}
+		if command == CloseCommand {
+			return nil, l.runs.Close(req.Dir, req.RunId)
 		}
 		return l.runs.ReadLog(req.Dir, req.RunId, req.From)
 	case TrustCommand:

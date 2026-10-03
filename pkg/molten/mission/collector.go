@@ -33,6 +33,7 @@ const (
 	RunsCommand       = "moltenmissionruns"
 	LogCommand        = "moltenmissionlog"
 	CancelCommand     = "moltenmissioncancel"
+	CloseCommand      = "moltenmissionclose"
 	TrustCommand      = "moltenmissiontrust"
 	UpdateEvent       = "molten:mission:update"
 	RunEvent          = "molten:mission:run"

@@ -1,0 +1,64 @@
+{"id":"ur-en-01","prompt":"users should be able to reset their password from the login page","locale":"en","expected_signal":"ur","expected_should_fire":true,"notes":"canonical UR — user-need verb"}
+{"id":"ur-en-02","prompt":"as an org admin I want to invite team members by email","locale":"en","expected_signal":"ur","expected_should_fire":true,"notes":"role-based UR"}
+{"id":"ur-en-03","prompt":"users need a way to export their personal data as JSON","locale":"en","expected_signal":"ur","expected_should_fire":true,"notes":"GDPR-shaped UR"}
+{"id":"ur-en-04","prompt":"users must be able to delete their account permanently","locale":"en","expected_signal":"ur","expected_should_fire":true,"notes":"deletion right UR"}
+{"id":"ur-en-05","prompt":"users want to see their recent activity in a single timeline","locale":"en","expected_signal":"ur","expected_should_fire":true,"notes":"want UR"}
+{"id":"ur-fr-01","prompt":"l'utilisateur doit pouvoir supprimer son compte à tout moment","locale":"fr","expected_signal":"ur","expected_should_fire":true,"notes":"FR canonical UR"}
+{"id":"ur-fr-02","prompt":"l'utilisateur veut recevoir une notification email à chaque connexion","locale":"fr","expected_signal":"ur","expected_should_fire":true,"notes":"want FR"}
+{"id":"ur-fr-03","prompt":"l'utilisateur a besoin d'exporter son historique de commandes","locale":"fr","expected_signal":"ur","expected_should_fire":true,"notes":"need FR"}
+{"id":"ur-fr-04","prompt":"l'utilisateur doit pouvoir choisir sa langue depuis le profil","locale":"fr","expected_signal":"ur","expected_should_fire":true,"notes":"FR i18n UR"}
+{"id":"fr-en-01","prompt":"add a feature that allows users to export their data as CSV","locale":"en","expected_signal":"fr","expected_should_fire":true,"notes":"feature ask"}
+{"id":"fr-en-02","prompt":"we need a new feature to schedule recurring exports","locale":"en","expected_signal":"fr","expected_should_fire":true,"notes":"new feature"}
+{"id":"fr-en-03","prompt":"allow admins to bulk-archive expired invitations","locale":"en","expected_signal":"fr","expected_should_fire":true,"notes":"allow … to"}
+{"id":"fr-en-04","prompt":"enable the org owner to transfer ownership to another member","locale":"en","expected_signal":"fr","expected_should_fire":true,"notes":"enable … to"}
+{"id":"fr-en-05","prompt":"support the ability to upload a custom org logo on signup","locale":"en","expected_signal":"fr","expected_should_fire":true,"notes":"support … to"}
+{"id":"fr-fr-01","prompt":"on doit pouvoir filtrer les utilisateurs par rôle dans la liste","locale":"fr","expected_signal":"fr","expected_should_fire":true,"notes":"on doit pouvoir"}
+{"id":"fr-fr-02","prompt":"on veut permettre aux invités de voir un dashboard limité","locale":"fr","expected_signal":"fr","expected_should_fire":true,"notes":"on veut permettre"}
+{"id":"fr-fr-03","prompt":"il faut une fonctionnalité pour archiver les invitations expirées","locale":"fr","expected_signal":"fr","expected_should_fire":true,"notes":"functionality FR — currently weak match"}
+{"id":"ds-en-01","prompt":"let's use bcrypt with cost factor 12 for password hashing","locale":"en","expected_signal":"ds","expected_should_fire":true,"notes":"technical decision EN"}
+{"id":"ds-en-02","prompt":"we'll use Redis for the session store","locale":"en","expected_signal":"ds","expected_should_fire":true,"notes":"we'll use"}
+{"id":"ds-en-03","prompt":"decision: refresh tokens are stored in httpOnly cookies, not localStorage","locale":"en","expected_signal":"ds","expected_should_fire":true,"notes":"decision: marker"}
+{"id":"ds-en-04","prompt":"the rate limiter is implemented with a token bucket of 100 req/min per IP","locale":"en","expected_signal":"ds","expected_should_fire":true,"notes":"implemented with"}
+{"id":"ds-fr-01","prompt":"on va utiliser argon2id pour hasher les mots de passe","locale":"fr","expected_signal":"ds","expected_should_fire":true,"notes":"on va utiliser"}
+{"id":"ds-fr-02","prompt":"on part sur PostgreSQL avec une réplique read-only","locale":"fr","expected_signal":"ds","expected_should_fire":true,"notes":"on part sur"}
+{"id":"ds-fr-03","prompt":"décision : les tokens JWT expirent après 15 minutes","locale":"fr","expected_signal":"ds","expected_should_fire":true,"notes":"ground truth: this IS a DS. Current FR-side gap — 'décision :' regex is EN-only ('decision:'). Counts as a recall miss."}
+{"id":"tc-en-01","prompt":"we should test that login rejects an empty password with a 400","locale":"en","expected_signal":"tc","expected_should_fire":true,"notes":"we should test"}
+{"id":"tc-en-02","prompt":"add a test case that verifies 2FA fails after 3 wrong codes","locale":"en","expected_signal":"tc","expected_should_fire":true,"notes":"test case"}
+{"id":"tc-en-03","prompt":"acceptance criteria: a deleted user's invitations must be revoked within 5s","locale":"en","expected_signal":"tc","expected_should_fire":true,"notes":"acceptance criteria"}
+{"id":"tc-en-04","prompt":"given a logged-in user, when they hit /me, then the response includes their roles","locale":"en","expected_signal":"tc","expected_should_fire":true,"notes":"given/when/then"}
+{"id":"tc-en-05","prompt":"assert that signing up with an existing email returns 409","locale":"en","expected_signal":"tc","expected_should_fire":true,"notes":"assert that"}
+{"id":"tc-fr-01","prompt":"il faut tester le flow de reset password de bout en bout","locale":"fr","expected_signal":"tc","expected_should_fire":true,"notes":"il faut tester"}
+{"id":"tc-fr-02","prompt":"on doit ajouter un cas de test pour les comptes verrouillés","locale":"fr","expected_signal":"tc","expected_should_fire":true,"notes":"ground truth: this IS a TC. Current FR-side gap — 'cas de test' / 'ajouter un test' not in TC regex. Counts as a recall miss."}
+{"id":"rev-en-01","prompt":"reconsider the session TTL decision — 15 min may be too short","locale":"en","expected_signal":"revision","expected_should_fire":false,"notes":"revision is low-confidence by design — should NOT fire in v1"}
+{"id":"rev-en-02","prompt":"actually, scratch that, let's leave the cache TTL at 5 minutes","locale":"en","expected_signal":"revision","expected_should_fire":false,"notes":"actually + scratch that — low confidence"}
+{"id":"rev-fr-01","prompt":"on change d'avis sur la stack email — on garde mailersend finalement","locale":"fr","expected_signal":"revision","expected_should_fire":false,"notes":"on change d'avis — low confidence"}
+{"id":"trivial-en-01","prompt":"ok thanks","locale":"en","expected_signal":"trivial","expected_should_fire":false,"notes":"acknowledgement"}
+{"id":"trivial-en-02","prompt":"lgtm","locale":"en","expected_signal":"trivial","expected_should_fire":false,"notes":"review ack"}
+{"id":"trivial-en-03","prompt":"sounds good","locale":"en","expected_signal":"trivial","expected_should_fire":false,"notes":"approval ack"}
+{"id":"trivial-en-04","prompt":"got it","locale":"en","expected_signal":"trivial","expected_should_fire":false,"notes":"comprehension ack"}
+{"id":"trivial-fr-01","prompt":"merci","locale":"fr","expected_signal":"trivial","expected_should_fire":false,"notes":"FR ack"}
+{"id":"trivial-fr-02","prompt":"ok","locale":"fr","expected_signal":"trivial","expected_should_fire":false,"notes":"shared ack"}
+{"id":"readonly-en-01","prompt":"show me the config for the email service","locale":"en","expected_signal":"trivial","expected_should_fire":false,"notes":"read-only — show me"}
+{"id":"readonly-en-02","prompt":"what does the loginGuard middleware do","locale":"en","expected_signal":"trivial","expected_should_fire":false,"notes":"read-only — what does"}
+{"id":"readonly-en-03","prompt":"explain how the refresh-token rotation works","locale":"en","expected_signal":"trivial","expected_should_fire":false,"notes":"read-only — explain"}
+{"id":"readonly-en-04","prompt":"describe the request flow when a user signs up","locale":"en","expected_signal":"trivial","expected_should_fire":false,"notes":"read-only — describe"}
+{"id":"readonly-fr-01","prompt":"montre-moi le code du module invitation","locale":"fr","expected_signal":"trivial","expected_should_fire":false,"notes":"FR read-only"}
+{"id":"readonly-fr-02","prompt":"explique-moi pourquoi on stocke les tokens en cookie","locale":"fr","expected_signal":"trivial","expected_should_fire":false,"notes":"FR explain"}
+{"id":"readonly-fr-03","prompt":"peux-tu me montrer la liste des migrations","locale":"fr","expected_signal":"trivial","expected_should_fire":false,"notes":"FR peux-tu me montrer"}
+{"id":"readonly-fr-04","prompt":"qu'est-ce que ce hook fait exactement","locale":"fr","expected_signal":"none","expected_should_fire":false,"notes":"FR qu'est-ce — read-only intent but not currently in trivial regex; falls through to 'none'"}
+{"id":"none-en-01","prompt":"deployed to staging","locale":"en","expected_signal":"none","expected_should_fire":false,"notes":"status update"}
+{"id":"none-en-02","prompt":"the build is failing on CI","locale":"en","expected_signal":"none","expected_should_fire":false,"notes":"bug-report-shaped — out of scope per spec"}
+{"id":"none-en-03","prompt":"why is the login button gray","locale":"en","expected_signal":"none","expected_should_fire":false,"notes":"bug report as question — should not fire SRS"}
+{"id":"none-en-04","prompt":"can you fix the typo in the readme","locale":"en","expected_signal":"none","expected_should_fire":false,"notes":"trivial fix request"}
+{"id":"none-en-05","prompt":"run the linter on apps/api","locale":"en","expected_signal":"none","expected_should_fire":false,"notes":"task command"}
+{"id":"none-en-06","prompt":"git status","locale":"en","expected_signal":"none","expected_should_fire":false,"notes":"shell command"}
+{"id":"none-en-07","prompt":"create a commit for these changes","locale":"en","expected_signal":"none","expected_should_fire":false,"notes":"meta task"}
+{"id":"none-fr-01","prompt":"déployé en staging","locale":"fr","expected_signal":"none","expected_should_fire":false,"notes":"FR status"}
+{"id":"none-fr-02","prompt":"le bouton de login est gris pourquoi","locale":"fr","expected_signal":"none","expected_should_fire":false,"notes":"FR bug observation"}
+{"id":"none-fr-03","prompt":"corrige cette typo dans le README","locale":"fr","expected_signal":"none","expected_should_fire":false,"notes":"FR fix request"}
+{"id":"pivot-en-01","prompt":"actually, while you're here, can we also enable users to bulk-import contacts","locale":"en","expected_signal":"fr","expected_should_fire":true,"notes":"mid-task pivot — 'enable … to' triggers FR; legitimate"}
+{"id":"pivot-en-02","prompt":"it'd be nice if the dashboard refreshed every 30 seconds","locale":"en","expected_signal":"none","expected_should_fire":false,"notes":"soft feature wish — no current trigger; debatable"}
+{"id":"pivot-en-03","prompt":"show me the config and also add a feature to override it per env","locale":"en","expected_signal":"trivial","expected_should_fire":false,"notes":"read-only prefix wins — known limitation; revisit"}
+{"id":"ambig-en-01","prompt":"the rate limit feels too aggressive, maybe lower it","locale":"en","expected_signal":"none","expected_should_fire":false,"notes":"opinion / soft DS-adjacent — should NOT fire"}
+{"id":"ambig-en-02","prompt":"users complain about the timeout being too short","locale":"en","expected_signal":"none","expected_should_fire":false,"notes":"complaint without explicit need — should NOT fire"}
+{"id":"ambig-fr-01","prompt":"les utilisateurs trouvent le formulaire trop long","locale":"fr","expected_signal":"none","expected_should_fire":false,"notes":"FR complaint — no requirement verb"}
