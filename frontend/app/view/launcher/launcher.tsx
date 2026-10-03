@@ -212,7 +212,7 @@ function LauncherView({ blockId, model }: ViewComponentProps<LauncherViewModel>)
                     style={{
                         width: logo.width,
                         height: logo.height,
-                        maskImage: `url(${logoUrl})`,
+                        maskImage: `url("${logoUrl}")`,
                         maskSize: "contain",
                         maskRepeat: "no-repeat",
                         maskPosition: "center",
