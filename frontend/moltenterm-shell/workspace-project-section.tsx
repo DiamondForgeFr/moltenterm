@@ -2,19 +2,26 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The "Project" part of the workspace editor (FR-MC-001): the linked folder, or a "Link a project" action, and the
-// offer to show the project's logo as the workspace icon.
+// offer to show the project's logo as the workspace icon; then the folder the workspace works in (FR-SHELL-009).
 
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { WorkspaceIcon } from "./workspace-icon";
-import { pathBaseName, readWorkspaceProject } from "./workspace-project";
+import {
+    checkPathInside,
+    effectiveWorkspaceFolder,
+    pathBaseName,
+    readWorkspaceFolder,
+    readWorkspaceProject,
+} from "./workspace-project";
 import {
     chooseMoltentermPath,
     findProjectLogos,
     linkWorkspaceProject,
     ProjectFacts,
     readProjectFacts,
+    setWorkspaceFolder,
     setWorkspaceLogo,
     unlinkWorkspaceProject,
 } from "./workspace-project-store";
@@ -82,6 +89,55 @@ function LogoChoices({ ws, logos, chosen, dir }: { ws: Workspace; logos: string[
                 <button type="button" onClick={pickOther} className={LinkButtonClass}>
                     Other image…
                 </button>
+            </div>
+        </div>
+    );
+}
+
+// Where the workspace's new terminals, tabs and file explorer start (FR-SHELL-009).
+function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
+    const folder = effectiveWorkspaceFolder(ws);
+    const stored = readWorkspaceFolder(ws);
+    const projectDir = readWorkspaceProject(ws).dir;
+    const outsideProject = stored !== "" && projectDir !== "" && !checkPathInside(stored, projectDir);
+    const change = () =>
+        fireAndForget(async () => {
+            const dir = await chooseMoltentermPath({
+                kind: "folder",
+                title: "Workspace folder",
+                defaultPath: folder || projectDir || undefined,
+            });
+            if (dir) {
+                await setWorkspaceFolder(ws.oid, dir);
+            }
+        });
+    return (
+        <div className="mt-3">
+            <div className="mb-1 text-xs font-semibold tracking-wide text-secondary uppercase">Folder</div>
+            <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                    <div className={cn("truncate text-xs", folder ? "" : "text-muted")} title={folder}>
+                        {folder || "Where your terminal goes next"}
+                    </div>
+                    <div className="text-xs text-muted">
+                        {outsideProject
+                            ? "Outside the project: new panels start at its root."
+                            : "New terminals, tabs and files start here."}
+                    </div>
+                </div>
+                <button type="button" onClick={change} className={LinkButtonClass}>
+                    Change…
+                </button>
+                {stored ? (
+                    <button
+                        type="button"
+                        title="Forget it: the next folder your terminal goes to is used"
+                        onClick={() => fireAndForget(() => setWorkspaceFolder(ws.oid, null))}
+                        className={LinkButtonClass}
+                    >
+                        Reset
+                    </button>
+                ) : null}
             </div>
         </div>
     );
@@ -177,6 +233,7 @@ export function WorkspaceProjectSection({ workspaceId }: { workspaceId: string }
                 </>
             )}
             {error ? <div className="mt-1 text-xs text-error">{error}</div> : null}
+            <WorkspaceFolderLine ws={ws} />
         </div>
     );
 }

@@ -3,9 +3,13 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    checkAbsolutePath,
+    checkPathInside,
+    effectiveWorkspaceFolder,
     linkUpdate,
     logoProbeOrder,
     logoUrl,
+    nextWorkspaceFolder,
     pathBaseName,
     pathParent,
     projectFilePath,
@@ -14,9 +18,11 @@ import {
     ProjectMetaKey,
     projectName,
     readmeFirstImage,
+    readWorkspaceFolder,
     readWorkspaceProject,
     shouldOfferLogo,
     unlinkUpdate,
+    WorkspaceFolderMetaKey,
 } from "./workspace-project";
 
 function ws(meta: Record<string, any>): Workspace {
@@ -108,5 +114,45 @@ describe("projectName", () => {
         expect(projectName("/a/morphterm", null, { projectName: "moltenterm" }, { name: "pkg" })).toBe("moltenterm");
         expect(projectName("/a/morphterm", null, null, { name: "pkg" })).toBe("pkg");
         expect(projectName("/a/morphterm", null, null, null)).toBe("morphterm");
+    });
+});
+
+describe("workspace folder (FR-SHELL-009)", () => {
+    it("tells whether a path lies in a folder", () => {
+        expect(checkPathInside("/p/app", "/p/app")).toBe(true);
+        expect(checkPathInside("/p/app/src/ui", "/p/app/")).toBe(true);
+        expect(checkPathInside("/p/application", "/p/app")).toBe(false);
+        expect(checkPathInside("/p", "/p/app")).toBe(false);
+        expect(checkPathInside("/anything", "/")).toBe(true);
+        expect(checkPathInside("C:\\p\\app\\src", "C:\\p\\app")).toBe(true);
+        expect(checkPathInside("", "/p")).toBe(false);
+    });
+
+    it("recognises absolute paths only", () => {
+        expect(checkAbsolutePath("/Users/me")).toBe(true);
+        expect(checkAbsolutePath("C:\\Users\\me")).toBe(true);
+        expect(checkAbsolutePath("~/code")).toBe(false);
+        expect(checkAbsolutePath("")).toBe(false);
+    });
+
+    it("reads the stored folder and bounds it by the linked project", () => {
+        expect(readWorkspaceFolder(ws({ [WorkspaceFolderMetaKey]: "/tmp" }))).toBe("/tmp");
+        expect(effectiveWorkspaceFolder(ws({}))).toBe("");
+        expect(effectiveWorkspaceFolder(ws({ [WorkspaceFolderMetaKey]: "/tmp" }))).toBe("/tmp");
+        expect(effectiveWorkspaceFolder(ws({ [WorkspaceFolderMetaKey]: "/p/src", [ProjectMetaKey]: "/p" }))).toBe(
+            "/p/src"
+        );
+        expect(effectiveWorkspaceFolder(ws({ [WorkspaceFolderMetaKey]: "/tmp", [ProjectMetaKey]: "/p" }))).toBe("/p");
+        expect(effectiveWorkspaceFolder(ws({ [ProjectMetaKey]: "/p" }))).toBe("/p");
+    });
+
+    it("follows the terminal, inside the linked project only", () => {
+        expect(nextWorkspaceFolder("", "", "/Users/me/code/app")).toBe("/Users/me/code/app");
+        expect(nextWorkspaceFolder("/a", "", "/b/")).toBe("/b");
+        expect(nextWorkspaceFolder("/p/src", "/p", "/p/docs")).toBe("/p/docs");
+        expect(nextWorkspaceFolder("/p/src", "/p", "/tmp")).toBeNull();
+        expect(nextWorkspaceFolder("/p/src", "/p", "/p/src")).toBeNull();
+        expect(nextWorkspaceFolder("", "", "~/code")).toBeNull();
+        expect(nextWorkspaceFolder("", "", "")).toBeNull();
     });
 });
