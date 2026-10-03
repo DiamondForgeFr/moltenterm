@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { pathParent } from "../workspace-project";
 import { timeAgo } from "./branch-tree";
-import { missionCancel, missionLog, missionRun, missionTrust } from "./mission-client";
+import { missionCancel, missionClose, missionLog, missionRun, missionTrust } from "./mission-client";
 import { formatElapsed, logTail, RunRecord, RunState, RunStateLabels, UntrustedInfo } from "./mission-model";
 
 const StateClasses: Record<RunState, string> = {
@@ -192,7 +192,9 @@ export function RunStateBadge({ state }: { state: RunState }) {
     );
 }
 
-export function BuildRunCard({ run }: { run: RunRecord }) {
+// Once a build no longer runs, its card can be closed (it leaves the Timeline until the next build); one that did not
+// succeed can be started again, as in Notulia's local build panel.
+export function BuildRunCard({ run, onRetry }: { run: RunRecord; onRetry?: () => void }) {
     const log = useRunLog(run);
     const [full, setFull] = useState(false);
     const [now, setNow] = useState(Date.now());
@@ -264,6 +266,22 @@ export function BuildRunCard({ run }: { run: RunRecord }) {
                 <button type="button" onClick={() => setFull(!full)} className={PlainButton}>
                     {full ? "Less" : "Whole log"}
                 </button>
+                {run.state !== "running" ? (
+                    <span className="ml-auto flex items-center gap-1.5">
+                        {run.state !== "success" && onRetry ? (
+                            <button type="button" onClick={onRetry} className={PlainButton}>
+                                Retry
+                            </button>
+                        ) : null}
+                        <button
+                            type="button"
+                            onClick={() => fireAndForget(() => missionClose(run.dir, run.id))}
+                            className={PlainButton}
+                        >
+                            Close
+                        </button>
+                    </span>
+                ) : null}
             </div>
         </section>
     );

@@ -19,6 +19,7 @@ export const MissionRunCommand = "moltenmissionrun";
 export const MissionRunsCommand = "moltenmissionruns";
 export const MissionLogCommand = "moltenmissionlog";
 export const MissionCancelCommand = "moltenmissioncancel";
+export const MissionCloseCommand = "moltenmissionclose";
 export const MissionTrustCommand = "moltenmissiontrust";
 export const MissionRunEvent = "molten:mission:run";
 
@@ -115,6 +116,10 @@ export function missionLog(dir: string, runid: string, from: number): Promise<Lo
 
 export function missionCancel(dir: string, runid: string): Promise<void> {
     return missionCall(MissionCancelCommand, { dir, runid });
+}
+
+export function missionClose(dir: string, runid: string): Promise<void> {
+    return missionCall(MissionCloseCommand, { dir, runid });
 }
 
 export function missionTrust(dir: string, hash: string): Promise<void> {

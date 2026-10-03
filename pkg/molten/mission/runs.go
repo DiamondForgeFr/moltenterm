@@ -68,7 +68,9 @@ type RunRecord struct {
 	Exit       *int     `json:"exit,omitempty"`
 	Phases     []string `json:"phases"`
 	Cancelled  bool     `json:"cancelled,omitempty"`
-	LogSize    int64    `json:"logsize"`
+	// Closed by the user once it no longer runs: its card leaves the Timeline until the next run.
+	Closed  bool  `json:"closed,omitempty"`
+	LogSize int64 `json:"logsize"`
 }
 
 type RunRequest struct {
@@ -424,10 +426,43 @@ func (r *Runs) Cancel(dir string, runId string) error {
 	return stopRunGroup(rec.Pid)
 }
 
+func checkRunId(runId string) error {
+	if runId == "" || strings.ContainsAny(runId, `/\`) || strings.Contains(runId, "..") {
+		return fmt.Errorf("invalid run id %q", runId)
+	}
+	return nil
+}
+
+// Close hides a finished run's card; a run still going must be cancelled first.
+func (r *Runs) Close(dir string, runId string) error {
+	if err := checkRunId(runId); err != nil {
+		return err
+	}
+	dir = filepath.Clean(dir)
+	rec, err := r.readRecord(dir, runId)
+	if err != nil {
+		return err
+	}
+	if rec.State == RunStateRunning {
+		return fmt.Errorf("%s is still running: cancel it first", rec.Title)
+	}
+	if rec.Closed {
+		return nil
+	}
+	rec.Closed = true
+	if err := r.writeRecord(rec); err != nil {
+		return err
+	}
+	if r.publish != nil {
+		r.publish(rec)
+	}
+	return nil
+}
+
 // ReadLog returns the log from a byte offset, at most maxLogRead bytes, and the offset to ask next.
 func (r *Runs) ReadLog(dir string, runId string, from int64) (LogChunk, error) {
-	if strings.ContainsAny(runId, `/\`) || strings.Contains(runId, "..") {
-		return LogChunk{}, fmt.Errorf("invalid run id %q", runId)
+	if err := checkRunId(runId); err != nil {
+		return LogChunk{}, err
 	}
 	file, err := os.Open(r.logFile(filepath.Clean(dir), runId))
 	if err != nil {

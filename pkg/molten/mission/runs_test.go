@@ -141,6 +141,31 @@ func TestRunFailureAndExclusivity(t *testing.T) {
 	}
 }
 
+func TestCloseFinishedRun(t *testing.T) {
+	r, dir := makeRunsFixture(t, `{"id":"slow","run":"sleep 30"}`)
+	slow := trustAndStart(t, r, dir, "slow")
+	if err := r.Close(dir, slow.Id); err == nil || !strings.Contains(err.Error(), "still running") {
+		t.Fatalf("a running build must be cancelled before it is closed: %v", err)
+	}
+	if err := r.Cancel(dir, slow.Id); err != nil {
+		t.Fatal(err)
+	}
+	waitRun(t, r, dir, slow.Id)
+	if err := r.Close(dir, slow.Id); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Close(dir, slow.Id); err != nil {
+		t.Fatalf("closing twice is harmless: %v", err)
+	}
+	runs := r.List(dir)
+	if len(runs) != 1 || !runs[0].Closed || runs[0].State != RunStateCancelled {
+		t.Fatalf("a closed run keeps its state and stays closed: %+v", runs)
+	}
+	if err := r.Close(dir, "../x"); err == nil {
+		t.Fatal("a run id with a path must be refused")
+	}
+}
+
 func TestRunLostAfterRestart(t *testing.T) {
 	r, dir := makeRunsFixture(t, `{"id":"gold","run":"true"}`)
 	runDir := filepath.Join(r.projectDir(dir), "20260101-000000-aaaaaa")

@@ -230,7 +230,11 @@ function TimelineContent({
                         ) : null}
                     </>
                 }
-                aside={lastBuild ? <BuildRunCard run={lastBuild} /> : null}
+                aside={
+                    lastBuild && !lastBuild.closed ? (
+                        <BuildRunCard run={lastBuild} onRetry={() => start("build", lastBuild.stepid)} />
+                    ) : null
+                }
                 git={git}
                 github={github}
             />
