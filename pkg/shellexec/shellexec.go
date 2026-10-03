@@ -619,7 +619,7 @@ func StartLocalShellProc(logCtx context.Context, termSize waveobj.TermSize, cmdS
 		}
 		blocklogger.Debugf(logCtx, "[conndebug] shell:%s shellOpts:%v\n", shellPath, shellOpts)
 		ecmd = exec.Command(shellPath, shellOpts...)
-		ecmd.Env = os.Environ()
+		ecmd.Env = localShellBaseEnv() // MOLTENTERM-PATCH (#106): drop inherited agent session markers
 		if shellType == shellutil.ShellType_zsh {
 			shellutil.UpdateCmdEnv(ecmd, map[string]string{"ZDOTDIR": shellutil.GetLocalZshZDotDir()})
 		}
@@ -627,7 +627,7 @@ func StartLocalShellProc(logCtx context.Context, termSize waveobj.TermSize, cmdS
 		isShell = false
 		shellOpts = append(shellOpts, "-c", cmdStr)
 		ecmd = exec.Command(shellPath, shellOpts...)
-		ecmd.Env = os.Environ()
+		ecmd.Env = localShellBaseEnv() // MOLTENTERM-PATCH (#106): drop inherited agent session markers
 	}
 
 	packedToken, err := cmdOpts.SwapToken.PackForClient()

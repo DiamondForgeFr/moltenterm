@@ -388,7 +388,8 @@ func createMainWshClient() {
 	rpc := wshserver.GetMainRpcClient()
 	wshutil.DefaultRouter.RegisterTrustedLeaf(rpc, wshutil.DefaultRoute)
 	wps.Broker.SetClient(wshutil.DefaultRouter)
-	localInitialEnv := envutil.PruneInitialEnv(envutil.SliceToMap(os.Environ()))
+	// MOLTENTERM-PATCH (#106): durable local shells start from this environment, so it drops inherited agent session markers
+	localInitialEnv := envutil.StripAgentSessionMarkersMap(envutil.PruneInitialEnv(envutil.SliceToMap(os.Environ())))
 	sockName := wavebase.GetDomainSocketName()
 	remoteImpl := wshremote.MakeRemoteRpcServerImpl(nil, wshutil.DefaultRouter, wshclient.GetBareRpcClient(), true, localInitialEnv, sockName)
 	localConnWsh := wshutil.MakeWshRpc(wshrpc.RpcContext{Conn: wshrpc.LocalConnName}, remoteImpl, "conn:local")
