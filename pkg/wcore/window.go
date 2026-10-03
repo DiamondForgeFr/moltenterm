@@ -24,6 +24,7 @@ func SwitchWorkspace(ctx context.Context, windowId string, workspaceId string) (
 	if err != nil {
 		return nil, fmt.Errorf("error getting new workspace: %w", err)
 	}
+	fixForeignActiveTab(ctx, ws) // MOLTENTERM-PATCH (#80)
 	window, err := GetWindow(ctx, windowId)
 	if err != nil {
 		return nil, fmt.Errorf("error getting window: %w", err)
@@ -187,6 +188,8 @@ func CheckAndFixWindow(ctx context.Context, windowId string) *waveobj.Window {
 		if err != nil {
 			log.Printf("error creating tab (in checkAndFixWindow): %v\n", err)
 		}
+	} else {
+		fixForeignActiveTab(ctx, ws) // MOLTENTERM-PATCH (#80)
 	}
 	return window
 }
