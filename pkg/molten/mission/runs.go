@@ -381,8 +381,12 @@ func (r *Runs) watch(rec RunRecord) {
 		defer r.stopWatching(rec.Id)
 		for rec.State == RunStateRunning {
 			time.Sleep(runPollInterval)
+			// The record on disk is the reference: a build's preparation fills in its commit and process first.
 			if current, err := r.readRecord(rec.Dir, rec.Id); err == nil {
-				rec.Cancelled = current.Cancelled
+				rec = current
+			}
+			if rec.Preparing {
+				continue
 			}
 			if !r.update(&rec) {
 				continue
@@ -411,7 +415,12 @@ func (r *Runs) List(dir string) []RunRecord {
 		if err != nil {
 			continue
 		}
-		if rec.State == RunStateRunning && rec.Preparing && !r.checkPreparing(rec.Id) {
+		if rec.State == RunStateRunning && rec.Preparing && r.checkPreparing(rec.Id) {
+			// Its preparation alone writes the record until the build command starts.
+			runs = append(runs, rec)
+			continue
+		}
+		if rec.State == RunStateRunning && rec.Preparing {
 			// wavesrv stopped while it fetched, verified or prepared the build.
 			rec.Preparing = false
 			rec.State = RunStateLost
