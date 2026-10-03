@@ -71,6 +71,8 @@ type RunRecord struct {
 	// A build's commit, built in a worktree of its own, and its kind (gold, rc).
 	Commit    string `json:"commit,omitempty"`
 	BuildKind string `json:"buildkind,omitempty"`
+	// The release a release step belongs to.
+	Tag string `json:"tag,omitempty"`
 	// Still fetching, verifying or preparing in wavesrv: there is no process to follow yet.
 	Preparing bool `json:"preparing,omitempty"`
 	// Its end was told in the notification center (FR-MC-014).
@@ -243,7 +245,7 @@ func (r *Runs) Start(req RunRequest) (RunResult, error) {
 		}
 		return RunResult{Run: &rec}, nil
 	}
-	rec, err := r.launch(dir, command, artifact, req.Version)
+	rec, err := r.launch(dir, command, artifact, req.Version, "")
 	if err != nil {
 		return RunResult{}, err
 	}
@@ -259,7 +261,7 @@ func (r *Runs) runningOf(dir string, kind string) *RunRecord {
 	return nil
 }
 
-func (r *Runs) launch(dir string, command TrustedCommand, artifact string, version string) (RunRecord, error) {
+func (r *Runs) launch(dir string, command TrustedCommand, artifact string, version string, tag string) (RunRecord, error) {
 	now := r.now()
 	rec := RunRecord{
 		Id:        newRunId(now),
@@ -273,6 +275,7 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 		StartedAt: now.UnixMilli(),
 		State:     RunStateRunning,
 		Phases:    []string{},
+		Tag:       tag,
 	}
 	if rec.Title == "" {
 		rec.Title = command.Id

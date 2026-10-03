@@ -25,6 +25,7 @@ import {
     toTreeData,
 } from "./mission-model";
 import { ReleaseMenu } from "./release-menu";
+import { ReleaseRunSection } from "./release-run-panel";
 import { ReleaseStatePanel } from "./release-state-panel";
 import { BuildRunCard, useStartRun } from "./runs-view";
 import { releaseState } from "./versions";
@@ -118,7 +119,10 @@ function TimelineContent({
     const showRun = () => document.querySelector(`[data-testid="build-run"]`)?.scrollIntoView({ block: "nearest" });
     const { session: releaseSession, reload: reloadRelease } = useReleaseSession(project.dir);
     const showRelease = () =>
-        document.querySelector(`[data-testid="release-state"]`)?.scrollIntoView({ block: "nearest" });
+        (
+            document.querySelector(`[data-testid="release-run"]`) ??
+            document.querySelector(`[data-testid="release-state"]`)
+        )?.scrollIntoView({ block: "nearest" });
     return (
         <>
             <TimelineBody
@@ -182,15 +186,27 @@ function TimelineContent({
                     </>
                 }
                 aside={
-                    lastBuild && !lastBuild.closed ? (
-                        <BuildRunCard
-                            run={lastBuild}
-                            projectName={projectName}
-                            phases={buildDef?.phases ?? []}
-                            manifest={delivered}
-                            onRetry={() => start("build", lastBuild.stepid)}
-                        />
-                    ) : null
+                    <>
+                        {pipeline ? (
+                            <ReleaseRunSection
+                                dir={project.dir}
+                                projectName={projectName}
+                                pipeline={pipeline}
+                                runs={runs}
+                                session={releaseSession}
+                                onEnded={reloadRelease}
+                            />
+                        ) : null}
+                        {lastBuild && !lastBuild.closed ? (
+                            <BuildRunCard
+                                run={lastBuild}
+                                projectName={projectName}
+                                phases={buildDef?.phases ?? []}
+                                manifest={delivered}
+                                onRetry={() => start("build", lastBuild.stepid)}
+                            />
+                        ) : null}
+                    </>
                 }
                 git={git}
                 github={github}

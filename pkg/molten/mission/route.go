@@ -164,6 +164,33 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 			return nil, l.runs.EndRelease(req.Dir)
 		}
 		return l.runs.ReleaseSessionOf(req.Dir)
+	case ReleaseFactsCommand:
+		var req GetRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.runs.ReleaseFactsOf(req.Dir)
+	case ReleaseStepCommand:
+		var req ReleaseStepRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.runs.RunReleaseStep(req)
+	case ReleaseRerunCommand, ReleaseNotesCommand, ReleaseSaveCommand:
+		var req ReleaseNotesRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		if err := checkDir(req.Dir); err != nil {
+			return nil, err
+		}
+		switch command {
+		case ReleaseRerunCommand:
+			return nil, l.runs.RerunFailedJobs(req.Dir, req.Tag)
+		case ReleaseNotesCommand:
+			return l.runs.ReadReleaseNotes(req.Dir, req.Tag)
+		}
+		return nil, l.runs.SaveReleaseNotes(req.Dir, req.Tag, req.Text)
 	case ReleaseStartCommand:
 		var req ReleaseStartRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

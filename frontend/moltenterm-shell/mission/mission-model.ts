@@ -51,7 +51,13 @@ export type PipelineCommand = { run: string; cwd?: string; env?: Record<string, 
 // must match PipelineReleasePhases in pkg/molten/pipeline.go
 export type ReleasePhase = "prepare" | "cut" | "build" | "publish" | "back";
 
-export type PipelineReleaseStep = PipelineCommand & { id: string; title?: string; phase?: ReleasePhase };
+export type PipelineReleaseStep = PipelineCommand & {
+    id: string;
+    title?: string;
+    phase?: ReleasePhase;
+    confirm?: string;
+    notes?: boolean;
+};
 
 export type PipelineDef = {
     schema: number;
