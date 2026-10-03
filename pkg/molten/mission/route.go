@@ -154,6 +154,21 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 			return nil, err
 		}
 		return l.runs.BuildsFacts(req.Dir, req.Fresh)
+	case ReleaseCommand, ReleaseEndCommand:
+		var req GetRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		if command == ReleaseEndCommand {
+			return nil, l.runs.EndRelease(req.Dir)
+		}
+		return l.runs.ReleaseSessionOf(req.Dir)
+	case ReleaseStartCommand:
+		var req ReleaseStartRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.runs.StartRelease(req)
 	case RunsCommand:
 		var req GetRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
