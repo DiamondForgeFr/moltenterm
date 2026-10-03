@@ -78,6 +78,7 @@ func CreateBlockWithTelemetry(ctx context.Context, tabId string, blockDef *waveo
 	if blockDef.Meta == nil || blockDef.Meta.GetString(waveobj.MetaKey_View, "") == "" {
 		return nil, fmt.Errorf("no view provided for new block")
 	}
+	blockDef = blockDefInWorkspaceFolder(ctx, tabId, blockDef) // MOLTENTERM-PATCH (#82): starts in the workspace's folder
 	blockData, err := createBlockObj(ctx, tabId, blockDef, rtOpts)
 	if err != nil {
 		return nil, fmt.Errorf("error creating block: %w", err)
