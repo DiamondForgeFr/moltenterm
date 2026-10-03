@@ -328,6 +328,10 @@ func SendInput(blockId string, inputUnion *BlockInputUnion) error {
 		return fmt.Errorf("no controller found for block %s", blockId)
 	}
 	sendConnMonitorInputNotification(controller)
+	// MOLTENTERM-PATCH (#109): Enter in a pane whose coding agent waits means the user answered
+	if inputUnion != nil && len(inputUnion.InputData) > 0 {
+		attention.TerminalInput(blockId, inputUnion.InputData)
+	}
 	return controller.SendInput(inputUnion)
 }
 
