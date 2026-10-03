@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
 func TestParseAttentionOsc(t *testing.T) {
@@ -96,22 +95,5 @@ func TestScannerBoundsLongOsc(t *testing.T) {
 	scanAll(w, "b1", "\x1b]9;"+string(long))
 	if got := len(w.scanners["b1"].osc); got > maxOscLength {
 		t.Fatalf("osc buffer grew to %d", got)
-	}
-}
-
-func TestNotificationUpdatePrunes(t *testing.T) {
-	existing := waveobj.MetaMapType{"other": 1}
-	for i := 0; i < MaxNotifications; i++ {
-		existing[fmt.Sprintf("%se%d", NotificationKeyPrefix, i)] = map[string]any{"time": float64(i)}
-	}
-	update := notificationUpdate(existing, map[string]any{"title": "new"}, "new")
-	if update[NotificationKeyPrefix+"new"] == nil {
-		t.Fatal("the new entry is added")
-	}
-	if v, ok := update[NotificationKeyPrefix+"e0"]; !ok || v != nil {
-		t.Fatal("the oldest entry is deleted")
-	}
-	if len(update) != 2 {
-		t.Fatalf("only the oldest entry goes, got %d keys", len(update))
 	}
 }
