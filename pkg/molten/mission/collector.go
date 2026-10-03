@@ -236,6 +236,23 @@ func (c *Collector) Get(dir string, maxAge time.Duration, forced bool) (Snapshot
 	return snap, nil
 }
 
+// Cached answers with what the collector already knows of a project, without ever starting a refresh: the status bar
+// asks about any folder a terminal goes to, and must not fetch or call gh in a repository nobody linked.
+func (c *Collector) Cached(dir string) (Snapshot, bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	if state := c.projects[dir]; state != nil && state.loaded {
+		return c.snapshotLocked(state), true
+	}
+	if c.cacheDir == "" {
+		return Snapshot{}, false
+	}
+	if _, err := os.Stat(c.cacheFile(dir)); err != nil {
+		return Snapshot{}, false
+	}
+	return c.snapshotLocked(c.stateLocked(dir)), true
+}
+
 func (c *Collector) refresh(dir string, plan refreshPlan) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -331,7 +348,8 @@ func Start() {
 	ci := MakeCi(CiDir(dataDir), trust, ExecRunner, publishCiRun)
 	runs.UseCi(ci)
 	runs.UseNotifier(publishBuildNotice)
-	if err := registerRoute(collector, runs, ci); err != nil {
+	panes := MakePanes(ExecRunner, ci, collector)
+	if err := registerRoute(collector, runs, ci, panes); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
 }
