@@ -1,0 +1,66 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+import { describe, expect, it } from "vitest";
+import { preparationSteps, releaseChoiceTag, releaseNote, releasePlan } from "./release-model";
+import { RawTag } from "./tree";
+import { releaseState } from "./versions";
+
+const tag = (name: string, date: string): RawTag => ({ name, date, sha: "c" + name, notes: null, notesInternal: null });
+
+describe("Release menu (FR-MC-015)", () => {
+    it("numbers the next candidate after the last one, and asks for the first public number", () => {
+        const tags = [tag("v1.0.0-1", "2026-09-01"), tag("v1.0.0-2", "2026-09-10")];
+        const plan = releasePlan(
+            releaseState(tags, [], []),
+            tags.map((t) => t.name)
+        );
+        expect(plan).toEqual({
+            rc: "v1.0.0-3",
+            publicVersion: "1.0.0",
+            publicIsDecision: true,
+            reason: "First public release: a choice, not a calculation.",
+        });
+        expect(releaseChoiceTag(plan, "rc", "")).toBe("v1.0.0-3");
+        expect(releaseChoiceTag(plan, "public", "1.0.0")).toBe("v1.0.0");
+        expect(releaseChoiceTag(plan, "public", "1.0")).toBeNull();
+        expect(releaseChoiceTag(plan, null, "1.0.0")).toBeNull();
+    });
+
+    it("derives the next public release from the commits since the last one", () => {
+        const tags = [tag("v1.2.0", "2026-09-01")];
+        const plan = releasePlan(
+            releaseState(tags, [], [{ sha: "a", subject: "feat(#3): a thing" } as any]),
+            tags.map((t) => t.name)
+        );
+        expect(plan.rc).toBe("v1.3.0-1");
+        expect(plan.publicVersion).toBe("1.3.0");
+        expect(plan.publicIsDecision).toBe(false);
+        const nothing = releasePlan(
+            releaseState(tags, [], [{ sha: "b", subject: "chore(#4): tidy" } as any]),
+            tags.map((t) => t.name)
+        );
+        expect(nothing.rc).toBeNull();
+        expect(nothing.publicVersion).toBeNull();
+        expect(nothing.reason).toBe("Nothing a user would see since v1.2.0.");
+    });
+
+    it("says what starts right away", () => {
+        const steps = [
+            { id: "warm", title: "Warm the cache", phase: "prepare" as const, run: "x" },
+            { id: "promote", title: "Promote develop", phase: "prepare" as const, run: "x" },
+            { id: "cut", phase: "cut" as const, run: "x" },
+        ];
+        expect(preparationSteps(steps).map((s) => s.id)).toEqual(["warm", "promote"]);
+        expect(
+            preparationSteps([
+                { id: "a", run: "x" },
+                { id: "b", run: "x" },
+            ]).map((s) => s.id)
+        ).toEqual(["a"]);
+        expect(releaseNote(steps)).toBe(
+            "The preparation starts right away: Warm the cache, Promote develop. Each next step will wait for your click on the Timeline."
+        );
+        expect(releaseNote([{ id: "cut", phase: "cut", run: "x" }])).toMatch(/^Nothing runs right away/);
+    });
+});

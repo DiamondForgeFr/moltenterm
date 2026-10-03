@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BuildsFacts } from "./builds-model";
 import { CiRunRecord, CiState, upsertCiRun } from "./ci-model";
 import { LogChunk, MissionSnapshot, RunRecord, RunResult, UntrustedInfo, upsertRun } from "./mission-model";
+import { ReleaseChannel, ReleaseSession } from "./release-model";
 
 // must match the names in pkg/molten/mission/collector.go
 export const MissionRouteId = "molten:mission";
@@ -30,6 +31,9 @@ export const MissionCiLogCommand = "moltenmissioncilog";
 export const MissionCiCancelCommand = "moltenmissioncicancel";
 export const MissionCiEvent = "molten:mission:ci";
 export const MissionBuildsCommand = "moltenmissionbuilds";
+export const MissionReleaseCommand = "moltenmissionrelease";
+export const MissionReleaseStartCommand = "moltenmissionreleasestart";
+export const MissionReleaseEndCommand = "moltenmissionreleaseend";
 
 const MissionRpcTimeoutMs = 15000;
 // A request is cheap (the cached snapshot and the pipeline file); the collector itself refreshes at most once a minute.
@@ -234,4 +238,44 @@ export function useCiState(dir: string): { state: CiState; reload: () => void } 
 
 export function missionBuilds(dir: string, fresh: boolean): Promise<BuildsFacts> {
     return TabRpcClient.wshRpcCall(MissionBuildsCommand, { dir, fresh }, { route: MissionRouteId, timeout: 60000 });
+}
+
+export type ReleaseStartResult = { session?: ReleaseSession; run?: RunRecord; untrusted?: UntrustedInfo };
+
+export function releaseStart(dir: string, channel: ReleaseChannel, tag: string): Promise<ReleaseStartResult> {
+    return missionCall(MissionReleaseStartCommand, { dir, channel, tag });
+}
+
+export function releaseEnd(dir: string): Promise<void> {
+    return missionCall(MissionReleaseEndCommand, { dir });
+}
+
+const ReleaseSessionPollMs = 30000;
+
+// The release on its way, read again every half minute and whenever the caller asks (after a start, a run's end).
+export function useReleaseSession(dir: string): { session: ReleaseSession; reload: () => void } {
+    const [session, setSession] = useState<ReleaseSession>(null);
+    const load = useCallback(() => {
+        if (!dir) {
+            return;
+        }
+        fireAndForget(async () => {
+            try {
+                setSession(await missionCall<ReleaseSession>(MissionReleaseCommand, { dir }));
+            } catch {
+                setSession(null);
+            }
+        });
+    }, [dir]);
+    useEffect(() => {
+        setSession(null);
+        load();
+        const timer = setInterval(() => {
+            if (document.visibilityState === "visible") {
+                load();
+            }
+        }, ReleaseSessionPollMs);
+        return () => clearInterval(timer);
+    }, [load]);
+    return { session, reload: load };
 }

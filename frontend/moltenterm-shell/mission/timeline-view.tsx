@@ -5,15 +5,15 @@
 // where the releases stand, with the Build local and Release menus in its header.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
-import { cn, fireAndForget } from "@/util/util";
+import { fireAndForget } from "@/util/util";
 import { atom } from "jotai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { pathBaseName } from "../workspace-project";
 import { BranchTree } from "./branch-tree";
 import { BuildLocalMenu } from "./build-local-menu";
 import { BuildManifest } from "./builds-model";
 import { Notice, Problem } from "./cicd-panels";
-import { missionBuilds, useMissionRuns } from "./mission-client";
+import { missionBuilds, useMissionRuns, useReleaseSession } from "./mission-client";
 import { ActiveProject, MissionFrame, MissionHeader, PipelineBanner } from "./mission-frame";
 import {
     latestRun,
@@ -24,9 +24,10 @@ import {
     RunRecord,
     toTreeData,
 } from "./mission-model";
+import { ReleaseMenu } from "./release-menu";
 import { ReleaseStatePanel } from "./release-state-panel";
 import { BuildRunCard, useStartRun } from "./runs-view";
-import { nextRc, releaseState } from "./versions";
+import { releaseState } from "./versions";
 
 export const MoltentermTimelineView = "molten-timeline";
 
@@ -48,65 +49,6 @@ export class TimelineViewModel implements ViewModel {
     get viewComponent(): ViewComponent {
         return TimelineView;
     }
-}
-
-type MenuItem = { label: string; detail?: string; disabled: boolean; onClick?: () => void };
-
-function HeaderMenu({ icon, label, items, note }: { icon: string; label: string; items: MenuItem[]; note: string }) {
-    const [open, setOpen] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        if (!open) {
-            return;
-        }
-        const close = (e: PointerEvent) => {
-            if (!ref.current?.contains(e.target as Node)) {
-                setOpen(false);
-            }
-        };
-        document.addEventListener("pointerdown", close, true);
-        return () => document.removeEventListener("pointerdown", close, true);
-    }, [open]);
-    return (
-        <div ref={ref} className="relative">
-            <button
-                type="button"
-                onClick={() => setOpen(!open)}
-                className="flex cursor-pointer items-center gap-1.5 rounded border border-border px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary"
-            >
-                <i className={cn("fa fa-solid text-[10px]", `fa-${icon}`)} />
-                {label}
-                <i className="fa fa-solid fa-chevron-down text-[9px]" />
-            </button>
-            {open ? (
-                <div className="absolute top-full right-0 z-20 mt-1 w-72 rounded border border-border bg-modalbg p-1 shadow-lg">
-                    {items.map((item) => (
-                        <button
-                            type="button"
-                            key={item.label}
-                            disabled={item.disabled}
-                            onClick={() => {
-                                setOpen(false);
-                                item.onClick?.();
-                            }}
-                            className={cn(
-                                "flex w-full flex-col rounded px-2 py-1.5 text-left text-xs",
-                                item.disabled ? "text-muted" : "cursor-pointer text-primary hover:bg-hover"
-                            )}
-                        >
-                            <span className="font-medium">{item.label}</span>
-                            {item.detail ? <span className="text-[11px] text-muted">{item.detail}</span> : null}
-                        </button>
-                    ))}
-                    {note ? (
-                        <div className="mt-1 border-t border-border px-2 pt-1.5 pb-1 text-[11px] text-muted">
-                            {note}
-                        </div>
-                    ) : null}
-                </div>
-            ) : null}
-        </div>
-    );
 }
 
 // The manifest a finished build left, read again once the run ends.
@@ -174,16 +116,14 @@ function TimelineContent({
     const buildDef = (pipeline?.builds ?? []).find((b) => b.id === lastBuild?.stepid);
     const delivered = useDeliveredManifest(project.dir, lastBuild);
     const showRun = () => document.querySelector(`[data-testid="build-run"]`)?.scrollIntoView({ block: "nearest" });
-    const rcSteps = pipeline?.release?.rc ?? [];
-    const publicSteps = pipeline?.release?.public ?? [];
-    const releaseNote = pipeline
-        ? "Declared in the pipeline; running releases from here is coming next."
-        : "Needs the project's pipeline: connect it first (see the banner).";
+    const { session: releaseSession, reload: reloadRelease } = useReleaseSession(project.dir);
+    const showRelease = () =>
+        document.querySelector(`[data-testid="release-state"]`)?.scrollIntoView({ block: "nearest" });
     return (
         <>
             <TimelineBody
                 days={days}
-                header={(state) => (
+                header={
                     <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
                         <select
                             value={days}
@@ -206,29 +146,22 @@ function TimelineContent({
                                 onShowRun={showRun}
                             />
                         ) : null}
-                        <HeaderMenu
-                            icon="rocket"
-                            label="Release"
-                            note={releaseNote}
-                            items={[
-                                {
-                                    label: state?.rcTag ? `Release candidate ${state.rcTag}` : "Release candidate",
-                                    detail: rcSteps.length
-                                        ? rcSteps.map((st) => st.title || st.id).join(" → ")
-                                        : "not declared by the pipeline",
-                                    disabled: true,
-                                },
-                                {
-                                    label: state?.publicTag ? `Public release ${state.publicTag}` : "Public release",
-                                    detail: publicSteps.length
-                                        ? publicSteps.map((st) => st.title || st.id).join(" → ")
-                                        : "not declared by the pipeline",
-                                    disabled: true,
-                                },
-                            ]}
-                        />
+                        {pipeline ? (
+                            <ReleaseMenu
+                                dir={project.dir}
+                                projectName={projectName}
+                                session={releaseSession}
+                                rcSteps={pipeline.release?.rc ?? []}
+                                publicSteps={pipeline.release?.public ?? []}
+                                onStarted={() => {
+                                    reloadRelease();
+                                    showRelease();
+                                }}
+                                onShowRelease={showRelease}
+                            />
+                        ) : null}
                     </MissionHeader>
-                )}
+                }
                 banner={
                     <>
                         <PipelineBanner dir={project.dir} report={snapshot?.pipeline} />
@@ -267,8 +200,6 @@ function TimelineContent({
     );
 }
 
-type TimelineHeaderState = { rcTag: string; publicTag: string };
-
 function TimelineBody({
     days,
     header,
@@ -278,7 +209,7 @@ function TimelineBody({
     github,
 }: {
     days: number;
-    header: (state: TimelineHeaderState) => React.ReactNode;
+    header: React.ReactNode;
     banner: React.ReactNode;
     aside?: React.ReactNode;
     git: MissionGit;
@@ -290,27 +221,9 @@ function TimelineBody({
         [tree, git]
     );
     const prs = useMemo(() => prsByBranch(github?.prs), [github?.prs]);
-    const headerState = useMemo<TimelineHeaderState>(() => {
-        if (state == null) {
-            return null;
-        }
-        const version = state.next.version;
-        if (version == null) {
-            return { rcTag: null, publicTag: null };
-        }
-        try {
-            const rc = nextRc(
-                version,
-                tree.tags.map((t) => t.name)
-            );
-            return { rcTag: `v${version}-${rc}`, publicTag: `v${version}` };
-        } catch {
-            return { rcTag: null, publicTag: `v${version}` };
-        }
-    }, [state, tree]);
     return (
         <>
-            {header(headerState)}
+            {header}
             <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-3">
                 {banner}
                 {git?.fetcherror ? (

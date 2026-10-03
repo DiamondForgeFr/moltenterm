@@ -48,6 +48,11 @@ export type MissionGithub = {
 
 export type PipelineCommand = { run: string; cwd?: string; env?: Record<string, string> };
 
+// must match PipelineReleasePhases in pkg/molten/pipeline.go
+export type ReleasePhase = "prepare" | "cut" | "build" | "publish" | "back";
+
+export type PipelineReleaseStep = PipelineCommand & { id: string; title?: string; phase?: ReleasePhase };
+
 export type PipelineDef = {
     schema: number;
     name: string;
@@ -70,8 +75,8 @@ export type PipelineDef = {
         prepare?: PipelineCommand;
     })[];
     release?: {
-        rc?: (PipelineCommand & { id: string; title?: string })[];
-        public?: (PipelineCommand & { id: string; title?: string })[];
+        rc?: PipelineReleaseStep[];
+        public?: PipelineReleaseStep[];
     };
     steps?: (PipelineCommand & { id: string; title: string; section: string })[];
 };

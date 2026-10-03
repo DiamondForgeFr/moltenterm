@@ -72,6 +72,11 @@ const (
 	PipelineVerifyPhase   = "verify"
 )
 
+// must match the release phases in frontend/moltenterm-shell/mission and pipeline-format.md
+var PipelineReleasePhases = []string{"prepare", "cut", "build", "publish", "back"}
+
+const PipelineReleasePhasePrepare = "prepare"
+
 type PipelineBuild struct {
 	Id    string `json:"id"`
 	Title string `json:"title,omitempty"`
@@ -92,6 +97,9 @@ type PipelineBuild struct {
 type PipelineStep struct {
 	Id    string `json:"id"`
 	Title string `json:"title,omitempty"`
+	// A release step's phase (FR-MC-015): the steps of the "prepare" phase run as soon as a release starts; every
+	// later one waits for the user's click on the Timeline.
+	Phase string `json:"phase,omitempty"`
 	PipelineCommand
 }
 
@@ -236,11 +244,43 @@ func (c *pipelineChecker) checkCommand(where string, cmd PipelineCommand) {
 
 func (c *pipelineChecker) checkSteps(where string, steps []PipelineStep) {
 	seen := map[string]bool{}
+	phased := false
 	for i, step := range steps {
 		label := fmt.Sprintf("%s[%d]", where, i)
 		c.checkId(label, step.Id, seen)
 		c.checkCommand(label+" ("+step.Id+")", step.PipelineCommand)
+		if step.Phase == "" {
+			continue
+		}
+		phased = true
+		known := false
+		for _, phase := range PipelineReleasePhases {
+			known = known || phase == step.Phase
+		}
+		if !known {
+			c.errorf("%s (%s): phase %q is not one of %s", label, step.Id, step.Phase, strings.Join(PipelineReleasePhases, ", "))
+		}
 	}
+	if len(steps) > 0 && !phased {
+		c.warnf("%s: no step declares its phase, so only the first one runs when a release starts", where)
+	}
+}
+
+// ReleasePreparation returns the steps that run as soon as a release starts: those of the "prepare" phase, or the
+// first step when none declares a phase.
+func ReleasePreparation(steps []PipelineStep) []PipelineStep {
+	var rtn []PipelineStep
+	phased := false
+	for _, step := range steps {
+		phased = phased || step.Phase != ""
+		if step.Phase == PipelineReleasePhasePrepare {
+			rtn = append(rtn, step)
+		}
+	}
+	if !phased && len(steps) > 0 {
+		return steps[:1]
+	}
+	return rtn
 }
 
 func (c *pipelineChecker) check(p *Pipeline) {

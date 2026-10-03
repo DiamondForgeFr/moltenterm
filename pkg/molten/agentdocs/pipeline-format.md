@@ -31,11 +31,12 @@ commands (and every change to them) asks the user to trust them, and every relea
     ],
     "release": {
         "rc": [
-            { "id": "cut", "title": "Cut the release candidate", "run": "./scripts/release.sh {version} --internal" }
+            { "id": "promote", "title": "Promote develop", "phase": "prepare", "run": "bun scripts/promote.mjs --yes" },
+            { "id": "cut", "title": "Cut the release candidate", "phase": "cut", "run": "./scripts/release.sh {version} --internal" }
         ],
         "public": [
-            { "id": "promote", "title": "Promote develop", "run": "bun scripts/promote.mjs --yes" },
-            { "id": "cut", "title": "Cut the release", "run": "./scripts/release.sh {version} --public" }
+            { "id": "promote", "title": "Promote develop", "phase": "prepare", "run": "bun scripts/promote.mjs --yes" },
+            { "id": "cut", "title": "Cut the release", "phase": "cut", "run": "./scripts/release.sh {version} --public" }
         ]
     },
     "steps": [
@@ -58,7 +59,7 @@ All fields are lowercase. Unknown fields are refused, so a typo does not go unno
 | `ci.prepare` | no | A command run once in the CI worktree before the jobs, e.g. `bun install --frozen-lockfile`. |
 | `ci.statuses` | no | `"github"`: each job's verdict is published as the commit status `local-<job>` through the user's `gh`, so pull requests show it. A pre-push hook can call `wsh molten ci status` (exit 0 green, 1 red, 2 not run yet) to warn before pushing. |
 | `builds` | no | Local builds, made by MoltenTerm from the trunk as it is on the remote, in a worktree of its own: `id` (`gold`, `rc`, …), `title`, a command, `artifact` (the file or folder the build produces, `~` allowed), and optionally `kind` (`gold` or `rc`), `description` (one line shown in the Build local menu), `phases` (`[{ "id", "title", "text" }]`, the phases the command announces with `▶ phase: <id>`, shown from the start with their text), `verify: "ci"` (the local CI runs on the build's commit first; the build stops unless it is green), `prepare` (a command run in the worktree first, e.g. installing dependencies) and `manifest` (the delivered build's manifest, default `manifest.json` beside the artifact: `productName`, `version`, `buildId`, `builtAt`, `commit`, `notes`). The command gets `MOLTEN_BUILD_COMMIT`. |
-| `release.rc`, `release.public` | no | The ordered steps that make a release candidate or a public release. Each step has an `id`, a `title` and a command. |
+| `release.rc`, `release.public` | no | The ordered steps that make a release candidate or a public release. Each step has an `id`, a `title`, a command and a `phase`: `prepare`, `cut`, `build`, `publish` or `back` (back to the trunk). The steps of the `prepare` phase run as soon as the user starts a release from the Timeline's Release menu; every later step waits for the user's click on the Timeline. Without any `phase`, only the first step runs at the start. |
 | `steps` | no | Project-specific actions shown in a panel: `id`, `title`, `section` (`timeline`, `cilocal`, `ciremote` or `cd`) and a command. |
 
 ### Commands
@@ -69,7 +70,7 @@ Every job, build and step has:
 - `cwd` (optional): the folder to run in, relative to the project's root, inside the project;
 - `env` (optional): variables added to the environment, never secrets.
 
-`run` may use `{version}` (e.g. `1.4.0`), `{tag}` (e.g. `v1.4.0-2`) and `{branch}`; other `{…}` words are refused.
+`run` may use `{version}` (the release's number without its candidate suffix, e.g. `1.4.0`), `{tag}` (the full tag, e.g. `v1.4.0-2`) and `{branch}`; other `{…}` words are refused.
 A script the command starts (`./scripts/x.sh`, `scripts/x.mjs`) must exist.
 
 A long step may print `▶ phase: <name>` lines; Mission Control shows the current phase. The exit code decides
