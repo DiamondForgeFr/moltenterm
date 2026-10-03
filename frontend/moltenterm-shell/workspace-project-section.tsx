@@ -116,13 +116,11 @@ function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
             <div className="mb-1 text-xs font-semibold tracking-wide text-secondary uppercase">Folder</div>
             <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
-                    <div className={cn("truncate text-xs", folder ? "" : "text-muted")} title={folder}>
-                        {folder || "Where your terminal goes next"}
+                    <div className={cn("truncate text-sm", folder ? "" : "text-muted")}>
+                        {folder ? pathBaseName(folder) || folder : "Not set yet"}
                     </div>
-                    <div className="text-xs text-muted">
-                        {outsideProject
-                            ? "Outside the project: new panels start at its root."
-                            : "New terminals, tabs and files start here."}
+                    <div className="truncate text-xs text-muted" title={folder}>
+                        {folder || "Set by the next folder your terminal goes to"}
                     </div>
                 </div>
                 <button type="button" onClick={change} className={LinkButtonClass}>
@@ -138,6 +136,11 @@ function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
                         Reset
                     </button>
                 ) : null}
+            </div>
+            <div className="text-xs text-muted">
+                {outsideProject
+                    ? "Outside the project: new panels start at its root."
+                    : "New terminals, tabs and files start here."}
             </div>
         </div>
     );
