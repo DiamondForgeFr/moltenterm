@@ -178,6 +178,14 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
         event.stopPropagation();
     };
 
+    // MOLTENTERM-PATCH (#81): while the name is edited, pressing places the caret or selects text; it never drags the tab
+    const handleMouseDown = (event: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+        if (isEditable) {
+            return;
+        }
+        onDragStart(event);
+    };
+
     return (
         <div
             ref={tabRef}
@@ -186,7 +194,7 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
                 dragging: isDragging,
                 "new-tab": isNew,
             })}
-            onMouseDown={onDragStart}
+            onMouseDown={handleMouseDown}
             onClick={onClick}
             onContextMenu={onContextMenu}
             data-tab-id={tabId}
