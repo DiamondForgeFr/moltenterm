@@ -266,3 +266,37 @@ func publishObjectUpdate(ctx context.Context, oref waveobj.ORef) {
 		},
 	})
 }
+
+// PublishNotification writes a notification wavesrv publishes (a build that ended, FR-MC-014) in the notification
+// center, with the same rules as the windows (molten.NotificationPublishUpdate).
+func PublishNotification(ctx context.Context, input molten.NotificationInput) error {
+	client, err := wstore.DBGetSingleton[*waveobj.Client](ctx)
+	if err != nil {
+		return fmt.Errorf("reading the client: %w", err)
+	}
+	now := time.Now()
+	update := molten.NotificationPublishUpdate(client.Meta, input, now, makeNotificationId(now))
+	if len(update) == 0 {
+		return nil
+	}
+	oref := waveobj.MakeORef(waveobj.OType_Client, client.OID)
+	if err := wstore.UpdateObjectMeta(ctx, oref, update, false); err != nil {
+		return err
+	}
+	publishObjectUpdate(ctx, oref)
+	return nil
+}
+
+// ProjectWorkspace is the workspace linked to a project folder, if one is.
+func ProjectWorkspace(ctx context.Context, dir string) string {
+	workspaces, err := wstore.DBGetAllObjsByType[*waveobj.Workspace](ctx, waveobj.OType_Workspace)
+	if err != nil {
+		return ""
+	}
+	for _, ws := range workspaces {
+		if ws.Meta.GetString(molten.ProjectMetaKey, "") == dir {
+			return ws.OID
+		}
+	}
+	return ""
+}

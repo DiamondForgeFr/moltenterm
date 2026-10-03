@@ -73,6 +73,8 @@ type RunRecord struct {
 	BuildKind string `json:"buildkind,omitempty"`
 	// Still fetching, verifying or preparing in wavesrv: there is no process to follow yet.
 	Preparing bool `json:"preparing,omitempty"`
+	// Its end was told in the notification center (FR-MC-014).
+	Told bool `json:"told,omitempty"`
 	// Closed by the user once it no longer runs: its card leaves the Timeline until the next run.
 	Closed  bool  `json:"closed,omitempty"`
 	LogSize int64 `json:"logsize"`
@@ -106,12 +108,14 @@ type Runs struct {
 	// Cancels asked while a build is being prepared; the preparation alone writes its record meanwhile.
 	cancelAsked map[string]bool
 	git         Runner
-	ci        *Ci
+	ci          *Ci
+	notify      func(RunRecord, molten.NotificationInput)
+	told        map[string]bool
 }
 
 func MakeRuns(baseDir string, trust *TrustStore, publish func(RunRecord)) *Runs {
 	return &Runs{baseDir: baseDir, trust: trust, publish: publish, now: time.Now, watching: map[string]bool{},
-		preparing: map[string]bool{}, cancelAsked: map[string]bool{}, git: ExecRunner}
+		preparing: map[string]bool{}, cancelAsked: map[string]bool{}, git: ExecRunner, told: map[string]bool{}}
 }
 
 // UseCi lets builds verify their commit with the local CI first.
@@ -391,6 +395,7 @@ func (r *Runs) watch(rec RunRecord) {
 			if !r.update(&rec) {
 				continue
 			}
+			r.settle(&rec)
 			r.writeRecord(rec)
 			if r.publish != nil {
 				r.publish(rec)
@@ -425,10 +430,12 @@ func (r *Runs) List(dir string) []RunRecord {
 			rec.Preparing = false
 			rec.State = RunStateLost
 			rec.FinishedAt = r.now().UnixMilli()
+			r.settle(&rec)
 			r.writeRecord(rec)
 		}
 		if rec.State == RunStateRunning {
 			if r.update(&rec) {
+				r.settle(&rec)
 				r.writeRecord(rec)
 			}
 			if rec.State == RunStateRunning {
