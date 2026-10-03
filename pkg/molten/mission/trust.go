@@ -42,6 +42,10 @@ func PipelineCommands(p *molten.Pipeline) []TrustedCommand {
 		return rtn
 	}
 	if p.Ci != nil {
+		if p.Ci.Prepare != nil {
+			prepare := p.Ci.Prepare
+			rtn = append(rtn, TrustedCommand{Kind: "ciprepare", Id: "prepare", Title: "Prepare the CI", Run: prepare.Run, Cwd: prepare.Cwd, Env: prepare.Env})
+		}
 		for _, job := range p.Ci.Jobs {
 			rtn = append(rtn, TrustedCommand{Kind: "ci", Id: job.Name, Title: job.Title, Run: job.Run, Cwd: job.Cwd, Env: job.Env})
 		}

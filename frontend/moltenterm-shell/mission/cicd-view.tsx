@@ -8,10 +8,12 @@ import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { cn } from "@/util/util";
 import { atom } from "jotai";
 import { useState } from "react";
+import { pathBaseName } from "../workspace-project";
+import { LocalCiRunner } from "./ci-local-panel";
 import { BlockHeader, CdTab, Notice, RemoteCiTab } from "./cicd-panels";
 import { useMissionRuns } from "./mission-client";
 import { ActiveProject, MissionFrame, MissionHeader, PipelineBanner } from "./mission-frame";
-import { jobsByLane, MissionSnapshot, PipelineReport } from "./mission-model";
+import { MissionSnapshot, PipelineReport } from "./mission-model";
 
 export const MoltentermCicdView = "molten-cicd";
 
@@ -43,50 +45,30 @@ export class CicdViewModel implements ViewModel {
 
 function LocalCiTab({ project, report }: { project: ActiveProject; report: PipelineReport }) {
     const pipeline = report?.valid ? report.pipeline : null;
-    const lanes = jobsByLane(pipeline);
+    const projectName = project.facts?.name ?? pathBaseName(project.dir);
     return (
         <div className="flex flex-col gap-3">
             <PipelineBanner dir={project.dir} report={report} />
-            <section className="flex flex-col gap-2">
-                <BlockHeader title="Local CI" hint="the project's own checks, on this machine" />
-                {pipeline == null ? (
+            {pipeline == null ? (
+                <section className="flex flex-col gap-2">
+                    <BlockHeader title="Local CI" hint="the project's own checks, on this machine" />
                     <Notice text="Local CI runs the jobs the pipeline declares; connect the pipeline first." />
-                ) : lanes.length === 0 ? (
+                </section>
+            ) : (pipeline.ci?.jobs ?? []).length === 0 ? (
+                <section className="flex flex-col gap-2">
+                    <BlockHeader title="Local CI" hint="the project's own checks, on this machine" />
                     <Notice text="The pipeline declares no CI job (ci.jobs)." />
-                ) : (
-                    <>
-                        <div className="grid gap-2 @2xl:grid-cols-2">
-                            {lanes.map((lane) => (
-                                <div key={lane.lane} className="overflow-hidden rounded border border-border">
-                                    <div className="border-b border-border bg-hover px-3 py-1 text-[11px] tracking-wide text-muted uppercase">
-                                        lane {lane.lane}
-                                    </div>
-                                    {lane.jobs.map((job) => (
-                                        <div
-                                            key={job.name}
-                                            className="flex flex-col border-b border-border px-3 py-1.5 last:border-b-0"
-                                        >
-                                            <span className="text-sm font-medium">{job.title || job.name}</span>
-                                            <code className="truncate text-[11px] text-muted" title={job.run}>
-                                                {job.cwd ? `${job.cwd}$ ` : ""}
-                                                {job.run}
-                                            </code>
-                                        </div>
-                                    ))}
-                                </div>
-                            ))}
-                        </div>
-                        <Notice text="Running the local CI from here, with live logs and the last 20 runs, is coming next." />
-                    </>
-                )}
-                {report?.warnings?.length ? (
-                    <div className="text-[11px] text-muted">
-                        {report.warnings.map((w) => (
-                            <div key={w}>warning: {w}</div>
-                        ))}
-                    </div>
-                ) : null}
-            </section>
+                </section>
+            ) : (
+                <LocalCiRunner dir={project.dir} projectName={projectName} />
+            )}
+            {report?.warnings?.length ? (
+                <div className="text-[11px] text-muted">
+                    {report.warnings.map((w) => (
+                        <div key={w}>warning: {w}</div>
+                    ))}
+                </div>
+            ) : null}
         </div>
     );
 }

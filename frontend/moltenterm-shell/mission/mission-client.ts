@@ -8,7 +8,8 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useState } from "react";
-import { LogChunk, MissionSnapshot, RunRecord, RunResult, upsertRun } from "./mission-model";
+import { CiRunRecord, CiState, upsertCiRun } from "./ci-model";
+import { LogChunk, MissionSnapshot, RunRecord, RunResult, UntrustedInfo, upsertRun } from "./mission-model";
 
 // must match the names in pkg/molten/mission/collector.go
 export const MissionRouteId = "molten:mission";
@@ -22,6 +23,11 @@ export const MissionCancelCommand = "moltenmissioncancel";
 export const MissionCloseCommand = "moltenmissionclose";
 export const MissionTrustCommand = "moltenmissiontrust";
 export const MissionRunEvent = "molten:mission:run";
+export const MissionCiStateCommand = "moltenmissioncistate";
+export const MissionCiRunCommand = "moltenmissioncirun";
+export const MissionCiLogCommand = "moltenmissioncilog";
+export const MissionCiCancelCommand = "moltenmissioncicancel";
+export const MissionCiEvent = "molten:mission:ci";
 
 const MissionRpcTimeoutMs = 15000;
 // A request is cheap (the cached snapshot and the pipeline file); the collector itself refreshes at most once a minute.
@@ -157,4 +163,69 @@ export function useMissionRuns(dir: string): RunRecord[] {
         };
     }, [dir]);
     return runs;
+}
+
+export type CiRunResult = { run?: CiRunRecord; untrusted?: UntrustedInfo };
+
+export function ciRun(dir: string, branch: string, force: boolean): Promise<CiRunResult> {
+    return missionCall(MissionCiRunCommand, { dir, branch, force });
+}
+
+export function ciLog(dir: string, runid: string, job: string, from: number): Promise<LogChunk> {
+    return missionCall(MissionCiLogCommand, { dir, runid, job, from });
+}
+
+export function ciCancel(dir: string, runid: string): Promise<void> {
+    return missionCall(MissionCiCancelCommand, { dir, runid });
+}
+
+// The project's local CI: runs kept current by the runner's events; branches and their verdicts reread when a run
+// ends.
+export function useCiState(dir: string): { state: CiState; reload: () => void } {
+    const [state, setState] = useState<CiState>(null);
+    const load = useCallback(() => {
+        if (!dir) {
+            return;
+        }
+        fireAndForget(async () => {
+            const next = await missionCall<CiState>(MissionCiStateCommand, { dir });
+            setState(next);
+        });
+    }, [dir]);
+    useEffect(() => {
+        setState(null);
+        if (!dir) {
+            return;
+        }
+        load();
+        const unsubscribe = waveEventSubscribeSingle({
+            eventType: MissionCiEvent as WaveEventName,
+            scope: dir,
+            handler: (event) => {
+                const run = event.data as CiRunRecord;
+                if (run?.dir !== dir) {
+                    return;
+                }
+                setState((current) =>
+                    current == null
+                        ? current
+                        : {
+                              ...current,
+                              runs: upsertCiRun(current.runs, run),
+                              running:
+                                  run.status === "running"
+                                      ? run.id
+                                      : current.running === run.id
+                                        ? null
+                                        : current.running,
+                          }
+                );
+                if (run.status !== "running") {
+                    load();
+                }
+            },
+        });
+        return () => unsubscribe();
+    }, [dir, load]);
+    return { state, reload: load };
 }

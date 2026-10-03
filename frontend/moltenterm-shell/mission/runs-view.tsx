@@ -25,7 +25,7 @@ const StateClasses: Record<RunState, string> = {
 const PlainButton =
     "cursor-pointer rounded border border-border px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary";
 
-function TrustPrompt({
+export function TrustPrompt({
     projectName,
     dir,
     info,

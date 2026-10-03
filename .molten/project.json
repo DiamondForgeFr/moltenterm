@@ -2,6 +2,7 @@
     "schema": 1,
     "name": "MoltenTerm",
     "ci": {
+        "prepare": { "run": "npm install --no-audit --no-fund" },
         "jobs": [
             {
                 "name": "ledger",
