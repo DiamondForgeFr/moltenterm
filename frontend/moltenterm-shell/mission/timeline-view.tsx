@@ -5,16 +5,25 @@
 // where the releases stand, with the Build local and Release menus in its header.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
-import { cn } from "@/util/util";
+import { cn, fireAndForget } from "@/util/util";
 import { atom } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { pathBaseName } from "../workspace-project";
 import { BranchTree } from "./branch-tree";
 import { BuildLocalMenu } from "./build-local-menu";
+import { BuildManifest } from "./builds-model";
 import { Notice, Problem } from "./cicd-panels";
-import { useMissionRuns } from "./mission-client";
+import { missionBuilds, useMissionRuns } from "./mission-client";
 import { ActiveProject, MissionFrame, MissionHeader, PipelineBanner } from "./mission-frame";
-import { latestRun, MissionGit, MissionGithub, MissionSnapshot, prsByBranch, toTreeData } from "./mission-model";
+import {
+    latestRun,
+    MissionGit,
+    MissionGithub,
+    MissionSnapshot,
+    prsByBranch,
+    RunRecord,
+    toTreeData,
+} from "./mission-model";
 import { ReleaseStatePanel } from "./release-state-panel";
 import { BuildRunCard, useStartRun } from "./runs-view";
 import { nextRc, releaseState } from "./versions";
@@ -100,6 +109,29 @@ function HeaderMenu({ icon, label, items, note }: { icon: string; label: string;
     );
 }
 
+// The manifest a finished build left, read again once the run ends.
+function useDeliveredManifest(dir: string, run: RunRecord): BuildManifest {
+    const [manifest, setManifest] = useState<BuildManifest>(null);
+    useEffect(() => {
+        setManifest(null);
+        if (run == null || run.state !== "success") {
+            return;
+        }
+        let cancelled = false;
+        fireAndForget(async () => {
+            const facts = await missionBuilds(dir, false);
+            const last = facts?.builds?.find((b) => b.id === run.stepid)?.last ?? null;
+            if (!cancelled) {
+                setManifest(last);
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [dir, run?.id, run?.state]);
+    return manifest;
+}
+
 function TimelineView() {
     const [days, setDays] = useState(21);
     return (
@@ -139,6 +171,8 @@ function TimelineContent({
     const pipeline = report?.valid ? report.pipeline : null;
     const lastBuild = latestRun(runs, "build");
     const building = lastBuild?.state === "running";
+    const buildDef = (pipeline?.builds ?? []).find((b) => b.id === lastBuild?.stepid);
+    const delivered = useDeliveredManifest(project.dir, lastBuild);
     const showRun = () => document.querySelector(`[data-testid="build-run"]`)?.scrollIntoView({ block: "nearest" });
     const rcSteps = pipeline?.release?.rc ?? [];
     const publicSteps = pipeline?.release?.public ?? [];
@@ -216,7 +250,13 @@ function TimelineContent({
                 }
                 aside={
                     lastBuild && !lastBuild.closed ? (
-                        <BuildRunCard run={lastBuild} onRetry={() => start("build", lastBuild.stepid)} />
+                        <BuildRunCard
+                            run={lastBuild}
+                            projectName={projectName}
+                            phases={buildDef?.phases ?? []}
+                            manifest={delivered}
+                            onRetry={() => start("build", lastBuild.stepid)}
+                        />
                     ) : null
                 }
                 git={git}

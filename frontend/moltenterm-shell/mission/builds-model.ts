@@ -79,3 +79,71 @@ export function buildCardTitle(projectName: string, build: Pick<BuildFacts, "id"
     const title = build.title || build.id;
     return title.toLowerCase().startsWith(projectName.toLowerCase()) ? title : `${projectName} ${title}`;
 }
+
+// The local build panel (FR-MC-013): what a build run shows, derived from its record, the phases its build declares
+// and the manifest delivered.
+
+export type BuildPhaseDef = { id: string; title?: string; text?: string };
+export type BuildPhaseStatus = "todo" | "running" | "done" | "failed";
+
+export type BuildRunInput = {
+    state: "running" | "success" | "failure" | "cancelled" | "lost";
+    phases: string[];
+    startedat: number;
+    commit?: string;
+};
+
+export type BuildRunView = {
+    phases: { id: string; title: string; status: BuildPhaseStatus }[];
+    line: string;
+    delivered: BuildManifest;
+    showLog: boolean;
+};
+
+function phaseTitle(phase: BuildPhaseDef): string {
+    return phase.title || phase.id.charAt(0).toUpperCase() + phase.id.slice(1);
+}
+
+// The delivered build is this run's when its manifest names the run's commit and was written after it started.
+export function deliveredBy(run: BuildRunInput, manifest: BuildManifest): BuildManifest {
+    if (run.state !== "success" || manifest == null || !run.commit || manifest.commit !== run.commit) {
+        return null;
+    }
+    const builtAt = Date.parse(manifest.builtAt ?? "");
+    return builtAt >= run.startedat - 60_000 ? manifest : null;
+}
+
+export function buildRunView(run: BuildRunInput, declared: BuildPhaseDef[], manifest: BuildManifest): BuildRunView {
+    const defs: BuildPhaseDef[] = declared?.length ? declared : [...new Set(run.phases)].map((id) => ({ id }));
+    const ids = defs.map((d) => d.id);
+    const seen = run.phases.filter((p) => ids.includes(p));
+    const current = seen.length ? ids.indexOf(seen[seen.length - 1]) : 0;
+    const done = run.state === "success";
+    const phases = defs.map((def, i) => {
+        let status: BuildPhaseStatus = "todo";
+        if (done || i < current) {
+            status = "done";
+        } else if (i === current) {
+            status = run.state === "running" ? "running" : "failed";
+        }
+        return { id: def.id, title: phaseTitle(def), status };
+    });
+    const at = defs[current] ? phaseTitle(defs[current]) : "the build";
+    const delivered = deliveredBy(run, manifest);
+    let line = defs[current]?.text ?? "";
+    if (done) {
+        line = delivered
+            ? `Delivered: ${delivered.productName ?? ""} ${delivered.version ?? ""}, commit ${delivered.commit.slice(0, 7)}, ${(delivered.notes ?? []).length} commit(s) since the previous one.`.replace(
+                  /\s+/g,
+                  " "
+              )
+            : "Built.";
+    } else if (run.state === "failure") {
+        line = `Failed during “${at}”. The end of the log says why.`;
+    } else if (run.state === "lost") {
+        line = `Interrupted during “${at}”: its process is gone without an exit code.`;
+    } else if (run.state === "cancelled") {
+        line = `Cancelled during “${at}”.`;
+    }
+    return { phases, line, delivered, showLog: !done };
+}

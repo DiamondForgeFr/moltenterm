@@ -11,8 +11,9 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { pathParent } from "../workspace-project";
 import { timeAgo } from "./branch-tree";
+import { buildCardTitle, BuildManifest, BuildPhaseDef, BuildPhaseStatus, buildRunView } from "./builds-model";
 import { missionCancel, missionClose, missionLog, missionRun, missionTrust } from "./mission-client";
-import { formatElapsed, logTail, RunRecord, RunState, RunStateLabels, UntrustedInfo } from "./mission-model";
+import { logTail, RunRecord, RunState, RunStateLabels, UntrustedInfo } from "./mission-model";
 
 const StateClasses: Record<RunState, string> = {
     running: "bg-accent/20 text-accent",
@@ -200,67 +201,92 @@ export function RunStateBadge({ state }: { state: RunState }) {
     );
 }
 
-// Once a build no longer runs, its card can be closed (it leaves the Timeline until the next build); one that did not
-// succeed can be started again, as in Notulia's local build panel.
-export function BuildRunCard({ run, onRetry }: { run: RunRecord; onRetry?: () => void }) {
+const PhaseNodeClasses: Record<BuildPhaseStatus, string> = {
+    todo: "border-border bg-transparent text-muted",
+    running: "border-yellow-500/60 bg-yellow-500/10 text-yellow-400",
+    done: "border-emerald-500/60 bg-emerald-500/10 text-emerald-400",
+    failed: "border-error/60 bg-error/10 text-error",
+};
+
+function PhaseIcon({ status }: { status: BuildPhaseStatus }) {
+    if (status === "done") {
+        return <i className="fa fa-solid fa-check text-[11px]" />;
+    }
+    if (status === "failed") {
+        return <i className="fa fa-solid fa-xmark text-[11px]" />;
+    }
+    if (status === "running") {
+        return <i className="fa fa-solid fa-circle-notch fa-spin text-[11px] motion-reduce:animate-none" />;
+    }
+    return <span className="h-1.5 w-1.5 rounded-full bg-current" />;
+}
+
+// The local build panel (FR-MC-013), as Notulia's: the build's declared phases as a stepper, what the current one does,
+// what was delivered or why it stopped, then Show in Finder, Retry and Close; Cancel while it runs.
+export function BuildRunCard({
+    run,
+    projectName,
+    phases,
+    manifest,
+    onRetry,
+}: {
+    run: RunRecord;
+    projectName: string;
+    phases: BuildPhaseDef[];
+    manifest: BuildManifest;
+    onRetry?: () => void;
+}) {
     const log = useRunLog(run);
     const [full, setFull] = useState(false);
-    const [now, setNow] = useState(Date.now());
-    useEffect(() => {
-        if (run.state !== "running") {
-            return;
-        }
-        const timer = setInterval(() => setNow(Date.now()), 1000);
-        return () => clearInterval(timer);
-    }, [run.state]);
-    const elapsed = (run.finishedat || now) - run.startedat;
+    const view = buildRunView(run, phases, manifest);
     const lines = logTail(log, full ? 2000 : 8);
+    const showLines = lines.length > 0 && (view.showLog || full);
     return (
-        <section className="rounded border border-accent/40 bg-accent/5 p-3" data-testid="build-run">
-            <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
-                <i className="fa fa-solid fa-hammer text-accent" /> Build local
+        <section
+            className="rounded-lg border border-yellow-500/40 bg-gradient-to-br from-yellow-500/10 to-transparent p-4"
+            data-testid="build-run"
+            data-state={run.state}
+        >
+            <div className="mb-3 flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
+                <i className="fa fa-solid fa-hammer text-yellow-400" />
+                Build local
+                <span className="ml-auto rounded-full border border-border px-2 py-0.5 tracking-normal text-primary normal-case">
+                    {buildCardTitle(projectName, { id: run.stepid, title: run.title })}
+                </span>
             </div>
-            <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 text-sm font-medium text-primary" title={run.command}>
-                    {run.title}
-                </div>
-                <RunStateBadge state={run.state} />
-            </div>
-            <div className="mt-0.5 text-[11px] text-muted">
-                {formatElapsed(elapsed)}
-                {run.state !== "running" ? ` · ${timeAgo(new Date(run.startedat).toISOString())}` : ""}
-                {run.exit != null && run.state === "failure" ? ` · exit ${run.exit}` : ""}
-            </div>
-            {run.phases.length > 0 ? (
-                <div className="mt-2 flex flex-wrap items-center gap-1">
-                    {run.phases.map((phase, i) => {
-                        const current = run.state === "running" && i === run.phases.length - 1;
-                        return (
+            <ol className="flex items-start gap-2" aria-label="Phases of the local build">
+                {view.phases.map((p, i) => (
+                    <li key={p.id} className="flex flex-1 items-center gap-2 last:flex-none">
+                        <div className="flex flex-col items-center gap-1">
                             <span
-                                key={`${phase}-${i}`}
                                 className={cn(
-                                    "rounded border px-1.5 py-0.5 text-[11px]",
-                                    current ? "border-accent text-accent" : "border-border text-secondary"
+                                    "flex h-7 w-7 items-center justify-center rounded-full border",
+                                    PhaseNodeClasses[p.status]
                                 )}
+                                data-status={p.status}
                             >
-                                {current ? <i className="fa fa-solid fa-circle-notch fa-spin mr-1 text-[9px]" /> : null}
-                                {phase}
+                                <PhaseIcon status={p.status} />
                             </span>
-                        );
-                    })}
-                </div>
-            ) : null}
-            {lines.length > 0 ? (
+                            <span className="text-[11px] whitespace-nowrap text-muted">{p.title}</span>
+                        </div>
+                        {i < view.phases.length - 1 ? (
+                            <span className="mb-4 h-px flex-1 bg-border" aria-hidden />
+                        ) : null}
+                    </li>
+                ))}
+            </ol>
+            {view.line ? <p className="mt-3 text-xs text-secondary">{view.line}</p> : null}
+            {showLines ? (
                 <pre
                     className={cn(
-                        "mt-2 overflow-auto rounded bg-black/30 p-2 font-mono text-[10.5px] leading-snug whitespace-pre-wrap text-secondary",
+                        "mt-3 overflow-auto rounded-md border border-border bg-black/30 px-2 py-1.5 font-mono text-[10.5px] leading-relaxed whitespace-pre-wrap text-secondary",
                         full ? "max-h-[50vh]" : "max-h-40"
                     )}
                 >
                     {lines.join("\n")}
                 </pre>
             ) : null}
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
                 {run.state === "running" ? (
                     <button
                         type="button"
@@ -270,25 +296,32 @@ export function BuildRunCard({ run, onRetry }: { run: RunRecord; onRetry?: () =>
                         Cancel
                     </button>
                 ) : null}
-                <ArtifactActions run={run} />
-                <button type="button" onClick={() => setFull(!full)} className={PlainButton}>
+                <button type="button" onClick={() => setFull(!full)} className={cn(PlainButton, "mr-auto")}>
                     {full ? "Less" : "Whole log"}
                 </button>
+                {view.delivered && run.artifact ? (
+                    <button type="button" onClick={() => openPath(pathParent(run.artifact))} className={PlainButton}>
+                        <i className="fa fa-solid fa-folder-open mr-1 text-[10px]" />
+                        Show in Finder
+                    </button>
+                ) : null}
+                {run.state !== "running" && run.state !== "success" && onRetry ? (
+                    <button
+                        type="button"
+                        onClick={onRetry}
+                        className="cursor-pointer rounded bg-accent/80 px-2 py-1 text-xs text-primary transition-colors hover:bg-accent"
+                    >
+                        Retry
+                    </button>
+                ) : null}
                 {run.state !== "running" ? (
-                    <span className="ml-auto flex items-center gap-1.5">
-                        {run.state !== "success" && onRetry ? (
-                            <button type="button" onClick={onRetry} className={PlainButton}>
-                                Retry
-                            </button>
-                        ) : null}
-                        <button
-                            type="button"
-                            onClick={() => fireAndForget(() => missionClose(run.dir, run.id))}
-                            className={PlainButton}
-                        >
-                            Close
-                        </button>
-                    </span>
+                    <button
+                        type="button"
+                        onClick={() => fireAndForget(() => missionClose(run.dir, run.id))}
+                        className={PlainButton}
+                    >
+                        Close
+                    </button>
                 ) : null}
             </div>
         </section>

@@ -123,7 +123,7 @@ func TestRunSucceedsWithPhasesAndLog(t *testing.T) {
 	if !strings.Contains(chunk.Text, tree) && !strings.Contains(chunk.Text, r.buildTreeDir(dir)) {
 		t.Fatalf("a build runs in its own worktree, not the user's checkout: %q", chunk.Text)
 	}
-	if rec.Commit == "" || !strings.Contains(chunk.Text, "building develop @") {
+	if len(rec.Commit) != 40 || !strings.Contains(chunk.Text, "building develop @") {
 		t.Fatalf("the build records the trunk commit it built: %+v %q", rec, chunk.Text)
 	}
 	if _, err := r.ReadLog(dir, "../x", 0); err == nil {
@@ -233,7 +233,8 @@ func TestBuildVerifiesWithTheLocalCiFirst(t *testing.T) {
 	gitIn(t, dir, "add", "-A")
 	gitIn(t, dir, "commit", "-q", "-m", "fix")
 	built := waitRun(t, r, dir, trustAndStart(t, r, dir, "gold").Id)
-	if built.State != RunStateSuccess || strings.Join(built.Phases, ",") != "verify,build" {
+	// waitRun lists the runs while the build prepares: the record keeps the commit the preparation wrote.
+	if built.State != RunStateSuccess || strings.Join(built.Phases, ",") != "verify,build" || len(built.Commit) != 40 {
 		t.Fatalf("a green CI lets the build run: %+v", built)
 	}
 	facts, err := r.BuildsFacts(dir, false)
