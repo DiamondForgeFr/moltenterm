@@ -51,6 +51,9 @@ func PipelineCommands(p *molten.Pipeline) []TrustedCommand {
 		}
 	}
 	for _, build := range p.Builds {
+		if build.Prepare != nil {
+			rtn = append(rtn, TrustedCommand{Kind: "buildprepare", Id: build.Id, Title: build.Title, Run: build.Prepare.Run, Cwd: build.Prepare.Cwd, Env: build.Prepare.Env})
+		}
 		rtn = append(rtn, TrustedCommand{Kind: "build", Id: build.Id, Title: build.Title, Run: build.Run, Cwd: build.Cwd, Env: build.Env})
 	}
 	if p.Release != nil {

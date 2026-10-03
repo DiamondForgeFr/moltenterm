@@ -58,7 +58,17 @@ export type PipelineDef = {
         prepare?: PipelineCommand;
         statuses?: string;
     };
-    builds?: (PipelineCommand & { id: string; title?: string; artifact?: string })[];
+    builds?: (PipelineCommand & {
+        id: string;
+        title?: string;
+        artifact?: string;
+        kind?: string;
+        description?: string;
+        manifest?: string;
+        phases?: { id: string; title?: string; text?: string }[];
+        verify?: string;
+        prepare?: PipelineCommand;
+    })[];
     release?: {
         rc?: (PipelineCommand & { id: string; title?: string })[];
         public?: (PipelineCommand & { id: string; title?: string })[];
@@ -197,6 +207,9 @@ export type RunRecord = {
     phases: string[];
     cancelled?: boolean;
     closed?: boolean;
+    commit?: string;
+    buildkind?: string;
+    preparing?: boolean;
     logsize: number;
 };
 

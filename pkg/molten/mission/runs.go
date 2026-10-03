@@ -68,6 +68,11 @@ type RunRecord struct {
 	Exit       *int     `json:"exit,omitempty"`
 	Phases     []string `json:"phases"`
 	Cancelled  bool     `json:"cancelled,omitempty"`
+	// A build's commit, built in a worktree of its own, and its kind (gold, rc).
+	Commit    string `json:"commit,omitempty"`
+	BuildKind string `json:"buildkind,omitempty"`
+	// Still fetching, verifying or preparing in wavesrv: there is no process to follow yet.
+	Preparing bool `json:"preparing,omitempty"`
 	// Closed by the user once it no longer runs: its card leaves the Timeline until the next run.
 	Closed  bool  `json:"closed,omitempty"`
 	LogSize int64 `json:"logsize"`
@@ -91,16 +96,27 @@ type LogChunk struct {
 }
 
 type Runs struct {
-	lock     sync.Mutex
-	baseDir  string
-	trust    *TrustStore
-	publish  func(RunRecord)
-	now      func() time.Time
-	watching map[string]bool
+	lock      sync.Mutex
+	baseDir   string
+	trust     *TrustStore
+	publish   func(RunRecord)
+	now       func() time.Time
+	watching  map[string]bool
+	preparing map[string]bool
+	// Cancels asked while a build is being prepared; the preparation alone writes its record meanwhile.
+	cancelAsked map[string]bool
+	git         Runner
+	ci        *Ci
 }
 
 func MakeRuns(baseDir string, trust *TrustStore, publish func(RunRecord)) *Runs {
-	return &Runs{baseDir: baseDir, trust: trust, publish: publish, now: time.Now, watching: map[string]bool{}}
+	return &Runs{baseDir: baseDir, trust: trust, publish: publish, now: time.Now, watching: map[string]bool{},
+		preparing: map[string]bool{}, cancelAsked: map[string]bool{}, git: ExecRunner}
+}
+
+// UseCi lets builds verify their commit with the local CI first.
+func (r *Runs) UseCi(ci *Ci) {
+	r.ci = ci
 }
 
 func RunsDir(dataDir string) string {
@@ -216,6 +232,13 @@ func (r *Runs) Start(req RunRequest) (RunResult, error) {
 	if running := r.runningOf(dir, req.Kind); running != nil {
 		return RunResult{}, fmt.Errorf("%s is already running", running.Title)
 	}
+	if req.Kind == RunKindBuild {
+		rec, err := r.startBuild(dir, findBuild(report.Pipeline, req.Id), req.Version)
+		if err != nil {
+			return RunResult{}, err
+		}
+		return RunResult{Run: &rec}, nil
+	}
 	rec, err := r.launch(dir, command, artifact, req.Version)
 	if err != nil {
 		return RunResult{}, err
@@ -317,6 +340,9 @@ func (r *Runs) update(rec *RunRecord) bool {
 		}
 		return true
 	}
+	if rec.Preparing {
+		return changed
+	}
 	if !processAlive(rec.Pid) {
 		rec.FinishedAt = r.now().UnixMilli()
 		rec.State = RunStateLost
@@ -385,6 +411,13 @@ func (r *Runs) List(dir string) []RunRecord {
 		if err != nil {
 			continue
 		}
+		if rec.State == RunStateRunning && rec.Preparing && !r.checkPreparing(rec.Id) {
+			// wavesrv stopped while it fetched, verified or prepared the build.
+			rec.Preparing = false
+			rec.State = RunStateLost
+			rec.FinishedAt = r.now().UnixMilli()
+			r.writeRecord(rec)
+		}
 		if rec.State == RunStateRunning {
 			if r.update(&rec) {
 				r.writeRecord(rec)
@@ -419,9 +452,15 @@ func (r *Runs) Cancel(dir string, runId string) error {
 	if rec.State != RunStateRunning {
 		return fmt.Errorf("%s is not running", rec.Title)
 	}
+	if r.askCancelWhilePreparing(rec.Id) {
+		return nil
+	}
 	rec.Cancelled = true
 	if err := r.writeRecord(rec); err != nil {
 		return err
+	}
+	if rec.Pid <= 0 {
+		return nil
 	}
 	return stopRunGroup(rec.Pid)
 }

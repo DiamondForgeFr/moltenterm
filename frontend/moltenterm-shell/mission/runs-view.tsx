@@ -90,16 +90,24 @@ type PendingRun = { kind: string; id: string; info: UntrustedInfo };
 export function useStartRun(dir: string, projectName: string) {
     const [pending, setPending] = useState<PendingRun>(null);
     const [error, setError] = useState<string>(null);
+    // Resolves to the error, if any; an untrusted start opens the trust prompt.
+    const startAsync = async (kind: string, id: string): Promise<string> => {
+        setError(null);
+        try {
+            const result = await missionRun(dir, kind, id);
+            if (result?.untrusted) {
+                setPending({ kind, id, info: result.untrusted });
+            }
+            return "";
+        } catch (e) {
+            return String(e?.message ?? e);
+        }
+    };
     const start = (kind: string, id: string) =>
         fireAndForget(async () => {
-            setError(null);
-            try {
-                const result = await missionRun(dir, kind, id);
-                if (result?.untrusted) {
-                    setPending({ kind, id, info: result.untrusted });
-                }
-            } catch (e) {
-                setError(String(e?.message ?? e));
+            const failure = await startAsync(kind, id);
+            if (failure) {
+                setError(failure);
             }
         });
     const trustAndRun = () =>
@@ -123,7 +131,7 @@ export function useStartRun(dir: string, projectName: string) {
                 onCancel={() => setPending(null)}
             />
         ) : null;
-    return { start, prompt, error, clearError: () => setError(null) };
+    return { start, startAsync, prompt, error, clearError: () => setError(null) };
 }
 
 function openPath(path: string) {

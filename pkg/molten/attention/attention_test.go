@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"testing"
 	"time"
-
 )
 
 func TestParseAttentionOsc(t *testing.T) {
