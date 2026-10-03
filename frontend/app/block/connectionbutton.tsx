@@ -15,11 +15,13 @@ interface ConnectionButtonProps {
     connection: string;
     changeConnModalAtom: jotai.PrimitiveAtom<boolean>;
     isTerminalBlock?: boolean;
+    // MOLTENTERM-PATCH (#109): a pane running a coding agent shows the agent instead; the host stays in the tooltip
+    hideLocalName?: boolean;
 }
 
 export const ConnectionButton = React.memo(
     React.forwardRef<HTMLDivElement, ConnectionButtonProps>(
-        ({ connection, changeConnModalAtom, isTerminalBlock }: ConnectionButtonProps, ref) => {
+        ({ connection, changeConnModalAtom, isTerminalBlock, hideLocalName }: ConnectionButtonProps, ref) => {
             const waveEnv = useWaveEnv<BlockEnv>();
             const [_connModalOpen, setConnModalOpen] = jotai.useAtom(changeConnModalAtom);
             const isLocal = util.isLocalConnName(connection);
@@ -47,7 +49,7 @@ export const ConnectionButton = React.memo(
                     if (localName) {
                         titleText += ` (${localName})`;
                     }
-                    if (isTerminalBlock) {
+                    if (isTerminalBlock && !hideLocalName) {
                         connDisplayName = localName;
                         extraDisplayNameClassName = "text-muted group-hover:text-secondary";
                     }

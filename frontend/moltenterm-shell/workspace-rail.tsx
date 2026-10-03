@@ -14,6 +14,7 @@ import { WorkspaceEditor } from "@/app/tab/workspaceeditor";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AgentRailDot } from "./agent-state-ui";
 import { unreadByWorkspace } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 import { ProjectLinkDetector } from "./project-link-modal";
@@ -194,6 +195,7 @@ function RailButton({
                     aria-label={`${unread} unread`}
                 />
             ) : null}
+            <AgentRailDot workspaceId={entry.id} />
         </button>
     );
 }
