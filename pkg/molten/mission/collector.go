@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -301,6 +302,15 @@ func publishRun(rec RunRecord) {
 	})
 }
 
+func publishBuildNotice(rec RunRecord, input molten.NotificationInput) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	input.WorkspaceId = attention.ProjectWorkspace(ctx, rec.Dir)
+	if err := attention.PublishNotification(ctx, input); err != nil {
+		log.Printf("molten: telling the end of build %s: %v\n", rec.Id, err)
+	}
+}
+
 func publishCiRun(rec CiRunRecord) {
 	wps.Broker.Publish(wps.WaveEvent{
 		Event:  CiEvent,
@@ -317,6 +327,7 @@ func Start() {
 	runs := MakeRuns(RunsDir(dataDir), trust, publishRun)
 	ci := MakeCi(CiDir(dataDir), trust, ExecRunner, publishCiRun)
 	runs.UseCi(ci)
+	runs.UseNotifier(publishBuildNotice)
 	if err := registerRoute(collector, runs, ci); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}

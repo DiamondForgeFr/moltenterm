@@ -134,6 +134,7 @@ func (b *buildLog) say(format string, args ...any) {
 func (b *buildLog) refresh() {
 	b.rec.Cancelled = b.rec.Cancelled || b.cancelled()
 	b.r.update(b.rec)
+	b.r.settle(b.rec)
 	b.r.writeRecord(*b.rec)
 	if b.r.publish != nil {
 		b.r.publish(*b.rec)
