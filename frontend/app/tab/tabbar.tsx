@@ -19,6 +19,7 @@ import { UpdateStatusBanner } from "./updatebanner";
 import { WorkspaceSwitcher } from "./workspaceswitcher";
 import { MoltentermNotificationCenter, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44, #45)
 import { NotificationCenter } from "../../moltenterm-shell/notification-center"; // MOLTENTERM-PATCH (#45)
+import { checkTabDragReleased } from "../../moltenterm-shell/tab-drag"; // MOLTENTERM-PATCH (#81)
 
 const TabDefaultWidth = 130;
 const TabMinWidth = 100;
@@ -334,6 +335,11 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
     };
 
     const handleMouseMove = (event: MouseEvent) => {
+        // MOLTENTERM-PATCH (#81): a release the document never saw ends the drag at the next move
+        if (checkTabDragReleased(event)) {
+            handleMouseUp(event);
+            return;
+        }
         const { tabId, ref, tabStartX } = draggingTabDataRef.current;
 
         let initialOffsetX = draggingTabDataRef.current.initialOffsetX;
