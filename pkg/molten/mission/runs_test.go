@@ -30,8 +30,13 @@ func makeRunsFixture(t *testing.T, builds string) (*Runs, string) {
 	}
 	dir := t.TempDir()
 	writePipeline(t, dir, builds)
+	gitIn(t, dir, "init", "-q", "-b", "develop")
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-q", "-m", "init")
 	data := t.TempDir()
-	return MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil), dir
+	r := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
+	r.git = plainRunner
+	return r, dir
 }
 
 func waitRun(t *testing.T, r *Runs, dir string, runId string) RunRecord {
@@ -114,9 +119,12 @@ func TestRunSucceedsWithPhasesAndLog(t *testing.T) {
 	if err != nil || !strings.Contains(chunk.Text, "working") || !strings.Contains(chunk.Text, "exit=0") || chunk.Size != int64(len(chunk.Text)) {
 		t.Fatalf("log: %+v, %v", chunk, err)
 	}
-	resolved, _ := filepath.EvalSymlinks(dir)
-	if !strings.Contains(chunk.Text, resolved) && !strings.Contains(chunk.Text, dir) {
-		t.Fatalf("the run must start in the project folder: %q", chunk.Text)
+	tree, _ := filepath.EvalSymlinks(r.buildTreeDir(dir))
+	if !strings.Contains(chunk.Text, tree) && !strings.Contains(chunk.Text, r.buildTreeDir(dir)) {
+		t.Fatalf("a build runs in its own worktree, not the user's checkout: %q", chunk.Text)
+	}
+	if rec.Commit == "" || !strings.Contains(chunk.Text, "building develop @") {
+		t.Fatalf("the build records the trunk commit it built: %+v %q", rec, chunk.Text)
 	}
 	if _, err := r.ReadLog(dir, "../x", 0); err == nil {
 		t.Fatal("a run id with a path must be refused")
@@ -195,5 +203,44 @@ func TestRunRequestsAreChecked(t *testing.T) {
 	}
 	if !isWindowSource("tab:abc") || isWindowSource("proc:abc") || isWindowSource("") {
 		t.Fatal("only windows may grant trust")
+	}
+}
+
+func TestBuildVerifiesWithTheLocalCiFirst(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("runs use /bin/sh")
+	}
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".molten"), 0755)
+	art := filepath.Join(t.TempDir(), "out")
+	pipeline := `{"schema":1,"name":"P","ci":{"jobs":[{"name":"check","run":"test -f ok.txt"}]},
+		"builds":[{"id":"gold","kind":"gold","verify":"ci","artifact":"` + art + `/App.app",
+		"run":"echo '▶ phase: build'; mkdir -p ` + art + ` && printf '{\"commit\":\"%s\",\"version\":\"1.0.0\",\"productName\":\"P\",\"builtAt\":\"2026-10-03T00:00:00Z\",\"buildId\":7}' $MOLTEN_BUILD_COMMIT > ` + art + `/manifest.json"}]}`
+	os.WriteFile(filepath.Join(dir, ".molten", "project.json"), []byte(pipeline), 0644)
+	gitIn(t, dir, "init", "-q", "-b", "develop")
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-q", "-m", "init")
+	data := t.TempDir()
+	trust := MakeTrustStore(filepath.Join(data, TrustFileName))
+	r := MakeRuns(filepath.Join(data, "runs"), trust, nil)
+	r.git = plainRunner
+	r.UseCi(MakeCi(filepath.Join(data, "ci"), trust, plainRunner, nil))
+	failed := waitRun(t, r, dir, trustAndStart(t, r, dir, "gold").Id)
+	if failed.State != RunStateFailure || strings.Join(failed.Phases, ",") != "verify" {
+		t.Fatalf("a red CI stops the build at verify: %+v", failed)
+	}
+	os.WriteFile(filepath.Join(dir, "ok.txt"), []byte("ok\n"), 0644)
+	gitIn(t, dir, "add", "-A")
+	gitIn(t, dir, "commit", "-q", "-m", "fix")
+	built := waitRun(t, r, dir, trustAndStart(t, r, dir, "gold").Id)
+	if built.State != RunStateSuccess || strings.Join(built.Phases, ",") != "verify,build" {
+		t.Fatalf("a green CI lets the build run: %+v", built)
+	}
+	facts, err := r.BuildsFacts(dir, false)
+	if err != nil || len(facts.Builds) != 1 || facts.Builds[0].Last == nil || facts.Builds[0].Last.Commit != built.Commit {
+		t.Fatalf("facts read the delivered manifest: %+v %v", facts, err)
+	}
+	if facts.Trunk != "develop" || facts.Ci == nil || facts.Ci.Status != CiStateSuccess {
+		t.Fatalf("facts carry the trunk and its CI: %+v", facts)
 	}
 }

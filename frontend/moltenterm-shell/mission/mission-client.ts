@@ -8,6 +8,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useState } from "react";
+import { BuildsFacts } from "./builds-model";
 import { CiRunRecord, CiState, upsertCiRun } from "./ci-model";
 import { LogChunk, MissionSnapshot, RunRecord, RunResult, UntrustedInfo, upsertRun } from "./mission-model";
 
@@ -28,6 +29,7 @@ export const MissionCiRunCommand = "moltenmissioncirun";
 export const MissionCiLogCommand = "moltenmissioncilog";
 export const MissionCiCancelCommand = "moltenmissioncicancel";
 export const MissionCiEvent = "molten:mission:ci";
+export const MissionBuildsCommand = "moltenmissionbuilds";
 
 const MissionRpcTimeoutMs = 15000;
 // A request is cheap (the cached snapshot and the pipeline file); the collector itself refreshes at most once a minute.
@@ -228,4 +230,8 @@ export function useCiState(dir: string): { state: CiState; reload: () => void } 
         return () => unsubscribe();
     }, [dir, load]);
     return { state, reload: load };
+}
+
+export function missionBuilds(dir: string, fresh: boolean): Promise<BuildsFacts> {
+    return TabRpcClient.wshRpcCall(MissionBuildsCommand, { dir, fresh }, { route: MissionRouteId, timeout: 60000 });
 }

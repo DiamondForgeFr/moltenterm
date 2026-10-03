@@ -20,6 +20,27 @@
         {
             "id": "gold",
             "title": "Gold",
+            "kind": "gold",
+            "description": "The app you use every day, with your configuration and workspaces.",
+            "verify": "ci",
+            "phases": [
+                {
+                    "id": "verify",
+                    "title": "Verify",
+                    "text": "The local CI on this commit of develop: only the jobs not green yet run."
+                },
+                {
+                    "id": "build",
+                    "title": "Build",
+                    "text": "The app, on the gold channel, with the build id stamped in it."
+                },
+                {
+                    "id": "deliver",
+                    "title": "Deliver",
+                    "text": "The app and its manifest in the local builds folder; the previous one moves to previous/."
+                }
+            ],
+            "prepare": { "run": "npm install --no-audit --no-fund" },
             "run": "./scripts/moltenterm-build-gold.sh",
             "artifact": "~/Library/Application Support/Moltenterm Local Builds/gold/Moltenterm.app"
         }

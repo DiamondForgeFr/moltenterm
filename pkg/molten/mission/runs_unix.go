@@ -23,5 +23,9 @@ func processAlive(pid int) bool {
 }
 
 func stopRunGroup(pid int) error {
+	// kill(-0) would signal wavesrv's own process group.
+	if pid <= 0 {
+		return nil
+	}
 	return syscall.Kill(-pid, syscall.SIGTERM)
 }

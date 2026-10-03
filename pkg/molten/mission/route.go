@@ -145,6 +145,15 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 			return nil, err
 		}
 		return l.runs.Start(req)
+	case BuildsCommand:
+		var req struct {
+			Dir   string `json:"dir"`
+			Fresh bool   `json:"fresh,omitempty"`
+		}
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.runs.BuildsFacts(req.Dir, req.Fresh)
 	case RunsCommand:
 		var req GetRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

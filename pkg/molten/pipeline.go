@@ -58,11 +58,34 @@ type PipelineCi struct {
 
 const PipelineCiStatusesGithub = "github"
 
+// A phase a build announces with "▶ phase: <id>": the Timeline shows them all from the start, with their text.
+type PipelinePhase struct {
+	Id    string `json:"id"`
+	Title string `json:"title,omitempty"`
+	Text  string `json:"text,omitempty"`
+}
+
+const (
+	PipelineBuildKindGold = "gold"
+	PipelineBuildKindRc   = "rc"
+	PipelineBuildVerifyCi = "ci"
+	PipelineVerifyPhase   = "verify"
+)
+
 type PipelineBuild struct {
 	Id    string `json:"id"`
 	Title string `json:"title,omitempty"`
-	// Where the build leaves its result (a file or a folder, `~` allowed); marking it gold copies it.
-	Artifact string `json:"artifact,omitempty"`
+	// Where the build leaves its result (a file or a folder, `~` allowed).
+	Artifact    string `json:"artifact,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	Description string `json:"description,omitempty"`
+	// The delivered build's manifest (`~` allowed); by default manifest.json beside the artifact.
+	Manifest string          `json:"manifest,omitempty"`
+	Phases   []PipelinePhase `json:"phases,omitempty"`
+	// "ci": the local CI runs on the build's commit first, and the build stops unless it is green.
+	Verify string `json:"verify,omitempty"`
+	// Run in the build's worktree before the command (e.g. installing dependencies).
+	Prepare *PipelineCommand `json:"prepare,omitempty"`
 	PipelineCommand
 }
 
@@ -261,7 +284,23 @@ func (c *pipelineChecker) check(p *Pipeline) {
 		c.checkId(label, build.Id, seen)
 		c.checkCommand(label+" ("+build.Id+")", build.PipelineCommand)
 		if build.Artifact == "" {
-			c.warnf("%s (%s): no artifact, so it cannot be kept as gold", label, build.Id)
+			c.warnf("%s (%s): no artifact, so it cannot be shown or opened", label, build.Id)
+		}
+		if build.Kind != "" && build.Kind != PipelineBuildKindGold && build.Kind != PipelineBuildKindRc {
+			c.errorf("%s (%s): kind must be %q or %q (got %q)", label, build.Id, PipelineBuildKindGold, PipelineBuildKindRc, build.Kind)
+		}
+		if build.Verify != "" && build.Verify != PipelineBuildVerifyCi {
+			c.errorf("%s (%s): verify must be %q or left out (got %q)", label, build.Id, PipelineBuildVerifyCi, build.Verify)
+		}
+		if build.Verify == PipelineBuildVerifyCi && (p.Ci == nil || len(p.Ci.Jobs) == 0) {
+			c.errorf("%s (%s): verify is \"ci\" but the pipeline declares no ci.jobs", label, build.Id)
+		}
+		phases := map[string]bool{}
+		for j, phase := range build.Phases {
+			c.checkId(fmt.Sprintf("%s.phases[%d]", label, j), phase.Id, phases)
+		}
+		if build.Prepare != nil {
+			c.checkCommand(label+" ("+build.Id+") prepare", *build.Prepare)
 		}
 	}
 	if p.Release != nil {

@@ -40,6 +40,7 @@ const (
 	CiLogCommand      = "moltenmissioncilog"
 	CiCancelCommand   = "moltenmissioncicancel"
 	CiStatusCommand   = "moltenmissioncistatus"
+	BuildsCommand     = "moltenmissionbuilds"
 	UpdateEvent       = "molten:mission:update"
 	RunEvent          = "molten:mission:run"
 	CiEvent           = "molten:mission:ci"
@@ -315,6 +316,7 @@ func Start() {
 	trust := MakeTrustStore(filepath.Join(CacheDir(dataDir), TrustFileName))
 	runs := MakeRuns(RunsDir(dataDir), trust, publishRun)
 	ci := MakeCi(CiDir(dataDir), trust, ExecRunner, publishCiRun)
+	runs.UseCi(ci)
 	if err := registerRoute(collector, runs, ci); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
