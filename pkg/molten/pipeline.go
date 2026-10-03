@@ -50,7 +50,13 @@ type PipelineJob struct {
 
 type PipelineCi struct {
 	Jobs []PipelineJob `json:"jobs"`
+	// Run once in the CI worktree before the jobs (e.g. installing dependencies).
+	Prepare *PipelineCommand `json:"prepare,omitempty"`
+	// "github": each job's verdict is published as the commit status local-<job>.
+	Statuses string `json:"statuses,omitempty"`
 }
+
+const PipelineCiStatusesGithub = "github"
 
 type PipelineBuild struct {
 	Id    string `json:"id"`
@@ -241,6 +247,12 @@ func (c *pipelineChecker) check(p *Pipeline) {
 			label := fmt.Sprintf("ci.jobs[%d]", i)
 			c.checkId(label, job.Name, seen)
 			c.checkCommand(label+" ("+job.Name+")", job.PipelineCommand)
+		}
+		if p.Ci.Prepare != nil {
+			c.checkCommand("ci.prepare", *p.Ci.Prepare)
+		}
+		if p.Ci.Statuses != "" && p.Ci.Statuses != PipelineCiStatusesGithub {
+			c.errorf("ci.statuses must be %q or left out (got %q)", PipelineCiStatusesGithub, p.Ci.Statuses)
 		}
 	}
 	seen := map[string]bool{}

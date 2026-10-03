@@ -53,7 +53,11 @@ export type PipelineDef = {
     name: string;
     branches?: { trunk?: string; release?: string };
     versions?: { tagprefix?: string; notes?: string };
-    ci?: { jobs: (PipelineCommand & { name: string; title?: string; lane?: string })[] };
+    ci?: {
+        jobs: (PipelineCommand & { name: string; title?: string; lane?: string })[];
+        prepare?: PipelineCommand;
+        statuses?: string;
+    };
     builds?: (PipelineCommand & { id: string; title?: string; artifact?: string })[];
     release?: {
         rc?: (PipelineCommand & { id: string; title?: string })[];

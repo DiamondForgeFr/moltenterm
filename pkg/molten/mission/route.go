@@ -23,7 +23,62 @@ const routeQueueSize = 64
 type routeLink struct {
 	collector *Collector
 	runs      *Runs
+	ci        *Ci
 	output    chan []byte
+}
+
+type ciLogRequest struct {
+	Dir   string `json:"dir"`
+	RunId string `json:"runid"`
+	Job   string `json:"job"`
+	From  int64  `json:"from,omitempty"`
+}
+
+type ciStatusRequest struct {
+	Dir string `json:"dir"`
+	Rev string `json:"rev,omitempty"`
+}
+
+func (l *routeLink) handleCi(command string, data any) (any, error) {
+	switch command {
+	case CiStateCommand:
+		var req GetRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.ci.State(req.Dir)
+	case CiRunCommand:
+		var req CiRunRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.ci.Start(req)
+	case CiLogCommand:
+		var req ciLogRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		if err := checkDir(req.Dir); err != nil {
+			return nil, err
+		}
+		return l.ci.ReadLog(req.Dir, req.RunId, req.Job, req.From)
+	case CiCancelCommand:
+		var req runIdRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		if err := checkDir(req.Dir); err != nil {
+			return nil, err
+		}
+		return nil, l.ci.Cancel(req.Dir, req.RunId)
+	case CiStatusCommand:
+		var req ciStatusRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.ci.Status(req.Dir, req.Rev)
+	}
+	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
 
 func (l *routeLink) GetPeerInfo() string {
@@ -125,6 +180,9 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 }
 
 func (l *routeLink) handle(command string, source string, data any) (any, error) {
+	if strings.HasPrefix(command, "moltenmissionci") {
+		return l.handleCi(command, data)
+	}
 	if command != GetCommand && command != RefreshCommand {
 		return l.handleRun(command, source, data)
 	}
@@ -145,8 +203,8 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
 
-func registerRoute(collector *Collector, runs *Runs) error {
-	link := &routeLink{collector: collector, runs: runs, output: make(chan []byte, routeQueueSize)}
+func registerRoute(collector *Collector, runs *Runs, ci *Ci) error {
+	link := &routeLink{collector: collector, runs: runs, ci: ci, output: make(chan []byte, routeQueueSize)}
 	_, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId)
 	return err
 }

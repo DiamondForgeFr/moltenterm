@@ -34,8 +34,14 @@ const (
 	LogCommand        = "moltenmissionlog"
 	CancelCommand     = "moltenmissioncancel"
 	TrustCommand      = "moltenmissiontrust"
+	CiStateCommand    = "moltenmissioncistate"
+	CiRunCommand      = "moltenmissioncirun"
+	CiLogCommand      = "moltenmissioncilog"
+	CiCancelCommand   = "moltenmissioncicancel"
+	CiStatusCommand   = "moltenmissioncistatus"
 	UpdateEvent       = "molten:mission:update"
 	RunEvent          = "molten:mission:run"
+	CiEvent           = "molten:mission:ci"
 	DefaultMaxAgeSec  = 60
 	collectTimeout    = 2 * time.Minute
 	fetchEvery        = 5 * time.Minute
@@ -293,12 +299,22 @@ func publishRun(rec RunRecord) {
 	})
 }
 
+func publishCiRun(rec CiRunRecord) {
+	wps.Broker.Publish(wps.WaveEvent{
+		Event:  CiEvent,
+		Scopes: []string{rec.Dir},
+		Data:   rec,
+	})
+}
+
 // Start registers the collector on wavesrv's router; wavesrv calls it once at start.
 func Start() {
 	dataDir := wavebase.GetWaveDataDir()
 	collector := MakeCollector(CacheDir(dataDir), ExecRunner, publishSnapshot)
-	runs := MakeRuns(RunsDir(dataDir), MakeTrustStore(filepath.Join(CacheDir(dataDir), TrustFileName)), publishRun)
-	if err := registerRoute(collector, runs); err != nil {
+	trust := MakeTrustStore(filepath.Join(CacheDir(dataDir), TrustFileName))
+	runs := MakeRuns(RunsDir(dataDir), trust, publishRun)
+	ci := MakeCi(CiDir(dataDir), trust, ExecRunner, publishCiRun)
+	if err := registerRoute(collector, runs, ci); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
 }

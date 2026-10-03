@@ -54,7 +54,9 @@ All fields are lowercase. Unknown fields are refused, so a typo does not go unno
 | `name` | yes | The project's name, as Mission Control shows it. |
 | `branches` | no | `{ "trunk": "develop", "release": "main" }`: where work is merged, and where releases are cut. Leave it out when `.saasfoundry.json` declares them; without either, MoltenTerm uses `develop` then `main`. |
 | `versions` | no | `tagprefix` (default `v`), and `notes`: where a version's release notes are, with `{tag}` (e.g. `releases/{tag}.md`). |
-| `ci.jobs` | no | The local CI: each job has a `name` (id), a `title`, a `lane` and a command. Jobs of the same lane run in order; lanes run side by side. |
+| `ci.jobs` | no | The local CI: each job has a `name` (id), a `title`, a `lane` and a command. Jobs of the same lane run in order (a failed job stops the rest of its lane); lanes run side by side. MoltenTerm runs them in a worktree of its own and keeps each job's verdict per code tree: a run reruns only what is not green yet. |
+| `ci.prepare` | no | A command run once in the CI worktree before the jobs, e.g. `bun install --frozen-lockfile`. |
+| `ci.statuses` | no | `"github"`: each job's verdict is published as the commit status `local-<job>` through the user's `gh`, so pull requests show it. A pre-push hook can call `wsh molten ci status` (exit 0 green, 1 red, 2 not run yet) to warn before pushing. |
 | `builds` | no | Local builds: `id` (`gold`, `rc`, …), `title`, a command, and `artifact`: the file or folder the build produces (`~` allowed). Marking a build as gold keeps a copy of it. |
 | `release.rc`, `release.public` | no | The ordered steps that make a release candidate or a public release. Each step has an `id`, a `title` and a command. |
 | `steps` | no | Project-specific actions shown in a panel: `id`, `title`, `section` (`timeline`, `cilocal`, `ciremote` or `cd`) and a command. |
