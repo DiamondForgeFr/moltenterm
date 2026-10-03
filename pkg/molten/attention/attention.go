@@ -56,14 +56,23 @@ type attentionScanner struct {
 	osc   []byte
 }
 
-func (s *attentionScanner) feed(data []byte, emit func(AttentionSignal)) {
+// What the scanner finds, in output order: an attention signal or a shell integration mark (DS-SHELL-011).
+type scanItem struct {
+	signal *AttentionSignal
+	shell  *ShellMark
+	// repeat: the same signal from the same block within AttentionDedup; it changes the agent's state but raises no
+	// second notification.
+	repeat bool
+}
+
+func (s *attentionScanner) feed(data []byte, emit func(scanItem)) {
 	for _, b := range data {
 		switch s.state {
 		case scanNormal:
 			if b == 0x1b {
 				s.state = scanEsc
 			} else if b == 0x07 {
-				emit(AttentionSignal{Title: BellTitle, Message: "Bell"})
+				emit(scanItem{signal: &AttentionSignal{Title: BellTitle, Message: "Bell"}})
 			}
 		case scanEsc:
 			switch b {
@@ -106,11 +115,16 @@ func (s *attentionScanner) feed(data []byte, emit func(AttentionSignal)) {
 	}
 }
 
-func (s *attentionScanner) finishOsc(emit func(AttentionSignal)) {
+func (s *attentionScanner) finishOsc(emit func(scanItem)) {
 	s.state = scanNormal
-	signal, ok := ParseAttentionOsc(string(s.osc))
+	payload := string(s.osc)
+	if mark, ok := ParseShellMark(payload); ok {
+		emit(scanItem{shell: &mark})
+		return
+	}
+	signal, ok := ParseAttentionOsc(payload)
 	if ok {
-		emit(signal)
+		emit(scanItem{signal: &signal})
 	}
 }
 
@@ -152,6 +166,7 @@ type attentionWatcher struct {
 	lastSeen map[string]time.Time
 	record   func(blockId string, signal AttentionSignal)
 	now      func() time.Time
+	agents   *agentStates
 }
 
 func makeAttentionWatcher(record func(string, AttentionSignal)) *attentionWatcher {
@@ -163,7 +178,7 @@ func makeAttentionWatcher(record func(string, AttentionSignal)) *attentionWatche
 	}
 }
 
-func (w *attentionWatcher) scan(blockId string, data []byte) []AttentionSignal {
+func (w *attentionWatcher) scan(blockId string, data []byte) []scanItem {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	scanner := w.scanners[blockId]
@@ -171,28 +186,68 @@ func (w *attentionWatcher) scan(blockId string, data []byte) []AttentionSignal {
 		scanner = &attentionScanner{}
 		w.scanners[blockId] = scanner
 	}
-	var signals []AttentionSignal
-	scanner.feed(data, func(signal AttentionSignal) {
-		key := blockId + "\x00" + signal.Title + "\x00" + signal.Message
-		now := w.now()
-		if last, ok := w.lastSeen[key]; ok && now.Sub(last) < AttentionDedup {
-			return
+	var items []scanItem
+	scanner.feed(data, func(item scanItem) {
+		if item.signal != nil {
+			key := blockId + "\x00" + item.signal.Title + "\x00" + item.signal.Message
+			now := w.now()
+			if last, ok := w.lastSeen[key]; ok && now.Sub(last) < AttentionDedup {
+				item.repeat = true
+			} else {
+				w.lastSeen[key] = now
+			}
 		}
-		w.lastSeen[key] = now
-		signals = append(signals, signal)
+		items = append(items, item)
 	})
-	return signals
+	return items
 }
 
+// forget drops a closed block's scanner and dedup marks.
+func (w *attentionWatcher) forget(blockId string) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	delete(w.scanners, blockId)
+	prefix := blockId + "\x00"
+	for key := range w.lastSeen {
+		if strings.HasPrefix(key, prefix) {
+			delete(w.lastSeen, key)
+		}
+	}
+}
+
+// The agent states (DS-SHELL-011) follow the items in output order; a signal still raises its notification unless
+// the agent's hook just did (agentStates.allowNotice).
 func (w *attentionWatcher) handle(blockId string, data []byte) {
-	for _, signal := range w.scan(blockId, data) {
+	for _, item := range w.scan(blockId, data) {
+		if item.shell != nil {
+			if w.agents != nil {
+				w.agents.shellMark(blockId, *item.shell)
+			}
+			continue
+		}
+		signal := *item.signal
+		if w.agents != nil {
+			w.agents.attention(blockId, signal)
+		}
+		if item.repeat {
+			continue
+		}
+		if w.agents != nil && !w.agents.allowNotice(blockId, noticeFromSignal) {
+			continue
+		}
 		w.record(blockId, signal)
 	}
 }
 
-var defaultAttentionWatcher = makeAttentionWatcher(func(blockId string, signal AttentionSignal) {
-	go recordAttention(blockId, signal)
-})
+var defaultAttentionWatcher = makeDefaultAttentionWatcher()
+
+func makeDefaultAttentionWatcher() *attentionWatcher {
+	w := makeAttentionWatcher(func(blockId string, signal AttentionSignal) {
+		go recordAttention(blockId, signal)
+	})
+	w.agents = defaultAgentStates
+	return w
+}
 
 // ScanTerminalOutput is called with every chunk of terminal output wavesrv stores. It never blocks the output: the
 // notification is written from its own goroutine.
@@ -205,18 +260,22 @@ func makeNotificationId(now time.Time) string {
 }
 
 func recordAttention(blockId string, signal AttentionSignal) {
+	recordAgentNotice(blockId, signal, "warning")
+}
+
+func recordAgentNotice(blockId string, signal AttentionSignal, kind string) {
 	defer func() {
 		panichandler.PanicHandler("molten:recordAttention", recover())
 	}()
 	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFn()
-	err := writeAttention(ctx, blockId, signal, time.Now())
+	err := writeAttention(ctx, blockId, signal, kind, time.Now())
 	if err != nil {
 		log.Printf("molten: recording attention for block %s: %v\n", blockId, err)
 	}
 }
 
-func writeAttention(ctx context.Context, blockId string, signal AttentionSignal, now time.Time) error {
+func writeAttention(ctx context.Context, blockId string, signal AttentionSignal, kind string, now time.Time) error {
 	tabId, err := wstore.DBFindTabForBlockId(ctx, blockId)
 	if err != nil {
 		return fmt.Errorf("finding the tab: %w", err)
@@ -233,7 +292,7 @@ func writeAttention(ctx context.Context, blockId string, signal AttentionSignal,
 		Source:      "agent",
 		Title:       signal.Title,
 		Message:     signal.Message,
-		Kind:        "warning",
+		Kind:        kind,
 		WorkspaceId: workspaceId,
 		TabId:       tabId,
 		BlockId:     blockId,

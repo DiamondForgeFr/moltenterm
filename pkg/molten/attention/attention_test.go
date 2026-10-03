@@ -36,7 +36,11 @@ func TestParseAttentionOsc(t *testing.T) {
 func scanAll(w *attentionWatcher, block string, chunks ...string) []AttentionSignal {
 	var all []AttentionSignal
 	for _, chunk := range chunks {
-		all = append(all, w.scan(block, []byte(chunk))...)
+		for _, item := range w.scan(block, []byte(chunk)) {
+			if item.signal != nil && !item.repeat {
+				all = append(all, *item.signal)
+			}
+		}
 	}
 	return all
 }

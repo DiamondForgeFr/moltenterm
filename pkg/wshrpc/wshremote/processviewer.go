@@ -321,7 +321,7 @@ func (s *procCacheState) collectSnapshot(numCPU int) *wshrpc.ProcessListResponse
 		info := wshrpc.ProcessInfo{
 			Pid:        pi.Pid,
 			Ppid:       pi.Ppid,
-			Command:    pi.Command,
+			Command:    moltenAgentProcessCommand(ctx, pi), // MOLTENTERM-PATCH (#109): agents named by agent, not by version
 			Status:     pi.Status,
 			Mem:        pi.VmRSS,
 			MemPct:     -1,
