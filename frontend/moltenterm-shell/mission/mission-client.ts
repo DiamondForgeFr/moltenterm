@@ -12,6 +12,7 @@ import { BuildsFacts } from "./builds-model";
 import { CiRunRecord, CiState, upsertCiRun } from "./ci-model";
 import { LogChunk, MissionSnapshot, RunRecord, RunResult, UntrustedInfo, upsertRun } from "./mission-model";
 import { ReleaseChannel, ReleaseSession } from "./release-model";
+import { ReleaseFacts } from "./release-run";
 
 // must match the names in pkg/molten/mission/collector.go
 export const MissionRouteId = "molten:mission";
@@ -34,6 +35,11 @@ export const MissionBuildsCommand = "moltenmissionbuilds";
 export const MissionReleaseCommand = "moltenmissionrelease";
 export const MissionReleaseStartCommand = "moltenmissionreleasestart";
 export const MissionReleaseEndCommand = "moltenmissionreleaseend";
+export const MissionReleaseFactsCommand = "moltenmissionreleasefacts";
+export const MissionReleaseStepCommand = "moltenmissionreleasestep";
+export const MissionReleaseRerunCommand = "moltenmissionreleasererun";
+export const MissionReleaseNotesCommand = "moltenmissionreleasenotes";
+export const MissionReleaseNotesSaveCommand = "moltenmissionreleasenotessave";
 
 const MissionRpcTimeoutMs = 15000;
 // A request is cheap (the cached snapshot and the pipeline file); the collector itself refreshes at most once a minute.
@@ -278,4 +284,72 @@ export function useReleaseSession(dir: string): { session: ReleaseSession; reloa
         return () => clearInterval(timer);
     }, [load]);
     return { session, reload: load };
+}
+
+// Reading the facts fetches the tags and asks GitHub: slower than the other calls.
+const ReleaseFactsTimeoutMs = 60000;
+const ReleaseFactsPollMs = 15000;
+const ReleaseIdlePollMs = 120000;
+
+function releaseCall<T>(command: string, data: any): Promise<T> {
+    return TabRpcClient.wshRpcCall(command, data, { route: MissionRouteId, timeout: ReleaseFactsTimeoutMs });
+}
+
+export function releaseRunStep(dir: string, tag: string, step: string): Promise<RunResult> {
+    return releaseCall(MissionReleaseStepCommand, { dir, tag, step });
+}
+
+export function releaseRerunFailed(dir: string, tag: string): Promise<void> {
+    return releaseCall(MissionReleaseRerunCommand, { dir, tag });
+}
+
+export function releaseNotes(dir: string, tag: string): Promise<{ path: string; text: string }> {
+    return releaseCall(MissionReleaseNotesCommand, { dir, tag });
+}
+
+export function releaseNotesSave(dir: string, tag: string, text: string): Promise<void> {
+    return releaseCall(MissionReleaseNotesSaveCommand, { dir, tag, text });
+}
+
+// The facts of the release followed: read again every 15 s while one is, every 2 min otherwise, and whenever `bump`
+// changes (a release step ran or ended).
+export function useReleaseFacts(dir: string, bump: string): { facts: ReleaseFacts; reload: () => void } {
+    const [facts, setFacts] = useState<ReleaseFacts>(null);
+    const [tick, setTick] = useState(0);
+    const reload = useCallback(() => setTick((t) => t + 1), []);
+    useEffect(() => {
+        setFacts(null);
+    }, [dir]);
+    useEffect(() => {
+        if (!dir) {
+            return;
+        }
+        let cancelled = false;
+        fireAndForget(async () => {
+            try {
+                const next = await releaseCall<ReleaseFacts>(MissionReleaseFactsCommand, { dir });
+                if (!cancelled) {
+                    setFacts(next);
+                }
+            } catch {
+                // The panel keeps the last facts it read.
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [dir, bump, tick]);
+    const followed = !!facts?.tag;
+    useEffect(() => {
+        const timer = setInterval(
+            () => {
+                if (document.visibilityState === "visible") {
+                    reload();
+                }
+            },
+            followed ? ReleaseFactsPollMs : ReleaseIdlePollMs
+        );
+        return () => clearInterval(timer);
+    }, [followed, reload]);
+    return { facts, reload };
 }

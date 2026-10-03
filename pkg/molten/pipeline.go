@@ -100,6 +100,10 @@ type PipelineStep struct {
 	// A release step's phase (FR-MC-015): the steps of the "prepare" phase run as soon as a release starts; every
 	// later one waits for the user's click on the Timeline.
 	Phase string `json:"phase,omitempty"`
+	// Said before the step runs, and confirmed, when it cannot be taken back (e.g. the cut that pushes the tag).
+	Confirm string `json:"confirm,omitempty"`
+	// The step rewrites the public notes: offered beside them, not run in order.
+	Notes bool `json:"notes,omitempty"`
 	PipelineCommand
 }
 

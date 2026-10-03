@@ -164,34 +164,18 @@ func (r *Runs) StartRelease(req ReleaseStartRequest) (ReleaseStartResult, error)
 		return ReleaseStartResult{}, err
 	}
 	dir := filepath.Clean(req.Dir)
-	report := molten.ValidatePipeline(dir)
-	if !report.Valid {
-		if !report.Present {
-			return ReleaseStartResult{}, errors.New("the project has no pipeline (.molten/project.json)")
-		}
-		return ReleaseStartResult{}, fmt.Errorf("the pipeline has problems: %s", strings.Join(report.Errors, "; "))
-	}
-	commands := PipelineCommands(report.Pipeline)
-	hash := CommandsHash(commands)
-	if !r.trust.IsTrusted(dir, hash) {
-		return ReleaseStartResult{Untrusted: &UntrustedInfo{Hash: hash, Commands: commands}}, nil
-	}
-	var steps []molten.PipelineStep
-	if report.Pipeline.Release != nil {
-		switch req.Channel {
-		case ReleaseChannelRc:
-			steps = report.Pipeline.Release.Rc
-		case ReleaseChannelPublic:
-			steps = report.Pipeline.Release.Public
-		}
+	p, untrusted, err := r.trustedPipeline(dir)
+	if err != nil || untrusted != nil {
+		return ReleaseStartResult{Untrusted: untrusted}, err
 	}
 	if req.Channel != ReleaseChannelRc && req.Channel != ReleaseChannelPublic {
 		return ReleaseStartResult{}, fmt.Errorf("not a release channel: %q", req.Channel)
 	}
+	steps := channelSteps(p, req.Channel)
 	if len(steps) == 0 {
 		return ReleaseStartResult{}, fmt.Errorf("the pipeline declares no release.%s steps", req.Channel)
 	}
-	version, isRc, err := releaseVersion(report.Pipeline, req.Tag)
+	version, isRc, err := releaseVersion(p, req.Tag)
 	if err != nil {
 		return ReleaseStartResult{}, err
 	}
@@ -214,17 +198,51 @@ func (r *Runs) StartRelease(req ReleaseStartRequest) (ReleaseStartResult, error)
 	if err := r.writeReleaseSession(dir, session); err != nil {
 		return ReleaseStartResult{}, err
 	}
-	command := TrustedCommand{
-		Kind:  RunKindRelease,
-		Id:    ReleasePrepareStepId,
-		Title: "Prepare " + req.Tag,
-		Run:   preparationCommand(molten.ReleasePreparation(steps), version, req.Tag),
-	}
-	rec, err := r.launch(dir, command, "", "")
+	rec, err := r.launchPreparation(dir, steps, session)
 	if err != nil {
 		// No release is announced that nothing runs for.
 		r.EndRelease(dir)
 		return ReleaseStartResult{}, err
 	}
 	return ReleaseStartResult{Session: &session, Run: &rec}, nil
+}
+
+// trustedPipeline reads the project's valid pipeline; untrusted commands are returned for the user to review.
+func (r *Runs) trustedPipeline(dir string) (*molten.Pipeline, *UntrustedInfo, error) {
+	report := molten.ValidatePipeline(dir)
+	if !report.Valid {
+		if !report.Present {
+			return nil, nil, errors.New("the project has no pipeline (.molten/project.json)")
+		}
+		return nil, nil, fmt.Errorf("the pipeline has problems: %s", strings.Join(report.Errors, "; "))
+	}
+	commands := PipelineCommands(report.Pipeline)
+	hash := CommandsHash(commands)
+	if !r.trust.IsTrusted(dir, hash) {
+		return nil, &UntrustedInfo{Hash: hash, Commands: commands}, nil
+	}
+	return report.Pipeline, nil, nil
+}
+
+func channelSteps(p *molten.Pipeline, channel string) []molten.PipelineStep {
+	if p == nil || p.Release == nil {
+		return nil
+	}
+	switch channel {
+	case ReleaseChannelRc:
+		return p.Release.Rc
+	case ReleaseChannelPublic:
+		return p.Release.Public
+	}
+	return nil
+}
+
+func (r *Runs) launchPreparation(dir string, steps []molten.PipelineStep, session ReleaseSession) (RunRecord, error) {
+	command := TrustedCommand{
+		Kind:  RunKindRelease,
+		Id:    ReleasePrepareStepId,
+		Title: "Prepare " + session.Tag,
+		Run:   preparationCommand(molten.ReleasePreparation(steps), session.Version, session.Tag),
+	}
+	return r.launch(dir, command, "", "", session.Tag)
 }
