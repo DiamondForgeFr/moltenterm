@@ -10,6 +10,13 @@ import { isBlank, makeIconClass } from "@/util/util";
 import clsx from "clsx";
 import { atom, useAtom, useAtomValue } from "jotai";
 import React, { useEffect, useLayoutEffect, useRef } from "react";
+// MOLTENTERM-PATCH (#107): grid and logo sizes from the shell (no orphan tile, small logo)
+import {
+    launcherGrid,
+    launcherLogo,
+    launcherLogoReservedHeight,
+    LauncherMaxTileSize,
+} from "../../../moltenterm-shell/launcher-layout";
 
 function sortByDisplayOrder(wmap: { [key: string]: WidgetConfigType } | null | undefined): WidgetConfigType[] {
     if (!wmap) return [];
@@ -163,46 +170,19 @@ function LauncherView({ blockId, model }: ViewComponentProps<LauncherViewModel>)
         };
     }, []);
 
-    // Layout constants
-    const GAP = 16;
-    const LABEL_THRESHOLD = 60;
-    const MARGIN_BOTTOM = 24;
-    const MAX_TILE_SIZE = 120;
-
-    const calculatedLogoWidth = containerSize.width * 0.3;
-    const logoWidth = containerSize.width >= 100 ? Math.min(Math.max(calculatedLogoWidth, 100), 300) : 0;
-    const showLogo = logoWidth >= 100;
-    const availableHeight = containerSize.height - (showLogo ? logoWidth + MARGIN_BOTTOM : 0);
-
-    // Determine optimal grid layout
-    const gridLayout: GridLayoutType = React.useMemo(() => {
-        if (containerSize.width === 0 || availableHeight <= 0 || filteredWidgets.length === 0) {
-            return { columns: 1, tileWidth: 90, tileHeight: 90, showLabel: true };
-        }
-        let bestColumns = 1;
-        let bestTileSize = 0;
-        let bestTileWidth = 90;
-        let bestTileHeight = 90;
-        let showLabel = true;
-        for (let cols = 1; cols <= filteredWidgets.length; cols++) {
-            const rows = Math.ceil(filteredWidgets.length / cols);
-            const tileWidth = (containerSize.width - (cols - 1) * GAP) / cols;
-            const tileHeight = (availableHeight - (rows - 1) * GAP) / rows;
-            const currentTileSize = Math.min(tileWidth, tileHeight);
-            if (currentTileSize > bestTileSize) {
-                bestTileSize = currentTileSize;
-                bestColumns = cols;
-                bestTileWidth = tileWidth;
-                bestTileHeight = tileHeight;
-                showLabel = tileHeight >= LABEL_THRESHOLD;
-            }
-        }
-        return { columns: bestColumns, tileWidth: bestTileWidth, tileHeight: bestTileHeight, showLabel };
-    }, [containerSize, availableHeight, filteredWidgets.length]);
+    // MOLTENTERM-PATCH (#107): layout from moltenterm-shell/launcher-layout.ts
+    const logo = launcherLogo(containerSize.width);
+    const availableHeight = containerSize.height - launcherLogoReservedHeight(logo);
+    const gridLayout: GridLayoutType = React.useMemo(
+        () => launcherGrid(filteredWidgets.length, containerSize.width, availableHeight),
+        [containerSize, availableHeight, filteredWidgets.length]
+    );
     model.gridLayout = gridLayout;
 
-    const finalTileWidth = Math.min(gridLayout.tileWidth, MAX_TILE_SIZE);
-    const finalTileHeight = gridLayout.showLabel ? Math.min(gridLayout.tileHeight, MAX_TILE_SIZE) : finalTileWidth;
+    const finalTileWidth = Math.min(gridLayout.tileWidth, LauncherMaxTileSize);
+    const finalTileHeight = gridLayout.showLabel
+        ? Math.min(gridLayout.tileHeight, LauncherMaxTileSize)
+        : finalTileWidth;
 
     // Reset selection when search term changes
     useEffect(() => {
@@ -223,10 +203,21 @@ function LauncherView({ blockId, model }: ViewComponentProps<LauncherViewModel>)
             />
 
             {/* Logo */}
-            {showLogo && (
-                <div className="mb-6" style={{ width: logoWidth, maxWidth: 300 }}>
-                    <img src={logoUrl} className="w-full h-auto filter grayscale brightness-70 opacity-70" alt="Logo" />
-                </div>
+            {/* MOLTENTERM-PATCH (#107): a small mark in the workspace accent, not Wave's large grey logo */}
+            {logo.show && (
+                <div
+                    role="img"
+                    aria-label="Logo"
+                    className="mb-4 bg-accent opacity-60"
+                    style={{
+                        width: logo.width,
+                        height: logo.height,
+                        maskImage: `url(${logoUrl})`,
+                        maskSize: "contain",
+                        maskRepeat: "no-repeat",
+                        maskPosition: "center",
+                    }}
+                />
             )}
 
             {/* Grid of widgets */}
@@ -244,8 +235,9 @@ function LauncherView({ blockId, model }: ViewComponentProps<LauncherViewModel>)
                         className={clsx(
                             "flex flex-col items-center justify-center cursor-pointer rounded-md p-2 text-center",
                             "transition-colors duration-150",
+                            // MOLTENTERM-PATCH (#107): the keyboard selection carries an accent ring
                             index === selectedIndex
-                                ? "bg-white/20 text-white"
+                                ? "bg-white/10 text-white ring-2 ring-inset ring-accent"
                                 : "bg-white/5 hover:bg-white/10 text-secondary hover:text-white"
                         )}
                         style={{
@@ -274,9 +266,10 @@ function LauncherView({ blockId, model }: ViewComponentProps<LauncherViewModel>)
                 {filteredWidgets.length === 0 ? (
                     <span>No widgets found. Press Escape to clear search.</span>
                 ) : (
+                    // MOLTENTERM-PATCH (#107): sentence case, and the space Wave's hint was missing
                     <span>
-                        {searchTerm == "" ? "Type to Filter" : "Searching " + '"' + searchTerm + '"'}, Enter to Launch,
-                        {searchTerm == "" ? "Arrow Keys to Navigate" : null}
+                        {searchTerm == "" ? "Type to filter" : `Searching "${searchTerm}"`}, Enter to launch, arrow keys
+                        to navigate
                     </span>
                 )}
             </div>

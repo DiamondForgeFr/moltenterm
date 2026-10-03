@@ -48,3 +48,9 @@
 .molten-notification-unread {
     background-color: color-mix(in srgb, var(--mt-accent) 7%, transparent);
 }
+
+/* A browser panel's header names its page in the interface font; Wave's header text is monospace (block.scss). */
+.block.block-frame-default .block-frame-default-inner .block-frame-default-header .block-frame-text.mt-browser-title {
+    font: var(--base-font);
+    font-size: 12px;
+}

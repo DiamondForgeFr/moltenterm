@@ -7,13 +7,13 @@ import { getApi } from "@/app/store/global";
 import { cn } from "@/util/util";
 import { useMemo } from "react";
 import type { MoltentermBuildInfo } from "./build/build-info";
-import { makeStatusBarView, StatusBarChannel } from "./status-bar-model";
+import { makeStatusBarView, MoltentermDevChannelText, StatusBarChannel } from "./status-bar-model";
 import { GoldUpdateButton } from "./update/update-dialog";
 
 // Badges keep a fixed colour per channel, apart from the workspace accent: a gold or dev build must be recognisable
 // in any workspace.
 const ChannelClasses: Record<StatusBarChannel, string> = {
-    dev: "border-sky-400/60 text-sky-300",
+    dev: cn("border-sky-400/60", MoltentermDevChannelText),
     local: "border-amber-500/60 text-amber-400",
     gold: "border-yellow-400/70 text-yellow-300",
     release: "border-border text-secondary",

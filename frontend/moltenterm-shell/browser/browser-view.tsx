@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import {
     activateTab,
     addTab,
+    browserHeaderTitle,
     browserMeta,
     BrowserState,
     BrowserTab,
@@ -48,7 +49,8 @@ export class BrowserViewModel implements ViewModel {
     viewName = atom("Browser");
     noPadding = atom(true);
     stateAtom: PrimitiveAtom<BrowserState>;
-    viewText: Atom<string>;
+    viewText: Atom<HeaderElem[]>;
+    hideViewName: Atom<boolean>;
     webviews = new Map<string, WebviewTag>();
     urlInputRef: React.RefObject<HTMLInputElement> = { current: null };
     persistTimer: ReturnType<typeof setTimeout> = null;
@@ -57,11 +59,21 @@ export class BrowserViewModel implements ViewModel {
         this.blockId = blockId;
         this.nodeModel = nodeModel;
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
-        this.viewText = atom((get) => {
+        const headerTitle = atom((get) => {
             const state = get(this.stateAtom);
-            const tab = state.tabs.find((t) => t.id === state.activeId);
-            return tab?.title || "";
+            return browserHeaderTitle(state.tabs.find((t) => t.id === state.activeId));
         });
+        this.viewText = atom((get): HeaderElem[] => {
+            const title = get(headerTitle);
+            if (title === "") {
+                return [];
+            }
+            // Wave renders header text in the monospace font; the page title reads as interface text. onClick is
+            // required: Wave's text element calls it unguarded.
+            return [{ elemtype: "text", text: title, className: "mt-browser-title", onClick: () => {} }];
+        });
+        // With a title, "Browser" is redundant and the header squeezed it to "B…" next to the title.
+        this.hideViewName = atom((get) => get(headerTitle) !== "");
     }
 
     initialState(): BrowserState {

@@ -7,6 +7,9 @@ import type { MoltentermBuildInfo } from "./build/build-info";
 
 export type StatusBarChannel = "dev" | "local" | "gold" | "release";
 
+// The dev channel's text colour, shared by the status bar badge and the widget bar's dev icon.
+export const MoltentermDevChannelText = "text-sky-300";
+
 export type StatusBarView = {
     channel: StatusBarChannel;
     channelLabel: string;
