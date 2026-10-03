@@ -5,9 +5,9 @@
 // (see notifications-model.ts).
 
 import { ClientModel } from "@/app/store/client-model";
-import { atoms, createBlock, getApi, getFocusedBlockId } from "@/app/store/global";
+import { atoms, getApi, getFocusedBlockId } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
-import { activeTabIdAtom, getActiveTabModel } from "@/app/store/tab-model";
+import { activeTabIdAtom } from "@/app/store/tab-model";
 import { makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -34,6 +34,7 @@ import {
     resolveUpdate,
     unreadCount,
 } from "./notifications-model";
+import { openMoltentermView } from "./open-view";
 
 // What a named action reports: resolve closes the notification's situation.
 export type NotificationGestureResult = { ok: boolean; resolve?: boolean; error?: string };
@@ -162,25 +163,6 @@ export class MoltentermNotifications {
         this.goTo(entry);
     }
 
-    // A view in the active tab: the one already there, else a new one.
-    private async openView(view: string): Promise<void> {
-        const layoutModel = getLayoutModelForStaticTab();
-        const tabAtom = getActiveTabModel()?.tabAtom;
-        const tab = tabAtom == null ? null : globalStore.get(tabAtom);
-        for (const blockId of tab?.blockids ?? []) {
-            const block = await RpcApi.GetMetaCommand(TabRpcClient, { oref: makeORef("block", blockId) });
-            if (block?.view !== view) {
-                continue;
-            }
-            const node = layoutModel?.getNodeByBlockId(blockId);
-            if (node != null) {
-                layoutModel.focusNode(node.id);
-                return;
-            }
-        }
-        await createBlock({ meta: { view } });
-    }
-
     private setRunning(key: string, running: boolean): void {
         const current = { ...globalStore.get(this.runningAtom) };
         if (running) {
@@ -213,7 +195,7 @@ export class MoltentermNotifications {
         }
         if (action.kind === "open") {
             if (action.view) {
-                await this.openView(action.view);
+                await openMoltentermView(action.view);
                 return;
             }
             this.goTo(action);

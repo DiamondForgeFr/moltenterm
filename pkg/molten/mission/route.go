@@ -24,6 +24,7 @@ type routeLink struct {
 	collector *Collector
 	runs      *Runs
 	ci        *Ci
+	panes     *Panes
 	output    chan []byte
 }
 
@@ -207,6 +208,13 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 }
 
 func (l *routeLink) handle(command string, source string, data any) (any, error) {
+	if command == PaneCommand {
+		var req PaneRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.panes.Get(req)
+	}
 	if strings.HasPrefix(command, "moltenmissionci") {
 		return l.handleCi(command, data)
 	}
@@ -230,8 +238,8 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
 
-func registerRoute(collector *Collector, runs *Runs, ci *Ci) error {
-	link := &routeLink{collector: collector, runs: runs, ci: ci, output: make(chan []byte, routeQueueSize)}
+func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes) error {
+	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, output: make(chan []byte, routeQueueSize)}
 	_, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId)
 	return err
 }
