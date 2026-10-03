@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { hasDefaultName, nextProjectOffer, ProjectOffer, readDismissed, withDismissed } from "./project-detect";
 import { WorkspaceIcon } from "./workspace-icon";
-import { pathBaseName, readWorkspaceProject } from "./workspace-project";
+import { nextWorkspaceFolder, pathBaseName, readWorkspaceFolder, readWorkspaceProject } from "./workspace-project";
 import {
     chooseMoltentermPath,
     dismissProject,
@@ -25,6 +25,7 @@ import {
     markLogoOffered,
     readProjectFacts,
     renameWorkspace,
+    setWorkspaceFolder,
     setWorkspaceLogo,
 } from "./workspace-project-store";
 
@@ -191,11 +192,13 @@ export function ProjectLinkDetector() {
     const focused = useAtomValue(focusedAtom);
     const blockId = focused?.data?.blockId;
     const [terminalProject, setTerminalProject] = useState("");
+    const [terminalFolder, setTerminalFolder] = useState("");
     const [shown, setShown] = useState<ProjectOffer>(null);
     // Offers answered in this session: the workspace's meta takes a moment to reflect the answer.
     const [answered, setAnswered] = useState<string[]>([]);
     const onFolder = useMemo(
         () => (cwd: string) => {
+            setTerminalFolder(cwd);
             if (!cwd) {
                 setTerminalProject("");
                 return;
@@ -205,6 +208,7 @@ export function ProjectLinkDetector() {
         []
     );
     const project = readWorkspaceProject(ws);
+    const folder = readWorkspaceFolder(ws);
     const dismissed = readDismissed(ws?.meta as Record<string, any>);
     // A view kept for another workspace (#68) still sees the window's workspace, with its own terminal: offering then
     // would link the shown workspace to the other one's project (#80).
@@ -223,6 +227,17 @@ export function ProjectLinkDetector() {
         }
         setShown(offer);
     }, [offerKey, shown, answered, waveModalOpen]);
+    // The workspace works where its terminal goes (FR-SHELL-009). Only when the terminal moves, so a Reset holds until
+    // the next move; only from the view in front, on one of the workspace's own tabs (#80).
+    useEffect(() => {
+        if (ws == null || document.visibilityState !== "visible" || !ws.tabids?.includes(staticTabId)) {
+            return;
+        }
+        const next = nextWorkspaceFolder(folder, project.dir, terminalFolder);
+        if (next != null) {
+            fireAndForget(() => setWorkspaceFolder(ws.oid, next));
+        }
+    }, [terminalFolder, ws?.oid]);
     return (
         <>
             {blockId ? <TerminalFolder key={blockId} blockId={blockId} onFolder={onFolder} /> : null}

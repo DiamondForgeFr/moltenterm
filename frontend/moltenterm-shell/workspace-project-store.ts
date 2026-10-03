@@ -26,6 +26,7 @@ import {
     readmeFirstImage,
     readWorkspaceProject,
     unlinkUpdate,
+    WorkspaceFolderMetaKey,
 } from "./workspace-project";
 
 const MaxGitRootDepth = 40;
@@ -144,6 +145,11 @@ export async function linkWorkspaceProject(ws: Workspace, folder: string): Promi
 
 export async function unlinkWorkspaceProject(workspaceId: string): Promise<void> {
     await setWorkspaceMeta(workspaceId, unlinkUpdate());
+}
+
+// null forgets the folder: the next move of the workspace's terminal sets it again (FR-SHELL-009).
+export async function setWorkspaceFolder(workspaceId: string, folder: string): Promise<void> {
+    await setWorkspaceMeta(workspaceId, { [WorkspaceFolderMetaKey]: folder || null });
 }
 
 export async function setWorkspaceLogo(workspaceId: string, logo: string): Promise<void> {

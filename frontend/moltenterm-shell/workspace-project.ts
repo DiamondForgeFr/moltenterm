@@ -10,6 +10,8 @@ export const ProjectMetaKey = "molten:project";
 export const ProjectLogoMetaKey = "molten:projectlogo";
 // The project the logo was last offered for: the offer is made once per link, never again after a "no".
 export const ProjectLogoOfferMetaKey = "molten:projectlogooffer";
+// The folder the workspace works in (FR-SHELL-009). must match WorkspaceFolderMetaKey in pkg/molten/folder.go
+export const WorkspaceFolderMetaKey = "molten:folder";
 
 export const ProjectPipelineFile = ".molten/project.json";
 export const ProjectSaaSFoundryFile = ".saasfoundry.json";
@@ -74,6 +76,59 @@ export function readWorkspaceProject(ws: Workspace): WorkspaceProject {
         logo: metaString(meta, ProjectLogoMetaKey),
         logoOffer: metaString(meta, ProjectLogoOfferMetaKey),
     };
+}
+
+// The folder the workspace's terminal last went to, as stored.
+export function readWorkspaceFolder(ws: Workspace): string {
+    return metaString(ws?.meta as Record<string, any>, WorkspaceFolderMetaKey);
+}
+
+function trimTrailingSeparators(path: string): string {
+    const trimmed = (path ?? "").replace(/[/\\]+$/, "");
+    return trimmed === "" && (path ?? "") !== "" ? path.slice(0, 1) : trimmed;
+}
+
+export function checkPathInside(path: string, dir: string): boolean {
+    if (!path || !dir) {
+        return false;
+    }
+    const p = trimTrailingSeparators(path);
+    const d = trimTrailingSeparators(dir);
+    if (p === d) {
+        return true;
+    }
+    // Only a root keeps its separator once trimmed.
+    if (/[/\\]$/.test(d)) {
+        return p.startsWith(d);
+    }
+    return p.startsWith(d + "/") || p.startsWith(d + "\\");
+}
+
+export function checkAbsolutePath(path: string): boolean {
+    return /^(\/|[A-Za-z]:[/\\]|\\\\)/.test(path ?? "");
+}
+
+// Where new blocks of the workspace start (same rule as WorkspaceFolder in pkg/molten/folder.go): a linked workspace
+// stays inside its project, so a folder outside it stands for the project's root.
+export function effectiveWorkspaceFolder(ws: Workspace): string {
+    const folder = readWorkspaceFolder(ws);
+    const project = readWorkspaceProject(ws).dir;
+    if (project !== "" && !checkPathInside(folder, project)) {
+        return project;
+    }
+    return folder;
+}
+
+// The folder to store when the focused terminal goes to cwd, or null to leave the workspace's folder as it is.
+export function nextWorkspaceFolder(stored: string, projectDir: string, cwd: string): string {
+    if (!checkAbsolutePath(cwd)) {
+        return null;
+    }
+    const folder = trimTrailingSeparators(cwd);
+    if (folder === stored || (projectDir && !checkPathInside(folder, projectDir))) {
+        return null;
+    }
+    return folder;
 }
 
 export function pathBaseName(path: string): string {
