@@ -20,6 +20,8 @@ import {
     MetaUpdate,
     MoltentermNotification,
     MoltentermNotificationInput,
+    notificationLocation,
+    notificationTabToActivate,
     parseNotifications,
     readAllUpdate,
     readUpdate,
@@ -67,8 +69,7 @@ export class MoltentermNotifications {
         const now = Date.now();
         const full: MoltentermNotificationInput = {
             ...input,
-            workspaceid: input.workspaceid ?? globalStore.get(atoms.workspace)?.oid,
-            tabid: input.tabid ?? globalStore.get(activeTabIdAtom),
+            ...notificationLocation(input, globalStore.get(atoms.workspace), globalStore.get(activeTabIdAtom)),
         };
         this.write(addUpdate(this.entries(), full, now, makeNotificationId(now)));
     }
@@ -90,8 +91,9 @@ export class MoltentermNotifications {
             getApi().switchWorkspace(entry.workspaceid);
             return;
         }
-        if (entry.tabid && entry.tabid !== globalStore.get(activeTabIdAtom)) {
-            getApi().setActiveTab(entry.tabid);
+        const tabId = notificationTabToActivate(entry, workspace, globalStore.get(activeTabIdAtom));
+        if (tabId != null) {
+            getApi().setActiveTab(tabId);
             return;
         }
         if (entry.blockid) {

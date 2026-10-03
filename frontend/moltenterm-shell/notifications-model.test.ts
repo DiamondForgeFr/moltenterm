@@ -8,6 +8,8 @@ import {
     makeNotificationId,
     MaxNotifications,
     MoltentermNotification,
+    notificationLocation,
+    notificationTabToActivate,
     parseNotifications,
     readAllUpdate,
     readUpdate,
@@ -95,5 +97,51 @@ describe("helpers", () => {
         expect(formatAge(0, 5 * 60_000)).toBe("5 min");
         expect(formatAge(0, 3 * 3600_000)).toBe("3 h");
         expect(formatAge(0, 49 * 3600_000)).toBe("2 d");
+    });
+});
+
+describe("location (#80)", () => {
+    const shown = { oid: "wsB", tabids: ["b1", "b2"] };
+
+    it("places a notification in the view's tab and the shown workspace", () => {
+        expect(notificationLocation({ source: "moltenterm", title: "t" }, shown, "b2")).toEqual({
+            workspaceid: "wsB",
+            tabid: "b2",
+        });
+    });
+
+    it("never pairs the shown workspace with the tab of a view kept for another workspace", () => {
+        expect(notificationLocation({ source: "moltenterm", title: "t" }, shown, "a1")).toEqual({
+            workspaceid: undefined,
+            tabid: undefined,
+        });
+        expect(notificationLocation({ source: "agent", title: "t", tabid: "a1" }, shown, "b1")).toEqual({
+            workspaceid: undefined,
+            tabid: "a1",
+        });
+        expect(notificationLocation({ source: "agent", title: "t", workspaceid: "wsA" }, shown, "b1")).toEqual({
+            workspaceid: "wsA",
+            tabid: undefined,
+        });
+    });
+
+    it("keeps an explicit location", () => {
+        expect(
+            notificationLocation({ source: "agent", title: "t", workspaceid: "wsA", tabid: "a1" }, shown, "b1")
+        ).toEqual({ workspaceid: "wsA", tabid: "a1" });
+    });
+
+    it("copes without a shown workspace", () => {
+        expect(notificationLocation({ source: "mod", title: "t" }, null, "b1")).toEqual({
+            workspaceid: undefined,
+            tabid: undefined,
+        });
+    });
+
+    it("activates only one of the shown workspace's tabs", () => {
+        expect(notificationTabToActivate(entry("1", 1, { tabid: "b2" }), shown, "b1")).toBe("b2");
+        expect(notificationTabToActivate(entry("1", 1, { tabid: "b1" }), shown, "b1")).toBeNull();
+        expect(notificationTabToActivate(entry("1", 1, { tabid: "a1", workspaceid: "wsB" }), shown, "b1")).toBeNull();
+        expect(notificationTabToActivate(entry("1", 1), shown, "b1")).toBeNull();
     });
 });

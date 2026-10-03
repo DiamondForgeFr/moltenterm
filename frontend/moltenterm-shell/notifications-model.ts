@@ -50,6 +50,40 @@ export function parseNotifications(meta: Record<string, any>): MoltentermNotific
     return rtn.sort((a, b) => b.time - a.time || (a.id < b.id ? 1 : -1));
 }
 
+export type WorkspaceTabs = { oid: string; tabids?: string[] };
+
+// Where a notification raised by a view belongs (#80). Since #68 the views of a workspace left stay alive while the
+// window shows another workspace: such a view's tab is not one of the shown workspace's tabs, and pairing the two sent
+// the user into another workspace's tab. A location the view cannot vouch for is left out.
+export function notificationLocation(
+    input: MoltentermNotificationInput,
+    shownWs: WorkspaceTabs,
+    viewTabId: string
+): Pick<MoltentermNotificationInput, "workspaceid" | "tabid"> {
+    const shownTabs = shownWs?.tabids ?? [];
+    let tabid = input.tabid;
+    if (tabid == null && shownTabs.includes(viewTabId) && (input.workspaceid ?? shownWs.oid) === shownWs.oid) {
+        tabid = viewTabId;
+    }
+    let workspaceid = input.workspaceid;
+    if (workspaceid == null && shownTabs.includes(tabid ?? viewTabId)) {
+        workspaceid = shownWs.oid;
+    }
+    return { workspaceid, tabid };
+}
+
+// The tab opening a notification activates: only one of the shown workspace's own tabs (#80).
+export function notificationTabToActivate(
+    entry: MoltentermNotification,
+    shownWs: WorkspaceTabs,
+    activeTabId: string
+): string {
+    if (!entry.tabid || entry.tabid === activeTabId || !(shownWs?.tabids ?? []).includes(entry.tabid)) {
+        return null;
+    }
+    return entry.tabid;
+}
+
 export function unreadByWorkspace(entries: MoltentermNotification[]): Map<string, number> {
     const counts = new Map<string, number>();
     for (const entry of entries) {

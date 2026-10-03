@@ -361,6 +361,9 @@ func SetActiveTab(ctx context.Context, workspaceId string, tabId string) error {
 		if tab == nil {
 			return fmt.Errorf("tab not found: %q", tabId)
 		}
+		if !checkTabInWorkspace(workspace, tabId) { // MOLTENTERM-PATCH (#80)
+			return fmt.Errorf("tab %q is not in workspace %q", tabId, workspaceId)
+		}
 		workspace.ActiveTabId = tabId
 		wstore.DBUpdate(ctx, workspace)
 	}
