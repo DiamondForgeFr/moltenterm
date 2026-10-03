@@ -184,6 +184,7 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
 
 export function ProjectLinkDetector() {
     const ws = useAtomValue(atoms.workspace);
+    const staticTabId = useAtomValue(atoms.staticTabId);
     // Waits for Wave's own modals (the welcome tour, About…) to close.
     const waveModalOpen = useAtomValue(atoms.modalOpen);
     const focusedAtom = useMemo(() => getLayoutModelForStaticTab()?.focusedNode ?? NoFocusedNode, []);
@@ -205,7 +206,10 @@ export function ProjectLinkDetector() {
     );
     const project = readWorkspaceProject(ws);
     const dismissed = readDismissed(ws?.meta as Record<string, any>);
-    const offer = ws == null ? null : nextProjectOffer(project, terminalProject, dismissed, getApi().getEnv("HOME"));
+    // A view kept for another workspace (#68) still sees the window's workspace, with its own terminal: offering then
+    // would link the shown workspace to the other one's project (#80).
+    const ownTab = ws?.tabids?.includes(staticTabId) ?? false;
+    const offer = !ownTab ? null : nextProjectOffer(project, terminalProject, dismissed, getApi().getEnv("HOME"));
     const offerKey = offer ? `${offer.mode}:${offer.dir}` : "";
     useEffect(() => {
         if (
@@ -222,7 +226,7 @@ export function ProjectLinkDetector() {
     return (
         <>
             {blockId ? <TerminalFolder key={blockId} blockId={blockId} onFolder={onFolder} /> : null}
-            {shown != null && ws != null ? (
+            {shown != null && ownTab ? (
                 <ProjectLinkModal
                     key={`${shown.mode}:${shown.dir}`}
                     offer={shown}
