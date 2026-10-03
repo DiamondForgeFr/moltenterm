@@ -114,13 +114,21 @@ export function statusBarFolder(meta: PaneBlockMeta, ws: Workspace): StatusBarFo
     return { folder: effectiveWorkspaceFolder(ws) || readWorkspaceProject(ws).dir, fromPane: false };
 }
 
-export type CiVerdictView = { status: string; label: string; icon: string; className: string };
+export type CiVerdictView = { status: string; label: string; iconClass: string };
 
-const CiVerdicts: Record<string, Omit<CiVerdictView, "status">> = {
-    success: { label: "CI passed", icon: "circle-check", className: "text-success" },
-    failure: { label: "CI failed", icon: "circle-xmark", className: "text-error" },
-    running: { label: "CI running", icon: "spinner", className: "text-warning" },
-    missing: { label: "CI not run", icon: "circle-minus", className: "text-muted" },
+const CiVerdictLabels: Record<string, string> = {
+    success: "CI passed",
+    failure: "CI failed",
+    running: "CI running",
+    missing: "CI not run",
+};
+
+// The same marks as the CI/CD panel (ci-local-panel.tsx).
+const CiVerdictIcons: Record<string, string> = {
+    success: "fa-circle-check text-success",
+    failure: "fa-circle-xmark text-error",
+    running: "fa-circle-notch fa-spin text-accent",
+    missing: "fa-circle-minus text-muted",
 };
 
 export type PaneView = {
@@ -163,7 +171,10 @@ export function makePaneView(folder: string, state: PaneState, ws: Workspace): P
         }
         branchLines.push("Open the Timeline");
     }
-    const ci = state?.ci && CiVerdicts[state.ci] ? { status: state.ci, ...CiVerdicts[state.ci] } : null;
+    const ci =
+        state?.ci && CiVerdictLabels[state.ci]
+            ? { status: state.ci, label: CiVerdictLabels[state.ci], iconClass: CiVerdictIcons[state.ci] }
+            : null;
     return {
         folder,
         linked,

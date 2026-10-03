@@ -93,14 +93,7 @@ function PaneSection({ pane, ws }: { pane: PaneView; ws: Workspace }) {
                     title={`${pane.ci.label} on this code\nOpen CI/CD`}
                     onClick={() => openView(MoltentermCicdView)}
                 >
-                    <i
-                        className={cn(
-                            "fa fa-solid text-[10px]",
-                            `fa-${pane.ci.icon}`,
-                            pane.ci.status === "running" && "fa-spin",
-                            pane.ci.className
-                        )}
-                    />
+                    <i className={cn("fa fa-solid text-[10px]", pane.ci.iconClass)} />
                     {pane.ci.label}
                 </button>
             ) : null}
