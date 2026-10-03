@@ -12,6 +12,7 @@ import { validateCssColor } from "@/util/color-validator";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { AgentTabDot } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#109)
 import { buildTabBarContextMenu, buildTabContextMenu } from "./tabcontextmenu";
 import { UpdateStatusBanner } from "./updatebanner";
 import { VTab, VTabItem } from "./vtab";
@@ -150,6 +151,7 @@ function VTabWrapper({
         name: tabData?.name ?? "",
         badges,
         flagColor,
+        agentDot: <AgentTabDot tabId={tabId} />, // MOLTENTERM-PATCH (#109)
     };
 
     const handleContextMenu = useCallback(

@@ -28,6 +28,7 @@ import * as util from "@/util/util";
 import { cn, makeIconClass } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
+import { AgentHeaderLabel, useBlockAgentState } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#109)
 import { BlockEnv } from "./blockenv";
 import { BlockFrameProps } from "./blocktypes";
 
@@ -233,6 +234,9 @@ const BlockFrame_Header = ({
     const iconColor = jotai.useAtomValue(waveEnv.getBlockMetaKeyAtom(nodeModel.blockId, "icon:color"));
     const dragHandleRef = preview ? null : nodeModel.dragHandleRef;
     const isTerminalBlock = metaView === "term";
+    // MOLTENTERM-PATCH (#109): a terminal running a coding agent shows the agent, its project and branch, and its state
+    const agentState = useBlockAgentState(isTerminalBlock && !preview ? nodeModel.blockId : null);
+    const localHostName = jotai.useAtomValue(waveEnv.getLocalHostDisplayNameAtom());
     viewName = metaFrameTitle ?? viewName;
     viewIconUnion = metaFrameIcon ?? viewIconUnion;
 
@@ -269,6 +273,13 @@ const BlockFrame_Header = ({
                     connection={metaConnection}
                     changeConnModalAtom={changeConnModalAtom}
                     isTerminalBlock={isTerminalBlock}
+                    hideLocalName={agentState != null}
+                />
+            )}
+            {agentState != null && (
+                <AgentHeaderLabel
+                    blockId={nodeModel.blockId}
+                    localName={util.isLocalConnName(metaConnection) ? localHostName : null}
                 />
             )}
             {useTermHeader && termConfigedDurable != null && (

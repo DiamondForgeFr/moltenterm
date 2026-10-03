@@ -15,6 +15,7 @@ export interface VTabItem {
     badge?: Badge | null;
     badges?: Badge[] | null;
     flagColor?: string | null;
+    agentDot?: React.ReactNode; // MOLTENTERM-PATCH (#109): the most urgent state of the tab's coding agents
 }
 
 interface VTabProps {
@@ -180,6 +181,7 @@ export function VTab({
                     !showDivider && "opacity-0"
                 )}
             />
+            {tab.agentDot}
             <TabBadges
                 badges={badges}
                 flagColor={flagColor}
