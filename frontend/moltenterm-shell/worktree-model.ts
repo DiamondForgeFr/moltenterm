@@ -251,9 +251,7 @@ export function closePlanView(plan: WorktreePlan): ClosePlanView {
                 ? `could not tell whether ${plan.branch} is merged into ${plan.trunk}`
                 : "no trunk to compare with";
         } else {
-            mergedLine = plan.merged
-                ? `merged: its content is on ${plan.trunk}`
-                : `not merged into ${plan.trunk}`;
+            mergedLine = plan.merged ? `merged: its content is on ${plan.trunk}` : `not merged into ${plan.trunk}`;
         }
     }
     let unpushedLine = "no unpushed commits";
@@ -276,7 +274,8 @@ export function closePlanView(plan: WorktreePlan): ClosePlanView {
         shared,
         defaultChoice: shared ? "keep" : "remove",
         branchLine: branch,
-        changesLine: changes > 0 ? `${plural(changes, "uncommitted change", "uncommitted changes")}` : "no uncommitted changes",
+        changesLine:
+            changes > 0 ? `${plural(changes, "uncommitted change", "uncommitted changes")}` : "no uncommitted changes",
         unpushedLine,
         mergedLine,
         ignoredLine:
