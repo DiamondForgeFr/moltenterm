@@ -255,7 +255,7 @@ export function MissionFrame({
         );
     }
     return (
-        <div className="@container flex h-full w-full flex-col overflow-hidden">
+        <div className="@container flex h-full w-full flex-col overflow-hidden tabular-nums">
             {children({ project, snapshot, refresh })}
         </div>
     );

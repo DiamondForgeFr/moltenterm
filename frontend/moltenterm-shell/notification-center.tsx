@@ -139,7 +139,7 @@ function NotificationRow({
                     ) : null}
                     <span>{entry.source}</span>
                     <span>·</span>
-                    <span>{formatAge(entry.updated, now)}</span>
+                    <span className="tabular-nums">{formatAge(entry.updated, now)}</span>
                 </div>
                 {actions.length > 0 ? (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">

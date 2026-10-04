@@ -982,7 +982,10 @@ export const ProcessViewerView: React.FC<ViewComponentProps<ProcessViewerViewMod
         const paddingTop = dataStart * RowHeight;
 
         return (
-            <div className="flex flex-col w-full h-full overflow-hidden" ref={containerRef}>
+            <div
+                className="flex flex-col w-full h-full overflow-hidden tabular-nums" // MOLTENTERM-PATCH (#130): tabular figures
+                ref={containerRef}
+            >
                 <StatusBar model={model} data={data} loading={loading} error={error} wide={wide} />
                 <SearchBar model={model} />
 

@@ -140,7 +140,7 @@ export function StatusBar() {
     useWarmLinkedProject(readWorkspaceProject(ws).dir);
     const pane = folder ? makePaneView(folder, state, ws) : null;
     return (
-        <footer className="molten-status-bar flex h-[24px] shrink-0 items-center gap-3 border-t border-border px-3 text-xs text-secondary select-none">
+        <footer className="molten-status-bar flex h-[24px] shrink-0 items-center gap-3 border-t border-border px-3 text-xs text-secondary tabular-nums select-none">
             {blockId ? <FocusedBlockMeta key={blockId} blockId={blockId} onMeta={setMeta} /> : null}
             {pane ? <PaneSection pane={pane} ws={ws} tree={fromPane ? treeMarker(state, link) : null} /> : null}
             <span className="ml-auto flex shrink-0 items-center gap-3">
