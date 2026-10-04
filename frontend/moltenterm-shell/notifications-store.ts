@@ -43,6 +43,8 @@ import {
     unreadCount,
 } from "./notifications-model";
 import { openMoltentermView } from "./open-view";
+import { checkProjectRoute, checkProjectSource } from "./project/project-model";
+import { showProjectTab } from "./project/project-tab";
 
 // What a named action reports: resolve closes the notification's situation.
 export type NotificationGestureResult = { ok: boolean; resolve?: boolean; error?: string };
@@ -184,6 +186,9 @@ export class MoltentermNotifications {
     async open(entry: MoltentermNotification): Promise<void> {
         // Switching workspace replaces this view: the read mark must reach wavesrv first.
         await this.writeNow(readUpdate(this.entries(), [entry.id]));
+        if (checkProjectSource(entry) && (await showProjectTabSafely(entry.workspaceid))) {
+            return;
+        }
         this.goTo(entry);
     }
 
@@ -219,6 +224,9 @@ export class MoltentermNotifications {
         }
         if (action.kind === "open") {
             if (action.view) {
+                if (checkProjectRoute(entry.source, action.view) && (await showProjectTabSafely(entry.workspaceid))) {
+                    return;
+                }
                 await openMoltentermView(action.view);
                 return;
             }
@@ -245,6 +253,20 @@ export class MoltentermNotifications {
         } finally {
             this.setRunning(runKey, false);
         }
+    }
+}
+
+// A build, CI or release notification lands on its workspace's Project tab (FR-SHELL-015); without one, or when wavesrv
+// does not answer, the panel it names opens as before.
+async function showProjectTabSafely(workspaceId: string): Promise<boolean> {
+    if (!workspaceId) {
+        return false;
+    }
+    try {
+        return await showProjectTab(workspaceId);
+    } catch (e) {
+        console.log("project tab:", e?.message ?? e);
+        return false;
     }
 }
 

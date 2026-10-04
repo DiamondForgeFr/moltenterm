@@ -260,6 +260,17 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 		}
 		return l.panes.Get(req)
 	}
+	if command == ProjectTabCommand {
+		// Tabs are the windows' business: a terminal does not add one to a workspace.
+		if !isWindowSource(source) {
+			return nil, fmt.Errorf("the Project tab can only be opened from a MoltenTerm window")
+		}
+		var req ProjectTabRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return ensureProjectTab(req)
+	}
 	if command == WorktreePlanCommand || command == WorktreeRemoveCommand {
 		return l.handleWorktree(command, source, data)
 	}

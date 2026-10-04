@@ -16,6 +16,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { Atom } from "jotai";
+import { openProjectTab } from "../project/project-tab";
 import { PaletteRun } from "./palette-model";
 
 export type PalettePlacement = "replace" | "new" | "right";
@@ -113,6 +114,9 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             return;
         case "settings":
             openSettings();
+            return;
+        case "projecttab":
+            await openProjectTab();
             return;
         case "focusorigin":
             focusBlock(target.blockId);

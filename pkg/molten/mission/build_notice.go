@@ -50,7 +50,7 @@ func buildNotice(rec RunRecord, manifest *BuildManifest, projectName string, now
 		return molten.NotificationInput{}, false
 	}
 	name := fmt.Sprintf("%s %s", projectName, rec.Title)
-	open := molten.NotificationAction{Id: "open", Label: "Open the Timeline", Kind: "open", View: timelineView}
+	open := molten.NotificationAction{Id: "open", Label: "Open the project", Kind: "open", View: timelineView}
 	if rec.State == RunStateSuccess {
 		input := molten.NotificationInput{Source: "build", Kind: "info", Title: name + " is built",
 			Message: fmt.Sprintf("Build %s finished.", shortSha(rec.Commit)), Actions: []molten.NotificationAction{open}}
@@ -71,7 +71,7 @@ func buildNotice(rec RunRecord, manifest *BuildManifest, projectName string, now
 		return input, true
 	}
 	return molten.NotificationInput{Source: "build", Kind: "error", Title: fmt.Sprintf("The %s build stopped", name),
-		Message: "The Timeline shows at which step, and the end of its log.", Actions: []molten.NotificationAction{open}}, true
+		Message: "Its run card shows at which step, and the end of its log.", Actions: []molten.NotificationAction{open}}, true
 }
 
 // UseNotifier lets the runs tell the end of a build; wavesrv writes it in the notification center.

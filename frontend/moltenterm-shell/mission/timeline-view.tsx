@@ -55,7 +55,7 @@ export class TimelineViewModel implements ViewModel {
 }
 
 // The manifest a finished build left, read again once the run ends.
-function useDeliveredManifest(dir: string, run: RunRecord): BuildManifest {
+export function useDeliveredManifest(dir: string, run: RunRecord): BuildManifest {
     const [manifest, setManifest] = useState<BuildManifest>(null);
     useEffect(() => {
         setManifest(null);
