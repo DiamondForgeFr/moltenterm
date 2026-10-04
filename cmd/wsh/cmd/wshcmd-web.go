@@ -23,9 +23,12 @@ var webCmd = &cobra.Command{
 
 var webOpenCmd = &cobra.Command{
 	Use:   "open url",
-	Short: "open a url a web widget",
-	Args:  cobra.ExactArgs(1),
-	RunE:  webOpenRun,
+	Short: "open a url in the browser panel",
+	// MOLTENTERM-PATCH (#140): pages open as tabs of the browser panel the user last focused in this tab
+	Long: "Open a url in the browser panel. The page opens as a new tab of the browser panel last focused in this tab;\n" +
+		"without one, it gets a new browser panel. Use --new to always open a new panel (--replace and --magnified also do).",
+	Args: cobra.ExactArgs(1),
+	RunE: webOpenRun,
 }
 
 var webGetCmd = &cobra.Command{
@@ -41,10 +44,12 @@ var webGetAll bool
 var webGetJson bool
 var webOpenMagnified bool
 var webOpenReplaceBlock string
+var webOpenNew bool // MOLTENTERM-PATCH (#140)
 
 func init() {
 	webOpenCmd.Flags().BoolVarP(&webOpenMagnified, "magnified", "m", false, "open view in magnified mode")
 	webOpenCmd.Flags().StringVarP(&webOpenReplaceBlock, "replace", "r", "", "replace block")
+	webOpenCmd.Flags().BoolVarP(&webOpenNew, "new", "n", false, "open in a new browser panel instead of a new tab of the current one") // MOLTENTERM-PATCH (#140)
 	webCmd.AddCommand(webOpenCmd)
 	webGetCmd.Flags().BoolVarP(&webGetInner, "inner", "", false, "get inner html (instead of outer)")
 	webGetCmd.Flags().BoolVarP(&webGetAll, "all", "", false, "get all matches (querySelectorAll)")
@@ -116,6 +121,18 @@ func webOpenRun(cmd *cobra.Command, args []string) (rtnErr error) {
 	tabId := getTabIdFromEnv()
 	if tabId == "" {
 		return fmt.Errorf("no WAVETERM_TABID env var set")
+	}
+
+	// MOLTENTERM-PATCH (#140): a new tab of the tab's browser panel, unless --new, --replace or --magnified
+	if !webOpenNew && replaceBlockORef == nil && !webOpenMagnified {
+		panelId, err := openInBrowserPanel(tabId, args[0])
+		if err != nil {
+			return err
+		}
+		if panelId != "" {
+			WriteStdout("opened in browser panel block:%s\n", panelId)
+			return nil
+		}
 	}
 
 	wshCmd := wshrpc.CommandCreateBlockData{

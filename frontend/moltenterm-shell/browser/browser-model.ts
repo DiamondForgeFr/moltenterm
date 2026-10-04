@@ -4,10 +4,18 @@
 // The tabs of a browser panel (FR-SHELL-007), kept in the block meta so they come back after a restart. Pure
 // functions: the view applies them and writes the result.
 
-// must match BrowserView, BrowserTabsMetaKey and BrowserActiveMetaKey in pkg/molten/browser.go
+// must match BrowserView, BrowserTabsMetaKey, BrowserActiveMetaKey, BrowserOpenMetaKey and BrowserRecentMetaKey in
+// pkg/molten/browser.go
 export const MoltentermBrowserView = "molten-browser";
 export const BrowserTabsMetaKey = "molten:browser:tabs";
 export const BrowserActiveMetaKey = "molten:browser:active";
+// Block meta: pages asked to open in this panel from outside the frontend (wsh), each as a new tab (#140).
+export const BrowserOpenMetaKey = "molten:browser:open";
+// Tab meta: the browser panels of the tab, most recently focused first (#140).
+export const BrowserRecentMetaKey = "molten:browser:recent";
+const BrowserRecentMax = 8;
+
+export type BrowserOpenRequest = { id: string; url: string };
 
 export type BrowserTab = { id: string; url: string; title?: string };
 
@@ -39,6 +47,41 @@ export function readBrowserState(meta: Record<string, any>, defaultUrl: string, 
 // meta "url" as its single tab.
 export function browserBlockDef(url: string): BlockDef {
     return { meta: { view: MoltentermBrowserView, url } };
+}
+
+// Where a link opened inside Moltenterm goes (#140): the most recently focused browser panel of the tab that still
+// exists, else the last browser panel of the tab (one not focused since a restart), else none (a new panel).
+// Must match PickBrowserPanel in pkg/molten/browser.go.
+export function pickBrowserPanel(browserBlockIds: string[], recent: unknown): string {
+    const ids = browserBlockIds ?? [];
+    for (const id of readRecentBrowserPanels(recent)) {
+        if (ids.includes(id)) {
+            return id;
+        }
+    }
+    return ids.length > 0 ? ids[ids.length - 1] : null;
+}
+
+export function readRecentBrowserPanels(recent: unknown): string[] {
+    return Array.isArray(recent) ? recent.filter((id): id is string => typeof id === "string" && id !== "") : [];
+}
+
+// The focus history with blockId moved to the front, or null when it is already there (nothing to write).
+export function noteBrowserFocus(recent: unknown, blockId: string): string[] {
+    const ids = readRecentBrowserPanels(recent);
+    if (!blockId || ids[0] === blockId) {
+        return null;
+    }
+    return [blockId, ...ids.filter((id) => id !== blockId)].slice(0, BrowserRecentMax);
+}
+
+export function readOpenRequests(raw: unknown): BrowserOpenRequest[] {
+    if (!Array.isArray(raw)) {
+        return [];
+    }
+    return raw.filter(
+        (r): r is BrowserOpenRequest => r != null && typeof r.id === "string" && typeof r.url === "string" && r.url !== ""
+    );
 }
 
 export function browserMeta(state: BrowserState): Record<string, any> {

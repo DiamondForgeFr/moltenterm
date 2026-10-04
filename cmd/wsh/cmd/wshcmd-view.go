@@ -62,6 +62,16 @@ func viewRun(cmd *cobra.Command, args []string) (rtnErr error) {
 	conn := RpcContext.Conn
 	var wshCmd *wshrpc.CommandCreateBlockData
 	if strings.HasPrefix(fileArg, "http://") || strings.HasPrefix(fileArg, "https://") {
+		// MOLTENTERM-PATCH (#140): a new tab of the tab's browser panel, unless --magnified (wsh web open --new forces a panel)
+		if !viewMagnified {
+			panelId, err := openInBrowserPanel(tabId, fileArg)
+			if err != nil {
+				return err
+			}
+			if panelId != "" {
+				return nil
+			}
+		}
 		wshCmd = &wshrpc.CommandCreateBlockData{
 			TabId: tabId,
 			BlockDef: &waveobj.BlockDef{

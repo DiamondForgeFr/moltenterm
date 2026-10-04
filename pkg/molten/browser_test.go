@@ -54,3 +54,38 @@ func TestBrowserPageURL(t *testing.T) {
 		}
 	}
 }
+
+func TestPickBrowserPanel(t *testing.T) {
+	cases := []struct {
+		name   string
+		panels []string
+		recent any
+		want   string
+	}{
+		{"no panel: a new one", nil, []any{"b1"}, ""},
+		{"most recently focused", []string{"b1", "b2", "b3"}, []any{"b2", "b3"}, "b2"},
+		{"a closed panel is skipped", []string{"b1", "b3"}, []any{"gone", "b3", "b1"}, "b3"},
+		{"never focused: the last panel", []string{"b1", "b2"}, nil, "b2"},
+		{"malformed history", []string{"b1", "b2"}, "b1", "b2"},
+		{"non-string ids ignored", []string{"b1", "b2"}, []any{3, "b1"}, "b1"},
+	}
+	for _, tc := range cases {
+		if got := PickBrowserPanel(tc.panels, tc.recent); got != tc.want {
+			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestAppendBrowserOpenRequest(t *testing.T) {
+	first := AppendBrowserOpenRequest(nil, "r1", "https://example.com/a")
+	if len(first) != 1 || first[0].(map[string]any)["url"] != "https://example.com/a" {
+		t.Fatalf("one request: got %v", first)
+	}
+	second := AppendBrowserOpenRequest(first, "r2", "https://example.com/b")
+	if len(second) != 2 || second[0].(map[string]any)["id"] != "r1" || second[1].(map[string]any)["id"] != "r2" {
+		t.Errorf("pending requests kept, the new one last: got %v", second)
+	}
+	if len(first) != 1 {
+		t.Errorf("the pending list is not modified")
+	}
+}
