@@ -4,6 +4,8 @@
 // The tabs of a browser panel (FR-SHELL-007), kept in the block meta so they come back after a restart. Pure
 // functions: the view applies them and writes the result.
 
+// must match BrowserView, BrowserTabsMetaKey and BrowserActiveMetaKey in pkg/molten/browser.go
+export const MoltentermBrowserView = "molten-browser";
 export const BrowserTabsMetaKey = "molten:browser:tabs";
 export const BrowserActiveMetaKey = "molten:browser:active";
 
@@ -31,6 +33,12 @@ export function readBrowserState(meta: Record<string, any>, defaultUrl: string, 
     }
     const active = meta?.[BrowserActiveMetaKey];
     return { tabs, activeId: tabs.some((t) => t.id === active) ? active : tabs[0].id };
+}
+
+// Every web page Moltenterm opens gets a browser panel, never Wave's web view without tabs (#132). The panel opens
+// meta "url" as its single tab.
+export function browserBlockDef(url: string): BlockDef {
+    return { meta: { view: MoltentermBrowserView, url } };
 }
 
 export function browserMeta(state: BrowserState): Record<string, any> {

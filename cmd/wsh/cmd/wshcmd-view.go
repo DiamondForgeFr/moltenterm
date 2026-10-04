@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
@@ -65,7 +66,7 @@ func viewRun(cmd *cobra.Command, args []string) (rtnErr error) {
 			TabId: tabId,
 			BlockDef: &waveobj.BlockDef{
 				Meta: map[string]any{
-					waveobj.MetaKey_View: "web",
+					waveobj.MetaKey_View: molten.BrowserView, // MOLTENTERM-PATCH (#132): the browser panel, with tabs
 					waveobj.MetaKey_Url:  fileArg,
 				},
 			},

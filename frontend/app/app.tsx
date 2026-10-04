@@ -30,6 +30,7 @@ import "overlayscrollbars/overlayscrollbars.css";
 import { useEffect, useRef } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
+import { browserBlockDef } from "../moltenterm-shell/browser/browser-model"; // MOLTENTERM-PATCH (#132)
 import { AppBackground } from "./app-bg";
 import { CenteredDiv } from "./element/quickelems";
 
@@ -125,12 +126,7 @@ async function handleContextMenu(e: React.MouseEvent<HTMLDivElement>) {
         menu.push({
             label: "Open Clipboard URL (" + clipboardURL.hostname + ")",
             click: () => {
-                createBlock({
-                    meta: {
-                        view: "web",
-                        url: clipboardURL.toString(),
-                    },
-                });
+                createBlock(browserBlockDef(clipboardURL.toString())); // MOLTENTERM-PATCH (#132)
             },
         });
     }

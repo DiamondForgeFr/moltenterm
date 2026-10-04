@@ -79,6 +79,7 @@ func CreateBlockWithTelemetry(ctx context.Context, tabId string, blockDef *waveo
 		return nil, fmt.Errorf("no view provided for new block")
 	}
 	blockDef = blockDefInWorkspaceFolder(ctx, tabId, blockDef) // MOLTENTERM-PATCH (#82): starts in the workspace's folder
+	blockDef = blockDefInBrowser(blockDef)                     // MOLTENTERM-PATCH (#132): web pages open in the browser panel
 	blockData, err := createBlockObj(ctx, tabId, blockDef, rtOpts)
 	if err != nil {
 		return nil, fmt.Errorf("error creating block: %w", err)

@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
@@ -233,6 +234,11 @@ func blocksListRun(cmd *cobra.Command, args []string) error {
 			content = b.Meta.GetString(waveobj.MetaKey_File, "<no file>")
 		case "web":
 			content = b.Meta.GetString(waveobj.MetaKey_Url, "<no url>")
+		case molten.BrowserView: // MOLTENTERM-PATCH (#132): the page of the browser panel's active tab
+			content = molten.BrowserPageURL(b.Meta)
+			if content == "" {
+				content = "<no url>"
+			}
 		case "term":
 			content = b.Meta.GetString(waveobj.MetaKey_CmdCwd, "<no cwd>")
 		default:
@@ -269,7 +275,7 @@ func matchesViewType(actual, filter string) bool {
 	case "terminal", "term", "shell", "console":
 		return strings.EqualFold(actual, "term")
 	case "web", "browser", "url":
-		return strings.EqualFold(actual, "web")
+		return strings.EqualFold(actual, "web") || strings.EqualFold(actual, molten.BrowserView) // MOLTENTERM-PATCH (#132)
 	case "ai", "waveai", "assistant":
 		return strings.EqualFold(actual, "waveai")
 	case "sys", "sysinfo", "system":
