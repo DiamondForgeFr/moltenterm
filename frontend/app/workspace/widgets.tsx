@@ -11,6 +11,7 @@ import { fireAndForget, isBlank, makeIconClass } from "@/util/util";
 import {
     autoUpdate,
     FloatingPortal,
+    Placement, // MOLTENTERM-PATCH (#110)
     offset,
     shift,
     useDismiss,
@@ -132,9 +133,11 @@ type FloatingWindowPropsType = {
     onClose: () => void;
     referenceElement: HTMLElement;
     hasConfigErrors?: boolean;
+    // MOLTENTERM-PATCH (#110): the workspace rail opens these flyouts to its right
+    placement?: Placement;
 };
 
-const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement }: FloatingWindowPropsType) => {
+const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement, placement }: FloatingWindowPropsType) => {
     const [apps, setApps] = useState<AppInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const env = useWaveEnv<WidgetsEnv>();
@@ -142,7 +145,7 @@ const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement }: Floating
     const { refs, floatingStyles, context } = useFloating({
         open: isOpen,
         onOpenChange: onClose,
-        placement: "left-start",
+        placement: placement ?? "left-start", // MOLTENTERM-PATCH (#110)
         middleware: [offset(-2), shift({ padding: 12 })],
         whileElementsMounted: autoUpdate,
         elements: {
@@ -258,12 +261,12 @@ const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement }: Floating
 });
 
 const SettingsFloatingWindow = memo(
-    ({ isOpen, onClose, referenceElement, hasConfigErrors }: FloatingWindowPropsType) => {
+    ({ isOpen, onClose, referenceElement, hasConfigErrors, placement }: FloatingWindowPropsType) => {
         const env = useWaveEnv<WidgetsEnv>();
         const { refs, floatingStyles, context } = useFloating({
             open: isOpen,
             onOpenChange: onClose,
-            placement: "left-start",
+            placement: placement ?? "left-start", // MOLTENTERM-PATCH (#110)
             middleware: [offset(-2), shift({ padding: 12 })],
             whileElementsMounted: autoUpdate,
             elements: {
@@ -610,4 +613,5 @@ const Widgets = memo(() => {
     );
 });
 
-export { Widgets };
+// MOLTENTERM-PATCH (#110): the flyouts are exported for the workspace rail's tool section
+export { AppsFloatingWindow, SettingsFloatingWindow, Widgets };

@@ -22,7 +22,8 @@ import {
     PanelGroup,
     PanelResizeHandle,
 } from "react-resizable-panels";
-import { MoltentermStatusBar, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44, #55)
+// MOLTENTERM-PATCH (#44, #55, #110)
+import { MoltentermStatusBar, MoltentermToolRail, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags";
 import { StatusBar } from "../../moltenterm-shell/status-bar"; // MOLTENTERM-PATCH (#55)
 import { WorkspaceRail } from "../../moltenterm-shell/workspace-rail"; // MOLTENTERM-PATCH (#44)
 
@@ -167,7 +168,8 @@ const WorkspaceElem = memo(() => {
                             ) : (
                                 <div className="flex flex-row h-full">
                                     <TabContent key={tabId} tabId={tabId} noTopPadding={showLeftTabBar && isMacOS()} />
-                                    {widgetsSidebarVisible && <Widgets />}
+                                    {/* MOLTENTERM-PATCH (#110): the widget bar's tools live at the bottom of the workspace rail */}
+                                    {widgetsSidebarVisible && !MoltentermToolRail && <Widgets />}
                                 </div>
                             )}
                         </Panel>
