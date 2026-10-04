@@ -7,6 +7,7 @@ import { BuilderBuildPanelModel } from "@/builder/store/builder-buildpanel-model
 import { atoms } from "@/store/global";
 import { useAtomValue } from "jotai";
 import { memo, useState } from "react";
+import { MoltenWave } from "../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 
 const EmptyStateView = memo(() => {
     return (
@@ -78,9 +79,10 @@ const ErrorStateView = memo(({ errorMsg }: { errorMsg: string }) => {
                         </div>
                         <button
                             onClick={handleGoToSecrets}
-                            className="px-6 py-2 mt-2 bg-accent/80 text-primary font-semibold rounded hover:bg-accent transition-colors cursor-pointer"
+                            className="molten-btn px-6 py-2 mt-2 font-semibold rounded cursor-pointer"
                         >
                             Go to Secrets Tab
+                            <MoltenWave />
                         </button>
                     </div>
                 </div>
@@ -106,9 +108,10 @@ const ErrorStateView = memo(({ errorMsg }: { errorMsg: string }) => {
                             </button>
                             <button
                                 onClick={handleAskAIToFix}
-                                className="px-4 py-2 bg-accent/80 text-primary font-semibold rounded hover:bg-accent transition-colors cursor-pointer"
+                                className="molten-btn px-4 py-2 font-semibold rounded cursor-pointer"
                             >
                                 Ask AI to Fix
+                                <MoltenWave />
                             </button>
                         </div>
                     )}
@@ -157,11 +160,9 @@ const StoppedStateView = memo(({ onStart }: { onStart: () => void }) => {
                     </p>
                 </div>
                 {!isStarting && (
-                    <button
-                        onClick={handleStart}
-                        className="px-6 py-2 bg-accent text-primary font-semibold rounded hover:bg-accent/80 transition-colors cursor-pointer"
-                    >
+                    <button onClick={handleStart} className="molten-btn px-6 py-2 font-semibold rounded cursor-pointer">
                         Start App
+                        <MoltenWave />
                     </button>
                 )}
                 {isStarting && <div className="text-base text-success">Starting...</div>}

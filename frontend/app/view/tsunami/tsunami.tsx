@@ -9,6 +9,7 @@ import { WebView, WebViewModel } from "@/app/view/webview/webview";
 import * as services from "@/store/services";
 import * as jotai from "jotai";
 import { memo, useEffect } from "react";
+import { MoltenWave } from "../../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 
 class TsunamiViewModel extends WebViewModel {
     shellProcFullStatus: jotai.PrimitiveAtom<BlockControllerRuntimeStatus>;
@@ -296,9 +297,10 @@ const TsunamiView = memo((props: ViewComponentProps<TsunamiViewModel>) => {
             {isNotRunning && !isRestarting && (
                 <button
                     onClick={() => model.forceRestartController()}
-                    className="px-4 py-2 bg-accent-color text-primary-text-color rounded hover:bg-accent-color/80 transition-colors cursor-pointer"
+                    className="molten-btn px-4 py-2 rounded cursor-pointer"
                 >
                     Start
+                    <MoltenWave />
                 </button>
             )}
             {isRestarting && <div className="text-sm text-success-color">Starting...</div>}

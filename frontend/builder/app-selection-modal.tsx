@@ -9,6 +9,7 @@ import { atoms, getApi } from "@/store/global";
 import * as WOS from "@/store/wos";
 import { formatRelativeTime } from "@/util/util";
 import { useEffect, useState } from "react";
+import { MoltenWave } from "../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 
 const MaxAppNameLength = 50;
 const AppNameRegex = /^[a-zA-Z0-9_-]+$/;
@@ -81,10 +82,11 @@ function CreateNewWaveApp({ onCreateApp }: { onCreateApp: (appName: string) => P
                         className={`px-4 py-2 rounded-r transition-colors font-medium whitespace-nowrap ${
                             !newAppName.trim() || inputError || isCreating
                                 ? "bg-panel border border-l-0 border-border text-muted cursor-not-allowed"
-                                : "bg-accent text-black hover:bg-accent-hover cursor-pointer"
+                                : "molten-btn cursor-pointer"
                         }`}
                     >
                         Create
+                        <MoltenWave />
                     </button>
                 </div>
                 {inputError && (

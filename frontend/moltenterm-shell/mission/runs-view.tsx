@@ -9,6 +9,7 @@ import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { MoltenWave } from "../molten-button";
 import { pathParent } from "../workspace-project";
 import { timeAgo } from "./branch-tree";
 import { buildCardTitle, BuildManifest, BuildPhaseDef, BuildPhaseStatus, buildRunView } from "./builds-model";
@@ -74,9 +75,10 @@ export function TrustPrompt({
                     <button
                         type="button"
                         onClick={onTrust}
-                        className="cursor-pointer rounded bg-accent/80 px-3 py-1 text-xs text-primary transition-colors hover:bg-accent"
+                        className="molten-btn cursor-pointer rounded px-3 py-1 text-xs"
                     >
                         Trust and run
+                        <MoltenWave />
                     </button>
                 </div>
             </div>
@@ -309,9 +311,10 @@ export function BuildRunCard({
                     <button
                         type="button"
                         onClick={onRetry}
-                        className="cursor-pointer rounded bg-accent/80 px-2 py-1 text-xs text-primary transition-colors hover:bg-accent"
+                        className="molten-btn cursor-pointer rounded px-2 py-1 text-xs"
                     >
                         Retry
+                        <MoltenWave />
                     </button>
                 ) : null}
                 {run.state !== "running" ? (

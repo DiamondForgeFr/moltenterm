@@ -50,6 +50,7 @@ It has a TypeScript/React frontend and a Go backend. They talk together over `ws
 - _never_ use cursor-help, or cursor-not-allowed (it looks terrible)
 - We have custom CSS setup as well, so it is a hybrid system. For new code we prefer tailwind, and are working to migrate code to all use tailwind.
 - For accent buttons, use "bg-accent/80 text-primary rounded hover:bg-accent transition-colors cursor-pointer" (if you do "bg-accent hover:bg-accent/80" it looks weird as on hover the button gets darker instead of lighter)
+  - **Moltenterm (MOLTENTERM-PATCH #145):** this replaces the line above. A call-to-action button takes the class `molten-btn` (add `molten-btn-destructive` or `molten-btn-warning` for those) with sizes only from Tailwind (e.g. `"molten-btn cursor-pointer rounded px-3 py-1.5 text-xs"`, no `bg-*`, `text-*` colour or `hover:bg-*`), and `<MoltenWave />` from `frontend/moltenterm-shell/molten-button.tsx` as its last child. Wave's `Button` does this itself: no class or the `green` class gives the molten primary. Secondary actions stay calm (bordered or ghost). The style lives in `frontend/moltenterm-shell/molten-button.css`.
 
 ### RPC System
 

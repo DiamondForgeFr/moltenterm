@@ -10,6 +10,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { readableSubject } from "../mission/versions";
+import { MoltenWave } from "../molten-button";
 import { groupNotes, restartWarning, TerminalSummary, updateLabel } from "./update-model";
 import { GoldUpdateModel, readTerminals } from "./update-store";
 
@@ -117,11 +118,12 @@ function UpdateDialog() {
                             disabled={busy}
                             onClick={() => fireAndForget(() => model.apply(offer, "now"))}
                             className={cn(
-                                "cursor-pointer rounded bg-accent/80 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-accent",
+                                "molten-btn cursor-pointer rounded px-3 py-1.5 text-xs",
                                 busy && "opacity-60"
                             )}
                         >
                             {busy ? "Preparing…" : "Update now"}
+                            <MoltenWave />
                         </button>
                     </div>
                 </div>

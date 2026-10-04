@@ -8,6 +8,7 @@
 import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
+import { MoltenWave } from "../molten-button";
 import { pathParent } from "../workspace-project";
 import { buildCardTitle, BuildFacts, BuildsFacts, ciLine, lastBuildLine } from "./builds-model";
 import { missionBuilds } from "./mission-client";
@@ -182,10 +183,11 @@ export function BuildLocalMenu({
                         type="button"
                         disabled={!chosen || busy}
                         onClick={launch}
-                        className="cursor-pointer rounded bg-accent/80 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-50"
+                        className="molten-btn cursor-pointer rounded px-3 py-1.5 text-xs disabled:cursor-default disabled:opacity-50"
                     >
                         {busy ? <i className="fa fa-solid fa-circle-notch fa-spin mr-1.5 text-[10px]" /> : null}
                         {chosen ? `Build ${chosen.title || chosen.id}` : "Choose a build"}
+                        <MoltenWave />
                     </button>
                     {facts?.fetcherror ? (
                         <div className="text-[11px] text-warning">

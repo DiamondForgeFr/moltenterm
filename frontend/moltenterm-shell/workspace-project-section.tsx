@@ -7,6 +7,7 @@
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
+import { MoltenWave } from "./molten-button";
 import { WorkspaceIcon } from "./workspace-icon";
 import {
     checkPathInside,
@@ -204,9 +205,10 @@ export function WorkspaceProjectSection({ workspaceId }: { workspaceId: string }
                     <button
                         type="button"
                         onClick={link}
-                        className="shrink-0 cursor-pointer rounded bg-accent/80 px-2 py-1 text-xs text-primary transition-colors hover:bg-accent"
+                        className="molten-btn shrink-0 cursor-pointer rounded px-2 py-1 text-xs"
                     >
                         Link a project…
+                        <MoltenWave />
                     </button>
                 </div>
             ) : (

@@ -19,6 +19,7 @@ import { atoms } from "@/store/global";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { MoltenWave } from "../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 
 const StatusDot = memo(() => {
     const model = BuilderAppPanelModel.getInstance();
@@ -337,10 +338,11 @@ const BuilderAppPanel = memo(() => {
                     </div>
                     <div className="flex items-center gap-2 mr-2">
                         <button
-                            className="px-3 py-1 text-sm font-medium rounded bg-accent/80 text-primary hover:bg-accent transition-colors cursor-pointer"
+                            className="molten-btn px-3 py-1 text-sm font-medium rounded cursor-pointer"
                             onClick={handlePublishClick}
                         >
                             Publish App
+                            <MoltenWave />
                         </button>
                         <button
                             className="px-2 py-1 text-sm font-medium rounded hover:bg-secondary/10 transition-colors cursor-pointer"

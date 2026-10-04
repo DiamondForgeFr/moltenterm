@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { cn, fireAndForget } from "@/util/util";
+import { MoltenWave } from "../../moltenterm-shell/molten-button";
 import { WaveAIModel } from "./waveai-model";
 
 interface NoAIModeMessageProps {
@@ -27,9 +28,10 @@ const NoAIModeMessage = ({ className }: NoAIModeMessageProps) => {
                     </div>
                     <button
                         onClick={() => fireAndForget(() => WaveAIModel.getInstance().openWaveAIConfig())}
-                        className="bg-accent/80 hover:bg-accent text-background px-4 py-2 rounded-lg font-medium cursor-pointer"
+                        className="molten-btn px-4 py-2 rounded-lg font-medium cursor-pointer"
                     >
                         Open waveai.json
+                        <MoltenWave />
                     </button>
                 </div>
             </div>

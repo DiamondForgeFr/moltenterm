@@ -12,6 +12,7 @@ import { Check, AlertTriangle } from "lucide-react";
 import { Tooltip } from "@/app/element/tooltip";
 import { Modal } from "@/app/modals/modal";
 import { modalsModel } from "@/app/store/modalmodel";
+import { MoltenWave } from "../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 
 type SecretRowProps = {
     secretName: string;
@@ -51,17 +52,19 @@ const SecretRow = memo(({ secretName, secretMeta, currentBinding, availableSecre
                 {!isMapped && hasMatchingSecret && (
                     <button
                         onClick={() => onMapDefault(secretName)}
-                        className="px-3 py-1 text-sm font-medium rounded bg-accent/80 text-primary hover:bg-accent transition-colors cursor-pointer whitespace-nowrap"
+                        className="molten-btn px-3 py-1 text-sm font-medium rounded cursor-pointer whitespace-nowrap"
                     >
                         Map Default
+                        <MoltenWave />
                     </button>
                 )}
                 {!isMapped && !hasMatchingSecret && (
                     <button
                         onClick={() => onSetAndMapDefault(secretName)}
-                        className="px-3 py-1 text-sm font-medium rounded bg-accent/80 text-primary hover:bg-accent transition-colors cursor-pointer whitespace-nowrap"
+                        className="molten-btn px-3 py-1 text-sm font-medium rounded cursor-pointer whitespace-nowrap"
                     >
                         Set and Map Default
+                        <MoltenWave />
                     </button>
                 )}
             </div>

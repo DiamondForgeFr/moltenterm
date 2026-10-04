@@ -13,6 +13,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { MoltenWave } from "./molten-button";
 import { hasDefaultName, nextProjectOffer, ProjectOffer, readDismissed, withDismissed } from "./project-detect";
 import { WorkspaceIcon } from "./workspace-icon";
 import { nextWorkspaceFolder, pathBaseName, readWorkspaceFolder, readWorkspaceProject } from "./workspace-project";
@@ -31,8 +32,7 @@ import {
 
 const NoFocusedNode = atom(null) as Atom<{ data?: { blockId?: string } }>;
 
-const AccentButton =
-    "cursor-pointer rounded bg-accent/80 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-accent";
+const AccentButton = "molten-btn cursor-pointer rounded px-3 py-1.5 text-xs";
 const PlainButton =
     "cursor-pointer rounded border border-border px-3 py-1.5 text-xs text-secondary hover:bg-hover hover:text-primary";
 
@@ -175,6 +175,7 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
                     </button>
                     <button type="button" disabled={busy} onClick={accept} className={AccentButton}>
                         {offer.mode === "link" ? "Link the project" : "Use this icon"}
+                        <MoltenWave />
                     </button>
                 </div>
             </div>

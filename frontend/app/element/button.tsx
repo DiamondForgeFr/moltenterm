@@ -4,6 +4,7 @@
 import clsx from "clsx";
 import { forwardRef, memo, ReactNode, useImperativeHandle, useRef } from "react";
 
+import { moltenButtonClasses, MoltenWave } from "../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 import "./button.scss";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -18,25 +19,26 @@ const Button = memo(
             const btnRef = useRef<HTMLButtonElement>(null);
             useImperativeHandle(ref, () => btnRef.current as HTMLButtonElement);
 
-            // Check if the className contains any of the categories: solid, outlined, or ghost
-            const containsButtonCategory = /(solid|outline|ghost)/.test(className);
-            // If no category is present, default to 'solid'
-            const categoryClassName = containsButtonCategory ? className : `solid ${className}`;
-
-            // Check if the className contains any of the color options: green, grey, red, or yellow
-            const containsColor = /(green|grey|red|yellow)/.test(categoryClassName);
-            // If no color is present, default to 'green'
-            const finalClassName = containsColor ? categoryClassName : `green ${categoryClassName}`;
+            // MOLTENTERM-PATCH (#145): the default and green buttons are molten call-to-action buttons, the other
+            // colours map to destructive, warning and calm variants; Wave's green class no longer reaches the DOM.
+            const molten = moltenButtonClasses(className);
 
             return (
                 <Component
                     ref={btnRef}
                     tabIndex={disabled ? -1 : 0}
-                    className={clsx("wave-button", finalClassName)}
+                    className={clsx("wave-button", molten.className)}
                     disabled={disabled}
                     {...props}
                 >
-                    {children}
+                    {molten.wave && typeof Component === "string" ? (
+                        <>
+                            {children}
+                            <MoltenWave />
+                        </>
+                    ) : (
+                        children
+                    )}
                 </Component>
             );
         }

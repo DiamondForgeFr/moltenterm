@@ -9,6 +9,7 @@ import { BuilderBuildPanelModel } from "@/builder/store/builder-buildpanel-model
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef } from "react";
 import { debounce } from "throttle-debounce";
+import { MoltenWave } from "../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 
 function handleBuildPanelContextMenu(e: React.MouseEvent, selectedText: string): void {
     e.preventDefault();
@@ -116,16 +117,18 @@ const BuilderBuildPanel = memo(() => {
                         Debug
                     </label>
                     <button
-                        className="px-3 py-1 text-sm font-medium rounded transition-colors bg-accent/80 text-white hover:bg-accent cursor-pointer"
+                        className="molten-btn px-3 py-1 text-sm font-medium rounded cursor-pointer"
                         onClick={handleSendToAI}
                     >
                         Send Output to AI
+                        <MoltenWave />
                     </button>
                     <button
-                        className="px-3 py-1 text-sm font-medium rounded transition-colors bg-accent/80 text-white hover:bg-accent cursor-pointer"
+                        className="molten-btn px-3 py-1 text-sm font-medium rounded cursor-pointer"
                         onClick={handleRestart}
                     >
                         Restart App
+                        <MoltenWave />
                     </button>
                 </div>
             </div>
