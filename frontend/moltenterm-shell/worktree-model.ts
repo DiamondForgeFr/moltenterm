@@ -300,7 +300,7 @@ export function closePlanView(plan: WorktreePlan): ClosePlanView {
             unpushedLine = `${plural(unpushed, "commit", "commits")} on no remote`;
         }
         if (!commitsAtRisk && !plan.detached) {
-            unpushedLine += `, their content already on ${plan.trunk}`;
+            unpushedLine += `, content already on ${plan.trunk}`;
         }
     }
     const terminalsLine = shared
