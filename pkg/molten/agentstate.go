@@ -13,6 +13,8 @@ import (
 // Agent states (FR-SHELL-011, DS-SHELL-011): which coding agent runs in a terminal and what it is doing. wavesrv keeps
 // the states (pkg/molten/attention); wsh reports them from the agents' hooks (`molten agent state`). The registry
 // below is the list of known agents: adding one is adding a row.
+// How each agent draws its UI, for clean copy (gutter glyphs, frames), is the row with the same id in
+// frontend/moltenterm-shell/term-copy/agent-copy-profiles.ts.
 
 // must match frontend/moltenterm-shell/agent-state-model.ts
 const (

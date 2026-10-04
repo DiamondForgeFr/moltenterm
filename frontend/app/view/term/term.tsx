@@ -21,6 +21,7 @@ import clsx from "clsx";
 import debug from "debug";
 import * as jotai from "jotai";
 import * as React from "react";
+import { TermSelectionToolbar } from "../../../moltenterm-shell/term-copy/selection-toolbar"; // MOLTENTERM-PATCH (#119)
 import { TermLinkTooltip } from "./term-tooltip";
 import { TermStickers } from "./termsticker";
 import { TermThemeUpdater } from "./termtheme";
@@ -395,6 +396,10 @@ const TerminalView = ({ blockId, model }: ViewComponentProps<TermViewModel>) => 
             <div key="connect-elem" className="term-connectelem" ref={connectElemRef} />
             <NullErrorBoundary debugName="TermLinkTooltip">
                 <TermLinkTooltip termWrap={termWrapInst} />
+            </NullErrorBoundary>
+            {/* MOLTENTERM-PATCH (#119): Copy clean, Open, Send to another pane on a selection. */}
+            <NullErrorBoundary debugName="TermSelectionToolbar">
+                <TermSelectionToolbar termWrap={termWrapInst} containerRef={viewRef} />
             </NullErrorBoundary>
             <Search {...searchProps} />
         </div>
