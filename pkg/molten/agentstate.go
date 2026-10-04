@@ -195,3 +195,13 @@ type AgentStateInfo struct {
 	// Cleared: the block has no agent any more.
 	Cleared bool `json:"cleared,omitempty"`
 }
+
+// AgentRunInfo is what the agent companion (DS-SHELL-019) needs of a block's agent: which one, and since when it runs.
+type AgentRunInfo struct {
+	BlockId string
+	Agent   string
+	// Started, in Unix milliseconds.
+	Started int64
+	Running bool
+	State   string
+}

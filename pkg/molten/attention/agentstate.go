@@ -102,6 +102,8 @@ type agentRecord struct {
 	message string
 	since   int64
 	version int64
+	// started: when the agent's command started (or its first report came), for the companion's session discovery.
+	started int64
 	// running: the agent's command still runs (an exited agent keeps its error until the next command).
 	running bool
 	located bool
@@ -190,7 +192,8 @@ func (a *agentStates) shellMark(blockId string, mark ShellMark) {
 			a.removeLocked(blockId)
 			return
 		}
-		a.records[blockId] = &agentRecord{agent: agent, state: molten.AgentStateWorking, since: a.now().UnixMilli(), running: true}
+		now := a.now().UnixMilli()
+		a.records[blockId] = &agentRecord{agent: agent, state: molten.AgentStateWorking, since: now, started: now, running: true}
 		a.markDirtyLocked(blockId)
 	case ShellMarkDone:
 		if rec == nil || !rec.running {
@@ -253,13 +256,14 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		if req.Agent == "" {
 			return nil, "", fmt.Errorf("no agent is known in this terminal: name it with --agent")
 		}
-		rec = &agentRecord{agent: req.Agent, running: true}
+		rec = &agentRecord{agent: req.Agent, running: true, started: a.now().UnixMilli()}
 		a.records[req.BlockId] = rec
 	}
 	rec.running = true
 	previous := rec.state
 	if req.Agent != "" && req.Agent != rec.agent {
 		rec.agent = req.Agent
+		rec.started = a.now().UnixMilli()
 		rec.located = false
 		a.markDirtyLocked(req.BlockId)
 	}
@@ -433,6 +437,36 @@ func ReportAgentState(ctx context.Context, req molten.AgentStateRequest) error {
 		defaultAgentStates.notify(req.BlockId, *signal, kind)
 	}
 	return nil
+}
+
+// AgentRun tells which agent runs in a terminal block and since when (the agent companion, DS-SHELL-019).
+func AgentRun(blockId string) (molten.AgentRunInfo, bool) {
+	return defaultAgentStates.runOf(blockId)
+}
+
+// AgentRuns lists the agents running in every terminal block.
+func AgentRuns() []molten.AgentRunInfo {
+	return defaultAgentStates.allRuns()
+}
+
+func (a *agentStates) runOf(blockId string) (molten.AgentRunInfo, bool) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	rec := a.records[blockId]
+	if rec == nil {
+		return molten.AgentRunInfo{}, false
+	}
+	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state}, true
+}
+
+func (a *agentStates) allRuns() []molten.AgentRunInfo {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	rtn := make([]molten.AgentRunInfo, 0, len(a.records))
+	for blockId, rec := range a.records {
+		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state})
+	}
+	return rtn
 }
 
 func AgentStatesSnapshot() []molten.AgentStateInfo {

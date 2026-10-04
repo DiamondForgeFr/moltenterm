@@ -80,6 +80,38 @@ Call the same commands from whatever the agent offers: hooks, plugins (an OpenCo
 `molten agent state done --agent opencode` on `session.idle`), or a notification command. An agent with none of
 these still shows working and idle, and its bell or OSC 9 notifications still mark it as waiting.
 
+## The agent companion: link the session
+
+Clicking the agent in the pane header (or `Cmd+Shift+J`) opens the **agent companion** to the right of the pane. It
+reads the agent's own session transcript, in place and read-only, and shows the latest answer with a Copy button on
+every code block, the earlier answers, the files changed with their diffs, the task list and a pending permission
+request. MoltenTerm never writes, copies or sends the transcript anywhere. Claude Code and Codex have a companion;
+other agents do not yet.
+
+Without any setup, the companion looks for the newest session of the pane's folder started after the agent: in
+`~/.claude/projects/` for Claude Code (or `$CLAUDE_CONFIG_DIR/projects/`), in `~/.codex/sessions/` for Codex (or
+`$CODEX_HOME/sessions/`). When two panes run the same agent in the same folder it cannot tell their sessions apart,
+so it asks you to pick one. A hook removes the guess: the agent tells the pane which transcript is its own.
+
+```
+molten agent session [<transcript-path>] [--agent <name>] [--stdin]
+```
+
+- `--stdin` takes the path from the `transcript_path` field of the JSON the hook receives on its standard input.
+- The path must be in the agent's session folder above; any other file is refused.
+
+For Claude Code, add a `SessionStart` hook (it also runs after `/clear` and when a session is resumed):
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent session --agent claude --stdin || true" }] }
+    ]
+  }
+}
+```
+
 ## Checking
 
 In a MoltenTerm terminal, `molten agent state waiting --agent claude` turns the pane's dot to waiting and raises a

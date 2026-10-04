@@ -20,6 +20,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -361,4 +362,6 @@ func Start() {
 	}
 	// The agent states (FR-SHELL-011) start with Mission Control, so wavesrv's startup keeps one MoltenTerm entry point.
 	attention.StartAgentRoute()
+	// The agent companion (FR-SHELL-018) follows the agents the states know.
+	companion.Start()
 }
