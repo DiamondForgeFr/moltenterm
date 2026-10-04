@@ -13,6 +13,7 @@ import { effectiveWorkspaceFolder, readRecentFolders, readWorkspaceProject } fro
 import { isSavedWorkspace } from "../workspace-rail-model";
 import { PalettePlacement, runPaletteEntry } from "./palette-actions";
 import {
+    bestMatchIndex,
     filterPalette,
     flattenSections,
     highlightRuns,
@@ -185,7 +186,7 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
     const input = inputRef ?? ownInputRef;
 
     useEffect(() => {
-        setSelected(0);
+        setSelected(Math.max(bestMatchIndex(sections, query), 0));
     }, [query]);
     useEffect(() => {
         if (autoFocus) {
@@ -268,7 +269,8 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                 {flat.length === 0 && <div className="px-3.5 py-3 text-xs text-muted">Nothing matches "{query}"</div>}
                 {sections.map((section) => (
                     <div key={section.group}>
-                        <div className="truncate px-3.5 pt-2 pb-0.5 text-[10.5px] font-semibold tracking-wider text-muted uppercase">
+                        {/* Not uppercased: a title can hold a path, and paths are case-sensitive. */}
+                        <div className="truncate px-3.5 pt-2 pb-0.5 text-[11px] font-semibold tracking-wide text-muted">
                             {section.title}
                         </div>
                         {section.entries.map((entry) => {

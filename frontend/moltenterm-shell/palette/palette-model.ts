@@ -174,6 +174,28 @@ export function flattenSections(sections: PaletteSection[]): PaletteEntry[] {
     return (sections ?? []).flatMap((s) => s.entries);
 }
 
+// Groups keep their order, so the best match can sit below a weaker one of an earlier group ("sub" finds the folder
+// "sub" by its name and the panel "Web" by its command line): the selection starts on the best match.
+export function bestMatchIndex(sections: PaletteSection[], query: string): number {
+    const flat = flattenSections(sections);
+    if (flat.length === 0) {
+        return -1;
+    }
+    if ((query ?? "").trim() === "") {
+        return 0;
+    }
+    let best = 0;
+    let bestScore = -Infinity;
+    flat.forEach((entry, i) => {
+        const score = matchEntry(query, entry)?.score ?? -Infinity;
+        if (score > bestScore) {
+            best = i;
+            bestScore = score;
+        }
+    });
+    return best;
+}
+
 export type PaletteKeyCommand = "up" | "down" | "first" | "last" | "open" | "open-right" | "close";
 
 export type PaletteKey = { key: string; shift?: boolean; ctrl?: boolean; meta?: boolean; alt?: boolean };
