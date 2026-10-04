@@ -57,7 +57,7 @@ export function WorktreeChip({
     return (
         <span
             className={cn(
-                "inline-flex min-w-0 shrink items-center gap-1 rounded border px-1.5 text-[11px] leading-[16px]",
+                "inline-flex max-w-[14rem] min-w-[4.5rem] shrink-0 items-center gap-1 rounded border px-1.5 text-[11px] leading-[16px] whitespace-nowrap",
                 marker.colorClass,
                 marker.kind === "worktree" && !marker.linked && "border-dashed",
                 onClick && "cursor-pointer",
@@ -67,9 +67,9 @@ export function WorktreeChip({
             data-tree={marker.kind}
             onClick={onClick}
         >
-            <i className={cn("fa fa-solid text-[9px]", `fa-${marker.icon}`)} />
-            <span className="truncate">{marker.label}</span>
-            {showBranch ? <span className="truncate opacity-80">· {marker.branch}</span> : null}
+            <i className={cn("fa fa-solid shrink-0 text-[9px]", `fa-${marker.icon}`)} />
+            <span className="min-w-0 shrink-0 truncate">{marker.label}</span>
+            {showBranch ? <span className="min-w-0 truncate opacity-80">· {marker.branch}</span> : null}
         </span>
     );
 }
@@ -81,7 +81,8 @@ export function WorktreeHeaderLabel({ blockId, hideBranch }: { blockId: string; 
     const meta = block?.meta;
     const folder = blockFolder(blockPaneMeta(meta));
     const link = readWorktreeLink(meta);
-    const local = meta?.view === "term" && (meta?.connection == null || meta.connection === "" || meta.connection === "local");
+    const local =
+        meta?.view === "term" && (meta?.connection == null || meta.connection === "" || meta.connection === "local");
     const probeDir = folder || (local && link.startsWith("/") ? link : "");
     const state = usePaneStatus(probeDir, folder ? blockId : null, link);
     const [busy, setBusy] = useState(false);
@@ -99,9 +100,13 @@ export function WorktreeHeaderLabel({ blockId, hideBranch }: { blockId: string; 
                 setBusy(false);
             }
         });
-    const offerName = offer.split("/").filter((s) => s).pop() ?? offer;
+    const offerName =
+        offer
+            .split("/")
+            .filter((s) => s)
+            .pop() ?? offer;
     return (
-        <div className="flex min-w-0 shrink items-center gap-1.5 pl-1 pr-1" data-role="molten-tree">
+        <div className="flex shrink-0 items-center gap-1.5 pl-1 pr-1" data-role="molten-tree">
             <WorktreeChip
                 marker={marker}
                 hideBranch={hideBranch}
@@ -113,22 +118,25 @@ export function WorktreeHeaderLabel({ blockId, hideBranch }: { blockId: string; 
                     title={`This terminal is in the worktree ${offer}.\nLinked, the header shows it and closing the terminal offers to remove it.`}
                     data-role="molten-worktree-offer"
                 >
-                    <span className="truncate">Link {offerName}?</span>
                     <button
                         type="button"
                         disabled={busy}
                         className={cn(ChipButton, "text-accent")}
+                        aria-label={`Link the worktree ${offerName} to this terminal`}
                         onClick={() => act(() => linkWorktree(blockId, offer))}
                     >
+                        <i className="fa fa-solid fa-link mr-1 text-[9px]" />
                         Link
                     </button>
                     <button
                         type="button"
                         disabled={busy}
                         className={ChipButton}
+                        title="Not now (not offered again for this worktree in this terminal)"
+                        aria-label="Not now"
                         onClick={() => act(() => dismissWorktree(blockId, readWorktreeDismissed(meta), offer))}
                     >
-                        Not now
+                        <i className="fa fa-solid fa-xmark text-[9px]" />
                     </button>
                 </span>
             ) : null}
@@ -295,13 +303,23 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
         }
         remove(false);
     };
-    const name = request.path.split("/").filter((s) => s).pop();
+    const name = request.path
+        .split("/")
+        .filter((s) => s)
+        .pop();
     return createPortal(
-        <div className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40" data-role="molten-worktree-close">
+        <div
+            className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40"
+            data-role="molten-worktree-close"
+        >
             <div className="flex w-[500px] max-w-[calc(100vw-32px)] flex-col rounded border border-border bg-modalbg shadow-xl">
                 <div className="border-b border-border px-4 py-3">
                     <div className="text-sm font-semibold">
-                        {step === "confirm" ? `Remove ${name} and lose its work?` : `Close the terminal of worktree ${name}?`}
+                        {step === "confirm"
+                            ? plan?.changecount > 0 || plan?.detached
+                                ? `Remove ${name} and lose its work?`
+                                : `Remove ${name} with commits no remote has?`
+                            : `Close the terminal of worktree ${name}?`}
                     </div>
                     <div className="mt-0.5 truncate text-xs text-muted" title={request.path}>
                         {request.path}
@@ -315,8 +333,19 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                             {plan.changecount > 0 ? (
                                 <div>{view.changesLine} will be deleted for good (git worktree remove --force).</div>
                             ) : null}
-                            {plan.unpushed > 0 ? <div>{view.unpushedLine}: make sure you do not need them.</div> : null}
-                            <div className="text-secondary">This cannot be undone.</div>
+                            {plan.unpushed > 0 && plan.detached ? <div>{view.unpushedLine}.</div> : null}
+                            {plan.unpushed > 0 && !plan.detached ? (
+                                <div>
+                                    {view.unpushedLine}: they stay on {plan.branch}
+                                    {deleteBranch && view.canDeleteBranch
+                                        ? ", deleted as asked (merged)"
+                                        : ", which is kept"}
+                                    .
+                                </div>
+                            ) : null}
+                            {plan.changecount > 0 || plan.detached ? (
+                                <div className="text-secondary">This cannot be undone.</div>
+                            ) : null}
                         </div>
                     ) : null}
                     {plan != null && step === "plan" && view.canDeleteBranch ? (

@@ -10,10 +10,10 @@ import {
     tabTreesTooltip,
     treeMarker,
     treeTooltipLine,
+    withWorktreeDismissed,
     worktreeColor,
     worktreeOffer,
     WorktreePlan,
-    withWorktreeDismissed,
 } from "./worktree-model";
 
 const mainState: PaneState = { dir: "/r/src", root: "/r", project: "/r", branch: "develop", sha: "abcdef1234" };
@@ -114,7 +114,9 @@ describe("worktreeOffer", () => {
 describe("tab tooltip", () => {
     it("lists the trees", () => {
         const lines = [treeTooltipLine(treeMarker(mainState, "")), treeTooltipLine(treeMarker(wtState, "")), ""];
-        expect(tabTreesTooltip(lines)).toBe("Trees:\n• main tree · develop\n• worktree feat-42 · feature/42-x (not linked)");
+        expect(tabTreesTooltip(lines)).toBe(
+            "Trees:\n• main tree · develop\n• worktree feat-42 · feature/42-x (not linked)"
+        );
         expect(tabTreesTooltip(["", ""])).toBe("");
     });
 });
