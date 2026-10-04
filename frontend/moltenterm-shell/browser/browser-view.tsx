@@ -4,26 +4,34 @@
 // The browser panel (FR-SHELL-007, DS-SHELL-007): pages in tabs, like a browser window. Each tab keeps its own live
 // <webview>, hidden when inactive, so its page and history survive switching. Wave's web view (one page per panel)
 // stays for the links Moltenterm opens elsewhere.
+//
+// The panel has no Wave block header (FR-SHELL-012, DS-SHELL-012): its tab strip carries the header's roles (moving
+// the panel, magnify, close, the header menu) and the page title lives in its tab only.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
-import { getApi, getSettingsKeyAtom } from "@/app/store/global";
+import { OptMagnifyButton } from "@/app/block/blockutil";
+import { IconButton } from "@/app/element/iconbutton";
+import { ContextMenuModel } from "@/app/store/contextmenu";
+import { getApi, getSettingsKeyAtom, refocusNode } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import { uxCloseBlock } from "@/app/store/keymodel";
 import * as WOS from "@/app/store/wos";
 import { makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import type { NodeModel } from "@/layout/index";
 import { checkKeyPressed } from "@/util/keyutil";
-import { cn, fireAndForget } from "@/util/util";
+import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import {
     activateTab,
     addTab,
-    browserHeaderTitle,
     browserMeta,
     BrowserState,
     BrowserTab,
+    browserTabTitle,
     closeTab,
     moveTab,
     readBrowserState,
@@ -45,12 +53,14 @@ export class BrowserViewModel implements ViewModel {
     viewType = MoltentermBrowserView;
     blockId: string;
     nodeModel: BlockNodeModel;
+    // A panel in the layout gets the layout's node, which also carries the drag handle and the ephemeral state the
+    // header used; the narrower interface leaves them out, so they are read as optional.
+    layoutNode: Partial<NodeModel>;
     viewIcon = atom("globe");
     viewName = atom("Browser");
     noPadding = atom(true);
+    noHeader = atom(true);
     stateAtom: PrimitiveAtom<BrowserState>;
-    viewText: Atom<HeaderElem[]>;
-    hideViewName: Atom<boolean>;
     webviews = new Map<string, WebviewTag>();
     urlInputRef: React.RefObject<HTMLInputElement> = { current: null };
     persistTimer: ReturnType<typeof setTimeout> = null;
@@ -58,22 +68,8 @@ export class BrowserViewModel implements ViewModel {
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
         this.nodeModel = nodeModel;
+        this.layoutNode = nodeModel as Partial<NodeModel>;
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
-        const headerTitle = atom((get) => {
-            const state = get(this.stateAtom);
-            return browserHeaderTitle(state.tabs.find((t) => t.id === state.activeId));
-        });
-        this.viewText = atom((get): HeaderElem[] => {
-            const title = get(headerTitle);
-            if (title === "") {
-                return [];
-            }
-            // Wave renders header text in the monospace font; the page title reads as interface text. onClick is
-            // required: Wave's text element calls it unguarded.
-            return [{ elemtype: "text", text: title, className: "mt-browser-title", onClick: () => {} }];
-        });
-        // With a title, "Browser" is redundant and the header squeezed it to "B…" next to the title.
-        this.hideViewName = atom((get) => get(headerTitle) !== "");
     }
 
     initialState(): BrowserState {
@@ -108,6 +104,31 @@ export class BrowserViewModel implements ViewModel {
                 })
             );
         }, PersistDelayMs);
+    }
+
+    toggleMagnify(): void {
+        this.nodeModel.toggleMagnify();
+        setTimeout(() => refocusNode(this.blockId), 50);
+    }
+
+    // The block header's menu, which the panel no longer shows.
+    showPanelMenu(e: React.MouseEvent): void {
+        e.preventDefault();
+        e.stopPropagation();
+        const magnified = globalStore.get(this.nodeModel.isMagnified);
+        ContextMenuModel.getInstance().showContextMenu(
+            [
+                {
+                    label: magnified ? "Un-Magnify Block" : "Magnify Block",
+                    click: () => this.nodeModel.toggleMagnify(),
+                },
+                { type: "separator" },
+                { label: "Copy BlockId", click: () => navigator.clipboard.writeText(this.blockId) },
+                { type: "separator" },
+                { label: "Close Block", click: () => uxCloseBlock(this.blockId) },
+            ],
+            e
+        );
     }
 
     activeWebview(): WebviewTag {
@@ -233,59 +254,101 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
 function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: BrowserState }) {
     const [dragId, setDragId] = useState<string>(null);
     return (
-        <div className="flex h-8 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-border px-1">
-            {state.tabs.map((tab, index) => (
-                <div
-                    key={tab.id}
-                    draggable
-                    onDragStart={() => setDragId(tab.id)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => {
-                        if (dragId != null) {
-                            model.setState(moveTab(model.state(), dragId, index));
-                        }
-                        setDragId(null);
-                    }}
-                    onClick={() => model.setState(activateTab(model.state(), tab.id))}
-                    onAuxClick={(e) => {
-                        if (e.button === 1) {
-                            e.preventDefault();
-                            model.closeTab(tab.id);
-                        }
-                    }}
-                    title={tab.url}
-                    className={cn(
-                        "molten-browser-tab group flex h-7 max-w-[200px] min-w-[90px] cursor-pointer items-center gap-1 rounded-t border border-b-0 px-2 text-xs",
-                        tab.id === state.activeId
-                            ? "border-border bg-hover text-primary"
-                            : "border-transparent text-secondary hover:bg-hover/50"
-                    )}
-                >
-                    <span className="min-w-0 flex-1 truncate">{tab.title || tab.url}</span>
-                    {state.tabs.length > 1 ? (
-                        <button
-                            type="button"
-                            aria-label="Close tab"
-                            onClick={(e) => {
-                                e.stopPropagation();
+        <div className="flex h-8 shrink-0 items-end border-b border-border pl-1">
+            <div className="flex min-w-0 shrink items-end gap-0.5 overflow-x-auto">
+                {state.tabs.map((tab, index) => (
+                    <div
+                        key={tab.id}
+                        draggable
+                        onDragStart={() => setDragId(tab.id)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => {
+                            if (dragId != null) {
+                                model.setState(moveTab(model.state(), dragId, index));
+                            }
+                            setDragId(null);
+                        }}
+                        onClick={() => model.setState(activateTab(model.state(), tab.id))}
+                        onAuxClick={(e) => {
+                            if (e.button === 1) {
+                                e.preventDefault();
                                 model.closeTab(tab.id);
-                            }}
-                            className="cursor-pointer rounded px-0.5 text-secondary opacity-60 hover:bg-hover hover:opacity-100"
-                        >
-                            <i className="fa fa-solid fa-xmark text-[10px]" />
-                        </button>
-                    ) : null}
-                </div>
-            ))}
-            <button
-                type="button"
-                aria-label="New tab"
-                title="New tab (Cmd+T)"
-                onClick={() => model.newTab()}
-                className="mb-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary"
-            >
-                <i className="fa fa-solid fa-plus text-xs" />
-            </button>
+                            }
+                        }}
+                        title={tab.url}
+                        className={cn(
+                            "molten-browser-tab group flex h-7 max-w-[200px] min-w-[90px] cursor-pointer items-center gap-1 rounded-t border border-b-0 px-2 text-xs",
+                            tab.id === state.activeId
+                                ? "border-border bg-hover text-primary"
+                                : "border-transparent text-secondary hover:bg-hover/50"
+                        )}
+                    >
+                        <span className="min-w-0 flex-1 truncate">{browserTabTitle(tab) || "New tab"}</span>
+                        {state.tabs.length > 1 ? (
+                            <button
+                                type="button"
+                                aria-label="Close tab"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    model.closeTab(tab.id);
+                                }}
+                                className="cursor-pointer rounded px-0.5 text-secondary opacity-60 hover:bg-hover hover:opacity-100"
+                            >
+                                <i className="fa fa-solid fa-xmark text-[10px]" />
+                            </button>
+                        ) : null}
+                    </div>
+                ))}
+                <button
+                    type="button"
+                    aria-label="New tab"
+                    title="New tab (Cmd+T)"
+                    onClick={() => model.newTab()}
+                    className="mb-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary"
+                >
+                    <i className="fa fa-solid fa-plus text-xs" />
+                </button>
+            </div>
+            <div
+                ref={model.layoutNode.dragHandleRef}
+                onContextMenu={(e) => model.showPanelMenu(e)}
+                onDoubleClick={() => model.toggleMagnify()}
+                className="molten-browser-drag h-full min-w-6 flex-1"
+            />
+            <BrowserPanelButtons model={model} />
+        </div>
+    );
+}
+
+function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
+    const node = model.layoutNode;
+    const magnified = useAtomValue(model.nodeModel.isMagnified);
+    const ephemeral = useAtomValueSafe(node.isEphemeral);
+    const numLeafs = useAtomValueSafe(node.numLeafs) ?? 1;
+    const addToLayout: IconButtonDecl = {
+        elemtype: "iconbutton",
+        icon: "circle-plus",
+        title: "Add to Layout",
+        click: () => node.addEphemeralNodeToLayout?.(),
+    };
+    const close: IconButtonDecl = {
+        elemtype: "iconbutton",
+        icon: "xmark-large",
+        title: "Close",
+        click: () => uxCloseBlock(model.blockId),
+    };
+    return (
+        <div className="molten-browser-panel-buttons flex h-full shrink-0 items-center gap-1.5 px-2 text-secondary">
+            {ephemeral ? (
+                <IconButton decl={addToLayout} />
+            ) : (
+                <OptMagnifyButton
+                    magnified={magnified}
+                    toggleMagnify={() => model.toggleMagnify()}
+                    disabled={numLeafs <= 1}
+                />
+            )}
+            <IconButton decl={close} />
         </div>
     );
 }

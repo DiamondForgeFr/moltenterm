@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest";
 import {
     activateTab,
     addTab,
-    browserHeaderTitle,
     browserMeta,
     BrowserState,
+    browserTabTitle,
     closeTab,
     moveTab,
     readBrowserState,
@@ -93,17 +93,17 @@ describe("toBrowserUrl", () => {
     });
 });
 
-describe("browserHeaderTitle", () => {
+describe("browserTabTitle", () => {
     it("shows the page title", () => {
-        expect(browserHeaderTitle({ id: "a", url: "https://github.com/x", title: " GitHub - x " })).toBe("GitHub - x");
+        expect(browserTabTitle({ id: "a", url: "https://github.com/x", title: " GitHub - x " })).toBe("GitHub - x");
     });
 
     it("falls back to the host while the title is unknown", () => {
-        expect(browserHeaderTitle({ id: "a", url: "https://github.com/x" })).toBe("github.com");
+        expect(browserTabTitle({ id: "a", url: "https://github.com/x" })).toBe("github.com");
     });
 
     it("is empty for a page without a host", () => {
-        expect(browserHeaderTitle({ id: "a", url: "about:blank" })).toBe("");
-        expect(browserHeaderTitle(null)).toBe("");
+        expect(browserTabTitle({ id: "a", url: "about:blank" })).toBe("");
+        expect(browserTabTitle(null)).toBe("");
     });
 });
