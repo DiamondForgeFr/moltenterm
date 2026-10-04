@@ -229,8 +229,17 @@ func TestAgentInstallsEveryGuide(t *testing.T) {
 		t.Fatal(err)
 	}
 	status := claude.Status(env)
-	if len(status.Guides) != 2 || !status.Guides[0].Installed || !status.Guides[1].Installed || status.Guides[1].Name != PipelineGuideName {
-		t.Fatalf("both guides installed: %+v", status.Guides)
+	if len(status.Guides) != 3 || status.Guides[1].Name != PipelineGuideName || status.Guides[2].Name != BugGuideName {
+		t.Fatalf("every guide installed: %+v", status.Guides)
+	}
+	for _, g := range status.Guides {
+		if !g.Installed {
+			t.Fatalf("%s not installed", g.Name)
+		}
+	}
+	bug, _ := FindGuide(BugGuideName)
+	if s := claude.GuideStatus(env, bug); !strings.Contains(s.Invocation, "/molten-bug") {
+		t.Fatalf("bug guide invocation: %+v", s)
 	}
 	// A molten-feature file must not be mistaken for the pipeline guide.
 	pipeline, _ := FindGuide(PipelineGuideName)
