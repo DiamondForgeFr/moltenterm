@@ -117,6 +117,17 @@ func TestJoinShownLocalWithAgent(t *testing.T) {
 	}
 }
 
+// After a restart the shell integration has not spoken yet: the shell is named, not "at prompt".
+func TestJoinShownBeforeShellIntegration(t *testing.T) {
+	w := makeWorld()
+	w.workspace("ws1", "Work", "", "tab1")
+	job := localJob("restored", 1)
+	w.pane(job, "b1", "tab1", nil)
+	if s := find(t, Join(w.s), "restored"); s.Command != "zsh" {
+		t.Fatalf("command before the shell integration: %q", s.Command)
+	}
+}
+
 func TestJoinShownRemote(t *testing.T) {
 	w := makeWorld()
 	w.workspace("ws1", "Work", "#f00", "tab1")
