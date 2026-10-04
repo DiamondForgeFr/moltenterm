@@ -242,6 +242,15 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         run: { kind: "gettingstarted" },
     });
     rtn.push({
+        id: "action:sessions",
+        group: "actions",
+        label: "Sessions",
+        detail: "terminals and agents still running, local and SSH",
+        icon: "layer-group",
+        keywords: ["sessions", "durable", "running", "agents", "ssh", "detached", "jobs", "processes"],
+        run: { kind: "sessions" },
+    });
+    rtn.push({
         id: "action:settings",
         group: "actions",
         label: "Settings",

@@ -118,10 +118,11 @@ describe("workspace actions", () => {
             "New workspace",
             "Switch to Notulia",
             "Getting started",
+            "Sessions",
             "Settings",
         ]);
         expect(actions[2].run).toEqual({ kind: "switchworkspace", workspaceId: "w2" });
-        expect(actions[4].cli).toBe("wsh editconfig");
+        expect(actions[5].cli).toBe("wsh editconfig");
     });
 
     it("always offers Getting started, found by its onboarding words", () => {
@@ -137,9 +138,21 @@ describe("workspace actions", () => {
             "New tab",
             "New workspace",
             "Getting started",
+            "Sessions",
             "Settings",
         ]);
         expect(actions[0].run).toEqual({ kind: "projecttab" });
+    });
+});
+
+describe("sessions", () => {
+    it("opens the Sessions view, found by the words people use for running work", () => {
+        const entry = actionEntries([]).find((a) => a.id === "action:sessions");
+        expect(entry.run).toEqual({ kind: "sessions" });
+        expect(entry.detail).toBe("terminals and agents still running, local and SSH");
+        for (const word of ["durable", "running", "agents", "ssh", "detached", "jobs", "processes"]) {
+            expect(entry.keywords).toContain(word);
+        }
     });
 });
 
