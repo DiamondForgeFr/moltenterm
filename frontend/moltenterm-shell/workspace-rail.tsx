@@ -20,6 +20,7 @@ import { MoltentermNotifications } from "./notifications-store";
 import { ProjectLinkDetector } from "./project-link-modal";
 import { openProjectTab, ProjectTabKeeper } from "./project/project-tab";
 import { RailTools } from "./rail-tools";
+import { PaneFocusKeeper } from "./sessions/pane-focus";
 import { WorkspaceIcon } from "./workspace-icon";
 import { readWorkspaceProject } from "./workspace-project";
 import { WorkspaceProjectSection } from "./workspace-project-section";
@@ -265,6 +266,7 @@ export function WorkspaceRail() {
             <RailTooltip label={tooltip?.label} anchor={tooltip?.anchor} />
             <ProjectLinkDetector />
             <ProjectTabKeeper />
+            <PaneFocusKeeper />
             <WorktreeCloseHost />
             {editing ? (
                 <WorkspaceEditPanel entry={editing.entry} anchor={editing.anchor} onClose={closeEditor} />

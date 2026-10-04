@@ -12,7 +12,7 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { DialogFrame, useEscape } from "./dialog-frame";
 import { MoltenWave } from "./molten-button";
 import { registerNotificationGesture } from "./notifications-store";
 import {
@@ -222,59 +222,6 @@ function ConfirmFacts({
             {view.shared ? <div>{view.terminalsLine}: its folder disappears from under them.</div> : null}
             {lostForGood(plan) ? <div className="text-secondary">This cannot be undone.</div> : null}
         </div>
-    );
-}
-
-function useEscape(enabled: boolean, onEscape: () => void) {
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape" && enabled) {
-                e.stopPropagation();
-                e.preventDefault();
-                onEscape();
-            }
-        };
-        document.addEventListener("keydown", onKey, true);
-        return () => document.removeEventListener("keydown", onKey, true);
-    });
-}
-
-function DialogFrame({
-    role,
-    title,
-    subtitle,
-    wide,
-    children,
-    buttons,
-}: {
-    role: string;
-    title: string;
-    subtitle?: string;
-    wide?: boolean;
-    children: React.ReactNode;
-    buttons: React.ReactNode;
-}) {
-    return createPortal(
-        <div className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40" data-role={role}>
-            <div
-                className={cn(
-                    "flex max-h-[calc(100vh-64px)] max-w-[calc(100vw-32px)] flex-col rounded border border-border bg-modalbg shadow-xl",
-                    wide ? "w-[600px]" : "w-[500px]"
-                )}
-            >
-                <div className="border-b border-border px-4 py-3">
-                    <div className="text-sm font-semibold">{title}</div>
-                    {subtitle ? (
-                        <div className="mt-0.5 truncate text-xs text-muted" title={subtitle}>
-                            {subtitle}
-                        </div>
-                    ) : null}
-                </div>
-                <div className="flex min-h-0 flex-col gap-3 overflow-auto px-4 py-3 text-xs">{children}</div>
-                <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">{buttons}</div>
-            </div>
-        </div>,
-        document.body
     );
 }
 

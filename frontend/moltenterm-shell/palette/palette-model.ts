@@ -22,6 +22,8 @@ export type PaletteRun =
     | { kind: "projecttab" }
     // MoltenTerm's first run (FR-ONB-001): the workspace's panel, or a new one docked on the left.
     | { kind: "gettingstarted" }
+    // The Sessions view (FR-SHELL-020).
+    | { kind: "sessions" }
     // Back to the pane the palette was opened from, to type an agent's own command there.
     | { kind: "focusorigin" };
 

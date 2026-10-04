@@ -17,7 +17,9 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { Atom } from "jotai";
 import { openFirstRun } from "../../moltenterm-onboarding/onboarding-open";
+import { openMoltentermView } from "../open-view";
 import { openProjectTab } from "../project/project-tab";
+import { MoltentermSessionsView } from "../sessions/sessions-model";
 import { PaletteRun } from "./palette-model";
 
 export type PalettePlacement = "replace" | "new" | "right";
@@ -121,6 +123,8 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             return;
         case "gettingstarted":
             await openFirstRun();
+        case "sessions":
+            await openMoltentermView(MoltentermSessionsView);
             return;
         case "focusorigin":
             focusBlock(target.blockId);

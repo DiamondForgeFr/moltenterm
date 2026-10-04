@@ -20,7 +20,10 @@ import {
 import { useAtomValue } from "jotai";
 import { useState } from "react";
 import { MoltentermAddPanelWidget } from "./add-panel";
+import { openMoltentermView } from "./open-view";
 import { railCustomWidgets, railWidgetTooltip, splitRailWidgets } from "./rail-tools-model";
+import { MoltentermSessionsView, RailBadge } from "./sessions/sessions-model";
+import { DurableSessions } from "./sessions/sessions-store";
 
 export type RailHover = (label: string, anchor: { top: number; left: number }) => void;
 
@@ -131,6 +134,38 @@ function OverflowFlyout({
     );
 }
 
+const BadgeToneClasses: Record<RailBadge["tone"], string> = {
+    waiting: "bg-warning text-black",
+    error: "bg-error text-white",
+    accent: "bg-accent text-black",
+};
+
+// The Sessions view (FR-SHELL-020), with the number of agents running in durable sessions, coloured by the most urgent
+// state. The store starts here, so the badge is live in every window.
+function SessionsToolButton({ onHover }: { onHover: RailHover }) {
+    const badge = useAtomValue(DurableSessions.getInstance().badgeAtom);
+    return (
+        <ToolButton
+            label={badge.label}
+            onHover={onHover}
+            onClick={() => fireAndForget(() => openMoltentermView(MoltentermSessionsView))}
+        >
+            <i className={makeIconClass("layer-group", true)} />
+            {badge.count > 0 ? (
+                <span
+                    className={cn(
+                        "absolute top-0.5 right-0.5 min-w-[14px] rounded-full px-[3px] text-center text-[9px] leading-[14px] font-semibold ring-2 ring-[var(--color-background)]",
+                        BadgeToneClasses[badge.tone]
+                    )}
+                    aria-hidden="true"
+                >
+                    {badge.count > 99 ? "99+" : badge.count}
+                </span>
+            ) : null}
+        </ToolButton>
+    );
+}
+
 type Flyout = "apps" | "settings" | "more";
 
 export function RailTools({ onHover }: { onHover: RailHover }) {
@@ -175,6 +210,7 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
             onContextMenu={onContextMenu}
             className="molten-rail-tools mt-auto flex w-full shrink-0 flex-col items-center gap-0.5 border-t border-border pt-2"
         >
+            <SessionsToolButton onHover={onHover} />
             {shown.map((widget, idx) => (
                 <ToolButton
                     key={idx}
