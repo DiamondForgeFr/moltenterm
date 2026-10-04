@@ -5,6 +5,7 @@ package onboarding
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -207,6 +208,10 @@ func TestApplyUpdateData(t *testing.T) {
 	}
 	if state.Data[StepAgent]["keep"] != true {
 		t.Error("the input state was modified")
+	}
+	big := map[string]any{"blob": strings.Repeat("x", MaxStepDataBytes)}
+	if _, err := ApplyUpdate(state, true, true, Update{Kind: UpdateData, Step: StepAgent, Data: big}, testNow, testVersion); err == nil {
+		t.Error("oversized step data accepted")
 	}
 	if _, err := ApplyUpdate(state, true, true, Update{Kind: UpdateData, Step: "other"}, testNow, testVersion); err == nil {
 		t.Error("data for an unknown step accepted")

@@ -21,9 +21,9 @@ export type FirstRunStepContext = {
     data: Record<string, any>;
     // merged into state.data[id] by wavesrv; a null value removes its key
     setData: (patch: Record<string, any>) => Promise<void>;
-    // status done, then the panel moves to the next step
+    // status done, then the panel moves to the next step; ignored while the panel is busy, a failure shows on the panel
     complete: () => Promise<void>;
-    // status skipped, then the panel moves to the next step
+    // status skipped, then the panel moves to the next step; same rules as complete
     skip: () => Promise<void>;
     // splits the panel "after": the new pane lands on its right; returns the new block id
     openBeside: (blockdef: BlockDef) => Promise<string>;

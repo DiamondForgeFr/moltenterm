@@ -8,8 +8,10 @@
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { ErrorBoundary } from "@/app/element/errorboundary";
 import { ClientModel } from "@/app/store/client-model";
+import { replaceBlock } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
+import { getActiveTabModel } from "@/app/store/tab-model";
 import * as WOS from "@/app/store/wos";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useMemo } from "react";
@@ -19,6 +21,7 @@ import {
     FirstRunPage,
     FirstRunStepId,
     MoltentermOnboardingView,
+    OnboardingMetaKey,
     OnboardingPageMetaKey,
     OnboardingState,
     pageAfter,
@@ -88,9 +91,17 @@ export class OnboardingViewModel implements ViewModel {
     }
 
     // Skip setup, Leave setup and Close all end the run, then take the panel away; Getting started brings it back.
+    // Closing the last pane of a tab closes the tab, and the window with its last tab: a panel left alone in its tab
+    // gives way to a terminal instead.
     private endAndClose(kind: "leave" | "finish"): Promise<void> {
         return this.run(async () => {
             await this.update({ kind });
+            const tabAtom = getActiveTabModel()?.tabAtom;
+            const blockCount = tabAtom == null ? 0 : (globalStore.get(tabAtom)?.blockids?.length ?? 0);
+            if (blockCount === 1) {
+                await replaceBlock(this.blockId, { meta: { view: "term", controller: "shell" } }, true);
+                return;
+            }
             uxCloseBlock(this.blockId);
         });
     }
@@ -117,8 +128,8 @@ export class OnboardingViewModel implements ViewModel {
             setData: async (patch) => {
                 await this.update({ kind: "data", step: step.id, data: patch });
             },
-            complete: () => this.moveOn(step.id, "done"),
-            skip: () => this.moveOn(step.id, "skipped"),
+            complete: () => this.run(() => this.moveOn(step.id, "done")),
+            skip: () => this.run(() => this.moveOn(step.id, "skipped")),
             openBeside: (blockdef) => openBesidePanel(this.blockId, blockdef),
         };
     }
@@ -173,7 +184,13 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
     const block = useAtomValue(model.blockAtom);
     const busy = useAtomValue(model.busyAtom);
     const error = useAtomValue(model.errorAtom);
-    const state = useMemo(() => readOnboardingState(client?.meta), [client?.meta]);
+    // The client changes with every notification: the state, and the step context built on it, change only with the
+    // record, so a step's effects do not run again for unrelated updates.
+    const recordKey = JSON.stringify(client?.meta?.[OnboardingMetaKey] ?? null);
+    const state = useMemo(
+        () => readOnboardingState({ [OnboardingMetaKey]: JSON.parse(recordKey) } as MetaType),
+        [recordKey]
+    );
     const page = panelPage(state, block?.meta?.[OnboardingPageMetaKey]);
     const stepId = pageStep(page);
     const step = stepId == null ? null : findFirstRunStep(stepId);

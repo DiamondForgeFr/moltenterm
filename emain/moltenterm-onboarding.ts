@@ -16,7 +16,11 @@ export function makeMoltentermGettingStartedMenuItem(
         id: MoltentermGettingStartedMenuId,
         label: "Getting Started",
         click: (_, window) => {
-            targetOf(window)?.send(MoltentermGettingStartedChannel);
+            const target = targetOf(window);
+            if (target == null || target.isDestroyed()) {
+                return;
+            }
+            target.send(MoltentermGettingStartedChannel);
         },
     };
 }

@@ -7,6 +7,7 @@
 package onboarding
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"slices"
@@ -68,6 +69,9 @@ const SkipVarName = "MOLTENTERM_SKIP_ONBOARDING"
 
 // StepIds are the first run's steps, in order (#162, #163, #165).
 var StepIds = []string{StepAgent, StepMorph, StepProject}
+
+// A step's data lives in the client meta, which every window receives on each change: it stays small.
+const MaxStepDataBytes = 16 * 1024
 
 type State struct {
 	V           int                       `json:"v"`
@@ -276,6 +280,9 @@ func ApplyUpdate(state State, hasState bool, tosAgreed bool, update Update, nowM
 				continue
 			}
 			stepData[k] = v
+		}
+		if encoded, err := json.Marshal(stepData); err != nil || len(encoded) > MaxStepDataBytes {
+			return Outcome{}, fmt.Errorf("the data of step %q is over %d bytes or not JSON", update.Step, MaxStepDataBytes)
 		}
 		state.Data[update.Step] = stepData
 		return Outcome{Write: true, State: state}, nil

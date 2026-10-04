@@ -22,12 +22,13 @@ import (
 const firstRunStartTimeout = 5 * time.Second
 
 // FirstRunLayout docks the first-run panel on the left of a shell terminal, about 40% of the width: the panes its steps
-// open land on its right.
+// open land on its right. Only the terminal carries a size: the window's tree moves the first pane into a new node of
+// the default size (10) when the second one is inserted (addIntermediateNode in frontend/layout/lib/layoutNode.ts), so
+// a size given to the panel would be lost.
 func FirstRunLayout() PortableLayout {
-	panelSize := uint(7)
-	termSize := uint(10)
+	termSize := uint(14)
 	return PortableLayout{
-		{IndexArr: []int{0}, Size: &panelSize, BlockDef: &waveobj.BlockDef{
+		{IndexArr: []int{0}, BlockDef: &waveobj.BlockDef{
 			Meta: waveobj.MetaMapType{waveobj.MetaKey_View: onboarding.ViewType},
 		}, Focused: true},
 		{IndexArr: []int{1}, Size: &termSize, BlockDef: &waveobj.BlockDef{
