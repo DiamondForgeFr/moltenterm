@@ -68,11 +68,15 @@ export async function removeWorktree(
         },
         { route: MissionRouteId, timeout: PlanTimeoutMs }
     );
-    resolveKeptWorktreeNotice(dir);
+    resolveKeptWorktreeNotice(dir, result?.real);
     return result;
 }
 
 // The worktree is gone: a notification saying it is still on disk is answered.
-export function resolveKeptWorktreeNotice(dir: string): void {
+// wavesrv keys its notices by the canonical path (real); a window may know the worktree by another one.
+export function resolveKeptWorktreeNotice(dir: string, real?: string): void {
     resolveMoltentermNotification(keptWorktreeNoticeKey(dir));
+    if (real && real !== dir) {
+        resolveMoltentermNotification(keptWorktreeNoticeKey(real));
+    }
 }

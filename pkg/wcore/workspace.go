@@ -135,6 +135,7 @@ func DeleteWorkspace(ctx context.Context, workspaceId string, force bool) (bool,
 		return false, "", nil
 	}
 
+	noticeKeptWorktrees := moltenKeptWorktreesNotice(ctx, workspace) // MOLTENTERM-PATCH (#134)
 	for _, tabId := range workspace.TabIds {
 		log.Printf("deleting tab %s\n", tabId)
 		_, err := DeleteTab(ctx, workspaceId, tabId, false)
@@ -148,6 +149,7 @@ func DeleteWorkspace(ctx context.Context, workspaceId string, force bool) (bool,
 		return false, "", fmt.Errorf("error deleting workspace: %w", err)
 	}
 	log.Printf("deleted workspace %s\n", workspaceId)
+	noticeKeptWorktrees() // MOLTENTERM-PATCH (#134): its terminals' worktrees are still on disk
 	wps.Broker.Publish(wps.WaveEvent{
 		Event: wps.Event_WorkspaceUpdate,
 	})

@@ -53,7 +53,9 @@ type WorktreeTerminal struct {
 }
 
 type WorktreePlan struct {
-	Path     string `json:"path"`
+	Path string `json:"path"`
+	// Real: the path with symlinks resolved. One worktree has one, whatever path its terminals were linked by.
+	Real     string `json:"real,omitempty"`
 	Missing  bool   `json:"missing,omitempty"`
 	Main     string `json:"main,omitempty"`
 	Branch   string `json:"branch,omitempty"`
@@ -100,7 +102,8 @@ type WorktreeRemoveRequest struct {
 }
 
 type WorktreeRemoveResult struct {
-	Removed bool `json:"removed"`
+	Removed bool   `json:"removed"`
+	Real    string `json:"real,omitempty"`
 	// Gone: someone removed it first (another terminal's close, git outside MoltenTerm).
 	Gone          bool   `json:"gone,omitempty"`
 	Forced        bool   `json:"forced,omitempty"`
@@ -328,7 +331,7 @@ func closingBlocks(blockId string, blockIds []string) []string {
 }
 
 func (w *Worktrees) plan(ctx context.Context, path string, closing []string) (WorktreePlan, error) {
-	plan := WorktreePlan{Path: path, Changes: []string{}, Ignored: []string{}, Terminals: []WorktreeTerminal{}}
+	plan := WorktreePlan{Path: path, Real: realPath(path), Changes: []string{}, Ignored: []string{}, Terminals: []WorktreeTerminal{}}
 	if molten.WorktreeMissing(path) {
 		plan.Missing = true
 		return plan, nil
@@ -456,7 +459,7 @@ func (w *Worktrees) Remove(req WorktreeRemoveRequest) (WorktreeRemoveResult, err
 		return WorktreeRemoveResult{}, err
 	}
 	if plan.Missing {
-		return WorktreeRemoveResult{Gone: true}, nil
+		return WorktreeRemoveResult{Gone: true, Real: plan.Real}, nil
 	}
 	if plan.Locked {
 		return WorktreeRemoveResult{}, fmt.Errorf("the worktree is locked (git worktree unlock %s)", path)
@@ -482,7 +485,7 @@ func (w *Worktrees) Remove(req WorktreeRemoveRequest) (WorktreeRemoveResult, err
 	if _, err := w.run(ctx, plan.Main, "git", args...); err != nil {
 		return WorktreeRemoveResult{}, err
 	}
-	result := WorktreeRemoveResult{Removed: true, Forced: forced}
+	result := WorktreeRemoveResult{Removed: true, Forced: forced, Real: plan.Real}
 	if !req.DeleteBranch {
 		return result, nil
 	}

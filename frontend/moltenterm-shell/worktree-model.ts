@@ -195,6 +195,8 @@ export function tabTreesTooltip(lines: string[]): string {
 export type WorktreeTerminal = { blockid: string; tab?: string; workspace?: string; linked?: boolean };
 export type WorktreePlan = {
     path: string;
+    // The path with symlinks resolved: one worktree has one, whatever path its terminals were linked by.
+    real?: string;
     missing?: boolean;
     main?: string;
     branch?: string;
@@ -218,6 +220,7 @@ export type WorktreePlan = {
 export type WorktreeRisk = { sha: string; changecount: number; unpushed: number; ignoredfilecount: number };
 export type WorktreeRemoveResult = {
     removed: boolean;
+    real?: string;
     gone?: boolean;
     forced?: boolean;
     branchdeleted?: string;
@@ -393,6 +396,22 @@ export type TabCloseRow = {
     deleteBranch: boolean;
     removed?: boolean;
 };
+
+// One worktree is one row: once the plans say which canonical folder each link names, rows naming the same one merge
+// (a symlink to it, a trailing slash), with all their terminals.
+export function mergeTabCloseRows(rows: TabCloseRow[]): TabCloseRow[] {
+    const rtn: TabCloseRow[] = [];
+    const keyOf = (r: TabCloseRow) => r.plan?.real || r.path;
+    for (const row of rows) {
+        const existing = rtn.find((r) => keyOf(r) === keyOf(row));
+        if (existing == null) {
+            rtn.push({ ...row, blockIds: [...row.blockIds] });
+            continue;
+        }
+        existing.blockIds.push(...row.blockIds.filter((id) => !existing.blockIds.includes(id)));
+    }
+    return rtn;
+}
 
 export function makeTabCloseRows(worktrees: TabWorktree[]): TabCloseRow[] {
     return worktrees.map((w) => ({ path: w.path, blockIds: w.blockIds, choice: "keep", deleteBranch: false }));

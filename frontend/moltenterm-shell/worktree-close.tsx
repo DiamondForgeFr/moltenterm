@@ -19,6 +19,7 @@ import {
     closePlanView,
     closingWorktreeLink,
     makeTabCloseRows,
+    mergeTabCloseRows,
     readReviewPath,
     tabCloseRemovals,
     TabCloseRow,
@@ -320,7 +321,7 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                 }
                 // Removed outside MoltenTerm: nothing to decide.
                 if (next.missing) {
-                    resolveKeptWorktreeNotice(request.path);
+                    resolveKeptWorktreeNotice(request.path, next.real);
                     if (!standalone) {
                         finish(true);
                         return;
@@ -560,7 +561,7 @@ function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; onDone:
             plans.forEach((p, i) => {
                 // Removed outside MoltenTerm: nothing to decide for it.
                 if (p.plan?.missing) {
-                    resolveKeptWorktreeNotice(request.rows[i].path);
+                    resolveKeptWorktreeNotice(request.rows[i].path, p.plan.real);
                     return;
                 }
                 next.push({ ...request.rows[i], plan: p.plan, error: p.error });
@@ -569,7 +570,7 @@ function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; onDone:
                 answer("nothing");
                 return;
             }
-            setRows(next);
+            setRows(mergeTabCloseRows(next));
         });
         return () => {
             cancelled = true;

@@ -55,8 +55,8 @@ other open terminals using the worktree. Then: **Remove**, **Keep** or **Cancel*
 
 Every way of closing the terminal asks the same: the close button, its menu, Cmd+W, Ctrl+Shift+X. Closing a whole tab
 asks once for all its worktrees, one row each, Keep selected. A terminal that goes without a window asking (its shell
-exits with `cmd:closeonexit`, `wsh deleteblock`) keeps its worktree, and the notification center says so, with a
-"Review and remove…" action.
+exits with `cmd:closeonexit`, `wsh deleteblock`, its window or workspace closes) keeps its worktree, and the
+notification center says so once per worktree, with a "Review and remove…" action. Quitting MoltenTerm says nothing.
 
 A worktree removed outside MoltenTerm (`git worktree remove`, the folder deleted) shows as **missing worktree** in the
 header; closing the terminal then asks nothing.

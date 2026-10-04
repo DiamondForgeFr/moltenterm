@@ -8,6 +8,7 @@ import {
     closingWorktreeLink,
     keptWorktreeNoticeKey,
     makeTabCloseRows,
+    mergeTabCloseRows,
     readReviewPath,
     readWorktreeDismissed,
     readWorktreeLink,
@@ -275,5 +276,36 @@ describe("a worktree kept when its terminal went alone (#134)", () => {
         expect(closingWorktreeLink({ view: "term", connection: "me@host", "molten:worktree": "/w/a" })).toBe("");
         expect(closingWorktreeLink({ view: "preview", "molten:worktree": "/w/a" })).toBe("");
         expect(closingWorktreeLink(null)).toBe("");
+    });
+});
+
+describe("one worktree is one row (#134)", () => {
+    it("merges rows whose plans name the same canonical folder", () => {
+        const rows = makeTabCloseRows([
+            { path: "/tmp/w/a", blockIds: ["b1"] },
+            { path: "/private/tmp/w/a", blockIds: ["b2"] },
+            { path: "/tmp/w/a/", blockIds: ["b3", "b1"] },
+            { path: "/tmp/w/b", blockIds: ["b4"] },
+        ]);
+        rows[0].plan = plan({ path: "/tmp/w/a", real: "/private/tmp/w/a" });
+        rows[1].plan = plan({ path: "/private/tmp/w/a", real: "/private/tmp/w/a" });
+        rows[2].plan = plan({ path: "/tmp/w/a/", real: "/private/tmp/w/a" });
+        rows[3].plan = plan({ path: "/tmp/w/b", real: "/private/tmp/w/b" });
+        const merged = mergeTabCloseRows(rows);
+        expect(merged.map((r) => [r.path, r.blockIds])).toEqual([
+            ["/tmp/w/a", ["b1", "b2", "b3"]],
+            ["/tmp/w/b", ["b4"]],
+        ]);
+        expect(rows[0].blockIds).toEqual(["b1"]);
+    });
+
+    it("keeps apart rows whose plan failed, by their link", () => {
+        const rows = makeTabCloseRows([
+            { path: "/w/a", blockIds: ["b1"] },
+            { path: "/w/c", blockIds: ["b2"] },
+        ]);
+        rows[0].error = "not a linked worktree";
+        rows[1].error = "not a linked worktree";
+        expect(mergeTabCloseRows(rows)).toHaveLength(2);
     });
 });
