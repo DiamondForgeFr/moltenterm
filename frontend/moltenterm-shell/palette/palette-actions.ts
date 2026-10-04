@@ -123,6 +123,7 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             return;
         case "gettingstarted":
             await openFirstRun();
+            return;
         case "sessions":
             await openMoltentermView(MoltentermSessionsView);
             return;
