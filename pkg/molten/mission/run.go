@@ -78,19 +78,22 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 
 // ExecRunner runs programs with the login shell's PATH; the error carries the program's last error line.
 func ExecRunner(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	program := lookPathIn(name, readLoginPath())
+	if program == "" {
+		path, err := exec.LookPath(name)
+		if err != nil {
+			return nil, &MissingProgramError{Name: name}
+		}
+		program = path
+	}
+	// The program is resolved before the command is built: exec.Command looks the bare name up in the process's own
+	// PATH and keeps that failure in cmd.Err, which setting cmd.Path afterwards does not clear.
+	cmd := exec.CommandContext(ctx, program, args...)
 	cmd.Dir = dir
 	cmd.Env = commandEnv()
 	var stdout, stderr limitedBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if found := lookPathIn(name, readLoginPath()); found != "" {
-		cmd.Path = found
-	} else if path, err := exec.LookPath(name); err == nil {
-		cmd.Path = path
-	} else {
-		return nil, &MissingProgramError{Name: name}
-	}
 	err := cmd.Run()
 	if err != nil {
 		msg := strings.TrimSpace(stderr.String())
