@@ -29,6 +29,7 @@ import {
     activateTab,
     addTab,
     browserMeta,
+    BrowserOpenMetaKey,
     BrowserState,
     BrowserTab,
     browserTabTitle,
@@ -36,9 +37,11 @@ import {
     MoltentermBrowserView,
     moveTab,
     readBrowserState,
+    readOpenRequests,
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
+import { noteBrowserPanelFocus } from "./browser-routing";
 
 export { MoltentermBrowserView };
 
@@ -65,11 +68,14 @@ export class BrowserViewModel implements ViewModel {
     webviews = new Map<string, WebviewTag>();
     urlInputRef: React.RefObject<HTMLInputElement> = { current: null };
     persistTimer: ReturnType<typeof setTimeout> = null;
+    blockAtom: Atom<Block>;
+    handledOpenIds = new Set<string>();
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
         this.nodeModel = nodeModel;
         this.layoutNode = nodeModel as Partial<NodeModel>;
+        this.blockAtom = makeBlockAtom(blockId);
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
     }
 
@@ -139,6 +145,41 @@ export class BrowserViewModel implements ViewModel {
     newTab(url?: string): void {
         const defaultUrl = globalStore.get(getSettingsKeyAtom("web:defaulturl")) || FallbackUrl;
         this.setState(addTab(this.state(), url || defaultUrl));
+    }
+
+    // A link opened elsewhere in the app (#140): a new active tab here, and the panel takes the focus.
+    openUrlInNewTab(url: string): void {
+        this.newTab(url);
+        this.focusPanel();
+    }
+
+    focusPanel(): void {
+        this.nodeModel.focusNode();
+        // The new tab's webview mounts after this render; focus it once it exists.
+        setTimeout(() => refocusNode(this.blockId), 50);
+    }
+
+    // Pages wsh asks this panel to open (BrowserOpenMetaKey). The key is cleared once read; ids already opened are
+    // skipped, in case the meta update and the clear cross.
+    handleOpenRequests(raw: unknown): void {
+        const requests = readOpenRequests(raw);
+        if (requests.length === 0) {
+            return;
+        }
+        const fresh = requests.filter((r) => !this.handledOpenIds.has(r.id));
+        for (const request of fresh) {
+            this.handledOpenIds.add(request.id);
+            this.newTab(request.url);
+        }
+        fireAndForget(() =>
+            RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: makeORef("block", this.blockId),
+                meta: { [BrowserOpenMetaKey]: null } as MetaType,
+            })
+        );
+        if (fresh.length > 0) {
+            this.focusPanel();
+        }
     }
 
     closeTab(id: string): void {
@@ -418,6 +459,17 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
 
 function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const state = useAtomValue(model.stateAtom);
+    const block = useAtomValue(model.blockAtom);
+    const isFocused = useAtomValue(model.nodeModel.isFocused);
+    const openRequests = block?.meta?.[BrowserOpenMetaKey];
+    useEffect(() => {
+        model.handleOpenRequests(openRequests);
+    }, [model, openRequests]);
+    useEffect(() => {
+        if (isFocused) {
+            noteBrowserPanelFocus(model.blockId);
+        }
+    }, [model, isFocused]);
     return (
         <div className="molten-browser flex h-full w-full flex-col">
             <BrowserTabStrip model={model} state={state} />

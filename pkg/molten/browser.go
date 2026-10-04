@@ -3,7 +3,11 @@
 
 package molten
 
-import "github.com/wavetermdev/waveterm/pkg/waveobj"
+import (
+	"slices"
+
+	"github.com/wavetermdev/waveterm/pkg/waveobj"
+)
 
 // Every web page Moltenterm opens uses its browser panel (FR-SHELL-007): tabs, Cmd+T. Wave's one-page web view stays
 // registered for blocks explicitly set to it, but nothing creates one any more, and saved ones are migrated.
@@ -13,10 +17,43 @@ const (
 	BrowserView = "molten-browser"
 	// Wave's legacy web view, without tabs
 	LegacyWebView = "web"
-	// must match BrowserTabsMetaKey and BrowserActiveMetaKey in frontend/moltenterm-shell/browser/browser-model.ts
+	// must match BrowserTabsMetaKey, BrowserActiveMetaKey, BrowserOpenMetaKey and BrowserRecentMetaKey in
+	// frontend/moltenterm-shell/browser/browser-model.ts
 	BrowserTabsMetaKey   = "molten:browser:tabs"
 	BrowserActiveMetaKey = "molten:browser:active"
+	// block meta: pages asked to open in the panel as new tabs, [{id, url}], read and cleared by the panel (#140)
+	BrowserOpenMetaKey = "molten:browser:open"
+	// tab meta: the tab's browser panels, most recently focused first, written by the frontend (#140)
+	BrowserRecentMetaKey = "molten:browser:recent"
 )
+
+// PickBrowserPanel returns the browser panel a link opened inside Moltenterm goes to (#140): the most recently
+// focused one of the tab that still exists, else the tab's last one (never focused since a restart), else "" (a new
+// panel). browserBlockIds are the tab's browser panels in layout order; recent is the tab meta BrowserRecentMetaKey.
+// Must match pickBrowserPanel in frontend/moltenterm-shell/browser/browser-model.ts.
+func PickBrowserPanel(browserBlockIds []string, recent any) string {
+	if len(browserBlockIds) == 0 {
+		return ""
+	}
+	recentIds, _ := recent.([]any)
+	for _, raw := range recentIds {
+		id, _ := raw.(string)
+		if id != "" && slices.Contains(browserBlockIds, id) {
+			return id
+		}
+	}
+	return browserBlockIds[len(browserBlockIds)-1]
+}
+
+// AppendBrowserOpenRequest returns the block meta value BrowserOpenMetaKey with a request to open url added to the
+// ones the panel has not read yet.
+func AppendBrowserOpenRequest(pending any, id string, url string) []any {
+	rtn := []any{}
+	if list, ok := pending.([]any); ok {
+		rtn = append(rtn, list...)
+	}
+	return append(rtn, map[string]any{"id": id, "url": url})
+}
 
 // BrowserBlockMeta returns the meta of a block opened in the browser panel instead of Wave's web view, and whether it
 // differs from blockMeta (which is never modified). The panel opens meta "url" as its single tab when it has no saved

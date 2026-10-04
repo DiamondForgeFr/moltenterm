@@ -17,7 +17,7 @@ import { makeWaveEnvImpl } from "@/app/waveenv/waveenvimpl";
 import { Workspace } from "@/app/workspace/workspace";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { ContextMenuModel } from "@/store/contextmenu";
-import { atoms, createBlock, getSettingsPrefixAtom, refocusNode } from "@/store/global";
+import { atoms, getSettingsPrefixAtom, refocusNode } from "@/store/global"; // MOLTENTERM-PATCH (#140): no createBlock left here
 import { appHandleKeyDown, keyboardMouseDownHandler } from "@/store/keymodel";
 import { getElemAsStr } from "@/util/focusutil";
 import * as keyutil from "@/util/keyutil";
@@ -30,7 +30,7 @@ import "overlayscrollbars/overlayscrollbars.css";
 import { useEffect, useRef } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { browserBlockDef } from "../moltenterm-shell/browser/browser-model"; // MOLTENTERM-PATCH (#132)
+import { openInBrowserPanel } from "../moltenterm-shell/browser/browser-routing"; // MOLTENTERM-PATCH (#132, #140)
 import { AppBackground } from "./app-bg";
 import { CenteredDiv } from "./element/quickelems";
 
@@ -126,7 +126,7 @@ async function handleContextMenu(e: React.MouseEvent<HTMLDivElement>) {
         menu.push({
             label: "Open Clipboard URL (" + clipboardURL.hostname + ")",
             click: () => {
-                createBlock(browserBlockDef(clipboardURL.toString())); // MOLTENTERM-PATCH (#132)
+                openInBrowserPanel(clipboardURL.toString()); // MOLTENTERM-PATCH (#132, #140)
             },
         });
     }
