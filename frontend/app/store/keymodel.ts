@@ -192,6 +192,11 @@ function genericClose() {
         WorkspaceLayoutModel.getInstance().setAIPanelVisible(false);
         return;
     }
+    // MOLTENTERM-PATCH (#114): as uxCloseBlock, for the focused terminal, before anything replaces or closes it
+    const closingBlockId = getFocusedBlockId();
+    if (interceptWorktreeClose(closingBlockId, () => uxCloseBlock(closingBlockId))) {
+        return;
+    }
 
     const workspaceLayoutModel = WorkspaceLayoutModel.getInstance();
     const isAIPanelOpen = workspaceLayoutModel.getAIPanelVisible();
@@ -211,11 +216,6 @@ function genericClose() {
     const blockCount = getStaticTabBlockCount();
     if (blockCount === 0) {
         simpleCloseStaticTab();
-        return;
-    }
-    // MOLTENTERM-PATCH (#114): as uxCloseBlock, for the focused terminal
-    const closingBlockId = globalStore.get(getLayoutModelForStaticTab().focusedNode)?.data?.blockId;
-    if (interceptWorktreeClose(closingBlockId, () => uxCloseBlock(closingBlockId))) {
         return;
     }
 

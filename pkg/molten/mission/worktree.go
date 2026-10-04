@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -19,9 +20,10 @@ import (
 )
 
 // Closing a terminal linked to a worktree (FR-SHELL-016, DS-SHELL-016): the plan first (path, branch, uncommitted
-// changes, commits no remote has, merged or not, the other terminals using it), then removal only when asked. As in
-// branch cleaning (branches.go), every doubt keeps: a worktree with work in it is removed only after a second
-// confirmation, git is forced only then, and the branch goes only when its content is on the trunk.
+// changes, commits no remote has, merged or not, ignored files, the other terminals using it), then removal only when
+// asked. As in branch cleaning (branches.go), every doubt keeps: a worktree with work in it, ignored files or other
+// terminals is removed only after a second confirmation given for the plan the user saw, git is forced only then, and
+// the branch goes only when its content is on the trunk.
 
 const (
 	WorktreePlanCommand   = "moltenmissionworktreeplan"
@@ -29,6 +31,8 @@ const (
 
 	worktreeTimeout    = 60 * time.Second
 	worktreeMaxChanges = 20
+	// UnknownCount: git could not count; read as "there may be work".
+	UnknownCount = -1
 )
 
 type WorktreeRequest struct {
@@ -56,10 +60,13 @@ type WorktreePlan struct {
 	// Changes lists the first uncommitted paths; ChangeCount counts them all.
 	Changes     []string `json:"changes"`
 	ChangeCount int      `json:"changecount"`
-	// Ignored files and folders, removed with the worktree.
-	Ignored      []string `json:"ignored"`
-	IgnoredCount int      `json:"ignoredcount"`
-	// Unpushed counts the commits no remote has; without a remote, the commits no other branch has.
+	// Ignored files and folders, removed with the worktree. Ignored files (a .env) count as work at risk; ignored
+	// folders (node_modules/, a build) are named only.
+	Ignored          []string `json:"ignored"`
+	IgnoredCount     int      `json:"ignoredcount"`
+	IgnoredFileCount int      `json:"ignoredfilecount"`
+	// Unpushed counts the commits no remote has; without a remote, the commits no other branch has. UnknownCount when
+	// git could not tell.
 	Unpushed  int    `json:"unpushed"`
 	NoRemote  bool   `json:"noremote,omitempty"`
 	Trunk     string `json:"trunk,omitempty"`
@@ -67,18 +74,31 @@ type WorktreePlan struct {
 	Protected bool   `json:"protected,omitempty"`
 	// The other open terminals linked to the worktree or working in it.
 	Terminals []WorktreeTerminal `json:"terminals"`
+	// Refused: MoltenTerm will not remove this folder whatever the answer (the home folder, a folder holding its
+	// repository).
+	Refused string `json:"refused,omitempty"`
+}
+
+// WorktreeRisk is what the user confirmed a second time; the removal is refused when the worktree holds more.
+type WorktreeRisk struct {
+	Sha              string `json:"sha"`
+	ChangeCount      int    `json:"changecount"`
+	Unpushed         int    `json:"unpushed"`
+	IgnoredFileCount int    `json:"ignoredfilecount"`
 }
 
 type WorktreeRemoveRequest struct {
 	Dir     string `json:"dir"`
 	BlockId string `json:"blockid,omitempty"`
-	// Confirmed: the user confirmed a second time that the uncommitted changes and unpushed commits may go.
-	Confirmed    bool `json:"confirmed,omitempty"`
-	DeleteBranch bool `json:"deletebranch,omitempty"`
+	// Confirmed: the plan the user confirmed a second time. Without it, only a worktree with nothing at risk goes.
+	Confirmed    *WorktreeRisk `json:"confirmed,omitempty"`
+	DeleteBranch bool          `json:"deletebranch,omitempty"`
 }
 
 type WorktreeRemoveResult struct {
-	Removed       bool   `json:"removed"`
+	Removed bool `json:"removed"`
+	// Gone: someone removed it first (another terminal's close, git outside MoltenTerm).
+	Gone          bool   `json:"gone,omitempty"`
 	Forced        bool   `json:"forced,omitempty"`
 	BranchDeleted string `json:"branchdeleted,omitempty"`
 	BranchKept    string `json:"branchkept,omitempty"`
@@ -91,34 +111,70 @@ type Worktrees struct {
 	lock      sync.Mutex
 	run       Runner
 	terminals worktreeTerminalsFunc
+	home      string
 }
 
 func MakeWorktrees(run Runner, terminals worktreeTerminalsFunc) *Worktrees {
 	if terminals == nil {
 		terminals = openWorktreeTerminals
 	}
-	return &Worktrees{run: run, terminals: terminals}
+	home, _ := os.UserHomeDir()
+	return &Worktrees{run: hardenedGit(run), terminals: terminals, home: home}
+}
+
+// hardenedGit keeps git from running a program the repository's config names: the folder comes from a block's meta,
+// which any terminal can set.
+func hardenedGit(run Runner) Runner {
+	return func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
+		if name == "git" {
+			args = append([]string{"-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"}, args...)
+		}
+		return run(ctx, dir, name, args...)
+	}
 }
 
 func pathInside(path string, dir string) bool {
 	return path == dir || strings.HasPrefix(path, strings.TrimSuffix(dir, string(filepath.Separator))+string(filepath.Separator))
 }
 
-// openWorktreeTerminals scans the open blocks: every block in the store is open in some tab.
+// realPath resolves symlinks (/tmp is /private/tmp on macOS); for a path that no longer exists, its deepest existing
+// parent is resolved and the rest kept.
+func realPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	path = filepath.Clean(path)
+	rest := ""
+	for dir := path; ; dir = filepath.Dir(dir) {
+		if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+			return filepath.Join(resolved, rest)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return path
+		}
+		rest = filepath.Join(filepath.Base(dir), rest)
+	}
+}
+
+// openWorktreeTerminals scans the blocks of every workspace: a terminal of a workspace no window shows still works in
+// the worktree when that workspace comes back.
 func openWorktreeTerminals(ctx context.Context, path string, exclude string) []WorktreeTerminal {
 	blocks, err := wstore.DBGetAllObjsByType[*waveobj.Block](ctx, waveobj.OType_Block)
 	if err != nil {
 		return nil
 	}
+	real := realPath(path)
 	rtn := []WorktreeTerminal{}
 	for _, block := range blocks {
 		if block.OID == exclude || block.Meta.GetString(waveobj.MetaKey_View, "") != "term" {
 			continue
 		}
-		linked := filepath.Clean(block.Meta.GetString(molten.WorktreeMetaKey, "")) == path
+		link := block.Meta.GetString(molten.WorktreeMetaKey, "")
+		linked := link != "" && realPath(link) == real
 		conn := block.Meta.GetString(waveobj.MetaKey_Connection, "")
 		cwd := block.Meta.GetString(waveobj.MetaKey_CmdCwd, "")
-		inside := (conn == "" || conn == "local") && filepath.IsAbs(cwd) && pathInside(filepath.Clean(cwd), path)
+		inside := (conn == "" || conn == "local") && filepath.IsAbs(cwd) && pathInside(realPath(cwd), real)
 		if !linked && !inside {
 			continue
 		}
@@ -162,19 +218,12 @@ func changePath(line string) string {
 // listedWorktree finds path among the repository's worktrees; the first entry is the main tree, never a candidate.
 // Paths are compared with symlinks resolved: git lists /private/tmp for /tmp on macOS.
 func listedWorktree(out string, path string) (found bool, main bool, locked bool) {
-	want, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		want = path
-	}
+	want := realPath(path)
 	first := true
 	current := false
 	for _, line := range strings.Split(out, "\n") {
 		if entry, ok := strings.CutPrefix(line, "worktree "); ok {
-			resolved, err := filepath.EvalSymlinks(entry)
-			if err != nil {
-				resolved = entry
-			}
-			current = filepath.Clean(resolved) == filepath.Clean(want)
+			current = realPath(entry) == want
 			if current {
 				found, main = true, first
 			}
@@ -186,6 +235,36 @@ func listedWorktree(out string, path string) (found bool, main bool, locked bool
 		}
 	}
 	return found, main, locked
+}
+
+// worktreeBacklinked checks git's own records both ways: the worktree's .git file names an admin folder under the
+// repository's worktrees/, and that folder's gitdir names the worktree back.
+func worktreeBacklinked(path string, gitDir string, common string) bool {
+	if !pathInside(realPath(gitDir), filepath.Join(realPath(common), "worktrees")) {
+		return false
+	}
+	data, err := os.ReadFile(filepath.Join(gitDir, "gitdir"))
+	if err != nil {
+		return false
+	}
+	back := strings.TrimSpace(string(data))
+	if !filepath.IsAbs(back) {
+		back = filepath.Join(gitDir, back)
+	}
+	return realPath(back) == filepath.Join(realPath(path), ".git")
+}
+
+// refusal names a folder MoltenTerm never removes, whatever git says: the home folder or one of its parents, a folder
+// holding its own repository.
+func (w *Worktrees) refusal(path string, main string) string {
+	real := realPath(path)
+	if w.home != "" && pathInside(realPath(w.home), real) {
+		return "the home folder"
+	}
+	if real == "/" || pathInside(realPath(main), real) {
+		return "it holds its repository"
+	}
+	return ""
 }
 
 func protectedBranches(dir string, trunk string) map[string]bool {
@@ -203,10 +282,34 @@ func protectedBranches(dir string, trunk string) map[string]bool {
 func (w *Worktrees) count(g *gitReader, args ...string) int {
 	out, err := g.out(append([]string{"rev-list", "--count"}, args...)...)
 	if err != nil {
-		return 0
+		return UnknownCount
 	}
-	n, _ := strconv.Atoi(strings.TrimSpace(out))
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		return UnknownCount
+	}
 	return n
+}
+
+func (w *Worktrees) unpushed(g *gitReader, plan *WorktreePlan) {
+	remotes, err := g.out("remote")
+	if err != nil {
+		plan.Unpushed = UnknownCount
+		return
+	}
+	plan.NoRemote = strings.TrimSpace(remotes) == ""
+	switch {
+	case plan.Detached:
+		// A detached HEAD's own commits are lost with the worktree.
+		plan.Unpushed = w.count(g, "HEAD", "--not", "--branches", "--remotes")
+	case !plan.NoRemote:
+		plan.Unpushed = w.count(g, "HEAD", "--not", "--remotes")
+	case strings.HasPrefix(plan.Branch, "-") || !branchNameRegex.MatchString(plan.Branch):
+		// --exclude takes a pattern: a name it could misread is not counted.
+		plan.Unpushed = UnknownCount
+	default:
+		plan.Unpushed = w.count(g, "HEAD", "--not", "--exclude=refs/heads/"+plan.Branch, "--branches")
+	}
 }
 
 func (w *Worktrees) plan(ctx context.Context, path string, blockId string) (WorktreePlan, error) {
@@ -220,8 +323,8 @@ func (w *Worktrees) plan(ctx context.Context, path string, blockId string) (Work
 	if err != nil {
 		return plan, err
 	}
-	_, common, linked := molten.ParseGitDirs(out)
-	if !linked {
+	gitDir, common, linked := molten.ParseGitDirs(out)
+	if !linked || !worktreeBacklinked(path, gitDir, common) {
 		return plan, fmt.Errorf("%s is not a linked worktree", path)
 	}
 	plan.Main = molten.MainCheckoutOf(common)
@@ -234,6 +337,7 @@ func (w *Worktrees) plan(ctx context.Context, path string, blockId string) (Work
 		return plan, fmt.Errorf("%s is not a linked worktree of its repository", path)
 	}
 	plan.Locked = locked
+	plan.Refused = w.refusal(path, plan.Main)
 	// Ignored files go with the worktree without git asking (a .env, a build): the plan names them.
 	status, err := g.out("status", "--porcelain=v2", "--branch", "--untracked-files=normal", "--ignored=traditional")
 	if err != nil {
@@ -246,9 +350,13 @@ func (w *Worktrees) plan(ctx context.Context, path string, blockId string) (Work
 			continue
 		}
 		if strings.HasPrefix(line, "! ") {
+			entry := changePath(line)
 			plan.IgnoredCount++
+			if !strings.HasSuffix(entry, "/") {
+				plan.IgnoredFileCount++
+			}
 			if len(plan.Ignored) < worktreeMaxChanges {
-				plan.Ignored = append(plan.Ignored, changePath(line))
+				plan.Ignored = append(plan.Ignored, entry)
 			}
 			continue
 		}
@@ -258,17 +366,7 @@ func (w *Worktrees) plan(ctx context.Context, path string, blockId string) (Work
 		}
 	}
 	if plan.Sha != "" {
-		remotes, _ := g.out("remote")
-		plan.NoRemote = strings.TrimSpace(remotes) == ""
-		switch {
-		case plan.Detached:
-			// A detached HEAD's own commits are lost with the worktree.
-			plan.Unpushed = w.count(g, "HEAD", "--not", "--branches", "--remotes")
-		case !plan.NoRemote:
-			plan.Unpushed = w.count(g, "HEAD", "--not", "--remotes")
-		default:
-			plan.Unpushed = w.count(g, "HEAD", "--not", "--exclude=refs/heads/"+plan.Branch, "--branches")
-		}
+		w.unpushed(g, &plan)
 	}
 	trunk, trunkRef := resolveTrunk(ctx, w.run, plan.Main)
 	plan.Trunk = trunk
@@ -282,6 +380,23 @@ func (w *Worktrees) plan(ctx context.Context, path string, blockId string) (Work
 	}
 	plan.Terminals = w.terminals(ctx, path, blockId)
 	return plan, nil
+}
+
+// NeedsConfirmation: removing loses something (work, ignored files, commits git could not count) or pulls the folder
+// from under another terminal.
+func (p WorktreePlan) NeedsConfirmation() bool {
+	return p.ChangeCount > 0 || p.Unpushed != 0 || p.IgnoredFileCount > 0 || len(p.Terminals) > 0
+}
+
+// grewSince tells whether the worktree holds more than the user confirmed losing.
+func (p WorktreePlan) grewSince(risk WorktreeRisk) bool {
+	if p.Sha != risk.Sha || p.ChangeCount > risk.ChangeCount || p.IgnoredFileCount > risk.IgnoredFileCount {
+		return true
+	}
+	if p.Unpushed == UnknownCount {
+		return risk.Unpushed != UnknownCount
+	}
+	return risk.Unpushed != UnknownCount && p.Unpushed > risk.Unpushed
 }
 
 func checkWorktreeDir(dir string) (string, error) {
@@ -317,14 +432,21 @@ func (w *Worktrees) Remove(req WorktreeRemoveRequest) (WorktreeRemoveResult, err
 		return WorktreeRemoveResult{}, err
 	}
 	if plan.Missing {
-		return WorktreeRemoveResult{}, errors.New("the worktree is already gone")
+		return WorktreeRemoveResult{Gone: true}, nil
 	}
 	if plan.Locked {
 		return WorktreeRemoveResult{}, fmt.Errorf("the worktree is locked (git worktree unlock %s)", path)
 	}
-	atRisk := plan.ChangeCount > 0 || plan.Unpushed > 0
-	if atRisk && !req.Confirmed {
-		return WorktreeRemoveResult{}, errors.New("the worktree holds uncommitted changes or unpushed commits: removing it needs a second confirmation")
+	if plan.Refused != "" {
+		return WorktreeRemoveResult{}, fmt.Errorf("MoltenTerm does not remove %s: %s", path, plan.Refused)
+	}
+	if plan.NeedsConfirmation() {
+		if req.Confirmed == nil {
+			return WorktreeRemoveResult{}, errors.New("the worktree holds work or is used by another terminal: removing it needs a second confirmation")
+		}
+		if plan.grewSince(*req.Confirmed) {
+			return WorktreeRemoveResult{}, errors.New("the worktree changed since you confirmed: read the plan again")
+		}
 	}
 	args := []string{"worktree", "remove"}
 	// Only uncommitted changes make git refuse; commits stay on their branch.
@@ -332,7 +454,7 @@ func (w *Worktrees) Remove(req WorktreeRemoveRequest) (WorktreeRemoveResult, err
 	if forced {
 		args = append(args, "--force")
 	}
-	args = append(args, path)
+	args = append(args, "--", path)
 	if _, err := w.run(ctx, plan.Main, "git", args...); err != nil {
 		return WorktreeRemoveResult{}, err
 	}

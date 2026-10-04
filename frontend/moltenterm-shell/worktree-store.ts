@@ -13,6 +13,7 @@ import {
     WorktreeMetaKey,
     WorktreePlan,
     WorktreeRemoveResult,
+    WorktreeRisk,
     withWorktreeDismissed,
 } from "./worktree-model";
 
@@ -49,11 +50,12 @@ export function worktreePlan(dir: string, blockId: string): Promise<WorktreePlan
 export function removeWorktree(
     dir: string,
     blockId: string,
-    opts: { confirmed: boolean; deleteBranch: boolean }
+    // confirmed: the plan the user confirmed a second time; null when nothing was at risk.
+    opts: { confirmed: WorktreeRisk; deleteBranch: boolean }
 ): Promise<WorktreeRemoveResult> {
     return TabRpcClient.wshRpcCall(
         MissionWorktreeRemoveCommand,
-        { dir, blockid: blockId, confirmed: opts.confirmed, deletebranch: opts.deleteBranch },
+        { dir, blockid: blockId, confirmed: opts.confirmed ?? undefined, deletebranch: opts.deleteBranch },
         { route: MissionRouteId, timeout: PlanTimeoutMs }
     );
 }

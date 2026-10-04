@@ -25,13 +25,43 @@ const PromptWatchMaxTries = 30;
 // The linked project's collector stays warm so its pull requests are known without a Mission Control panel open.
 const LinkedProjectPollMs = 60000;
 
+// The header, the agent label and the status bar ask about the same folder at the same moments (a prompt, a CI event):
+// requests for the same question share one call while it runs, and a plain request takes an answer under a second old.
+const SharedAnswerMs = 1000;
+const FreshShareMs = 250;
+type PaneCall = { promise: Promise<PaneState>; startedAt: number; fresh: boolean; answeredAt: number };
+const PaneCalls = new Map<string, PaneCall>();
+
 // worktree: the worktree the terminal is linked to (FR-SHELL-016); the answer says where it stands.
 export function paneStatus(dir: string, fresh: boolean, worktree?: string): Promise<PaneState> {
-    return TabRpcClient.wshRpcCall(
+    const key = `${dir}\u0000${worktree ?? ""}`;
+    const now = Date.now();
+    const last = PaneCalls.get(key);
+    if (last != null) {
+        const running = last.answeredAt === 0;
+        if (
+            fresh
+                ? last.fresh && running && now - last.startedAt < FreshShareMs
+                : running || now - last.answeredAt < SharedAnswerMs
+        ) {
+            return last.promise;
+        }
+    }
+    const call: PaneCall = { promise: null, startedAt: now, fresh, answeredAt: 0 };
+    call.promise = TabRpcClient.wshRpcCall(
         MissionPaneCommand,
         { dir, fresh, worktree: worktree || undefined },
         { route: MissionRouteId, timeout: PaneRpcTimeoutMs }
     );
+    call.promise.then(
+        () => (call.answeredAt = Date.now()),
+        () => PaneCalls.get(key) === call && PaneCalls.delete(key)
+    );
+    PaneCalls.set(key, call);
+    if (PaneCalls.size > 256) {
+        PaneCalls.delete(PaneCalls.keys().next().value);
+    }
+    return call.promise;
 }
 
 function shellStatusAtom(blockId: string): Atom<string> {
@@ -75,6 +105,8 @@ export function usePaneStatus(folder: string, blockId: string, worktree?: string
     const [state, setState] = useState<PaneState>(null);
     const folderRef = useRef(folder);
     folderRef.current = folder;
+    const worktreeRef = useRef(worktree);
+    worktreeRef.current = worktree;
     const ask = useCallback(
         (fresh: boolean) => {
             if (!folder) {
@@ -83,8 +115,9 @@ export function usePaneStatus(folder: string, blockId: string, worktree?: string
             fireAndForget(async () => {
                 try {
                     const next = await paneStatus(folder, fresh, worktree);
-                    // An answer for a folder the pane already left would show the wrong tree.
-                    if (next?.dir === folderRef.current) {
+                    // An answer for a folder the pane already left, or for a link it no longer has, would show the wrong
+                    // tree.
+                    if (next?.dir === folderRef.current && worktree === worktreeRef.current) {
                         setState(next);
                     }
                 } catch {

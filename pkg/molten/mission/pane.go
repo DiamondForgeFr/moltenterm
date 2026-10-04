@@ -25,6 +25,8 @@ const (
 	paneProbeTimeout  = 10 * time.Second
 	paneProjectMaxAge = 30 * time.Second
 	paneMaxTrees      = 64
+	// The worktree a terminal is linked to but not in (FR-SHELL-016) only needs its branch: an older probe will do.
+	paneLinkedMaxAge = 10 * time.Second
 )
 
 type PaneRequest struct {
@@ -44,6 +46,8 @@ type PaneLinked struct {
 	Dirty  bool   `json:"dirty,omitempty"`
 	// Missing: removed outside MoltenTerm.
 	Missing bool `json:"missing,omitempty"`
+	// Inside: the asked folder is in the linked worktree (paths compared with symlinks resolved).
+	Inside bool `json:"inside,omitempty"`
 }
 
 type PanePullRequest struct {
@@ -84,9 +88,11 @@ type paneTree struct {
 	probeLock sync.Mutex
 	state     PaneState
 	probedAt  time.Time
+	// When the last probe started: a fresh request is answered by any probe started after it arrived.
+	startedAt time.Time
 	usedAt    time.Time
-	project   string
-	// Read with the project: a tree does not turn from main tree to worktree under the same path.
+	// Read once per tree, when git answered: a tree does not turn from main tree to worktree under the same path.
+	project  string
 	worktree bool
 }
 
@@ -138,11 +144,18 @@ func (p *Panes) evictOldestLocked() {
 	var oldest string
 	var oldestAt time.Time
 	for root, tree := range p.trees {
+		// A tree being probed stays: a second entry for the same root would probe beside it.
+		if !tree.probeLock.TryLock() {
+			continue
+		}
+		tree.probeLock.Unlock()
 		if oldest == "" || tree.usedAt.Before(oldestAt) {
 			oldest, oldestAt = root, tree.usedAt
 		}
 	}
-	delete(p.trees, oldest)
+	if oldest != "" {
+		delete(p.trees, oldest)
+	}
 }
 
 type paneTreeKind struct {
@@ -150,22 +163,34 @@ type paneTreeKind struct {
 	worktree bool
 }
 
-func (p *Panes) readTree(tree *paneTree) (PaneState, time.Duration, paneTreeKind) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	kind := paneTreeKind{project: tree.project, worktree: tree.worktree}
-	if tree.probedAt.IsZero() {
-		return tree.state, paneMinInterval, kind
-	}
-	return tree.state, p.now().Sub(tree.probedAt), kind
+type paneTreeRead struct {
+	state     PaneState
+	age       time.Duration
+	startedAt time.Time
+	kind      paneTreeKind
 }
 
-func (p *Panes) writeTree(tree *paneTree, state PaneState) {
+func (p *Panes) readTree(tree *paneTree) paneTreeRead {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	read := paneTreeRead{state: tree.state, startedAt: tree.startedAt, kind: paneTreeKind{project: tree.project, worktree: tree.worktree}}
+	if tree.probedAt.IsZero() {
+		read.age = time.Duration(1<<63 - 1)
+		return read
+	}
+	read.age = p.now().Sub(tree.probedAt)
+	return read
+}
+
+func (p *Panes) writeTree(tree *paneTree, state PaneState, startedAt time.Time, kindKnown bool) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	tree.state = state
-	tree.project = state.Project
-	tree.worktree = state.Worktree
+	if kindKnown {
+		tree.project = state.Project
+		tree.worktree = state.Worktree
+	}
+	tree.startedAt = startedAt
 	tree.probedAt = p.now()
 }
 
@@ -200,7 +225,7 @@ func (p *Panes) Get(req PaneRequest) (PaneState, error) {
 	if err := checkDir(req.Dir); err != nil {
 		return PaneState{}, err
 	}
-	state := p.getTree(filepath.Clean(req.Dir), req.Fresh)
+	state := p.getTree(filepath.Clean(req.Dir), req.Fresh, paneMinInterval)
 	state.Dir = req.Dir
 	if req.Worktree != "" && filepath.IsAbs(req.Worktree) {
 		// The first tree's lock is released by now: two terminals linked crosswise wait for no one.
@@ -209,24 +234,31 @@ func (p *Panes) Get(req PaneRequest) (PaneState, error) {
 	return state, nil
 }
 
-func (p *Panes) getTree(dir string, fresh bool) PaneState {
+// getTree answers from a probe younger than maxAge; fresh asks for a probe started after the request, and requests
+// waiting together share one.
+func (p *Panes) getTree(dir string, fresh bool, maxAge time.Duration) PaneState {
 	root := molten.FindGitRoot(dir)
 	if root == "" {
 		name, logo := p.projectInfo(dir)
 		return PaneState{Name: name, Logo: logo, At: p.now().UnixMilli()}
 	}
+	asked := p.now()
 	tree := p.treeFor(root)
 	tree.probeLock.Lock()
 	defer tree.probeLock.Unlock()
-	state, age, kind := p.readTree(tree)
-	if age < paneMinInterval {
-		if !fresh {
-			return state
-		}
-		p.sleep(paneMinInterval - age)
+	read := p.readTree(tree)
+	if fresh && !read.startedAt.IsZero() && !read.startedAt.Before(asked) {
+		return read.state
 	}
-	state = p.probe(root, kind)
-	p.writeTree(tree, state)
+	if !fresh && read.age < maxAge {
+		return read.state
+	}
+	if read.age < paneMinInterval {
+		p.sleep(paneMinInterval - read.age)
+	}
+	startedAt := p.now()
+	state, kindKnown := p.probe(root, read.kind)
+	p.writeTree(tree, state, startedAt, kindKnown)
 	return state
 }
 
@@ -236,18 +268,19 @@ func (p *Panes) linked(path string, current PaneState) *PaneLinked {
 	if molten.WorktreeMissing(path) {
 		return &PaneLinked{Path: path, Missing: true}
 	}
+	inside := current.Root != "" && realPath(current.Root) == realPath(path)
 	state := current
-	if current.Root != path {
-		state = p.getTree(path, false)
+	if !inside {
+		state = p.getTree(path, false, paneLinkedMaxAge)
 	}
-	if state.Root != path || !state.Worktree {
+	if state.Root == "" || realPath(state.Root) != realPath(path) || !state.Worktree {
 		return &PaneLinked{Path: path, Missing: true}
 	}
 	branch := state.Branch
 	if branch == "" && state.Detached {
 		branch = shortSha(state.Sha)
 	}
-	return &PaneLinked{Path: path, Branch: branch, Sha: state.Sha, Dirty: state.Dirty}
+	return &PaneLinked{Path: path, Branch: branch, Sha: state.Sha, Dirty: state.Dirty, Inside: inside}
 }
 
 func (p *Panes) git(ctx context.Context, dir string, args ...string) (string, error) {
@@ -259,19 +292,20 @@ func (p *Panes) git(ctx context.Context, dir string, args ...string) (string, er
 // The main checkout keeps the path the user knows it by: git answers with symlinks resolved (/private/var on macOS),
 // which would not match the workspace's linked project. Only a worktree or a submodule (a .git file) asks git, and git
 // tells them apart (FR-SHELL-016): a linked worktree's git folder is not its common folder.
-func (p *Panes) mainCheckout(ctx context.Context, root string) paneTreeKind {
+// The second result tells whether git answered: a failed answer is not kept, the next probe asks again.
+func (p *Panes) mainCheckout(ctx context.Context, root string) (paneTreeKind, bool) {
 	if !molten.IsWorktreeCheckout(root) {
-		return paneTreeKind{project: root}
+		return paneTreeKind{project: root}, true
 	}
 	out, err := p.git(ctx, root, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
 	if err != nil {
-		return paneTreeKind{project: root}
+		return paneTreeKind{project: root}, false
 	}
 	_, common, linked := molten.ParseGitDirs(out)
 	if !linked || filepath.Base(common) != ".git" {
-		return paneTreeKind{project: root, worktree: linked}
+		return paneTreeKind{project: root, worktree: linked}, true
 	}
-	return paneTreeKind{project: filepath.Dir(common), worktree: true}
+	return paneTreeKind{project: filepath.Dir(common), worktree: true}, true
 }
 
 type paneGitStatus struct {
@@ -322,12 +356,13 @@ func parsePaneStatus(out string) paneGitStatus {
 	return st
 }
 
-func (p *Panes) probe(root string, kind paneTreeKind) PaneState {
+func (p *Panes) probe(root string, kind paneTreeKind) (PaneState, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), paneProbeTimeout)
 	defer cancel()
 	state := PaneState{Root: root, At: p.now().UnixMilli()}
+	kindKnown := true
 	if kind.project == "" {
-		kind = p.mainCheckout(ctx, root)
+		kind, kindKnown = p.mainCheckout(ctx, root)
 	}
 	project := kind.project
 	state.Project = project
@@ -336,7 +371,7 @@ func (p *Panes) probe(root string, kind paneTreeKind) PaneState {
 	out, err := p.git(ctx, root, "status", "--porcelain=v2", "--branch", "--untracked-files=normal")
 	if err != nil {
 		state.GitError = err.Error()
-		return state
+		return state, kindKnown
 	}
 	st := parsePaneStatus(out)
 	state.Sha, state.Branch, state.Detached = st.sha, st.branch, st.detached
@@ -354,7 +389,7 @@ func (p *Panes) probe(root string, kind paneTreeKind) PaneState {
 			state.Pr = matchPullRequest(snap.Github.Prs, state.Branch)
 		}
 	}
-	return state
+	return state, kindKnown
 }
 
 // Without an upstream, the commits no remote has; nothing when the repository has no remote at all.

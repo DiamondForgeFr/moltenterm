@@ -7,9 +7,10 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { getWaveObjectAtom, loadAndPinWaveObject, makeORef } from "@/app/store/wos";
+import { getLayoutModelForStaticTab } from "@/layout/index";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { paneStatus, usePaneStatus } from "./pane-status";
 import { blockFolder, PaneBlockMeta } from "./status-bar-model";
@@ -24,6 +25,7 @@ import {
     treeTooltipLine,
     worktreeOffer,
     WorktreePlan,
+    worktreeRisk,
 } from "./worktree-model";
 import { dismissWorktree, linkWorktree, removeWorktree, unlinkWorktree, worktreePlan } from "./worktree-store";
 
@@ -145,9 +147,17 @@ export function WorktreeHeaderLabel({ blockId, hideBranch }: { blockId: string; 
 }
 
 // The tab tooltip lists the trees of its terminals. Read when the pointer enters the tab, through the same cache.
+const TabTooltipMaxAgeMs = 5000;
+
 export function useTabTreesTooltip(tabId: string): { title: string; onMouseEnter: () => void } {
     const [title, setTitle] = useState("");
+    const readAt = useRef(0);
     const onMouseEnter = useCallback(() => {
+        // Sweeping the pointer across the tabs reads each tab once every few seconds, not on every pass.
+        if (Date.now() - readAt.current < TabTooltipMaxAgeMs) {
+            return;
+        }
+        readAt.current = Date.now();
         fireAndForget(async () => {
             const tab = await loadAndPinWaveObject<Tab>(makeORef("tab", tabId));
             const blocks = await Promise.all(
@@ -189,8 +199,11 @@ export function interceptWorktreeClose(blockId: string, close: () => void): bool
         return false;
     }
     const block = globalStore.get(getWaveObjectAtom<Block>(makeORef("block", blockId)));
-    const link = readWorktreeLink(block?.meta);
-    if (block?.meta?.view !== "term" || !link) {
+    const meta = block?.meta;
+    const link = readWorktreeLink(meta);
+    // The link names a local folder: a terminal switched to a remote connection has nothing of it to remove.
+    const local = meta?.connection == null || meta.connection === "" || meta.connection === "local";
+    if (meta?.view !== "term" || !link || !local) {
         return false;
     }
     if (globalStore.get(CloseRequestAtom) != null) {
@@ -222,29 +235,69 @@ function PlanFacts({ plan, view }: { plan: WorktreePlan; view: ClosePlanView }) 
                     {plan.changecount > plan.changes.length ? <div>…</div> : null}
                 </div>
             ) : null}
-            <PlanLine text={view.unpushedLine} warn={plan.unpushed > 0} />
+            <PlanLine text={view.unpushedLine} warn={plan.unpushed !== 0} />
             <PlanLine text={view.mergedLine} />
-            <PlanLine text={view.ignoredLine} />
+            <PlanLine text={view.ignoredLine} warn={plan.ignoredfilecount > 0} />
             <PlanLine text={view.terminalsLine} warn={view.shared} />
             <PlanLine text={view.blockedReason} warn />
         </div>
     );
 }
 
-type DialogStep = "plan" | "confirm" | "working";
+function ConfirmFacts({
+    plan,
+    view,
+    deleteBranch,
+}: {
+    plan: WorktreePlan;
+    view: ClosePlanView;
+    deleteBranch: boolean;
+}) {
+    const lost = plan.changecount > 0 || plan.detached || plan.ignoredfilecount > 0;
+    return (
+        <div className="flex flex-col gap-1 text-warning">
+            {plan.changecount > 0 ? (
+                <div>{view.changesLine} will be deleted for good (git worktree remove --force).</div>
+            ) : null}
+            {plan.ignoredfilecount > 0 ? <div>{view.ignoredLine}.</div> : null}
+            {plan.unpushed < 0 ? <div>{view.unpushedLine}: some commits may exist nowhere else.</div> : null}
+            {plan.unpushed > 0 && plan.detached ? <div>{view.unpushedLine}.</div> : null}
+            {plan.unpushed > 0 && !plan.detached ? (
+                <div>
+                    {view.unpushedLine}: they stay on {plan.branch}
+                    {deleteBranch && view.canDeleteBranch ? ", deleted as asked (merged)" : ", which is kept"}.
+                </div>
+            ) : null}
+            {view.shared ? <div>{view.terminalsLine}: its folder disappears from under them.</div> : null}
+            {lost ? <div className="text-secondary">This cannot be undone.</div> : null}
+        </div>
+    );
+}
+
+type DialogStep = "plan" | "confirm" | "working" | "done";
 
 function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDone: () => void }) {
     const [plan, setPlan] = useState<WorktreePlan>(null);
     const [error, setError] = useState<string>(null);
     const [step, setStep] = useState<DialogStep>("plan");
     const [deleteBranch, setDeleteBranch] = useState(false);
+    const [notice, setNotice] = useState<string>(null);
+    const block = useAtomValue(getWaveObjectAtom<Block>(makeORef("block", request.blockId)));
     const finish = (closeTerminal: boolean) => {
         onDone();
-        if (closeTerminal) {
+        // The terminal may have gone meanwhile (its shell exited, another window closed it): closing it again would
+        // close whatever else is left in the tab.
+        const stillHere = getLayoutModelForStaticTab()?.getNodeByBlockId(request.blockId) != null;
+        if (closeTerminal && stillHere) {
             ApprovedCloses.add(request.blockId);
             request.close();
         }
     };
+    useEffect(() => {
+        if (block == null && step !== "working") {
+            onDone();
+        }
+    }, [block == null]);
     useEffect(() => {
         let cancelled = false;
         fireAndForget(async () => {
@@ -274,7 +327,7 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
             if (e.key === "Escape" && step !== "working") {
                 e.stopPropagation();
                 e.preventDefault();
-                finish(false);
+                finish(step === "done");
             }
         };
         document.addEventListener("keydown", onKey, true);
@@ -286,10 +339,15 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
             setStep("working");
             setError(null);
             try {
-                await removeWorktree(request.path, request.blockId, {
-                    confirmed,
+                const result = await removeWorktree(request.path, request.blockId, {
+                    confirmed: confirmed ? worktreeRisk(plan) : null,
                     deleteBranch: deleteBranch && view?.canDeleteBranch,
                 });
+                if (deleteBranch && result.branchkept) {
+                    setNotice(`Worktree removed; the branch ${plan.branch} is kept: ${result.branchkept}.`);
+                    setStep("done");
+                    return;
+                }
                 finish(true);
             } catch (e) {
                 setError(String(e?.message ?? e));
@@ -307,6 +365,15 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
         .split("/")
         .filter((s) => s)
         .pop();
+    let title = `Close the terminal of worktree ${name}?`;
+    if (step === "confirm") {
+        title =
+            plan?.changecount > 0 || plan?.detached || plan?.ignoredfilecount > 0
+                ? `Remove ${name} and lose what only it holds?`
+                : `Remove ${name} anyway?`;
+    } else if (step === "done") {
+        title = `Worktree ${name} removed`;
+    }
     return createPortal(
         <div
             className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40"
@@ -314,39 +381,18 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
         >
             <div className="flex w-[500px] max-w-[calc(100vw-32px)] flex-col rounded border border-border bg-modalbg shadow-xl">
                 <div className="border-b border-border px-4 py-3">
-                    <div className="text-sm font-semibold">
-                        {step === "confirm"
-                            ? plan?.changecount > 0 || plan?.detached
-                                ? `Remove ${name} and lose its work?`
-                                : `Remove ${name} with commits no remote has?`
-                            : `Close the terminal of worktree ${name}?`}
-                    </div>
+                    <div className="text-sm font-semibold">{title}</div>
                     <div className="mt-0.5 truncate text-xs text-muted" title={request.path}>
                         {request.path}
                     </div>
                 </div>
                 <div className="flex flex-col gap-3 px-4 py-3 text-xs">
                     {plan == null && error == null ? <div className="text-muted">Reading the worktree…</div> : null}
-                    {plan != null && step !== "confirm" ? <PlanFacts plan={plan} view={view} /> : null}
+                    {plan != null && (step === "plan" || step === "working") ? (
+                        <PlanFacts plan={plan} view={view} />
+                    ) : null}
                     {plan != null && step === "confirm" ? (
-                        <div className="flex flex-col gap-1 text-warning">
-                            {plan.changecount > 0 ? (
-                                <div>{view.changesLine} will be deleted for good (git worktree remove --force).</div>
-                            ) : null}
-                            {plan.unpushed > 0 && plan.detached ? <div>{view.unpushedLine}.</div> : null}
-                            {plan.unpushed > 0 && !plan.detached ? (
-                                <div>
-                                    {view.unpushedLine}: they stay on {plan.branch}
-                                    {deleteBranch && view.canDeleteBranch
-                                        ? ", deleted as asked (merged)"
-                                        : ", which is kept"}
-                                    .
-                                </div>
-                            ) : null}
-                            {plan.changecount > 0 || plan.detached ? (
-                                <div className="text-secondary">This cannot be undone.</div>
-                            ) : null}
-                        </div>
+                        <ConfirmFacts plan={plan} view={view} deleteBranch={deleteBranch} />
                     ) : null}
                     {plan != null && step === "plan" && view.canDeleteBranch ? (
                         <label className="flex cursor-pointer items-center gap-2 text-secondary">
@@ -358,9 +404,15 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                             Also delete the branch {plan.branch} (merged)
                         </label>
                     ) : null}
+                    {notice ? <div className="text-secondary">{notice}</div> : null}
                     {error ? <div className="text-error">{error}</div> : null}
                 </div>
                 <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+                    {step === "done" ? (
+                        <button type="button" autoFocus className={AccentButton} onClick={() => finish(true)}>
+                            Close the terminal
+                        </button>
+                    ) : null}
                     {step === "confirm" ? (
                         <>
                             <button type="button" className={PlainButton} onClick={() => setStep("plan")}>
@@ -370,7 +422,8 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                                 Remove anyway
                             </button>
                         </>
-                    ) : (
+                    ) : null}
+                    {(step === "plan" || step === "working") && (plan != null || error != null) ? (
                         <>
                             <button
                                 type="button"
@@ -393,6 +446,7 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                                 <button
                                     type="button"
                                     disabled={step === "working"}
+                                    autoFocus={view.defaultChoice === "remove"}
                                     className={view.defaultChoice === "remove" ? AccentButton : PlainButton}
                                     onClick={onRemove}
                                 >
@@ -400,7 +454,7 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                                 </button>
                             ) : null}
                         </>
-                    )}
+                    ) : null}
                 </div>
             </div>
         </div>,
