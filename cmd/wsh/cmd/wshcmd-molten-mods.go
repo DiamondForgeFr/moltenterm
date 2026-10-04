@@ -18,6 +18,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/agentparts"
 )
 
 const MoltenManifestFileName = "mod.json"
@@ -34,9 +36,12 @@ type MoltenState struct {
 
 // Trust is recorded per mod id (FR-MORPH-004), so an agent keeps editing a trusted mod without a prompt on every
 // save. It lives in the data directory, apart from the configuration that agents and dotfile managers edit.
+// Agents lists the agent parts the trust covers (FR-MORPH-010): a part runs inside the agent, so it is trusted
+// explicitly, and a mod that gains one after it was trusted asks again for the part.
 type MoltenTrustEntry struct {
-	Name      string `json:"name"`
-	TrustedAt string `json:"trustedat"`
+	Name      string   `json:"name"`
+	TrustedAt string   `json:"trustedat"`
+	Agents    []string `json:"agents,omitempty"`
 }
 
 type MoltenTrust struct {
@@ -51,6 +56,8 @@ type MoltenTemplateManifest struct {
 	ApiVersion   int      `json:"apiVersion"`
 	Main         string   `json:"main"`
 	Capabilities []string `json:"capabilities"`
+	// Only `molten mod new --claude-code` writes it (FR-MORPH-010).
+	Agents map[string]agentparts.ClaudeCodePart `json:"agents,omitempty"`
 }
 
 func moltenModsDir(configDir string) string {
@@ -175,13 +182,35 @@ func moltenIsTrusted(dataDir string, id string) (bool, error) {
 }
 
 func moltenSetTrusted(dataDir string, id string, name string, now time.Time) error {
+	return moltenSetTrustedAgents(dataDir, id, name, nil, now)
+}
+
+func moltenSetTrustedAgents(dataDir string, id string, name string, agents []string, now time.Time) error {
 	path := moltenTrustFile(dataDir)
 	trust, err := moltenReadTrust(path)
 	if err != nil {
 		return err
 	}
-	trust.Trusted[id] = MoltenTrustEntry{Name: name, TrustedAt: now.UTC().Format(time.RFC3339)}
+	trust.Trusted[id] = MoltenTrustEntry{Name: name, TrustedAt: now.UTC().Format(time.RFC3339), Agents: agents}
 	return moltenWriteJsonFile(path, trust)
+}
+
+func moltenReadTrustEntry(dataDir string, id string) (MoltenTrustEntry, bool, error) {
+	trust, err := moltenReadTrust(moltenTrustFile(dataDir))
+	if err != nil {
+		return MoltenTrustEntry{}, false, err
+	}
+	entry, ok := trust.Trusted[id]
+	return entry, ok, nil
+}
+
+func moltenTrustCovers(entry MoltenTrustEntry, agent string) bool {
+	for _, a := range entry.Agents {
+		if a == agent {
+			return true
+		}
+	}
+	return false
 }
 
 func moltenForgetTrust(dataDir string, id string) (bool, error) {
@@ -286,7 +315,60 @@ func moltenTemplateMain(id string, name string) string {
 	).Replace(moltenTemplateMainSource)
 }
 
-func moltenNewMod(configDir string, id string, name string, description string) (string, error) {
+// The Claude Code part a new mod starts with (FR-MORPH-010): a plugin folder that loads and validates on the
+// version it targets. Its hooks module is checked against the typings of Claude Code 2.1.289.
+const moltenTemplatePartRegisterFileName = "register.ts"
+
+const moltenTemplatePartRegisterSource = `// The Claude Code part of {{name}}, a MoltenTerm mod. Once the mod is enabled, it runs inside every Claude Code
+// session started in a MoltenTerm terminal. API: the plugin-authoring skill bundled with Claude Code; check it with
+// "molten mod validate {{id}}" (it runs "claude plugin validate"). To reach MoltenTerm, run "molten <command>"
+// through $.process.run.
+import type { Register } from 'claude-code'
+
+export const register: Register = on => {
+  on('session.start', ($, e, next) => {
+    $.ui.status('{{id}} loaded')
+    return next(e)
+  })
+}
+`
+
+const moltenTemplatePartGitignore = ".claude-plugin/types/\n"
+
+type moltenTemplateFile struct {
+	rel     string
+	content []byte
+}
+
+func moltenTemplatePartFiles(id string, name string, description string) ([]moltenTemplateFile, error) {
+	pluginManifest := map[string]any{
+		"name":        id,
+		"version":     "0.1.0",
+		"description": description,
+	}
+	if description == "" {
+		pluginManifest["description"] = "The Claude Code part of the MoltenTerm mod " + name
+	}
+	pluginData, err := json.MarshalIndent(pluginManifest, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	hooksData, err := json.MarshalIndent(map[string]any{"modules": []string{"./" + moltenTemplatePartRegisterFileName}}, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	register := strings.NewReplacer("{{name}}", name, "{{id}}", id).Replace(moltenTemplatePartRegisterSource)
+	part := agentparts.DefaultClaudeCodeFolder + "/"
+	return []moltenTemplateFile{
+		{part + agentparts.PluginManifestDir + "/" + agentparts.PluginManifestFile, append(pluginData, '\n')},
+		{part + "hooks/hooks.json", append(hooksData, '\n')},
+		{part + "hooks/" + moltenTemplatePartRegisterFileName, []byte(register)},
+		{part + ".gitignore", []byte(moltenTemplatePartGitignore)},
+	}, nil
+}
+
+// moltenNewMod creates a mod; with claudeCodeVersion it also carries a Claude Code part targeting that version.
+func moltenNewMod(configDir string, id string, name string, description string, claudeCodeVersion string) (string, error) {
 	err := moltenCheckModId(id)
 	if err != nil {
 		return "", err
@@ -298,6 +380,9 @@ func moltenNewMod(configDir string, id string, name string, description string) 
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		return "", err
+	}
+	if claudeCodeVersion != "" && !agentparts.TargetVersionRegex.MatchString(claudeCodeVersion) {
+		return "", fmt.Errorf("invalid Claude Code version %q: use MAJOR.MINOR.PATCH, as claude --version prints it", claudeCodeVersion)
 	}
 	if name == "" {
 		name = id
@@ -311,6 +396,16 @@ func moltenNewMod(configDir string, id string, name string, description string) 
 		Main:         MoltenTemplateMainFileName,
 		Capabilities: []string{"commands"},
 	}
+	var partFiles []moltenTemplateFile
+	if claudeCodeVersion != "" {
+		manifest.Agents = map[string]agentparts.ClaudeCodePart{
+			agentparts.AgentClaudeCode: {Folder: agentparts.DefaultClaudeCodeFolder, TargetVersion: claudeCodeVersion},
+		}
+		partFiles, err = moltenTemplatePartFiles(id, name, description)
+		if err != nil {
+			return "", err
+		}
+	}
 	manifestData, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return "", err
@@ -318,6 +413,15 @@ func moltenNewMod(configDir string, id string, name string, description string) 
 	err = os.MkdirAll(dir, 0755)
 	if err != nil {
 		return "", err
+	}
+	for _, file := range partFiles {
+		path := filepath.Join(dir, filepath.FromSlash(file.rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return "", err
+		}
+		if err := os.WriteFile(path, file.content, 0644); err != nil {
+			return "", err
+		}
 	}
 	err = os.WriteFile(filepath.Join(dir, MoltenManifestFileName), append(manifestData, '\n'), 0644)
 	if err != nil {

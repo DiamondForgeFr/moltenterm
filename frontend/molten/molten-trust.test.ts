@@ -3,7 +3,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MoltenTrustModel, MoltenTrustRequest } from "./molten-trust";
+import { MoltenClaudeCodePartWarning, MoltenTrustModel, MoltenTrustRequest, moltenTrustWording } from "./molten-trust";
 
 function request(id: string): MoltenTrustRequest {
     return { id, name: id, version: "1.0.0", description: "", capabilities: [], path: `/cfg/mods/${id}` };
@@ -48,5 +48,29 @@ describe("MoltenTrustModel", () => {
         model.answer("declined");
         model.answer("trusted");
         await expect(answer).resolves.toBe("declined");
+    });
+});
+
+describe("moltenTrustWording", () => {
+    const part = { folder: "agents/claude-code", targetVersion: "2.1.289" };
+
+    it("keeps the mod wording for a mod without a Claude Code part", () => {
+        const wording = moltenTrustWording(request("a"));
+        expect(wording.title).toBe("Trust the mod “a”?");
+        expect(wording.intro).not.toContain("Claude Code");
+        expect(wording.okLabel).toBe("Trust and enable");
+    });
+
+    it("tells that a Claude Code part runs inside Claude Code", () => {
+        const wording = moltenTrustWording({ ...request("band"), claudeCodePart: part });
+        expect(wording.title).toBe("Trust the mod “band”?");
+        expect(wording.intro).toContain(MoltenClaudeCodePartWarning);
+    });
+
+    it("asks about the part alone for a mod trusted before it had one", () => {
+        const wording = moltenTrustWording({ ...request("band"), claudeCodePart: part, partsOnly: true });
+        expect(wording.title).toBe("Trust the Claude Code part of “band”?");
+        expect(wording.intro).toContain("Declining keeps the rest of the mod running");
+        expect(wording.okLabel).toBe("Trust the part");
     });
 });

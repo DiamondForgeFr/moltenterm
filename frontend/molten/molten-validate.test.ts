@@ -76,6 +76,60 @@ describe("validateMoltenMod", () => {
         expect(result.problems).toEqual([{ file: "main.js", message: 'main file "main.js" not found' }]);
     });
 
+    describe("with a Claude Code part", () => {
+        const partManifest = JSON.stringify({
+            id: "m",
+            name: "M",
+            version: "1.0.0",
+            apiVersion: 1,
+            main: "main.js",
+            agents: { "claude-code": { folder: "agents/claude-code", targetVersion: "2.1.289" } },
+        });
+        const plugin = "agents/claude-code/.claude-plugin/plugin.json";
+        const files = (pluginText?: string) => {
+            const rtn: Record<string, string> = { "m/mod.json": partManifest, "m/main.js": "export function activate() {}" };
+            if (pluginText != null) {
+                rtn[`m/${plugin}`] = pluginText;
+            }
+            return reader(rtn);
+        };
+
+        it("accepts a valid part and gives molten what it needs to check it with claude", async () => {
+            const result = await validateMoltenMod(ModsDir, "m", files('{"name": "m"}'));
+            expect(result).toEqual({
+                id: "m",
+                ok: true,
+                problems: [],
+                agents: {
+                    "claude-code": {
+                        folder: "agents/claude-code",
+                        path: "/cfg/mods/m/agents/claude-code",
+                        targetversion: "2.1.289",
+                    },
+                },
+            });
+        });
+
+        it("reports a missing plugin.json", async () => {
+            const result = await validateMoltenMod(ModsDir, "m", files());
+            expect(result.ok).toBe(false);
+            expect(result.problems[0].file).toBe(plugin);
+            expect(result.problems[0].message).toContain("not found");
+        });
+
+        it("gives the line of a JSON error in plugin.json", async () => {
+            const result = await validateMoltenMod(ModsDir, "m", files('{\n  "name": "m",\n  oops\n}'));
+            expect(result.problems[0]).toMatchObject({ file: plugin, line: 3 });
+            expect(result.problems[0].message).toContain("not valid JSON");
+        });
+
+        it("requires the plugin name to be the mod id", async () => {
+            const result = await validateMoltenMod(ModsDir, "m", files('{"name": "other"}'));
+            expect(result.ok).toBe(false);
+            expect(result.problems[0].message).toContain('"name" is "other" but must be the mod id "m"');
+        });
+    });
+
     it("reports the syntax error of main with its file and line", async () => {
         const result = await validateMoltenMod(
             ModsDir,

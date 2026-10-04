@@ -95,7 +95,8 @@ export function startMoltenHost(): void {
         }
         return { results };
     };
-    client[`handle_${MoltenTrustPromptRpcCommand}`] = async (_rh: unknown, req: { id?: string }) => {
+    // partsonly: the mod is trusted already and has gained a Claude Code part, which is asked about alone.
+    client[`handle_${MoltenTrustPromptRpcCommand}`] = async (_rh: unknown, req: { id?: string; partsonly?: boolean }) => {
         const id = req?.id ?? "";
         const path = `${env.modsDir}/${id}`;
         const manifestText = await env.readTextFile(`${path}/${MoltenManifestFileName}`);
@@ -114,6 +115,8 @@ export function startMoltenHost(): void {
             description: m.description,
             capabilities: m.capabilities,
             path,
+            claudeCodePart: m.agents?.["claude-code"],
+            partsOnly: !!req?.partsonly,
         });
         return { answer };
     };

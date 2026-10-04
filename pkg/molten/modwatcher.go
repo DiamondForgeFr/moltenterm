@@ -16,12 +16,14 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentparts"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -46,8 +48,10 @@ type ModWatcher struct {
 	publish   func(ids []string)
 	// Records each change before it is announced (FR-MORPH-003); nil in tests that only check events.
 	history *History
-	pending map[string]bool
-	timer   *time.Timer
+	// Points the Claude Code slots after each change (FR-MORPH-010); nil in tests that only check events.
+	syncParts func()
+	pending   map[string]bool
+	timer     *time.Timer
 	// Last seen content of mods.json and trust.json, so that a change to them reloads only the mods it concerns.
 	lastState map[string]string
 }
@@ -93,11 +97,21 @@ func StartModWatcher() {
 	dataDir := wavebase.GetWaveDataDir()
 	modsDir := filepath.Join(configDir, "mods")
 	stateFile := filepath.Join(configDir, "molten", StateFileName)
+	safeMode := os.Getenv(agentparts.SafeModeVarName) == "1"
+	syncParts := func(prune bool) {
+		if err := agentparts.SyncClaudeCodeSlots(configDir, dataDir, safeMode, prune, runtime.GOOS); err != nil {
+			log.Printf("molten: Claude Code parts: %v\n", err)
+		}
+	}
+	// Before any terminal starts, and even when the watcher cannot: a durable terminal reattached in safe mode must
+	// find every slot pointing at its placeholder.
+	syncParts(true)
 	mw, err := MakeModWatcher(modsDir, stateFile, filepath.Join(dataDir, "molten", TrustFileName), ModWatcherDebounce, publishModsChanged)
 	if err != nil {
 		log.Printf("molten: mod watcher not started: %v\n", err)
 		return
 	}
+	mw.syncParts = func() { syncParts(false) }
 	mw.history = MakeHistory(HistoryDir(dataDir), modsDir, stateFile)
 	if _, err := mw.history.Record(HistoryKindStart, nil, 0, time.Now()); err != nil {
 		log.Printf("molten: recording the mods at start: %v\n", err)
@@ -146,7 +160,7 @@ func (mw *ModWatcher) addTree(root string) {
 		if err != nil || !entry.IsDir() {
 			return nil
 		}
-		if path != root && strings.HasPrefix(entry.Name(), ".") {
+		if path != root && mw.ignoredPath(path) {
 			return filepath.SkipDir
 		}
 		if addErr := mw.watcher.Add(path); addErr != nil {
@@ -156,10 +170,19 @@ func (mw *ModWatcher) addTree(root string) {
 	})
 }
 
+// A path under the mods folder that is not part of any mod: a hidden folder at the top (an undo's temporary copy)
+// or a path IgnoredModRelPath leaves out.
+func (mw *ModWatcher) ignoredPath(path string) bool {
+	rel, err := filepath.Rel(mw.modsDir, path)
+	if err != nil || rel == "." {
+		return false
+	}
+	return strings.HasPrefix(rel, ".") || agentparts.IgnoredModRelPath(rel)
+}
+
 // IgnoredModFileName tells the files editors leave behind while saving, which must not reload a mod.
 func IgnoredModFileName(name string) bool {
-	return strings.HasPrefix(name, ".") || strings.HasSuffix(name, "~") || strings.HasSuffix(name, ".swp") ||
-		strings.HasSuffix(name, ".swx") || strings.HasSuffix(name, ".tmp")
+	return agentparts.IgnoredFileName(name)
 }
 
 // ModIdForPath gives the mod a path under the mods folder belongs to: its first folder below modsDir.
@@ -169,7 +192,7 @@ func ModIdForPath(modsDir string, path string) (string, bool) {
 		return "", false
 	}
 	parts := strings.Split(rel, string(filepath.Separator))
-	if strings.HasPrefix(parts[0], ".") || IgnoredModFileName(parts[len(parts)-1]) {
+	if strings.HasPrefix(parts[0], ".") || agentparts.IgnoredModRelPath(rel) {
 		return "", false
 	}
 	return parts[0], true
@@ -233,6 +256,9 @@ func (mw *ModWatcher) flush() {
 			log.Printf("molten: recording the change of %v: %v\n", ids, err)
 		}
 	}
+	if mw.syncParts != nil {
+		mw.syncParts()
+	}
 	mw.publish(ids)
 }
 
@@ -243,6 +269,10 @@ type stateFileContent struct {
 
 type trustFileContent struct {
 	Trusted map[string]json.RawMessage `json:"trusted"`
+}
+
+type trustEntryAgents struct {
+	Agents []string `json:"agents"`
 }
 
 // One entry per mod mentioned by mods.json or trust.json: "enabled", "disabled", "trusted" joined. A file that cannot
@@ -265,8 +295,14 @@ func (mw *ModWatcher) readStateSnapshot() map[string]string {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		log.Printf("molten: reading %s: %v\n", mw.trustFile, err)
 	}
-	for id := range trust.Trusted {
+	for id, raw := range trust.Trusted {
 		marks[id] = append(marks[id], "trusted")
+		// A trust that starts covering the mod's Claude Code part changes its slot: announce it like any change.
+		var entry trustEntryAgents
+		json.Unmarshal(raw, &entry)
+		for _, agent := range entry.Agents {
+			marks[id] = append(marks[id], "trusted:"+agent)
+		}
 	}
 	snapshot := make(map[string]string, len(marks))
 	for id, list := range marks {

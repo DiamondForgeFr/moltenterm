@@ -133,6 +133,66 @@ func TestModWatcherOnDisk(t *testing.T) {
 	rec.waitFor(t, "fresh")
 }
 
+// FR-MORPH-010: Claude Code writes its typings into the part's `.claude-plugin/types/` at every load; they must
+// neither reload the mod nor be recorded, while the part's own files reload it.
+func TestModWatcherClaudeCodePart(t *testing.T) {
+	configDir := t.TempDir()
+	dataDir := t.TempDir()
+	modsDir := filepath.Join(configDir, "mods")
+	part := filepath.Join(modsDir, "band", "agents", "claude-code")
+	os.MkdirAll(filepath.Join(part, ".claude-plugin"), 0755)
+	os.MkdirAll(filepath.Join(part, "hooks"), 0755)
+	os.WriteFile(filepath.Join(part, ".claude-plugin", "plugin.json"), []byte(`{"name":"band"}`), 0644)
+
+	rec := &publishRecorder{}
+	mw, err := MakeModWatcher(modsDir, filepath.Join(configDir, "molten", StateFileName), filepath.Join(dataDir, "molten", TrustFileName), 100*time.Millisecond, rec.publish)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mw.Close()
+	go mw.Run()
+
+	os.MkdirAll(filepath.Join(part, ".claude-plugin", "types", "claude-code"), 0755)
+	time.Sleep(50 * time.Millisecond)
+	os.WriteFile(filepath.Join(part, ".claude-plugin", "types", "claude-code", "index.d.ts"), []byte("x"), 0644)
+	time.Sleep(400 * time.Millisecond)
+	if calls := rec.take(); len(calls) > 0 {
+		t.Fatalf("Claude Code's typings must not reload the mod, got %v", calls)
+	}
+
+	os.WriteFile(filepath.Join(part, ".claude-plugin", "plugin.json"), []byte(`{"name":"band","version":"2"}`), 0644)
+	rec.waitFor(t, "band")
+	os.WriteFile(filepath.Join(part, "hooks", "register.ts"), []byte("x"), 0644)
+	rec.waitFor(t, "band")
+}
+
+func TestModIdForPathInAPart(t *testing.T) {
+	modsDir := filepath.Join("/cfg", "mods")
+	part := filepath.Join(modsDir, "band", "agents", "claude-code")
+	cases := map[string]string{
+		filepath.Join(part, ".claude-plugin", "plugin.json"):                      "band",
+		filepath.Join(part, ".claude-plugin"):                                     "band",
+		filepath.Join(part, ".claude-plugin", "types"):                            "",
+		filepath.Join(part, ".claude-plugin", "types", "claude-code", "index.ts"): "",
+	}
+	for path, want := range cases {
+		got, ok := ModIdForPath(modsDir, path)
+		if got != want || ok != (want != "") {
+			t.Errorf("ModIdForPath(%q) = %q, %v; want %q", path, got, ok, want)
+		}
+	}
+}
+
+func TestStateSnapshotMarksThePartTrust(t *testing.T) {
+	trustFile := filepath.Join(t.TempDir(), TrustFileName)
+	mw := &ModWatcher{stateFile: filepath.Join(t.TempDir(), StateFileName), trustFile: trustFile}
+	os.WriteFile(trustFile, []byte(`{"trusted":{"a":{"name":"A"},"b":{"name":"B","agents":["claude-code"]}}}`), 0644)
+	snapshot := mw.readStateSnapshot()
+	if snapshot["a"] != "trusted" || snapshot["b"] != "trusted,trusted:claude-code" {
+		t.Fatalf("snapshot %v", snapshot)
+	}
+}
+
 func writeAtomic(t *testing.T, path string, content string) {
 	t.Helper()
 	tmp := path + ".tmp"

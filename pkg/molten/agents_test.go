@@ -5,12 +5,15 @@ package molten
 
 import (
 	"bytes"
+	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/agentdocs"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentparts"
 )
 
 func testAgentEnv(t *testing.T) AgentEnv {
@@ -368,5 +371,89 @@ func TestRetiredGuideIsNotMistakenForMorph(t *testing.T) {
 	os.WriteFile(p.GuidePath(env, morph), []byte(content), 0644)
 	if s := p.GuideStatus(env, morph); !s.Foreign || s.Installed {
 		t.Fatalf("a molten-feature file at the morph path is foreign: %+v", s)
+	}
+}
+
+func TestFilterAgentBlocks(t *testing.T) {
+	body := "a\n<!-- only:claude-code -->\nclaude\n<!-- /only -->\n<!-- not:claude-code -->\nothers\n<!-- /not -->\nz\n"
+	if got := FilterAgentBlocks(body, "claude-code"); got != "a\nclaude\nz\n" {
+		t.Fatalf("claude-code: %q", got)
+	}
+	if got := FilterAgentBlocks(body, "codex"); got != "a\nothers\nz\n" {
+		t.Fatalf("codex: %q", got)
+	}
+}
+
+// FR-MORPH-010: only Claude Code's /morph builds a Claude Code part; every other agent says plainly that it cannot
+// change its own session (TC-MORPH-012).
+func TestMorphGuideClaudeCodePart(t *testing.T) {
+	for _, p := range AgentProfiles {
+		content, err := p.Render("1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(content, "<!-- only") || strings.Contains(content, "<!-- not") || strings.Contains(content, "<!-- /") {
+			t.Errorf("%s: a block marker reached the rendering", p.Id)
+		}
+		if p.Id == "claude-code" {
+			for _, want := range []string{"agents/claude-code", "plugin-authoring", "claude --continue", "--claude-code", "claude-code-parts.md"} {
+				if !strings.Contains(content, want) {
+					t.Errorf("claude-code: the guide lacks %q", want)
+				}
+			}
+			if strings.Contains(content, "cannot change that for your agent") {
+				t.Error("claude-code: the guide must not say the session cannot change")
+			}
+			continue
+		}
+		for _, absent := range []string{"Claude Code part", "agents.claude-code", "CLAUDE_CODE_PLUGIN_DIRS", "plugin-authoring"} {
+			if strings.Contains(content, absent) {
+				t.Errorf("%s: the guide holds %q", p.Id, absent)
+			}
+		}
+		if !strings.Contains(content, "cannot change that for your agent") {
+			t.Errorf("%s: the guide must say the agent's own session cannot change", p.Id)
+		}
+	}
+	dir := t.TempDir()
+	if err := WriteDocs(dir); err != nil {
+		t.Fatal(err)
+	}
+	written, _ := os.ReadFile(filepath.Join(dir, "morph.md"))
+	source, _ := agentdocs.Files.ReadFile(agentdocs.GuideFile)
+	want := FilterAgentBlocks(strings.ReplaceAll(string(source), agentRequestPlaceholder, "(the user's request)"), GenericAgentId)
+	if string(written) != want || strings.Contains(want, "plugin-authoring") {
+		t.Error("molten docs writes the generic morph.md, with no Claude Code block")
+	}
+}
+
+func TestEmbeddedClaudeCodeExample(t *testing.T) {
+	part := "examples/test-band/agents/claude-code"
+	for _, name := range []string{"claude-code-parts.md", "examples/test-band/mod.json", "examples/test-band/main.js", part + "/.claude-plugin/plugin.json", part + "/hooks/hooks.json", part + "/hooks/register.tsx", part + "/types/index.d.ts"} {
+		if _, err := agentdocs.Files.ReadFile(name); err != nil {
+			t.Errorf("not embedded: %s", name)
+		}
+	}
+	if _, err := fs.Stat(agentdocs.Files, part+"/.claude-plugin/types"); err == nil {
+		t.Error("Claude Code's typings must not be embedded: delete the example's .claude-plugin/types/")
+	}
+	dir := t.TempDir()
+	if err := WriteDocs(dir); err != nil {
+		t.Fatal(err)
+	}
+	modsDir := filepath.Join(dir, "examples")
+	partInfo, err := agentparts.ReadClaudeCodePart(modsDir, "test-band")
+	if err != nil || partInfo == nil {
+		t.Fatalf("the example declares its part: %+v %v", partInfo, err)
+	}
+	if _, err := agentparts.CheckPartFolder(modsDir, "test-band", partInfo); err != nil {
+		t.Fatalf("the example part: %v", err)
+	}
+	if _, err := exec.LookPath("claude"); err != nil {
+		t.Skip("claude is not on the PATH: claude plugin validate not run")
+	}
+	out, err := exec.Command("claude", "plugin", "validate", filepath.Join(dir, filepath.FromSlash(part))).CombinedOutput()
+	if err != nil {
+		t.Fatalf("claude plugin validate on the example: %v\n%s", err, out)
 	}
 }

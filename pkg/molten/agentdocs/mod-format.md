@@ -43,11 +43,14 @@ molten history [--json]   # newest first; -> marks the change the mods are at no
 molten undo [--json]      # restores the mods as before that change; repeat to keep going back
 ```
 
-An undo is itself recorded, and an edit made after undoing can be undone too.
+An undo is itself recorded, and an edit made after undoing can be undone too. A mod's Claude Code part is
+snapshotted with the mod, its `.claude-plugin/` folder included; the typings Claude Code writes into
+`.claude-plugin/types/` are not part of the history.
 
 Safe mode starts MoltenTerm with no mod loaded, so a mod that breaks the workspace can always be repaired. Choose
 **Restart in Safe Mode** in the app menu, or start MoltenTerm with `MOLTENTERM_SAFE_MODE=1`. A banner says so in
-every window and `molten mod list` reports it. `molten mod disable`, `molten mod remove` and `molten undo` still
+every window and `molten mod list` reports it. No Claude Code part of a mod loads either, in new terminals and in
+terminals that survived the restart. `molten mod disable`, `molten mod remove` and `molten undo` still
 work; then choose **Restart Normally** in the app menu.
 
 ## Trust
@@ -78,6 +81,11 @@ that already runs with the user's rights, such as a hostile agent, from writing 
 | `apiVersion`   | yes      | `1`. Any other value is refused, with a message naming the supported versions                 |
 | `main`         | yes      | Path of the module inside the folder, ending in `.js` or `.mjs`; no `.` or `..` segment       |
 | `capabilities` | no       | List of strings declaring what the mod uses, shown when the user is asked to trust it (#21)   |
+| `agents`       | no       | The mod's Claude Code part: `{"claude-code": {"folder", "targetVersion"}}`; see `claude-code-parts.md` |
+
+A mod may also carry a **Claude Code part**, a Claude Code plugin folder that runs inside the Claude Code sessions
+started in MoltenTerm terminals (a band above the prompt, hooks on tool calls…). `claude-code-parts.md`, next to this
+page, documents it, with the complete example `examples/test-band/`.
 
 ## `main`
 
@@ -210,11 +218,14 @@ command accepts `--json` and exits non-zero on failure; with `--json` an error i
 
 ```
 molten mod new <id> [--name <name>] [--description <text>]   # a working mod from a template, disabled
+molten mod new <id> --claude-code [--claude-code-version X.Y.Z]   # the same, with a Claude Code part
 molten mod validate [<id>…]   # manifest, API version, syntax: file:line:column of each problem; runs no code
+                              # (and claude plugin validate on a Claude Code part; warnings never fail)
 molten mod enable <id>        # in every open tab; asks you to trust the mod first
 molten mod untrust <id>       # stops the mod and forgets the trust
 molten mod disable <id>
-molten mod list               # ID, state (disabled, untrusted, active, failed, refused), version, commands, error
+molten mod list               # ID, state (disabled, untrusted, active, failed, refused), version, commands, error;
+                              # then the state of each Claude Code part (active, disabled, untrusted, invalid, safemode)
 molten mod remove <id>        # disables the mod, forgets its trust and moves its folder to the trash
 molten undo                   # restores the mods as before the last change
 molten history                # the recorded changes
