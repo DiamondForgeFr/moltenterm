@@ -4,6 +4,7 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { tryReinjectKey } from "@/app/store/keymodel";
 import { CodeEditor } from "@/app/view/codeeditor/codeeditor";
+import { followPreviewLine } from "../../../moltenterm-shell/term-copy/preview-line"; // MOLTENTERM-PATCH (#119)
 import { adaptFromReactOrNativeKeyEvent, checkKeyPressed } from "@/util/keyutil";
 import { fireAndForget } from "@/util/util";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -90,8 +91,12 @@ function CodeEditPreview({ model }: SpecializedViewProps) {
             editor.focus();
         }
 
+        // MOLTENTERM-PATCH (#119): reveal the line a terminal file link names.
+        const stopFollowingLine = followPreviewLine(editor, model.blockId);
+
         return () => {
             keyDownDisposer.dispose();
+            stopFollowingLine();
         };
     }
 

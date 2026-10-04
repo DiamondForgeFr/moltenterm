@@ -24,6 +24,7 @@ import { SearchAddon } from "@xterm/addon-search";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { defaultSelectionText, installTermCopy } from "../../../moltenterm-shell/term-copy/term-copy"; // MOLTENTERM-PATCH (#119)
 import * as TermTypes from "@xterm/xterm";
 import { Terminal } from "@xterm/xterm";
 import debug from "debug";
@@ -282,6 +283,8 @@ export class TermWrap {
         this.heldData = [];
         this.handleResize_debounced = debounce(50, this.handleResize.bind(this));
         this.terminal.open(this.connectElem);
+        // MOLTENTERM-PATCH (#119): clean copy in agent terminals and links to the files a terminal mentions.
+        this.toDispose.push(...installTermCopy(this));
 
         const dragoverHandler = (e: DragEvent) => {
             e.preventDefault();
@@ -395,7 +398,8 @@ export class TermWrap {
                     if (active != null && active.closest(".search-container") != null) {
                         return;
                     }
-                    let selectedText = this.terminal.getSelection();
+                    // MOLTENTERM-PATCH (#119): copy-on-select copies clean in agent terminals, like Cmd+C.
+                    let selectedText = defaultSelectionText(this) || this.terminal.getSelection();
                     if (selectedText.length > 0) {
                         if (globalStore.get(trimTrailingWhitespaceAtom) !== false) {
                             selectedText = trimTerminalSelection(selectedText);

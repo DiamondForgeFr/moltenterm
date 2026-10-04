@@ -36,6 +36,12 @@ import {
 import * as services from "@/store/services";
 import * as keyutil from "@/util/keyutil";
 import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
+import {
+    copyText,
+    plainSelectionText,
+    termCopyMenuItems,
+    termFileLinkMenuItems,
+} from "../../../moltenterm-shell/term-copy/term-copy"; // MOLTENTERM-PATCH (#119)
 import { isMacOS, isWindows } from "@/util/platformutil";
 import { boundNumber, fireAndForget, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
@@ -742,6 +748,14 @@ export class TermViewModel implements ViewModel {
             return false;
         }
 
+        // MOLTENTERM-PATCH (#119): Cmd+C copies clean in agent terminals, Cmd+Shift+C copies the plain selection.
+        if (isMacOS() && keyutil.checkKeyPressed(waveEvent, "Cmd:Shift:c")) {
+            event.preventDefault();
+            event.stopPropagation();
+            copyText(plainSelectionText(this.termRef.current));
+            return false;
+        }
+
         if (keyutil.checkKeyPressed(waveEvent, "Ctrl:Shift:v")) {
             event.preventDefault();
             event.stopPropagation();
@@ -828,19 +842,9 @@ export class TermViewModel implements ViewModel {
         const hasSelection = this.termRef.current?.terminal?.hasSelection();
         const selection = hasSelection ? this.termRef.current?.terminal.getSelection() : null;
 
+        // MOLTENTERM-PATCH (#119): Copy, Copy Clean / Copy Plain, Send to Pane, Open File (term-copy.ts).
         if (hasSelection) {
-            menu.push({
-                label: "Copy",
-                click: () => {
-                    if (selection) {
-                        const text =
-                            globalStore.get(getSettingsKeyAtom("term:trimtrailingwhitespace")) !== false
-                                ? trimTerminalSelection(selection)
-                                : selection;
-                        navigator.clipboard.writeText(text);
-                    }
-                },
-            });
+            menu.push(...termCopyMenuItems(this.termRef.current));
             // MOLTENTERM-PATCH (#25): no "Send to Wave AI"; Moltenterm ships no built-in AI.
             if (!MoltentermNoAI) {
                 menu.push({ type: "separator" });
@@ -863,6 +867,8 @@ export class TermViewModel implements ViewModel {
             menu.push({ type: "separator" });
         }
 
+        // MOLTENTERM-PATCH (#119): open the file link under the mouse.
+        menu.push(...termFileLinkMenuItems(this.termRef.current));
         const hoveredLinkUri = this.termRef.current?.hoveredLinkUri;
         if (hoveredLinkUri) {
             let hoveredURL: URL = null;
