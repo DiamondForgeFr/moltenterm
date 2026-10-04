@@ -275,25 +275,44 @@ func TestValidateSessionPath(t *testing.T) {
 func TestChooseCandidate(t *testing.T) {
 	start := int64(100_000)
 	before := Candidate{Path: "old", Started: start - 60_000}
-	after := Candidate{Path: "new", Started: start + 1_000}
-	other := Candidate{Path: "other", Started: start + 2_000}
-	if c, amb := chooseCandidate([]Candidate{after}, start, 1); c == nil || amb {
+	after := Candidate{Path: "new", Started: start + 1_000, Modified: start + 1_500}
+	other := Candidate{Path: "other", Started: start + 2_000, Modified: start + 2_500}
+	if c, amb := chooseCandidate([]Candidate{after}, 1, start, 1); c == nil || amb {
 		t.Error("the only session started after the agent is linked")
 	}
-	if _, amb := chooseCandidate([]Candidate{before}, start, 1); !amb {
-		t.Error("a session started before the agent is never linked without the user")
+	if _, amb := chooseCandidate([]Candidate{before}, 0, start, 1); !amb {
+		t.Error("a session neither started nor written since the agent started is never linked without the user")
 	}
-	if _, amb := chooseCandidate([]Candidate{{Path: "unknown"}}, start, 1); !amb {
-		t.Error("a session of unknown start is never linked without the user")
-	}
-	if c, amb := chooseCandidate([]Candidate{after, before}, start, 1); c == nil || c.Path != "new" || amb {
+	if c, amb := chooseCandidate([]Candidate{after, before}, 1, start, 1); c == nil || c.Path != "new" || amb {
 		t.Error("the only session started after the agent is linked")
 	}
-	if _, amb := chooseCandidate([]Candidate{after, other}, start, 1); !amb {
+	if _, amb := chooseCandidate([]Candidate{after, other}, 2, start, 1); !amb {
 		t.Error("two new sessions are ambiguous")
 	}
-	if _, amb := chooseCandidate([]Candidate{after}, start, 2); !amb {
+	if _, amb := chooseCandidate([]Candidate{after}, 1, start, 2); !amb {
 		t.Error("two agents in the same folder are ambiguous, even with one session")
+	}
+
+	// Resumed sessions (claude --resume): started before the agent, written since.
+	resumed := Candidate{Path: "resumed", Started: start - 3_600_000, Modified: start + 5_000}
+	unknown := Candidate{Path: "unknown", Modified: start + 5_000}
+	if c, amb := chooseCandidate([]Candidate{resumed}, 1, start, 1); c == nil || c.Path != "resumed" || amb {
+		t.Error("the only session written since the agent started is its resumed session")
+	}
+	if c, amb := chooseCandidate([]Candidate{unknown}, 1, start, 1); c == nil || amb {
+		t.Error("a session of unknown start written since the agent started is linked when it is the only one")
+	}
+	if _, amb := chooseCandidate([]Candidate{resumed, unknown}, 2, start, 1); !amb {
+		t.Error("two sessions written since the agent started are ambiguous")
+	}
+	if _, amb := chooseCandidate([]Candidate{resumed}, 2, start, 1); !amb {
+		t.Error("another terminal's session written since the agent started makes the resumed one ambiguous")
+	}
+	if _, amb := chooseCandidate([]Candidate{resumed}, 1, start, 2); !amb {
+		t.Error("another pane running the agent in the folder makes the resumed session ambiguous")
+	}
+	if _, amb := chooseCandidate([]Candidate{{Path: "slack", Started: start - 60_000, Modified: start - 1_000}}, 0, start, 1); !amb {
+		t.Error("a session last written just before the agent started is not taken as resumed")
 	}
 }
 
@@ -482,11 +501,7 @@ func TestUnsupportedFile(t *testing.T) {
 	defer m.Close("b1", "v")
 	os.WriteFile(filepath.Join(dir, "s.jsonl"), []byte(strings.Repeat(`{"kind":"x"}`+"\n", 8)), 0o600)
 	m.Open("b1", "v")
-	// A transcript without timestamps has no known start: the user picks it.
-	waitView(t, env, "b1", func(v CompanionView) bool { return v.Status == StatusChoose })
-	if _, err := m.Pick("b1", "v", filepath.Join(dir, "s.jsonl")); err != nil {
-		t.Fatal(err)
-	}
+	// A transcript without timestamps has no known start, but it is the only session written since the agent started.
 	v := waitView(t, env, "b1", func(v CompanionView) bool { return v.Status == StatusUnsupportedFormat })
 	if len(v.Files) != 0 || v.Latest != nil {
 		t.Errorf("nothing shown of an unsupported format: %+v", v)

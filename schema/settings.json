@@ -127,6 +127,16 @@
         "term:trimtrailingwhitespace": {
           "type": "boolean"
         },
+        "agent:sessionroots": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "object",
+          "description": "Extra configuration folders per coding agent (claude: like CLAUDE_CONFIG_DIR, codex: like CODEX_HOME) whose sessions the agent companion reads"
+        },
         "editor:minimapenabled": {
           "type": "boolean"
         },

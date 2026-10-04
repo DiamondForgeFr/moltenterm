@@ -676,8 +676,12 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 		return
 	}
 	var free []Candidate
+	written := 0
 	for _, c := range w.adapter.Discover(w.info.cwd, time.UnixMilli(run.Started)) {
 		c.Path = canonicalPath(c.Path)
+		if c.Modified >= run.Started {
+			written++
+		}
 		if !w.m.takenByOther(w.blockId, c.Path) {
 			free = append(free, c)
 		}
@@ -696,7 +700,7 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 		}
 		return
 	}
-	chosen, ambiguous := chooseCandidate(free, run.Started, runs)
+	chosen, ambiguous := chooseCandidate(free, written, run.Started, runs)
 	if chosen != nil && !ambiguous {
 		w.follow(chosen.Path, LinkDiscovery, chosen.Started)
 		return
@@ -722,10 +726,12 @@ func canonicalPath(path string) string {
 	return resolved
 }
 
-// chooseCandidate picks the session discovery may link without asking: the only one started after the agent, when
-// no other pane runs the same agent in the same folder. A session started before the agent (a resumed one, or
-// another program's) or of unknown start is never linked without the user: ambiguous.
-func chooseCandidate(free []Candidate, runStarted int64, runsInFolder int) (*Candidate, bool) {
+// chooseCandidate picks the session discovery may link without asking, when no other pane runs the same agent in the
+// same folder: the only one started after the agent, else (a resumed session, which started before the agent) the
+// only session of the folder written since the agent started, when no other terminal holds it. written counts the
+// sessions written since the agent started, held by another terminal or not. Anything else is ambiguous: the user
+// picks.
+func chooseCandidate(free []Candidate, written int, runStarted int64, runsInFolder int) (*Candidate, bool) {
 	if len(free) == 0 {
 		return nil, false
 	}
@@ -740,6 +746,9 @@ func chooseCandidate(free []Candidate, runStarted int64, runsInFolder int) (*Can
 	}
 	if len(after) == 1 {
 		return &after[0], false
+	}
+	if len(after) == 0 && written == 1 && len(free) == 1 && free[0].Modified >= runStarted {
+		return &free[0], false
 	}
 	return nil, true
 }
