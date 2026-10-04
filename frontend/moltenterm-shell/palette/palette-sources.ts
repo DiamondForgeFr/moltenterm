@@ -233,6 +233,15 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         });
     }
     rtn.push({
+        id: "action:gettingstarted",
+        group: "actions",
+        label: "Getting started",
+        detail: "your agent, a first morph, your project",
+        icon: "compass",
+        keywords: ["onboarding", "setup", "welcome", "tour", "first run"],
+        run: { kind: "gettingstarted" },
+    });
+    rtn.push({
         id: "action:settings",
         group: "actions",
         label: "Settings",

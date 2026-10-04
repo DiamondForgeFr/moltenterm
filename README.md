@@ -36,6 +36,11 @@ task dev    # run MoltenTerm in development mode
 
 [UPSTREAM.md](UPSTREAM.md) documents the full toolchain, the other tasks and how Wave Terminal releases are merged.
 
+## Privacy
+
+MoltenTerm sends no usage data and has no account. [PRIVACY.md](PRIVACY.md) lists the only connections it makes, all
+of them at your request.
+
 ## Relationship with Wave Terminal
 
 MoltenTerm is a fork of [Wave Terminal](https://github.com/wavetermdev/waveterm), created by Command Line Inc. and

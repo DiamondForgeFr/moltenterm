@@ -20,6 +20,7 @@ import {
     WaveBrowserWindow,
 } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
+import { makeMoltentermGettingStartedMenuItem } from "./moltenterm-onboarding"; // MOLTENTERM-PATCH (#161)
 import { makeMoltentermSafeModeMenuItem } from "./moltenterm-safemode"; // MOLTENTERM-PATCH (#20)
 // MOLTENTERM-PATCH (#5): `updater` is no longer imported; the menu has no update item.
 
@@ -180,6 +181,7 @@ function makeAppMenuItems(webContents: electron.WebContents): Electron.MenuItemC
                 (getWindowWebContents(window) ?? webContents)?.send("menu-item-about");
             },
         },
+        makeMoltentermGettingStartedMenuItem((window) => getWindowWebContents(window) ?? webContents), // MOLTENTERM-PATCH (#161)
         // MOLTENTERM-PATCH (#5): no "Check for Updates" item: it polled Wave's
         // update feed even with auto-update disabled.
         { type: "separator" },
