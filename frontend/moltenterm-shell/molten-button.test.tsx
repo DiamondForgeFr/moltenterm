@@ -28,30 +28,48 @@ const WorkspaceColours = [
 ];
 
 type Recipe = { pct: number; base: string };
+type Rgb = ReturnType<typeof parseColor>;
 
-function readHighlights(): Record<string, Recipe> {
+// The declarations of one rule of molten-button.css, e.g. ".molten-btn".
+function block(selector: string): string {
+    const m = new RegExp(`\\n${selector.replace(/[.-]/g, "\\$&")} \\{([^}]*)\\}`).exec(buttonCss);
+    return m?.[1] ?? "";
+}
+
+function cssValue(selector: string, prop: string): string {
+    return new RegExp(`${prop}:\\s*([^;]+);`).exec(block(selector))?.[1].trim();
+}
+
+function readHighlights(selector: string): Record<string, Recipe> {
     const recipes: Record<string, Recipe> = {};
     const re = /(--molten-hi-\d):\s*color-mix\(in srgb, var\(--molten-base\) (\d+)%, (rgb\([^)]*\))\);/g;
-    for (const m of buttonCss.matchAll(re)) {
+    for (const m of block(selector).matchAll(re)) {
         recipes[m[1]] = { pct: Number(m[2]), base: m[3] };
     }
     return recipes;
 }
 
-function cssValue(css: string, selector: string, prop: string): string {
-    const block = new RegExp(`\\n${selector.replace(/[.-]/g, "\\$&")} \\{([^}]*)\\}`).exec(css);
-    const decl = new RegExp(`${prop}:\\s*([^;]+);`).exec(block?.[1] ?? "");
-    return decl?.[1].trim();
+function shellToken(token: string): Rgb {
+    return parseColor(new RegExp(`${token}:\\s*(rgb\\([^)]*\\));`).exec(shellCss)?.[1]);
 }
 
-const Highlights = readHighlights();
+// A variant's --molten-base: a semantic token, plain or darkened (`color-mix(in srgb, var(--token) N%, black)`).
+function variantBase(selector: string): Rgb {
+    const value = cssValue(selector, "--molten-base");
+    const mixed = /^color-mix\(in srgb, var\((--[a-z-]+)\) (\d+)%, black\)$/.exec(value);
+    if (mixed) {
+        return mixColor(shellToken(mixed[1]), { r: 0, g: 0, b: 0 }, Number(mixed[2]));
+    }
+    return shellToken(/^var\((--[a-z-]+)\)$/.exec(value)?.[1]);
+}
+
+const Highlights = readHighlights(".molten-btn");
 
 // Every colour a molten button's text sits on: the rest colour and each wave highlight.
-function surfaces(base: string) {
-    const rgb = parseColor(base);
+function surfaces(rgb: Rgb, highlights: Record<string, Recipe>) {
     return [
         { name: "rest", rgb },
-        ...Object.entries(Highlights).map(([name, r]) => ({ name, rgb: mixColor(rgb, parseColor(r.base), r.pct) })),
+        ...Object.entries(highlights).map(([name, r]) => ({ name, rgb: mixColor(rgb, parseColor(r.base), r.pct) })),
     ];
 }
 
@@ -62,25 +80,42 @@ describe("molten button contrast (NFR-SHELL-003)", () => {
 
     describe.each(WorkspaceColours)("primary on workspace colour %s", (accent) => {
         const fg = parseColor(accentForeground(parseColor(accent)));
-        it.each(surfaces(accent).map((s) => [s.name, s.rgb]))("keeps the text at 4.5:1 over %s", (_name, rgb) => {
-            expect(contrastRatio(rgb, fg)).toBeGreaterThanOrEqual(4.5);
-        });
+        it.each(surfaces(parseColor(accent), Highlights).map((s) => [s.name, s.rgb]))(
+            "keeps the text at 4.5:1 over %s",
+            (_name, rgb) => {
+                expect(contrastRatio(rgb, fg)).toBeGreaterThanOrEqual(4.5);
+            }
+        );
     });
 
     describe.each([
-        [".molten-btn-destructive", "--mt-state-error"],
-        [".molten-btn-warning", "--mt-state-waiting"],
-    ])("%s", (selector, token) => {
-        const base = new RegExp(`${token}:\\s*(rgb\\([^)]*\\));`).exec(shellCss)?.[1];
-        const fg = cssValue(buttonCss, selector, "--molten-fg");
+        [".molten-btn-destructive", "#ffffff"],
+        [".molten-btn-warning", "#000000"],
+    ])("%s", (selector, wantFg) => {
+        const base = variantBase(selector);
+        const fg = cssValue(selector, "--molten-fg");
+        const highlights = { ...Highlights, ...readHighlights(selector) };
 
-        it("declares the readable text colour of its semantic colour", () => {
-            expect(fg).toBe(accentForeground(parseColor(base)));
+        it("declares the readable text colour of its fill", () => {
+            expect(base).not.toBeNull();
+            expect(fg).toBe(wantFg);
+            expect(accentForeground(base)).toBe(wantFg);
         });
 
-        it.each(surfaces(base).map((s) => [s.name, s.rgb]))("keeps the text at 4.5:1 over %s", (_name, rgb) => {
-            expect(contrastRatio(rgb, parseColor(fg))).toBeGreaterThanOrEqual(4.5);
-        });
+        it.each(surfaces(base, highlights).map((s) => [s.name, s.rgb]))(
+            "keeps the text at 4.5:1 over %s",
+            (_name, rgb) => {
+                expect(contrastRatio(rgb, parseColor(fg))).toBeGreaterThanOrEqual(4.5);
+            }
+        );
+    });
+
+    it("fills a destructive button with a red deeper than the error colour", () => {
+        const error = shellToken("--mt-state-error");
+        const base = variantBase(".molten-btn-destructive");
+        expect(base.r).toBeLessThan(error.r);
+        expect(base.g).toBeLessThanOrEqual(error.g);
+        expect(base.r).toBeGreaterThan(base.g + base.b);
     });
 
     it("never uses Wave's green button colours", () => {

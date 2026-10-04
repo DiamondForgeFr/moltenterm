@@ -37,9 +37,13 @@
     }
 }
 
+/* A destructive action reads as such with white text on a deep red: black on the error colour itself looked like a
+   warning. White only holds 4.5:1 on a red darkened by a quarter, under gentler highlights than the primary's. */
 .molten-btn-destructive {
-    --molten-base: var(--mt-state-error);
-    --molten-fg: #000000;
+    --molten-base: color-mix(in srgb, var(--mt-state-error) 75%, black);
+    --molten-fg: #ffffff;
+    --molten-hi-1: color-mix(in srgb, var(--molten-base) 88%, rgb(255, 246, 222));
+    --molten-hi-2: color-mix(in srgb, var(--molten-base) 82%, rgb(255, 222, 140));
 }
 
 .molten-btn-warning {
