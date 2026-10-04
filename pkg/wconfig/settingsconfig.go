@@ -69,6 +69,8 @@ type SettingsType struct {
 	AppDisableCtrlShiftDisplay    bool   `json:"app:disablectrlshiftdisplay,omitempty"`
 	AppFocusFollowsCursor         string `json:"app:focusfollowscursor,omitempty" jsonschema:"enum=off,enum=on,enum=term"`
 	AppTabBar                     string `json:"app:tabbar,omitempty" jsonschema:"enum=top,enum=left"`
+	// MOLTENTERM-PATCH (#111): an empty pane shows Wave's tile launcher instead of the command palette.
+	AppTileLauncher bool `json:"app:tilelauncher,omitempty" jsonschema_description:"Show the tile launcher in an empty pane instead of the command palette"`
 
 	FeatureWaveAppBuilder bool `json:"feature:waveappbuilder,omitempty"`
 

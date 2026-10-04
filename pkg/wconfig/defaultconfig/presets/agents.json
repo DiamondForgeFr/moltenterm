@@ -1,0 +1,14 @@
+{
+    "agent@claude": {
+        "display:name": "Claude Code",
+        "display:order": 1,
+        "display:icon": "asterisk",
+        "agent:command": "claude"
+    },
+    "agent@codex": {
+        "display:name": "Codex",
+        "display:order": 2,
+        "display:icon": "code",
+        "agent:command": "codex"
+    }
+}

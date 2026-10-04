@@ -5,12 +5,14 @@
 // is ever written in the project.
 
 import { getApi } from "@/app/store/global";
+import { globalStore } from "@/app/store/jotaiStore";
 import { WorkspaceService } from "@/app/store/services";
-import { makeORef } from "@/app/store/wos";
+import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MoltentermChoosePathOpts } from "@/util/moltenterm-dialogs";
 import { base64ToString } from "@/util/util";
+import { pushRecentFolder } from "./palette/palette-sources";
 import { ProjectDismissedMetaKey } from "./project-detect";
 import {
     linkUpdate,
@@ -24,9 +26,11 @@ import {
     ProjectPipelineFile,
     ProjectSaaSFoundryFile,
     readmeFirstImage,
+    readRecentFolders,
     readWorkspaceProject,
     unlinkUpdate,
     WorkspaceFolderMetaKey,
+    WorkspaceRecentFoldersMetaKey,
 } from "./workspace-project";
 
 const MaxGitRootDepth = 40;
@@ -147,9 +151,15 @@ export async function unlinkWorkspaceProject(workspaceId: string): Promise<void>
     await setWorkspaceMeta(workspaceId, unlinkUpdate());
 }
 
-// null forgets the folder: the next move of the workspace's terminal sets it again (FR-SHELL-009).
+// null forgets the folder: the next move of the workspace's terminal sets it again (FR-SHELL-009). Every folder set
+// also goes to the workspace's history, which the command palette offers as recent folders (FR-SHELL-013).
 export async function setWorkspaceFolder(workspaceId: string, folder: string): Promise<void> {
-    await setWorkspaceMeta(workspaceId, { [WorkspaceFolderMetaKey]: folder || null });
+    const meta: Record<string, any> = { [WorkspaceFolderMetaKey]: folder || null };
+    if (folder) {
+        const ws = globalStore.get(getWaveObjectAtom<Workspace>(makeORef("workspace", workspaceId)));
+        meta[WorkspaceRecentFoldersMetaKey] = pushRecentFolder(readRecentFolders(ws), folder);
+    }
+    await setWorkspaceMeta(workspaceId, meta);
 }
 
 export async function setWorkspaceLogo(workspaceId: string, logo: string): Promise<void> {

@@ -54,3 +54,10 @@
     font: var(--base-font);
     font-size: 12px;
 }
+
+/* The command palette's selected entry (FR-SHELL-013): a tint and an accent bar, so the keyboard selection is
+   obvious; tinted rather than filled, so its text keeps the panel's colours. */
+.molten-palette-selected {
+    background-color: color-mix(in srgb, var(--mt-accent) 12%, transparent);
+    box-shadow: inset 2px 0 0 var(--mt-accent);
+}
