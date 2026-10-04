@@ -101,4 +101,21 @@ describe("heat states (DS-SHELL-014)", () => {
         const orange = parseColor(MoltentermDefaultAccent);
         expect(Math.hypot(amber.r - orange.r, amber.g - orange.g, amber.b - orange.b)).toBeGreaterThan(60);
     });
+
+    it("tells waiting from working by form, not colour alone", () => {
+        const rule = (state: string) =>
+            new RegExp(`\\[data-mt-agent-state="${state}"\\]::after \\{([^}]*)\\}`).exec(shellCss)[1];
+        for (const state of ["waiting", "error"]) {
+            expect(rule(state)).toContain("box-shadow: inset 0 0 0 2px var(--mt-heat)");
+            expect(rule(state)).toContain("animation: none");
+        }
+        expect(rule("working")).not.toContain("box-shadow");
+        expect(/\[data-mt-agent-state\]::after \{[^}]*box-shadow: inset 0 0 \d+px/.test(shellCss)).toBe(true);
+    });
+});
+
+describe("interface typeface (FR-SHELL-014)", () => {
+    it("uses IBM Plex Sans, with the bundled Inter behind it", () => {
+        expect(shellCss).toContain('--mt-ui-font: "IBM Plex Sans", "Inter", sans-serif;');
+    });
 });

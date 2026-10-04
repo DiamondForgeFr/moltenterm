@@ -203,8 +203,8 @@ export function RunStateBadge({ state }: { state: RunState }) {
 
 const PhaseNodeClasses: Record<BuildPhaseStatus, string> = {
     todo: "border-border bg-transparent text-muted",
-    running: "border-yellow-500/60 bg-yellow-500/10 text-yellow-400",
-    done: "border-emerald-500/60 bg-emerald-500/10 text-emerald-400",
+    running: "border-accent/70 bg-accent/15 text-accent",
+    done: "border-success/60 bg-success/10 text-success",
     failed: "border-error/60 bg-error/10 text-error",
 };
 
