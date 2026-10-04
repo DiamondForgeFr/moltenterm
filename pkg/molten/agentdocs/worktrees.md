@@ -45,7 +45,8 @@ commits no remote has, whether the branch is merged into the trunk, the ignored 
 other open terminals using the worktree. Then: **Remove**, **Keep** or **Cancel**.
 
 - Keep is the default when another terminal uses the worktree.
-- Uncommitted changes or unpushed commits need a second, explicit confirmation; only then is git forced.
+- Uncommitted changes, unpushed commits, ignored files (a `.env`) or another terminal using it need a second,
+  explicit confirmation; only then is git forced, and only if nothing was added since the user confirmed.
 - The branch is kept unless the user asks to delete it, and it is deleted only when its content is on the trunk.
 - Nothing of this can be triggered from a terminal: only the user, in a MoltenTerm window, removes a worktree. An
   agent that wants its worktree gone removes it with git itself.
