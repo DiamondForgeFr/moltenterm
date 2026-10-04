@@ -381,7 +381,15 @@ func (c moltenPartContext) note(id string, before MoltenPartStatus) *MoltenClaud
 	}
 	WriteStdout("%s\n", note.Message)
 	if note.State == agentparts.PartStateActive {
-		for _, warning := range moltenPartWarnings(c.dataDir, c.safeMode) {
+		// A note telling to open a new terminal already covers a terminal that carries no slot.
+		warnings := moltenPartWarnings(c.dataDir, c.safeMode)
+		if note.TakesEffect == MoltenPartTakesEffectNewTerminal {
+			warnings = nil
+			if w := moltenSettingsOverride(moltenClaudeConfigDir()); w != "" {
+				warnings = []string{w}
+			}
+		}
+		for _, warning := range warnings {
 			WriteStderr("molten: warning: %s\n", warning)
 		}
 	}
