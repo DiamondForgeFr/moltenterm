@@ -50,11 +50,11 @@ const (
 	reportUntracked = 24 * time.Hour
 	// A new agent writes its own session only at its first prompt: until then, another program's session of the
 	// folder (an IDE's) would pass for a resumed one. The resumed-session rule waits this long after the agent started.
-	resumeGrace = 15 * time.Second
-	maxReports      = 1000
-	maxWatchers     = 16
-	maxLeases       = 8
-	maxCandidate    = 10
+	resumeGrace  = 15 * time.Second
+	maxReports   = 1000
+	maxWatchers  = 16
+	maxLeases    = 8
+	maxCandidate = 10
 	// Records larger than this are not decoded unless they may carry a file change: a tool's result only ends its
 	// call, read from its id.
 	largeRecordBytes = 1024 * 1024
