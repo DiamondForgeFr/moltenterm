@@ -18,6 +18,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
+	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
 const (
@@ -40,6 +41,8 @@ var watchedEvents = []string{
 	wps.Event_WaveObjUpdate,
 	molten.AgentStateEvent,
 }
+
+var objUpdateScopes = []string{waveobj.OType_Block + ":*", waveobj.OType_Tab + ":*", waveobj.OType_Workspace + ":*"}
 
 var startOnce sync.Once
 
@@ -77,16 +80,27 @@ func watch(model *Model) {
 				model.Trigger()
 			}
 		})
-		wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{Event: event, AllScopes: true}, nil)
+		sub := wps.SubscriptionRequest{Event: event, AllScopes: true}
+		if event == wps.Event_WaveObjUpdate {
+			// The broker filters the other objects (layouts, windows, jobs) before they are sent.
+			sub = wps.SubscriptionRequest{Event: event, Scopes: objUpdateScopes}
+		}
+		wshclient.EventSubCommand(rpcClient, sub, nil)
 	}
 }
 
-// StartupReconnects picks the sessions to reconnect at startup: in a pane MoltenTerm can reattach to, not connected,
-// and whose host is up (an SSH host reconnects its jobs itself when it comes up).
-func StartupReconnects(data molten.DurableSessionsData, hostUp func(connection string) bool) []string {
+// StartupReconnects picks the sessions to reconnect at startup: not connected, whose host is up (an SSH host
+// reconnects its jobs itself when it comes up), and either in a pane MoltenTerm can reattach to or being ended (the
+// reconnect ends it). A pane in the active tab of its workspace is left to its terminal, which mounts at once and
+// reconnects with its own size.
+func StartupReconnects(data molten.DurableSessionsData, hostUp func(connection string) bool, activeTab func(workspaceId string) string) []string {
 	var rtn []string
 	for _, s := range data.Sessions {
-		if !s.Shown || !s.CanShow || s.ConnState == molten.SessionConnConnected {
+		if s.ConnState == molten.SessionConnConnected {
+			continue
+		}
+		ending := s.Reason == molten.SessionReasonEnding
+		if !ending && (!s.Shown || !s.CanShow || (s.TabId != "" && activeTab(s.WorkspaceId) == s.TabId)) {
 			continue
 		}
 		if s.Connection != "" && !hostUp(s.Connection) {
@@ -97,6 +111,23 @@ func StartupReconnects(data molten.DurableSessionsData, hostUp func(connection s
 	return rtn
 }
 
+func activeTabs() func(workspaceId string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), reconnectTimeout)
+	defer cancel()
+	active := map[string]string{}
+	// Only a window mounts its workspace's active tab.
+	windows, _ := wstore.DBGetAllObjsByType[*waveobj.Window](ctx, waveobj.OType_Window)
+	for _, win := range windows {
+		ws, err := wstore.DBGet[*waveobj.Workspace](ctx, win.WorkspaceId)
+		if err == nil && ws != nil {
+			active[ws.OID] = ws.ActiveTabId
+		}
+	}
+	return func(workspaceId string) string {
+		return active[workspaceId]
+	}
+}
+
 func hostUp(connection string) bool {
 	up, err := conncontroller.IsConnected(connection)
 	return err == nil && up
@@ -105,7 +136,7 @@ func hostUp(connection string) bool {
 // reconnectAtStartup reconnects the durable jobs of tabs nobody opened yet, so their output keeps reaching MoltenTerm
 // (it would otherwise wait in the job manager's buffer until the pane mounts) and their state is known.
 func reconnectAtStartup(data molten.DurableSessionsData) {
-	ids := StartupReconnects(data, hostUp)
+	ids := StartupReconnects(data, hostUp, activeTabs())
 	if len(ids) == 0 {
 		return
 	}

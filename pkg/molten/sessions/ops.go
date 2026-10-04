@@ -4,6 +4,7 @@
 package sessions
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/fs"
@@ -24,7 +25,10 @@ import (
 const (
 	// The part of a job's output a reattached pane shows: what fits its terminal file, with room for what follows.
 	historyCopyBytes = blockcontroller.DefaultTermMaxFileSize / 2
-	reattachedNotice = "\x1b[90m— reattached by MoltenTerm —\x1b[0m\r\n"
+	// The copy starts mid-stream: ST ends an escape sequence the cut left open, then the colours are reset.
+	reattachedNotice = "\x1b\\\x1b[0m\r\n\x1b[90m— reattached by MoltenTerm —\x1b[0m\r\n"
+	// The copy starts after a line end found this far into the tail at most.
+	lineStartSearch = 4096
 )
 
 // liveOps are the actions' changes in wavesrv.
@@ -34,12 +38,17 @@ func (liveOps) TerminateJob(ctx context.Context, jobId string) error {
 	return jobcontroller.TerminateJobManager(ctx, jobId)
 }
 
+// TerminateAndDetachJob leaves the block alone: the block a replaced session still points at runs another job.
 func (liveOps) TerminateAndDetachJob(ctx context.Context, jobId string) error {
 	err := jobcontroller.TerminateJobManager(ctx, jobId)
-	if detachErr := jobcontroller.DetachJobFromBlock(ctx, jobId, true); detachErr != nil && err == nil {
+	if detachErr := jobcontroller.DetachJobFromBlock(ctx, jobId, false); detachErr != nil && err == nil {
 		err = detachErr
 	}
 	return err
+}
+
+func (liveOps) DeletePane(ctx context.Context, blockId string) error {
+	return wcore.DeleteBlock(ctx, blockId, false)
 }
 
 func (liveOps) DetachJob(ctx context.Context, jobId string) error {
@@ -81,6 +90,18 @@ func appendRange(ctx context.Context, jobId string, blockId string, from int64, 
 	return filestore.WFS.AppendData(ctx, blockId, wavebase.BlockFile_Term, data)
 }
 
+// lineStart moves a copy's start just past the next line end, so it does not begin inside an escape sequence.
+func lineStart(ctx context.Context, jobId string, start int64, end int64) int64 {
+	_, data, err := filestore.WFS.ReadAt(ctx, jobId, jobcontroller.JobOutputFileName, start, min(lineStartSearch, end-start))
+	if err != nil {
+		return start
+	}
+	if idx := bytes.IndexByte(data, '\n'); idx >= 0 {
+		return start + int64(idx) + 1
+	}
+	return start
+}
+
 // CopyHistory copies the tail of the job's output, then what came meanwhile, just before the job is attached (from
 // then on its output reaches the block too). Bytes that arrive between the second copy and the attach (a few
 // milliseconds) are not in the pane: the output loop lives in Wave's job controller, which is not locked for this.
@@ -96,6 +117,9 @@ func (liveOps) CopyHistory(ctx context.Context, jobId string, blockId string) er
 	}
 	end := file.Size
 	start := max(end-historyCopyBytes, file.DataStartIdx(), 0)
+	if start > 0 {
+		start = lineStart(ctx, jobId, start, end)
+	}
 	if err := appendRange(ctx, jobId, blockId, start, end); err != nil {
 		return err
 	}
@@ -104,7 +128,7 @@ func (liveOps) CopyHistory(ctx context.Context, jobId string, blockId string) er
 			return err
 		}
 	}
-	return filestore.WFS.AppendData(ctx, blockId, wavebase.BlockFile_Term, []byte("\r\n"+reattachedNotice))
+	return filestore.WFS.AppendData(ctx, blockId, wavebase.BlockFile_Term, []byte(reattachedNotice))
 }
 
 func (liveOps) AttachJob(ctx context.Context, jobId string, blockId string) error {

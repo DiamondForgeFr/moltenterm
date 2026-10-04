@@ -72,8 +72,9 @@ func (l *routeLink) answer(req wshutil.RpcMessage) {
 	l.output <- out
 }
 
-// isWindowSource tells a request from a MoltenTerm window apart from one sent by a terminal: the router stamps the
-// source of every link that has a route of its own (wsh in a shell), so a terminal cannot pass for a tab.
+// isWindowSource tells a request from a MoltenTerm window apart from one sent by a local terminal: the router stamps the
+// source of every leaf link that has a route of its own (wsh in a shell), so a local terminal cannot pass for a tab.
+// A connected SSH host is a router Wave trusts: the sources it forwards are not stamped, as for Wave's own commands.
 func isWindowSource(source string) bool {
 	return strings.HasPrefix(source, wshutil.RoutePrefix_Tab)
 }

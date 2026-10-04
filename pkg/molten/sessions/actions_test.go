@@ -15,6 +15,7 @@ import (
 
 type fakeOps struct {
 	calls       []string
+	attachErr   error
 	tabWs       map[string]string
 	activeTab   map[string]string
 	terminateEr error
@@ -56,6 +57,11 @@ func (f *fakeOps) CopyHistory(ctx context.Context, jobId string, blockId string)
 
 func (f *fakeOps) AttachJob(ctx context.Context, jobId string, blockId string) error {
 	f.rec("attach %s %s", jobId, blockId)
+	return f.attachErr
+}
+
+func (f *fakeOps) DeletePane(ctx context.Context, blockId string) error {
+	f.rec("delete %s", blockId)
 	return nil
 }
 
@@ -136,11 +142,29 @@ func TestEnd(t *testing.T) {
 }
 
 func TestEndUnreachableHostIsPending(t *testing.T) {
-	a, _, ops := makeTestActions(paneGoneS)
+	down := paneGoneS
+	down.ConnState = molten.SessionConnDisconnected
+	up := detachedS
+	up.Id, up.Connection, up.ConnState = "hostup", "me@box", molten.SessionConnConnected
+	a, _, ops := makeTestActions(down, up)
 	ops.terminateEr = errors.New("connection down")
 	res, err := a.End(context.Background(), "panegone", "")
 	if err != nil || !res.Pending {
 		t.Fatalf("an unreachable host ends the session later: %+v %v", res, err)
+	}
+	if _, err := a.End(context.Background(), "hostup", ""); err == nil {
+		t.Fatalf("a failure with the host up is an error, not a pending end")
+	}
+}
+
+func TestReattachFailureRemovesThePane(t *testing.T) {
+	a, _, ops := makeTestActions(detachedS)
+	ops.attachErr = errors.New("already attached")
+	if _, err := a.Show(context.Background(), "detached", "tabA"); err == nil {
+		t.Fatalf("attach failure not reported")
+	}
+	if got := ops.trace(); !strings.HasSuffix(got, "attach detached newblock; delete newblock") {
+		t.Fatalf("the pane of a failed reattach is removed: %s", got)
 	}
 }
 
@@ -245,9 +269,17 @@ func TestStartupReconnects(t *testing.T) {
 		{Id: "ssh-hostdown", Shown: true, CanShow: true, Connection: "down", ConnState: molten.SessionConnDisconnected},
 		{Id: "hidden", CanShow: true, ConnState: molten.SessionConnDisconnected},
 		{Id: "older", Shown: true, ConnState: molten.SessionConnDisconnected},
+		{Id: "on-screen", Shown: true, CanShow: true, WorkspaceId: "ws1", TabId: "active", ConnState: molten.SessionConnDisconnected},
+		{Id: "ending-local", Reason: molten.SessionReasonEnding, ConnState: molten.SessionConnDisconnected},
+		{Id: "ending-down", Reason: molten.SessionReasonEnding, Connection: "down", ConnState: molten.SessionConnDisconnected},
 	}}
-	got := StartupReconnects(data, func(c string) bool { return c == "up" })
-	if fmt.Sprint(got) != "[local-down ssh-hostup]" {
+	got := StartupReconnects(data, func(c string) bool { return c == "up" }, func(ws string) string {
+		if ws == "ws1" {
+			return "active"
+		}
+		return ""
+	})
+	if fmt.Sprint(got) != "[local-down ssh-hostup ending-local]" {
 		t.Fatalf("startup reconnects: %v", got)
 	}
 }

@@ -106,12 +106,11 @@ export function sessionUrgency(s: DurableSession): number {
     return Urgency[s.agentstate] ?? 1;
 }
 
+// Then the newest first: by start, not by the last output, which would make rows jump while terminals print.
 export function sortSessions(list: DurableSession[]): DurableSession[] {
     return [...list].sort(
         (a, b) =>
-            sessionUrgency(b) - sessionUrgency(a) ||
-            (b.lastoutputat ?? 0) - (a.lastoutputat ?? 0) ||
-            a.id.localeCompare(b.id)
+            sessionUrgency(b) - sessionUrgency(a) || (b.startedat ?? 0) - (a.startedat ?? 0) || a.id.localeCompare(b.id)
     );
 }
 

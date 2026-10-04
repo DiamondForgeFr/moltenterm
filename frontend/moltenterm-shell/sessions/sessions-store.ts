@@ -9,6 +9,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
+import { selectAtom } from "jotai/utils";
 import {
     applySessions,
     DurableSessionsCleanupCommand,
@@ -44,7 +45,12 @@ export class DurableSessions {
 
     private constructor() {
         this.runningAgentsAtom = atom((get) => get(this.dataAtom)?.runningagents ?? 0);
-        this.badgeAtom = atom((get) => railBadge(get(this.dataAtom)));
+        // Every tab renders the rail: a list that changed elsewhere than the badge does not render it again.
+        this.badgeAtom = selectAtom(
+            this.dataAtom,
+            (data) => railBadge(data),
+            (a, b) => a.count === b.count && a.tone === b.tone && a.label === b.label
+        );
     }
 
     static getInstance(): DurableSessions {

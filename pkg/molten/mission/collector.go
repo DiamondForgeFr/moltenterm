@@ -348,7 +348,6 @@ func publishCiRun(rec CiRunRecord) {
 	})
 }
 
-// Start registers the collector on wavesrv's router; wavesrv calls it once at start.
 // Starters are MoltenTerm parts started with Mission Control that it cannot import (they depend on packages that
 // import this one); wavesrv's main package registers them.
 var starters []func()
@@ -358,6 +357,7 @@ func UseStarter(start func()) {
 	starters = append(starters, start)
 }
 
+// Start registers the collector on wavesrv's router; wavesrv calls it once at start.
 func Start() {
 	dataDir := wavebase.GetWaveDataDir()
 	collector := MakeCollector(CacheDir(dataDir), ExecRunner, publishSnapshot)
