@@ -147,3 +147,26 @@ func TestReferencedScript(t *testing.T) {
 		}
 	}
 }
+
+func TestValidatePipelineIcon(t *testing.T) {
+	report := validateWith(t, map[string]string{
+		".molten/project.json": `{"schema": 1, "name": "app", "icon": "build/app/icon.svg"}`,
+		"build/app/icon.svg":   "<svg/>",
+	})
+	if !report.Valid || len(report.Errors) != 0 {
+		t.Fatalf("a declared icon that exists is valid: %v", report.Errors)
+	}
+	for icon, want := range map[string]string{
+		"build/app/missing.svg": "does not exist",
+		"README.md":             "is not an image",
+		"../outside.png":        "is outside the project",
+	} {
+		report := validateWith(t, map[string]string{
+			".molten/project.json": `{"schema": 1, "name": "app", "icon": "` + icon + `"}`,
+			"README.md":            "# app",
+		})
+		if report.Valid || !strings.Contains(strings.Join(report.Errors, "\n"), want) {
+			t.Errorf("icon %q: want %q, got %v", icon, want, report.Errors)
+		}
+	}
+}

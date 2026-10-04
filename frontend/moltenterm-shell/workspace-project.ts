@@ -202,9 +202,20 @@ export function readmeFirstImage(readme: string): string {
     return "";
 }
 
-// The relative paths to probe, in order; the README's image comes last.
-export function logoProbeOrder(readmeImage: string): string[] {
-    const order = [...LogoCandidatePaths];
+// The icon a project declares in .molten/project.json (#189), relative to the project.
+export function declaredProjectIcon(pipeline: any): string {
+    const icon = typeof pipeline?.icon === "string" ? pipeline.icon : "";
+    return icon.replace(/^\.\//, "");
+}
+
+// The relative paths to probe, in order: the declared icon first, the README's image last.
+export function logoProbeOrder(readmeImage: string, declaredIcon = ""): string[] {
+    const order = declaredIcon ? [declaredIcon] : [];
+    for (const rel of LogoCandidatePaths) {
+        if (!order.includes(rel)) {
+            order.push(rel);
+        }
+    }
     if (readmeImage && !order.includes(readmeImage)) {
         order.push(readmeImage);
     }

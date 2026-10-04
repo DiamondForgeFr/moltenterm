@@ -34,6 +34,8 @@ what is missing, and only after the user agreed.
      result lands (`artifact`);
    - `release.rc` and `release.public`: the steps that cut, build and publish a version, in order;
    - `steps`: anything else project-specific the user wants in a panel.
+   - `icon`: the project's square app icon (not a wide logo), relative to the project folder, when it is not at a
+     usual place such as `icon.svg` or `build/icon.png`.
 7. Show the user the mapping and what is missing. Propose the smallest additions (for example a `scripts/ci-local.sh`
    running the same checks as the GitHub workflow), and ask before creating anything. Never invent a release
    process: when the project has none, leave `release` out and say so.
