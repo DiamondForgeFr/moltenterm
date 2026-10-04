@@ -53,6 +53,7 @@ const (
 	ReleaseSaveCommand   = "moltenmissionreleasenotessave"
 	BranchesPlanCommand  = "moltenmissionbranchesplan"
 	BranchesCleanCommand = "moltenmissionbranchesclean"
+	WorkCommand          = "moltenmissionwork"
 	UpdateEvent          = "molten:mission:update"
 	RunEvent             = "molten:mission:run"
 	CiEvent              = "molten:mission:ci"

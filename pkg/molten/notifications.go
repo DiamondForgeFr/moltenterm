@@ -202,9 +202,51 @@ func inputValue(input NotificationInput) map[string]any {
 	return value
 }
 
+// must match notification-rules.ts
+const (
+	NotificationPrefsMetaKey  = "molten:notifprefs"
+	NotificationDeliverNotify = "notify"
+	NotificationDeliverQuiet  = "quiet"
+	NotificationDeliverOff    = "off"
+)
+
+// The subject of each source, which the user chooses to hear (FR-MC-019).
+var NotificationSubjects = map[string]string{
+	"agent":      "agents",
+	"build":      "builds",
+	"ci":         "ci",
+	"release":    "releases",
+	"moltenterm": "updates",
+	"mod":        "mods",
+}
+
+// NotificationDelivery is how a message is said, from the user's choice for its subject: an error is always told, a
+// warning at worst kept quietly (read), information follows the choice.
+func NotificationDelivery(meta waveobj.MetaMapType, input NotificationInput) string {
+	subject, ok := NotificationSubjects[input.Source]
+	if !ok || input.Kind == "error" {
+		return NotificationDeliverNotify
+	}
+	prefs, _ := meta[NotificationPrefsMetaKey].(map[string]any)
+	chosen, _ := prefs[subject].(string)
+	switch {
+	case chosen == NotificationDeliverOff && input.Kind == "warning":
+		return NotificationDeliverQuiet
+	case chosen == NotificationDeliverQuiet || chosen == NotificationDeliverOff:
+		return chosen
+	}
+	return NotificationDeliverNotify
+}
+
 // NotificationPublishUpdate is the client meta update that publishes a notification, or nil when the open
-// notification of its key already says the same. A changed one is updated in place and unread again.
+// notification of its key already says the same, or when the user turned its subject off. A changed one is updated
+// in place and unread again, unless its subject is quiet.
 func NotificationPublishUpdate(meta waveobj.MetaMapType, input NotificationInput, now time.Time, id string) waveobj.MetaMapType {
+	delivery := NotificationDelivery(meta, input)
+	if delivery == NotificationDeliverOff {
+		return nil
+	}
+	read := delivery == NotificationDeliverQuiet
 	input.Actions = capActions(input.Actions)
 	entries := readStoredNotifications(meta)
 	nowMs := float64(now.UnixMilli())
@@ -224,14 +266,14 @@ func NotificationPublishUpdate(meta waveobj.MetaMapType, input NotificationInput
 				value[k] = v
 			}
 			value["updated"] = nowMs
-			value["read"] = false
+			value["read"] = read
 			return waveobj.MetaMapType{NotificationKeyPrefix + n.id: value}
 		}
 	}
 	value := inputValue(input)
 	value["time"] = nowMs
 	value["updated"] = nowMs
-	value["read"] = false
+	value["read"] = read
 	entry := storedNotification{id: id, value: value}
 	update := waveobj.MetaMapType{NotificationKeyPrefix + id: value}
 	for _, dropId := range notificationPruneIds(append(entries, entry), now) {
