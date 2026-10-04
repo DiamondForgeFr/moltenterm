@@ -15,6 +15,14 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import {
+    Delivery,
+    deliveryOf,
+    NotificationPrefs,
+    NotificationPrefsMetaKey,
+    NotificationSubject,
+    parsePrefs,
+} from "./notification-rules";
+import {
     archiveResolvedUpdate,
     archiveUpdate,
     checkUnread,
@@ -63,6 +71,8 @@ export class MoltentermNotifications {
     entriesAtom: Atom<MoltentermNotification[]>;
     unreadCountAtom: Atom<number>;
     openCountAtom: Atom<number>;
+    // What each subject may say (FR-MC-019), shared by every window and wavesrv through the client meta.
+    prefsAtom: Atom<NotificationPrefs>;
     // "<notification id>:<action id>" of the actions running, and the last failure per notification.
     runningAtom = atom({}) as PrimitiveAtom<Record<string, boolean>>;
     errorsAtom = atom({}) as PrimitiveAtom<Record<string, string>>;
@@ -74,6 +84,14 @@ export class MoltentermNotifications {
         });
         this.unreadCountAtom = atom((get) => unreadCount(get(this.entriesAtom)));
         this.openCountAtom = atom((get) => openCount(get(this.entriesAtom)));
+        this.prefsAtom = atom((get) => {
+            const clientAtom = ClientModel.getInstance().clientAtom;
+            return parsePrefs((clientAtom == null ? null : get(clientAtom)?.meta)?.[NotificationPrefsMetaKey]);
+        });
+    }
+
+    setDelivery(subject: NotificationSubject, delivery: Delivery): void {
+        this.write({ [NotificationPrefsMetaKey]: { ...globalStore.get(this.prefsAtom), [subject]: delivery } });
     }
 
     static getInstance(): MoltentermNotifications {
@@ -99,11 +117,17 @@ export class MoltentermNotifications {
         fireAndForget(() => this.writeNow(update));
     }
 
-    // Without a workspace or a tab, the notification belongs to where it is raised.
+    // Without a workspace or a tab, the notification belongs to where it is raised. A subject the user turned off is
+    // not stored; a quiet one is stored as read.
     publish(input: MoltentermNotificationInput): void {
+        const delivery = deliveryOf(input, globalStore.get(this.prefsAtom));
+        if (delivery === "off") {
+            return;
+        }
         const now = Date.now();
         const full: MoltentermNotificationInput = {
             ...input,
+            read: input.read || delivery === "quiet",
             ...notificationLocation(input, globalStore.get(atoms.workspace), globalStore.get(activeTabIdAtom)),
         };
         this.write(publishUpdate(this.entries(), full, now, makeNotificationId(now)));

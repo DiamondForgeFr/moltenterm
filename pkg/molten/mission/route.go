@@ -192,6 +192,8 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 			return l.runs.ReadReleaseNotes(req.Dir, req.Tag)
 		}
 		return nil, l.runs.SaveReleaseNotes(req.Dir, req.Tag, req.Text)
+	case WorkCommand:
+		return RunningWork(l.runs, l.ci), nil
 	case BranchesPlanCommand:
 		var req GetRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
