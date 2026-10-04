@@ -6,6 +6,8 @@ package molten
 import (
 	"strings"
 	"testing"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 )
 
 func TestMatchAgentCommand(t *testing.T) {
@@ -28,6 +30,19 @@ func TestMatchAgentCommand(t *testing.T) {
 		"\"claude\"":                          "claude",
 		"exec codex":                          "codex",
 		"./node_modules/.bin/opencode --help": "opencode",
+		// Compound command lines (#141).
+		"clear; claude":                  "claude",
+		"cd app && codex --full-auto":    "codex",
+		"make || gemini":                 "gemini",
+		"(cd x && claude)":               "claude",
+		"sleep 1 & claude":               "claude",
+		"echo 'a; claude'":               "",
+		"echo \"a && claude\"":           "",
+		"echo a\\; claude":               "",
+		"echo hi # ; claude":             "",
+		"git log | less; vim claude.md":  "",
+		"clear\nclaude":                  "claude",
+		"FOO=1 clear && BAR=2 claude -c": "claude",
 	}
 	for cmd, want := range cases {
 		if got := MatchAgentCommand(cmd); got != want {
@@ -110,5 +125,46 @@ func TestAgentProcessCommand(t *testing.T) {
 	}
 	if got := AgentProcessCommand("13/1", "zsh", read("/bin/zsh")); got != "zsh" || reads != 3 {
 		t.Errorf("a non-candidate is never read: %q reads=%d", got, reads)
+	}
+}
+
+func TestFindAgentProcess(t *testing.T) {
+	reads := map[int32]int{}
+	exes := map[int32][]string{
+		20: {"/Users/me/.local/share/claude/versions/2.1.283"},
+		30: {"/usr/bin/node", "node", "/usr/local/lib/node_modules/@openai/codex/bin/codex.js"},
+		40: {"/usr/bin/node", "node", "server.js"},
+	}
+	read := func(pid int32) (string, []string) {
+		reads[pid]++
+		args := exes[pid]
+		return args[0], args
+	}
+	proc := func(pid int32, name string) *proctree.Proc {
+		return &proctree.Proc{Pid: pid, Name: name, StartMs: int64(pid) * 1000}
+	}
+	cases := []struct {
+		procs []*proctree.Proc
+		agent string
+		pid   int32
+	}{
+		{[]*proctree.Proc{proc(10, "zsh"), proc(11, "claude")}, "claude", 11},
+		{[]*proctree.Proc{proc(40, "node"), proc(20, "2.1.283")}, "claude", 20},
+		{[]*proctree.Proc{proc(30, "node"), proc(31, "codex")}, "codex", 30},
+		{[]*proctree.Proc{proc(12, "opencode"), proc(13, "claude")}, "opencode", 12},
+		{[]*proctree.Proc{proc(14, "sudo"), proc(15, "gemini")}, "gemini", 15},
+		{[]*proctree.Proc{proc(40, "node"), proc(16, "vim"), proc(17, "claudette")}, "", 0},
+	}
+	for i, c := range cases {
+		got, ok := FindAgentProcess(c.procs, read)
+		if ok != (c.agent != "") || got.Agent != c.agent || got.Pid != c.pid {
+			t.Errorf("case %d: %+v %v", i, got, ok)
+		}
+	}
+	if reads[40] != 1 || reads[20] != 1 || reads[30] != 1 {
+		t.Errorf("each candidate is read once: %v", reads)
+	}
+	if _, ok := FindAgentProcess([]*proctree.Proc{proc(16, "vim")}, read); ok || reads[16] != 0 {
+		t.Error("a plain process is never read")
 	}
 }

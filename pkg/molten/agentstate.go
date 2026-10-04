@@ -104,16 +104,76 @@ func AgentStateUrgency(state string) int {
 	return 0
 }
 
-// MatchAgentCommand returns the agent a shell command line starts, or "": its first word after environment
-// assignments and wrappers (env, exec, time...), by base name, so /usr/local/bin/claude and `npx codex` match too.
+// MatchAgentCommand returns the agent a shell command line starts, or "": in each of its commands (`clear; claude`,
+// `cd app && codex`), the first word after environment assignments and wrappers (env, exec, time...), by base name,
+// so /usr/local/bin/claude and `npx codex` match too.
 func MatchAgentCommand(cmdline string) string {
-	line := strings.TrimSpace(cmdline)
+	for _, segment := range splitCommandLine(cmdline) {
+		if id := matchSimpleCommand(segment); id != "" {
+			return id
+		}
+	}
+	return ""
+}
+
+// splitCommandLine cuts a command line into its commands at ;, &, &&, || and newlines, outside quotes. A pipeline
+// stays one command, known by its first word: an agent fed by a pipe (`cat x | claude -p`) is a one-shot run. A
+// comment ends the line.
+func splitCommandLine(cmdline string) []string {
+	var rtn []string
+	var cur strings.Builder
+	var quote rune
+	escaped := false
+	atWordStart := true
+	flush := func() {
+		if s := strings.TrimSpace(cur.String()); s != "" {
+			rtn = append(rtn, s)
+		}
+		cur.Reset()
+		atWordStart = true
+	}
+	runes := []rune(cmdline)
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		switch {
+		case escaped:
+			escaped = false
+		case quote != 0:
+			if r == quote {
+				quote = 0
+			} else if r == '\\' && quote == '"' {
+				escaped = true
+			}
+		case r == '\\':
+			escaped = true
+		case r == '"' || r == '\'':
+			quote = r
+		case r == ';' || r == '&' || r == '\n':
+			flush()
+			continue
+		case r == '|' && i+1 < len(runes) && runes[i+1] == '|':
+			i++
+			flush()
+			continue
+		case r == '#' && atWordStart:
+			flush()
+			return rtn
+		}
+		cur.WriteRune(r)
+		atWordStart = unicode.IsSpace(r)
+	}
+	flush()
+	return rtn
+}
+
+func matchSimpleCommand(segment string) string {
+	line := strings.TrimLeft(strings.TrimSpace(segment), "({ \t")
 	if line == "" || strings.HasPrefix(line, "#") {
 		return ""
 	}
 	line = leadingEnvRegex.ReplaceAllString(line, "")
 	for _, word := range strings.Fields(line) {
-		word = strings.Trim(word, `"'`)
+		word = strings.Trim(strings.TrimRight(word, ")}"), `"'`)
 		if envAssignRegex.MatchString(word) || strings.HasPrefix(word, "-") {
 			continue
 		}

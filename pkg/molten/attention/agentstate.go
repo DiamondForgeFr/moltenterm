@@ -46,6 +46,12 @@ const (
 	noticeFromHook   = "hook"
 )
 
+const (
+	sourceCommand = "command"
+	sourceHook    = "hook"
+	sourceProcess = "process"
+)
+
 // ShellMark is one shell integration mark (OSC 16162) wavesrv needs: a command starts (with its command line), ends
 // (with its exit code) or the prompt is back.
 type ShellMark struct {
@@ -109,6 +115,10 @@ type agentRecord struct {
 	located bool
 	tabId   string
 	wsId    string
+	// source: what made the record (the command line, a hook, the process tree); pid: the agent's process when the
+	// process tree found it.
+	source string
+	pid    int32
 }
 
 type noticeMark struct {
@@ -129,6 +139,8 @@ type agentStates struct {
 	locate  func(blockId string) (string, string, error)
 	publish func(info molten.AgentStateInfo)
 	notify  func(blockId string, signal AttentionSignal, kind string)
+	// procs: the process-tree watcher (procwatch.go), told when commands start and end; nil in tests.
+	procs *procWatcher
 }
 
 func makeAgentStates() *agentStates {
@@ -147,6 +159,13 @@ func makeAgentStates() *agentStates {
 }
 
 var defaultAgentStates = makeAgentStates()
+var defaultProcWatcher = makeDefaultProcWatcher()
+
+func makeDefaultProcWatcher() *procWatcher {
+	w := makeProcWatcher(defaultAgentStates)
+	defaultAgentStates.procs = w
+	return w
+}
 
 func (a *agentStates) markDirtyLocked(blockId string) {
 	a.version++
@@ -182,6 +201,13 @@ func (a *agentStates) removeLocked(blockId string) {
 }
 
 func (a *agentStates) shellMark(blockId string, mark ShellMark) {
+	a.applyShellMark(blockId, mark)
+	if a.procs != nil {
+		a.procs.shellMark(blockId, mark.Kind)
+	}
+}
+
+func (a *agentStates) applyShellMark(blockId string, mark ShellMark) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	rec := a.records[blockId]
@@ -193,7 +219,7 @@ func (a *agentStates) shellMark(blockId string, mark ShellMark) {
 			return
 		}
 		now := a.now().UnixMilli()
-		a.records[blockId] = &agentRecord{agent: agent, state: molten.AgentStateWorking, since: now, started: now, running: true}
+		a.records[blockId] = &agentRecord{agent: agent, state: molten.AgentStateWorking, since: now, started: now, running: true, source: sourceCommand}
 		a.markDirtyLocked(blockId)
 	case ShellMarkDone:
 		if rec == nil || !rec.running {
@@ -256,7 +282,7 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		if req.Agent == "" {
 			return nil, "", fmt.Errorf("no agent is known in this terminal: name it with --agent")
 		}
-		rec = &agentRecord{agent: req.Agent, running: true, started: a.now().UnixMilli()}
+		rec = &agentRecord{agent: req.Agent, running: true, started: a.now().UnixMilli(), source: sourceHook}
 		a.records[req.BlockId] = rec
 	}
 	rec.running = true
@@ -265,6 +291,8 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		rec.agent = req.Agent
 		rec.started = a.now().UnixMilli()
 		rec.located = false
+		rec.source = sourceHook
+		rec.pid = 0
 		a.markDirtyLocked(req.BlockId)
 	}
 	a.setStateLocked(req.BlockId, rec, req.State, message)
@@ -300,10 +328,62 @@ func (a *agentStates) allowNoticeLocked(blockId string, source string) bool {
 }
 
 func (a *agentStates) forget(blockId string) {
+	a.forgetRecord(blockId)
+	if a.procs != nil {
+		a.procs.forget(blockId)
+	}
+}
+
+func (a *agentStates) forgetRecord(blockId string) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	delete(a.notices, blockId)
 	a.removeLocked(blockId)
+}
+
+// dropProcessRecord removes a running agent the process tree found (its command ended).
+func (a *agentStates) dropProcessRecord(blockId string) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if rec := a.records[blockId]; rec != nil && rec.running && rec.source == sourceProcess {
+		a.removeLocked(blockId)
+	}
+}
+
+// processAgent applies what the process tree says of a terminal (procwatch.go). found: the agent running in its
+// foreground, if any. restored: the agent was there before MoltenTerm saw its command start (a restart, a terminal
+// first seen): its state is unknown, idle until a signal. A hook's agent is kept; a command line's guess gives way
+// to the process actually running.
+func (a *agentStates) processAgent(blockId string, found molten.AgentProcess, ok bool, restored bool) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	rec := a.records[blockId]
+	if !ok {
+		if rec != nil && rec.running && rec.source == sourceProcess {
+			a.removeLocked(blockId)
+		}
+		return
+	}
+	if rec != nil && rec.running {
+		// The same agent in a new process, with no command seen in between, is a new run (a block command restarted).
+		newProcess := rec.source == sourceProcess && rec.pid != 0 && rec.pid != found.Pid
+		if (rec.agent == found.Agent && !newProcess) || rec.source == sourceHook {
+			rec.pid = found.Pid
+			return
+		}
+		restored = false
+	}
+	now := a.now().UnixMilli()
+	started := found.StartMs
+	if started <= 0 || started > now {
+		started = now
+	}
+	state := molten.AgentStateWorking
+	if restored {
+		state = molten.AgentStateIdle
+	}
+	a.records[blockId] = &agentRecord{agent: found.Agent, state: state, since: now, started: started, running: true, source: sourceProcess, pid: found.Pid}
+	a.markDirtyLocked(blockId)
 }
 
 func (a *agentStates) infoLocked(blockId string, rec *agentRecord) molten.AgentStateInfo {
@@ -485,5 +565,7 @@ var startOnce sync.Once
 func StartAgentStates() {
 	startOnce.Do(func() {
 		go defaultAgentStates.run()
+		defaultProcWatcher.locator = getShellLocator()
+		go defaultProcWatcher.run()
 	})
 }
