@@ -29,7 +29,14 @@ import { usePaneStatus } from "../pane-status";
 import { blockFolder, ciVerdictView, makePaneView } from "../status-bar-model";
 import { ProjectCard } from "./project-cards";
 import { ProjectCardProps } from "./project-context";
-import { BranchRow, BranchRowsShown, projectBranchRows, projectWork, workspaceAgents } from "./project-model";
+import {
+    BranchRow,
+    BranchRowsShown,
+    checkWebUrl,
+    projectBranchRows,
+    projectWork,
+    workspaceAgents,
+} from "./project-model";
 
 const MaxAgentsShown = 5;
 
@@ -179,7 +186,11 @@ function useNow(active: boolean): number {
         if (!active) {
             return;
         }
-        const timer = setInterval(() => setNow(Date.now()), 1000);
+        const timer = setInterval(() => {
+            if (document.visibilityState === "visible") {
+                setNow(Date.now());
+            }
+        }, 1000);
         return () => clearInterval(timer);
     }, [active]);
     return now;
@@ -269,7 +280,11 @@ function BranchPrCell({ row }: { row: BranchRow }) {
         <span className="flex min-w-0 items-center gap-1.5">
             <button
                 type="button"
-                onClick={() => fireAndForget(() => openLink(pr.url))}
+                onClick={() => {
+                    if (checkWebUrl(pr.url)) {
+                        fireAndForget(() => openLink(pr.url));
+                    }
+                }}
                 title={`#${pr.number} ${pr.title}`}
                 className="shrink-0 cursor-pointer text-primary hover:underline"
             >

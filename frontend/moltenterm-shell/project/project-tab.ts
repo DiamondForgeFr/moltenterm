@@ -17,7 +17,7 @@ import { ProjectTabCommand } from "./project-model";
 
 const ProjectTabTimeoutMs = 15000;
 
-export type ProjectTabResult = { tabid?: string; created?: boolean; closed?: boolean };
+export type ProjectTabResult = { tabid?: string; created?: boolean; closed?: boolean; hasview?: boolean };
 
 export function requestProjectTab(workspaceId: string, open: boolean, activate: boolean): Promise<ProjectTabResult> {
     return TabRpcClient.wshRpcCall(
@@ -39,8 +39,9 @@ export async function openProjectTab(): Promise<void> {
     }
 }
 
-// Shows the Project tab of a workspace if it has one, switching workspace when needed (wavesrv activates the tab
-// before the window shows the workspace). Returns false when the workspace has none: the caller falls back.
+// Shows the Project tab of a workspace if it has one that still holds the project view, switching workspace when
+// needed (wavesrv activates the tab before the window shows the workspace). Returns false otherwise: the caller falls
+// back to the panel it would have opened.
 export async function showProjectTab(workspaceId: string): Promise<boolean> {
     const active = globalStore.get(atoms.workspace);
     const target = workspaceId || active?.oid;
@@ -49,7 +50,7 @@ export async function showProjectTab(workspaceId: string): Promise<boolean> {
     }
     const other = target !== active?.oid;
     const result = await requestProjectTab(target, false, other);
-    if (!result?.tabid) {
+    if (!result?.tabid || !result.hasview) {
         return false;
     }
     if (other) {
@@ -80,17 +81,20 @@ function ensureProjectTab(workspaceId: string, dir: string) {
     });
 }
 
-// Mounted once per window: the workspace shown gets its Project tab when it is linked (at startup, on a link from the
-// editor or from molten), and its record is cleared when it is unlinked.
+// Mounted with the rail of every tab: only the tab on screen asks, so a window with many tabs sends one request. The
+// workspace shown gets its Project tab when it is linked (at startup, on a link from the editor or from molten), and
+// its record follows the link.
 export function ProjectTabKeeper() {
     const ws = useAtomValue(atoms.workspace);
+    const staticTabId = useAtomValue(atoms.staticTabId);
     const workspaceId = ws?.oid;
     const dir = readWorkspaceProject(ws).dir;
+    const onScreen = staticTabId != null && staticTabId === ws?.activetabid;
     useEffect(() => {
-        if (!workspaceId) {
+        if (!workspaceId || !onScreen) {
             return;
         }
         ensureProjectTab(workspaceId, dir);
-    }, [workspaceId, dir]);
+    }, [workspaceId, dir, onScreen]);
     return null;
 }

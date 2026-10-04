@@ -50,7 +50,7 @@ func buildNotice(rec RunRecord, manifest *BuildManifest, projectName string, now
 		return molten.NotificationInput{}, false
 	}
 	name := fmt.Sprintf("%s %s", projectName, rec.Title)
-	open := molten.NotificationAction{Id: "open", Label: "Open the project", Kind: "open", View: timelineView}
+	open := molten.NotificationAction{Id: "open", Label: "Show the build", Kind: "open", View: timelineView}
 	if rec.State == RunStateSuccess {
 		input := molten.NotificationInput{Source: "build", Kind: "info", Title: name + " is built",
 			Message: fmt.Sprintf("Build %s finished.", shortSha(rec.Commit)), Actions: []molten.NotificationAction{open}}
