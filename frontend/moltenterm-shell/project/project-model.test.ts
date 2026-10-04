@@ -10,6 +10,7 @@ import { layoutProjectCards, ProjectCard, ProjectCardRegistry } from "./project-
 import {
     checkProjectRoute,
     checkProjectSource,
+    checkWebUrl,
     projectBranchRows,
     projectWork,
     workspaceAgents,
@@ -170,6 +171,13 @@ describe("notification routing", () => {
         expect(checkProjectSource({ source: "build" })).toBe(true);
         expect(checkProjectSource({ source: "build", blockid: "b" })).toBe(false);
         expect(checkProjectSource({ source: "agent" })).toBe(false);
+    });
+
+    it("opens only web pages from a pull request's address", () => {
+        expect(checkWebUrl("https://github.com/o/r/pull/7")).toBe(true);
+        expect(checkWebUrl("file:///etc/passwd")).toBe(false);
+        expect(checkWebUrl("vscode://x")).toBe(false);
+        expect(checkWebUrl("")).toBe(false);
     });
 });
 

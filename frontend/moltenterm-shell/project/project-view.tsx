@@ -52,7 +52,7 @@ function ProjectView() {
     return (
         <MissionFrame title="The Project tab">
             {({ project, snapshot, refresh }) => (
-                <ProjectContent project={project} snapshot={snapshot} refresh={refresh} />
+                <ProjectContent key={project.dir} project={project} snapshot={snapshot} refresh={refresh} />
             )}
         </MissionFrame>
     );

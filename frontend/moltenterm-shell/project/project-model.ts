@@ -188,3 +188,12 @@ export function checkProjectRoute(source: string, view: string): boolean {
 export function checkProjectSource(entry: { source: string; tabid?: string; blockid?: string }): boolean {
     return ProjectNotificationSources.includes(entry.source) && !entry.tabid && !entry.blockid;
 }
+
+// A pull request's address comes from gh's answer: only a web page is opened from it, never another scheme's handler.
+export function checkWebUrl(url: string): boolean {
+    try {
+        return new URL(url).protocol === "https:";
+    } catch {
+        return false;
+    }
+}

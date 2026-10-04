@@ -47,6 +47,8 @@ type ProjectTabResult struct {
 	Created bool   `json:"created,omitempty"`
 	// The user closed it for this project: nothing is made until they ask.
 	Closed bool `json:"closed,omitempty"`
+	// The tab still holds the project view (the user may have replaced its pane).
+	HasView bool `json:"hasview,omitempty"`
 }
 
 // ProjectTabFacts is what the decision reads from the workspace.
