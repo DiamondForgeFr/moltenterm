@@ -22,9 +22,9 @@ import { Phase, PhaseAction, PhaseStatus, ReleaseGhJob, ReleaseRun, releaseRun }
 import { TrustPrompt } from "./runs-view";
 
 const NodeClasses: Record<PhaseStatus, string> = {
-    done: "border-emerald-500/60 bg-emerald-500/10 text-emerald-400",
+    done: "border-success/60 bg-success/10 text-success",
     running: "border-accent/70 bg-accent/15 text-accent",
-    waiting: "border-amber-500/60 bg-amber-500/10 text-amber-400",
+    waiting: "border-warning/60 bg-warning/10 text-warning",
     failed: "border-error/60 bg-error/10 text-error",
     todo: "border-border bg-transparent text-muted",
 };
@@ -147,7 +147,7 @@ function ActionButton({ action, actions }: { action: PhaseAction; actions: Relea
     return (
         <div className="mt-3 flex flex-col gap-2">
             {confirming && confirm ? (
-                <p className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-300">
+                <p className="rounded border border-warning/40 bg-warning/10 px-2 py-1.5 text-xs text-warning">
                     {confirm}
                 </p>
             ) : null}
@@ -384,10 +384,7 @@ export function ReleaseRunPanel({
                         </div>
                         {i < run.phases.length - 1 ? (
                             <span
-                                className={cn(
-                                    "mb-4 h-px flex-1",
-                                    p.status === "done" ? "bg-emerald-500/60" : "bg-border"
-                                )}
+                                className={cn("mb-4 h-px flex-1", p.status === "done" ? "bg-success/60" : "bg-border")}
                                 aria-hidden
                             />
                         ) : null}

@@ -122,9 +122,11 @@
     /* Sysinfo's main series takes the accent; memory keeps Wave's blue as the second series. */
     --sysinfo-cpu-color: var(--mt-accent);
 
-    /* Interface typeface for panel titles, Mission Control and the chrome; terminals keep Hack (--fixed-font).
-       Inter is bundled (public/fonts/inter-variable.woff2): the app loads no remote font. */
-    --mt-ui-font: "Inter", sans-serif;
+    /* Interface typeface for panel titles, Mission Control and the chrome; terminals keep Hack (--fixed-font), the
+       code editor and code blocks their monospace faces. IBM Plex Sans (fonts.ts) and Inter (public/fonts/
+       inter-variable.woff2) are both bundled: the app loads no remote font, and naming "Inter" first here switches
+       back to it. */
+    --mt-ui-font: "IBM Plex Sans", "Inter", sans-serif;
     --base-font: normal 14px / normal var(--mt-ui-font);
     --header-font: 700 11px / normal var(--mt-ui-font);
     --font-sans: var(--mt-ui-font);
@@ -133,7 +135,10 @@
 /* Heat states (DS-SHELL-014): blockframe.tsx mirrors the pane's agent state (DS-SHELL-011) in data-mt-agent-state.
    Working glows faintly in the accent, waiting holds a static amber edge, an error a static red one, done cools
    back to neutral. The overlay sits 1px inside the frame so it never covers the focus border, and only its opacity
-   is animated (composited, no repaint of the terminal underneath). */
+   is animated (composited, no repaint of the terminal underneath).
+   Never colour alone: on a yellow or amber workspace the accent and the waiting amber are close, so the states also
+   differ by form. Working (and done, as it cools) is a diffuse glow without an edge, and it pulses; waiting and error
+   are a solid 2px edge without a glow, and never move. */
 .block.block-frame-default[data-mt-agent-state]::after {
     --mt-heat: transparent;
     content: "";
@@ -142,9 +147,7 @@
     border-radius: calc(var(--block-border-radius) - 1px);
     pointer-events: none;
     z-index: var(--zindex-block-mask-inner);
-    box-shadow:
-        inset 0 0 0 1px color-mix(in srgb, var(--mt-heat) 40%, transparent),
-        inset 0 0 22px -2px color-mix(in srgb, var(--mt-heat) 30%, transparent);
+    box-shadow: inset 0 0 24px -2px color-mix(in srgb, var(--mt-heat) 45%, transparent);
     opacity: 0;
     transition: opacity 1.2s ease-out;
 }
@@ -164,12 +167,16 @@
 
 .block.block-frame-default[data-mt-agent-state="waiting"]::after {
     --mt-heat: var(--mt-state-waiting);
+    box-shadow: inset 0 0 0 2px var(--mt-heat);
     opacity: 1;
+    animation: none;
 }
 
 .block.block-frame-default[data-mt-agent-state="error"]::after {
     --mt-heat: var(--mt-state-error);
-    opacity: 0.8;
+    box-shadow: inset 0 0 0 2px var(--mt-heat);
+    opacity: 0.85;
+    animation: none;
 }
 
 @keyframes mt-heat-breathe {

@@ -193,7 +193,7 @@ export function ReleaseMenu({
                                 className={cn(
                                     "w-full cursor-pointer rounded border px-3 py-2 text-left transition-colors disabled:cursor-default disabled:opacity-50",
                                     choice === "public"
-                                        ? "border-amber-500/60 bg-amber-500/10"
+                                        ? "border-warning/60 bg-warning/10"
                                         : "border-border hover:border-secondary/40"
                                 )}
                             >
