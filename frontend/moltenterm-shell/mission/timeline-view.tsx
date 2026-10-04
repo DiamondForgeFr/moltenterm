@@ -9,6 +9,7 @@ import { fireAndForget } from "@/util/util";
 import { atom } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { pathBaseName } from "../workspace-project";
+import { BranchCleanupButton } from "./branch-cleanup";
 import { BranchTree } from "./branch-tree";
 import { BuildLocalMenu } from "./build-local-menu";
 import { BuildManifest } from "./builds-model";
@@ -141,6 +142,7 @@ function TimelineContent({
                                 </option>
                             ))}
                         </select>
+                        <BranchCleanupButton dir={project.dir} onCleaned={refresh} />
                         {pipeline ? (
                             <BuildLocalMenu
                                 dir={project.dir}

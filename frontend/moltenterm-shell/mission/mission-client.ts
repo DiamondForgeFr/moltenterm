@@ -40,6 +40,8 @@ export const MissionReleaseStepCommand = "moltenmissionreleasestep";
 export const MissionReleaseRerunCommand = "moltenmissionreleasererun";
 export const MissionReleaseNotesCommand = "moltenmissionreleasenotes";
 export const MissionReleaseNotesSaveCommand = "moltenmissionreleasenotessave";
+export const MissionBranchesPlanCommand = "moltenmissionbranchesplan";
+export const MissionBranchesCleanCommand = "moltenmissionbranchesclean";
 
 const MissionRpcTimeoutMs = 15000;
 // A request is cheap (the cached snapshot and the pipeline file); the collector itself refreshes at most once a minute.
@@ -352,4 +354,24 @@ export function useReleaseFacts(dir: string, bump: string): { facts: ReleaseFact
         return () => clearInterval(timer);
     }, [followed, reload]);
     return { facts, reload };
+}
+
+// must match BranchPlan and BranchesCleanResult in pkg/molten/mission/branches.go
+export type BranchKeepReason =
+    | "protected"
+    | "not-on-trunk"
+    | "content-unknown"
+    | "checked-out"
+    | "open-pr"
+    | "pr-unknown";
+export type BranchPlan = { name: string; remote: boolean; action: "delete" | "keep"; reason?: BranchKeepReason };
+export type BranchesPlan = { trunk: string; branches: BranchPlan[] };
+export type BranchesCleanResult = { deleted: string[]; failed: number; errors?: string[] };
+
+export function branchesPlan(dir: string): Promise<BranchesPlan> {
+    return releaseCall(MissionBranchesPlanCommand, { dir });
+}
+
+export function branchesClean(dir: string, names: string[]): Promise<BranchesCleanResult> {
+    return releaseCall(MissionBranchesCleanCommand, { dir, names });
 }
