@@ -26,7 +26,7 @@ import { deleteLayoutModelForTab, getLayoutModelForStaticTab, NavigateDirection 
 import * as keyutil from "@/util/keyutil";
 import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
 import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
-import { interceptWorktreeClose } from "../../moltenterm-shell/worktree-ui"; // MOLTENTERM-PATCH (#114)
+import { closeTabAskingWorktrees, interceptWorktreeClose } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#114, #134)
 import { isWindows } from "@/util/platformutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
@@ -135,8 +135,8 @@ function simpleCloseStaticTab() {
     const workspaceId = globalStore.get(atoms.workspaceId);
     const tabId = globalStore.get(atoms.staticTabId);
     const confirmClose = globalStore.get(getSettingsKeyAtom("tab:confirmclose")) ?? false;
-    getApi()
-        .closeTab(workspaceId, tabId, confirmClose)
+    // MOLTENTERM-PATCH (#134): a tab holding terminals linked to worktrees asks once for all of them
+    closeTabAskingWorktrees(getApi().closeTab, workspaceId, tabId, confirmClose)
         .then((didClose) => {
             if (didClose) {
                 deleteLayoutModelForTab(tabId);
@@ -633,6 +633,16 @@ function registerGlobalKeys() {
     globalKeyMap.set("Ctrl:Shift:x", () => {
         const blockId = getFocusedBlockId();
         if (blockId == null) {
+            return true;
+        }
+        // MOLTENTERM-PATCH (#134): replacing a terminal linked to a worktree asks as closing it does
+        const replaceLinked = () => {
+            if (interceptWorktreeClose(blockId, replaceLinked)) {
+                return;
+            }
+            replaceBlock(blockId, { meta: { view: "launcher" } }, true);
+        };
+        if (interceptWorktreeClose(blockId, replaceLinked)) {
             return true;
         }
         replaceBlock(

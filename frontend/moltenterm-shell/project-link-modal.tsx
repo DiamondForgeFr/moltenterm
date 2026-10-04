@@ -19,8 +19,8 @@ import { nextWorkspaceFolder, pathBaseName, readWorkspaceFolder, readWorkspacePr
 import {
     chooseMoltentermPath,
     dismissProject,
+    findOfferedProject,
     findProjectLogos,
-    findProjectRoot,
     linkWorkspaceProject,
     markLogoOffered,
     readProjectFacts,
@@ -203,7 +203,7 @@ export function ProjectLinkDetector() {
                 setTerminalProject("");
                 return;
             }
-            fireAndForget(async () => setTerminalProject(await findProjectRoot(cwd)));
+            fireAndForget(async () => setTerminalProject(await findOfferedProject(cwd)));
         },
         []
     );

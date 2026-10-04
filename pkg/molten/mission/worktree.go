@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,6 +40,8 @@ type WorktreeRequest struct {
 	Dir string `json:"dir"`
 	// The terminal being closed: it is not counted among the others.
 	BlockId string `json:"blockid,omitempty"`
+	// Every terminal closed with it (a whole tab): none of them is counted among the others.
+	BlockIds []string `json:"blockids,omitempty"`
 }
 
 type WorktreeTerminal struct {
@@ -88,8 +91,9 @@ type WorktreeRisk struct {
 }
 
 type WorktreeRemoveRequest struct {
-	Dir     string `json:"dir"`
-	BlockId string `json:"blockid,omitempty"`
+	Dir      string   `json:"dir"`
+	BlockId  string   `json:"blockid,omitempty"`
+	BlockIds []string `json:"blockids,omitempty"`
 	// Confirmed: the plan the user confirmed a second time. Without it, only a worktree with nothing at risk goes.
 	Confirmed    *WorktreeRisk `json:"confirmed,omitempty"`
 	DeleteBranch bool          `json:"deletebranch,omitempty"`
@@ -104,7 +108,7 @@ type WorktreeRemoveResult struct {
 	BranchKept    string `json:"branchkept,omitempty"`
 }
 
-type worktreeTerminalsFunc func(ctx context.Context, path string, exclude string) []WorktreeTerminal
+type worktreeTerminalsFunc func(ctx context.Context, path string, exclude []string) []WorktreeTerminal
 
 type Worktrees struct {
 	// One removal at a time: two terminals closing on the same worktree see it removed or not, never half.
@@ -159,7 +163,7 @@ func realPath(path string) string {
 
 // openWorktreeTerminals scans the blocks of every workspace: a terminal of a workspace no window shows still works in
 // the worktree when that workspace comes back.
-func openWorktreeTerminals(ctx context.Context, path string, exclude string) []WorktreeTerminal {
+func openWorktreeTerminals(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
 	blocks, err := wstore.DBGetAllObjsByType[*waveobj.Block](ctx, waveobj.OType_Block)
 	if err != nil {
 		return nil
@@ -167,7 +171,7 @@ func openWorktreeTerminals(ctx context.Context, path string, exclude string) []W
 	real := realPath(path)
 	rtn := []WorktreeTerminal{}
 	for _, block := range blocks {
-		if block.OID == exclude || block.Meta.GetString(waveobj.MetaKey_View, "") != "term" {
+		if slices.Contains(exclude, block.OID) || block.Meta.GetString(waveobj.MetaKey_View, "") != "term" {
 			continue
 		}
 		link := block.Meta.GetString(molten.WorktreeMetaKey, "")
@@ -312,7 +316,18 @@ func (w *Worktrees) unpushed(g *gitReader, plan *WorktreePlan) {
 	}
 }
 
-func (w *Worktrees) plan(ctx context.Context, path string, blockId string) (WorktreePlan, error) {
+// closingBlocks: the terminal being closed and those closed with it.
+func closingBlocks(blockId string, blockIds []string) []string {
+	rtn := []string{}
+	for _, id := range append([]string{blockId}, blockIds...) {
+		if id != "" {
+			rtn = append(rtn, id)
+		}
+	}
+	return rtn
+}
+
+func (w *Worktrees) plan(ctx context.Context, path string, closing []string) (WorktreePlan, error) {
 	plan := WorktreePlan{Path: path, Changes: []string{}, Ignored: []string{}, Terminals: []WorktreeTerminal{}}
 	if molten.WorktreeMissing(path) {
 		plan.Missing = true
@@ -378,14 +393,23 @@ func (w *Worktrees) plan(ctx context.Context, path string, blockId string) (Work
 			}
 		}
 	}
-	plan.Terminals = w.terminals(ctx, path, blockId)
+	plan.Terminals = w.terminals(ctx, path, closing)
 	return plan, nil
+}
+
+// UnpushedAtRisk: commits no remote has, unless the branch's content is on the trunk (#97's check): a branch merged
+// by squash or rebase whose remote branch was deleted loses only its history. Commits git could not count still ask.
+func (p WorktreePlan) UnpushedAtRisk() bool {
+	if p.Unpushed > 0 && p.Merged != nil && *p.Merged {
+		return false
+	}
+	return p.Unpushed != 0
 }
 
 // NeedsConfirmation: removing loses something (work, ignored files, commits git could not count) or pulls the folder
 // from under another terminal.
 func (p WorktreePlan) NeedsConfirmation() bool {
-	return p.ChangeCount > 0 || p.Unpushed != 0 || p.IgnoredFileCount > 0 || len(p.Terminals) > 0
+	return p.ChangeCount > 0 || p.UnpushedAtRisk() || p.IgnoredFileCount > 0 || len(p.Terminals) > 0
 }
 
 // grewSince tells whether the worktree holds more than the user confirmed losing.
@@ -414,7 +438,7 @@ func (w *Worktrees) Plan(req WorktreeRequest) (WorktreePlan, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), worktreeTimeout)
 	defer cancel()
-	return w.plan(ctx, path, req.BlockId)
+	return w.plan(ctx, path, closingBlocks(req.BlockId, req.BlockIds))
 }
 
 // Remove removes the worktree, its plan read again first: the plan the user saw is not trusted blindly.
@@ -427,7 +451,7 @@ func (w *Worktrees) Remove(req WorktreeRemoveRequest) (WorktreeRemoveResult, err
 	defer w.lock.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), worktreeTimeout)
 	defer cancel()
-	plan, err := w.plan(ctx, path, req.BlockId)
+	plan, err := w.plan(ctx, path, closingBlocks(req.BlockId, req.BlockIds))
 	if err != nil {
 		return WorktreeRemoveResult{}, err
 	}

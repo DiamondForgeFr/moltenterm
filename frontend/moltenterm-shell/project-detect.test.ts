@@ -6,6 +6,7 @@ import {
     hasDefaultName,
     nextProjectOffer,
     ProjectDismissedMetaKey,
+    projectOfGitFile,
     readDismissed,
     withDismissed,
 } from "./project-detect";
@@ -50,5 +51,28 @@ describe("helpers", () => {
         expect(hasDefaultName("Starter workspace")).toBe(true);
         expect(hasDefaultName("")).toBe(true);
         expect(hasDefaultName("Notulia")).toBe(false);
+    });
+});
+
+describe("projectOfGitFile", () => {
+    it("offers the main checkout of a linked worktree, not the worktree", () => {
+        expect(projectOfGitFile("/w/app-fix", "gitdir: /r/app/.git/worktrees/app-fix\n")).toBe("/r/app");
+        expect(projectOfGitFile("/r/app/trees/fix", "gitdir: ../../.git/worktrees/fix")).toBe("/r/app");
+    });
+
+    it("keeps the folder of a submodule, a bare repository's worktree or an unreadable file", () => {
+        expect(projectOfGitFile("/r/app/vendor/lib", "gitdir: ../../.git/modules/vendor/lib")).toBe(
+            "/r/app/vendor/lib"
+        );
+        expect(projectOfGitFile("/w/fix", "gitdir: /r/app.git/worktrees/fix")).toBe("/w/fix");
+        expect(projectOfGitFile("/w/fix", null)).toBe("/w/fix");
+        expect(projectOfGitFile("/w/fix", "not a git file")).toBe("/w/fix");
+    });
+
+    it("is what the offer proposes when a terminal enters a worktree", () => {
+        const project = projectOfGitFile("/w/app-fix", "gitdir: /r/app/.git/worktrees/app-fix");
+        const unlinked = { dir: "", logo: "", logoOffer: "" } as any;
+        expect(nextProjectOffer(unlinked, project, [], "/Users/me")).toEqual({ mode: "link", dir: "/r/app" });
+        expect(nextProjectOffer(unlinked, project, ["/r/app"], "/Users/me")).toBeNull();
     });
 });
