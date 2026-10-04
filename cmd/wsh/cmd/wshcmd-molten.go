@@ -165,7 +165,7 @@ var moltenAgentYes bool
 
 var moltenAgentCmd = &cobra.Command{
 	Use:   "agent",
-	Short: "install the molten guides (/molten-feature, /molten-pipeline, /molten-bug) for your coding agent",
+	Short: "install the molten guides (/morph, /molten-pipeline, /molten-bug) for your coding agent",
 	Args:  cobra.ArbitraryArgs,
 	RunE:  moltenAgentRun,
 }
@@ -180,7 +180,7 @@ var moltenAgentListCmd = &cobra.Command{
 
 var moltenAgentInstallCmd = &cobra.Command{
 	Use:     "install <agent>",
-	Short:   "install /molten-feature, /molten-pipeline and /molten-bug for a coding agent (at user level)",
+	Short:   "install /morph, /molten-pipeline and /molten-bug for a coding agent (at user level)",
 	Args:    cobra.ExactArgs(1),
 	RunE:    moltenWrap(moltenAgentInstallRun),
 	PreRunE: preRunSetupRpcClient,
@@ -878,6 +878,7 @@ func moltenAgentInstallRun(cmd *cobra.Command, args []string) error {
 			WriteStdout("  %s\n", profile.GuidePath(env, guide))
 		}
 	}
+	retired := profile.InstalledRetiredGuides(env)
 	if !moltenConfirm("write it?") {
 		return fmt.Errorf("nothing written")
 	}
@@ -897,6 +898,9 @@ func moltenAgentInstallRun(cmd *cobra.Command, args []string) error {
 		if guide.Installed {
 			WriteStdout("%s installed. %s\n  %s\n", guide.Name, where, guide.Invocation)
 		}
+	}
+	for _, name := range retired {
+		WriteStdout("%s removed: %s replaces it\n", name, molten.AgentGuideName)
 	}
 	return installErr
 }
@@ -1051,7 +1055,7 @@ var moltenBuiltinHelp = [][2]string{
 	{"history", "list the recorded changes to the mods"},
 	{"docs", "write the offline mod documentation and print its folder"},
 	{"agent list", "the supported coding agents and where the molten guides are installed"},
-	{"agent install <agent>", "install /molten-feature, /molten-pipeline and /molten-bug for a coding agent"},
+	{"agent install <agent>", "install /morph, /molten-pipeline and /molten-bug for a coding agent"},
 	{"agent remove <agent>", "remove the molten guides from a coding agent"},
 	{"project link [folder]", "link this workspace to its project (default: this terminal's folder)"},
 	{"project show", "show this workspace's project, its pipeline and its conventions"},

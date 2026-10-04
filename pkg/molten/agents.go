@@ -15,18 +15,18 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/agentdocs"
 )
 
-// The molten guides for every coding agent (FR-MORPH-006, DS-MORPH-006; FR-MC-008; FR-MORPH-011): `/molten-feature`
-// turns a request into a mod, `/molten-pipeline` connects a project to Mission Control, `/molten-bug` reports a
-// MoltenTerm bug to its developers. The agents follow the SaaSFoundryAI agent
+// The molten guides for every coding agent (FR-MORPH-006, FR-MORPH-009, DS-MORPH-008; FR-MC-008; FR-MORPH-011):
+// `/morph` turns a request into a morph, `/molten-pipeline` connects a project to Mission Control, `/molten-bug`
+// reports a MoltenTerm bug to its developers. The agents follow the SaaSFoundryAI agent
 // catalog (`sf agents catalog`). Each guide (agentdocs/*.md) is rendered into each agent's own format, at user level
 // so it works in every folder. Paths and invocations were checked against each agent's documentation on 2026-10-01;
 // they change with the agents, so each profile keeps them in one place.
 
-const AgentGuideName = "molten-feature"
+const AgentGuideName = "morph"
 const PipelineGuideName = "molten-pipeline"
 const BugGuideName = "molten-bug"
 const agentRequestPlaceholder = "{{REQUEST}}"
-const agentDescription = "Turn a plain-language request into a MoltenTerm mod with the molten command"
+const agentDescription = "Turn a plain-language request into a morph of MoltenTerm with the molten command"
 
 type AgentGuide struct {
 	Name         string
@@ -40,7 +40,7 @@ var AgentGuides = []AgentGuide{
 		Name:         AgentGuideName,
 		Description:  agentDescription,
 		File:         agentdocs.GuideFile,
-		ArgumentHint: "<what you want in your workspace>",
+		ArgumentHint: "<what you want MoltenTerm to do>",
 	},
 	{
 		Name:         PipelineGuideName,
@@ -56,8 +56,15 @@ var AgentGuides = []AgentGuide{
 	},
 }
 
+// Guides earlier versions installed under another name: `/morph` replaced `/molten-feature` (FR-MORPH-009).
+// Install and Remove delete them, but only where molten wrote them.
+var RetiredGuides = []AgentGuide{
+	{Name: "molten-feature"},
+}
+
 // Every file molten writes carries this marker, so that `molten agent remove` only deletes its own files.
-var agentMarkerRegex = regexp.MustCompile(`molten-[a-z]+ v(\S+), installed by molten agent install`)
+// The first group is the guide's name, the second its version.
+var agentMarkerRegex = regexp.MustCompile(`(molten-[a-z]+|morph) v(\S+), installed by molten agent install`)
 
 type AgentEnv struct {
 	Home    string
@@ -85,7 +92,7 @@ type AgentGuideStatus struct {
 	Foreign bool `json:"foreign,omitempty"`
 }
 
-// The top-level fields describe molten-feature, the first guide; Guides lists every guide.
+// The top-level fields describe morph, the first guide; Guides lists every guide.
 type AgentStatus struct {
 	Id         string             `json:"id"`
 	Name       string             `json:"name"`
@@ -235,7 +242,7 @@ func guideSource(guide AgentGuide) (string, error) {
 	return string(data), err
 }
 
-// Path is where molten-feature goes; GuidePath where any guide goes.
+// Path is where morph goes; GuidePath where any guide goes.
 func (p AgentProfile) Path(env AgentEnv) string {
 	return p.path(env, AgentGuideName)
 }
@@ -269,12 +276,12 @@ func (p AgentProfile) GuideStatus(env AgentEnv, guide AgentGuide) AgentGuideStat
 		return status
 	}
 	match := agentMarkerRegex.FindSubmatch(data)
-	if match == nil || !strings.Contains(string(data), guide.Name+" v") {
+	if match == nil || string(match[1]) != guide.Name {
 		status.Foreign = true
 		return status
 	}
 	status.Installed = true
-	status.Version = string(match[1])
+	status.Version = string(match[2])
 	return status
 }
 
@@ -313,13 +320,28 @@ func (p AgentProfile) installGuide(env AgentEnv, guide AgentGuide, version strin
 	return os.Rename(tmp, path)
 }
 
-// Install writes every guide for the agent; a guide whose path holds someone else's file is skipped and reported.
+// InstalledRetiredGuides names the retired guides molten wrote for the agent, which Install will delete.
+func (p AgentProfile) InstalledRetiredGuides(env AgentEnv) []string {
+	var names []string
+	for _, guide := range RetiredGuides {
+		if p.GuideStatus(env, guide).Installed {
+			names = append(names, guide.Name)
+		}
+	}
+	return names
+}
+
+// Install writes every guide for the agent and deletes the retired guides molten wrote; a guide whose path holds
+// someone else's file is skipped and reported, and someone else's file at a retired guide's path is left alone.
 func (p AgentProfile) Install(env AgentEnv, version string) (string, error) {
 	var errs []error
 	for _, guide := range AgentGuides {
 		if err := p.installGuide(env, guide, version); err != nil {
 			errs = append(errs, err)
 		}
+	}
+	if err := p.removeRetiredGuides(env); err != nil {
+		errs = append(errs, err)
 	}
 	return p.Path(env), errors.Join(errs...)
 }
@@ -343,6 +365,19 @@ func (p AgentProfile) removeGuide(env AgentEnv, guide AgentGuide) (bool, error) 
 	return true, nil
 }
 
+func (p AgentProfile) removeRetiredGuides(env AgentEnv) error {
+	var errs []error
+	for _, guide := range RetiredGuides {
+		if !p.GuideStatus(env, guide).Installed {
+			continue
+		}
+		if _, err := p.removeGuide(env, guide); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // Remove deletes every guide molten wrote for the agent; removed is true when one was there.
 func (p AgentProfile) Remove(env AgentEnv) (string, bool, error) {
 	var errs []error
@@ -353,6 +388,12 @@ func (p AgentProfile) Remove(env AgentEnv) (string, bool, error) {
 			errs = append(errs, err)
 		}
 		removed = removed || ok
+	}
+	if len(p.InstalledRetiredGuides(env)) > 0 {
+		removed = true
+		if err := p.removeRetiredGuides(env); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	return p.Path(env), removed, errors.Join(errs...)
 }

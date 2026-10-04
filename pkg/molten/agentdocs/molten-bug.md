@@ -14,7 +14,7 @@ a new report. Nothing is filed without the user's approval.
    this request from a MoltenTerm terminal, and stop.
 2. Make sure it is a MoltenTerm bug, not the user's project, their shell or another tool: ask what they did, what
    they saw and what they expected when it is not clear. A request for a new feature is not a bug: suggest
-   `/molten-feature` instead.
+   `/morph` instead.
 3. Search: `molten bug search <a few words> --json`, then again with other words when nothing matches. Each match
    says what to do (`advice`):
    - `comment`: the bug is open. Prepare `molten bug comment <issue> --what "<the user's case>"` instead of a new

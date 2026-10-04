@@ -37,8 +37,8 @@ These are the non-negotiables. A feature that breaks one of them does not ship i
 1. **Bring your own agent.** No built-in model, no API keys, no token proxying. MoltenTerm runs Claude Code, Codex,
    Gemini CLI, OpenCode or anything else exactly as they run in any terminal, so every subscription keeps working
    as it does today.
-2. **Terminal first, CLI friendly.** Anything the interface can do, a command can do. The `morph` CLI is how agents
-   (and people) drive MoltenTerm. *(The CLI name is provisional.)*
+2. **Terminal first, CLI friendly.** Anything the interface can do, a command can do. The `molten` CLI is how agents
+   (and people) drive MoltenTerm, and `/morph` is how you ask your agent for a change.
 3. **Lean by default.** The core ships the essentials: terminals, a browser, dashboards and workspaces.
    Everything else is a mod, including what other tools force on you.
 4. **Projects, not repositories.** A workspace can hold one repository, several, or none at all:
@@ -119,12 +119,13 @@ contributes:
 
 ## How a morph happens
 
-1. In a MoltenTerm terminal, you ask your agent: *"Add a card that shows which branches are deployed to staging."*
-2. The agent reads the mod API documentation that ships with MoltenTerm, creates a mod with `morph mod new`,
-   writes it and checks it with `morph validate`.
+1. In a MoltenTerm terminal, you ask your agent: *"/morph add a card that shows which branches are deployed to
+   staging."*
+2. The agent reads the mod API documentation that ships with MoltenTerm, creates a mod with `molten mod new`,
+   writes it and checks it with `molten mod validate`.
 3. MoltenTerm reloads the mod. The change is recorded in your morph history.
-4. You don't like it: `morph undo`. It broke something: restart in safe mode.
-5. You like it: `morph publish`.
+4. You don't like it: `molten undo`. It broke something: restart in safe mode.
+5. You like it: `molten publish` *(planned)*.
 
 ## Foundation
 
@@ -146,7 +147,7 @@ These phases have no dates. Each one validates the next.
   widgets, layouts and custom widgets, and every change is versioned in git.
   *Question to answer: is AI morphing useful day to day?*
 - **Phase 1: mod host.** Fork Wave and add the first version of the mod API (themes, layouts, panels), hot reload,
-  the `morph` CLI, safe mode and undo.
+  the `molten` CLI and `/morph`, safe mode and undo.
 - **Phase 2: Dashboard and browser.** Add the Mission Control tab (branches, local and remote CI, deployments,
   releases, actions), the privacy-first browser and the Brave bridge.
 - **Phase 3: community.** Add morph packs, a registry, permissions and signing, and an in-app gallery.

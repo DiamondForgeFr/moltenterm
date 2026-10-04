@@ -1,6 +1,6 @@
 # MoltenTerm mods
 
-`molten docs` prints the folder holding this page, the `molten-feature.md` guide for coding agents and complete
+`molten docs` prints the folder holding this page, the `morph.md` guide for coding agents and complete
 example mods, all matching the installed version.
 
 A mod changes MoltenTerm from the outside: it is a folder in the configuration directory that MoltenTerm loads when a
@@ -124,10 +124,10 @@ the app: they need no trust prompt and run unless turned off with `molten mod di
 `"disabled"` in `mods.json`). `molten mod list` marks them `(built-in)`; they cannot be removed or untrusted. A
 folder in `<config>/mods/` named like a built-in mod is ignored.
 
-## Coding agents: /molten-feature
+## Coding agents: /morph
 
-The user asks their own coding agent for a change with `/molten-feature <request>`; the agent follows the
-`molten-feature.md` guide to build the mod with `molten`. Install it once per agent, at user level:
+The user asks their own coding agent for a change with `/morph <request>`; the agent follows the `morph.md` guide to
+build the mod with `molten`. Install it once per agent, at user level:
 
 ```
 molten agent list                 # supported agents, where the guide goes, what is installed
@@ -137,14 +137,16 @@ molten agent remove <agent>       # deletes only a file molten wrote
 
 | Agent | Installed as | The user types |
 | --- | --- | --- |
-| `claude-code` | skill `~/.claude/skills/molten-feature/SKILL.md` | `/molten-feature <request>` |
-| `codex` | skill `~/.agents/skills/molten-feature/SKILL.md` | `$molten-feature <request>` |
-| `gemini-cli` | command `~/.gemini/commands/molten-feature.toml` | `/molten-feature <request>` |
-| `qwen-code` | command `~/.qwen/commands/molten-feature.md` | `/molten-feature <request>` |
-| `kimi` | skill `~/.kimi-code/skills/molten-feature/SKILL.md` | `/skill:molten-feature <request>` |
-| `generic` | file `<data>/molten/agents/molten-feature.md` | "Read <file> and follow it with my request: …" |
+| `claude-code` | skill `~/.claude/skills/morph/SKILL.md` | `/morph <request>` |
+| `codex` | skill `~/.agents/skills/morph/SKILL.md` | `$morph <request>` |
+| `gemini-cli` | command `~/.gemini/commands/morph.toml` | `/morph <request>` |
+| `qwen-code` | command `~/.qwen/commands/morph.md` | `/morph <request>` |
+| `kimi` | skill `~/.kimi-code/skills/morph/SKILL.md` | `/skill:morph <request>` |
+| `generic` | file `<data>/molten/agents/morph.md` | "Read <file> and follow it with my request: …" |
 
 The agents follow the SaaSFoundryAI agent catalog. `~/.agents/skills/` is also read by Gemini CLI and Kimi.
+`/morph` replaced `/molten-feature`: `molten agent install` deletes a `molten-feature` guide that molten wrote, and
+leaves a file of the same name that someone else wrote.
 
 ## A complete example: the copy box
 
