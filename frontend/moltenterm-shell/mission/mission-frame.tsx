@@ -9,6 +9,7 @@ import { atoms, createBlock } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
+import { MoltenWave } from "../molten-button";
 import { pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { chooseMoltentermPath, linkWorkspaceProject, ProjectFacts, readProjectFacts } from "../workspace-project-store";
 import { useMissionSnapshot } from "./mission-client";
@@ -71,8 +72,7 @@ function EmptyState({
     );
 }
 
-const AccentButton =
-    "cursor-pointer rounded bg-accent/80 px-3 py-1.5 text-sm text-primary transition-colors hover:bg-accent";
+const AccentButton = "molten-btn cursor-pointer rounded px-3 py-1.5 text-sm";
 const PlainButton =
     "cursor-pointer rounded border border-border px-2 py-1 text-xs text-secondary transition-colors hover:bg-hover hover:text-primary";
 
@@ -225,6 +225,7 @@ export function MissionFrame({
             >
                 <button type="button" className={AccentButton} onClick={() => linkProject(project.workspace)}>
                     Link a project…
+                    <MoltenWave />
                 </button>
             </EmptyState>
         );
@@ -238,6 +239,7 @@ export function MissionFrame({
             >
                 <button type="button" className={AccentButton} onClick={() => linkProject(project.workspace)}>
                     Link a project…
+                    <MoltenWave />
                 </button>
             </EmptyState>
         );

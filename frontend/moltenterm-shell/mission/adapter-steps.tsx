@@ -6,6 +6,7 @@
 
 import { cn, fireAndForget } from "@/util/util";
 import { useState } from "react";
+import { MoltenWave } from "../molten-button";
 import { timeAgo } from "./branch-tree";
 import { BlockHeader } from "./cicd-panels";
 import { missionCancel } from "./mission-client";
@@ -75,9 +76,10 @@ function StepRow({
                         type="button"
                         disabled={busy}
                         onClick={onRun}
-                        className="cursor-pointer rounded bg-accent/80 px-2 py-1 text-xs text-primary transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-50"
+                        className="molten-btn cursor-pointer rounded px-2 py-1 text-xs disabled:cursor-default disabled:opacity-50"
                     >
                         Run
+                        <MoltenWave />
                     </button>
                 )}
             </div>

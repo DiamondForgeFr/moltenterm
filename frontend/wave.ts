@@ -36,6 +36,7 @@ import { isMacOS, setMacOSVersion } from "@/util/platformutil";
 import { MoltentermWindowTitle } from "@/util/moltenterm-identity"; // MOLTENTERM-PATCH (#4)
 import { startMoltenHost } from "./molten/molten-start"; // MOLTENTERM-PATCH (#18)
 import "./moltenterm-shell/moltenterm-shell.css"; // MOLTENTERM-PATCH (#48)
+import "./moltenterm-shell/molten-button.css"; // MOLTENTERM-PATCH (#145): molten call-to-action buttons, after the shell
 import { startMoltentermAccent } from "./moltenterm-shell/accent"; // MOLTENTERM-PATCH (#47)
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";

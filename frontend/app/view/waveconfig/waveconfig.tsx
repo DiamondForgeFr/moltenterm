@@ -13,6 +13,7 @@ import { cn } from "@/util/util";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
 import { memo, useCallback, useEffect } from "react";
+import { MoltenWave } from "../../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 
 interface ConfigSidebarProps {
     model: WaveConfigViewModel;
@@ -220,10 +221,11 @@ const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigVi
                                                     className={`px-3 py-1 rounded transition-colors text-sm ${
                                                         !hasChanges || isSaving
                                                             ? "border border-border text-muted-foreground opacity-50"
-                                                            : "bg-accent/80 text-primary hover:bg-accent cursor-pointer"
+                                                            : "molten-btn cursor-pointer"
                                                     }`}
                                                 >
                                                     {isSaving ? "Saving..." : "Save"}
+                                                    <MoltenWave />
                                                 </button>
                                             </Tooltip>
                                         </>

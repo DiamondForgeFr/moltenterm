@@ -9,6 +9,7 @@ import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
 import { memo, useEffect } from "react";
+import { MoltenWave } from "../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 
 const BuilderCodeTab = memo(() => {
     const model = BuilderAppPanelModel.getInstance();
@@ -81,13 +82,12 @@ const BuilderCodeTab = memo(() => {
             <button
                 className={cn(
                     "absolute top-1 right-4 z-50 px-3 py-1 text-sm font-medium rounded transition-colors shadow-lg",
-                    saveNeeded
-                        ? "bg-accent/80 text-primary hover:bg-accent cursor-pointer"
-                        : "bg-gray-600 text-gray-400 cursor-default"
+                    saveNeeded ? "molten-btn cursor-pointer" : "bg-gray-600 text-gray-400 cursor-default"
                 )}
                 onClick={saveNeeded ? handleSave : undefined}
             >
                 Save
+                <MoltenWave />
             </button>
             <CodeEditor
                 blockId={builderAppId}

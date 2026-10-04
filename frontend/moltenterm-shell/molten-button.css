@@ -1,0 +1,186 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* Molten call-to-action buttons (FR-SHELL-014). Imported from frontend/wave.ts after moltenterm-shell.css: these rules
+   are unlayered and come last, so they win over Wave's button.scss and over Tailwind's utilities at equal specificity.
+   They set colours and effects only, never sizes: padding, radius and font stay the caller's.
+
+   Markup: a primary call to action is a button with the class molten-btn and <MoltenWave /> (molten-button.tsx) as its
+   last child; Wave's Button adds both itself (moltenButtonClasses). molten-btn-destructive and molten-btn-warning
+   recolour it. The calm variants (molten-btn-secondary, -outline, -ghost) carry no wave. */
+
+/* Each --molten-hi-* stays a plain `color-mix(in srgb, var(--molten-base) N%, rgb(...))`: molten-button.test.ts
+   resolves them for every workspace colour and keeps the text at 4.5:1 over the rest colour and both highlights
+   (NFR-SHELL-003). The highlights lighten towards warm white and yellow, so the surface reads as molten metal rather
+   than a darkened fill. */
+.molten-btn {
+    --molten-base: var(--mt-accent);
+    --molten-fg: var(--mt-accent-fg);
+    --molten-hi-1: color-mix(in srgb, var(--molten-base) 80%, rgb(255, 246, 222));
+    --molten-hi-2: color-mix(in srgb, var(--molten-base) 70%, rgb(255, 222, 140));
+    isolation: isolate;
+    color: var(--molten-fg);
+    background-color: var(--molten-base);
+    border-color: transparent;
+    transition:
+        transform 120ms ease-out,
+        box-shadow 300ms ease,
+        background-color 300ms ease;
+}
+
+/* In Tailwind's components layer, so a caller's utilities (absolute, shadow-lg, cursor-*) still win: the wave only
+   needs the button to be positioned, relative or not. */
+@layer components {
+    .molten-btn {
+        position: relative;
+        cursor: pointer;
+    }
+}
+
+.molten-btn-destructive {
+    --molten-base: var(--mt-state-error);
+    --molten-fg: #000000;
+}
+
+.molten-btn-warning {
+    --molten-base: var(--mt-state-waiting);
+    --molten-fg: #000000;
+}
+
+.molten-btn:hover {
+    color: var(--molten-fg);
+    background-color: var(--molten-base);
+    box-shadow: 0 5px 16px -6px color-mix(in srgb, var(--molten-base) 75%, transparent);
+}
+
+.molten-btn:active {
+    transform: scale(0.98);
+    box-shadow: 0 2px 7px -3px color-mix(in srgb, var(--molten-base) 70%, transparent);
+}
+
+/* The wave sits behind the content inside the button's stacking context (isolation above), so text and icons need
+   no wrapper and keep the button's own flex layout. */
+.molten-btn-wave {
+    display: none;
+}
+
+.molten-btn > .molten-btn-wave {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 300ms ease;
+}
+
+/* Two blobs twice the button's width, nearly round, turning slowly at different speeds: their lower edges roll
+   across the middle of the button like a viscous surface. */
+.molten-btn > .molten-btn-wave::before,
+.molten-btn > .molten-btn-wave::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 58%;
+    width: 200%;
+    aspect-ratio: 1 / 1;
+    translate: -50% -103%;
+    animation: molten-btn-turn 8s linear infinite paused;
+}
+
+.molten-btn > .molten-btn-wave::before {
+    border-radius: 43%;
+    background-color: var(--molten-hi-1);
+}
+
+.molten-btn > .molten-btn-wave::after {
+    border-radius: 40%;
+    background-color: var(--molten-hi-2);
+    translate: -50% -105%;
+    animation-duration: 14s;
+    animation-direction: reverse;
+}
+
+.molten-btn:hover > .molten-btn-wave {
+    opacity: 1;
+}
+
+.molten-btn:hover > .molten-btn-wave::before,
+.molten-btn:hover > .molten-btn-wave::after {
+    animation-play-state: running;
+}
+
+@keyframes molten-btn-turn {
+    to {
+        rotate: 360deg;
+    }
+}
+
+.molten-btn:disabled,
+.molten-btn[aria-disabled="true"] {
+    cursor: default;
+    opacity: 0.5;
+    transform: none;
+    box-shadow: none;
+}
+
+.molten-btn:disabled > .molten-btn-wave,
+.molten-btn[aria-disabled="true"] > .molten-btn-wave {
+    display: none;
+}
+
+/* Calm variants: no wave, a subtle surface tint on hover. Wave's grey, red and yellow tokens keep their colours. */
+.molten-btn-outline,
+.molten-btn-ghost {
+    cursor: pointer;
+}
+
+.molten-btn-outline:hover,
+.molten-btn-ghost:hover {
+    background-color: var(--hover-bg-color);
+}
+
+.molten-btn-outline.molten-tone-accent,
+.molten-btn-ghost.molten-tone-accent {
+    color: var(--mt-accent);
+}
+
+.molten-btn-outline.molten-tone-accent {
+    border-color: color-mix(in srgb, var(--mt-accent) 70%, transparent);
+}
+
+.molten-btn-outline.molten-tone-accent:hover,
+.molten-btn-ghost.molten-tone-accent:hover {
+    color: var(--color-accenthover);
+    border-color: var(--mt-accent);
+    background-color: color-mix(in srgb, var(--mt-accent) 10%, transparent);
+}
+
+/* One focus ring for every button: a light tint of the accent, offset from the edge. Wave's was 1px green. */
+.molten-btn:focus-visible,
+.molten-btn-secondary:focus-visible,
+.molten-btn-outline:focus-visible,
+.molten-btn-ghost:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--molten-base, var(--mt-accent)) 45%, white);
+    outline-offset: 2px;
+}
+
+/* Without motion the hover shows the highlight standing still. */
+@media (prefers-reduced-motion: reduce) {
+    .molten-btn,
+    .molten-btn > .molten-btn-wave {
+        transition: none;
+    }
+
+    .molten-btn > .molten-btn-wave::before,
+    .molten-btn > .molten-btn-wave::after {
+        animation: none;
+        rotate: 18deg;
+    }
+
+    .molten-btn:active {
+        transform: none;
+    }
+}

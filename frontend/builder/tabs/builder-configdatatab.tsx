@@ -4,9 +4,9 @@
 import { BuilderAppPanelModel } from "@/builder/store/builder-apppanel-model";
 import { CopyButton } from "@/element/copybutton";
 import { atoms } from "@/store/global";
-import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useState } from "react";
+import { MoltenWave } from "../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 
 const NotRunningView = memo(() => {
     return (
@@ -179,10 +179,11 @@ const BuilderConfigDataTab = memo(() => {
                 <h3 className="text-lg font-semibold text-primary">Config & Data</h3>
                 <button
                     onClick={handleRefresh}
-                    className="px-3 py-1 text-sm font-medium rounded bg-accent/80 text-primary hover:bg-accent transition-colors cursor-pointer flex items-center gap-2"
+                    className="molten-btn px-3 py-1 text-sm font-medium rounded cursor-pointer flex items-center gap-2"
                 >
                     <i className="fa fa-refresh" />
                     Refresh
+                    <MoltenWave />
                 </button>
             </div>
             <div className="flex-1 overflow-auto p-4">

@@ -13,6 +13,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { MoltenWave } from "./molten-button";
 import { registerNotificationGesture } from "./notifications-store";
 import {
     ClosePlanView,
@@ -30,12 +31,10 @@ import {
 } from "./worktree-model";
 import { removeWorktree, resolveKeptWorktreeNotice, worktreePlan } from "./worktree-store";
 
-const AccentButton =
-    "cursor-pointer rounded bg-accent/80 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-accent";
+const AccentButton = "molten-btn cursor-pointer rounded px-3 py-1.5 text-xs";
 const PlainButton =
     "cursor-pointer rounded border border-border px-3 py-1.5 text-xs text-secondary hover:bg-hover hover:text-primary";
-const DangerButton =
-    "cursor-pointer rounded bg-error/70 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-error";
+const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded px-3 py-1.5 text-xs";
 
 function pathName(path: string): string {
     return (
@@ -385,6 +384,7 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
             {step === "done" ? (
                 <button type="button" autoFocus className={AccentButton} onClick={() => finish(true)}>
                     {standalone ? "Close" : "Close the terminal"}
+                    <MoltenWave />
                 </button>
             ) : null}
             {step === "confirm" ? (
@@ -394,6 +394,7 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                     </button>
                     <button type="button" className={DangerButton} onClick={() => remove(true)}>
                         Remove anyway
+                        <MoltenWave />
                     </button>
                 </>
             ) : null}
@@ -417,6 +418,7 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                         onClick={() => finish(true)}
                     >
                         Keep the worktree
+                        <MoltenWave />
                     </button>
                     {view?.canRemove ? (
                         <button
@@ -427,6 +429,7 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                             onClick={onRemove}
                         >
                             {step === "working" ? "Removing…" : "Remove the worktree"}
+                            <MoltenWave />
                         </button>
                     ) : null}
                 </>
@@ -626,6 +629,7 @@ function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; onDone:
                 </button>
                 <button type="button" className={DangerButton} onClick={runRemovals}>
                     Remove anyway and close the tab
+                    <MoltenWave />
                 </button>
             </>
         ) : (
@@ -646,6 +650,7 @@ function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; onDone:
                     onClick={onClose}
                 >
                     {step === "working" ? "Removing…" : closeLabel}
+                    <MoltenWave />
                 </button>
             </>
         );

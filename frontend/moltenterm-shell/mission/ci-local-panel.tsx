@@ -6,6 +6,7 @@
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MoltenWave } from "../molten-button";
 import {
     branchMark,
     CiJobRecord,
@@ -321,7 +322,7 @@ export function LocalCiRunner({ dir, projectName }: { dir: string; projectName: 
                     type="button"
                     disabled={busy || running != null}
                     onClick={start}
-                    className="cursor-pointer rounded bg-accent/80 px-3 py-1 text-xs text-primary transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-60"
+                    className="molten-btn cursor-pointer rounded px-3 py-1 text-xs disabled:cursor-default disabled:opacity-60"
                 >
                     {running != null ? (
                         <>
@@ -331,6 +332,7 @@ export function LocalCiRunner({ dir, projectName }: { dir: string; projectName: 
                     ) : (
                         "Run"
                     )}
+                    <MoltenWave />
                 </button>
                 {running != null ? (
                     <button

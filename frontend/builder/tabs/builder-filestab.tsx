@@ -7,10 +7,11 @@ import { ContextMenuModel } from "@/app/store/contextmenu";
 import { modalsModel } from "@/app/store/modalmodel";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { arrayToBase64 } from "@/util/util";
 import { atoms } from "@/store/global";
+import { arrayToBase64 } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { MoltenWave } from "../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 
 const MaxFileSize = 5 * 1024 * 1024; // 5MB
 const ReadOnlyFileNames = ["static/tw.css"];
@@ -324,12 +325,13 @@ const BuilderFilesTab = memo(() => {
                         <i className="fa fa-refresh" />
                     </button>
                     <button
-                        className="px-3 py-1 text-sm font-medium rounded bg-accent/80 text-primary hover:bg-accent transition-colors cursor-pointer"
+                        className="molten-btn px-3 py-1 text-sm font-medium rounded cursor-pointer"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={loading}
                     >
                         <i className="fa fa-plus mr-2" />
                         Add File
+                        <MoltenWave />
                     </button>
                 </div>
                 <input ref={fileInputRef} type="file" onChange={handleFileInputChange} className="hidden" />

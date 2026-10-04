@@ -5,6 +5,7 @@ import { SecretNameRegex, type WaveConfigViewModel } from "@/app/view/waveconfig
 import { cn } from "@/util/util";
 import { useAtomValue, useSetAtom } from "jotai";
 import { memo, useMemo } from "react";
+import { MoltenWave } from "../../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 
 interface ErrorDisplayProps {
     message: string;
@@ -45,11 +46,12 @@ const EmptyState = memo(({ onAddSecret }: { onAddSecret: () => void }) => {
             <h3 className="text-lg font-semibold text-zinc-400">No Secrets</h3>
             <p className="text-zinc-500">Add a secret to get started</p>
             <button
-                className="flex items-center gap-2 px-4 py-2 bg-accent-600 hover:bg-accent-500 rounded cursor-pointer transition-colors"
+                className="molten-btn flex items-center gap-2 px-4 py-2 rounded cursor-pointer"
                 onClick={onAddSecret}
             >
                 <i className="fa-sharp fa-solid fa-plus" />
                 <span className="font-medium">Add New Secret</span>
+                <MoltenWave />
             </button>
         </div>
     );
@@ -178,7 +180,7 @@ const AddSecretForm = memo(
                         Cancel
                     </button>
                     <button
-                        className="px-4 py-2 bg-accent-600 hover:bg-accent-500 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="molten-btn px-4 py-2 rounded cursor-pointer disabled:opacity-50 flex items-center gap-2"
                         onClick={onSubmit}
                         disabled={isLoading || isNameInvalid || newSecretName.trim() === ""}
                     >
@@ -190,6 +192,7 @@ const AddSecretForm = memo(
                         ) : (
                             "Add Secret"
                         )}
+                        <MoltenWave />
                     </button>
                 </div>
             </div>
@@ -287,7 +290,7 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
                         Cancel
                     </button>
                     <button
-                        className="px-4 py-2 bg-accent-600 hover:bg-accent-500 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="molten-btn px-4 py-2 rounded cursor-pointer disabled:opacity-50 flex items-center gap-2"
                         onClick={() => model.saveSecret()}
                         disabled={isLoading}
                     >
@@ -299,6 +302,7 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
                         ) : (
                             "Save"
                         )}
+                        <MoltenWave />
                     </button>
                 </div>
             </div>

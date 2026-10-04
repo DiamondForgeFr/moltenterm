@@ -7,6 +7,7 @@
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
+import { MoltenWave } from "../molten-button";
 import { missionRefresh, missionTrust, releaseStart } from "./mission-client";
 import { PipelineReleaseStep, toTreeData, UntrustedInfo } from "./mission-model";
 import {
@@ -229,10 +230,11 @@ export function ReleaseMenu({
                                 type="button"
                                 disabled={!tag || busy}
                                 onClick={launch}
-                                className="cursor-pointer rounded bg-accent/80 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-50"
+                                className="molten-btn cursor-pointer rounded px-3 py-1.5 text-xs disabled:cursor-default disabled:opacity-50"
                             >
                                 {busy ? <i className="fa fa-solid fa-circle-notch fa-spin mr-1.5 text-[10px]" /> : null}
                                 {tag ? `Start ${tag}` : "Choose a release"}
+                                <MoltenWave />
                             </button>
                         </>
                     ) : null}

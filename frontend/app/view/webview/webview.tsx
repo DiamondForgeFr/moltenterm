@@ -22,6 +22,7 @@ import clsx from "clsx";
 import { WebviewTag } from "electron";
 import { Atom, PrimitiveAtom, atom, useAtomValue, useSetAtom } from "jotai";
 import { Fragment, createRef, memo, useCallback, useEffect, useRef, useState } from "react";
+import { MoltenWave } from "../../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
 import "./webview.scss";
 import type { WebViewEnv } from "./webviewenv";
 
@@ -789,9 +790,10 @@ const BookmarkTypeahead = memo(
                         </p>
                         <button
                             onClick={openBookmarksJson}
-                            className="mt-3 px-4 py-2 text-sm font-medium text-black bg-accent hover:bg-accenthover rounded-lg cursor-pointer"
+                            className="molten-btn mt-3 px-4 py-2 text-sm font-medium rounded-lg cursor-pointer"
                         >
                             Open bookmarks.json
+                            <MoltenWave />
                         </button>
                     </div>
                 </SuggestionControlNoData>
@@ -801,9 +803,10 @@ const BookmarkTypeahead = memo(
                         <p className="text-sm text-gray-400">No matching bookmarks</p>
                         <button
                             onClick={openBookmarksJson}
-                            className="mt-3 px-4 py-2 text-sm font-medium text-black bg-accent hover:bg-accenthover rounded-lg cursor-pointer"
+                            className="molten-btn mt-3 px-4 py-2 text-sm font-medium rounded-lg cursor-pointer"
                         >
                             Edit bookmarks.json
+                            <MoltenWave />
                         </button>
                     </div>
                 </SuggestionControlNoResults>
