@@ -36,12 +36,12 @@ func TestAgentPaths(t *testing.T) {
 		return map[string]string{"KIMI_CODE_HOME": "/k"}[name]
 	}}
 	cases := map[string]string{
-		"claude-code": "/h/.claude/skills/molten-feature/SKILL.md",
-		"codex":       "/h/.agents/skills/molten-feature/SKILL.md",
-		"gemini-cli":  "/h/.gemini/commands/molten-feature.toml",
-		"qwen-code":   "/h/.qwen/commands/molten-feature.md",
-		"kimi":        "/k/skills/molten-feature/SKILL.md",
-		"generic":     "/d/molten/agents/molten-feature.md",
+		"claude-code": "/h/.claude/skills/morph/SKILL.md",
+		"codex":       "/h/.agents/skills/morph/SKILL.md",
+		"gemini-cli":  "/h/.gemini/commands/morph.toml",
+		"qwen-code":   "/h/.qwen/commands/morph.md",
+		"kimi":        "/k/skills/morph/SKILL.md",
+		"generic":     "/d/molten/agents/morph.md",
 	}
 	for id, want := range cases {
 		p, _ := FindAgent(id)
@@ -54,7 +54,7 @@ func TestAgentPaths(t *testing.T) {
 func TestAgentRenderings(t *testing.T) {
 	argForms := map[string]string{
 		"claude-code": "$ARGUMENTS",
-		"codex":       "after `$molten-feature`",
+		"codex":       "after `$morph`",
 		"gemini-cli":  "{{args}}",
 		"qwen-code":   "{{args}}",
 		"kimi":        "$ARGUMENTS",
@@ -68,15 +68,15 @@ func TestAgentRenderings(t *testing.T) {
 		if strings.Contains(content, agentRequestPlaceholder) || !strings.Contains(content, argForms[p.Id]) {
 			t.Errorf("%s: the request must be in the agent's own form", p.Id)
 		}
-		if m := agentMarkerRegex.FindStringSubmatch(content); m == nil || m[1] != "1.2.3" {
+		if m := agentMarkerRegex.FindStringSubmatch(content); m == nil || m[1] != "morph" || m[2] != "1.2.3" {
 			t.Errorf("%s: missing version marker", p.Id)
 		}
-		if !strings.Contains(content, "molten docs") || !strings.Contains(content, "molten copy") {
+		if !strings.Contains(content, "molten docs") || !strings.Contains(content, "molten copy") || !strings.Contains(content, "Decide what the request changes") {
 			t.Errorf("%s: the guide must be complete", p.Id)
 		}
 		switch p.Format {
 		case "skill":
-			if !strings.HasPrefix(content, "---\nname: molten-feature\ndescription: ") {
+			if !strings.HasPrefix(content, "---\nname: morph\ndescription: ") {
 				t.Errorf("%s: skill frontmatter:\n%s", p.Id, content[:120])
 			}
 		case "custom command":
@@ -163,12 +163,12 @@ func TestWriteDocsAndExampleMatchesBuiltin(t *testing.T) {
 	if err := WriteDocs(dir); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"mod-format.md", "molten-feature.md", "agent-states.md", "worktrees.md", "examples/copy-box/mod.json", "examples/copy-box/main.js"} {
+	for _, name := range []string{"mod-format.md", "morph.md", "agent-states.md", "worktrees.md", "examples/copy-box/mod.json", "examples/copy-box/main.js"} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			t.Errorf("missing %s: %v", name, err)
 		}
 	}
-	guide, _ := os.ReadFile(filepath.Join(dir, "molten-feature.md"))
+	guide, _ := os.ReadFile(filepath.Join(dir, "morph.md"))
 	if bytes.Contains(guide, []byte(agentRequestPlaceholder)) {
 		t.Error("the written guide must not keep the placeholder")
 	}
@@ -209,7 +209,7 @@ func TestPipelineGuideForEveryAgent(t *testing.T) {
 		if strings.Contains(content, agentRequestPlaceholder) || !strings.Contains(content, "molten project validate") {
 			t.Errorf("%s: the pipeline guide must be complete and in the agent's form", p.Id)
 		}
-		if m := agentMarkerRegex.FindStringSubmatch(content); m == nil || m[1] != "2.0.0" || !strings.Contains(content, "molten-pipeline v2.0.0") {
+		if m := agentMarkerRegex.FindStringSubmatch(content); m == nil || m[1] != "molten-pipeline" || m[2] != "2.0.0" {
 			t.Errorf("%s: missing pipeline marker", p.Id)
 		}
 		if p.Format == "skill" && !strings.HasPrefix(content, "---\nname: molten-pipeline\n") {
@@ -241,7 +241,7 @@ func TestAgentInstallsEveryGuide(t *testing.T) {
 	if s := claude.GuideStatus(env, bug); !strings.Contains(s.Invocation, "/molten-bug") {
 		t.Fatalf("bug guide invocation: %+v", s)
 	}
-	// A molten-feature file must not be mistaken for the pipeline guide.
+	// A morph file must not be mistaken for the pipeline guide.
 	pipeline, _ := FindGuide(PipelineGuideName)
 	featureContent, _ := claude.Render("1.0.0")
 	os.WriteFile(claude.GuidePath(env, pipeline), []byte(featureContent), 0644)
@@ -280,5 +280,93 @@ func TestPipelineFormatExampleIsValid(t *testing.T) {
 	report := ValidatePipeline(dir)
 	if !report.Valid || len(report.Warnings) != 0 {
 		t.Fatalf("the documented example must validate cleanly: %v %v", report.Errors, report.Warnings)
+	}
+}
+
+// An earlier version's /molten-feature, as molten wrote it: the old marker and frontmatter (FR-MORPH-009).
+func writeRetiredGuide(t *testing.T, p AgentProfile, env AgentEnv, version string) string {
+	t.Helper()
+	retired := RetiredGuides[0]
+	path := p.GuidePath(env, retired)
+	content := p.render(AgentGuide{Name: retired.Name, Description: "old"}, "old guide", agentMarker(retired.Name, version, p.Id))
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestInstallReplacesTheRetiredGuide(t *testing.T) {
+	for _, p := range AgentProfiles {
+		env := testAgentEnv(t)
+		oldPath := writeRetiredGuide(t, p, env, "0.14.5")
+		if got := p.InstalledRetiredGuides(env); len(got) != 1 || got[0] != "molten-feature" {
+			t.Fatalf("%s: the old guide is recognised: %v", p.Id, got)
+		}
+		if _, err := p.Install(env, "0.16.0"); err != nil {
+			t.Fatalf("%s install: %v", p.Id, err)
+		}
+		if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+			t.Fatalf("%s: molten-feature must be gone", p.Id)
+		}
+		if p.Format == "skill" {
+			if _, err := os.Stat(filepath.Dir(oldPath)); !os.IsNotExist(err) {
+				t.Fatalf("%s: the empty molten-feature skill folder must go too", p.Id)
+			}
+		}
+		if status := p.Status(env); !status.Installed || status.Version != "0.16.0" {
+			t.Fatalf("%s: morph installed: %+v", p.Id, status)
+		}
+		if got := p.InstalledRetiredGuides(env); len(got) != 0 {
+			t.Fatalf("%s: nothing retired left: %v", p.Id, got)
+		}
+	}
+}
+
+func TestInstallLeavesAHandWrittenRetiredGuide(t *testing.T) {
+	env := testAgentEnv(t)
+	p, _ := FindAgent("claude-code")
+	path := p.GuidePath(env, RetiredGuides[0])
+	os.MkdirAll(filepath.Dir(path), 0755)
+	os.WriteFile(path, []byte("my own molten-feature"), 0644)
+	if got := p.InstalledRetiredGuides(env); len(got) != 0 {
+		t.Fatalf("a hand-written file is not molten's: %v", got)
+	}
+	if _, err := p.Install(env, "1"); err != nil {
+		t.Fatalf("install must succeed beside a hand-written molten-feature: %v", err)
+	}
+	if _, _, err := p.Remove(env); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if data, _ := os.ReadFile(path); string(data) != "my own molten-feature" {
+		t.Fatal("the hand-written file changed")
+	}
+}
+
+func TestRemoveDeletesTheRetiredGuide(t *testing.T) {
+	env := testAgentEnv(t)
+	p, _ := FindAgent("codex")
+	oldPath := writeRetiredGuide(t, p, env, "0.14.5")
+	_, removed, err := p.Remove(env)
+	if err != nil || !removed {
+		t.Fatalf("remove: %v %v", removed, err)
+	}
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Fatal("molten-feature must be gone")
+	}
+}
+
+func TestRetiredGuideIsNotMistakenForMorph(t *testing.T) {
+	env := testAgentEnv(t)
+	p, _ := FindAgent("claude-code")
+	morph, _ := FindGuide(AgentGuideName)
+	retired := RetiredGuides[0]
+	content := p.render(AgentGuide{Name: retired.Name}, "old guide", agentMarker(retired.Name, "0.14.5", p.Id))
+	os.MkdirAll(filepath.Dir(p.GuidePath(env, morph)), 0755)
+	os.WriteFile(p.GuidePath(env, morph), []byte(content), 0644)
+	if s := p.GuideStatus(env, morph); !s.Foreign || s.Installed {
+		t.Fatalf("a molten-feature file at the morph path is foreign: %+v", s)
 	}
 }

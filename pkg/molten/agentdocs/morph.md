@@ -1,6 +1,6 @@
-# molten-feature: turn a request into a MoltenTerm mod
+# morph: turn a request into a morph of MoltenTerm
 
-The user asked for a change to their MoltenTerm workspace:
+The user asked for a change:
 
 {{REQUEST}}
 
@@ -13,17 +13,25 @@ restart. You build the change as a mod with the `molten` command; you never edit
    this request from a MoltenTerm terminal, and stop.
 2. Read the documentation of the installed version: run `molten docs`, then read `mod-format.md` in the folder it
    prints, and the complete example in `examples/copy-box/`.
-3. See what exists: `molten mod list --json`. If a mod already covers this feature, edit it instead of creating a
+3. Decide what the request changes:
+   - **The workspace**: panes, boxes, notifications, commands, anything around the terminals. This is a MoltenTerm
+     mod, built with the steps below.
+   - **Your own session**: how you, the coding agent, draw your interface or behave (your prompt, your tool calls,
+     your status line). This version of MoltenTerm cannot change that for any agent. Build the part of the request
+     that concerns the workspace, if there is one, and tell the user plainly which part you could not do and why.
+   - **Both**: build the workspace part, and say which part was left out.
+   - **Neither** (MoltenTerm's own code, or something no mod can reach): say so and stop.
+4. See what exists: `molten mod list --json`. If a mod already covers this feature, edit it instead of creating a
    new one.
-4. Create the mod: `molten mod new <id> --name "<name>" --description "<one sentence>"`, then write `main.js` in the
+5. Create the mod: `molten mod new <id> --name "<name>" --description "<one sentence>"`, then write `main.js` in the
    folder it prints, and list in `mod.json` the capabilities it uses. A mod is one self-contained ES module: no
    import, only the `api` given to `activate`.
-5. Check it: `molten mod validate <id>`. Fix every problem it names (file:line:column) until it says ok.
-6. Enable it: `molten mod enable <id>`. MoltenTerm asks the user to trust the mod; wait for the answer. If the user
+6. Check it: `molten mod validate <id>`. Fix every problem it names (file:line:column) until it says ok.
+7. Enable it: `molten mod enable <id>`. MoltenTerm asks the user to trust the mod; wait for the answer. If the user
    declines, stop and say so.
-7. Try it: run its commands (`molten <command> …`) and `molten mod list` to check that it is `active` with no error.
+8. Try it: run its commands (`molten <command> …`) and `molten mod list` to check that it is `active` with no error.
    Saving a file of the mod reloads it within a second.
-8. Report: tell the user what the mod does, how to use it and the folder `molten mod new` printed (never guess
+9. Report: tell the user what the mod does, how to use it and the folder `molten mod new` printed (never guess
    the configuration path), ask them to check the result, and tell them that
    `molten undo` reverts the last change (repeat it to go further back) and `molten mod disable <id>` turns the mod
    off.

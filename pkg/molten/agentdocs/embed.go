@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package agentdocs holds the documentation coding agents read to build mods (DS-MORPH-006): the mod format, the
-// molten-feature guide, and complete example mods; and to connect projects to Mission Control (FR-MC-008): the
+// morph guide, and complete example mods; and to connect projects to Mission Control (FR-MC-008): the
 // molten-pipeline guide and the pipeline format. It is embedded in wsh, so `molten` always gives the documentation
 // of its own version, offline.
 package agentdocs
@@ -15,9 +15,9 @@ import "embed"
 // worktrees.md tells how an agent links the worktree of its task to its terminal (FR-SHELL-016).
 // molten-bug.md is the guide for reporting a MoltenTerm bug (FR-MORPH-011).
 //
-//go:embed mod-format.md molten-feature.md molten-pipeline.md molten-bug.md pipeline-format.md agent-states.md worktrees.md examples
+//go:embed mod-format.md morph.md molten-pipeline.md molten-bug.md pipeline-format.md agent-states.md worktrees.md examples
 var Files embed.FS
 
-const GuideFile = "molten-feature.md"
+const GuideFile = "morph.md"
 const PipelineGuideFile = "molten-pipeline.md"
 const BugGuideFile = "molten-bug.md"
