@@ -356,7 +356,7 @@ func Start() {
 	runs.UseCi(ci)
 	runs.UseNotifier(publishBuildNotice)
 	panes := MakePanes(ExecRunner, ci, collector)
-	if err := registerRoute(collector, runs, ci, panes); err != nil {
+	if err := registerRoute(collector, runs, ci, panes, MakeWorktrees(ExecRunner, nil)); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
 	// The agent states (FR-SHELL-011) start with Mission Control, so wavesrv's startup keeps one MoltenTerm entry point.

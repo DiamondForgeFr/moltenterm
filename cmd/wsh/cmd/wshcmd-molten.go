@@ -1058,6 +1058,9 @@ var moltenBuiltinHelp = [][2]string{
 	{"project logo [file]", "use an image of the project as the workspace icon"},
 	{"project validate [folder]", "check the project's pipeline (.molten/project.json) without running it"},
 	{"project unlink", "remove this workspace's project link"},
+	{"worktree link [folder]", "link this terminal to the git worktree its task runs in"},
+	{"worktree show", "show this terminal's worktree link and the tree of its folder"},
+	{"worktree unlink", "remove this terminal's worktree link (the worktree is untouched)"},
 	{"help", "this list"},
 	{"<command> [args...]", "run a command provided by an enabled mod"},
 }

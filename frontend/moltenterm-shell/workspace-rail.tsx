@@ -19,6 +19,7 @@ import { unreadByWorkspace } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 import { ProjectLinkDetector } from "./project-link-modal";
 import { RailTools } from "./rail-tools";
+import { WorktreeCloseHost } from "./worktree-ui";
 import { WorkspaceIcon } from "./workspace-icon";
 import { readWorkspaceProject } from "./workspace-project";
 import { WorkspaceProjectSection } from "./workspace-project-section";
@@ -256,6 +257,7 @@ export function WorkspaceRail() {
             <RailTools onHover={(label, anchor) => setTooltip(label == null ? null : { label, anchor })} />
             <RailTooltip label={tooltip?.label} anchor={tooltip?.anchor} />
             <ProjectLinkDetector />
+            <WorktreeCloseHost />
             {editing ? (
                 <WorkspaceEditPanel entry={editing.entry} anchor={editing.anchor} onClose={closeEditor} />
             ) : null}

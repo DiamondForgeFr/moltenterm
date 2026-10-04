@@ -29,6 +29,7 @@ import { cn, makeIconClass } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
 import { AgentHeaderLabel, useBlockAgentState } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#109)
+import { WorktreeHeaderLabel } from "../../moltenterm-shell/worktree-ui"; // MOLTENTERM-PATCH (#114)
 import { BlockEnv } from "./blockenv";
 import { BlockFrameProps } from "./blocktypes";
 
@@ -281,6 +282,10 @@ const BlockFrame_Header = ({
                     blockId={nodeModel.blockId}
                     localName={util.isLocalConnName(metaConnection) ? localHostName : null}
                 />
+            )}
+            {/* MOLTENTERM-PATCH (#114): the terminal's tree (main tree or worktree) and the worktree link offer */}
+            {isTerminalBlock && !preview && (
+                <WorktreeHeaderLabel blockId={nodeModel.blockId} hideBranch={agentState != null} />
             )}
             {useTermHeader && termConfigedDurable != null && (
                 <DurableSessionFlyover

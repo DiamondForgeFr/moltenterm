@@ -6,7 +6,6 @@ package mission
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -33,6 +32,18 @@ type PaneRequest struct {
 	// Fresh asks for a probe made after the request (a cd, a prompt back): within the 1 s window, the answer waits for
 	// the window's end instead of returning the last probe.
 	Fresh bool `json:"fresh,omitempty"`
+	// Worktree is the worktree the terminal is linked to (FR-SHELL-016): the answer says where it stands.
+	Worktree string `json:"worktree,omitempty"`
+}
+
+// PaneLinked is the worktree a terminal is linked to, wherever its folder is now.
+type PaneLinked struct {
+	Path   string `json:"path"`
+	Branch string `json:"branch,omitempty"`
+	Sha    string `json:"sha,omitempty"`
+	Dirty  bool   `json:"dirty,omitempty"`
+	// Missing: removed outside MoltenTerm.
+	Missing bool `json:"missing,omitempty"`
 }
 
 type PanePullRequest struct {
@@ -49,7 +60,9 @@ type PaneState struct {
 	Root string `json:"root,omitempty"`
 	// The main checkout the tree belongs to (a worktree belongs to its repository's), where Mission Control keeps the
 	// project's CI verdicts and collector snapshot.
-	Project  string           `json:"project,omitempty"`
+	Project string `json:"project,omitempty"`
+	// Worktree: the tree is a linked worktree of the project, not its main tree (FR-SHELL-016).
+	Worktree bool             `json:"worktree,omitempty"`
 	Name     string           `json:"name,omitempty"`
 	Logo     string           `json:"logo,omitempty"`
 	Branch   string           `json:"branch,omitempty"`
@@ -63,6 +76,7 @@ type PaneState struct {
 	Pr       *PanePullRequest `json:"pr,omitempty"`
 	GitError string           `json:"giterror,omitempty"`
 	At       int64            `json:"at,omitempty"`
+	Linked   *PaneLinked      `json:"linked,omitempty"`
 }
 
 type paneTree struct {
@@ -72,6 +86,8 @@ type paneTree struct {
 	probedAt  time.Time
 	usedAt    time.Time
 	project   string
+	// Read with the project: a tree does not turn from main tree to worktree under the same path.
+	worktree bool
 }
 
 type paneProject struct {
@@ -129,13 +145,19 @@ func (p *Panes) evictOldestLocked() {
 	delete(p.trees, oldest)
 }
 
-func (p *Panes) readTree(tree *paneTree) (PaneState, time.Duration, string) {
+type paneTreeKind struct {
+	project  string
+	worktree bool
+}
+
+func (p *Panes) readTree(tree *paneTree) (PaneState, time.Duration, paneTreeKind) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
+	kind := paneTreeKind{project: tree.project, worktree: tree.worktree}
 	if tree.probedAt.IsZero() {
-		return tree.state, paneMinInterval, tree.project
+		return tree.state, paneMinInterval, kind
 	}
-	return tree.state, p.now().Sub(tree.probedAt), tree.project
+	return tree.state, p.now().Sub(tree.probedAt), kind
 }
 
 func (p *Panes) writeTree(tree *paneTree, state PaneState) {
@@ -143,6 +165,7 @@ func (p *Panes) writeTree(tree *paneTree, state PaneState) {
 	defer p.lock.Unlock()
 	tree.state = state
 	tree.project = state.Project
+	tree.worktree = state.Worktree
 	tree.probedAt = p.now()
 }
 
@@ -177,27 +200,54 @@ func (p *Panes) Get(req PaneRequest) (PaneState, error) {
 	if err := checkDir(req.Dir); err != nil {
 		return PaneState{}, err
 	}
-	dir := filepath.Clean(req.Dir)
+	state := p.getTree(filepath.Clean(req.Dir), req.Fresh)
+	state.Dir = req.Dir
+	if req.Worktree != "" && filepath.IsAbs(req.Worktree) {
+		// The first tree's lock is released by now: two terminals linked crosswise wait for no one.
+		state.Linked = p.linked(filepath.Clean(req.Worktree), state)
+	}
+	return state, nil
+}
+
+func (p *Panes) getTree(dir string, fresh bool) PaneState {
 	root := molten.FindGitRoot(dir)
 	if root == "" {
 		name, logo := p.projectInfo(dir)
-		return PaneState{Dir: req.Dir, Name: name, Logo: logo, At: p.now().UnixMilli()}, nil
+		return PaneState{Name: name, Logo: logo, At: p.now().UnixMilli()}
 	}
 	tree := p.treeFor(root)
 	tree.probeLock.Lock()
 	defer tree.probeLock.Unlock()
-	state, age, project := p.readTree(tree)
+	state, age, kind := p.readTree(tree)
 	if age < paneMinInterval {
-		if !req.Fresh {
-			state.Dir = req.Dir
-			return state, nil
+		if !fresh {
+			return state
 		}
 		p.sleep(paneMinInterval - age)
 	}
-	state = p.probe(root, project)
+	state = p.probe(root, kind)
 	p.writeTree(tree, state)
-	state.Dir = req.Dir
-	return state, nil
+	return state
+}
+
+// linked describes the worktree a terminal is linked to: the tree just read when the terminal is in it, the cached
+// probe of the worktree otherwise. A worktree removed outside MoltenTerm is missing: a stat, no git.
+func (p *Panes) linked(path string, current PaneState) *PaneLinked {
+	if molten.WorktreeMissing(path) {
+		return &PaneLinked{Path: path, Missing: true}
+	}
+	state := current
+	if current.Root != path {
+		state = p.getTree(path, false)
+	}
+	if state.Root != path || !state.Worktree {
+		return &PaneLinked{Path: path, Missing: true}
+	}
+	branch := state.Branch
+	if branch == "" && state.Detached {
+		branch = shortSha(state.Sha)
+	}
+	return &PaneLinked{Path: path, Branch: branch, Sha: state.Sha, Dirty: state.Dirty}
 }
 
 func (p *Panes) git(ctx context.Context, dir string, args ...string) (string, error) {
@@ -207,20 +257,21 @@ func (p *Panes) git(ctx context.Context, dir string, args ...string) (string, er
 }
 
 // The main checkout keeps the path the user knows it by: git answers with symlinks resolved (/private/var on macOS),
-// which would not match the workspace's linked project. Only a worktree (a .git file) asks git.
-func (p *Panes) mainCheckout(ctx context.Context, root string) string {
-	if info, err := os.Stat(filepath.Join(root, ".git")); err != nil || info.IsDir() {
-		return root
+// which would not match the workspace's linked project. Only a worktree or a submodule (a .git file) asks git, and git
+// tells them apart (FR-SHELL-016): a linked worktree's git folder is not its common folder.
+func (p *Panes) mainCheckout(ctx context.Context, root string) paneTreeKind {
+	if !molten.IsWorktreeCheckout(root) {
+		return paneTreeKind{project: root}
 	}
-	common, err := p.git(ctx, root, "rev-parse", "--path-format=absolute", "--git-common-dir")
-	if err != nil || common == "" {
-		return root
+	out, err := p.git(ctx, root, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
+	if err != nil {
+		return paneTreeKind{project: root}
 	}
-	common = filepath.Clean(common)
-	if filepath.Base(common) == ".git" {
-		return filepath.Dir(common)
+	_, common, linked := molten.ParseGitDirs(out)
+	if !linked || filepath.Base(common) != ".git" {
+		return paneTreeKind{project: root, worktree: linked}
 	}
-	return root
+	return paneTreeKind{project: filepath.Dir(common), worktree: true}
 }
 
 type paneGitStatus struct {
@@ -271,14 +322,16 @@ func parsePaneStatus(out string) paneGitStatus {
 	return st
 }
 
-func (p *Panes) probe(root string, project string) PaneState {
+func (p *Panes) probe(root string, kind paneTreeKind) PaneState {
 	ctx, cancel := context.WithTimeout(context.Background(), paneProbeTimeout)
 	defer cancel()
 	state := PaneState{Root: root, At: p.now().UnixMilli()}
-	if project == "" {
-		project = p.mainCheckout(ctx, root)
+	if kind.project == "" {
+		kind = p.mainCheckout(ctx, root)
 	}
+	project := kind.project
 	state.Project = project
+	state.Worktree = kind.worktree
 	state.Name, state.Logo = p.projectInfo(project)
 	out, err := p.git(ctx, root, "status", "--porcelain=v2", "--branch", "--untracked-files=normal")
 	if err != nil {

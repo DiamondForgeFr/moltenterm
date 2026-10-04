@@ -13,6 +13,7 @@ import clsx from "clsx";
 import { useAtomValue } from "jotai";
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { AgentTabDot } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#109)
+import { useTabTreesTooltip } from "../../moltenterm-shell/worktree-ui"; // MOLTENTERM-PATCH (#114)
 import { makeORef } from "../store/wos";
 import "./tab.scss";
 import { TabBadges } from "./tabbadges";
@@ -44,6 +45,8 @@ interface TabVProps {
     badges?: Badge[] | null;
     flagColor?: string | null;
     agentDot?: React.ReactNode; // MOLTENTERM-PATCH (#109)
+    treesTitle?: string; // MOLTENTERM-PATCH (#114)
+    onTreesHover?: () => void; // MOLTENTERM-PATCH (#114)
     onClick: () => void;
     onClose: (event: React.MouseEvent<HTMLButtonElement, MouseEvent> | null) => void;
     onDragStart: (event: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
@@ -65,6 +68,8 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
         badges,
         flagColor,
         agentDot,
+        treesTitle,
+        onTreesHover,
         onClick,
         onClose,
         onDragStart,
@@ -201,6 +206,9 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
             onClick={onClick}
             onContextMenu={onContextMenu}
             data-tab-id={tabId}
+            // MOLTENTERM-PATCH (#114): the tooltip lists the trees of the tab's terminals
+            title={treesTitle || undefined}
+            onMouseEnter={onTreesHover}
         >
             {showDivider && <div className="tab-divider" />}
             <div className="tab-inner">
@@ -251,6 +259,7 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
     const env = useWaveEnv<TabEnv>();
     const [tabData, _] = env.wos.useWaveObjectValue<Tab>(makeORef("tab", id));
     const badges = useAtomValue(getTabBadgeAtom(id, env));
+    const trees = useTabTreesTooltip(id); // MOLTENTERM-PATCH (#114)
 
     const rawFlagColor = tabData?.meta?.["tab:flagcolor"];
     let flagColor: string | null = null;
@@ -318,6 +327,8 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
             badges={badges}
             flagColor={flagColor}
             agentDot={<AgentTabDot tabId={id} />}
+            treesTitle={trees.title}
+            onTreesHover={trees.onMouseEnter}
             onClick={handleTabClick}
             onClose={onClose}
             onDragStart={onDragStart}

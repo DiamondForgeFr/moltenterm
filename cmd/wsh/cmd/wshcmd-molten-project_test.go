@@ -20,6 +20,11 @@ func TestMoltenProjectRouting(t *testing.T) {
 		"molten project show --json":      "show",
 		"molten project logo icon.png":    "logo",
 		"molten project":                  "project",
+		"molten worktree link":            "link",
+		"molten worktree link ../wt":      "link",
+		"molten worktree unlink --json":   "unlink",
+		"molten worktree show":            "show",
+		"molten worktree":                 "worktree",
 	}
 	for line, want := range cases {
 		found, _, err := rootCmd.Find(strings.Fields(line))
