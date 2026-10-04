@@ -11,6 +11,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/blocklogger"
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentparts"
 	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -104,6 +105,11 @@ func StartLocalShellJob(ctx context.Context, logCtx context.Context, termSize wa
 	cwd := cmdOpts.Cwd
 	if cwd == "" || checkCwd(cwd) != nil {
 		cwd = wavebase.GetHomeDir()
+	}
+	// The job env is laid over wavesrv's initial env, so an inherited value holding only slots is overridden with an
+	// empty one: a job env cannot unset a variable.
+	if pluginDirs, set := moltenAgentPartsEnv(); set {
+		env[agentparts.PluginDirsVarName] = pluginDirs
 	}
 	env[localJobCwdVarName] = cwd
 	env[LocalJobProtocolVarName] = strconv.Itoa(LocalJobProtocol)

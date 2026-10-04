@@ -69,6 +69,24 @@ describe("parseMoltenManifest", () => {
         expect(result.ok === false && result.error).toBe("apiVersion 2 is not supported; supported versions: 1");
     });
 
+    it("reads a Claude Code part", () => {
+        const agents = { "claude-code": { folder: "agents/claude-code", targetVersion: "2.1.289" } };
+        expect(parse({ ...valid, agents })).toEqual({ ok: true, manifest: { ...valid, agents } });
+    });
+
+    it.each([
+        [[], '"agents" must be an object'],
+        [{ codex: {} }, 'agent "codex" is not supported; supported: claude-code'],
+        [{ "claude-code": { targetVersion: "2.1.289" } }, '"agents.claude-code.folder" must be a non-empty string'],
+        [{ "claude-code": { folder: "../out", targetVersion: "2.1.289" } }, 'no "." or ".." segment'],
+        [{ "claude-code": { folder: "/abs", targetVersion: "2.1.289" } }, "relative path inside the mod folder"],
+        [{ "claude-code": { folder: "agents/claude-code", targetVersion: "2.1" } }, "MAJOR.MINOR.PATCH"],
+    ])("rejects agents %j", (agents, message) => {
+        const result = parse({ ...valid, agents });
+        expect(result).toMatchObject({ ok: false, refused: false });
+        expect(result.ok === false && result.error).toContain(message);
+    });
+
     it("refuses a missing apiVersion", () => {
         const result = parse({ ...valid, apiVersion: undefined });
         expect(result).toMatchObject({ ok: false, refused: true });

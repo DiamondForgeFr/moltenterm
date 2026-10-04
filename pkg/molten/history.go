@@ -18,6 +18,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/agentparts"
 )
 
 // History of the mods (FR-MORPH-003, DS-MORPH-003): one snapshot of `<config>/mods/` and `mods.json` per recorded
@@ -356,7 +358,8 @@ func modFolders(dir string) (map[string]bool, error) {
 	return folders, nil
 }
 
-// The files of a mods tree that count: hidden entries and editor droppings are skipped, as by the watcher.
+// The files of a mods tree that count, as for the watcher: hidden entries and editor droppings are skipped, except a
+// Claude Code part's `.claude-plugin/` (FR-MORPH-010), whose typings are skipped in turn.
 func walkModsTree(root string, fn func(rel string, path string) error) error {
 	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -368,7 +371,11 @@ func walkModsTree(root string, fn func(rel string, path string) error) error {
 		if path == root {
 			return nil
 		}
-		if IgnoredModFileName(entry.Name()) {
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		if agentparts.IgnoredModRelPath(rel) {
 			if entry.IsDir() {
 				return filepath.SkipDir
 			}
@@ -376,10 +383,6 @@ func walkModsTree(root string, fn func(rel string, path string) error) error {
 		}
 		if entry.IsDir() {
 			return nil
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
 		}
 		return fn(rel, path)
 	})

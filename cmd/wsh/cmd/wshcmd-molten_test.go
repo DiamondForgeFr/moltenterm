@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -25,7 +26,7 @@ func TestFormatMoltenModListEmpty(t *testing.T) {
 
 func TestFormatMoltenModListSafeMode(t *testing.T) {
 	out := formatMoltenModList(&MoltenModList{ModsDir: "/cfg/mods", SafeMode: true})
-	if !strings.HasPrefix(out, "safe mode: no mod is loaded\n") {
+	if !strings.HasPrefix(out, "safe mode: no mod is loaded, and no Claude Code part\n") {
 		t.Fatalf("safe mode not reported: %q", out)
 	}
 }
@@ -172,7 +173,7 @@ func TestMoltenStateFile(t *testing.T) {
 
 func TestMoltenNewMod(t *testing.T) {
 	configDir := t.TempDir()
-	dir, err := moltenNewMod(configDir, "3d.view_x", "", "Test mod")
+	dir, err := moltenNewMod(configDir, "3d.view_x", "", "Test mod", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,11 +193,11 @@ func TestMoltenNewMod(t *testing.T) {
 	if len(state.Enabled) != 0 {
 		t.Fatal("a new mod must stay disabled")
 	}
-	if _, err := moltenNewMod(configDir, "3d.view_x", "", ""); err == nil {
+	if _, err := moltenNewMod(configDir, "3d.view_x", "", "", ""); err == nil {
 		t.Fatal("creating an existing mod must fail")
 	}
 	for _, bad := range []string{"../evil", "Upper", "", "a/b", ".hidden"} {
-		if _, err := moltenNewMod(configDir, bad, "", ""); err == nil {
+		if _, err := moltenNewMod(configDir, bad, "", "", ""); err == nil {
 			t.Errorf("id %q should be refused", bad)
 		}
 	}
@@ -222,7 +223,7 @@ func TestMoltenRemoveMod(t *testing.T) {
 	trashDir := t.TempDir()
 	now := time.Date(2026, 10, 1, 12, 30, 0, 0, time.UTC)
 	for i := 0; i < 2; i++ {
-		if _, err := moltenNewMod(configDir, "gone", "", ""); err != nil {
+		if _, err := moltenNewMod(configDir, "gone", "", "", ""); err != nil {
 			t.Fatal(err)
 		}
 		moltenSetEnabled(configDir, "gone", true)
@@ -249,7 +250,7 @@ func TestMoltenRemoveMod(t *testing.T) {
 	if trusted, _ := moltenIsTrusted(dataDir, "gone"); trusted {
 		t.Fatal("removing a mod must forget that it was trusted")
 	}
-	moltenNewMod(configDir, "other", "", "")
+	moltenNewMod(configDir, "other", "", "", "")
 	dest, err := moltenRemoveMod(configDir, dataDir, "", "other", now)
 	if err != nil || dest != filepath.Join(dataDir, "molten", "removed", "other") {
 		t.Fatalf("without a trash the mod goes under data: %q, %v", dest, err)
@@ -336,7 +337,7 @@ func TestMoltenTrustFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if trust.Trusted["a"] != (MoltenTrustEntry{Name: "Mod A", TrustedAt: "2026-10-01T10:30:00Z"}) || len(trust.Trusted) != 2 {
+	if !reflect.DeepEqual(trust.Trusted["a"], MoltenTrustEntry{Name: "Mod A", TrustedAt: "2026-10-01T10:30:00Z"}) || len(trust.Trusted) != 2 {
 		t.Fatalf("unexpected trust file: %+v", trust)
 	}
 	forgotten, err := moltenForgetTrust(dataDir, "a")

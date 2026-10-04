@@ -1,0 +1,6 @@
+{
+  "name": "test-band",
+  "version": "1.0.0",
+  "description": "The Claude Code part of the MoltenTerm mod test-band: the last test run above the prompt",
+  "types": "./types/index.d.ts"
+}

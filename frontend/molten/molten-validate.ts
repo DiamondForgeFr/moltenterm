@@ -7,18 +7,31 @@
 import { parse } from "acorn";
 import { MoltenManifestFileName, parseMoltenManifest } from "./molten-manifest";
 
+// must match MoltenValidationProblem in cmd/wsh/cmd/wshcmd-molten.go
 export type MoltenValidationProblem = {
     file: string;
     line?: number;
     column?: number;
     message: string;
+    // A warning is reported but never fails validation.
+    severity?: "warning";
+};
+
+// What `molten` needs to check a Claude Code part with the user's own claude (FR-MORPH-010).
+export type MoltenAgentPartInfo = {
+    folder: string;
+    path: string;
+    targetversion: string;
 };
 
 export type MoltenValidationResult = {
     id: string;
     ok: boolean;
     problems: MoltenValidationProblem[];
+    agents?: { "claude-code"?: MoltenAgentPartInfo };
 };
+
+export const MoltenPluginManifestPath = ".claude-plugin/plugin.json";
 
 export type MoltenValidateReader = (path: string) => Promise<string>;
 
@@ -111,9 +124,52 @@ export async function validateMoltenMod(
     }
     const main = parsed.manifest.main;
     const source = await readTextFile(`${dir}/${main}`);
-    if (source == null) {
-        return fail([{ file: main, message: `main file "${main}" not found` }]);
+    const problems =
+        source == null ? [{ file: main, message: `main file "${main}" not found` }] : validateMoltenSource(main, source);
+    const result: MoltenValidationResult = { id, ok: false, problems };
+    const part = parsed.manifest.agents?.["claude-code"];
+    if (part != null) {
+        problems.push(...(await validateClaudeCodePart(dir, id, part.folder, readTextFile)));
+        result.agents = {
+            "claude-code": { folder: part.folder, path: `${dir}/${part.folder}`, targetversion: part.targetVersion },
+        };
     }
-    const problems = validateMoltenSource(main, source);
-    return { id, ok: problems.length === 0, problems };
+    result.ok = !problems.some((p) => p.severity !== "warning");
+    return result;
+}
+
+// The Claude Code part is checked here as far as reading files goes; `molten` then runs `claude plugin validate`,
+// which knows the plugin API of the installed version.
+export async function validateClaudeCodePart(
+    dir: string,
+    id: string,
+    folder: string,
+    readTextFile: MoltenValidateReader
+): Promise<MoltenValidationProblem[]> {
+    const file = `${folder}/${MoltenPluginManifestPath}`;
+    const text = await readTextFile(`${dir}/${file}`);
+    if (text == null) {
+        return [
+            {
+                file,
+                message: `the Claude Code part has no plugin manifest: ${file} not found (molten mod new --claude-code writes one)`,
+            },
+        ];
+    }
+    let manifest: any;
+    try {
+        manifest = JSON.parse(text);
+    } catch (e) {
+        const message = String(e?.message ?? e);
+        return [{ file, ...jsonErrorLocation(text, message), message: `not valid JSON: ${message}` }];
+    }
+    if (manifest?.name !== id) {
+        return [
+            {
+                file,
+                message: `"name" is ${JSON.stringify(manifest?.name ?? null)} but must be the mod id "${id}", so that every loaded part has its own name`,
+            },
+        ];
+    }
+    return [];
 }

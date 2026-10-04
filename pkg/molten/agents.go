@@ -260,7 +260,38 @@ func (p AgentProfile) RenderGuide(guide AgentGuide, version string) (string, err
 	if err != nil {
 		return "", err
 	}
-	return p.render(guide, body, agentMarker(guide.Name, version, p.Id)), nil
+	return p.render(guide, FilterAgentBlocks(body, p.Id), agentMarker(guide.Name, version, p.Id)), nil
+}
+
+// A guide may hold text for some agents only (FR-MORPH-010: the Claude Code part exists for Claude Code alone), in
+// blocks whose marker lines stand alone: `<!-- only:<agent> -->` … `<!-- /only -->` keeps the text for that agent,
+// `<!-- not:<agent> -->` … `<!-- /not -->` for every other one. The marker lines never reach the output.
+var agentBlockStartRegex = regexp.MustCompile(`^<!-- (only|not):([a-z0-9-]+) -->$`)
+
+const agentBlockOnlyEnd = "<!-- /only -->"
+const agentBlockNotEnd = "<!-- /not -->"
+
+// GenericAgentId renders a guide for no agent in particular: the offline docs.
+const GenericAgentId = "generic"
+
+func FilterAgentBlocks(body string, agentId string) string {
+	var sb strings.Builder
+	keep := true
+	for _, line := range strings.SplitAfter(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if match := agentBlockStartRegex.FindStringSubmatch(trimmed); match != nil {
+			keep = (match[1] == "only") == (match[2] == agentId)
+			continue
+		}
+		if trimmed == agentBlockOnlyEnd || trimmed == agentBlockNotEnd {
+			keep = true
+			continue
+		}
+		if keep {
+			sb.WriteString(line)
+		}
+	}
+	return sb.String()
 }
 
 func (p AgentProfile) guideInvocation(guide AgentGuide, path string) string {
@@ -413,7 +444,7 @@ func WriteDocs(dir string) error {
 			return err
 		}
 		if path == agentdocs.GuideFile || path == agentdocs.PipelineGuideFile {
-			data = []byte(strings.ReplaceAll(string(data), agentRequestPlaceholder, "(the user's request)"))
+			data = []byte(FilterAgentBlocks(strings.ReplaceAll(string(data), agentRequestPlaceholder, "(the user's request)"), GenericAgentId))
 		}
 		return os.WriteFile(target, data, 0644)
 	})

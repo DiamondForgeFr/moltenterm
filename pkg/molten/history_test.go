@@ -182,3 +182,35 @@ func TestHistoryRestoreRemovesAddedMods(t *testing.T) {
 		t.Fatalf("no temporary folder may stay behind: %v", entries)
 	}
 }
+
+// FR-MORPH-010: an undo restores a Claude Code part whole, its `.claude-plugin/plugin.json` included, and the
+// typings Claude Code lays in `.claude-plugin/types/` are not part of the history.
+func TestHistoryKeepsTheClaudeCodePart(t *testing.T) {
+	f := makeHistoryFixture(t)
+	part := "band/agents/claude-code/"
+	f.write("band/mod.json", "{}")
+	f.write(part+".claude-plugin/plugin.json", `{"name":"band"}`)
+	f.write(part+"hooks/register.tsx", "v1")
+	f.write(part+".gitignore", ".claude-plugin/types/\n")
+	f.record(HistoryKindStart)
+
+	f.write(part+".claude-plugin/types/claude-code/index.d.ts", "typings")
+	if f.record(HistoryKindChange, "band") {
+		t.Fatal("Claude Code's typings must not be recorded as a change")
+	}
+
+	f.write(part+"hooks/register.tsx", "v2")
+	if !f.record(HistoryKindChange, "band") {
+		t.Fatal("an edit of the part must be recorded")
+	}
+	f.undo()
+	if got := f.read(part + "hooks/register.tsx"); got != "v1" {
+		t.Fatalf("register.tsx after undo: %q", got)
+	}
+	if got := f.read(part + ".claude-plugin/plugin.json"); got != `{"name":"band"}` {
+		t.Fatalf("plugin.json after undo: %q", got)
+	}
+	if got := f.read(part + ".gitignore"); got != ".claude-plugin/types/\n" {
+		t.Fatalf(".gitignore after undo: %q", got)
+	}
+}

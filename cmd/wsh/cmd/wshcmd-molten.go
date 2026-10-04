@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentparts"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -53,6 +55,9 @@ const (
 	MoltenTrustAnswerTrusted  = "trusted"
 	MoltenTrustAnswerDeclined = "declined"
 	MoltenTrustAnswerTimeout  = "timeout"
+	// What `molten mod enable` reports when only the Claude Code part was asked about (FR-MORPH-010).
+	MoltenTrustAnswerPartTrusted  = "part-trusted"
+	MoltenTrustAnswerPartDeclined = "part-declined"
 )
 
 type MoltenModStatus struct {
@@ -64,6 +69,8 @@ type MoltenModStatus struct {
 	Error    string   `json:"error,omitempty"`
 	Commands []string `json:"commands"`
 	Builtin  bool     `json:"builtin,omitempty"`
+	// Filled by molten from the files, not by the tab: the agent parts the mod carries (FR-MORPH-010).
+	Agents map[string]MoltenPartStatus `json:"agents,omitempty"`
 }
 
 type MoltenCommandInfo struct {
@@ -95,17 +102,28 @@ type MoltenRunResult struct {
 	Commands []string `json:"commands,omitempty"`
 }
 
+// must match MoltenValidationProblem in frontend/molten/molten-validate.ts; a warning never fails validation
+const MoltenSeverityWarning = "warning"
+
 type MoltenValidationProblem struct {
-	File    string `json:"file"`
-	Line    int    `json:"line,omitempty"`
-	Column  int    `json:"column,omitempty"`
-	Message string `json:"message"`
+	File     string `json:"file"`
+	Line     int    `json:"line,omitempty"`
+	Column   int    `json:"column,omitempty"`
+	Message  string `json:"message"`
+	Severity string `json:"severity,omitempty"`
+}
+
+type MoltenAgentPartInfo struct {
+	Folder        string `json:"folder"`
+	Path          string `json:"path"`
+	TargetVersion string `json:"targetversion"`
 }
 
 type MoltenValidationResult struct {
-	Id       string                    `json:"id"`
-	Ok       bool                      `json:"ok"`
-	Problems []MoltenValidationProblem `json:"problems"`
+	Id       string                         `json:"id"`
+	Ok       bool                           `json:"ok"`
+	Problems []MoltenValidationProblem      `json:"problems"`
+	Agents   map[string]MoltenAgentPartInfo `json:"agents,omitempty"`
 }
 
 type MoltenValidateResponse struct {
@@ -118,6 +136,8 @@ type MoltenModChange struct {
 	Changed bool   `json:"changed"`
 	Path    string `json:"path,omitempty"`
 	Trust   string `json:"trust,omitempty"`
+	// What the change did to the mod's Claude Code part (FR-MORPH-010), when it did something.
+	ClaudeCode *MoltenClaudeCodeNote `json:"claudecode,omitempty"`
 }
 
 type MoltenTrustPromptResult struct {
@@ -127,6 +147,8 @@ type MoltenTrustPromptResult struct {
 var moltenJson bool
 var moltenNewName string
 var moltenNewDescription string
+var moltenNewClaudeCode bool
+var moltenNewClaudeCodeVersion string
 
 var moltenCmd = &cobra.Command{
 	Use:   "molten [command] [args...]",
@@ -279,6 +301,8 @@ func init() {
 	}
 	moltenModNewCmd.Flags().StringVar(&moltenNewName, "name", "", "name shown to the user (default: the id)")
 	moltenModNewCmd.Flags().StringVar(&moltenNewDescription, "description", "", "one sentence describing the mod")
+	moltenModNewCmd.Flags().BoolVar(&moltenNewClaudeCode, "claude-code", false, "also create a Claude Code part (agents/claude-code/), which runs inside Claude Code")
+	moltenModNewCmd.Flags().StringVar(&moltenNewClaudeCodeVersion, "claude-code-version", "", "the Claude Code version the part targets (default: claude --version)")
 	rootCmd.AddCommand(moltenCmd)
 	moltenCmd.AddCommand(moltenHelpCmd)
 	moltenCmd.AddCommand(moltenUndoCmd)
@@ -407,17 +431,65 @@ func moltenModListRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	configDir, err := moltenGetPath("config")
+	if err != nil {
+		return err
+	}
+	dataDir, err := moltenGetPath("data")
+	if err != nil {
+		return err
+	}
+	moltenAddPartStates(list, configDir, dataDir)
 	if moltenJson {
 		return moltenWriteJson(list)
 	}
 	WriteStdout("%s", formatMoltenModList(list))
+	for _, mod := range list.Mods {
+		if mod.Agents[agentparts.AgentClaudeCode].State == agentparts.PartStateActive {
+			for _, warning := range moltenPartWarnings(dataDir, list.SafeMode) {
+				WriteStderr("molten: warning: %s\n", warning)
+			}
+			break
+		}
+	}
 	return nil
+}
+
+// The tab knows the MoltenTerm part of each mod; the Claude Code part is read from the files, as wavesrv reads them.
+func moltenAddPartStates(list *MoltenModList, configDir string, dataDir string) {
+	states, err := agentparts.PartStates(configDir, dataDir, list.SafeMode)
+	if err != nil {
+		return
+	}
+	for i := range list.Mods {
+		for _, state := range states {
+			if state.Id != list.Mods[i].Id || list.Mods[i].Builtin {
+				continue
+			}
+			status := MoltenPartStatus{State: state.State, Reason: state.Reason, Folder: state.Folder, TargetVersion: state.TargetVersion}
+			if runtime.GOOS == "windows" {
+				status = MoltenPartStatus{State: "unsupported", Reason: "Claude Code parts do not load on Windows in this version", Folder: state.Folder, TargetVersion: state.TargetVersion}
+			}
+			list.Mods[i].Agents = map[string]MoltenPartStatus{agentparts.AgentClaudeCode: status}
+		}
+	}
+}
+
+func formatMoltenPartLine(id string, status MoltenPartStatus) string {
+	line := "  " + id + ": " + status.State
+	if status.Reason != "" && status.State != agentparts.PartStateActive {
+		line += ": " + strings.ReplaceAll(status.Reason, "\n", " ")
+	}
+	if status.TargetVersion != "" {
+		line += fmt.Sprintf(" (targets %s)", status.TargetVersion)
+	}
+	return line + "\n"
 }
 
 func formatMoltenModList(list *MoltenModList) string {
 	var sb strings.Builder
 	if list.SafeMode {
-		sb.WriteString("safe mode: no mod is loaded\n")
+		sb.WriteString("safe mode: no mod is loaded, and no Claude Code part\n")
 	}
 	if len(list.Mods) == 0 {
 		fmt.Fprintf(&sb, "no mods in %s\n", list.ModsDir)
@@ -445,6 +517,19 @@ func formatMoltenModList(list *MoltenModList) string {
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", id, mod.State, version, commands, errText)
 	}
 	tw.Flush()
+	// After the table, so the part lines do not break its columns.
+	header := false
+	for _, mod := range list.Mods {
+		status, ok := mod.Agents[agentparts.AgentClaudeCode]
+		if !ok {
+			continue
+		}
+		if !header {
+			sb.WriteString("\nCLAUDE CODE PARTS (active ones load in Claude Code sessions started in MoltenTerm terminals)\n")
+			header = true
+		}
+		sb.WriteString(formatMoltenPartLine(mod.Id, status))
+	}
 	return sb.String()
 }
 
@@ -454,7 +539,14 @@ func moltenModNewRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	id := args[0]
-	dir, err := moltenNewMod(configDir, id, moltenNewName, moltenNewDescription)
+	claudeCodeVersion := ""
+	if moltenNewClaudeCode || moltenNewClaudeCodeVersion != "" {
+		claudeCodeVersion, err = moltenNewPartVersion(moltenNewClaudeCodeVersion)
+		if err != nil {
+			return err
+		}
+	}
+	dir, err := moltenNewMod(configDir, id, moltenNewName, moltenNewDescription, claudeCodeVersion)
 	if err != nil {
 		return err
 	}
@@ -462,8 +554,27 @@ func moltenModNewRun(cmd *cobra.Command, args []string) error {
 	if moltenJson {
 		return moltenWriteJson(MoltenModChange{Id: id, Action: "new", Changed: true, Path: dir})
 	}
-	WriteStdout("created mod %q in %s\nnext: molten mod validate %s && molten mod enable %s\n", id, dir, id, id)
+	WriteStdout("created mod %q in %s\n", id, dir)
+	if claudeCodeVersion != "" {
+		WriteStdout("its Claude Code part is %s (for Claude Code %s); write its hooks there\n", filepath.Join(dir, filepath.FromSlash(agentparts.DefaultClaudeCodeFolder)), claudeCodeVersion)
+	}
+	WriteStdout("next: molten mod validate %s && molten mod enable %s\n", id, id)
 	return nil
+}
+
+// The version a new Claude Code part targets: the one given, or the installed one.
+func moltenNewPartVersion(given string) (string, error) {
+	if given != "" {
+		return given, nil
+	}
+	if !moltenClaudeOnPath() {
+		return "", fmt.Errorf("claude is not on the PATH: give the Claude Code version the part targets with --claude-code-version X.Y.Z")
+	}
+	version, err := moltenClaudeVersion()
+	if err != nil {
+		return "", fmt.Errorf("reading the Claude Code version (%v): give it with --claude-code-version X.Y.Z", err)
+	}
+	return version, nil
 }
 
 // Built-in mods have no folder: the calling tab knows them. A tab that cannot answer means no built-in check, and the
@@ -531,6 +642,11 @@ func moltenModToggle(id string, enable bool) error {
 	if err != nil {
 		return err
 	}
+	parts, err := moltenGetPartContext()
+	if err != nil {
+		return err
+	}
+	partBefore := parts.state(id)
 	trustState := ""
 	if enable {
 		if _, err := os.Stat(filepath.Join(dir, MoltenManifestFileName)); err != nil {
@@ -545,8 +661,9 @@ func moltenModToggle(id string, enable bool) error {
 	if err != nil {
 		return err
 	}
-	// An enabled but untrusted mod (mods.json edited by hand) starts once trusted, though its state did not change.
-	changed = changed || trustState == MoltenTrustAnswerTrusted
+	// An enabled but untrusted mod (mods.json edited by hand) starts once trusted, though its state did not change;
+	// so does a Claude Code part trusted on its own.
+	changed = changed || trustState == MoltenTrustAnswerTrusted || trustState == MoltenTrustAnswerPartTrusted
 	action := "disable"
 	if enable {
 		action = "enable"
@@ -554,18 +671,25 @@ func moltenModToggle(id string, enable bool) error {
 	if changed {
 		moltenAnnounceChange(id)
 	}
-	if moltenJson {
-		return moltenWriteJson(MoltenModChange{Id: id, Action: action, Changed: changed, Path: dir, Trust: trustState})
+	if !moltenJson {
+		switch {
+		case changed && enable:
+			WriteStdout("enabled mod %q; check it with: molten mod list\n", id)
+		case changed:
+			WriteStdout("disabled mod %q\n", id)
+		case enable:
+			WriteStdout("mod %q is already enabled\n", id)
+		default:
+			WriteStdout("mod %q is already disabled\n", id)
+		}
+		// When the part was already off for want of trust, the note below has nothing to say.
+		if trustState == MoltenTrustAnswerPartDeclined && partBefore.State == agentparts.PartStateUntrusted {
+			WriteStdout("its Claude Code part was not trusted and stays off; its MoltenTerm part runs (molten mod enable %s asks again)\n", id)
+		}
 	}
-	switch {
-	case changed && enable:
-		WriteStdout("enabled mod %q; check it with: molten mod list\n", id)
-	case changed:
-		WriteStdout("disabled mod %q\n", id)
-	case enable:
-		WriteStdout("mod %q is already enabled\n", id)
-	default:
-		WriteStdout("mod %q is already disabled\n", id)
+	note := parts.note(id, partBefore)
+	if moltenJson {
+		return moltenWriteJson(MoltenModChange{Id: id, Action: action, Changed: changed, Path: dir, Trust: trustState, ClaudeCode: note})
 	}
 	return nil
 }
@@ -577,18 +701,36 @@ func moltenEnsureTrusted(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	trusted, err := moltenIsTrusted(dataDir, id)
+	configDir, err := moltenGetPath("config")
 	if err != nil {
 		return "", err
 	}
-	if trusted {
+	entry, trusted, err := moltenReadTrustEntry(dataDir, id)
+	if err != nil {
+		return "", err
+	}
+	part, partErr := agentparts.ReadClaudeCodePart(moltenModsDir(configDir), id)
+	if partErr != nil {
+		return "", fmt.Errorf("mod %q: %v", id, partErr)
+	}
+	needs := moltenTrustNeeded(trusted, entry, part != nil)
+	if needs == moltenTrustNeedsNothing {
 		return "already", nil
 	}
-	WriteStderr("molten: waiting for your approval of mod %q in MoltenTerm…\n", id)
+	partsOnly := needs == moltenTrustNeedsPart
+	if partsOnly {
+		WriteStderr("molten: mod %q now carries a Claude Code part: waiting for your approval of it in MoltenTerm…\n", id)
+	} else {
+		WriteStderr("molten: waiting for your approval of mod %q in MoltenTerm…\n", id)
+	}
 	var result MoltenTrustPromptResult
-	err = moltenTabRequest(MoltenTrustPromptRpcCommand, map[string]any{"id": id}, MoltenTrustRpcTimeoutMs, &result)
+	err = moltenTabRequest(MoltenTrustPromptRpcCommand, map[string]any{"id": id, "partsonly": partsOnly}, MoltenTrustRpcTimeoutMs, &result)
 	if err != nil {
 		return "", err
+	}
+	// Declining the part alone leaves the trusted MoltenTerm part running.
+	if partsOnly && result.Answer != MoltenTrustAnswerTrusted {
+		return MoltenTrustAnswerPartDeclined, nil
 	}
 	err = moltenTrustAnswerError(id, result.Answer)
 	if err != nil {
@@ -598,11 +740,36 @@ func moltenEnsureTrusted(id string) (string, error) {
 	if manifest, readErr := moltenReadTemplateManifest(id); readErr == nil && manifest.Name != "" {
 		name = manifest.Name
 	}
-	err = moltenSetTrusted(dataDir, id, name, time.Now())
+	var agents []string
+	if part != nil {
+		agents = []string{agentparts.AgentClaudeCode}
+	}
+	err = moltenSetTrustedAgents(dataDir, id, name, agents, time.Now())
 	if err != nil {
 		return "", err
 	}
+	if partsOnly {
+		return MoltenTrustAnswerPartTrusted, nil
+	}
 	return MoltenTrustAnswerTrusted, nil
+}
+
+const (
+	moltenTrustNeedsNothing = "nothing"
+	moltenTrustNeedsMod     = "mod"
+	moltenTrustNeedsPart    = "part"
+)
+
+// What the user still has to trust: the whole mod, only its Claude Code part (trusted before it had one), or
+// nothing.
+func moltenTrustNeeded(trusted bool, entry MoltenTrustEntry, hasPart bool) string {
+	if !trusted {
+		return moltenTrustNeedsMod
+	}
+	if hasPart && !moltenTrustCovers(entry, agentparts.AgentClaudeCode) {
+		return moltenTrustNeedsPart
+	}
+	return moltenTrustNeedsNothing
 }
 
 func moltenTrustAnswerError(id string, answer string) error {
@@ -650,6 +817,11 @@ func moltenModUntrustRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	parts, err := moltenGetPartContext()
+	if err != nil {
+		return err
+	}
+	partBefore := parts.state(id)
 	forgotten, err := moltenForgetTrust(dataDir, id)
 	if err != nil {
 		return err
@@ -662,14 +834,17 @@ func moltenModUntrustRun(cmd *cobra.Command, args []string) error {
 	if changed {
 		moltenAnnounceChange(id)
 	}
+	if !moltenJson {
+		if changed {
+			WriteStdout("mod %q is stopped and no longer trusted; enabling it again asks you first\n", id)
+		} else {
+			WriteStdout("mod %q was not trusted\n", id)
+		}
+	}
+	note := parts.note(id, partBefore)
 	if moltenJson {
-		return moltenWriteJson(MoltenModChange{Id: id, Action: "untrust", Changed: changed})
+		return moltenWriteJson(MoltenModChange{Id: id, Action: "untrust", Changed: changed, ClaudeCode: note})
 	}
-	if !changed {
-		WriteStdout("mod %q was not trusted\n", id)
-		return nil
-	}
-	WriteStdout("mod %q is stopped and no longer trusted; enabling it again asks you first\n", id)
 	return nil
 }
 
@@ -690,19 +865,38 @@ func moltenUndoRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	parts, err := moltenGetPartContext()
+	if err != nil {
+		return err
+	}
+	// Every mod may change: its part's state is read before and after.
+	before := map[string]MoltenPartStatus{}
+	if ids, err := os.ReadDir(moltenModsDir(parts.configDir)); err == nil {
+		for _, entry := range ids {
+			before[entry.Name()] = parts.state(entry.Name())
+		}
+	}
 	target, undoEntry, err := history.Undo(time.Now())
 	if err != nil {
 		return err
 	}
 	moltenAnnounceChange(undoEntry.Ids...)
+	if !moltenJson {
+		changed := strings.Join(undoEntry.Ids, ", ")
+		if changed == "" {
+			changed = "no mod"
+		}
+		WriteStdout("restored the mods as after change #%d (%s); changed: %s\n", target.Seq, moltenFormatTime(target.Time), changed)
+	}
+	notes := map[string]*MoltenClaudeCodeNote{}
+	for _, id := range undoEntry.Ids {
+		if note := parts.note(id, before[id]); note != nil {
+			notes[id] = note
+		}
+	}
 	if moltenJson {
-		return moltenWriteJson(map[string]any{"restored": target, "recorded": undoEntry})
+		return moltenWriteJson(map[string]any{"restored": target, "recorded": undoEntry, "claudecode": notes})
 	}
-	changed := strings.Join(undoEntry.Ids, ", ")
-	if changed == "" {
-		changed = "no mod"
-	}
-	WriteStdout("restored the mods as after change #%d (%s); changed: %s\n", target.Seq, moltenFormatTime(target.Time), changed)
 	return nil
 }
 
@@ -960,15 +1154,23 @@ func moltenModRemoveRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	parts, err := moltenGetPartContext()
+	if err != nil {
+		return err
+	}
+	partBefore := parts.state(id)
 	dest, err := moltenRemoveMod(configDir, dataDir, moltenSystemTrashDir(), id, time.Now())
 	if err != nil {
 		return err
 	}
 	moltenAnnounceChange(id)
-	if moltenJson {
-		return moltenWriteJson(MoltenModChange{Id: id, Action: "remove", Changed: true, Path: dest})
+	if !moltenJson {
+		WriteStdout("removed mod %q; its folder is now %s\n", id, dest)
 	}
-	WriteStdout("removed mod %q; its folder is now %s\n", id, dest)
+	note := parts.note(id, partBefore)
+	if moltenJson {
+		return moltenWriteJson(MoltenModChange{Id: id, Action: "remove", Changed: true, Path: dest, ClaudeCode: note})
+	}
 	return nil
 }
 
@@ -984,8 +1186,9 @@ func moltenModValidateRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	failed := 0
-	for _, result := range resp.Results {
-		if !result.Ok {
+	for i := range resp.Results {
+		moltenCheckClaudeCodePart(&resp.Results[i])
+		if !resp.Results[i].Ok {
 			failed++
 		}
 	}
@@ -1005,9 +1208,21 @@ func formatMoltenValidation(results []MoltenValidationResult) string {
 	}
 	var sb strings.Builder
 	for _, result := range results {
+		warnings := 0
+		for _, problem := range result.Problems {
+			if problem.Severity == MoltenSeverityWarning {
+				warnings++
+			}
+		}
 		if result.Ok {
-			fmt.Fprintf(&sb, "%s: ok\n", result.Id)
-			continue
+			switch warnings {
+			case 0:
+				fmt.Fprintf(&sb, "%s: ok\n", result.Id)
+			case 1:
+				fmt.Fprintf(&sb, "%s: ok (1 warning)\n", result.Id)
+			default:
+				fmt.Fprintf(&sb, "%s: ok (%d warnings)\n", result.Id, warnings)
+			}
 		}
 		for _, problem := range result.Problems {
 			location := problem.File
@@ -1017,7 +1232,11 @@ func formatMoltenValidation(results []MoltenValidationResult) string {
 					location = fmt.Sprintf("%s:%d", location, problem.Column)
 				}
 			}
-			fmt.Fprintf(&sb, "%s: %s: %s\n", result.Id, location, problem.Message)
+			kind := ""
+			if problem.Severity == MoltenSeverityWarning {
+				kind = "warning: "
+			}
+			fmt.Fprintf(&sb, "%s: %s%s: %s\n", result.Id, kind, location, problem.Message)
 		}
 	}
 	return sb.String()
@@ -1044,8 +1263,8 @@ func moltenHelpRun(cmd *cobra.Command, args []string) error {
 }
 
 var moltenBuiltinHelp = [][2]string{
-	{"mod new <id>", "create a mod from a template (disabled until enabled)"},
-	{"mod list", "list the mods of this tab and their state"},
+	{"mod new <id> [--claude-code]", "create a mod from a template (disabled until enabled), with a Claude Code part"},
+	{"mod list", "list the mods of this tab and their state, and their Claude Code parts"},
 	{"mod validate [id...]", "check mods without running them"},
 	{"mod enable <id>", "enable a mod in every tab (asks you to trust it first)"},
 	{"mod disable <id>", "disable a mod in every tab"},

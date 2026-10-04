@@ -14,8 +14,10 @@ import "embed"
 // `molten agent session` for the agent companion (FR-SHELL-018).
 // worktrees.md tells how an agent links the worktree of its task to its terminal (FR-SHELL-016).
 // molten-bug.md is the guide for reporting a MoltenTerm bug (FR-MORPH-011).
+// claude-code-parts.md and examples/test-band/ document the Claude Code part of a mod (FR-MORPH-010); `all:` keeps
+// the part's `.claude-plugin/` folder, which embed would skip as hidden.
 //
-//go:embed mod-format.md morph.md molten-pipeline.md molten-bug.md pipeline-format.md agent-states.md worktrees.md examples
+//go:embed mod-format.md morph.md molten-pipeline.md molten-bug.md pipeline-format.md agent-states.md worktrees.md claude-code-parts.md all:examples
 var Files embed.FS
 
 const GuideFile = "morph.md"
