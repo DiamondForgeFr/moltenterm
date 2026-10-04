@@ -6,6 +6,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
     actionEntries,
+    agentCopyEntries,
     agentEntries,
     buildPaletteEntries,
     folderEntries,
@@ -115,6 +116,15 @@ describe("workspace actions", () => {
         expect(actions.map((a) => a.label)).toEqual(["New tab", "New workspace", "Switch to Notulia", "Settings"]);
         expect(actions[2].run).toEqual({ kind: "switchworkspace", workspaceId: "w2" });
         expect(actions[3].cli).toBe("wsh editconfig");
+    });
+});
+
+describe("agent copy commands", () => {
+    it("mentions Claude Code's /copy, which reaches the clipboard through OSC 52", () => {
+        const [entry] = agentCopyEntries();
+        expect(entry).toMatchObject({ group: "actions", hint: "/copy", run: { kind: "focusorigin" } });
+        expect(entry.label).toBe("Copy Claude Code's last answer");
+        expect(entry.detail).toContain("OSC 52");
     });
 });
 

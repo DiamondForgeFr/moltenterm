@@ -5,6 +5,7 @@
 // panels (widgets.json), recent folders (FR-SHELL-009) and workspace actions. Pure, so the rules are tested without
 // the app.
 
+import { AgentCopyProfiles } from "../term-copy/agent-copy-profiles";
 import { PaletteEntry, PaletteGroupId } from "./palette-model";
 
 // Agent presets live with Wave's presets, under their own prefix: defaults in pkg/wconfig/defaultconfig/presets/
@@ -229,6 +230,21 @@ export function actionEntries(workspaces: PaletteWorkspace[]): PaletteEntry[] {
     return rtn;
 }
 
+// The agents' own copy commands (FR-SHELL-017): Claude Code's /copy puts its last answer on the clipboard through
+// OSC 52, which terminals keep accepting next to clean copy.
+export function agentCopyEntries(): PaletteEntry[] {
+    return AgentCopyProfiles.filter((p) => !!p.copyCommand).map((p) => ({
+        id: `action:agentcopy:${p.id}`,
+        group: "actions",
+        label: `Copy ${p.name}'s last answer`,
+        detail: `type ${p.copyCommand} in ${p.name}, it reaches the clipboard through OSC 52`,
+        icon: "copy",
+        hint: p.copyCommand,
+        keywords: ["clipboard", "copy", "osc 52", p.id],
+        run: { kind: "focusorigin" },
+    }));
+}
+
 export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
     const folders = recentFolderList(input.folder, input.recentFolders, input.otherFolders);
     return [
@@ -236,6 +252,7 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
         ...panelEntries(input.widgets, input.workspaceId),
         ...folderEntries(folders, input.home),
         ...actionEntries(input.workspaces),
+        ...agentCopyEntries(),
     ];
 }
 

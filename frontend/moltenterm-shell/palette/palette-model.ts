@@ -17,7 +17,9 @@ export type PaletteRun =
     | { kind: "newtab" }
     | { kind: "newworkspace" }
     | { kind: "switchworkspace"; workspaceId: string }
-    | { kind: "settings" };
+    | { kind: "settings" }
+    // Back to the pane the palette was opened from, to type an agent's own command there.
+    | { kind: "focusorigin" };
 
 export type PaletteEntry = {
     id: string;
