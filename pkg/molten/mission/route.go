@@ -191,6 +191,21 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 			return l.runs.ReadReleaseNotes(req.Dir, req.Tag)
 		}
 		return nil, l.runs.SaveReleaseNotes(req.Dir, req.Tag, req.Text)
+	case BranchesPlanCommand:
+		var req GetRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.runs.PlanBranches(req.Dir)
+	case BranchesCleanCommand:
+		if !isWindowSource(source) {
+			return nil, fmt.Errorf("branches can only be deleted from a MoltenTerm window")
+		}
+		var req BranchesCleanRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.runs.CleanBranches(req)
 	case ReleaseStartCommand:
 		var req ReleaseStartRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
