@@ -20,8 +20,7 @@ func TestExecRunnerUsesLoginPathOnly(t *testing.T) {
 	if err := os.WriteFile(script, []byte("#!/bin/sh\necho ok\n"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	loginPathOnce.Do(func() {})
-	saved := loginPath
+	saved := readLoginPath()
 	loginPath = bin
 	t.Cleanup(func() { loginPath = saved })
 	t.Setenv("PATH", "/usr/bin:/bin")
