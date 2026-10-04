@@ -5,13 +5,14 @@
 // default, toggled by the agent label of the pane header or Cmd+Shift+J. The terminal keeps the focus: the agent is
 // still where the user types.
 
-import { createBlock, createBlockSplitHorizontally } from "@/app/store/global";
+import { createBlockSplitHorizontally } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
 import { getActiveTabModel } from "@/app/store/tab-model";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
+import { openFileInPreview } from "../term-copy/term-copy";
 import { CompanionTargetMetaKey, MoltentermCompanionView } from "./companion-model";
 
 export const CompanionKey = "Cmd:Shift:j";
@@ -88,7 +89,8 @@ export function registerCompanionKeys(keyMap: Map<string, (e: WaveKeyboardEvent)
     keyMap.set(CompanionKey, () => toggleFocusedCompanion());
 }
 
-// Opens a file the agent changed in a preview block. #119 adds opening at a line; this opens the file.
-export function openFileInPreview(path: string) {
-    fireAndForget(() => createBlock({ meta: { view: "preview", file: path } }));
+// Opens a file the agent changed in the preview next to the companion, at the line its first change starts, with
+// the terminal file links' helper (FR-SHELL-017): a preview of the same file in the tab is reused.
+export function openChangedFile(path: string, line: number, companionBlockId: string) {
+    fireAndForget(() => openFileInPreview({ path, line: line > 0 ? line : undefined, conn: "" }, companionBlockId));
 }

@@ -33,6 +33,7 @@ import {
     CompanionView,
     diffLineKind,
     displayPath,
+    firstChangedLine,
     formatArgs,
     MoltentermCompanionView,
     neighbourAnswer,
@@ -42,7 +43,7 @@ import {
     statusMessage,
     todoCounts,
 } from "./companion-model";
-import { openFileInPreview } from "./companion-open";
+import { openChangedFile } from "./companion-open";
 
 export { MoltentermCompanionView };
 
@@ -156,7 +157,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
             <PermissionCard pending={view.pending} agentState={agentState?.state} />
             <AnswerSection target={target} view={view} />
             <TodoSection todos={view.todos} />
-            <FilesSection target={target} files={view.files} folder={folder} />
+            <FilesSection target={target} companionId={model.blockId} files={view.files} folder={folder} />
         </div>
     );
 }
@@ -439,7 +440,17 @@ const KindLabels: Record<string, { text: string; className: string; title: strin
     delete: { text: "D", className: "text-error", title: "Deleted" },
 };
 
-function FilesSection({ target, files, folder }: { target: string; files: CompanionFile[]; folder: string }) {
+function FilesSection({
+    target,
+    companionId,
+    files,
+    folder,
+}: {
+    target: string;
+    companionId: string;
+    files: CompanionFile[];
+    folder: string;
+}) {
     const [open, setOpen] = useState<string>(null);
     if (files == null || files.length === 0) {
         return (
@@ -459,6 +470,7 @@ function FilesSection({ target, files, folder }: { target: string; files: Compan
                     <FileRow
                         key={f.path}
                         target={target}
+                        companionId={companionId}
                         file={f}
                         folder={folder}
                         open={open === f.path}
@@ -472,18 +484,35 @@ function FilesSection({ target, files, folder }: { target: string; files: Compan
 
 function FileRow({
     target,
+    companionId,
     file,
     folder,
     open,
     onToggle,
 }: {
     target: string;
+    companionId: string;
     file: CompanionFile;
     folder: string;
     open: boolean;
     onToggle: () => void;
 }) {
     const kind = KindLabels[file.kind] ?? KindLabels.update;
+    // The preview opens at the line the first change of the file starts.
+    const openAtChange = () =>
+        fireAndForget(async () => {
+            let line = 0;
+            try {
+                const d = await companionCall<CompanionDiff>(CompanionDiffCommand, {
+                    blockid: target,
+                    path: file.path,
+                });
+                line = firstChangedLine(d?.diff);
+            } catch {
+                // Without its diff the file still opens, at its top.
+            }
+            openChangedFile(file.path, line, companionId);
+        });
     return (
         <li className="flex flex-col">
             <div className="group flex items-center gap-2 rounded px-2 py-1 hover:bg-hover">
@@ -515,7 +544,7 @@ function FileRow({
                 {file.kind !== "delete" ? (
                     <button
                         type="button"
-                        onClick={() => openFileInPreview(file.path)}
+                        onClick={openAtChange}
                         className="cursor-pointer rounded px-1 text-[11px] text-secondary hover:text-primary"
                         title="Open in the preview"
                         aria-label={`Open ${file.path} in the preview`}
