@@ -92,7 +92,8 @@ export function treeMarker(state: PaneState, link: string): TreeMarker {
             };
         }
         const branch = state?.linked?.branch ?? "";
-        const outside = state != null && state.root !== link;
+        // wavesrv compares the paths with symlinks resolved (/tmp is /private/tmp on macOS).
+        const outside = state?.linked != null && !state.linked.inside;
         const lines = [`Worktree ${name}${branch ? ` on ${branch}` : ""}, linked to this terminal`, link];
         if (outside && state?.dir) {
             lines.push(`This terminal is now in ${state.dir}, outside its worktree.`);
@@ -157,7 +158,7 @@ export function worktreeOffer(state: PaneState, link: string, dismissed: readonl
     if (!state?.root || !state.worktree) {
         return "";
     }
-    if (state.root === link || dismissed.includes(state.root)) {
+    if (state.linked?.inside || state.root === link || dismissed.includes(state.root)) {
         return "";
     }
     return state.root;
@@ -204,17 +205,38 @@ export type WorktreePlan = {
     changecount: number;
     ignored: string[];
     ignoredcount: number;
+    ignoredfilecount: number;
+    // UnknownCount (-1) when git could not count.
     unpushed: number;
     noremote?: boolean;
     trunk?: string;
     merged?: boolean;
     protected?: boolean;
     terminals: WorktreeTerminal[];
+    refused?: string;
 };
-export type WorktreeRemoveResult = { removed: boolean; forced?: boolean; branchdeleted?: string; branchkept?: string };
+export type WorktreeRisk = { sha: string; changecount: number; unpushed: number; ignoredfilecount: number };
+export type WorktreeRemoveResult = {
+    removed: boolean;
+    gone?: boolean;
+    forced?: boolean;
+    branchdeleted?: string;
+    branchkept?: string;
+};
+
+// What the user confirms a second time: wavesrv refuses the removal when the worktree holds more by then.
+export function worktreeRisk(plan: WorktreePlan): WorktreeRisk {
+    return {
+        sha: plan.sha ?? "",
+        changecount: plan.changecount ?? 0,
+        unpushed: plan.unpushed ?? 0,
+        ignoredfilecount: plan.ignoredfilecount ?? 0,
+    };
+}
 
 export type ClosePlanView = {
-    // Uncommitted changes or commits no remote has: removal needs a second confirmation.
+    // Uncommitted changes, ignored files, commits no remote has (or git could not count), other terminals: removal
+    // needs a second confirmation (as wavesrv's NeedsConfirmation).
     atRisk: boolean;
     // Other terminals use the worktree: Keep is the default.
     shared: boolean;
@@ -238,9 +260,9 @@ function plural(n: number, one: string, many: string): string {
 export function closePlanView(plan: WorktreePlan): ClosePlanView {
     const changes = plan.changecount ?? 0;
     const unpushed = plan.unpushed ?? 0;
-    const atRisk = changes > 0 || unpushed > 0;
     const terminals = plan.terminals ?? [];
     const shared = terminals.length > 0;
+    const atRisk = changes > 0 || unpushed !== 0 || (plan.ignoredfilecount ?? 0) > 0 || shared;
     const branch = plan.branch || (plan.detached ? `detached at ${(plan.sha ?? "").slice(0, 7)}` : "");
     let mergedLine = "";
     if (plan.branch) {
@@ -255,7 +277,9 @@ export function closePlanView(plan: WorktreePlan): ClosePlanView {
         }
     }
     let unpushedLine = "no unpushed commits";
-    if (unpushed > 0) {
+    if (unpushed < 0) {
+        unpushedLine = "git could not count the unpushed commits";
+    } else if (unpushed > 0) {
         if (plan.detached) {
             unpushedLine = `${plural(unpushed, "commit", "commits")} on no branch: lost with the worktree`;
         } else if (plan.noremote) {
@@ -284,7 +308,11 @@ export function closePlanView(plan: WorktreePlan): ClosePlanView {
                 : "",
         terminalsLine,
         canDeleteBranch: !!plan.branch && !plan.protected && plan.merged === true,
-        canRemove: !plan.locked && !plan.missing,
-        blockedReason: plan.locked ? "The worktree is locked (git worktree lock): MoltenTerm keeps it." : "",
+        canRemove: !plan.locked && !plan.missing && !plan.refused,
+        blockedReason: plan.locked
+            ? "The worktree is locked (git worktree lock): MoltenTerm keeps it."
+            : plan.refused
+              ? `MoltenTerm does not remove this folder: ${plan.refused}.`
+              : "",
     };
 }

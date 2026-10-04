@@ -33,6 +33,7 @@ function plan(over: Partial<WorktreePlan> = {}): WorktreePlan {
         changecount: 0,
         ignored: [],
         ignoredcount: 0,
+        ignoredfilecount: 0,
         unpushed: 0,
         trunk: "develop",
         merged: true,
@@ -63,7 +64,10 @@ describe("treeMarker", () => {
     });
 
     it("keeps the linked worktree when the terminal leaves it", () => {
-        const m = treeMarker({ ...mainState, linked: { path: "/w/feat-42", branch: "feature/42-x" } }, "/w/feat-42");
+        const m = treeMarker(
+            { ...mainState, linked: { path: "/w/feat-42", branch: "feature/42-x", inside: false } },
+            "/w/feat-42"
+        );
         expect(m.kind).toBe("worktree");
         expect(m.linked).toBe(true);
         expect(m.outside).toBe(true);
@@ -96,6 +100,12 @@ describe("worktreeOffer", () => {
     it("never offers the main tree", () => {
         expect(worktreeOffer(mainState, "", [])).toBe("");
         expect(worktreeOffer(null, "", [])).toBe("");
+    });
+
+    it("does not offer the linked worktree spelled another way", () => {
+        const state = { ...wtState, root: "/private/w/feat-42", linked: { path: "/w/feat-42", inside: true } };
+        expect(worktreeOffer(state, "/w/feat-42", [])).toBe("");
+        expect(treeMarker(state, "/w/feat-42").outside).toBe(false);
     });
 
     it("offers another worktree to a linked terminal", () => {
@@ -137,9 +147,10 @@ describe("closePlanView", () => {
         expect(v.unpushedLine).toBe("1 commit on no remote");
     });
 
-    it("keeps by default when another terminal uses it", () => {
+    it("keeps by default when another terminal uses it, and asks twice to remove", () => {
         const v = closePlanView(plan({ terminals: [{ blockid: "b2", tab: "T2", workspace: "Work", linked: true }] }));
         expect(v.shared).toBe(true);
+        expect(v.atRisk).toBe(true);
         expect(v.defaultChoice).toBe("keep");
         expect(v.terminalsLine).toContain("Work › T2");
     });
@@ -157,8 +168,22 @@ describe("closePlanView", () => {
         expect(v.blockedReason).toContain("locked");
     });
 
-    it("names the ignored files that go with it", () => {
-        const v = closePlanView(plan({ ignored: [".env"], ignoredcount: 1 }));
+    it("names the ignored files that go with it and asks twice for them", () => {
+        const v = closePlanView(plan({ ignored: [".env"], ignoredcount: 1, ignoredfilecount: 1 }));
         expect(v.ignoredLine).toBe("1 ignored entry removed too: .env");
+        expect(v.atRisk).toBe(true);
+        expect(closePlanView(plan({ ignored: ["node_modules/"], ignoredcount: 1 })).atRisk).toBe(false);
+    });
+
+    it("treats commits git could not count as work at risk", () => {
+        const v = closePlanView(plan({ unpushed: -1 }));
+        expect(v.atRisk).toBe(true);
+        expect(v.unpushedLine).toContain("could not count");
+    });
+
+    it("never removes a refused folder", () => {
+        const v = closePlanView(plan({ refused: "the home folder" }));
+        expect(v.canRemove).toBe(false);
+        expect(v.blockedReason).toContain("home folder");
     });
 });

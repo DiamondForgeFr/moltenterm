@@ -8,8 +8,53 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
+
+func TestPaneFreshRequestsShareOneProbe(t *testing.T) {
+	_, clone := makePaneRepo(t)
+	var statuses atomic.Int32
+	counting := func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
+		for _, arg := range args {
+			if arg == "status" {
+				statuses.Add(1)
+			}
+		}
+		return plainRunner(ctx, dir, name, args...)
+	}
+	panes := MakePanes(counting, nil, nil)
+	panes.Get(PaneRequest{Dir: clone})
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			panes.Get(PaneRequest{Dir: clone, Fresh: true})
+		}()
+	}
+	wg.Wait()
+	if statuses.Load() != 2 {
+		t.Fatalf("four fresh requests together probed %d times after the first", statuses.Load()-1)
+	}
+}
+
+func TestPaneLinkedThroughASymlink(t *testing.T) {
+	base, _, tree := makeWorktreeFixture(t)
+	alias := filepath.Join(base, "alias")
+	if err := os.Symlink(tree, alias); err != nil {
+		t.Skip("no symlinks")
+	}
+	state, _ := MakePanes(plainRunner, nil, nil).Get(PaneRequest{Dir: tree, Worktree: alias})
+	if state.Linked == nil || state.Linked.Missing || !state.Linked.Inside {
+		t.Fatalf("the same worktree spelled another way: %+v", state.Linked)
+	}
+}
+
+func riskOf(plan WorktreePlan) *WorktreeRisk {
+	return &WorktreeRisk{Sha: plan.Sha, ChangeCount: plan.ChangeCount, Unpushed: plan.Unpushed, IgnoredFileCount: plan.IgnoredFileCount}
+}
 
 func noTerminals(ctx context.Context, path string, exclude string) []WorktreeTerminal {
 	return []WorktreeTerminal{}
@@ -84,8 +129,11 @@ func TestWorktreePlanAndCleanRemoval(t *testing.T) {
 	if mainPlan, err := w.Plan(WorktreeRequest{Dir: clone}); err == nil && !mainPlan.Missing {
 		t.Fatal("the main tree was planned for removal")
 	}
-	if _, err := w.Remove(WorktreeRemoveRequest{Dir: clone, Confirmed: true}); err == nil {
+	if res, _ := w.Remove(WorktreeRemoveRequest{Dir: clone, Confirmed: &WorktreeRisk{}}); res.Removed {
 		t.Fatal("the main tree was removed")
+	}
+	if _, err := os.Stat(filepath.Join(clone, "a.txt")); err != nil {
+		t.Fatal("the main tree lost a file")
 	}
 	res, err := w.Remove(WorktreeRemoveRequest{Dir: tree, DeleteBranch: true})
 	if err != nil {
@@ -101,8 +149,10 @@ func TestWorktreePlanAndCleanRemoval(t *testing.T) {
 	if !again.Missing {
 		t.Fatalf("a removed worktree: %+v", again)
 	}
-	if _, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: true}); err == nil {
-		t.Fatal("a second close removed something")
+	// Another terminal's close removed it first: nothing left to do, and nothing else removed.
+	gone, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: &WorktreeRisk{}})
+	if err != nil || gone.Removed || !gone.Gone {
+		t.Fatalf("a second close: %+v %v", gone, err)
 	}
 }
 
@@ -117,7 +167,7 @@ func TestWorktreeWithWorkNeedsTheSecondConfirmation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.ChangeCount != 2 || plan.Unpushed != 1 || plan.IgnoredCount != 1 || plan.Ignored[0] != ".env" {
+	if plan.ChangeCount != 2 || plan.Unpushed != 1 || plan.IgnoredCount != 1 || plan.IgnoredFileCount != 1 || plan.Ignored[0] != ".env" {
 		t.Fatalf("work in progress: %+v", plan)
 	}
 	if plan.Merged == nil || *plan.Merged {
@@ -129,7 +179,14 @@ func TestWorktreeWithWorkNeedsTheSecondConfirmation(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(tree, "draft.txt")); err != nil {
 		t.Fatal("the refused removal lost a file")
 	}
-	res, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: true, DeleteBranch: true})
+	// A change made after the user confirmed is not covered by the confirmation.
+	seen := riskOf(plan)
+	os.WriteFile(filepath.Join(tree, "late.txt"), []byte("late"), 0644)
+	if _, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: seen, DeleteBranch: true}); err == nil {
+		t.Fatal("removed work the user never saw")
+	}
+	plan, _ = w.Plan(WorktreeRequest{Dir: tree})
+	res, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: riskOf(plan), DeleteBranch: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +206,8 @@ func TestWorktreeUnpushedOnlyStillAsks(t *testing.T) {
 	if _, err := w.Remove(WorktreeRemoveRequest{Dir: tree}); err == nil {
 		t.Fatal("unpushed commits removed without the second confirmation")
 	}
-	res, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: true})
+	plan, _ := w.Plan(WorktreeRequest{Dir: tree})
+	res, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: riskOf(plan)})
 	if err != nil || !res.Removed || res.Forced {
 		t.Fatalf("clean but unpushed: %+v %v", res, err)
 	}
@@ -163,7 +221,7 @@ func TestWorktreeLockedIsKept(t *testing.T) {
 	if !plan.Locked {
 		t.Fatalf("locked: %+v", plan)
 	}
-	if _, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: true}); err == nil {
+	if _, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: riskOf(plan)}); err == nil {
 		t.Fatal("a locked worktree was removed")
 	}
 }
@@ -180,5 +238,64 @@ func TestChangePath(t *testing.T) {
 		if got := changePath(line); got != want {
 			t.Errorf("%q: got %q, want %q", line, got, want)
 		}
+	}
+}
+
+func TestWorktreeSharedOrIgnoredNeedsConfirmation(t *testing.T) {
+	_, _, tree := makeWorktreeFixture(t)
+	shared := MakeWorktrees(plainRunner, func(ctx context.Context, path string, exclude string) []WorktreeTerminal {
+		return []WorktreeTerminal{{BlockId: "b2", Linked: true}}
+	})
+	if _, err := shared.Remove(WorktreeRemoveRequest{Dir: tree}); err == nil {
+		t.Fatal("removed from under another terminal without the second confirmation")
+	}
+	os.WriteFile(filepath.Join(tree, ".gitignore"), []byte(".env\n"), 0644)
+	gitRun(t, tree, "add", ".gitignore")
+	gitRun(t, tree, "commit", "-q", "-m", "ignore")
+	gitRun(t, tree, "push", "-q", "origin", "HEAD:feature/5-x")
+	os.WriteFile(filepath.Join(tree, ".env"), []byte("SECRET=1"), 0644)
+	w := MakeWorktrees(plainRunner, noTerminals)
+	plan, _ := w.Plan(WorktreeRequest{Dir: tree})
+	if plan.ChangeCount != 0 || plan.Unpushed != 0 || plan.IgnoredFileCount != 1 {
+		t.Fatalf("only an ignored file: %+v", plan)
+	}
+	if _, err := w.Remove(WorktreeRemoveRequest{Dir: tree}); err == nil {
+		t.Fatal("an ignored .env went without the second confirmation")
+	}
+	if _, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: riskOf(plan)}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A .git file pointing into a repository is not enough: git's records must name the folder back.
+func TestWorktreeCraftedGitFileIsRefused(t *testing.T) {
+	base, _, tree := makeWorktreeFixture(t)
+	victim := filepath.Join(base, "victim")
+	os.MkdirAll(victim, 0755)
+	os.WriteFile(filepath.Join(victim, "precious.txt"), []byte("x"), 0644)
+	admin, _ := os.ReadFile(filepath.Join(tree, ".git"))
+	os.WriteFile(filepath.Join(victim, ".git"), admin, 0644)
+	w := MakeWorktrees(plainRunner, noTerminals)
+	if _, err := w.Plan(WorktreeRequest{Dir: victim}); err == nil {
+		t.Fatal("a crafted .git file was taken for a worktree")
+	}
+	if _, err := w.Remove(WorktreeRemoveRequest{Dir: victim, Confirmed: &WorktreeRisk{}}); err == nil {
+		t.Fatal("a crafted .git file led to a removal")
+	}
+	if _, err := os.Stat(filepath.Join(victim, "precious.txt")); err != nil {
+		t.Fatal("the victim folder lost a file")
+	}
+}
+
+func TestWorktreeRefusesHome(t *testing.T) {
+	_, _, tree := makeWorktreeFixture(t)
+	w := MakeWorktrees(plainRunner, noTerminals)
+	w.home = filepath.Join(tree, "home-of-someone")
+	plan, err := w.Plan(WorktreeRequest{Dir: tree})
+	if err != nil || plan.Refused == "" {
+		t.Fatalf("a worktree holding the home folder: %+v %v", plan, err)
+	}
+	if _, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: riskOf(plan)}); err == nil {
+		t.Fatal("removed a folder holding the home folder")
 	}
 }

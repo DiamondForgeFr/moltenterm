@@ -82,7 +82,7 @@ export type PaneState = {
     at?: number;
     // FR-SHELL-016: the tree is a linked worktree; the worktree the terminal is linked to, when it asked.
     worktree?: boolean;
-    linked?: { path: string; branch?: string; sha?: string; dirty?: boolean; missing?: boolean };
+    linked?: { path: string; branch?: string; sha?: string; dirty?: boolean; missing?: boolean; inside?: boolean };
 };
 
 export type PaneBlockMeta = { view?: string; connection?: string; "cmd:cwd"?: string; "molten:worktree"?: string };
