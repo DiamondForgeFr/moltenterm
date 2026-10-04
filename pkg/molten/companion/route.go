@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/baseds"
@@ -31,10 +32,12 @@ const blockReadTimeout = 2 * time.Second
 
 type blockRequest struct {
 	BlockId string `json:"blockid"`
+	ViewId  string `json:"viewid"`
 }
 
 type pickRequest struct {
 	BlockId string `json:"blockid"`
+	ViewId  string `json:"viewid"`
 	Path    string `json:"path"`
 }
 
@@ -79,7 +82,7 @@ func (l *routeLink) answer(req wshutil.RpcMessage) {
 		panichandler.PanicHandler("molten:companion:route", recover())
 	}()
 	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := l.handle(req.Command, req.Data)
+	data, err := l.handle(req.Command, req.Source, req.Data)
 	if err != nil {
 		resp.Error = err.Error()
 	} else {
@@ -92,27 +95,40 @@ func (l *routeLink) answer(req wshutil.RpcMessage) {
 	l.output <- out
 }
 
-func (l *routeLink) handle(command string, data any) (any, error) {
+// isWindowSource tells a request from a MoltenTerm window apart from one sent by a terminal or a remote host: the
+// router stamps the source of every link that has a route of its own, so a terminal cannot pass for a tab. Only
+// windows read a session.
+func isWindowSource(source string) bool {
+	return strings.HasPrefix(source, wshutil.RoutePrefix_Tab)
+}
+
+func (l *routeLink) handle(command string, source string, data any) (any, error) {
+	if command != molten.CompanionSessionCommand && !isWindowSource(source) {
+		return nil, fmt.Errorf("the companion answers MoltenTerm windows only")
+	}
+	if command == molten.CompanionSessionCommand && strings.HasPrefix(source, wshutil.RoutePrefix_Conn) {
+		return nil, fmt.Errorf("no companion for a remote terminal")
+	}
 	switch command {
 	case molten.CompanionOpenCommand:
 		var req blockRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
-		return l.m.Open(req.BlockId)
+		return l.m.Open(req.BlockId, req.ViewId)
 	case molten.CompanionCloseCommand:
 		var req blockRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
-		l.m.Close(req.BlockId)
+		l.m.Close(req.BlockId, req.ViewId)
 		return nil, nil
 	case molten.CompanionPickCommand:
 		var req pickRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
-		return l.m.Pick(req.BlockId, req.Path)
+		return l.m.Pick(req.BlockId, req.ViewId, req.Path)
 	case molten.CompanionAnswerCommand:
 		var req answerRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -128,9 +144,6 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 	case molten.CompanionSessionCommand:
 		var req molten.AgentSessionRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
-			return nil, err
-		}
-		if _, err := readBlockInfo(req.BlockId); err != nil {
 			return nil, err
 		}
 		return nil, l.m.ReportSession(req)

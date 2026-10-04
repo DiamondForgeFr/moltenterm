@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -203,7 +204,7 @@ func TestFollower(t *testing.T) {
 	}
 	// A line longer than the cap is skipped whole, the next one is read.
 	appendFile(t, path, strings.Repeat("x", tailLineMax+10)+"\n"+`{"c":3}`+"\n")
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 8; i++ {
 		f.poll(emit)
 	}
 	if len(lines) != 3 || lines[2] != `{"c":3}` {
@@ -227,6 +228,7 @@ func TestFollower(t *testing.T) {
 	if !reset {
 		t.Error("a replaced file resets")
 	}
+	f.poll(emit)
 	if lines[len(lines)-1] != `{"f":6}` {
 		t.Errorf("after replacement: %q", lines)
 	}
@@ -276,7 +278,13 @@ func TestChooseCandidate(t *testing.T) {
 	after := Candidate{Path: "new", Started: start + 1_000}
 	other := Candidate{Path: "other", Started: start + 2_000}
 	if c, amb := chooseCandidate([]Candidate{after}, start, 1); c == nil || amb {
-		t.Error("the only session is linked")
+		t.Error("the only session started after the agent is linked")
+	}
+	if _, amb := chooseCandidate([]Candidate{before}, start, 1); !amb {
+		t.Error("a session started before the agent is never linked without the user")
+	}
+	if _, amb := chooseCandidate([]Candidate{{Path: "unknown"}}, start, 1); !amb {
+		t.Error("a session of unknown start is never linked without the user")
 	}
 	if c, amb := chooseCandidate([]Candidate{after, before}, start, 1); c == nil || c.Path != "new" || amb {
 		t.Error("the only session started after the agent is linked")
@@ -383,18 +391,19 @@ func TestManagerFollowsSession(t *testing.T) {
 		views: map[string]CompanionView{},
 	}
 	m := makeTestManager(env, root)
-	defer m.Close("b1")
-	defer m.Close("b2")
-	defer m.Close("b3")
+	defer m.Close("b1", "v")
+	defer m.Close("b2", "v")
+	defer m.Close("b3", "v")
 
-	m.Open("b3")
+	m.Open("b3", "v")
 	waitView(t, env, "b3", func(v CompanionView) bool { return v.Status == StatusUnsupportedAgent })
 
-	m.Open("b1")
+	m.Open("b1", "v")
 	waitView(t, env, "b1", func(v CompanionView) bool { return v.Status == StatusSearching })
 	session := filepath.Join(dir, "s1.jsonl")
 	data, _ := os.ReadFile(filepath.Join("testdata", "claude-session.jsonl"))
 	text := strings.ReplaceAll(string(data), `"cwd":"/work/demo"`, fmt.Sprintf("%q:%q", "cwd", cwd))
+	text = regexp.MustCompile(`2026-10-04T10:0\d:\d\d\.000Z`).ReplaceAllString(text, time.Now().UTC().Format(time.RFC3339Nano))
 	os.WriteFile(session, []byte(text), 0o600)
 	v := waitView(t, env, "b1", func(v CompanionView) bool { return v.Status == StatusLive && len(v.Files) == 2 })
 	if v.Session == nil || v.Session.LinkedBy != LinkDiscovery || v.Latest == nil {
@@ -417,7 +426,7 @@ func TestManagerFollowsSession(t *testing.T) {
 	env.lock.Lock()
 	env.runs["b2"] = molten.AgentRunInfo{BlockId: "b2", Agent: "claude", Started: start.UnixMilli(), Running: true}
 	env.lock.Unlock()
-	m.Open("b2")
+	m.Open("b2", "v")
 	waitView(t, env, "b2", func(v CompanionView) bool { return v.Status == StatusSearching })
 	session2 := filepath.Join(dir, "s2.jsonl")
 	os.WriteFile(session2, []byte(text), 0o600)
@@ -425,10 +434,10 @@ func TestManagerFollowsSession(t *testing.T) {
 	if len(v2.Candidates) != 1 || v2.Candidates[0].Path != canonicalPath(session2) {
 		t.Fatalf("candidates: %+v", v2.Candidates)
 	}
-	if _, err := m.Pick("b2", session); err == nil {
+	if _, err := m.Pick("b2", "v", session); err == nil {
 		t.Error("another terminal's session cannot be picked")
 	}
-	if _, err := m.Pick("b2", session2); err != nil {
+	if _, err := m.Pick("b2", "v", session2); err != nil {
 		t.Fatal(err)
 	}
 	v2 = waitView(t, env, "b2", func(v CompanionView) bool { return v.Status == StatusLive })
@@ -470,11 +479,107 @@ func TestUnsupportedFile(t *testing.T) {
 		views: map[string]CompanionView{},
 	}
 	m := makeTestManager(env, root)
-	defer m.Close("b1")
+	defer m.Close("b1", "v")
 	os.WriteFile(filepath.Join(dir, "s.jsonl"), []byte(strings.Repeat(`{"kind":"x"}`+"\n", 8)), 0o600)
-	m.Open("b1")
+	m.Open("b1", "v")
+	// A transcript without timestamps has no known start: the user picks it.
+	waitView(t, env, "b1", func(v CompanionView) bool { return v.Status == StatusChoose })
+	if _, err := m.Pick("b1", "v", filepath.Join(dir, "s.jsonl")); err != nil {
+		t.Fatal(err)
+	}
 	v := waitView(t, env, "b1", func(v CompanionView) bool { return v.Status == StatusUnsupportedFormat })
 	if len(v.Files) != 0 || v.Latest != nil {
 		t.Errorf("nothing shown of an unsupported format: %+v", v)
+	}
+}
+
+func writeNowSession(t *testing.T, path string, cwd string, text string) {
+	t.Helper()
+	line := fmt.Sprintf(`{"type":"user","cwd":%q,"sessionId":"s","timestamp":%q,"message":{"role":"user","content":"go"}}`+"\n", cwd, time.Now().UTC().Format(time.RFC3339Nano))
+	line += fmt.Sprintf(`{"type":"assistant","sessionId":"s","timestamp":%q,"message":{"role":"assistant","content":[{"type":"text","text":%q}]}}`+"\n", time.Now().UTC().Format(time.RFC3339Nano), text)
+	os.WriteFile(path, []byte(line), 0o600)
+}
+
+// A session discovery linked to the wrong pane goes to the pane whose hook reports it.
+func TestDiscoveryGivesWayToReport(t *testing.T) {
+	root := t.TempDir()
+	cwd := t.TempDir()
+	dir := filepath.Join(root, ClaudeSlug(cwd))
+	os.MkdirAll(dir, 0o700)
+	start := time.Now().Add(-time.Second).UnixMilli()
+	env := &fakeEnv{
+		runs:  map[string]molten.AgentRunInfo{"a": {BlockId: "a", Agent: "claude", Started: start, Running: true}},
+		cwds:  map[string]string{"a": cwd, "b": cwd},
+		views: map[string]CompanionView{},
+	}
+	m := makeTestManager(env, root)
+	defer m.Close("a", "v")
+	defer m.Close("b", "v")
+	p := filepath.Join(dir, "p.jsonl")
+	writeNowSession(t, p, cwd, "from b")
+	m.Open("a", "v")
+	waitView(t, env, "a", func(v CompanionView) bool { return v.Session != nil && v.Session.LinkedBy == LinkDiscovery })
+	env.lock.Lock()
+	env.runs["b"] = molten.AgentRunInfo{BlockId: "b", Agent: "claude", Started: start, Running: true}
+	env.lock.Unlock()
+	if err := m.ReportSession(molten.AgentSessionRequest{BlockId: "b", Agent: "claude", Path: p}); err != nil {
+		t.Fatal(err)
+	}
+	m.Open("b", "v")
+	waitView(t, env, "b", func(v CompanionView) bool { return v.Session != nil && v.Session.LinkedBy == LinkHook })
+	waitView(t, env, "a", func(v CompanionView) bool { return v.Session == nil })
+	if err := m.ReportSession(molten.AgentSessionRequest{BlockId: "a", Agent: "claude", Path: p}); err == nil {
+		t.Error("a session another terminal's hook reported cannot be reported again")
+	}
+}
+
+// Each view holds its own lease: closing one keeps the follower of the other; the latest answer's markdown is sent
+// again only when it changes.
+func TestLeasesAndElidedAnswer(t *testing.T) {
+	root := t.TempDir()
+	cwd := t.TempDir()
+	dir := filepath.Join(root, ClaudeSlug(cwd))
+	os.MkdirAll(dir, 0o700)
+	env := &fakeEnv{
+		runs:  map[string]molten.AgentRunInfo{"a": {BlockId: "a", Agent: "claude", Started: time.Now().Add(-time.Second).UnixMilli(), Running: true}},
+		cwds:  map[string]string{"a": cwd},
+		views: map[string]CompanionView{},
+	}
+	m := makeTestManager(env, root)
+	p := filepath.Join(dir, "p.jsonl")
+	writeNowSession(t, p, cwd, "first")
+	m.Open("a", "v1")
+	m.Open("a", "v2")
+	waitView(t, env, "a", func(v CompanionView) bool { return v.Latest != nil && v.Latest.Markdown == "first" })
+	m.Close("a", "v1")
+	if len(m.OpenBlocks()) != 1 {
+		t.Fatal("the other view keeps the follower")
+	}
+	appendFile(t, p, `{"type":"assistant","sessionId":"s","message":{"role":"assistant","content":[{"type":"tool_use","id":"x","name":"Bash","input":{}}]}}`+"\n")
+	v := waitView(t, env, "a", func(v CompanionView) bool { return len(v.Pending) == 1 })
+	if v.Latest == nil || !v.Latest.Elided || v.Latest.Markdown != "" {
+		t.Errorf("unchanged answer elided: %+v", v.Latest)
+	}
+	if full, _ := m.Open("a", "v2"); full.Latest == nil || full.Latest.Markdown != "first" {
+		t.Errorf("open returns the whole answer: %+v", full.Latest)
+	}
+	m.Close("a", "v2")
+	if len(m.OpenBlocks()) != 0 {
+		t.Error("the last view stops the follower")
+	}
+}
+
+func TestLargeRecordsAndArgs(t *testing.T) {
+	w := &watcher{adapter: MakeClaudeAdapter([]string{"/nowhere"})}
+	s := MakeSession()
+	s.AddToolCall("big", "Read", "{}", 0)
+	huge := `{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"big","content":"` + strings.Repeat("z", largeRecordBytes+10) + `"}]}}`
+	w.parseLine(s, []byte(huge))
+	if len(s.Pending()) != 0 {
+		t.Error("a large tool result still ends its call")
+	}
+	args := argsJSON(map[string]any{"file_path": "/a", "content": strings.Repeat("c", 10_000)})
+	if len(args) > 2*argStringMax || !strings.Contains(args, "/a") {
+		t.Errorf("long arguments are cut before marshalling: %d bytes", len(args))
 	}
 }

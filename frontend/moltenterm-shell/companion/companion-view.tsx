@@ -36,6 +36,7 @@ import {
     firstChangedLine,
     formatArgs,
     MoltentermCompanionView,
+    needsLatest,
     neighbourAnswer,
     newerView,
     permissionRequest,
@@ -77,23 +78,41 @@ export class CompanionViewModel implements ViewModel {
     }
 }
 
-// Follows a terminal's companion: opens it in wavesrv, renews the lease, takes the events; the newest version wins.
-function useCompanion(target: string): { view: CompanionView; error: string; setView: (v: CompanionView) => void } {
+// Follows a terminal's companion: opens it in wavesrv under this mount's own lease (a remount or a second companion
+// of the same terminal never ends another's), renews it, takes the events; the newest version wins.
+function useCompanion(target: string): {
+    view: CompanionView;
+    error: string;
+    viewId: string;
+    setView: (v: CompanionView) => void;
+} {
     const [view, setViewState] = useState<CompanionView>(null);
     const [error, setError] = useState<string>(null);
-    const setView = (next: CompanionView) => setViewState((cur) => newerView(cur, next));
+    const viewId = useMemo(() => crypto.randomUUID(), [target]);
+    const setView = (next: CompanionView) => {
+        if (next?.blockid !== target) {
+            return;
+        }
+        setViewState((cur) => newerView(cur, next));
+    };
     useEffect(() => {
         setViewState(null);
         setError(null);
         if (!target) {
             return;
         }
+        let cancelled = false;
+        const accept = (next: CompanionView) => {
+            if (!cancelled) {
+                setView(next);
+            }
+        };
         let unsubscribe = () => {};
         try {
             unsubscribe = waveEventSubscribeSingle({
                 eventType: CompanionEvent as WaveEventName,
                 scope: makeORef("block", target),
-                handler: (event) => setView(event.data as CompanionView),
+                handler: (event) => accept(event.data as CompanionView),
             });
         } catch (e) {
             console.log("companion: no event bus", e);
@@ -101,34 +120,67 @@ function useCompanion(target: string): { view: CompanionView; error: string; set
         const open = () =>
             fireAndForget(async () => {
                 try {
-                    setView(await companionCall<CompanionView>(CompanionOpenCommand, { blockid: target }));
-                    setError(null);
+                    accept(
+                        await companionCall<CompanionView>(CompanionOpenCommand, { blockid: target, viewid: viewId })
+                    );
+                    if (!cancelled) {
+                        setError(null);
+                    }
                 } catch (e) {
-                    setError(String(e?.message ?? e));
+                    if (!cancelled) {
+                        setError(String(e?.message ?? e));
+                    }
                 }
             });
         open();
         const timer = setInterval(open, LeaseRenewMs);
         return () => {
+            cancelled = true;
             clearInterval(timer);
             unsubscribe();
             fireAndForget(async () => {
                 try {
-                    await companionCall(CompanionCloseCommand, { blockid: target });
+                    await companionCall(CompanionCloseCommand, { blockid: target, viewid: viewId });
                 } catch {
                     // wavesrv drops the follower when its lease ends anyway.
                 }
             });
         };
-    }, [target]);
-    return { view, error, setView };
+    }, [target, viewId]);
+    // An event left out the latest answer this view has no copy of: ask for it.
+    const missing = needsLatest(view);
+    useEffect(() => {
+        if (!missing || !target) {
+            return;
+        }
+        let cancelled = false;
+        fireAndForget(async () => {
+            try {
+                const latest = await companionCall<CompanionAnswer>(CompanionAnswerCommand, {
+                    blockid: target,
+                    index: 0,
+                });
+                if (!cancelled && latest != null) {
+                    setViewState((cur) =>
+                        cur?.latest?.elided && cur.latest.index === latest.index ? { ...cur, latest } : cur
+                    );
+                }
+            } catch {
+                // The next event or lease renewal brings it.
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [missing, target, view?.latest?.index, view?.latest?.rev]);
+    return { view, error, viewId, setView };
 }
 
 function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     const target = useAtomValue(model.targetAtom);
     const agentState = useBlockAgentState(target);
     const terminal = useAtomValueSafe(target ? getWaveObjectAtom<Block>(makeORef("block", target)) : null);
-    const { view, error, setView } = useCompanion(target);
+    const { view, error, viewId, setView } = useCompanion(target);
     const folder = (terminal?.meta?.["cmd:cwd"] as string) ?? "";
     if (!target) {
         return <Centered title="No terminal" detail="This companion is not attached to a terminal." />;
@@ -144,6 +196,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         return (
             <SessionPicker
                 target={target}
+                viewId={viewId}
                 candidates={view.candidates ?? []}
                 title={message.title}
                 detail={message.detail}
@@ -155,9 +208,15 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
             <SessionBar view={view} />
             <PermissionCard pending={view.pending} agentState={agentState?.state} />
-            <AnswerSection target={target} view={view} />
+            <AnswerSection key={view.session?.path} target={target} view={view} />
             <TodoSection todos={view.todos} />
-            <FilesSection target={target} companionId={model.blockId} files={view.files} folder={folder} />
+            <FilesSection
+                key={`files:${view.session?.path}`}
+                target={target}
+                companionId={model.blockId}
+                files={view.files}
+                folder={folder}
+            />
         </div>
     );
 }
@@ -173,12 +232,14 @@ function Centered({ title, detail }: { title: string; detail?: string }) {
 
 function SessionPicker({
     target,
+    viewId,
     candidates,
     title,
     detail,
     onPicked,
 }: {
     target: string;
+    viewId: string;
     candidates: CompanionCandidate[];
     title: string;
     detail: string;
@@ -188,7 +249,9 @@ function SessionPicker({
     const pick = (path: string) =>
         fireAndForget(async () => {
             try {
-                onPicked(await companionCall<CompanionView>(CompanionPickCommand, { blockid: target, path }));
+                onPicked(
+                    await companionCall<CompanionView>(CompanionPickCommand, { blockid: target, viewid: viewId, path })
+                );
             } catch (e) {
                 setError(String(e?.message ?? e));
             }

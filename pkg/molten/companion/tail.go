@@ -5,6 +5,7 @@ package companion
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 )
@@ -15,7 +16,7 @@ const (
 	tailFullReadMax = 64 * 1024 * 1024
 	tailStartBytes  = 32 * 1024 * 1024
 	// At most this much is read per poll, so a burst never blocks the follower for long.
-	tailChunkMax = 16 * 1024 * 1024
+	tailChunkMax = 2 * 1024 * 1024
 	// Longer records (a large tool result, an image) are skipped whole.
 	tailLineMax  = 8 * 1024 * 1024
 	tailReadSize = 256 * 1024
@@ -42,6 +43,10 @@ func openFollower(path string) (*follower, error) {
 }
 
 func (f *follower) open() error {
+	// The path was checked resolved; a file replaced by a link since then is not followed out of the session root.
+	if li, err := os.Lstat(f.path); err != nil || li.Mode()&os.ModeSymlink != 0 || !li.Mode().IsRegular() {
+		return fmt.Errorf("not a regular session transcript")
+	}
 	file, err := os.Open(f.path)
 	if err != nil {
 		return err
@@ -83,6 +88,10 @@ func (f *follower) poll(emit func(line []byte)) (reset bool, more bool, err erro
 	if size < f.offset {
 		f.offset, f.partial, f.skipping = 0, nil, false
 		reset = true
+	}
+	if reset {
+		// The caller starts a new session first: lines read now would go to the old one.
+		return true, size > 0, nil
 	}
 	if f.offset == 0 && size > tailFullReadMax {
 		f.offset = size - tailStartBytes

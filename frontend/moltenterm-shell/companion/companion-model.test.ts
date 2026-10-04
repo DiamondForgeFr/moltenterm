@@ -10,6 +10,7 @@ import {
     firstChangedLine,
     formatArgs,
     neighbourAnswer,
+    needsLatest,
     newerView,
     permissionRequest,
     statusMessage,
@@ -107,5 +108,24 @@ describe("companion model", () => {
         expect(out).toContain("&lt;picture>&lt;source");
         expect(out).toContain('```html\n<source src="a">\n```');
         expect(companionMarkdown(null)).toBe("");
+    });
+
+    it("tracks fences as CommonMark does, so a mismatched fence cannot let a tag through", () => {
+        const md = '~~~\n```\n~~~\n<picture><source srcset="https://x/y.png"></picture>\n<img>';
+        const out = companionMarkdown(md);
+        expect(out).toContain("&lt;picture>&lt;source");
+        expect(out).toContain("&lt;img>");
+        expect(companionMarkdown("````\n```\n<img>\n````\n<img>")).toBe("````\n```\n<img>\n````\n&lt;img>");
+    });
+
+    it("keeps its copy of an unchanged latest answer", () => {
+        const session = { path: "/s", linkedby: "hook" as const };
+        const full = view({ version: 1, session, latest: { index: 2, rev: 3, markdown: "hello" } });
+        const elided = view({ version: 2, session, latest: { index: 2, rev: 3, markdown: "", elided: true } });
+        const merged = newerView(full, elided);
+        expect(merged.latest.markdown).toBe("hello");
+        expect(needsLatest(merged)).toBe(false);
+        const changed = view({ version: 3, session, latest: { index: 2, rev: 4, markdown: "", elided: true } });
+        expect(needsLatest(newerView(merged, changed))).toBe(true);
     });
 });

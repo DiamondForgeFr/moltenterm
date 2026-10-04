@@ -38,7 +38,15 @@ export type CompanionToolCall = { id: string; tool: string; args?: string; at?: 
 
 export type CompanionAnswerInfo = { index: number; at?: number; preview: string };
 
-export type CompanionAnswer = { index: number; at?: number; markdown: string; latest?: boolean };
+// rev changes with the answer's text; an event leaves the markdown out (elided) when it did not change.
+export type CompanionAnswer = {
+    index: number;
+    rev?: number;
+    at?: number;
+    markdown: string;
+    latest?: boolean;
+    elided?: boolean;
+};
 
 export type CompanionFile = {
     path: string;
@@ -71,15 +79,34 @@ export type CompanionView = {
     pending?: CompanionToolCall[];
 };
 
-// A snapshot and the events race: the newest version wins.
+// A snapshot and the events race: the newest version wins. An event without the latest answer's markdown (unchanged)
+// keeps the copy the view has; when the view has no copy of that answer, the markdown stays empty and elided, and
+// the view asks for it (needsLatest).
 export function newerView(current: CompanionView, next: CompanionView): CompanionView {
     if (next == null) {
         return current;
     }
-    if (current == null || next.version >= current.version) {
-        return next;
+    if (current != null && next.version < current.version) {
+        return current;
     }
-    return current;
+    const latest = next.latest;
+    if (latest?.elided) {
+        const kept = current?.latest;
+        if (
+            kept != null &&
+            !kept.elided &&
+            kept.index === latest.index &&
+            kept.rev === latest.rev &&
+            current?.session?.path === next.session?.path
+        ) {
+            return { ...next, latest: { ...latest, markdown: kept.markdown, elided: false } };
+        }
+    }
+    return next;
+}
+
+export function needsLatest(view: CompanionView): boolean {
+    return view?.latest?.elided === true;
 }
 
 // The message a companion without a session shows, or null when the session shows.
@@ -234,25 +261,34 @@ export function relativeTime(at: number, now: number): string {
     return `${Math.round(h / 24)} d ago`;
 }
 
-const FenceRegex = /^\s{0,3}(```|~~~)/;
-const RemoteMediaTagRegex = /<(\/?)(picture|source)\b/gi;
+const FenceOpenRegex = /^ {0,3}(`{3,}(?=[^`]*$)|~{3,})/;
+const MediaTagRegex = /<(\/?)(picture|source|img|video|audio|iframe|object|embed)\b/gi;
 
-// Wave's markdown keeps <picture> and <source>, whose srcset a browser loads by itself: outside code blocks they are
-// shown as text, so an answer never makes the window reach the network. Images without a resolver already show as
-// text ([img:...]).
+// Wave's markdown keeps raw <picture>, <source> and <img>: a browser loads a srcset by itself, and an <img> without
+// a src breaks the markdown component. Outside fenced code blocks (CommonMark fences: a closing fence uses the
+// opening character, at least as many times) these tags are shown as text, so an answer never makes the window
+// reach the network. Inside fences they are code, already text.
 export function companionMarkdown(markdown: string): string {
     if (!markdown) {
         return "";
     }
-    let inFence = false;
+    let fence: string = null;
     return markdown
         .split("\n")
         .map((line) => {
-            if (FenceRegex.test(line)) {
-                inFence = !inFence;
+            if (fence != null) {
+                const close = new RegExp(`^ {0,3}${fence[0] === "`" ? "`" : "~"}{${fence.length},}\\s*$`);
+                if (close.test(line)) {
+                    fence = null;
+                }
                 return line;
             }
-            return inFence ? line : line.replace(RemoteMediaTagRegex, "&lt;$1$2");
+            const open = FenceOpenRegex.exec(line);
+            if (open != null) {
+                fence = open[1];
+                return line;
+            }
+            return line.replace(MediaTagRegex, "&lt;$1$2");
         })
         .join("\n");
 }

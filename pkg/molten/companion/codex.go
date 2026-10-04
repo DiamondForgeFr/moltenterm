@@ -224,7 +224,7 @@ func (a *CodexAdapter) parseItem(item map[string]any, s *Session, at int64) {
 	case "custom_tool_call":
 		s.AddToolCall(codexCallId(item), str(item, "name"), compactJSON(item["input"]), at)
 	case "local_shell_call":
-		s.AddToolCall(codexCallId(item), "shell", compactJSON(item["action"]), at)
+		s.AddToolCall(codexCallId(item), "shell", argsJSON(item["action"]), at)
 	case "function_call_output", "custom_tool_call_output":
 		s.ResolveTool(codexCallId(item))
 	}
@@ -263,7 +263,7 @@ func (a *CodexAdapter) parseEvent(ev map[string]any, s *Session, at int64) {
 	case "task_complete", "turn_complete", "turn_aborted":
 		s.EndTurn()
 	case "exec_approval_request":
-		s.MarkApproval(str(ev, "call_id"), "exec", compactJSON(ev["command"]), at)
+		s.MarkApproval(str(ev, "call_id"), "exec", argsJSON(ev["command"]), at)
 	case "apply_patch_approval_request":
 		s.MarkApproval(str(ev, "call_id"), "apply_patch", strings.Join(codexChangePaths(obj(ev, "changes")), "\n"), at)
 	case "exec_command_begin", "exec_command_end", "patch_apply_end":

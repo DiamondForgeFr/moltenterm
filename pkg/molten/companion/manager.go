@@ -4,9 +4,11 @@
 package companion
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"sync"
 	"time"
@@ -15,8 +17,8 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
-// The companion of a terminal block follows its agent's session while a view looks at it: the view opens it and
-// renews a lease; a follower nobody renews stops, and so does the one of a closed block.
+// The companion of a terminal block follows its agent's session while a view looks at it: each view opens it and
+// renews its own lease; a follower without a live lease stops, and so does the one of a closed block.
 
 // must match frontend/moltenterm-shell/companion/companion-model.ts
 const (
@@ -43,11 +45,20 @@ const (
 	rediscoverInterval = 3 * time.Second
 	blockInfoInterval  = 2 * time.Second
 	// A hook reports its session after the agent started; a report older than the run is a previous run's.
-	reportSlack  = 5 * time.Second
-	maxReports   = 1000
-	maxWatchers  = 64
-	maxCandidate = 10
+	reportSlack = 5 * time.Second
+	// A report for a block whose agent states know no run (no shell integration) holds this long.
+	reportUntracked = 24 * time.Hour
+	maxReports      = 1000
+	maxWatchers     = 16
+	maxLeases       = 8
+	maxCandidate    = 10
+	// Records larger than this are not decoded unless they may carry a file change: a tool's result only ends its
+	// call, read from its id.
+	largeRecordBytes = 1024 * 1024
 )
+
+var largeRecordMarkers = [][]byte{[]byte(`"structuredPatch"`), []byte(`"bashEditDiff"`), []byte(`"FileChange"`), []byte(`"patch_apply_begin"`)}
+var resultIdRegex = regexp.MustCompile(`"(?:tool_use_id|call_id)"\s*:\s*"([^"]{1,200})"`)
 
 type SessionInfo struct {
 	Path     string `json:"path"`
@@ -68,10 +79,11 @@ type CompanionView struct {
 	// Ended: the agent no longer runs; the view shows its last session.
 	Ended   bool         `json:"ended,omitempty"`
 	Answers []AnswerInfo `json:"answers,omitempty"`
-	Latest  *AnswerView  `json:"latest,omitempty"`
-	Files   []FileInfo   `json:"files,omitempty"`
-	Todos   []Todo       `json:"todos,omitempty"`
-	Pending []ToolCall   `json:"pending,omitempty"`
+	// Latest: in an event, its markdown is left out (Elided) when the answer did not change since the last event.
+	Latest  *AnswerView `json:"latest,omitempty"`
+	Files   []FileInfo  `json:"files,omitempty"`
+	Todos   []Todo      `json:"todos,omitempty"`
+	Pending []ToolCall  `json:"pending,omitempty"`
 }
 
 type blockInfo struct {
@@ -92,13 +104,18 @@ type sessionPick struct {
 	path    string
 }
 
+type sessionClaim struct {
+	blockId string
+	by      string
+}
+
 // Manager holds the followers of the blocks whose companion is open.
 type Manager struct {
 	lock     sync.Mutex
 	watchers map[string]*watcher
 	reports  map[string]sessionReport
 	picks    map[string]sessionPick
-	claims   map[string]string
+	claims   map[string]sessionClaim
 	version  int64
 
 	// Injected: the agent states, the object store, the event bus and the clock; replaced in tests.
@@ -116,7 +133,7 @@ func MakeManager() *Manager {
 		watchers:   map[string]*watcher{},
 		reports:    map[string]sessionReport{},
 		picks:      map[string]sessionPick{},
-		claims:     map[string]string{},
+		claims:     map[string]sessionClaim{},
 		adapterFor: AdapterFor,
 		now:        time.Now,
 		tick:       tickInterval,
@@ -130,43 +147,59 @@ func (m *Manager) nextVersion() int64 {
 	return m.version
 }
 
-// Open starts (or keeps) following a block and returns what is known now.
-func (m *Manager) Open(blockId string) (CompanionView, error) {
+// Open starts (or keeps) following a terminal block for one view and returns what is known now.
+func (m *Manager) Open(blockId string, viewId string) (CompanionView, error) {
 	if blockId == "" {
 		return CompanionView{}, fmt.Errorf("no block")
 	}
-	w, err := m.lease(blockId)
+	if m.blockInfo != nil {
+		if _, err := m.blockInfo(blockId); err != nil {
+			return CompanionView{}, err
+		}
+	}
+	w, err := m.lease(blockId, viewId)
 	if err != nil {
 		return CompanionView{}, err
 	}
-	return w.view(), nil
+	return w.view(false), nil
 }
 
-func (m *Manager) lease(blockId string) (*watcher, error) {
+func (m *Manager) lease(blockId string, viewId string) (*watcher, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
+	until := m.now().Add(leaseDuration)
 	w := m.watchers[blockId]
 	if w != nil {
-		w.leaseUntil = m.now().Add(leaseDuration)
+		if w.leases[viewId].IsZero() && len(w.leases) >= maxLeases {
+			return nil, fmt.Errorf("too many views of this companion")
+		}
+		w.leases[viewId] = until
 		return w, nil
 	}
 	if len(m.watchers) >= maxWatchers {
 		return nil, fmt.Errorf("too many companions open")
 	}
 	w = makeWatcher(m, blockId)
-	w.leaseUntil = m.now().Add(leaseDuration)
+	w.leases[viewId] = until
 	m.watchers[blockId] = w
 	go w.loop()
 	return w, nil
 }
 
+// leaseExpired drops the expired leases of a watcher; it tells whether the watcher must stop.
 func (m *Manager) leaseExpired(w *watcher) bool {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if m.watchers[w.blockId] != w {
 		return true
 	}
-	if m.now().Before(w.leaseUntil) {
+	now := m.now()
+	for id, until := range w.leases {
+		if !now.Before(until) {
+			delete(w.leases, id)
+		}
+	}
+	if len(w.leases) > 0 {
 		return false
 	}
 	delete(m.watchers, w.blockId)
@@ -174,11 +207,18 @@ func (m *Manager) leaseExpired(w *watcher) bool {
 	return true
 }
 
-// Close stops following a block (its view closed).
-func (m *Manager) Close(blockId string) {
+// Close ends one view's lease; the follower stops with its last view.
+func (m *Manager) Close(blockId string, viewId string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	m.stopLocked(blockId)
+	w := m.watchers[blockId]
+	if w == nil {
+		return
+	}
+	delete(w.leases, viewId)
+	if len(w.leases) == 0 {
+		m.stopLocked(blockId)
+	}
 }
 
 func (m *Manager) stopLocked(blockId string) {
@@ -201,35 +241,64 @@ func (m *Manager) ForgetBlock(blockId string) {
 }
 
 func (m *Manager) releaseClaimsLocked(blockId string) {
-	for path, owner := range m.claims {
-		if owner == blockId {
+	for path, c := range m.claims {
+		if c.blockId == blockId {
 			delete(m.claims, path)
 		}
 	}
 }
 
-// claim links a transcript to a block; it fails when another block's companion follows it.
-func (m *Manager) claim(blockId string, path string) bool {
+func (m *Manager) releaseClaims(blockId string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	if owner, ok := m.claims[path]; ok && owner != blockId {
-		return false
+	m.releaseClaimsLocked(blockId)
+}
+
+// claim links a transcript to a block. A link by discovery gives way to another block's hook report or pick; any
+// other link of another block keeps the transcript.
+func (m *Manager) claim(blockId string, path string, by string) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if c, ok := m.claims[path]; ok && c.blockId != blockId {
+		if c.by != LinkDiscovery || by == LinkDiscovery {
+			return false
+		}
 	}
 	m.releaseClaimsLocked(blockId)
-	m.claims[path] = blockId
+	m.claims[path] = sessionClaim{blockId: blockId, by: by}
 	return true
 }
 
+func (m *Manager) claimOwner(path string) string {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	return m.claims[path].blockId
+}
+
+// reportCurrentLocked tells whether a block's report still speaks for its agent: not older than the block's run.
+func (m *Manager) reportCurrentLocked(blockId string, r sessionReport) bool {
+	if m.runOf != nil {
+		if run, ok := m.runOf(blockId); ok {
+			return !r.at.Before(time.UnixMilli(run.Started).Add(-reportSlack))
+		}
+	}
+	return m.now().Sub(r.at) < reportUntracked
+}
+
 // takenByOther tells whether a transcript belongs to another block: followed by its companion, or reported by its
-// agent's hook.
+// agent's hook for its current run.
 func (m *Manager) takenByOther(blockId string, path string) bool {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	if owner, ok := m.claims[path]; ok && owner != blockId {
+	if c, ok := m.claims[path]; ok && c.blockId != blockId {
 		return true
 	}
+	return m.reportedByOtherLocked(blockId, path)
+}
+
+func (m *Manager) reportedByOtherLocked(blockId string, path string) bool {
 	for other, report := range m.reports {
-		if other != blockId && report.path == path {
+		if other != blockId && report.path == path && m.reportCurrentLocked(other, report) {
 			return true
 		}
 	}
@@ -240,6 +309,15 @@ func (m *Manager) takenByOther(blockId string, path string) bool {
 func (m *Manager) ReportSession(req molten.AgentSessionRequest) error {
 	if req.BlockId == "" {
 		return fmt.Errorf("molten agent session must run in a MoltenTerm terminal")
+	}
+	if m.blockInfo != nil {
+		info, err := m.blockInfo(req.BlockId)
+		if err != nil {
+			return err
+		}
+		if info.remote {
+			return fmt.Errorf("no companion for a remote terminal")
+		}
 	}
 	agent := req.Agent
 	if agent == "" && m.runOf != nil {
@@ -260,11 +338,28 @@ func (m *Manager) ReportSession(req molten.AgentSessionRequest) error {
 	}
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	if len(m.reports) >= maxReports {
-		m.reports = map[string]sessionReport{}
+	if m.reportedByOtherLocked(req.BlockId, path) {
+		return fmt.Errorf("this session belongs to another terminal")
+	}
+	if _, ok := m.reports[req.BlockId]; !ok && len(m.reports) >= maxReports {
+		m.evictOldestReportLocked()
 	}
 	m.reports[req.BlockId] = sessionReport{agent: agent, path: path, at: m.now()}
+	if w := m.watchers[req.BlockId]; w != nil {
+		w.poke()
+	}
 	return nil
+}
+
+func (m *Manager) evictOldestReportLocked() {
+	oldestId := ""
+	var oldest time.Time
+	for id, r := range m.reports {
+		if oldestId == "" || r.at.Before(oldest) {
+			oldestId, oldest = id, r.at
+		}
+	}
+	delete(m.reports, oldestId)
 }
 
 func (m *Manager) report(blockId string) (sessionReport, bool) {
@@ -275,8 +370,8 @@ func (m *Manager) report(blockId string) (sessionReport, bool) {
 }
 
 // Pick links the session the user chose in the picker.
-func (m *Manager) Pick(blockId string, path string) (CompanionView, error) {
-	w, err := m.lease(blockId)
+func (m *Manager) Pick(blockId string, viewId string, path string) (CompanionView, error) {
+	w, err := m.lease(blockId, viewId)
 	if err != nil {
 		return CompanionView{}, err
 	}
@@ -292,14 +387,14 @@ func (m *Manager) Pick(blockId string, path string) (CompanionView, error) {
 	if err != nil {
 		return CompanionView{}, err
 	}
-	if m.takenByOther(blockId, resolved) {
+	if m.takenByOther(blockId, resolved) || !m.claim(blockId, resolved, LinkPicked) {
 		return CompanionView{}, fmt.Errorf("this session belongs to another terminal")
 	}
 	m.lock.Lock()
 	m.picks[blockId] = sessionPick{agent: run.Agent, started: run.Started, path: resolved}
 	m.lock.Unlock()
 	w.poke()
-	return w.view(), nil
+	return w.view(false), nil
 }
 
 func (m *Manager) pick(blockId string) (sessionPick, bool) {
@@ -353,11 +448,12 @@ func (m *Manager) sameFolderRuns(agent string, cwd string) int {
 
 // watcher follows one block's agent session.
 type watcher struct {
-	m          *Manager
-	blockId    string
-	leaseUntil time.Time
-	stop       chan struct{}
-	wake       chan struct{}
+	m       *Manager
+	blockId string
+	// leases, by view; guarded by the manager's lock.
+	leases map[string]time.Time
+	stop   chan struct{}
+	wake   chan struct{}
 
 	lock sync.Mutex
 	// Guarded by lock: read by the commands while the loop updates them.
@@ -380,11 +476,16 @@ type watcher struct {
 	infoAt        time.Time
 	discoveredAt  time.Time
 	linkedStarted int64
+	// sawRun: the agent states knew this block's agent; a hook report alone then no longer makes a run.
+	sawRun        bool
 	published     string
+	latestIndex   int
+	latestRev     int64
+	latestStarted bool
 }
 
 func makeWatcher(m *Manager, blockId string) *watcher {
-	return &watcher{m: m, blockId: blockId, stop: make(chan struct{}), wake: make(chan struct{}, 1), status: StatusLoading}
+	return &watcher{m: m, blockId: blockId, leases: map[string]time.Time{}, stop: make(chan struct{}), wake: make(chan struct{}, 1), status: StatusLoading}
 }
 
 func (w *watcher) poke() {
@@ -442,12 +543,17 @@ func (w *watcher) setStatus(status string, message string) {
 	w.version++
 }
 
-// resolveRun returns the agent the block runs: the agent states', else the agent a hook reported a session for.
+// resolveRun returns the agent the block runs: the agent states', else (a terminal without shell integration) the
+// agent a hook reported a session for.
 func (w *watcher) resolveRun() (molten.AgentRunInfo, bool) {
 	if w.m.runOf != nil {
 		if run, ok := w.m.runOf(w.blockId); ok {
+			w.sawRun = true
 			return run, true
 		}
+	}
+	if w.sawRun {
+		return molten.AgentRunInfo{}, false
 	}
 	if report, ok := w.m.report(w.blockId); ok {
 		return molten.AgentRunInfo{BlockId: w.blockId, Agent: report.agent, Started: report.at.UnixMilli(), Running: true}, true
@@ -514,11 +620,9 @@ func (w *watcher) step() bool {
 func (w *watcher) noRun() {
 	w.lock.Lock()
 	hadSession := w.path != ""
-	if hadSession {
-		if !w.ended {
-			w.ended = true
-			w.version++
-		}
+	if hadSession && !w.ended {
+		w.ended = true
+		w.version++
 	}
 	w.lock.Unlock()
 	if hadSession {
@@ -533,6 +637,7 @@ func (w *watcher) noRun() {
 
 func (w *watcher) unlink() {
 	w.closeFollower()
+	w.m.releaseClaims(w.blockId)
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	w.path, w.linkedBy, w.session, w.candidates, w.ended = "", "", nil, nil, false
@@ -542,8 +647,12 @@ func (w *watcher) unlink() {
 }
 
 // link finds the session to follow, the most reliable source first: the agent hook's report, the user's pick, then
-// discovery. A link by discovery gives way to a report or a pick.
+// discovery. A link by discovery gives way to a report or a pick, this block's or another's.
 func (w *watcher) link(run molten.AgentRunInfo) {
+	if w.follower != nil && w.m.claimOwner(w.path) != w.blockId {
+		// Another terminal's hook or pick took the session discovery had linked here.
+		w.unlink()
+	}
 	if report, ok := w.m.report(w.blockId); ok && report.agent == run.Agent && !report.at.Before(time.UnixMilli(run.Started).Add(-reportSlack)) {
 		w.follow(report.path, LinkHook, 0)
 		return
@@ -573,14 +682,21 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 			free = append(free, c)
 		}
 	}
-	chosen, ambiguous := chooseCandidate(free, run.Started, w.m.sameFolderRuns(run.Agent, w.info.cwd))
+	runs := w.m.sameFolderRuns(run.Agent, w.info.cwd)
 	if w.follower != nil {
-		// Already linked by discovery: move only to a newer, unambiguous session of this run (a /clear).
-		if chosen != nil && !ambiguous && chosen.Path != w.path && chosen.Started > w.linkedStarted {
-			w.follow(chosen.Path, LinkDiscovery, chosen.Started)
+		// Already linked by discovery: move only to the one session started after the linked one (a /clear).
+		var newer []Candidate
+		for _, c := range free {
+			if c.Path != w.path && c.Started > w.linkedStarted {
+				newer = append(newer, c)
+			}
+		}
+		if len(newer) == 1 && runs <= 1 {
+			w.follow(newer[0].Path, LinkDiscovery, newer[0].Started)
 		}
 		return
 	}
+	chosen, ambiguous := chooseCandidate(free, run.Started, runs)
 	if chosen != nil && !ambiguous {
 		w.follow(chosen.Path, LinkDiscovery, chosen.Started)
 		return
@@ -606,8 +722,9 @@ func canonicalPath(path string) string {
 	return resolved
 }
 
-// chooseCandidate picks the session discovery may link without asking: the only one, or the only one started
-// after the agent, when no other pane runs the same agent in the same folder. Otherwise it is ambiguous.
+// chooseCandidate picks the session discovery may link without asking: the only one started after the agent, when
+// no other pane runs the same agent in the same folder. A session started before the agent (a resumed one, or
+// another program's) or of unknown start is never linked without the user: ambiguous.
 func chooseCandidate(free []Candidate, runStarted int64, runsInFolder int) (*Candidate, bool) {
 	if len(free) == 0 {
 		return nil, false
@@ -615,12 +732,9 @@ func chooseCandidate(free []Candidate, runStarted int64, runsInFolder int) (*Can
 	if runsInFolder > 1 {
 		return nil, true
 	}
-	if len(free) == 1 {
-		return &free[0], false
-	}
 	var after []Candidate
 	for _, c := range free {
-		if c.Started >= runStarted-startSlack.Milliseconds() {
+		if c.Started != 0 && c.Started >= runStarted-startSlack.Milliseconds() {
 			after = append(after, c)
 		}
 	}
@@ -661,14 +775,23 @@ func (w *watcher) follow(path string, linkedBy string, started int64) {
 	}
 	w.lock.Unlock()
 	if same {
+		w.m.claim(w.blockId, path, linkedBy)
 		return
 	}
-	if !w.m.claim(w.blockId, path) {
+	// Every path is checked again, discovered ones included: under the agent's session root, no symlink.
+	resolved, err := ValidateSessionPath(w.adapter, path)
+	if err != nil {
+		w.setStatus(StatusSearching, "The session transcript cannot be read: "+err.Error())
+		return
+	}
+	if !w.m.claim(w.blockId, resolved, linkedBy) {
+		w.setStatus(StatusSearching, "This session is followed by another terminal.")
 		return
 	}
 	w.closeFollower()
-	f, err := openFollower(path)
+	f, err := openFollower(resolved)
 	if err != nil {
+		w.m.releaseClaims(w.blockId)
 		w.setStatus(StatusSearching, "The session transcript could not be opened.")
 		return
 	}
@@ -676,32 +799,59 @@ func (w *watcher) follow(path string, linkedBy string, started int64) {
 	w.linkedStarted = started
 	w.lock.Lock()
 	defer w.lock.Unlock()
-	w.path, w.linkedBy, w.session, w.candidates = path, linkedBy, MakeSession(), nil
+	w.path, w.linkedBy, w.session, w.candidates = resolved, linkedBy, MakeSession(), nil
 	w.status, w.message = StatusLoading, ""
 	w.version++
 }
 
-// read parses what was appended to the transcript.
+// parseLine reads one record into the session. A very large record (a tool's whole output) is decoded only when it
+// may carry a file change; otherwise only the call it ends is read from it.
+func (w *watcher) parseLine(s *Session, line []byte) {
+	if len(line) > largeRecordBytes {
+		carries := false
+		for _, marker := range largeRecordMarkers {
+			if bytes.Contains(line, marker) {
+				carries = true
+				break
+			}
+		}
+		if !carries {
+			if m := resultIdRegex.FindSubmatch(line); m != nil {
+				s.ResolveTool(string(m[1]))
+			}
+			s.countLine(true, true)
+			return
+		}
+	}
+	var rec map[string]any
+	if json.Unmarshal(line, &rec) != nil {
+		s.countLine(false, false)
+		return
+	}
+	s.countLine(true, w.adapter.Parse(rec, s))
+}
+
+// read parses what was appended to the transcript. The lock is held per chunk (tailChunkMax), so the commands wait
+// at most one chunk's parsing.
 func (w *watcher) read() bool {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	reset, more, err := w.follower.poll(func(line []byte) {
-		var rec map[string]any
-		if json.Unmarshal(line, &rec) != nil {
-			w.session.countLine(false, false)
-			return
-		}
-		w.session.countLine(true, w.adapter.Parse(rec, w.session))
+		w.parseLine(w.session, line)
 	})
 	if reset {
-		// Replaced or truncated: read it again from the start.
+		// Replaced or truncated: read it again from the start, into a new session.
 		w.session = MakeSession()
 		w.version++
 		return true
 	}
 	if err != nil {
+		w.follower.close()
+		w.follower = nil
+		w.path = ""
 		w.status, w.message = StatusSearching, "The session transcript is no longer readable."
 		w.version++
+		w.m.releaseClaims(w.blockId)
 		return false
 	}
 	status, message := StatusLive, ""
@@ -738,10 +888,12 @@ func (w *watcher) publishIfChanged() {
 		return
 	}
 	w.published = key
-	w.m.publish(w.view())
+	w.m.publish(w.view(true))
 }
 
-func (w *watcher) view() CompanionView {
+// view builds what the companion shows. For an event (elide), the latest answer's markdown is left out when it did
+// not change since the previous event: the view keeps its copy (or asks for it when it missed one).
+func (w *watcher) view(elide bool) CompanionView {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	v := CompanionView{
@@ -765,6 +917,13 @@ func (w *watcher) view() CompanionView {
 	}
 	v.Answers = w.session.Answers()
 	if latest, ok := w.session.Answer(0); ok {
+		if elide {
+			if w.latestStarted && latest.Index == w.latestIndex && latest.Rev == w.latestRev {
+				latest.Markdown = ""
+				latest.Elided = true
+			}
+			w.latestStarted, w.latestIndex, w.latestRev = true, latest.Index, latest.Rev
+		}
 		v.Latest = &latest
 	}
 	v.Files = w.session.Files()

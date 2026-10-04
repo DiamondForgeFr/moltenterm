@@ -286,7 +286,7 @@ func (a *ClaudeAdapter) parseAssistant(rec map[string]any, s *Session, at int64)
 		case "tool_use":
 			name := str(block, "name")
 			input := obj(block, "input")
-			s.AddToolCall(str(block, "id"), name, compactJSON(input), at)
+			s.AddToolCall(str(block, "id"), name, argsJSON(input), at)
 			a.parseTasks(name, input, s)
 		}
 	}
