@@ -8,6 +8,15 @@
 
 export const MoltentermProductName = "MoltenTerm";
 export const MoltentermDevProductName = "MoltenTerm (Dev)";
+export const MoltentermGoldProductName = "MoltenTerm Gold";
+
+// The name the app shows (Dock, menu, About): a gold says it is the gold (#191), so it is told apart from a dev build.
+export function moltentermProductNameFor(channel: string, isDev: boolean): string {
+    if (isDev) {
+        return MoltentermDevProductName;
+    }
+    return channel === "gold" ? MoltentermGoldProductName : MoltentermProductName;
+}
 export const MoltentermWindowTitle = "MoltenTerm";
 export const MoltentermTagline = "The terminal that takes your shape.";
 export const MoltentermRepoUrl = "https://github.com/DiamondForgeFr/moltenterm";

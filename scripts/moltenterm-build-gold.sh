@@ -25,9 +25,10 @@ ARCH=$(uname -m)
 echo "▶ phase: build"
 task build:backend
 MOLTENTERM_BUILD_CHANNEL=gold MOLTENTERM_BUILD_ID=$BUILD_ID npm run build:prod
-# The gold has an icon of its own (scripts/moltenterm-gen-icons.mjs), so it is told apart from dev builds in the Dock.
+# The gold has an icon and a name of its own (scripts/moltenterm-gen-icons.mjs, #191), so it is told apart from dev
+# builds in the Dock and in Spotlight.
 CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder -c electron-builder.config.cjs -c.buildVersion="$BUILD_ID" \
-    -c.mac.icon=build/moltenterm/icon-gold.icns -p never --mac dir --"$ARCH"
+    -c.productName="MoltenTerm Gold" -c.mac.icon=build/moltenterm/icon-gold.icns -p never --mac dir --"$ARCH"
 
 APP_DIR=make/mac-$ARCH
 [ "$ARCH" = "x64" ] && APP_DIR=make/mac
@@ -35,3 +36,5 @@ APP_DIR=make/mac-$ARCH
 echo "▶ phase: deliver"
 APP=$(ls -d "$APP_DIR"/*.app | head -1)
 node scripts/moltenterm-gold-deliver.mjs --app "$APP" --build-id "$BUILD_ID"
+# The delivered copy is the gold; the one electron-builder left would be found by Spotlight as another MoltenTerm.
+rm -rf "$APP"

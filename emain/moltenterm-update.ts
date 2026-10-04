@@ -19,7 +19,9 @@ import {
     GoldApplyWhen,
     GoldAppName,
     GoldCheck,
+    GoldFolderName,
     GoldIdentifier,
+    goldInstallTarget,
     GoldMaxManifestBytes,
     GoldSwapStatus,
     MoltentermUpdateApplyChannel,
@@ -39,7 +41,7 @@ function goldDir(): string {
     if (process.env.MOLTENTERM_GOLD_DIR) {
         return process.env.MOLTENTERM_GOLD_DIR;
     }
-    return path.join(os.homedir(), "Library", "Application Support", "Moltenterm Local Builds", "gold");
+    return path.join(os.homedir(), "Library", "Application Support", "Moltenterm Local Builds", GoldFolderName);
 }
 
 function updateDir(): string {
@@ -109,9 +111,10 @@ export async function checkGoldUpdate(ownBuildId: number): Promise<GoldCheck> {
 }
 
 const SwapScript = `#!/bin/sh
-# Swaps the Moltenterm app bundle once the running app has quit (#64). Arguments: pid staged target reopen buildId
-# status.
-pid="$1"; staged="$2"; target="$3"; reopen="$4"; build="$5"; status="$6"
+# Swaps the Moltenterm app bundle once the running app has quit (#64). Arguments: pid staged installed target reopen
+# buildId status. target is where the new build goes: the installed app's place, renamed MoltenTerm Gold.app when it
+# still had the old name (#191).
+pid="$1"; staged="$2"; installed="$3"; target="$4"; reopen="$5"; build="$6"; status="$7"
 grace="\${MOLTENTERM_SWAP_GRACE:-${SwapGraceSeconds}}"
 # Tests start the binary directly so the reopened app keeps their isolated profile; users get a normal launch.
 reopen_app() {
@@ -129,12 +132,12 @@ while kill -0 "$pid" 2>/dev/null; do
     if [ "$i" -gt 240 ]; then echo "failed: MoltenTerm did not quit" > "$status"; exit 1; fi
     sleep 0.5
 done
-aside="$target.previous-$$"
-if ! mv "$target" "$aside"; then echo "failed: the installed app could not be moved aside" > "$status"; exit 1; fi
+aside="$installed.previous-$$"
+if ! mv "$installed" "$aside"; then echo "failed: the installed app could not be moved aside" > "$status"; exit 1; fi
 if ! mv "$staged" "$target"; then
-    mv "$aside" "$target"
+    mv "$aside" "$installed"
     echo "failed: the new build could not be put in place" > "$status"
-    [ "$reopen" = 1 ] && reopen_app "$target"
+    [ "$reopen" = 1 ] && reopen_app "$installed"
     exit 1
 fi
 xattr -dr com.apple.quarantine "$target" 2>/dev/null
@@ -150,13 +153,13 @@ if pgrep -f "$target/Contents/MacOS/" >/dev/null; then
     echo "installed $build" > "$status"
     exit 0
 fi
-mv "$target" "$target.did-not-stay-open-$$" && mv "$aside" "$target"
+mv "$target" "$target.did-not-stay-open-$$" && mv "$aside" "$installed"
 rm -rf "$target.did-not-stay-open-$$"
 echo "rolledback $build" > "$status"
-reopen_app "$target"
+reopen_app "$installed"
 `;
 
-type PendingSwap = { staged: string; target: string; buildId: number };
+type PendingSwap = { staged: string; installed: string; target: string; buildId: number };
 
 let pendingOnQuit: PendingSwap = null;
 
@@ -168,7 +171,16 @@ function startSwap(swap: PendingSwap, reopen: boolean) {
     const log = fs.openSync(path.join(dir, "swap.log"), "a");
     const child = spawn(
         "/bin/sh",
-        [script, String(process.pid), swap.staged, swap.target, reopen ? "1" : "0", String(swap.buildId), statusFile()],
+        [
+            script,
+            String(process.pid),
+            swap.staged,
+            swap.installed,
+            swap.target,
+            reopen ? "1" : "0",
+            String(swap.buildId),
+            statusFile(),
+        ],
         { detached: true, stdio: ["ignore", log, log] }
     );
     child.unref();
@@ -176,11 +188,11 @@ function startSwap(swap: PendingSwap, reopen: boolean) {
 }
 
 async function stage(buildId: number): Promise<PendingSwap> {
-    const target = appBundleOf(process.execPath);
-    if (target == null) {
+    const installed = appBundleOf(process.execPath);
+    if (installed == null) {
         throw new Error("MoltenTerm does not run from an app bundle");
     }
-    if (target.includes("/AppTranslocation/")) {
+    if (installed.includes("/AppTranslocation/")) {
         throw new Error("MoltenTerm runs from a translocated copy: move it to Applications first");
     }
     const source = path.join(goldDir(), GoldAppName);
@@ -197,7 +209,10 @@ async function stage(buildId: number): Promise<PendingSwap> {
     if (stagedProblem) {
         throw new Error(stagedProblem);
     }
-    return { staged, target, buildId };
+    // Never over another app already at the new name.
+    const renamed = goldInstallTarget(installed);
+    const target = renamed !== installed && fs.existsSync(renamed) ? installed : renamed;
+    return { staged, installed, target, buildId };
 }
 
 export async function applyGoldUpdate(buildId: number, when: GoldApplyWhen): Promise<GoldApplyResult> {

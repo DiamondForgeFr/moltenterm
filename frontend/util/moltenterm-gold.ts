@@ -10,6 +10,12 @@ export const GoldManifestSchema = 1;
 export const GoldAppName = "Moltenterm.app";
 export const GoldIdentifier = "fr.diamondforge.moltenterm";
 export const GoldMaxManifestBytes = 1 << 20;
+// The gold says it is the gold (#191): its bundle, Dock and menu name, so it is told apart from a dev build beside it.
+export const GoldBundleName = "MoltenTerm Gold.app";
+// The delivery folder is named so that Spotlight skips it: only the installed gold is found (#191). Golds installed
+// before read the old name, kept as a link to it.
+export const GoldFolderName = "gold.noindex";
+export const LegacyGoldFolderName = "gold";
 
 // must match the channels in emain/preload.ts
 export const MoltentermUpdateCheckChannel = "moltenterm-update-check";
@@ -84,6 +90,13 @@ export function parseSwapStatus(text: string): GoldSwapStatus {
 }
 
 // The .app bundle of a macOS executable path (…/Moltenterm.app/Contents/MacOS/Moltenterm), or null.
+// Where an update installs the gold: an installed gold still named as before (Moltenterm.app) becomes
+// MoltenTerm Gold.app, in the same folder; any other name the user gave it is kept.
+export function goldInstallTarget(installed: string): string {
+    const match = /^(.*\/)(moltenterm)\.app$/i.exec(installed ?? "");
+    return match ? match[1] + GoldBundleName : installed;
+}
+
 export function appBundleOf(execPath: string): string {
     const match = /^(.*\.app)\/Contents\/MacOS\/[^/]+$/.exec(execPath ?? "");
     return match ? match[1] : null;
