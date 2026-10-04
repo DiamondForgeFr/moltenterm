@@ -277,9 +277,11 @@ func TestPipelineFormatExampleIsValid(t *testing.T) {
 	}
 	dir := t.TempDir()
 	writeProjectFile(t, dir, ".molten/project.json", text[start+8:start+8+end])
-	for _, script := range []string{"scripts/build-local.sh", "scripts/release.sh", "scripts/promote.mjs", "scripts/verify.mjs", "src-tauri/Cargo.toml"} {
+	for _, script := range []string{"scripts/build-local.sh", "scripts/release.sh", "scripts/promote.mjs", "scripts/verify.mjs"} {
 		writeProjectFile(t, dir, script, "")
 	}
+	writeProjectFile(t, dir, "package.json", `{"name": "notulia", "version": "1.2.0"}`)
+	writeProjectFile(t, dir, "src-tauri/Cargo.toml", "[package]\nname = \"notulia\"\nversion = \"1.2.0\"\n\n[dependencies]\nserde = { version = \"1\" }\n")
 	report := ValidatePipeline(dir)
 	if !report.Valid || len(report.Warnings) != 0 {
 		t.Fatalf("the documented example must validate cleanly: %v %v", report.Errors, report.Warnings)
@@ -455,5 +457,29 @@ func TestEmbeddedClaudeCodeExample(t *testing.T) {
 	out, err := exec.Command("claude", "plugin", "validate", filepath.Join(dir, filepath.FromSlash(part))).CombinedOutput()
 	if err != nil {
 		t.Fatalf("claude plugin validate on the example: %v\n%s", err, out)
+	}
+}
+
+func TestPruneDocsKeepsOnlyThisVersion(t *testing.T) {
+	dataDir := t.TempDir()
+	old := DocsDir(dataDir, "0.14.5")
+	current := DocsDir(dataDir, "1.0.0-0")
+	for _, dir := range []string{old, current, DocsDir(dataDir, "")} {
+		if err := WriteDocs(dir); err != nil {
+			t.Fatal(err)
+		}
+	}
+	removed, err := PruneDocs(dataDir, current)
+	if err != nil || len(removed) != 2 {
+		t.Fatalf("removed %v, %v", removed, err)
+	}
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Errorf("%s is still there", old)
+	}
+	if _, err := os.Stat(current); err != nil {
+		t.Errorf("%s is gone: %v", current, err)
+	}
+	if _, err := PruneDocs(dataDir, filepath.Join(dataDir, "elsewhere")); err == nil {
+		t.Error("a folder outside molten/docs must be refused")
 	}
 }

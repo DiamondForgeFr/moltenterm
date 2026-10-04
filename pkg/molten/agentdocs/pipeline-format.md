@@ -13,7 +13,15 @@ commands (and every change to them) asks the user to trust them, and every relea
 {
     "schema": 1,
     "name": "Notulia",
-    "versions": { "tagprefix": "v", "notes": "releases/{tag}.md" },
+    "versions": {
+        "tagprefix": "v",
+        "notes": "releases/{tag}.md",
+        "firstpublic": "1.0.0",
+        "files": [
+            { "path": "package.json", "format": "json", "keys": [["version"]] },
+            { "path": "src-tauri/Cargo.toml", "format": "regex", "pattern": "(?m)^version = \"([^\"]+)\"" }
+        ]
+    },
     "ci": {
         "jobs": [
             { "name": "check", "title": "Checks", "lane": "web", "run": "bun run check" },
@@ -55,7 +63,7 @@ All fields are lowercase. Unknown fields are refused, so a typo does not go unno
 | `name` | yes | The project's name, as Mission Control shows it. |
 | `icon` | no | The project's own icon, relative to the project folder (svg, png, ico, jpg, webp or gif): offered first for the workspace, the status bar and Mission Control, before any icon MoltenTerm would guess. Use the square app icon, not a wide logo. |
 | `branches` | no | `{ "trunk": "develop", "release": "main" }`: where work is merged, and where releases are cut. Leave it out when `.saasfoundry.json` declares them; without either, MoltenTerm uses `develop` then `main`. |
-| `versions` | no | `tagprefix` (default `v`): the release tags start with it, and only those are read as releases (a release candidate has a `-N` suffix after it, e.g. `release-1.2.0-3`). `notes`: where a version's release notes are, with `{tag}` (default `releases/{tag}.md`); internal notes sit beside them (`releases/{tag}.internal.md`). |
+| `versions` | no | `tagprefix` (default `v`): the release tags start with it, and only those are read as releases: `X.Y.Z` for a public release, `X.Y.Z-N` (N from 1) for a release candidate, e.g. `release-1.2.0-3`; any other form is not a release. `notes`: where a version's release notes are, with `{tag}` (default `releases/{tag}.md`); internal notes sit beside them (`releases/{tag}.internal.md`). `firstpublic` (`X.Y.Z`): the number proposed for the first public release, which is a choice, not a calculation (default: the version the release candidates lead to, else `1.0.0`); tags below its first candidate are not the project's releases (a fork's upstream tags). `files`: the files that carry the version, the first one holding the project's current version; each is `{ "path", "format": "json", "keys": [["version"], ["packages", "", "version"]] }` (each key path names a string; the empty key is a key) or `{ "path", "format": "regex", "pattern" }` (exactly one capture group, matching exactly once). After the last public release, the next number is read from the conventional commits since it: a breaking change (`feat!:` or `BREAKING CHANGE:`) makes a major release, a `feat` a minor one, anything else a user sees a patch; only `chore`, `ci`, `docs`, `test`, `style`, `build` or `refactor` commits justify no release unless a version is given explicitly. |
 | `ci.jobs` | no | The local CI: each job has a `name` (id), a `title`, a `lane` and a command. Jobs of the same lane run in order (a failed job stops the rest of its lane); lanes run side by side. MoltenTerm runs them in a worktree of its own and keeps each job's verdict per code tree: a run reruns only what is not green yet. |
 | `ci.prepare` | no | A command run once in the CI worktree before the jobs, e.g. `bun install --frozen-lockfile`. |
 | `ci.statuses` | no | `"github"`: each job's verdict is published as the commit status `local-<job>` through the user's `gh`, so pull requests show it. A pre-push hook can call `wsh molten ci status` (exit 0 green, 1 red, 2 not run yet) to warn before pushing. |

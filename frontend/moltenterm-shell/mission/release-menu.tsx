@@ -19,7 +19,7 @@ import {
     ReleaseSession,
 } from "./release-model";
 import { TrustPrompt } from "./runs-view";
-import { releaseState } from "./versions";
+import { releaseState, treeRules } from "./versions";
 
 export function ReleaseMenu({
     dir,
@@ -67,11 +67,12 @@ export function ReleaseMenu({
                     return;
                 }
                 const tree = toTreeData(snap.git);
-                const state = releaseState(tree.tags, snap.git.ahead ?? [], snap.git.sincepublic ?? [], tree.tagPrefix);
+                const rules = treeRules(tree);
+                const state = releaseState(tree.tags, snap.git.ahead ?? [], snap.git.sincepublic ?? [], rules);
                 const next = releasePlan(
                     state,
                     tree.tags.map((t) => t.name),
-                    tree.tagPrefix
+                    rules
                 );
                 setPlan(next);
                 setVersion(next.publicVersion ?? "");

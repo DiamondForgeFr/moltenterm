@@ -1133,6 +1133,9 @@ func moltenDocsRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if _, pruneErr := molten.PruneDocs(dataDir, dir); pruneErr != nil {
+		WriteStderr("molten: could not remove the docs of other versions: %v\n", pruneErr)
+	}
 	if moltenJson {
 		return moltenWriteJson(map[string]any{"path": dir, "version": wavebase.WaveVersion})
 	}
@@ -1287,6 +1290,7 @@ var moltenBuiltinHelp = [][2]string{
 	{"bug search <words>", "find MoltenTerm issues about a bug, open and fixed, with what to do"},
 	{"bug report --title … --what …", "prepare a MoltenTerm bug report; --yes files it once you approved"},
 	{"bug comment <issue> --what …", "add your case to an existing MoltenTerm issue; --yes posts it"},
+	{"version", "the MoltenTerm version and the Wave Terminal release it is based on (also --version)"},
 	{"help", "this list"},
 	{"<command> [args...]", "run a command provided by an enabled mod"},
 }
@@ -1320,6 +1324,7 @@ type moltenRunOptions struct {
 	Json       bool
 	TimeoutSec int
 	Help       bool
+	Version    bool
 	Command    string
 	Args       []string
 }
@@ -1334,6 +1339,8 @@ func moltenParseRunOptions(args []string) (moltenRunOptions, error) {
 			opts.Json = true
 		case arg == "-h" || arg == "--help":
 			opts.Help = true
+		case arg == "--version":
+			opts.Version = true
 		case arg == "--timeout" || strings.HasPrefix(arg, "--timeout="):
 			value := strings.TrimPrefix(arg, "--timeout=")
 			if arg == "--timeout" {
@@ -1365,6 +1372,16 @@ func moltenRootRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		moltenReportError(err)
 		return nil
+	}
+	// Answered without the app: the version is the binary's own.
+	if opts.Version {
+		if err := moltenVersionRun(); err != nil {
+			moltenReportError(err)
+		}
+		return nil
+	}
+	if opts.Command == moltenVersionCmd.Name() && !opts.Help {
+		return moltenRunSubcommand(opts)
 	}
 	err = preRunSetupRpcClient(cmd, args)
 	if err != nil {

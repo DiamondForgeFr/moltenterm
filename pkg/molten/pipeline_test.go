@@ -170,3 +170,65 @@ func TestValidatePipelineIcon(t *testing.T) {
 		}
 	}
 }
+
+// MoltenTerm's own pipeline: valid, and its version files agree.
+func TestOwnPipelineIsValid(t *testing.T) {
+	report := ValidatePipeline("../..")
+	if !report.Valid || len(report.Warnings) != 0 {
+		t.Fatalf("errors %v, warnings %v", report.Errors, report.Warnings)
+	}
+	if v := report.Pipeline.Versions; v == nil || v.FirstPublic == "" || len(v.Files) == 0 {
+		t.Fatalf("versions: %+v", v)
+	}
+}
+
+func TestValidatePipelineVersions(t *testing.T) {
+	report := validateWith(t, map[string]string{
+		".molten/project.json": `{
+		  "schema": 1, "name": "x",
+		  "versions": {"tagprefix": "v", "firstpublic": "1.0.0", "files": [
+		    {"path": "package.json", "format": "json", "keys": [["version"]]},
+		    {"path": "package-lock.json", "format": "json", "keys": [["version"], ["packages", "", "version"]]},
+		    {"path": "Cargo.toml", "format": "regex", "pattern": "(?m)^version = \"([^\"]+)\""}
+		  ]},
+		  "ci": {"jobs": [{"name": "a", "run": "true"}]}
+		}`,
+		"package.json":      `{"version": "1.0.0-0"}`,
+		"package-lock.json": `{"version": "1.0.0-0", "packages": {"": {"version": "1.0.0-0"}}}`,
+		"Cargo.toml":        "version = \"0.9.0\"\n",
+	})
+	if !report.Valid {
+		t.Fatalf("errors: %v", report.Errors)
+	}
+	if !hasMessage(report.Warnings, "versions.files[2] (Cargo.toml): says 0.9.0 while the project's version is 1.0.0-0") {
+		t.Errorf("warnings: %v", report.Warnings)
+	}
+	if got := report.Pipeline.Versions.Files[1].Keys[1]; len(got) != 3 || got[1] != "" {
+		t.Errorf("empty key lost: %q", got)
+	}
+
+	report = validateWith(t, map[string]string{
+		".molten/project.json": `{
+		  "schema": 1, "name": "x",
+		  "versions": {"firstpublic": "1.0", "files": [
+		    {"path": "package.json", "format": "json", "keys": [["nope"]]},
+		    {"path": "../outside.json", "format": "json", "keys": [["version"]]},
+		    {"path": "missing.json", "format": "json", "keys": [["version"]]},
+		    {"path": "package.json", "format": "yaml"}
+		  ]},
+		  "ci": {"jobs": [{"name": "a", "run": "true"}]}
+		}`,
+		"package.json": `{"version": "1.0.0-0"}`,
+	})
+	for _, want := range []string{
+		`versions.firstpublic must be a public version, X.Y.Z (got "1.0")`,
+		`versions.files[0] (package.json): package.json: ["nope"] is missing`,
+		`versions.files[1]: path "../outside.json" must be a file of the project`,
+		"versions.files[2] (missing.json)",
+		`versions.files[3] (package.json): package.json: format must be "json" or "regex"`,
+	} {
+		if !hasMessage(report.Errors, want) {
+			t.Errorf("missing error %q in %v", want, report.Errors)
+		}
+	}
+}

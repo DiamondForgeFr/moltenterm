@@ -10,12 +10,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
 
 // A release launched from the Timeline (FR-MC-015), as in Notulia: the session records which release is on its way,
@@ -36,8 +36,6 @@ const (
 
 	releaseGitTimeout = 15 * time.Second
 )
-
-var releaseVersionRegex = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([1-9]\d*))?$`)
 
 type ReleaseSession struct {
 	Tag       string `json:"tag"`
@@ -142,15 +140,18 @@ func (r *Runs) StopFollowing(dir string, tag string) error {
 
 // releaseVersion reads a release tag: its version without the prefix, and whether it is a release candidate.
 func releaseVersion(p *molten.Pipeline, tag string) (string, bool, error) {
-	prefix := "v"
-	if p.Versions != nil && p.Versions.TagPrefix != "" {
-		prefix = p.Versions.TagPrefix
+	rules := versions.Rules{TagPrefix: versions.DefaultTagPrefix}
+	if p.Versions != nil {
+		rules.FirstPublic = p.Versions.FirstPublic
+		if p.Versions.TagPrefix != "" {
+			rules.TagPrefix = p.Versions.TagPrefix
+		}
 	}
-	m := releaseVersionRegex.FindStringSubmatch(strings.TrimPrefix(tag, prefix))
-	if !strings.HasPrefix(tag, prefix) || m == nil {
-		return "", false, fmt.Errorf("%q is not a release tag (%sX.Y.Z or %sX.Y.Z-N)", tag, prefix, prefix)
+	v, ok := rules.ReleaseOf(tag)
+	if !ok || strings.TrimSpace(tag) != tag {
+		return "", false, fmt.Errorf("%q is not a release tag (%sX.Y.Z or %sX.Y.Z-N)", tag, rules.TagPrefix, rules.TagPrefix)
 	}
-	return m[1] + "." + m[2] + "." + m[3], m[4] != "", nil
+	return v.Base().String(), v.IsRc(), nil
 }
 
 func shellQuote(s string) string {

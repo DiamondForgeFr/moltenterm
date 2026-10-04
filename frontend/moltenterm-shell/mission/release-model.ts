@@ -5,9 +5,9 @@
 // next version, and the next public release, derived from the tags and the commits, or asked for when it is a choice.
 // Kept apart from the component so the rules can be tested without the app.
 
+import { DefaultTagPrefix, nextRc, parseBase, planRelease, tagOf, VersionRules } from "../releases/versions";
 import { PipelineReleaseStep } from "./mission-model";
-import { DefaultTagPrefix } from "./tree";
-import { nextRc, parseVersion, ReleaseState } from "./versions";
+import { ReleaseState } from "./versions";
 
 // must match the channels in pkg/molten/mission/release.go
 export type ReleaseChannel = "rc" | "public";
@@ -23,33 +23,26 @@ export type ReleasePlan = {
     reason: string;
     // The project's tag prefix (versions.tagprefix).
     prefix: string;
+    // The rules and tags an explicit version is checked against.
+    rules: VersionRules;
+    tags: readonly string[];
 };
 
-export function isBaseVersion(version: string): boolean {
-    try {
-        parseVersion(version);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-export function releasePlan(
-    state: ReleaseState,
-    tagNames: readonly string[],
-    prefix: string = DefaultTagPrefix
-): ReleasePlan {
-    const base = state?.next?.version ?? null;
+export function releasePlan(state: ReleaseState, tagNames: readonly string[], rules: VersionRules = {}): ReleasePlan {
+    const base = parseBase(state?.next?.version ?? "");
     return {
-        rc: base ? `${prefix}${base}-${nextRc(base, tagNames, prefix)}` : null,
-        publicVersion: base,
+        rc: base ? tagOf(rules, { ...base, rc: nextRc(rules, base, tagNames) }) : null,
+        publicVersion: state?.next?.version ?? null,
         publicIsDecision: state?.next?.how === "decision",
         reason: state?.next?.reason ?? "",
-        prefix,
+        prefix: rules.tagprefix || DefaultTagPrefix,
+        rules,
+        tags: tagNames,
     };
 }
 
-// The tag a choice starts; null while the choice is incomplete.
+// The tag a choice starts; null while the choice is incomplete, or when the number typed for the first public
+// release is not one the project can release (below versions.firstpublic, or already tagged).
 export function releaseChoiceTag(plan: ReleasePlan, choice: ReleaseChannel, version: string): string {
     if (plan == null) {
         return null;
@@ -57,10 +50,11 @@ export function releaseChoiceTag(plan: ReleasePlan, choice: ReleaseChannel, vers
     if (choice === "rc") {
         return plan.rc;
     }
-    if (choice === "public" && isBaseVersion(version)) {
-        return `${plan.prefix}${version}`;
+    if (choice !== "public" || !version) {
+        return null;
     }
-    return null;
+    const chosen = planRelease(plan.rules, plan.tags, [], "public", version);
+    return chosen.how === "refused" ? null : chosen.tag;
 }
 
 // The steps that start with the release: the "prepare" phase, or the first step when no phase is declared.

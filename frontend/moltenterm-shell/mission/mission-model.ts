@@ -29,6 +29,7 @@ export type MissionGit = {
     sincepublic: RawCommit[];
     fetcherror?: string;
     tagprefix?: string;
+    firstpublic?: string;
 };
 
 // must match the states in pkg/molten/mission/github.go
@@ -64,7 +65,12 @@ export type PipelineDef = {
     schema: number;
     name: string;
     branches?: { trunk?: string; release?: string };
-    versions?: { tagprefix?: string; notes?: string };
+    versions?: {
+        tagprefix?: string;
+        notes?: string;
+        firstpublic?: string;
+        files?: { path: string; format: "json" | "regex"; keys?: string[][]; pattern?: string }[];
+    };
     ci?: {
         jobs: (PipelineCommand & { name: string; title?: string; lane?: string })[];
         prepare?: PipelineCommand;
@@ -115,6 +121,7 @@ export function toTreeData(git: MissionGit): TreeData {
         trunk: git.trunk,
         release: git.release,
         tagPrefix: git.tagprefix || DefaultTagPrefix,
+        firstPublic: git.firstpublic || "",
         branches: (git.branches ?? []).map((b) => ({ ...b, commits: b.commits ?? [], fork: b.fork ?? null })),
         tags: (git.tags ?? []).map((t) => ({
             name: t.name,

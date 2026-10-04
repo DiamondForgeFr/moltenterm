@@ -46,6 +46,52 @@ func TestTagPrefixAndNotesFollowThePipeline(t *testing.T) {
 	}
 }
 
+func TestLastPublicSkipsUpstreamTagsAndSortsBySemver(t *testing.T) {
+	dir := t.TempDir()
+	gitIn(t, dir, "init", "-q", "-b", "develop")
+	os.MkdirAll(filepath.Join(dir, ".molten"), 0755)
+	os.WriteFile(filepath.Join(dir, ".molten", "project.json"), []byte(`{"schema":1,"name":"P",
+		"versions":{"firstpublic":"1.0.0"}}`), 0644)
+	commitFile(t, dir, "a.txt", "a\n", "feat(#1): first")
+	gitIn(t, dir, "tag", "v0.14.5")
+	snap, err := CollectGit(context.Background(), plainRunner, dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.LastPublic != "" || snap.FirstPublic != "1.0.0" {
+		t.Fatalf("Wave's v0.14.5 is not a release of this project: last %q first %q", snap.LastPublic, snap.FirstPublic)
+	}
+	for _, tag := range []string{"v1.9.0", "v1.10.0", "v1.10.0-3", "v1.11.0-1", "v1.10.01"} {
+		gitIn(t, dir, "tag", tag)
+	}
+	snap, err = CollectGit(context.Background(), plainRunner, dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.LastPublic != "v1.10.0" {
+		t.Fatalf("last public: %q", snap.LastPublic)
+	}
+}
+
+func TestReleaseVersionFollowsTheRules(t *testing.T) {
+	p := &molten.Pipeline{Versions: &molten.PipelineVersions{FirstPublic: "1.0.0"}}
+	for tag, want := range map[string]string{"v1.0.0-1": "1.0.0 rc", "v1.2.0": "1.2.0 public"} {
+		version, isRc, err := releaseVersion(p, tag)
+		got := version + " public"
+		if isRc {
+			got = version + " rc"
+		}
+		if err != nil || got != want {
+			t.Errorf("%s: %q, %v", tag, got, err)
+		}
+	}
+	for _, tag := range []string{"v0.15.0", "v1.0.0-0", " v1.0.0", "v1.0.0-rc.1"} {
+		if _, _, err := releaseVersion(p, tag); err == nil {
+			t.Errorf("%q must be refused", tag)
+		}
+	}
+}
+
 func TestBranchIsExpandedForEachKind(t *testing.T) {
 	if got := expandCommand("deploy {branch} {tag} {version} {other}", CommandVars{Version: "1.2.0", Tag: "v1.2.0", Branch: "develop"}); got != "deploy develop v1.2.0 1.2.0 {other}" {
 		t.Fatalf("expand: %q", got)

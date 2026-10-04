@@ -2,6 +2,15 @@
     "schema": 1,
     "name": "MoltenTerm",
     "icon": "build/moltenterm/icon.svg",
+    "versions": {
+        "tagprefix": "v",
+        "notes": "releases/{tag}.md",
+        "firstpublic": "1.0.0",
+        "files": [
+            { "path": "package.json", "format": "json", "keys": [["version"]] },
+            { "path": "package-lock.json", "format": "json", "keys": [["version"], ["packages", "", "version"]] }
+        ]
+    },
     "ci": {
         "prepare": { "run": "npm install --no-audit --no-fund" },
         "jobs": [
