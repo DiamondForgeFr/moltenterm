@@ -162,3 +162,27 @@ func TestResumedSessionLinked(t *testing.T) {
 		}
 	}
 }
+
+// A new agent has no session file before its first prompt: another program's session of the folder, written just now,
+// is not taken for a resumed one while the agent is young.
+func TestFreshAgentDoesNotTakeAnotherProgramsSession(t *testing.T) {
+	root := t.TempDir()
+	cwd := t.TempDir()
+	dir := filepath.Join(root, ClaudeSlug(cwd))
+	os.MkdirAll(dir, 0o700)
+	old := time.Now().Add(-48 * time.Hour).UTC().Format(time.RFC3339Nano)
+	line := fmt.Sprintf(`{"type":"user","cwd":%q,"sessionId":"s","timestamp":%q,"message":{"role":"user","content":"ide"}}`+"\n", cwd, old)
+	os.WriteFile(filepath.Join(dir, "ide.jsonl"), []byte(line), 0o600)
+	env := &fakeEnv{
+		runs:  map[string]molten.AgentRunInfo{"b1": {BlockId: "b1", Agent: "claude", Started: time.Now().Add(-time.Second).UnixMilli(), Running: true}},
+		cwds:  map[string]string{"b1": cwd},
+		views: map[string]CompanionView{},
+	}
+	m := makeTestManager(env, root)
+	defer m.Close("b1", "v")
+	m.Open("b1", "v")
+	v := waitView(t, env, "b1", func(v CompanionView) bool { return v.Status == StatusChoose })
+	if v.Session != nil {
+		t.Errorf("linked another program's session: %+v", v.Session)
+	}
+}

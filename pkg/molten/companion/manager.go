@@ -48,6 +48,9 @@ const (
 	reportSlack = 5 * time.Second
 	// A report for a block whose agent states know no run (no shell integration) holds this long.
 	reportUntracked = 24 * time.Hour
+	// A new agent writes its own session only at its first prompt: until then, another program's session of the
+	// folder (an IDE's) would pass for a resumed one. The resumed-session rule waits this long after the agent started.
+	resumeGrace = 15 * time.Second
 	maxReports      = 1000
 	maxWatchers     = 16
 	maxLeases       = 8
@@ -699,6 +702,9 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 			w.follow(newer[0].Path, LinkDiscovery, newer[0].Started)
 		}
 		return
+	}
+	if now.Sub(time.UnixMilli(run.Started)) < resumeGrace {
+		written = 0
 	}
 	chosen, ambiguous := chooseCandidate(free, written, run.Started, runs)
 	if chosen != nil && !ambiguous {

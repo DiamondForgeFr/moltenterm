@@ -135,6 +135,21 @@ func (t *Table) Foreground(root int32) []*Proc {
 	return rtn
 }
 
+// Under tells whether pid is root or one of its descendants (within MaxDepth levels).
+func (t *Table) Under(pid int32, root int32) bool {
+	for i := 0; i <= MaxDepth; i++ {
+		if pid == root {
+			return true
+		}
+		p := t.Get(pid)
+		if p == nil || p.Ppid == pid {
+			return false
+		}
+		pid = p.Ppid
+	}
+	return false
+}
+
 // Running tells whether root's terminal runs a command: its foreground group is not root's own. Unknown (no
 // terminal) counts as running.
 func (t *Table) Running(root int32) bool {

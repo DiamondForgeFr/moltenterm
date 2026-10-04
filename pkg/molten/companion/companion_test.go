@@ -493,7 +493,7 @@ func TestUnsupportedFile(t *testing.T) {
 	dir := filepath.Join(root, ClaudeSlug(cwd))
 	os.MkdirAll(dir, 0o700)
 	env := &fakeEnv{
-		runs:  map[string]molten.AgentRunInfo{"b1": {BlockId: "b1", Agent: "claude", Started: time.Now().Add(-time.Second).UnixMilli(), Running: true}},
+		runs:  map[string]molten.AgentRunInfo{"b1": {BlockId: "b1", Agent: "claude", Started: time.Now().Add(-time.Minute).UnixMilli(), Running: true}},
 		cwds:  map[string]string{"b1": cwd},
 		views: map[string]CompanionView{},
 	}
