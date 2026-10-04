@@ -20,6 +20,7 @@ import { computeBgStyleFromMeta } from "@/util/waveutil";
 import clsx from "clsx";
 import * as jotai from "jotai";
 import * as React from "react";
+import { useBlockAgentState } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#112)
 import { BlockEnv } from "./blockenv";
 import { BlockFrameProps } from "./blocktypes";
 
@@ -118,6 +119,7 @@ const BlockFrame_Default_Component = (props: BlockFrameProps) => {
     const connName = jotai.useAtomValue(waveEnv.getBlockMetaKeyAtom(nodeModel.blockId, "connection"));
     const iconColor = jotai.useAtomValue(waveEnv.getBlockMetaKeyAtom(nodeModel.blockId, "icon:color"));
     const noHeader = util.useAtomValueSafe(viewModel?.noHeader);
+    const agentState = useBlockAgentState(preview ? null : nodeModel.blockId); // MOLTENTERM-PATCH (#112)
 
     React.useEffect(() => {
         if (!manageConnection) {
@@ -175,6 +177,7 @@ const BlockFrame_Default_Component = (props: BlockFrameProps) => {
                 magnified: isMagnified,
             })}
             data-blockid={nodeModel.blockId}
+            data-mt-agent-state={agentState?.state} // MOLTENTERM-PATCH (#112): heat states (moltenterm-shell.css)
             onClick={blockModel?.onClick}
             onPointerEnter={blockModel?.onPointerEnter}
             onFocusCapture={blockModel?.onFocusCapture}
