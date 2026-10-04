@@ -1,6 +1,8 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { loadPlexSansFont } from "../moltenterm-shell/fonts"; // MOLTENTERM-PATCH (#130)
+
 let isJetBrainsMonoLoaded = false;
 let isHackFontLoaded = false;
 let isHackNerdFontLoaded = false;
@@ -81,6 +83,7 @@ function loadInterFont() {
 }
 
 function loadFonts() {
+    loadPlexSansFont(); // MOLTENTERM-PATCH (#130): the interface typeface; Inter stays loaded and selectable
     loadInterFont();
     loadJetBrainsMonoFont();
     loadHackNerdFont();
