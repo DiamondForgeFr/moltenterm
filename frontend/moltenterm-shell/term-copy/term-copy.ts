@@ -347,7 +347,13 @@ export function sendTextToTerm(text: string, blockId: string): void {
     if (target?.terminal == null) {
         return;
     }
-    target.terminal.paste(text);
+    if (target.terminal.modes.bracketedPasteMode || !text.includes("\n")) {
+        target.terminal.paste(text);
+    } else {
+        // A shell still starting has not asked for bracketed paste yet, and each line would run as a command;
+        // zsh and bash (readline 8.1) recognise the markers anyway.
+        target.sendDataHandler?.("\x1b[200~" + text.replace(/\r?\n/g, "\r") + "\x1b[201~");
+    }
     const node = getLayoutModelForStaticTab()?.getNodeByBlockId(blockId);
     if (node != null) {
         getLayoutModelForStaticTab().focusNode(node.id);

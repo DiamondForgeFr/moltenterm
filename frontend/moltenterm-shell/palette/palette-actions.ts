@@ -13,6 +13,7 @@ import {
     replaceBlock,
 } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { Atom } from "jotai";
 import { PaletteRun } from "./palette-model";
@@ -76,6 +77,14 @@ export function typeCommandWhenReady(blockId: string, command: string): Promise<
     });
 }
 
+function focusBlock(blockId: string) {
+    const layoutModel = getLayoutModelForStaticTab();
+    const node = blockId ? layoutModel?.getNodeByBlockId(blockId) : null;
+    if (node != null) {
+        layoutModel.focusNode(node.id);
+    }
+}
+
 function openSettings() {
     fireAndForget(() => createBlock({ meta: { view: "waveconfig" } }, false, true));
 }
@@ -104,6 +113,9 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             return;
         case "settings":
             openSettings();
+            return;
+        case "focusorigin":
+            focusBlock(target.blockId);
             return;
     }
 }

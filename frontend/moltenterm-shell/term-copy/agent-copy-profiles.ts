@@ -7,6 +7,10 @@
 
 export type AgentCopyProfile = {
     id: string;
+    name: string;
+    // The agent's own command that copies its last answer to the clipboard through OSC 52 (termwrap.ts handles it);
+    // the palette mentions it.
+    copyCommand?: string;
     // Glyphs an agent puts in front of a block of output (a message, a tool call, its result). At the start of a line,
     // followed by a space or the end of the line, they are UI, not text.
     gutters: string[];
@@ -25,6 +29,7 @@ const CommonFrames = ["─", "━", "│", "┃", "╭", "╮", "╰", "╯", "�
 
 export const GenericCopyProfile: AgentCopyProfile = {
     id: "",
+    name: "",
     gutters: [],
     frames: [],
     rightMargin: 0,
@@ -34,6 +39,8 @@ export const GenericCopyProfile: AgentCopyProfile = {
 export const AgentCopyProfiles: AgentCopyProfile[] = [
     {
         id: "claude",
+        name: "Claude Code",
+        copyCommand: "/copy",
         // ⏺/● start a message or a tool call, ⎿ its result; ✻ ✶ ✳ ✢ · are the spinner of a running turn.
         gutters: ["⏺", "●", "⎿", "✻", "✶", "✳", "✢", "✽"],
         frames: CommonFrames,
@@ -42,6 +49,7 @@ export const AgentCopyProfiles: AgentCopyProfile[] = [
     },
     {
         id: "codex",
+        name: "Codex",
         // • starts a message or a command, └ its output, › the prompt.
         gutters: ["•", "└", "›", "■"],
         frames: CommonFrames,
@@ -50,6 +58,7 @@ export const AgentCopyProfiles: AgentCopyProfile[] = [
     },
     {
         id: "gemini",
+        name: "Gemini CLI",
         gutters: ["✦", "✓", "✕", "⊷"],
         frames: CommonFrames,
         rightMargin: 0,
@@ -57,6 +66,7 @@ export const AgentCopyProfiles: AgentCopyProfile[] = [
     },
     {
         id: "opencode",
+        name: "OpenCode",
         gutters: ["┃", "◆", "●"],
         frames: CommonFrames,
         rightMargin: 0,
