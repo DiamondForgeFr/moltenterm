@@ -83,10 +83,10 @@
     content: "";
     position: absolute;
     left: 50%;
-    top: 58%;
+    top: 55%;
     width: 200%;
     aspect-ratio: 1 / 1;
-    translate: -50% -103%;
+    translate: -50% -100%;
     animation: molten-btn-turn 8s linear infinite paused;
 }
 
@@ -98,7 +98,7 @@
 .molten-btn > .molten-btn-wave::after {
     border-radius: 40%;
     background-color: var(--molten-hi-2);
-    translate: -50% -105%;
+    translate: -50% -101.5%;
     animation-duration: 14s;
     animation-direction: reverse;
 }
@@ -177,7 +177,7 @@
     .molten-btn > .molten-btn-wave::before,
     .molten-btn > .molten-btn-wave::after {
         animation: none;
-        rotate: 18deg;
+        rotate: 30deg;
     }
 
     .molten-btn:active {
