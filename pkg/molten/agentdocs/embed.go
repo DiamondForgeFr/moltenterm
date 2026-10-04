@@ -11,8 +11,9 @@ import "embed"
 
 // The copy box example must stay identical to frontend/molten/builtin/copy-box/ (checked by pkg/molten tests).
 // agent-states.md tells how to wire an agent's hooks to `molten agent state` (FR-SHELL-011).
+// worktrees.md tells how an agent links the worktree of its task to its terminal (FR-SHELL-016).
 //
-//go:embed mod-format.md molten-feature.md molten-pipeline.md pipeline-format.md agent-states.md examples
+//go:embed mod-format.md molten-feature.md molten-pipeline.md pipeline-format.md agent-states.md worktrees.md examples
 var Files embed.FS
 
 const GuideFile = "molten-feature.md"

@@ -25,10 +25,11 @@ const PromptWatchMaxTries = 30;
 // The linked project's collector stays warm so its pull requests are known without a Mission Control panel open.
 const LinkedProjectPollMs = 60000;
 
-export function paneStatus(dir: string, fresh: boolean): Promise<PaneState> {
+// worktree: the worktree the terminal is linked to (FR-SHELL-016); the answer says where it stands.
+export function paneStatus(dir: string, fresh: boolean, worktree?: string): Promise<PaneState> {
     return TabRpcClient.wshRpcCall(
         MissionPaneCommand,
-        { dir, fresh },
+        { dir, fresh, worktree: worktree || undefined },
         { route: MissionRouteId, timeout: PaneRpcTimeoutMs }
     );
 }
@@ -70,7 +71,7 @@ function watchPrompt(blockId: string, onPrompt: () => void): () => void {
     };
 }
 
-export function usePaneStatus(folder: string, blockId: string): PaneState {
+export function usePaneStatus(folder: string, blockId: string, worktree?: string): PaneState {
     const [state, setState] = useState<PaneState>(null);
     const folderRef = useRef(folder);
     folderRef.current = folder;
@@ -81,7 +82,7 @@ export function usePaneStatus(folder: string, blockId: string): PaneState {
             }
             fireAndForget(async () => {
                 try {
-                    const next = await paneStatus(folder, fresh);
+                    const next = await paneStatus(folder, fresh, worktree);
                     // An answer for a folder the pane already left would show the wrong tree.
                     if (next?.dir === folderRef.current) {
                         setState(next);
@@ -91,7 +92,7 @@ export function usePaneStatus(folder: string, blockId: string): PaneState {
                 }
             });
         },
-        [folder]
+        [folder, worktree]
     );
     useEffect(() => {
         setState((previous) => keepPaneState(previous, folder));

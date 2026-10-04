@@ -114,14 +114,7 @@ func (r *Runs) planBranches(ctx context.Context, dir string) (BranchesPlan, erro
 	if err != nil {
 		return BranchesPlan{}, fmt.Errorf("reading %s: %w", trunkRef, err)
 	}
-	configured := ConfiguredBranches(dir)
-	protected := map[string]bool{trunk: true, "HEAD": true}
-	if configured.Release != "" {
-		protected[configured.Release] = true
-	} else {
-		protected["main"] = true
-		protected["master"] = true
-	}
+	protected := protectedBranches(dir, trunk)
 	checkedOut := map[string]bool{}
 	for _, line := range g.lines("worktree", "list", "--porcelain") {
 		if name, ok := strings.CutPrefix(line, "branch refs/heads/"); ok {

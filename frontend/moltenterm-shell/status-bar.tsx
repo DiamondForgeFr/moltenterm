@@ -27,6 +27,8 @@ import {
 import { GoldUpdateButton } from "./update/update-dialog";
 import { WorkspaceIcon } from "./workspace-icon";
 import { readWorkspaceProject } from "./workspace-project";
+import { readWorktreeLink, TreeMarker, treeMarker } from "./worktree-model";
+import { WorktreeChip } from "./worktree-ui";
 
 const NoFocusedNode = atom(null) as Atom<{ data?: { blockId?: string } }>;
 
@@ -50,13 +52,14 @@ function FocusedBlockMeta({ blockId, onMeta }: { blockId: string; onMeta: (meta:
     const view = block?.meta?.view;
     const connection = block?.meta?.connection;
     const cwd = block?.meta?.["cmd:cwd"];
+    const worktree = readWorktreeLink(block?.meta);
     useEffect(() => {
-        onMeta(block == null ? null : { view, connection, "cmd:cwd": cwd });
-    }, [block == null, view, connection, cwd, onMeta]);
+        onMeta(block == null ? null : { view, connection, "cmd:cwd": cwd, "molten:worktree": worktree });
+    }, [block == null, view, connection, cwd, worktree, onMeta]);
     return null;
 }
 
-function PaneSection({ pane, ws }: { pane: PaneView; ws: Workspace }) {
+function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: TreeMarker }) {
     const openView = (view: string) => fireAndForget(() => openMoltentermView(view));
     return (
         <span className="flex min-w-0 items-center gap-2">
@@ -73,6 +76,7 @@ function PaneSection({ pane, ws }: { pane: PaneView; ws: Workspace }) {
                 )}
                 <span className="truncate text-primary">{pane.projectName}</span>
             </span>
+            <WorktreeChip marker={tree} hideBranch={true} />
             {pane.branch ? (
                 <button
                     type="button"
@@ -131,13 +135,14 @@ export function StatusBar() {
         }
     }, [blockId]);
     const { folder, fromPane } = statusBarFolder(meta, ws);
-    const state = usePaneStatus(folder, fromPane ? blockId : null);
+    const link = fromPane ? (meta?.["molten:worktree"] ?? "") : "";
+    const state = usePaneStatus(folder, fromPane ? blockId : null, link);
     useWarmLinkedProject(readWorkspaceProject(ws).dir);
     const pane = folder ? makePaneView(folder, state, ws) : null;
     return (
         <footer className="molten-status-bar flex h-[24px] shrink-0 items-center gap-3 border-t border-border px-3 text-xs text-secondary select-none">
             {blockId ? <FocusedBlockMeta key={blockId} blockId={blockId} onMeta={setMeta} /> : null}
-            {pane ? <PaneSection pane={pane} ws={ws} /> : null}
+            {pane ? <PaneSection pane={pane} ws={ws} tree={fromPane ? treeMarker(state, link) : null} /> : null}
             <span className="ml-auto flex shrink-0 items-center gap-3">
                 <GoldUpdateButton />
                 <span

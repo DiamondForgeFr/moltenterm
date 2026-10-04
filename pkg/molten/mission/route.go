@@ -25,6 +25,7 @@ type routeLink struct {
 	runs      *Runs
 	ci        *Ci
 	panes     *Panes
+	worktrees *Worktrees
 	output    chan []byte
 }
 
@@ -257,6 +258,9 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 		}
 		return l.panes.Get(req)
 	}
+	if command == WorktreePlanCommand || command == WorktreeRemoveCommand {
+		return l.handleWorktree(command, source, data)
+	}
 	if strings.HasPrefix(command, "moltenmissionci") {
 		return l.handleCi(command, data)
 	}
@@ -280,8 +284,27 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
 
-func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes) error {
-	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, output: make(chan []byte, routeQueueSize)}
+func (l *routeLink) handleWorktree(command string, source string, data any) (any, error) {
+	if command == WorktreePlanCommand {
+		var req WorktreeRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.worktrees.Plan(req)
+	}
+	// An agent in a terminal links a worktree on its own, but only the user, from a window, removes one.
+	if !isWindowSource(source) {
+		return nil, fmt.Errorf("a worktree can only be removed from a MoltenTerm window")
+	}
+	var req WorktreeRemoveRequest
+	if err := utilfn.ReUnmarshal(&req, data); err != nil {
+		return nil, err
+	}
+	return l.worktrees.Remove(req)
+}
+
+func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees) error {
+	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, output: make(chan []byte, routeQueueSize)}
 	_, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId)
 	return err
 }

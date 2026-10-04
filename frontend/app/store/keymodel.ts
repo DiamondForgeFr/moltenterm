@@ -26,6 +26,7 @@ import { deleteLayoutModelForTab, getLayoutModelForStaticTab, NavigateDirection 
 import * as keyutil from "@/util/keyutil";
 import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
 import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
+import { interceptWorktreeClose } from "../../moltenterm-shell/worktree-ui"; // MOLTENTERM-PATCH (#114)
 import { isWindows } from "@/util/platformutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
@@ -147,6 +148,10 @@ function simpleCloseStaticTab() {
 }
 
 function uxCloseBlock(blockId: string) {
+    // MOLTENTERM-PATCH (#114): a terminal linked to a worktree asks first (remove, keep or cancel), then closes here again
+    if (interceptWorktreeClose(blockId, () => uxCloseBlock(blockId))) {
+        return;
+    }
     const workspaceLayoutModel = WorkspaceLayoutModel.getInstance();
     const isAIPanelOpen = workspaceLayoutModel.getAIPanelVisible();
     if (isAIPanelOpen && getStaticTabBlockCount() === 1) {
@@ -206,6 +211,11 @@ function genericClose() {
     const blockCount = getStaticTabBlockCount();
     if (blockCount === 0) {
         simpleCloseStaticTab();
+        return;
+    }
+    // MOLTENTERM-PATCH (#114): as uxCloseBlock, for the focused terminal
+    const closingBlockId = globalStore.get(getLayoutModelForStaticTab().focusedNode)?.data?.blockId;
+    if (interceptWorktreeClose(closingBlockId, () => uxCloseBlock(closingBlockId))) {
         return;
     }
 
