@@ -7,6 +7,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { modalsModel } from "@/app/store/modalmodel";
+import { registerCompanionKeys } from "../companion/companion-open";
 
 export const CommandPaletteKey = "Cmd:Shift:k";
 export const CommandPaletteModalName = "MoltentermCommandPaletteModal";
@@ -29,6 +30,9 @@ export function toggleCommandPalette(): boolean {
     return true;
 }
 
+// Wave's key model calls this once for the shell's global keys: the palette's, and the agent companion's
+// (Cmd+Shift+J, FR-SHELL-018), so a new key costs no Wave edit.
 export function registerCommandPaletteKeys(keyMap: Map<string, (e: WaveKeyboardEvent) => boolean>) {
     keyMap.set(CommandPaletteKey, () => toggleCommandPalette());
+    registerCompanionKeys(keyMap);
 }
