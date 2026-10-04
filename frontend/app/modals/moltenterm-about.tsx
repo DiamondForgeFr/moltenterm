@@ -9,7 +9,7 @@ import { OnboardingGradientBg } from "@/app/onboarding/onboarding-common";
 import { atoms } from "@/app/store/global";
 import { modalsModel } from "@/app/store/modalmodel";
 import { isDev } from "@/util/isdev";
-import { MoltentermProductName, MoltentermRepoUrl, MoltentermTagline } from "@/util/moltenterm-identity";
+import { moltentermProductNameFor, MoltentermRepoUrl, MoltentermTagline } from "@/util/moltenterm-identity";
 import { useAtomValue } from "jotai";
 import { Modal } from "./modal";
 
@@ -32,7 +32,12 @@ const MoltentermAboutModalV = ({ versionString, onClose }: MoltentermAboutModalV
             <div className="flex flex-col gap-[26px] w-full relative z-10">
                 <div className="flex flex-col items-center justify-center gap-4 self-stretch w-full text-center">
                     <Logo />
-                    <div className="text-[25px]">{MoltentermProductName}</div>
+                    <div className="text-[25px]">
+                        {moltentermProductNameFor(
+                            typeof __MOLTENTERM_BUILD__ === "undefined" ? null : __MOLTENTERM_BUILD__.channel,
+                            isDev()
+                        )}
+                    </div>
                     <div className="leading-5">{MoltentermTagline}</div>
                 </div>
                 <div className="items-center gap-4 self-stretch w-full text-center">

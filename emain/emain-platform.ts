@@ -13,12 +13,14 @@ import * as keyutil from "../frontend/util/keyutil";
 import {
     MoltentermConfigHomeVarName,
     MoltentermDataHomeVarName,
-    MoltentermDevProductName,
     MoltentermDirName,
     MoltentermHomeVarName,
     MoltentermProductName,
     MoltentermRepoUrl,
+    moltentermProductNameFor,
 } from "../frontend/util/moltenterm-identity";
+
+declare const __MOLTENTERM_CHANNEL__: string;
 
 // This is a little trick to ensure that Electron puts all its runtime data into a subdirectory to avoid conflicts with our own data.
 // On macOS, it will store to ~/Library/Application \Support/waveterm/electron
@@ -42,7 +44,8 @@ const waveDirName = `${waveDirNamePrefix}${waveDirNameSuffix ? `-${waveDirNameSu
 
 const paths = envPaths(MoltentermDirName, { suffix: waveDirNameSuffix }); // MOLTENTERM-PATCH (#4)
 
-app.setName(isDev ? MoltentermDevProductName : MoltentermProductName); // MOLTENTERM-PATCH (#4)
+// MOLTENTERM-PATCH (#4, #191): a gold is named MoltenTerm Gold.
+app.setName(moltentermProductNameFor(__MOLTENTERM_CHANNEL__, isDev));
 const unamePlatform = process.platform;
 const unameArch: string = process.arch;
 keyutil.setKeyUtilPlatform(unamePlatform);
@@ -71,8 +74,8 @@ export function checkIfRunningUnderARM64Translation(fullConfig: FullConfigType) 
         if (choice === 1) {
             // Open the documentation URL
             console.log("User chose to learn more");
-            fireAndForget(() =>
-                shell.openExternal(MoltentermRepoUrl) // MOLTENTERM-PATCH (#6)
+            fireAndForget(
+                () => shell.openExternal(MoltentermRepoUrl) // MOLTENTERM-PATCH (#6)
             );
             throw new Error("User redirected to docsite to learn more about ARM64 translation, exiting");
         } else {
@@ -281,6 +284,8 @@ async function callWithOriginalXdgCurrentDesktopAsync(callback: () => Promise<vo
 }
 
 export {
+    WaveConfigHomeVarName,
+    WaveDataHomeVarName,
     callWithOriginalXdgCurrentDesktop,
     callWithOriginalXdgCurrentDesktopAsync,
     getElectronAppBasePath,
@@ -295,6 +300,4 @@ export {
     isDevVite,
     unameArch,
     unamePlatform,
-    WaveConfigHomeVarName,
-    WaveDataHomeVarName,
 };

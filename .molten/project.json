@@ -43,7 +43,7 @@
             ],
             "prepare": { "run": "npm install --no-audit --no-fund" },
             "run": "./scripts/moltenterm-build-gold.sh",
-            "artifact": "~/Library/Application Support/Moltenterm Local Builds/gold/Moltenterm.app"
+            "artifact": "~/Library/Application Support/Moltenterm Local Builds/gold.noindex/Moltenterm.app"
         }
     ]
 }

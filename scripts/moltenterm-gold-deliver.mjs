@@ -21,142 +21,176 @@ export const GoldManifestSchema = 1;
 // itself is MoltenTerm.app.
 export const GoldAppName = "Moltenterm.app";
 export const GoldIdentifier = "fr.diamondforge.moltenterm";
+// must match frontend/util/moltenterm-gold.ts (#191): Spotlight skips a folder named *.noindex, so only the installed
+// gold is found; golds installed before read the old name, kept as a link.
+export const GoldFolderName = "gold.noindex";
+export const LegacyGoldFolderName = "gold";
 const MaxNotes = 50;
 const FallbackNotes = 20;
 
 export function goldDir(env = process.env, home = os.homedir()) {
-    if (env.MOLTENTERM_GOLD_DIR) {
-        return env.MOLTENTERM_GOLD_DIR;
-    }
-    return path.join(home, "Library", "Application Support", "Moltenterm Local Builds", "gold");
+  if (env.MOLTENTERM_GOLD_DIR) {
+    return env.MOLTENTERM_GOLD_DIR;
+  }
+  return path.join(home, "Library", "Application Support", "Moltenterm Local Builds", GoldFolderName);
+}
+
+// Moves a delivery made before #191 to the unindexed folder, once.
+export function migrateLegacyGoldDir(dir) {
+  if (path.basename(dir) !== GoldFolderName) {
+    return;
+  }
+  const legacy = path.join(path.dirname(dir), LegacyGoldFolderName);
+  const stat = fs.lstatSync(legacy, { throwIfNoEntry: false });
+  if (stat == null || stat.isSymbolicLink() || !stat.isDirectory()) {
+    return;
+  }
+  if (fs.existsSync(dir)) {
+    fs.rmSync(legacy, { recursive: true, force: true });
+    return;
+  }
+  fs.renameSync(legacy, dir);
+}
+
+// The old folder name, as a link to the unindexed folder, for the golds installed before #191.
+export function linkLegacyGoldDir(dir) {
+  if (path.basename(dir) !== GoldFolderName) {
+    return;
+  }
+  const legacy = path.join(path.dirname(dir), LegacyGoldFolderName);
+  if (fs.lstatSync(legacy, { throwIfNoEntry: false }) == null) {
+    fs.symlinkSync(GoldFolderName, legacy);
+  }
 }
 
 function git(args, cwd) {
-    return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
 }
 
 function tryGit(args, cwd) {
-    try {
-        return git(args, cwd);
-    } catch {
-        return null;
-    }
+  try {
+    return git(args, cwd);
+  } catch {
+    return null;
+  }
 }
 
 export function parseNotes(log) {
-    return (log ?? "")
-        .split("\n")
-        .filter((line) => line.includes("\t"))
-        .map((line) => {
-            const [sha, ...rest] = line.split("\t");
-            return { sha, subject: rest.join("\t") };
-        });
+  return (log ?? "")
+    .split("\n")
+    .filter((line) => line.includes("\t"))
+    .map((line) => {
+      const [sha, ...rest] = line.split("\t");
+      return { sha, subject: rest.join("\t") };
+    });
 }
 
 // The commits since the previous gold, when it is an ancestor of this one; otherwise the last few.
 export function goldNotes(previousCommit, commit, cwd) {
-    const format = "--format=%H%x09%s";
-    if (previousCommit && tryGit(["merge-base", "--is-ancestor", previousCommit, commit], cwd) !== null) {
-        return parseNotes(tryGit(["log", format, "-n", String(MaxNotes), `${previousCommit}..${commit}`], cwd));
-    }
-    return parseNotes(tryGit(["log", format, "-n", String(FallbackNotes), commit], cwd));
+  const format = "--format=%H%x09%s";
+  if (previousCommit && tryGit(["merge-base", "--is-ancestor", previousCommit, commit], cwd) !== null) {
+    return parseNotes(tryGit(["log", format, "-n", String(MaxNotes), `${previousCommit}..${commit}`], cwd));
+  }
+  return parseNotes(tryGit(["log", format, "-n", String(FallbackNotes), commit], cwd));
 }
 
 export function makeManifest({ version, buildId, builtAt, commit, notes }) {
-    return {
-        schema: GoldManifestSchema,
-        identifier: GoldIdentifier,
-        productName: "MoltenTerm",
-        version,
-        buildId,
-        builtAt,
-        commit,
-        app: GoldAppName,
-        notes,
-    };
+  return {
+    schema: GoldManifestSchema,
+    identifier: GoldIdentifier,
+    productName: "MoltenTerm Gold",
+    version,
+    buildId,
+    builtAt,
+    commit,
+    app: GoldAppName,
+    notes,
+  };
 }
 
 function readManifest(file) {
-    try {
-        return JSON.parse(fs.readFileSync(file, "utf8"));
-    } catch {
-        return null;
-    }
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 // APFS clones: instant and free of extra space; a plain copy elsewhere (the tests also run on Linux).
 function copyApp(from, to) {
-    if (process.platform === "darwin") {
-        try {
-            execFileSync("cp", ["-c", "-R", from, to], { stdio: "ignore" });
-            return;
-        } catch {
-            execFileSync("ditto", [from, to], { stdio: "ignore" });
-            return;
-        }
+  if (process.platform === "darwin") {
+    try {
+      execFileSync("cp", ["-c", "-R", from, to], { stdio: "ignore" });
+      return;
+    } catch {
+      execFileSync("ditto", [from, to], { stdio: "ignore" });
+      return;
     }
-    fs.cpSync(from, to, { recursive: true, verbatimSymlinks: true });
+  }
+  fs.cpSync(from, to, { recursive: true, verbatimSymlinks: true });
 }
 
 export function deliverGold({ app, dir, manifest }) {
-    const parent = path.dirname(dir);
-    fs.mkdirSync(parent, { recursive: true });
-    const next = path.join(parent, `.${path.basename(dir)}.next`);
-    const old = path.join(parent, `.${path.basename(dir)}.old`);
-    fs.rmSync(next, { recursive: true, force: true });
-    fs.rmSync(old, { recursive: true, force: true });
-    fs.mkdirSync(next);
-    copyApp(app, path.join(next, GoldAppName));
-    const currentApp = path.join(dir, GoldAppName);
-    const currentManifest = path.join(dir, "manifest.json");
-    if (fs.existsSync(currentApp) && fs.existsSync(currentManifest)) {
-        fs.mkdirSync(path.join(next, "previous"));
-        copyApp(currentApp, path.join(next, "previous", GoldAppName));
-        fs.copyFileSync(currentManifest, path.join(next, "previous", "manifest.json"));
-    }
-    fs.writeFileSync(path.join(next, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
-    if (fs.existsSync(dir)) {
-        fs.renameSync(dir, old);
-    }
-    fs.renameSync(next, dir);
-    fs.rmSync(old, { recursive: true, force: true });
+  const parent = path.dirname(dir);
+  fs.mkdirSync(parent, { recursive: true });
+  const next = path.join(parent, `.${path.basename(dir)}.next`);
+  const old = path.join(parent, `.${path.basename(dir)}.old`);
+  fs.rmSync(next, { recursive: true, force: true });
+  fs.rmSync(old, { recursive: true, force: true });
+  fs.mkdirSync(next);
+  copyApp(app, path.join(next, GoldAppName));
+  const currentApp = path.join(dir, GoldAppName);
+  const currentManifest = path.join(dir, "manifest.json");
+  if (fs.existsSync(currentApp) && fs.existsSync(currentManifest)) {
+    fs.mkdirSync(path.join(next, "previous"));
+    copyApp(currentApp, path.join(next, "previous", GoldAppName));
+    fs.copyFileSync(currentManifest, path.join(next, "previous", "manifest.json"));
+  }
+  fs.writeFileSync(path.join(next, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
+  if (fs.existsSync(dir)) {
+    fs.renameSync(dir, old);
+  }
+  fs.renameSync(next, dir);
+  fs.rmSync(old, { recursive: true, force: true });
 }
 
 function parseArgs(argv) {
-    const args = {};
-    for (let i = 0; i < argv.length; i++) {
-        if (argv[i] === "--app") {
-            args.app = argv[++i];
-        } else if (argv[i] === "--build-id") {
-            args.buildId = Number(argv[++i]);
-        }
+  const args = {};
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--app") {
+      args.app = argv[++i];
+    } else if (argv[i] === "--build-id") {
+      args.buildId = Number(argv[++i]);
     }
-    return args;
+  }
+  return args;
 }
 
 function main() {
-    const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-    const { app, buildId } = parseArgs(process.argv.slice(2));
-    if (!app || !fs.existsSync(app) || !Number.isInteger(buildId) || buildId <= 0) {
-        console.error("usage: moltenterm-gold-deliver.mjs --app <MoltenTerm.app> --build-id <unix seconds>");
-        process.exit(1);
-    }
-    const dir = goldDir();
-    const previous = readManifest(path.join(dir, "manifest.json"));
-    const commit = git(["rev-parse", "HEAD"], repo);
-    const pkg = JSON.parse(fs.readFileSync(path.join(repo, "package.json"), "utf8"));
-    const manifest = makeManifest({
-        version: pkg.version,
-        buildId,
-        builtAt: new Date(buildId * 1000).toISOString(),
-        commit,
-        notes: goldNotes(previous?.commit, commit, repo),
-    });
-    deliverGold({ app, dir, manifest });
-    console.log(`gold ${commit.slice(0, 7)} (build ${buildId}) delivered to ${dir}`);
-    console.log(`${manifest.notes.length} change(s) since the previous gold`);
+  const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const { app, buildId } = parseArgs(process.argv.slice(2));
+  if (!app || !fs.existsSync(app) || !Number.isInteger(buildId) || buildId <= 0) {
+    console.error("usage: moltenterm-gold-deliver.mjs --app <MoltenTerm.app> --build-id <unix seconds>");
+    process.exit(1);
+  }
+  const dir = goldDir();
+  migrateLegacyGoldDir(dir);
+  const previous = readManifest(path.join(dir, "manifest.json"));
+  const commit = git(["rev-parse", "HEAD"], repo);
+  const pkg = JSON.parse(fs.readFileSync(path.join(repo, "package.json"), "utf8"));
+  const manifest = makeManifest({
+    version: pkg.version,
+    buildId,
+    builtAt: new Date(buildId * 1000).toISOString(),
+    commit,
+    notes: goldNotes(previous?.commit, commit, repo),
+  });
+  deliverGold({ app, dir, manifest });
+  linkLegacyGoldDir(dir);
+  console.log(`gold ${commit.slice(0, 7)} (build ${buildId}) delivered to ${dir}`);
+  console.log(`${manifest.notes.length} change(s) since the previous gold`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-    main();
+  main();
 }

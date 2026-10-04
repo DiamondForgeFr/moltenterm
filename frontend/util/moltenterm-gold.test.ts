@@ -2,7 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { appBundleOf, checkGoldManifest, GoldAppName, GoldIdentifier, parseSwapStatus } from "./moltenterm-gold";
+import {
+    appBundleOf,
+    checkGoldManifest,
+    GoldAppName,
+    GoldIdentifier,
+    goldInstallTarget,
+    parseSwapStatus,
+} from "./moltenterm-gold";
+import { moltentermProductNameFor } from "./moltenterm-identity";
 
 const manifest = {
     schema: 1,
@@ -55,5 +63,20 @@ describe("swap status and bundle path", () => {
             "/Applications/Moltenterm.app"
         );
         expect(appBundleOf("/usr/local/bin/electron")).toBeNull();
+    });
+});
+
+describe("the gold's name (#191)", () => {
+    it("installs an update under MoltenTerm Gold.app, keeping a name the user chose", () => {
+        expect(goldInstallTarget("/Applications/Moltenterm.app")).toBe("/Applications/MoltenTerm Gold.app");
+        expect(goldInstallTarget("/Applications/MoltenTerm.app")).toBe("/Applications/MoltenTerm Gold.app");
+        expect(goldInstallTarget("/Applications/MoltenTerm Gold.app")).toBe("/Applications/MoltenTerm Gold.app");
+        expect(goldInstallTarget("/Applications/My Term.app")).toBe("/Applications/My Term.app");
+    });
+
+    it("names the app after its channel", () => {
+        expect(moltentermProductNameFor("gold", false)).toBe("MoltenTerm Gold");
+        expect(moltentermProductNameFor("gold", true)).toBe("MoltenTerm (Dev)");
+        expect(moltentermProductNameFor("local", false)).toBe("MoltenTerm");
     });
 });

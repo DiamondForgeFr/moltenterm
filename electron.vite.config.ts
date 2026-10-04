@@ -7,8 +7,8 @@ import { defineConfig } from "electron-vite";
 import { ViteImageOptimizer } from "vite-plugin-image-optimizer";
 import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
-import { moltentermCapRadius } from "./frontend/moltenterm-shell/build/cap-radius"; // MOLTENTERM-PATCH (#48)
 import { makeMoltentermBuildInfo } from "./frontend/moltenterm-shell/build/build-info"; // MOLTENTERM-PATCH (#55)
+import { moltentermCapRadius } from "./frontend/moltenterm-shell/build/cap-radius"; // MOLTENTERM-PATCH (#48)
 
 // from our electron build
 const CHROME = "chrome140";
@@ -99,6 +99,8 @@ export default defineConfig({
         define: {
             "process.env.WS_NO_BUFFER_UTIL": "true",
             "process.env.WS_NO_UTF_8_VALIDATE": "true",
+            // MOLTENTERM-PATCH (#191): the main process names the app after its channel (MoltenTerm Gold).
+            __MOLTENTERM_CHANNEL__: JSON.stringify(makeMoltentermBuildInfo().channel),
         },
     },
     preload: {
