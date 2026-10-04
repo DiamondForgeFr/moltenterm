@@ -3,7 +3,8 @@
 
 import logoUrl from "@/app/asset/logo.svg?url";
 import type { BlockNodeModel } from "@/app/block/blocktypes";
-import { atoms, globalStore, replaceBlock } from "@/app/store/global";
+import { atoms, getSettingsKeyAtom, globalStore, replaceBlock } from "@/app/store/global";
+import { CommandPalette } from "../../../moltenterm-shell/palette/command-palette"; // MOLTENTERM-PATCH (#111)
 import type { TabModel } from "@/app/store/tab-model";
 import { checkKeyPressed, keydownWrapper } from "@/util/keyutil";
 import { isBlank, makeIconClass } from "@/util/util";
@@ -144,7 +145,21 @@ export class LauncherViewModel implements ViewModel {
     }
 }
 
-function LauncherView({ blockId, model }: ViewComponentProps<LauncherViewModel>) {
+// MOLTENTERM-PATCH (#111): an empty pane shows the command palette; Wave's tiles stay behind app:tilelauncher.
+function LauncherView(props: ViewComponentProps<LauncherViewModel>) {
+    const { blockId, model } = props;
+    const tileLauncher = useAtomValue(getSettingsKeyAtom("app:tilelauncher"));
+    if (tileLauncher) {
+        return <LauncherTilesView {...props} />;
+    }
+    return (
+        <div className="w-full h-full p-4 box-border flex items-start justify-center pt-[8%] overflow-hidden">
+            <CommandPalette host="pane" blockId={blockId} inPlace="replace" inputRef={model.inputRef} />
+        </div>
+    );
+}
+
+function LauncherTilesView({ blockId, model }: ViewComponentProps<LauncherViewModel>) {
     // Search and selection state
     const [searchTerm, setSearchTerm] = useAtom(model.searchTerm);
     const [selectedIndex, setSelectedIndex] = useAtom(model.selectedIndex);

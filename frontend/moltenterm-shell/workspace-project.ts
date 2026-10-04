@@ -12,6 +12,8 @@ export const ProjectLogoMetaKey = "molten:projectlogo";
 export const ProjectLogoOfferMetaKey = "molten:projectlogooffer";
 // The folder the workspace works in (FR-SHELL-009). must match WorkspaceFolderMetaKey in pkg/molten/folder.go
 export const WorkspaceFolderMetaKey = "molten:folder";
+// The folders the workspace worked in, newest first (the command palette's recent folders, FR-SHELL-013).
+export const WorkspaceRecentFoldersMetaKey = "molten:recentfolders";
 
 export const ProjectPipelineFile = ".molten/project.json";
 export const ProjectSaaSFoundryFile = ".saasfoundry.json";
@@ -81,6 +83,11 @@ export function readWorkspaceProject(ws: Workspace): WorkspaceProject {
 // The folder the workspace's terminal last went to, as stored.
 export function readWorkspaceFolder(ws: Workspace): string {
     return metaString(ws?.meta as Record<string, any>, WorkspaceFolderMetaKey);
+}
+
+export function readRecentFolders(ws: Workspace): string[] {
+    const value = (ws?.meta as Record<string, any>)?.[WorkspaceRecentFoldersMetaKey];
+    return Array.isArray(value) ? value.filter((f) => typeof f === "string" && f !== "") : [];
 }
 
 function trimTrailingSeparators(path: string): string {

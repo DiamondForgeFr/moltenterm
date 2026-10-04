@@ -47,6 +47,10 @@
             "left"
           ]
         },
+        "app:tilelauncher": {
+          "type": "boolean",
+          "description": "Show the tile launcher in an empty pane instead of the command palette"
+        },
         "feature:waveappbuilder": {
           "type": "boolean"
         },
