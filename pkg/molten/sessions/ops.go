@@ -10,7 +10,6 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/blockcontroller"
 	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
 	"github.com/wavetermdev/waveterm/pkg/molten"
@@ -24,7 +23,10 @@ import (
 
 const (
 	// The part of a job's output a reattached pane shows: what fits its terminal file, with room for what follows.
-	historyCopyBytes = blockcontroller.DefaultTermMaxFileSize / 2
+	// A terminal block's output file, as blockcontroller.DefaultTermMaxFileSize (blockcontroller starts this package,
+	// so it cannot be imported here).
+	termFileMaxSize  = 2 * 1024 * 1024
+	historyCopyBytes = termFileMaxSize / 2
 	// The copy starts mid-stream: ST ends an escape sequence the cut left open, then the colours are reset.
 	reattachedNotice = "\x1b\\\x1b[0m\r\n\x1b[90m— reattached by MoltenTerm —\x1b[0m\r\n"
 	// The copy starts after a line end found this far into the tail at most.
@@ -106,7 +108,7 @@ func lineStart(ctx context.Context, jobId string, start int64, end int64) int64 
 // then on its output reaches the block too). Bytes that arrive between the second copy and the attach (a few
 // milliseconds) are not in the pane: the output loop lives in Wave's job controller, which is not locked for this.
 func (liveOps) CopyHistory(ctx context.Context, jobId string, blockId string) error {
-	err := filestore.WFS.MakeFile(ctx, blockId, wavebase.BlockFile_Term, nil, wshrpc.FileOpts{MaxSize: blockcontroller.DefaultTermMaxFileSize, Circular: true})
+	err := filestore.WFS.MakeFile(ctx, blockId, wavebase.BlockFile_Term, nil, wshrpc.FileOpts{MaxSize: termFileMaxSize, Circular: true})
 	if err != nil && err != fs.ErrExist {
 		return fmt.Errorf("cannot make the pane's terminal file: %w", err)
 	}

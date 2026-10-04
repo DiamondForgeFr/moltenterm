@@ -199,7 +199,7 @@ function SessionRow({
             <div className="flex min-w-0 flex-1 flex-col gap-0.5 px-2.5 py-1.5">
                 <div className="flex min-w-0 items-center gap-2">
                     <SessionStateMark session={session} />
-                    <span className="min-w-0 truncate text-[13px] font-medium text-primary">
+                    <span className="max-w-[65%] min-w-0 shrink-0 truncate text-[13px] font-medium text-primary">
                         {sessionWhat(session)}
                     </span>
                     {command ? (
@@ -322,7 +322,7 @@ function EmptyState() {
     );
 }
 
-function SessionsView() {
+function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     const store = DurableSessions.getInstance();
     const data = useAtomValue(store.dataAtom);
     const workspace = useAtomValue(atoms.workspace);
@@ -394,14 +394,16 @@ function SessionsView() {
         row.focus();
     });
 
-    // The focus is in the list, in one of its dialogs, or nowhere (its element went away).
+    // The focus is in the list, in one of its dialogs, on this pane's frame (Wave parks it there when a focused element
+    // goes away), or nowhere.
     const focusIsOurs = () => {
         const active = document.activeElement;
         return (
             active == null ||
             active === document.body ||
             listRef.current?.contains(active) ||
-            active.closest('[data-role^="molten-session"]') != null
+            active.closest('[data-role^="molten-session"]') != null ||
+            active.closest("[data-blockid]")?.getAttribute("data-blockid") === blockId
         );
     };
 
@@ -520,7 +522,7 @@ function SessionsView() {
     return (
         <div className="flex h-full w-full flex-col overflow-hidden" data-role="molten-sessions">
             <div className="flex items-center gap-3 border-b border-border px-3 py-2">
-                <span className="text-xs text-secondary" aria-live="polite">
+                <span className="shrink-0 text-xs whitespace-nowrap text-secondary" aria-live="polite">
                     {data == null ? "Loading sessions…" : sessionsSummary(data)}
                 </span>
                 {notice ? (

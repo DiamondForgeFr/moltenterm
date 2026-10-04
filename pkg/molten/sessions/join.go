@@ -240,6 +240,9 @@ func fillShown(s *Snapshot, job *waveobj.Job, p pane, ds *molten.DurableSession)
 		ds.Command = rt.ShellLastCmd
 	} else if cmd := p.block.Meta.GetString(waveobj.MetaKey_Cmd, ""); cmd != "" {
 		ds.Command = cmd
+	} else if rt == nil || rt.ShellState == "" {
+		// The shell integration has said nothing since wavesrv started: what runs is not known, only the shell.
+		ds.Command = shellName(job, rt)
 	} else {
 		ds.Command = shellName(job, rt) + atPromptSuffix
 	}
