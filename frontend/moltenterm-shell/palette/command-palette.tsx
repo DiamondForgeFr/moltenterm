@@ -87,6 +87,7 @@ function usePaletteEntries() {
         };
     }, [wsId]);
     const folder = effectiveWorkspaceFolder(ws);
+    const projectLinked = readWorkspaceProject(ws).dir !== "";
     // A fresh array on every render: its content, joined, is what the memo depends on.
     const recentKey = readRecentFolders(ws).join("\n");
     const home = getHome();
@@ -101,8 +102,9 @@ function usePaletteEntries() {
                 otherFolders: others.folders,
                 workspaces: others.list,
                 home,
+                projectLinked,
             }),
-        [fullConfig, wsId, folder, recentKey, others, home]
+        [fullConfig, wsId, folder, recentKey, others, home, projectLinked]
     );
     const titles = useMemo(() => paletteGroupTitles(folder, home), [folder, home]);
     return { entries, titles };

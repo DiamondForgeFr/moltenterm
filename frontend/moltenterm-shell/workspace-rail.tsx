@@ -18,12 +18,13 @@ import { AgentRailDot } from "./agent-state-ui";
 import { unreadByWorkspace } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 import { ProjectLinkDetector } from "./project-link-modal";
+import { openProjectTab, ProjectTabKeeper } from "./project/project-tab";
 import { RailTools } from "./rail-tools";
-import { WorktreeCloseHost } from "./worktree-close";
 import { WorkspaceIcon } from "./workspace-icon";
 import { readWorkspaceProject } from "./workspace-project";
 import { WorkspaceProjectSection } from "./workspace-project-section";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
+import { WorktreeCloseHost } from "./worktree-close";
 
 export async function loadWorkspaceSources(): Promise<WorkspaceRailSource[]> {
     const list = await WorkspaceService.ListWorkspaces();
@@ -127,7 +128,7 @@ function RailButton({
     const ref = useRef<HTMLButtonElement>(null);
     // Read live: the logo can change from the editor or from molten while the rail's list is not refreshed.
     const [workspace] = useWaveObjectValue<Workspace>(makeORef("workspace", entry.id));
-    const logo = readWorkspaceProject(workspace).logo;
+    const { logo, dir: projectDir } = readWorkspaceProject(workspace);
     const anchorOf = (): Anchor => {
         const rect = ref.current.getBoundingClientRect();
         return { top: rect.top + rect.height / 2, left: rect.right + 8 };
@@ -151,8 +152,14 @@ function RailButton({
         if (!entry.saved) {
             return;
         }
+        // The Project tab of the workspace this window shows, made again if the user closed it (FR-SHELL-015).
+        const projectTab: ContextMenuItem[] =
+            entry.active && projectDir
+                ? [{ label: "Open the Project tab", click: () => fireAndForget(openProjectTab) }]
+                : [];
         ContextMenuModel.getInstance().showContextMenu(
             [
+                ...projectTab,
                 { label: "Edit workspace…", click: () => onEdit(entry, anchorOf()) },
                 { type: "separator" },
                 { label: "Delete workspace", click: () => getApi().deleteWorkspace(entry.id) },
@@ -257,6 +264,7 @@ export function WorkspaceRail() {
             <RailTools onHover={(label, anchor) => setTooltip(label == null ? null : { label, anchor })} />
             <RailTooltip label={tooltip?.label} anchor={tooltip?.anchor} />
             <ProjectLinkDetector />
+            <ProjectTabKeeper />
             <WorktreeCloseHost />
             {editing ? (
                 <WorkspaceEditPanel entry={editing.entry} anchor={editing.anchor} onClose={closeEditor} />

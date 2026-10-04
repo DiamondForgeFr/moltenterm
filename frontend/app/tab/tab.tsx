@@ -12,7 +12,7 @@ import { fireAndForget } from "@/util/util";
 import clsx from "clsx";
 import { useAtomValue } from "jotai";
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { AgentTabDot } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#109)
+import { MoltentermTabMarks } from "../../moltenterm-shell/project/tab-marks"; // MOLTENTERM-PATCH (#109, #113)
 import { useTabTreesTooltip } from "../../moltenterm-shell/worktree-ui"; // MOLTENTERM-PATCH (#114)
 import { makeORef } from "../store/wos";
 import "./tab.scss";
@@ -326,7 +326,7 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
             isNew={isNew}
             badges={badges}
             flagColor={flagColor}
-            agentDot={<AgentTabDot tabId={id} />}
+            agentDot={<MoltentermTabMarks tabId={id} />} // MOLTENTERM-PATCH (#109, #113): agent dot and Project tab pin
             treesTitle={trees.title}
             onTreesHover={trees.onMouseEnter}
             onClick={handleTabClick}

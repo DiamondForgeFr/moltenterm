@@ -18,6 +18,8 @@ export type PaletteRun =
     | { kind: "newworkspace" }
     | { kind: "switchworkspace"; workspaceId: string }
     | { kind: "settings" }
+    // The workspace's Project tab (FR-SHELL-015): shown, or made again after the user closed it.
+    | { kind: "projecttab" }
     // Back to the pane the palette was opened from, to type an agent's own command there.
     | { kind: "focusorigin" };
 

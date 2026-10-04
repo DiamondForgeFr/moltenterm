@@ -117,6 +117,12 @@ describe("workspace actions", () => {
         expect(actions[2].run).toEqual({ kind: "switchworkspace", workspaceId: "w2" });
         expect(actions[3].cli).toBe("wsh editconfig");
     });
+
+    it("offers the Project tab first in a linked workspace", () => {
+        const actions = actionEntries([], true);
+        expect(actions.map((a) => a.label)).toEqual(["Project tab", "New tab", "New workspace", "Settings"]);
+        expect(actions[0].run).toEqual({ kind: "projecttab" });
+    });
 });
 
 describe("agent copy commands", () => {

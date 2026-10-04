@@ -134,6 +134,12 @@ const CiVerdictIcons: Record<string, string> = {
     missing: "fa-circle-minus text-muted",
 };
 
+export function ciVerdictView(status: string): CiVerdictView {
+    return status && CiVerdictLabels[status]
+        ? { status, label: CiVerdictLabels[status], iconClass: CiVerdictIcons[status] }
+        : null;
+}
+
 export type PaneView = {
     folder: string;
     // The workspace's linked project: shown with the workspace's own icon.
@@ -174,10 +180,7 @@ export function makePaneView(folder: string, state: PaneState, ws: Workspace): P
         }
         branchLines.push("Open the Timeline");
     }
-    const ci =
-        state?.ci && CiVerdictLabels[state.ci]
-            ? { status: state.ci, label: CiVerdictLabels[state.ci], iconClass: CiVerdictIcons[state.ci] }
-            : null;
+    const ci = ciVerdictView(state?.ci);
     return {
         folder,
         linked,

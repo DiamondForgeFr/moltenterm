@@ -39,6 +39,8 @@ export type PaletteSourceInput = {
     otherFolders: string[];
     workspaces: PaletteWorkspace[];
     home: string;
+    // The workspace is linked to a project (FR-MC-001): its Project tab can be opened.
+    projectLinked?: boolean;
 };
 
 function str(value: unknown): string {
@@ -186,8 +188,20 @@ export function folderEntries(folders: string[], home: string): PaletteEntry[] {
     }));
 }
 
-export function actionEntries(workspaces: PaletteWorkspace[]): PaletteEntry[] {
-    const rtn: PaletteEntry[] = [
+export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = false): PaletteEntry[] {
+    const rtn: PaletteEntry[] = [];
+    if (projectLinked) {
+        rtn.push({
+            id: "action:projecttab",
+            group: "actions",
+            label: "Project tab",
+            detail: "where the project stands: agents, branches, CI, releases, actions",
+            icon: "gauge",
+            keywords: ["mission control", "dashboard", "project", "home"],
+            run: { kind: "projecttab" },
+        });
+    }
+    rtn.push(
         {
             id: "action:newtab",
             group: "actions",
@@ -202,8 +216,8 @@ export function actionEntries(workspaces: PaletteWorkspace[]): PaletteEntry[] {
             label: "New workspace",
             icon: "layer-group",
             run: { kind: "newworkspace" },
-        },
-    ];
+        }
+    );
     for (const ws of workspaces ?? []) {
         if (ws.active || !ws.id) {
             continue;
@@ -251,7 +265,7 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
         ...agentEntries(input.presets),
         ...panelEntries(input.widgets, input.workspaceId),
         ...folderEntries(folders, input.home),
-        ...actionEntries(input.workspaces),
+        ...actionEntries(input.workspaces, input.projectLinked),
         ...agentCopyEntries(),
     ];
 }
