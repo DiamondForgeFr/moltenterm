@@ -193,7 +193,7 @@ function RailButton({
             )}
             {unread > 0 ? (
                 <span
-                    className="molten-rail-dot absolute top-1 right-1 h-2 w-2 rounded-full bg-warning ring-2 ring-[var(--color-background)]"
+                    className="molten-rail-dot absolute top-1 right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-[var(--color-background)]"
                     aria-label={`${unread} unread`}
                 />
             ) : null}
