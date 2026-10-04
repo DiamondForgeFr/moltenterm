@@ -16,8 +16,10 @@ import (
 
 const (
 	// How much of a transcript's start discovery reads to learn its folder and start time.
-	headReadBytes = 256 * 1024
+	headReadBytes = 1024 * 1024
 	headMaxLines  = 200
+	// Codex's session_meta carries the base instructions: tens of KB.
+	headLineMax = 512 * 1024
 	// A session modified this long before the agent started cannot be this run's.
 	startSlack = 2 * time.Second
 )
@@ -126,7 +128,7 @@ func readHead(path string, maxLines int) []map[string]any {
 		return nil
 	}
 	defer f.Close()
-	reader := bufio.NewReaderSize(io.LimitReader(f, headReadBytes), 64*1024)
+	reader := bufio.NewReaderSize(io.LimitReader(f, headReadBytes), headLineMax)
 	var rtn []map[string]any
 	for len(rtn) < maxLines {
 		line, err := reader.ReadSlice('\n')
@@ -216,6 +218,43 @@ func compactJSON(v any) string {
 	return string(out)
 }
 
+const argStringMax = 300
+
+// argsJSON renders a tool call's arguments for display, each long string cut first: a Write's whole file content is
+// neither marshalled nor kept.
+func argsJSON(v any) string {
+	return compactJSON(shortenStrings(v, 0))
+}
+
+func shortenStrings(v any, depth int) any {
+	if depth > 8 {
+		return nil
+	}
+	switch val := v.(type) {
+	case string:
+		if len(val) > argStringMax {
+			return cutString(val, argStringMax) + "…"
+		}
+		return val
+	case map[string]any:
+		out := make(map[string]any, len(val))
+		for k, item := range val {
+			out[k] = shortenStrings(item, depth+1)
+		}
+		return out
+	case []any:
+		if len(val) > 50 {
+			val = val[:50]
+		}
+		out := make([]any, len(val))
+		for i, item := range val {
+			out[i] = shortenStrings(item, depth+1)
+		}
+		return out
+	}
+	return v
+}
+
 // parseTime reads an RFC 3339 timestamp into Unix milliseconds (0 when absent or malformed).
 func parseTime(value string) int64 {
 	if value == "" {
@@ -259,13 +298,13 @@ func hunksDiff(hunks []any) string {
 		newLines, _ := num(hunk, "newLines")
 		fmt.Fprintf(&b, "@@ -%d,%d +%d,%d @@\n", int(oldStart), int(oldLines), int(newStart), int(newLines))
 		for _, l := range arr(hunk, "lines") {
+			if b.Len() > MaxDiffBytes {
+				return b.String()
+			}
 			if line, ok := l.(string); ok {
 				b.WriteString(line)
 				b.WriteString("\n")
 			}
-		}
-		if b.Len() > MaxDiffBytes {
-			break
 		}
 	}
 	return b.String()

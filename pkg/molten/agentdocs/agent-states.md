@@ -91,7 +91,8 @@ other agents do not yet.
 Without any setup, the companion looks for the newest session of the pane's folder started after the agent: in
 `~/.claude/projects/` for Claude Code (or `$CLAUDE_CONFIG_DIR/projects/`), in `~/.codex/sessions/` for Codex (or
 `$CODEX_HOME/sessions/`). When two panes run the same agent in the same folder it cannot tell their sessions apart,
-so it asks you to pick one. A hook removes the guess: the agent tells the pane which transcript is its own.
+so it asks you to pick one; it also asks for a resumed session (`--resume`), which started before the agent. A
+hook removes the guess: the agent tells the pane which transcript is its own.
 
 ```
 molten agent session [<transcript-path>] [--agent <name>] [--stdin]

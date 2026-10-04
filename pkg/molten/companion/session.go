@@ -19,16 +19,18 @@ import (
 )
 
 const (
-	MaxAnswers      = 100
-	MaxAnswerBytes  = 256 * 1024
-	MaxFiles        = 300
-	MaxDiffBytes    = 256 * 1024
-	MaxTodos        = 100
-	MaxTodoText     = 500
-	MaxPending      = 20
-	MaxArgsBytes    = 4 * 1024
-	MaxPreviewRunes = 140
-	MaxPathBytes    = 4096
+	MaxAnswers     = 100
+	MaxAnswerBytes = 256 * 1024
+	MaxFiles       = 300
+	MaxDiffBytes   = 128 * 1024
+	// All the diffs of a session together; the oldest files' diffs go first.
+	MaxSessionDiffBytes = 8 * 1024 * 1024
+	MaxTodos            = 100
+	MaxTodoText         = 500
+	MaxPending          = 20
+	MaxArgsBytes        = 4 * 1024
+	MaxPreviewRunes     = 140
+	MaxPathBytes        = 4096
 
 	// A transcript whose first lines are none of the records its adapter knows is a format it does not read.
 	unsupportedMinLines = 5
@@ -70,6 +72,10 @@ type answer struct {
 	// tool call is the turn's answer; the earlier ones narrate the work).
 	toolSinceText bool
 	hasText       bool
+	// rev changes with the text, so a view can tell its copy of the answer is current; preview is kept, not
+	// recomputed for every view.
+	rev     int64
+	preview string
 }
 
 func (a *answer) markdown() string {
@@ -103,6 +109,7 @@ type Session struct {
 	nextTurn    int
 	files       map[string]*fileChange
 	fileSeq     int64
+	diffBytes   int
 	todos       []Todo
 	pending     []ToolCall
 	editedCalls map[string]bool
@@ -201,6 +208,8 @@ func (s *Session) AddText(text string, at int64) {
 		cur.texts = cur.texts[1:]
 	}
 	cur.hasText = true
+	cur.rev++
+	cur.preview = preview(text)
 	if at > 0 {
 		cur.at = at
 	}
@@ -354,8 +363,10 @@ func (s *Session) AddFileEdit(path string, kind string, diff string, at int64) {
 		}
 		fc.chunks = append(fc.chunks, diff)
 		fc.size += len(diff)
+		s.diffBytes += len(diff)
 		for fc.size > MaxDiffBytes && len(fc.chunks) > 1 {
 			fc.size -= len(fc.chunks[0])
+			s.diffBytes -= len(fc.chunks[0])
 			fc.chunks = fc.chunks[1:]
 			fc.truncated = true
 		}
@@ -363,6 +374,7 @@ func (s *Session) AddFileEdit(path string, kind string, diff string, at int64) {
 	if len(s.files) > MaxFiles {
 		s.dropOldestFile()
 	}
+	s.trimDiffs()
 	s.touch()
 }
 
@@ -374,7 +386,30 @@ func (s *Session) dropOldestFile() {
 		}
 	}
 	if oldest != nil {
+		s.diffBytes -= oldest.size
 		delete(s.files, oldest.path)
+	}
+}
+
+// trimDiffs keeps the session's diffs under MaxSessionDiffBytes: the least recently changed files lose theirs first
+// (their counts stay).
+func (s *Session) trimDiffs() {
+	if s.diffBytes <= MaxSessionDiffBytes {
+		return
+	}
+	list := make([]*fileChange, 0, len(s.files))
+	for _, fc := range s.files {
+		if fc.size > 0 {
+			list = append(list, fc)
+		}
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].seq < list[j].seq })
+	for _, fc := range list {
+		if s.diffBytes <= MaxSessionDiffBytes {
+			return
+		}
+		s.diffBytes -= fc.size
+		fc.chunks, fc.size, fc.truncated = nil, 0, true
 	}
 }
 
@@ -401,11 +436,14 @@ type AnswerInfo struct {
 }
 
 type AnswerView struct {
+	Rev      int64  `json:"rev"`
 	Index    int    `json:"index"`
 	At       int64  `json:"at,omitempty"`
 	Markdown string `json:"markdown"`
 	// Latest: the answer of the turn in progress or of the last turn.
 	Latest bool `json:"latest,omitempty"`
+	// Elided: an event left the markdown out, unchanged since the previous event.
+	Elided bool `json:"elided,omitempty"`
 }
 
 type FileInfo struct {
@@ -439,7 +477,7 @@ func (s *Session) Answers() []AnswerInfo {
 	turns := s.answered()
 	rtn := make([]AnswerInfo, 0, len(turns))
 	for _, t := range turns {
-		rtn = append(rtn, AnswerInfo{Index: t.index, At: t.at, Preview: preview(t.texts[len(t.texts)-1])})
+		rtn = append(rtn, AnswerInfo{Index: t.index, At: t.at, Preview: t.preview})
 	}
 	return rtn
 }
@@ -452,11 +490,11 @@ func (s *Session) Answer(index int) (AnswerView, bool) {
 	}
 	last := turns[len(turns)-1]
 	if index <= 0 {
-		return AnswerView{Index: last.index, At: last.at, Markdown: last.markdown(), Latest: true}, true
+		return AnswerView{Index: last.index, Rev: last.rev, At: last.at, Markdown: last.markdown(), Latest: true}, true
 	}
 	for _, t := range turns {
 		if t.index == index {
-			return AnswerView{Index: t.index, At: t.at, Markdown: t.markdown(), Latest: t == last}, true
+			return AnswerView{Index: t.index, Rev: t.rev, At: t.at, Markdown: t.markdown(), Latest: t == last}, true
 		}
 	}
 	return AnswerView{}, false
@@ -513,5 +551,6 @@ func cutString(text string, max int) string {
 	for cut > 0 && !utf8.RuneStart(text[cut]) {
 		cut--
 	}
-	return text[:cut]
+	// A copy: the cut part must not keep the whole original in memory.
+	return strings.Clone(text[:cut])
 }
