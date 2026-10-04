@@ -6,11 +6,13 @@
 
 import { atoms } from "@/app/store/global";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
-import { cn, NullAtom } from "@/util/util";
+import { isMacOS } from "@/util/platformutil";
+import { cn, fireAndForget, NullAtom } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useMemo } from "react";
 import { agentHeaderParts, AgentStateDotClasses, AgentStateInfo, agentStateTitle } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
+import { toggleCompanion } from "./companion/companion-open";
 import { usePaneStatus } from "./pane-status";
 import { blockFolder, makePaneView } from "./status-bar-model";
 
@@ -31,6 +33,10 @@ export function AgentStateDot({ info, className }: { info: AgentStateInfo; class
             title={agentStateTitle(info)}
         />
     );
+}
+
+function companionShortcutLabel(): string {
+    return isMacOS() ? "⌘⇧J" : "Alt+Shift+J";
 }
 
 // Without a block (a preview, another view) the store is not even started.
@@ -80,8 +86,19 @@ export function AgentHeaderLabel({ blockId, localName }: { blockId: string; loca
     const pane = folder ? makePaneView(folder, paneState, ws) : null;
     const parts = agentHeaderParts(info, pane?.projectName, pane?.branch);
     const title = [agentStateTitle(info), folder, localName ? `on ${localName}` : ""].filter((s) => !!s).join("\n");
+    // The label opens the agent companion next to the pane (FR-SHELL-018).
     return (
-        <div className="flex min-w-0 shrink items-center gap-1.5 pl-1 pr-1 text-[12px]" title={title}>
+        <button
+            type="button"
+            className="flex min-w-0 shrink cursor-pointer items-center gap-1.5 rounded pl-1 pr-1 text-[12px] hover:bg-hover"
+            title={`${title}\nClick for the agent companion (${companionShortcutLabel()})`}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+                e.stopPropagation();
+                fireAndForget(() => toggleCompanion(blockId));
+            }}
+            data-testid="agent-header-label"
+        >
             <AgentStateDot info={info} />
             {parts.map((part, idx) => (
                 <span
@@ -95,6 +112,6 @@ export function AgentHeaderLabel({ blockId, localName }: { blockId: string; loca
                     {part}
                 </span>
             ))}
-        </div>
+        </button>
     );
 }
