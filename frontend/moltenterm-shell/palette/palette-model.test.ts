@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    bestMatchIndex,
     filterPalette,
     flattenSections,
     fuzzyMatch,
@@ -125,6 +126,23 @@ describe("filterPalette", () => {
 
     it("returns nothing when nothing matches", () => {
         expect(filterPalette(Entries, "qqqq")).toEqual([]);
+    });
+});
+
+describe("bestMatchIndex", () => {
+    it("starts the selection on the best match, even in a later group", () => {
+        const entries = [
+            entry("p1", "panels", "Web", { cli: "wsh launch defwidget@web" }),
+            entry("f1", "folders", "sub", { detail: "/tmp/sub" }),
+        ];
+        const sections = filterPalette(entries, "sub");
+        expect(flattenSections(sections).map((e) => e.id)).toEqual(["p1", "f1"]);
+        expect(bestMatchIndex(sections, "sub")).toBe(1);
+    });
+
+    it("starts on the first entry without a query, and has none for an empty list", () => {
+        expect(bestMatchIndex(filterPalette(Entries, ""), "")).toBe(0);
+        expect(bestMatchIndex([], "x")).toBe(-1);
     });
 });
 
