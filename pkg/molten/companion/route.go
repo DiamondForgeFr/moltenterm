@@ -18,6 +18,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
@@ -195,6 +196,9 @@ var defaultManager *Manager
 
 // Start registers the companion's route; wavesrv calls it once at startup, after the agent states.
 func Start() {
+	SetConfiguredRoots(func() map[string][]string {
+		return wconfig.GetWatcher().GetFullConfig().Settings.AgentSessionRoots
+	})
 	m := MakeManager()
 	m.runOf = attention.AgentRun
 	m.allRuns = attention.AgentRuns

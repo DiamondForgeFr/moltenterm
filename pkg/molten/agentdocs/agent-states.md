@@ -5,9 +5,28 @@ dot with the agent's state: **working**, **waiting** for you, **done**, **error*
 the rail show the most urgent state of their panes (waiting, then error, then working, then done). An agent that
 waits or is done while you look elsewhere raises a notification; opening it brings you to the pane.
 
-MoltenTerm recognises Claude Code (`claude`), Codex (`codex`), Gemini CLI (`gemini`) and OpenCode (`opencode`) when
-you start them from a MoltenTerm terminal. It never reads the screen to guess what an agent does. It learns the
-state from three sources:
+MoltenTerm recognises Claude Code (`claude`), Codex (`codex`), Gemini CLI (`gemini`) and OpenCode (`opencode`) in a
+MoltenTerm terminal. It never reads the screen to guess what an agent does.
+
+## How MoltenTerm finds the agent
+
+- **The command line**: `claude`, `clear; claude`, `cd app && codex`, `FOO=1 npx @openai/codex`.
+- **The terminal's processes** (macOS and Linux): MoltenTerm looks at what runs in the foreground of each local
+  terminal and recognises the agent by its executable (Claude Code's native binary, named after its version, and
+  agents running in Node.js included). This finds an agent started by a script or an alias, an agent run as a
+  block's command, and, after MoltenTerm restarts, every agent still running in a terminal that survived it: the
+  header, the dots, clean copy and the companion find it again within a couple of seconds. An agent found this way
+  after a restart shows **idle** until its next signal (a bell, a hook, or Enter in the pane). The processes are
+  only looked at while a command runs, and once at startup: a terminal at its prompt costs nothing.
+- **The agent's hooks** (below), which name the agent with `--agent`.
+
+Not covered: an agent inside tmux or screen running in the terminal (it runs under the tmux server, not under the
+terminal), agents in remote (SSH) and WSL terminals unless their command line or hooks name them, and the process
+view on Windows (the command line and hooks still work there).
+
+## The state
+
+MoltenTerm learns the state from three sources:
 
 1. **The command itself** (always): working while the agent runs, error when it exits with a failure. With nothing
    else, this is all MoltenTerm knows: working, or idle.
@@ -88,18 +107,20 @@ every code block, the earlier answers, the files changed with their diffs, the t
 request. MoltenTerm never writes, copies or sends the transcript anywhere. Claude Code and Codex have a companion;
 other agents do not yet.
 
-Without any setup, the companion looks for the newest session of the pane's folder started after the agent: in
+Without any setup, the companion looks for the session of the pane's folder started after the agent: in
 `~/.claude/projects/` for Claude Code (or `$CLAUDE_CONFIG_DIR/projects/`), in `~/.codex/sessions/` for Codex (or
-`$CODEX_HOME/sessions/`). When two panes run the same agent in the same folder it cannot tell their sessions apart,
-so it asks you to pick one; it also asks for a resumed session (`--resume`), which started before the agent. A
-hook removes the guess: the agent tells the pane which transcript is its own.
+`$CODEX_HOME/sessions/`). A resumed session (`--resume`) started before the agent: the companion takes it when it is
+the only session of the folder written since the agent started and no other terminal holds it. When two panes run
+the same agent in the same folder it cannot tell their sessions apart, so it asks you to pick one, as it does when
+several sessions are candidates. A hook removes the guess: the agent tells the pane which transcript is its own.
 
 ```
 molten agent session [<transcript-path>] [--agent <name>] [--stdin]
 ```
 
 - `--stdin` takes the path from the `transcript_path` field of the JSON the hook receives on its standard input.
-- The path must be in the agent's session folder above; any other file is refused.
+- The path must be in the agent's session folder above, or in one from `agent:sessionroots`; any other file is
+  refused.
 
 For Claude Code, add a `SessionStart` hook (it also runs after `/clear` and when a session is resumed):
 
@@ -112,6 +133,25 @@ For Claude Code, add a `SessionStart` hook (it also runs after `/clear` and when
   }
 }
 ```
+
+### Sessions in another folder
+
+MoltenTerm does not see the variables set in your shell's startup files. If you set `CLAUDE_CONFIG_DIR` or
+`CODEX_HOME` there, add the same folders to MoltenTerm's settings (`settings.json`, in MoltenTerm's configuration
+folder), per agent:
+
+```json
+{
+  "agent:sessionroots": {
+    "claude": ["~/work/.claude"],
+    "codex": ["~/work/.codex"]
+  }
+}
+```
+
+The companion then also reads `projects/` (Claude Code) or `sessions/` (Codex) inside each folder, for discovery and
+for the paths hooks report. A folder is used only when it is an absolute path (or starts with `~/`) to an existing
+folder you own that other users cannot write to; any other is ignored, and MoltenTerm's log says why.
 
 ## Checking
 

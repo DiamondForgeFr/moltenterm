@@ -115,6 +115,9 @@ type SettingsType struct {
 	TermShowSplitButtons           bool     `json:"term:showsplitbuttons,omitempty"`
 	TermTrimTrailingWhitespace     *bool    `json:"term:trimtrailingwhitespace,omitempty"`
 
+	// MOLTENTERM-PATCH (#141): the agent companion also reads coding agents' sessions from these configuration folders.
+	AgentSessionRoots map[string][]string `json:"agent:sessionroots,omitempty" jsonschema_description:"Extra configuration folders per coding agent (claude: like CLAUDE_CONFIG_DIR, codex: like CODEX_HOME) whose sessions the agent companion reads"`
+
 	EditorMinimapEnabled      bool    `json:"editor:minimapenabled,omitempty"`
 	EditorStickyScrollEnabled bool    `json:"editor:stickyscrollenabled,omitempty"`
 	EditorWordWrap            bool    `json:"editor:wordwrap,omitempty"`

@@ -33,7 +33,8 @@ type ClaudeAdapter struct {
 	roots []string
 }
 
-// MakeClaudeAdapter reads sessions under the given roots, or Claude Code's own when roots is nil.
+// MakeClaudeAdapter reads sessions under the given roots, or Claude Code's own and the
+// configured ones (agent:sessionroots) when roots is nil.
 func MakeClaudeAdapter(roots []string) *ClaudeAdapter {
 	if roots == nil {
 		config := os.Getenv("CLAUDE_CONFIG_DIR")
@@ -45,6 +46,7 @@ func MakeClaudeAdapter(roots []string) *ClaudeAdapter {
 		if config != "" {
 			roots = []string{filepath.Join(config, "projects")}
 		}
+		roots = withExtraRoots("claude", roots)
 	}
 	return &ClaudeAdapter{roots: roots}
 }

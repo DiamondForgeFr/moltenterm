@@ -34,7 +34,8 @@ type CodexAdapter struct {
 	roots []string
 }
 
-// MakeCodexAdapter reads sessions under the given roots, or Codex's own when roots is nil.
+// MakeCodexAdapter reads sessions under the given roots, or Codex's own and the
+// configured ones (agent:sessionroots) when roots is nil.
 func MakeCodexAdapter(roots []string) *CodexAdapter {
 	if roots == nil {
 		home := os.Getenv("CODEX_HOME")
@@ -46,6 +47,7 @@ func MakeCodexAdapter(roots []string) *CodexAdapter {
 		if home != "" {
 			roots = []string{filepath.Join(home, "sessions")}
 		}
+		roots = withExtraRoots("codex", roots)
 	}
 	return &CodexAdapter{roots: roots}
 }
