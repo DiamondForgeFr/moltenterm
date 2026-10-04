@@ -19,7 +19,7 @@ import { unreadByWorkspace } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 import { ProjectLinkDetector } from "./project-link-modal";
 import { RailTools } from "./rail-tools";
-import { WorktreeCloseHost } from "./worktree-ui";
+import { WorktreeCloseHost } from "./worktree-close";
 import { WorkspaceIcon } from "./workspace-icon";
 import { readWorkspaceProject } from "./workspace-project";
 import { WorkspaceProjectSection } from "./workspace-project-section";

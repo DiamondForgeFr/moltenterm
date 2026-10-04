@@ -19,6 +19,7 @@ import React, {
 import { DropTargetMonitor, XYCoord, useDrag, useDragLayer, useDrop } from "react-dnd";
 import { debounce, throttle } from "throttle-debounce";
 import { useDevicePixelRatio } from "use-device-pixel-ratio";
+import { interceptWorktreeClose } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#134)
 import { LayoutModel } from "./layoutModel";
 import { useNodeModel, useTileLayout } from "./layoutModelHooks";
 import "./tilelayout.scss";
@@ -182,7 +183,14 @@ function NodeBackdrops({ layoutModel }: { layoutModel: LayoutModel }) {
                 <div
                     className="ephemeral-node-backdrop"
                     onClick={() => {
-                        layoutModel.closeNode(ephemeralNode?.id);
+                        // MOLTENTERM-PATCH (#134): an ephemeral terminal linked to a worktree asks as closing it does
+                        const closeEphemeral = () => {
+                            if (interceptWorktreeClose(ephemeralNode?.data?.blockId, closeEphemeral)) {
+                                return;
+                            }
+                            layoutModel.closeNode(ephemeralNode?.id);
+                        };
+                        closeEphemeral();
                     }}
                     style={{ "--block-blur": blockBlurStr } as CSSProperties}
                 />

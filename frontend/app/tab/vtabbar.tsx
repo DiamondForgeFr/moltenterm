@@ -13,6 +13,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { AgentTabDot } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#109)
+import { closeTabAskingWorktrees } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#134)
 import { buildTabBarContextMenu, buildTabContextMenu } from "./tabcontextmenu";
 import { UpdateStatusBanner } from "./updatebanner";
 import { VTab, VTabItem } from "./vtab";
@@ -376,7 +377,12 @@ export function VTabBar({ workspace, className }: VTabBarProps) {
                             hoverResetVersion={hoverResetVersion}
                             index={index}
                             onSelect={() => env.electron.setActiveTab(tabId)}
-                            onClose={() => fireAndForget(() => env.electron.closeTab(workspace.oid, tabId, false))}
+                            // MOLTENTERM-PATCH (#134): a tab holding terminals linked to worktrees asks once for all of them
+                            onClose={() =>
+                                fireAndForget(() =>
+                                    closeTabAskingWorktrees(env.electron.closeTab, workspace.oid, tabId, false)
+                                )
+                            }
                             onRename={(newName) =>
                                 fireAndForget(() => env.rpc.UpdateTabNameCommand(TabRpcClient, tabId, newName))
                             }

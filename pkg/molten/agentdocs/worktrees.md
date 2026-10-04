@@ -46,10 +46,17 @@ other open terminals using the worktree. Then: **Remove**, **Keep** or **Cancel*
 
 - Keep is the default when another terminal uses the worktree.
 - Uncommitted changes, unpushed commits, ignored files (a `.env`) or another terminal using it need a second,
-  explicit confirmation; only then is git forced, and only if nothing was added since the user confirmed.
+  explicit confirmation; only then is git forced, and only if nothing was added since the user confirmed. Commits on
+  no remote of a branch whose content is already on the trunk (merged by squash, remote branch deleted) are not at
+  risk: they need no second confirmation.
 - The branch is kept unless the user asks to delete it, and it is deleted only when its content is on the trunk.
 - Nothing of this can be triggered from a terminal: only the user, in a MoltenTerm window, removes a worktree. An
   agent that wants its worktree gone removes it with git itself.
+
+Every way of closing the terminal asks the same: the close button, its menu, Cmd+W, Ctrl+Shift+X. Closing a whole tab
+asks once for all its worktrees, one row each, Keep selected. A terminal that goes without a window asking (its shell
+exits with `cmd:closeonexit`, `wsh deleteblock`) keeps its worktree, and the notification center says so, with a
+"Review and remove…" action.
 
 A worktree removed outside MoltenTerm (`git worktree remove`, the folder deleted) shows as **missing worktree** in the
 header; closing the terminal then asks nothing.

@@ -56,7 +56,7 @@ func riskOf(plan WorktreePlan) *WorktreeRisk {
 	return &WorktreeRisk{Sha: plan.Sha, ChangeCount: plan.ChangeCount, Unpushed: plan.Unpushed, IgnoredFileCount: plan.IgnoredFileCount}
 }
 
-func noTerminals(ctx context.Context, path string, exclude string) []WorktreeTerminal {
+func noTerminals(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
 	return []WorktreeTerminal{}
 }
 
@@ -243,7 +243,7 @@ func TestChangePath(t *testing.T) {
 
 func TestWorktreeSharedOrIgnoredNeedsConfirmation(t *testing.T) {
 	_, _, tree := makeWorktreeFixture(t)
-	shared := MakeWorktrees(plainRunner, func(ctx context.Context, path string, exclude string) []WorktreeTerminal {
+	shared := MakeWorktrees(plainRunner, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
 		return []WorktreeTerminal{{BlockId: "b2", Linked: true}}
 	})
 	if _, err := shared.Remove(WorktreeRemoveRequest{Dir: tree}); err == nil {
@@ -297,5 +297,67 @@ func TestWorktreeRefusesHome(t *testing.T) {
 	}
 	if _, err := w.Remove(WorktreeRemoveRequest{Dir: tree, Confirmed: riskOf(plan)}); err == nil {
 		t.Fatal("removed a folder holding the home folder")
+	}
+}
+
+// A branch merged by squash whose remote branch was deleted: its commits exist on no remote, but its content is on
+// the trunk, so they are not at risk and one confirmation (the Remove itself) is enough (#134).
+func TestWorktreeMergedWithoutRemoteBranchAsksOnce(t *testing.T) {
+	base, clone, tree := makeWorktreeFixture(t)
+	commit(t, tree, "b.txt", "feat(#5): work")
+	// The squash commit: the same content, another commit.
+	origin := filepath.Join(base, "origin")
+	os.WriteFile(filepath.Join(origin, "b.txt"), []byte("feat(#5): work"), 0644)
+	gitRun(t, origin, "add", "b.txt")
+	gitRun(t, origin, "commit", "-q", "-m", "feat(#5): work (#6)")
+	gitRun(t, clone, "fetch", "-q", "origin")
+	w := MakeWorktrees(plainRunner, noTerminals)
+	plan, err := w.Plan(WorktreeRequest{Dir: tree})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Unpushed != 1 || plan.Merged == nil || !*plan.Merged {
+		t.Fatalf("squash-merged, remote branch gone: %+v", plan)
+	}
+	if plan.UnpushedAtRisk() || plan.NeedsConfirmation() {
+		t.Fatalf("a merged branch's commits asked twice: %+v", plan)
+	}
+	res, err := w.Remove(WorktreeRemoveRequest{Dir: tree, DeleteBranch: true})
+	if err != nil || !res.Removed || res.Forced || res.BranchDeleted != "feature/5-x" {
+		t.Fatalf("one confirmation: %+v %v", res, err)
+	}
+}
+
+// Work on top of a merged branch still asks twice; so do commits git could not count.
+func TestWorktreeMergedStillAsksForWorkOrUnknownCommits(t *testing.T) {
+	merged := true
+	if !(WorktreePlan{Unpushed: UnknownCount, Merged: &merged}).NeedsConfirmation() {
+		t.Fatal("uncountable commits on a merged branch went without the second confirmation")
+	}
+	if !(WorktreePlan{Unpushed: 2, Merged: &merged, ChangeCount: 1}).NeedsConfirmation() {
+		t.Fatal("uncommitted changes on a merged branch went without the second confirmation")
+	}
+	notMerged := false
+	if !(WorktreePlan{Unpushed: 2, Merged: &notMerged}).NeedsConfirmation() {
+		t.Fatal("unmerged commits on no remote went without the second confirmation")
+	}
+	if !(WorktreePlan{Unpushed: 2}).NeedsConfirmation() {
+		t.Fatal("commits on no remote of a branch not compared went without the second confirmation")
+	}
+}
+
+// The terminals closed together (a whole tab) are not "other terminals" of the worktree.
+func TestWorktreeClosingTerminalsAreNotOthers(t *testing.T) {
+	_, _, tree := makeWorktreeFixture(t)
+	var seen []string
+	w := MakeWorktrees(plainRunner, func(ctx context.Context, path string, exclude []string) []WorktreeTerminal {
+		seen = exclude
+		return []WorktreeTerminal{}
+	})
+	if _, err := w.Plan(WorktreeRequest{Dir: tree, BlockId: "b1", BlockIds: []string{"b2", "", "b3"}}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(seen, ",") != "b1,b2,b3" {
+		t.Fatalf("excluded: %v", seen)
 	}
 }

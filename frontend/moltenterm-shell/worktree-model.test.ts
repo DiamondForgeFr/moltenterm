@@ -5,11 +5,18 @@ import { describe, expect, it } from "vitest";
 import type { PaneState } from "./status-bar-model";
 import {
     closePlanView,
+    closingWorktreeLink,
+    keptWorktreeNoticeKey,
+    makeTabCloseRows,
+    readReviewPath,
     readWorktreeDismissed,
     readWorktreeLink,
+    tabCloseRemovals,
     tabTreesTooltip,
+    tabWorktrees,
     treeMarker,
     treeTooltipLine,
+    unpushedAtRisk,
     withWorktreeDismissed,
     worktreeColor,
     worktreeOffer,
@@ -142,9 +149,21 @@ describe("closePlanView", () => {
 
     it("asks twice for uncommitted or unpushed work", () => {
         expect(closePlanView(plan({ changecount: 2, changes: ["a", "b"] })).atRisk).toBe(true);
-        const v = closePlanView(plan({ unpushed: 1 }));
+        const v = closePlanView(plan({ unpushed: 1, merged: false }));
         expect(v.atRisk).toBe(true);
+        expect(v.unpushedAtRisk).toBe(true);
         expect(v.unpushedLine).toBe("1 commit on no remote");
+    });
+
+    it("asks once for a merged branch whose remote branch is gone (#134)", () => {
+        const v = closePlanView(plan({ unpushed: 3, merged: true }));
+        expect(v.atRisk).toBe(false);
+        expect(v.unpushedAtRisk).toBe(false);
+        expect(v.unpushedLine).toBe("3 commits on no remote, their content already on develop");
+        expect(unpushedAtRisk(plan({ unpushed: 3, merged: true }))).toBe(false);
+        expect(unpushedAtRisk(plan({ unpushed: -1, merged: true }))).toBe(true);
+        expect(unpushedAtRisk(plan({ unpushed: 3, merged: undefined }))).toBe(true);
+        expect(closePlanView(plan({ unpushed: 3, merged: true, changecount: 1, changes: ["a"] })).atRisk).toBe(true);
     });
 
     it("keeps by default when another terminal uses it, and asks twice to remove", () => {
@@ -185,5 +204,76 @@ describe("closePlanView", () => {
         const v = closePlanView(plan({ refused: "the home folder" }));
         expect(v.canRemove).toBe(false);
         expect(v.blockedReason).toContain("home folder");
+    });
+});
+
+describe("closing a tab with worktrees (#134)", () => {
+    const term = (oid: string, link: string, more: Record<string, any> = {}) => ({
+        oid,
+        meta: { view: "term", "molten:worktree": link, ...more },
+    });
+
+    it("groups the tab's local terminals by linked worktree", () => {
+        const blocks = [
+            term("b1", "/w/a"),
+            { oid: "b2", meta: { view: "preview" } },
+            term("b3", "/w/b"),
+            term("b4", "/w/a"),
+            term("b5", "/w/c", { connection: "user@host" }),
+            term("b6", ""),
+        ];
+        expect(tabWorktrees(blocks, () => false)).toEqual([
+            { path: "/w/a", blockIds: ["b1", "b4"] },
+            { path: "/w/b", blockIds: ["b3"] },
+        ]);
+        expect(tabWorktrees([], () => false)).toEqual([]);
+        expect(tabWorktrees(blocks, (id) => id === "b3")).toEqual([{ path: "/w/a", blockIds: ["b1", "b4"] }]);
+    });
+
+    it("keeps every worktree unless a row says Remove, and asks twice only for rows at risk", () => {
+        const rows = makeTabCloseRows([
+            { path: "/w/clean", blockIds: ["b1"] },
+            { path: "/w/dirty", blockIds: ["b2"] },
+        ]);
+        expect(rows.every((r) => r.choice === "keep")).toBe(true);
+        rows[0].plan = plan({ path: "/w/clean" });
+        rows[1].plan = plan({ path: "/w/dirty", changecount: 1, changes: ["x"] });
+        expect(tabCloseRemovals(rows)).toEqual({ remove: [], atRisk: [] });
+        rows[0].choice = "remove";
+        expect(tabCloseRemovals(rows).remove.map((r) => r.path)).toEqual(["/w/clean"]);
+        expect(tabCloseRemovals(rows).atRisk).toEqual([]);
+        rows[1].choice = "remove";
+        expect(tabCloseRemovals(rows).atRisk.map((r) => r.path)).toEqual(["/w/dirty"]);
+        rows[0].removed = true;
+        expect(tabCloseRemovals(rows).remove.map((r) => r.path)).toEqual(["/w/dirty"]);
+    });
+
+    it("never removes a row without a plan, or one MoltenTerm refuses", () => {
+        const rows = makeTabCloseRows([
+            { path: "/w/a", blockIds: ["b1"] },
+            { path: "/w/b", blockIds: ["b2"] },
+        ]);
+        rows.forEach((r) => (r.choice = "remove"));
+        rows[0].error = "not a linked worktree";
+        rows[1].plan = plan({ path: "/w/b", locked: true });
+        expect(tabCloseRemovals(rows).remove).toEqual([]);
+    });
+});
+
+describe("a worktree kept when its terminal went alone (#134)", () => {
+    it("names the notification and its action", () => {
+        expect(keptWorktreeNoticeKey("/w/a")).toBe("worktree:kept:/w/a");
+        expect(readReviewPath({ path: "/w/a" })).toBe("/w/a");
+        expect(readReviewPath({ path: "w/a" })).toBe("");
+        expect(readReviewPath({ path: 3 })).toBe("");
+        expect(readReviewPath(null)).toBe("");
+    });
+
+    it("reads the link of a closing local terminal only", () => {
+        expect(closingWorktreeLink({ view: "term", "molten:worktree": "/w/a" })).toBe("/w/a");
+        expect(closingWorktreeLink({ view: "term", connection: "local", "molten:worktree": "/w/a" })).toBe("/w/a");
+        expect(closingWorktreeLink({ view: "term", connection: "me@host", "molten:worktree": "/w/a" })).toBe("");
+        expect(closingWorktreeLink({ view: "preview", "molten:worktree": "/w/a" })).toBe("");
+        expect(closingWorktreeLink(null)).toBe("");
     });
 });

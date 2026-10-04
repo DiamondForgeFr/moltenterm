@@ -234,10 +234,21 @@ export function worktreeRisk(plan: WorktreePlan): WorktreeRisk {
     };
 }
 
+// Commits no remote has are at risk unless the branch's content is on the trunk (#97's check): a branch merged by squash
+// whose remote branch was deleted loses only its history (as wavesrv's UnpushedAtRisk). Uncountable commits still are.
+export function unpushedAtRisk(plan: WorktreePlan): boolean {
+    const unpushed = plan.unpushed ?? 0;
+    if (unpushed > 0 && plan.merged === true) {
+        return false;
+    }
+    return unpushed !== 0;
+}
+
 export type ClosePlanView = {
     // Uncommitted changes, ignored files, commits no remote has (or git could not count), other terminals: removal
     // needs a second confirmation (as wavesrv's NeedsConfirmation).
     atRisk: boolean;
+    unpushedAtRisk: boolean;
     // Other terminals use the worktree: Keep is the default.
     shared: boolean;
     defaultChoice: "remove" | "keep";
@@ -262,7 +273,8 @@ export function closePlanView(plan: WorktreePlan): ClosePlanView {
     const unpushed = plan.unpushed ?? 0;
     const terminals = plan.terminals ?? [];
     const shared = terminals.length > 0;
-    const atRisk = changes > 0 || unpushed !== 0 || (plan.ignoredfilecount ?? 0) > 0 || shared;
+    const commitsAtRisk = unpushedAtRisk(plan);
+    const atRisk = changes > 0 || commitsAtRisk || (plan.ignoredfilecount ?? 0) > 0 || shared;
     const branch = plan.branch || (plan.detached ? `detached at ${(plan.sha ?? "").slice(0, 7)}` : "");
     let mergedLine = "";
     if (plan.branch) {
@@ -287,6 +299,9 @@ export function closePlanView(plan: WorktreePlan): ClosePlanView {
         } else {
             unpushedLine = `${plural(unpushed, "commit", "commits")} on no remote`;
         }
+        if (!commitsAtRisk && !plan.detached) {
+            unpushedLine += `, their content already on ${plan.trunk}`;
+        }
     }
     const terminalsLine = shared
         ? `Also used by ${plural(terminals.length, "other terminal", "other terminals")}: ${terminals
@@ -295,6 +310,7 @@ export function closePlanView(plan: WorktreePlan): ClosePlanView {
         : "";
     return {
         atRisk,
+        unpushedAtRisk: commitsAtRisk,
         shared,
         defaultChoice: shared ? "keep" : "remove",
         branchLine: branch,
@@ -315,4 +331,77 @@ export function closePlanView(plan: WorktreePlan): ClosePlanView {
               ? `MoltenTerm does not remove this folder: ${plan.refused}.`
               : "",
     };
+}
+
+// must match KeptWorktreeNoticePrefix and WorktreeReviewGesture in pkg/molten/mission/worktree_notice.go
+export const KeptWorktreeNoticePrefix = "worktree:kept:";
+export const WorktreeReviewGesture = "worktree:review";
+
+export function keptWorktreeNoticeKey(path: string): string {
+    return KeptWorktreeNoticePrefix + path;
+}
+
+// The path a "Review and remove…" action carries: an absolute folder, nothing else.
+export function readReviewPath(args: Record<string, any>): string {
+    const path = args?.path;
+    return typeof path === "string" && path.startsWith("/") ? path : "";
+}
+
+function localConnection(meta: Record<string, any>): boolean {
+    return meta?.connection == null || meta.connection === "" || meta.connection === "local";
+}
+
+// The link a closing block leaves: a local terminal's worktree. A terminal switched to a remote connection has nothing
+// of it to remove.
+export function closingWorktreeLink(meta: Record<string, any>): string {
+    const link = readWorktreeLink(meta);
+    if (meta?.view !== "term" || !link || !localConnection(meta)) {
+        return "";
+    }
+    return link;
+}
+
+export type ClosingBlock = { oid: string; meta?: Record<string, any> };
+export type TabWorktree = { path: string; blockIds: string[] };
+
+// The worktrees closing a tab leaves, one per linked folder with its terminals, in the tab's order. skip: the
+// terminals whose own close was just answered (closing the last terminal of a tab closes the tab).
+export function tabWorktrees(blocks: ClosingBlock[], skip: (blockId: string) => boolean): TabWorktree[] {
+    const rtn: TabWorktree[] = [];
+    for (const block of blocks ?? []) {
+        const link = closingWorktreeLink(block?.meta);
+        if (!link || skip(block.oid)) {
+            continue;
+        }
+        const existing = rtn.find((w) => w.path === link);
+        if (existing != null) {
+            existing.blockIds.push(block.oid);
+            continue;
+        }
+        rtn.push({ path: link, blockIds: [block.oid] });
+    }
+    return rtn;
+}
+
+export type TabCloseRow = {
+    path: string;
+    blockIds: string[];
+    plan?: WorktreePlan;
+    error?: string;
+    // Keep is selected on every row; Remove is the user's choice, row by row.
+    choice: "keep" | "remove";
+    deleteBranch: boolean;
+    removed?: boolean;
+};
+
+export function makeTabCloseRows(worktrees: TabWorktree[]): TabCloseRow[] {
+    return worktrees.map((w) => ({ path: w.path, blockIds: w.blockIds, choice: "keep", deleteBranch: false }));
+}
+
+// The rows a tab close removes, and those of them needing the second confirmation (as a single terminal's close).
+export function tabCloseRemovals(rows: TabCloseRow[]): { remove: TabCloseRow[]; atRisk: TabCloseRow[] } {
+    const remove = rows.filter(
+        (r) => r.choice === "remove" && !r.removed && r.plan != null && closePlanView(r.plan).canRemove
+    );
+    return { remove, atRisk: remove.filter((r) => closePlanView(r.plan).atRisk) };
 }

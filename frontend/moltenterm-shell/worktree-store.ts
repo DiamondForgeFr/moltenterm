@@ -8,13 +8,15 @@ import { makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MissionRouteId } from "./mission/mission-client";
+import { resolveMoltentermNotification } from "./notifications-store";
 import {
+    keptWorktreeNoticeKey,
+    withWorktreeDismissed,
     WorktreeDismissedMetaKey,
     WorktreeMetaKey,
     WorktreePlan,
     WorktreeRemoveResult,
     WorktreeRisk,
-    withWorktreeDismissed,
 } from "./worktree-model";
 
 // must match WorktreePlanCommand and WorktreeRemoveCommand in pkg/molten/mission/worktree.go
@@ -39,23 +41,38 @@ export async function dismissWorktree(blockId: string, dismissed: readonly strin
     await setBlockMeta(blockId, { [WorktreeDismissedMetaKey]: withWorktreeDismissed(dismissed, path) });
 }
 
-export function worktreePlan(dir: string, blockId: string): Promise<WorktreePlan> {
+// blockId: the terminal being closed ("" when none is, a notification's review); blockIds: every terminal closed with
+// it (a whole tab). None of them counts among the worktree's other terminals.
+export function worktreePlan(dir: string, blockId: string, blockIds?: string[]): Promise<WorktreePlan> {
     return TabRpcClient.wshRpcCall(
         MissionWorktreePlanCommand,
-        { dir, blockid: blockId },
+        { dir, blockid: blockId || undefined, blockids: blockIds },
         { route: MissionRouteId, timeout: PlanTimeoutMs }
     );
 }
 
-export function removeWorktree(
+export async function removeWorktree(
     dir: string,
     blockId: string,
     // confirmed: the plan the user confirmed a second time; null when nothing was at risk.
-    opts: { confirmed: WorktreeRisk; deleteBranch: boolean }
+    opts: { confirmed: WorktreeRisk; deleteBranch: boolean; blockIds?: string[] }
 ): Promise<WorktreeRemoveResult> {
-    return TabRpcClient.wshRpcCall(
+    const result: WorktreeRemoveResult = await TabRpcClient.wshRpcCall(
         MissionWorktreeRemoveCommand,
-        { dir, blockid: blockId, confirmed: opts.confirmed ?? undefined, deletebranch: opts.deleteBranch },
+        {
+            dir,
+            blockid: blockId || undefined,
+            blockids: opts.blockIds,
+            confirmed: opts.confirmed ?? undefined,
+            deletebranch: opts.deleteBranch,
+        },
         { route: MissionRouteId, timeout: PlanTimeoutMs }
     );
+    resolveKeptWorktreeNotice(dir);
+    return result;
+}
+
+// The worktree is gone: a notification saying it is still on disk is answered.
+export function resolveKeptWorktreeNotice(dir: string): void {
+    resolveMoltentermNotification(keptWorktreeNoticeKey(dir));
 }

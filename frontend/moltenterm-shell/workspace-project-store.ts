@@ -13,7 +13,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MoltentermChoosePathOpts } from "@/util/moltenterm-dialogs";
 import { base64ToString } from "@/util/util";
 import { pushRecentFolder } from "./palette/palette-sources";
-import { ProjectDismissedMetaKey } from "./project-detect";
+import { ProjectDismissedMetaKey, projectOfGitFile } from "./project-detect";
 import {
     linkUpdate,
     logoProbeOrder,
@@ -36,6 +36,7 @@ import {
 const MaxGitRootDepth = 40;
 const MaxReadmeBytes = 256 * 1024;
 const MaxJsonBytes = 1024 * 1024;
+const MaxGitFileBytes = 4096;
 
 export type ProjectFacts = { exists: boolean; hasPipeline: boolean; harness: string; name: string };
 
@@ -70,6 +71,21 @@ export async function findProjectRoot(dir: string): Promise<string> {
         current = parent;
     }
     return "";
+}
+
+// The project a terminal's folder offers to link (#77): its repository's folder; for a linked worktree, the main
+// checkout it belongs to (#134). "" outside any repository.
+export async function findOfferedProject(dir: string): Promise<string> {
+    const root = await findProjectRoot(dir);
+    const gitPath = root ? projectFilePath(root, ".git") : null;
+    if (gitPath == null) {
+        return root;
+    }
+    const info = await statPath(gitPath);
+    if (info == null || info.isdir) {
+        return root;
+    }
+    return projectOfGitFile(root, await readText(gitPath, MaxGitFileBytes));
 }
 
 // The closest folder at or above dir holding a ".git" entry, as molten does; the folder itself without one.

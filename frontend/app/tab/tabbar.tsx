@@ -20,6 +20,7 @@ import { WorkspaceSwitcher } from "./workspaceswitcher";
 import { MoltentermNotificationCenter, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44, #45)
 import { NotificationCenter } from "../../moltenterm-shell/notification-center"; // MOLTENTERM-PATCH (#45)
 import { checkTabDragReleased } from "../../moltenterm-shell/tab-drag"; // MOLTENTERM-PATCH (#81)
+import { closeTabAskingWorktrees } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#134)
 
 const TabDefaultWidth = 130;
 const TabMinWidth = 100;
@@ -549,8 +550,8 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
 
     const handleCloseTab = (event: React.MouseEvent<HTMLButtonElement, MouseEvent> | null, tabId: string) => {
         event?.stopPropagation();
-        env.electron
-            .closeTab(workspace.oid, tabId, confirmClose)
+        // MOLTENTERM-PATCH (#134): a tab holding terminals linked to worktrees asks once for all of them
+        closeTabAskingWorktrees(env.electron.closeTab, workspace.oid, tabId, confirmClose)
             .then((didClose) => {
                 if (didClose) {
                     tabsWrapperRef.current?.style.setProperty("--tabs-wrapper-transition", "width 0.3s ease");

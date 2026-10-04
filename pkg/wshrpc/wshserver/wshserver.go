@@ -239,10 +239,12 @@ func (ws *WshServer) CreateBlockCommand(ctx context.Context, data wshrpc.Command
 				BlockId:       blockData.OID,
 				Focused:       data.Focused,
 			}
+			noticeKeptWorktree := moltenKeptWorktreeNotice(ctx, data.TargetBlockId, tabId) // MOLTENTERM-PATCH (#134)
 			err = wcore.DeleteBlock(ctx, data.TargetBlockId, false)
 			if err != nil {
 				return nil, fmt.Errorf("error deleting block (trying to do block replace): %w", err)
 			}
+			noticeKeptWorktree() // MOLTENTERM-PATCH (#134): a replaced terminal left its linked worktree on disk
 		case "splitright":
 			layoutAction = &waveobj.LayoutActionData{
 				ActionType:    wcore.LayoutActionDataType_SplitHorizontal,
@@ -483,10 +485,12 @@ func (ws *WshServer) DeleteBlockCommand(ctx context.Context, data wshrpc.Command
 	if tabId == "" {
 		return fmt.Errorf("no tab found for block")
 	}
+	noticeKeptWorktree := moltenKeptWorktreeNotice(ctx, data.BlockId, tabId) // MOLTENTERM-PATCH (#134)
 	err = wcore.DeleteBlock(ctx, data.BlockId, true)
 	if err != nil {
 		return fmt.Errorf("error deleting block: %w", err)
 	}
+	noticeKeptWorktree() // MOLTENTERM-PATCH (#134): closeonexit or wsh deleteblock left a linked worktree on disk
 	wcore.QueueLayoutActionForTab(ctx, tabId, waveobj.LayoutActionData{
 		ActionType: wcore.LayoutActionDataType_Remove,
 		BlockId:    data.BlockId,
