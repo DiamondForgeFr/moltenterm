@@ -5,7 +5,7 @@
 // modules read. Kept apart from the components so the rules can be tested without the app.
 
 import { GithubRelease, Milestone, PullRequest, WorkflowRun } from "./github";
-import { RawCommit, TreeData } from "./tree";
+import { DefaultTagPrefix, RawCommit, TreeData } from "./tree";
 
 export type MissionTag = { name: string; sha: string; date: string; notes?: string; notesinternal?: string };
 
@@ -28,6 +28,7 @@ export type MissionGit = {
     lastpublic?: string;
     sincepublic: RawCommit[];
     fetcherror?: string;
+    tagprefix?: string;
 };
 
 // must match the states in pkg/molten/mission/github.go
@@ -113,6 +114,7 @@ export function toTreeData(git: MissionGit): TreeData {
     return {
         trunk: git.trunk,
         release: git.release,
+        tagPrefix: git.tagprefix || DefaultTagPrefix,
         branches: (git.branches ?? []).map((b) => ({ ...b, commits: b.commits ?? [], fork: b.fork ?? null })),
         tags: (git.tags ?? []).map((t) => ({
             name: t.name,

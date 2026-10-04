@@ -336,7 +336,7 @@ export function ReleaseRunPanel({
     run: ReleaseRun;
     jobs: ReleaseGhJob[];
     actions: ReleasePanelActions;
-    // Given when the release was launched from the Timeline: following it can stop.
+    // Stops following it: the release launched from the Timeline ends, a tag cut at the terminal is no longer followed.
     onAbandon?: () => void;
 }) {
     const [picked, setPicked] = useState<ReleasePhase>(null);
@@ -483,7 +483,7 @@ export function ReleaseRunSection({
     }
     const abandon = () =>
         fireAndForget(async () => {
-            await releaseEnd(dir);
+            await releaseEnd(dir, run.tag);
             onEnded();
             reload();
         });
@@ -500,12 +500,7 @@ export function ReleaseRunSection({
         });
     return (
         <>
-            <ReleaseRunPanel
-                run={run}
-                jobs={facts?.jobs ?? []}
-                actions={actions}
-                onAbandon={facts?.session ? abandon : undefined}
-            />
+            <ReleaseRunPanel run={run} jobs={facts?.jobs ?? []} actions={actions} onAbandon={abandon} />
             {error ? <p className="text-xs text-error">{error}</p> : null}
             {pending != null ? (
                 <TrustPrompt

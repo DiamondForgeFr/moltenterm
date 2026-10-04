@@ -121,7 +121,7 @@ export function BuildLocalMenu({
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
-                className="flex cursor-pointer items-center gap-1.5 rounded border border-border px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary"
+                className="flex cursor-pointer items-center gap-1.5 rounded border border-border px-2 py-1 text-xs whitespace-nowrap text-secondary hover:bg-hover hover:text-primary"
             >
                 <i className="fa fa-solid fa-hammer text-[10px]" />
                 Build local

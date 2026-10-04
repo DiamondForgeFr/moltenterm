@@ -6,7 +6,7 @@
 // would carry, read from conventional commits (`type(#N): subject`). Deliberately not guessed: before the first
 // public release the number is a decision, and commits that change nothing a user sees justify no release.
 
-import { isPrereleaseTag, RawCommit, RawTag } from "./tree";
+import { DefaultTagPrefix, isPrereleaseTag, RawCommit, RawTag } from "./tree";
 
 export type BumpLevel = "major" | "minor" | "patch";
 
@@ -113,16 +113,23 @@ export type ReleaseState = {
 const byDateDesc = (a: RawTag, b: RawTag) => new Date(b.date).getTime() - new Date(a.date).getTime();
 const TypeRegex = /^([a-z]+)(\([^)]*\))?!?:/;
 
+// A tag's version: the tag without the project's prefix (release-1.2.0-3 → 1.2.0-3).
+export function tagVersion(tag: string, prefix: string = DefaultTagPrefix): string {
+    return tag.startsWith(prefix) ? tag.slice(prefix.length) : tag;
+}
+
 export function releaseState(
     tags: readonly RawTag[],
     ahead: readonly RawCommit[],
-    sincePublic: readonly RawCommit[]
+    sincePublic: readonly RawCommit[],
+    prefix: string = DefaultTagPrefix
 ): ReleaseState {
-    const lastPublic = tags.filter((t) => !isPrereleaseTag(t.name)).sort(byDateDesc)[0] ?? null;
-    const lastRc = tags.filter((t) => isPrereleaseTag(t.name)).sort(byDateDesc)[0] ?? null;
+    const releases = tags.filter((t) => t.name.startsWith(prefix));
+    const lastPublic = releases.filter((t) => !isPrereleaseTag(t.name, prefix)).sort(byDateDesc)[0] ?? null;
+    const lastRc = releases.filter((t) => isPrereleaseTag(t.name, prefix)).sort(byDateDesc)[0] ?? null;
     let next: NextRelease;
     if (!lastPublic) {
-        const base = lastRc ? lastRc.name.replace(/^v/, "").split("-")[0] : "1.0.0";
+        const base = lastRc ? tagVersion(lastRc.name, prefix).split("-")[0] : "1.0.0";
         next = {
             version: base,
             how: "decision",
@@ -132,7 +139,7 @@ export function releaseState(
         let decision: BumpDecision = null;
         try {
             decision = decideBump(
-                lastPublic.name.replace(/^v/, ""),
+                tagVersion(lastPublic.name, prefix),
                 sincePublic.map((c) => ({ subject: c.subject }))
             );
         } catch {
@@ -163,14 +170,18 @@ export function readableSubject(subject: string): { ticket: string; text: string
     return { ticket, text: match[2] };
 }
 
-const ReleaseTagRegex = /^v(\d+)\.(\d+)\.(\d+)(?:-(\d+))?$/;
+const ReleaseVersionRegex = /^(\d+)\.(\d+)\.(\d+)(?:-(\d+))?$/;
 
 // The number of the next release candidate of a version: one more than the highest vX.Y.Z-N already tagged.
-export function nextRc(base: string, existingTags: readonly string[]): number {
+export function nextRc(base: string, existingTags: readonly string[], prefix: string = DefaultTagPrefix): number {
     parseVersion(base);
     let max = 0;
     for (const tag of existingTags) {
-        const m = ReleaseTagRegex.exec(tag.trim());
+        const name = tag.trim();
+        if (!name.startsWith(prefix)) {
+            continue;
+        }
+        const m = ReleaseVersionRegex.exec(name.slice(prefix.length));
         if (!m || m[4] === undefined || `${m[1]}.${m[2]}.${m[3]}` !== base) {
             continue;
         }

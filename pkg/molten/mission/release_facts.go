@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -125,15 +126,20 @@ func (r *Runs) followedRelease(ctx context.Context, dir string, p *molten.Pipeli
 	if session, _ := r.ReleaseSessionOf(dir); session != nil {
 		return *session, true
 	}
-	out, err := r.git(ctx, dir, "git", "for-each-ref", "--sort=-creatordate", "--format=%(refname:short)\t%(creatordate:unix)", "refs/tags")
+	// Newest first; tags made in the same second are ordered by version (git sorts by the last key first).
+	out, err := r.git(ctx, dir, "git", "for-each-ref", "--sort=-v:refname", "--sort=-creatordate", "--format=%(refname:short)\t%(creatordate:unix)", "refs/tags")
 	if err != nil {
 		return ReleaseSession{}, false
 	}
+	ignored := r.ignoredReleases(dir)
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		name, date, _ := strings.Cut(line, "\t")
 		version, isRc, err := releaseVersion(p, name)
 		if err != nil {
 			continue
+		}
+		if slices.Contains(ignored, name) {
+			return ReleaseSession{}, false
 		}
 		seconds, _ := strconv.ParseInt(date, 10, 64)
 		created := time.Unix(seconds, 0)
@@ -321,7 +327,7 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 			continue
 		}
 		command := TrustedCommand{Kind: RunKindRelease, Id: step.Id, Title: step.Title, Cwd: step.Cwd, Env: step.Env,
-			Run: expandRelease(step.Run, session.Version, session.Tag)}
+			Run: expandRelease(step.Run, session.Version, session.Tag, currentBranch(r.git, dir))}
 		rec, err = r.launch(dir, command, "", "", session.Tag)
 		return RunResult{Run: &rec}, err
 	}

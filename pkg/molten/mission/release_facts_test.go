@@ -125,3 +125,23 @@ func TestOldTagIsNotFollowed(t *testing.T) {
 		t.Fatalf("an old tag is not followed: %+v", facts)
 	}
 }
+
+func TestTerminalReleaseCanBeDismissed(t *testing.T) {
+	r, dir := makeReleaseFixture(t, releaseFactsPipeline)
+	r.git = withoutGh
+	gitIn(t, dir, "tag", "v2.0.0")
+	if facts, _ := r.ReleaseFactsOf(dir); facts.Tag != "v2.0.0" {
+		t.Fatalf("followed from the tag: %+v", facts)
+	}
+	if err := r.StopFollowing(dir, "v2.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	if facts, _ := r.ReleaseFactsOf(dir); facts.Tag != "" {
+		t.Fatalf("dismissed: %+v", facts)
+	}
+	gitIn(t, dir, "commit", "-q", "--allow-empty", "-m", "next")
+	gitIn(t, dir, "tag", "v2.1.0")
+	if facts, _ := r.ReleaseFactsOf(dir); facts.Tag != "v2.1.0" {
+		t.Fatalf("a newer tag is followed again: %+v", facts)
+	}
+}

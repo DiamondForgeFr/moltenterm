@@ -29,6 +29,9 @@ const (
 	ReleaseChannelPublic = "public"
 
 	ReleaseSessionFileName = "release.json"
+	// The tags cut at the terminal the user stopped following.
+	ReleaseIgnoredFileName = "release-ignored.json"
+	maxIgnoredReleases     = 20
 	ReleasePrepareStepId   = "prepare"
 
 	releaseGitTimeout = 15 * time.Second
@@ -105,6 +108,38 @@ func (r *Runs) EndRelease(dir string) error {
 	return err
 }
 
+func (r *Runs) ignoredReleases(dir string) []string {
+	var tags []string
+	readJson(filepath.Join(r.projectDir(dir), ReleaseIgnoredFileName), &tags)
+	return tags
+}
+
+// IgnoreRelease stops following a tag cut at the terminal; nothing is undone.
+func (r *Runs) IgnoreRelease(dir string, tag string) error {
+	if err := checkDir(dir); err != nil {
+		return err
+	}
+	dir = filepath.Clean(dir)
+	tags := append(r.ignoredReleases(dir), tag)
+	tags = tags[max(0, len(tags)-maxIgnoredReleases):]
+	if err := os.MkdirAll(r.projectDir(dir), 0700); err != nil {
+		return err
+	}
+	data, err := json.Marshal(tags)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(r.projectDir(dir), ReleaseIgnoredFileName), data, 0600)
+}
+
+// StopFollowing ends the release launched from the Timeline, or else stops following the tag cut at the terminal.
+func (r *Runs) StopFollowing(dir string, tag string) error {
+	if session, _ := r.ReleaseSessionOf(dir); session != nil || tag == "" {
+		return r.EndRelease(dir)
+	}
+	return r.IgnoreRelease(dir, tag)
+}
+
 // releaseVersion reads a release tag: its version without the prefix, and whether it is a release candidate.
 func releaseVersion(p *molten.Pipeline, tag string) (string, bool, error) {
 	prefix := "v"
@@ -122,13 +157,13 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-func expandRelease(run string, version string, tag string) string {
-	return strings.NewReplacer("{version}", version, "{tag}", tag).Replace(run)
+func expandRelease(run string, version string, tag string, branch string) string {
+	return expandCommand(run, CommandVars{Version: version, Tag: tag, Branch: branch})
 }
 
 // preparationCommand chains the preparation steps in one shell: each announced as a phase, in its own folder and
 // with its own variables; the first failure stops the rest.
-func preparationCommand(steps []molten.PipelineStep, version string, tag string) string {
+func preparationCommand(steps []molten.PipelineStep, version string, tag string, branch string) string {
 	var parts []string
 	for _, step := range steps {
 		var line strings.Builder
@@ -144,7 +179,7 @@ func preparationCommand(steps []molten.PipelineStep, version string, tag string)
 		for _, k := range keys {
 			fmt.Fprintf(&line, "export %s=%s && ", k, shellQuote(step.Env[k]))
 		}
-		fmt.Fprintf(&line, "%s )", expandRelease(step.Run, version, tag))
+		fmt.Fprintf(&line, "%s )", expandRelease(step.Run, version, tag, branch))
 		parts = append(parts, line.String())
 	}
 	return strings.Join(parts, " && ")
@@ -242,7 +277,7 @@ func (r *Runs) launchPreparation(dir string, steps []molten.PipelineStep, sessio
 		Kind:  RunKindRelease,
 		Id:    ReleasePrepareStepId,
 		Title: "Prepare " + session.Tag,
-		Run:   preparationCommand(molten.ReleasePreparation(steps), session.Version, session.Tag),
+		Run:   preparationCommand(molten.ReleasePreparation(steps), session.Version, session.Tag, currentBranch(r.git, dir)),
 	}
 	return r.launch(dir, command, "", "", session.Tag)
 }

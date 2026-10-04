@@ -6,6 +6,7 @@
 // Kept apart from the component so the rules can be tested without the app.
 
 import { PipelineReleaseStep } from "./mission-model";
+import { DefaultTagPrefix } from "./tree";
 import { nextRc, parseVersion, ReleaseState } from "./versions";
 
 // must match the channels in pkg/molten/mission/release.go
@@ -20,6 +21,8 @@ export type ReleasePlan = {
     publicVersion: string;
     publicIsDecision: boolean;
     reason: string;
+    // The project's tag prefix (versions.tagprefix).
+    prefix: string;
 };
 
 export function isBaseVersion(version: string): boolean {
@@ -31,13 +34,18 @@ export function isBaseVersion(version: string): boolean {
     }
 }
 
-export function releasePlan(state: ReleaseState, tagNames: readonly string[]): ReleasePlan {
+export function releasePlan(
+    state: ReleaseState,
+    tagNames: readonly string[],
+    prefix: string = DefaultTagPrefix
+): ReleasePlan {
     const base = state?.next?.version ?? null;
     return {
-        rc: base ? `v${base}-${nextRc(base, tagNames)}` : null,
+        rc: base ? `${prefix}${base}-${nextRc(base, tagNames, prefix)}` : null,
         publicVersion: base,
         publicIsDecision: state?.next?.how === "decision",
         reason: state?.next?.reason ?? "",
+        prefix,
     };
 }
 
@@ -50,7 +58,7 @@ export function releaseChoiceTag(plan: ReleasePlan, choice: ReleaseChannel, vers
         return plan.rc;
     }
     if (choice === "public" && isBaseVersion(version)) {
-        return `v${version}`;
+        return `${plan.prefix}${version}`;
     }
     return null;
 }

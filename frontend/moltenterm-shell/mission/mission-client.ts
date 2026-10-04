@@ -254,8 +254,9 @@ export function releaseStart(dir: string, channel: ReleaseChannel, tag: string):
     return missionCall(MissionReleaseStartCommand, { dir, channel, tag });
 }
 
-export function releaseEnd(dir: string): Promise<void> {
-    return missionCall(MissionReleaseEndCommand, { dir });
+// Ends the release launched from the Timeline, or stops following a tag cut at the terminal.
+export function releaseEnd(dir: string, tag?: string): Promise<void> {
+    return missionCall(MissionReleaseEndCommand, { dir, tag });
 }
 
 const ReleaseSessionPollMs = 30000;

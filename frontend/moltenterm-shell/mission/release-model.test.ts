@@ -20,6 +20,7 @@ describe("Release menu (FR-MC-015)", () => {
             publicVersion: "1.0.0",
             publicIsDecision: true,
             reason: "First public release: a choice, not a calculation.",
+            prefix: "v",
         });
         expect(releaseChoiceTag(plan, "rc", "")).toBe("v1.0.0-3");
         expect(releaseChoiceTag(plan, "public", "1.0.0")).toBe("v1.0.0");
@@ -62,5 +63,23 @@ describe("Release menu (FR-MC-015)", () => {
             "The preparation starts right away: Warm the cache, Promote develop. Each next step will wait for your click on the Timeline."
         );
         expect(releaseNote([{ id: "cut", phase: "cut", run: "x" }])).toMatch(/^Nothing runs right away/);
+    });
+
+    it("numbers releases with the project's tag prefix, even one holding a dash", () => {
+        const tags = [
+            tag("release-2.0.0", "2026-09-01"),
+            tag("release-2.1.0-1", "2026-09-10"),
+            tag("v9.9.9", "2026-09-11"),
+        ];
+        const state = releaseState(tags, [], [{ sha: "a", subject: "fix(#2): a fix" } as any], "release-");
+        expect(state.lastPublic.name).toBe("release-2.0.0");
+        expect(state.lastRc.name).toBe("release-2.1.0-1");
+        const plan = releasePlan(
+            state,
+            tags.map((t) => t.name),
+            "release-"
+        );
+        expect(plan.rc).toBe("release-2.0.1-1");
+        expect(releaseChoiceTag(plan, "public", "2.0.1")).toBe("release-2.0.1");
     });
 });

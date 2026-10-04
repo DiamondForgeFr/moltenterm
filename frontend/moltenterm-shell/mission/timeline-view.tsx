@@ -9,6 +9,7 @@ import { fireAndForget } from "@/util/util";
 import { atom } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { pathBaseName } from "../workspace-project";
+import { AdapterSteps } from "./adapter-steps";
 import { BranchCleanupButton } from "./branch-cleanup";
 import { BranchTree } from "./branch-tree";
 import { BuildLocalMenu } from "./build-local-menu";
@@ -199,6 +200,13 @@ function TimelineContent({
                                 onEnded={reloadRelease}
                             />
                         ) : null}
+                        <AdapterSteps
+                            dir={project.dir}
+                            projectName={projectName}
+                            pipeline={pipeline}
+                            runs={runs}
+                            section="timeline"
+                        />
                         {lastBuild && !lastBuild.closed ? (
                             <BuildRunCard
                                 run={lastBuild}
@@ -235,7 +243,7 @@ function TimelineBody({
 }) {
     const tree = useMemo(() => (git ? toTreeData(git) : null), [git]);
     const state = useMemo(
-        () => (tree ? releaseState(tree.tags, git.ahead ?? [], git.sincepublic ?? []) : null),
+        () => (tree ? releaseState(tree.tags, git.ahead ?? [], git.sincepublic ?? [], tree.tagPrefix) : null),
         [tree, git]
     );
     const prs = useMemo(() => prsByBranch(github?.prs), [github?.prs]);
@@ -262,6 +270,7 @@ function TimelineBody({
                             milestones={github?.milestones}
                             trunk={git?.trunk}
                             release={git?.release}
+                            tagPrefix={tree?.tagPrefix}
                         />
                     </div>
                 </div>
