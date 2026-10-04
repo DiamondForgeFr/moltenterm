@@ -64,6 +64,8 @@ type shellWatch struct {
 	next time.Time
 	// restored: no command start was seen for what runs now.
 	restored bool
+	// marked: the shell integration said a command started; it runs until the integration says it ended.
+	marked bool
 	found    bool
 	// gen changes with every command start and end: a pass that saw an older one does not apply what it saw.
 	gen int64
@@ -143,7 +145,7 @@ func (w *procWatcher) shellMark(blockId string, kind string) {
 		now := w.now()
 		sw.relocate = true
 		sw.gen++
-		sw.running, sw.since, sw.restored = true, now, false
+		sw.running, sw.since, sw.restored, sw.marked = true, now, false, true
 		sw.next = now.Add(procFirstDelay)
 		w.poke()
 	case ShellMarkDone, ShellMarkPrompt:
@@ -152,7 +154,7 @@ func (w *procWatcher) shellMark(blockId string, kind string) {
 			return
 		}
 		sw.gen++
-		sw.running, sw.next, sw.found = false, time.Time{}, false
+		sw.running, sw.next, sw.found, sw.marked = false, time.Time{}, false, false
 		// A pass may have found the agent just before it exited: what it applied goes with the command.
 		w.agents.dropProcessRecord(blockId)
 	}
@@ -176,7 +178,7 @@ func (w *procWatcher) seen(blockId string) {
 	sw.relocate = true
 	sw.gen++
 	now := w.now()
-	sw.running, sw.since, sw.restored = true, now, true
+	sw.running, sw.since, sw.restored, sw.marked = true, now, true, false
 	sw.next = now.Add(procFirstDelay)
 	w.poke()
 }
@@ -214,10 +216,22 @@ type procDue struct {
 	gen      int64
 }
 
+// takeDue lists the terminals to look at now: nothing before one is due, then also those due within procCoalesce.
 func (w *procWatcher) takeDue() []procDue {
 	w.lock.Lock()
 	defer w.lock.Unlock()
-	limit := w.now().Add(procCoalesce)
+	now := w.now()
+	anyDue := false
+	for _, sw := range w.shells {
+		if !sw.next.IsZero() && !sw.next.After(now) {
+			anyDue = true
+			break
+		}
+	}
+	if !anyDue {
+		return nil
+	}
+	limit := now.Add(procCoalesce)
 	var rtn []procDue
 	for blockId, sw := range w.shells {
 		if sw.next.IsZero() || sw.next.After(limit) {
@@ -324,8 +338,9 @@ func (w *procWatcher) apply(d procDue, read bool, alive bool, running bool, agen
 	case !sw.running:
 		// The command ended while this pass ran.
 		sw.next = time.Time{}
-	case !running && !found:
-		// At its prompt: nothing runs (a terminal looked at at startup, or its command already over).
+	case !running && !found && !sw.marked:
+		// At its prompt: nothing runs (a terminal looked at at startup or on its first output). A command the shell
+		// integration announced is followed until its end, even when its process is not there yet.
 		sw.next = time.Time{}
 		sw.running = false
 	default:

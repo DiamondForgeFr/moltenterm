@@ -149,6 +149,17 @@ func TestProcWatchFindsAgentsBehindCommands(t *testing.T) {
 	if h.next("b1").IsZero() {
 		t.Fatal("a running command is looked at")
 	}
+	// The wake-up right after the command's start looks at nothing yet; a first look before the process exists
+	// (the shell still in the foreground) keeps following the command the shell integration announced.
+	h.pw.pass()
+	if h.reads != 0 {
+		t.Fatalf("a pass ran before any terminal was due: %d reads", h.reads)
+	}
+	h.advance(procFirstDelay)
+	if h.next("b1").IsZero() {
+		t.Fatal("polling stopped before the command's process appeared")
+	}
+	h.clock = h.next("b1").Add(-procFirstDelay)
 	start := h.clock.UnixMilli()
 	h.setProcs(shellProc(100, 200), childProc(200, 100, 200, "bash", start),
 		proctree.Proc{Pid: 210, Ppid: 200, Pgid: 200, Tpgid: 200, Name: "node", StartMs: start + 50})
