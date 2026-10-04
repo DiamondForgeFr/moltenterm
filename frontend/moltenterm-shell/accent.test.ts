@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { accentForeground, applyAccent, contrastRatio, parseColor } from "./accent";
+import { accentForeground, applyAccent, contrastRatio, mixColor, parseColor } from "./accent";
 
 function fakeStyle() {
     const props: Record<string, string> = {};
@@ -49,5 +49,15 @@ describe("applyAccent", () => {
         const style = fakeStyle();
         applyAccent(undefined, style);
         expect(style.props).toEqual({ "--mt-accent": "rgb(255, 124, 13)", "--mt-accent-fg": "#000000" });
+    });
+});
+
+describe("mixColor", () => {
+    it("matches CSS color-mix in srgb", () => {
+        const orange = parseColor("#FF7C0D");
+        const grey = parseColor("rgb(31, 31, 31)");
+        expect(mixColor(orange, grey, 0)).toEqual(grey);
+        expect(mixColor(orange, grey, 100)).toEqual(orange);
+        expect(mixColor(orange, grey, 4)).toEqual({ r: 40, g: 35, b: 30 });
     });
 });

@@ -60,3 +60,139 @@
     background-color: color-mix(in srgb, var(--mt-accent) 12%, transparent);
     box-shadow: inset 2px 0 0 var(--mt-accent);
 }
+
+/* Molten visual language (FR-SHELL-014, DS-SHELL-014). */
+
+/* Warm neutrals: Wave's greys, each mixed with a few percent of the workspace accent so the chrome leans towards
+   the place's colour. Each --mt-neutral-* and --mt-text-* recipe stays a plain
+   `color-mix(in srgb, var(--mt-accent) N%, rgb(...))`: moltenterm-shell.test.ts resolves them for every workspace
+   colour and keeps text at 4.5:1 on the backgrounds (NFR-SHELL-003). Terminals keep their black background (the
+   terminal theme owns it). */
+:root {
+    --mt-neutral-bg: color-mix(in srgb, var(--mt-accent) 4%, rgb(31, 31, 31));
+    --mt-neutral-modal: color-mix(in srgb, var(--mt-accent) 5%, rgb(32, 32, 32));
+    --mt-neutral-panel: color-mix(in srgb, var(--mt-accent) 5%, rgb(30, 30, 30));
+    --mt-neutral-key: color-mix(in srgb, var(--mt-accent) 5%, rgb(50, 50, 50));
+    --mt-neutral-line: color-mix(in srgb, var(--mt-accent) 12%, rgb(255, 255, 255));
+    --mt-text-main: color-mix(in srgb, var(--mt-accent) 3%, rgb(247, 247, 247));
+    --mt-text-secondary: color-mix(in srgb, var(--mt-accent) 6%, rgb(198, 198, 198));
+    --mt-text-muted: color-mix(in srgb, var(--mt-accent) 6%, rgb(146, 146, 146));
+
+    --main-bg-color: var(--mt-neutral-bg);
+    --modal-bg-color: var(--mt-neutral-modal);
+    --panel-bg-color: color-mix(in srgb, var(--mt-neutral-panel) 50%, transparent);
+    --border-color: color-mix(in srgb, var(--mt-neutral-line) 16%, transparent);
+    --hover-bg-color: color-mix(in srgb, var(--mt-neutral-line) 10%, transparent);
+    --highlight-bg-color: color-mix(in srgb, var(--mt-neutral-line) 20%, transparent);
+    --modal-border-color: color-mix(in srgb, var(--mt-neutral-line) 12%, transparent);
+    --modal-header-bottom-border-color: color-mix(in srgb, var(--mt-neutral-line) 15%, transparent);
+    --form-element-border-color: color-mix(in srgb, var(--mt-neutral-line) 15%, transparent);
+    --keybinding-bg-color: var(--mt-neutral-key);
+    --keybinding-border-color: color-mix(in srgb, var(--mt-accent) 5%, rgb(68, 68, 68));
+    --main-text-color: var(--mt-text-main);
+    --secondary-text-color: var(--mt-text-secondary);
+    /* Wave's #666 read at 2.8:1 on its background; dim text now meets 4.5:1 like the rest. */
+    --grey-text-color: var(--mt-text-muted);
+
+    --color-background: var(--mt-neutral-bg);
+    --color-modalbg: var(--mt-neutral-modal);
+    --color-panel: color-mix(in srgb, var(--mt-neutral-panel) 50%, transparent);
+    --color-border: color-mix(in srgb, var(--mt-neutral-line) 16%, transparent);
+    --color-hover: color-mix(in srgb, var(--mt-neutral-line) 10%, transparent);
+    --color-hoverbg: color-mix(in srgb, var(--mt-neutral-line) 20%, transparent);
+    --color-highlightbg: color-mix(in srgb, var(--mt-neutral-line) 20%, transparent);
+    --color-foreground: var(--mt-text-main);
+    --color-primary: var(--mt-text-main);
+    --color-secondary: var(--mt-text-secondary);
+    --color-muted-foreground: var(--mt-text-secondary);
+    --color-muted: var(--mt-text-muted);
+
+    /* The workspace accent marks place (rail, active tab, focus border) and the heat of a working agent. Other
+       states use fixed semantic colours, so a waiting agent reads the same in every workspace. */
+    --mt-state-waiting: rgb(224, 185, 86);
+    --mt-state-error: rgb(229, 77, 46);
+    --mt-state-done: rgb(78, 154, 6);
+    --warning-color: var(--mt-state-waiting);
+    --color-warning: var(--mt-state-waiting);
+    --error-color: var(--mt-state-error);
+    --color-error: var(--mt-state-error);
+    --success-color: var(--mt-state-done);
+    --color-success: var(--mt-state-done);
+
+    /* Sysinfo's main series takes the accent; memory keeps Wave's blue as the second series. */
+    --sysinfo-cpu-color: var(--mt-accent);
+
+    /* Interface typeface for panel titles, Mission Control and the chrome; terminals keep Hack (--fixed-font).
+       Inter is bundled (public/fonts/inter-variable.woff2): the app loads no remote font. */
+    --mt-ui-font: "Inter", sans-serif;
+    --base-font: normal 14px / normal var(--mt-ui-font);
+    --header-font: 700 11px / normal var(--mt-ui-font);
+    --font-sans: var(--mt-ui-font);
+}
+
+/* Heat states (DS-SHELL-014): blockframe.tsx mirrors the pane's agent state (DS-SHELL-011) in data-mt-agent-state.
+   Working glows faintly in the accent, waiting holds a static amber edge, an error a static red one, done cools
+   back to neutral. The overlay sits 1px inside the frame so it never covers the focus border, and only its opacity
+   is animated (composited, no repaint of the terminal underneath). */
+.block.block-frame-default[data-mt-agent-state]::after {
+    --mt-heat: transparent;
+    content: "";
+    position: absolute;
+    inset: 1px;
+    border-radius: calc(var(--block-border-radius) - 1px);
+    pointer-events: none;
+    z-index: var(--zindex-block-mask-inner);
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--mt-heat) 40%, transparent),
+        inset 0 0 22px -2px color-mix(in srgb, var(--mt-heat) 30%, transparent);
+    opacity: 0;
+    transition: opacity 1.2s ease-out;
+}
+
+.block.block-frame-default[data-mt-agent-state="working"]::after {
+    --mt-heat: var(--mt-accent);
+    opacity: 1;
+    animation: mt-heat-breathe 2.8s ease-in-out infinite alternate;
+}
+
+/* A finished pane visibly cools instead of switching off. An animation, not the opacity transition: Chromium starts
+   no transition when the breathing animation is removed in the same style change. */
+.block.block-frame-default[data-mt-agent-state="done"]::after {
+    --mt-heat: var(--mt-accent);
+    animation: mt-heat-cool 1.6s ease-out forwards;
+}
+
+.block.block-frame-default[data-mt-agent-state="waiting"]::after {
+    --mt-heat: var(--mt-state-waiting);
+    opacity: 1;
+}
+
+.block.block-frame-default[data-mt-agent-state="error"]::after {
+    --mt-heat: var(--mt-state-error);
+    opacity: 0.8;
+}
+
+@keyframes mt-heat-breathe {
+    from {
+        opacity: 0.45;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes mt-heat-cool {
+    from {
+        opacity: 0.8;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .block.block-frame-default[data-mt-agent-state]::after {
+        animation: none;
+        transition: none;
+    }
+}

@@ -55,6 +55,13 @@ export function accentForeground(accent: Rgb): string {
     return contrastRatio(accent, black) >= contrastRatio(accent, white) ? "#000000" : "#ffffff";
 }
 
+// CSS `color-mix(in srgb, a pct%, b)` for opaque colours: the warm neutrals of moltenterm-shell.css (FR-SHELL-014).
+export function mixColor(a: Rgb, b: Rgb, pct: number): Rgb {
+    const p = pct / 100;
+    const mix = (x: number, y: number) => Math.round(x * p + y * (1 - p));
+    return { r: mix(a.r, b.r), g: mix(a.g, b.g), b: mix(a.b, b.b) };
+}
+
 type StyleTarget = { setProperty(name: string, value: string): void };
 
 export function applyAccent(color: string, style: StyleTarget): void {
