@@ -15,14 +15,16 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/agentdocs"
 )
 
-// The molten guides for every coding agent (FR-MORPH-006, DS-MORPH-006; FR-MC-008): `/molten-feature` turns a request
-// into a mod, `/molten-pipeline` connects a project to Mission Control. The agents follow the SaaSFoundryAI agent
+// The molten guides for every coding agent (FR-MORPH-006, DS-MORPH-006; FR-MC-008; FR-MORPH-011): `/molten-feature`
+// turns a request into a mod, `/molten-pipeline` connects a project to Mission Control, `/molten-bug` reports a
+// MoltenTerm bug to its developers. The agents follow the SaaSFoundryAI agent
 // catalog (`sf agents catalog`). Each guide (agentdocs/*.md) is rendered into each agent's own format, at user level
 // so it works in every folder. Paths and invocations were checked against each agent's documentation on 2026-10-01;
 // they change with the agents, so each profile keeps them in one place.
 
 const AgentGuideName = "molten-feature"
 const PipelineGuideName = "molten-pipeline"
+const BugGuideName = "molten-bug"
 const agentRequestPlaceholder = "{{REQUEST}}"
 const agentDescription = "Turn a plain-language request into a MoltenTerm mod with the molten command"
 
@@ -45,6 +47,12 @@ var AgentGuides = []AgentGuide{
 		Description:  "Connect this project to MoltenTerm's Mission Control: reuse its scripts and CI, create what is missing, write .molten/project.json",
 		File:         agentdocs.PipelineGuideFile,
 		ArgumentHint: "[what to connect or create]",
+	},
+	{
+		Name:         BugGuideName,
+		Description:  "Report a MoltenTerm bug to its developers: search the existing and fixed issues first, file only with the user's approval",
+		File:         agentdocs.BugGuideFile,
+		ArgumentHint: "<what went wrong in MoltenTerm>",
 	},
 }
 

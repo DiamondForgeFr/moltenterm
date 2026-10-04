@@ -165,7 +165,7 @@ var moltenAgentYes bool
 
 var moltenAgentCmd = &cobra.Command{
 	Use:   "agent",
-	Short: "install the molten guides (/molten-feature, /molten-pipeline) for your coding agent",
+	Short: "install the molten guides (/molten-feature, /molten-pipeline, /molten-bug) for your coding agent",
 	Args:  cobra.ArbitraryArgs,
 	RunE:  moltenAgentRun,
 }
@@ -180,7 +180,7 @@ var moltenAgentListCmd = &cobra.Command{
 
 var moltenAgentInstallCmd = &cobra.Command{
 	Use:     "install <agent>",
-	Short:   "install /molten-feature and /molten-pipeline for a coding agent (at user level)",
+	Short:   "install /molten-feature, /molten-pipeline and /molten-bug for a coding agent (at user level)",
 	Args:    cobra.ExactArgs(1),
 	RunE:    moltenWrap(moltenAgentInstallRun),
 	PreRunE: preRunSetupRpcClient,
@@ -1051,7 +1051,7 @@ var moltenBuiltinHelp = [][2]string{
 	{"history", "list the recorded changes to the mods"},
 	{"docs", "write the offline mod documentation and print its folder"},
 	{"agent list", "the supported coding agents and where the molten guides are installed"},
-	{"agent install <agent>", "install /molten-feature and /molten-pipeline for a coding agent"},
+	{"agent install <agent>", "install /molten-feature, /molten-pipeline and /molten-bug for a coding agent"},
 	{"agent remove <agent>", "remove the molten guides from a coding agent"},
 	{"project link [folder]", "link this workspace to its project (default: this terminal's folder)"},
 	{"project show", "show this workspace's project, its pipeline and its conventions"},
@@ -1061,6 +1061,9 @@ var moltenBuiltinHelp = [][2]string{
 	{"worktree link [folder]", "link this terminal to the git worktree its task runs in"},
 	{"worktree show", "show this terminal's worktree link and the tree of its folder"},
 	{"worktree unlink", "remove this terminal's worktree link (the worktree is untouched)"},
+	{"bug search <words>", "find MoltenTerm issues about a bug, open and fixed, with what to do"},
+	{"bug report --title … --what …", "prepare a MoltenTerm bug report; --yes files it once you approved"},
+	{"bug comment <issue> --what …", "add your case to an existing MoltenTerm issue; --yes posts it"},
 	{"help", "this list"},
 	{"<command> [args...]", "run a command provided by an enabled mod"},
 }
