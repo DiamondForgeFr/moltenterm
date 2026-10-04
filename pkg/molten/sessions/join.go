@@ -20,6 +20,7 @@ import (
 
 const (
 	jobStatusRunning    = "running"
+	jobKindShell        = "shell"
 	shellStateRunning   = "running-command"
 	atPromptSuffix      = " at prompt"
 	defaultShellName    = "shell"
@@ -77,7 +78,10 @@ type pane struct {
 
 // IsLive tells whether a job is a running session: its manager runs and its command has not exited.
 func IsLive(job *waveobj.Job) bool {
-	return job != nil && job.JobManagerStatus == jobStatusRunning && job.CmdExitTs == 0
+	if job == nil || (job.JobKind != "" && job.JobKind != jobKindShell) {
+		return false
+	}
+	return job.JobManagerStatus == jobStatusRunning && job.CmdExitTs == 0
 }
 
 func isLocal(job *waveobj.Job) bool {
@@ -201,7 +205,7 @@ func joinOne(s *Snapshot, job *waveobj.Job) molten.DurableSession {
 		ds.Reason = molten.SessionReasonOlderVersion
 	}
 	ds.CanShow = ds.Reason != molten.SessionReasonOlderVersion && ds.Reason != molten.SessionReasonEnding
-	ds.CanEnd = ds.Reason != molten.SessionReasonEnding
+	// An end that failed (its host unreachable, or a local error) can always be asked again.
 
 	if ds.Shown {
 		fillShown(s, job, p, &ds)

@@ -49,7 +49,12 @@ export function showPane(loc: SessionLocation): void {
     }
 }
 
-function clearFocusRequest(tabId: string) {
+// Clears the request only while it is still the one applied: a newer one (a second Show) is left to its own pass.
+function clearFocusRequest(tabId: string, key: string) {
+    const tab = globalStore.get(getWaveObjectAtom<Tab>(makeORef("tab", tabId)));
+    if (focusRequestKey(tab?.meta?.[FocusBlockMetaKey]) !== key) {
+        return;
+    }
     fireAndForget(() =>
         RpcApi.SetMetaCommand(TabRpcClient, {
             oref: makeORef("tab", tabId),
@@ -58,11 +63,23 @@ function clearFocusRequest(tabId: string) {
     );
 }
 
-function applyFocusRequest(tabId: string, blockId: string) {
+function focusRequestKey(req: FocusRequest): string {
+    return req?.blockid ? `${req.blockid}:${req.ts}` : "";
+}
+
+// The pass in progress per tab: a newer request stops the older one.
+const focusPasses = new Map<string, string>();
+
+function applyFocusRequest(tabId: string, blockId: string, key: string) {
+    focusPasses.set(tabId, key);
     let tries = 0;
     const attempt = () => {
+        if (focusPasses.get(tabId) !== key) {
+            return;
+        }
         if (focusBlockHere(blockId) || ++tries >= FocusMaxTries) {
-            clearFocusRequest(tabId);
+            focusPasses.delete(tabId);
+            clearFocusRequest(tabId, key);
             return;
         }
         setTimeout(attempt, FocusRetryMs);
@@ -77,17 +94,17 @@ export function PaneFocusKeeper() {
         staticTabId == null ? (NullAtom as Atom<Tab>) : getWaveObjectAtom<Tab>(makeORef("tab", staticTabId))
     );
     const request = tab?.meta?.[FocusBlockMetaKey] as FocusRequest;
-    const requestKey = request ? `${request.blockid}:${request.ts}` : "";
+    const requestKey = focusRequestKey(request);
     useEffect(() => {
         if (!requestKey || !staticTabId) {
             return;
         }
         const blockId = freshFocusRequest(tab?.meta, Date.now());
         if (blockId == null) {
-            clearFocusRequest(staticTabId);
+            clearFocusRequest(staticTabId, requestKey);
             return;
         }
-        applyFocusRequest(staticTabId, blockId);
+        applyFocusRequest(staticTabId, blockId, requestKey);
     }, [requestKey, staticTabId]);
     return null;
 }

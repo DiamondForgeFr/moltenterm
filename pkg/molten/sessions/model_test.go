@@ -69,6 +69,10 @@ func TestModelPublishesOnlyChanges(t *testing.T) {
 	}
 
 	f.set(molten.DurableSession{Id: "a", LastOutputAt: 2})
+	if again, _ := m.Rebuild(); again.Version != 1 {
+		t.Fatalf("output a few seconds later is not news: version %d", again.Version)
+	}
+	f.set(molten.DurableSession{Id: "a", LastOutputAt: 1 + outputSlack.Milliseconds()})
 	next, _ := m.Rebuild()
 	if _, published := f.counts(); published != 2 || next.Version != 2 {
 		t.Fatalf("new output: published=%d version=%d", published, next.Version)

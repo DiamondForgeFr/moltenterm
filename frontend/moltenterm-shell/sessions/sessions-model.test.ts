@@ -61,7 +61,7 @@ describe("groups and order", () => {
             agent: "claude",
             agentstate: "idle",
         }),
-        session("a-cmd", { workspaceid: "wsA", workspacename: "A", workspaceorder: 0, lastoutputat: 50 }),
+        session("a-cmd", { workspaceid: "wsA", workspacename: "A", workspaceorder: 0, startedat: 50 }),
         session("hidden", { shown: false, reason: "detached", workspaceid: undefined, workspaceorder: -1 }),
         session("b-wait", {
             workspaceid: "wsB",
@@ -70,7 +70,7 @@ describe("groups and order", () => {
             agent: "codex",
             agentstate: "waiting",
         }),
-        session("a-recent", { workspaceid: "wsA", workspacename: "A", workspaceorder: 0, lastoutputat: 90 }),
+        session("a-recent", { workspaceid: "wsA", workspacename: "A", workspaceorder: 0, startedat: 90 }),
     ];
 
     it("puts the sessions no pane shows first, then the workspaces in the rail's order", () => {
@@ -85,15 +85,15 @@ describe("groups and order", () => {
         expect(groupSessions([], "ws1")).toEqual([]);
     });
 
-    it("sorts by urgency, then by the latest output", () => {
+    it("sorts by urgency, then the newest first", () => {
         const sorted = sortSessions([
-            session("none", { lastoutputat: 100 }),
+            session("none", { startedat: 100 }),
             session("idle", { agent: "claude", agentstate: "idle" }),
             session("working", { agent: "claude", agentstate: "working" }),
             session("error", { agent: "claude", agentstate: "error" }),
             session("waiting", { agent: "claude", agentstate: "waiting" }),
             session("done", { agent: "claude", agentstate: "done" }),
-            session("none-old", { lastoutputat: 10 }),
+            session("none-old", { startedat: 10 }),
         ]);
         expect(sorted.map((s) => s.id)).toEqual(["waiting", "error", "working", "done", "idle", "none", "none-old"]);
     });

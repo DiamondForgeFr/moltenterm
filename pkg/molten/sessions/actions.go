@@ -6,6 +6,8 @@ package sessions
 import (
 	"context"
 	"fmt"
+	"log"
+	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 )
@@ -23,6 +25,8 @@ type Ops interface {
 	// CopyHistory copies the tail of the job's output into the block, so the new pane shows what ran.
 	CopyHistory(ctx context.Context, jobId string, blockId string) error
 	AttachJob(ctx context.Context, jobId string, blockId string) error
+	// DeletePane removes a pane made for a reattach that failed.
+	DeletePane(ctx context.Context, blockId string) error
 	// InsertPane puts the block in the tab's layout, focused.
 	InsertPane(ctx context.Context, tabId string, blockId string) error
 	WorkspaceOfTab(ctx context.Context, tabId string) (string, error)
@@ -36,6 +40,9 @@ type Ops interface {
 
 // Actions are what the user does with a session; each re-reads the list first, then rebuilds it.
 type Actions struct {
+	// lock runs one action at a time: two shows of a session no pane shows would each make a pane, an end racing a
+	// reattach would attach a job being ended.
+	lock  sync.Mutex
 	model *Model
 	ops   Ops
 }
@@ -78,6 +85,8 @@ func (a *Actions) rebuild() {
 
 // End ends a session. The terminal asking cannot end its own session (`molten session end` from inside it).
 func (a *Actions) End(ctx context.Context, id string, callerBlockId string) (molten.DurableSessionEndResult, error) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
 	s, err := a.find(id)
 	if err != nil {
 		return molten.DurableSessionEndResult{}, err
@@ -90,16 +99,14 @@ func (a *Actions) End(ctx context.Context, id string, callerBlockId string) (mol
 }
 
 func (a *Actions) end(ctx context.Context, s molten.DurableSession) (molten.DurableSessionEndResult, error) {
+	var err error
 	if s.Shown {
-		err := a.ops.TerminateJob(ctx, s.Id)
-		if err != nil && s.Connection != "" {
-			// The host is unreachable: the job ends when it is back (TerminateOnReconnect).
-			return molten.DurableSessionEndResult{Pending: true}, nil
-		}
-		return molten.DurableSessionEndResult{}, err
+		err = a.ops.TerminateJob(ctx, s.Id)
+	} else {
+		err = a.ops.TerminateAndDetachJob(ctx, s.Id)
 	}
-	err := a.ops.TerminateAndDetachJob(ctx, s.Id)
-	if err != nil && s.Connection != "" {
+	if err != nil && s.Connection != "" && s.ConnState != molten.SessionConnConnected {
+		// The host is unreachable: the job ends when it is back (TerminateOnReconnect).
 		return molten.DurableSessionEndResult{Pending: true}, nil
 	}
 	return molten.DurableSessionEndResult{}, err
@@ -108,6 +115,8 @@ func (a *Actions) end(ctx context.Context, s molten.DurableSession) (molten.Dura
 // Cleanup ends the sessions no pane shows among ids. Each is checked again: one shown in a pane since the list was
 // on screen, or already gone, is skipped, never ended.
 func (a *Actions) Cleanup(ctx context.Context, ids []string) (molten.DurableSessionsCleanupResult, error) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
 	rtn := molten.DurableSessionsCleanupResult{Ended: []string{}, Skipped: []string{}}
 	data, err := a.model.Rebuild()
 	if err != nil {
@@ -138,6 +147,8 @@ func (a *Actions) Cleanup(ctx context.Context, ids []string) (molten.DurableSess
 // another workspace (the window then switches to it), and the tab's renderer focuses the pane. One no pane shows is
 // reattached into a new pane of tabId, with its history.
 func (a *Actions) Show(ctx context.Context, id string, tabId string) (molten.SessionLocation, error) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
 	s, err := a.find(id)
 	if err != nil {
 		return molten.SessionLocation{}, err
@@ -201,20 +212,30 @@ func (a *Actions) reattach(ctx context.Context, s molten.DurableSession, tabId s
 	if err != nil {
 		return molten.SessionLocation{}, err
 	}
-	if err := a.ops.CopyHistory(ctx, s.Id, blockId); err != nil {
-		return molten.SessionLocation{}, err
-	}
-	if err := a.ops.AttachJob(ctx, s.Id, blockId); err != nil {
-		return molten.SessionLocation{}, err
-	}
-	if err := a.ops.InsertPane(ctx, tabId, blockId); err != nil {
+	if err := a.fillPane(ctx, s.Id, tabId, blockId); err != nil {
+		// A pane never laid out would stay in the tab, invisible.
+		if delErr := a.ops.DeletePane(ctx, blockId); delErr != nil {
+			log.Printf("molten: pane %s of a failed reattach not removed: %v\n", blockId, delErr)
+		}
 		return molten.SessionLocation{}, err
 	}
 	return molten.SessionLocation{WorkspaceId: wsId, TabId: tabId, BlockId: blockId, Created: true}, nil
 }
 
+func (a *Actions) fillPane(ctx context.Context, jobId string, tabId string, blockId string) error {
+	if err := a.ops.CopyHistory(ctx, jobId, blockId); err != nil {
+		return err
+	}
+	if err := a.ops.AttachJob(ctx, jobId, blockId); err != nil {
+		return err
+	}
+	return a.ops.InsertPane(ctx, tabId, blockId)
+}
+
 // Reconnect connects the session's host (Wave's usual prompts apply), then the job.
 func (a *Actions) Reconnect(ctx context.Context, id string) error {
+	a.lock.Lock()
+	defer a.lock.Unlock()
 	s, err := a.find(id)
 	if err != nil {
 		return err

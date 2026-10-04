@@ -176,7 +176,7 @@ func TestJoinReasons(t *testing.T) {
 		"tabgone":   {false, molten.SessionReasonPaneGone, true, true},
 		"replaced":  {false, molten.SessionReasonReplaced, true, true},
 		"older":     {true, molten.SessionReasonOlderVersion, false, true},
-		"ending":    {false, molten.SessionReasonEnding, false, false},
+		"ending":    {false, molten.SessionReasonEnding, false, true},
 	}
 	for id, wnt := range want {
 		s := find(t, data, id)
@@ -186,6 +186,7 @@ func TestJoinReasons(t *testing.T) {
 	}
 }
 
+// Ended jobs and debug task jobs are no sessions.
 func TestJoinExcludesEndedJobs(t *testing.T) {
 	w := makeWorld()
 	done := localJob("done", 1)
@@ -194,7 +195,9 @@ func TestJoinExcludesEndedJobs(t *testing.T) {
 	exited.CmdExitTs = 99
 	initJob := localJob("init", 3)
 	initJob.JobManagerStatus = "init"
-	w.s.Jobs = []*waveobj.Job{done, exited, initJob}
+	task := localJob("task", 4)
+	task.JobKind = "task"
+	w.s.Jobs = []*waveobj.Job{done, exited, initJob, task}
 	if data := Join(w.s); len(data.Sessions) != 0 {
 		t.Fatalf("ended jobs listed: %+v", data.Sessions)
 	}

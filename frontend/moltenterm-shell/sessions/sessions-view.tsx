@@ -357,30 +357,53 @@ function SessionsView() {
         }
         const next = nextSelection(prev, order, selected);
         setSelected(next);
-        const active = document.activeElement;
-        if (dialog == null && (active === document.body || listRef.current?.contains(active))) {
+        if (focusIsOurs()) {
             focusWanted.current = true;
         }
     }, [orderKey]);
 
     // A session that ended elsewhere while its dialog was open closes the dialog.
     useEffect(() => {
-        if (dialog?.kind === "end" && !byId.has(dialog.id)) {
-            setDialog(null);
-        } else if (dialog?.kind === "cleanup" && !dialog.ids.some((id) => byId.has(id))) {
-            setDialog(null);
+        const gone =
+            (dialog?.kind === "end" && !byId.has(dialog.id)) ||
+            (dialog?.kind === "cleanup" && !dialog.ids.some((id) => byId.has(id)));
+        if (!gone) {
+            return;
         }
+        if (focusIsOurs()) {
+            focusWanted.current = true;
+        }
+        setDialog(null);
     }, [byId, dialog]);
 
-    // A wanted focus waits for its row: a row ended from its dialog is still listed until wavesrv's next list.
+    // A wanted focus waits for its row: a row ended from its dialog is still listed until wavesrv's next list. It is
+    // dropped once the user is elsewhere, so a late list never pulls the focus out of a terminal.
     useEffect(() => {
+        if (!focusWanted.current) {
+            return;
+        }
+        if (!focusIsOurs()) {
+            focusWanted.current = false;
+            return;
+        }
         const row = selected == null ? null : rowRefs.current.get(selected);
-        if (!focusWanted.current || row == null) {
+        if (row == null) {
             return;
         }
         focusWanted.current = false;
         row.focus();
     });
+
+    // The focus is in the list, in one of its dialogs, or nowhere (its element went away).
+    const focusIsOurs = () => {
+        const active = document.activeElement;
+        return (
+            active == null ||
+            active === document.body ||
+            listRef.current?.contains(active) ||
+            active.closest('[data-role^="molten-session"]') != null
+        );
+    };
 
     const focusRow = (id: string) => {
         setSelected(id);
@@ -451,7 +474,9 @@ function SessionsView() {
 
     const closeDialog = () => {
         setDialog(null);
-        focusWanted.current = true;
+        if (focusIsOurs()) {
+            focusWanted.current = true;
+        }
         if (selected == null) {
             setSelected(order[0] ?? null);
         }

@@ -5,7 +5,6 @@ package sessions
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"time"
 
@@ -24,8 +23,9 @@ const (
 	buildTimeout    = 5 * time.Second
 	procReadTimeout = 2 * time.Second
 	// A folder's worktree (git) is looked up again after this.
-	worktreeTTL       = 30 * time.Second
-	maxCommandLength  = 200
+	worktreeTTL = 30 * time.Second
+	// The process table is read again for a build at most this often (the tick); builds in between reuse it.
+	procReuseFor      = 4 * time.Second
 	worktreeCacheSize = 256
 )
 
@@ -60,6 +60,13 @@ func (c *worktreeCache) put(dir string, info *molten.SessionWorktree) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if len(c.entries) >= worktreeCacheSize {
+		for dir, e := range c.entries {
+			if c.now().Sub(e.at) > worktreeTTL {
+				delete(c.entries, dir)
+			}
+		}
+	}
+	if len(c.entries) >= worktreeCacheSize {
 		c.entries = map[string]worktreeEntry{}
 	}
 	c.entries[dir] = worktreeEntry{info: info, at: c.now()}
@@ -77,13 +84,22 @@ func (c *worktreeCache) get(dir string) *molten.SessionWorktree {
 	return info
 }
 
+type procKey struct {
+	pid     int32
+	startMs int64
+}
+
 // liveSources reads wavesrv's store, its connections, the agent states and the local process table.
 type liveSources struct {
 	worktrees *worktreeCache
+	// The last read of the process table, by shell process (a pid and its start time).
+	procLock sync.Mutex
+	procAt   time.Time
+	procs    map[procKey]ProcInfo
 }
 
 func makeLiveSources() *liveSources {
-	return &liveSources{worktrees: makeWorktreeCache()}
+	return &liveSources{worktrees: makeWorktreeCache(), procs: map[procKey]ProcInfo{}}
 }
 
 func (src *liveSources) Build() (molten.DurableSessionsData, error) {
@@ -150,7 +166,7 @@ func (src *liveSources) snapshot(ctx context.Context) (*Snapshot, error) {
 	for _, info := range attention.AgentStatesSnapshot() {
 		s.Agents[info.BlockId] = info
 	}
-	readProcs(s)
+	src.readProcs(s)
 	for _, dir := range WorktreeQueries(s) {
 		s.Worktrees[dir] = src.worktrees.get(dir)
 	}
@@ -216,21 +232,11 @@ func readProcessCwd(pid int32) string {
 	return cwd
 }
 
-func commandLine(p *proctree.Proc) string {
-	_, args := readProcessArgs(p.Pid)
-	line := strings.Join(args, " ")
-	if line == "" {
-		line = p.Name
-	}
-	if len(line) > maxCommandLength {
-		line = line[:maxCommandLength]
-	}
-	return line
-}
-
-// readProcs reads the process table once for the local sessions no pane shows: what runs in each one's foreground,
-// its agent and its shell's folder. Only process metadata is read, never what a process prints.
-func readProcs(s *Snapshot) {
+// readProcs reads the process table once for the local sessions no pane shows: what runs in each one's foreground
+// (its process name only: a command line can hold secrets, and the list reaches every window), its agent and its
+// shell's folder. Only process metadata is read, never what a process prints. Builds close together reuse the last
+// read.
+func (src *liveSources) readProcs(s *Snapshot) {
 	var due []*waveobj.Job
 	for _, job := range s.Jobs {
 		if NeedsProcess(s, job) {
@@ -240,10 +246,28 @@ func readProcs(s *Snapshot) {
 	if len(due) == 0 {
 		return
 	}
+	src.procLock.Lock()
+	defer src.procLock.Unlock()
+	if time.Since(src.procAt) < procReuseFor {
+		missing := false
+		for _, job := range due {
+			info, ok := src.procs[procKey{int32(job.CmdPid), job.CmdStartTs}]
+			if !ok {
+				missing = true
+				break
+			}
+			s.Procs[job.OID] = info
+		}
+		if !missing {
+			return
+		}
+	}
 	table, err := proctree.Read()
 	if err != nil {
 		return
 	}
+	src.procAt = time.Now()
+	src.procs = map[procKey]ProcInfo{}
 	for _, job := range due {
 		pid := int32(job.CmdPid)
 		if !table.Same(pid, job.CmdStartTs) {
@@ -255,7 +279,7 @@ func readProcs(s *Snapshot) {
 			for _, p := range fg {
 				if p.Pid != pid {
 					info.Running = true
-					info.Command = commandLine(p)
+					info.Command = p.Name
 					break
 				}
 			}
@@ -263,6 +287,7 @@ func readProcs(s *Snapshot) {
 		if agent, ok := molten.FindAgentProcess(fg, readProcessArgs); ok {
 			info.Agent = agent.Agent
 		}
+		src.procs[procKey{pid, job.CmdStartTs}] = info
 		s.Procs[job.OID] = info
 	}
 }
