@@ -28,6 +28,7 @@ import {
     NullAtom,
 } from "@/util/util";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { browserBlockDef } from "../../moltenterm-shell/browser/browser-model"; // MOLTENTERM-PATCH (#132)
 import { setupBadgesSubscription } from "./badge";
 import { atoms, blockComponentModelMap, ConnStatusMapAtom, initGlobalAtoms, orefAtomCache } from "./global-atoms";
 import { globalStore } from "./jotaiStore";
@@ -539,13 +540,7 @@ function getLocalHostDisplayNameAtom(): Atom<string> {
  */
 async function openLink(uri: string, forceOpenInternally = false) {
     if (forceOpenInternally || globalStore.get(atoms.settingsAtom)?.["web:openlinksinternally"]) {
-        const blockDef: BlockDef = {
-            meta: {
-                view: "web",
-                url: uri,
-            },
-        };
-        await createBlock(blockDef);
+        await createBlock(browserBlockDef(uri)); // MOLTENTERM-PATCH (#132): the browser panel, with tabs
     } else {
         getApi().openExternal(uri);
     }

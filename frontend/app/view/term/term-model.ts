@@ -42,6 +42,7 @@ import {
     termCopyMenuItems,
     termFileLinkMenuItems,
 } from "../../../moltenterm-shell/term-copy/term-copy"; // MOLTENTERM-PATCH (#119)
+import { browserBlockDef } from "../../../moltenterm-shell/browser/browser-model"; // MOLTENTERM-PATCH (#132)
 import { isMacOS, isWindows } from "@/util/platformutil";
 import { boundNumber, fireAndForget, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
@@ -881,12 +882,7 @@ export class TermViewModel implements ViewModel {
                 menu.push({
                     label: hoveredURL.hostname ? "Open URL (" + hoveredURL.hostname + ")" : "Open URL",
                     click: () => {
-                        createBlock({
-                            meta: {
-                                view: "web",
-                                url: hoveredURL.toString(),
-                            },
-                        });
+                        createBlock(browserBlockDef(hoveredURL.toString())); // MOLTENTERM-PATCH (#132)
                     },
                 });
                 menu.push({

@@ -546,6 +546,11 @@ func main() {
 	if firstLaunch {
 		log.Printf("first launch detected")
 	}
+	// MOLTENTERM-PATCH (#132): saved web panes move to the browser panel before any window loads them
+	err = wcore.MigrateLegacyWebBlocks()
+	if err != nil {
+		log.Printf("error migrating web blocks: %v\n", err)
+	}
 	err = clearTempFiles()
 	if err != nil {
 		log.Printf("error clearing temp files: %v\n", err)

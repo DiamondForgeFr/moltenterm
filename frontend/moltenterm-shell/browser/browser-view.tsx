@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The browser panel (FR-SHELL-007, DS-SHELL-007): pages in tabs, like a browser window. Each tab keeps its own live
-// <webview>, hidden when inactive, so its page and history survive switching. Wave's web view (one page per panel)
-// stays for the links Moltenterm opens elsewhere.
+// <webview>, hidden when inactive, so its page and history survive switching. Every web page Moltenterm opens
+// lands here (#132): Wave's web view (one page per panel) is no longer created, and saved ones are migrated at startup.
 //
 // The panel has no Wave block header (FR-SHELL-012, DS-SHELL-012): its tab strip carries the header's roles (moving
 // the panel, magnify, close, the header menu) and the page title lives in its tab only.
@@ -33,13 +33,14 @@ import {
     BrowserTab,
     browserTabTitle,
     closeTab,
+    MoltentermBrowserView,
     moveTab,
     readBrowserState,
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
 
-export const MoltentermBrowserView = "molten-browser";
+export { MoltentermBrowserView };
 
 const PersistDelayMs = 400;
 const FallbackUrl = "about:blank";
