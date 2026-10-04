@@ -151,7 +151,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         );
     }
     return (
-        <div className="flex h-full min-h-0 flex-col overflow-y-auto" data-testid="companion">
+        <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
             <SessionBar view={view} />
             <PermissionCard pending={view.pending} agentState={agentState?.state} />
             <AnswerSection target={target} view={view} />
@@ -163,7 +163,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
 
 function Centered({ title, detail }: { title: string; detail?: string }) {
     return (
-        <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
+        <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-6 text-center">
             <div className="text-sm font-medium text-primary">{title}</div>
             {detail ? <div className="max-w-[360px] text-xs text-secondary">{detail}</div> : null}
         </div>
@@ -194,7 +194,7 @@ function SessionPicker({
         });
     const now = Date.now();
     return (
-        <div className="flex h-full flex-col gap-3 overflow-y-auto p-4" data-testid="companion-picker">
+        <div className="flex h-full w-full flex-col gap-3 overflow-y-auto p-4" data-testid="companion-picker">
             <div>
                 <div className="text-sm font-medium text-primary">{title}</div>
                 <div className="text-xs text-secondary">{detail}</div>
