@@ -3,7 +3,7 @@
 
 // Every web page Moltenterm opens inside the app goes through openInBrowserPanel (#140): it becomes a new tab of the
 // browser panel the user last focused in the current tab, and only gets a panel of its own when the tab has none.
-// wsh does the same from the backend (cmd/wsh/cmd/wshcmd-molten-browser.go) through the block meta BrowserOpenMetaKey.
+// wsh does the same from the backend (cmd/wsh/cmd/wshcmd-molten-browser.go) through a queue in the block meta (BrowserOpenKeyPrefix).
 
 import { atoms, createBlock, getBlockComponentModel } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
