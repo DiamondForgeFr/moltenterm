@@ -218,6 +218,9 @@ func (w *attentionWatcher) forget(blockId string) {
 // The agent states (DS-SHELL-011) follow the items in output order; a signal still raises its notification unless
 // the agent's hook just did (agentStates.allowNotice).
 func (w *attentionWatcher) handle(blockId string, data []byte) {
+	if w.agents != nil && w.agents.procs != nil {
+		w.agents.procs.seen(blockId)
+	}
 	for _, item := range w.scan(blockId, data) {
 		if item.shell != nil {
 			if w.agents != nil {

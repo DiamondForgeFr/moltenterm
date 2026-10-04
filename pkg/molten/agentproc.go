@@ -6,8 +6,11 @@ package molten
 import (
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 )
 
 // The Processes view names coding agents by agent (FR-SHELL-011): Claude Code's process is named after its version
@@ -85,4 +88,51 @@ func AgentProcessCommand(procKey string, command string, read func() (string, []
 	}
 	defaultAgentProcCache.put(key, label)
 	return label
+}
+
+// matchAgentName returns the agent whose command is the process's name (`claude`, `codex`...).
+func matchAgentName(name string) string {
+	base := filepath.Base(name)
+	for _, kind := range AgentKinds {
+		for _, c := range kind.Commands {
+			if base == c {
+				return kind.Id
+			}
+		}
+	}
+	return ""
+}
+
+var defaultAgentTreeCache = &agentProcCache{entries: map[string]string{}}
+
+// AgentProcess is the coding agent found among a terminal's processes.
+type AgentProcess struct {
+	Agent   string
+	Pid     int32
+	StartMs int64
+}
+
+// FindAgentProcess returns the first process of the list (nearest to the shell first) that runs a coding agent: by
+// its name, else, for a version-named process or a runtime (node, bun, deno), by its executable path and arguments,
+// read once per process (pid and start time tell a reused pid apart).
+func FindAgentProcess(procs []*proctree.Proc, read func(pid int32) (string, []string)) (AgentProcess, bool) {
+	for _, p := range procs {
+		if id := matchAgentName(p.Name); id != "" {
+			return AgentProcess{Agent: id, Pid: p.Pid, StartMs: p.StartMs}, true
+		}
+		if !AgentProcessCandidate(p.Name) {
+			continue
+		}
+		key := strconv.Itoa(int(p.Pid)) + "/" + strconv.FormatInt(p.StartMs, 10) + "\x00" + p.Name
+		id, ok := defaultAgentTreeCache.get(key)
+		if !ok {
+			exe, args := read(p.Pid)
+			id = MatchAgentProcess(exe, args)
+			defaultAgentTreeCache.put(key, id)
+		}
+		if id != "" {
+			return AgentProcess{Agent: id, Pid: p.Pid, StartMs: p.StartMs}, true
+		}
+	}
+	return AgentProcess{}, false
 }
