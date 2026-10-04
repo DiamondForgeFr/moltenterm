@@ -159,7 +159,7 @@ describe("closePlanView", () => {
         const v = closePlanView(plan({ unpushed: 3, merged: true }));
         expect(v.atRisk).toBe(false);
         expect(v.unpushedAtRisk).toBe(false);
-        expect(v.unpushedLine).toBe("3 commits on no remote, their content already on develop");
+        expect(v.unpushedLine).toBe("3 commits on no remote, content already on develop");
         expect(unpushedAtRisk(plan({ unpushed: 3, merged: true }))).toBe(false);
         expect(unpushedAtRisk(plan({ unpushed: -1, merged: true }))).toBe(true);
         expect(unpushedAtRisk(plan({ unpushed: 3, merged: undefined }))).toBe(true);
