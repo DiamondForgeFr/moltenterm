@@ -6,7 +6,7 @@
     "productName": "MoltenTerm",
     "description": "The terminal that takes your shape. A soft fork of Wave Terminal.",
     "license": "Apache-2.0",
-    "version": "0.14.5",
+    "version": "1.0.0-0",
     "homepage": "https://github.com/DiamondForgeFr/moltenterm",
     "build": {
         "appId": "fr.diamondforge.moltenterm"

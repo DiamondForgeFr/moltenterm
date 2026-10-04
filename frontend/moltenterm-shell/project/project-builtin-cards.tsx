@@ -23,7 +23,7 @@ import { ReleaseRunSection } from "../mission/release-run-panel";
 import { daysSince } from "../mission/release-state-panel";
 import { BuildRunCard } from "../mission/runs-view";
 import { useDeliveredManifest } from "../mission/timeline-view";
-import { releaseState, tagVersion } from "../mission/versions";
+import { releaseState, tagVersion, treeRules } from "../mission/versions";
 import { MoltentermNotifications } from "../notifications-store";
 import { usePaneStatus } from "../pane-status";
 import { blockFolder, ciVerdictView, makePaneView } from "../status-bar-model";
@@ -128,7 +128,7 @@ function ReleasesCard({ snapshot }: ProjectCardProps) {
     const git = snapshot?.git;
     const tree = useMemo(() => (git ? toTreeData(git) : null), [git]);
     const state = useMemo(
-        () => (tree ? releaseState(tree.tags, git.ahead ?? [], git.sincepublic ?? [], tree.tagPrefix) : null),
+        () => (tree ? releaseState(tree.tags, git.ahead ?? [], git.sincepublic ?? [], treeRules(tree)) : null),
         [tree, git]
     );
     if (state == null) {

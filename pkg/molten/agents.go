@@ -456,3 +456,28 @@ func DocsDir(dataDir string, version string) string {
 	}
 	return filepath.Join(dataDir, "molten", "docs", version)
 }
+
+// PruneDocs removes the documentation folders `molten docs` wrote for other versions: one folder per version would
+// otherwise pile up with every update. Returns the folders removed.
+func PruneDocs(dataDir string, keepDir string) ([]string, error) {
+	parent := filepath.Dir(keepDir)
+	if parent != filepath.Join(dataDir, "molten", "docs") {
+		return nil, fmt.Errorf("%s is not a docs folder of %s", keepDir, dataDir)
+	}
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		return nil, err
+	}
+	var removed []string
+	for _, entry := range entries {
+		path := filepath.Join(parent, entry.Name())
+		if !entry.IsDir() || path == keepDir {
+			continue
+		}
+		if err := os.RemoveAll(path); err != nil {
+			return removed, err
+		}
+		removed = append(removed, path)
+	}
+	return removed, nil
+}

@@ -69,10 +69,13 @@ gh repo set-default DiamondForgeFr/moltenterm
 5. Validate: `task init`, `node scripts/moltenterm-check-icons.mjs` (Wave targets Font Awesome Pro: any new Pro-only
    icon must get an alias in `public/moltenterm-icons.css`), `task check:ts`, `npx vitest run`,
    `go test ./cmd/... ./pkg/...`, then `task dev`.
-6. Update the "Current base" table, then the patch ledger until `node scripts/moltenterm-check-ledger.mjs` passes: it
+6. Keep Moltenterm's `version` in `package.json` and `package-lock.json` on conflicts (never Wave's), and set
+   `MoltentermWaveBaseVersion` in `pkg/wavebase/moltenterm_identity.go` and `frontend/util/moltenterm-identity.ts` to
+   the merged release. Never run Wave's `task version` bumper: releases are numbered by `.molten/project.json`.
+7. Update the "Current base" table, then the patch ledger until `node scripts/moltenterm-check-ledger.mjs` passes: it
    names every Wave file Moltenterm still changes without an entry or a marker, and every entry the new release made
    pointless.
-7. Open the pull request to `develop` and merge it with a **merge commit**. Never squash or rebase: both drop Wave's
+8. Open the pull request to `develop` and merge it with a **merge commit**. Never squash or rebase: both drop Wave's
    history and make every later merge a conflict.
 
 Never push Wave's tags: `git push` without `--tags`, and `tagOpt` keeps them out of the local repository.
@@ -235,6 +238,7 @@ DO NOT EDIT.` near the top), which `task generate` would strip of one; they stil
 | `frontend/app/tab/tab.tsx` | The slot after a tab's name renders `MoltentermTabMarks` (`frontend/moltenterm-shell/project/tab-marks.tsx`): the agent dot of #109 and the pin of the Project tab (tab meta `molten:projecttab`). wavesrv makes that tab in `pkg/wcore/moltenterm_projecttab.go` (a new file, registered into `pkg/molten/mission` through `UseProjectTabs`, so neither `pkg/wshrpc` nor Wave's workspace code changes). File already patched | Project tab (FR-SHELL-015) | #113 |
 | `frontend/app/block/block.scss` | The pane rule `.block` becomes `.block:where(.block-frame-default)` (same specificity): unlayered, the bare `.block` also caught Tailwind's `block` utility, so any `block` element turned into a full-size rounded flex box; `frontend/moltenterm-shell/build/utility-collisions.test.ts` keeps unlayered stylesheet rules off Tailwind utility names | Release stepper todo steps showed as grey squares | #164 |
 | `electron.vite.config.ts`, `emain/emain-platform.ts`, `emain/emain-menu.ts`, `emain/emain.ts` | The main build defines `__MOLTENTERM_CHANNEL__`; a gold names itself "MoltenTerm Gold" (`moltentermProductNameFor` in `frontend/util/moltenterm-identity.ts`), and the About menu item and quit dialog use the app's name | The gold is told apart from a dev build running beside it | #191 |
+| `package.json`, `package-lock.json` | `version` is Moltenterm's own number, `1.0.0-0` until the first release candidate, then written by the release (`versions.files` in `.molten/project.json`, rules in `pkg/molten/versions`); JSON, no marker. Wave's base is `MoltentermWaveBaseVersion` (Go and TS), checked against "Current base" by tests | Moltenterm version (FR-REL-001) | #184 |
 
 ## Known upstream items
 
@@ -250,8 +254,10 @@ DO NOT EDIT.` near the top), which `task generate` would strip of one; they stil
   `pkg/aiusechat/moltenterm_noai.go`) mark every place that depends on it.
 - **Identity:** resolved by #4 (FR-FORK-002). Still shared with Wave, on purpose or for later: `~/.waveterm` on remote
   hosts reached over SSH or WSL (WSL uses a fixed socket there), `~/waveapps` (app builder only), `TERM_PROGRAM=waveterm`
-  (kept so that tools which detect Wave keep working), the `WAVETERM_*` variables that hand directories to wavesrv, and
-  the version number (0.14.5, Wave's) until Moltenterm's own numbering is decided.
+  (kept so that tools which detect Wave keep working), and the `WAVETERM_*` variables that hand directories to wavesrv.
+  The version number is Moltenterm's own since #184 (FR-REL-001): `1.0.0-0` before the first release candidate, then
+  `X.Y.Z-N` and `X.Y.Z`. The remote wsh keeps Wave's rule (same or newer is up to date), so while `~/.waveterm` is
+  shared, a Wave wsh numbered above Moltenterm's would be kept; #192 moves Moltenterm to its own remote folder.
 - **Outbound services:** resolved by #5 (FR-FORK-003). No update feed, no Wave cloud, no telemetry upload. Events are
   still recorded locally (dormant). #5's AI patches (user-defined modes only, "wave" modes refused) stay as a second
   line behind #25's refusal.

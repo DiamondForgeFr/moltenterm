@@ -13,12 +13,15 @@ import {
 
 const build = {
     channel: "local",
+    version: "1.0.0-0",
     branch: "develop",
     commit: "a4e3b72d9f00",
     shortCommit: "a4e3b72",
     dirty: true,
     builtAt: "2026-10-02T08:00:00.000Z",
     buildId: 1790928000,
+    releaseTag: "",
+    changesSinceRelease: 812,
 };
 
 function workspace(meta: Record<string, any>): Workspace {
@@ -28,37 +31,54 @@ function workspace(meta: Record<string, any>): Workspace {
 const linkedWs = workspace({ "molten:project": "/code/molten", "molten:folder": "/code/molten/pkg" });
 
 describe("makeStatusBarView", () => {
-    it("reduces the build to one badge with channel and version", () => {
-        expect(makeStatusBarView(build, { isDev: false, version: "0.14.5" })).toMatchObject({
+    it("names a local build by its channel only: its version goes to the tooltip (#187)", () => {
+        expect(makeStatusBarView(build, { isDev: false, version: "1.0.0-0" })).toMatchObject({
             channel: "local",
             channelLabel: "local build",
-            badge: "local build 0.14.5",
-            version: "0.14.5",
+            badge: "local build",
+            version: "1.0.0-0",
         });
     });
 
     it("says dev under the dev server, whatever the build says", () => {
-        expect(makeStatusBarView({ ...build, channel: "release" }, { isDev: true, version: "x" }).badge).toBe("dev x");
+        expect(makeStatusBarView({ ...build, channel: "public" }, { isDev: true, version: "x" }).badge).toBe("dev");
     });
 
     it("lets the launcher mark a gold copy", () => {
-        expect(makeStatusBarView(build, { isDev: false, runtimeChannel: "gold", version: "1.2.0" }).badge).toBe(
-            "Gold 1.2.0"
+        expect(makeStatusBarView(build, { isDev: false, runtimeChannel: "gold", version: "1.0.0-0" }).badge).toBe(
+            "Gold"
         );
     });
 
-    it("keeps the build time, the commit and its branch in the tooltip", () => {
-        const view = makeStatusBarView(build, { isDev: false, version: "0.14.5" });
+    it("shows the version of a release candidate or a public release", () => {
+        const rc = { ...build, channel: "rc", version: "1.0.0-3", releaseTag: "v1.0.0-3", changesSinceRelease: 0 };
+        expect(makeStatusBarView(rc, { isDev: false, version: "1.0.0-3" })).toMatchObject({
+            channel: "rc",
+            badge: "1.0.0-3",
+        });
+        expect(makeStatusBarView({ ...rc, channel: "public" }, { isDev: false, version: "1.0.0" }).badge).toBe("1.0.0");
+    });
+
+    it("keeps the version, the Wave base, the build line, the build time and the commit in the tooltip", () => {
+        const view = makeStatusBarView(
+            { ...build, releaseTag: "v1.0.0-2", changesSinceRelease: 3 },
+            { isDev: false, runtimeChannel: "gold", version: "1.0.0-0" }
+        );
         expect(view.tooltip).toBe(
-            "MoltenTerm 0.14.5\nbuilt 2026-10-02T08:00:00.000Z\ncommit a4e3b72d9f00 on develop (uncommitted changes)"
+            [
+                "MoltenTerm 1.0.0-0, based on Wave Terminal 0.14.5",
+                "Gold · build 1790928000 · 3 changes since v1.0.0-2",
+                "built 2026-10-02T08:00:00.000Z",
+                "commit a4e3b72 on develop (uncommitted changes)",
+            ].join("\n")
         );
     });
 
     it("copes with a build without facts and an unknown channel", () => {
         expect(makeStatusBarView(null, { isDev: false, runtimeChannel: "weird", version: "1" })).toMatchObject({
             channel: "local",
-            badge: "local build 1",
-            tooltip: "MoltenTerm 1",
+            badge: "local build",
+            tooltip: "MoltenTerm 1, based on Wave Terminal 0.14.5\nlocal build",
         });
     });
 });

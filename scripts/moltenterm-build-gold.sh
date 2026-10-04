@@ -24,6 +24,15 @@ ARCH=$(uname -m)
 
 echo "▶ phase: build"
 task build:backend
+# electron-builder ships all of dist/bin: wsh binaries left by builds of other versions must not ride along (#184).
+VERSION=$(node version.cjs)
+for f in dist/bin/wsh-*; do
+    [ -e "$f" ] || continue
+    case "$f" in
+        dist/bin/wsh-"$VERSION"-*) ;;
+        *) rm -f "$f" ;;
+    esac
+done
 MOLTENTERM_BUILD_CHANNEL=gold MOLTENTERM_BUILD_ID=$BUILD_ID npm run build:prod
 # The gold has an icon and a name of its own (scripts/moltenterm-gen-icons.mjs, #191), so it is told apart from dev
 # builds in the Dock and in Spotlight.

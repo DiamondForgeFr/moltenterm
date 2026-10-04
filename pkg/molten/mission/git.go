@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
 
 // The git side of a project, as Notulia's Dev › Timeline reads it (dev_git_timeline), with the branch names taken
@@ -64,6 +66,8 @@ type GitSnapshot struct {
 	FetchError  string   `json:"fetcherror,omitempty"`
 	// The project's release tags start with it (versions.tagprefix).
 	TagPrefix string `json:"tagprefix"`
+	// versions.firstpublic: tags below its first candidate are not the project's releases.
+	FirstPublic string `json:"firstpublic,omitempty"`
 }
 
 // ProjectBranches are the two long-lived branches: work is merged into the trunk, releases are cut from the release
@@ -115,6 +119,7 @@ type gitReader struct {
 	// versions.tagprefix and versions.notes, or their defaults.
 	tagPrefix string
 	notes     string
+	rules     versions.Rules
 }
 
 // ConfiguredVersions reads versions.tagprefix and versions.notes from the pipeline, or their defaults.
@@ -134,6 +139,19 @@ func ConfiguredVersions(dir string) (string, string) {
 		notes = defaultNotesPath
 	}
 	return prefix, notes
+}
+
+// ConfiguredRules reads the project's numbering rules (versions.tagprefix, versions.firstpublic).
+func ConfiguredRules(dir string) versions.Rules {
+	var pipeline struct {
+		Versions versions.Rules `json:"versions"`
+	}
+	readJson(filepath.Join(dir, ".molten", "project.json"), &pipeline)
+	rules := pipeline.Versions
+	if rules.TagPrefix == "" {
+		rules.TagPrefix = defaultTagPrefix
+	}
+	return rules
 }
 
 func (g *gitReader) out(args ...string) (string, error) {
@@ -258,13 +276,10 @@ func IsPrereleaseTag(name string, prefix string) bool {
 	return strings.Contains(strings.TrimPrefix(name, prefix), "-")
 }
 
+// The highest public release in semver order; tags outside the strict X.Y.Z form, or below versions.firstpublic (a
+// fork's upstream tags), are not releases.
 func (g *gitReader) lastPublic() string {
-	for _, tag := range g.lines("tag", "-l", g.tagPrefix+"*", "--sort=-v:refname") {
-		if !IsPrereleaseTag(tag, g.tagPrefix) {
-			return tag
-		}
-	}
-	return ""
+	return g.rules.LastPublic(g.lines("tag", "-l", g.tagPrefix+"*"))
 }
 
 // The commits on the trunk that the release branch does not have yet. `git cherry` compares content: a project that
@@ -330,10 +345,11 @@ func GitHubWebUrl(remote string) string {
 func CollectGit(ctx context.Context, run Runner, dir string, fetch bool) (*GitSnapshot, error) {
 	g := &gitReader{ctx: ctx, run: run, dir: dir}
 	g.tagPrefix, g.notes = ConfiguredVersions(dir)
+	g.rules = ConfiguredRules(dir)
 	if _, err := g.out("rev-parse", "--git-dir"); err != nil {
 		return nil, err
 	}
-	snap := &GitSnapshot{Branches: []Branch{}, Tags: []Tag{}, Ahead: []Commit{}, SincePublic: []Commit{}, TagPrefix: g.tagPrefix}
+	snap := &GitSnapshot{Branches: []Branch{}, Tags: []Tag{}, Ahead: []Commit{}, SincePublic: []Commit{}, TagPrefix: g.tagPrefix, FirstPublic: g.rules.FirstPublic}
 	remote, _ := g.out("remote", "get-url", "origin")
 	snap.RemoteUrl = GitHubWebUrl(remote)
 	if fetch && remote != "" {

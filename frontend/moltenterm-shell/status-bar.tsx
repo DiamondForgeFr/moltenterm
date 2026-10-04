@@ -10,7 +10,7 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
-import type { MoltentermBuildInfo } from "./build/build-info";
+import { readBuildInfo, readRuntimeChannel } from "./build/current-build";
 import { MoltentermCicdView } from "./mission/cicd-view";
 import { MoltentermTimelineView } from "./mission/timeline-view";
 import { openMoltentermView } from "./open-view";
@@ -38,14 +38,11 @@ const ChannelClasses: Record<StatusBarChannel, string> = {
     dev: cn("border-sky-400/60", MoltentermDevChannelText),
     local: "border-amber-500/60 text-amber-400",
     gold: "border-yellow-400/70 text-yellow-300",
-    release: "border-border text-secondary",
+    rc: "border-accent/60 text-accent",
+    public: "border-border text-secondary",
 };
 
 const ItemButton = "flex min-w-0 cursor-pointer items-center gap-1 rounded px-1 hover:bg-hover hover:text-primary";
-
-function readBuildInfo(): MoltentermBuildInfo {
-    return typeof __MOLTENTERM_BUILD__ === "undefined" ? null : __MOLTENTERM_BUILD__;
-}
 
 function FocusedBlockMeta({ blockId, onMeta }: { blockId: string; onMeta: (meta: PaneBlockMeta) => void }) {
     const [block] = useWaveObjectValue<Block>(makeORef("block", blockId));
@@ -120,7 +117,7 @@ export function StatusBar() {
         const api = getApi();
         return makeStatusBarView(readBuildInfo(), {
             isDev: api.getIsDev(),
-            runtimeChannel: api.getEnv("MOLTENTERM_CHANNEL"),
+            runtimeChannel: readRuntimeChannel(),
             version: api.getAboutModalDetails()?.version ?? "",
         });
     }, []);

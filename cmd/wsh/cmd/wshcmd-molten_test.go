@@ -126,6 +126,10 @@ func TestMoltenParseRunOptions(t *testing.T) {
 	if !opts.Json || opts.TimeoutSec != 5 || opts.Command != "deploy" || strings.Join(opts.Args, " ") != "--json -x arg" {
 		t.Fatalf("unexpected options: %+v", opts)
 	}
+	opts, err = moltenParseRunOptions([]string{"--version"})
+	if err != nil || !opts.Version || opts.Command != "" {
+		t.Fatalf("unexpected options: %+v, %v", opts, err)
+	}
 	opts, err = moltenParseRunOptions([]string{"--timeout=9", "x"})
 	if err != nil || opts.TimeoutSec != 9 || opts.Json {
 		t.Fatalf("unexpected options: %+v, %v", opts, err)

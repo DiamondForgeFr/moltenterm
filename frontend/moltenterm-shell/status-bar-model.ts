@@ -5,6 +5,7 @@
 // (FR-SHELL-010), the build of Moltenterm that runs as one badge on the right (FR-SHELL-008). Kept apart from the
 // components so the rules can be tested without the app.
 
+import { BuildChannel, makeBuildIdentity } from "./build/build-identity";
 import type { MoltentermBuildInfo } from "./build/build-info";
 import {
     checkAbsolutePath,
@@ -14,7 +15,7 @@ import {
     readWorkspaceProject,
 } from "./workspace-project";
 
-export type StatusBarChannel = "dev" | "local" | "gold" | "release";
+export type StatusBarChannel = BuildChannel;
 
 // The dev channel's text colour, shared by the status bar badge and the widget bar's dev icon.
 export const MoltentermDevChannelText = "text-sky-300";
@@ -22,43 +23,33 @@ export const MoltentermDevChannelText = "text-sky-300";
 export type StatusBarView = {
     channel: StatusBarChannel;
     channelLabel: string;
-    // The single build badge: channel and version.
+    // The single build badge: the channel of a local build ("Gold"), the version of a release (#187).
     badge: string;
     version: string;
     tooltip: string;
 };
 
-const ChannelLabels: Record<StatusBarChannel, string> = {
-    dev: "dev",
-    local: "local build",
-    gold: "Gold",
-    release: "release",
-};
-
-function asChannel(value: string): StatusBarChannel {
-    return value in ChannelLabels ? (value as StatusBarChannel) : "local";
-}
-
-// The dev server wins, then a channel the launcher set (Mission Control marks a gold copy), then the build's own.
 export function makeStatusBarView(
     build: MoltentermBuildInfo,
     opts: { isDev: boolean; runtimeChannel?: string; version: string }
 ): StatusBarView {
-    const channel = opts.isDev ? "dev" : asChannel(opts.runtimeChannel || build?.channel || "local");
-    const tooltipLines = [`MoltenTerm ${opts.version}`];
+    const identity = makeBuildIdentity(build, opts);
+    const tooltipLines = [
+        `MoltenTerm ${identity.version || "(unknown version)"}, based on Wave Terminal ${identity.waveBase}`,
+        identity.buildLine,
+    ];
     if (build?.builtAt) {
         tooltipLines.push(`built ${build.builtAt}`);
     }
-    if (build?.commit) {
-        const branch = build.branch ? ` on ${build.branch}` : "";
-        tooltipLines.push(`commit ${build.commit}${branch}${build.dirty ? " (uncommitted changes)" : ""}`);
+    if (identity.commitLine) {
+        tooltipLines.push(identity.commitLine);
     }
     return {
-        channel,
-        channelLabel: ChannelLabels[channel],
-        badge: opts.version ? `${ChannelLabels[channel]} ${opts.version}` : ChannelLabels[channel],
-        version: opts.version,
-        tooltip: tooltipLines.join("\n"),
+        channel: identity.channel,
+        channelLabel: identity.channelLabel,
+        badge: identity.badge,
+        version: identity.version,
+        tooltip: tooltipLines.filter((s) => s).join("\n"),
     };
 }
 

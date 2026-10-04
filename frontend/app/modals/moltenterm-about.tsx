@@ -11,6 +11,9 @@ import { modalsModel } from "@/app/store/modalmodel";
 import { isDev } from "@/util/isdev";
 import { moltentermProductNameFor, MoltentermRepoUrl, MoltentermTagline } from "@/util/moltenterm-identity";
 import { useAtomValue } from "jotai";
+import { useMemo } from "react";
+import type { BuildIdentity } from "../../moltenterm-shell/build/build-identity";
+import { currentBuildIdentity } from "../../moltenterm-shell/build/current-build";
 import { Modal } from "./modal";
 
 const WaveTerminalRepoUrl = "https://github.com/wavetermdev/waveterm";
@@ -19,11 +22,11 @@ const linkClassName =
     "inline-flex items-center justify-center px-4 py-2 rounded border border-border hover:bg-hoverbg transition-colors duration-200";
 
 interface MoltentermAboutModalVProps {
-    versionString: string;
+    identity: BuildIdentity;
     onClose: () => void;
 }
 
-const MoltentermAboutModalV = ({ versionString, onClose }: MoltentermAboutModalVProps) => {
+const MoltentermAboutModalV = ({ identity, onClose }: MoltentermAboutModalVProps) => {
     const currentYear = new Date().getFullYear();
 
     return (
@@ -40,10 +43,15 @@ const MoltentermAboutModalV = ({ versionString, onClose }: MoltentermAboutModalV
                     </div>
                     <div className="leading-5">{MoltentermTagline}</div>
                 </div>
-                <div className="items-center gap-4 self-stretch w-full text-center">
-                    Version {versionString}
-                    <br />
-                    Built on Wave Terminal by Command Line Inc. (Apache-2.0)
+                <div className="flex flex-col items-center gap-1 self-stretch w-full text-center">
+                    <div className="text-primary">Version {identity.version || "unknown"}</div>
+                    <div className="text-xs text-secondary">{identity.buildLine}</div>
+                    {identity.commitLine ? (
+                        <div className="text-xs text-secondary font-mono">{identity.commitLine}</div>
+                    ) : null}
+                    <div className="mt-2">
+                        Based on Wave Terminal {identity.waveBase} by Command Line Inc. (Apache-2.0)
+                    </div>
                 </div>
                 <div className="grid grid-cols-2 gap-[10px] self-stretch w-full">
                     <a href={MoltentermRepoUrl} target="_blank" rel="noopener" className={linkClassName}>
@@ -65,9 +73,10 @@ MoltentermAboutModalV.displayName = "MoltentermAboutModalV";
 
 const AboutModal = () => {
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
-    const versionString = `${fullConfig?.version ?? ""} (${isDev() ? "dev-" : ""}${fullConfig?.buildtime ?? ""})`;
+    const version = fullConfig?.version ?? "";
+    const identity = useMemo(() => currentBuildIdentity(version), [version]);
 
-    return <MoltentermAboutModalV versionString={versionString} onClose={() => modalsModel.popModal()} />;
+    return <MoltentermAboutModalV identity={identity} onClose={() => modalsModel.popModal()} />;
 };
 
 AboutModal.displayName = "AboutModal";

@@ -1,0 +1,373 @@
+{
+    "order": ["0.14.5", "1.0.0-1", "1.0.0-2", "1.0.0-10", "1.0.0", "1.0.1-1", "1.0.1", "1.1.0-1", "1.1.0", "2.0.0"],
+    "invalid": ["1.0.0-0", "01.0.0", "1.00.0", "1.0", "1.0.0-01", "1.0.0-rc.1", "1.0.0-65536", "v1.0.0", "1.0.0+5", ""],
+    "channels": [
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v1.0.0", "channel": "public" },
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v1.0.0-3", "channel": "rc" },
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": " v1.2.0-1 ", "channel": "rc" },
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v0.14.5", "channel": "" },
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v1.0.0-0", "channel": "" },
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v1.0.0-rc.1", "channel": "" },
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "1.0.0", "channel": "" },
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v1.0.0-65535", "channel": "rc" },
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tag": "v1.0.0-65536", "channel": "" },
+        { "rules": { "tagprefix": "v", "firstpublic": "" }, "tag": "v0.14.5", "channel": "public" },
+        { "rules": { "tagprefix": "release-", "firstpublic": "" }, "tag": "release-1.2.0-3", "channel": "rc" },
+        { "rules": { "tagprefix": "release-", "firstpublic": "" }, "tag": "v1.2.0", "channel": "" }
+    ],
+    "nextrc": [
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "base": "1.0.0", "tags": [], "rc": 1 },
+        {
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "base": "1.0.0",
+            "tags": ["v1.0.0-1", "v1.0.0-2", "v1.1.0-7", "v1.0.0-rc.9", "v1.0.0-09"],
+            "rc": 3
+        },
+        {
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "base": "1.0.0",
+            "tags": ["v1.0.0-10", "v1.0.0-9"],
+            "rc": 11
+        }
+    ],
+    "lastpublic": [
+        { "rules": { "tagprefix": "v", "firstpublic": "1.0.0" }, "tags": [], "lastpublic": "", "lastrc": "" },
+        {
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": ["v0.14.5", "v0.14.4", "v1.0.0-1"],
+            "lastpublic": "",
+            "lastrc": "v1.0.0-1"
+        },
+        {
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": ["v1.10.0", "v1.9.0", "v1.10.0-2", "v1.11.0-1", "v2.0.0-1", "v1.10.0-10"],
+            "lastpublic": "v1.10.0",
+            "lastrc": "v2.0.0-1"
+        },
+        {
+            "rules": { "tagprefix": "v", "firstpublic": "" },
+            "tags": ["v0.14.5", "v0.14.4-1"],
+            "lastpublic": "v0.14.5",
+            "lastrc": "v0.14.4-1"
+        }
+    ],
+    "bumps": [
+        {
+            "last": "1.2.3",
+            "commits": [{ "subject": "fix(#1): a" }, { "subject": "feat(#2): b" }],
+            "expect": { "level": "minor", "version": "1.3.0", "reason": "1 new feature(s)" }
+        },
+        {
+            "last": "1.2.3",
+            "commits": [{ "subject": "fix(#1): a" }, { "subject": "chore: c" }],
+            "expect": { "level": "patch", "version": "1.2.4", "reason": "1 fix(es), no new feature" }
+        },
+        {
+            "last": "1.2.3",
+            "commits": [{ "subject": "perf(#1): faster" }],
+            "expect": { "level": "patch", "version": "1.2.4", "reason": "0 fix(es), no new feature" }
+        },
+        {
+            "last": "1.2.3",
+            "commits": [{ "subject": "feat(#1)!: a" }, { "subject": "feat(#2): b" }],
+            "expect": { "level": "major", "version": "2.0.0", "reason": "1 breaking change(s)" }
+        },
+        {
+            "last": "1.2.3",
+            "commits": [{ "subject": "refactor: a", "body": "Why.\n\nBREAKING CHANGE: the flag is gone" }],
+            "expect": { "level": "major", "version": "2.0.0", "reason": "1 breaking change(s)" }
+        },
+        {
+            "last": "1.2.3",
+            "commits": [
+                { "subject": "chore: a" },
+                { "subject": "ci: b" },
+                { "subject": "docs(#3): c" },
+                { "subject": "Merge branch x" }
+            ],
+            "expect": null
+        },
+        {
+            "last": "1.2.3",
+            "commits": [{ "subject": "Update things" }, { "subject": "fix: y" }],
+            "expect": { "level": "patch", "version": "1.2.4", "reason": "1 fix(es), no new feature" }
+        }
+    ],
+    "plans": [
+        {
+            "name": "no tag: the first candidate of versions.firstpublic",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": [],
+            "commits": [{ "subject": "chore: init" }],
+            "channel": "rc",
+            "override": "",
+            "expect": {
+                "channel": "rc",
+                "how": "decision",
+                "base": "1.0.0",
+                "version": "1.0.0-1",
+                "tag": "v1.0.0-1",
+                "reason": "First public release: a choice, not a calculation."
+            }
+        },
+        {
+            "name": "no tag: the first public release",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": ["v0.14.5"],
+            "commits": [],
+            "channel": "public",
+            "override": "",
+            "expect": {
+                "channel": "public",
+                "how": "decision",
+                "base": "1.0.0",
+                "version": "1.0.0",
+                "tag": "v1.0.0",
+                "reason": "First public release: a choice, not a calculation."
+            }
+        },
+        {
+            "name": "after two candidates, the third",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": ["v1.0.0-1", "v1.0.0-2", "v0.14.5"],
+            "commits": [],
+            "channel": "rc",
+            "override": "",
+            "expect": {
+                "channel": "rc",
+                "how": "decision",
+                "base": "1.0.0",
+                "version": "1.0.0-3",
+                "tag": "v1.0.0-3",
+                "reason": "First public release: a choice, not a calculation."
+            }
+        },
+        {
+            "name": "without firstpublic, the candidates' version is proposed",
+            "rules": { "tagprefix": "v", "firstpublic": "" },
+            "tags": ["v0.3.0-2"],
+            "commits": [],
+            "channel": "public",
+            "override": "",
+            "expect": {
+                "channel": "public",
+                "how": "decision",
+                "base": "0.3.0",
+                "version": "0.3.0",
+                "tag": "v0.3.0",
+                "reason": "First public release: a choice, not a calculation."
+            }
+        },
+        {
+            "name": "after 1.0.0 and a feat: a minor candidate",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": ["v1.0.0-1", "v1.0.0"],
+            "commits": [{ "subject": "feat(#200): a" }, { "subject": "fix(#201): b" }],
+            "channel": "rc",
+            "override": "",
+            "expect": {
+                "channel": "rc",
+                "how": "derived",
+                "base": "1.1.0",
+                "version": "1.1.0-1",
+                "tag": "v1.1.0-1",
+                "level": "minor",
+                "reason": "1 new feature(s)",
+                "lastpublic": "v1.0.0"
+            }
+        },
+        {
+            "name": "after 1.0.0 and a feat: the public release",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": ["v1.0.0", "v1.1.0-1", "v1.1.0-2"],
+            "commits": [{ "subject": "feat(#200): a" }],
+            "channel": "public",
+            "override": "",
+            "expect": {
+                "channel": "public",
+                "how": "derived",
+                "base": "1.1.0",
+                "version": "1.1.0",
+                "tag": "v1.1.0",
+                "level": "minor",
+                "reason": "1 new feature(s)",
+                "lastpublic": "v1.0.0"
+            }
+        },
+        {
+            "name": "only chore, ci and docs: refused",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": ["v1.0.0"],
+            "commits": [{ "subject": "chore: a" }, { "subject": "ci: b" }, { "subject": "docs: c" }],
+            "channel": "public",
+            "override": "",
+            "expect": {
+                "channel": "public",
+                "how": "refused",
+                "reason": "Nothing a user would see since v1.0.0 (only chore, ci, docs, test, style, build or refactor commits).",
+                "lastpublic": "v1.0.0"
+            }
+        },
+        {
+            "name": "only chore: an explicit version is still taken",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": ["v1.0.0"],
+            "commits": [{ "subject": "chore: a" }],
+            "channel": "rc",
+            "override": "1.0.1",
+            "expect": {
+                "channel": "rc",
+                "how": "override",
+                "base": "1.0.1",
+                "version": "1.0.1-1",
+                "tag": "v1.0.1-1",
+                "reason": "Chosen explicitly; the commits since v1.0.0 justify no release.",
+                "lastpublic": "v1.0.0"
+            }
+        },
+        {
+            "name": "an explicit version beside the derived one",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": ["v1.0.0"],
+            "commits": [{ "subject": "fix: a" }],
+            "channel": "public",
+            "override": "2.0.0",
+            "expect": {
+                "channel": "public",
+                "how": "override",
+                "base": "2.0.0",
+                "version": "2.0.0",
+                "tag": "v2.0.0",
+                "reason": "Chosen explicitly; the commits give 1.0.1.",
+                "derived": "1.0.1",
+                "lastpublic": "v1.0.0"
+            }
+        },
+        {
+            "name": "an explicit first public version",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": [],
+            "commits": [],
+            "channel": "rc",
+            "override": "1.2.0",
+            "expect": {
+                "channel": "rc",
+                "how": "override",
+                "base": "1.2.0",
+                "version": "1.2.0-1",
+                "tag": "v1.2.0-1",
+                "reason": "Chosen explicitly; 1.0.0 was proposed for the first public release.",
+                "derived": "1.0.0"
+            }
+        },
+        {
+            "name": "an explicit version below the last public release",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": ["v1.1.0"],
+            "commits": [{ "subject": "fix: a" }],
+            "channel": "public",
+            "override": "1.1.0",
+            "expect": {
+                "channel": "public",
+                "how": "refused",
+                "reason": "1.1.0 is not above the last public release, v1.1.0.",
+                "lastpublic": "v1.1.0"
+            }
+        },
+        {
+            "name": "an explicit version that is not X.Y.Z",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": [],
+            "commits": [],
+            "channel": "public",
+            "override": "1.2.0-3",
+            "expect": { "channel": "public", "how": "refused", "reason": "1.2.0-3 is not a public version (X.Y.Z)." }
+        },
+        {
+            "name": "an explicit version below versions.firstpublic",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": [],
+            "commits": [],
+            "channel": "public",
+            "override": "0.15.0",
+            "expect": {
+                "channel": "public",
+                "how": "refused",
+                "reason": "0.15.0 is below versions.firstpublic (1.0.0)."
+            }
+        },
+        {
+            "name": "an explicit version equal to the last public release",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": ["v1.0.0-1", "v1.0.0"],
+            "commits": [],
+            "channel": "public",
+            "override": "1.0.0",
+            "expect": {
+                "channel": "public",
+                "how": "refused",
+                "reason": "1.0.0 is not above the last public release, v1.0.0.",
+                "lastpublic": "v1.0.0"
+            }
+        },
+        {
+            "name": "the first public version already tagged",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": ["v1.0.0-1"],
+            "commits": [],
+            "channel": "public",
+            "override": "",
+            "expect": {
+                "channel": "public",
+                "how": "decision",
+                "base": "1.0.0",
+                "version": "1.0.0",
+                "tag": "v1.0.0",
+                "reason": "First public release: a choice, not a calculation."
+            }
+        },
+        {
+            "name": "Wave's tags are not this project's releases",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": ["v0.14.5", "v0.14.4", "v0.14.5-beta"],
+            "commits": [{ "subject": "feat: a" }],
+            "channel": "rc",
+            "override": "",
+            "expect": {
+                "channel": "rc",
+                "how": "decision",
+                "base": "1.0.0",
+                "version": "1.0.0-1",
+                "tag": "v1.0.0-1",
+                "reason": "First public release: a choice, not a calculation."
+            }
+        },
+        {
+            "name": "a tag prefix with a dash",
+            "rules": { "tagprefix": "release-", "firstpublic": "" },
+            "tags": ["release-1.2.0", "release-1.3.0-1"],
+            "commits": [{ "subject": "feat: a" }],
+            "channel": "rc",
+            "override": "",
+            "expect": {
+                "channel": "rc",
+                "how": "derived",
+                "base": "1.3.0",
+                "version": "1.3.0-2",
+                "tag": "release-1.3.0-2",
+                "level": "minor",
+                "reason": "1 new feature(s)",
+                "lastpublic": "release-1.2.0"
+            }
+        },
+        {
+            "name": "not a channel",
+            "rules": { "tagprefix": "v", "firstpublic": "1.0.0" },
+            "tags": [],
+            "commits": [],
+            "channel": "beta",
+            "override": "",
+            "expect": { "channel": "beta", "how": "refused", "reason": "Not a release channel: \"beta\"." }
+        }
+    ]
+}

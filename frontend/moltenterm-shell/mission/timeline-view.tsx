@@ -30,7 +30,7 @@ import { ReleaseMenu } from "./release-menu";
 import { ReleaseRunSection } from "./release-run-panel";
 import { ReleaseStatePanel } from "./release-state-panel";
 import { BuildRunCard, useStartRun } from "./runs-view";
-import { releaseState } from "./versions";
+import { releaseState, treeRules } from "./versions";
 
 export const MoltentermTimelineView = "molten-timeline";
 
@@ -243,7 +243,7 @@ function TimelineBody({
 }) {
     const tree = useMemo(() => (git ? toTreeData(git) : null), [git]);
     const state = useMemo(
-        () => (tree ? releaseState(tree.tags, git.ahead ?? [], git.sincepublic ?? [], tree.tagPrefix) : null),
+        () => (tree ? releaseState(tree.tags, git.ahead ?? [], git.sincepublic ?? [], treeRules(tree)) : null),
         [tree, git]
     );
     const prs = useMemo(() => prsByBranch(github?.prs), [github?.prs]);

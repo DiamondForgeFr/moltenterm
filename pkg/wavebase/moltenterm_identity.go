@@ -11,4 +11,7 @@ const (
 	MoltentermDirName = "moltenterm"
 	// MoltentermRepoURL is the page shown by the starter web block.
 	MoltentermRepoURL = "https://github.com/DiamondForgeFr/moltenterm"
+	// MoltentermWaveBaseVersion is the Wave Terminal release Moltenterm is merged on ("Current base" in UPSTREAM.md);
+	// a Wave merge updates it. The app's own number is package.json's version (FR-REL-001).
+	MoltentermWaveBaseVersion = "0.14.5"
 )

@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
 
 // A project's pipeline (FR-MC-008, DS-MC-002): `.molten/project.json`, written by the user's coding agent following
@@ -31,6 +33,10 @@ type PipelineBranches struct {
 type PipelineVersions struct {
 	TagPrefix string `json:"tagprefix,omitempty"`
 	Notes     string `json:"notes,omitempty"`
+	// The first public release's number (X.Y.Z): proposed for it, and tags below its first candidate are not releases.
+	FirstPublic string `json:"firstpublic,omitempty"`
+	// The files that carry the version; the first one holds the project's current version (FR-REL-001).
+	Files []versions.VersionFile `json:"files,omitempty"`
 }
 
 // A command Moltenterm may run in the project: in `cwd` (relative to the project, default its root), with `env` added.
@@ -307,6 +313,37 @@ func (c *pipelineChecker) checkIcon(icon string) {
 	}
 }
 
+func (c *pipelineChecker) checkVersions(v *PipelineVersions) {
+	if v.Notes != "" && !strings.Contains(v.Notes, "{tag}") {
+		c.errorf("versions.notes must contain {tag} (e.g. releases/{tag}.md)")
+	}
+	if v.FirstPublic != "" {
+		if _, err := versions.ParseBase(v.FirstPublic); err != nil {
+			c.errorf("versions.firstpublic must be a public version, X.Y.Z (got %q)", v.FirstPublic)
+		}
+	}
+	current := ""
+	for i, f := range v.Files {
+		label := fmt.Sprintf("versions.files[%d]", i)
+		if f.Path == "" || !insideProject(c.dir, filepath.FromSlash(f.Path)) {
+			c.errorf("%s: path %q must be a file of the project", label, f.Path)
+			continue
+		}
+		values, err := versions.ReadFileVersions(c.dir, f)
+		if err != nil {
+			c.errorf("%s (%s): %v", label, f.Path, err)
+			continue
+		}
+		for _, value := range values {
+			if current == "" {
+				current = value
+			} else if value != current {
+				c.warnf("%s (%s): says %s while the project's version is %s", label, f.Path, value, current)
+			}
+		}
+	}
+}
+
 func (c *pipelineChecker) check(p *Pipeline) {
 	if p.Schema != PipelineSchema {
 		c.errorf("schema must be %d (got %d)", PipelineSchema, p.Schema)
@@ -323,8 +360,8 @@ func (c *pipelineChecker) check(p *Pipeline) {
 			c.warnf("branches: .saasfoundry.json already declares them; leave them out so they are not kept twice")
 		}
 	}
-	if p.Versions != nil && p.Versions.Notes != "" && !strings.Contains(p.Versions.Notes, "{tag}") {
-		c.errorf("versions.notes must contain {tag} (e.g. releases/{tag}.md)")
+	if p.Versions != nil {
+		c.checkVersions(p.Versions)
 	}
 	if p.Ci != nil {
 		seen := map[string]bool{}

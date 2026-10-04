@@ -21,6 +21,10 @@ export const MoltentermWindowTitle = "MoltenTerm";
 export const MoltentermTagline = "The terminal that takes your shape.";
 export const MoltentermRepoUrl = "https://github.com/DiamondForgeFr/moltenterm";
 
+// The Wave Terminal release Moltenterm is merged on ("Current base" in UPSTREAM.md); a Wave merge updates it, here and
+// in pkg/wavebase/moltenterm_identity.go. The app's own number is package.json's version (FR-REL-001).
+export const MoltentermWaveBaseVersion = "0.14.5";
+
 // Base name of the configuration and data directories; dev builds append "-dev".
 export const MoltentermDirName = "moltenterm";
 

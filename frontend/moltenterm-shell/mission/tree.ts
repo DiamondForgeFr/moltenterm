@@ -46,6 +46,8 @@ export interface TreeData {
     release: string;
     /** The project's release tags start with it (versions.tagprefix). */
     tagPrefix?: string;
+    /** versions.firstpublic: tags below its first candidate are not the project's releases. */
+    firstPublic?: string;
 }
 
 export interface TreeOptions {

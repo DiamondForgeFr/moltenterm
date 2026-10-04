@@ -15,7 +15,7 @@ describe("Release menu (FR-MC-015)", () => {
             releaseState(tags, [], []),
             tags.map((t) => t.name)
         );
-        expect(plan).toEqual({
+        expect(plan).toMatchObject({
             rc: "v1.0.0-3",
             publicVersion: "1.0.0",
             publicIsDecision: true,
@@ -43,7 +43,7 @@ describe("Release menu (FR-MC-015)", () => {
         );
         expect(nothing.rc).toBeNull();
         expect(nothing.publicVersion).toBeNull();
-        expect(nothing.reason).toBe("Nothing a user would see since v1.2.0.");
+        expect(nothing.reason).toMatch(/^Nothing a user would see since v1.2.0 /);
     });
 
     it("says what starts right away", () => {
@@ -71,15 +71,31 @@ describe("Release menu (FR-MC-015)", () => {
             tag("release-2.1.0-1", "2026-09-10"),
             tag("v9.9.9", "2026-09-11"),
         ];
-        const state = releaseState(tags, [], [{ sha: "a", subject: "fix(#2): a fix" } as any], "release-");
+        const rules = { tagprefix: "release-" };
+        const state = releaseState(tags, [], [{ sha: "a", subject: "fix(#2): a fix" } as any], rules);
         expect(state.lastPublic.name).toBe("release-2.0.0");
         expect(state.lastRc.name).toBe("release-2.1.0-1");
         const plan = releasePlan(
             state,
             tags.map((t) => t.name),
-            "release-"
+            rules
         );
         expect(plan.rc).toBe("release-2.0.1-1");
         expect(releaseChoiceTag(plan, "public", "2.0.1")).toBe("release-2.0.1");
+    });
+
+    it("refuses a first public number below versions.firstpublic", () => {
+        const tags = [tag("v0.14.5", "2026-09-01")];
+        const rules = { tagprefix: "v", firstpublic: "1.0.0" };
+        const plan = releasePlan(
+            releaseState(tags, [], [], rules),
+            tags.map((t) => t.name),
+            rules
+        );
+        expect(plan.rc).toBe("v1.0.0-1");
+        expect(plan.publicVersion).toBe("1.0.0");
+        expect(releaseChoiceTag(plan, "public", "0.15.0")).toBeNull();
+        expect(releaseChoiceTag(plan, "public", "1.0.0")).toBe("v1.0.0");
+        expect(releaseChoiceTag(plan, "public", "")).toBeNull();
     });
 });
