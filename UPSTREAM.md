@@ -28,6 +28,11 @@ code.
 | `task generate`                     | Regenerate TypeScript bindings after changing Go RPC types.                           |
 | `node scripts/moltenterm-check-ledger.mjs` | Check the patch ledger against the last merged Wave release.                   |
 
+Test instances (CI, worktree agents, scripted runs of the built app) start with `MOLTENTERM_SKIP_ONBOARDING=1` unless
+the test is about the first run: the first run is recorded as done and the first tab gets Wave's starter layout, as
+before #161. wavesrv reads the variable once and removes it from its environment, so terminals of that instance do not
+pass it on; `1` and `true` (any case) skip, any other value does not.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every pull request to `develop` or `main` and on every push to them.
@@ -103,7 +108,7 @@ pull requests only and allows merge commits only (repository admins can bypass i
 | `README.md`, `NOTICE` | Keep ours. `NOTICE` must keep Wave Terminal's notice line. `README.ko.md` and `README.zh-TW.md` stay deleted. |
 | `public/fontawesome/`, `docs/static/fontawesome/` | Stay deleted: Font Awesome Pro is not redistributable. If Wave adds or updates Pro files, delete them again and extend `public/moltenterm-icons.css`. |
 | `LICENSE` | Upstream's file (Apache-2.0). |
-| `.claude/`, `.agents/`, `.saasfoundry.json`, `AGENTS.md`, `GEMINI.md`, `MANIFESTO.md`, `UPSTREAM.md` | Moltenterm only; no upstream counterpart. |
+| `.claude/`, `.agents/`, `.saasfoundry.json`, `AGENTS.md`, `GEMINI.md`, `MANIFESTO.md`, `PRIVACY.md`, `UPSTREAM.md` | Moltenterm only; no upstream counterpart. |
 
 ## Identity and rename procedure
 
@@ -239,6 +244,7 @@ DO NOT EDIT.` near the top), which `task generate` would strip of one; they stil
 | `frontend/app/block/block.scss` | The pane rule `.block` becomes `.block:where(.block-frame-default)` (same specificity): unlayered, the bare `.block` also caught Tailwind's `block` utility, so any `block` element turned into a full-size rounded flex box; `frontend/moltenterm-shell/build/utility-collisions.test.ts` keeps unlayered stylesheet rules off Tailwind utility names | Release stepper todo steps showed as grey squares | #164 |
 | `electron.vite.config.ts`, `emain/emain-platform.ts`, `emain/emain-menu.ts`, `emain/emain.ts` | The main build defines `__MOLTENTERM_CHANNEL__`; a gold names itself "MoltenTerm Gold" (`moltentermProductNameFor` in `frontend/util/moltenterm-identity.ts`), and the About menu item and quit dialog use the app's name | The gold is told apart from a dev build running beside it | #191 |
 | `package.json`, `package-lock.json` | `version` is Moltenterm's own number, `1.0.0-0` until the first release candidate, then written by the release (`versions.files` in `.molten/project.json`, rules in `pkg/molten/versions`); JSON, no marker. Wave's base is `MoltentermWaveBaseVersion` (Go and TS), checked against "Current base" by tests | Moltenterm version (FR-REL-001) | #184 |
+| `frontend/app/modals/modalsrenderer.tsx`, `cmd/server/main-server.go`, `emain/emain-menu.ts`, `emain/preload.ts` | Wave's new-install and upgrade onboarding dialogs are no longer mounted: the modals renderer calls `useMoltentermStartup()` (`frontend/moltenterm-onboarding/onboarding-host.ts`) instead. wavesrv starts the first run (`wcore.StartMoltenFirstRun`, `pkg/wcore/moltenterm_onboarding.go`; record and route `molten:onboarding` in `pkg/molten/onboarding/`): a fresh data folder gets the first-run panel docked left of a terminal; an install whose terms were already accepted is recorded as done and told once that Getting started is available; `MOLTENTERM_SKIP_ONBOARDING=1` records it done and applies Wave's starter layout. The app menu gets "Getting Started" (`emain/moltenterm-onboarding.ts`) and the preload its `moltenterm-getting-started` listener. `main-server.go`, `emain-menu.ts` and `preload.ts` already patched | MoltenTerm's first run (FR-ONB-001, DS-ONB-001). Wave's dialog could not host it: `ClientService.AgreeTos` applies Wave's starter layout, which clears the tab | #161 |
 
 ## Known upstream items
 
@@ -266,6 +272,10 @@ DO NOT EDIT.` near the top), which `task generate` would strip of one; they stil
   `TestGenerateWaveEventTypes` expected a one-line `WaveEventName` union while the generator emits a multi-line one.
   Both fixes stay Moltenterm patches (decision of 2026-09-30: not offered upstream).
 - **Default content:** the first-run layout opens a web block on Wave's GitHub page, and onboarding still links to
-  Wave's GitHub and Discord. Addressed by #4 (the Wave AI panel no longer opens by default since #5).
+  Wave's GitHub and Discord. Addressed by #4 (the Wave AI panel no longer opens by default since #5). Since #161,
+  Wave's onboarding (`frontend/app/onboarding/`) is no longer mounted: MoltenTerm's first run
+  (`frontend/moltenterm-onboarding/`) replaces it, and Wave's starter layout only appears with
+  `MOLTENTERM_SKIP_ONBOARDING`. Wave's `onboarding:lastversion` is no longer written; the client meta
+  `molten:onboarding` records the first run.
 - **`task dev` environment:** resolved by #5. The dev tasks no longer set `WCLOUD_*` (Wave's development cloud) or
   `WAVETERM_ENVFILE`, so the SRS token in `.env` stays out of the app.

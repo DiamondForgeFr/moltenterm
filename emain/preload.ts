@@ -80,6 +80,9 @@ contextBridge.exposeInMainWorld("api", {
     moltentermUpdateApply: (buildId: number, when: string) =>
         ipcRenderer.invoke("moltenterm-update-apply", buildId, when),
     moltentermUpdateLast: () => ipcRenderer.invoke("moltenterm-update-last"),
+    // MOLTENTERM-PATCH (#161): the app menu's Getting Started (emain/moltenterm-onboarding.ts)
+    onMoltentermGettingStarted: (callback: () => void) =>
+        ipcRenderer.on("moltenterm-getting-started", () => callback()),
 });
 
 // Custom event for "new-window"

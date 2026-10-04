@@ -108,19 +108,37 @@ describe("recent folders", () => {
 });
 
 describe("workspace actions", () => {
-    it("offers new tab, new workspace, switching to the other workspaces and settings", () => {
+    it("offers new tab, new workspace, switching to the other workspaces, Getting started and settings", () => {
         const actions = actionEntries([
             { id: "w1", name: "Work", icon: "briefcase", color: "#f00", active: true },
             { id: "w2", name: "Notulia", icon: "book", color: "#0f0", active: false },
         ]);
-        expect(actions.map((a) => a.label)).toEqual(["New tab", "New workspace", "Switch to Notulia", "Settings"]);
+        expect(actions.map((a) => a.label)).toEqual([
+            "New tab",
+            "New workspace",
+            "Switch to Notulia",
+            "Getting started",
+            "Settings",
+        ]);
         expect(actions[2].run).toEqual({ kind: "switchworkspace", workspaceId: "w2" });
-        expect(actions[3].cli).toBe("wsh editconfig");
+        expect(actions[4].cli).toBe("wsh editconfig");
+    });
+
+    it("always offers Getting started, found by its onboarding words", () => {
+        const entry = actionEntries([]).find((a) => a.id === "action:gettingstarted");
+        expect(entry).toMatchObject({ group: "actions", icon: "compass", run: { kind: "gettingstarted" } });
+        expect(entry.keywords).toEqual(expect.arrayContaining(["onboarding", "setup", "welcome"]));
     });
 
     it("offers the Project tab first in a linked workspace", () => {
         const actions = actionEntries([], true);
-        expect(actions.map((a) => a.label)).toEqual(["Project tab", "New tab", "New workspace", "Settings"]);
+        expect(actions.map((a) => a.label)).toEqual([
+            "Project tab",
+            "New tab",
+            "New workspace",
+            "Getting started",
+            "Settings",
+        ]);
         expect(actions[0].run).toEqual({ kind: "projecttab" });
     });
 });

@@ -16,6 +16,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { Atom } from "jotai";
+import { openFirstRun } from "../../moltenterm-onboarding/onboarding-open";
 import { openProjectTab } from "../project/project-tab";
 import { PaletteRun } from "./palette-model";
 
@@ -117,6 +118,9 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             return;
         case "projecttab":
             await openProjectTab();
+            return;
+        case "gettingstarted":
+            await openFirstRun();
             return;
         case "focusorigin":
             focusBlock(target.blockId);

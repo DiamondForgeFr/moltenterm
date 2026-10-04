@@ -20,6 +20,8 @@ export type PaletteRun =
     | { kind: "settings" }
     // The workspace's Project tab (FR-SHELL-015): shown, or made again after the user closed it.
     | { kind: "projecttab" }
+    // MoltenTerm's first run (FR-ONB-001): the workspace's panel, or a new one docked on the left.
+    | { kind: "gettingstarted" }
     // Back to the pane the palette was opened from, to type an agent's own command there.
     | { kind: "focusorigin" };
 

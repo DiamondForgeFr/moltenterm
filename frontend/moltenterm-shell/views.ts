@@ -3,6 +3,7 @@
 
 // Every block view Moltenterm adds, registered by Wave's block registry in one call so new views cost no Wave edit.
 
+import { MoltentermOnboardingView, OnboardingViewModel } from "../moltenterm-onboarding/onboarding-view";
 import { BrowserViewModel, MoltentermBrowserView } from "./browser/browser-view";
 import { CompanionViewModel, MoltentermCompanionView } from "./companion/companion-view";
 import { CicdViewModel, MoltentermCicdView } from "./mission/cicd-view";
@@ -15,4 +16,5 @@ export function registerMoltentermViews(registry: Map<string, ViewModelClass>) {
     registry.set(MoltentermCicdView, CicdViewModel);
     registry.set(MoltentermCompanionView, CompanionViewModel);
     registry.set(MoltentermProjectView, ProjectViewModel);
+    registry.set(MoltentermOnboardingView, OnboardingViewModel);
 }
