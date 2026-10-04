@@ -4,13 +4,15 @@
 // The tabs of a browser panel (FR-SHELL-007), kept in the block meta so they come back after a restart. Pure
 // functions: the view applies them and writes the result.
 
-// must match BrowserView, BrowserTabsMetaKey, BrowserActiveMetaKey, BrowserOpenMetaKey and BrowserRecentMetaKey in
+// must match BrowserView, BrowserTabsMetaKey, BrowserActiveMetaKey, BrowserOpenKeyPrefix and BrowserRecentMetaKey in
 // pkg/molten/browser.go
 export const MoltentermBrowserView = "molten-browser";
 export const BrowserTabsMetaKey = "molten:browser:tabs";
 export const BrowserActiveMetaKey = "molten:browser:active";
-// Block meta: pages asked to open in this panel from outside the frontend (wsh), each as a new tab (#140).
-export const BrowserOpenMetaKey = "molten:browser:open";
+// Block meta: the queue of pages wsh asks this panel to open as new tabs (#140), one key per page,
+// "molten:browser:open:<id>" = url. One key each, so concurrent wsh writes merge instead of overwriting a shared list;
+// ids are time-ordered (UUID v7), which gives the queue order.
+export const BrowserOpenKeyPrefix = "molten:browser:open:";
 // Tab meta: the browser panels of the tab, most recently focused first (#140).
 export const BrowserRecentMetaKey = "molten:browser:recent";
 const BrowserRecentMax = 8;
@@ -75,13 +77,26 @@ export function noteBrowserFocus(recent: unknown, blockId: string): string[] {
     return [blockId, ...ids.filter((id) => id !== blockId)].slice(0, BrowserRecentMax);
 }
 
-export function readOpenRequests(raw: unknown): BrowserOpenRequest[] {
-    if (!Array.isArray(raw)) {
-        return [];
+// The pages queued in a panel's block meta, in queue order.
+export function readOpenRequests(meta: Record<string, any>): BrowserOpenRequest[] {
+    const rtn: BrowserOpenRequest[] = [];
+    for (const [key, url] of Object.entries(meta ?? {})) {
+        const id = key.startsWith(BrowserOpenKeyPrefix) ? key.slice(BrowserOpenKeyPrefix.length) : "";
+        if (id !== "" && typeof url === "string" && url !== "") {
+            rtn.push({ id, url });
+        }
     }
-    return raw.filter(
-        (r): r is BrowserOpenRequest => r != null && typeof r.id === "string" && typeof r.url === "string" && r.url !== ""
-    );
+    return rtn.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+// The meta update that takes the opened pages out of the queue, and only them: a page wsh queues meanwhile is a key of
+// its own and stays.
+export function consumeOpenRequestsMeta(consumed: BrowserOpenRequest[]): Record<string, null> {
+    const rtn: Record<string, null> = {};
+    for (const request of consumed) {
+        rtn[BrowserOpenKeyPrefix + request.id] = null;
+    }
+    return rtn;
 }
 
 export function browserMeta(state: BrowserState): Record<string, any> {

@@ -29,11 +29,11 @@ import {
     activateTab,
     addTab,
     browserMeta,
-    BrowserOpenMetaKey,
     BrowserState,
     BrowserTab,
     browserTabTitle,
     closeTab,
+    consumeOpenRequestsMeta,
     MoltentermBrowserView,
     moveTab,
     readBrowserState,
@@ -159,10 +159,11 @@ export class BrowserViewModel implements ViewModel {
         setTimeout(() => refocusNode(this.blockId), 50);
     }
 
-    // Pages wsh asks this panel to open (BrowserOpenMetaKey). The key is cleared once read; ids already opened are
-    // skipped, in case the meta update and the clear cross.
-    handleOpenRequests(raw: unknown): void {
-        const requests = readOpenRequests(raw);
+    // Pages wsh queues for this panel (BrowserOpenKeyPrefix), opened as tabs in queue order. Only the entries read
+    // here leave the queue, so a page wsh adds meanwhile is kept; ids already opened are skipped until their removal
+    // comes back.
+    handleOpenRequests(meta: Record<string, any>): void {
+        const requests = readOpenRequests(meta);
         if (requests.length === 0) {
             return;
         }
@@ -174,7 +175,7 @@ export class BrowserViewModel implements ViewModel {
         fireAndForget(() =>
             RpcApi.SetMetaCommand(TabRpcClient, {
                 oref: makeORef("block", this.blockId),
-                meta: { [BrowserOpenMetaKey]: null } as MetaType,
+                meta: consumeOpenRequestsMeta(requests) as MetaType,
             })
         );
         if (fresh.length > 0) {
@@ -295,9 +296,24 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
 
 function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: BrowserState }) {
     const [dragId, setDragId] = useState<string>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const active = scrollRef.current?.querySelector<HTMLElement>(`[data-tabid="${state.activeId}"]`);
+        active?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }, [state.activeId, state.tabs.length]);
+    // Tabs shrink to their minimum width, then the strip scrolls; a vertical wheel scrolls it sideways too.
+    const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+            e.currentTarget.scrollLeft += e.deltaY;
+        }
+    };
     return (
         <div className="flex h-8 shrink-0 items-end border-b border-border pl-1">
-            <div className="flex min-w-0 shrink items-end gap-0.5 overflow-x-auto">
+            <div
+                ref={scrollRef}
+                onWheel={onWheel}
+                className="molten-browser-tabs flex min-w-0 shrink items-end gap-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none]"
+            >
                 {state.tabs.map((tab, index) => (
                     <div
                         key={tab.id}
@@ -318,8 +334,9 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                             }
                         }}
                         title={tab.url}
+                        data-tabid={tab.id}
                         className={cn(
-                            "molten-browser-tab group flex h-7 max-w-[200px] min-w-[90px] cursor-pointer items-center gap-1 rounded-t border border-b-0 px-2 text-xs",
+                            "molten-browser-tab group flex h-7 min-w-[72px] flex-[0_1_200px] cursor-pointer items-center gap-1 rounded-t border border-b-0 px-2 text-xs",
                             tab.id === state.activeId
                                 ? "border-border bg-hover text-primary"
                                 : "border-transparent text-secondary hover:bg-hover/50"
@@ -334,23 +351,23 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                                     e.stopPropagation();
                                     model.closeTab(tab.id);
                                 }}
-                                className="cursor-pointer rounded px-0.5 text-secondary opacity-60 hover:bg-hover hover:opacity-100"
+                                className="shrink-0 cursor-pointer rounded px-0.5 text-secondary opacity-60 hover:bg-hover hover:opacity-100"
                             >
                                 <i className="fa fa-solid fa-xmark text-[10px]" />
                             </button>
                         ) : null}
                     </div>
                 ))}
-                <button
-                    type="button"
-                    aria-label="New tab"
-                    title="New tab (Cmd+T)"
-                    onClick={() => model.newTab()}
-                    className="mb-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary"
-                >
-                    <i className="fa fa-solid fa-plus text-xs" />
-                </button>
             </div>
+            <button
+                type="button"
+                aria-label="New tab"
+                title="New tab (Cmd+T)"
+                onClick={() => model.newTab()}
+                className="mb-0.5 ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary"
+            >
+                <i className="fa fa-solid fa-plus text-xs" />
+            </button>
             <div
                 ref={model.layoutNode.dragHandleRef}
                 onContextMenu={(e) => model.showPanelMenu(e)}
@@ -461,10 +478,10 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const state = useAtomValue(model.stateAtom);
     const block = useAtomValue(model.blockAtom);
     const isFocused = useAtomValue(model.nodeModel.isFocused);
-    const openRequests = block?.meta?.[BrowserOpenMetaKey];
+    const blockMeta = block?.meta;
     useEffect(() => {
-        model.handleOpenRequests(openRequests);
-    }, [model, openRequests]);
+        model.handleOpenRequests(blockMeta);
+    }, [model, blockMeta]);
     useEffect(() => {
         if (isFocused) {
             noteBrowserPanelFocus(model.blockId);

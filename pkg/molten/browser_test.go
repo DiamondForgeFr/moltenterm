@@ -76,16 +76,20 @@ func TestPickBrowserPanel(t *testing.T) {
 	}
 }
 
-func TestAppendBrowserOpenRequest(t *testing.T) {
-	first := AppendBrowserOpenRequest(nil, "r1", "https://example.com/a")
-	if len(first) != 1 || first[0].(map[string]any)["url"] != "https://example.com/a" {
-		t.Fatalf("one request: got %v", first)
+// Two wsh opens land before the panel reacts: setmeta merges each into the block meta (as UpdateObjectMeta does), so
+// neither drops the other; the panel's removal of what it opened keeps a page queued meanwhile.
+func TestBrowserOpenQueue(t *testing.T) {
+	meta := waveobj.MetaMapType{"view": BrowserView}
+	meta = waveobj.MergeMeta(meta, BrowserOpenRequestMeta("0001", "https://example.com/a"), false)
+	meta = waveobj.MergeMeta(meta, BrowserOpenRequestMeta("0002", "https://example.com/b"), false)
+	if meta[BrowserOpenKeyPrefix+"0001"] != "https://example.com/a" || meta[BrowserOpenKeyPrefix+"0002"] != "https://example.com/b" {
+		t.Fatalf("both requests queued: got %v", meta)
 	}
-	second := AppendBrowserOpenRequest(first, "r2", "https://example.com/b")
-	if len(second) != 2 || second[0].(map[string]any)["id"] != "r1" || second[1].(map[string]any)["id"] != "r2" {
-		t.Errorf("pending requests kept, the new one last: got %v", second)
-	}
-	if len(first) != 1 {
-		t.Errorf("the pending list is not modified")
+	meta = waveobj.MergeMeta(meta, BrowserOpenRequestMeta("0003", "https://example.com/c"), false)
+	meta = waveobj.MergeMeta(meta, waveobj.MetaMapType{BrowserOpenKeyPrefix + "0001": nil, BrowserOpenKeyPrefix + "0002": nil}, false)
+	_, has1 := meta[BrowserOpenKeyPrefix+"0001"]
+	_, has2 := meta[BrowserOpenKeyPrefix+"0002"]
+	if has1 || has2 || meta[BrowserOpenKeyPrefix+"0003"] != "https://example.com/c" || meta["view"] != BrowserView {
+		t.Errorf("only the opened pages leave the queue: got %v", meta)
 	}
 }

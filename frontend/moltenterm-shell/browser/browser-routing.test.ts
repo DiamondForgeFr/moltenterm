@@ -6,7 +6,10 @@ import { join, relative } from "path";
 import { fileURLToPath } from "url";
 import { describe, expect, it } from "vitest";
 import {
+    addTab,
     browserBlockDef,
+    BrowserOpenKeyPrefix,
+    consumeOpenRequestsMeta,
     MoltentermBrowserView,
     noteBrowserFocus,
     pickBrowserPanel,
@@ -108,19 +111,42 @@ describe("links open as tabs of the current browser panel (#140)", () => {
         expect(next[0]).toBe("new");
     });
 
-    it("reads the pages wsh asks a panel to open, ignoring malformed ones", () => {
-        expect(
-            readOpenRequests([
-                { id: "r1", url: "https://example.com/a" },
-                { id: "r2" },
-                null,
-                { id: "r3", url: "" },
-                { id: "r4", url: "https://example.com/b" },
-            ])
-        ).toEqual([
-            { id: "r1", url: "https://example.com/a" },
-            { id: "r4", url: "https://example.com/b" },
+    it("reads the pages wsh queues for a panel in id order, ignoring other keys and empty entries", () => {
+        const meta = {
+            view: MoltentermBrowserView,
+            url: "https://example.com/start",
+            [BrowserOpenKeyPrefix + "0003"]: "https://example.com/c",
+            [BrowserOpenKeyPrefix + "0001"]: "https://example.com/a",
+            [BrowserOpenKeyPrefix + "0002"]: "",
+            [BrowserOpenKeyPrefix]: "https://example.com/no-id",
+        };
+        expect(readOpenRequests(meta)).toEqual([
+            { id: "0001", url: "https://example.com/a" },
+            { id: "0003", url: "https://example.com/c" },
         ]);
         expect(readOpenRequests(null)).toEqual([]);
+    });
+
+    it("opens two requests that landed before the panel reacted, in order, and removes only those", () => {
+        const meta: Record<string, any> = {
+            [BrowserOpenKeyPrefix + "0001"]: "https://example.com/a",
+            [BrowserOpenKeyPrefix + "0002"]: "https://example.com/b",
+        };
+        let state = readBrowserState({ url: "https://example.com/start" }, "about:blank", () => "t0");
+        let n = 0;
+        const requests = readOpenRequests(meta);
+        for (const request of requests) {
+            state = addTab(state, request.url, () => `t${++n}`);
+        }
+        expect(state.tabs.map((t) => t.url)).toEqual([
+            "https://example.com/start",
+            "https://example.com/a",
+            "https://example.com/b",
+        ]);
+        expect(state.activeId).toBe("t2");
+        expect(consumeOpenRequestsMeta(requests)).toEqual({
+            [BrowserOpenKeyPrefix + "0001"]: null,
+            [BrowserOpenKeyPrefix + "0002"]: null,
+        });
     });
 });

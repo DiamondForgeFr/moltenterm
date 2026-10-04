@@ -17,12 +17,13 @@ const (
 	BrowserView = "molten-browser"
 	// Wave's legacy web view, without tabs
 	LegacyWebView = "web"
-	// must match BrowserTabsMetaKey, BrowserActiveMetaKey, BrowserOpenMetaKey and BrowserRecentMetaKey in
+	// must match BrowserTabsMetaKey, BrowserActiveMetaKey, BrowserOpenKeyPrefix and BrowserRecentMetaKey in
 	// frontend/moltenterm-shell/browser/browser-model.ts
 	BrowserTabsMetaKey   = "molten:browser:tabs"
 	BrowserActiveMetaKey = "molten:browser:active"
-	// block meta: pages asked to open in the panel as new tabs, [{id, url}], read and cleared by the panel (#140)
-	BrowserOpenMetaKey = "molten:browser:open"
+	// block meta: the queue of pages to open in the panel as new tabs, one key per page (prefix + time-ordered id =
+	// url), so concurrent writers merge instead of overwriting a shared list; the panel removes what it opened (#140)
+	BrowserOpenKeyPrefix = "molten:browser:open:"
 	// tab meta: the tab's browser panels, most recently focused first, written by the frontend (#140)
 	BrowserRecentMetaKey = "molten:browser:recent"
 )
@@ -45,14 +46,10 @@ func PickBrowserPanel(browserBlockIds []string, recent any) string {
 	return browserBlockIds[len(browserBlockIds)-1]
 }
 
-// AppendBrowserOpenRequest returns the block meta value BrowserOpenMetaKey with a request to open url added to the
-// ones the panel has not read yet.
-func AppendBrowserOpenRequest(pending any, id string, url string) []any {
-	rtn := []any{}
-	if list, ok := pending.([]any); ok {
-		rtn = append(rtn, list...)
-	}
-	return append(rtn, map[string]any{"id": id, "url": url})
+// BrowserOpenRequestMeta returns the block meta update that queues url in a browser panel. id must be time-ordered
+// (UUID v7): the panel opens the queue in id order.
+func BrowserOpenRequestMeta(id string, url string) waveobj.MetaMapType {
+	return waveobj.MetaMapType{BrowserOpenKeyPrefix + id: url}
 }
 
 // BrowserBlockMeta returns the meta of a block opened in the browser panel instead of Wave's web view, and whether it
