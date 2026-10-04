@@ -33,7 +33,8 @@ type CommandHandler func(ctx context.Context, source string, data any) (any, err
 var handlersLock sync.Mutex
 var handlers = make(map[string]CommandHandler)
 
-// HandleCommand adds a command to the route; the built-in commands cannot be replaced.
+// HandleCommand adds a command to the route; the built-in commands cannot be replaced. Like them, it answers windows
+// only.
 func HandleCommand(name string, fn CommandHandler) error {
 	if name == UpdateCommand || name == StateCommand || name == PanelCommand {
 		return fmt.Errorf("command %q is the first run's own", name)
@@ -97,13 +98,17 @@ func (l *routeLink) answer(req wshutil.RpcMessage) {
 	l.output <- out
 }
 
-// isWindowSource tells a MoltenTerm window apart from a terminal or a remote host: the router stamps the source of
-// every link that has a route of its own, so a terminal cannot pass for a tab. Only windows change the record.
+// isWindowSource tells a MoltenTerm window apart from a local terminal: the router stamps the source of every leaf link
+// that has a route of its own, so a local terminal cannot pass for a tab (as for the companion's route). Every command,
+// the ones steps add included, answers windows only.
 func isWindowSource(source string) bool {
 	return strings.HasPrefix(source, wshutil.RoutePrefix_Tab)
 }
 
 func handle(command string, source string, data any) (any, error) {
+	if !isWindowSource(source) {
+		return nil, fmt.Errorf("the first run answers MoltenTerm windows only")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), routeTimeout)
 	defer cancel()
 	switch command {
@@ -114,9 +119,6 @@ func handle(command string, source string, data any) (any, error) {
 		}
 		return state, nil
 	case UpdateCommand:
-		if !isWindowSource(source) {
-			return nil, fmt.Errorf("the first run answers MoltenTerm windows only")
-		}
 		var update Update
 		if err := utilfn.ReUnmarshal(&update, data); err != nil {
 			return nil, err

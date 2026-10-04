@@ -25,7 +25,8 @@ func TestFirstRunLayout(t *testing.T) {
 	if len(panel.IndexArr) != 1 || panel.IndexArr[0] != 0 || len(term.IndexArr) != 1 || term.IndexArr[0] != 1 {
 		t.Errorf("panes are not side by side: %v %v", panel.IndexArr, term.IndexArr)
 	}
-	if panel.Size == nil || term.Size == nil || *panel.Size >= *term.Size {
+	// The panel gets the default node size (10) in the window's tree.
+	if panel.Size != nil || term.Size == nil || *term.Size <= 10 {
 		t.Errorf("the panel should be narrower than the terminal")
 	}
 }

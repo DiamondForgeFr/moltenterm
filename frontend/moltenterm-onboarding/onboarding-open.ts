@@ -8,7 +8,12 @@ import { atoms, createBlock, createBlockSplitHorizontally, getApi } from "@/app/
 import { globalStore } from "@/app/store/jotaiStore";
 import { ObjectService } from "@/app/store/services";
 import { activeTabIdAtom } from "@/app/store/tab-model";
-import { getLayoutModelForStaticTab, newLayoutNode } from "@/layout/index";
+import {
+    getLayoutModelForStaticTab,
+    LayoutTreeActionType,
+    LayoutTreeInsertNodeAction,
+    newLayoutNode,
+} from "@/layout/index";
 import { currentOnboardingState, findOnboardingPanel, setPanelPage } from "./onboarding-client";
 import { dockAction, PanelNodeSize } from "./onboarding-dock";
 import { FirstRunPage, MoltentermOnboardingView, OnboardingPageMetaKey, reopenPage } from "./onboarding-state";
@@ -23,15 +28,31 @@ function focusBlock(blockId: string): boolean {
     return true;
 }
 
-async function dockNewPanel(page: FirstRunPage): Promise<string> {
-    const blockDef: BlockDef = { meta: { view: MoltentermOnboardingView, [OnboardingPageMetaKey]: page } as MetaType };
+// Docks a panel block on the left of the active tab; an empty tab simply gets it.
+function dockBlock(blockId: string) {
     const layoutModel = getLayoutModelForStaticTab();
     const rootNode = layoutModel?.treeState?.rootNode;
+    const newNode = newLayoutNode(undefined, PanelNodeSize, undefined, { blockId });
     if (rootNode == null) {
+        const insert: LayoutTreeInsertNodeAction = {
+            type: LayoutTreeActionType.InsertNode,
+            node: newNode,
+            magnified: false,
+            focused: true,
+        };
+        layoutModel?.treeReducer(insert);
+        return;
+    }
+    layoutModel.treeReducer(dockAction(rootNode.id, newNode));
+}
+
+async function dockNewPanel(page: FirstRunPage): Promise<string> {
+    const blockDef: BlockDef = { meta: { view: MoltentermOnboardingView, [OnboardingPageMetaKey]: page } as MetaType };
+    if (getLayoutModelForStaticTab()?.treeState?.rootNode == null) {
         return createBlock(blockDef);
     }
     const blockId = await ObjectService.CreateBlock(blockDef, { termsize: { rows: 25, cols: 80 } });
-    layoutModel.treeReducer(dockAction(rootNode.id, newLayoutNode(undefined, PanelNodeSize, undefined, { blockId })));
+    dockBlock(blockId);
     return blockId;
 }
 
@@ -54,7 +75,10 @@ export async function openFirstRun(): Promise<void> {
         getApi().setActiveTab(found.tabid);
         return;
     }
-    focusBlock(found.blockid);
+    // A panel block of this tab missing from its layout (a first-run layout cut short) is docked again.
+    if (!focusBlock(found.blockid)) {
+        dockBlock(found.blockid);
+    }
 }
 
 // What FirstRunStepContext.openBeside does: a pane on the panel's right.
