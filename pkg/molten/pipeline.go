@@ -121,8 +121,10 @@ type PipelineAdapterStep struct {
 }
 
 type Pipeline struct {
-	Schema   int                   `json:"schema"`
-	Name     string                `json:"name"`
+	Schema int    `json:"schema"`
+	Name   string `json:"name"`
+	// The project's own icon, relative to the project folder; offered before any guessed image (#189).
+	Icon     string                `json:"icon,omitempty"`
 	Branches *PipelineBranches     `json:"branches,omitempty"`
 	Versions *PipelineVersions     `json:"versions,omitempty"`
 	Ci       *PipelineCi           `json:"ci,omitempty"`
@@ -287,6 +289,24 @@ func ReleasePreparation(steps []PipelineStep) []PipelineStep {
 	return rtn
 }
 
+func (c *pipelineChecker) checkIcon(icon string) {
+	if icon == "" {
+		return
+	}
+	if !IsProjectLogoFile(icon) {
+		c.errorf("icon: %s is not an image (svg, png, ico, jpg, webp or gif)", icon)
+		return
+	}
+	full := filepath.Clean(filepath.Join(c.dir, filepath.FromSlash(icon)))
+	if !strings.HasPrefix(full, filepath.Clean(c.dir)+string(filepath.Separator)) {
+		c.errorf("icon: %s is outside the project", icon)
+		return
+	}
+	if stat, err := os.Stat(full); err != nil || !stat.Mode().IsRegular() {
+		c.errorf("icon: %s does not exist", icon)
+	}
+}
+
 func (c *pipelineChecker) check(p *Pipeline) {
 	if p.Schema != PipelineSchema {
 		c.errorf("schema must be %d (got %d)", PipelineSchema, p.Schema)
@@ -294,6 +314,7 @@ func (c *pipelineChecker) check(p *Pipeline) {
 	if strings.TrimSpace(p.Name) == "" {
 		c.errorf("name is required")
 	}
+	c.checkIcon(p.Icon)
 	if p.Branches != nil {
 		var sf struct {
 			Workflow *struct{} `json:"workflow"`

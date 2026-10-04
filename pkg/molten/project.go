@@ -233,6 +233,15 @@ func IsProjectLogoFile(path string) bool {
 	return projectLogoExtensions[strings.ToLower(filepath.Ext(path))]
 }
 
+// declaredProjectIcon is the icon `.molten/project.json` names: the project knows better than any guess (#189).
+func declaredProjectIcon(dir string) string {
+	var pipeline struct {
+		Icon string `json:"icon"`
+	}
+	readJsonFile(filepath.Join(dir, ProjectPipelineFile), &pipeline)
+	return strings.TrimPrefix(filepath.ToSlash(pipeline.Icon), "./")
+}
+
 // FindProjectLogos lists the images that could stand for the project, as absolute paths, best first. Only files inside
 // the project are offered.
 func FindProjectLogos(dir string) []string {
@@ -252,6 +261,7 @@ func FindProjectLogos(dir string) []string {
 		seen[full] = true
 		logos = append(logos, full)
 	}
+	add(declaredProjectIcon(dir))
 	for _, rel := range projectLogoCandidates {
 		add(rel)
 	}

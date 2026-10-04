@@ -7,6 +7,7 @@ import {
     checkPathInside,
     effectiveWorkspaceFolder,
     linkUpdate,
+    declaredProjectIcon,
     logoProbeOrder,
     logoUrl,
     nextWorkspaceFolder,
@@ -75,6 +76,14 @@ describe("logoProbeOrder", () => {
         expect(order.indexOf("src-tauri/icons/icon.png")).toBeLessThan(order.indexOf("public/favicon.svg"));
         expect(order[order.length - 1]).toBe("docs/brand/mark.svg");
         expect(logoProbeOrder("docs/readme.gif?raw=1")).not.toContain("docs/readme.gif?raw=1");
+    });
+
+    it("probes the icon the project declares first, once", () => {
+        const order = logoProbeOrder("", declaredProjectIcon({ icon: "./build/app/icon.svg" }));
+        expect(order[0]).toBe("build/app/icon.svg");
+        expect(logoProbeOrder("", "icon.png").filter((rel) => rel === "icon.png")).toHaveLength(1);
+        expect(declaredProjectIcon(null)).toBe("");
+        expect(declaredProjectIcon({ icon: 3 })).toBe("");
     });
 });
 

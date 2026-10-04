@@ -16,6 +16,7 @@ import { pushRecentFolder } from "./palette/palette-sources";
 import { ProjectDismissedMetaKey, projectOfGitFile } from "./project-detect";
 import {
     linkUpdate,
+    declaredProjectIcon,
     logoProbeOrder,
     MaxProjectLogos,
     pathParent,
@@ -141,7 +142,8 @@ async function readReadme(dir: string): Promise<string> {
 
 // The images that could stand for the project, best first (same rules as molten project logo).
 export async function findProjectLogos(dir: string): Promise<string[]> {
-    const order = logoProbeOrder(readmeFirstImage(await readReadme(dir)));
+    const [readme, pipeline] = await Promise.all([readReadme(dir), readJson(projectFilePath(dir, ProjectPipelineFile))]);
+    const order = logoProbeOrder(readmeFirstImage(readme), declaredProjectIcon(pipeline));
     const paths = order.map((rel) => projectFilePath(dir, rel)).filter((p) => p != null);
     const infos = await Promise.all(paths.map((p) => statPath(p)));
     const logos: string[] = [];

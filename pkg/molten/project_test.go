@@ -146,3 +146,24 @@ func TestReadmeFirstImageMarkdown(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestFindProjectLogosOffersTheDeclaredIconFirst(t *testing.T) {
+	dir := t.TempDir()
+	wave := writeProjectFile(t, dir, "build/icons/512x512.png", "png")
+	icon := writeProjectFile(t, dir, "build/app/icon.svg", "<svg/>")
+	writeProjectFile(t, dir, ProjectPipelineFile, `{"schema": 1, "name": "app", "icon": "./build/app/icon.svg"}`)
+	got := FindProjectLogos(dir)
+	if len(got) < 2 || got[0] != icon || got[1] != wave {
+		t.Fatalf("got %v, want the declared icon first", got)
+	}
+}
+
+func TestFindProjectLogosIgnoresADeclaredIconOutsideTheProject(t *testing.T) {
+	parent := t.TempDir()
+	writeProjectFile(t, parent, "outside.png", "png")
+	dir := filepath.Join(parent, "project")
+	writeProjectFile(t, dir, ProjectPipelineFile, `{"schema": 1, "name": "app", "icon": "../outside.png"}`)
+	if got := FindProjectLogos(dir); len(got) != 0 {
+		t.Fatalf("got %v", got)
+	}
+}

@@ -1,6 +1,7 @@
 {
     "schema": 1,
     "name": "MoltenTerm",
+    "icon": "build/moltenterm/icon.svg",
     "ci": {
         "prepare": { "run": "npm install --no-audit --no-fund" },
         "jobs": [

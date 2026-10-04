@@ -53,6 +53,7 @@ All fields are lowercase. Unknown fields are refused, so a typo does not go unno
 | --- | --- | --- |
 | `schema` | yes | Always `1`. |
 | `name` | yes | The project's name, as Mission Control shows it. |
+| `icon` | no | The project's own icon, relative to the project folder (svg, png, ico, jpg, webp or gif): offered first for the workspace, the status bar and Mission Control, before any icon MoltenTerm would guess. Use the square app icon, not a wide logo. |
 | `branches` | no | `{ "trunk": "develop", "release": "main" }`: where work is merged, and where releases are cut. Leave it out when `.saasfoundry.json` declares them; without either, MoltenTerm uses `develop` then `main`. |
 | `versions` | no | `tagprefix` (default `v`): the release tags start with it, and only those are read as releases (a release candidate has a `-N` suffix after it, e.g. `release-1.2.0-3`). `notes`: where a version's release notes are, with `{tag}` (default `releases/{tag}.md`); internal notes sit beside them (`releases/{tag}.internal.md`). |
 | `ci.jobs` | no | The local CI: each job has a `name` (id), a `title`, a `lane` and a command. Jobs of the same lane run in order (a failed job stops the rest of its lane); lanes run side by side. MoltenTerm runs them in a worktree of its own and keeps each job's verdict per code tree: a run reruns only what is not green yet. |
