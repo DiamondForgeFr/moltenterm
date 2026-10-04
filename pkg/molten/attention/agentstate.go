@@ -201,10 +201,11 @@ func (a *agentStates) removeLocked(blockId string) {
 }
 
 func (a *agentStates) shellMark(blockId string, mark ShellMark) {
-	a.applyShellMark(blockId, mark)
-	if a.procs != nil {
-		a.procs.shellMark(blockId, mark.Kind)
+	if a.procs == nil {
+		a.applyShellMark(blockId, mark)
+		return
 	}
+	a.procs.shellMark(blockId, mark.Kind, func() { a.applyShellMark(blockId, mark) })
 }
 
 func (a *agentStates) applyShellMark(blockId string, mark ShellMark) {
@@ -339,15 +340,6 @@ func (a *agentStates) forgetRecord(blockId string) {
 	defer a.lock.Unlock()
 	delete(a.notices, blockId)
 	a.removeLocked(blockId)
-}
-
-// dropProcessRecord removes a running agent the process tree found (its command ended).
-func (a *agentStates) dropProcessRecord(blockId string) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	if rec := a.records[blockId]; rec != nil && rec.running && rec.source == sourceProcess {
-		a.removeLocked(blockId)
-	}
 }
 
 // processAgent applies what the process tree says of a terminal (procwatch.go). found: the agent running in its

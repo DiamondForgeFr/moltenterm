@@ -35,6 +35,8 @@ const (
 	procReadArgs = 2 * time.Second
 	// An agent found by a terminal's first look that started less than this before is a new run, not a restored one.
 	procFreshAgent = 5 * time.Second
+	// A block's command that is not running looks again on its output at most this often.
+	procProbeEvery = 5 * time.Second
 )
 
 // ShellProcess is the local process of a terminal: its shell, or a block's own command.
@@ -66,7 +68,12 @@ type shellWatch struct {
 	restored bool
 	// marked: the shell integration said a command started; it runs until the integration says it ended.
 	marked bool
-	found    bool
+	found  bool
+	// agent: the agent process last found, kept while it lives under the shell (it may hand the terminal to a
+	// child of its own, an editor, for a while).
+	agent molten.AgentProcess
+	// probed: the last look a block command's output asked for.
+	probed time.Time
 	// gen changes with every command start and end: a pass that saw an older one does not apply what it saw.
 	gen int64
 }
@@ -133,9 +140,12 @@ func (w *procWatcher) getLocked(blockId string) *shellWatch {
 }
 
 // shellMark follows the shell integration: a command starts (look for its agent), ends or the prompt is back (stop).
-func (w *procWatcher) shellMark(blockId string, kind string) {
+// applyMark updates the agent states under the watcher's lock, so a pass cannot apply what it saw between the mark's
+// effect on the states and its own (lock order: watcher, then agent states).
+func (w *procWatcher) shellMark(blockId string, kind string, applyMark func()) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
+	applyMark()
 	if w.off {
 		return
 	}
@@ -155,8 +165,7 @@ func (w *procWatcher) shellMark(blockId string, kind string) {
 		}
 		sw.gen++
 		sw.running, sw.next, sw.found, sw.marked = false, time.Time{}, false, false
-		// A pass may have found the agent just before it exited: what it applied goes with the command.
-		w.agents.dropProcessRecord(blockId)
+		sw.agent = molten.AgentProcess{}
 	}
 }
 
@@ -169,15 +178,16 @@ func (w *procWatcher) seen(blockId string) {
 		return
 	}
 	sw := w.shells[blockId]
-	// A block's command that ended and prints again was restarted: look at its new process.
-	restarted := sw != nil && sw.shell.Command && sw.next.IsZero()
+	now := w.now()
+	// A block's command that ended and prints again was restarted: look at its new process (not on every output).
+	restarted := sw != nil && sw.shell.Command && sw.next.IsZero() && now.Sub(sw.probed) >= procProbeEvery
 	if sw != nil && !restarted {
 		return
 	}
 	sw = w.getLocked(blockId)
+	sw.probed = now
 	sw.relocate = true
 	sw.gen++
-	now := w.now()
 	sw.running, sw.since, sw.restored, sw.marked = true, now, true, false
 	sw.next = now.Add(procFirstDelay)
 	w.poke()
@@ -214,6 +224,7 @@ type procDue struct {
 	relocate bool
 	restored bool
 	gen      int64
+	agent    molten.AgentProcess
 }
 
 // takeDue lists the terminals to look at now: nothing before one is due, then also those due within procCoalesce.
@@ -237,7 +248,7 @@ func (w *procWatcher) takeDue() []procDue {
 		if sw.next.IsZero() || sw.next.After(limit) {
 			continue
 		}
-		rtn = append(rtn, procDue{blockId: blockId, shell: sw.shell, located: sw.located, relocate: sw.relocate, restored: sw.restored, gen: sw.gen})
+		rtn = append(rtn, procDue{blockId: blockId, shell: sw.shell, located: sw.located, relocate: sw.relocate, restored: sw.restored, gen: sw.gen, agent: sw.agent})
 	}
 	return rtn
 }
@@ -286,8 +297,23 @@ func (w *procWatcher) pass() {
 		if w.locator.Locate != nil {
 			shell, ok = w.locator.Locate(due[i].blockId)
 		}
+		if !ok && due[i].located {
+			// A failed lookup (a slow store) keeps the known process: the table tells whether it still lives.
+			continue
+		}
 		due[i].shell, due[i].located = shell, ok
 		due[i].shell.BlockId = due[i].blockId
+	}
+	anyLocated := false
+	for _, d := range due {
+		anyLocated = anyLocated || d.located
+	}
+	if !anyLocated {
+		// Remote and WSL terminals: nothing local to read.
+		for _, d := range due {
+			w.apply(d, false, false, false, molten.AgentProcess{}, false)
+		}
+		return
 	}
 	table, err := w.readTable()
 	if errors.Is(err, proctree.ErrUnsupported) {
@@ -309,10 +335,18 @@ func (w *procWatcher) look(d procDue, table *proctree.Table) {
 	ok := false
 	running := false
 	if alive {
+		if d.shell.StartMs <= 0 {
+			// A controller's shell has no recorded start: the first look pins it, so a reused pid is told apart.
+			d.shell.StartMs = table.Get(d.shell.Pid).StartMs
+		}
 		found, ok = molten.FindAgentProcess(table.Foreground(d.shell.Pid), w.readArgs)
+		if !ok && d.agent.Pid != 0 && table.Same(d.agent.Pid, d.agent.StartMs) && table.Under(d.agent.Pid, d.shell.Pid) {
+			// The agent handed the terminal to a child (an editor): it still runs.
+			found, ok = d.agent, true
+		}
 		running = d.shell.Command || table.Running(d.shell.Pid)
 	}
-	w.apply(d, table != nil, alive, running, found, ok)
+	w.apply(d, table != nil && d.located, alive, running, found, ok)
 }
 
 // apply records a pass's outcome in the agent states and plans the next pass. It runs under the watcher's lock, so a
@@ -329,6 +363,10 @@ func (w *procWatcher) apply(d procDue, read bool, alive bool, running bool, agen
 	// An agent that started just before it was first seen is starting up: working, not unknown.
 	restored := sw.restored && !(found && agent.StartMs > sw.since.Add(-procFreshAgent).UnixMilli())
 	sw.found = found
+	sw.agent = molten.AgentProcess{}
+	if found {
+		sw.agent = agent
+	}
 	now := w.now()
 	switch {
 	case !alive:

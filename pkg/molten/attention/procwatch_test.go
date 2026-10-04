@@ -343,3 +343,64 @@ func TestProcWatchUnsupported(t *testing.T) {
 		t.Error("the command line still names the agent")
 	}
 }
+
+// Review findings: an agent's exit error survives a pass that saw it alive; a failed lookup does not lose a running
+// agent; an agent whose child holds the terminal keeps its record; an unreadable process is read again.
+func TestProcWatchReviewFindings(t *testing.T) {
+	h := makeProcHarness()
+	h.shells["b1"] = ShellProcess{BlockId: "b1", Pid: 100, StartMs: 1_000}
+	h.setProcs(shellProc(100, 200), childProc(200, 100, 200, "claude", h.clock.UnixMilli()))
+	h.out("b1", cmdMark("claude"))
+	h.clock = h.clock.Add(procFirstDelay)
+	due := h.pw.takeDue()
+	table, _ := h.pw.readTable()
+	h.out("b1", doneMark(1))
+	for _, d := range due {
+		h.pw.look(d, table)
+	}
+	if got := h.state("b1"); got != molten.AgentStateError {
+		t.Errorf("the exit error survives a pass that saw the agent alive: %q", got)
+	}
+
+	h2 := makeProcHarness()
+	h2.shells["b1"] = ShellProcess{BlockId: "b1", Pid: 100, StartMs: 1_000}
+	h2.setProcs(shellProc(100, 200), childProc(200, 100, 200, "claude", h2.clock.Add(-time.Hour).UnixMilli()))
+	h2.pw.restore()
+	h2.pw.pass()
+	run, _, ok := h2.record("b1")
+	if !ok {
+		t.Fatal("agent not restored")
+	}
+	h2.lock.Lock()
+	delete(h2.shells, "b1")
+	h2.lock.Unlock()
+	h2.pw.lock.Lock()
+	h2.pw.shells["b1"].relocate = true
+	h2.pw.lock.Unlock()
+	h2.advance(procSlowPeriod)
+	if again, _, ok := h2.record("b1"); !ok || again.Started != run.Started {
+		t.Errorf("a failed lookup lost the agent: %+v %v", again, ok)
+	}
+
+	// The agent runs an editor in its own group, holding the terminal: the agent stays, same run.
+	h2.setProcs(shellProc(100, 300), childProc(200, 100, 300, "claude", run.Started), childProc(300, 200, 300, "vim", h2.clock.UnixMilli()))
+	h2.procs[1].Pgid = 200
+	h2.advance(procSlowPeriod)
+	if again, _, ok := h2.record("b1"); !ok || again.Started != run.Started {
+		t.Errorf("an agent whose child holds the terminal was dropped: %+v %v", again, ok)
+	}
+
+	h3 := makeProcHarness()
+	h3.shells["b1"] = ShellProcess{BlockId: "b1", Pid: 100}
+	h3.setProcs(shellProc(100, 200), proctree.Proc{Pid: 200, Ppid: 100, Pgid: 200, Tpgid: 200, Name: "node", StartMs: 77_777})
+	h3.out("b1", cmdMark("./run"))
+	h3.advance(procFirstDelay)
+	if _, _, ok := h3.record("b1"); ok {
+		t.Fatal("unreadable node taken for an agent")
+	}
+	h3.args[200] = []string{"/usr/bin/node", "/usr/lib/node_modules/@google/gemini-cli/dist/index.js"}
+	h3.advance(procFastPeriod)
+	if run, _, _ := h3.record("b1"); run.Agent != "gemini" {
+		t.Errorf("a process unreadable once is read again: %q", run.Agent)
+	}
+}

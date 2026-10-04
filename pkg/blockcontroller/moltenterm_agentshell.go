@@ -90,9 +90,16 @@ func listAgentShells() []attention.ShellProcess {
 	}
 	var rtn []attention.ShellProcess
 	for _, job := range jobs {
-		if shell, ok := jobShellProcess(job); ok {
-			rtn = append(rtn, shell)
+		shell, ok := jobShellProcess(job)
+		if !ok {
+			continue
 		}
+		// A job whose block was closed, or that its block no longer uses, is no terminal.
+		block, err := wstore.DBGet[*waveobj.Block](ctx, shell.BlockId)
+		if err != nil || block == nil || block.JobId != job.OID {
+			continue
+		}
+		rtn = append(rtn, shell)
 	}
 	return rtn
 }

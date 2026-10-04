@@ -128,7 +128,10 @@ func FindAgentProcess(procs []*proctree.Proc, read func(pid int32) (string, []st
 		if !ok {
 			exe, args := read(p.Pid)
 			id = MatchAgentProcess(exe, args)
-			defaultAgentTreeCache.put(key, id)
+			// An unreadable process (still starting, a slow read) is read again on the next pass.
+			if exe != "" || len(args) > 0 {
+				defaultAgentTreeCache.put(key, id)
+			}
 		}
 		if id != "" {
 			return AgentProcess{Agent: id, Pid: p.Pid, StartMs: p.StartMs}, true
