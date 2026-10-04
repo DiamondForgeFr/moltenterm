@@ -7,9 +7,12 @@
 // where it left it, up to its last commit, with a card at the edge. Moltenterm takes both branch names from the
 // project instead of fixing them to develop and main.
 
-// A release candidate is a version with a suffix (v1.2.0-3), as in Notulia.
-export function isPrereleaseTag(name: string): boolean {
-    return name.includes("-");
+export const DefaultTagPrefix = "v";
+
+// A release candidate is a version with a suffix (v1.2.0-3), as in Notulia, read after the project's tag prefix (which
+// may itself hold a dash, as release-1.2.0).
+export function isPrereleaseTag(name: string, prefix: string = DefaultTagPrefix): boolean {
+    return (name.startsWith(prefix) ? name.slice(prefix.length) : name).includes("-");
 }
 
 export interface RawCommit {
@@ -41,6 +44,8 @@ export interface TreeData {
     trunk: string;
     /** The branch releases are cut from (main); the same as the trunk in a single-branch project. */
     release: string;
+    /** The project's release tags start with it (versions.tagprefix). */
+    tagPrefix?: string;
 }
 
 export interface TreeOptions {
@@ -223,7 +228,7 @@ export function layoutTree(data: TreeData, o: TreeOptions): TreeLayout {
                 name: t.name,
                 x: vineX(y),
                 y,
-                rc: isPrereleaseTag(t.name),
+                rc: isPrereleaseTag(t.name, data.tagPrefix),
                 date: t.date,
                 notes: t.notes ?? t.notesInternal,
             };

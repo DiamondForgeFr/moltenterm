@@ -159,7 +159,7 @@ export function ArtifactActions({ run }: { run: RunRecord }) {
 }
 
 // The log of a run, read from where the last read stopped, every second while the run goes on.
-function useRunLog(run: RunRecord): string {
+export function useRunLog(run: RunRecord): string {
     const [text, setText] = useState("");
     const offset = useRef(0);
     useEffect(() => {

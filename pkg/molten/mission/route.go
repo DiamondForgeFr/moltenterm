@@ -156,12 +156,12 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 		}
 		return l.runs.BuildsFacts(req.Dir, req.Fresh)
 	case ReleaseCommand, ReleaseEndCommand:
-		var req GetRequest
+		var req ReleaseNotesRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
 		if command == ReleaseEndCommand {
-			return nil, l.runs.EndRelease(req.Dir)
+			return nil, l.runs.StopFollowing(req.Dir, req.Tag)
 		}
 		return l.runs.ReleaseSessionOf(req.Dir)
 	case ReleaseFactsCommand:

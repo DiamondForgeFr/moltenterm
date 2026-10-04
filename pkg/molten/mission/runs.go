@@ -6,6 +6,7 @@ package mission
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -33,6 +34,8 @@ import (
 
 const (
 	RunKindBuild = "build"
+	// A project-specific adapter step (FR-MC-007), shown in its panel section.
+	RunKindStep = "step"
 
 	RunStateRunning   = "running"
 	RunStateSuccess   = "success"
@@ -164,12 +167,45 @@ func artifactPath(dir string, artifact string) string {
 	return filepath.Clean(path)
 }
 
-// The variables a release step may use; a build has none.
-func expandVariables(run string, version string) string {
-	if version == "" {
+// CommandVars are the variables a declared command may use (pipeline-format.md): {version}, {tag} and {branch}. An
+// empty value leaves its variable as written.
+type CommandVars struct {
+	Version string
+	Tag     string
+	Branch  string
+}
+
+func expandCommand(run string, vars CommandVars) string {
+	var pairs []string
+	for _, kv := range [][2]string{{"{version}", vars.Version}, {"{tag}", vars.Tag}, {"{branch}", vars.Branch}} {
+		if kv[1] != "" {
+			pairs = append(pairs, kv[0], kv[1])
+		}
+	}
+	if len(pairs) == 0 {
 		return run
 	}
-	return strings.NewReplacer("{version}", version, "{tag}", "v"+version).Replace(run)
+	return strings.NewReplacer(pairs...).Replace(run)
+}
+
+// versionVars names a version's tag with the project's tag prefix.
+func versionVars(dir string, version string) CommandVars {
+	if version == "" {
+		return CommandVars{}
+	}
+	prefix, _ := ConfiguredVersions(dir)
+	return CommandVars{Version: version, Tag: prefix + version}
+}
+
+// currentBranch is the branch checked out in the project folder; empty when detached.
+func currentBranch(run Runner, dir string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := run(ctx, dir, "git", "symbolic-ref", "--short", "-q", "HEAD")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func (r *Runs) writeRecord(rec RunRecord) error {
@@ -209,6 +245,13 @@ func findCommand(p *molten.Pipeline, kind string, id string) (TrustedCommand, st
 			}
 		}
 		return TrustedCommand{}, "", fmt.Errorf("the pipeline declares no build %q", id)
+	case RunKindStep:
+		for _, step := range p.Steps {
+			if step.Id == id {
+				return TrustedCommand{Kind: kind, Id: id, Title: step.Title, Run: step.Run, Cwd: step.Cwd, Env: step.Env}, "", nil
+			}
+		}
+		return TrustedCommand{}, "", fmt.Errorf("the pipeline declares no step %q", id)
 	}
 	return TrustedCommand{}, "", fmt.Errorf("running %q steps from MoltenTerm is not available yet", kind)
 }
@@ -269,7 +312,7 @@ func (r *Runs) launch(dir string, command TrustedCommand, artifact string, versi
 		Kind:      command.Kind,
 		StepId:    command.Id,
 		Title:     command.Title,
-		Command:   expandVariables(command.Run, version),
+		Command:   expandCommand(command.Run, withBranch(versionVars(dir, version), currentBranch(r.git, dir))),
 		Cwd:       command.Cwd,
 		Artifact:  artifactPath(dir, artifact),
 		StartedAt: now.UnixMilli(),
@@ -543,4 +586,9 @@ func (r *Runs) GrantTrust(dir string, hash string) error {
 		return err
 	}
 	return r.trust.Trust(filepath.Clean(dir), hash)
+}
+
+func withBranch(vars CommandVars, branch string) CommandVars {
+	vars.Branch = branch
+	return vars
 }

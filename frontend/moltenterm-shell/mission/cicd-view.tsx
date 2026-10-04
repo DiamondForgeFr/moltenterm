@@ -9,6 +9,7 @@ import { cn } from "@/util/util";
 import { atom } from "jotai";
 import { useState } from "react";
 import { pathBaseName } from "../workspace-project";
+import { AdapterSteps } from "./adapter-steps";
 import { LocalCiRunner } from "./ci-local-panel";
 import { BlockHeader, CdTab, Notice, RemoteCiTab } from "./cicd-panels";
 import { useMissionRuns } from "./mission-client";
@@ -98,6 +99,12 @@ function CicdContent({
     setTab: (tab: TabId) => void;
 }) {
     const runs = useMissionRuns(project.dir);
+    const report = snapshot?.pipeline;
+    const pipeline = report?.valid ? report.pipeline : null;
+    const projectName = project.facts?.name ?? pathBaseName(project.dir);
+    const steps = (section: "cilocal" | "ciremote" | "cd") => (
+        <AdapterSteps dir={project.dir} projectName={projectName} pipeline={pipeline} runs={runs} section={section} />
+    );
     return (
         <>
             <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
@@ -120,12 +127,15 @@ function CicdContent({
                     ))}
                 </div>
             </MissionHeader>
-            <div className="min-h-0 flex-1 overflow-auto p-3">
+            <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-3">
                 {tab === "local" ? <LocalCiTab project={project} report={snapshot?.pipeline} /> : null}
+                {tab === "local" ? steps("cilocal") : null}
+                {tab === "remote" ? steps("ciremote") : null}
                 {tab === "remote" ? <RemoteCiTab github={snapshot?.github} trunk={snapshot?.git?.trunk} /> : null}
                 {tab === "cd" ? (
                     <CdTab git={snapshot?.git} github={snapshot?.github} pipeline={snapshot?.pipeline} runs={runs} />
                 ) : null}
+                {tab === "cd" ? steps("cd") : null}
             </div>
         </>
     );

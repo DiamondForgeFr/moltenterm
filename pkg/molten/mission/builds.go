@@ -93,7 +93,7 @@ func (r *Runs) startBuild(dir string, build molten.PipelineBuild, version string
 		Kind:      RunKindBuild,
 		StepId:    build.Id,
 		Title:     build.Title,
-		Command:   expandVariables(build.Run, version),
+		Command:   expandCommand(build.Run, r.buildVars(dir, version)),
 		Cwd:       build.Cwd,
 		Artifact:  artifactPath(dir, build.Artifact),
 		StartedAt: now.UnixMilli(),
@@ -184,8 +184,9 @@ func (r *Runs) prepareAndLaunch(rec RunRecord, build molten.PipelineBuild) {
 		return
 	}
 	if build.Prepare != nil {
-		b.say("$ %s", build.Prepare.Run)
-		code, err := runBuildCommand(filepath.Join(tree, build.Prepare.Cwd), build.Prepare.Run, build.Prepare.Env, rec, file)
+		prepare := expandCommand(build.Prepare.Run, r.buildVars(rec.Dir, ""))
+		b.say("$ %s", prepare)
+		code, err := runBuildCommand(filepath.Join(tree, build.Prepare.Cwd), prepare, build.Prepare.Env, rec, file)
 		if err != nil || code != 0 {
 			if err != nil {
 				b.say("%v", err)
@@ -460,4 +461,12 @@ func (r *Runs) BuildsFacts(dir string, fresh bool) (BuildsFacts, error) {
 		}
 	}
 	return facts, nil
+}
+
+// buildVars: a build is made from the trunk, so {branch} is the trunk.
+func (r *Runs) buildVars(dir string, version string) CommandVars {
+	ctx, cancel := context.WithTimeout(context.Background(), releaseGitTimeout)
+	defer cancel()
+	trunk, _ := resolveTrunk(ctx, r.git, dir)
+	return withBranch(versionVars(dir, version), trunk)
 }

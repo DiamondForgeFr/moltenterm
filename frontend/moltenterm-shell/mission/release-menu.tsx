@@ -66,10 +66,11 @@ export function ReleaseMenu({
                     return;
                 }
                 const tree = toTreeData(snap.git);
-                const state = releaseState(tree.tags, snap.git.ahead ?? [], snap.git.sincepublic ?? []);
+                const state = releaseState(tree.tags, snap.git.ahead ?? [], snap.git.sincepublic ?? [], tree.tagPrefix);
                 const next = releasePlan(
                     state,
-                    tree.tags.map((t) => t.name)
+                    tree.tags.map((t) => t.name),
+                    tree.tagPrefix
                 );
                 setPlan(next);
                 setVersion(next.publicVersion ?? "");
@@ -142,13 +143,15 @@ export function ReleaseMenu({
             }
         });
     const publicTitle =
-        plan?.publicVersion && !plan.publicIsDecision ? `Public release v${plan.publicVersion}` : "Public release";
+        plan?.publicVersion && !plan.publicIsDecision
+            ? `Public release ${plan.prefix}${plan.publicVersion}`
+            : "Public release";
     return (
         <div ref={ref} className="relative">
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
-                className="flex cursor-pointer items-center gap-1.5 rounded border border-border px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary"
+                className="flex cursor-pointer items-center gap-1.5 rounded border border-border px-2 py-1 text-xs whitespace-nowrap text-secondary hover:bg-hover hover:text-primary"
             >
                 <i className="fa fa-solid fa-rocket text-[10px]" />
                 Release

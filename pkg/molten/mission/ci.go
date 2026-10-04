@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -676,6 +677,7 @@ func (c *Ci) prepare(rec CiRunRecord, pipeline *molten.Pipeline) (string, error)
 		return tree, nil
 	}
 	prepare := *pipeline.Ci.Prepare
+	prepare.Run = expandCommand(prepare.Run, CommandVars{Branch: c.branchOf(rec)})
 	fmt.Fprintf(logFile, "$ %s\n", prepare.Run)
 	exit, err := c.runCommand(rec.Dir, ciPrepareLog, filepath.Join(tree, prepare.Cwd), prepare.Run, prepare.Env, logFile)
 	if err != nil {
@@ -756,8 +758,9 @@ func (c *Ci) runJob(progress *ciRunProgress, rec CiRunRecord, tree string, job m
 	var exitCode *int
 	logFile, err := os.OpenFile(filepath.Join(c.runDir(rec.Dir, rec.Id), job.Name+".log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err == nil {
-		fmt.Fprintf(logFile, "$ %s\n", job.Run)
-		exit, runErr := c.runCommand(rec.Dir, job.Name, filepath.Join(tree, job.Cwd), job.Run, job.Env, logFile)
+		command := expandCommand(job.Run, CommandVars{Branch: c.branchOf(rec)})
+		fmt.Fprintf(logFile, "$ %s\n", command)
+		exit, runErr := c.runCommand(rec.Dir, job.Name, filepath.Join(tree, job.Cwd), command, job.Env, logFile)
 		if runErr != nil {
 			fmt.Fprintf(logFile, "%v\n", runErr)
 		}
@@ -834,4 +837,15 @@ func (c *Ci) ReadLog(dir string, runId string, job string, from int64) (LogChunk
 	buf := make([]byte, size-from)
 	n, _ := file.ReadAt(buf, from)
 	return LogChunk{Text: string(buf[:n]), Size: from + int64(n)}, nil
+}
+
+var commitIdRegex = regexp.MustCompile(`^[0-9a-f]{7,64}$`)
+
+// branchOf is the branch a CI run tests, for {branch}: the one asked for, or else the project's checked-out branch
+// (a build verifies a bare commit).
+func (c *Ci) branchOf(rec CiRunRecord) string {
+	if rec.Branch != "" && rec.Branch != "HEAD" && !commitIdRegex.MatchString(rec.Branch) {
+		return rec.Branch
+	}
+	return currentBranch(c.run, rec.Dir)
 }

@@ -21,7 +21,8 @@ const branchLogLimit = 150
 const maxBranches = 60
 const maxAhead = 400
 const maxSincePublic = 500
-const tagPrefix = "v"
+const defaultTagPrefix = "v"
+const defaultNotesPath = "releases/{tag}.md"
 
 type Commit struct {
 	Sha     string `json:"sha"`
@@ -61,6 +62,8 @@ type GitSnapshot struct {
 	LastPublic  string   `json:"lastpublic,omitempty"`
 	SincePublic []Commit `json:"sincepublic"`
 	FetchError  string   `json:"fetcherror,omitempty"`
+	// The project's release tags start with it (versions.tagprefix).
+	TagPrefix string `json:"tagprefix"`
 }
 
 // ProjectBranches are the two long-lived branches: work is merged into the trunk, releases are cut from the release
@@ -109,6 +112,28 @@ type gitReader struct {
 	ctx context.Context
 	run Runner
 	dir string
+	// versions.tagprefix and versions.notes, or their defaults.
+	tagPrefix string
+	notes     string
+}
+
+// ConfiguredVersions reads versions.tagprefix and versions.notes from the pipeline, or their defaults.
+func ConfiguredVersions(dir string) (string, string) {
+	var pipeline struct {
+		Versions struct {
+			TagPrefix string `json:"tagprefix"`
+			Notes     string `json:"notes"`
+		} `json:"versions"`
+	}
+	readJson(filepath.Join(dir, ".molten", "project.json"), &pipeline)
+	prefix, notes := pipeline.Versions.TagPrefix, pipeline.Versions.Notes
+	if prefix == "" {
+		prefix = defaultTagPrefix
+	}
+	if notes == "" || !strings.Contains(notes, "{tag}") {
+		notes = defaultNotesPath
+	}
+	return prefix, notes
 }
 
 func (g *gitReader) out(args ...string) (string, error) {
@@ -183,11 +208,22 @@ func (g *gitReader) trunkBranch(name string, ref string) Branch {
 
 var tagNotesSafe = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)
 
-func (g *gitReader) readNotes(tag string, suffix string) string {
+// readNotes reads a tag's notes where the project keeps them; internal reads the internal notes beside them
+// (releases/v1.2.0.internal.md beside releases/v1.2.0.md).
+func (g *gitReader) readNotes(tag string, internal bool) string {
 	if !tagNotesSafe.MatchString(tag) {
 		return ""
 	}
-	data, err := os.ReadFile(filepath.Join(g.dir, "releases", tag+suffix))
+	path := strings.ReplaceAll(g.notes, "{tag}", tag)
+	if internal {
+		ext := filepath.Ext(path)
+		path = strings.TrimSuffix(path, ext) + ".internal" + ext
+	}
+	path = filepath.Join(g.dir, path)
+	if !strings.HasPrefix(path, filepath.Clean(g.dir)+string(filepath.Separator)) {
+		return ""
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}
@@ -196,7 +232,7 @@ func (g *gitReader) readNotes(tag string, suffix string) string {
 
 func (g *gitReader) tags() []Tag {
 	tags := []Tag{}
-	for _, line := range g.lines("for-each-ref", "--sort=-creatordate", "--format=%(refname:short)%09%(objectname)%09%(*objectname)%09%(creatordate:iso-strict)", "refs/tags/"+tagPrefix+"*") {
+	for _, line := range g.lines("for-each-ref", "--sort=-creatordate", "--format=%(refname:short)%09%(objectname)%09%(*objectname)%09%(creatordate:iso-strict)", "refs/tags/"+g.tagPrefix+"*") {
 		parts := strings.Split(line, "\t")
 		if len(parts) < 4 {
 			continue
@@ -209,21 +245,22 @@ func (g *gitReader) tags() []Tag {
 			Name:          parts[0],
 			Sha:           sha,
 			Date:          parts[3],
-			Notes:         g.readNotes(parts[0], ".md"),
-			NotesInternal: g.readNotes(parts[0], ".internal.md"),
+			Notes:         g.readNotes(parts[0], false),
+			NotesInternal: g.readNotes(parts[0], true),
 		})
 	}
 	return tags
 }
 
-// IsPrereleaseTag is Notulia's rule: a release candidate is a version with a suffix (v1.2.0-3).
-func IsPrereleaseTag(name string) bool {
-	return strings.Contains(name, "-")
+// IsPrereleaseTag is Notulia's rule: a release candidate is a version with a suffix (v1.2.0-3), read after the
+// project's tag prefix (which may itself hold a dash, as release-1.2.0).
+func IsPrereleaseTag(name string, prefix string) bool {
+	return strings.Contains(strings.TrimPrefix(name, prefix), "-")
 }
 
 func (g *gitReader) lastPublic() string {
-	for _, tag := range g.lines("tag", "-l", tagPrefix+"*", "--sort=-v:refname") {
-		if !IsPrereleaseTag(tag) {
+	for _, tag := range g.lines("tag", "-l", g.tagPrefix+"*", "--sort=-v:refname") {
+		if !IsPrereleaseTag(tag, g.tagPrefix) {
 			return tag
 		}
 	}
@@ -292,10 +329,11 @@ func GitHubWebUrl(remote string) string {
 // no remote) is reported and the local state is still read.
 func CollectGit(ctx context.Context, run Runner, dir string, fetch bool) (*GitSnapshot, error) {
 	g := &gitReader{ctx: ctx, run: run, dir: dir}
+	g.tagPrefix, g.notes = ConfiguredVersions(dir)
 	if _, err := g.out("rev-parse", "--git-dir"); err != nil {
 		return nil, err
 	}
-	snap := &GitSnapshot{Branches: []Branch{}, Tags: []Tag{}, Ahead: []Commit{}, SincePublic: []Commit{}}
+	snap := &GitSnapshot{Branches: []Branch{}, Tags: []Tag{}, Ahead: []Commit{}, SincePublic: []Commit{}, TagPrefix: g.tagPrefix}
 	remote, _ := g.out("remote", "get-url", "origin")
 	snap.RemoteUrl = GitHubWebUrl(remote)
 	if fetch && remote != "" {

@@ -98,11 +98,13 @@ export function ReleaseStatePanel({
     milestones,
     trunk,
     release,
+    tagPrefix = "v",
 }: {
     state: ReleaseState;
     milestones: Milestone[];
     trunk: string;
     release: string;
+    tagPrefix?: string;
 }) {
     const pending = useCountUp(state?.pending.total ?? 0);
     const milestone = milestones?.[0] ?? null;
@@ -124,7 +126,7 @@ export function ReleaseStatePanel({
             <Card icon="rocket" eyebrow="Next public release" accent testId="release-next">
                 <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-semibold tracking-tight">
-                        {next.version ? `v${next.version}` : "—"}
+                        {next.version ? `${tagPrefix}${next.version}` : "—"}
                     </span>
                     <span
                         className={cn(
@@ -241,7 +243,9 @@ export function ReleaseStatePanel({
                 ) : (
                     <p className="text-sm">
                         None yet.{" "}
-                        <span className="text-muted">{next.version ? `v${next.version} will be the first.` : ""}</span>
+                        <span className="text-muted">
+                            {next.version ? `${tagPrefix}${next.version} will be the first.` : ""}
+                        </span>
                     </p>
                 )}
             </Card>

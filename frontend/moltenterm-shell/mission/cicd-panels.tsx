@@ -294,7 +294,7 @@ export function makeDeliveries(git: MissionGit, github: MissionGithub): Delivery
         return {
             tag: t.name,
             date: t.date,
-            rc: isPrereleaseTag(t.name),
+            rc: isPrereleaseTag(t.name, git.tagprefix),
             github: release ? { draft: release.isDraft, latest: release.isLatest, name: release.name } : undefined,
         };
     });
@@ -302,7 +302,7 @@ export function makeDeliveries(git: MissionGit, github: MissionGithub): Delivery
         rows.push({
             tag: release.tagName,
             date: release.publishedAt || release.createdAt,
-            rc: release.isPrerelease || isPrereleaseTag(release.tagName),
+            rc: release.isPrerelease || isPrereleaseTag(release.tagName, git?.tagprefix),
             github: { draft: release.isDraft, latest: release.isLatest, name: release.name },
         });
     }
