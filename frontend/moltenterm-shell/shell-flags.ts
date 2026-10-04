@@ -7,3 +7,4 @@ export const MoltentermWorkspaceRail = true;
 export const MoltentermStatusBar = true;
 export const MoltentermNotificationCenter = true;
 export const MoltentermAddPanel = true;
+export const MoltentermToolRail = true;

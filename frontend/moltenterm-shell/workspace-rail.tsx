@@ -18,6 +18,7 @@ import { AgentRailDot } from "./agent-state-ui";
 import { unreadByWorkspace } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 import { ProjectLinkDetector } from "./project-link-modal";
+import { RailTools } from "./rail-tools";
 import { WorkspaceIcon } from "./workspace-icon";
 import { readWorkspaceProject } from "./workspace-project";
 import { WorkspaceProjectSection } from "./workspace-project-section";
@@ -222,7 +223,7 @@ export function WorkspaceRail() {
     return (
         <nav
             aria-label="Workspaces"
-            className="molten-workspace-rail flex h-full w-12 shrink-0 flex-col items-center gap-1 border-r border-border py-2"
+            className="molten-workspace-rail flex h-full w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border py-2"
         >
             {entries.map((entry) => (
                 <RailButton
@@ -252,6 +253,7 @@ export function WorkspaceRail() {
             >
                 <i className="fa fa-solid fa-plus" />
             </button>
+            <RailTools onHover={(label, anchor) => setTooltip(label == null ? null : { label, anchor })} />
             <RailTooltip label={tooltip?.label} anchor={tooltip?.anchor} />
             <ProjectLinkDetector />
             {editing ? (
