@@ -13,6 +13,7 @@ import {
     MissionGit,
     pipelineStage,
     prsByBranch,
+    runLogVisible,
     toTreeData,
     upsertRun,
 } from "./mission-model";
@@ -134,6 +135,16 @@ describe("runs", () => {
     it("shows the last lines of a log without colours or the exit marker", () => {
         expect(logTail("\x1b[32mok\x1b[0m\n\nstep 2\r\nexit=0\n", 5)).toEqual(["ok", "step 2"]);
         expect(logTail("a\nb\nc", 2)).toEqual(["b", "c"]);
+    });
+
+    it("shows a failed or running run's log until the user hides it", () => {
+        const failed = { ...run("a", 1), state: "failed" };
+        expect(runLogVisible(failed, "auto")).toBe(true);
+        expect(runLogVisible({ ...run("a", 1), state: "running" }, "auto")).toBe(true);
+        expect(runLogVisible(failed, "hidden")).toBe(false);
+        expect(runLogVisible({ ...run("a", 1), state: "success" }, "auto")).toBe(false);
+        expect(runLogVisible({ ...run("a", 1), state: "success" }, "full")).toBe(true);
+        expect(runLogVisible(null, "full")).toBe(false);
     });
 
     it("formats elapsed times", () => {

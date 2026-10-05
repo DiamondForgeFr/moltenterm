@@ -10,7 +10,7 @@ import { MoltenWave } from "../molten-button";
 import { timeAgo } from "./branch-tree";
 import { BlockHeader } from "./cicd-panels";
 import { missionCancel } from "./mission-client";
-import { logTail, PipelineDef, RunRecord } from "./mission-model";
+import { logTail, PipelineDef, RunLogMode, runLogVisible, RunRecord } from "./mission-model";
 import { RunStateBadge, useRunLog, useStartRun } from "./runs-view";
 
 // must match PipelineSections in pkg/molten/pipeline.go
@@ -37,6 +37,10 @@ function LastLines({ run, full }: { run: RunRecord; full: boolean }) {
     );
 }
 
+function lastRun(runs: RunRecord[], stepId: string): RunRecord {
+    return (runs ?? []).find((r) => r.kind === "step" && r.stepid === stepId) ?? null;
+}
+
 function StepRow({
     step,
     last,
@@ -48,8 +52,10 @@ function StepRow({
     busy: boolean;
     onRun: () => void;
 }) {
-    const [full, setFull] = useState(false);
+    const [logMode, setLogMode] = useState<RunLogMode>("auto");
     const running = last?.state === "running";
+    const full = logMode === "full";
+    const showLog = runLogVisible(last, logMode);
     return (
         <div className="border-b border-border px-3 py-2 last:border-b-0" data-testid={`adapter-step-${step.id}`}>
             <div className="flex items-center gap-2">
@@ -58,9 +64,18 @@ function StepRow({
                     <>
                         <RunStateBadge state={last.state} />
                         <span className="text-xs text-muted">{timeAgo(new Date(last.startedat).toISOString())}</span>
-                        <button type="button" className={PlainButton} onClick={() => setFull(!full)}>
+                        <button
+                            type="button"
+                            className={PlainButton}
+                            onClick={() => setLogMode(full ? "hidden" : "full")}
+                        >
                             {full ? "Less" : "Log"}
                         </button>
+                        {showLog && !full ? (
+                            <button type="button" className={PlainButton} onClick={() => setLogMode("hidden")}>
+                                Hide
+                            </button>
+                        ) : null}
                     </>
                 ) : null}
                 {running ? (
@@ -83,7 +98,7 @@ function StepRow({
                     </button>
                 )}
             </div>
-            {last && (running || full || last.state !== "success") ? <LastLines run={last} full={full} /> : null}
+            {showLog ? <LastLines run={last} full={full} /> : null}
         </div>
     );
 }
@@ -113,9 +128,9 @@ export function AdapterSteps({
             <div className="overflow-hidden rounded border border-border">
                 {steps.map((step) => (
                     <StepRow
-                        key={step.id}
+                        key={`${step.id}:${lastRun(runs, step.id)?.id ?? ""}`}
                         step={step}
-                        last={(runs ?? []).find((r) => r.kind === "step" && r.stepid === step.id) ?? null}
+                        last={lastRun(runs, step.id)}
                         busy={anyRunning}
                         onRun={() => start("step", step.id)}
                     />
