@@ -45,7 +45,7 @@ what is missing, and only after the user agreed.
    the pipeline is valid. Do not run the declared commands to "test" them: Mission Control runs them, through the
    user's trust prompt.
 10. Report: what you connected, what you created, what is still missing, and tell the user that Mission Control's
-    Timeline and CI/CD panels now show the pipeline (open them from the "+" button).
+    Project tab and CI/CD panel now show the pipeline (CI/CD opens from the Project tab or the "+" button).
 
 ## Rules
 

@@ -152,7 +152,7 @@ describe("makePaneView", () => {
         });
         expect(view.ci).toMatchObject({ status: "failure", label: "CI failed" });
         expect(view.branchTitle).toBe(
-            "feature/108-status at 4f2a9c0\n2 ahead, 0 behind origin/feature/108-status\nuncommitted changes\nOpen the Timeline"
+            "feature/108-status at 4f2a9c0\n2 ahead, 0 behind origin/feature/108-status\nuncommitted changes\nOpen the Project tab"
         );
     });
 
@@ -176,7 +176,7 @@ describe("makePaneView", () => {
             workspace({})
         );
         expect(view.branch).toBe("abcdef1");
-        expect(view.branchTitle).toBe("detached at abcdef1\n3 commits on no remote\nOpen the Timeline");
+        expect(view.branchTitle).toBe("detached at abcdef1\n3 commits on no remote\nOpen the Project tab");
     });
 
     it("shows the workspace project while the answer is on its way", () => {

@@ -112,9 +112,9 @@ describe("situations (FR-MC-010)", () => {
     };
     const timeline: NotificationAction = {
         id: "open",
-        label: "Open the Timeline",
+        label: "Show the build",
         kind: "open",
-        view: "molten-timeline",
+        view: "molten-project",
     };
     const ready = (message = "Build 9c425c4") => ({
         key: "build:gold",

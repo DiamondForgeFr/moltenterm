@@ -26,7 +26,7 @@ func TestBuildNotice(t *testing.T) {
 		input.Message != "Build 9c425c4 delivered to the local builds folder (12 commit(s) since the previous one)." {
 		t.Fatalf("delivered: %+v", input)
 	}
-	if len(input.Actions) != 2 || input.Actions[0].Gesture != "path:reveal" || !input.Actions[0].Lasting || input.Actions[1].View != "molten-timeline" {
+	if len(input.Actions) != 2 || input.Actions[0].Gesture != "path:reveal" || !input.Actions[0].Lasting || input.Actions[1].View != "molten-project" {
 		t.Fatalf("delivered actions: %+v", input.Actions)
 	}
 	if built, _ := buildNotice(rec, nil, "Notulia", now); built.Title != "Notulia Gold is built" {

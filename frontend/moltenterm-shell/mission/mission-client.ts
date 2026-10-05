@@ -254,7 +254,7 @@ export function releaseStart(dir: string, channel: ReleaseChannel, tag: string):
     return missionCall(MissionReleaseStartCommand, { dir, channel, tag });
 }
 
-// Ends the release launched from the Timeline, or stops following a tag cut at the terminal.
+// Ends the release launched from the Project tab, or stops following a tag cut at the terminal.
 export function releaseEnd(dir: string, tag?: string): Promise<void> {
     return missionCall(MissionReleaseEndCommand, { dir, tag });
 }

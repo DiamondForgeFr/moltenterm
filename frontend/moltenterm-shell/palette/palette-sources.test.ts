@@ -60,16 +60,8 @@ describe("agent presets", () => {
 describe("panels", () => {
     it("lists the default widgets in display order with full names and wsh launch", () => {
         const panels = panelEntries(DefaultWidgets, "ws1");
-        expect(panels.map((p) => p.label)).toEqual([
-            "Terminal",
-            "Files",
-            "Web",
-            "Timeline",
-            "CI/CD",
-            "System info",
-            "Processes",
-        ]);
-        expect(panels[3].cli).toBe("wsh launch defwidget@timeline");
+        expect(panels.map((p) => p.label)).toEqual(["Terminal", "Files", "Web", "CI/CD", "System info", "Processes"]);
+        expect(panels[3].cli).toBe("wsh launch defwidget@cicd");
         expect(panels[0].run).toEqual({ kind: "widget", blockdef: DefaultWidgets["defwidget@terminal"].blockdef });
     });
 

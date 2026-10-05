@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// A release cut end to end (#230): the Timeline's sequencing (releaseRun) picks every step, and the real runner
+// A release cut end to end (#230): the Project tab's sequencing (releaseRun) picks every step, and the real runner
 // (pkg/molten/mission, through its TestReleaseDriver) runs it on a throwaway Notulia-shaped fixture whose origin is a
 // local bare repository. It builds the Go test binary, so it runs only with MOLTEN_RELEASE_E2E=1:
 //     MOLTEN_RELEASE_E2E=1 npx vitest run frontend/moltenterm-shell/mission/release-e2e.test.ts
@@ -65,7 +65,7 @@ class Driver {
 
 let binary: string;
 
-// Follows one release as a person would on the Timeline: always the current phase's action, confirmed when it asks,
+// Follows one release as a person would in the Project tab: always the current phase's action, confirmed when it asks,
 // the notes read and edited before the cut. Returns the steps run, in order.
 async function followRelease(
     driver: Driver,
@@ -95,7 +95,7 @@ async function followRelease(
             expect(run.editNotes).toBe(true);
             const { notes } = await driver.ask({ op: "notes", tag });
             expect(notes).toContain(tag);
-            await driver.ask({ op: "savenotes", tag, text: `${notes}\nRead and edited on the Timeline.` });
+            await driver.ask({ op: "savenotes", tag, text: `${notes}\nRead and edited in the Project tab.` });
         }
         const step = action.kind === "prepare" ? PreparationStep : action.step;
         const done = await driver.ask({ op: "step", tag, step });

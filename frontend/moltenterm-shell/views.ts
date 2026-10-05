@@ -7,13 +7,14 @@ import { MoltentermOnboardingView, OnboardingViewModel } from "../moltenterm-onb
 import { BrowserViewModel, MoltentermBrowserView } from "./browser/browser-view";
 import { CompanionViewModel, MoltentermCompanionView } from "./companion/companion-view";
 import { CicdViewModel, MoltentermCicdView } from "./mission/cicd-view";
-import { MoltentermTimelineView, TimelineViewModel } from "./mission/timeline-view";
-import { MoltentermProjectView, ProjectViewModel } from "./project/project-view";
+import { LegacyTimelineView, MoltentermProjectView } from "./project/project-model";
+import { ProjectViewModel } from "./project/project-view";
 import { MoltentermSessionsView, SessionsViewModel } from "./sessions/sessions-view";
 
 export function registerMoltentermViews(registry: Map<string, ViewModelClass>) {
     registry.set(MoltentermBrowserView, BrowserViewModel);
-    registry.set(MoltentermTimelineView, TimelineViewModel);
+    // wavesrv migrates saved Timeline blocks at start; one created later (a stale blockdef) shows the overview too.
+    registry.set(LegacyTimelineView, ProjectViewModel);
     registry.set(MoltentermCicdView, CicdViewModel);
     registry.set(MoltentermCompanionView, CompanionViewModel);
     registry.set(MoltentermProjectView, ProjectViewModel);

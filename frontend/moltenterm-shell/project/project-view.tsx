@@ -1,13 +1,14 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The Project tab's view (FR-SHELL-015, DS-SHELL-015): the Mission Control home of a linked workspace, summary before
-// detail. The core reads the project's data once and lays out the cards (status band, main column, side column);
-// the cards themselves come from the registry (project-cards.ts), built-in ones first.
+// The Project view (FR-MC-020, DS-MC-012): Mission Control's single overview of the linked project, shown by the
+// Project tab (FR-SHELL-015, DS-SHELL-015). Top to bottom: the header band with the actions, the line map, then one
+// row of four cards that wraps on narrow panes. The core reads the project's data once and lays out the slots; the
+// cards themselves come from the registry (project-cards.ts), built-in ones first.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { ErrorBoundary } from "@/app/element/errorboundary";
-import { cn, fireAndForget } from "@/util/util";
+import { fireAndForget } from "@/util/util";
 import { atom } from "jotai";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Notice, Problem } from "../mission/cicd-panels";
@@ -16,15 +17,15 @@ import { ciRun, missionTrust, useCiState, useMissionRuns, useReleaseSession } fr
 import { ActiveProject, MissionFrame, MissionHeader, PipelineBanner } from "../mission/mission-frame";
 import { MissionSnapshot, UntrustedInfo } from "../mission/mission-model";
 import { TrustPrompt, useStartRun } from "../mission/runs-view";
-import { MoltentermTimelineView } from "../mission/timeline-view";
 import { openMoltentermView } from "../open-view";
 import { pathBaseName } from "../workspace-project";
 import { BuiltinProjectCards } from "./project-builtin-cards";
 import { layoutProjectCards, ProjectCard } from "./project-cards";
 import { ProjectCardProps, registerProjectCard, useProjectCards } from "./project-context";
+import { MoltentermProjectView } from "./project-model";
 
-// must match ProjectView in pkg/molten/mission/projecttab.go
-export const MoltentermProjectView = "molten-project";
+// The card that follows what runs: a start from the header scrolls it into view.
+const NowCardId = "moltenterm:now";
 
 for (const card of BuiltinProjectCards) {
     registerProjectCard(card);
@@ -62,22 +63,29 @@ function CardFailed({ error, title }: { error?: Error; title: string }) {
     return <Problem text={`${title} could not be shown: ${error?.message ?? "unknown error"}`} />;
 }
 
-function CardSlot({ card, props }: { card: ProjectCard<ProjectCardProps>; props: ProjectCardProps }) {
+function CardBody({ card, props }: { card: ProjectCard<ProjectCardProps>; props: ProjectCardProps }) {
     const Component = card.component;
-    const body = (
+    return (
         <ErrorBoundary fallback={<CardFailed title={card.title} />}>
             <Component {...props} />
         </ErrorBoundary>
     );
+}
+
+function CardSlot({ card, props }: { card: ProjectCard<ProjectCardProps>; props: ProjectCardProps }) {
     if (card.bare) {
-        return body;
+        return (
+            <div className="min-w-0" data-card={card.id}>
+                <CardBody card={card} props={props} />
+            </div>
+        );
     }
     return (
-        <section className="overflow-visible rounded border border-border" data-card={card.id}>
+        <section className="min-w-0 overflow-visible rounded border border-border bg-panel" data-card={card.id}>
             <h2 className="border-b border-border px-3 py-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
                 {card.title}
             </h2>
-            {body}
+            <CardBody card={card} props={props} />
         </section>
     );
 }
@@ -99,7 +107,7 @@ function ProjectContent({
     const { startAsync, prompt, error, clearError } = useStartRun(dir, projectName);
     const [ciError, setCiError] = useState<string>(null);
     const [untrusted, setUntrusted] = useState<{ branch: string; info: UntrustedInfo }>(null);
-    const sideRef = useRef<HTMLDivElement>(null);
+    const rootRef = useRef<HTMLDivElement>(null);
     const report = snapshot?.pipeline;
     const pipeline = report?.valid ? report.pipeline : null;
 
@@ -129,7 +137,10 @@ function ProjectContent({
                 setCiError(String(e?.message ?? e));
             }
         });
-    const showRuns = useCallback(() => sideRef.current?.scrollIntoView({ block: "nearest" }), []);
+    const showRuns = useCallback(
+        () => rootRef.current?.querySelector(`[data-card="${NowCardId}"]`)?.scrollIntoView({ block: "nearest" }),
+        []
+    );
 
     const cards = useProjectCards();
     const regions = useMemo(() => layoutProjectCards(cards), [cards]);
@@ -154,78 +165,68 @@ function ProjectContent({
             <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
                 <button
                     type="button"
-                    onClick={() => fireAndForget(() => openMoltentermView(MoltentermTimelineView))}
-                    className="flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary"
-                    title="Open the Timeline panel beside this view"
-                >
-                    <i className="fa fa-solid fa-code-branch text-[10px]" />
-                    Timeline
-                </button>
-                <button
-                    type="button"
                     onClick={() => fireAndForget(() => openMoltentermView(MoltentermCicdView))}
                     className="flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary"
-                    title="Open the CI/CD panel beside this view"
+                    title="Open the CI/CD panel beside this view: history, detail and logs"
                 >
                     <i className="fa fa-solid fa-list-check text-[10px]" />
                     CI/CD
                 </button>
             </MissionHeader>
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3" data-testid="project-view">
-                <PipelineBanner dir={dir} report={report} />
-                {problem ? (
-                    <div className="flex items-center gap-2">
-                        <div className="flex-1">
-                            <Problem text={problem} />
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                clearError();
-                                setCiError(null);
-                            }}
-                            className="cursor-pointer text-xs text-muted hover:text-primary"
-                        >
-                            Dismiss
-                        </button>
-                    </div>
-                ) : null}
-                {snapshot?.git?.fetcherror ? (
-                    <Notice
-                        text={`Showing the local state: fetching from the remote failed (${snapshot.git.fetcherror}).`}
-                    />
-                ) : null}
-                {regions.band.length > 0 ? (
+            <div ref={rootRef} className="flex min-h-0 flex-1 flex-col overflow-auto" data-testid="project-view">
+                {regions.header.length > 0 ? (
                     <section
-                        aria-label="Status"
-                        className="grid divide-y divide-border rounded border border-border @3xl:auto-cols-fr @3xl:grid-flow-col @3xl:divide-x @3xl:divide-y-0"
-                        data-testid="project-band"
+                        aria-label="Project header"
+                        className="flex flex-col gap-2 border-b border-border bg-panel px-3 py-2.5"
+                        data-slot="header"
                     >
-                        {regions.band.map((card) => (
-                            <div key={card.id} className="min-w-0 px-3 py-2" data-card={card.id}>
-                                {card.bare ? null : (
-                                    <h2 className="mb-1 text-[11px] font-medium tracking-wide text-muted uppercase">
-                                        {card.title}
-                                    </h2>
-                                )}
-                                <ErrorBoundary fallback={<CardFailed title={card.title} />}>
-                                    <card.component {...props} />
-                                </ErrorBoundary>
-                            </div>
+                        {regions.header.map((card) => (
+                            <CardSlot key={card.id} card={card} props={props} />
                         ))}
                     </section>
                 ) : null}
-                <div className="grid gap-3 @3xl:grid-cols-[minmax(0,1fr)_340px]">
-                    <div className="flex min-w-0 flex-col gap-3">
-                        {regions.main.map((card) => (
-                            <CardSlot key={card.id} card={card} props={props} />
-                        ))}
-                    </div>
-                    <div ref={sideRef} className={cn("flex min-w-0 flex-col gap-3")}>
-                        {regions.side.map((card) => (
-                            <CardSlot key={card.id} card={card} props={props} />
-                        ))}
-                    </div>
+                <div className="flex flex-col gap-3 p-3">
+                    <PipelineBanner dir={dir} report={report} />
+                    {problem ? (
+                        <div className="flex items-center gap-2">
+                            <div className="flex-1">
+                                <Problem text={problem} />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    clearError();
+                                    setCiError(null);
+                                }}
+                                className="cursor-pointer text-xs text-muted hover:text-primary"
+                            >
+                                Dismiss
+                            </button>
+                        </div>
+                    ) : null}
+                    {snapshot?.git?.fetcherror ? (
+                        <Notice
+                            text={`Showing the local state: fetching from the remote failed (${snapshot.git.fetcherror}).`}
+                        />
+                    ) : null}
+                    {regions.map.length > 0 ? (
+                        <div className="flex flex-col gap-3" data-slot="map">
+                            {regions.map.map((card) => (
+                                <CardSlot key={card.id} card={card} props={props} />
+                            ))}
+                        </div>
+                    ) : null}
+                    {regions.cards.length > 0 ? (
+                        <div
+                            className="grid gap-3 @min-[42rem]:grid-cols-2 @min-[68.75rem]:grid-cols-4"
+                            data-slot="cards"
+                            data-testid="project-cards"
+                        >
+                            {regions.cards.map((card) => (
+                                <CardSlot key={card.id} card={card} props={props} />
+                            ))}
+                        </div>
+                    ) : null}
                 </div>
             </div>
             {prompt}

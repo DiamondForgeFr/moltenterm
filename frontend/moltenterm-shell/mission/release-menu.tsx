@@ -1,13 +1,14 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The Timeline's Release menu (FR-MC-015), as Notulia's ReleaseLauncher: the next release candidate and the next
+// The Project header's Release menu (FR-MC-015), as Notulia's ReleaseLauncher: the next release candidate and the next
 // public release with their numbers, computed when the menu opens; a click starts the preparation on its own and every
-// later phase waits for its own click on the Timeline. While a release is on its way the button says which.
+// later phase waits for its own click in the Project tab. While a release is on its way the button says which.
 
 import { cn, fireAndForget } from "@/util/util";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { MoltenWave } from "../molten-button";
+import { MenuPopover } from "./menu-popover";
 import { missionRefresh, missionTrust, releaseStart } from "./mission-client";
 import { PipelineReleaseStep, toTreeData, UntrustedInfo } from "./mission-model";
 import {
@@ -45,7 +46,7 @@ export function ReleaseMenu({
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
     const [untrusted, setUntrusted] = useState<UntrustedInfo>(null);
-    const ref = useRef<HTMLDivElement>(null);
+    const [anchor, setAnchor] = useState<HTMLDivElement>(null);
 
     // The numbers are computed when the menu opens, from the remote as it is now.
     useEffect(() => {
@@ -82,15 +83,8 @@ export function ReleaseMenu({
                 }
             }
         });
-        const close = (e: PointerEvent) => {
-            if (!ref.current?.contains(e.target as Node)) {
-                setOpen(false);
-            }
-        };
-        document.addEventListener("pointerdown", close, true);
         return () => {
             cancelled = true;
-            document.removeEventListener("pointerdown", close, true);
         };
     }, [open, dir]);
 
@@ -149,7 +143,7 @@ export function ReleaseMenu({
             ? `Public release ${plan.prefix}${plan.publicVersion}`
             : "Public release";
     return (
-        <div ref={ref} className="relative">
+        <div ref={setAnchor} className="relative">
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
@@ -159,7 +153,7 @@ export function ReleaseMenu({
                 Release
             </button>
             {open ? (
-                <div className="absolute top-full right-0 z-20 mt-1 flex w-80 flex-col gap-2 rounded border border-border bg-modalbg p-3 shadow-lg">
+                <MenuPopover anchor={anchor} onClose={() => setOpen(false)} className="flex w-80 flex-col gap-2">
                     {plan == null && error == null ? (
                         <div className="flex items-center gap-2 py-2 text-xs text-muted">
                             <i className="fa fa-solid fa-circle-notch fa-spin text-[11px]" />
@@ -240,7 +234,7 @@ export function ReleaseMenu({
                         </>
                     ) : null}
                     {error ? <div className="text-xs text-error">{error}</div> : null}
-                </div>
+                </MenuPopover>
             ) : null}
             {untrusted != null ? (
                 <TrustPrompt

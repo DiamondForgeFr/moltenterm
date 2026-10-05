@@ -21,7 +21,7 @@ const (
 	// Workspace meta: the project folder the Project tab was last made for.
 	ProjectTabDirMetaKey = "molten:projecttabdir"
 	ProjectTabName       = "Project"
-	// must match MoltentermProjectView in frontend/moltenterm-shell/project/project-view.tsx
+	// must match MoltentermProjectView in frontend/moltenterm-shell/project/project-model.ts
 	ProjectView = "molten-project"
 )
 

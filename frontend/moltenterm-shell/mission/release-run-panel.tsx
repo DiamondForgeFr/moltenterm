@@ -357,7 +357,8 @@ export function ReleaseRunPanel({
     run: ReleaseRun;
     jobs: ReleaseGhJob[];
     actions: ReleasePanelActions;
-    // Stops following it: the release launched from the Timeline ends, a tag cut at the terminal is no longer followed.
+    // Stops following it: the release launched from the Project tab ends, a tag cut at the terminal is no longer
+    // followed.
     onAbandon?: () => void;
 }) {
     const [picked, setPicked] = useState<ReleasePhase>(null);
@@ -444,7 +445,7 @@ export function ReleaseRunPanel({
     );
 }
 
-// The release followed, on the Timeline: its facts, the actions that move it forward under the trust rule, and its
+// The release followed, in the Project tab: its facts, the actions that move it forward under the trust rule, and its
 // end, by itself once all five phases are done or when the user abandons it.
 export function ReleaseRunSection({
     dir,

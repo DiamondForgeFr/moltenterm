@@ -12,8 +12,9 @@ import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect } from "react";
 import { MissionRouteId } from "../mission/mission-client";
+import { openMoltentermView } from "../open-view";
 import { readWorkspaceProject } from "../workspace-project";
-import { ProjectTabCommand } from "./project-model";
+import { MoltentermProjectView, ProjectTabCommand } from "./project-model";
 
 const ProjectTabTimeoutMs = 15000;
 
@@ -59,6 +60,19 @@ export async function showProjectTab(workspaceId: string): Promise<boolean> {
         getApi().setActiveTab(result.tabid);
     }
     return true;
+}
+
+// Shows the project overview (FR-MC-020): the active workspace's Project tab, else a Project view in the current tab
+// (the user closed the tab or replaced its pane, or wavesrv did not answer).
+export async function openProjectOverview(): Promise<void> {
+    try {
+        if (await showProjectTab("")) {
+            return;
+        }
+    } catch (e) {
+        console.log("project tab:", e?.message ?? e);
+    }
+    await openMoltentermView(MoltentermProjectView);
 }
 
 // The requests in flight, by workspace and project: a window re-rendering never asks twice for the same thing.

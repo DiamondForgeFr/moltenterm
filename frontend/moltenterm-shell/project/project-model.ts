@@ -15,6 +15,16 @@ import { ReleaseSession } from "../mission/release-model";
 export const ProjectTabCommand = "moltenmissionprojecttab";
 export const ProjectTabMetaKey = "molten:projecttab";
 export const ProjectTabDirMetaKey = "molten:projecttabdir";
+// must match ProjectView in pkg/molten/mission/projecttab.go and ProjectOverviewView in pkg/molten/missionviews.go
+export const MoltentermProjectView = "molten-project";
+// The Timeline view, absorbed by the Project overview (FR-MC-020): saved layouts and notifications may still name it.
+// must match LegacyTimelineView in pkg/molten/missionviews.go
+export const LegacyTimelineView = "molten-timeline";
+
+// The view to open for a view name a layout, a widget or a notification holds: the Timeline opens the Project view.
+export function currentMissionView(view: string): string {
+    return view === LegacyTimelineView ? MoltentermProjectView : view;
+}
 
 export type BranchRole = "trunk" | "release" | "feature";
 
@@ -175,9 +185,9 @@ export function projectWork(ci: CiState, runs: readonly RunRecord[], release: Re
     return rtn;
 }
 
-// Mission Control's panels a build, CI or release notification points at: they land on the Project tab when the
-// workspace has one (the panels stay one click away from it).
-export const MissionPanelViews = ["molten-timeline", "molten-cicd"];
+// Mission Control's views a build, CI or release notification points at: they land on the Project tab when the
+// workspace has one (CI/CD stays one click away from it). Older notifications still name the Timeline.
+export const MissionPanelViews = [MoltentermProjectView, LegacyTimelineView, "molten-cicd"];
 export const ProjectNotificationSources = ["build", "ci", "release"];
 
 export function checkProjectRoute(source: string, view: string): boolean {

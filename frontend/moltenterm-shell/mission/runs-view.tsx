@@ -13,7 +13,7 @@ import { MoltenWave } from "../molten-button";
 import { pathParent } from "../workspace-project";
 import { timeAgo } from "./branch-tree";
 import { buildCardTitle, BuildManifest, BuildPhaseDef, BuildPhaseStatus, buildRunView } from "./builds-model";
-import { missionCancel, missionClose, missionLog, missionRun, missionTrust } from "./mission-client";
+import { missionBuilds, missionCancel, missionClose, missionLog, missionRun, missionTrust } from "./mission-client";
 import { logTail, RunRecord, RunState, RunStateLabels, UntrustedInfo } from "./mission-model";
 
 const StateClasses: Record<RunState, string> = {
@@ -44,7 +44,7 @@ export function TrustPrompt({
         <div className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40" onPointerDown={onCancel}>
             <div
                 onPointerDown={(e) => e.stopPropagation()}
-                className="flex max-h-[80vh] w-[560px] flex-col rounded border border-border bg-modalbg shadow-xl"
+                className="flex max-h-[80vh] w-[560px] max-w-[calc(100vw-32px)] flex-col rounded border border-border bg-modalbg shadow-xl"
             >
                 <div className="border-b border-border px-4 py-3">
                     <div className="text-sm font-semibold">Run {projectName}'s commands?</div>
@@ -223,6 +223,29 @@ function PhaseIcon({ status }: { status: BuildPhaseStatus }) {
     return <span className="h-1.5 w-1.5 rounded-full bg-current" />;
 }
 
+// The manifest a finished build left, read again once the run ends.
+export function useDeliveredManifest(dir: string, run: RunRecord): BuildManifest {
+    const [manifest, setManifest] = useState<BuildManifest>(null);
+    useEffect(() => {
+        setManifest(null);
+        if (run == null || run.state !== "success") {
+            return;
+        }
+        let cancelled = false;
+        fireAndForget(async () => {
+            const facts = await missionBuilds(dir, false);
+            const last = facts?.builds?.find((b) => b.id === run.stepid)?.last ?? null;
+            if (!cancelled) {
+                setManifest(last);
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [dir, run?.id, run?.state]);
+    return manifest;
+}
+
 // The local build panel (FR-MC-013), as Notulia's: the build's declared phases as a stepper, what the current one does,
 // what was delivered or why it stopped, then Show in Finder, Retry and Close; Cancel while it runs.
 export function BuildRunCard({
@@ -334,7 +357,7 @@ export function BuildRunCard({
 export function RecentBuilds({ runs }: { runs: RunRecord[] }) {
     const builds = (runs ?? []).filter((r) => r.kind === "build").slice(0, 10);
     if (builds.length === 0) {
-        return <p className="p-3 text-sm text-muted">No local build yet: start one from Timeline › Build local.</p>;
+        return <p className="p-3 text-sm text-muted">No local build yet: start one from Project › Build local.</p>;
     }
     return (
         <>

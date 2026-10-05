@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The Sessions view (FR-SHELL-020): every durable terminal still running, local and SSH, grouped by workspace, the
-// ones no pane shows first. A pane like the Timeline: it can stay open while you work. Rows show what runs (the agent
+// ones no pane shows first. A pane like CI/CD: it can stay open while you work. Rows show what runs (the agent
 // and its state, or the command), where (connection, folder, worktree), since when, and offer Show, Reconnect and
 // End. The keyboard walks the rows (arrows, Home, End, Page keys), Enter shows, Delete ends, R reconnects.
 

@@ -1,8 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Branch cleaning from the Timeline (FR-MC-017), as Notulia's BranchCleanupDialog: the plan first, what would go and
-// what stays with why, then nothing leaves without a click on the delete button. wavesrv checks each branch again
+// Branch cleaning from the Project header (FR-MC-017), as Notulia's BranchCleanupDialog: the plan first, what would go
+// and what stays with why, then nothing leaves without a click on the delete button. wavesrv checks each branch again
 // before deleting it: the plan shown is not trusted blindly.
 
 import { cn, fireAndForget } from "@/util/util";
@@ -80,7 +80,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
         <div className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40" onPointerDown={onClose}>
             <div
                 onPointerDown={(e) => e.stopPropagation()}
-                className="flex max-h-[80vh] w-[620px] flex-col rounded border border-border bg-modalbg shadow-xl"
+                className="flex max-h-[80vh] w-[620px] max-w-[calc(100vw-32px)] flex-col rounded border border-border bg-modalbg shadow-xl"
                 data-testid="branch-cleanup"
             >
                 <div className="border-b border-border px-4 py-3">

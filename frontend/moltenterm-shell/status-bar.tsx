@@ -12,9 +12,9 @@ import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { readBuildInfo, readRuntimeChannel } from "./build/current-build";
 import { MoltentermCicdView } from "./mission/cicd-view";
-import { MoltentermTimelineView } from "./mission/timeline-view";
 import { openMoltentermView } from "./open-view";
 import { usePaneStatus, useWarmLinkedProject } from "./pane-status";
+import { openProjectOverview } from "./project/project-tab";
 import {
     makePaneView,
     makeStatusBarView,
@@ -79,7 +79,7 @@ function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: 
                     type="button"
                     className={ItemButton}
                     title={pane.branchTitle}
-                    onClick={() => openView(MoltentermTimelineView)}
+                    onClick={() => fireAndForget(openProjectOverview)}
                 >
                     <i className="fa fa-solid fa-code-branch text-[10px]" />
                     <span className="truncate">{pane.branch}</span>

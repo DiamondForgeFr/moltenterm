@@ -12,7 +12,7 @@ import (
 
 // Running work across every project (FR-MC-019), for the notification center: the builds, release and adapter steps
 // and local CI runs still going, with what can be said of their progress. The panel stops them through the same
-// commands as the Timeline and the CI panel.
+// commands as the Project tab and the CI panel.
 
 const (
 	WorkKindCi = "ci"
