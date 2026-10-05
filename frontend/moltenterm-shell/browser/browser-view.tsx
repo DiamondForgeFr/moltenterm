@@ -60,6 +60,7 @@ import {
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
+import type { SignInBar } from "./browser-popup";
 import { noteBrowserPanelFocus } from "./browser-routing";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
 
@@ -150,18 +151,28 @@ export class BrowserViewModel implements ViewModel {
     }
 
     // "Open in <browser>": the tab becomes a handed-off entry; on a fallback it stays here and the panel says why.
-    async handOffTab(id: string, engine = EngineInstalled): Promise<void> {
+    // url replaces the tab's page when another one must be handed off (a sign-in refusal continues from the page
+    // before the provider's).
+    async handOffTab(id: string, engine = EngineInstalled, url?: string): Promise<void> {
         const tab = this.findTab(id);
         if (tab == null || tab.engine) {
             return;
         }
-        const route = await this.askBrowser(() => browserOpen(tab.url, engine));
+        const page = url || tab.url;
+        const route = await this.askBrowser(() => browserOpen(page, engine));
         if (route.engine === EngineApp) {
             this.showNotice(fallbackNotice(route));
             return;
         }
         this.webviews.delete(id);
-        this.setState(setTabEngine(this.state(), id, route.engine));
+        this.signIn.forget(id);
+        const next = page === tab.url ? this.state() : updateTab(this.state(), id, { url: page, title: undefined });
+        this.setState(setTabEngine(next, id, route.engine));
+    }
+
+    // "Continue in <browser>" of the sign-in refusal bar (FR-BRW-003).
+    continueSignIn(id: string, bar: SignInBar): void {
+        fireAndForget(() => this.handOffTab(id, EngineInstalled, bar.returnUrl));
     }
 
     async handOffActiveTab(): Promise<void> {
@@ -855,6 +866,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const installedSetting = useAtomValue(getSettingsKeyAtom("browser:installed"));
     const defaultSetting = useAtomValue(getSettingsKeyAtom("browser:default"));
     const sitesSetting = useAtomValue(getSettingsKeyAtom("browser:sites"));
+    const engineList = useAtomValue(model.engines.listAtom);
     const blockMeta = block?.meta;
     useEffect(() => {
         fireAndForget(() => model.engines.ensureLoaded());
@@ -872,7 +884,12 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
             <BrowserTabStrip model={model} state={state} />
             <BrowserNavBar model={model} state={state} />
             <BrowserNotice model={model} />
-            <SignInRefusalBar signIn={model.signIn} tabId={state.activeId} browserName={null} onContinue={() => {}} />
+            <SignInRefusalBar
+                signIn={model.signIn}
+                tabId={state.activeId}
+                browserName={engineList?.chosen?.name ?? null}
+                onContinue={(bar) => model.continueSignIn(state.activeId, bar)}
+            />
             <div className="relative min-h-0 flex-1">
                 {state.tabs.map((tab) =>
                     tab.engine ? (
