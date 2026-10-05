@@ -45,6 +45,18 @@ MoltenTerm learns the state from four sources:
 
 MoltenTerm never changes your agent's configuration by itself. The settings below are yours to add.
 
+### The offer in the pane header
+
+While Claude Code or Codex runs in a local terminal without these hooks, the pane header shows a small **Set up
+hooks** chip next to the agent. It opens the snippet below for that agent, where to add it and a Copy button; you
+apply it yourself. MoltenTerm only reads the agent's settings to know whether the hooks are already there (Claude
+Code: `~/.claude/settings.json` or `$CLAUDE_CONFIG_DIR/settings.json`, its `settings.local.json`, the managed settings,
+and the `.claude/settings.json` and `.claude/settings.local.json` of the pane's folder and its parents up to the
+repository's root; Codex: `~/.codex/config.toml` or `$CODEX_HOME/config.toml`, a line running `molten agent state`).
+The chip does not show once the agent's hooks have reported, in this run or an earlier one, nor for an agent you ran
+`molten agent remove` for. Its × (or **Don't offer again**) hides it for that agent for good; the choice is kept in
+`agent-guides.json`, in MoltenTerm's data folder under `molten/`.
+
 ## The command
 
 ```

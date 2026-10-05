@@ -252,6 +252,8 @@ type AgentStateInfo struct {
 	Message     string `json:"message,omitempty"`
 	Since       int64  `json:"since,omitempty"`
 	Version     int64  `json:"version"`
+	// Hooked: this agent's hooks reported in this run of MoltenTerm, in any terminal (the hook setup offer, #221).
+	Hooked bool `json:"hooked,omitempty"`
 	// Cleared: the block has no agent any more.
 	Cleared bool `json:"cleared,omitempty"`
 }

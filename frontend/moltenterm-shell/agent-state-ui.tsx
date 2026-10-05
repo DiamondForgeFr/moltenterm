@@ -10,6 +10,7 @@ import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget, NullAtom } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useMemo } from "react";
+import { AgentHookOfferChip } from "./agent-hooks-ui";
 import { agentHeaderParts, AgentStateDotClasses, AgentStateInfo, agentStateTitle } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
 import { toggleCompanion } from "./companion/companion-open";
@@ -86,32 +87,35 @@ export function AgentHeaderLabel({ blockId, localName }: { blockId: string; loca
     const pane = folder ? makePaneView(folder, paneState, ws) : null;
     const parts = agentHeaderParts(info, pane?.projectName, pane?.branch);
     const title = [agentStateTitle(info), folder, localName ? `on ${localName}` : ""].filter((s) => !!s).join("\n");
-    // The label opens the agent companion next to the pane (FR-SHELL-018).
+    // The label opens the agent companion next to the pane (FR-SHELL-018); the hook setup offer follows it (#221).
     return (
-        <button
-            type="button"
-            className="flex min-w-0 shrink cursor-pointer items-center gap-1.5 rounded pl-1 pr-1 text-[12px] hover:bg-hover"
-            title={`${title}\nClick for the agent companion (${companionShortcutLabel()})`}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-                e.stopPropagation();
-                fireAndForget(() => toggleCompanion(blockId));
-            }}
-            data-testid="agent-header-label"
-        >
-            <AgentStateDot info={info} />
-            {parts.map((part, idx) => (
-                <span
-                    key={idx}
-                    className={cn(
-                        "truncate",
-                        idx === 0 ? "font-medium text-primary" : "text-secondary",
-                        idx > 0 && "before:mr-1.5 before:text-muted before:content-['·']"
-                    )}
-                >
-                    {part}
-                </span>
-            ))}
-        </button>
+        <>
+            <button
+                type="button"
+                className="flex min-w-0 shrink cursor-pointer items-center gap-1.5 rounded pl-1 pr-1 text-[12px] hover:bg-hover"
+                title={`${title}\nClick for the agent companion (${companionShortcutLabel()})`}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    fireAndForget(() => toggleCompanion(blockId));
+                }}
+                data-testid="agent-header-label"
+            >
+                <AgentStateDot info={info} />
+                {parts.map((part, idx) => (
+                    <span
+                        key={idx}
+                        className={cn(
+                            "truncate",
+                            idx === 0 ? "font-medium text-primary" : "text-secondary",
+                            idx > 0 && "before:mr-1.5 before:text-muted before:content-['·']"
+                        )}
+                    >
+                        {part}
+                    </span>
+                ))}
+            </button>
+            <AgentHookOfferChip blockId={blockId} />
+        </>
     );
 }

@@ -141,8 +141,11 @@ type agentStates struct {
 	version int64
 	notices map[string]noticeMark
 	panes   map[string]*paneActivity
-	wake    chan struct{}
-	now     func() time.Time
+	// hookedAgents: the agents whose hooks reported in this run; onHooked is told of each once (agenthookoffer.go).
+	hookedAgents map[string]bool
+	onHooked     func(agent string)
+	wake         chan struct{}
+	now          func() time.Time
 	// Injected: wavesrv's object store and event bus, replaced in tests.
 	locate  func(blockId string) (string, string, error)
 	publish func(info molten.AgentStateInfo)
@@ -153,21 +156,32 @@ type agentStates struct {
 
 func makeAgentStates() *agentStates {
 	return &agentStates{
-		records: map[string]*agentRecord{},
-		dirty:   map[string]bool{},
-		notices: map[string]noticeMark{},
-		panes:   map[string]*paneActivity{},
-		wake:    make(chan struct{}, 1),
-		now:     time.Now,
-		locate:  locateBlock,
-		publish: publishAgentState,
+		records:      map[string]*agentRecord{},
+		dirty:        map[string]bool{},
+		notices:      map[string]noticeMark{},
+		panes:        map[string]*paneActivity{},
+		hookedAgents: map[string]bool{},
+		wake:         make(chan struct{}, 1),
+		now:          time.Now,
+		locate:       locateBlock,
+		publish:      publishAgentState,
 		notify: func(blockId string, signal AttentionSignal, kind string) {
 			go recordAgentNotice(blockId, signal, kind)
 		},
 	}
 }
 
-var defaultAgentStates = makeAgentStates()
+var defaultAgentStates = makeDefaultAgentStates()
+
+// Only wavesrv's own states remember hooked agents in the data folder; tests' states do not.
+func makeDefaultAgentStates() *agentStates {
+	a := makeAgentStates()
+	a.onHooked = func(agent string) {
+		go rememberHookedAgent(agent)
+	}
+	return a
+}
+
 var defaultProcWatcher = makeDefaultProcWatcher()
 
 func makeDefaultProcWatcher() *procWatcher {
@@ -310,6 +324,7 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		a.markDirtyLocked(req.BlockId)
 	}
 	a.hookedLocked(req.BlockId, rec.agent)
+	a.agentHookedLocked(rec.agent)
 	rec.fromActivity = false
 	a.setStateLocked(req.BlockId, rec, req.State, message)
 	if previous == req.State || (req.State != molten.AgentStateWaiting && req.State != molten.AgentStateDone) {
@@ -399,7 +414,31 @@ func (a *agentStates) infoLocked(blockId string, rec *agentRecord) molten.AgentS
 		Message:     rec.message,
 		Since:       rec.since,
 		Version:     rec.version,
+		Hooked:      a.hookedAgents[rec.agent],
 	}
+}
+
+// agentHookedLocked notes the first report of an agent's hooks: every terminal running it is published again, so
+// their headers drop the hook setup offer.
+func (a *agentStates) agentHookedLocked(agent string) {
+	if a.hookedAgents[agent] {
+		return
+	}
+	a.hookedAgents[agent] = true
+	for blockId, rec := range a.records {
+		if rec.agent == agent {
+			a.markDirtyLocked(blockId)
+		}
+	}
+	if a.onHooked != nil {
+		a.onHooked(agent)
+	}
+}
+
+func (a *agentStates) isAgentHooked(agent string) bool {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	return a.hookedAgents[agent]
 }
 
 func (a *agentStates) snapshot() []molten.AgentStateInfo {

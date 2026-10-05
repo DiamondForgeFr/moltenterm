@@ -14,6 +14,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
+	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
@@ -80,6 +81,22 @@ func handleAgentCommand(command string, data any) (any, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), agentReportTimeout)
 		defer cancel()
 		return nil, ReportAgentState(ctx, req)
+	case molten.AgentHookOfferCommand:
+		var req molten.AgentHookOfferRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), agentReportTimeout)
+		defer cancel()
+		return AgentHookOffer(ctx, req.BlockId)
+	case molten.AgentHookDismissCommand:
+		var req molten.AgentHookDismissRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return nil, DismissAgentHookOffer(req.Agent)
+	case molten.AgentStatesDocCommand:
+		return molten.AgentStatesDocPath(wavebase.GetWaveDataDir(), wavebase.WaveVersion)
 	}
 	return nil, fmt.Errorf("unknown agent state command %q", command)
 }
