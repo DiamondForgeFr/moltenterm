@@ -76,6 +76,10 @@ const (
 	ConfigKey_WebDefaultUrl                  = "web:defaulturl"
 	ConfigKey_WebDefaultSearch               = "web:defaultsearch"
 
+	ConfigKey_BrowserInstalled               = "browser:installed"
+	ConfigKey_BrowserDefault                 = "browser:default"
+	ConfigKey_BrowserSites                   = "browser:sites"
+
 	ConfigKey_AutoUpdateClear                = "autoupdate:*"
 	ConfigKey_AutoUpdateEnabled              = "autoupdate:enabled"
 	ConfigKey_AutoUpdateIntervalMs           = "autoupdate:intervalms"

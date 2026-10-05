@@ -164,6 +164,21 @@
         "web:defaultsearch": {
           "type": "string"
         },
+        "browser:installed": {
+          "type": "string",
+          "description": "The installed Chromium browser pages are handed off to: brave, chrome, edge, arc, vivaldi, opera, chromium, or the path of its app bundle (macOS) or desktop entry (Linux); empty uses the first one found"
+        },
+        "browser:default": {
+          "type": "string",
+          "description": "Where web pages open by default: app (MoltenTerm's browser panel) installed (the installed browser) or a browser id"
+        },
+        "browser:sites": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Per-site engine, host (subdomains included) to app, installed or a browser id"
+        },
         "autoupdate:*": {
           "type": "boolean"
         },

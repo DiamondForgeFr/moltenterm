@@ -17,6 +17,7 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { Atom } from "jotai";
 import { openFirstRun } from "../../moltenterm-onboarding/onboarding-open";
+import { handOffActivePage } from "../browser/browser-routing";
 import { openMoltentermView } from "../open-view";
 import { openProjectTab } from "../project/project-tab";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
@@ -129,6 +130,9 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             return;
         case "focusorigin":
             focusBlock(target.blockId);
+            return;
+        case "openinbrowser":
+            await handOffActivePage(target.blockId);
             return;
     }
 }

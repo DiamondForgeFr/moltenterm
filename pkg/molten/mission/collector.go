@@ -20,9 +20,12 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/browsers"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
+	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 )
 
@@ -374,6 +377,16 @@ func Start() {
 	attention.StartAgentRoute()
 	// The agent companion (FR-SHELL-018) follows the agents the states know.
 	companion.Start()
+	// Pages handed off to the installed browser (FR-BRW-002).
+	browsers.StartRoute(func() browsers.Settings {
+		s := wconfig.GetWatcher().GetFullConfig().Settings
+		return browsers.Settings{Installed: s.BrowserInstalled, Default: s.BrowserDefault, Sites: s.BrowserSites}
+	}, func(sites map[string]string) error {
+		if len(sites) == 0 {
+			return wconfig.SetBaseConfigValue(waveobj.MetaMapType{wconfig.ConfigKey_BrowserSites: nil})
+		}
+		return wconfig.SetBaseConfigValue(waveobj.MetaMapType{wconfig.ConfigKey_BrowserSites: sites})
+	})
 	for _, start := range starters {
 		start()
 	}

@@ -17,9 +17,15 @@ export const BrowserOpenKeyPrefix = "molten:browser:open:";
 export const BrowserRecentMetaKey = "molten:browser:recent";
 const BrowserRecentMax = 8;
 
-export type BrowserOpenRequest = { id: string; url: string };
+// Block meta: why a page meant for the installed browser opened here instead (FR-BRW-002), shown once by the panel.
+export const BrowserNoticeMetaKey = "molten:browser:notice";
 
-export type BrowserTab = { id: string; url: string; title?: string };
+// engine: a handed-off entry, a page wsh already opened in that installed browser (FR-BRW-002).
+export type BrowserOpenRequest = { id: string; url: string; engine?: string };
+
+// engine is unset for the in-app engine, else the id of the installed browser the page was handed off to (FR-BRW-002):
+// the tab is then an entry with no page of its own here.
+export type BrowserTab = { id: string; url: string; title?: string; engine?: string };
 
 export type BrowserState = { tabs: BrowserTab[]; activeId: string };
 
@@ -35,7 +41,17 @@ export function readBrowserState(meta: Record<string, any>, defaultUrl: string, 
     const tabs: BrowserTab[] = Array.isArray(raw)
         ? raw
               .filter((t) => t != null && typeof t.id === "string" && typeof t.url === "string")
-              .map((t) => ({ id: t.id, url: t.url, title: typeof t.title === "string" ? t.title : undefined }))
+              .map((t) => {
+                  const tab: BrowserTab = {
+                      id: t.id,
+                      url: t.url,
+                      title: typeof t.title === "string" ? t.title : undefined,
+                  };
+                  if (typeof t.engine === "string" && t.engine !== "" && t.engine !== "app") {
+                      tab.engine = t.engine;
+                  }
+                  return tab;
+              })
         : [];
     if (tabs.length === 0) {
         // A browser panel always has one tab: the block's own URL, or the default page.
@@ -47,7 +63,10 @@ export function readBrowserState(meta: Record<string, any>, defaultUrl: string, 
 
 // Every web page Moltenterm opens gets a browser panel, never Wave's web view without tabs (#132). The panel opens
 // meta "url" as its single tab.
-export function browserBlockDef(url: string): BlockDef {
+export function browserBlockDef(url: string, notice?: string): BlockDef {
+    if (notice) {
+        return { meta: { view: MoltentermBrowserView, url, [BrowserNoticeMetaKey]: notice } as MetaType };
+    }
     return { meta: { view: MoltentermBrowserView, url } };
 }
 
@@ -80,10 +99,19 @@ export function noteBrowserFocus(recent: unknown, blockId: string): string[] {
 // The pages queued in a panel's block meta, in queue order.
 export function readOpenRequests(meta: Record<string, any>): BrowserOpenRequest[] {
     const rtn: BrowserOpenRequest[] = [];
-    for (const [key, url] of Object.entries(meta ?? {})) {
+    for (const [key, value] of Object.entries(meta ?? {})) {
         const id = key.startsWith(BrowserOpenKeyPrefix) ? key.slice(BrowserOpenKeyPrefix.length) : "";
-        if (id !== "" && typeof url === "string" && url !== "") {
-            rtn.push({ id, url });
+        if (id === "") {
+            continue;
+        }
+        if (typeof value === "string" && value !== "") {
+            rtn.push({ id, url: value });
+            continue;
+        }
+        // A handed-off entry (BrowserHandoffRequestMeta in pkg/molten/browser.go).
+        if (value != null && typeof value.url === "string" && value.url !== "") {
+            const engine = typeof value.engine === "string" && value.engine !== "app" ? value.engine : undefined;
+            rtn.push(engine ? { id, url: value.url, engine } : { id, url: value.url });
         }
     }
     return rtn.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -101,20 +129,45 @@ export function consumeOpenRequestsMeta(consumed: BrowserOpenRequest[]): Record<
 
 export function browserMeta(state: BrowserState): Record<string, any> {
     return {
-        [BrowserTabsMetaKey]: state.tabs.map((t) =>
-            t.title ? { id: t.id, url: t.url, title: t.title } : { id: t.id, url: t.url }
-        ),
+        [BrowserTabsMetaKey]: state.tabs.map((t) => {
+            const saved: Record<string, string> = { id: t.id, url: t.url };
+            if (t.title) {
+                saved.title = t.title;
+            }
+            if (t.engine) {
+                saved.engine = t.engine;
+            }
+            return saved;
+        }),
         [BrowserActiveMetaKey]: state.activeId,
     };
 }
 
-// A new tab opens right after the active one, as in a browser, and becomes active.
-export function addTab(state: BrowserState, url: string, newId = makeTabId): BrowserState {
-    const tab = { id: newId(), url };
+export type AddTabOpts = { engine?: string; activate?: boolean };
+
+// A new tab opens right after the active one, as in a browser, and becomes active unless opts.activate is false.
+export function addTab(state: BrowserState, url: string, newId = makeTabId, opts?: AddTabOpts): BrowserState {
+    const tab: BrowserTab = opts?.engine ? { id: newId(), url, engine: opts.engine } : { id: newId(), url };
     const index = state.tabs.findIndex((t) => t.id === state.activeId);
     const tabs = [...state.tabs];
     tabs.splice(index + 1, 0, tab);
-    return { tabs, activeId: tab.id };
+    return { tabs, activeId: opts?.activate === false ? state.activeId : tab.id };
+}
+
+// Moves a tab to another engine (FR-BRW-002): a browser id makes it a handed-off entry, "app" or "" brings the page
+// back into the panel.
+export function setTabEngine(state: BrowserState, id: string, engine: string): BrowserState {
+    const next = engine && engine !== "app" ? engine : undefined;
+    let changed = false;
+    const tabs = state.tabs.map((t) => {
+        if (t.id !== id || t.engine === next) {
+            return t;
+        }
+        changed = true;
+        const { engine: _old, ...rest } = t;
+        return next ? { ...rest, engine: next } : rest;
+    });
+    return changed ? { ...state, tabs } : state;
 }
 
 // Closing the active tab activates its right neighbour, or the left one at the end. The last tab cannot close: the

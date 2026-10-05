@@ -11,6 +11,7 @@ import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
+import { BrowserEngineModel, browserOpen, BrowserRoute, EngineApp, fallbackNotice } from "./browser-engine";
 import {
     browserBlockDef,
     BrowserRecentMetaKey,
@@ -20,7 +21,11 @@ import {
 } from "./browser-model";
 
 // What BrowserViewModel offers here, without importing the view (which imports the global store).
-type BrowserPanelModel = ViewModel & { openUrlInNewTab: (url: string) => void };
+type BrowserPanelModel = ViewModel & {
+    openUrlInNewTab: (url: string) => void;
+    addHandoffEntry: (url: string, engine: string) => void;
+    showNotice: (text: string) => void;
+};
 
 function currentTab(): Tab {
     const tabId = globalStore.get(atoms.staticTabId);
@@ -42,16 +47,63 @@ function browserPanelModel(blockId: string): BrowserPanelModel {
     return viewModel;
 }
 
+// A page whose site (or the default engine) is set to the installed browser opens there (FR-BRW-002); wavesrv routes
+// it. Null when the page stays here, with the reason when it was meant for a browser that could not take it.
+async function routeToInstalledBrowser(url: string): Promise<{ route: BrowserRoute; notice: string }> {
+    if (!BrowserEngineModel.getInstance().needsRouting(url)) {
+        return { route: null, notice: null };
+    }
+    try {
+        const route = await browserOpen(url);
+        return { route, notice: fallbackNotice(route) };
+    } catch (e) {
+        console.log("molten browser: routing failed, the page opens here", e);
+        return { route: null, notice: null };
+    }
+}
+
 export async function openInBrowserPanel(url: string): Promise<void> {
     const tab = currentTab();
     const targetId = pickBrowserPanel(browserPanelsOfTab(tab), tab?.meta?.[BrowserRecentMetaKey]);
     const model = targetId ? browserPanelModel(targetId) : null;
-    if (model != null) {
-        model.openUrlInNewTab(url);
+    const { route, notice } = await routeToInstalledBrowser(url);
+    if (route != null && route.engine !== EngineApp) {
+        // The handed-off entry goes to the tab's panel; no panel opens just for it.
+        model?.addHandoffEntry(url, route.engine);
         return;
     }
-    await createBlock(browserBlockDef(url));
+    if (model != null) {
+        model.openUrlInNewTab(url);
+        if (notice) {
+            model.showNotice(notice);
+        }
+        return;
+    }
+    await createBlock(browserBlockDef(url, notice));
 }
+
+// The browser panel a palette action applies to: the pane it was opened from when that is a browser panel, else the
+// one links go to.
+export function browserPanelForAction(originBlockId: string): string {
+    const tab = currentTab();
+    const panels = browserPanelsOfTab(tab);
+    if (originBlockId && panels.includes(originBlockId)) {
+        return originBlockId;
+    }
+    return pickBrowserPanel(panels, tab?.meta?.[BrowserRecentMetaKey]);
+}
+
+// The palette's "Open in <browser>" (FR-BRW-002): hands the panel's active page off.
+export async function handOffActivePage(originBlockId: string): Promise<void> {
+    const panelId = browserPanelForAction(originBlockId);
+    const model = panelId ? (browserPanelModel(panelId) as BrowserPanelModel & HandOffModel) : null;
+    if (model == null || typeof model.handOffActiveTab !== "function") {
+        return;
+    }
+    await model.handOffActiveTab();
+}
+
+type HandOffModel = { handOffActiveTab: () => Promise<void> };
 
 // Called by a browser panel when it gains focus: the tab remembers it as the target of the next link.
 export function noteBrowserPanelFocus(blockId: string): void {

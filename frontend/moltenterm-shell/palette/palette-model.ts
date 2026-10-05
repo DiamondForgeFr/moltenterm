@@ -25,7 +25,9 @@ export type PaletteRun =
     // The Sessions view (FR-SHELL-020).
     | { kind: "sessions" }
     // Back to the pane the palette was opened from, to type an agent's own command there.
-    | { kind: "focusorigin" };
+    | { kind: "focusorigin" }
+    // The browser panel's active page, handed off to the installed browser (FR-BRW-002).
+    | { kind: "openinbrowser" };
 
 export type PaletteEntry = {
     id: string;

@@ -6,9 +6,12 @@
 
 import { atoms, getApi } from "@/app/store/global";
 import { WorkspaceService } from "@/app/store/services";
+import * as WOS from "@/app/store/wos";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { BrowserEngineModel } from "../browser/browser-engine";
+import { MoltentermBrowserView } from "../browser/browser-model";
 import { effectiveWorkspaceFolder, readRecentFolders, readWorkspaceProject } from "../workspace-project";
 import { isSavedWorkspace } from "../workspace-rail-model";
 import { PalettePlacement, runPaletteEntry } from "./palette-actions";
@@ -86,6 +89,16 @@ function usePaletteEntries() {
             live = false;
         };
     }, [wsId]);
+    const browserList = useAtomValue(BrowserEngineModel.getInstance().listAtom);
+    const tabId = useAtomValue(atoms.staticTabId);
+    const tab = useAtomValue(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", tabId)));
+    useEffect(() => {
+        fireAndForget(() => BrowserEngineModel.getInstance().ensureLoaded());
+    }, []);
+    const installedBrowser = browserList?.chosen ?? null;
+    const hasBrowserPanel = (tab?.blockids ?? []).some(
+        (blockId) => WOS.getObjectValue<Block>(WOS.makeORef("block", blockId))?.meta?.view === MoltentermBrowserView
+    );
     const folder = effectiveWorkspaceFolder(ws);
     const projectLinked = readWorkspaceProject(ws).dir !== "";
     // A fresh array on every render: its content, joined, is what the memo depends on.
@@ -103,8 +116,10 @@ function usePaletteEntries() {
                 workspaces: others.list,
                 home,
                 projectLinked,
+                installedBrowser,
+                hasBrowserPanel,
             }),
-        [fullConfig, wsId, folder, recentKey, others, home, projectLinked]
+        [fullConfig, wsId, folder, recentKey, others, home, projectLinked, installedBrowser, hasBrowserPanel]
     );
     const titles = useMemo(() => paletteGroupTitles(folder, home), [folder, home]);
     return { entries, titles };

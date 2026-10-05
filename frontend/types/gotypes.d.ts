@@ -1437,6 +1437,9 @@ declare global {
         "web:openlinksinternally"?: boolean;
         "web:defaulturl"?: string;
         "web:defaultsearch"?: string;
+        "browser:installed"?: string;
+        "browser:default"?: string;
+        "browser:sites"?: {[key: string]: string};
         "autoupdate:*"?: boolean;
         "autoupdate:enabled"?: boolean;
         "autoupdate:intervalms"?: number;
