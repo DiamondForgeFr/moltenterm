@@ -773,6 +773,9 @@ function registerGlobalKeys() {
     const allKeys = Array.from(globalKeyMap.keys());
     // special case keys, handled by web view
     allKeys.push("Cmd:l", "Cmd:r", "Cmd:ArrowRight", "Cmd:ArrowLeft", "Cmd:o");
+    // MOLTENTERM-PATCH (#210): the browser panel reloads its page ignoring the cache; left to the app menu, a page
+    // with the focus would reload the whole MoltenTerm tab instead.
+    allKeys.push("Cmd:Shift:r");
     getApi().registerGlobalWebviewKeys(allKeys);
 
     const splitBlockKeys = new Map<string, KeyHandler>();

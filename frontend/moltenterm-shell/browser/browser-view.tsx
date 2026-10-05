@@ -41,6 +41,7 @@ import {
     siteEngine,
     siteOf,
 } from "./browser-engine";
+import { BrowserLoadModel, reloadAction, runReload, TabLoad } from "./browser-loading";
 import {
     activateTab,
     addTab,
@@ -96,6 +97,8 @@ export class BrowserViewModel implements ViewModel {
     engines = BrowserEngineModel.getInstance();
     // Sign-in refusals per tab (FR-BRW-003).
     signIn = new BrowserSignInModel();
+    // Load state and favicon per tab (#210).
+    loads = new BrowserLoadModel();
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
@@ -166,6 +169,7 @@ export class BrowserViewModel implements ViewModel {
         }
         this.webviews.delete(id);
         this.signIn.forget(id);
+        this.loads.forget(id);
         const next = page === tab.url ? this.state() : updateTab(this.state(), id, { url: page, title: undefined });
         this.setState(setTabEngine(next, id, route.engine));
     }
@@ -386,6 +390,13 @@ export class BrowserViewModel implements ViewModel {
         return this.webviews.get(this.state().activeId);
     }
 
+    // The Reload button and Cmd+R act on the shown tab: Stop while it loads, else reload (ignoring the cache with
+    // Shift+click or Cmd+Shift+R).
+    reloadActive(ignoreCache: boolean): void {
+        const id = this.state().activeId;
+        runReload(this.webviews.get(id), reloadAction(this.loads.isLoading(id), ignoreCache));
+    }
+
     newTab(url?: string): void {
         const defaultUrl = globalStore.get(getSettingsKeyAtom("web:defaulturl")) || FallbackUrl;
         this.setState(addTab(this.state(), url || defaultUrl));
@@ -434,6 +445,7 @@ export class BrowserViewModel implements ViewModel {
     closeTab(id: string): void {
         this.webviews.delete(id);
         this.signIn.forget(id);
+        this.loads.forget(id);
         this.setState(closeTab(this.state(), id));
     }
 
@@ -454,6 +466,14 @@ export class BrowserViewModel implements ViewModel {
         }
         if (checkKeyPressed(e, "Cmd:w") && this.state().tabs.length > 1) {
             this.closeTab(this.state().activeId);
+            return true;
+        }
+        if (checkKeyPressed(e, "Cmd:Shift:r")) {
+            this.reloadActive(true);
+            return true;
+        }
+        if (checkKeyPressed(e, "Cmd:r")) {
+            this.reloadActive(false);
             return true;
         }
         if (checkKeyPressed(e, "Cmd:l")) {
@@ -514,6 +534,9 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
             model.nodeModel.focusNode();
         };
         const onBlur = () => getApi().setWebviewFocus(null);
+        const onStartLoading = () => model.loads.noteStart(tab.id);
+        const onStopLoading = () => model.loads.noteStop(tab.id);
+        const onFavicon = (e: any) => model.loads.noteFavicons(tab.id, e.favicons);
         // emain/preload.ts routes a page's new window by this attribute; the preload cannot call the element's methods.
         const onDomReady = () => {
             webview.dataset.webcontentsid = String(webview.getWebContentsId());
@@ -527,7 +550,13 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
         webview.addEventListener("blur", onBlur);
         webview.addEventListener("dom-ready", onDomReady);
         webview.addEventListener("context-menu", onContextMenu);
+        webview.addEventListener("did-start-loading", onStartLoading);
+        webview.addEventListener("did-stop-loading", onStopLoading);
+        webview.addEventListener("page-favicon-updated", onFavicon);
         return () => {
+            webview.removeEventListener("did-start-loading", onStartLoading);
+            webview.removeEventListener("did-stop-loading", onStopLoading);
+            webview.removeEventListener("page-favicon-updated", onFavicon);
             webview.removeEventListener("context-menu", onContextMenu);
             webview.removeEventListener("did-navigate", onNavigate);
             webview.removeEventListener("did-navigate-in-page", onNavigate);
@@ -539,6 +568,7 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
             webview.removeEventListener("dom-ready", onDomReady);
             if (model.webviews.get(tab.id) === webview) {
                 model.webviews.delete(tab.id);
+                model.loads.noteStop(tab.id);
             }
         };
     }, [model, tab.id]);
@@ -559,6 +589,7 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
 function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: BrowserState }) {
     const [dragId, setDragId] = useState<string>(null);
     const list = useAtomValue(model.engines.listAtom);
+    const loads = useAtomValue(model.loads.loadsAtom);
     const scrollRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const active = scrollRef.current?.querySelector<HTMLElement>(`[data-tabid="${state.activeId}"]`);
@@ -614,7 +645,9 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                                 aria-label={`Opened in ${engineName(tab.engine, list)}`}
                                 className={cn(browserIconClass(tab.engine), "shrink-0 text-[11px] text-accent")}
                             />
-                        ) : null}
+                        ) : (
+                            <TabIcon load={loads[tab.id]} />
+                        )}
                         <span className={cn("min-w-0 flex-1 truncate", tab.engine && "text-secondary")}>
                             {browserTabTitle(tab) || "New tab"}
                         </span>
@@ -651,6 +684,32 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
             />
             <BrowserPanelButtons model={model} />
         </div>
+    );
+}
+
+// A tab's favicon, or a spinner in the working colour while its page loads.
+function TabIcon({ load }: { load: TabLoad }) {
+    const [broken, setBroken] = useState<string>(null);
+    if (load?.loading) {
+        return (
+            <span
+                role="progressbar"
+                aria-label="Loading"
+                className="molten-browser-tab-spinner h-3 w-3 shrink-0 animate-spin rounded-full border-[1.5px] border-[var(--mt-state-working)] border-t-transparent motion-reduce:animate-none"
+            />
+        );
+    }
+    if (load?.favicon == null || broken === load.favicon) {
+        return <i className="fa fa-solid fa-globe w-3 shrink-0 text-center text-[10px] text-muted" />;
+    }
+    return (
+        <img
+            src={load.favicon}
+            alt=""
+            draggable={false}
+            onError={() => setBroken(load.favicon)}
+            className="h-3 w-3 shrink-0 object-contain"
+        />
     );
 }
 
@@ -691,16 +750,18 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
     const active = state.tabs.find((t) => t.id === state.activeId);
     const [draft, setDraft] = useState(active?.url ?? "");
     const [editing, setEditing] = useState(false);
+    const loads = useAtomValue(model.loads.loadsAtom);
+    const loading = !active?.engine && !!loads[state.activeId]?.loading;
     useEffect(() => {
         if (!editing) {
             setDraft(active?.url ?? "");
         }
     }, [active?.url, active?.id, editing]);
-    const navButton = (icon: string, label: string, run: () => void) => (
+    const navButton = (icon: string, label: string, run: (e: React.MouseEvent) => void, title = label) => (
         <button
             type="button"
             aria-label={label}
-            title={label}
+            title={title}
             onClick={run}
             disabled={!!active?.engine}
             className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary disabled:pointer-events-none disabled:opacity-40"
@@ -709,7 +770,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
         </button>
     );
     return (
-        <div className="flex h-8 shrink-0 items-center gap-1 border-b border-border px-1">
+        <div className="relative flex h-8 shrink-0 items-center gap-1 border-b border-border px-1">
             {navButton(
                 "arrow-left",
                 "Back",
@@ -720,7 +781,14 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 "Forward",
                 () => model.activeWebview()?.canGoForward() && model.activeWebview().goForward()
             )}
-            {navButton("rotate-right", "Reload", () => model.activeWebview()?.reload())}
+            {loading
+                ? navButton("xmark", "Stop", () => model.reloadActive(false), "Stop loading this page")
+                : navButton(
+                      "rotate-right",
+                      "Reload",
+                      (e) => model.reloadActive(e.shiftKey),
+                      "Reload (Cmd+R)\nShift-click or Cmd+Shift+R: reload ignoring the cache"
+                  )}
             <input
                 ref={model.urlInputRef}
                 value={draft}
@@ -749,6 +817,15 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 className="h-6 min-w-0 flex-1 rounded border border-border bg-transparent px-2 text-xs text-primary outline-none focus:border-accent"
             />
             <EngineButton model={model} tab={active} />
+            {loading ? (
+                <div
+                    role="progressbar"
+                    aria-label="Loading the page"
+                    className="molten-browser-progress pointer-events-none absolute inset-x-0 -bottom-px h-0.5 overflow-hidden"
+                >
+                    <div className="molten-browser-progress-bar h-full w-1/3 bg-[var(--mt-state-working)]" />
+                </div>
+            ) : null}
         </div>
     );
 }
