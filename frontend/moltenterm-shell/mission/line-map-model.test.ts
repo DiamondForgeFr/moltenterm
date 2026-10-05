@@ -8,6 +8,7 @@ import {
     buildLineMap,
     DefaultFullLineMapDays,
     DefaultLineMapDays,
+    gitFingerprint,
     lineMapDays,
     mergedBranchName,
     stationKind,
@@ -179,6 +180,71 @@ describe("open branches", () => {
     });
 });
 
+describe("branches already landed", () => {
+    it("drops a squashed branch left undeleted, keeps a follow-up on the same ticket", () => {
+        const git = withTrunk(makeGit(), [c("s", "2026-10-03T10:00:00Z", "feat(#50): thing (#51)")]);
+        const leftover = (name: string, at: string) => ({
+            name,
+            sha: name,
+            date: at,
+            commits: [c(name + "c", at, "feat(#50): thing")],
+            fork: { sha: "d0", date: "2026-10-01T00:00:00Z" },
+        });
+        git.branches.push(leftover("feature/50-thing", "2026-10-02T10:00:00Z"));
+        expect(buildLineMap({ git, now: NOW, days: 21 }).branches.map((b) => b.state)).toEqual(["merged"]);
+        git.branches[2] = leftover("feature/50-thing", "2026-10-04T10:00:00Z");
+        expect(buildLineMap({ git, now: NOW, days: 21 }).branches.map((b) => b.state)).toEqual(["merged", "open"]);
+    });
+
+    it("gives merged branches the first lanes, open ones after", () => {
+        const git = withTrunk(makeGit(), [
+            c("m", "2026-10-03T10:00:00Z", "feat(#60): late", { authordate: "2026-10-02T10:00:00Z" }),
+        ]);
+        git.branches.push({
+            name: "feature/61-old",
+            sha: "o",
+            date: "2026-09-20T00:00:00Z",
+            commits: [c("o", "2026-09-20T00:00:00Z", "feat(#61): old")],
+            fork: { sha: "d0", date: "2026-09-19T00:00:00Z" },
+        });
+        expect(buildLineMap({ git, now: NOW, days: 21 }).branches.map((b) => b.state)).toEqual(["merged", "open"]);
+    });
+
+    it("skips merges of tags, and keeps no fork for a walk that hit its cap", () => {
+        const merge = (sha: string, subject: string, commits: number) => ({
+            sha,
+            date: "2026-10-02T10:00:00Z",
+            subject,
+            fork: null as { sha: string; date: string },
+            commits,
+            firstdate: "2026-06-01T00:00:00Z",
+        });
+        const git = makeGit({
+            merges: [merge("t", "Merge tag 'v1.2' into develop", 3), merge("x", "Merge branch 'feature/9-big'", 150)],
+        });
+        const branches = buildLineMap({ git, now: NOW, days: 21 }).branches;
+        expect(branches.map((b) => [b.name, b.forkKnown])).toEqual([["feature/9-big", false]]);
+    });
+});
+
+describe("the history read", () => {
+    it("says from when the map is complete when the window starts before it", () => {
+        const commits = Array.from({ length: 300 }, (_, i) =>
+            c(`h${i}`, new Date(NOW - i * 3_600_000).toISOString(), "docs: x")
+        );
+        const git = withTrunk(makeGit(), commits);
+        expect(buildLineMap({ git, now: NOW, days: 7 }).historyFrom).toBeNull();
+        expect(buildLineMap({ git, now: NOW, days: 21 }).historyFrom).toBe(NOW - 299 * 3_600_000);
+    });
+
+    it("keys the git answer on what the map draws", () => {
+        const a = makeGit({ tags: [{ name: "v1", sha: "a", date: "2026-10-01T00:00:00Z" }] });
+        const b = { ...a, fetcherror: "offline", current: "x" };
+        expect(gitFingerprint(b)).toBe(gitFingerprint(a));
+        expect(gitFingerprint({ ...a, tags: [] })).not.toBe(gitFingerprint(a));
+    });
+});
+
 describe("stations", () => {
     const tags = [
         { name: "v1.0.0", sha: "t3", date: "2026-10-04T10:00:00Z", notes: "First public" },
@@ -248,6 +314,14 @@ describe("where develop was pushed to main", () => {
             c("copy", "2026-10-04T09:59:00Z", "feat(#2): b", { authordate: "2026-10-02T09:00:00Z" }),
         ];
         expect(stationSource({ sha: "rel", at: at("2026-10-04T10:00:00Z") }, develop, main).sha).toBe("d2");
+    });
+
+    it("never takes a develop commit made after the tag", () => {
+        const main = [
+            c("rel", "2026-10-02T12:00:00Z", "chore(release): v1"),
+            c("copy", "2026-10-02T11:59:00Z", "feat(#3): c", { authordate: "2026-10-03T09:00:00Z" }),
+        ];
+        expect(stationSource({ sha: "rel", at: at("2026-10-02T12:00:00Z") }, develop, main).sha).toBe("d2");
     });
 
     it("falls back on the last develop commit before the tag", () => {

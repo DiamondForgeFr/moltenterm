@@ -20,9 +20,10 @@ const LaneGap = 40;
 // The horizontal room a branch's curve takes to leave or rejoin develop.
 const Curve = 26;
 const MinBranchWidth = 20;
-// Station spacing on main, and between two labels (a slanted two-line label is about this wide).
-export const StationGap = 28;
-export const LabelGap = 28;
+// Station spacing on main, and between two labels: two slanted lines (tag, date) need about 28 px across their
+// slant, which is 28 / sin(55°) ≈ 34 px along main.
+export const StationGap = 34;
+export const LabelGap = 34;
 // Labels are slanted by this angle (degrees, upward to the right).
 export const LabelAngle = 55;
 const LabelSin = Math.sin((LabelAngle * Math.PI) / 180);
@@ -94,6 +95,8 @@ export type LineMapGeometry = {
     stations: GeometryStation[];
     earlier: { x: number; y: number; count: number; label: { x: number; y: number; text: string } };
     commits: (Point & { sha: string })[];
+    // The part of the window before the history read: shaded, with its date.
+    unread: { x1: number; x2: number; label: string };
     head: Point;
     terminus: Point & { r: number; title: string; sub: string; status: string; textX: number };
 };
@@ -358,6 +361,10 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
               }
             : null,
         commits: model.commits.map((c) => ({ x: xOf(c.at), y: devY, sha: c.sha })),
+        unread:
+            model.historyFrom != null
+                ? { x1: Left, x2: xOf(model.historyFrom), label: `history read from ${formatDay(model.historyFrom)}` }
+                : null,
         head: { x: nowX, y: devY },
         terminus: {
             x: termX,
