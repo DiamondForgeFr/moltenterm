@@ -381,6 +381,17 @@ export function ensureHotSpareTab(fullConfig: FullConfigType) {
     }
 }
 
+// MOLTENTERM-PATCH (#199): the spare is a hidden view too, stale after a long sleep; the next ensureHotSpareTab makes
+// a new one
+export function discardHotSpareTab() {
+    if (HotSpareTab == null) {
+        return;
+    }
+    const spare = HotSpareTab;
+    HotSpareTab = null;
+    spare.destroy();
+}
+
 export function getSpareTab(fullConfig: FullConfigType): WaveTabView {
     setTimeout(() => ensureHotSpareTab(fullConfig), 500);
     if (HotSpareTab != null) {
