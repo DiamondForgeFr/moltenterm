@@ -90,8 +90,12 @@ func TestParseShellMark(t *testing.T) {
 func TestAgentLifecycleWithoutSignals(t *testing.T) {
 	h := makeAgentHarness()
 	h.out("b1", cmdMark("claude")+"Welcome to Claude Code")
-	if got := h.state("b1"); got != molten.AgentStateWorking {
-		t.Fatalf("state after start %q", got)
+	if got := h.state("b1"); got != molten.AgentStateIdle {
+		t.Fatalf("an agent that starts sits at its prompt until a signal, got %q", got)
+	}
+	h.states.input("b1", []byte("/clear\r"))
+	if got := h.state("b1"); got != molten.AgentStateIdle {
+		t.Fatalf("Enter alone is no sign of work (/clear ends no turn), got %q", got)
 	}
 	h.out("b1", doneMark(0)+promptMark)
 	if got := h.state("b1"); got != "" {
@@ -139,8 +143,8 @@ func TestAgentSignalsAndInput(t *testing.T) {
 		t.Fatalf("a key without Enter changes nothing, got %q", got)
 	}
 	h.states.input("b1", []byte("\r"))
-	if got := h.state("b1"); got != molten.AgentStateWorking {
-		t.Fatalf("Enter answers, got %q", got)
+	if got := h.state("b1"); got != molten.AgentStateIdle {
+		t.Fatalf("Enter answers: no longer waiting, but not known to work, got %q", got)
 	}
 	// The same signal again within the dedup window: no second notification, but the state follows.
 	h.out("b1", "\x1b]9;Claude needs your permission to use Bash\x07")

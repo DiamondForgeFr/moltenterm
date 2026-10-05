@@ -26,8 +26,10 @@ import (
 // its state. Sources, from the most to the least precise:
 //   - the agent's own hooks, through `molten agent state` (AgentStateSetCommand);
 //   - the attention signals of DS-SHELL-004 (bell, OSC 9, OSC 777): the agent waits for the user, or says it is done;
-//   - the shell integration's command lifecycle (OSC 16162 C, D, A): the agent starts working, exits, fails.
-// Enter typed in a pane whose agent waits (or is done) means the user answered: the agent works again. Nothing is
+//   - the shell integration's command lifecycle (OSC 16162 C, D, A): the agent starts, exits, fails.
+// Working is only ever what a hook reports: an agent that started, or that the user answered, may as well sit at its
+// prompt, and nothing would end a guessed working state (no turn ends after `/clear`). Without a hook it shows idle.
+// Enter typed in a pane whose agent waits (or is done) means the user answered: the dot goes back to idle. Nothing is
 // read from the screen. States live in memory only: a restart starts over, as the agents' processes do.
 
 const (
@@ -220,7 +222,7 @@ func (a *agentStates) applyShellMark(blockId string, mark ShellMark) {
 			return
 		}
 		now := a.now().UnixMilli()
-		a.records[blockId] = &agentRecord{agent: agent, state: molten.AgentStateWorking, since: now, started: now, running: true, source: sourceCommand}
+		a.records[blockId] = &agentRecord{agent: agent, state: molten.AgentStateIdle, since: now, started: now, running: true, source: sourceCommand}
 		a.markDirtyLocked(blockId)
 	case ShellMarkDone:
 		if rec == nil || !rec.running {
@@ -250,7 +252,8 @@ func (a *agentStates) attention(blockId string, signal AttentionSignal) {
 	a.setStateLocked(blockId, rec, molten.AttentionAgentState(signal.Title, signal.Message), "")
 }
 
-// input sees what the user types in a terminal: Enter in a pane whose agent waits is an answer.
+// input sees what the user types in a terminal: Enter in a pane whose agent waits (or is done) is an answer. The
+// agent's UserPromptSubmit hook, if any, reports working right after.
 func (a *agentStates) input(blockId string, data []byte) {
 	if !bytes.ContainsAny(data, "\r\n") {
 		return
@@ -262,8 +265,8 @@ func (a *agentStates) input(blockId string, data []byte) {
 		return
 	}
 	switch rec.state {
-	case molten.AgentStateWaiting, molten.AgentStateDone, molten.AgentStateIdle:
-		a.setStateLocked(blockId, rec, molten.AgentStateWorking, "")
+	case molten.AgentStateWaiting, molten.AgentStateDone:
+		a.setStateLocked(blockId, rec, molten.AgentStateIdle, "")
 	}
 }
 
@@ -343,10 +346,9 @@ func (a *agentStates) forgetRecord(blockId string) {
 }
 
 // processAgent applies what the process tree says of a terminal (procwatch.go). found: the agent running in its
-// foreground, if any. restored: the agent was there before MoltenTerm saw its command start (a restart, a terminal
-// first seen): its state is unknown, idle until a signal. A hook's agent is kept; a command line's guess gives way
-// to the process actually running.
-func (a *agentStates) processAgent(blockId string, found molten.AgentProcess, ok bool, restored bool) {
+// foreground, if any; its state is unknown, idle until a signal. A hook's agent is kept; a command line's guess gives
+// way to the process actually running.
+func (a *agentStates) processAgent(blockId string, found molten.AgentProcess, ok bool) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	rec := a.records[blockId]
@@ -363,18 +365,13 @@ func (a *agentStates) processAgent(blockId string, found molten.AgentProcess, ok
 			rec.pid = found.Pid
 			return
 		}
-		restored = false
 	}
 	now := a.now().UnixMilli()
 	started := found.StartMs
 	if started <= 0 || started > now {
 		started = now
 	}
-	state := molten.AgentStateWorking
-	if restored {
-		state = molten.AgentStateIdle
-	}
-	a.records[blockId] = &agentRecord{agent: found.Agent, state: state, since: now, started: started, running: true, source: sourceProcess, pid: found.Pid}
+	a.records[blockId] = &agentRecord{agent: found.Agent, state: molten.AgentStateIdle, since: now, started: started, running: true, source: sourceProcess, pid: found.Pid}
 	a.markDirtyLocked(blockId)
 }
 

@@ -33,8 +33,6 @@ const (
 	// Terminals due within this window share the pass that runs now.
 	procCoalesce = time.Second
 	procReadArgs = 2 * time.Second
-	// An agent found by a terminal's first look that started less than this before is a new run, not a restored one.
-	procFreshAgent = 5 * time.Second
 	// A block's command that is not running looks again on its output at most this often.
 	procProbeEvery = 5 * time.Second
 )
@@ -64,8 +62,6 @@ type shellWatch struct {
 	since    time.Time
 	// next: when the next pass is due (zero: none).
 	next time.Time
-	// restored: no command start was seen for what runs now.
-	restored bool
 	// marked: the shell integration said a command started; it runs until the integration says it ended.
 	marked bool
 	found  bool
@@ -155,7 +151,7 @@ func (w *procWatcher) shellMark(blockId string, kind string, applyMark func()) {
 		now := w.now()
 		sw.relocate = true
 		sw.gen++
-		sw.running, sw.since, sw.restored, sw.marked = true, now, false, true
+		sw.running, sw.since, sw.marked = true, now, true
 		sw.next = now.Add(procFirstDelay)
 		w.poke()
 	case ShellMarkDone, ShellMarkPrompt:
@@ -188,7 +184,7 @@ func (w *procWatcher) seen(blockId string) {
 	sw.probed = now
 	sw.relocate = true
 	sw.gen++
-	sw.running, sw.since, sw.restored, sw.marked = true, now, true, false
+	sw.running, sw.since, sw.marked = true, now, false
 	sw.next = now.Add(procFirstDelay)
 	w.poke()
 }
@@ -212,7 +208,7 @@ func (w *procWatcher) restore() {
 		if w.shells[shell.BlockId] != nil {
 			continue
 		}
-		w.shells[shell.BlockId] = &shellWatch{shell: shell, located: true, running: true, since: now, next: now, restored: true}
+		w.shells[shell.BlockId] = &shellWatch{shell: shell, located: true, running: true, since: now, next: now}
 	}
 	w.poke()
 }
@@ -222,7 +218,6 @@ type procDue struct {
 	shell    ShellProcess
 	located  bool
 	relocate bool
-	restored bool
 	gen      int64
 	agent    molten.AgentProcess
 }
@@ -248,7 +243,7 @@ func (w *procWatcher) takeDue() []procDue {
 		if sw.next.IsZero() || sw.next.After(limit) {
 			continue
 		}
-		rtn = append(rtn, procDue{blockId: blockId, shell: sw.shell, located: sw.located, relocate: sw.relocate, restored: sw.restored, gen: sw.gen, agent: sw.agent})
+		rtn = append(rtn, procDue{blockId: blockId, shell: sw.shell, located: sw.located, relocate: sw.relocate, gen: sw.gen, agent: sw.agent})
 	}
 	return rtn
 }
@@ -360,8 +355,6 @@ func (w *procWatcher) apply(d procDue, read bool, alive bool, running bool, agen
 	}
 	sw.shell, sw.located = d.shell, d.located
 	sw.relocate = false
-	// An agent that started just before it was first seen is starting up: working, not unknown.
-	restored := sw.restored && !(found && agent.StartMs > sw.since.Add(-procFreshAgent).UnixMilli())
 	sw.found = found
 	sw.agent = molten.AgentProcess{}
 	if found {
@@ -384,11 +377,8 @@ func (w *procWatcher) apply(d procDue, read bool, alive bool, running bool, agen
 	default:
 		sw.next = now.Add(procPeriod(now.Sub(sw.since)))
 	}
-	if found {
-		sw.restored = false
-	}
 	if read {
-		w.agents.processAgent(d.blockId, agent, found, restored)
+		w.agents.processAgent(d.blockId, agent, found)
 	}
 }
 

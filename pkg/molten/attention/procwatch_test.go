@@ -123,7 +123,7 @@ func TestProcWatchRestoresAgents(t *testing.T) {
 		t.Errorf("a bell makes the restored agent wait: %q", got)
 	}
 	h.states.input("b1", []byte("\r"))
-	if got := h.state("b1"); got != molten.AgentStateWorking {
+	if got := h.state("b1"); got != molten.AgentStateIdle {
 		t.Errorf("Enter answers it: %q", got)
 	}
 	// The agent exits: the shell integration says so; without it, the next look does.
@@ -166,7 +166,7 @@ func TestProcWatchFindsAgentsBehindCommands(t *testing.T) {
 	h.args[210] = []string{"/usr/local/bin/node", "/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js"}
 	h.advance(procFirstDelay)
 	run, state, ok := h.record("b1")
-	if !ok || run.Agent != "claude" || state != molten.AgentStateWorking || run.Started != start+50 {
+	if !ok || run.Agent != "claude" || state != molten.AgentStateIdle || run.Started != start+50 {
 		t.Fatalf("agent behind a script: %+v %q %v", run, state, ok)
 	}
 	h.out("b1", doneMark(0)+promptMark)
@@ -254,7 +254,7 @@ func TestProcWatchSourcesPriority(t *testing.T) {
 	h2.setProcs(shellProc(100, 200), childProc(200, 100, 200, "codex", h2.clock.UnixMilli()))
 	h2.out("b1", cmdMark("claude"))
 	h2.advance(procFirstDelay)
-	if run, state, _ := h2.record("b1"); run.Agent != "codex" || state != molten.AgentStateWorking {
+	if run, state, _ := h2.record("b1"); run.Agent != "codex" || state != molten.AgentStateIdle {
 		t.Errorf("the process running wins over the command line: %q %q", run.Agent, state)
 	}
 }
@@ -311,7 +311,7 @@ func TestProcWatchBlockCommand(t *testing.T) {
 	h.out("b1", "Welcome")
 	h.advance(procFirstDelay)
 	run, state, ok := h.record("b1")
-	if !ok || run.Agent != "claude" || state != molten.AgentStateWorking {
+	if !ok || run.Agent != "claude" || state != molten.AgentStateIdle {
 		t.Fatalf("block command: %+v %q %v", run, state, ok)
 	}
 	h.setProcs()
