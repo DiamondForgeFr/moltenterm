@@ -81,11 +81,14 @@ function CardSlot({ card, props }: { card: ProjectCard<ProjectCardProps>; props:
         );
     }
     return (
-        <section className="min-w-0 overflow-visible rounded border border-border bg-panel" data-card={card.id}>
-            <h2 className="border-b border-border px-3 py-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
-                {card.title}
-            </h2>
-            <CardBody card={card} props={props} />
+        <section
+            className="flex min-w-0 flex-col gap-3 overflow-visible rounded-md border border-border bg-panel px-4 py-3.5"
+            data-card={card.id}
+        >
+            <h2 className="text-[11px] font-semibold tracking-[0.14em] text-muted uppercase">{card.title}</h2>
+            <div className="flex min-h-0 flex-1 flex-col">
+                <CardBody card={card} props={props} />
+            </div>
         </section>
     );
 }

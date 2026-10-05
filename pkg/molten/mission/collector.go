@@ -92,6 +92,8 @@ type projectState struct {
 	refreshing bool
 	fetchedAt  time.Time
 	forcedAt   time.Time
+	// Invalidated while a refresh ran: that refresh may have read the repository before the change, so another follows.
+	again bool
 }
 
 type Collector struct {
@@ -265,6 +267,45 @@ func (c *Collector) Cached(dir string) (Snapshot, bool) {
 	return c.snapshotLocked(c.stateLocked(dir)), true
 }
 
+// Invalidate makes the next read of a project re-read its repository and fetch, and starts that read now: a run that
+// ended may have made a commit or a tag (a release candidate cut) that the panels must show without waiting for the
+// minute-long cache to expire. A refresh already running is followed by another one.
+func (c *Collector) Invalidate(dir string) {
+	if checkDir(dir) != nil {
+		return
+	}
+	dir = filepath.Clean(dir)
+	if plan, start := c.prepareInvalidate(dir); start {
+		go c.refresh(dir, plan)
+	}
+}
+
+func (c *Collector) prepareInvalidate(dir string) (refreshPlan, bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	state := c.stateLocked(dir)
+	state.snap.GitAt = 0
+	state.fetchedAt = time.Time{}
+	if state.refreshing {
+		state.again = true
+		return refreshPlan{}, false
+	}
+	return c.startRefreshLocked(state, DefaultMaxAgeSec*time.Second, false)
+}
+
+// takeAgain reports an invalidation that came during the refresh that just ended, and starts the next one.
+func (c *Collector) takeAgain(dir string) (refreshPlan, bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	state := c.stateLocked(dir)
+	if !state.again {
+		return refreshPlan{}, false
+	}
+	state.again = false
+	state.snap.GitAt = 0
+	return c.startRefreshLocked(state, DefaultMaxAgeSec*time.Second, false)
+}
+
 func (c *Collector) refresh(dir string, plan refreshPlan) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -290,6 +331,9 @@ func (c *Collector) refresh(dir string, plan refreshPlan) {
 	c.saveCache(snap)
 	if c.publish != nil {
 		c.publish(snap)
+	}
+	if next, start := c.takeAgain(dir); start {
+		go c.refresh(dir, next)
 	}
 }
 
@@ -365,7 +409,13 @@ func Start() {
 	dataDir := wavebase.GetWaveDataDir()
 	collector := MakeCollector(CacheDir(dataDir), ExecRunner, publishSnapshot)
 	trust := MakeTrustStore(filepath.Join(CacheDir(dataDir), TrustFileName))
-	runs := MakeRuns(RunsDir(dataDir), trust, publishRun)
+	runs := MakeRuns(RunsDir(dataDir), trust, func(rec RunRecord) {
+		publishRun(rec)
+		// A run that ends may have committed or tagged (a release cut): the overview shows it at once.
+		if rec.State != RunStateRunning && !rec.Closed {
+			collector.Invalidate(rec.Dir)
+		}
+	})
 	ci := MakeCi(CiDir(dataDir), trust, ExecRunner, publishCiRun)
 	runs.UseCi(ci)
 	runs.UseNotifier(publishBuildNotice)

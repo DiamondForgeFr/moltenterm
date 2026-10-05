@@ -46,16 +46,71 @@ function StepRow({
     last,
     busy,
     onRun,
+    stacked,
 }: {
     step: { id: string; title: string };
     last: RunRecord;
     busy: boolean;
     onRun: () => void;
+    stacked?: boolean;
 }) {
     const [logMode, setLogMode] = useState<RunLogMode>("auto");
     const running = last?.state === "running";
     const full = logMode === "full";
     const showLog = runLogVisible(last, logMode);
+    const when = last ? timeAgo(new Date(last.startedat).toISOString()) : "";
+    const logButtons = last ? (
+        <>
+            <button type="button" className={PlainButton} onClick={() => setLogMode(full ? "hidden" : "full")}>
+                {full ? "Less" : "Log"}
+            </button>
+            {showLog && !full ? (
+                <button type="button" className={PlainButton} onClick={() => setLogMode("hidden")}>
+                    Hide
+                </button>
+            ) : null}
+        </>
+    ) : null;
+    const runButton = running ? (
+        <button
+            type="button"
+            className={PlainButton}
+            onClick={() => fireAndForget(() => missionCancel(last.dir, last.id))}
+        >
+            Cancel
+        </button>
+    ) : (
+        <button
+            type="button"
+            disabled={busy}
+            onClick={onRun}
+            className="molten-btn cursor-pointer rounded px-2 py-1 text-xs disabled:cursor-default disabled:opacity-50"
+        >
+            Run
+            <MoltenWave />
+        </button>
+    );
+    if (stacked) {
+        return (
+            <div
+                className="flex flex-col gap-1.5 border-b border-border py-2.5 first:pt-0 last:border-b-0 last:pb-0"
+                data-testid={`adapter-step-${step.id}`}
+            >
+                <div className="flex min-w-0 items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-primary" title={step.title}>
+                        {step.title}
+                    </span>
+                    {last ? <RunStateBadge state={last.state} /> : null}
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <span className="min-w-0 flex-1 truncate text-xs text-muted">{last ? when : "Not run yet"}</span>
+                    {logButtons}
+                    {runButton}
+                </div>
+                {showLog ? <LastLines run={last} full={full} /> : null}
+            </div>
+        );
+    }
     return (
         <div className="border-b border-border px-3 py-2 last:border-b-0" data-testid={`adapter-step-${step.id}`}>
             <div className="flex items-center gap-2">
@@ -63,40 +118,11 @@ function StepRow({
                 {last ? (
                     <>
                         <RunStateBadge state={last.state} />
-                        <span className="text-xs text-muted">{timeAgo(new Date(last.startedat).toISOString())}</span>
-                        <button
-                            type="button"
-                            className={PlainButton}
-                            onClick={() => setLogMode(full ? "hidden" : "full")}
-                        >
-                            {full ? "Less" : "Log"}
-                        </button>
-                        {showLog && !full ? (
-                            <button type="button" className={PlainButton} onClick={() => setLogMode("hidden")}>
-                                Hide
-                            </button>
-                        ) : null}
+                        <span className="text-xs text-muted">{when}</span>
+                        {logButtons}
                     </>
                 ) : null}
-                {running ? (
-                    <button
-                        type="button"
-                        className={PlainButton}
-                        onClick={() => fireAndForget(() => missionCancel(last.dir, last.id))}
-                    >
-                        Cancel
-                    </button>
-                ) : (
-                    <button
-                        type="button"
-                        disabled={busy}
-                        onClick={onRun}
-                        className="molten-btn cursor-pointer rounded px-2 py-1 text-xs disabled:cursor-default disabled:opacity-50"
-                    >
-                        Run
-                        <MoltenWave />
-                    </button>
-                )}
+                {runButton}
             </div>
             {showLog ? <LastLines run={last} full={full} /> : null}
         </div>
@@ -116,7 +142,8 @@ export function AdapterSteps({
     pipeline: PipelineDef;
     runs: RunRecord[];
     section: PipelineSection;
-    // Inside a card that already frames and titles it (the Project overview's Project steps card).
+    // Inside a card that already frames and titles it (the Project overview's Project steps card): each step on two
+    // lines, which fits a quarter of the row.
     bare?: boolean;
 }) {
     const { start, prompt, error, clearError } = useStartRun(dir, projectName);
@@ -136,6 +163,7 @@ export function AdapterSteps({
                         last={lastRun(runs, step.id)}
                         busy={anyRunning}
                         onRun={() => start("step", step.id)}
+                        stacked={bare}
                     />
                 ))}
             </div>

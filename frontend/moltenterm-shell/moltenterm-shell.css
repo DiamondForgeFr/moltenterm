@@ -226,3 +226,39 @@
         opacity: 0.7;
     }
 }
+
+/* The Project overview's bars (FR-MC-024): what waits for the next public release, by kind. Fixed colours, like the
+   agent states (#212), so a share reads the same in every workspace: features in the molten orange, fixes a lighter
+   orange, the rest neutral. */
+:root {
+    --mt-chart-features: var(--mt-state-working);
+    --mt-chart-fixes: color-mix(in srgb, var(--mt-state-working) 50%, rgb(255, 230, 205));
+    --mt-chart-rest: color-mix(in srgb, var(--mt-text-muted) 75%, transparent);
+}
+
+/* A bar grows from its start once, when it appears, then follows its value. Only the start is a keyframe: without the
+   animation the bar simply stands at its width. */
+.molten-bar {
+    transform-origin: left center;
+    animation: mt-bar-grow 0.9s cubic-bezier(0.6, 0.05, 0.3, 1) both;
+    transition: width 0.6s ease-out;
+}
+
+@keyframes mt-bar-grow {
+    from {
+        transform: scaleX(0);
+    }
+}
+
+/* NFR-MC-004: the system preference and Wave's own window:reducedmotion setting (the app root's class). */
+.prefers-reduced-motion .molten-bar {
+    animation: none;
+    transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .molten-bar {
+        animation: none;
+        transition: none;
+    }
+}

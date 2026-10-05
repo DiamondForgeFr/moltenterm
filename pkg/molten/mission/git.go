@@ -26,6 +26,10 @@ const maxSincePublic = 500
 const defaultTagPrefix = "v"
 const defaultNotesPath = "releases/{tag}.md"
 
+// Only the newest tags have their notes looked up in git when the checkout lacks the file: one git call each, and the
+// overview shows the last ones.
+const notesFromTagLimit = 6
+
 type Commit struct {
 	Sha     string `json:"sha"`
 	Date    string `json:"date"`
@@ -227,8 +231,9 @@ func (g *gitReader) trunkBranch(name string, ref string) Branch {
 var tagNotesSafe = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)
 
 // readNotes reads a tag's notes where the project keeps them; internal reads the internal notes beside them
-// (releases/v1.2.0.internal.md beside releases/v1.2.0.md).
-func (g *gitReader) readNotes(tag string, internal bool) string {
+// (releases/v1.2.0.internal.md beside releases/v1.2.0.md). fromTag also looks in the tag's own tree when the checkout
+// does not hold the file: a cut prepared and tagged in a release worktree reaches the trunk only once carried back.
+func (g *gitReader) readNotes(tag string, internal bool, fromTag bool) string {
 	if !tagNotesSafe.MatchString(tag) {
 		return ""
 	}
@@ -237,15 +242,26 @@ func (g *gitReader) readNotes(tag string, internal bool) string {
 		ext := filepath.Ext(path)
 		path = strings.TrimSuffix(path, ext) + ".internal" + ext
 	}
-	path = filepath.Join(g.dir, path)
-	if !strings.HasPrefix(path, filepath.Clean(g.dir)+string(filepath.Separator)) {
+	full := filepath.Join(g.dir, path)
+	if !strings.HasPrefix(full, filepath.Clean(g.dir)+string(filepath.Separator)) {
 		return ""
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(full)
+	if err == nil {
+		return string(data)
+	}
+	if !fromTag {
+		return ""
+	}
+	rel, err := filepath.Rel(g.dir, full)
 	if err != nil {
 		return ""
 	}
-	return string(data)
+	out, err := g.run(g.ctx, g.dir, "git", "show", "refs/tags/"+tag+":"+filepath.ToSlash(rel))
+	if err != nil {
+		return ""
+	}
+	return string(out)
 }
 
 func (g *gitReader) tags() []Tag {
@@ -259,12 +275,13 @@ func (g *gitReader) tags() []Tag {
 		if parts[2] != "" {
 			sha = parts[2]
 		}
+		fromTag := len(tags) < notesFromTagLimit
 		tags = append(tags, Tag{
 			Name:          parts[0],
 			Sha:           sha,
 			Date:          parts[3],
-			Notes:         g.readNotes(parts[0], false),
-			NotesInternal: g.readNotes(parts[0], true),
+			Notes:         g.readNotes(parts[0], false, fromTag),
+			NotesInternal: g.readNotes(parts[0], true, fromTag),
 		})
 	}
 	return tags
