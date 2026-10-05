@@ -419,7 +419,7 @@ func (g *gitReader) merges(baseRef string, trunk []Commit) []Merge {
 		return rtn
 	}
 	graph := map[string]historyNode{}
-	for _, line := range g.lines("log", "--format=%H%x09%aI%x09%P", "-n", strconv.Itoa(mergeLogLimit), baseRef) {
+	for _, line := range g.lines("log", "--format=%H%x09%aI%x09%P", "-n", strconv.Itoa(mergeLogLimit), "--end-of-options", baseRef) {
 		parts := strings.SplitN(line, "\t", 3)
 		if len(parts) < 3 {
 			continue

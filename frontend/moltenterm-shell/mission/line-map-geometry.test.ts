@@ -68,6 +68,7 @@ function model(over: Partial<LineMapModel> = {}): LineMapModel {
         earlier: [],
         terminus: { version: "1.0.0", tag: "v1.0.0", how: "decision", reason: "", waiting: 3 },
         github: "",
+        historyFrom: null,
         ...over,
     };
 }
@@ -243,6 +244,15 @@ describe("branches", () => {
 });
 
 describe("degraded projects", () => {
+    it("shades the part of a long window before the history read", () => {
+        const geo = layoutLineMap(model({ days: 90, start: NOW - 90 * Day, historyFrom: NOW - 30 * Day }), {
+            width: 1400,
+        });
+        expect(geo.unread.x1).toBe(geo.left);
+        expect(geo.unread.x2).toBeGreaterThan(geo.left);
+        expect(geo.unread.label).toMatch(/^history read from /);
+    });
+
     it("draws one line for a single-branch project, stations on it", () => {
         const geo = layoutLineMap(model({ release: null, stations: [station("v1.0.0", NOW - Day, "public")] }), {
             width: 1000,

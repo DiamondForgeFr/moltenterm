@@ -11,7 +11,7 @@
 
 import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { checkWebUrl } from "../project/project-model";
 import { ciVerdictView } from "../status-bar-model";
 import { CiBranch } from "./ci-model";
@@ -21,10 +21,12 @@ import {
     buildLineMap,
     commitUrl,
     FullLineMapDayChoices,
+    gitFingerprint,
     LineMapCommit,
     LineMapDayChoices,
     LineMapModel,
     LineMapStation,
+    prsFingerprint,
 } from "./line-map-model";
 import { useLineMapDays } from "./line-map-store";
 import { MenuPopover } from "./menu-popover";
@@ -59,6 +61,8 @@ const Styles = `
 .lm-st { fill: var(--color-background); stroke: var(--color-primary); stroke-width: 2.5; }
 .lm-st-public { stroke: var(--color-accent); stroke-width: 3.5; }
 .lm-earlier { fill: var(--color-background); stroke: var(--color-muted); stroke-width: 2; stroke-dasharray: 3 2; }
+.lm-unread { fill: var(--color-hover); }
+.lm-stlabel, .lm-brlabel, .lm-livelabel, .lm-ticktxt { paint-order: stroke; stroke: var(--color-background); stroke-width: 3px; stroke-linejoin: round; }
 .lm-stlabel { font-size: 11px; font-weight: 500; fill: var(--color-primary); }
 .lm-stlabel-latest { fill: var(--color-accent); }
 .lm-stdate { font-size: 10px; font-weight: 400; fill: var(--color-muted); }
@@ -392,29 +396,44 @@ export type LineMapProps = {
     onFullSize?: () => void;
 };
 
+// The same value as last render when its key did not change: every snapshot event decodes new objects, and the map
+// should only be rebuilt when what it draws changed.
+function useStable<T>(value: T, key: string): T {
+    const last = useRef<{ key: string; value: T }>(null);
+    if (last.current == null || last.current.key !== key) {
+        last.current = { key, value };
+    }
+    return last.current.value;
+}
+
 export function LineMap({ dir, snapshot, ciBranches, ciRunning, full = false, onFullSize }: LineMapProps) {
     const [days, setDays] = useLineMapDays(dir, full);
     const box = useRef<HTMLDivElement>(null);
     const width = useWidth(box);
     const [hover, setHover] = useState<{ item: MapItem; anchor: Element }>(null);
     const hideTimer = useRef<number>(null);
-    const git = snapshot?.git;
-    const github = snapshot?.github;
+    const git = useStable(snapshot?.git, gitFingerprint(snapshot?.git));
+    const prs = useStable(snapshot?.github?.prs, prsFingerprint(snapshot?.github?.prs));
+    const releases = useStable(
+        snapshot?.github?.releases,
+        (snapshot?.github?.releases ?? []).map((r) => `${r.tagName}:${r.isDraft}`).join(",")
+    );
+    const ci = useStable(ciBranches, (ciBranches ?? []).map((b) => `${b.name}:${b.verdict}`).join(","));
     // "now" follows each new read of the project, not the clock: the map holds still between refreshes.
     const now = useMemo(() => Date.now(), [git, days]);
     const model = useMemo(
-        () =>
-            git
-                ? buildLineMap({
-                      git,
-                      prs: github?.prs,
-                      ciBranches,
-                      releases: github?.releases,
-                      now,
-                      days,
-                  })
-                : null,
-        [git, github?.prs, github?.releases, ciBranches, now, days]
+        () => (git ? buildLineMap({ git, prs, ciBranches: ci, releases, now, days }) : null),
+        [git, prs, releases, ci, now, days]
+    );
+    // A detail opened on a mark the new data no longer has would float detached, with old figures.
+    useEffect(() => setHover(null), [model]);
+    useEffect(
+        () => () => {
+            if (hideTimer.current != null) {
+                window.clearTimeout(hideTimer.current);
+            }
+        },
+        []
     );
     const geo = useMemo(
         () => (model && width > 0 ? layoutLineMap(model, { width, full }) : null),
@@ -451,35 +470,39 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, full = false, on
         [keep]
     );
 
-    const open = (url: string) => {
-        if (!url || !checkWebUrl(url)) {
-            return;
-        }
-        fireAndForget(() => openLink(url));
-    };
-    const hit = (item: MapItem) => {
-        const url = model ? itemUrl(item, model) : null;
-        return {
-            tabIndex: 0,
-            role: url ? "link" : "button",
-            "aria-label": model ? itemLabel(item, model) : undefined,
-            className: cn("lm-hit", url && "cursor-pointer"),
-            onPointerEnter: (e: React.PointerEvent<SVGGElement>) => show(item, e.currentTarget),
-            onPointerLeave: hideSoon,
-            onFocus: (e: React.FocusEvent<SVGGElement>) => show(item, e.currentTarget),
-            onBlur: hideSoon,
-            onClick: () => open(url),
-            onKeyDown: (e: React.KeyboardEvent<SVGGElement>) => {
-                if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    open(url);
+    // Stable while the model is: hovering re-renders the frame and the detail, never the map itself.
+    const hit = useCallback(
+        (item: MapItem): React.SVGProps<SVGGElement> => {
+            const url = model ? itemUrl(item, model) : null;
+            const open = () => {
+                if (!url || !checkWebUrl(url)) {
+                    return;
                 }
-                if (e.key === "Escape") {
-                    setHover(null);
-                }
-            },
-        };
-    };
+                fireAndForget(() => openLink(url));
+            };
+            return {
+                tabIndex: 0,
+                role: url ? "link" : "button",
+                "aria-label": model ? itemLabel(item, model) : undefined,
+                className: cn("lm-hit", url && "cursor-pointer"),
+                onPointerEnter: (e: React.PointerEvent<SVGGElement>) => show(item, e.currentTarget),
+                onPointerLeave: hideSoon,
+                onFocus: (e: React.FocusEvent<SVGGElement>) => show(item, e.currentTarget),
+                onBlur: hideSoon,
+                onClick: open,
+                onKeyDown: (e: React.KeyboardEvent<SVGGElement>) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        open();
+                    }
+                    if (e.key === "Escape") {
+                        setHover(null);
+                    }
+                },
+            };
+        },
+        [model, show, hideSoon]
+    );
 
     const choices = full ? FullLineMapDayChoices : LineMapDayChoices;
     return (
@@ -582,7 +605,7 @@ function BranchMark({ g, hit }: { g: GeometryBranch; hit: HitProps }) {
     );
 }
 
-function MapSvg({
+const MapSvg = memo(function MapSvg({
     geo,
     model,
     ciRunning,
@@ -605,6 +628,20 @@ function MapSvg({
             data-ci={trunkCi}
             data-single={geo.single ? "true" : undefined}
         >
+            {geo.unread ? (
+                <g data-testid="line-map-unread">
+                    <rect
+                        className="lm-unread"
+                        x={geo.unread.x1}
+                        y={geo.tickTop}
+                        width={Math.max(0, geo.unread.x2 - geo.unread.x1)}
+                        height={geo.tickBottom - geo.tickTop}
+                    />
+                    <text className="lm-ticktxt" x={geo.unread.x1 + 6} y={geo.tickBottom - 6}>
+                        {geo.unread.label}
+                    </text>
+                </g>
+            ) : null}
             {geo.ticks.map((t) => (
                 <g key={`${t.x}-${t.label}`}>
                     <line className="lm-tick" x1={t.x} x2={t.x} y1={geo.tickTop} y2={geo.tickBottom} />
@@ -648,7 +685,6 @@ function MapSvg({
             {geo.commits.map((c, i) => (
                 <g key={c.sha} {...hit({ kind: "commit", commit: model.commits[i] })} tabIndex={-1}>
                     <circle className="lm-hitdot" cx={c.x} cy={c.y} r={6} />
-                    <circle className="lm-focus" cx={c.x} cy={c.y} r={5} />
                     <circle className="lm-commit" cx={c.x} cy={c.y} r={1.8} />
                 </g>
             ))}
@@ -701,4 +737,5 @@ function MapSvg({
             </g>
         </svg>
     );
-}
+});
+MapSvg.displayName = "MapSvg";

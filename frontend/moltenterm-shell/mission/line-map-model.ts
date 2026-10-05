@@ -28,6 +28,9 @@ const DirectGap = 60_000;
 const SourceSearchDepth = 50;
 // The collector reads at most this many commits of an open branch (branchLogLimit in pkg/molten/mission/git.go).
 export const BranchCommitsRead = 150;
+// must match maxMergeCommits and trunkLogLimit in pkg/molten/mission/git.go
+const MergeCommitsRead = 150;
+export const TrunkCommitsRead = 300;
 
 export const DefaultLineMapDays = 21;
 export const DefaultFullLineMapDays = 60;
@@ -97,6 +100,9 @@ export type LineMapModel = {
     earlier: LineMapStation[];
     terminus: LineMapTerminus;
     github: string;
+    // When the window starts before the oldest develop commit the collector read (it reads a bounded history), the
+    // date from which the map is complete; null when it is complete over the whole window.
+    historyFrom: number;
 };
 
 export type LineMapInput = {
@@ -291,14 +297,15 @@ function mergeBranches(
             continue;
         }
         const parsed = mergedBranchName(m.subject);
-        // A back-merge of the long-lived branches (main into develop) is no branch of work.
-        if (parsed.name === git.release || parsed.name === git.trunk) {
+        // A back-merge of the long-lived branches (main into develop) or of a tag is no branch of work.
+        if (parsed.name === git.release || parsed.name === git.trunk || /^Merge tag /.test(m.subject)) {
             continue;
         }
         const name = parsed.name ?? m.subject;
         const ticket = branchTicket(name);
         const forkAt = time(m.fork?.date);
-        const firstAt = time(m.firstdate);
+        // A walk that stopped at its cap never reached develop: its first commit is not where the branch began.
+        const firstAt = m.commits < MergeCommitsRead ? time(m.firstdate) : NaN;
         const fork = Number.isFinite(forkAt) ? forkAt : firstAt;
         const forkKnown = Number.isFinite(fork) && fork < merge;
         rtn.push({
@@ -351,7 +358,7 @@ function openBranches(input: LineMapInput, links: ReturnType<typeof githubLinks>
             pr: row.pr,
             prNumber: row.pr?.number ?? null,
             ci: row.ci,
-            url: row.pr?.url && /^https:\/\//.test(row.pr.url) ? row.pr.url : links.issue(ticket),
+            url: links.pull(row.pr?.number) ?? links.issue(ticket),
         });
     }
     return rtn;
@@ -374,36 +381,48 @@ export function stationKind(name: string, rules: VersionRules): StationKind {
 // The develop commit pushed to main for a tag: the tag commit itself when develop has it, else, down main's history
 // from the tag, the first commit develop has, merged from develop (second parent), or copied from develop by a
 // rebase or a cherry-pick (same subject and author date). Failing all, the last develop commit before the tag.
-export function stationSource(
-    tag: { sha: string; at: number },
+// A develop commit committed after the tag cannot be what the tag shipped (a fix picked back from main, say).
+export function makeSourceFinder(
     trunk: readonly RawCommit[],
     release: readonly RawCommit[]
-): RawCommit {
+): (tag: { sha: string; at: number }) => RawCommit {
     const onTrunk = new Map(trunk.map((c) => [c.sha, c]));
-    const exact = onTrunk.get(tag.sha);
-    if (exact) {
-        return exact;
-    }
     const copies = new Map<string, RawCommit>();
     for (const c of trunk) {
         if (c.authordate) {
             copies.set(`${c.subject}\u0000${c.authordate}`, c);
         }
     }
-    const from = release.findIndex((c) => c.sha === tag.sha);
-    if (from >= 0) {
-        for (let i = from; i < Math.min(release.length, from + SourceSearchDepth); i++) {
-            const c = release[i];
-            const hit =
-                onTrunk.get(c.sha) ??
-                (c.parents?.length > 1 ? onTrunk.get(c.parents[1]) : null) ??
-                (c.authordate ? copies.get(`${c.subject}\u0000${c.authordate}`) : null);
-            if (hit) {
-                return hit;
+    const releaseIndex = new Map(release.map((c, i) => [c.sha, i]));
+    return (tag) => {
+        const before = (c: RawCommit) => (c != null && time(c.date) <= tag.at + DirectGap ? c : null);
+        const exact = onTrunk.get(tag.sha);
+        if (exact) {
+            return exact;
+        }
+        const from = releaseIndex.get(tag.sha);
+        if (from != null) {
+            for (let i = from; i < Math.min(release.length, from + SourceSearchDepth); i++) {
+                const c = release[i];
+                const hit =
+                    before(onTrunk.get(c.sha)) ??
+                    (c.parents?.length > 1 ? before(onTrunk.get(c.parents[1])) : null) ??
+                    (c.authordate ? before(copies.get(`${c.subject}\u0000${c.authordate}`)) : null);
+                if (hit) {
+                    return hit;
+                }
             }
         }
-    }
-    return trunk.find((c) => time(c.date) <= tag.at) ?? null;
+        return trunk.find((c) => time(c.date) <= tag.at) ?? null;
+    };
+}
+
+export function stationSource(
+    tag: { sha: string; at: number },
+    trunk: readonly RawCommit[],
+    release: readonly RawCommit[]
+): RawCommit {
+    return makeSourceFinder(trunk, release)(tag);
 }
 
 export function buildLineMap(input: LineMapInput): LineMapModel {
@@ -420,8 +439,21 @@ export function buildLineMap(input: LineMapInput): LineMapModel {
     const known = knownNames(git, input.prs);
     const inferred = inferBranches(trunkCommits, start, now, known, links);
     const merged = [...inferred.branches, ...mergeBranches(git, start, now, links)];
-    const opened = openBranches(input, links);
-    const branches = [...merged, ...opened].sort((a, b) => a.fork - b.fork || a.id.localeCompare(b.id));
+    // A branch squashed or rebased into develop and not deleted still holds commits develop lacks (their shas changed):
+    // its ticket landed after its last commit, so it is the merged branch already drawn, not work in progress.
+    const landed = new Map<string, number>();
+    for (const b of merged) {
+        if (b.ticket) {
+            landed.set(b.ticket, Math.max(landed.get(b.ticket) ?? -Infinity, b.merge));
+        }
+    }
+    const opened = openBranches(input, links).filter(
+        (b) => !(b.ticket && landed.get(b.ticket) >= Math.max(...b.commits.map((c) => c.at).filter(Number.isFinite)))
+    );
+    // Merged branches take the lanes first: an open branch holds its lane up to now, and a forgotten one would
+    // otherwise push the window's merges past the lane cap.
+    const byFork = (a: LineMapBranch, b: LineMapBranch) => a.fork - b.fork || a.id.localeCompare(b.id);
+    const branches = [...merged.sort(byFork), ...opened.sort(byFork)];
 
     const commits = trunkCommits
         .filter((c) => !inferred.direct.has(c.sha) && (c.parents?.length ?? 1) <= 1)
@@ -432,13 +464,15 @@ export function buildLineMap(input: LineMapInput): LineMapModel {
     const rules = treeRules(tree);
     const released = new Set((input.releases ?? []).filter((r) => !r.isDraft).map((r) => r.tagName));
     const all: LineMapStation[] = [];
+    const findSource = single ? null : makeSourceFinder(trunkCommits, releaseCommits);
     for (const tag of tree.tags) {
         const kind = stationKind(tag.name, rules);
         const at = time(tag.date);
         if (kind == null || !Number.isFinite(at)) {
             continue;
         }
-        const source = single ? null : stationSource({ sha: tag.sha, at }, trunkCommits, releaseCommits);
+        // Only the window's stations draw a connector; the earlier ones are listed, not drawn.
+        const source = findSource && at >= start ? findSource({ sha: tag.sha, at }) : null;
         all.push({
             name: tag.name,
             sha: tag.sha,
@@ -469,6 +503,7 @@ export function buildLineMap(input: LineMapInput): LineMapModel {
     };
 
     const headCommit = trunkCommits[0];
+    const oldestRead = trunkCommits.length >= TrunkCommitsRead ? time(trunkCommits[trunkCommits.length - 1].date) : NaN;
     return {
         start,
         now,
@@ -482,7 +517,45 @@ export function buildLineMap(input: LineMapInput): LineMapModel {
         earlier,
         terminus,
         github,
+        historyFrom: oldestRead > start ? oldestRead : null,
     };
+}
+
+// What of the collector's answer the map draws, as a key: equal keys draw the same map, so a snapshot that only
+// changed elsewhere (refreshing, GitHub's runs) rebuilds nothing.
+export function gitFingerprint(git: MissionGit): string {
+    if (git == null) {
+        return "";
+    }
+    const branches = (git.branches ?? []).map(
+        (b) => `${b.name}@${b.sha}:${b.commits?.length ?? 0}:${b.fork?.sha ?? ""}`
+    );
+    const tags = (git.tags ?? []).map((t) => `${t.name}@${t.sha}:${t.date}:${(t.notes ?? "").length}`);
+    const merges = (git.merges ?? []).map((m) => m.sha);
+    return [
+        git.trunk,
+        git.release,
+        git.remoteurl ?? "",
+        git.tagprefix ?? "",
+        git.firstpublic ?? "",
+        git.lastpublic ?? "",
+        `${git.ahead?.length ?? 0}:${git.ahead?.[0]?.sha ?? ""}`,
+        `${git.sincepublic?.length ?? 0}:${git.sincepublic?.[0]?.sha ?? ""}`,
+        branches.join(","),
+        tags.join(","),
+        merges.join(","),
+    ].join("|");
+}
+
+export function prsFingerprint(prs: readonly PullRequest[]): string {
+    return (prs ?? [])
+        .map((p) => {
+            const checks = (p.statusCheckRollup ?? [])
+                .map((c) => `${c.status ?? ""}${c.conclusion ?? ""}${c.state ?? ""}`)
+                .join("");
+            return `${p.headRefName}#${p.number}:${p.isDraft}:${p.mergeStateStatus ?? ""}:${checks}`;
+        })
+        .join(",");
 }
 
 export function commitUrl(model: LineMapModel, sha: string): string {
