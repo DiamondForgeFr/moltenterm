@@ -8,6 +8,7 @@ import {
     actionEntries,
     agentCopyEntries,
     agentEntries,
+    browserEntries,
     buildPaletteEntries,
     folderEntries,
     paletteGroupTitles,
@@ -207,5 +208,19 @@ describe("helpers", () => {
         });
         const groups = new Set(entries.map((e) => e.group));
         expect([...groups]).toEqual(["agents", "panels", "folders", "actions"]);
+    });
+});
+
+describe("browserEntries (FR-BRW-002)", () => {
+    it("offers Open in <browser> only with an installed browser and a browser panel in the tab", () => {
+        expect(browserEntries(null, true)).toEqual([]);
+        expect(browserEntries({ id: "brave", name: "Brave" }, false)).toEqual([]);
+        const [entry] = browserEntries({ id: "brave", name: "Brave" }, true);
+        expect(entry.label).toBe("Open in Brave");
+        expect(entry.cli).toBe("molten open <url> --browser brave");
+        expect(entry.run).toEqual({ kind: "openinbrowser" });
+        expect(browserEntries({ id: "custom", name: "Thorium" }, true)[0].cli).toBe(
+            "molten open <url> --browser installed"
+        );
     });
 });

@@ -125,6 +125,10 @@ func webOpenRun(cmd *cobra.Command, args []string) (rtnErr error) {
 
 	// MOLTENTERM-PATCH (#140): a new tab of the tab's browser panel, unless --new, --replace or --magnified
 	if !webOpenNew && replaceBlockORef == nil && !webOpenMagnified {
+		// MOLTENTERM-PATCH (#206): a site set to the installed browser opens there (FR-BRW-002)
+		if handOffBySite(tabId, args[0]) {
+			return nil
+		}
 		panelId, err := openInBrowserPanel(tabId, args[0])
 		if err != nil {
 			return err

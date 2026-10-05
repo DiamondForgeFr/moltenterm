@@ -52,6 +52,13 @@ func BrowserOpenRequestMeta(id string, url string) waveobj.MetaMapType {
 	return waveobj.MetaMapType{BrowserOpenKeyPrefix + id: url}
 }
 
+// BrowserHandoffRequestMeta returns the block meta update that adds a handed-off entry to a browser panel (FR-BRW-002):
+// a page already opened in the installed browser engine (a browser id), kept in the tab strip. The panel reads an
+// object instead of the plain url of BrowserOpenRequestMeta.
+func BrowserHandoffRequestMeta(id string, url string, engine string) waveobj.MetaMapType {
+	return waveobj.MetaMapType{BrowserOpenKeyPrefix + id: map[string]any{"url": url, "engine": engine}}
+}
+
 // BrowserBlockMeta returns the meta of a block opened in the browser panel instead of Wave's web view, and whether it
 // differs from blockMeta (which is never modified). The panel opens meta "url" as its single tab when it has no saved
 // tabs, so every other key is kept as is.

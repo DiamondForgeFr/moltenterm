@@ -41,6 +41,9 @@ export type PaletteSourceInput = {
     home: string;
     // The workspace is linked to a project (FR-MC-001): its Project tab can be opened.
     projectLinked?: boolean;
+    // The installed browser pages are handed off to (FR-BRW-002), and whether the tab has a browser panel.
+    installedBrowser?: { id: string; name: string };
+    hasBrowserPanel?: boolean;
 };
 
 function str(value: unknown): string {
@@ -277,6 +280,25 @@ export function agentCopyEntries(): PaletteEntry[] {
     }));
 }
 
+// "Open in <browser>" (FR-BRW-002), when a Chromium browser is installed and the tab has a browser panel.
+export function browserEntries(browser: { id: string; name: string }, hasBrowserPanel: boolean): PaletteEntry[] {
+    if (browser == null || !hasBrowserPanel) {
+        return [];
+    }
+    return [
+        {
+            id: "action:openinbrowser",
+            group: "actions",
+            label: `Open in ${browser.name}`,
+            detail: "the browser panel's page, with your sessions and extensions",
+            icon: "arrow-up-right-from-square",
+            cli: `molten open <url> --browser ${browser.id === "custom" ? "installed" : browser.id}`,
+            keywords: ["browser", "web", "hand off", "external", browser.id],
+            run: { kind: "openinbrowser" },
+        },
+    ];
+}
+
 export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
     const folders = recentFolderList(input.folder, input.recentFolders, input.otherFolders);
     return [
@@ -284,6 +306,7 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
         ...panelEntries(input.widgets, input.workspaceId),
         ...folderEntries(folders, input.home),
         ...actionEntries(input.workspaces, input.projectLinked),
+        ...browserEntries(input.installedBrowser, input.hasBrowserPanel),
         ...agentCopyEntries(),
     ];
 }

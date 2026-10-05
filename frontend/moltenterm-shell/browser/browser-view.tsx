@@ -10,6 +10,7 @@
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { OptMagnifyButton } from "@/app/block/blockutil";
+import { Button } from "@/app/element/button";
 import { IconButton } from "@/app/element/iconbutton";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { getApi, getSettingsKeyAtom, refocusNode } from "@/app/store/global";
@@ -26,18 +27,36 @@ import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import {
+    browserActivate,
+    BrowserEngineModel,
+    browserIconClass,
+    browserOpen,
+    BrowserRoute,
+    browserSetSite,
+    EngineApp,
+    EngineInstalled,
+    engineName,
+    fallbackNotice,
+    fallbackReason,
+    siteEngine,
+    siteOf,
+} from "./browser-engine";
+import {
     activateTab,
     addTab,
     browserMeta,
+    BrowserNoticeMetaKey,
     BrowserState,
     BrowserTab,
     browserTabTitle,
     closeTab,
     consumeOpenRequestsMeta,
+    makeTabId,
     MoltentermBrowserView,
     moveTab,
     readBrowserState,
     readOpenRequests,
+    setTabEngine,
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
@@ -70,6 +89,9 @@ export class BrowserViewModel implements ViewModel {
     persistTimer: ReturnType<typeof setTimeout> = null;
     blockAtom: Atom<Block>;
     handledOpenIds = new Set<string>();
+    // Why a page meant for the installed browser opened here instead (FR-BRW-002).
+    noticeAtom = atom(null) as PrimitiveAtom<string>;
+    engines = BrowserEngineModel.getInstance();
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
@@ -77,6 +99,214 @@ export class BrowserViewModel implements ViewModel {
         this.layoutNode = nodeModel as Partial<NodeModel>;
         this.blockAtom = makeBlockAtom(blockId);
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
+        this.takeInitialNotice();
+        fireAndForget(() => this.engines.ensureLoaded());
+    }
+
+    // A panel created for a page that could not go to the installed browser carries the reason once.
+    takeInitialNotice(): void {
+        const notice = globalStore.get(this.blockAtom)?.meta?.[BrowserNoticeMetaKey];
+        if (typeof notice !== "string" || notice === "") {
+            return;
+        }
+        globalStore.set(this.noticeAtom, notice);
+        fireAndForget(() =>
+            RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: makeORef("block", this.blockId),
+                meta: { [BrowserNoticeMetaKey]: null } as MetaType,
+            })
+        );
+    }
+
+    showNotice(text: string): void {
+        if (text) {
+            globalStore.set(this.noticeAtom, text);
+        }
+    }
+
+    dismissNotice(): void {
+        globalStore.set(this.noticeAtom, null);
+    }
+
+    findTab(id: string): BrowserTab {
+        return this.state().tabs.find((t) => t.id === id);
+    }
+
+    // A page already opened in the installed browser, kept in the tab strip without taking the panel over.
+    addHandoffEntry(url: string, engine: string): void {
+        this.setState(addTab(this.state(), url, makeTabId, { engine, activate: false }));
+    }
+
+    // A browser call that failed outright (wavesrv unreachable) reads like a fallback.
+    async askBrowser(call: () => Promise<BrowserRoute>): Promise<BrowserRoute> {
+        try {
+            return await call();
+        } catch (e) {
+            return { engine: EngineApp, fallback: `the installed browser could not be reached (${e})` };
+        }
+    }
+
+    // "Open in <browser>": the tab becomes a handed-off entry; on a fallback it stays here and the panel says why.
+    async handOffTab(id: string, engine = EngineInstalled): Promise<void> {
+        const tab = this.findTab(id);
+        if (tab == null || tab.engine) {
+            return;
+        }
+        const route = await this.askBrowser(() => browserOpen(tab.url, engine));
+        if (route.engine === EngineApp) {
+            this.showNotice(fallbackNotice(route));
+            return;
+        }
+        this.webviews.delete(id);
+        this.setState(setTabEngine(this.state(), id, route.engine));
+    }
+
+    async handOffActiveTab(): Promise<void> {
+        await this.handOffTab(this.state().activeId);
+    }
+
+    // A link sent to the installed browser from the page's menu: a new handed-off entry, or a tab here on a fallback.
+    async handOffLink(url: string): Promise<void> {
+        const route = await this.askBrowser(() => browserOpen(url, EngineInstalled));
+        if (route.engine === EngineApp) {
+            this.newTab(url);
+            this.showNotice(fallbackNotice(route));
+            return;
+        }
+        this.addHandoffEntry(url, route.engine);
+    }
+
+    // A page's new window (window.open, target=_blank): a new tab, unless its site is set to the installed browser.
+    openLink(url: string): void {
+        if (!this.engines.needsRouting(url)) {
+            this.newTab(url);
+            return;
+        }
+        fireAndForget(async () => {
+            const route = await this.askBrowser(() => browserOpen(url));
+            if (route.engine !== EngineApp) {
+                this.addHandoffEntry(url, route.engine);
+                return;
+            }
+            this.newTab(url);
+            this.showNotice(fallbackNotice(route));
+        });
+    }
+
+    // Clicking a handed-off entry brings its browser to the front (on Linux, opens the page there again).
+    bringForward(id: string): void {
+        const tab = this.findTab(id);
+        if (!tab?.engine) {
+            return;
+        }
+        fireAndForget(async () => {
+            const route = await this.askBrowser(() => browserActivate(tab.engine, tab.url));
+            if (route.engine === EngineApp) {
+                this.showNotice(fallbackReason(route));
+            }
+        });
+    }
+
+    reopenInBrowser(id: string, url?: string): void {
+        const tab = this.findTab(id);
+        if (!tab?.engine) {
+            return;
+        }
+        const page = url || tab.url;
+        fireAndForget(async () => {
+            const route = await this.askBrowser(() => browserOpen(page, tab.engine));
+            if (route.engine === EngineApp) {
+                this.openHere(id, page);
+                this.showNotice(fallbackNotice(route));
+                return;
+            }
+            this.setState(updateTab(this.state(), id, { url: page }));
+        });
+    }
+
+    openHere(id: string, url?: string): void {
+        let next = setTabEngine(this.state(), id, EngineApp);
+        if (url) {
+            next = updateTab(next, id, { url });
+        }
+        this.setState(activateTab(next, id));
+    }
+
+    // The per-site choice for the page (FR-BRW-002): "always in <browser>" records the page's site; turning it off
+    // removes the entry that matched, which may be a parent domain.
+    toggleSiteChoice(url: string): void {
+        const sites = globalStore.get(getSettingsKeyAtom("browser:sites"));
+        const current = siteEngine(sites, url);
+        const chosen = this.engines.chosen();
+        fireAndForget(async () => {
+            try {
+                if (current.engine !== "" && current.engine !== EngineApp) {
+                    await browserSetSite(current.site, "");
+                    return;
+                }
+                const site = siteOf(url);
+                if (site == null || chosen == null) {
+                    return;
+                }
+                await browserSetSite(site, chosen.id === "custom" ? EngineInstalled : chosen.id);
+            } catch (e) {
+                this.showNotice(`The site choice could not be saved: ${e}`);
+            }
+        });
+    }
+
+    showEngineMenu(e: React.MouseEvent, tab: BrowserTab): void {
+        const list = globalStore.get(this.engines.listAtom);
+        const chosen = list?.chosen;
+        if (tab == null || chosen == null) {
+            return;
+        }
+        const name = tab.engine ? engineName(tab.engine, list) : chosen.name;
+        const sites = globalStore.get(getSettingsKeyAtom("browser:sites"));
+        const routed = siteEngine(sites, tab.url);
+        const site = routed.site || siteOf(tab.url);
+        const menu: ContextMenuItem[] = tab.engine
+            ? [
+                  { label: `Bring ${name} Forward`, click: () => this.bringForward(tab.id) },
+                  { label: `Reopen in ${name}`, click: () => this.reopenInBrowser(tab.id) },
+                  { label: "Open in MoltenTerm", click: () => this.openHere(tab.id) },
+              ]
+            : [{ label: `Open in ${name}`, click: () => fireAndForget(() => this.handOffTab(tab.id)) }];
+        if (site != null) {
+            const always = routed.engine !== "" && routed.engine !== EngineApp;
+            menu.push(
+                { type: "separator" },
+                {
+                    label: `Always Open ${site} in ${always ? engineName(routed.engine, list) : chosen.name}`,
+                    type: "checkbox",
+                    checked: always,
+                    click: () => {
+                        this.toggleSiteChoice(tab.url);
+                        if (!always && !tab.engine) {
+                            fireAndForget(() => this.handOffTab(tab.id));
+                        }
+                    },
+                }
+            );
+        }
+        ContextMenuModel.getInstance().showContextMenu(menu, e);
+    }
+
+    showLinkMenu(url: string): void {
+        const chosen = this.engines.chosen();
+        const menu: ContextMenuItem[] = [{ label: "Open Link in New Tab", click: () => this.newTab(url) }];
+        if (chosen != null && siteOf(url) != null) {
+            menu.push({
+                label: `Open Link in ${chosen.name}`,
+                click: () => fireAndForget(() => this.handOffLink(url)),
+            });
+        }
+        menu.push(
+            { type: "separator" },
+            { label: "Copy Link Address", click: () => fireAndForget(() => navigator.clipboard.writeText(url)) }
+        );
+        // The webview's event carries no React event: the menu opens at the pointer anyway.
+        ContextMenuModel.getInstance().showContextMenu(menu, { stopPropagation: () => {} } as React.MouseEvent);
     }
 
     initialState(): BrowserState {
@@ -170,6 +400,10 @@ export class BrowserViewModel implements ViewModel {
         const fresh = requests.filter((r) => !this.handledOpenIds.has(r.id));
         for (const request of fresh) {
             this.handledOpenIds.add(request.id);
+            if (request.engine) {
+                this.addHandoffEntry(request.url, request.engine);
+                continue;
+            }
             this.newTab(request.url);
         }
         fireAndForget(() =>
@@ -248,7 +482,13 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
             e.preventDefault?.();
             const url = e.detail?.url;
             if (url) {
-                model.newTab(url);
+                model.openLink(url);
+            }
+        };
+        const onContextMenu = (e: any) => {
+            const linkUrl = e.params?.linkURL;
+            if (linkUrl) {
+                model.showLinkMenu(linkUrl);
             }
         };
         const onFocus = () => {
@@ -267,7 +507,9 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
         webview.addEventListener("focus", onFocus);
         webview.addEventListener("blur", onBlur);
         webview.addEventListener("dom-ready", onDomReady);
+        webview.addEventListener("context-menu", onContextMenu);
         return () => {
+            webview.removeEventListener("context-menu", onContextMenu);
             webview.removeEventListener("did-navigate", onNavigate);
             webview.removeEventListener("did-navigate-in-page", onNavigate);
             webview.removeEventListener("page-title-updated", onTitle);
@@ -296,6 +538,7 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
 
 function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: BrowserState }) {
     const [dragId, setDragId] = useState<string>(null);
+    const list = useAtomValue(model.engines.listAtom);
     const scrollRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const active = scrollRef.current?.querySelector<HTMLElement>(`[data-tabid="${state.activeId}"]`);
@@ -326,15 +569,19 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                             }
                             setDragId(null);
                         }}
-                        onClick={() => model.setState(activateTab(model.state(), tab.id))}
+                        onClick={() => {
+                            model.setState(activateTab(model.state(), tab.id));
+                            model.bringForward(tab.id);
+                        }}
                         onAuxClick={(e) => {
                             if (e.button === 1) {
                                 e.preventDefault();
                                 model.closeTab(tab.id);
                             }
                         }}
-                        title={tab.url}
+                        title={tab.engine ? `${tab.url}\nOpened in ${engineName(tab.engine, list)}` : tab.url}
                         data-tabid={tab.id}
+                        data-engine={tab.engine ?? EngineApp}
                         className={cn(
                             "molten-browser-tab group flex h-7 min-w-[72px] flex-[0_1_200px] cursor-pointer items-center gap-1 rounded-t border border-b-0 px-2 text-xs",
                             tab.id === state.activeId
@@ -342,7 +589,15 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                                 : "border-transparent text-secondary hover:bg-hover/50"
                         )}
                     >
-                        <span className="min-w-0 flex-1 truncate">{browserTabTitle(tab) || "New tab"}</span>
+                        {tab.engine ? (
+                            <i
+                                aria-label={`Opened in ${engineName(tab.engine, list)}`}
+                                className={cn(browserIconClass(tab.engine), "shrink-0 text-[11px] text-accent")}
+                            />
+                        ) : null}
+                        <span className={cn("min-w-0 flex-1 truncate", tab.engine && "text-secondary")}>
+                            {browserTabTitle(tab) || "New tab"}
+                        </span>
                         {state.tabs.length > 1 ? (
                             <button
                                 type="button"
@@ -427,7 +682,8 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
             aria-label={label}
             title={label}
             onClick={run}
-            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary"
+            disabled={!!active?.engine}
+            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary disabled:pointer-events-none disabled:opacity-40"
         >
             <i className={`fa fa-solid fa-${icon} text-xs`} />
         </button>
@@ -462,7 +718,9 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                         return;
                     }
                     const url = toBrowserUrl(draft);
-                    if (url != null) {
+                    if (url != null && active?.engine) {
+                        model.reopenInBrowser(active.id, url);
+                    } else if (url != null) {
                         model.activeWebview()?.loadURL(url);
                         model.setState(updateTab(model.state(), state.activeId, { url }));
                     }
@@ -470,6 +728,113 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 }}
                 className="h-6 min-w-0 flex-1 rounded border border-border bg-transparent px-2 text-xs text-primary outline-none focus:border-accent"
             />
+            <EngineButton model={model} tab={active} />
+        </div>
+    );
+}
+
+// "Open in <browser>" (FR-BRW-002): one click hands the page off; the caret holds the per-site choice. Hidden when no
+// Chromium browser is installed, and on a handed-off entry, whose page offers the way back.
+function EngineButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+    const list = useAtomValue(model.engines.listAtom);
+    const sites = useAtomValue(getSettingsKeyAtom("browser:sites"));
+    const chosen = list?.chosen;
+    if (chosen == null || tab == null || siteOf(tab.url) == null) {
+        return null;
+    }
+    const routed = siteEngine(sites, tab.url);
+    const always = routed.engine !== "" && routed.engine !== EngineApp;
+    const label = tab.engine ? "Open in MoltenTerm" : `Open in ${chosen.name}`;
+    return (
+        <div className="molten-browser-engine flex h-6 shrink-0 items-center rounded border border-border text-xs text-secondary">
+            <button
+                type="button"
+                title={
+                    tab.engine
+                        ? "Show this page in MoltenTerm's panel"
+                        : `Open this page in ${chosen.name}, with your sessions and extensions`
+                }
+                onClick={() => (tab.engine ? model.openHere(tab.id) : fireAndForget(() => model.handOffTab(tab.id)))}
+                className="flex h-full cursor-pointer items-center gap-1.5 rounded-l px-2 hover:bg-hover hover:text-primary"
+            >
+                <i
+                    className={cn(
+                        tab.engine ? "fa-solid fa-window-maximize" : browserIconClass(chosen.id),
+                        "text-[11px]",
+                        always && !tab.engine && "text-accent"
+                    )}
+                />
+                <span className="whitespace-nowrap">{label}</span>
+            </button>
+            <button
+                type="button"
+                aria-label="Browser options"
+                title={always ? `${routed.site} always opens in ${engineName(routed.engine, list)}` : "Browser options"}
+                onClick={(e) => model.showEngineMenu(e, tab)}
+                className="flex h-full cursor-pointer items-center rounded-r border-l border-border px-1.5 hover:bg-hover hover:text-primary"
+            >
+                <i className="fa fa-solid fa-chevron-down text-[9px]" />
+            </button>
+        </div>
+    );
+}
+
+function BrowserNotice({ model }: { model: BrowserViewModel }) {
+    const notice = useAtomValue(model.noticeAtom);
+    if (!notice) {
+        return null;
+    }
+    return (
+        <div
+            role="status"
+            className="molten-browser-notice flex shrink-0 items-center gap-2 border-b border-border px-2 py-1 text-xs text-secondary"
+        >
+            <i className="fa fa-solid fa-circle-info shrink-0 text-[var(--mt-state-waiting)]" />
+            <span className="min-w-0 flex-1">{notice}</span>
+            <button
+                type="button"
+                aria-label="Dismiss"
+                onClick={() => model.dismissNotice()}
+                className="shrink-0 cursor-pointer rounded px-1 text-secondary hover:bg-hover hover:text-primary"
+            >
+                <i className="fa fa-solid fa-xmark text-[10px]" />
+            </button>
+        </div>
+    );
+}
+
+// What a handed-off entry shows: the page lives in the installed browser, with the ways back.
+function HandoffPage({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+    const list = useAtomValue(model.engines.listAtom);
+    const sites = useAtomValue(getSettingsKeyAtom("browser:sites"));
+    const name = engineName(tab.engine, list);
+    const routed = siteEngine(sites, tab.url);
+    const always = routed.engine !== "" && routed.engine !== EngineApp;
+    return (
+        <div className="molten-browser-handoff absolute inset-0 flex items-center justify-center overflow-auto p-6">
+            <div className="flex max-w-[460px] flex-col items-center gap-3 text-center">
+                <i className={cn(browserIconClass(tab.engine), "text-3xl text-accent")} />
+                <div className="text-sm text-primary">Opened in {name}</div>
+                {tab.title ? <div className="max-w-full truncate text-xs text-primary">{tab.title}</div> : null}
+                <div className="max-w-full truncate text-xs text-secondary" title={tab.url}>
+                    {tab.url}
+                </div>
+                <div className="text-xs text-muted">
+                    {name} keeps your sessions, passwords and extensions for this page.
+                    {always ? ` ${routed.site} always opens there.` : ""}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+                    <Button className="!h-7 !px-3 !text-xs" onClick={() => model.bringForward(tab.id)}>
+                        Bring {name} forward
+                    </Button>
+                    <Button className="outlined grey !h-7 !px-3 !text-xs" onClick={() => model.reopenInBrowser(tab.id)}>
+                        Reopen the page
+                    </Button>
+                    <Button className="ghost grey !h-7 !px-3 !text-xs" onClick={() => model.openHere(tab.id)}>
+                        Open in MoltenTerm
+                    </Button>
+                </div>
+            </div>
         </div>
     );
 }
@@ -478,7 +843,13 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const state = useAtomValue(model.stateAtom);
     const block = useAtomValue(model.blockAtom);
     const isFocused = useAtomValue(model.nodeModel.isFocused);
+    const installedSetting = useAtomValue(getSettingsKeyAtom("browser:installed"));
+    const defaultSetting = useAtomValue(getSettingsKeyAtom("browser:default"));
+    const sitesSetting = useAtomValue(getSettingsKeyAtom("browser:sites"));
     const blockMeta = block?.meta;
+    useEffect(() => {
+        fireAndForget(() => model.engines.ensureLoaded());
+    }, [model, installedSetting, defaultSetting, sitesSetting]);
     useEffect(() => {
         model.handleOpenRequests(blockMeta);
     }, [model, blockMeta]);
@@ -491,10 +862,17 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
         <div className="molten-browser flex h-full w-full flex-col">
             <BrowserTabStrip model={model} state={state} />
             <BrowserNavBar model={model} state={state} />
+            <BrowserNotice model={model} />
             <div className="relative min-h-0 flex-1">
-                {state.tabs.map((tab) => (
-                    <TabWebview key={tab.id} model={model} tab={tab} active={tab.id === state.activeId} />
-                ))}
+                {state.tabs.map((tab) =>
+                    tab.engine ? (
+                        tab.id === state.activeId ? (
+                            <HandoffPage key={tab.id} model={model} tab={tab} />
+                        ) : null
+                    ) : (
+                        <TabWebview key={tab.id} model={model} tab={tab} active={tab.id === state.activeId} />
+                    )
+                )}
             </div>
         </div>
     );

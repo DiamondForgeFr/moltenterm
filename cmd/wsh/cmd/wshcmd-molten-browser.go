@@ -20,6 +20,12 @@ import (
 
 // openInBrowserPanel returns the panel the page was sent to, or "" when the tab has none (the caller creates one).
 func openInBrowserPanel(tabId string, url string) (string, error) {
+	return queueInBrowserPanel(tabId, func(id string) waveobj.MetaMapType { return molten.BrowserOpenRequestMeta(id, url) })
+}
+
+// queueInBrowserPanel writes the request meta (a page, or a handed-off entry) into the panel the user last focused in
+// the tab; "" when the tab has no browser panel.
+func queueInBrowserPanel(tabId string, requestMeta func(id string) waveobj.MetaMapType) (string, error) {
 	if RpcContext.BlockId == "" {
 		return "", nil
 	}
@@ -52,7 +58,7 @@ func openInBrowserPanel(tabId string, url string) (string, error) {
 	}
 	err = wshclient.SetMetaCommand(RpcClient, wshrpc.CommandSetMetaData{
 		ORef: waveobj.MakeORef(waveobj.OType_Block, target),
-		Meta: molten.BrowserOpenRequestMeta(requestId.String(), url),
+		Meta: requestMeta(requestId.String()),
 	}, nil)
 	if err != nil {
 		return "", fmt.Errorf("opening the page in browser panel %s: %w", target, err)

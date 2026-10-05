@@ -129,6 +129,11 @@ type SettingsType struct {
 	WebDefaultUrl          string `json:"web:defaulturl,omitempty"`
 	WebDefaultSearch       string `json:"web:defaultsearch,omitempty"`
 
+	// MOLTENTERM-PATCH (#206): pages handed off to the user's installed Chromium browser (FR-BRW-002, pkg/molten/browsers).
+	BrowserInstalled string            `json:"browser:installed,omitempty" jsonschema_description:"The installed Chromium browser pages are handed off to: brave, chrome, edge, arc, vivaldi, opera, chromium, or the path of its app bundle (macOS) or desktop entry (Linux); empty uses the first one found"`
+	BrowserDefault   string            `json:"browser:default,omitempty" jsonschema_description:"Where web pages open by default: app (MoltenTerm's browser panel) installed (the installed browser) or a browser id"`
+	BrowserSites     map[string]string `json:"browser:sites,omitempty" jsonschema_description:"Per-site engine, host (subdomains included) to app, installed or a browser id"`
+
 	AutoUpdateClear         bool    `json:"autoupdate:*,omitempty"`
 	AutoUpdateEnabled       bool    `json:"autoupdate:enabled,omitempty"`
 	AutoUpdateIntervalMs    float64 `json:"autoupdate:intervalms,omitempty"`
