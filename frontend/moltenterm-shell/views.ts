@@ -7,6 +7,7 @@ import { MoltentermOnboardingView, OnboardingViewModel } from "../moltenterm-onb
 import { BrowserViewModel, MoltentermBrowserView } from "./browser/browser-view";
 import { CompanionViewModel, MoltentermCompanionView } from "./companion/companion-view";
 import { CicdViewModel, MoltentermCicdView } from "./mission/cicd-view";
+import { LineMapViewModel, MoltentermLineMapView } from "./mission/line-map-view";
 import { LegacyTimelineView, MoltentermProjectView } from "./project/project-model";
 import { ProjectViewModel } from "./project/project-view";
 import { MoltentermSessionsView, SessionsViewModel } from "./sessions/sessions-view";
@@ -17,6 +18,7 @@ export function registerMoltentermViews(registry: Map<string, ViewModelClass>) {
     registry.set(LegacyTimelineView, ProjectViewModel);
     registry.set(MoltentermCicdView, CicdViewModel);
     registry.set(MoltentermCompanionView, CompanionViewModel);
+    registry.set(MoltentermLineMapView, LineMapViewModel);
     registry.set(MoltentermProjectView, ProjectViewModel);
     registry.set(MoltentermOnboardingView, OnboardingViewModel);
     registry.set(MoltentermSessionsView, SessionsViewModel);

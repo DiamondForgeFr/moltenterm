@@ -8,7 +8,6 @@
 import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useMemo } from "react";
-import { formatWhen, timeAgo } from "./branch-tree";
 import {
     CheckState,
     describeCron,
@@ -23,7 +22,8 @@ import {
 } from "./github";
 import { githubStateMessage, MissionGit, MissionGithub, PipelineReport, RunRecord } from "./mission-model";
 import { RecentBuilds } from "./runs-view";
-import { isPrereleaseTag } from "./tree";
+import { formatWhen, timeAgo } from "./time-format";
+import { isPrereleaseTag } from "./versions";
 
 const ToneClasses: Record<CheckState, string> = {
     success: "border-success/40 bg-success/10 text-success",
