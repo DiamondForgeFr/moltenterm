@@ -198,14 +198,21 @@ describe("branches", () => {
         expect(assignLanes(items, 3)).toEqual([0, 1, 2, -1]);
     });
 
-    it("counts the branches past the cap and keeps where the merged ones landed", () => {
+    it("keeps where merged branches past the cap landed, without a count", () => {
         const many = Array.from({ length: 8 }, (_, i) => branch(`b${i}`, NOW - 10 * Day, NOW - Day));
         const geo = layoutLineMap(model({ branches: many }), { width: 1400 });
         expect(geo.branches).toHaveLength(OverviewMaxLanes);
-        expect(geo.hidden.count).toBe(3);
-        expect(geo.hidden.landings).toHaveLength(3);
-        expect(geo.hidden.landings[0].y).toBe(geo.devY);
-        expect(layoutLineMap(model({ branches: many.slice(0, 2) }), { width: 1400 }).hidden).toBeNull();
+        expect(geo.landings).toHaveLength(3);
+        expect(geo.landings[0].y).toBe(geo.devY);
+        expect(geo.hidden).toBeNull();
+    });
+
+    it("counts the open branches past the cap, calmly, with their list", () => {
+        const open = Array.from({ length: 8 }, (_, i) => branch(`o${i}`, NOW - 3 * Day, null, "open"));
+        const geo = layoutLineMap(model({ branches: open }), { width: 1400 });
+        expect(geo.hidden.text).toBe("+3 open branches");
+        expect(geo.hidden.branches.map((b) => b.name)).toEqual(["o5", "o6", "o7"]);
+        expect(geo.hidden.x).toBeGreaterThan(geo.nowX);
     });
 
     it("leaves develop at the fork and rejoins it at the merge", () => {
@@ -248,6 +255,34 @@ describe("branches", () => {
         expect(geo.lanes).toBe(OverviewMaxLanes);
         const one = layoutLineMap(model({ branches: many.slice(0, 1) }), { width: 1400 });
         expect(geo.height).toBeGreaterThan(one.height);
+    });
+});
+
+describe("work landed on develop", () => {
+    const commit = (i: number, at: number) => ({
+        sha: `c${i}`,
+        at,
+        date: new Date(at).toISOString(),
+        subject: `feat(#${i}): x`,
+    });
+
+    it("draws one tick per commit while they have room", () => {
+        const commits = Array.from({ length: 20 }, (_, i) => commit(i, NOW - (i + 1) * 3_600_000 * 20));
+        const geo = layoutLineMap(model({ commits }), { width: 1400 });
+        expect(geo.landed.mode).toBe("commits");
+        expect(geo.landed.marks).toHaveLength(20);
+        expect(geo.landed.marks[0].y).toBe(geo.devY);
+    });
+
+    it("draws one mark per day when they would crowd, taller on busy days", () => {
+        const commits = Array.from({ length: 300 }, (_, i) => commit(i, NOW - 2 * Day - (i % 3) * Day - i * 1000));
+        const geo = layoutLineMap(model({ commits }), { width: 1000 });
+        expect(geo.landed.mode).toBe("days");
+        expect(geo.landed.marks.length).toBeLessThanOrEqual(4);
+        expect(geo.landed.marks.reduce((n, m) => n + m.commits.length, 0)).toBe(300);
+        const heights = geo.landed.marks.map((m) => m.h);
+        expect(Math.max(...heights)).toBeLessThanOrEqual(18);
+        expect(Math.min(...heights)).toBeGreaterThanOrEqual(6);
     });
 });
 
@@ -347,8 +382,9 @@ describe("cost", () => {
         runs.sort((a, b) => a - b);
         const median = runs[3];
         console.log(`line map data + geometry, 300 commits / 40 open branches: median ${median.toFixed(2)} ms`);
-        // 60 tickets landed on develop, 40 open branches: every one drawn or counted.
-        expect(out.branches.length + (out.hidden?.count ?? 0)).toBe(100);
+        // 40 open branches drawn or counted, the 300 commits of develop all on its marks.
+        expect(out.branches.length + (out.hidden?.branches.length ?? 0)).toBe(40);
+        expect(out.landed.marks.reduce((n, m) => n + m.commits.length, 0)).toBe(300);
         expect(out.stations.length).toBe(20);
         expect(median).toBeLessThan(100);
     });

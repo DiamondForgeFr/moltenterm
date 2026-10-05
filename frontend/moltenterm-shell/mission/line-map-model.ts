@@ -6,11 +6,10 @@
 // and the next public release ahead. Computed from what the collector returns; a pure function, tested without the
 // app. line-map-geometry.ts turns it into pixels.
 //
-// Merged branches come from two sources. A project that merges with merge commits has them in git.merges (wavesrv
-// walked each merge back to its fork). A project that rebases or squashes keeps no trace of its branches in git:
-// they are inferred from develop's own history, where each run of commits on one ticket stands for one branch (a
-// rebase may land several tickets at once, interleaved), which left develop when its first commit was written (a
-// rebase keeps author dates).
+// Only real branches are drawn as branches: the open ones, and on a project that merges with merge commits, the ones
+// git.merges found (wavesrv walked each merge back to its fork). A project that rebases or squashes keeps no trace
+// of its branches in git, and an active one lands hundreds of tickets in three weeks: its landed work is shown on
+// develop itself, as its commits (one tick each, or a mark per day when they are too dense).
 
 import { BranchPr, projectBranchRows } from "../project/project-model";
 import { channelOfTag, DefaultTagPrefix, parseVersion, VersionRules } from "../releases/versions";
@@ -20,10 +19,8 @@ import { MissionGit, RawCommit, toTreeData } from "./mission-model";
 import { isPrereleaseTag, readableSubject, releaseState, treeRules } from "./versions";
 
 const Day = 86_400_000;
-// Commits a single merge or rebase lands are committed within this of each other.
-const BurstGap = 120_000;
-// A ticket's commits written this close to their landing were committed on develop itself, not on a branch.
-const DirectGap = 60_000;
+// A tag commit and its develop source may be a few seconds apart (one script cuts both).
+const SourceSlack = 60_000;
 // Open branches drawn before the merged ones, the most recently touched.
 const OpenFirst = 2;
 // How far down main's history a tag's develop commit is looked for.
@@ -52,7 +49,7 @@ export type LineMapBranch = {
     // When it rejoined develop; null while open.
     merge: number;
     mergeSha: string;
-    // Its own commits when known (inferred branches, open ones), newest first; count holds the number either way.
+    // Its own commits when known (open branches), newest first; count holds the number either way.
     commits: LineMapCommit[];
     count: number;
     // The count stops at what the collector reads.
@@ -94,7 +91,7 @@ export type LineMapModel = {
     // null in a single-branch project: everything happens on the trunk.
     release: string;
     head: LineMapCommit;
-    // develop's own commits in the window, outside any branch.
+    // develop's own commits in the window, merge commits aside: the work that landed, oldest first.
     commits: LineMapCommit[];
     branches: LineMapBranch[];
     stations: LineMapStation[];
@@ -152,74 +149,6 @@ export function branchTicket(name: string): string {
     return /(?:^|\/)(\d+)(?:[-_]|$)/.exec(name ?? "")?.[1] ?? null;
 }
 
-// A squash merge's subject ends with its pull request: "feat(#12): thing (#34)".
-function squashPr(subject: string): number {
-    const m = /\(#(\d+)\)\s*$/.exec(subject ?? "");
-    return m ? Number(m[1]) : null;
-}
-
-function subjectType(subject: string): string {
-    return /^([a-z]+)(?:\([^)]*\))?!?:/.exec(subject ?? "")?.[1] ?? "";
-}
-
-// The name an inferred branch gets: the real one when a branch or an open pull request still carries the ticket,
-// else the project's naming (feature/N, fix/N), else the ticket alone.
-function inferredName(ticket: string, commits: readonly RawCommit[], known: ReadonlyMap<string, string>): string {
-    const real = known.get(ticket);
-    if (real) {
-        return real;
-    }
-    const types = commits.map((c) => subjectType(c.subject));
-    if (types.includes("feat")) {
-        return `feature/${ticket}`;
-    }
-    if (types.includes("fix")) {
-        return `fix/${ticket}`;
-    }
-    return `#${ticket}`;
-}
-
-function knownNames(git: MissionGit, prs: readonly PullRequest[]): Map<string, string> {
-    const rtn = new Map<string, string>();
-    const names = [...(prs ?? []).map((p) => p.headRefName), ...(git.branches ?? []).map((b) => b.name)];
-    for (const name of names) {
-        const ticket = branchTicket(name);
-        if (ticket && !rtn.has(ticket) && name !== git.trunk && name !== git.release) {
-            rtn.set(ticket, name);
-        }
-    }
-    return rtn;
-}
-
-// develop's commits (oldest first) grouped by ticket: a commit joins its ticket's latest group when it follows it
-// directly, or when both landed together (one rebase interleaves tickets). A commit without a ticket, or a merge
-// commit (its branch is in git.merges), breaks the run. So one ticket landed commit by commit stays one branch, and
-// a ticket coming back later is a new one.
-function ticketGroups(commits: readonly RawCommit[]): { ticket: string; commits: RawCommit[] }[] {
-    const rtn: { ticket: string; commits: RawCommit[]; last: number }[] = [];
-    const latest = new Map<string, (typeof rtn)[number]>();
-    let previous: string = null;
-    for (const c of commits) {
-        const ticket = (c.parents?.length ?? 1) > 1 ? null : readableSubject(c.subject).ticket;
-        if (!ticket) {
-            previous = null;
-            continue;
-        }
-        const at = time(c.date);
-        const group = latest.get(ticket);
-        if (group && (previous === ticket || Math.abs(at - group.last) <= BurstGap)) {
-            group.commits.push(c);
-            group.last = at;
-        } else {
-            const fresh = { ticket, commits: [c], last: at };
-            rtn.push(fresh);
-            latest.set(ticket, fresh);
-        }
-        previous = ticket;
-    }
-    return rtn;
-}
-
 function githubLinks(github: string) {
     return {
         commit: (sha: string) => (github && sha ? `${github}/commit/${sha}` : null),
@@ -228,51 +157,6 @@ function githubLinks(github: string) {
         tag: (name: string, released: boolean) =>
             github ? `${github}/${released ? "releases/tag" : "tree"}/${enc(name)}` : null,
     };
-}
-
-// The branches develop's own history shows, for a project without merge commits.
-function inferBranches(
-    trunk: readonly RawCommit[],
-    start: number,
-    now: number,
-    known: ReadonlyMap<string, string>,
-    links: ReturnType<typeof githubLinks>
-): { branches: LineMapBranch[]; inBranch: Set<string> } {
-    const branches: LineMapBranch[] = [];
-    const inBranch = new Set<string>();
-    const oldestFirst = trunk.filter((c) => time(c.date) >= start && time(c.date) <= now + Day).reverse();
-    for (const { ticket, commits } of ticketGroups(oldestFirst)) {
-        const landed = commits[commits.length - 1];
-        const merge = time(landed.date);
-        const written = Math.min(...commits.map((c) => time(c.authordate || c.date)).filter(Number.isFinite));
-        const pr = squashPr(landed.subject);
-        if (!(merge - written > DirectGap) && pr == null) {
-            continue;
-        }
-        const forkKnown = merge - written > DirectGap;
-        for (const c of commits) {
-            inBranch.add(c.sha);
-        }
-        const newestFirst = [...commits].reverse();
-        branches.push({
-            id: `merged:${landed.sha}`,
-            name: inferredName(ticket, commits, known),
-            ticket,
-            state: "merged",
-            fork: forkKnown ? written : merge,
-            forkKnown,
-            merge,
-            mergeSha: landed.sha,
-            commits: newestFirst.map(toCommit),
-            count: commits.length,
-            countCapped: false,
-            pr: null,
-            prNumber: pr,
-            ci: null,
-            url: links.pull(pr) ?? links.issue(ticket) ?? links.commit(landed.sha),
-        });
-    }
-    return { branches, inBranch };
 }
 
 function mergeBranches(
@@ -386,7 +270,7 @@ export function makeSourceFinder(
     }
     const releaseIndex = new Map(release.map((c, i) => [c.sha, i]));
     return (tag) => {
-        const before = (c: RawCommit) => (c != null && time(c.date) <= tag.at + DirectGap ? c : null);
+        const before = (c: RawCommit) => (c != null && time(c.date) <= tag.at + SourceSlack ? c : null);
         const exact = onTrunk.get(tag.sha);
         if (exact) {
             return exact;
@@ -425,14 +309,22 @@ export function buildLineMap(input: LineMapInput): LineMapModel {
     const named = (name: string) => (git.branches ?? []).find((b) => b.name === name);
     const trunkCommits = named(git.trunk)?.commits ?? [];
     const releaseCommits = single ? [] : (named(git.release)?.commits ?? []);
-    // Both sources together: a project that merges with merge commits may still rebase now and then, and a commit made
-    // on develop itself is never taken for a branch (its author and commit dates meet).
-    const known = knownNames(git, input.prs);
-    const inferred = inferBranches(trunkCommits, start, now, known, links);
-    const merged = [...inferred.branches, ...mergeBranches(git, start, now, links)];
+    const commits = trunkCommits
+        .filter((c) => (c.parents?.length ?? 1) <= 1)
+        .map(toCommit)
+        .filter((c) => c.at >= start && c.at <= now + Day)
+        .reverse();
+    const merged = mergeBranches(git, start, now, links);
+
     // A branch squashed or rebased into develop and not deleted still holds commits develop lacks (their shas changed):
-    // its ticket landed after its last commit, so it is the merged branch already drawn, not work in progress.
+    // its ticket landed on develop after its last commit, so it is no work in progress.
     const landed = new Map<string, number>();
+    for (const c of trunkCommits) {
+        const ticket = readableSubject(c.subject).ticket;
+        if (ticket) {
+            landed.set(ticket, Math.max(landed.get(ticket) ?? -Infinity, time(c.date)));
+        }
+    }
     for (const b of merged) {
         if (b.ticket) {
             landed.set(b.ticket, Math.max(landed.get(b.ticket) ?? -Infinity, b.merge));
@@ -449,11 +341,6 @@ export function buildLineMap(input: LineMapInput): LineMapModel {
     const recent = [...opened].sort((a, b) => lastTouch(b) - lastTouch(a)).slice(0, OpenFirst);
     const rest = opened.filter((b) => !recent.includes(b));
     const branches = [...recent.sort(byFork), ...merged.sort(byFork), ...rest.sort(byFork)];
-
-    const commits = trunkCommits
-        .filter((c) => !inferred.inBranch.has(c.sha) && (c.parents?.length ?? 1) <= 1)
-        .map(toCommit)
-        .filter((c) => c.at >= start && c.at <= now + Day);
 
     const tree = toTreeData(git);
     const rules = treeRules(tree);

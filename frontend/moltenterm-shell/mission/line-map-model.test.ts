@@ -50,72 +50,23 @@ function withTrunk(git: MissionGit, commits: RawCommit[], release: RawCommit[] =
     };
 }
 
-describe("merged branches from a linear history", () => {
-    // develop's first-parent history, newest first: a squash merge, a commit made on develop, a ticket committed on
-    // develop, and one rebase that landed #10 (two commits) and #11 together.
+describe("work landed on a rebase or squash project", () => {
+    // develop's first-parent history, newest first: no merge commit, so nothing tells where branches were.
     const trunk = [
         c("s13", "2026-10-04T10:00:00Z", "feat(#13): thing (#40)"),
         c("d2", "2026-10-03T10:00:00Z", "fix(#12): quick"),
-        c("d1", "2026-10-02T10:00:00Z", "docs: readme"),
-        c("a3", "2026-10-01T10:00:30Z", "feat(#11): c", { authordate: "2026-09-30T08:00:00Z" }),
         c("a2", "2026-10-01T10:00:10Z", "fix(#10): b", { authordate: "2026-09-29T08:00:00Z" }),
         c("a1", "2026-10-01T10:00:00Z", "feat(#10): a", { authordate: "2026-09-28T08:00:00Z" }),
-        c("old", "2026-09-01T10:00:00Z", "feat(#1): before the window", { authordate: "2026-08-01T00:00:00Z" }),
+        c("old", "2026-09-01T10:00:00Z", "feat(#1): before the window"),
     ];
-    const git = withTrunk(makeGit(), trunk);
-    git.branches.push({ name: "feature/11-cool", sha: "a3", date: "2026-10-01T10:00:30Z", commits: [], fork: null });
-    const model = buildLineMap({ git, now: NOW, days: 21 });
+    const model = buildLineMap({ git: withTrunk(makeGit(), trunk), now: NOW, days: 21 });
 
-    it("splits a landing by ticket, each leaving develop when its first commit was written", () => {
-        const ten = model.branches.find((b) => b.ticket === "10");
-        expect(ten).toMatchObject({ name: "feature/10", state: "merged", count: 2, forkKnown: true, mergeSha: "a2" });
-        expect(ten.fork).toBe(new Date("2026-09-28T08:00:00Z").getTime());
-        expect(ten.merge).toBe(new Date("2026-10-01T10:00:10Z").getTime());
-        expect(ten.commits.map((x) => x.sha)).toEqual(["a2", "a1"]);
-        expect(ten.url).toBe("https://github.com/acme/app/issues/10");
+    it("draws no branch it would have to guess", () => {
+        expect(model.branches).toEqual([]);
     });
 
-    it("takes the real name when a branch still carries the ticket", () => {
-        expect(model.branches.find((b) => b.ticket === "11").name).toBe("feature/11-cool");
-    });
-
-    it("draws a squash merge short, linked to its pull request", () => {
-        const squash = model.branches.find((b) => b.ticket === "13");
-        expect(squash).toMatchObject({ forkKnown: false, prNumber: 40, url: "https://github.com/acme/app/pull/40" });
-        expect(squash.fork).toBe(squash.merge);
-    });
-
-    it("keeps commits made on develop itself as commits, and nothing before the window", () => {
-        expect(model.commits.map((x) => x.sha)).toEqual(["d2", "d1"]);
-        expect(model.branches.map((b) => b.ticket).sort()).toEqual(["10", "11", "13"]);
-    });
-
-    it("keeps a ticket landed commit by commit as one branch, a later return as another", () => {
-        const one = (sha: string, day: string, ticket: number) =>
-            c(sha, `2026-10-0${day}T10:00:00Z`, `feat(#${ticket}): ${sha}`, {
-                authordate: `2026-10-0${day}T07:00:00Z`,
-            });
-        const git = withTrunk(makeGit(), [
-            one("x4", "4", 70),
-            one("x3", "3", 71),
-            one("x2", "2", 70),
-            one("x1", "1", 70),
-        ]);
-        const branches = buildLineMap({ git, now: NOW, days: 21 }).branches;
-        expect(branches.map((b) => [b.ticket, b.count])).toEqual([
-            ["70", 2],
-            ["71", 1],
-            ["70", 1],
-        ]);
-    });
-
-    it("names a ticket by its commit types", () => {
-        const fixOnly = withTrunk(makeGit(), [
-            c("f1", "2026-10-01T10:00:00Z", "fix(#30): x", { authordate: "2026-09-30T00:00:00Z" }),
-            c("f2", "2026-10-01T09:00:00Z", "chore(#31): y", { authordate: "2026-09-30T00:00:00Z" }),
-        ]);
-        const names = buildLineMap({ git: fixOnly, now: NOW, days: 21 }).branches.map((b) => b.name);
-        expect(names.sort()).toEqual(["#31", "fix/30"]);
+    it("shows every commit of the window on develop, oldest first", () => {
+        expect(model.commits.map((x) => x.sha)).toEqual(["a1", "a2", "d2", "s13"]);
     });
 });
 
@@ -210,19 +161,23 @@ describe("branches already landed", () => {
             fork: { sha: "d0", date: "2026-10-01T00:00:00Z" },
         });
         git.branches.push(leftover("feature/50-thing", "2026-10-02T10:00:00Z"));
-        expect(buildLineMap({ git, now: NOW, days: 21 }).branches.map((b) => b.state)).toEqual(["merged"]);
+        expect(buildLineMap({ git, now: NOW, days: 21 }).branches).toEqual([]);
         git.branches[2] = leftover("feature/50-thing", "2026-10-04T10:00:00Z");
-        expect(
-            buildLineMap({ git, now: NOW, days: 21 })
-                .branches.map((b) => b.state)
-                .sort()
-        ).toEqual(["merged", "open"]);
+        expect(buildLineMap({ git, now: NOW, days: 21 }).branches.map((b) => b.state)).toEqual(["open"]);
     });
 
     it("orders the lanes: the two freshest open branches, the merged ones, then the other open ones", () => {
-        const git = withTrunk(makeGit(), [
-            c("m", "2026-10-03T10:00:00Z", "feat(#60): late", { authordate: "2026-10-02T10:00:00Z" }),
-        ]);
+        const git = makeGit({
+            merges: [
+                {
+                    sha: "m60",
+                    date: "2026-10-03T10:00:00Z",
+                    subject: "Merge branch 'feature/60-late'",
+                    fork: { sha: "d0", date: "2026-10-02T10:00:00Z" },
+                    commits: 2,
+                },
+            ],
+        });
         const open = (name: string, at: string) => ({
             name,
             sha: name,
@@ -236,7 +191,7 @@ describe("branches already landed", () => {
         expect(buildLineMap({ git, now: NOW, days: 21 }).branches.map((b) => b.name)).toEqual([
             "feature/62-new",
             "feature/63-new",
-            "feature/60",
+            "feature/60-late",
             "feature/61-old",
         ]);
     });

@@ -6,7 +6,7 @@
 // develop the one below; branches hang under develop in lanes; stations sit on main with their labels slanted above
 // it. Pure and tested: the component only draws what this returns.
 
-import { LineMapBranch, LineMapModel, LineMapStation } from "./line-map-model";
+import { LineMapBranch, LineMapCommit, LineMapModel, LineMapStation } from "./line-map-model";
 import { formatDay } from "./time-format";
 
 const Day = 86_400_000;
@@ -80,6 +80,56 @@ export type GeometryStation = {
     source: Point;
 };
 
+export type LandedMark = {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    // The day's start in days mode, the commit's time in commits mode.
+    at: number;
+    commits: LineMapCommit[];
+};
+
+// One tick per commit while they keep this much room on average; past it, one mark per day, its height growing with
+// the day's count (square root, so one busy day does not flatten the others).
+const MinPxPerCommit = 6;
+const TickHeight = 10;
+const DayMarkMin = 6;
+const DayMarkMax = 18;
+
+export function landedMarks(
+    commits: readonly LineMapCommit[],
+    xOf: (t: number) => number,
+    pxPerDay: number,
+    plotWidth: number,
+    y: number
+): { mode: "commits" | "days"; marks: LandedMark[] } {
+    if (commits.length * MinPxPerCommit <= plotWidth) {
+        return {
+            mode: "commits",
+            marks: commits.map((c) => ({ x: xOf(c.at), y, w: 1.5, h: TickHeight, at: c.at, commits: [c] })),
+        };
+    }
+    const byDay = new Map<number, LineMapCommit[]>();
+    for (const c of commits) {
+        const day = new Date(c.at).setHours(0, 0, 0, 0);
+        byDay.set(day, [...(byDay.get(day) ?? []), c]);
+    }
+    const busiest = Math.max(1, ...[...byDay.values()].map((list) => list.length));
+    const w = Math.max(3, Math.min(14, pxPerDay * 0.6));
+    const marks = [...byDay.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([day, list]) => ({
+            x: xOf(day + Day / 2),
+            y,
+            w,
+            h: DayMarkMin + (DayMarkMax - DayMarkMin) * Math.sqrt(list.length / busiest),
+            at: day,
+            commits: list,
+        }));
+    return { mode: "days", marks };
+}
+
 export type LineMapGeometry = {
     width: number;
     height: number;
@@ -98,10 +148,13 @@ export type LineMapGeometry = {
     branches: GeometryBranch[];
     lanes: number;
     // Branches past the lane cap: not drawn, counted; a merged one still marks where it landed on develop.
-    hidden: { count: number; landings: Point[]; text: string; x: number; y: number };
+    // Merged branches past the lane cap keep a dot where they landed; open ones past it are counted, with their list.
+    landings: Point[];
+    hidden: { branches: LineMapBranch[]; text: string; x: number; y: number };
     stations: GeometryStation[];
     earlier: { x: number; y: number; count: number; label: { x: number; y: number; text: string } };
-    commits: (Point & { sha: string })[];
+    // The work that landed on develop: one tick per commit, or one mark per day when the commits would crowd.
+    landed: { mode: "commits" | "days"; marks: LandedMark[] };
     // The part of the window before the history read: shaded, with its date.
     unread: { x1: number; x2: number; label: string };
     head: Point;
@@ -317,7 +370,10 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
         });
     });
     const laneCount = branches.length ? Math.max(...branches.map((b) => b.lane)) + 1 : 0;
-    const lowest = (laneCount ? laneY(laneCount - 1) + 26 : devY + 30) + (hidden.length ? 18 : 0);
+    const hiddenOpen = hidden.filter((b) => b.state === "open");
+    // The open branches past the cap are counted on the row under the last lane, beside the open tips at now.
+    const hiddenY = laneY(laneCount);
+    const lowest = hiddenOpen.length ? hiddenY + 12 : laneCount ? laneY(laneCount - 1) + 26 : devY + 30;
     const tickBottom = Math.round(lowest + 8);
     const height = tickBottom + 22;
 
@@ -366,13 +422,13 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
         route,
         branches,
         lanes: laneCount,
-        hidden: hidden.length
+        landings: hidden.filter((b) => b.state === "merged").map((b) => ({ x: xOf(b.merge), y: devY })),
+        hidden: hiddenOpen.length
             ? {
-                  count: hidden.length,
-                  landings: hidden.filter((b) => b.state === "merged").map((b) => ({ x: xOf(b.merge), y: devY })),
-                  text: `+${hidden.length} branch${hidden.length === 1 ? "" : "es"} not drawn here: a shorter window or Full size shows them`,
-                  x: Left,
-                  y: tickBottom - 6,
+                  branches: hiddenOpen,
+                  text: `+${hiddenOpen.length} open branch${hiddenOpen.length === 1 ? "" : "es"}`,
+                  x: nowX + 12,
+                  y: hiddenY + 4,
               }
             : null,
         stations,
@@ -384,7 +440,7 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
                   label: { x: Left + 3, y: mainY - 14, text: earlierText },
               }
             : null,
-        commits: model.commits.map((c) => ({ x: xOf(c.at), y: devY, sha: c.sha })),
+        landed: landedMarks(model.commits, xOf, pxPerDay, nowX - Left, devY),
         unread:
             model.historyFrom != null
                 ? { x1: Left, x2: xOf(model.historyFrom), label: `history read from ${formatDay(model.historyFrom)}` }
