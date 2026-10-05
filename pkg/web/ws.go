@@ -168,12 +168,15 @@ func WritePing(conn *websocket.Conn) error {
 	now := time.Now()
 	pingMessage := map[string]interface{}{"type": "ping", "stime": now.UnixMilli()}
 	jsonVal, _ := json.Marshal(pingMessage)
-	_ = conn.SetWriteDeadline(time.Now().Add(wsWriteWaitTimeout)) // no error
-	err := conn.WriteMessage(websocket.TextMessage, jsonVal)
-	if err != nil {
-		return err
-	}
-	return nil
+	return writeWsText(conn, jsonVal, wsWriteWaitTimeout) // MOLTENTERM-PATCH (#223)
+}
+
+// MOLTENTERM-PATCH (#223): every write gets its own deadline. Wave set one only before a ping, as long as the ping
+// period, so a data write landing after it expired and before the next ping failed at once with "i/o timeout" and
+// dropped a healthy socket (busy terminals hit it every few minutes).
+func writeWsText(conn *websocket.Conn, barr []byte, timeout time.Duration) error {
+	_ = conn.SetWriteDeadline(time.Now().Add(timeout)) // no error
+	return conn.WriteMessage(websocket.TextMessage, barr)
 }
 
 func WriteLoop(conn *websocket.Conn, outputCh chan any, closeCh chan any, routeId string) {
@@ -195,7 +198,7 @@ func WriteLoop(conn *websocket.Conn, outputCh chan any, closeCh chan any, routeI
 					break
 				}
 			}
-			err = conn.WriteMessage(websocket.TextMessage, barr)
+			err = writeWsText(conn, barr, wsWriteWaitTimeout) // MOLTENTERM-PATCH (#223)
 			if err != nil {
 				conn.Close()
 				log.Printf("[websocket] WritePump error (%s): %v\n", routeId, err)
