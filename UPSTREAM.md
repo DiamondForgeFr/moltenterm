@@ -33,6 +33,29 @@ the test is about the first run: the first run is recorded as done and the first
 before #161. wavesrv reads the variable once and removes it from its environment, so terminals of that instance do not
 pass it on; `1` and `true` (any case) skip, any other value does not.
 
+## Local builds and their signature
+
+`scripts/moltenterm-build-gold.sh` builds the gold (Mission Control's Gold build in `.molten/project.json`) and delivers
+it where the installed gold looks for updates. It signs the app and every nested helper, framework and binary with the
+code-signing identity "MoltenTerm Local" (`MOLTENTERM_SIGNING_IDENTITY` overrides the name), with the entitlements and
+hardened runtime of `electron-builder.config.cjs`. macOS then knows every gold by
+`identifier "fr.diamondforge.moltenterm" and certificate leaf = H"…"`, the same from one build to the next, so the Files
+and Folders and Full Disk Access grants carry over (#224). Ad hoc, a build is known by its cdhash, and the grants given
+to one gold stop applying to the next while System Settings still shows them as allowed.
+
+Create the identity once per Mac, from a terminal, and accept the two prompts (trust the certificate for code signing,
+then "Always Allow" codesign to use its key):
+
+```bash
+./scripts/moltenterm-local-signing-identity.sh
+```
+
+It reuses a valid identity of that name, and trusts one an earlier run imported but left untrusted. The certificate is
+self-signed, valid ten years, and its private key never leaves the login keychain. The build only checks the identity
+(`--check`, read-only); without it, the build warns and signs ad hoc. `--name <identity>` makes the script usable by any
+other standalone app. Check a gold with `codesign -d -r- "/Applications/MoltenTerm Gold.app"`. The first signed gold
+replaces an ad hoc one, so its grants must be given once more; they hold from then on.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every pull request to `develop` or `main` and on every push to them.
