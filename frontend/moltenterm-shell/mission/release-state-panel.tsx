@@ -1,65 +1,37 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Where the releases stand, ported from Notulia (src/components/dev/ReleaseStatePanel.tsx): the next public release (a
-// decision for the first, derived from conventional commits after that), what waits on the trunk for it, how far the
-// milestone has come, the last release candidate and the last public release. Two of the Project overview's cards
-// (FR-MC-020): Next public release, and Releases.
+// Where the releases stand, first ported from Notulia (src/components/dev/ReleaseStatePanel.tsx), now two of the
+// Project overview's cards (FR-MC-024): Next public release (what waits on the trunk for it, by kind, and how far its
+// milestone has come) and Releases (the last release candidate with its notes, the last public release). What they
+// show is computed in ../project/overview-cards-model.ts; motion is CSS only and stops under reduced motion
+// (NFR-MC-004).
 
 import { cn } from "@/util/util";
-import { useEffect, useState } from "react";
-import { Milestone, plainText } from "./github";
-import { readableSubject, ReleaseState } from "./versions";
+import { formatWhen, NextReleaseView, ReleaseBar, ReleasesView, ReleaseView } from "../project/overview-cards-model";
 
-function reducedMotion(): boolean {
-    return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-}
-
-// A number that counts up to `to` once, when it arrives.
-function useCountUp(to: number, ms = 900): number {
-    const [value, setValue] = useState(reducedMotion() ? to : 0);
-    useEffect(() => {
-        if (reducedMotion()) {
-            setValue(to);
-            return;
-        }
-        let frame = 0;
-        const start = performance.now();
-        const tick = (now: number) => {
-            const t = Math.min(1, (now - start) / ms);
-            setValue(Math.round(to * (1 - Math.pow(1 - t, 3))));
-            if (t < 1) {
-                frame = requestAnimationFrame(tick);
-            }
-        };
-        frame = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(frame);
-    }, [to, ms]);
-    return value;
-}
+const BarClasses: Record<ReleaseBar["key"], string> = {
+    feat: "bg-[var(--mt-chart-features)]",
+    fix: "bg-[var(--mt-chart-fixes)]",
+    other: "bg-[var(--mt-chart-rest)]",
+};
 
 export function daysSince(iso: string, now = Date.now()): string {
     const days = Math.round((now - new Date(iso).getTime()) / 86_400_000);
     return days <= 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
 }
 
-function Bar({ label, value, total, className }: { label: string; value: number; total: number; className: string }) {
-    const target = (value / Math.max(total, 1)) * 100;
-    const [width, setWidth] = useState(reducedMotion() ? target : 0);
-    useEffect(() => {
-        const id = requestAnimationFrame(() => setWidth(target));
-        return () => cancelAnimationFrame(id);
-    }, [target]);
+function Bar({ bar, index }: { bar: ReleaseBar; index: number }) {
     return (
-        <div className="flex items-center gap-2 text-xs">
-            <span className="w-20 shrink-0 text-muted">{label}</span>
-            <div className="h-1.5 flex-1 overflow-hidden rounded bg-hover">
+        <div className="flex items-center gap-2.5 text-[13px]" data-testid={`release-bar-${bar.key}`}>
+            <span className="w-16 shrink-0 text-secondary">{bar.label}</span>
+            <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-hover">
                 <div
-                    className={cn("h-full rounded transition-[width] duration-1000 ease-out", className)}
-                    style={{ width: `${width}%` }}
+                    className={cn("molten-bar h-full rounded-full", BarClasses[bar.key])}
+                    style={{ width: `${Math.round(bar.share * 100)}%`, animationDelay: `${index * 100}ms` }}
                 />
             </div>
-            <span className="w-8 text-right tabular-nums">{value}</span>
+            <span className="w-6 shrink-0 text-right font-mono text-xs text-primary tabular-nums">{bar.count}</span>
         </div>
     );
 }
@@ -68,169 +40,105 @@ function Waiting({ rows }: { rows: number }) {
     return (
         <div className="flex flex-col gap-2" aria-busy="true">
             {Array.from({ length: rows }, (_, i) => (
-                <div key={i} className="h-6 w-full animate-pulse rounded bg-hover" />
+                <div key={i} className="h-5 w-full animate-pulse rounded bg-hover motion-reduce:animate-none" />
             ))}
         </div>
     );
 }
 
-export function NextPublicRelease({
-    state,
-    milestones,
-    trunk,
-    release,
-    tagPrefix = "v",
-}: {
-    state: ReleaseState;
-    milestones: Milestone[];
-    trunk: string;
-    release: string;
-    tagPrefix?: string;
-}) {
-    const pending = useCountUp(state?.pending.total ?? 0);
-    const milestone = milestones?.[0] ?? null;
-    const done = milestone ? milestone.closed_issues / Math.max(1, milestone.closed_issues + milestone.open_issues) : 0;
-    const percent = useCountUp(Math.round(done * 100));
-    if (!state) {
+export function NextPublicRelease({ view }: { view: NextReleaseView }) {
+    if (view == null) {
         return <Waiting rows={3} />;
     }
-    const { next } = state;
-    const singleBranch = trunk === release;
+    const { milestone } = view;
     return (
-        <div data-testid="release-next">
-            <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-semibold tracking-tight">
-                    {next.version ? `${tagPrefix}${next.version}` : "—"}
-                </span>
-                <span
-                    className={cn(
-                        "rounded px-2 py-0.5 text-[11px] font-medium",
-                        next.how === "decision" && "bg-warning/15 text-warning",
-                        next.how === "derived" && "bg-accent/15 text-accent",
-                        next.how === "nothing" && "bg-hover text-muted"
-                    )}
-                >
-                    {next.how === "decision"
-                        ? "to decide"
-                        : next.how === "derived"
-                          ? `derived · ${next.level}`
-                          : "nothing to release"}
-                </span>
+        <div className="flex h-full flex-col gap-3" data-testid="release-next">
+            <div className="flex flex-col gap-2">
+                {view.bars.map((bar, i) => (
+                    <Bar key={bar.key} bar={bar} index={i} />
+                ))}
+                <p className="text-[11px] text-muted">
+                    <span className="font-mono text-secondary tabular-nums" data-testid="release-pending">
+                        {view.total}
+                    </span>{" "}
+                    {view.total === 1 ? "change" : "changes"} {view.scope} ·{" "}
+                    <span className="text-secondary" data-testid="release-next-version">
+                        {view.caption}
+                    </span>
+                </p>
             </div>
-            <p className="mt-1 text-xs text-muted">{next.reason}</p>
-            {!singleBranch ? (
-                <>
-                    <div className="mt-4 flex items-baseline gap-2">
-                        <i className="fa fa-solid fa-code-merge self-center text-accent" />
-                        <span className="text-2xl font-semibold tabular-nums" data-testid="release-pending">
-                            {pending}
-                        </span>
-                        <span className="text-xs text-muted">
-                            changes on {trunk}, not yet on {release}
-                        </span>
-                    </div>
-                    <div className="mt-2 flex flex-col gap-1.5">
-                        <Bar
-                            label="features"
-                            value={state.pending.feat.length}
-                            total={state.pending.total}
-                            className="bg-accent"
-                        />
-                        <Bar
-                            label="fixes"
-                            value={state.pending.fix.length}
-                            total={state.pending.total}
-                            className="bg-success"
-                        />
-                        <Bar
-                            label="the rest"
-                            value={state.pending.other}
-                            total={state.pending.total}
-                            className="bg-muted/60"
-                        />
-                    </div>
-                </>
-            ) : null}
-            {state.pending.feat.length > 0 ? (
-                <ul className="mt-3 flex flex-col gap-1 text-xs">
-                    {state.pending.feat.slice(0, 6).map((c) => {
-                        const s = readableSubject(c.subject);
-                        return (
-                            <li key={c.sha} className="flex gap-1.5">
-                                <span className="shrink-0 text-accent">✦</span>
-                                <span className="min-w-0 truncate" title={c.subject}>
-                                    {s.ticket ? <span className="text-muted">#{s.ticket} </span> : null}
-                                    {s.text}
-                                </span>
-                            </li>
-                        );
-                    })}
-                    {state.pending.feat.length > 6 ? (
-                        <li className="pl-4 text-muted">and {state.pending.feat.length - 6} more…</li>
-                    ) : null}
-                </ul>
-            ) : null}
-            {milestone ? (
-                <div className="mt-4" data-testid="release-milestone">
-                    <div className="mb-1 flex items-center justify-between text-xs">
-                        <span className="flex items-center gap-1.5">
-                            <i className="fa fa-solid fa-bullseye text-muted" /> Milestone {milestone.title}
-                        </span>
-                        <span className="text-muted tabular-nums">
-                            {percent} % · {milestone.open_issues} open
+            <div className="mt-auto" data-testid="release-milestone">
+                {milestone ? (
+                    <div
+                        className="flex items-center gap-2 text-xs text-secondary"
+                        title={`${milestone.closed} closed, ${milestone.open} open`}
+                    >
+                        <span className="max-w-[45%] shrink-0 truncate">Milestone {milestone.title}</span>
+                        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-hover">
+                            <div
+                                className="molten-bar h-full rounded-full bg-success"
+                                style={{ width: `${milestone.percent}%`, animationDelay: "300ms" }}
+                            />
+                        </div>
+                        <span className="shrink-0 font-mono text-[11px] whitespace-nowrap tabular-nums">
+                            {milestone.percent} % · {milestone.open} open
                         </span>
                     </div>
-                    <div className="h-2 overflow-hidden rounded bg-hover">
-                        <div
-                            className="h-full rounded bg-accent transition-[width] duration-1000 ease-out"
-                            style={{ width: `${percent}%` }}
-                        />
-                    </div>
-                </div>
+                ) : (
+                    <p className="text-[11px] text-muted">{view.milestoneNote}</p>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function ReleaseTitle({ release }: { release: ReleaseView }) {
+    return (
+        <div className="flex min-w-0 items-baseline gap-2.5">
+            <span className="min-w-0 truncate text-2xl leading-tight font-semibold tracking-tight text-primary">
+                {release.tag}
+            </span>
+            {release.date ? (
+                <span className="shrink-0 text-xs text-muted" title={formatWhen(release.date)}>
+                    {daysSince(release.date)}
+                </span>
             ) : null}
         </div>
     );
 }
 
-export function ReleaseHistory({ state, tagPrefix = "v" }: { state: ReleaseState; tagPrefix?: string }) {
-    if (!state) {
+export function ReleaseHistory({ view }: { view: ReleasesView }) {
+    if (view == null) {
         return <Waiting rows={2} />;
     }
-    const { next, lastRc, lastPublic } = state;
     return (
         <div className="flex flex-col gap-3" data-testid="release-history">
-            <div data-testid="release-rc">
-                <div className="mb-1 text-xs text-muted">Last release candidate</div>
-                {lastRc ? (
+            <div className="flex flex-col gap-1" data-testid="release-rc">
+                <span className="text-xs text-muted">Last release candidate</span>
+                {view.rc ? (
                     <>
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-xl font-semibold">{lastRc.name}</span>
-                            <span className="text-xs text-muted">{daysSince(lastRc.date)}</span>
-                        </div>
-                        {(lastRc.notes ?? lastRc.notesInternal) ? (
-                            <p className="mt-1.5 line-clamp-4 text-xs leading-relaxed whitespace-pre-line text-muted">
-                                {plainText(lastRc.notes ?? lastRc.notesInternal ?? "")}
+                        <ReleaseTitle release={view.rc} />
+                        {view.rc.excerpt ? (
+                            <p className="line-clamp-3 text-[13px] leading-snug whitespace-pre-line text-secondary">
+                                {view.rc.excerpt}
                             </p>
-                        ) : null}
+                        ) : (
+                            <p className="text-xs text-muted">No notes found for this tag.</p>
+                        )}
                     </>
                 ) : (
-                    <p className="text-sm text-muted">No release candidate yet.</p>
+                    <p className="text-[13px] text-secondary">No release candidate yet.</p>
                 )}
             </div>
             <div className="h-px bg-border" />
-            <div data-testid="release-public">
-                <div className="mb-1 text-xs text-muted">Last public release</div>
-                {lastPublic ? (
-                    <div className="flex items-baseline gap-2">
-                        <span className="text-xl font-semibold">{lastPublic.name}</span>
-                        <span className="text-xs text-muted">{daysSince(lastPublic.date)}</span>
-                    </div>
+            <div className="flex flex-col gap-1" data-testid="release-public">
+                <span className="text-xs text-muted">Last public release</span>
+                {view.public ? (
+                    <ReleaseTitle release={view.public} />
                 ) : (
-                    <p className="text-sm">
-                        None yet.{" "}
-                        <span className="text-muted">
-                            {next.version ? `${tagPrefix}${next.version} will be the first.` : ""}
-                        </span>
+                    <p className="text-[13px]">
+                        <span className="font-semibold text-primary">None yet.</span>{" "}
+                        <span className="text-secondary">{view.firstPublic}</span>
                     </p>
                 )}
             </div>
