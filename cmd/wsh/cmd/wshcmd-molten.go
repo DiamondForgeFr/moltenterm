@@ -187,7 +187,7 @@ var moltenAgentYes bool
 
 var moltenAgentCmd = &cobra.Command{
 	Use:   "agent",
-	Short: "install the molten guides (/morph, /molten-pipeline, /molten-bug) for your coding agent",
+	Short: "the molten guides (/morph, /molten-pipeline, /molten-bug), installed at start for every coding agent found",
 	Args:  cobra.ArbitraryArgs,
 	RunE:  moltenAgentRun,
 }
@@ -210,7 +210,7 @@ var moltenAgentInstallCmd = &cobra.Command{
 
 var moltenAgentRemoveCmd = &cobra.Command{
 	Use:     "remove <agent>",
-	Short:   "remove the molten guides from a coding agent",
+	Short:   "remove the molten guides from a coding agent, and stop installing them at start",
 	Args:    cobra.ExactArgs(1),
 	RunE:    moltenWrap(moltenAgentRemoveRun),
 	PreRunE: preRunSetupRpcClient,
@@ -993,12 +993,14 @@ func moltenAgentListRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func moltenGuideState(installed bool, foreign bool, version string) string {
+func moltenGuideState(installed bool, foreign bool, declined bool, version string) string {
 	switch {
 	case installed:
 		return "v" + version
 	case foreign:
 		return "no (path taken)"
+	case declined:
+		return "no (removed)"
 	}
 	return "no"
 }
@@ -1024,11 +1026,11 @@ func formatMoltenAgents(statuses []molten.AgentStatus) string {
 		for i := range molten.AgentGuides {
 			if i < len(status.Guides) {
 				g := status.Guides[i]
-				cells = append(cells, moltenGuideState(g.Installed, g.Foreign, g.Version))
+				cells = append(cells, moltenGuideState(g.Installed, g.Foreign, status.Declined, g.Version))
 				continue
 			}
 			if i == 0 {
-				cells = append(cells, moltenGuideState(status.Installed, status.Foreign, status.Version))
+				cells = append(cells, moltenGuideState(status.Installed, status.Foreign, status.Declined, status.Version))
 				continue
 			}
 			cells = append(cells, "no")
@@ -1036,7 +1038,8 @@ func formatMoltenAgents(statuses []molten.AgentStatus) string {
 		fmt.Fprintf(tw, "%s\t%s\t%s\n", strings.Join(cells, "\t"), status.Format, moltenGuidesDir(status))
 	}
 	tw.Flush()
-	sb.WriteString("\ninstall or update with: molten agent install <agent>\n")
+	sb.WriteString("\nMoltenTerm installs and updates them at start for every agent on your PATH, except those removed\n")
+	sb.WriteString("install or update now with: molten agent install <agent>\n")
 	return sb.String()
 }
 
@@ -1077,6 +1080,9 @@ func moltenAgentInstallRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("nothing written")
 	}
 	_, installErr := profile.Install(env, wavebase.WaveVersion)
+	if err := molten.SetAgentDeclined(env.DataDir, profile.Id, false); err != nil {
+		installErr = errors.Join(installErr, err)
+	}
 	status := profile.Status(env)
 	if moltenJson {
 		if installErr != nil {
@@ -1112,14 +1118,21 @@ func moltenAgentRemoveRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	// Without this, the next start would install them again (FR-ONB-006).
+	if err := molten.SetAgentDeclined(env.DataDir, profile.Id, true); err != nil {
+		return err
+	}
 	if moltenJson {
 		return moltenWriteJson(map[string]any{"id": profile.Id, "path": path, "removed": removed})
 	}
 	if !removed {
 		WriteStdout("no molten guide is installed for %s\n", profile.Name)
-		return nil
+	} else {
+		WriteStdout("removed %s\n", path)
 	}
-	WriteStdout("removed %s\n", path)
+	if profile.Executable != "" {
+		WriteStdout("MoltenTerm will no longer install them for %s at start; molten agent install %s brings them back\n", profile.Name, profile.Id)
+	}
 	return nil
 }
 
@@ -1278,7 +1291,7 @@ var moltenBuiltinHelp = [][2]string{
 	{"docs", "write the offline mod documentation and print its folder"},
 	{"agent list", "the supported coding agents and where the molten guides are installed"},
 	{"agent install <agent>", "install /morph, /molten-pipeline and /molten-bug for a coding agent"},
-	{"agent remove <agent>", "remove the molten guides from a coding agent"},
+	{"agent remove <agent>", "remove the molten guides from a coding agent, and stop installing them at start"},
 	{"project link [folder]", "link this workspace to its project (default: this terminal's folder)"},
 	{"project show", "show this workspace's project, its pipeline and its conventions"},
 	{"project logo [file]", "use an image of the project as the workspace icon"},

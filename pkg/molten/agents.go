@@ -75,6 +75,8 @@ type AgentEnv struct {
 type AgentProfile struct {
 	Id   string
 	Name string
+	// The program looked up on the login shell's PATH to install the guides at start (FR-ONB-006); none for generic.
+	Executable string
 	// {name} is the guide's name, <request> what the user adds.
 	Invocation string
 	Format     string
@@ -103,6 +105,8 @@ type AgentStatus struct {
 	Version    string             `json:"version,omitempty"`
 	Foreign    bool               `json:"foreign,omitempty"`
 	Guides     []AgentGuideStatus `json:"guides"`
+	// The user ran `molten agent remove`: MoltenTerm no longer installs the guides at start.
+	Declined bool `json:"declined,omitempty"`
 }
 
 func envOr(env AgentEnv, name string, fallback string) string {
@@ -131,6 +135,7 @@ func tomlMultiline(text string) string {
 var AgentProfiles = []AgentProfile{
 	{
 		Id:         "claude-code",
+		Executable: "claude",
 		Name:       "Claude Code",
 		Invocation: "/{name} <request>",
 		Format:     "skill",
@@ -144,6 +149,7 @@ var AgentProfiles = []AgentProfile{
 	},
 	{
 		Id:         "codex",
+		Executable: "codex",
 		Name:       "Codex",
 		Invocation: "${name} <request>",
 		Format:     "skill",
@@ -157,6 +163,7 @@ var AgentProfiles = []AgentProfile{
 	},
 	{
 		Id:         "gemini-cli",
+		Executable: "gemini",
 		Name:       "Gemini CLI",
 		Invocation: "/{name} <request>",
 		Format:     "custom command",
@@ -170,6 +177,7 @@ var AgentProfiles = []AgentProfile{
 	},
 	{
 		Id:         "qwen-code",
+		Executable: "qwen",
 		Name:       "Qwen Code",
 		Invocation: "/{name} <request>",
 		Format:     "custom command",
@@ -183,6 +191,7 @@ var AgentProfiles = []AgentProfile{
 	},
 	{
 		Id:         "kimi",
+		Executable: "kimi",
 		Name:       "Kimi Code",
 		Invocation: "/skill:{name} <request>",
 		Format:     "skill",
@@ -327,7 +336,20 @@ func (p AgentProfile) Status(env AgentEnv) AgentStatus {
 	status.Installed = first.Installed
 	status.Version = first.Version
 	status.Foreign = first.Foreign
+	status.Declined = IsAgentDeclined(env.DataDir, p.Id)
 	return status
+}
+
+// NeedsInstall is true when a guide is missing or written for another version, or a retired guide molten wrote is
+// still there. A path holding someone else's file never needs it: Install would skip it.
+func (p AgentProfile) NeedsInstall(env AgentEnv, version string) bool {
+	for _, guide := range AgentGuides {
+		status := p.GuideStatus(env, guide)
+		if !status.Foreign && (!status.Installed || status.Version != version) {
+			return true
+		}
+	}
+	return len(p.InstalledRetiredGuides(env)) > 0
 }
 
 func (p AgentProfile) installGuide(env AgentEnv, guide AgentGuide, version string) error {

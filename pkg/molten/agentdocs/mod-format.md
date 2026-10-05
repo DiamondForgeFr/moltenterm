@@ -135,13 +135,17 @@ folder in `<config>/mods/` named like a built-in mod is ignored.
 ## Coding agents: /morph
 
 The user asks their own coding agent for a change with `/morph <request>`; the agent follows the `morph.md` guide to
-build the mod with `molten`. Install it once per agent, at user level:
+build the mod with `molten`. MoltenTerm installs the guides itself, at user level: at every start, for each agent
+below found on the login shell's PATH, and again when its version changes. Nothing is needed for an agent that is
+already there; an agent installed later gets them at the next start, or at once with `molten agent install`.
 
 ```
 molten agent list                 # supported agents, where the guide goes, what is installed
 molten agent install <agent>      # shows the path, asks, writes (--yes to skip the question)
-molten agent remove <agent>       # deletes only a file molten wrote
+molten agent remove <agent>       # deletes only a file molten wrote; MoltenTerm stops installing for that agent
 ```
+
+The `generic` file is never installed at start: it is for an agent outside the list, set up by hand.
 
 | Agent | Installed as | The user types |
 | --- | --- | --- |
