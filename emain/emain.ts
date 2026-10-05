@@ -56,6 +56,7 @@ import {
 } from "./emain-window";
 import { ElectronWshClient, initElectronWshClient } from "./emain-wsh";
 import { getLaunchSettings } from "./launchsettings";
+import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
 import { configureAutoUpdater, updater } from "./updater";
 
 const electronApp = electron.app;
@@ -445,6 +446,7 @@ async function appMain() {
     });
     electron.powerMonitor.on("resume", () => {
         console.log("system resumed from sleep, notifying server");
+        refreshTabViewsAfterWake("resume"); // MOLTENTERM-PATCH (#199): cached tab views come back blank after a sleep
         fireAndForget(async () => {
             try {
                 await RpcApi.NotifySystemResumeCommand(ElectronWshClient, { noresponse: true });
