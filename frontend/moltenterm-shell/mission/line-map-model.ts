@@ -8,9 +8,9 @@
 //
 // Merged branches come from two sources. A project that merges with merge commits has them in git.merges (wavesrv
 // walked each merge back to its fork). A project that rebases or squashes keeps no trace of its branches in git:
-// they are inferred from develop's own history, where a merge lands as a burst of commits written at the same
-// moment, and each ticket number in a burst stands for one branch, which left develop when its first commit was
-// written (a rebase keeps author dates).
+// they are inferred from develop's own history, where each run of commits on one ticket stands for one branch (a
+// rebase may land several tickets at once, interleaved), which left develop when its first commit was written (a
+// rebase keeps author dates).
 
 import { BranchPr, projectBranchRows } from "../project/project-model";
 import { channelOfTag, DefaultTagPrefix, parseVersion, VersionRules } from "../releases/versions";
@@ -24,6 +24,8 @@ const Day = 86_400_000;
 const BurstGap = 120_000;
 // A ticket's commits written this close to their landing were committed on develop itself, not on a branch.
 const DirectGap = 60_000;
+// Open branches drawn before the merged ones, the most recently touched.
+const OpenFirst = 2;
 // How far down main's history a tag's develop commit is looked for.
 const SourceSearchDepth = 50;
 // The collector reads at most this many commits of an open branch (branchLogLimit in pkg/molten/mission/git.go).
@@ -189,32 +191,31 @@ function knownNames(git: MissionGit, prs: readonly PullRequest[]): Map<string, s
     return rtn;
 }
 
-type Burst = RawCommit[];
-
-// Consecutive commits landed together, oldest first. Merge commits stand apart: their branch is in git.merges.
-function bursts(commits: readonly RawCommit[]): Burst[] {
-    const rtn: Burst[] = [];
-    let current: Burst = [];
-    let last = NaN;
+// develop's commits (oldest first) grouped by ticket: a commit joins its ticket's latest group when it follows it
+// directly, or when both landed together (one rebase interleaves tickets). A commit without a ticket, or a merge
+// commit (its branch is in git.merges), breaks the run. So one ticket landed commit by commit stays one branch, and
+// a ticket coming back later is a new one.
+function ticketGroups(commits: readonly RawCommit[]): { ticket: string; commits: RawCommit[] }[] {
+    const rtn: { ticket: string; commits: RawCommit[]; last: number }[] = [];
+    const latest = new Map<string, (typeof rtn)[number]>();
+    let previous: string = null;
     for (const c of commits) {
-        if ((c.parents?.length ?? 1) > 1) {
-            if (current.length) {
-                rtn.push(current);
-            }
-            current = [];
-            last = NaN;
+        const ticket = (c.parents?.length ?? 1) > 1 ? null : readableSubject(c.subject).ticket;
+        if (!ticket) {
+            previous = null;
             continue;
         }
         const at = time(c.date);
-        if (current.length && !(Math.abs(at - last) <= BurstGap)) {
-            rtn.push(current);
-            current = [];
+        const group = latest.get(ticket);
+        if (group && (previous === ticket || Math.abs(at - group.last) <= BurstGap)) {
+            group.commits.push(c);
+            group.last = at;
+        } else {
+            const fresh = { ticket, commits: [c], last: at };
+            rtn.push(fresh);
+            latest.set(ticket, fresh);
         }
-        current.push(c);
-        last = at;
-    }
-    if (current.length) {
-        rtn.push(current);
+        previous = ticket;
     }
     return rtn;
 }
@@ -236,52 +237,42 @@ function inferBranches(
     now: number,
     known: ReadonlyMap<string, string>,
     links: ReturnType<typeof githubLinks>
-): { branches: LineMapBranch[]; direct: Set<string> } {
+): { branches: LineMapBranch[]; inBranch: Set<string> } {
     const branches: LineMapBranch[] = [];
     const inBranch = new Set<string>();
     const oldestFirst = trunk.filter((c) => time(c.date) >= start && time(c.date) <= now + Day).reverse();
-    for (const burst of bursts(oldestFirst)) {
-        const byTicket = new Map<string, RawCommit[]>();
-        for (const c of burst) {
-            const ticket = readableSubject(c.subject).ticket;
-            if (!ticket) {
-                continue;
-            }
-            byTicket.set(ticket, [...(byTicket.get(ticket) ?? []), c]);
+    for (const { ticket, commits } of ticketGroups(oldestFirst)) {
+        const landed = commits[commits.length - 1];
+        const merge = time(landed.date);
+        const written = Math.min(...commits.map((c) => time(c.authordate || c.date)).filter(Number.isFinite));
+        const pr = squashPr(landed.subject);
+        if (!(merge - written > DirectGap) && pr == null) {
+            continue;
         }
-        for (const [ticket, commits] of byTicket) {
-            const landed = commits[commits.length - 1];
-            const merge = time(landed.date);
-            const written = Math.min(...commits.map((c) => time(c.authordate || c.date)).filter(Number.isFinite));
-            const pr = squashPr(landed.subject);
-            if (!(merge - written > DirectGap) && pr == null) {
-                continue;
-            }
-            const forkKnown = merge - written > DirectGap;
-            for (const c of commits) {
-                inBranch.add(c.sha);
-            }
-            const newestFirst = [...commits].reverse();
-            branches.push({
-                id: `merged:${landed.sha}`,
-                name: inferredName(ticket, commits, known),
-                ticket,
-                state: "merged",
-                fork: forkKnown ? written : merge,
-                forkKnown,
-                merge,
-                mergeSha: landed.sha,
-                commits: newestFirst.map(toCommit),
-                count: commits.length,
-                countCapped: false,
-                pr: null,
-                prNumber: pr,
-                ci: null,
-                url: links.pull(pr) ?? links.issue(ticket) ?? links.commit(landed.sha),
-            });
+        const forkKnown = merge - written > DirectGap;
+        for (const c of commits) {
+            inBranch.add(c.sha);
         }
+        const newestFirst = [...commits].reverse();
+        branches.push({
+            id: `merged:${landed.sha}`,
+            name: inferredName(ticket, commits, known),
+            ticket,
+            state: "merged",
+            fork: forkKnown ? written : merge,
+            forkKnown,
+            merge,
+            mergeSha: landed.sha,
+            commits: newestFirst.map(toCommit),
+            count: commits.length,
+            countCapped: false,
+            pr: null,
+            prNumber: pr,
+            ci: null,
+            url: links.pull(pr) ?? links.issue(ticket) ?? links.commit(landed.sha),
+        });
     }
-    return { branches, direct: inBranch };
+    return { branches, inBranch };
 }
 
 function mergeBranches(
@@ -450,13 +441,17 @@ export function buildLineMap(input: LineMapInput): LineMapModel {
     const opened = openBranches(input, links).filter(
         (b) => !(b.ticket && landed.get(b.ticket) >= Math.max(...b.commits.map((c) => c.at).filter(Number.isFinite)))
     );
-    // Merged branches take the lanes first: an open branch holds its lane up to now, and a forgotten one would
-    // otherwise push the window's merges past the lane cap.
+    // Lane order: the work in progress most recently touched first (what one looks for), then the merged branches,
+    // then the other open ones. An open branch holds its lane up to now, so forgotten ones go last and cannot push
+    // the window's merges past the lane cap.
     const byFork = (a: LineMapBranch, b: LineMapBranch) => a.fork - b.fork || a.id.localeCompare(b.id);
-    const branches = [...merged.sort(byFork), ...opened.sort(byFork)];
+    const lastTouch = (b: LineMapBranch) => Math.max(b.fork, ...b.commits.map((c) => c.at).filter(Number.isFinite));
+    const recent = [...opened].sort((a, b) => lastTouch(b) - lastTouch(a)).slice(0, OpenFirst);
+    const rest = opened.filter((b) => !recent.includes(b));
+    const branches = [...recent.sort(byFork), ...merged.sort(byFork), ...rest.sort(byFork)];
 
     const commits = trunkCommits
-        .filter((c) => !inferred.direct.has(c.sha) && (c.parents?.length ?? 1) <= 1)
+        .filter((c) => !inferred.inBranch.has(c.sha) && (c.parents?.length ?? 1) <= 1)
         .map(toCommit)
         .filter((c) => c.at >= start && c.at <= now + Day);
 

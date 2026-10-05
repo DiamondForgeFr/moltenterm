@@ -190,14 +190,22 @@ describe("branches", () => {
             ],
             5
         );
-        expect(lanes.map((l) => l.lane)).toEqual([0, 1, 0]);
-        expect(lanes.every((l) => l.labelled)).toBe(true);
+        expect(lanes).toEqual([0, 1, 0]);
     });
 
-    it("shares the lane that frees first past the cap, without a label that would run over", () => {
+    it("draws no branch past the lane cap", () => {
         const items = Array.from({ length: 4 }, (_, i) => ({ start: i, end: 1000 + i, labelStart: i + 30 }));
-        const lanes = assignLanes(items, 3);
-        expect(lanes[3]).toEqual({ lane: 0, labelled: false });
+        expect(assignLanes(items, 3)).toEqual([0, 1, 2, -1]);
+    });
+
+    it("counts the branches past the cap and keeps where the merged ones landed", () => {
+        const many = Array.from({ length: 8 }, (_, i) => branch(`b${i}`, NOW - 10 * Day, NOW - Day));
+        const geo = layoutLineMap(model({ branches: many }), { width: 1400 });
+        expect(geo.branches).toHaveLength(OverviewMaxLanes);
+        expect(geo.hidden.count).toBe(3);
+        expect(geo.hidden.landings).toHaveLength(3);
+        expect(geo.hidden.landings[0].y).toBe(geo.devY);
+        expect(layoutLineMap(model({ branches: many.slice(0, 2) }), { width: 1400 }).hidden).toBeNull();
     });
 
     it("leaves develop at the fork and rejoins it at the merge", () => {
@@ -339,7 +347,8 @@ describe("cost", () => {
         runs.sort((a, b) => a - b);
         const median = runs[3];
         console.log(`line map data + geometry, 300 commits / 40 open branches: median ${median.toFixed(2)} ms`);
-        expect(out.branches.length).toBeGreaterThanOrEqual(40);
+        // 60 tickets landed on develop, 40 open branches: every one drawn or counted.
+        expect(out.branches.length + (out.hidden?.count ?? 0)).toBe(100);
         expect(out.stations.length).toBe(20);
         expect(median).toBeLessThan(100);
     });
