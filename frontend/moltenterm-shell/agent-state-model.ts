@@ -103,7 +103,7 @@ export function agentStateLabel(state: string): string {
 export const AgentStateDotClasses: Record<string, string> = {
     waiting: "bg-warning",
     error: "bg-error",
-    working: "bg-accent",
+    working: "bg-[var(--mt-state-working)]",
     done: "bg-success",
     idle: "bg-secondary",
 };

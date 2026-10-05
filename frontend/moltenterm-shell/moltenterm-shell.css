@@ -107,8 +107,9 @@
     --color-muted-foreground: var(--mt-text-secondary);
     --color-muted: var(--mt-text-muted);
 
-    /* The workspace accent marks place (rail, active tab, focus border) and the heat of a working agent. Other
-       states use fixed semantic colours, so a waiting agent reads the same in every workspace. */
+    /* The workspace accent marks place only (rail, active tab, focus border). Agent states use MoltenTerm's fixed
+       palette, working included, so a state reads the same in every workspace (#212). Working is the molten orange. */
+    --mt-state-working: rgb(255, 124, 13);
     --mt-state-waiting: rgb(224, 185, 86);
     --mt-state-error: rgb(229, 77, 46);
     --mt-state-done: rgb(78, 154, 6);
@@ -133,10 +134,10 @@
 }
 
 /* Heat states (DS-SHELL-014): blockframe.tsx mirrors the pane's agent state (DS-SHELL-011) in data-mt-agent-state.
-   Working glows faintly in the accent, waiting holds a static amber edge, an error a static red one, done cools
+   Working glows faintly in the molten orange, waiting holds a static amber edge, an error a static red one, done cools
    back to neutral. The overlay sits 1px inside the frame so it never covers the focus border, and only its opacity
    is animated (composited, no repaint of the terminal underneath).
-   Never colour alone: on a yellow or amber workspace the accent and the waiting amber are close, so the states also
+   Never colour alone: the molten orange and the waiting amber are close, so the states also
    differ by form. Working (and done, as it cools) is a diffuse glow without an edge, and it pulses; waiting and error
    are a solid 2px edge without a glow, and never move. */
 .block.block-frame-default[data-mt-agent-state]::after {
@@ -153,7 +154,7 @@
 }
 
 .block.block-frame-default[data-mt-agent-state="working"]::after {
-    --mt-heat: var(--mt-accent);
+    --mt-heat: var(--mt-state-working);
     opacity: 1;
     animation: mt-heat-breathe 2.8s ease-in-out infinite alternate;
 }
@@ -161,7 +162,7 @@
 /* A finished pane visibly cools instead of switching off. An animation, not the opacity transition: Chromium starts
    no transition when the breathing animation is removed in the same style change. */
 .block.block-frame-default[data-mt-agent-state="done"]::after {
-    --mt-heat: var(--mt-accent);
+    --mt-heat: var(--mt-state-working);
     animation: mt-heat-cool 1.6s ease-out forwards;
 }
 
