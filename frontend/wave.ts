@@ -13,6 +13,7 @@ import {
     registerGlobalKeys,
 } from "@/app/store/keymodel";
 import { modalsModel } from "@/app/store/modalmodel";
+import { globalWS } from "@/app/store/ws"; // MOLTENTERM-PATCH (#223)
 import { RpcApi } from "@/app/store/wshclientapi";
 import { makeBuilderRouteId, makeTabRouteId } from "@/app/store/wshrouter";
 import { initWshrpc, TabRpcClient } from "@/app/store/wshrpcutil";
@@ -38,6 +39,7 @@ import { startMoltenHost } from "./molten/molten-start"; // MOLTENTERM-PATCH (#1
 import "./moltenterm-shell/moltenterm-shell.css"; // MOLTENTERM-PATCH (#48)
 import "./moltenterm-shell/molten-button.css"; // MOLTENTERM-PATCH (#145): molten call-to-action buttons, after the shell
 import { startMoltentermAccent } from "./moltenterm-shell/accent"; // MOLTENTERM-PATCH (#47)
+import { reconnectWSIfClosed } from "./moltenterm-shell/ws-health"; // MOLTENTERM-PATCH (#223)
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -103,6 +105,9 @@ async function initWaveWrap(initOpts: WaveInitOpts) {
 async function reinitWave() {
     console.log("Reinit Wave");
     getApi().sendLog("Reinit Wave");
+    if (reconnectWSIfClosed(globalWS, "reinit")) {
+        getApi().sendLog("Reinit Wave: websocket was closed, reconnecting"); // MOLTENTERM-PATCH (#223)
+    }
 
     // We use this hack to prevent a flicker of the previously-hovered tab when this view was last active.
     document.body.classList.add("nohover");

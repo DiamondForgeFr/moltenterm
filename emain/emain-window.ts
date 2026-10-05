@@ -21,6 +21,7 @@ import { getElectronAppBasePath, isDev, unamePlatform } from "./emain-platform";
 import { getOrCreateWebViewForTab, getWaveTabViewByWebContentsId, WaveTabView } from "./emain-tabview";
 import { delay, ensureBoundsAreVisible, waveKeyToElectronKey } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
+import { checkReusedTabViewPainted, noteTabViewLeftScreen } from "./moltenterm-tabview-repaint"; // MOLTENTERM-PATCH (#223)
 import {
     MoltentermFirstRenderTimeoutMs,
     MoltentermReinitTimeoutMs,
@@ -491,6 +492,7 @@ export class WaveBrowserWindow extends BaseWindow {
         if (oldActiveView != null) {
             oldActiveView.isActiveTab = false;
         }
+        noteTabViewLeftScreen(oldActiveView); // MOLTENTERM-PATCH (#223)
         this.activeTabView = tabView;
         this.allLoadedTabViews.set(tabView.waveTabId, tabView);
         if (!tabInitialized) {
@@ -505,6 +507,7 @@ export class WaveBrowserWindow extends BaseWindow {
                 await withTimeout(reinitDone, MoltentermReinitTimeoutMs); // MOLTENTERM-PATCH (#68)
             }
             this.finalizePositioning();
+            checkReusedTabViewPainted(this, tabView); // MOLTENTERM-PATCH (#223): a long-hidden view can come back black
         }
 
         // something is causing the new tab to lose focus so it requires manual refocusing
