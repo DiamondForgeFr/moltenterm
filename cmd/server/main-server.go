@@ -573,6 +573,8 @@ func main() {
 	startConfigWatcher()
 	molten.StartModWatcher() // MOLTENTERM-PATCH (#19): reload mods on save
 	mission.Start()          // MOLTENTERM-PATCH (#31): Mission Control's collector
+	// MOLTENTERM-PATCH (#226): the molten guides for every coding agent found
+	molten.StartAgentGuideSync()
 	// MOLTENTERM-PATCH (#161): first run, skip variable, onboarding route
 	wcore.StartMoltenFirstRun()
 	aiusechat.InitAIModeConfigWatcher()

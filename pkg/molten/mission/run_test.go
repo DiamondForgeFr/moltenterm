@@ -20,9 +20,9 @@ func TestExecRunnerUsesLoginPathOnly(t *testing.T) {
 	if err := os.WriteFile(script, []byte("#!/bin/sh\necho ok\n"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	saved := readLoginPath()
-	loginPath = bin
-	t.Cleanup(func() { loginPath = saved })
+	saved := readLoginPath
+	readLoginPath = func() string { return bin }
+	t.Cleanup(func() { readLoginPath = saved })
 	t.Setenv("PATH", "/usr/bin:/bin")
 
 	out, err := ExecRunner(context.Background(), t.TempDir(), "molten-fake-gh")
