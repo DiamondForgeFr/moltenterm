@@ -146,6 +146,9 @@ type WindowActionQueueEntry =
     | {
           op: "switchworkspace";
           workspaceId: string;
+      }
+    | {
+          op: "resetworkspace"; // MOLTENTERM-PATCH (#222)
       };
 
 function isNonEmptyUnsavedWorkspace(workspace: Workspace): boolean {
@@ -540,6 +543,11 @@ export class WaveBrowserWindow extends BaseWindow {
         await this._queueActionInternal({ op: "closetab", tabId });
     }
 
+    // MOLTENTERM-PATCH (#222)
+    async queueResetWorkspace() {
+        await this._queueActionInternal({ op: "resetworkspace" });
+    }
+
     private async _queueActionInternal(entry: WindowActionQueueEntry) {
         if (this.actionQueue.length >= 2) {
             this.actionQueue[1] = entry;
@@ -622,6 +630,13 @@ export class WaveBrowserWindow extends BaseWindow {
                         tabId = newWs.activetabid;
                         releaseTabViewFromOtherWindow(tabId, this.waveWindowId, getWaveWindowById);
                         tabViewsToClose = tabViewsToCloseOnLeave(leftWs);
+                        break;
+                    }
+                    case "resetworkspace": {
+                        // MOLTENTERM-PATCH (#222): the old tabs' views close once the new tab is on screen
+                        const resetWs = await WorkspaceService.GetWorkspace(this.workspaceId);
+                        tabId = await WorkspaceService.ResetWorkspace(this.workspaceId);
+                        tabViewsToClose = resetWs?.tabids ?? [];
                         break;
                     }
                 }
@@ -838,6 +853,12 @@ ipcMain.on("delete-workspace", (event, workspaceId) => {
 
         const _workspaceHasWindow = !!workspaceList.find((wse) => wse.workspaceid === workspaceId)?.windowid;
 
+        // MOLTENTERM-PATCH (#222): the last workspace of a window is reset from the rail, never deleted
+        if (!(await WorkspaceService.CanCloseWorkspace(workspaceId))) {
+            console.log("delete-workspace refused: last workspace of its window", workspaceId, ww?.waveWindowId);
+            return;
+        }
+
         const choice = dialog.showMessageBoxSync(this, {
             type: "question",
             buttons: ["Cancel", "Delete Workspace"],
@@ -859,6 +880,25 @@ ipcMain.on("delete-workspace", (event, workspaceId) => {
                 ww.destroy();
             }
         }
+    });
+});
+
+// MOLTENTERM-PATCH (#222): the renderer has already confirmed (its own dialog); the window that shows the workspace
+// resets it through its action queue
+ipcMain.on("reset-workspace", (event, workspaceId: string) => {
+    fireAndForget(async () => {
+        const ww = getWaveWindowByWorkspaceId(workspaceId) ?? getWaveWindowByWebContentsId(event.sender.id);
+        console.log("reset-workspace", workspaceId, ww?.waveWindowId);
+        if (ww == null || ww.workspaceId != workspaceId) {
+            // Not on screen: the views a window kept for it (#68) belong to tabs that no longer exist.
+            const oldWs = await WorkspaceService.GetWorkspace(workspaceId);
+            await WorkspaceService.ResetWorkspace(workspaceId);
+            for (const tabId of oldWs?.tabids ?? []) {
+                getWaveWindowByTabId(tabId)?.removeTabView(tabId, false);
+            }
+            return;
+        }
+        await ww.queueResetWorkspace();
     });
 });
 

@@ -25,6 +25,8 @@ import { WorkspaceIcon } from "./workspace-icon";
 import { readWorkspaceProject } from "./workspace-project";
 import { WorkspaceProjectSection } from "./workspace-project-section";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
+import { askResetWorkspace, WorkspaceResetHost } from "./workspace-reset";
+import { canCloseWorkspace, LastWorkspaceReason } from "./workspace-reset-model";
 import { WorktreeCloseHost } from "./worktree-close";
 
 export async function loadWorkspaceSources(): Promise<WorkspaceRailSource[]> {
@@ -57,10 +59,12 @@ function RailTooltip({ label, anchor }: { label: string; anchor: Anchor }) {
 function WorkspaceEditPanel({
     entry,
     anchor,
+    closable,
     onClose,
 }: {
     entry: WorkspaceRailEntry;
     anchor: Anchor;
+    closable: boolean;
     onClose: () => void;
 }) {
     const panelRef = useRef<HTMLDivElement>(null);
@@ -109,6 +113,14 @@ function WorkspaceEditPanel({
                     onClose();
                     getApi().deleteWorkspace(entry.id);
                 }}
+                onResetWorkspace={
+                    closable
+                        ? null
+                        : () => {
+                              onClose();
+                              askResetWorkspace(entry.id);
+                          }
+                }
             />
             <WorkspaceProjectSection workspaceId={entry.id} />
         </div>
@@ -117,11 +129,14 @@ function WorkspaceEditPanel({
 
 function RailButton({
     entry,
+    closable,
     unread,
     onHover,
     onEdit,
 }: {
     entry: WorkspaceRailEntry;
+    // Deleting it lands the user on another workspace (#222); otherwise it is reset instead.
+    closable: boolean;
     unread: number;
     onHover: (label: string, anchor: Anchor) => void;
     onEdit: (entry: WorkspaceRailEntry, anchor: Anchor) => void;
@@ -163,7 +178,13 @@ function RailButton({
                 ...projectTab,
                 { label: "Edit workspace…", click: () => onEdit(entry, anchorOf()) },
                 { type: "separator" },
-                { label: "Delete workspace", click: () => getApi().deleteWorkspace(entry.id) },
+                ...(closable ? [] : [{ label: "Reset workspace…", click: () => askResetWorkspace(entry.id) }]),
+                {
+                    label: "Delete workspace",
+                    enabled: closable,
+                    sublabel: closable ? undefined : LastWorkspaceReason,
+                    click: () => getApi().deleteWorkspace(entry.id),
+                },
             ],
             e
         );
@@ -238,6 +259,7 @@ export function WorkspaceRail() {
                 <RailButton
                     key={entry.id}
                     entry={entry}
+                    closable={canCloseWorkspace(entries, entry.id)}
                     unread={unread.get(entry.id) ?? 0}
                     onHover={(label, anchor) => setTooltip(label == null ? null : { label, anchor })}
                     onEdit={(e, anchor) => {
@@ -268,8 +290,14 @@ export function WorkspaceRail() {
             <ProjectTabKeeper />
             <PaneFocusKeeper />
             <WorktreeCloseHost />
+            <WorkspaceResetHost />
             {editing ? (
-                <WorkspaceEditPanel entry={editing.entry} anchor={editing.anchor} onClose={closeEditor} />
+                <WorkspaceEditPanel
+                    entry={editing.entry}
+                    anchor={editing.anchor}
+                    closable={canCloseWorkspace(entries, editing.entry.id)}
+                    onClose={closeEditor}
+                />
             ) : null}
         </nav>
     );

@@ -1,6 +1,7 @@
 import { fireAndForget, makeIconClass } from "@/util/util";
 import clsx from "clsx";
 import { memo, useEffect, useRef, useState } from "react";
+import { LastWorkspaceReason } from "../../moltenterm-shell/workspace-reset-model"; // MOLTENTERM-PATCH (#222)
 import { Button } from "../element/button";
 import { Input } from "../element/input";
 import { WorkspaceService } from "../store/services";
@@ -69,6 +70,8 @@ interface WorkspaceEditorProps {
     onColorChange: (newColor: string) => void;
     onIconChange: (newIcon: string) => void;
     onDeleteWorkspace: () => void;
+    // MOLTENTERM-PATCH (#222): given when the workspace is the last one; Reset then takes the place of Delete
+    onResetWorkspace?: () => void;
 }
 const WorkspaceEditorComponent = ({
     title,
@@ -79,6 +82,7 @@ const WorkspaceEditorComponent = ({
     onColorChange,
     onIconChange,
     onDeleteWorkspace,
+    onResetWorkspace,
 }: WorkspaceEditorProps) => {
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -113,11 +117,21 @@ const WorkspaceEditorComponent = ({
             />
             <ColorSelector selectedColor={color} colors={colors} onSelect={onColorChange} />
             <IconSelector selectedIcon={icon} icons={icons} onSelect={onIconChange} />
-            <div className="delete-ws-btn-wrapper">
-                <Button className="ghost red text-[12px] bold" onClick={onDeleteWorkspace}>
-                    Delete workspace
-                </Button>
-            </div>
+            {/* MOLTENTERM-PATCH (#222): the last workspace is reset, never deleted */}
+            {onResetWorkspace != null ? (
+                <div className="delete-ws-btn-wrapper flex-col gap-1">
+                    <Button className="ghost red text-[12px] bold" onClick={onResetWorkspace}>
+                        Reset workspace…
+                    </Button>
+                    <div className="text-[11px] text-muted">{LastWorkspaceReason}</div>
+                </div>
+            ) : (
+                <div className="delete-ws-btn-wrapper">
+                    <Button className="ghost red text-[12px] bold" onClick={onDeleteWorkspace}>
+                        Delete workspace
+                    </Button>
+                </div>
+            )}
         </div>
     );
 };

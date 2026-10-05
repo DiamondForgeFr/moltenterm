@@ -124,6 +124,12 @@ func DeleteWorkspace(ctx context.Context, workspaceId string, force bool) (bool,
 	if err != nil && wstore.ErrNotFound == err {
 		return true, "", fmt.Errorf("workspace already deleted %w", err)
 	}
+	if force {
+		// MOLTENTERM-PATCH (#222): only the user's delete forces; it never leaves a window without a workspace
+		if err := CheckWorkspaceClosable(ctx, workspaceId); err != nil {
+			return false, "", err
+		}
+	}
 	// @jalileh list needs to be saved early on i assume
 	workspaces, err := ListWorkspaces(ctx)
 	if err != nil {
