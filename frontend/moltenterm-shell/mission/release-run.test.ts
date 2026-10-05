@@ -65,32 +65,32 @@ describe("release run (FR-MC-016)", () => {
 
     it("follows the preparation, and offers its retry when it failed", () => {
         const running = releaseRun(
-            facts({ steps: { prepare: ok({ state: "running", running: true, phases: ["warm", "promote"] }) } }),
+            facts({ preparation: ok({ state: "running", running: true, phases: ["warm", "promote"] }) }),
             steps
         );
         expect(running.phases[0]).toMatchObject({ status: "running", expect: "Promote develop…" });
         expect(running.current).toBe("prepare");
-        const failed = releaseRun(
-            facts({ steps: { prepare: ok({ state: "failure", exit: 1, tail: ["red CI"] }) } }),
-            steps
-        );
+        const failed = releaseRun(facts({ preparation: ok({ state: "failure", exit: 1, tail: ["red CI"] }) }), steps);
         expect(failed.phases[0]).toMatchObject({
             status: "failed",
             cause: "The preparation failed: red CI",
-            action: { kind: "step", step: "prepare", label: "Retry the preparation" },
+            action: { kind: "prepare", label: "Retry the preparation" },
         });
         expect(statuses(facts())).toBe("waiting,todo,todo,todo,todo");
     });
 
     it("runs the cut steps in order, then asks to read the notes and confirm the cut", () => {
-        const prepared = { prepare: ok() };
-        const first = releaseRun(facts({ steps: prepared }), steps);
+        const prepared = {};
+        const first = releaseRun(facts({ preparation: ok() }), steps);
         expect(first.phases[1]).toMatchObject({
             status: "waiting",
             expect: "Next: Prepare the cut.",
             action: { kind: "step", step: "draft" },
         });
-        const cut = releaseRun(facts({ steps: { ...prepared, draft: ok() }, notes: "/p/releases/v1.2.0-1.md" }), steps);
+        const cut = releaseRun(
+            facts({ preparation: ok(), steps: { ...prepared, draft: ok() }, notes: "/p/releases/v1.2.0-1.md" }),
+            steps
+        );
         expect(cut.phases[1]).toMatchObject({
             status: "waiting",
             expect: "Read the public notes, fix them if needed, then cut.",
@@ -104,12 +104,16 @@ describe("release run (FR-MC-016)", () => {
         expect(cut.editNotes).toBe(true);
         expect(cut.notesStep.id).toBe("rewrite");
         const rewriting = releaseRun(
-            facts({ steps: { ...prepared, draft: ok(), rewrite: ok({ state: "running", running: true }) } }),
+            facts({
+                preparation: ok(),
+                steps: { ...prepared, draft: ok(), rewrite: ok({ state: "running", running: true }) },
+            }),
             steps
         );
         expect(rewriting.phases[1].expect).toBe("Rewriting the public notes…");
         const broken = releaseRun(
             facts({
+                preparation: ok(),
                 steps: {
                     ...prepared,
                     draft: ok(),
@@ -121,7 +125,8 @@ describe("release run (FR-MC-016)", () => {
         expect(broken.phases[1]).toMatchObject({
             status: "failed",
             cause: "“Cut” failed: push refused",
-            action: { label: "Run “Cut” again" },
+            action: { label: "Run “Cut” again", confirm: "v1.2.0-1 is public once pushed." },
+            redo: { kind: "step", step: "draft", label: "Run “Prepare the cut” again" },
         });
     });
 
@@ -223,5 +228,97 @@ describe("release run (FR-MC-016)", () => {
         expect(run.phases[2]).toMatchObject({ status: "waiting", action: { step: "compile" } });
         const built = releaseRun(facts({ tagexists: true, githuberror: "no gh", steps: { compile: ok() } }), own);
         expect(built.phases[3]).toMatchObject({ status: "waiting", expect: "Next: Verify the endpoint." });
+    });
+});
+
+// Notulia's .molten/project.json, which declares no phase and a step of its own named "prepare" (#230).
+const notulia: PipelineReleaseStep[] = [
+    { id: "warm-cache", title: "Warm the release cache", run: "x" },
+    { id: "promote", title: "Promote develop onto main", run: "x" },
+    { id: "prepare", title: "Prepare the cut", run: "x" },
+    { id: "finalize", title: "Cut", run: "x" },
+    { id: "sync-back", title: "Carry back", run: "x" },
+];
+
+describe("a pipeline without phases (#230)", () => {
+    const step = (f: ReleaseFacts) => {
+        const run = releaseRun(f, notulia);
+        const action = run.phases.find((p) => p.id === run.current)?.action;
+        return action?.kind === "step" ? action.step : action?.kind;
+    };
+
+    it("never reads the preparation as the project's own prepare step", () => {
+        expect(step(facts({ preparation: ok() }))).toBe("promote");
+        expect(step(facts({ preparation: ok(), steps: { promote: ok() } }))).toBe("prepare");
+        expect(step(facts({ preparation: ok(), steps: { promote: ok(), prepare: ok() } }))).toBe("finalize");
+    });
+
+    it("runs every step in order, the ones left after the tag back to the trunk", () => {
+        const ran = { promote: ok(), prepare: ok(), finalize: ok() };
+        const by = stepsByPhase(notulia, facts({ tagexists: true, steps: ran }));
+        expect(by.prepare.map((s) => s.id)).toEqual(["warm-cache"]);
+        expect(by.cut.map((s) => s.id)).toEqual(["promote", "prepare", "finalize"]);
+        expect(by.back.map((s) => s.id)).toEqual(["sync-back"]);
+        const published = releaseRun(
+            facts({
+                tagexists: true,
+                steps: ran,
+                release: { tagName: "v1.2.0-1", isDraft: false, isPrerelease: true, url: "u" },
+            }),
+            notulia
+        );
+        expect(published.current).toBe("back");
+        expect(published.phases[4]).toMatchObject({ status: "waiting", action: { step: "sync-back" } });
+        // A tag cut at the terminal, with no step run here: nothing is guessed to come after it.
+        expect(stepsByPhase(notulia, facts({ tagexists: true })).back).toEqual([]);
+    });
+
+    it("reads the step after the notes were drafted as the cut, and confirms it", () => {
+        const drafted = facts({
+            preparation: ok(),
+            steps: { promote: ok(), prepare: ok() },
+            notes: "/p-release/releases/v1.2.0-1.md",
+            notesdrafted: true,
+        });
+        const run = releaseRun(drafted, notulia);
+        expect(run.editNotes).toBe(true);
+        expect(run.phases[1].action).toMatchObject({ step: "finalize", label: "Cut" });
+        expect(run.phases[1].action.kind === "step" && run.phases[1].action.confirm).toContain("v1.2.0-1");
+        // Notes that were there before the release are no sign of which step cuts.
+        const old = releaseRun({ ...drafted, notesdrafted: false }, notulia);
+        expect(old.editNotes).toBe(false);
+    });
+
+    it("offers the step before a failed one again", () => {
+        const run = releaseRun(
+            facts({
+                preparation: ok(),
+                steps: { promote: ok(), prepare: ok(), finalize: ok({ state: "failure", exit: 1, tail: ["nope"] }) },
+            }),
+            notulia
+        );
+        expect(run.phases[1]).toMatchObject({
+            status: "failed",
+            action: { step: "finalize" },
+            redo: { step: "prepare" },
+        });
+    });
+
+    it("has nothing to wait for on GitHub when the project is not there", () => {
+        const run = releaseRun(facts({ tagexists: true, nogithub: true, steps: { finalize: ok() } }), notulia);
+        expect(run.phases.map((p) => p.status)).toEqual(["done", "done", "done", "done", "waiting"]);
+        expect(run.phases[4].action).toMatchObject({ step: "sync-back" });
+    });
+
+    it("joins a step without a phase to the phase before it, in a phased list", () => {
+        const by = stepsByPhase([
+            { id: "a", run: "x" },
+            { id: "b", phase: "cut", run: "x" },
+            { id: "c", run: "x" },
+            { id: "d", phase: "back", run: "x" },
+        ]);
+        expect(by.prepare.map((s) => s.id)).toEqual(["a"]);
+        expect(by.cut.map((s) => s.id)).toEqual(["b", "c"]);
+        expect(by.back.map((s) => s.id)).toEqual(["d"]);
     });
 });

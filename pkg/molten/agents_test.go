@@ -277,7 +277,7 @@ func TestPipelineFormatExampleIsValid(t *testing.T) {
 	}
 	dir := t.TempDir()
 	writeProjectFile(t, dir, ".molten/project.json", text[start+8:start+8+end])
-	for _, script := range []string{"scripts/build-local.sh", "scripts/release.sh", "scripts/promote.mjs", "scripts/verify.mjs"} {
+	for _, script := range []string{"scripts/build-local.sh", "scripts/release.sh", "scripts/promote.mjs", "scripts/verify.mjs", "scripts/sync-back.sh"} {
 		writeProjectFile(t, dir, script, "")
 	}
 	writeProjectFile(t, dir, "package.json", `{"name": "notulia", "version": "1.2.0"}`)

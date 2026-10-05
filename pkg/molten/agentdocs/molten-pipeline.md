@@ -32,7 +32,8 @@ what is missing, and only after the user agreed.
      the GitHub workflows already run, split into lanes that may run side by side;
    - `builds`: the local builds the user installs (`gold` at least when the project ships an app), with where the
      result lands (`artifact`);
-   - `release.rc` and `release.public`: the steps that cut, build and publish a version, in order;
+   - `release.rc` and `release.public`: the steps that cut, build and publish a version, in order, each with its
+     `phase`, and `confirm` on the step that pushes the tag (see "The release contract" in `pipeline-format.md`);
    - `steps`: anything else project-specific the user wants in a panel.
    - `icon`: the project's square app icon (not a wide logo), relative to the project folder, when it is not at a
      usual place such as `icon.svg` or `build/icon.png`.
@@ -54,6 +55,6 @@ what is missing, and only after the user agreed.
 - Commands run from the project's root unless `cwd` says otherwise; keep `cwd` inside the project.
 - Prefer the project's existing entry points (`bun run check`, `task build`, `./scripts/release.sh`) over long
   inline shell lines.
-- Steps that push, tag or publish are fine to declare: MoltenTerm always asks the user before running a release
-  step.
+- Steps that push, tag or publish are fine to declare: apart from the preparation, which runs when the user starts
+  the release, a release step runs only on the user's click.
 - Read `molten` output with `--json`.

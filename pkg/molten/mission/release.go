@@ -32,7 +32,9 @@ const (
 	// The tags cut at the terminal the user stopped following.
 	ReleaseIgnoredFileName = "release-ignored.json"
 	maxIgnoredReleases     = 20
-	ReleasePrepareStepId   = "prepare"
+	// The preparation's run, kept apart from the declared steps: no step id may start with "@", so a project's own
+	// step (Notulia's "prepare") is never read as the preparation, nor the preparation as it (#230).
+	ReleasePreparationStepId = "@preparation"
 
 	releaseGitTimeout = 15 * time.Second
 )
@@ -186,9 +188,17 @@ func preparationCommand(steps []molten.PipelineStep, version string, tag string,
 	return strings.Join(parts, " && ")
 }
 
+// tagExists tells whether the tag is cut: on origin, as Notulia reads it, since a cut whose push failed leaves a local
+// tag that is not one. The local tag counts only for a project without an origin, or while origin cannot be reached.
 func (r *Runs) tagExists(dir string, tag string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), releaseGitTimeout)
 	defer cancel()
+	if _, err := r.git(ctx, dir, "git", "remote", "get-url", "origin"); err == nil {
+		out, err := r.git(ctx, dir, "git", "ls-remote", "--tags", "--refs", "origin", "refs/tags/"+tag)
+		if err == nil {
+			return strings.Contains(string(out), "refs/tags/"+tag)
+		}
+	}
 	_, err := r.git(ctx, dir, "git", "rev-parse", "-q", "--verify", "refs/tags/"+tag)
 	return err == nil
 }
@@ -234,6 +244,9 @@ func (r *Runs) StartRelease(req ReleaseStartRequest) (ReleaseStartResult, error)
 	if err := r.writeReleaseSession(dir, session); err != nil {
 		return ReleaseStartResult{}, err
 	}
+	if len(molten.ReleasePreparation(steps)) == 0 {
+		return ReleaseStartResult{Session: &session}, nil
+	}
 	rec, err := r.launchPreparation(dir, steps, session)
 	if err != nil {
 		// No release is announced that nothing runs for.
@@ -276,7 +289,7 @@ func channelSteps(p *molten.Pipeline, channel string) []molten.PipelineStep {
 func (r *Runs) launchPreparation(dir string, steps []molten.PipelineStep, session ReleaseSession) (RunRecord, error) {
 	command := TrustedCommand{
 		Kind:  RunKindRelease,
-		Id:    ReleasePrepareStepId,
+		Id:    ReleasePreparationStepId,
 		Title: "Prepare " + session.Tag,
 		Run:   preparationCommand(molten.ReleasePreparation(steps), session.Version, session.Tag, currentBranch(r.git, dir)),
 	}

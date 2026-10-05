@@ -78,15 +78,22 @@ type ReleasePr struct {
 
 type ReleaseFacts struct {
 	// The release launched from the Timeline; nil for a tag cut at the terminal.
-	Session   *ReleaseSession            `json:"session,omitempty"`
-	Tag       string                     `json:"tag,omitempty"`
-	Version   string                     `json:"version,omitempty"`
-	Channel   string                     `json:"channel,omitempty"`
-	TagExists bool                       `json:"tagexists"`
-	Trunk     string                     `json:"trunk,omitempty"`
-	Steps     map[string]ReleaseStepFact `json:"steps"`
+	Session   *ReleaseSession `json:"session,omitempty"`
+	Tag       string          `json:"tag,omitempty"`
+	Version   string          `json:"version,omitempty"`
+	Channel   string          `json:"channel,omitempty"`
+	TagExists bool            `json:"tagexists"`
+	Trunk     string          `json:"trunk,omitempty"`
+	// The declared steps' last runs, by their own ids only.
+	Steps map[string]ReleaseStepFact `json:"steps"`
+	// The preparation's last run, which is none of the declared steps (#230).
+	Preparation *ReleaseStepFact `json:"preparation,omitempty"`
 	// The public notes drafted for the cut, while the tag is not pushed yet.
 	Notes string `json:"notes,omitempty"`
+	// The notes were written since the release started: a step of this release drafted them.
+	NotesDrafted bool `json:"notesdrafted"`
+	// The project is not on GitHub: no run, release or pull request of it is to be waited for.
+	NoGithub bool `json:"nogithub"`
 	// GitHub, through the user's gh: the runs the tag started, the newest one's jobs, the release.
 	GithubError string            `json:"githuberror,omitempty"`
 	Runs        []ReleaseGhRun    `json:"runs"`
@@ -151,15 +158,17 @@ func (r *Runs) followedRelease(ctx context.Context, dir string, p *molten.Pipeli
 	return ReleaseSession{}, false
 }
 
-// stepFacts reads the last run of each release step for the tag, by step id ("prepare" for the preparation).
-func (r *Runs) stepFacts(dir string, tag string) (map[string]ReleaseStepFact, string) {
+// stepFacts reads the last run of each declared release step for the tag, and the preparation's apart. Runs started
+// before `since` (the release launched here) belong to an earlier, abandoned attempt at the same tag and are not read.
+func (r *Runs) stepFacts(dir string, tag string, since int64) (map[string]ReleaseStepFact, *ReleaseStepFact, string) {
 	facts := map[string]ReleaseStepFact{}
+	var preparation *ReleaseStepFact
 	notes := ""
 	runs := r.List(dir)
 	// Oldest first, so that the newest run of a step, and the newest notes announced, win.
 	for i := len(runs) - 1; i >= 0; i-- {
 		rec := runs[i]
-		if rec.Kind != RunKindRelease || rec.Tag != tag {
+		if rec.Kind != RunKindRelease || rec.Tag != tag || rec.StartedAt < since {
 			continue
 		}
 		data, _ := os.ReadFile(r.logFile(dir, rec.Id))
@@ -172,7 +181,11 @@ func (r *Runs) stepFacts(dir string, tag string) (map[string]ReleaseStepFact, st
 			fact.Tail = append(fact.Tail, line)
 		}
 		fact.Tail = fact.Tail[max(0, len(fact.Tail)-releaseTailLines):]
-		facts[rec.StepId] = fact
+		if rec.StepId == ReleasePreparationStepId {
+			preparation = &fact
+		} else {
+			facts[rec.StepId] = fact
+		}
 		if m := notesRegex.FindAllSubmatch(data, -1); len(m) > 0 {
 			path := expandHome(string(m[len(m)-1][1]))
 			if !filepath.IsAbs(path) {
@@ -181,22 +194,61 @@ func (r *Runs) stepFacts(dir string, tag string) (map[string]ReleaseStepFact, st
 			notes = filepath.Clean(path)
 		}
 	}
-	return facts, notes
+	return facts, preparation, notes
 }
 
-// notesPath is where the public notes of the cut are: those a step announced, or else the project's versions.notes.
-func notesPath(dir string, p *molten.Pipeline, tag string, announced string) string {
+func isFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+func writtenSince(path string, since int64) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.ModTime().UnixMilli() >= since
+}
+
+// notesPath is where the public notes of the cut are: those a step announced, or else the project's versions.notes,
+// in the project or, as Notulia drafts them, in another worktree of its repository (a release worktree beside it)
+// when written for this release; the newest of those wins.
+func (r *Runs) notesPath(ctx context.Context, dir string, p *molten.Pipeline, tag string, announced string, since int64) string {
 	if announced != "" {
-		return announced
+		if isFile(announced) {
+			return announced
+		}
+		return ""
 	}
 	if p.Versions == nil || p.Versions.Notes == "" {
 		return ""
 	}
-	return filepath.Join(dir, strings.ReplaceAll(p.Versions.Notes, "{tag}", tag))
+	rel := filepath.FromSlash(strings.ReplaceAll(p.Versions.Notes, "{tag}", tag))
+	if own := filepath.Join(dir, rel); isFile(own) {
+		return own
+	}
+	g := &gitReader{ctx: ctx, run: r.git, dir: dir}
+	best, bestTime := "", int64(0)
+	for _, line := range g.lines("worktree", "list", "--porcelain") {
+		worktree, ok := strings.CutPrefix(line, "worktree ")
+		if !ok || filepath.Clean(worktree) == dir {
+			continue
+		}
+		path := filepath.Join(worktree, rel)
+		info, err := os.Stat(path)
+		if err != nil || info.IsDir() || info.ModTime().UnixMilli() < since {
+			continue
+		}
+		if t := info.ModTime().UnixMilli(); best == "" || t > bestTime {
+			best, bestTime = path, t
+		}
+	}
+	return best
 }
 
 func (r *Runs) readGithubRelease(ctx context.Context, dir string, facts *ReleaseFacts) {
 	out, err := ghJson(ctx, r.git, dir, "run", "list", "--limit", "30", "--json", "databaseId,workflowName,headBranch,status,conclusion,url,createdAt")
+	if err != nil && isNotGithubError(err) {
+		facts.NoGithub = true
+		return
+	}
 	if err != nil {
 		facts.GithubError = err.Error()
 		return
@@ -266,21 +318,20 @@ func (r *Runs) ReleaseFactsOf(dir string) (ReleaseFacts, error) {
 	if !ok {
 		return facts, nil
 	}
+	since := int64(0)
 	if stored, _ := r.ReleaseSessionOf(dir); stored != nil {
 		facts.Session = stored
+		since = stored.StartedAt
 	}
 	facts.Tag, facts.Version, facts.Channel = session.Tag, session.Version, session.Channel
 	facts.TagExists = r.tagExists(dir, session.Tag)
 	trunk, trunkRef := resolveTrunk(ctx, r.git, dir)
 	facts.Trunk = trunk
 	var announced string
-	facts.Steps, announced = r.stepFacts(dir, session.Tag)
+	facts.Steps, facts.Preparation, announced = r.stepFacts(dir, session.Tag, since)
 	if !facts.TagExists {
-		if path := notesPath(dir, p, session.Tag, announced); path != "" {
-			if info, err := os.Stat(path); err == nil && !info.IsDir() {
-				facts.Notes = path
-			}
-		}
+		facts.Notes = r.notesPath(ctx, dir, p, session.Tag, announced, since)
+		facts.NotesDrafted = facts.Notes != "" && facts.Session != nil && writtenSince(facts.Notes, since)
 		return facts, nil
 	}
 	facts.OnTrunk = r.onTrunk(ctx, dir, trunkRef, session.Tag)
@@ -299,7 +350,8 @@ func (r *Runs) checkFollowed(dir string, p *molten.Pipeline, tag string) (Releas
 	return session, nil
 }
 
-// RunReleaseStep runs a declared step of the release followed, or its preparation again ("prepare"); one at a time.
+// RunReleaseStep runs a declared step of the release followed, or its preparation again (ReleasePreparationStepId);
+// one at a time.
 func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 	if err := checkDir(req.Dir); err != nil {
 		return RunResult{}, err
@@ -318,7 +370,10 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 	}
 	steps := channelSteps(p, session.Channel)
 	var rec RunRecord
-	if req.Step == ReleasePrepareStepId {
+	if req.Step == ReleasePreparationStepId {
+		if len(molten.ReleasePreparation(steps)) == 0 {
+			return RunResult{}, errors.New("the pipeline declares no preparation")
+		}
 		rec, err = r.launchPreparation(dir, steps, session)
 		return RunResult{Run: &rec}, err
 	}

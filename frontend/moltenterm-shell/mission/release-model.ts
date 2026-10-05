@@ -6,7 +6,7 @@
 // Kept apart from the component so the rules can be tested without the app.
 
 import { DefaultTagPrefix, nextRc, parseBase, planRelease, tagOf, VersionRules } from "../releases/versions";
-import { PipelineReleaseStep } from "./mission-model";
+import { PipelineReleaseStep, ReleasePhase } from "./mission-model";
 import { ReleaseState } from "./versions";
 
 // must match the channels in pkg/molten/mission/release.go
@@ -57,13 +57,32 @@ export function releaseChoiceTag(plan: ReleasePlan, choice: ReleaseChannel, vers
     return chosen.how === "refused" ? null : chosen.tag;
 }
 
+// must match ReleaseStepPhase in pkg/molten/pipeline.go: each step's phase as declared, or, in a list that declares
+// phases, the phase of the step before it (the first: prepare). Without any declared phase the first step prepares and
+// the others get null, their phase being known only as the release goes. Steps that rewrite the notes get none.
+export function releaseStepPhases(steps: readonly PipelineReleaseStep[]): ReleasePhase[] {
+    const list = steps ?? [];
+    const phased = list.some((s) => s.phase && !s.notes);
+    let current: ReleasePhase = "prepare";
+    let first = true;
+    return list.map((step) => {
+        if (step.notes) {
+            return null;
+        }
+        const wasFirst = first;
+        first = false;
+        if (!phased) {
+            return wasFirst ? "prepare" : null;
+        }
+        current = step.phase || current;
+        return current;
+    });
+}
+
 // The steps that start with the release: the "prepare" phase, or the first step when no phase is declared.
 export function preparationSteps(steps: readonly PipelineReleaseStep[]): PipelineReleaseStep[] {
-    const list = steps ?? [];
-    if (!list.some((s) => s.phase)) {
-        return list.slice(0, 1);
-    }
-    return list.filter((s) => s.phase === "prepare");
+    const phases = releaseStepPhases(steps);
+    return (steps ?? []).filter((_, i) => phases[i] === "prepare");
 }
 
 export function releaseNote(steps: readonly PipelineReleaseStep[]): string {
