@@ -7,11 +7,11 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useState } from "react";
 import { MoltenWave } from "../molten-button";
-import { timeAgo } from "./branch-tree";
 import { BlockHeader } from "./cicd-panels";
 import { missionCancel } from "./mission-client";
 import { logTail, PipelineDef, RunLogMode, runLogVisible, RunRecord } from "./mission-model";
 import { RunStateBadge, useRunLog, useStartRun } from "./runs-view";
+import { timeAgo } from "./time-format";
 
 // must match PipelineSections in pkg/molten/pipeline.go
 export type PipelineSection = "timeline" | "cilocal" | "ciremote" | "cd";

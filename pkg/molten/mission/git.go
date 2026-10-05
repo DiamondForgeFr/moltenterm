@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
@@ -30,10 +31,20 @@ const defaultNotesPath = "releases/{tag}.md"
 // overview shows the last ones.
 const notesFromTagLimit = 6
 
+// The line map (FR-MC-022) reads the trunk's merges: at most this many, each walked back over at most this many of the
+// merged branch's own commits, inside one read of the trunk's history this long.
+const maxMerges = 60
+const maxMergeCommits = 150
+const mergeLogLimit = 4000
+
 type Commit struct {
 	Sha     string `json:"sha"`
 	Date    string `json:"date"`
 	Subject string `json:"subject"`
+	// Only on the long-lived branches' commits: the line map finds merges (several parents) and the copies a rebased
+	// or cherry-picked release branch holds (same subject and author date) from them.
+	Parents    []string `json:"parents,omitempty"`
+	AuthorDate string   `json:"authordate,omitempty"`
 }
 
 type ForkPoint struct {
@@ -47,6 +58,19 @@ type Branch struct {
 	Date    string     `json:"date"`
 	Commits []Commit   `json:"commits"`
 	Fork    *ForkPoint `json:"fork"`
+}
+
+// Merge is a branch merged into the trunk by a merge commit, read back from the commit's second parent: where the
+// branch left the trunk, how many commits of its own it brought and when the first of them was written. A project
+// that rebases or squashes has none; the line map infers its branches from the trunk's commits instead.
+type Merge struct {
+	Sha     string     `json:"sha"`
+	Date    string     `json:"date"`
+	Subject string     `json:"subject"`
+	Fork    *ForkPoint `json:"fork"`
+	Commits int        `json:"commits"`
+	// The earliest author date among the branch's own commits; empty when none could be read.
+	FirstDate string `json:"firstdate,omitempty"`
 }
 
 type Tag struct {
@@ -64,6 +88,7 @@ type GitSnapshot struct {
 	RemoteUrl   string   `json:"remoteurl,omitempty"`
 	Branches    []Branch `json:"branches"`
 	Tags        []Tag    `json:"tags"`
+	Merges      []Merge  `json:"merges"`
 	Ahead       []Commit `json:"ahead"`
 	LastPublic  string   `json:"lastpublic,omitempty"`
 	SincePublic []Commit `json:"sincepublic"`
@@ -213,6 +238,27 @@ func parseCommits(lines []string) []Commit {
 
 const commitFormat = "--format=%H%x09%cI%x09%s"
 
+const historyFormat = "--format=%H%x09%cI%x09%aI%x09%P%x09%s"
+
+// parseHistory reads commits logged with historyFormat: with their parents and author date.
+func parseHistory(lines []string) []Commit {
+	commits := []Commit{}
+	for _, line := range lines {
+		parts := strings.SplitN(line, "\t", 5)
+		if len(parts) < 5 {
+			continue
+		}
+		commits = append(commits, Commit{
+			Sha:        parts[0],
+			Date:       parts[1],
+			AuthorDate: parts[2],
+			Parents:    strings.Fields(parts[3]),
+			Subject:    parts[4],
+		})
+	}
+	return commits
+}
+
 func (g *gitReader) commitDate(ref string) string {
 	out, _ := g.out("show", "-s", "--format=%cI", ref)
 	return out
@@ -224,7 +270,7 @@ func (g *gitReader) trunkBranch(name string, ref string) Branch {
 		Name:    name,
 		Sha:     sha,
 		Date:    g.commitDate(ref),
-		Commits: parseCommits(g.lines("log", "--first-parent", commitFormat, "-n", strconv.Itoa(trunkLogLimit), ref)),
+		Commits: parseHistory(g.lines("log", "--first-parent", historyFormat, "-n", strconv.Itoa(trunkLogLimit), ref)),
 	}
 }
 
@@ -342,6 +388,70 @@ func (g *gitReader) featureBranches(baseRef string, skip map[string]bool) []Bran
 	return branches
 }
 
+func earlierDate(a string, b string) bool {
+	ta, errA := time.Parse(time.RFC3339, a)
+	tb, errB := time.Parse(time.RFC3339, b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	return ta.Before(tb)
+}
+
+type historyNode struct {
+	parents    []string
+	authorDate string
+}
+
+// merges reads the branches the trunk's merge commits brought in. One bounded read of the trunk's whole history, only
+// when its first-parent history holds a merge: each merge's second parent is walked back, along first parents, to the
+// trunk. A merge whose branch runs past what was read keeps no fork point.
+func (g *gitReader) merges(baseRef string, trunk []Commit) []Merge {
+	rtn := []Merge{}
+	onTrunk := map[string]string{}
+	var candidates []Commit
+	for _, c := range trunk {
+		onTrunk[c.Sha] = c.Date
+		if len(c.Parents) > 1 && len(candidates) < maxMerges {
+			candidates = append(candidates, c)
+		}
+	}
+	if baseRef == "" || len(candidates) == 0 {
+		return rtn
+	}
+	graph := map[string]historyNode{}
+	for _, line := range g.lines("log", "--format=%H%x09%aI%x09%P", "-n", strconv.Itoa(mergeLogLimit), baseRef) {
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) < 3 {
+			continue
+		}
+		graph[parts[0]] = historyNode{parents: strings.Fields(parts[2]), authorDate: parts[1]}
+	}
+	for _, c := range candidates {
+		merge := Merge{Sha: c.Sha, Date: c.Date, Subject: c.Subject}
+		sha := c.Parents[1]
+		for steps := 0; steps <= maxMergeCommits; steps++ {
+			if date, ok := onTrunk[sha]; ok {
+				merge.Fork = &ForkPoint{Sha: sha, Date: date}
+				break
+			}
+			node, ok := graph[sha]
+			if !ok || steps == maxMergeCommits {
+				break
+			}
+			merge.Commits++
+			if merge.FirstDate == "" || earlierDate(node.authorDate, merge.FirstDate) {
+				merge.FirstDate = node.authorDate
+			}
+			if len(node.parents) == 0 {
+				break
+			}
+			sha = node.parents[0]
+		}
+		rtn = append(rtn, merge)
+	}
+	return rtn
+}
+
 // GitHubWebUrl turns an origin URL into the repository's web address, for links; empty when it is not GitHub.
 func GitHubWebUrl(remote string) string {
 	remote = strings.TrimSpace(remote)
@@ -366,7 +476,7 @@ func CollectGit(ctx context.Context, run Runner, dir string, fetch bool) (*GitSn
 	if _, err := g.out("rev-parse", "--git-dir"); err != nil {
 		return nil, err
 	}
-	snap := &GitSnapshot{Branches: []Branch{}, Tags: []Tag{}, Ahead: []Commit{}, SincePublic: []Commit{}, TagPrefix: g.tagPrefix, FirstPublic: g.rules.FirstPublic}
+	snap := &GitSnapshot{Branches: []Branch{}, Tags: []Tag{}, Merges: []Merge{}, Ahead: []Commit{}, SincePublic: []Commit{}, TagPrefix: g.tagPrefix, FirstPublic: g.rules.FirstPublic}
 	remote, _ := g.out("remote", "get-url", "origin")
 	snap.RemoteUrl = GitHubWebUrl(remote)
 	if fetch && remote != "" {
@@ -397,6 +507,11 @@ func CollectGit(ctx context.Context, run Runner, dir string, fetch bool) (*GitSn
 		skip[name] = true
 		if ref := g.refOf(name); ref != "" {
 			snap.Branches = append(snap.Branches, g.trunkBranch(name, ref))
+		}
+	}
+	for _, b := range snap.Branches {
+		if b.Name == snap.Trunk {
+			snap.Merges = g.merges(baseRef, b.Commits)
 		}
 	}
 	snap.Branches = append(snap.Branches, g.featureBranches(baseRef, skip)...)

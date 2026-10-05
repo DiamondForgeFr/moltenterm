@@ -11,6 +11,7 @@ import {
     flip,
     FloatingPortal,
     offset,
+    type Placement,
     shift,
     size,
     useDismiss,
@@ -26,16 +27,24 @@ function paneOf(el: Element): Element {
     return el?.closest("[data-blockid]") ?? document.body;
 }
 
+// The line map (FR-MC-022) opens its details the same way, on hover: anchored to an SVG mark, above it by default, and
+// told when the pointer enters or leaves so the detail stays open while it is read.
 export function MenuPopover({
     anchor,
     onClose,
     className,
     children,
+    placement = "bottom-start",
+    onPointerEnter,
+    onPointerLeave,
 }: {
-    anchor: HTMLElement;
+    anchor: Element;
     onClose: () => void;
     className?: string;
     children: React.ReactNode;
+    placement?: Placement;
+    onPointerEnter?: () => void;
+    onPointerLeave?: () => void;
 }) {
     const boundary = paneOf(anchor);
     const { refs, floatingStyles, context } = useFloating({
@@ -45,7 +54,7 @@ export function MenuPopover({
                 onClose();
             }
         },
-        placement: "bottom-start",
+        placement,
         strategy: "fixed",
         elements: { reference: anchor },
         whileElementsMounted: autoUpdate,
@@ -69,7 +78,7 @@ export function MenuPopover({
             <div
                 ref={refs.setFloating}
                 style={floatingStyles}
-                {...getFloatingProps()}
+                {...getFloatingProps({ onPointerEnter, onPointerLeave })}
                 className={cn(
                     "z-[9500] overflow-y-auto rounded border border-border bg-modalbg p-3 shadow-lg",
                     className

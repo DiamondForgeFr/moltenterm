@@ -4,10 +4,59 @@
 // What the collector in wavesrv answers (pkg/molten/mission), and its translation into the shapes the ported Notulia
 // modules read. Kept apart from the components so the rules can be tested without the app.
 
+import { DefaultTagPrefix } from "../releases/versions";
 import { GithubRelease, Milestone, PullRequest, WorkflowRun } from "./github";
-import { DefaultTagPrefix, RawCommit, TreeData } from "./tree";
+
+export type RawCommit = {
+    sha: string;
+    date: string;
+    subject: string;
+    // Only on the long-lived branches' commits (see Commit in pkg/molten/mission/git.go).
+    parents?: string[];
+    authordate?: string;
+};
+
+export type RawTag = {
+    name: string;
+    sha: string;
+    date: string;
+    notes: string | null;
+    notesInternal: string | null;
+};
+
+export type RawBranch = {
+    name: string;
+    sha: string;
+    date: string;
+    commits: RawCommit[];
+    fork: { sha: string; date: string } | null;
+};
+
+// The project's history as the release state reads it.
+export type TreeData = {
+    branches: RawBranch[];
+    tags: RawTag[];
+    // The branch work is merged into (develop in a git-flow project).
+    trunk: string;
+    // The branch releases are cut from (main); the same as the trunk in a single-branch project.
+    release: string;
+    // The project's release tags start with it (versions.tagprefix).
+    tagPrefix?: string;
+    // versions.firstpublic: tags below its first candidate are not the project's releases.
+    firstPublic?: string;
+};
 
 export type MissionTag = { name: string; sha: string; date: string; notes?: string; notesinternal?: string };
+
+// must match Merge in pkg/molten/mission/git.go
+export type MissionMerge = {
+    sha: string;
+    date: string;
+    subject: string;
+    fork: { sha: string; date: string };
+    commits: number;
+    firstdate?: string;
+};
 
 export type MissionBranch = {
     name: string;
@@ -24,6 +73,7 @@ export type MissionGit = {
     remoteurl?: string;
     branches: MissionBranch[];
     tags: MissionTag[];
+    merges?: MissionMerge[];
     ahead: RawCommit[];
     lastpublic?: string;
     sincepublic: RawCommit[];

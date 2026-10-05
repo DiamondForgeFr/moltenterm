@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import { RawTag } from "./mission-model";
 import { preparationSteps, releaseChoiceTag, releaseNote, releasePlan } from "./release-model";
-import { RawTag } from "./tree";
 import { releaseState } from "./versions";
 
 const tag = (name: string, date: string): RawTag => ({ name, date, sha: "c" + name, notes: null, notesInternal: null });

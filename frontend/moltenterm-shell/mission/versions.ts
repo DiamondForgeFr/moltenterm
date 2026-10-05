@@ -7,8 +7,14 @@
 // public release the number is a decision, and commits that change nothing a user sees justify no release. The rules
 // themselves live in ../releases/versions.ts, the twin of pkg/molten/versions.
 
-import { BumpLevel, lastPublic, lastRc, planRelease, VersionRules } from "../releases/versions";
-import { DefaultTagPrefix, RawCommit, RawTag, TreeData } from "./tree";
+import { BumpLevel, DefaultTagPrefix, lastPublic, lastRc, planRelease, VersionRules } from "../releases/versions";
+import { RawCommit, RawTag, TreeData } from "./mission-model";
+
+// A release candidate is a version with a suffix (v1.2.0-3), as in Notulia, read after the project's tag prefix (which
+// may itself hold a dash, as release-1.2.0).
+export function isPrereleaseTag(name: string, prefix: string = DefaultTagPrefix): boolean {
+    return (name.startsWith(prefix) ? name.slice(prefix.length) : name).includes("-");
+}
 
 export type NextRelease = {
     version: string;

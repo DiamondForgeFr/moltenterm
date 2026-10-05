@@ -11,10 +11,10 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MoltenWave } from "../molten-button";
 import { pathParent } from "../workspace-project";
-import { timeAgo } from "./branch-tree";
 import { buildCardTitle, BuildManifest, BuildPhaseDef, BuildPhaseStatus, buildRunView } from "./builds-model";
 import { missionBuilds, missionCancel, missionClose, missionLog, missionRun, missionTrust } from "./mission-client";
 import { logTail, RunRecord, RunState, RunStateLabels, UntrustedInfo } from "./mission-model";
+import { timeAgo } from "./time-format";
 
 const StateClasses: Record<RunState, string> = {
     running: "bg-accent/20 text-accent",
