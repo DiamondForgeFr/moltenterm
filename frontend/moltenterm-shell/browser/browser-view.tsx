@@ -61,6 +61,7 @@ import {
     updateTab,
 } from "./browser-model";
 import { noteBrowserPanelFocus } from "./browser-routing";
+import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
 
 export { MoltentermBrowserView };
 
@@ -92,6 +93,8 @@ export class BrowserViewModel implements ViewModel {
     // Why a page meant for the installed browser opened here instead (FR-BRW-002).
     noticeAtom = atom(null) as PrimitiveAtom<string>;
     engines = BrowserEngineModel.getInstance();
+    // Sign-in refusals per tab (FR-BRW-003).
+    signIn = new BrowserSignInModel();
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
@@ -419,6 +422,7 @@ export class BrowserViewModel implements ViewModel {
 
     closeTab(id: string): void {
         this.webviews.delete(id);
+        this.signIn.forget(id);
         this.setState(closeTab(this.state(), id));
     }
 
@@ -475,7 +479,10 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
                 return;
             }
             model.setState(updateTab(model.state(), tab.id, { url: e.url }));
+            model.signIn.noteNavigation(tab.id, e.url);
         };
+        // A popup this tab opened was refused by its sign-in provider (emain/moltenterm-popups.ts closed it).
+        const onSignInRefused = (e: any) => model.signIn.notePopupRefused(tab.id, e.detail, webview.getURL());
         const onTitle = (e: any) => model.setState(updateTab(model.state(), tab.id, { title: e.title }));
         // emain turns window.open and target=_blank into this event (emain/preload.ts dispatches it to this webview).
         const onNewWindow = (e: any) => {
@@ -504,6 +511,7 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
         webview.addEventListener("did-navigate-in-page", onNavigate);
         webview.addEventListener("page-title-updated", onTitle);
         webview.addEventListener("new-window", onNewWindow);
+        webview.addEventListener("moltenterm-signin-refused", onSignInRefused);
         webview.addEventListener("focus", onFocus);
         webview.addEventListener("blur", onBlur);
         webview.addEventListener("dom-ready", onDomReady);
@@ -514,6 +522,7 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
             webview.removeEventListener("did-navigate-in-page", onNavigate);
             webview.removeEventListener("page-title-updated", onTitle);
             webview.removeEventListener("new-window", onNewWindow);
+            webview.removeEventListener("moltenterm-signin-refused", onSignInRefused);
             webview.removeEventListener("focus", onFocus);
             webview.removeEventListener("blur", onBlur);
             webview.removeEventListener("dom-ready", onDomReady);
@@ -863,6 +872,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
             <BrowserTabStrip model={model} state={state} />
             <BrowserNavBar model={model} state={state} />
             <BrowserNotice model={model} />
+            <SignInRefusalBar signIn={model.signIn} tabId={state.activeId} browserName={null} onContinue={() => {}} />
             <div className="relative min-h-0 flex-1">
                 {state.tabs.map((tab) =>
                     tab.engine ? (

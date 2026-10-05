@@ -20,6 +20,7 @@ import {
     shNavHandler,
 } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
+import { attachWebviewWindowOpen } from "./moltenterm-popups"; // MOLTENTERM-PATCH (#207)
 
 function handleWindowsMenuAccelerators(
     waveEvent: WaveKeyboardEvent,
@@ -314,14 +315,10 @@ export async function getOrCreateWebViewForTab(waveWindowId: string, tabId: stri
     tabView.waveTabId = tabId;
     tabView.webContents.on("will-navigate", shNavHandler);
     tabView.webContents.on("will-frame-navigate", shFrameNavHandler);
+    // MOLTENTERM-PATCH (#207): sign-in popups open as real child windows; other new windows still become panel tabs
+    // (Wave's deny-and-forward moved to emain/moltenterm-popups.ts).
     tabView.webContents.on("did-attach-webview", (event, wc) => {
-        wc.setWindowOpenHandler((details) => {
-            if (wc == null || wc.isDestroyed() || tabView.webContents == null || tabView.webContents.isDestroyed()) {
-                return { action: "deny" };
-            }
-            tabView.webContents.send("webview-new-window", wc.id, details);
-            return { action: "deny" };
-        });
+        attachWebviewWindowOpen(tabView, wc);
     });
     tabView.webContents.on("before-input-event", (e, input) => {
         const waveEvent = adaptFromElectronKeyEvent(input);

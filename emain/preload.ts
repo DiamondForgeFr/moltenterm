@@ -94,6 +94,13 @@ ipcRenderer.on("webview-new-window", (e, webContentsId, details) => {
     target?.dispatchEvent(event);
 });
 
+// MOLTENTERM-PATCH (#207): a sign-in popup hit a provider refusal (emain/moltenterm-popups.ts); the webview that opened
+// it shows the refusal bar.
+ipcRenderer.on("moltenterm-signin-refused", (e, webContentsId, refusal) => {
+    const source = document.querySelector(`webview[data-webcontentsid="${webContentsId}"]`) as HTMLElement;
+    source?.dispatchEvent(new CustomEvent("moltenterm-signin-refused", { detail: refusal }));
+});
+
 ipcRenderer.on("webcontentsid-from-blockid", (e, blockId, responseCh) => {
     const webviewElem: WebviewTag = document.querySelector("div[data-blockid='" + blockId + "'] webview");
     const wcId = webviewElem?.dataset?.webcontentsid;
