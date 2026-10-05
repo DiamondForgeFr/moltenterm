@@ -37,6 +37,11 @@ const TickSteps = [1, 2, 7, 14, 30, 60, 90];
 const Char11 = 6.6;
 const Char10 = 6.0;
 const MaxStationLabel = 18;
+// The terminus's interface type (IBM Plex Sans), measured in the app with room to spare: the SVG lets text overflow,
+// and an underestimate makes the map scroll for a few pixels.
+const SansBold20 = 13;
+const Sans12 = 7.4;
+const Sans11 = 6.8;
 
 export const OverviewMinWidth = 800;
 export const FullPxPerDay = 28;
@@ -92,6 +97,8 @@ export type LineMapGeometry = {
     route: string;
     branches: GeometryBranch[];
     lanes: number;
+    // Branches past the lane cap: not drawn, counted; a merged one still marks where it landed on develop.
+    hidden: { count: number; landings: Point[]; text: string; x: number; y: number };
     stations: GeometryStation[];
     earlier: { x: number; y: number; count: number; label: { x: number; y: number; text: string } };
     commits: (Point & { sha: string })[];
@@ -119,6 +126,9 @@ export function terminusText(model: LineMapModel): { title: string; sub: string;
     }
     if (t.how === "nothing" || !t.version) {
         return { title, sub, status: "nothing to release yet" };
+    }
+    if (t.waiting === 0) {
+        return { title, sub, status: "all on main" };
     }
     return { title, sub, status: `${t.waiting} change${t.waiting === 1 ? "" : "s"} waiting` };
 }
@@ -176,23 +186,22 @@ export function chooseLabels(stations: readonly { x: number; kind: string; lates
 
 type LaneItem = { start: number; end: number; labelStart: number };
 
-// Greedy first fit: a branch takes the first lane free at its start (its label counted in); past the lane cap it
-// shares the lane that frees first, and its label is dropped when it would run over what is already there.
-export function assignLanes(items: readonly LaneItem[], maxLanes: number): { lane: number; labelled: boolean }[] {
+// Greedy first fit: a branch takes the first lane free at its start, its label counted in. Past the lane cap it is
+// not drawn (-1): branches piled on shared lanes read as one grey mass, and the hover, a shorter window or the full
+// size show them instead.
+export function assignLanes(items: readonly LaneItem[], maxLanes: number): number[] {
     const ends: number[] = [];
     return items.map((item) => {
         let lane = ends.findIndex((end) => end <= item.start);
-        let labelled = true;
         if (lane < 0 && ends.length < maxLanes) {
             lane = ends.length;
             ends.push(-Infinity);
         }
         if (lane < 0) {
-            lane = ends.reduce((best, end, k) => (end < ends[best] ? k : best), 0);
-            labelled = ends[lane] <= item.labelStart;
+            return -1;
         }
-        ends[lane] = Math.max(ends[lane], item.end);
-        return { lane, labelled };
+        ends[lane] = item.end;
+        return lane;
     });
 }
 
@@ -230,7 +239,11 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
     const single = model.release == null;
     const { title, sub, status } = terminusText(model);
     const right =
-        TerminusGap + TerminusRadius + 10 + Math.max(title.length * 12, sub.length * 6.6, status.length * 6.2) + 14;
+        TerminusGap +
+        TerminusRadius +
+        10 +
+        Math.max(title.length * SansBold20, sub.length * Sans12, status.length * Sans11) +
+        20;
     const minWidth = o.full ? Left + model.days * FullPxPerDay + right : OverviewMinWidth;
     const width = Math.round(Math.max(o.width || 0, minWidth));
     const nowX = Math.round(width - right);
@@ -281,10 +294,16 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
         maxLanes
     );
     const laneY = (k: number) => devY + FirstLaneGap + k * LaneGap;
-    const branches: GeometryBranch[] = drafts.map((d, i) => {
-        const { lane, labelled: hasLabel } = lanes[i];
+    const branches: GeometryBranch[] = [];
+    const hidden: LineMapBranch[] = [];
+    drafts.forEach((d, i) => {
+        const lane = lanes[i];
+        if (lane < 0) {
+            hidden.push(d.b);
+            return;
+        }
         const y = laneY(lane);
-        return {
+        branches.push({
             branch: d.b,
             path: branchPath(d.x1, d.x2, devY, y, d.clipped, d.open),
             lane,
@@ -292,17 +311,13 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
             x1: d.x1,
             x2: d.x2,
             clipped: d.clipped,
-            label: hasLabel
-                ? d.open
-                    ? { x: d.labelStart, y: y + 4, text: d.text }
-                    : { x: d.labelStart, y: y + 18, text: d.text }
-                : null,
+            label: d.open ? { x: d.labelStart, y: y + 4, text: d.text } : { x: d.labelStart, y: y + 18, text: d.text },
             merge: d.open ? null : { x: d.x2, y: devY },
             tip: d.open ? { x: d.x2, y } : null,
-        };
+        });
     });
-    const laneCount = lanes.length ? Math.max(...lanes.map((l) => l.lane)) + 1 : 0;
-    const lowest = laneCount ? laneY(laneCount - 1) + 26 : devY + 30;
+    const laneCount = branches.length ? Math.max(...branches.map((b) => b.lane)) + 1 : 0;
+    const lowest = (laneCount ? laneY(laneCount - 1) + 26 : devY + 30) + (hidden.length ? 18 : 0);
     const tickBottom = Math.round(lowest + 8);
     const height = tickBottom + 22;
 
@@ -351,6 +366,15 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
         route,
         branches,
         lanes: laneCount,
+        hidden: hidden.length
+            ? {
+                  count: hidden.length,
+                  landings: hidden.filter((b) => b.state === "merged").map((b) => ({ x: xOf(b.merge), y: devY })),
+                  text: `+${hidden.length} branch${hidden.length === 1 ? "" : "es"} not drawn here: a shorter window or Full size shows them`,
+                  x: Left,
+                  y: tickBottom - 6,
+              }
+            : null,
         stations,
         earlier: earlierCount
             ? {

@@ -90,6 +90,25 @@ describe("merged branches from a linear history", () => {
         expect(model.branches.map((b) => b.ticket).sort()).toEqual(["10", "11", "13"]);
     });
 
+    it("keeps a ticket landed commit by commit as one branch, a later return as another", () => {
+        const one = (sha: string, day: string, ticket: number) =>
+            c(sha, `2026-10-0${day}T10:00:00Z`, `feat(#${ticket}): ${sha}`, {
+                authordate: `2026-10-0${day}T07:00:00Z`,
+            });
+        const git = withTrunk(makeGit(), [
+            one("x4", "4", 70),
+            one("x3", "3", 71),
+            one("x2", "2", 70),
+            one("x1", "1", 70),
+        ]);
+        const branches = buildLineMap({ git, now: NOW, days: 21 }).branches;
+        expect(branches.map((b) => [b.ticket, b.count])).toEqual([
+            ["70", 2],
+            ["71", 1],
+            ["70", 1],
+        ]);
+    });
+
     it("names a ticket by its commit types", () => {
         const fixOnly = withTrunk(makeGit(), [
             c("f1", "2026-10-01T10:00:00Z", "fix(#30): x", { authordate: "2026-09-30T00:00:00Z" }),
@@ -193,21 +212,33 @@ describe("branches already landed", () => {
         git.branches.push(leftover("feature/50-thing", "2026-10-02T10:00:00Z"));
         expect(buildLineMap({ git, now: NOW, days: 21 }).branches.map((b) => b.state)).toEqual(["merged"]);
         git.branches[2] = leftover("feature/50-thing", "2026-10-04T10:00:00Z");
-        expect(buildLineMap({ git, now: NOW, days: 21 }).branches.map((b) => b.state)).toEqual(["merged", "open"]);
+        expect(
+            buildLineMap({ git, now: NOW, days: 21 })
+                .branches.map((b) => b.state)
+                .sort()
+        ).toEqual(["merged", "open"]);
     });
 
-    it("gives merged branches the first lanes, open ones after", () => {
+    it("orders the lanes: the two freshest open branches, the merged ones, then the other open ones", () => {
         const git = withTrunk(makeGit(), [
             c("m", "2026-10-03T10:00:00Z", "feat(#60): late", { authordate: "2026-10-02T10:00:00Z" }),
         ]);
-        git.branches.push({
-            name: "feature/61-old",
-            sha: "o",
-            date: "2026-09-20T00:00:00Z",
-            commits: [c("o", "2026-09-20T00:00:00Z", "feat(#61): old")],
+        const open = (name: string, at: string) => ({
+            name,
+            sha: name,
+            date: at,
+            commits: [c(name, at, "feat: work")],
             fork: { sha: "d0", date: "2026-09-19T00:00:00Z" },
         });
-        expect(buildLineMap({ git, now: NOW, days: 21 }).branches.map((b) => b.state)).toEqual(["merged", "open"]);
+        git.branches.push(open("feature/61-old", "2026-09-20T00:00:00Z"));
+        git.branches.push(open("feature/62-new", "2026-10-05T00:00:00Z"));
+        git.branches.push(open("feature/63-new", "2026-10-04T00:00:00Z"));
+        expect(buildLineMap({ git, now: NOW, days: 21 }).branches.map((b) => b.name)).toEqual([
+            "feature/62-new",
+            "feature/63-new",
+            "feature/60",
+            "feature/61-old",
+        ]);
     });
 
     it("skips merges of tags, and keeps no fork for a walk that hit its cap", () => {

@@ -596,11 +596,6 @@ function BranchMark({ g, hit }: { g: GeometryBranch; hit: HitProps }) {
             <path className="lm-hitline" d={g.path} />
             <path className={cn(open ? "lm-br-open" : "lm-br", !b.forkKnown && !open && "lm-br-guess")} d={g.path} />
             {g.tip ? <circle className="lm-tip" cx={g.tip.x} cy={g.tip.y} r={5} /> : null}
-            {g.label ? (
-                <text className={open ? "lm-livelabel" : "lm-brlabel"} x={g.label.x} y={g.label.y}>
-                    {g.label.text}
-                </text>
-            ) : null}
         </g>
     );
 }
@@ -637,7 +632,7 @@ const MapSvg = memo(function MapSvg({
                         width={Math.max(0, geo.unread.x2 - geo.unread.x1)}
                         height={geo.tickBottom - geo.tickTop}
                     />
-                    <text className="lm-ticktxt" x={geo.unread.x1 + 6} y={geo.tickBottom - 6}>
+                    <text className="lm-ticktxt" x={geo.unread.x1 + 6} y={geo.tickTop + 12}>
                         {geo.unread.label}
                     </text>
                 </g>
@@ -677,6 +672,21 @@ const MapSvg = memo(function MapSvg({
             {geo.branches.map((g) => (
                 <BranchMark key={g.branch.id} g={g} hit={hit} />
             ))}
+            {/* Labels above every branch: a deeper lane's curve passes through the lanes above it. */}
+            <g className="pointer-events-none">
+                {geo.branches.map((g) =>
+                    g.label ? (
+                        <text
+                            key={`l-${g.branch.id}`}
+                            className={g.branch.state === "open" ? "lm-livelabel" : "lm-brlabel"}
+                            x={g.label.x}
+                            y={g.label.y}
+                        >
+                            {g.label.text}
+                        </text>
+                    ) : null
+                )}
+            </g>
 
             <path className="lm-dev" d={`M ${geo.develop.x1} ${geo.develop.y} L ${geo.develop.x2} ${geo.develop.y}`} />
 
@@ -693,6 +703,16 @@ const MapSvg = memo(function MapSvg({
                     <circle key={`m-${g.branch.id}`} className="lm-merge" cx={g.merge.x} cy={g.merge.y} r={3.5} />
                 ) : null
             )}
+            {geo.hidden ? (
+                <g data-testid="line-map-hidden">
+                    {geo.hidden.landings.map((p, i) => (
+                        <circle key={`h-${i}`} className="lm-merge" cx={p.x} cy={p.y} r={2.5} />
+                    ))}
+                    <text className="lm-ticktxt" x={geo.hidden.x} y={geo.hidden.y}>
+                        {geo.hidden.text}
+                    </text>
+                </g>
+            ) : null}
             {geo.stations.map((g) =>
                 g.source ? (
                     <circle key={`f-${g.station.name}`} className="lm-fork" cx={g.source.x} cy={g.source.y} r={3} />
