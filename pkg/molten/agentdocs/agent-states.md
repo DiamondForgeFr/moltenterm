@@ -28,11 +28,13 @@ view on Windows (the command line and hooks still work there).
 
 MoltenTerm learns the state from three sources:
 
-1. **The command itself** (always): working while the agent runs, error when it exits with a failure. With nothing
-   else, this is all MoltenTerm knows: working, or idle.
+1. **The command itself** (always): the agent runs (idle), or it exited with a failure (error). MoltenTerm never
+   guesses **working**: an agent that starts, or that you just answered, may as well sit at its prompt. Enter in a
+   pane whose agent waits or is done means you answered: the dot goes back to idle.
 2. **The agent's notifications** (no setup in MoltenTerm): the terminal bell, OSC 9 and OSC 777 mean the agent
    waits for you; a notification saying the turn is complete or finished means done.
-3. **The agent's hooks** (most precise): the agent runs `molten agent state <state>` at the right moments.
+3. **The agent's hooks** (most precise, and the only source of working): the agent runs
+   `molten agent state <state>` at the right moments.
 
 MoltenTerm never changes your agent's configuration by itself. The settings below are yours to add.
 
@@ -69,6 +71,9 @@ with the hooks you already have:
     "UserPromptSubmit": [
       { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state working --agent claude || true" }] }
     ],
+    "PostToolUse": [
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state working --agent claude || true" }] }
+    ],
     "Notification": [
       { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state waiting --agent claude --stdin || true" }] }
     ],
@@ -80,7 +85,8 @@ with the hooks you already have:
 ```
 
 `Notification` fires when Claude Code asks for a permission or has waited for your input for a while; `Stop` when it
-ends its turn; `UserPromptSubmit` when you send a prompt.
+ends its turn; `UserPromptSubmit` when you send a prompt; `PostToolUse` after each tool it runs, so the dot is
+working again once you approved a permission.
 
 ## Codex
 
@@ -97,7 +103,7 @@ Codex's own terminal notifications (`[tui] notifications = true`) send OSC 9, wh
 
 Call the same commands from whatever the agent offers: hooks, plugins (an OpenCode plugin can run
 `molten agent state done --agent opencode` on `session.idle`), or a notification command. An agent with none of
-these still shows working and idle, and its bell or OSC 9 notifications still mark it as waiting.
+these still shows idle, and its bell or OSC 9 notifications still mark it as waiting.
 
 ## The agent companion: link the session
 
@@ -156,4 +162,4 @@ folder you own that other users cannot write to; any other is ignored, and Molte
 ## Checking
 
 In a MoltenTerm terminal, `molten agent state waiting --agent claude` turns the pane's dot to waiting and raises a
-notification; press Enter in the pane, or run `molten agent state working`, to go back to working.
+notification; press Enter in the pane to go back to idle, or run `molten agent state working` to show it working.
