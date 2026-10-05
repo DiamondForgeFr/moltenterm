@@ -163,6 +163,10 @@ export class WorkspaceServiceType {
         this.waveEnv = waveEnv;
     }
 
+    CanCloseWorkspace(workspaceId: string): Promise<boolean> {
+        return callBackendService(this?.waveEnv, "workspace", "CanCloseWorkspace", Array.from(arguments))
+    }
+
     // @returns CloseTabRtn (and object updates)
     CloseTab(workspaceId: string, tabId: string, fromElectron: boolean): Promise<CloseTabRtnType> {
         return callBackendService(this?.waveEnv, "workspace", "CloseTab", Array.from(arguments))
@@ -199,6 +203,11 @@ export class WorkspaceServiceType {
     }
     ListWorkspaces(): Promise<WorkspaceListEntry[]> {
         return callBackendService(this?.waveEnv, "workspace", "ListWorkspaces", Array.from(arguments))
+    }
+
+    // @returns tabId (and object updates)
+    ResetWorkspace(workspaceId: string): Promise<string> {
+        return callBackendService(this?.waveEnv, "workspace", "ResetWorkspace", Array.from(arguments))
     }
 
     // @returns object updates

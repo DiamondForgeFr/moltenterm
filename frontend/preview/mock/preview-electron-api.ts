@@ -38,6 +38,7 @@ const previewElectronApi: ElectronApi = {
     createWorkspace: () => {},
     switchWorkspace: (_workspaceId: string) => {},
     deleteWorkspace: (_workspaceId: string) => {},
+    resetWorkspace: (_workspaceId: string) => {}, // MOLTENTERM-PATCH (#222)
     setActiveTab: (_tabId: string) => {},
     createTab: () => {},
     closeTab: (_workspaceId: string, _tabId: string, _confirmClose: boolean) => Promise.resolve(false),

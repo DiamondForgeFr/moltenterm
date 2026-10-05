@@ -17,6 +17,7 @@ import { atom, PrimitiveAtom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { splitAtom } from "jotai/utils";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { CSSProperties, forwardRef, useCallback, useEffect } from "react";
+import { askResetWorkspace } from "../../moltenterm-shell/workspace-reset"; // MOLTENTERM-PATCH (#222)
 import WorkspaceSVG from "../asset/workspace.svg";
 import { IconButton } from "../element/iconbutton";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -127,7 +128,13 @@ const WorkspaceSwitcher = forwardRef<HTMLDivElement>((_, ref) => {
                 <OverlayScrollbarsComponent className={"scrollable"} options={{ scrollbars: { autoHide: "leave" } }}>
                     <ExpandableMenu noIndent singleOpen>
                         {workspaceList.map((entry, i) => (
-                            <WorkspaceSwitcherItem key={i} entryAtom={entry} onDeleteWorkspace={onDeleteWorkspace} />
+                            <WorkspaceSwitcherItem
+                                key={i}
+                                entryAtom={entry}
+                                onDeleteWorkspace={onDeleteWorkspace}
+                                // MOLTENTERM-PATCH (#222): an unsaved active workspace is not listed but is one to land on
+                                onlyWorkspace={workspaceList.length === 1 && isActiveWorkspaceSaved}
+                            />
                         ))}
                     </ExpandableMenu>
                 </OverlayScrollbarsComponent>
@@ -157,9 +164,11 @@ const WorkspaceSwitcher = forwardRef<HTMLDivElement>((_, ref) => {
 const WorkspaceSwitcherItem = ({
     entryAtom,
     onDeleteWorkspace,
+    onlyWorkspace,
 }: {
     entryAtom: PrimitiveAtom<WorkspaceListEntry>;
     onDeleteWorkspace: (workspaceId: string) => void;
+    onlyWorkspace: boolean; // MOLTENTERM-PATCH (#222)
 }) => {
     const env = useWaveEnv<WorkspaceSwitcherEnv>();
     const activeWorkspace = useAtomValueSafe(env.atoms.workspace);
@@ -255,6 +264,7 @@ const WorkspaceSwitcherItem = ({
                     onColorChange={(color) => setWorkspace({ ...workspace, color })}
                     onIconChange={(icon) => setWorkspace({ ...workspace, icon })}
                     onDeleteWorkspace={() => onDeleteWorkspace(workspace.oid)}
+                    onResetWorkspace={onlyWorkspace ? () => askResetWorkspace(workspace.oid) : null} // MOLTENTERM-PATCH (#222)
                 />
             </ExpandableMenuItem>
         </ExpandableMenuItemGroup>
