@@ -22,6 +22,7 @@ import {
     commitUrl,
     FullLineMapDayChoices,
     gitFingerprint,
+    LineMapBranch,
     LineMapCommit,
     LineMapDayChoices,
     LineMapModel,
@@ -55,7 +56,8 @@ const Styles = `
 .lm-hitline { fill: none; stroke: transparent; stroke-width: 14; pointer-events: stroke; }
 .lm-hitdot { fill: transparent; }
 .lm-merge { fill: color-mix(in srgb, var(--color-muted) 80%, var(--color-background)); }
-.lm-commit { fill: color-mix(in srgb, var(--color-accent) 35%, var(--color-background)); }
+.lm-landed { fill: color-mix(in srgb, var(--color-accent) 30%, var(--color-primary)); fill-opacity: .55; }
+.lm-hit:hover .lm-landed { fill-opacity: 1; }
 .lm-rc { fill: none; stroke: var(--color-primary); stroke-opacity: .45; stroke-width: 2; stroke-linecap: round; }
 .lm-fork { fill: var(--color-primary); fill-opacity: .6; }
 .lm-st { fill: var(--color-background); stroke: var(--color-primary); stroke-width: 2.5; }
@@ -88,7 +90,9 @@ type MapItem =
     | { kind: "commit"; commit: LineMapCommit }
     | { kind: "head" }
     | { kind: "earlier" }
-    | { kind: "terminus" };
+    | { kind: "terminus" }
+    | { kind: "day"; day: number; commits: LineMapCommit[] }
+    | { kind: "hidden"; branches: LineMapBranch[] };
 
 function itemUrl(item: MapItem, model: LineMapModel): string {
     switch (item.kind) {
@@ -118,7 +122,65 @@ function itemLabel(item: MapItem, model: LineMapModel): string {
             return `${model.earlier.length} earlier versions`;
         case "terminus":
             return "Next public release";
+        case "day":
+            return `${item.commits.length} commits on ${formatDay(item.day)}`;
+        case "hidden":
+            return `${item.branches.length} more open branches`;
     }
+}
+
+const DayListed = 12;
+
+function DayDetail({ day, commits, model }: { day: number; commits: readonly LineMapCommit[]; model: LineMapModel }) {
+    const tickets = new Set(commits.map((c) => readableSubject(c.subject).ticket).filter(Boolean));
+    const newestFirst = [...commits].reverse();
+    return (
+        <>
+            <div className="font-semibold text-primary">
+                {formatDay(day)}
+                <span className="ml-1.5 font-normal text-muted">
+                    · {commits.length} commit{commits.length === 1 ? "" : "s"} on {model.trunk}
+                    {tickets.size ? `, ${tickets.size} ticket${tickets.size === 1 ? "" : "s"}` : ""}
+                </span>
+            </div>
+            <div className="flex flex-col gap-0.5 border-t border-border pt-1.5">
+                {newestFirst.slice(0, DayListed).map((c) => (
+                    <div key={c.sha} className="flex min-w-0 items-baseline gap-1.5">
+                        <Subject subject={c.subject} />
+                    </div>
+                ))}
+                {commits.length > DayListed ? (
+                    <span className="text-muted">and {commits.length - DayListed} more</span>
+                ) : null}
+            </div>
+        </>
+    );
+}
+
+function HiddenDetail({ branches }: { branches: readonly LineMapBranch[] }) {
+    return (
+        <>
+            <div className="font-semibold text-primary">
+                {branches.length} more open branch{branches.length === 1 ? "" : "es"}
+            </div>
+            <div className="flex flex-col gap-0.5 border-t border-border pt-1.5">
+                {branches.slice(0, DayListed).map((b) => (
+                    <div key={b.id} className="flex min-w-0 items-baseline gap-2">
+                        <span className="min-w-0 truncate font-mono text-[11px] text-primary">{b.name}</span>
+                        <span className="ml-auto shrink-0 text-muted">
+                            {b.count}
+                            {b.countCapped ? "+" : ""} commit{b.count === 1 ? "" : "s"}
+                            {b.prNumber ? ` · PR #${b.prNumber}` : ""}
+                        </span>
+                    </div>
+                ))}
+                {branches.length > DayListed ? (
+                    <span className="text-muted">and {branches.length - DayListed} more</span>
+                ) : null}
+            </div>
+            <div className="pt-1 text-[11px] text-muted">Full size shows them on their own lanes.</div>
+        </>
+    );
 }
 
 function Subject({ subject }: { subject: string }) {
@@ -207,7 +269,7 @@ function BranchDetail({ b }: { b: GeometryBranch["branch"] }) {
             <div className="text-muted">
                 {b.forkKnown
                     ? `Left develop ${formatWhen(new Date(b.fork).toISOString())}`
-                    : "Where it left develop is not known (a squash merge)."}
+                    : "Where it left develop is not known: git's history read stops before it."}
             </div>
             {b.pr ? (
                 <div className="text-secondary">
@@ -305,6 +367,10 @@ function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; 
                     {model.terminus.reason ? <div className="text-muted">{model.terminus.reason}</div> : null}
                 </>
             );
+        case "day":
+            return <DayDetail day={item.day} commits={item.commits} model={model} />;
+        case "hidden":
+            return <HiddenDetail branches={item.branches} />;
     }
 }
 
@@ -349,6 +415,10 @@ function Legend() {
             <span className={item}>
                 <span className="h-1 w-[18px] rounded-full bg-primary opacity-40" />
                 main
+            </span>
+            <span className={item}>
+                <span className="h-2.5 w-[3px] rounded-sm bg-primary opacity-50" />
+                landed on develop
             </span>
             <span className={item}>
                 <span className="h-[3px] w-[18px] rounded-full bg-muted" />
@@ -690,25 +760,48 @@ const MapSvg = memo(function MapSvg({
 
             <path className="lm-dev" d={`M ${geo.develop.x1} ${geo.develop.y} L ${geo.develop.x2} ${geo.develop.y}`} />
 
-            {/* develop's own commits answer the pointer only: hundreds of them in the tab order would bury the
-                stations and branches a keyboard user is after. */}
-            {geo.commits.map((c, i) => (
-                <g key={c.sha} {...hit({ kind: "commit", commit: model.commits[i] })} tabIndex={-1}>
-                    <circle className="lm-hitdot" cx={c.x} cy={c.y} r={6} />
-                    <circle className="lm-commit" cx={c.x} cy={c.y} r={1.8} />
-                </g>
-            ))}
+            {/* The work that landed on develop answers the pointer only: hundreds of marks in the tab order would
+                bury the stations and branches a keyboard user is after. */}
+            <g data-testid="line-map-landed" data-mode={geo.landed.mode}>
+                {geo.landed.marks.map((m) => (
+                    <g
+                        key={`${m.at}-${m.commits[0].sha}`}
+                        {...hit(
+                            geo.landed.mode === "commits"
+                                ? { kind: "commit", commit: m.commits[0] }
+                                : { kind: "day", day: m.at, commits: m.commits }
+                        )}
+                        tabIndex={-1}
+                    >
+                        <rect
+                            className="lm-hitdot"
+                            x={m.x - Math.max(4, m.w)}
+                            y={m.y - 10}
+                            width={Math.max(8, m.w * 2)}
+                            height={20}
+                        />
+                        <rect
+                            className="lm-landed"
+                            x={m.x - m.w / 2}
+                            y={m.y - m.h / 2}
+                            width={m.w}
+                            height={m.h}
+                            rx={Math.min(1.5, m.w / 2)}
+                        />
+                    </g>
+                ))}
+            </g>
             {geo.branches.map((g) =>
                 g.merge ? (
                     <circle key={`m-${g.branch.id}`} className="lm-merge" cx={g.merge.x} cy={g.merge.y} r={3.5} />
                 ) : null
             )}
+            {geo.landings.map((p, i) => (
+                <circle key={`h-${i}`} className="lm-merge" cx={p.x} cy={p.y} r={2.5} />
+            ))}
             {geo.hidden ? (
-                <g data-testid="line-map-hidden">
-                    {geo.hidden.landings.map((p, i) => (
-                        <circle key={`h-${i}`} className="lm-merge" cx={p.x} cy={p.y} r={2.5} />
-                    ))}
-                    <text className="lm-ticktxt" x={geo.hidden.x} y={geo.hidden.y}>
+                <g {...hit({ kind: "hidden", branches: geo.hidden.branches })} data-testid="line-map-hidden">
+                    <text className="lm-livelabel" x={geo.hidden.x} y={geo.hidden.y}>
                         {geo.hidden.text}
                     </text>
                 </g>
