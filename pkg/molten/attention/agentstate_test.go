@@ -243,3 +243,43 @@ func TestPublisherCoalescesAndLocates(t *testing.T) {
 		t.Fatalf("the snapshot carries the location: %+v", snap)
 	}
 }
+
+func TestHookedAgentRepublishesItsTerminals(t *testing.T) {
+	h := makeAgentHarness()
+	var remembered []string
+	h.states.onHooked = func(agent string) { remembered = append(remembered, agent) }
+	h.out("b1", cmdMark("claude"))
+	h.out("b2", cmdMark("claude"))
+	h.out("b3", cmdMark("codex"))
+	h.states.flush()
+	for _, info := range h.states.snapshot() {
+		if info.Hooked {
+			t.Fatalf("no hook reported yet: %+v", info)
+		}
+	}
+	h.published = nil
+	if err := h.report("b1", molten.AgentStateWorking, "claude"); err != nil {
+		t.Fatal(err)
+	}
+	h.states.flush()
+	hooked := map[string]bool{}
+	for _, info := range h.published {
+		hooked[info.BlockId] = info.Hooked
+	}
+	if len(h.published) != 2 || !hooked["b1"] || !hooked["b2"] {
+		t.Fatalf("both Claude Code terminals are published as hooked, Codex's is not: %+v", h.published)
+	}
+	h.report("b2", molten.AgentStateDone, "claude")
+	if strings.Join(remembered, ",") != "claude" {
+		t.Fatalf("the first report of an agent is remembered once: %v", remembered)
+	}
+	if !h.states.isAgentHooked("claude") || h.states.isAgentHooked("codex") {
+		t.Fatalf("only Claude Code is hooked")
+	}
+	h.out("b4", cmdMark("claude"))
+	h.states.flush()
+	last := h.published[len(h.published)-1]
+	if last.BlockId != "b4" || !last.Hooked {
+		t.Fatalf("a new Claude Code terminal starts hooked: %+v", last)
+	}
+}

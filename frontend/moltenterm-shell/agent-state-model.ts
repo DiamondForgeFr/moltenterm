@@ -23,6 +23,7 @@ export type AgentStateInfo = {
     message?: string;
     since?: number;
     version: number;
+    hooked?: boolean;
     cleared?: boolean;
 };
 

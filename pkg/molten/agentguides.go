@@ -21,6 +21,8 @@ import (
 // Using MoltenTerm means using its guides (FR-ONB-006, DS-ONB-006): at every start wavesrv installs them for each
 // coding agent found on the login shell's PATH, and rewrites them when MoltenTerm's version changes. The agents the
 // user removed them from with `molten agent remove` are remembered here and left alone.
+// The same record keeps what the hook setup offer (#221, agenthooks.go) must remember: the agents the user dismissed
+// it for, and the agents whose hooks reported once, so a later run does not offer what is already set up.
 
 const agentGuidesFileName = "agent-guides.json"
 
@@ -28,6 +30,9 @@ var agentGuidesLock = &sync.Mutex{}
 
 type agentGuidesState struct {
 	Declined []string `json:"declined,omitempty"`
+	// Agent state ids (claude, codex), not guide profile ids.
+	HooksDeclined []string `json:"hooksdeclined,omitempty"`
+	HooksSeen     []string `json:"hooksseen,omitempty"`
 }
 
 type AgentSyncResult struct {
@@ -93,6 +98,52 @@ func SetAgentDeclined(dataDir string, agentId string, declined bool) error {
 		state.Declined = append(state.Declined, agentId)
 	}
 	return writeAgentGuidesState(dataDir, state)
+}
+
+// An unreadable file counts as nothing remembered: the offer may show, which is harmless.
+func agentGuidesListHas(dataDir string, list func(*agentGuidesState) *[]string, id string) bool {
+	agentGuidesLock.Lock()
+	defer agentGuidesLock.Unlock()
+	state, err := readAgentGuidesState(dataDir)
+	if err != nil {
+		return false
+	}
+	return slices.Contains(*list(&state), id)
+}
+
+// agentGuidesListAdd never rewrites a record it could not read: the other lists would be lost.
+func agentGuidesListAdd(dataDir string, list func(*agentGuidesState) *[]string, id string) error {
+	agentGuidesLock.Lock()
+	defer agentGuidesLock.Unlock()
+	state, err := readAgentGuidesState(dataDir)
+	if err != nil {
+		return err
+	}
+	ids := list(&state)
+	if slices.Contains(*ids, id) {
+		return nil
+	}
+	*ids = append(*ids, id)
+	return writeAgentGuidesState(dataDir, state)
+}
+
+func hooksDeclinedList(state *agentGuidesState) *[]string { return &state.HooksDeclined }
+func hooksSeenList(state *agentGuidesState) *[]string     { return &state.HooksSeen }
+
+func IsAgentHooksOfferDeclined(dataDir string, agent string) bool {
+	return agentGuidesListHas(dataDir, hooksDeclinedList, agent)
+}
+
+func DeclineAgentHooksOffer(dataDir string, agent string) error {
+	return agentGuidesListAdd(dataDir, hooksDeclinedList, agent)
+}
+
+func AgentHooksSeen(dataDir string, agent string) bool {
+	return agentGuidesListHas(dataDir, hooksSeenList, agent)
+}
+
+func MarkAgentHooksSeen(dataDir string, agent string) error {
+	return agentGuidesListAdd(dataDir, hooksSeenList, agent)
 }
 
 // SyncAgentGuides installs the guides for every agent found in pathList that the user did not decline and whose
