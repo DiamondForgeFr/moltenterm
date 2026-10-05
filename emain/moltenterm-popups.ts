@@ -128,16 +128,20 @@ function configurePopup(tabView: WaveTabView, guest: WebContents, win: BrowserWi
             return;
         }
         e.preventDefault();
-        win.close();
+        if (!win.isDestroyed()) {
+            win.close();
+        }
     });
+    // Read now: a closed window is destroyed, and calling any of its methods throws.
+    const parent: Electron.BaseWindow = win.getParentWindow();
     win.on("closed", () => {
         popupWindows.delete(wcId);
-        const parent = win.getParentWindow?.() ?? getWaveWindowById(tabView.waveWindowId);
         if (parent != null && !parent.isDestroyed()) {
             parent.focus();
         }
         // Back to the page that opened the popup, unless that was another popup still open.
-        if (alive(guest) && parent === getWaveWindowById(tabView.waveWindowId)) {
+        const waveWindow = getWaveWindowById(tabView.waveWindowId);
+        if (alive(guest) && waveWindow != null && parent === waveWindow) {
             guest.focus();
         }
     });
