@@ -279,6 +279,17 @@ export function logTail(text: string, lines: number): string[] {
         .slice(-lines);
 }
 
+export type RunLogMode = "auto" | "full" | "hidden";
+
+// "auto" shows the last lines of a run that is running or did not succeed; "hidden" is the user's choice until the
+// next run, so a new failure is never hidden
+export function runLogVisible(run: RunRecord, mode: RunLogMode): boolean {
+    if (run == null || mode === "hidden") {
+        return false;
+    }
+    return mode === "full" || run.state !== "success";
+}
+
 export function formatElapsed(ms: number): string {
     const seconds = Math.max(0, Math.round(ms / 1000));
     const minutes = Math.floor(seconds / 60);
