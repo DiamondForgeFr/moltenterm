@@ -332,6 +332,10 @@ func SendInput(blockId string, inputUnion *BlockInputUnion) error {
 	if inputUnion != nil && len(inputUnion.InputData) > 0 {
 		attention.TerminalInput(blockId, inputUnion.InputData)
 	}
+	// MOLTENTERM-PATCH (#217): the redraw a resize causes is no sign that a coding agent works
+	if inputUnion != nil && inputUnion.TermSize != nil {
+		attention.TerminalResize(blockId)
+	}
 	return controller.SendInput(inputUnion)
 }
 

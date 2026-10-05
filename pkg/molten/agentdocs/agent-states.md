@@ -6,7 +6,8 @@ the rail show the most urgent state of their panes (waiting, then error, then wo
 waits or is done while you look elsewhere raises a notification; opening it brings you to the pane.
 
 MoltenTerm recognises Claude Code (`claude`), Codex (`codex`), Gemini CLI (`gemini`) and OpenCode (`opencode`) in a
-MoltenTerm terminal. It never reads the screen to guess what an agent does.
+MoltenTerm terminal. It never reads the screen to guess what an agent does: without hooks it only looks at when the
+pane's output comes, never at what it says.
 
 ## How MoltenTerm finds the agent
 
@@ -16,7 +17,7 @@ MoltenTerm terminal. It never reads the screen to guess what an agent does.
   agents running in Node.js included). This finds an agent started by a script or an alias, an agent run as a
   block's command, and, after MoltenTerm restarts, every agent still running in a terminal that survived it: the
   header, the dots, clean copy and the companion find it again within a couple of seconds. An agent found this way
-  after a restart shows **idle** until its next signal (a bell, a hook, or Enter in the pane). The processes are
+  after a restart shows **idle** until its next signal (a bell, a hook, its output activity, or Enter in the pane). The processes are
   only looked at while a command runs, and once at startup: a terminal at its prompt costs nothing.
 - **The agent's hooks** (below), which name the agent with `--agent`.
 
@@ -26,15 +27,21 @@ view on Windows (the command line and hooks still work there).
 
 ## The state
 
-MoltenTerm learns the state from three sources:
+MoltenTerm learns the state from four sources:
 
-1. **The command itself** (always): the agent runs (idle), or it exited with a failure (error). MoltenTerm never
-   guesses **working**: an agent that starts, or that you just answered, may as well sit at its prompt. Enter in a
-   pane whose agent waits or is done means you answered: the dot goes back to idle.
+1. **The command itself** (always): the agent runs (idle), or it exited with a failure (error). An agent that
+   starts, or that you just answered, may as well sit at its prompt: it shows idle. Enter in a pane whose agent
+   waits or is done means you answered: the dot goes back to idle.
 2. **The agent's notifications** (no setup in MoltenTerm): the terminal bell, OSC 9 and OSC 777 mean the agent
    waits for you; a notification saying the turn is complete or finished means done.
-3. **The agent's hooks** (most precise, and the only source of working): the agent runs
-   `molten agent state <state>` at the right moments.
+3. **The pane's output activity** (no setup, for an agent whose hooks never reported in the pane): while the agent
+   works, its spinner and its streamed text keep coming; output that keeps coming for about two seconds shows
+   **working**, and once it has stayed quiet for about four seconds the dot goes back to idle by itself. Only the
+   timing of the output counts, never its content. The echo of what you type and the redraw after a resize do not
+   count, nor does a single redraw. Output never ends **waiting** or **done**: answer with Enter first.
+4. **The agent's hooks** (most precise): the agent runs `molten agent state <state>` at the right moments. As soon as
+   a hook reports in a pane, its output activity is ignored there, for this agent, until the pane is closed: the
+   hooks alone say when it works.
 
 MoltenTerm never changes your agent's configuration by itself. The settings below are yours to add.
 
@@ -103,7 +110,7 @@ Codex's own terminal notifications (`[tui] notifications = true`) send OSC 9, wh
 
 Call the same commands from whatever the agent offers: hooks, plugins (an OpenCode plugin can run
 `molten agent state done --agent opencode` on `session.idle`), or a notification command. An agent with none of
-these still shows idle, and its bell or OSC 9 notifications still mark it as waiting.
+these still shows working from its output activity, and its bell or OSC 9 notifications still mark it as waiting.
 
 ## The agent companion: link the session
 
