@@ -3,13 +3,14 @@
 
 // The Project tab's cards (FR-SHELL-015, DS-SHELL-015): the core lays them out, the cards themselves are
 // contributions. Every built-in card registers here the way a mod's card will; there is no mod loader yet, only this
-// list. A card names its region (the status band, the main column, the side column) and its order inside it.
+// list. A card names its region and its order inside it. The regions are the overview's slots, top to bottom
+// (FR-MC-020, DS-MC-012): the header band, the line map, then the row of cards.
 
 import type { ComponentType } from "react";
 
-export type ProjectCardRegion = "band" | "main" | "side";
+export type ProjectCardRegion = "header" | "map" | "cards";
 
-export const ProjectCardRegions: ProjectCardRegion[] = ["band", "main", "side"];
+export const ProjectCardRegions: ProjectCardRegion[] = ["header", "map", "cards"];
 
 export type ProjectCard<P = any> = {
     id: string;
@@ -52,7 +53,7 @@ export class ProjectCardRegistry<P = any> {
 
 // The cards of each region, in order; ties keep the registration order, so a contribution never jumps.
 export function layoutProjectCards<P>(cards: readonly ProjectCard<P>[]): Record<ProjectCardRegion, ProjectCard<P>[]> {
-    const rtn: Record<ProjectCardRegion, ProjectCard<P>[]> = { band: [], main: [], side: [] };
+    const rtn: Record<ProjectCardRegion, ProjectCard<P>[]> = { header: [], map: [], cards: [] };
     cards.forEach((card) => {
         if (!ProjectCardRegions.includes(card.region)) {
             return;

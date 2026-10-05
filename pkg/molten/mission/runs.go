@@ -80,7 +80,7 @@ type RunRecord struct {
 	Preparing bool `json:"preparing,omitempty"`
 	// Its end was told in the notification center (FR-MC-014).
 	Told bool `json:"told,omitempty"`
-	// Closed by the user once it no longer runs: its card leaves the Timeline until the next run.
+	// Closed by the user once it no longer runs: its card leaves the Project tab until the next run.
 	Closed  bool  `json:"closed,omitempty"`
 	LogSize int64 `json:"logsize"`
 }

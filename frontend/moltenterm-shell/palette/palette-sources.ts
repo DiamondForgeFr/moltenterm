@@ -21,7 +21,6 @@ const PanelNames: Record<string, string> = {
     "defwidget@terminal": "Terminal",
     "defwidget@files": "Files",
     "defwidget@web": "Web",
-    "defwidget@timeline": "Timeline",
     "defwidget@cicd": "CI/CD",
     "defwidget@sysinfo": "System info",
     "defwidget@processviewer": "Processes",

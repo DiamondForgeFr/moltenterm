@@ -1,16 +1,17 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The Timeline's Build local menu (FR-MC-012), as Notulia's: one card per build the project declares, with what it is,
-// where the CI stands for a build it gates and the last build delivered, then a confirmation. While a build runs the
-// button says so.
+// The Project header's Build local menu (FR-MC-012), as Notulia's: one card per build the project declares, with what
+// it is, where the CI stands for a build it gates and the last build delivered, then a confirmation. While a build runs
+// the button says so.
 
 import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { MoltenWave } from "../molten-button";
 import { pathParent } from "../workspace-project";
 import { buildCardTitle, BuildFacts, BuildsFacts, ciLine, lastBuildLine } from "./builds-model";
+import { MenuPopover } from "./menu-popover";
 import { missionBuilds } from "./mission-client";
 import { RunRecord } from "./mission-model";
 
@@ -40,7 +41,7 @@ export function BuildLocalMenu({
     const [choice, setChoice] = useState<string>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
-    const ref = useRef<HTMLDivElement>(null);
+    const [anchor, setAnchor] = useState<HTMLDivElement>(null);
 
     // The trunk as the remote has it, when the menu opens.
     useEffect(() => {
@@ -67,15 +68,8 @@ export function BuildLocalMenu({
                 }
             }
         });
-        const close = (e: PointerEvent) => {
-            if (!ref.current?.contains(e.target as Node)) {
-                setOpen(false);
-            }
-        };
-        document.addEventListener("pointerdown", close, true);
         return () => {
             cancelled = true;
-            document.removeEventListener("pointerdown", close, true);
         };
     }, [open, dir]);
 
@@ -118,7 +112,7 @@ export function BuildLocalMenu({
             }
         });
     return (
-        <div ref={ref} className="relative">
+        <div ref={setAnchor} className="relative">
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
@@ -128,7 +122,7 @@ export function BuildLocalMenu({
                 Build local
             </button>
             {open ? (
-                <div className="absolute top-full right-0 z-20 mt-1 flex w-80 flex-col gap-2 rounded border border-border bg-modalbg p-3 shadow-lg">
+                <MenuPopover anchor={anchor} onClose={() => setOpen(false)} className="flex w-80 flex-col gap-2">
                     {builds.length === 0 && !fetching ? (
                         <div className="text-xs text-muted">The pipeline declares no build (builds).</div>
                     ) : null}
@@ -195,7 +189,7 @@ export function BuildLocalMenu({
                         </div>
                     ) : null}
                     {error ? <div className="text-xs text-error">{error}</div> : null}
-                </div>
+                </MenuPopover>
             ) : null}
         </div>
     );

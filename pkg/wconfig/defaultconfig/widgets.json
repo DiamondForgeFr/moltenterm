@@ -30,16 +30,6 @@
             }
         }
     },
-    "defwidget@timeline": {
-        "display:order": -2.5,
-        "icon": "code-branch",
-        "label": "timeline",
-        "blockdef": {
-            "meta": {
-                "view": "molten-timeline"
-            }
-        }
-    },
     "defwidget@cicd": {
         "display:order": -2.4,
         "icon": "list-check",

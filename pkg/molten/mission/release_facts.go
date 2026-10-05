@@ -21,7 +21,7 @@ import (
 
 // What the release panel reads (FR-MC-016), as Notulia's dev_release_facts: the panel derives the phases from these
 // facts and stores none of them, so a release cut at the terminal, or followed across a restart, reads exactly like one
-// launched from the Timeline. Only the intent of a release launched here (the session) is written down.
+// launched from the Project tab. Only the intent of a release launched here (the session) is written down.
 
 const (
 	// A tag cut at the terminal is followed while it is this young.
@@ -77,7 +77,7 @@ type ReleasePr struct {
 }
 
 type ReleaseFacts struct {
-	// The release launched from the Timeline; nil for a tag cut at the terminal.
+	// The release launched from the Project tab; nil for a tag cut at the terminal.
 	Session   *ReleaseSession `json:"session,omitempty"`
 	Tag       string          `json:"tag,omitempty"`
 	Version   string          `json:"version,omitempty"`
@@ -128,7 +128,7 @@ func releaseChannelOf(isRc bool) string {
 	return ReleaseChannelPublic
 }
 
-// followedRelease is the release launched from the Timeline, or else the newest release tag when it was cut lately.
+// followedRelease is the release launched from the Project tab, or else the newest release tag when it was cut lately.
 func (r *Runs) followedRelease(ctx context.Context, dir string, p *molten.Pipeline) (ReleaseSession, bool) {
 	if session, _ := r.ReleaseSessionOf(dir); session != nil {
 		return *session, true

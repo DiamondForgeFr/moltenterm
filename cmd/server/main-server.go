@@ -551,6 +551,11 @@ func main() {
 	if err != nil {
 		log.Printf("error migrating web blocks: %v\n", err)
 	}
+	// MOLTENTERM-PATCH (#233): saved Timeline panes open the Project overview before any window loads them
+	err = wcore.MigrateLegacyTimelineBlocks()
+	if err != nil {
+		log.Printf("error migrating timeline blocks: %v\n", err)
+	}
 	err = clearTempFiles()
 	if err != nil {
 		log.Printf("error clearing temp files: %v\n", err)

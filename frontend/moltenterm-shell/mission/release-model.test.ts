@@ -60,7 +60,7 @@ describe("Release menu (FR-MC-015)", () => {
             ]).map((s) => s.id)
         ).toEqual(["a"]);
         expect(releaseNote(steps)).toBe(
-            "The preparation starts right away: Warm the cache, Promote develop. Each next step will wait for your click on the Timeline."
+            "The preparation starts right away: Warm the cache, Promote develop. Each next step will wait for your click in the Project tab."
         );
         expect(releaseNote([{ id: "cut", phase: "cut", run: "x" }])).toMatch(/^Nothing runs right away/);
     });

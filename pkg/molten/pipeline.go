@@ -64,7 +64,7 @@ type PipelineCi struct {
 
 const PipelineCiStatusesGithub = "github"
 
-// A phase a build announces with "▶ phase: <id>": the Timeline shows them all from the start, with their text.
+// A phase a build announces with "▶ phase: <id>": the Project tab shows them all from the start, with their text.
 type PipelinePhase struct {
 	Id    string `json:"id"`
 	Title string `json:"title,omitempty"`
@@ -104,7 +104,7 @@ type PipelineStep struct {
 	Id    string `json:"id"`
 	Title string `json:"title,omitempty"`
 	// A release step's phase (FR-MC-015): the steps of the "prepare" phase run as soon as a release starts; every
-	// later one waits for the user's click on the Timeline. See ReleaseStepPhase for a step that declares none.
+	// later one waits for the user's click in the Project tab. See ReleaseStepPhase for a step that declares none.
 	Phase string `json:"phase,omitempty"`
 	// Said before the step runs, and confirmed, when it cannot be taken back (e.g. the cut that pushes the tag).
 	Confirm string `json:"confirm,omitempty"`

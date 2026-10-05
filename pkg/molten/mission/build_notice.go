@@ -12,12 +12,11 @@ import (
 )
 
 // The end of a local build is told in the notification center (FR-MC-014), once, wherever the user is: a build runs
-// for minutes and nobody waits on the Timeline for it. A build the user cancelled is not told; an outcome older than
+// for minutes and nobody waits on the Project tab for it. A build the user cancelled is not told; an outcome older than
 // NoticeWindow is history, not news.
 
 const (
 	NoticeWindow         = 6 * time.Hour
-	timelineView         = "molten-timeline"
 	revealPathGesture    = "path:reveal"
 	deliveredWithinStart = 60 * time.Second
 )
@@ -50,7 +49,7 @@ func buildNotice(rec RunRecord, manifest *BuildManifest, projectName string, now
 		return molten.NotificationInput{}, false
 	}
 	name := fmt.Sprintf("%s %s", projectName, rec.Title)
-	open := molten.NotificationAction{Id: "open", Label: "Show the build", Kind: "open", View: timelineView}
+	open := molten.NotificationAction{Id: "open", Label: "Show the build", Kind: "open", View: ProjectView}
 	if rec.State == RunStateSuccess {
 		input := molten.NotificationInput{Source: "build", Kind: "info", Title: name + " is built",
 			Message: fmt.Sprintf("Build %s finished.", shortSha(rec.Commit)), Actions: []molten.NotificationAction{open}}

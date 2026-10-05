@@ -89,7 +89,7 @@ func runFailingStep(t *testing.T, r *Runs, dir string, tag string, step string) 
 	return waitRun(t, r, dir, res.Run.Id)
 }
 
-// cutRelease follows one release from its start to its return to develop, in the order the Timeline offers it.
+// cutRelease follows one release from its start to its return to develop, in the order the Project tab offers it.
 func cutRelease(t *testing.T, r *Runs, dir string, channel string, tag string, phased bool) {
 	t.Helper()
 	start := startRelease(t, r, dir, channel, tag)

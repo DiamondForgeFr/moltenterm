@@ -169,7 +169,7 @@ export function makePaneView(folder: string, state: PaneState, ws: Workspace): P
         if (state.dirty) {
             branchLines.push("uncommitted changes");
         }
-        branchLines.push("Open the Timeline");
+        branchLines.push("Open the Project tab");
     }
     const ci = ciVerdictView(state?.ci);
     return {

@@ -134,7 +134,7 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
                     {offer.mode === "link" ? (
                         <div className="text-secondary">
                             A terminal of this workspace is in this project. Linked, the workspace shows it in Mission
-                            Control (Timeline, CI/CD).
+                            Control (Project, CI/CD).
                         </div>
                     ) : null}
                     <div>

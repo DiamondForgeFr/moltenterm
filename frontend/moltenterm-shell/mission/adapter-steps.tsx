@@ -109,12 +109,15 @@ export function AdapterSteps({
     pipeline,
     runs,
     section,
+    bare,
 }: {
     dir: string;
     projectName: string;
     pipeline: PipelineDef;
     runs: RunRecord[];
     section: PipelineSection;
+    // Inside a card that already frames and titles it (the Project overview's Project steps card).
+    bare?: boolean;
 }) {
     const { start, prompt, error, clearError } = useStartRun(dir, projectName);
     const steps = (pipeline?.steps ?? []).filter((s) => s.section === section);
@@ -124,8 +127,8 @@ export function AdapterSteps({
     const anyRunning = (runs ?? []).some((r) => r.kind === "step" && r.state === "running");
     return (
         <section className="flex flex-col gap-2">
-            <BlockHeader title="Project steps" hint="declared by the project's pipeline" />
-            <div className="overflow-hidden rounded border border-border">
+            {bare ? null : <BlockHeader title="Project steps" hint="declared by the project's pipeline" />}
+            <div className={cn("overflow-hidden", !bare && "rounded border border-border")}>
                 {steps.map((step) => (
                     <StepRow
                         key={`${step.id}:${lastRun(runs, step.id)?.id ?? ""}`}

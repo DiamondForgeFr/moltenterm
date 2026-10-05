@@ -18,7 +18,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
 
-// A release launched from the Timeline (FR-MC-015), as in Notulia: the session records which release is on its way,
+// A release launched from the Project tab (FR-MC-015), as in Notulia: the session records which release is on its way,
 // and starting it runs the pipeline's preparation at once; every later step waits for the user's click (FR-MC-016).
 // The session lives beside the project's runs, in <data>/molten/runs/<project>/release.json.
 
@@ -132,7 +132,7 @@ func (r *Runs) IgnoreRelease(dir string, tag string) error {
 	return os.WriteFile(filepath.Join(r.projectDir(dir), ReleaseIgnoredFileName), data, 0600)
 }
 
-// StopFollowing ends the release launched from the Timeline, or else stops following the tag cut at the terminal.
+// StopFollowing ends the release launched from the Project tab, or else stops following the tag cut at the terminal.
 func (r *Runs) StopFollowing(dir string, tag string) error {
 	if session, _ := r.ReleaseSessionOf(dir); session != nil || tag == "" {
 		return r.EndRelease(dir)

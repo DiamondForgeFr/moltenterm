@@ -70,8 +70,8 @@ All fields are lowercase. Unknown fields are refused, so a typo does not go unno
 | `ci.prepare` | no | A command run once in the CI worktree before the jobs, e.g. `bun install --frozen-lockfile`. |
 | `ci.statuses` | no | `"github"`: each job's verdict is published as the commit status `local-<job>` through the user's `gh`, so pull requests show it. A pre-push hook can call `wsh molten ci status` (exit 0 green, 1 red, 2 not run yet) to warn before pushing. |
 | `builds` | no | Local builds, made by MoltenTerm from the trunk as it is on the remote, in a worktree of its own: `id` (`gold`, `rc`, …), `title`, a command, `artifact` (the file or folder the build produces, `~` allowed), and optionally `kind` (`gold` or `rc`), `description` (one line shown in the Build local menu), `phases` (`[{ "id", "title", "text" }]`, the phases the command announces with `▶ phase: <id>`, shown from the start with their text), `verify: "ci"` (the local CI runs on the build's commit first; the build stops unless it is green), `prepare` (a command run in the worktree first, e.g. installing dependencies) and `manifest` (the delivered build's manifest, default `manifest.json` beside the artifact: `productName`, `version`, `buildId`, `builtAt`, `commit`, `notes`). The command gets `MOLTEN_BUILD_COMMIT`. |
-| `release.rc`, `release.public` | no | The ordered steps that make a release candidate or a public release. Each step has an `id`, a `title`, a command and, preferably, a `phase`: `prepare`, `cut`, `build`, `publish` or `back` (back to the trunk). It may add `confirm` (a warning shown, and confirmed, `{tag}` and `{version}` allowed, before a step that cannot be taken back, e.g. the cut that pushes the tag) and `notes: true` (the step rewrites the public notes: the Timeline offers it as "Rewrite" beside them instead of running it in order). How the steps are run is the release contract, below. |
-| `steps` | no | Project-specific actions shown in a panel: `id`, `title`, `section` (`timeline`, `cilocal`, `ciremote` or `cd`) and a command. Each section lists its steps with a Run button, the last run's state and its log; they run through the trust rule, one at a time. |
+| `release.rc`, `release.public` | no | The ordered steps that make a release candidate or a public release. Each step has an `id`, a `title`, a command and, preferably, a `phase`: `prepare`, `cut`, `build`, `publish` or `back` (back to the trunk). It may add `confirm` (a warning shown, and confirmed, `{tag}` and `{version}` allowed, before a step that cannot be taken back, e.g. the cut that pushes the tag) and `notes: true` (the step rewrites the public notes: the Project tab offers it as "Rewrite" beside them instead of running it in order). How the steps are run is the release contract, below. |
+| `steps` | no | Project-specific actions shown in a panel: `id`, `title`, `section` (`timeline`, `cilocal`, `ciremote` or `cd`) and a command. `timeline` steps show in the Project tab's Project steps card, the others in the CI/CD panel's CI local, CI remote and CD tabs. Each section lists its steps with a Run button, the last run's state and its log; they run through the trust rule, one at a time. |
 
 ### Commands
 
@@ -85,14 +85,14 @@ Every job, build and step has:
 A script the command starts (`./scripts/x.sh`, `scripts/x.mjs`) must exist.
 
 A long step may print `▶ phase: <name>` lines; Mission Control shows the current phase. A release step that drafts
-the public notes prints `▶ notes: <path>` (absolute, or relative to its folder): the Timeline edits that file before the
+the public notes prints `▶ notes: <path>` (absolute, or relative to its folder): the Project tab edits that file before the
 cut, which waits until the notes are saved; without it, `versions.notes` in the project is used. The exit code decides
 success.
 
 ## The release contract
 
-A release is started from the Timeline's Release menu (a release candidate `X.Y.Z-N`, or a public release `X.Y.Z`)
-and followed on the Timeline through five phases. Every declared step runs, in its declared order within its phase,
+A release is started from the Project tab's Release menu (a release candidate `X.Y.Z-N`, or a public release `X.Y.Z`)
+and followed in the Project tab through five phases. Every declared step runs, in its declared order within its phase,
 one at a time, whatever its id: the ids are the project's own (`prepare`, `cut`, `finalize`… are fine).
 
 **Phases.**
@@ -109,7 +109,7 @@ one at a time, whatever its id: the ids are the project's own (`prepare`, `cut`,
 
 - `prepare`: its steps run as soon as the release starts, chained in one run (the first failure stops the rest); a
   failure offers to run them all again. A list with no preparation starts nothing.
-- Every later step waits for the user's click on the Timeline. Only the next step of the current phase is offered;
+- Every later step waits for the user's click in the Project tab. Only the next step of the current phase is offered;
   after a failure, the failed step is offered again, and the step before it in the phase too (for a cut that must be
   prepared again before it can be finalized again).
 - A step with `confirm` asks for it before it runs. A cut step that waits after a step of this release drafted the

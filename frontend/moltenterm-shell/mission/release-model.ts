@@ -90,5 +90,5 @@ export function releaseNote(steps: readonly PipelineReleaseStep[]): string {
     const start = prepare.length
         ? `The preparation starts right away: ${prepare.join(", ")}.`
         : "Nothing runs right away: the pipeline declares no preparation.";
-    return `${start} Each next step will wait for your click on the Timeline.`;
+    return `${start} Each next step will wait for your click in the Project tab.`;
 }

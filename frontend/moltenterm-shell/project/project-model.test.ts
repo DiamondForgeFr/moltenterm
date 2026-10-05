@@ -11,6 +11,9 @@ import {
     checkProjectRoute,
     checkProjectSource,
     checkWebUrl,
+    currentMissionView,
+    LegacyTimelineView,
+    MoltentermProjectView,
     projectBranchRows,
     projectWork,
     workspaceAgents,
@@ -164,6 +167,7 @@ describe("projectWork", () => {
 
 describe("notification routing", () => {
     it("routes build, CI and release notifications that open a Mission Control panel", () => {
+        expect(checkProjectRoute("build", "molten-project")).toBe(true);
         expect(checkProjectRoute("build", "molten-timeline")).toBe(true);
         expect(checkProjectRoute("ci", "molten-cicd")).toBe(true);
         expect(checkProjectRoute("agent", "molten-timeline")).toBe(false);
@@ -171,6 +175,15 @@ describe("notification routing", () => {
         expect(checkProjectSource({ source: "build" })).toBe(true);
         expect(checkProjectSource({ source: "build", blockid: "b" })).toBe(false);
         expect(checkProjectSource({ source: "agent" })).toBe(false);
+    });
+
+    it("opens the Project view for the retired Timeline, every other view as named", () => {
+        expect(LegacyTimelineView).toBe("molten-timeline");
+        expect(currentMissionView("molten-timeline")).toBe(MoltentermProjectView);
+        expect(currentMissionView("molten-project")).toBe("molten-project");
+        expect(currentMissionView("molten-cicd")).toBe("molten-cicd");
+        expect(currentMissionView("term")).toBe("term");
+        expect(currentMissionView("")).toBe("");
     });
 
     it("opens only web pages from a pull request's address", () => {
@@ -193,24 +206,24 @@ describe("project cards", () => {
 
     it("lays the cards out by region and order, ties in registration order", () => {
         const layout = layoutProjectCards([
-            card("b2", "band", 20),
-            card("m", "main", 10),
-            card("b1", "band", 10),
-            card("b3", "band", 20),
-            card("s", "side", 0),
-            { ...card("x", "main", 0), region: "nowhere" as any },
+            card("c2", "cards", 20),
+            card("m", "map", 10),
+            card("c1", "cards", 10),
+            card("c3", "cards", 20),
+            card("h", "header", 0),
+            { ...card("x", "map", 0), region: "band" as any },
         ]);
-        expect(layout.band.map((c) => c.id)).toEqual(["b1", "b2", "b3"]);
-        expect(layout.main.map((c) => c.id)).toEqual(["m"]);
-        expect(layout.side.map((c) => c.id)).toEqual(["s"]);
+        expect(layout.header.map((c) => c.id)).toEqual(["h"]);
+        expect(layout.map.map((c) => c.id)).toEqual(["m"]);
+        expect(layout.cards.map((c) => c.id)).toEqual(["c1", "c2", "c3"]);
     });
 
     it("replaces a card registered again under its id, and removes it on unregister", () => {
         const registry = new ProjectCardRegistry();
         let changes = 0;
         registry.subscribe(() => changes++);
-        registry.register(card("a", "band", 10));
-        const override = card("a", "main", 5);
+        registry.register(card("a", "cards", 10));
+        const override = card("a", "map", 5);
         const unregister = registry.register(override);
         expect(registry.cards).toEqual([override]);
         unregister();

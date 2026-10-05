@@ -15,7 +15,7 @@ import (
 )
 
 // The release runner, driven from outside (#230): frontend/moltenterm-shell/mission/release-e2e.test.ts sends one
-// JSON request per line on stdin and reads one answer per line prefixed with releaseDriverPrefix, so the Timeline's
+// JSON request per line on stdin and reads one answer per line prefixed with releaseDriverPrefix, so the Project tab's
 // own sequencing (release-run.ts) chooses every step this real runner runs on a fixture. Skipped unless
 // MOLTEN_RELEASE_DRIVER is set.
 
