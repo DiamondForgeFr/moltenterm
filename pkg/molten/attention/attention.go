@@ -240,6 +240,9 @@ func (w *attentionWatcher) handle(blockId string, data []byte) {
 		}
 		w.record(blockId, signal)
 	}
+	if w.agents != nil {
+		w.agents.output(blockId)
+	}
 }
 
 var defaultAttentionWatcher = makeDefaultAttentionWatcher()

@@ -26,11 +26,14 @@ import (
 // its state. Sources, from the most to the least precise:
 //   - the agent's own hooks, through `molten agent state` (AgentStateSetCommand);
 //   - the attention signals of DS-SHELL-004 (bell, OSC 9, OSC 777): the agent waits for the user, or says it is done;
-//   - the shell integration's command lifecycle (OSC 16162 C, D, A): the agent starts, exits, fails.
-// Working is only ever what a hook reports: an agent that started, or that the user answered, may as well sit at its
-// prompt, and nothing would end a guessed working state (no turn ends after `/clear`). Without a hook it shows idle.
+//   - the shell integration's command lifecycle (OSC 16162 C, D, A): the agent starts, exits, fails;
+//   - the pane's output activity (agentactivity.go), for an agent whose hooks never reported in the pane: working
+//     while its output keeps coming, idle once it stays quiet.
+// An agent that started, or that the user answered, may as well sit at its prompt, and nothing would end a guessed
+// working state (no turn ends after `/clear`): working comes from a hook, or from output that ends it by stopping.
 // Enter typed in a pane whose agent waits (or is done) means the user answered: the dot goes back to idle. Nothing is
-// read from the screen. States live in memory only: a restart starts over, as the agents' processes do.
+// read from the screen: the output activity uses only when output comes, never what it says. States live in memory
+// only: a restart starts over, as the agents' processes do.
 
 const (
 	ShellMarkCommand = "C"
@@ -121,6 +124,8 @@ type agentRecord struct {
 	// process tree found it.
 	source string
 	pid    int32
+	// fromActivity: the working state came from the pane's output activity (agentactivity.go), which also ends it.
+	fromActivity bool
 }
 
 type noticeMark struct {
@@ -135,6 +140,7 @@ type agentStates struct {
 	dirty   map[string]bool
 	version int64
 	notices map[string]noticeMark
+	panes   map[string]*paneActivity
 	wake    chan struct{}
 	now     func() time.Time
 	// Injected: wavesrv's object store and event bus, replaced in tests.
@@ -150,6 +156,7 @@ func makeAgentStates() *agentStates {
 		records: map[string]*agentRecord{},
 		dirty:   map[string]bool{},
 		notices: map[string]noticeMark{},
+		panes:   map[string]*paneActivity{},
 		wake:    make(chan struct{}, 1),
 		now:     time.Now,
 		locate:  locateBlock,
@@ -187,6 +194,7 @@ func (a *agentStates) setStateLocked(blockId string, rec *agentRecord, state str
 	}
 	if rec.state != state {
 		rec.since = a.now().UnixMilli()
+		rec.fromActivity = false
 	}
 	rec.state = state
 	rec.message = message
@@ -255,11 +263,13 @@ func (a *agentStates) attention(blockId string, signal AttentionSignal) {
 // input sees what the user types in a terminal: Enter in a pane whose agent waits (or is done) is an answer. The
 // agent's UserPromptSubmit hook, if any, reports working right after.
 func (a *agentStates) input(blockId string, data []byte) {
+	now := a.now()
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.typedLocked(blockId, now)
 	if !bytes.ContainsAny(data, "\r\n") {
 		return
 	}
-	a.lock.Lock()
-	defer a.lock.Unlock()
 	rec := a.records[blockId]
 	if rec == nil || !rec.running {
 		return
@@ -299,6 +309,8 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		rec.pid = 0
 		a.markDirtyLocked(req.BlockId)
 	}
+	a.hookedLocked(req.BlockId, rec.agent)
+	rec.fromActivity = false
 	a.setStateLocked(req.BlockId, rec, req.State, message)
 	if previous == req.State || (req.State != molten.AgentStateWaiting && req.State != molten.AgentStateDone) {
 		return nil, "", nil
@@ -342,6 +354,7 @@ func (a *agentStates) forgetRecord(blockId string) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	delete(a.notices, blockId)
+	delete(a.panes, blockId)
 	a.removeLocked(blockId)
 }
 
@@ -486,6 +499,12 @@ func TerminalInput(blockId string, data []byte) {
 	defaultAgentStates.input(blockId, data)
 }
 
+// TerminalResize is called when a terminal is resized (blockcontroller.SendInput): the redraw that follows is, like
+// the echo of what the user types, no output activity.
+func TerminalResize(blockId string) {
+	defaultAgentStates.resized(blockId)
+}
+
 // ReportAgentState applies a report of `molten agent state` for a terminal block.
 func ReportAgentState(ctx context.Context, req molten.AgentStateRequest) error {
 	if req.BlockId == "" {
@@ -554,6 +573,7 @@ var startOnce sync.Once
 func StartAgentStates() {
 	startOnce.Do(func() {
 		go defaultAgentStates.run()
+		go defaultAgentStates.runSettle()
 		defaultProcWatcher.locator = getShellLocator()
 		go defaultProcWatcher.run()
 	})
