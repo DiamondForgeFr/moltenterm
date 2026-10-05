@@ -497,8 +497,13 @@ func (r *Runs) List(dir string) []RunRecord {
 // prune keeps the last runs of a project; a run still going is never removed.
 func (r *Runs) prune(dir string) {
 	runs := r.List(dir)
+	// The release on its way reads its steps from their runs: builds made meanwhile must not erase them (#230).
+	session, _ := r.ReleaseSessionOf(dir)
 	for i, rec := range runs {
 		if i < maxRunsPerProject || rec.State == RunStateRunning {
+			continue
+		}
+		if session != nil && rec.Kind == RunKindRelease && rec.Tag == session.Tag {
 			continue
 		}
 		os.RemoveAll(filepath.Join(r.projectDir(dir), rec.Id))

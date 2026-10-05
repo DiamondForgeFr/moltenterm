@@ -1,0 +1,85 @@
+{
+    "schema": 1,
+    "name": "Release fixture",
+    "versions": { "tagprefix": "v", "notes": "releases/{tag}.md" },
+    "release": {
+        "rc": [
+            {
+                "id": "warm-cache",
+                "title": "Warm the release cache",
+                "phase": "prepare",
+                "run": "./scripts/pipeline-step.sh warm-cache"
+            },
+            {
+                "id": "promote",
+                "title": "Promote develop onto main",
+                "phase": "prepare",
+                "run": "./scripts/pipeline-step.sh promote"
+            },
+            {
+                "id": "prepare",
+                "title": "Prepare the cut",
+                "phase": "cut",
+                "run": "./scripts/pipeline-step.sh prepare {version} --internal"
+            },
+            {
+                "id": "finalize",
+                "title": "Cut — commit, tag, push",
+                "phase": "cut",
+                "confirm": "{tag} is public once pushed.",
+                "run": "./scripts/pipeline-step.sh finalize {version} --internal"
+            },
+            {
+                "id": "verify",
+                "title": "Verify the release",
+                "phase": "publish",
+                "run": "git ls-remote --exit-code --tags origin {tag}"
+            },
+            {
+                "id": "sync-back",
+                "title": "Carry the release commit back to develop",
+                "phase": "back",
+                "run": "./scripts/pipeline-step.sh sync-back {tag}"
+            }
+        ],
+        "public": [
+            {
+                "id": "warm-cache",
+                "title": "Warm the release cache",
+                "phase": "prepare",
+                "run": "./scripts/pipeline-step.sh warm-cache"
+            },
+            {
+                "id": "promote",
+                "title": "Promote develop onto main",
+                "phase": "prepare",
+                "run": "./scripts/pipeline-step.sh promote"
+            },
+            {
+                "id": "prepare",
+                "title": "Prepare the cut",
+                "phase": "cut",
+                "run": "./scripts/pipeline-step.sh prepare {version} --public"
+            },
+            {
+                "id": "finalize",
+                "title": "Cut — commit, tag, push",
+                "phase": "cut",
+                "confirm": "{tag} goes to every user once pushed.",
+                "run": "./scripts/pipeline-step.sh finalize {version} --public"
+            },
+            {
+                "id": "verify",
+                "title": "Verify the release",
+                "phase": "publish",
+                "run": "git ls-remote --exit-code --tags origin {tag}"
+            },
+            {
+                "id": "sync-back",
+                "title": "Carry the release commit back to develop",
+                "phase": "back",
+                "run": "./scripts/pipeline-step.sh sync-back {tag}"
+            }
+        ]
+    }
+}

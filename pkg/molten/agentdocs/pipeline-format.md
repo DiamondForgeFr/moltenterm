@@ -5,7 +5,7 @@ and releases. It lives at `.molten/project.json` in the project's root, is writt
 `molten-pipeline` guide), and is checked with `molten project validate`, which runs nothing.
 
 MoltenTerm never runs a declared command on its own: the user starts it from a panel, the first run of a project's
-commands (and every change to them) asks the user to trust them, and every release step asks for confirmation.
+commands (and every change to them) asks the user to trust them, and every release step waits for the user's click.
 
 ## Example
 
@@ -40,11 +40,13 @@ commands (and every change to them) asks the user to trust them, and every relea
     "release": {
         "rc": [
             { "id": "promote", "title": "Promote develop", "phase": "prepare", "run": "bun scripts/promote.mjs --yes" },
-            { "id": "cut", "title": "Cut the release candidate", "phase": "cut", "run": "./scripts/release.sh {version} --internal" }
+            { "id": "cut", "title": "Cut the release candidate", "phase": "cut", "confirm": "{tag} is public once pushed.", "run": "./scripts/release.sh {version} --internal" },
+            { "id": "sync-back", "title": "Carry the release commit back", "phase": "back", "run": "./scripts/sync-back.sh {tag}" }
         ],
         "public": [
             { "id": "promote", "title": "Promote develop", "phase": "prepare", "run": "bun scripts/promote.mjs --yes" },
-            { "id": "cut", "title": "Cut the release", "phase": "cut", "run": "./scripts/release.sh {version} --public" }
+            { "id": "cut", "title": "Cut the release", "phase": "cut", "confirm": "{tag} goes to every user once pushed.", "run": "./scripts/release.sh {version} --public" },
+            { "id": "sync-back", "title": "Carry the release commit back", "phase": "back", "run": "./scripts/sync-back.sh {tag}" }
         ]
     },
     "steps": [
@@ -68,7 +70,7 @@ All fields are lowercase. Unknown fields are refused, so a typo does not go unno
 | `ci.prepare` | no | A command run once in the CI worktree before the jobs, e.g. `bun install --frozen-lockfile`. |
 | `ci.statuses` | no | `"github"`: each job's verdict is published as the commit status `local-<job>` through the user's `gh`, so pull requests show it. A pre-push hook can call `wsh molten ci status` (exit 0 green, 1 red, 2 not run yet) to warn before pushing. |
 | `builds` | no | Local builds, made by MoltenTerm from the trunk as it is on the remote, in a worktree of its own: `id` (`gold`, `rc`, …), `title`, a command, `artifact` (the file or folder the build produces, `~` allowed), and optionally `kind` (`gold` or `rc`), `description` (one line shown in the Build local menu), `phases` (`[{ "id", "title", "text" }]`, the phases the command announces with `▶ phase: <id>`, shown from the start with their text), `verify: "ci"` (the local CI runs on the build's commit first; the build stops unless it is green), `prepare` (a command run in the worktree first, e.g. installing dependencies) and `manifest` (the delivered build's manifest, default `manifest.json` beside the artifact: `productName`, `version`, `buildId`, `builtAt`, `commit`, `notes`). The command gets `MOLTEN_BUILD_COMMIT`. |
-| `release.rc`, `release.public` | no | The ordered steps that make a release candidate or a public release. Each step has an `id`, a `title`, a command and a `phase`: `prepare`, `cut`, `build`, `publish` or `back` (back to the trunk). The steps of the `prepare` phase run as soon as the user starts a release from the Timeline's Release menu; every later step waits for the user's click on the Timeline. Without any `phase`, only the first step runs at the start. A step may add `confirm` (a warning shown, and confirmed, `{tag}` and `{version}` allowed, before a step that cannot be taken back, e.g. the cut that pushes the tag) and `notes: true` (the step rewrites the public notes: the Timeline offers it as "Rewrite" beside them instead of running it in order). The Timeline follows the release through five phases: the `cut` is done once the tag exists; the `build` follows the `build` steps, or else the GitHub runs the tag started; `publish` follows the GitHub release (a draft waits for its promotion), then the `publish` steps, or only those steps when the project publishes elsewhere; `back` is done once the release commit is on the trunk (merged or cherry-picked). |
+| `release.rc`, `release.public` | no | The ordered steps that make a release candidate or a public release. Each step has an `id`, a `title`, a command and, preferably, a `phase`: `prepare`, `cut`, `build`, `publish` or `back` (back to the trunk). It may add `confirm` (a warning shown, and confirmed, `{tag}` and `{version}` allowed, before a step that cannot be taken back, e.g. the cut that pushes the tag) and `notes: true` (the step rewrites the public notes: the Timeline offers it as "Rewrite" beside them instead of running it in order). How the steps are run is the release contract, below. |
 | `steps` | no | Project-specific actions shown in a panel: `id`, `title`, `section` (`timeline`, `cilocal`, `ciremote` or `cd`) and a command. Each section lists its steps with a Run button, the last run's state and its log; they run through the trust rule, one at a time. |
 
 ### Commands
@@ -86,6 +88,67 @@ A long step may print `▶ phase: <name>` lines; Mission Control shows the curre
 the public notes prints `▶ notes: <path>` (absolute, or relative to its folder): the Timeline edits that file before the
 cut, which waits until the notes are saved; without it, `versions.notes` in the project is used. The exit code decides
 success.
+
+## The release contract
+
+A release is started from the Timeline's Release menu (a release candidate `X.Y.Z-N`, or a public release `X.Y.Z`)
+and followed on the Timeline through five phases. Every declared step runs, in its declared order within its phase,
+one at a time, whatever its id: the ids are the project's own (`prepare`, `cut`, `finalize`… are fine).
+
+**Phases.**
+
+- With phases (recommended): each step runs in the phase it declares. A step without a `phase` in a list that
+  declares phases joins the phase of the step before it (the first step: `prepare`). Phases run in the order
+  `prepare`, `cut`, `build`, `publish`, `back`, so declare the steps in that order.
+- Without any phase: the first step is the preparation; the next ones run in order, each on its click, until the tag
+  is on origin; the steps that had not run by then come after the release, in `back`. This is how a pipeline such as
+  `warm-cache`, `promote`, `prepare`, `finalize`, `sync-back` runs: warm-cache at the start, then promote, prepare
+  and finalize on their clicks, sync-back once the release is published.
+
+**When each step runs.**
+
+- `prepare`: its steps run as soon as the release starts, chained in one run (the first failure stops the rest); a
+  failure offers to run them all again. A list with no preparation starts nothing.
+- Every later step waits for the user's click on the Timeline. Only the next step of the current phase is offered;
+  after a failure, the failed step is offered again, and the step before it in the phase too (for a cut that must be
+  prepared again before it can be finalized again).
+- A step with `confirm` asks for it before it runs. A cut step that waits after a step of this release drafted the
+  notes is read as the cut when no step declares `confirm`: the notes are offered for editing and the click is
+  confirmed. Declare `confirm` on the step that pushes the tag rather than relying on this.
+
+**When each phase is done.**
+
+- `prepare`: the preparation succeeded.
+- `cut`: the tag is on origin (`git ls-remote`). A tag that only exists locally, left by a push that failed, is not a
+  cut; a project without an origin is read from its local tags.
+- `build`: the `build` steps succeeded; without any, the GitHub runs the tag started are green; a project that is not
+  on GitHub, with no `build` step, has nothing to wait for.
+- `publish`: the GitHub release is published (a draft waits for its promotion on GitHub), then the `publish` steps;
+  without a GitHub release, the `publish` steps alone; not on GitHub and no `publish` step: nothing to wait for.
+- `back`: the release commit is on the trunk (merged or cherry-picked). Its steps are offered from the tag on, and
+  become the next thing to do once the release is published. An open pull request carrying the release back is
+  waited for.
+
+**Notes.** The public notes edited before the cut are, in order: the file a step of this release announced with
+`▶ notes: <path>`; `versions.notes` in the project; or `versions.notes` in another worktree of the project's
+repository (a release worktree beside it, made with `git worktree add`) written since the release started.
+
+**Abandoning.** "Abandon this release" stops following it; nothing pushed is undone. Starting the same tag again starts
+from scratch: the runs of the abandoned attempt are not read. The runs of the release on its way are kept until it
+ends, whatever else runs meanwhile.
+
+**Writing the steps.**
+
+- Each step is a non-interactive command (no input is given), run from the project's root unless `cwd` says
+  otherwise, with `{version}`, `{tag}` and `{branch}` expanded. Its exit code decides: 0 is done, anything else
+  failed. Its last lines are shown when it fails: make the last line say why.
+- A step may be run again after a failure: make it start from a clean state (reset its worktree, refuse what is
+  already done), as a retry must not fail the same way because of what the failed run left.
+- Steps that work beside the checkout (a release worktree) keep the checkout untouched; the cut pushes the tag to
+  `origin` atomically with its commit (`git push --atomic origin main <tag>`).
+- `molten project validate` warns about what would make a step run where it is not expected: a step without a phase
+  among phased ones, a step declared after a step of a later phase, a list without phases (how it is read), and a
+  list without any `confirm`.
 
 ## Ids
 

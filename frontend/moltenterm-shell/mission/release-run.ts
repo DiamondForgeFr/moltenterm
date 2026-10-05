@@ -6,7 +6,7 @@
 // and from the steps the pipeline declares per phase; MoltenTerm only orders them and shows their state.
 
 import { PipelineReleaseStep, ReleasePhase } from "./mission-model";
-import { ReleaseChannel, ReleaseSession } from "./release-model";
+import { ReleaseChannel, ReleaseSession, releaseStepPhases } from "./release-model";
 
 export type PhaseStatus = "todo" | "running" | "waiting" | "done" | "failed";
 
@@ -47,8 +47,15 @@ export type ReleaseFacts = {
     channel?: ReleaseChannel;
     tagexists: boolean;
     trunk?: string;
+    // The declared steps' last runs, by their own ids only.
     steps: Record<string, ReleaseStepFact>;
+    // The preparation's last run, which is none of the declared steps (#230).
+    preparation?: ReleaseStepFact;
     notes?: string;
+    // The notes were written since the release started: a step of this release drafted them.
+    notesdrafted?: boolean;
+    // The project is not on GitHub: no run, release or pull request of it is to be waited for.
+    nogithub?: boolean;
     githuberror?: string;
     runs: ReleaseGhRun[];
     jobs: ReleaseGhJob[];
@@ -61,6 +68,7 @@ export type PhaseLink = { label: string; url: string };
 
 export type PhaseAction =
     | { kind: "step"; step: string; label: string; confirm?: string }
+    | { kind: "prepare"; label: string }
     | { kind: "rerun"; label: string };
 
 export type Phase = {
@@ -72,6 +80,9 @@ export type Phase = {
     cause?: string;
     links: PhaseLink[];
     action?: PhaseAction;
+    // After a failure, the step before the failed one again: what a failed cut needs once it committed (Notulia
+    // prepares the cut again rather than finalizing twice).
+    redo?: PhaseAction;
     // The step whose last lines the phase shows.
     log?: ReleaseStepFact;
 };
@@ -89,7 +100,8 @@ export type ReleaseRun = {
     notesRevision: string;
 };
 
-export const PrepareStep = "prepare";
+// must match ReleasePreparationStepId in pkg/molten/mission/release.go: no declared step id can start with "@".
+export const PreparationStep = "@preparation";
 
 export const PhaseTitles: Record<ReleasePhase, string> = {
     prepare: "Prepare",
@@ -108,14 +120,30 @@ const lastWords = (fact: ReleaseStepFact) => fact.tail[fact.tail.length - 1] ?? 
 // A step that ended badly, or stopped without saying how it ended.
 const broke = (fact: ReleaseStepFact) => fact != null && !fact.running && fact.state !== "success";
 
-// The steps of each phase: as declared, or, when no step declares one, the first step prepares and the rest cut.
-export function stepsByPhase(steps: readonly PipelineReleaseStep[]): Record<ReleasePhase, PipelineReleaseStep[]> {
+// The steps of each phase, in their declared order. As declared (a step without a phase in a phased list joins the
+// phase of the step before it); when no step declares one, the first prepares and the others run in order through the
+// cut, but those that had not run once the tag is pushed come after it, back to the trunk: Notulia's sync-back (#230).
+export function stepsByPhase(
+    steps: readonly PipelineReleaseStep[],
+    facts?: ReleaseFacts
+): Record<ReleasePhase, PipelineReleaseStep[]> {
     const rtn: Record<ReleasePhase, PipelineReleaseStep[]> = { prepare: [], cut: [], build: [], publish: [], back: [] };
-    const list = (steps ?? []).filter((s) => !s.notes);
-    const phased = list.some((s) => s.phase);
+    const list = steps ?? [];
+    const phases = releaseStepPhases(list);
+    let lastRan = -1;
+    if (facts?.tagexists) {
+        list.forEach((step, i) => {
+            if (phases[i] == null && !step.notes && facts.steps?.[step.id] != null) {
+                lastRan = i;
+            }
+        });
+    }
     list.forEach((step, i) => {
-        const phase = phased ? step.phase : i === 0 ? "prepare" : "cut";
-        if (phase && phase in rtn) {
+        if (step.notes) {
+            return;
+        }
+        const phase = phases[i] ?? (lastRan >= 0 && i > lastRan ? "back" : "cut");
+        if (phase in rtn) {
             rtn[phase].push(step);
         }
     });
@@ -140,12 +168,24 @@ function sequence(steps: PipelineReleaseStep[], facts: ReleaseFacts): Sequence {
     return {};
 }
 
-function runAgain(step: PipelineReleaseStep): PhaseAction {
-    return { kind: "step", step: step.id, label: `Run “${stepTitle(step)}” again` };
+// A step's confirmation, with the release's words in it.
+function confirmOf(step: PipelineReleaseStep, facts: ReleaseFacts): string {
+    if (!step.confirm) {
+        return undefined;
+    }
+    return step.confirm
+        .split("{tag}")
+        .join(facts.tag ?? "")
+        .split("{version}")
+        .join(facts.version ?? "");
 }
 
-function runStep(step: PipelineReleaseStep): PhaseAction {
-    return { kind: "step", step: step.id, label: stepTitle(step), confirm: step.confirm };
+function runAgain(step: PipelineReleaseStep, facts: ReleaseFacts): PhaseAction {
+    return { kind: "step", step: step.id, label: `Run “${stepTitle(step)}” again`, confirm: confirmOf(step, facts) };
+}
+
+function runStep(step: PipelineReleaseStep, facts: ReleaseFacts): PhaseAction {
+    return { kind: "step", step: step.id, label: stepTitle(step), confirm: confirmOf(step, facts) };
 }
 
 // The phase as its steps say, when they are not done yet: running, failed or waiting for a click.
@@ -156,6 +196,7 @@ function stepsPhase(base: Phase, steps: PipelineReleaseStep[], facts: ReleaseFac
     }
     if (seq.failed) {
         const fact = facts.steps[seq.failed.id];
+        const before = steps[steps.indexOf(seq.failed) - 1];
         return {
             ...base,
             status: "failed",
@@ -164,12 +205,18 @@ function stepsPhase(base: Phase, steps: PipelineReleaseStep[], facts: ReleaseFac
                 fact.state === "lost"
                     ? `“${stepTitle(seq.failed)}” stopped without a word (the machine slept?).`
                     : `“${stepTitle(seq.failed)}” failed: ${lastWords(fact)}`,
-            action: runAgain(seq.failed),
+            action: runAgain(seq.failed, facts),
+            redo: before ? runAgain(before, facts) : undefined,
             log: fact,
         };
     }
     if (seq.next) {
-        return { ...base, status: "waiting", expect: `Next: ${stepTitle(seq.next)}.`, action: runStep(seq.next) };
+        return {
+            ...base,
+            status: "waiting",
+            expect: `Next: ${stepTitle(seq.next)}.`,
+            action: runStep(seq.next, facts),
+        };
     }
     return null;
 }
@@ -182,8 +229,8 @@ function prepare(facts: ReleaseFacts, steps: PipelineReleaseStep[]): Phase {
     if (steps.length === 0) {
         return { ...base, expect: "The pipeline declares nothing to prepare." };
     }
-    const retry: PhaseAction = { kind: "step", step: PrepareStep, label: "Retry the preparation" };
-    const fact = facts.steps[PrepareStep];
+    const retry: PhaseAction = { kind: "prepare", label: "Retry the preparation" };
+    const fact = facts.preparation;
     if (fact?.running) {
         const at = steps.find((s) => s.id === fact.phases[fact.phases.length - 1]);
         return { ...base, status: "running", expect: `${at ? stepTitle(at) : "Preparing"}…`, log: fact };
@@ -234,28 +281,30 @@ function cut(
             ...base,
             status: "failed",
             expect: "Run the cut again, or cut at the terminal.",
-            cause: `The cut steps ran, but ${tag} is not tagged.`,
-            action: runAgain(last),
+            cause: `The cut steps ran, but ${tag} is not on origin.`,
+            action: runAgain(last, facts),
         };
     }
-    if (phase.status === "waiting" && phase.action?.kind === "step" && phase.action.confirm) {
-        return {
-            ...phase,
-            action: {
-                ...phase.action,
-                label: `Cut ${tag}`,
-                confirm: phase.action.confirm
-                    .split("{tag}")
-                    .join(tag)
-                    .split("{version}")
-                    .join(facts.version ?? ""),
-            },
-            expect: facts.notes
-                ? "Read the public notes, fix them if needed, then cut."
-                : `Then cut: ${tag} becomes public once pushed.`,
-        };
+    if (phase.status !== "waiting" || phase.action?.kind !== "step") {
+        return phase;
     }
-    return phase;
+    const action = phase.action;
+    const declared = action.confirm;
+    // No step says which one pushes the tag: once the steps before it ran and drafted the notes for this release, the
+    // next one is the cut, read and confirmed as Notulia's finalize is (#230).
+    const inferred = !declared && !steps.some((s) => s.confirm) && !!facts.notes && !!facts.notesdrafted;
+    if (!declared && !inferred) {
+        return phase;
+    }
+    const confirm =
+        declared ?? `“${action.label}” may push ${tag}: once pushed, the tag is public and cannot be taken back.`;
+    return {
+        ...phase,
+        action: { ...action, label: declared ? `Cut ${tag}` : action.label, confirm },
+        expect: facts.notes
+            ? "Read the public notes, fix them if needed, then cut."
+            : `Then cut: ${tag} becomes public once pushed.`,
+    };
 }
 
 function build(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[]): Phase {
@@ -265,6 +314,9 @@ function build(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[]): 
     }
     if (steps.length > 0) {
         return stepsPhase(base, steps, facts) ?? { ...base, status: "done", expect: "Built." };
+    }
+    if (facts.nogithub) {
+        return { ...base, status: "done", expect: "Nothing to follow: not on GitHub, and no build step declared." };
     }
     const runs = facts.runs ?? [];
     const links = runs.map((r) => ({ label: r.workflowName, url: r.url }));
@@ -317,6 +369,9 @@ function publish(facts: ReleaseFacts, channel: ReleaseChannel, steps: PipelineRe
     if (!release && steps.length > 0) {
         // Published by the project's own steps, not as a GitHub release.
         return stepsPhase(base, steps, facts) ?? { ...base, status: "done", expect: "Published." };
+    }
+    if (!release && facts.nogithub) {
+        return { ...base, status: "done", expect: "Nothing to follow: not on GitHub, and no publish step declared." };
     }
     if (!release) {
         if (facts.githuberror) {
@@ -376,7 +431,7 @@ export function releaseRun(facts: ReleaseFacts, declared: readonly PipelineRelea
     }
     const tag = facts.tag;
     const channel = facts.channel ?? (tag.includes("-") ? "rc" : "public");
-    const byPhase = stepsByPhase(declared);
+    const byPhase = stepsByPhase(declared, facts);
     const notesStep = (declared ?? []).find((s) => s.notes) ?? null;
     const p = prepare(facts, byPhase.prepare);
     const c = cut(facts, tag, byPhase.cut, notesStep, p.status === "done");

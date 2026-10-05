@@ -1,0 +1,45 @@
+{
+    "schema": 1,
+    "name": "Release fixture",
+    "versions": { "tagprefix": "v", "notes": "releases/{tag}.md" },
+    "release": {
+        "rc": [
+            { "id": "warm-cache", "title": "Warm the release cache", "run": "./scripts/pipeline-step.sh warm-cache" },
+            { "id": "promote", "title": "Promote develop onto main", "run": "./scripts/pipeline-step.sh promote" },
+            {
+                "id": "prepare",
+                "title": "Prepare the cut",
+                "run": "./scripts/pipeline-step.sh prepare {version} --internal"
+            },
+            {
+                "id": "finalize",
+                "title": "Cut — commit, tag, push",
+                "run": "./scripts/pipeline-step.sh finalize {version} --internal"
+            },
+            {
+                "id": "sync-back",
+                "title": "Carry the release commit back to develop",
+                "run": "./scripts/pipeline-step.sh sync-back"
+            }
+        ],
+        "public": [
+            { "id": "warm-cache", "title": "Warm the release cache", "run": "./scripts/pipeline-step.sh warm-cache" },
+            { "id": "promote", "title": "Promote develop onto main", "run": "./scripts/pipeline-step.sh promote" },
+            {
+                "id": "prepare",
+                "title": "Prepare the cut",
+                "run": "./scripts/pipeline-step.sh prepare {version} --public"
+            },
+            {
+                "id": "finalize",
+                "title": "Cut — commit, tag, push",
+                "run": "./scripts/pipeline-step.sh finalize {version} --public"
+            },
+            {
+                "id": "sync-back",
+                "title": "Carry the release commit back to develop",
+                "run": "./scripts/pipeline-step.sh sync-back"
+            }
+        ]
+    }
+}

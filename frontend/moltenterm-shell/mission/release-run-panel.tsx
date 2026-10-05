@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The release in flight (FR-MC-016), as Notulia's ReleaseRunPanel: five phases, where it is, what it waits on, and why
-// it is stuck when it is. Each phase has at most one button, the next thing to do there; the cut says what cannot be
-// taken back before it lands, and while it waits its public notes are read and edited here.
+// it is stuck when it is. Each phase has at most one button, the next thing to do there (after a failure, the step
+// before the failed one is offered again beside it); the cut says what cannot be taken back before it lands, and
+// while it waits its public notes are read and edited here.
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useState } from "react";
@@ -19,7 +20,7 @@ import {
 } from "./mission-client";
 import { latestRun, PipelineDef, ReleasePhase, RunRecord, UntrustedInfo } from "./mission-model";
 import { ReleaseSession } from "./release-model";
-import { Phase, PhaseAction, PhaseStatus, ReleaseGhJob, ReleaseRun, releaseRun } from "./release-run";
+import { Phase, PhaseAction, PhaseStatus, PreparationStep, ReleaseGhJob, ReleaseRun, releaseRun } from "./release-run";
 import { TrustPrompt } from "./runs-view";
 
 const NodeClasses: Record<PhaseStatus, string> = {
@@ -126,7 +127,16 @@ function Jobs({ jobs }: { jobs: ReleaseGhJob[] }) {
     );
 }
 
-function ActionButton({ action, actions }: { action: PhaseAction; actions: ReleasePanelActions }) {
+function ActionButton({
+    action,
+    actions,
+    plain,
+}: {
+    action: PhaseAction;
+    actions: ReleasePanelActions;
+    // A secondary way forward, beside the phase's own action.
+    plain?: boolean;
+}) {
     const [confirming, setConfirming] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
@@ -160,12 +170,12 @@ function ActionButton({ action, actions }: { action: PhaseAction; actions: Relea
                 <button
                     type="button"
                     disabled={busy}
-                    className={AccentButton}
+                    className={plain ? PlainButton : AccentButton}
                     onClick={() => (confirm && !confirming ? setConfirming(true) : go())}
                 >
                     {busy ? <i className="fa fa-solid fa-circle-notch fa-spin mr-1.5 text-[10px]" /> : null}
                     {confirming ? "Confirm" : action.label}
-                    <MoltenWave />
+                    {plain ? null : <MoltenWave />}
                 </button>
             </div>
             {error ? <p className="text-right text-xs text-error">{error}</p> : null}
@@ -321,7 +331,17 @@ function Detail({
                 editing && notesDirty ? (
                     <p className="mt-3 text-right text-xs text-muted">Save the notes before cutting.</p>
                 ) : (
-                    <ActionButton key={phase.action.label} action={phase.action} actions={actions} />
+                    <>
+                        <ActionButton key={phase.action.label} action={phase.action} actions={actions} />
+                        {phase.redo ? (
+                            <ActionButton
+                                key={`redo:${phase.redo.label}`}
+                                action={phase.redo}
+                                actions={actions}
+                                plain
+                            />
+                        ) : null}
+                    </>
                 )
             ) : null}
         </div>
@@ -456,7 +476,11 @@ export function ReleaseRunSection({
                     reload();
                     return;
                 }
-                const result = await releaseRunStep(dir, tag, action.step);
+                const result = await releaseRunStep(
+                    dir,
+                    tag,
+                    action.kind === "prepare" ? PreparationStep : action.step
+                );
                 if (result?.untrusted) {
                     setPending({ action, info: result.untrusted });
                 }

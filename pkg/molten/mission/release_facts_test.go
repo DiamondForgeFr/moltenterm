@@ -47,7 +47,7 @@ func TestReleaseFactsFollowTheStepsTheNotesAndTheTag(t *testing.T) {
 	start := startRelease(t, r, dir, ReleaseChannelRc, "v1.0.0-1")
 	waitRun(t, r, dir, start.Run.Id)
 	facts, err := r.ReleaseFactsOf(dir)
-	if err != nil || facts.Session == nil || facts.Tag != "v1.0.0-1" || facts.TagExists || facts.Steps["prepare"].State != RunStateSuccess {
+	if err != nil || facts.Session == nil || facts.Tag != "v1.0.0-1" || facts.TagExists || facts.Preparation == nil || facts.Preparation.State != RunStateSuccess || len(facts.Steps) != 0 {
 		t.Fatalf("after the preparation: %+v %v", facts, err)
 	}
 	if facts.Notes != "" {

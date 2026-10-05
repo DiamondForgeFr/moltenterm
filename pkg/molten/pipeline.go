@@ -104,7 +104,7 @@ type PipelineStep struct {
 	Id    string `json:"id"`
 	Title string `json:"title,omitempty"`
 	// A release step's phase (FR-MC-015): the steps of the "prepare" phase run as soon as a release starts; every
-	// later one waits for the user's click on the Timeline.
+	// later one waits for the user's click on the Timeline. See ReleaseStepPhase for a step that declares none.
 	Phase string `json:"phase,omitempty"`
 	// Said before the step runs, and confirmed, when it cannot be taken back (e.g. the cut that pushes the tag).
 	Confirm string `json:"confirm,omitempty"`
@@ -254,43 +254,100 @@ func (c *pipelineChecker) checkCommand(where string, cmd PipelineCommand) {
 	}
 }
 
+func releasePhaseIndex(phase string) int {
+	for i, known := range PipelineReleasePhases {
+		if known == phase {
+			return i
+		}
+	}
+	return -1
+}
+
+// The release contract's traps (#230): each warning names what would otherwise be skipped, run out of the declared
+// order, or run without the confirmation the user may expect.
 func (c *pipelineChecker) checkSteps(where string, steps []PipelineStep) {
 	seen := map[string]bool{}
 	phased := false
+	for _, step := range steps {
+		phased = phased || (step.Phase != "" && !step.Notes)
+	}
+	phases := ReleaseStepPhase(steps)
+	last, lastId := -1, ""
+	confirmed := false
 	for i, step := range steps {
 		label := fmt.Sprintf("%s[%d]", where, i)
 		c.checkId(label, step.Id, seen)
 		c.checkCommand(label+" ("+step.Id+")", step.PipelineCommand)
-		if step.Phase == "" {
+		confirmed = confirmed || step.Confirm != ""
+		if step.Phase != "" && releasePhaseIndex(step.Phase) < 0 {
+			c.errorf("%s (%s): phase %q is not one of %s", label, step.Id, step.Phase, strings.Join(PipelineReleasePhases, ", "))
 			continue
 		}
-		phased = true
-		known := false
-		for _, phase := range PipelineReleasePhases {
-			known = known || phase == step.Phase
+		if step.Notes || !phased {
+			continue
 		}
-		if !known {
-			c.errorf("%s (%s): phase %q is not one of %s", label, step.Id, step.Phase, strings.Join(PipelineReleasePhases, ", "))
+		if step.Phase == "" {
+			c.warnf("%s (%s): no phase while other steps declare one: it runs in the phase of the step before it (%s)", label, step.Id, phases[i])
+			continue
 		}
+		index := releasePhaseIndex(step.Phase)
+		if index < last {
+			c.warnf("%s (%s): declared after %s, a step of a later phase: it runs in its phase %s, before that step", label, step.Id, lastId, step.Phase)
+			continue
+		}
+		last, lastId = index, step.Id
 	}
-	if len(steps) > 0 && !phased {
-		c.warnf("%s: no step declares its phase, so only the first one runs when a release starts", where)
+	if len(steps) == 0 {
+		return
 	}
+	if !phased {
+		c.warnf("%s: no step declares its phase: the first one runs when a release starts, the next ones in order, each on its click, and those not run yet once the tag is pushed come after it (back to the trunk)", where)
+	}
+	if !confirmed {
+		c.warnf("%s: no step declares confirm: the step that pushes the tag runs on a plain click, unless it waits on notes drafted for the release", where)
+	}
+}
+
+// ReleaseStepPhase gives each release step its phase: as declared, or, for a step without one in a list that declares
+// phases, the phase of the step before it (the first step: prepare). Without any declared phase, the first step
+// prepares and the others get "", their phase being known only as the release goes (cut, or back once tagged).
+// Steps that rewrite the notes run beside them, in no phase.
+func ReleaseStepPhase(steps []PipelineStep) []string {
+	rtn := make([]string, len(steps))
+	phased := false
+	for _, step := range steps {
+		phased = phased || (step.Phase != "" && !step.Notes)
+	}
+	current := PipelineReleasePhasePrepare
+	first := true
+	for i, step := range steps {
+		if step.Notes {
+			continue
+		}
+		switch {
+		case !phased && first:
+			rtn[i] = PipelineReleasePhasePrepare
+		case !phased:
+			rtn[i] = ""
+		case step.Phase != "":
+			current = step.Phase
+			rtn[i] = current
+		default:
+			rtn[i] = current
+		}
+		first = false
+	}
+	return rtn
 }
 
 // ReleasePreparation returns the steps that run as soon as a release starts: those of the "prepare" phase, or the
 // first step when none declares a phase.
 func ReleasePreparation(steps []PipelineStep) []PipelineStep {
 	var rtn []PipelineStep
-	phased := false
-	for _, step := range steps {
-		phased = phased || step.Phase != ""
-		if step.Phase == PipelineReleasePhasePrepare {
-			rtn = append(rtn, step)
+	for i, phase := range ReleaseStepPhase(steps) {
+		if phase == PipelineReleasePhasePrepare {
+			rtn = append(rtn, steps[i])
 		}
-	}
-	if !phased && len(steps) > 0 {
-		return steps[:1]
 	}
 	return rtn
 }
