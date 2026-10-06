@@ -6,6 +6,7 @@
 // before the failed one is offered again beside it); the cut says what cannot be taken back before it lands, and
 // while it waits its public notes are read and edited here.
 
+import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useState } from "react";
 import { MoltenWave } from "../molten-button";
@@ -317,8 +318,10 @@ function Detail({
                         <a
                             key={link.url}
                             href={link.url}
-                            target="_blank"
-                            rel="noreferrer"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                fireAndForget(() => openLink(link.url));
+                            }}
                             className="inline-flex cursor-pointer items-center gap-1 rounded border border-border px-2 py-1 text-[11px] text-secondary hover:bg-hover hover:text-primary"
                         >
                             {link.label}

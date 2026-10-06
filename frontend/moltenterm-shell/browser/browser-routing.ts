@@ -4,8 +4,10 @@
 // Every web page Moltenterm opens inside the app goes through openInBrowserPanel (#140): it becomes a new tab of the
 // browser panel the user last focused in the current tab, and only gets a panel of its own when the tab has none.
 // wsh does the same from the backend (cmd/wsh/cmd/wshcmd-molten-browser.go) through a queue in the block meta (BrowserOpenKeyPrefix).
+// Interface links reach it through Wave's openLink (FR-BRW-006, DS-BRW-006); the routing never activates another tab or
+// workspace. The first link to a site without an engine opens here at once and asks (DS-BRW-007); wsh never asks.
 
-import { atoms, createBlock, getBlockComponentModel } from "@/app/store/global";
+import { atoms, createBlock, getBlockComponentModel, getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
@@ -19,10 +21,11 @@ import {
     noteBrowserFocus,
     pickBrowserPanel,
 } from "./browser-model";
+import { choiceSite } from "./link-choice";
 
 // What BrowserViewModel offers here, without importing the view (which imports the global store).
 type BrowserPanelModel = ViewModel & {
-    openUrlInNewTab: (url: string) => void;
+    openUrlInNewTab: (url: string, askSite?: string) => void;
     addHandoffEntry: (url: string, engine: string) => void;
     showNotice: (text: string) => void;
 };
@@ -72,14 +75,24 @@ export async function openInBrowserPanel(url: string): Promise<void> {
         model?.addHandoffEntry(url, route.engine);
         return;
     }
+    // A page sent back by a browser that could not take it had an engine already: it never asks.
+    const askSite = route == null ? linkChoiceSite(url) : null;
     if (model != null) {
-        model.openUrlInNewTab(url);
+        model.openUrlInNewTab(url, askSite);
         if (notice) {
             model.showNotice(notice);
         }
         return;
     }
-    await createBlock(browserBlockDef(url, notice));
+    await createBlock(browserBlockDef(url, notice, askSite != null));
+}
+
+function linkChoiceSite(url: string): string {
+    return choiceSite(
+        globalStore.get(getSettingsKeyAtom("browser:default")),
+        globalStore.get(getSettingsKeyAtom("browser:sites")),
+        url
+    );
 }
 
 // The browser panel a palette action applies to: the pane it was opened from when that is a browser panel, else the

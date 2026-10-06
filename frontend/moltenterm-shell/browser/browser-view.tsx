@@ -38,6 +38,7 @@ import {
     engineName,
     fallbackNotice,
     fallbackReason,
+    InstalledBrowser,
     siteEngine,
     siteOf,
 } from "./browser-engine";
@@ -45,6 +46,7 @@ import { BrowserLoadModel, reloadAction, runReload, TabLoad } from "./browser-lo
 import {
     activateTab,
     addTab,
+    BrowserAskMetaKey,
     browserMeta,
     BrowserNoticeMetaKey,
     BrowserState,
@@ -63,6 +65,8 @@ import {
 } from "./browser-model";
 import type { SignInBar } from "./browser-popup";
 import { noteBrowserPanelFocus } from "./browser-routing";
+import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
+import { choiceEngineId, EngineChoice } from "./link-choice";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
 
 export { MoltentermBrowserView };
@@ -99,6 +103,8 @@ export class BrowserViewModel implements ViewModel {
     signIn = new BrowserSignInModel();
     // Load state and favicon per tab (#210).
     loads = new BrowserLoadModel();
+    // The first-link engine choice per tab (FR-BRW-006).
+    choices = new BrowserChoiceModel();
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
@@ -107,6 +113,7 @@ export class BrowserViewModel implements ViewModel {
         this.blockAtom = makeBlockAtom(blockId);
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
         this.takeInitialNotice();
+        this.takeInitialAsk();
         fireAndForget(() => this.engines.ensureLoaded());
     }
 
@@ -121,6 +128,25 @@ export class BrowserViewModel implements ViewModel {
             RpcApi.SetMetaCommand(TabRpcClient, {
                 oref: makeORef("block", this.blockId),
                 meta: { [BrowserNoticeMetaKey]: null } as MetaType,
+            })
+        );
+    }
+
+    // A panel created for an interface link to a site without an engine asks on its first tab, once.
+    takeInitialAsk(): void {
+        const meta = globalStore.get(this.blockAtom)?.meta;
+        if (meta?.[BrowserAskMetaKey] !== true) {
+            return;
+        }
+        const tab = this.findTab(this.state().activeId);
+        const site = siteOf(tab?.url);
+        if (site != null) {
+            this.choices.ask(tab.id, tab.url, site);
+        }
+        fireAndForget(() =>
+            RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: makeORef("block", this.blockId),
+                meta: { [BrowserAskMetaKey]: null } as MetaType,
             })
         );
     }
@@ -170,8 +196,44 @@ export class BrowserViewModel implements ViewModel {
         this.webviews.delete(id);
         this.signIn.forget(id);
         this.loads.forget(id);
+        this.choices.forget(id);
         const next = page === tab.url ? this.state() : updateTab(this.state(), id, { url: page, title: undefined });
         this.setState(setTabEngine(next, id, route.engine));
+    }
+
+    // "Open with MoltenTerm" of the engine choice: the page stays, and the site keeps MoltenTerm when remembered.
+    stayWithChoice(id: string, choice: EngineChoice): void {
+        this.choices.forget(id);
+        this.giveFocus();
+        if (!choice.remember) {
+            return;
+        }
+        fireAndForget(() => this.saveSiteChoice(choice.site, EngineApp));
+    }
+
+    // "Open in <browser>" of the engine choice: the page is handed off (DS-BRW-002), the site remembered first so the
+    // next link goes there without asking.
+    async handOffWithChoice(id: string, choice: EngineChoice, browser: InstalledBrowser): Promise<void> {
+        const engine = choiceEngineId(browser);
+        this.choices.forget(id);
+        if (choice.remember) {
+            await this.saveSiteChoice(choice.site, engine);
+        }
+        await this.handOffTab(id, engine);
+    }
+
+    // Close or Escape: MoltenTerm keeps the page and nothing is stored, so the next link to the site asks again.
+    dismissChoice(id: string): void {
+        this.choices.forget(id);
+        this.giveFocus();
+    }
+
+    async saveSiteChoice(site: string, engine: string): Promise<void> {
+        try {
+            await browserSetSite(site, engine);
+        } catch (e) {
+            this.showNotice(`The site choice could not be saved: ${e}`);
+        }
     }
 
     // "Continue in <browser>" of the sign-in refusal bar (FR-BRW-003).
@@ -402,9 +464,13 @@ export class BrowserViewModel implements ViewModel {
         this.setState(addTab(this.state(), url || defaultUrl));
     }
 
-    // A link opened elsewhere in the app (#140): a new active tab here, and the panel takes the focus.
-    openUrlInNewTab(url: string): void {
+    // A link opened elsewhere in the app (#140): a new active tab here, and the panel takes the focus. askSite: the
+    // tab asks which engine the site uses (FR-BRW-006); the page loads meanwhile.
+    openUrlInNewTab(url: string, askSite?: string): void {
         this.newTab(url);
+        if (askSite) {
+            this.choices.ask(this.state().activeId, url, askSite);
+        }
         this.focusPanel();
     }
 
@@ -446,10 +512,17 @@ export class BrowserViewModel implements ViewModel {
         this.webviews.delete(id);
         this.signIn.forget(id);
         this.loads.forget(id);
+        this.choices.forget(id);
         this.setState(closeTab(this.state(), id));
     }
 
     giveFocus(): boolean {
+        // The engine choice's primary button holds the focus while the bar is up (DS-BRW-007).
+        const primary = this.choices.primaryRef.current;
+        if (primary != null && this.choices.visible(this.state().activeId, globalStore.get(this.engines.listAtom))) {
+            primary.focus();
+            return true;
+        }
         const webview = this.activeWebview();
         if (webview == null) {
             return false;
@@ -511,6 +584,10 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
             }
             model.setState(updateTab(model.state(), tab.id, { url: e.url }));
             model.signIn.noteNavigation(tab.id, e.url);
+            // In-page navigations (anchors, history.pushState on load) do not count as moving on.
+            if (e.type === "did-navigate") {
+                model.choices.noteNavigation(tab.id);
+            }
         };
         // A popup this tab opened was refused by its sign-in provider (emain/moltenterm-popups.ts closed it).
         const onSignInRefused = (e: any) => model.signIn.notePopupRefused(tab.id, e.detail, webview.getURL());
@@ -966,6 +1043,16 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                 tabId={state.activeId}
                 browserName={engineList?.chosen?.name ?? null}
                 onContinue={(bar) => model.continueSignIn(state.activeId, bar)}
+            />
+            <EngineChoiceBar
+                choices={model.choices}
+                tabId={state.activeId}
+                list={engineList}
+                onStay={(choice) => model.stayWithChoice(state.activeId, choice)}
+                onHandOff={(choice, browser) =>
+                    fireAndForget(() => model.handOffWithChoice(state.activeId, choice, browser))
+                }
+                onDismiss={() => model.dismissChoice(state.activeId)}
             />
             <div className="relative min-h-0 flex-1">
                 {state.tabs.map((tab) =>

@@ -109,11 +109,15 @@ export function siteEngine(sites: Record<string, string>, url: string): { engine
     return { engine: "", site: "" };
 }
 
-// Whether a link may be meant for the installed browser, so that it is worth asking wavesrv: without a default engine
-// and without per-site choices every page stays in the app.
-export function routingConfigured(defaultEngine: string, sites: Record<string, string>): boolean {
-    const def = (defaultEngine ?? "").trim().toLowerCase();
-    return (def !== "" && def !== EngineApp) || Object.keys(sites ?? {}).length > 0;
+// The engine the settings give a page without an explicit one: the per-site choice, else browser:default, else the
+// app. Must match Resolve in pkg/molten/browsers/browsers.go, so wavesrv is asked only when the answer is an installed
+// browser and a page that stays here (a site remembered as "app" included) opens without a round trip.
+export function localEngine(defaultEngine: string, sites: Record<string, string>, url: string): string {
+    const site = siteEngine(sites, url).engine;
+    if (site !== "") {
+        return site;
+    }
+    return (defaultEngine ?? "").trim().toLowerCase() || EngineApp;
 }
 
 export function fallbackReason(route: BrowserRoute): string {
@@ -189,13 +193,13 @@ export class BrowserEngineModel {
         return globalStore.get(this.listAtom)?.chosen ?? null;
     }
 
-    // Whether wavesrv must route this page (a default engine or a per-site choice may send it to the browser).
+    // Whether wavesrv must route this page: the settings send it to an installed browser.
     needsRouting(url: string): boolean {
-        const def = globalStore.get(getSettingsKeyAtom("browser:default"));
-        const sites = globalStore.get(getSettingsKeyAtom("browser:sites"));
-        if (!routingConfigured(def, sites)) {
+        if (siteOf(url) == null) {
             return false;
         }
-        return siteOf(url) != null;
+        const def = globalStore.get(getSettingsKeyAtom("browser:default"));
+        const sites = globalStore.get(getSettingsKeyAtom("browser:sites"));
+        return localEngine(def, sites, url) !== EngineApp;
     }
 }
