@@ -22,6 +22,7 @@ import {
     gaugesView,
     GaugesView,
     usageFor,
+    usageReadFor,
     UsageSetup,
     usageStale,
 } from "./companion-gauges-model";
@@ -50,7 +51,7 @@ function usageCall(command: string, data: any): Promise<CompanionUsageInfo> {
 
 // A network source may be called only for a companion the user can see (NFR-SHELL-013).
 function visibleRead(): { fetch: boolean } {
-    return { fetch: document.visibilityState === "visible" };
+    return usageReadFor(document.visibilityState);
 }
 
 function useNow(intervalMs: number): number {
@@ -157,12 +158,18 @@ function usePlanUsage(target: string, agent: string, now: number) {
             }
         };
         const timer = setInterval(askIfVisible, refreshMs);
-        document.addEventListener("visibilitychange", askIfVisible);
-        return () => {
-            clearInterval(timer);
-            document.removeEventListener("visibilitychange", askIfVisible);
-        };
+        return () => clearInterval(timer);
     }, [refreshMs, target]);
+    // wavesrv reads automatically only for a window that shows: it is told when this one hides or shows, and asks
+    // once on show (its own call limits keep that from being a burst).
+    useEffect(() => {
+        if (!target || !agent) {
+            return;
+        }
+        const reportVisibility = () => call(CompanionUsageCommand, visibleRead());
+        document.addEventListener("visibilitychange", reportVisibility);
+        return () => document.removeEventListener("visibilitychange", reportVisibility);
+    }, [target, agent]);
     return {
         info,
         failed,

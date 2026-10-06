@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
@@ -126,6 +127,11 @@ type Manager struct {
 	version  int64
 	// When each block's plan gauges were last published.
 	usagePublished map[string]time.Time
+	// Whether the last plan usage request of each block's companion came from a window that shows (NFR-SHELL-013).
+	usageVisible map[string]bool
+	// Whether Codex's plan limits are kept: set when the gauges are turned on or off, before the reloaded settings
+	// say so; until then (limitsUnset) the settings tell.
+	limitsState atomic.Int32
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
 	runOf        func(blockId string) (molten.AgentRunInfo, bool)
@@ -148,6 +154,7 @@ func MakeManager() *Manager {
 		picks:          map[string]sessionPick{},
 		claims:         map[string]sessionClaim{},
 		usagePublished: map[string]time.Time{},
+		usageVisible:   map[string]bool{},
 		adapterFor:     AdapterFor,
 		now:            time.Now,
 		tick:           tickInterval,
@@ -253,6 +260,7 @@ func (m *Manager) ForgetBlock(blockId string) {
 	delete(m.reports, blockId)
 	delete(m.picks, blockId)
 	delete(m.usagePublished, blockId)
+	delete(m.usageVisible, blockId)
 	usage.DefaultStatusLineStore.Forget(blockId)
 }
 
@@ -502,6 +510,8 @@ type watcher struct {
 	limitsSession *Session
 	limitsRev     int64
 	limitsReady   bool
+	// reread: the plan limits were forgotten, so the session is read again from its start (guarded by lock).
+	reread bool
 }
 
 func makeWatcher(m *Manager, blockId string) *watcher {
@@ -631,6 +641,7 @@ func (w *watcher) step() bool {
 		w.setStatus(StatusRemote, "")
 		return false
 	}
+	w.rereadIfAsked()
 	w.link(run)
 	if w.follower == nil {
 		return false
@@ -886,6 +897,10 @@ func (w *watcher) read() bool {
 		w.version++
 		w.m.releaseClaims(w.blockId)
 		return false
+	}
+	// Limits that arrive while the gauges are off are not kept.
+	if w.agent == "codex" && !w.m.codexLimitsKept() {
+		w.session.ClearCodexLimits()
 	}
 	status, message := StatusLive, ""
 	if more {

@@ -13,6 +13,7 @@ import {
     gaugesView,
     resetText,
     usageFor,
+    usageReadFor,
     usageReasonText,
     UsageReasonTexts,
     usageStale,
@@ -58,6 +59,14 @@ const noop = { onShow: () => {}, onHide: () => {}, onRefresh: () => {} };
 function markup(info: CompanionUsageInfo, at = now): string {
     return renderToStaticMarkup(<PlanUsageBody view={gaugesView(info, at)} {...noop} />);
 }
+
+describe("plan usage reads", () => {
+    it("may fetch only for a window that shows, so a hidden or minimised one pauses the automatic reads", () => {
+        expect(usageReadFor("visible")).toEqual({ fetch: true });
+        expect(usageReadFor("hidden")).toEqual({ fetch: false });
+        expect(usageReadFor("prerender")).toEqual({ fetch: false });
+    });
+});
 
 describe("plan usage rules", () => {
     it("says when each window resets", () => {

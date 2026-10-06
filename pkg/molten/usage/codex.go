@@ -568,14 +568,15 @@ func (s *codexAppServerSource) Enabled(settings *wconfig.SettingsType) bool {
 	return GaugesOn(settings, "codex")
 }
 
-// Read runs the app-server on Refresh, or when the session, read through, holds no live window; a read that may not
-// start a process answers what the last run gave, unless the session's values are newer.
+// Read runs the app-server on Refresh, or when the session, read through, holds no live window and a visible
+// companion asked (NFR-SHELL-013); any other read answers what the last run gave, unless the session's values are
+// newer.
 func (s *codexAppServerSource) Read(ctx context.Context, blockId string) (UsageSnapshot, error) {
 	now := s.cu.now()
 	lim, ok := s.cu.transcriptOf(blockId)
 	transcript, err := s.cu.transcriptSnapshot(lim, ok)
 	transcriptLive := err == nil && live(&transcript, now.UnixMilli())
-	cached, reason, run := s.cu.decide(IsRefresh(ctx), lim.Loading || transcriptLive || !processAllowed(ctx), now)
+	cached, reason, run := s.cu.decide(IsRefresh(ctx), lim.Loading || transcriptLive || !processAllowed(ctx) || !CanFetch(ctx), now)
 	if !run {
 		if cached != nil && transcriptLive && transcript.ReadAt >= cached.ReadAt {
 			// Older than the session's values: none of it holds any longer, credits included.

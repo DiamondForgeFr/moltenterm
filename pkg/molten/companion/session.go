@@ -135,6 +135,15 @@ func (s *Session) AddCodexRateLimits(rateLimits any, at int64) {
 	s.limitsRev++
 }
 
+// ClearCodexLimits forgets the plan limits read so far (NFR-SHELL-011).
+func (s *Session) ClearCodexLimits() {
+	if len(s.codexLimits.Records) == 0 && !s.codexLimits.NoLimits {
+		return
+	}
+	s.codexLimits = usage.CodexTranscriptLimits{}
+	s.limitsRev++
+}
+
 func (s *Session) LimitsRev() int64 {
 	return s.limitsRev
 }

@@ -234,7 +234,7 @@ func codexTestSources(t *testing.T, fake *fakeAppServer, lim *CodexTranscriptLim
 
 func codexRead(a UsageAdapter, clock *codexClock, refresh bool) GaugesResult {
 	settings := &wconfig.SettingsType{CompanionUsageGauges: []string{"codex"}}
-	ctx := WithRefresh(context.Background(), refresh)
+	ctx := WithFetch(WithRefresh(context.Background(), refresh), true)
 	return ReadGauges(ctx, a, settings, "b1", clock.now().UnixMilli())
 }
 
@@ -402,5 +402,31 @@ func TestCodexAppServerOneAtATime(t *testing.T) {
 		if res.State != GaugesEnabled {
 			t.Errorf("each read takes its result: %+v", res)
 		}
+	}
+}
+
+func TestCodexAppServerPausesWhileTheWindowIsHidden(t *testing.T) {
+	fake := &fakeAppServer{result: appServerResult}
+	cu, clock, a := codexTestSources(t, fake, &CodexTranscriptLimits{})
+	settings := &wconfig.SettingsType{CompanionUsageGauges: []string{"codex"}}
+	read := func(ctx context.Context) GaugesResult {
+		return ReadGauges(ctx, a, settings, "b1", clock.now().UnixMilli())
+	}
+	if res := read(context.Background()); res.Snapshot != nil || fake.count() != 0 {
+		t.Fatalf("a window that does not show starts no process (NFR-SHELL-013): %+v (%d runs)", res, fake.count())
+	}
+	if res := read(WithFetch(context.Background(), true)); res.Snapshot == nil || fake.count() != 1 {
+		t.Fatalf("shown: one read: %+v (%d runs)", res, fake.count())
+	}
+	cu.Clear()
+	if res := read(context.Background()); res.Snapshot != nil || fake.count() != 1 {
+		t.Errorf("hidden again, values forgotten: no read: %+v (%d runs)", res, fake.count())
+	}
+	if res := read(WithFetch(context.Background(), true)); res.Snapshot != nil || fake.count() != 1 {
+		t.Errorf("shown again within the interval: no burst: %+v (%d runs)", res, fake.count())
+	}
+	clock.add(codexManualInterval + time.Second)
+	if res := read(WithRefresh(context.Background(), true)); res.Snapshot == nil || fake.count() != 2 {
+		t.Errorf("a manual Refresh still reads: %+v (%d runs)", res, fake.count())
 	}
 }

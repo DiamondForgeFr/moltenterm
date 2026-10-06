@@ -249,7 +249,7 @@ func Start() {
 	defaultManager = m
 	usage.DefaultCodexUsage.SetTranscript(m.CodexLimits)
 	wconfig.GetWatcher().RegisterUpdateHandler(func(config wconfig.FullConfigType) {
-		settingsChanged(&config.Settings)
+		m.settingsChanged(&config.Settings)
 	})
 	link := &routeLink{m: m, output: make(chan []byte, routeQueueSize)}
 	if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, molten.CompanionRoute); err != nil {

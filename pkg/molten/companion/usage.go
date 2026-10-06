@@ -116,6 +116,7 @@ func (m *Manager) usageFor(req usageRequest) (UsageInfo, error) {
 	if err != nil {
 		return UsageInfo{}, err
 	}
+	m.setUsageVisible(req.BlockId, req.Fetch || req.Refresh)
 	return m.usageInfo(req.BlockId, agent, a, m.currentSettings(), usageRead{refresh: req.Refresh, fetch: req.Fetch || req.Refresh}), nil
 }
 
@@ -210,6 +211,7 @@ func (m *Manager) SetUsageGauges(blockId string, on bool) (UsageInfo, error) {
 		usage.ClearValues(a)
 	}
 	usage.SyncSources(a, &settings)
+	m.syncLimits(agent, &settings)
 	// Showing plan usage is the user's click: an experimental source already turned on calls within the Refresh limit.
 	info := m.usageInfo(blockId, agent, a, &settings, usageRead{refresh: on, fetch: on})
 	m.publishAgentUsage(blockId, agent, a, &settings)
@@ -335,6 +337,109 @@ func settingsChanged(settings *wconfig.SettingsType) {
 	}
 }
 
+func (m *Manager) settingsChanged(settings *wconfig.SettingsType) {
+	settingsChanged(settings)
+	for _, agent := range usage.Agents() {
+		m.syncLimits(agent, settings)
+	}
+}
+
+const (
+	limitsUnset = iota
+	limitsKept
+	limitsForgotten
+)
+
+// syncLimits makes the plan limits a session log gave follow the agent's gauges (NFR-SHELL-011): turned off, they
+// are forgotten and none is kept; turned on, the session is read again from its start, since none was kept before.
+func (m *Manager) syncLimits(agent string, settings *wconfig.SettingsType) {
+	if agent != "codex" {
+		return
+	}
+	if !usage.GaugesOn(settings, agent) {
+		m.limitsState.Store(limitsForgotten)
+		m.forEachWatcher((*watcher).forgetLimits)
+		return
+	}
+	if m.limitsState.Swap(limitsKept) != limitsKept {
+		m.forEachWatcher((*watcher).rereadLimits)
+	}
+}
+
+// codexLimitsKept: whether a session's plan limits are kept now.
+func (m *Manager) codexLimitsKept() bool {
+	switch m.limitsState.Load() {
+	case limitsKept:
+		return true
+	case limitsForgotten:
+		return false
+	}
+	return usage.GaugesOn(m.currentSettings(), "codex")
+}
+
+func (m *Manager) forEachWatcher(fn func(w *watcher)) {
+	m.lock.Lock()
+	list := make([]*watcher, 0, len(m.watchers))
+	for _, w := range m.watchers {
+		list = append(list, w)
+	}
+	m.lock.Unlock()
+	for _, w := range list {
+		fn(w)
+	}
+}
+
+func (w *watcher) forgetLimits() {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.agent == "codex" && w.session != nil {
+		w.session.ClearCodexLimits()
+	}
+}
+
+// rereadLimits asks the loop to read the followed session again from its start; until it did, the session is
+// loading, so the gauges wait instead of showing nothing known.
+func (w *watcher) rereadLimits() {
+	w.lock.Lock()
+	if w.agent != "codex" || w.session == nil {
+		w.lock.Unlock()
+		return
+	}
+	w.session.ClearCodexLimits()
+	w.reread = true
+	w.status = StatusLoading
+	w.version++
+	w.lock.Unlock()
+	w.poke()
+}
+
+func (w *watcher) rereadIfAsked() {
+	w.lock.Lock()
+	asked := w.reread
+	w.reread = false
+	path, linkedBy, started := w.path, w.linkedBy, w.linkedStarted
+	w.lock.Unlock()
+	if !asked || w.follower == nil || path == "" {
+		return
+	}
+	w.closeFollower()
+	w.follow(path, linkedBy, started)
+}
+
+func (m *Manager) setUsageVisible(blockId string, visible bool) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.usageVisible[blockId] = visible
+}
+
+// usageIsVisible: whether the block's companion last asked from a window that shows. Unknown counts as hidden, so a
+// read nobody asked for never starts a process or a call.
+func (m *Manager) usageIsVisible(blockId string) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	return m.usageVisible[blockId]
+}
+
 // CodexLimits is the Codex usage source's lookup (DS-SHELL-033): the plan limits of the Codex session the block's
 // companion follows, read with the transcript; nothing else is opened for them.
 func (m *Manager) CodexLimits(blockId string) (usage.CodexTranscriptLimits, bool) {
@@ -403,6 +508,6 @@ func (m *Manager) codexLimitsChanged(blockId string, first bool) {
 		defer func() {
 			panichandler.PanicHandler("molten:companion:usage", recover())
 		}()
-		m.publishBlockUsage(m.usageInfo(blockId, "codex", a, settings, usageRead{}))
+		m.publishBlockUsage(m.usageInfo(blockId, "codex", a, settings, usageRead{fetch: m.usageIsVisible(blockId)}))
 	}()
 }
