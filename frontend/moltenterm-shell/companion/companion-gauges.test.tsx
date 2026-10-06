@@ -13,6 +13,8 @@ import {
     resetText,
     usageFor,
     UsageReasonTexts,
+    usageStale,
+    UsageStaleMs,
 } from "./companion-gauges-model";
 
 vi.mock("@/app/store/wos", () => ({ makeORef: (t: string, id: string) => `${t}:${id}` }));
@@ -128,6 +130,13 @@ describe("plan usage rules", () => {
             "Claude Code status line",
             "Updated 3 min ago",
         ]);
+    });
+
+    it("asks again once the values stopped coming", () => {
+        expect(usageStale(enabled, now)).toBe(false);
+        expect(usageStale(enabled, now - 3 * Min + UsageStaleMs + 1)).toBe(true);
+        expect(usageStale({ ...enabled, gauges: "unavailable" }, now + Hour)).toBe(false);
+        expect(usageStale(null, now)).toBe(false);
     });
 
     it("takes only this terminal's answers", () => {

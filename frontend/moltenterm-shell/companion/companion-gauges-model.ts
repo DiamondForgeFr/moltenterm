@@ -155,6 +155,16 @@ export function gaugesView(info: CompanionUsageInfo, now: number): GaugesView {
     };
 }
 
+// must match usageStaleAfter in pkg/molten/companion/usage.go
+export const UsageStaleMs = 5 * 60 * 1000;
+
+// Values that stopped coming may be those of a relay the user removed: the section asks again, and wavesrv looks,
+// read-only, whether the settings still run it.
+export function usageStale(info: CompanionUsageInfo, now: number): boolean {
+    const at = info?.gauges === "enabled" ? info.snapshot?.readat : 0;
+    return at > 0 && now - at > UsageStaleMs;
+}
+
 // An event or an answer is for this terminal's companion only.
 export function usageFor(info: CompanionUsageInfo, target: string, agent: string): boolean {
     return info != null && info.blockid === target && (!agent || info.agent === agent);

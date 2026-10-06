@@ -20,6 +20,10 @@ const usageReadTimeout = 10 * time.Second
 // Unchanged windows are published again this often, so the gauges' age stays true.
 const usageRepublishInterval = 30 * time.Second
 
+// Values older than this are shown only while the source is still set up (must match UsageStaleMs in
+// frontend/moltenterm-shell/companion/companion-gauges-model.ts).
+const usageStaleAfter = 5 * time.Minute
+
 type usageRequest struct {
 	BlockId string `json:"blockid"`
 	Refresh bool   `json:"refresh,omitempty"`
@@ -97,9 +101,14 @@ func (m *Manager) usageInfo(blockId string, agent string, a usage.UsageAdapter, 
 	info := UsageInfo{BlockId: blockId, Agent: agent, PageURL: a.PageURL(), PageName: a.PageName(), HasGauges: usage.HasSources(a)}
 	ctx, cancel := context.WithTimeout(usage.WithRefresh(context.Background(), refresh), usageReadTimeout)
 	defer cancel()
-	res := usage.ReadGauges(ctx, a, settings, blockId, m.now().UnixMilli())
+	nowMs := m.now().UnixMilli()
+	res := usage.ReadGauges(ctx, a, settings, blockId, nowMs)
 	info.Gauges, info.Snapshot, info.Reason, info.SourceName = res.State, res.Snapshot, res.Reason, res.SourceName
-	if res.State != usage.GaugesUnavailable || res.Reason != usage.ReasonWaiting {
+	waiting := res.State == usage.GaugesUnavailable && res.Reason == usage.ReasonWaiting
+	// Values that stopped coming may be those of a relay the user took out of the settings: they show, with their
+	// age, only while the settings still run it.
+	stale := res.State == usage.GaugesEnabled && res.Snapshot != nil && nowMs-res.Snapshot.ReadAt > usageStaleAfter.Milliseconds()
+	if !waiting && !stale {
 		return info
 	}
 	cwd := ""
@@ -109,7 +118,7 @@ func (m *Manager) usageInfo(blockId string, agent string, a usage.UsageAdapter, 
 		}
 	}
 	if setup := usage.SetupOf(a, settings, cwd); setup != nil {
-		info.Reason, info.Setup = usage.ReasonNotSetUp, setup
+		info.Gauges, info.Reason, info.Setup, info.Snapshot = usage.GaugesUnavailable, usage.ReasonNotSetUp, setup, nil
 	}
 	return info
 }

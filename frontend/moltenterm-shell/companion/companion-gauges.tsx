@@ -19,6 +19,7 @@ import {
     GaugesView,
     usageFor,
     UsageSetup,
+    usageStale,
 } from "./companion-gauges-model";
 import {
     CompanionRoute,
@@ -52,7 +53,7 @@ function useNow(intervalMs: number): number {
 }
 
 // Reads the terminal's plan usage when the companion shows its agent, then takes wavesrv's events.
-function usePlanUsage(target: string, agent: string) {
+function usePlanUsage(target: string, agent: string, now: number) {
     const [info, setInfo] = useState<CompanionUsageInfo>(null);
     const [failed, setFailed] = useState(false);
     const accept = (next: CompanionUsageInfo) => {
@@ -113,6 +114,12 @@ function usePlanUsage(target: string, agent: string) {
         const timer = setInterval(() => call(CompanionUsageCommand, {}), SetupRecheckMs);
         return () => clearInterval(timer);
     }, [settingUp, target]);
+    const stale = usageStale(info, now);
+    useEffect(() => {
+        if (stale) {
+            call(CompanionUsageCommand, {});
+        }
+    }, [stale, now, target]);
     return {
         info,
         failed,
@@ -123,8 +130,8 @@ function usePlanUsage(target: string, agent: string) {
 }
 
 export function PlanUsageSection({ target, agent }: { target: string; agent: string }) {
-    const { info, failed, show, hide, refresh } = usePlanUsage(target, agent);
     const now = useNow(ClockTickMs);
+    const { info, failed, show, hide, refresh } = usePlanUsage(target, agent, now);
     return (
         <PlanUsageBody view={gaugesView(info, now)} failed={failed} onShow={show} onHide={hide} onRefresh={refresh} />
     );
@@ -165,7 +172,7 @@ export function PlanUsageBody({
                 data-testid="companion-plan-usage"
                 data-state="off"
             >
-                <i className="fa fa-solid fa-gauge-simple" aria-hidden="true" />
+                <i className="fa fa-solid fa-gauge" aria-hidden="true" />
                 <span>Plan usage</span>
                 <button type="button" className={cn(GhostButton, "ml-auto")} onClick={onShow}>
                     Show plan usage
@@ -180,7 +187,7 @@ export function PlanUsageBody({
                 data-testid="companion-plan-usage"
                 data-state="unavailable"
             >
-                <i className="fa fa-solid fa-gauge-simple" aria-hidden="true" />
+                <i className="fa fa-solid fa-gauge" aria-hidden="true" />
                 <span title={view.reason}>
                     Plan usage unavailable
                     <span className="sr-only">: {view.reason}</span>

@@ -211,6 +211,37 @@ func TestPlanGaugesReasons(t *testing.T) {
 	}
 }
 
+// Values that stopped coming show with their age while the settings still run the relay, and give way to the setup
+// once the user took the relay out.
+func TestPlanGaugesStaleValues(t *testing.T) {
+	m, g, home := gaugesTestManager(t)
+	g.write([]string{"claude"})
+	settings := filepath.Join(home, ".claude", "settings.json")
+	os.MkdirAll(filepath.Dir(settings), 0755)
+	os.WriteFile(settings, []byte(`{"statusLine":{"type":"command","command":"`+molten.StatusLineRelayCommand("")+`"}}`), 0644)
+	start := time.Now()
+	report := statusLineReport("b1", 30)
+	report.FiveHour.ResetsAt = start.Add(5 * time.Hour).Unix()
+	m.RecordStatusLine(report)
+
+	m.now = func() time.Time { return start.Add(usageStaleAfter - time.Minute) }
+	if info, _ := m.Usage("b1", false); info.Gauges != usage.GaugesEnabled {
+		t.Errorf("recent values: %+v", info)
+	}
+	m.now = func() time.Time { return start.Add(usageStaleAfter + time.Minute) }
+	if info, _ := m.Usage("b1", false); info.Gauges != usage.GaugesEnabled || info.Snapshot == nil {
+		t.Errorf("old values, relay still set up: shown with their age: %+v", info)
+	}
+	os.WriteFile(settings, []byte(`{"statusLine":{"type":"command","command":"echo mine"}}`), 0644)
+	info, _ := m.Usage("b1", false)
+	if info.Gauges != usage.GaugesUnavailable || info.Reason != usage.ReasonNotSetUp || info.Setup == nil || info.Snapshot != nil {
+		t.Errorf("old values, relay removed: the setup again: %+v", info)
+	}
+	if info.Setup != nil && info.Setup.Current != "echo mine" {
+		t.Errorf("the setup wraps the command now in effect: %+v", info.Setup)
+	}
+}
+
 func TestPlanGaugesClearedWhenTurnedOffInSettings(t *testing.T) {
 	m, g, _ := gaugesTestManager(t)
 	g.write([]string{"claude"})
