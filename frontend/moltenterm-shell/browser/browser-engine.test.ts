@@ -8,7 +8,7 @@ import {
     engineName,
     fallbackNotice,
     fallbackReason,
-    routingConfigured,
+    localEngine,
     siteEngine,
     siteOf,
 } from "./browser-engine";
@@ -51,11 +51,12 @@ describe("per-site choices (FR-BRW-002)", () => {
         expect(siteOf("about:blank")).toBeNull();
     });
 
-    it("ask wavesrv only when a default engine or a site choice exists", () => {
-        expect(routingConfigured("", {})).toBe(false);
-        expect(routingConfigured("app", undefined)).toBe(false);
-        expect(routingConfigured("installed", {})).toBe(true);
-        expect(routingConfigured("", { "claude.ai": "brave" })).toBe(true);
+    it("route locally: the site's choice first, then browser:default, then the app", () => {
+        expect(localEngine("", {}, "https://claude.ai/x")).toBe("app");
+        expect(localEngine("app", undefined, "https://claude.ai/x")).toBe("app");
+        expect(localEngine(" Installed ", {}, "https://claude.ai/x")).toBe("installed");
+        expect(localEngine("", { "claude.ai": "Brave" }, "https://api.claude.ai/x")).toBe("brave");
+        expect(localEngine("brave", { "github.com": "app" }, "https://github.com/x")).toBe("app");
     });
 });
 

@@ -29,6 +29,7 @@ import {
 } from "@/util/util";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { openInBrowserPanel } from "../../moltenterm-shell/browser/browser-routing"; // MOLTENTERM-PATCH (#132, #140)
+import { interfaceLinkTarget, LinkTargetPanel } from "../../moltenterm-shell/browser/link-choice"; // MOLTENTERM-PATCH (#246)
 import { setupBadgesSubscription } from "./badge";
 import { atoms, blockComponentModelMap, ConnStatusMapAtom, initGlobalAtoms, orefAtomCache } from "./global-atoms";
 import { globalStore } from "./jotaiStore";
@@ -539,7 +540,10 @@ function getLocalHostDisplayNameAtom(): Atom<string> {
  * @param forceOpenInternally Force the link to open in a new web widget.
  */
 async function openLink(uri: string, forceOpenInternally = false) {
-    if (forceOpenInternally || globalStore.get(atoms.settingsAtom)?.["web:openlinksinternally"]) {
+    // MOLTENTERM-PATCH (#246): the one entry point for interface links (DS-BRW-006). web:openlinksinternally ships on
+    // (default settings); only http(s) pages go to the panel, every other scheme keeps the OS handler.
+    const openInternally = globalStore.get(atoms.settingsAtom)?.["web:openlinksinternally"];
+    if (interfaceLinkTarget(uri, openInternally, forceOpenInternally) === LinkTargetPanel) {
         await openInBrowserPanel(uri); // MOLTENTERM-PATCH (#132, #140): a tab of the tab's browser panel
     } else {
         getApi().openExternal(uri);

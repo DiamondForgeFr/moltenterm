@@ -19,6 +19,9 @@ const BrowserRecentMax = 8;
 
 // Block meta: why a page meant for the installed browser opened here instead (FR-BRW-002), shown once by the panel.
 export const BrowserNoticeMetaKey = "molten:browser:notice";
+// Block meta: the panel was created for an interface link whose site has no engine yet (FR-BRW-006); its first tab
+// shows the engine choice, taken once.
+export const BrowserAskMetaKey = "molten:browser:ask";
 
 // engine: a handed-off entry, a page wsh already opened in that installed browser (FR-BRW-002).
 export type BrowserOpenRequest = { id: string; url: string; engine?: string };
@@ -63,11 +66,15 @@ export function readBrowserState(meta: Record<string, any>, defaultUrl: string, 
 
 // Every web page Moltenterm opens gets a browser panel, never Wave's web view without tabs (#132). The panel opens
 // meta "url" as its single tab.
-export function browserBlockDef(url: string, notice?: string): BlockDef {
+export function browserBlockDef(url: string, notice?: string, askEngine?: boolean): BlockDef {
+    const meta: Record<string, any> = { view: MoltentermBrowserView, url };
     if (notice) {
-        return { meta: { view: MoltentermBrowserView, url, [BrowserNoticeMetaKey]: notice } as MetaType };
+        meta[BrowserNoticeMetaKey] = notice;
     }
-    return { meta: { view: MoltentermBrowserView, url } };
+    if (askEngine) {
+        meta[BrowserAskMetaKey] = true;
+    }
+    return { meta: meta as MetaType };
 }
 
 // Where a link opened inside Moltenterm goes (#140): the most recently focused browser panel of the tab that still
