@@ -154,6 +154,7 @@ func TestCodexGaugesWhenTheSessionIsReadThrough(t *testing.T) {
 	}
 	fake := useFakeCodex(t, m, `{"rateLimits":{"limitId":"codex","primary":{"usedPercent":21,"windowDurationMins":300,"resetsAt":4102444800}}}`)
 	g.write([]string{"codex"})
+	m.setUsageVisible("b2", true)
 	now := time.Now()
 	dir := filepath.Join(root, now.Format("2006"), now.Format("01"), now.Format("02"))
 	os.MkdirAll(dir, 0o700)

@@ -250,6 +250,12 @@ export function gaugesView(info: CompanionUsageInfo, now: number): GaugesView {
 // must match usageStaleAfter in pkg/molten/companion/usage.go
 export const UsageStaleMs = 5 * 60 * 1000;
 
+// A source that calls out or starts a process is read only for a window that shows (NFR-SHELL-013): wavesrv takes the
+// flag as the window's visibility and pauses its automatic reads while it is false.
+export function usageReadFor(visibilityState: string): { fetch: boolean } {
+    return { fetch: visibilityState === "visible" };
+}
+
 // Values that stopped coming may be those of a relay the user removed: the section asks again, and wavesrv looks,
 // read-only, whether the settings still run it.
 export function usageStale(info: CompanionUsageInfo, now: number): boolean {
