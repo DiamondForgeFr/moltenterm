@@ -21,6 +21,7 @@ import {
 } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
 import { attachWebviewWindowOpen } from "./moltenterm-popups"; // MOLTENTERM-PATCH (#207)
+import { acquireReadyView } from "./moltenterm-spare-ready"; // MOLTENTERM-PATCH (#283)
 
 function handleWindowsMenuAccelerators(
     waveEvent: WaveKeyboardEvent,
@@ -308,7 +309,13 @@ export async function getOrCreateWebViewForTab(waveWindowId: string, tabId: stri
         return [tabView, true];
     }
     const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
-    tabView = getSpareTab(fullConfig);
+    // MOLTENTERM-PATCH (#283): a spare that stays silent is replaced instead of awaited forever
+    const acquired = await acquireReadyView(
+        () => getSpareTab(fullConfig),
+        () => new WaveTabView(fullConfig),
+        (msg) => console.log("[#283]", msg)
+    );
+    tabView = acquired.view;
     tabView.waveWindowId = waveWindowId;
     tabView.lastUsedTs = Date.now();
     setWaveTabView(tabId, tabView);
