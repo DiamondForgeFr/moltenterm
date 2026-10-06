@@ -89,7 +89,7 @@ Use the `sf-workflow` skill CLI to check your current status and next steps:
 
 Moltenterm is a soft fork of Wave Terminal, so the toolchain and commands are Wave's. `UPSTREAM.md` holds the details and the upstream sync procedure.
 
-- **Toolchain:** Go ≥ 1.25.6, Task v3, Node 22 with npm 10.9.2, Zig (CGO builds on Linux and Windows only).
+- **Toolchain:** Go 1.25.6 (pinned by `go.mod`; Task exports `GOTOOLCHAIN` so `go` switches to it, `task check:go` verifies), Task v3, Node 22 with npm 10.9.2, Zig (CGO builds on Linux and Windows only).
 - `task init`: install the npm dependencies (app and docs site) and tidy the Go modules (first run, and after dependency changes).
 - `task dev`: run the app through the Vite dev server. The renderer hot-reloads; Electron main needs a restart; re-run the task to rebuild wavesrv. Dev mode uses the `waveterm-dev` configuration and data directories.
 - `task start` runs the app without the dev server; `task package` builds a distributable into `make/`.

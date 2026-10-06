@@ -14,7 +14,17 @@ vars:
     RELEASES_BUCKET: dl.waveterm.dev/releases-w2
     WINGET_PACKAGE: CommandLine.Wave
 
+env:
+    # MOLTENTERM-PATCH (#258): go.mod's `toolchain` line is only a minimum, so a newer local Go (Homebrew's) would build
+    # as is; every task runs go with exactly the pinned toolchain, like CI.
+    GOTOOLCHAIN:
+        sh: node scripts/moltenterm-go-toolchain.mjs
+
 tasks:
+    check:go:
+        desc: Check that go builds with the toolchain pinned in go.mod.
+        cmd: node scripts/moltenterm-go-toolchain.mjs --check
+
     electron:dev:
         desc: Run the Electron application via the Vite dev server (enables hot reloading).
         cmd: npm run dev
@@ -126,12 +136,14 @@ tasks:
     build:backend:
         desc: Build the wavesrv and wsh components.
         cmds:
+            - task: check:go
             - task: build:server
             - task: build:wsh
 
     build:backend:quickdev:
         desc: Build only the wavesrv component for quickdev (arm64 macOS only, no generate, no wsh).
         cmds:
+            - task: check:go
             - task: build:server:quickdev
         sources:
             - go.mod
@@ -209,6 +221,7 @@ tasks:
         desc: Build only the wavesrv component for quickdev (Windows amd64 only, no generate, no wsh).
         platforms: [windows]
         cmds:
+            - task: check:go
             - task: build:server:internal
               vars:
                   ARCHS: amd64
