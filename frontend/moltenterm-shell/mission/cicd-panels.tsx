@@ -320,7 +320,7 @@ function RegistryLine({ row, repoUrl, github }: { row: RegistryRow; repoUrl: str
                 </span>
                 <span className="rounded border border-border px-1 text-[11px] text-muted">{KindLabels[row.kind]}</span>
                 {row.github?.latest ? (
-                    <span className="rounded border border-accent/50 px-1 text-[11px] text-accent">latest</span>
+                    <span className="rounded bg-accent/20 px-1 text-[11px] text-primary">latest</span>
                 ) : null}
                 {row.github?.draft ? (
                     <span className="rounded border border-warning/50 px-1 text-[11px] text-warning">draft</span>

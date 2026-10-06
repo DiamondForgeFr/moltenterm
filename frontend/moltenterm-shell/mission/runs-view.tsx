@@ -17,7 +17,7 @@ import { logTail, RunRecord, RunState, RunStateLabels, UntrustedInfo } from "./m
 import { timeAgo } from "./time-format";
 
 const StateClasses: Record<RunState, string> = {
-    running: "bg-accent/20 text-accent",
+    running: "bg-accent/20 text-primary",
     success: "bg-success/20 text-success",
     failure: "bg-error/20 text-error",
     cancelled: "bg-hover text-muted",
@@ -197,7 +197,9 @@ export function useRunLog(run: RunRecord): string {
 export function RunStateBadge({ state }: { state: RunState }) {
     return (
         <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-medium", StateClasses[state])}>
-            {state === "running" ? <i className="fa fa-solid fa-circle-notch fa-spin mr-1 text-[9px]" /> : null}
+            {state === "running" ? (
+                <i className="fa fa-solid fa-circle-notch fa-spin mr-1 text-[9px] text-accent" />
+            ) : null}
             {RunStateLabels[state] ?? state}
         </span>
     );

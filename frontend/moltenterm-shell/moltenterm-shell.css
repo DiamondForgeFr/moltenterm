@@ -37,16 +37,22 @@
     --color-accenthover: color-mix(in srgb, var(--mt-accent) 80%, white);
 }
 
-/* Text on a solid accent stays readable whatever the workspace colour (NFR-SHELL-003). */
+/* Text on a solid accent stays readable whatever the workspace colour (NFR-SHELL-003).
+   Only a near-solid fill takes the accent's text colour: below /60 the fill is a tint of the dark panel, where the
+   panel's own text colours read better (#244). Over the workspace colours, the accent's text colour has the better
+   worst-case contrast from about /55 up, the panel's text below; /60 is the first Tailwind step past that crossover.
+   An opacity off the steps of 5 (/62) is not covered: moltenterm-shell.test.ts fails on one used in frontend/. */
 .bg-accent,
-[class*="bg-accent/"] {
+[class*="bg-accent/60"],
+[class*="bg-accent/65"],
+[class*="bg-accent/70"],
+[class*="bg-accent/75"],
+[class*="bg-accent/80"],
+[class*="bg-accent/85"],
+[class*="bg-accent/90"],
+[class*="bg-accent/95"],
+[class*="bg-accent/100"] {
     color: var(--mt-accent-fg);
-}
-
-/* An unread notification is tinted, not filled: its text keeps the panel's colours (the bg-accent rule above would
-   turn it to the accent's text colour). */
-.molten-notification-unread {
-    background-color: color-mix(in srgb, var(--mt-accent) 7%, transparent);
 }
 
 /* The rail scrolls when its workspaces and tools do not fit; a scrollbar would eat its narrow width. */
