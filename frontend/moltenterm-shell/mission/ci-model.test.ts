@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { branchMark, CiRunRecord, defaultCiJob, formatCiDuration, parseAnsi, upsertCiRun } from "./ci-model";
+import { branchCi, branchMark, CiRunRecord, defaultCiJob, formatCiDuration, parseAnsi, upsertCiRun } from "./ci-model";
 
 function run(id: string, startedat: number, extra: Partial<CiRunRecord> = {}): CiRunRecord {
     return { id, dir: "/p", sha: "abcdef0123", tree: "t", startedat, status: "success", jobs: [], ...extra };
@@ -37,6 +37,28 @@ describe("local CI model (FR-MC-011)", () => {
         expect(formatCiDuration(42_000)).toBe("42s");
         expect(formatCiDuration(125_000)).toBe("2m 05s");
         expect(formatCiDuration(3_720_000)).toBe("1h 02m");
+    });
+
+    it("reads a branch's CI by the Now card's rule: running, else its commit's last run, else the verdict (#238)", () => {
+        const branches = [
+            { name: "develop", sha: "new", date: 0, verdict: "missing" as const },
+            { name: "feature/1", sha: "abcdef0123", date: 0, verdict: "success" as const },
+            { name: "feature/2", sha: "f2", date: 0, verdict: "failure" as const },
+        ];
+        const runs = [
+            run("r3", 30, { branch: "feature/2", status: "queued" }),
+            run("r2", 20, { branch: "feature/1", status: "failure" }),
+            run("r1", 10, { branch: "develop", sha: "old", status: "success" }),
+        ];
+        const ci = { runs, branches };
+        expect(branchCi(ci, "develop")).toMatchObject({ status: "missing", source: "none", last: { id: "r1" } });
+        expect(branchCi(ci, "feature/1")).toMatchObject({ status: "failure", source: "run" });
+        expect(branchCi(ci, "feature/2")).toMatchObject({ status: "failure", source: "verdict", last: null });
+        expect(branchCi({ ...ci, running: "r1" }, "develop")).toMatchObject({ status: "running", source: "running" });
+        expect(branchCi({ ...ci, running: "r1" }, "feature/1").running).toBeNull();
+        expect(branchCi(null, "develop")).toMatchObject({ status: "missing", source: "none" });
+        expect(branchMark(branchCi(ci, "develop").status)).toBe("");
+        expect(branchMark(branchCi(ci, "feature/1").status)).toBe(" ✗");
     });
 
     it("colours a log from its SGR codes and drops other control sequences", () => {

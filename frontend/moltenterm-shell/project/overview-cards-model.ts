@@ -4,8 +4,8 @@
 // What the Project overview's four cards show (FR-MC-024, DS-MC-012), computed from what the core already hands every
 // card: no new git or GitHub call. Kept apart from the components so the rules can be tested without the app.
 
-import { CiRunRecord, CiState, CiStatusLabels } from "../mission/ci-model";
-import { Milestone, plainText } from "../mission/github";
+import { branchCi, CiState, CiStatusLabels } from "../mission/ci-model";
+import { Milestone, milestoneKey, plainText } from "../mission/github";
 import { GithubState, MissionGit, RawCommit, RawTag, RunRecord, RunStateLabels } from "../mission/mission-model";
 import { ReleaseState } from "../mission/versions";
 
@@ -63,14 +63,6 @@ export function releaseBars(commits: readonly RawCommit[]): { total: number; bar
         share: total === 0 ? 0 : counts[key] / total,
     });
     return { total, bars: [bar("feat", "features"), bar("fix", "fixes"), bar("other", "the rest")] };
-}
-
-function milestoneKey(title: string): string {
-    return (title ?? "")
-        .trim()
-        .toLowerCase()
-        .replace(/^milestone\s+/, "")
-        .replace(/^v(?=\d)/, "");
 }
 
 // The milestone of the next version: its title names the version ("1.2.0", "v1.2.0") or its line ("v1" for 1.x.y);
@@ -243,9 +235,9 @@ export function trunkCiLine(ci: CiState, trunk: string, now = Date.now()): NowLi
         return null;
     }
     const label = `CI on ${trunk}`;
-    const runs = (ci?.runs ?? []).filter((r) => r.branch === trunk);
-    const running: CiRunRecord = ci?.running ? runs.find((r) => r.id === ci.running) : null;
-    if (running) {
+    const status = branchCi(ci, trunk);
+    const { running, last } = status;
+    if (status.source === "running") {
         const done = running.jobs.filter((j) => j.status === "success").length;
         return {
             label,
@@ -255,23 +247,20 @@ export function trunkCiLine(ci: CiState, trunk: string, now = Date.now()): NowLi
         };
     }
     // The status bar reads the CI's verdict on the checked-out code: a run of an older trunk commit says nothing about
-    // the trunk as it is now, so the line follows the trunk's head (#234).
-    const branch = (ci?.branches ?? []).find((b) => b.name === trunk);
-    const last = runs.find((r) => r.status !== "queued");
+    // the trunk as it is now, so the line follows the trunk's head (#234). CI/CD's branch marks read the same rule.
     const lastText = last
         ? [CiStatusLabels[last.status] ?? last.status, agoText(last.finishedat || last.startedat, now)]
               .filter((s) => s)
               .join(" · ")
         : "";
-    if (last && (branch == null || !branch.sha || last.sha === branch.sha)) {
+    if (status.source === "run") {
         return { label, text: lastText, tone: ciTone(last.status) };
     }
-    const verdict = branch?.verdict;
-    if (verdict === "success" || verdict === "failure" || verdict === "running") {
+    if (status.source === "verdict") {
         return {
             label,
-            text: verdict === "success" ? "passed" : verdict === "failure" ? "failed" : "running",
-            tone: ciTone(verdict),
+            text: status.status === "success" ? "passed" : status.status === "failure" ? "failed" : "running",
+            tone: ciTone(status.status),
         };
     }
     if (last) {

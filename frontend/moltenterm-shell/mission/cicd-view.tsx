@@ -1,13 +1,17 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Mission Control's CI/CD panel (FR-MC-002), modelled on Notulia's Dev › CI: CI local, CI remote and CD tabs for the
-// active workspace's project.
+// Mission Control's CI/CD workshop (FR-MC-025), modelled on Notulia's Dev › CI: CI local, CI remote and CD tabs for the
+// active workspace's project, with history, detail and logs only. The actions and summaries live in Project
+// (DS-MC-012); the header links back to it.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
-import { cn } from "@/util/util";
+import { cn, fireAndForget } from "@/util/util";
 import { atom } from "jotai";
 import { useState } from "react";
+import { focusMoltentermView } from "../open-view";
+import { MoltentermProjectView } from "../project/project-model";
+import { openProjectOverview } from "../project/project-tab";
 import { pathBaseName } from "../workspace-project";
 import { AdapterSteps } from "./adapter-steps";
 import { LocalCiRunner } from "./ci-local-panel";
@@ -74,6 +78,28 @@ function LocalCiTab({ project, report }: { project: ActiveProject; report: Pipel
     );
 }
 
+// The overview beside this panel when the tab holds it, else the Project tab (or a Project view when it is gone).
+async function showProject() {
+    if (await focusMoltentermView(MoltentermProjectView)) {
+        return;
+    }
+    await openProjectOverview();
+}
+
+function ProjectLink() {
+    return (
+        <button
+            type="button"
+            onClick={() => fireAndForget(showProject)}
+            className="flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary"
+            title="Open Project: Run CI on develop, Build local, Release, Clean branches and the release summary live there"
+        >
+            <i className="fa fa-solid fa-diagram-project text-[10px]" />
+            Project
+        </button>
+    );
+}
+
 function CicdView() {
     const [tab, setTab] = useState<TabId>("remote");
     return (
@@ -108,6 +134,7 @@ function CicdContent({
     return (
         <>
             <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
+                <ProjectLink />
                 <div role="tablist" className="flex items-center gap-0.5 rounded border border-border p-0.5">
                     {Tabs.map((t) => (
                         <button

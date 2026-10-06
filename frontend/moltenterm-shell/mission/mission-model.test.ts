@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { makeDeliveries } from "./cicd-panels";
 import {
     formatAge,
     formatElapsed,
@@ -42,40 +41,6 @@ describe("toTreeData", () => {
             notes: "First",
             notesInternal: null,
         });
-    });
-});
-
-describe("makeDeliveries", () => {
-    it("joins tags and GitHub releases, newest first", () => {
-        const rows = makeDeliveries(git, {
-            state: "ok",
-            workflows: [],
-            releases: [
-                {
-                    tagName: "v1.0.0",
-                    name: "1.0",
-                    isDraft: false,
-                    isPrerelease: false,
-                    isLatest: true,
-                    publishedAt: "2026-09-01T00:00:00Z",
-                    createdAt: "",
-                },
-                {
-                    tagName: "v1.2.0",
-                    name: "draft",
-                    isDraft: true,
-                    isPrerelease: false,
-                    isLatest: false,
-                    publishedAt: "",
-                    createdAt: "2026-09-30T00:00:00Z",
-                },
-            ],
-        });
-        expect(rows.map((r) => [r.tag, r.rc, r.github?.latest ?? null, r.github?.draft ?? null])).toEqual([
-            ["v1.2.0", false, false, true],
-            ["v1.1.0-1", true, null, null],
-            ["v1.0.0", false, true, false],
-        ]);
     });
 });
 

@@ -65,6 +65,15 @@ export type Milestone = {
     html_url: string;
 };
 
+// The version a milestone's title names ("Milestone v1.2.0" → "1.2.0"), or its title lower-cased when it names none.
+export function milestoneKey(title: string): string {
+    return (title ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/^milestone\s+/, "")
+        .replace(/^v(?=\d)/, "");
+}
+
 export type CheckSummary = { name: string; state: CheckState; local: boolean };
 
 const FailureWords = ["FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"];

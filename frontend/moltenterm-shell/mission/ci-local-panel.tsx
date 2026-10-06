@@ -1,13 +1,14 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The CI local tab (FR-MC-011), as Notulia's: pick a branch (marked by the CI's say on its code), run what is not green
-// yet or everything again, follow the runs and each job's live log.
+// The CI local tab (FR-MC-011), as Notulia's: pick a branch (marked by what the CI says about it now, the Now card's
+// rule), run what is not green yet or everything again, follow the runs and each job's live log.
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MoltenWave } from "../molten-button";
 import {
+    branchCi,
     branchMark,
     CiJobRecord,
     CiPrepareJob,
@@ -310,7 +311,7 @@ export function LocalCiRunner({ dir, projectName }: { dir: string; projectName: 
                     {branches.map((b) => (
                         <option key={b.name} value={b.name} className="bg-modalbg">
                             {b.name}
-                            {branchMark(b.verdict)}
+                            {branchMark(branchCi(state, b.name).status)}
                         </option>
                     ))}
                 </select>
