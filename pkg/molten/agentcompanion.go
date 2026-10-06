@@ -17,6 +17,7 @@ const (
 	CompanionAnswerCommand  = "moltencompanionanswer"
 	CompanionDiffCommand    = "moltencompaniondiff"
 	CompanionSessionCommand = "moltencompanionsession"
+	CompanionUsageCommand   = "moltencompanionusage"
 )
 
 // AgentSessionRequest is what `molten agent session` reports: the transcript of the agent's session in a block.
