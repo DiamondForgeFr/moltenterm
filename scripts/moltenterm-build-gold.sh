@@ -22,6 +22,12 @@ if [ "$1" != "--allow-dirty" ] && [ -n "$(git status --porcelain --untracked-fil
     exit 1
 fi
 
+# The gold is built with the toolchain go.mod pins, like CI (#258): GOTOOLCHAIN makes go fetch it when the local one
+# differs. A GOTOOLCHAIN already set by the caller is kept, and the check fails when it selects another version.
+GOTOOLCHAIN=${GOTOOLCHAIN:-$(node scripts/moltenterm-go-toolchain.mjs)}
+export GOTOOLCHAIN
+node scripts/moltenterm-go-toolchain.mjs --check
+
 BUILD_ID=$(date +%s)
 ARCH=$(uname -m)
 [ "$ARCH" = "x86_64" ] && ARCH=x64
