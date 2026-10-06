@@ -123,11 +123,11 @@ function SubHeading({ children }: { children: React.ReactNode }) {
 }
 
 export function NextReleaseCard({ snapshot }: ProjectCardProps) {
-    const { tree, state } = useReleaseState(snapshot);
+    const { state } = useReleaseState(snapshot);
     const github = snapshot?.github;
     const view = useMemo(
-        () => nextReleaseView(state, snapshot?.git, github?.milestones, github?.state, tree?.tagPrefix),
-        [state, snapshot?.git, github, tree?.tagPrefix]
+        () => nextReleaseView(state, snapshot?.git, github?.milestones, github?.state),
+        [state, snapshot?.git, github]
     );
     return <NextPublicRelease view={view} />;
 }

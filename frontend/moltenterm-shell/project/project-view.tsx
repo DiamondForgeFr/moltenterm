@@ -10,7 +10,7 @@ import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { ErrorBoundary } from "@/app/element/errorboundary";
 import { fireAndForget } from "@/util/util";
 import { atom } from "jotai";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Notice, Problem } from "../mission/cicd-panels";
 import { MoltentermCicdView } from "../mission/cicd-view";
 import { ciRun, missionTrust, useCiState, useMissionRuns, useReleaseSession } from "../mission/mission-client";
@@ -113,6 +113,18 @@ function ProjectContent({
     const rootRef = useRef<HTMLDivElement>(null);
     const report = snapshot?.pipeline;
     const pipeline = report?.valid ? report.pipeline : null;
+    // The CI's verdicts are read for the branches' heads: when the trunk moves, the verdict on its new head is asked
+    // again, so the Now card follows the trunk as the status bar does (#234).
+    const git = snapshot?.git;
+    const trunkHead = (git?.branches ?? []).find((b) => b.name === git?.trunk)?.sha ?? "";
+    const trunkHeadSeen = useRef(trunkHead);
+    useEffect(() => {
+        if (trunkHead === trunkHeadSeen.current) {
+            return;
+        }
+        trunkHeadSeen.current = trunkHead;
+        reloadCi();
+    }, [trunkHead, reloadCi]);
 
     const runCi = useCallback(
         (branch: string) =>
@@ -180,7 +192,7 @@ function ProjectContent({
                 {regions.header.length > 0 ? (
                     <section
                         aria-label="Project header"
-                        className="flex flex-col gap-2 border-b border-border bg-panel px-3 py-2.5"
+                        className="flex flex-col border-b border-border bg-panel"
                         data-slot="header"
                     >
                         {regions.header.map((card) => (

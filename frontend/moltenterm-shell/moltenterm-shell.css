@@ -262,3 +262,77 @@
         transition: none;
     }
 }
+
+/* The Project header's ticker (FR-MC-021): the pending changes scroll right to left, CSS only, two copies of the
+   list so the loop has no seam. It pauses under the pointer; with the keyboard it stops and becomes a plain scrollable
+   line, so the focused part stays in view. */
+.mt-ticker {
+    overflow: hidden;
+    outline: none;
+}
+
+.mt-ticker:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.mt-ticker-track {
+    width: max-content;
+}
+
+.mt-ticker-moving .mt-ticker-track {
+    animation: mt-ticker var(--mt-ticker-duration, 30s) linear infinite;
+}
+
+.mt-ticker-moving:hover .mt-ticker-track {
+    animation-play-state: paused;
+}
+
+.mt-ticker:focus-within {
+    overflow-x: auto;
+}
+
+.mt-ticker:focus-within .mt-ticker-track {
+    animation: none;
+}
+
+.mt-ticker:focus-within .mt-ticker-copy {
+    display: none;
+}
+
+@keyframes mt-ticker {
+    to {
+        transform: translateX(-50%);
+    }
+}
+
+/* NFR-MC-004: static and scrollable under the system preference and MoltenTerm's own setting; the pulsing dots of the
+   actions under way stand still too. */
+.prefers-reduced-motion .mt-ticker {
+    overflow-x: auto;
+}
+
+.prefers-reduced-motion .mt-ticker-moving .mt-ticker-track {
+    animation: none;
+}
+
+.prefers-reduced-motion .mt-ticker-copy {
+    display: none;
+}
+
+.prefers-reduced-motion .mt-running-ping {
+    animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-ticker {
+        overflow-x: auto;
+    }
+
+    .mt-ticker-moving .mt-ticker-track {
+        animation: none;
+    }
+
+    .mt-ticker-copy {
+        display: none;
+    }
+}
