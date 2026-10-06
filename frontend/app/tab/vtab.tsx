@@ -214,7 +214,7 @@ export function VTab({
             >
                 {tab.name}
             </div>
-            {/* MOLTENTERM-PATCH (#255): the close button closes after a press-and-hold (FR-SHELL-025) */}
+            {/* MOLTENTERM-PATCH (#255, #271): the close button closes after a press-and-hold (FR-SHELL-025) */}
             {onClose && (
                 <HoldToCloseButton
                     className={cn(
@@ -223,9 +223,7 @@ export function VTab({
                     )}
                     onClose={() => onClose()}
                     plainLabel="Close tab"
-                >
-                    <i className="fa fa-solid fa-xmark" />
-                </HoldToCloseButton>
+                />
             )}
         </div>
     );

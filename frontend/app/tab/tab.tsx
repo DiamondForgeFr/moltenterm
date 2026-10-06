@@ -238,16 +238,14 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
                 {/* MOLTENTERM-PATCH (#109): the most urgent state of the tab's coding agents */}
                 {agentDot}
                 <TabBadges badges={badges} flagColor={flagColor} />
-                {/* MOLTENTERM-PATCH (#255): the close button closes after a press-and-hold (FR-SHELL-025) */}
+                {/* MOLTENTERM-PATCH (#255, #271): the close button closes after a press-and-hold (FR-SHELL-025) */}
                 <HoldToCloseButton
                     as={Button}
                     className="ghost grey close"
                     onClose={onClose}
                     onMouseDown={handleMouseDownOnClose}
                     plainTitle="Close Tab"
-                >
-                    <i className="fa fa-solid fa-xmark" />
-                </HoldToCloseButton>
+                />
             </div>
         </div>
     );

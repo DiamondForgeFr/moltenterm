@@ -25,6 +25,94 @@ body.nohover .tab.active .close.molten-hold-close,
     opacity: 1;
 }
 
-.molten-hold-close[data-holding] {
+/* #271: one circular control. The disc, its hover surface, its tint and its ring share one centre and one radius, and
+   the × sits well inside the ring. The button around it keeps its box (the tab layout), but draws nothing: Wave's
+   ghost button (molten-btn-ghost) paints a rounded-square hover and focus outline of its own, so the selector is
+   doubled to outrank its :hover and :focus-visible rules. */
+.molten-hold-close.molten-hold-close,
+.molten-hold-close.molten-hold-close:hover,
+.molten-hold-close.molten-hold-close:focus-visible {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    outline: none;
+}
+
+.molten-hold-close-disc {
+    --molten-hold-glyph: color-mix(in srgb, var(--mt-accent) 55%, white);
+    transition:
+        background-color 120ms ease-out,
+        transform 120ms ease-out;
+}
+
+.molten-hold-close-glyph {
+    transition: color 120ms ease-out;
+}
+
+.molten-hold-close:hover .molten-hold-close-disc {
+    background-color: var(--color-hover);
+}
+
+.molten-hold-close:hover .molten-hold-close-glyph {
     color: var(--main-text-color);
+}
+
+.molten-hold-close-tint {
+    background-color: var(--mt-accent);
+    opacity: 0;
+}
+
+.molten-hold-close[data-holding] .molten-hold-close-glyph,
+.molten-hold-close[data-completing] .molten-hold-close-glyph {
+    color: var(--molten-hold-glyph);
+}
+
+.molten-hold-close[data-holding] .molten-hold-close-disc {
+    transform: scale(0.92);
+}
+
+@keyframes molten-hold-flash {
+    from {
+        opacity: 0.25;
+    }
+    40% {
+        opacity: 0.7;
+    }
+    to {
+        opacity: 0.45;
+    }
+}
+
+.molten-hold-close[data-completing] .molten-hold-close-tint {
+    animation: molten-hold-flash 120ms ease-out forwards;
+}
+
+/* The focus ring sits outside the progress ring and follows its circle, not the button's box. */
+.molten-hold-close:focus-visible .molten-hold-close-disc {
+    outline: 2px solid color-mix(in srgb, var(--mt-accent) 45%, white);
+    outline-offset: 2px;
+}
+
+.molten-hold-close[data-reduced-motion] .molten-hold-close-disc,
+.molten-hold-close[data-reduced-motion] .molten-hold-close-glyph {
+    transition: none;
+}
+
+.molten-hold-close[data-reduced-motion][data-holding] .molten-hold-close-disc {
+    transform: none;
+}
+
+.molten-hold-close[data-reduced-motion][data-completing] .molten-hold-close-tint {
+    animation: none;
+}
+
+/* Wave's reduced-motion rule (app.scss) switches every transition off, which would make the stepped fill jump to
+   complete at once. The fill and the tint are the hold's only progress signal, so they keep their stepped transition. */
+.prefers-reduced-motion .molten-hold-close[data-reduced-motion] .molten-hold-close-fill {
+    transition-property: stroke-dashoffset !important;
+}
+
+.prefers-reduced-motion .molten-hold-close[data-reduced-motion] .molten-hold-close-tint {
+    transition-property: opacity !important;
 }

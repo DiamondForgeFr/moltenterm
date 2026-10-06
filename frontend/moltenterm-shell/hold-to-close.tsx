@@ -7,7 +7,7 @@
 import { SettingsKeyAtomFnType, useWaveEnv, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import { cn } from "@/util/util";
 import { Atom, atom, useAtomValue } from "jotai";
-import { forwardRef, ReactNode, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./hold-to-close.css";
 
@@ -19,7 +19,15 @@ export const HoldToCloseReducedSteps = 4;
 export const HoldToCloseLabel = "Close tab, hold to confirm";
 export const HoldToCloseHint = "Hold to close";
 
-const RingRadius = 13;
+export const HoldToCloseFlashMs = 120;
+export const HoldToCloseReleaseMs = 160;
+export const HoldToCloseTintMax = 0.25;
+
+// A 16 px disc: the ring is a 1.5 px stroke on its edge (radius 7.25), the × a 6 px stroke centred in it, so the butt
+// ends of the × stay 2 px inside the ring's inner edge (radius 6.5).
+const DiscViewBox = 16;
+const RingStroke = 1.5;
+const RingRadius = (DiscViewBox - RingStroke) / 2;
 const RingLength = 2 * Math.PI * RingRadius;
 const LiveRegionId = "molten-hold-to-close-live";
 
@@ -166,10 +174,11 @@ export function HoldToCloseRing({
     reducedMotion: boolean;
 }) {
     const timing = reducedMotion ? `steps(${HoldToCloseReducedSteps}, end)` : "ease-out";
+    const releaseTransition = reducedMotion ? "none" : `stroke-dashoffset ${HoldToCloseReleaseMs}ms ease-out`;
     return (
         <svg
             aria-hidden
-            viewBox="0 0 30 30"
+            viewBox={`0 0 ${DiscViewBox} ${DiscViewBox}`}
             data-testid="hold-to-close-ring"
             className={cn(
                 "molten-hold-close-ring pointer-events-none absolute inset-0 h-full w-full -rotate-90",
@@ -177,28 +186,66 @@ export function HoldToCloseRing({
             )}
         >
             <circle
-                cx="15"
-                cy="15"
+                cx={DiscViewBox / 2}
+                cy={DiscViewBox / 2}
                 r={RingRadius}
                 fill="none"
                 stroke="currentColor"
                 strokeOpacity={0.15}
-                strokeWidth={2}
+                strokeWidth={RingStroke}
             />
             <circle
-                cx="15"
-                cy="15"
+                cx={DiscViewBox / 2}
+                cy={DiscViewBox / 2}
                 r={RingRadius}
                 fill="none"
+                className="molten-hold-close-fill"
                 stroke="var(--color-accent)"
-                strokeWidth={2}
+                strokeWidth={RingStroke}
                 strokeLinecap="round"
                 strokeDasharray={`${RingLength} ${RingLength}`}
                 style={{
                     strokeDashoffset: holding ? 0 : RingLength,
-                    transition: holding ? `stroke-dashoffset ${durationMs}ms ${timing}` : "none",
+                    transition: holding ? `stroke-dashoffset ${durationMs}ms ${timing}` : releaseTransition,
                 }}
             />
+        </svg>
+    );
+}
+
+export function HoldToCloseTint({
+    holding,
+    durationMs,
+    reducedMotion,
+}: {
+    holding: boolean;
+    durationMs: number;
+    reducedMotion: boolean;
+}) {
+    const timing = reducedMotion ? `steps(${HoldToCloseReducedSteps}, end)` : "linear";
+    const releaseTransition = reducedMotion ? "none" : `opacity ${HoldToCloseReleaseMs}ms ease-out`;
+    return (
+        <span
+            aria-hidden
+            data-testid="hold-to-close-tint"
+            className="molten-hold-close-tint pointer-events-none absolute inset-0 rounded-full"
+            style={{
+                opacity: holding ? HoldToCloseTintMax : 0,
+                transition: holding ? `opacity ${durationMs}ms ${timing}` : releaseTransition,
+            }}
+        />
+    );
+}
+
+export function HoldToCloseGlyph() {
+    return (
+        <svg
+            aria-hidden
+            viewBox={`0 0 ${DiscViewBox} ${DiscViewBox}`}
+            data-testid="hold-to-close-glyph"
+            className="molten-hold-close-glyph pointer-events-none relative h-full w-full"
+        >
+            <path d="M5 5L11 11M11 5L5 11" fill="none" stroke="currentColor" strokeWidth={RingStroke} />
         </svg>
     );
 }
@@ -227,7 +274,6 @@ type HoldToCloseButtonProps = {
     className?: string;
     plainTitle?: string;
     plainLabel?: string;
-    children?: ReactNode;
     as?: React.ElementType;
     onMouseDown?: (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
 };
@@ -235,10 +281,15 @@ type HoldToCloseButtonProps = {
 const HoldKeys = new Set(["Enter", " "]);
 
 export const HoldToCloseButton = forwardRef<HTMLButtonElement, HoldToCloseButtonProps>(
-    ({ onClose, className, plainTitle, plainLabel, children, as: Component = "button", onMouseDown }, ref) => {
+    ({ onClose, className, plainTitle, plainLabel, as: Component = "button", onMouseDown }, ref) => {
         const settings = useHoldToCloseSettings();
         const [holding, setHolding] = useState(false);
         const [hint, setHint] = useState(false);
+        const [completing, setCompleting] = useState(false);
+        const completingRef = useRef(false);
+        const flashTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+        const reducedMotionRef = useRef(settings.reducedMotion);
+        reducedMotionRef.current = settings.reducedMotion;
         const buttonRef = useRef<HTMLButtonElement>(null);
         const ringRef = useRef<HTMLSpanElement>(null);
         const hintTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
@@ -254,7 +305,15 @@ export const HoldToCloseButton = forwardRef<HTMLButtonElement, HoldToCloseButton
                         setHint(false);
                     }
                 },
-                onComplete: () => onCloseRef.current(null),
+                onComplete: () => {
+                    if (reducedMotionRef.current) {
+                        onCloseRef.current(null);
+                        return;
+                    }
+                    completingRef.current = true;
+                    setCompleting(true);
+                    flashTimerRef.current = setTimeout(() => onCloseRef.current(null), HoldToCloseFlashMs);
+                },
                 onHint: () => {
                     clearTimeout(hintTimerRef.current);
                     setHint(true);
@@ -272,6 +331,7 @@ export const HoldToCloseButton = forwardRef<HTMLButtonElement, HoldToCloseButton
             return () => {
                 controller.dispose();
                 clearTimeout(hintTimerRef.current);
+                clearTimeout(flashTimerRef.current);
             };
         }, [controller]);
 
@@ -301,7 +361,9 @@ export const HoldToCloseButton = forwardRef<HTMLButtonElement, HoldToCloseButton
                         onClose(event);
                     }}
                 >
-                    {children}
+                    <span className="molten-hold-close-disc relative inline-flex h-4 w-4 items-center justify-center rounded-full">
+                        <HoldToCloseGlyph />
+                    </span>
                 </Component>
             );
         }
@@ -315,6 +377,7 @@ export const HoldToCloseButton = forwardRef<HTMLButtonElement, HoldToCloseButton
                 aria-label={HoldToCloseLabel}
                 data-testid="tab-close"
                 data-holding={holding ? "" : undefined}
+                data-completing={completing ? "" : undefined}
                 data-reduced-motion={settings.reducedMotion ? "" : undefined}
                 draggable={false}
                 onDragStart={(event: React.DragEvent) => {
@@ -327,6 +390,9 @@ export const HoldToCloseButton = forwardRef<HTMLButtonElement, HoldToCloseButton
                         return;
                     }
                     event.stopPropagation();
+                    if (completingRef.current) {
+                        return;
+                    }
                     controller.press();
                 }}
                 onPointerUp={() => controller.release()}
@@ -340,7 +406,7 @@ export const HoldToCloseButton = forwardRef<HTMLButtonElement, HoldToCloseButton
                     // Without this the button's native activation would click on Enter's keydown or Space's keyup.
                     event.preventDefault();
                     event.stopPropagation();
-                    if (event.repeat) {
+                    if (event.repeat || completingRef.current) {
                         return;
                     }
                     controller.press();
@@ -362,13 +428,21 @@ export const HoldToCloseButton = forwardRef<HTMLButtonElement, HoldToCloseButton
                     }
                 }}
             >
-                <span ref={ringRef} className="relative inline-flex h-[18px] w-[18px] items-center justify-center">
+                <span
+                    ref={ringRef}
+                    className="molten-hold-close-disc relative inline-flex h-4 w-4 items-center justify-center rounded-full"
+                >
+                    <HoldToCloseTint
+                        holding={holding}
+                        durationMs={settings.durationMs}
+                        reducedMotion={settings.reducedMotion}
+                    />
                     <HoldToCloseRing
                         holding={holding}
                         durationMs={settings.durationMs}
                         reducedMotion={settings.reducedMotion}
                     />
-                    {children}
+                    <HoldToCloseGlyph />
                 </span>
                 {hint ? <HoldToCloseHintBubble anchor={ringRef.current} /> : null}
             </Component>
