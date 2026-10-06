@@ -67,7 +67,7 @@ cleanup() {
 trap cleanup EXIT
 
 if ! security find-certificate -c "$NAME" "$KEYCHAIN" >/dev/null 2>&1; then
-    echo "Creating the code-signing identity \"$NAME\" in $KEYCHAIN…"
+    echo "Creating the code-signing identity \"$NAME\" in ${KEYCHAIN}…"
     openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
         -keyout "$WORK/key.pem" -out "$WORK/cert.pem" -subj "/CN=$NAME" \
         -addext "keyUsage=critical,digitalSignature" \

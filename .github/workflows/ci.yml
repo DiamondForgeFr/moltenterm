@@ -43,6 +43,8 @@ jobs:
               run: node scripts/moltenterm-check-ledger.mjs
             - name: Icon names
               run: node scripts/moltenterm-check-icons.mjs
+            - name: Shell scripts
+              run: node scripts/moltenterm-check-shell.mjs
 
     frontend:
         name: Frontend
