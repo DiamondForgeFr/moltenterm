@@ -327,8 +327,8 @@ func TestCodexTranscriptFirst(t *testing.T) {
 	clock.add(time.Second)
 	lim.Add(decodeJSON(t, `{"limit_id":"codex","primary":{"used_percent":40,"window_minutes":300,"resets_at":4102444800}}`), clock.now().UnixMilli())
 	res = codexRead(a, clock, false)
-	if res.SourceName != "Codex session log" || res.Snapshot.Windows[0].UsedPercent != 40 {
-		t.Errorf("a newer token_count wins again: %+v", res)
+	if res.SourceName != "Codex session log" || res.Snapshot.Windows[0].UsedPercent != 40 || res.Snapshot.Source != CodexTranscriptSourceId {
+		t.Errorf("a newer token_count wins again, alone: %+v", res)
 	}
 
 	past := transcriptOf(t, clockStart.Add(-6*time.Hour).UnixMilli(),
@@ -345,6 +345,12 @@ func TestCodexAppServerFailures(t *testing.T) {
 	cu, clock, a := codexTestSources(t, fake, nil)
 	if res := codexRead(a, clock, false); res.State != GaugesUnavailable || res.Reason != ReasonWaiting {
 		t.Errorf("both fail: the best source's reason: %+v", res)
+	}
+	past := transcriptOf(t, clock.now().Add(-6*time.Hour).UnixMilli(),
+		`{"primary":{"used_percent":99,"window_minutes":300,"resets_at":`+strconv.FormatInt(clock.now().Add(-time.Hour).Unix(), 10)+`}}`)
+	_, clockPast, aPast := codexTestSources(t, &fakeAppServer{err: Unavailable(ReasonFailed)}, &past)
+	if res := codexRead(aPast, clockPast, false); res.State != GaugesUnavailable || res.Reason != ReasonExpired {
+		t.Errorf("the session's windows were reset and the app-server fails: expired: %+v", res)
 	}
 	waits := []time.Duration{5 * time.Minute, 10 * time.Minute, 20 * time.Minute, 40 * time.Minute, 60 * time.Minute, 60 * time.Minute}
 	for i, wait := range waits {

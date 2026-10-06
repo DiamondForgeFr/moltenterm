@@ -542,6 +542,9 @@ func (s *codexTranscriptSource) Read(ctx context.Context, blockId string) (Usage
 		return snap, err
 	}
 	nowMs := s.cu.now().UnixMilli()
+	if !live(&snap, nowMs) {
+		return UsageSnapshot{}, Unavailable(ReasonExpired)
+	}
 	if app := s.cu.cached(); live(app, nowMs) && app.ReadAt > snap.ReadAt {
 		return UsageSnapshot{}, Unavailable(ReasonWaiting)
 	}
@@ -566,14 +569,18 @@ func (s *codexAppServerSource) Enabled(settings *wconfig.SettingsType) bool {
 }
 
 // Read runs the app-server on Refresh, or when the session, read through, holds no live window; a read that may not
-// start a process answers what the last run gave.
+// start a process answers what the last run gave, unless the session's values are newer.
 func (s *codexAppServerSource) Read(ctx context.Context, blockId string) (UsageSnapshot, error) {
 	now := s.cu.now()
 	lim, ok := s.cu.transcriptOf(blockId)
 	transcript, err := s.cu.transcriptSnapshot(lim, ok)
-	hasValues := lim.Loading || err == nil && live(&transcript, now.UnixMilli())
-	cached, reason, run := s.cu.decide(IsRefresh(ctx), hasValues || !processAllowed(ctx), now)
+	transcriptLive := err == nil && live(&transcript, now.UnixMilli())
+	cached, reason, run := s.cu.decide(IsRefresh(ctx), lim.Loading || transcriptLive || !processAllowed(ctx), now)
 	if !run {
+		if cached != nil && transcriptLive && transcript.ReadAt >= cached.ReadAt {
+			// Older than the session's values: none of it holds any longer, credits included.
+			return UsageSnapshot{}, Unavailable(ReasonWaiting)
+		}
 		if cached != nil {
 			return *cached, nil
 		}
