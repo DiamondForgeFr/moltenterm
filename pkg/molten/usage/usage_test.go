@@ -26,10 +26,14 @@ func TestBuiltinAdapters(t *testing.T) {
 			t.Errorf("%s: page %+v, want %+v", agent, page, want)
 		}
 	}
-	if s := For("claude").Sources(); len(s) != 1 || s[0].Id() != ClaudeStatusLineSourceId || !s[0].Documented() {
-		t.Errorf("claude: the status line source, documented: %v", s)
+	s := For("claude").Sources()
+	if len(s) != 2 || s[0].Id() != ClaudeStatusLineSourceId || !s[0].Documented() {
+		t.Errorf("claude: the status line source first, documented: %v", s)
 	}
-	s := For("codex").Sources()
+	if len(s) == 2 && (s[1].Id() != ClaudeOAuthSourceId || s[1].Documented() || OptInOf(For("claude")) == nil) {
+		t.Errorf("claude: the experimental OAuth source second, undocumented, with its own opt-in: %v", s)
+	}
+	s = For("codex").Sources()
 	if len(s) != 2 || s[0].Id() != CodexTranscriptSourceId || s[0].Documented() || s[1].Id() != CodexAppServerSourceId || !s[1].Documented() {
 		t.Errorf("codex: the session log first (undocumented), then the app-server (documented): %v", s)
 	}

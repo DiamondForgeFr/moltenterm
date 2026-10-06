@@ -134,6 +134,7 @@ type Manager struct {
 	publish      func(view CompanionView)
 	publishUsage func(info UsageInfo)
 	writeGauges  func(agents []string) error
+	writeSetting func(key string, value any) error
 	adapterFor   func(agent string) Adapter
 	settings     func() *wconfig.SettingsType
 	now          func() time.Time

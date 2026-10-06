@@ -9,10 +9,14 @@ import { makeORef } from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
-import { useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { MoltenWave } from "../molten-button";
 import {
     CompanionUsageInfo,
+    ExperimentalExplanation,
+    ExperimentalLabel,
+    experimentalView,
+    ExperimentalView,
     GaugeLevel,
     GaugeRow,
     gaugesView,
@@ -25,6 +29,7 @@ import {
     CompanionRoute,
     CompanionUsageCommand,
     CompanionUsageEvent,
+    CompanionUsageExperimentalCommand,
     CompanionUsageGaugesCommand,
 } from "./companion-model";
 
@@ -41,6 +46,11 @@ const GhostButton =
 
 function usageCall(command: string, data: any): Promise<CompanionUsageInfo> {
     return TabRpcClient.wshRpcCall(command, data, { route: CompanionRoute, timeout: RpcTimeoutMs });
+}
+
+// A network source may be called only for a companion the user can see (NFR-SHELL-013).
+function visibleRead(): { fetch: boolean } {
+    return { fetch: document.visibilityState === "visible" };
 }
 
 function useNow(intervalMs: number): number {
@@ -95,7 +105,7 @@ function usePlanUsage(target: string, agent: string, now: number) {
         }
         fireAndForget(async () => {
             try {
-                const first = await usageCall(CompanionUsageCommand, { blockid: target });
+                const first = await usageCall(CompanionUsageCommand, { blockid: target, ...visibleRead() });
                 if (!cancelled) {
                     accept(first);
                 }
@@ -113,20 +123,23 @@ function usePlanUsage(target: string, agent: string, now: number) {
         if (!settingUp) {
             return;
         }
-        const timer = setInterval(() => call(CompanionUsageCommand, {}), SetupRecheckMs);
+        const timer = setInterval(() => call(CompanionUsageCommand, visibleRead()), SetupRecheckMs);
         return () => clearInterval(timer);
     }, [settingUp, target]);
-    const stale = usageStale(info, now);
+    // A source wavesrv does not push (the experimental endpoint) is asked again only while the window shows
+    // (NFR-SHELL-013); wavesrv keeps the call limits, this only asks. That also covers stale values.
+    const refreshMs = info != null && info.gauges !== "off" ? (info.refreshms ?? 0) : 0;
+    const stale = !(refreshMs > 0) && usageStale(info, now);
     useEffect(() => {
         if (stale) {
-            call(CompanionUsageCommand, {});
+            call(CompanionUsageCommand, visibleRead());
         }
     }, [stale, now, target]);
     const refresh = () => {
         setRefreshing(true);
         fireAndForget(async () => {
             try {
-                accept(await usageCall(CompanionUsageCommand, { blockid: target, refresh: true }));
+                accept(await usageCall(CompanionUsageCommand, { blockid: target, refresh: true, fetch: true }));
             } catch {
                 setFailed(true);
             } finally {
@@ -134,6 +147,22 @@ function usePlanUsage(target: string, agent: string, now: number) {
             }
         });
     };
+    useEffect(() => {
+        if (!(refreshMs > 0)) {
+            return;
+        }
+        const askIfVisible = () => {
+            if (document.visibilityState === "visible") {
+                call(CompanionUsageCommand, { fetch: true });
+            }
+        };
+        const timer = setInterval(askIfVisible, refreshMs);
+        document.addEventListener("visibilitychange", askIfVisible);
+        return () => {
+            clearInterval(timer);
+            document.removeEventListener("visibilitychange", askIfVisible);
+        };
+    }, [refreshMs, target]);
     return {
         info,
         failed,
@@ -141,20 +170,34 @@ function usePlanUsage(target: string, agent: string, now: number) {
         show: () => call(CompanionUsageGaugesCommand, { on: true }),
         hide: () => call(CompanionUsageGaugesCommand, { on: false }),
         refresh,
+        setExperimental: (on: boolean) => call(CompanionUsageExperimentalCommand, { on }),
     };
 }
 
 export function PlanUsageSection({ target, agent }: { target: string; agent: string }) {
     const now = useNow(ClockTickMs);
-    const { info, failed, refreshing, show, hide, refresh } = usePlanUsage(target, agent, now);
+    const { info, failed, refreshing, show, hide, refresh, setExperimental } = usePlanUsage(target, agent, now);
+    // Held here, so an update that changes the section's layout keeps an open confirmation.
+    const [confirming, setConfirming] = useState(false);
+    const experimental = experimentalView(info);
+    const offered = experimental.kind === "off";
+    useEffect(() => {
+        if (!offered) {
+            setConfirming(false);
+        }
+    }, [offered]);
     return (
         <PlanUsageBody
             view={gaugesView(info, now)}
+            experimental={experimental}
+            confirming={confirming}
+            onConfirming={setConfirming}
             failed={failed}
             refreshing={refreshing}
             onShow={show}
             onHide={hide}
             onRefresh={refresh}
+            onExperimental={setExperimental}
         />
     );
 }
@@ -163,6 +206,8 @@ export type PlanUsageActions = {
     onShow: () => void;
     onHide: () => void;
     onRefresh: () => void;
+    onExperimental?: (on: boolean) => void;
+    onConfirming?: (confirming: boolean) => void;
 };
 
 const BarColours: Record<GaugeLevel, string> = {
@@ -179,12 +224,30 @@ const PercentColours: Record<GaugeLevel, string> = {
 
 export function PlanUsageBody({
     view,
+    experimental,
+    confirming,
     failed,
     refreshing,
     onShow,
     onHide,
     onRefresh,
-}: { view: GaugesView; failed?: boolean; refreshing?: boolean } & PlanUsageActions) {
+    onExperimental,
+    onConfirming,
+}: {
+    view: GaugesView;
+    experimental?: ExperimentalView;
+    confirming?: boolean;
+    failed?: boolean;
+    refreshing?: boolean;
+} & PlanUsageActions) {
+    const extra = (
+        <ExperimentalRow
+            view={experimental}
+            onSet={onExperimental}
+            confirming={confirming ?? false}
+            onConfirming={onConfirming ?? (() => {})}
+        />
+    );
     if (view.kind === "hidden") {
         return null;
     }
@@ -206,23 +269,26 @@ export function PlanUsageBody({
     if (view.kind === "unavailable") {
         return (
             <div
-                className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1 text-[11px] text-muted"
+                className="shrink-0 border-b border-border px-3 py-1 text-[11px] text-muted"
                 data-testid="companion-plan-usage"
                 data-state="unavailable"
             >
-                <i className="fa fa-solid fa-gauge" aria-hidden="true" />
-                <span title={view.reason}>
-                    Plan usage unavailable
-                    <span className="sr-only">: {view.reason}</span>
-                </span>
-                <button type="button" className={cn(GhostButton, "ml-auto")} onClick={onHide}>
-                    Hide plan usage
-                </button>
+                <div className="flex items-center gap-2">
+                    <i className="fa fa-solid fa-gauge" aria-hidden="true" />
+                    <span title={view.reason}>
+                        Plan usage unavailable
+                        <span className="sr-only">: {view.reason}</span>
+                    </span>
+                    <button type="button" className={cn(GhostButton, "ml-auto")} onClick={onHide}>
+                        Hide plan usage
+                    </button>
+                </div>
+                {extra}
             </div>
         );
     }
     if (view.kind === "setup") {
-        return <StatusLineSetupCard setup={view.setup} failed={failed} onHide={onHide} />;
+        return <StatusLineSetupCard setup={view.setup} failed={failed} onHide={onHide} extra={extra} />;
     }
     return (
         <section
@@ -243,8 +309,108 @@ export function PlanUsageBody({
                     <GaugeRowView key={row.id} row={row} />
                 ))}
             </ul>
-            {view.credits ? <div className="mt-1.5 text-[11px] text-secondary">{view.credits}</div> : null}
+            {view.credits ? (
+                <div className="mt-1.5 text-[11px] text-secondary" data-testid="companion-plan-usage-credits">
+                    {view.credits}
+                </div>
+            ) : null}
+            {extra}
         </section>
+    );
+}
+
+function ExperimentalSourceBadge() {
+    return (
+        <span
+            className="rounded border border-warning/50 px-1 text-[9.5px] font-medium tracking-wide text-warning"
+            title="Read from an endpoint Anthropic does not document: it may change or stop working"
+        >
+            {ExperimentalLabel}
+        </span>
+    );
+}
+
+// Claude Code's experimental source (FR-SHELL-028): off by default, turned on only through the confirmation that
+// says what is read; turning it off is one click.
+export function ExperimentalRow({
+    view,
+    onSet,
+    confirming,
+    onConfirming,
+}: {
+    view: ExperimentalView;
+    onSet: (on: boolean) => void;
+    confirming: boolean;
+    onConfirming: (confirming: boolean) => void;
+}) {
+    const setConfirming = onConfirming;
+    if (view == null || view.kind === "none" || onSet == null) {
+        return null;
+    }
+    const frame = "mt-2 border-t border-border/60 pt-1.5 text-[11px]";
+    if (view.kind === "on") {
+        return (
+            <div className={frame} data-testid="companion-plan-usage-experimental" data-state="on">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="text-secondary">Model limits and credits</span>
+                    <ExperimentalSourceBadge />
+                    <button type="button" className={cn(GhostButton, "ml-auto")} onClick={() => onSet(false)}>
+                        Turn off
+                    </button>
+                </div>
+                {view.reason ? (
+                    <div className="mt-0.5 text-muted" title={view.reason}>
+                        Model limits unavailable
+                        <span className="sr-only">: {view.reason}</span>
+                    </div>
+                ) : null}
+            </div>
+        );
+    }
+    if (confirming) {
+        return (
+            <div
+                className={frame}
+                role="group"
+                aria-label="Turn on model limits and credits"
+                data-testid="companion-plan-usage-experimental"
+                data-state="confirm"
+            >
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="text-secondary">Model limits and credits</span>
+                    <ExperimentalSourceBadge />
+                </div>
+                <p className="mt-1 text-xs text-primary">{view.statement}</p>
+                <div className="mt-2 flex items-center gap-2">
+                    <button
+                        type="button"
+                        className="molten-btn cursor-pointer rounded px-3 py-1.5 text-xs"
+                        onClick={() => {
+                            setConfirming(false);
+                            onSet(true);
+                        }}
+                    >
+                        Turn on
+                        <MoltenWave />
+                    </button>
+                    <button type="button" className={GhostButton} onClick={() => setConfirming(false)}>
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        );
+    }
+    return (
+        <div className={frame} data-testid="companion-plan-usage-experimental" data-state="off">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="text-secondary">Model limits and credits</span>
+                <ExperimentalSourceBadge />
+                <button type="button" className={cn(GhostButton, "ml-auto")} onClick={() => setConfirming(true)}>
+                    Turn on…
+                </button>
+            </div>
+            <p className="mt-0.5 text-muted">{ExperimentalExplanation}</p>
+        </div>
     );
 }
 
@@ -320,7 +486,17 @@ function GaugeRowView({ row }: { row: GaugeRow }) {
     );
 }
 
-function StatusLineSetupCard({ setup, failed, onHide }: { setup: UsageSetup; failed?: boolean; onHide: () => void }) {
+function StatusLineSetupCard({
+    setup,
+    failed,
+    onHide,
+    extra,
+}: {
+    setup: UsageSetup;
+    failed?: boolean;
+    onHide: () => void;
+    extra?: ReactNode;
+}) {
     const [copied, setCopied] = useState(false);
     const timer = useRef<ReturnType<typeof setTimeout>>(null);
     useEffect(() => () => clearTimeout(timer.current), []);
@@ -373,6 +549,7 @@ function StatusLineSetupCard({ setup, failed, onHide }: { setup: UsageSetup; fai
                     Hide plan usage
                 </button>
             </div>
+            {extra}
         </section>
     );
 }

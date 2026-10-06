@@ -144,6 +144,10 @@
           "type": "array",
           "description": "Coding agents (claude, codex) whose plan usage gauges the agent companion shows; empty shows none. Set from the companion's Show plan usage"
         },
+        "companion:usageclaudeoauth": {
+          "type": "boolean",
+          "description": "Also read Claude Code's model limits and credits from Anthropic's undocumented usage endpoint, with Claude Code's own sign-in token (experimental). Set from the companion's confirmation"
+        },
         "editor:minimapenabled": {
           "type": "boolean"
         },

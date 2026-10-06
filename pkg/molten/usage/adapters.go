@@ -31,7 +31,7 @@ func MakeClaudeUsageAdapter() UsageAdapter {
 		pageURL:  ClaudeUsagePageURL,
 		pageName: "Claude usage",
 		domain:   "claude.ai",
-		sources:  []GaugesSource{MakeClaudeStatusLineSource(DefaultStatusLineStore, claudeStatusLineSetup)},
+		sources:  []GaugesSource{MakeClaudeStatusLineSource(DefaultStatusLineStore, claudeStatusLineSetup), DefaultClaudeOAuthSource},
 	}
 }
 

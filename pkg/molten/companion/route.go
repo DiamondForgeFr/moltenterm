@@ -153,13 +153,19 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
-		return l.m.Usage(req.BlockId, req.Refresh)
+		return l.m.usageFor(req)
 	case molten.CompanionUsageGaugesCommand:
 		var req usageGaugesRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
 		return l.m.SetUsageGauges(req.BlockId, req.On)
+	case molten.CompanionUsageExperimentalCommand:
+		var req usageGaugesRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.m.SetUsageExperimental(req.BlockId, req.On)
 	case molten.AgentStatusLineCommand:
 		var req molten.AgentStatusLineRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -235,6 +241,7 @@ func Start() {
 	m.publish = publishView
 	m.publishUsage = publishUsage
 	m.writeGauges = writeGaugesSetting
+	m.writeSetting = writeUsageSetting
 	m.settings = func() *wconfig.SettingsType {
 		settings := wconfig.GetWatcher().GetFullConfig().Settings
 		return &settings

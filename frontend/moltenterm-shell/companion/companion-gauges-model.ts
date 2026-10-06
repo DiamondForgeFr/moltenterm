@@ -26,7 +26,20 @@ export type UsageSnapshot = {
     readat: number;
 };
 export type UsageSetup = { source: string; file: string; current?: string; language: string; snippet: string };
-export type UsageReason = "notsetup" | "waiting" | "noplan" | "format" | "expired" | "failed";
+export type UsageReason =
+    | "notsetup"
+    | "waiting"
+    | "noplan"
+    | "format"
+    | "expired"
+    | "failed"
+    | "signedout"
+    | "tokenexpired"
+    | "denied"
+    | "ratelimited"
+    | "offline";
+// The agent's experimental source (FR-SHELL-028): offered only while its gauges are on.
+export type UsageExperimental = { source: string; name: string; on: boolean; store: string; reason?: UsageReason };
 export type CompanionUsageInfo = {
     blockid: string;
     agent: string;
@@ -38,6 +51,9 @@ export type CompanionUsageInfo = {
     reason?: UsageReason;
     setup?: UsageSetup;
     snapshot?: UsageSnapshot;
+    experimental?: UsageExperimental;
+    // How often a visible companion asks again while a source that wavesrv does not push is on.
+    refreshms?: number;
 };
 
 // The plain words of an unavailable source, shown as the muted line's tooltip.
@@ -48,6 +64,11 @@ export const UsageReasonTexts: Record<UsageReason, string> = {
     format: "Source changed: this version of MoltenTerm cannot read it",
     expired: "The limits were reset: new values come with the next response",
     failed: "The source could not be read",
+    signedout: "Claude Code is not signed in: sign in from Claude Code, MoltenTerm never asks",
+    tokenexpired: "Claude Code's sign-in has expired: Claude Code renews it the next time it runs",
+    denied: "Anthropic refused Claude Code's sign-in token",
+    ratelimited: "Anthropic asked to wait: MoltenTerm asks again later",
+    offline: "Anthropic's usage endpoint could not be reached",
 };
 
 // Codex's sources are its session log and its app-server (FR-SHELL-029): their own words where Claude Code's differ.
@@ -138,8 +159,19 @@ export function gaugeRows(snapshot: UsageSnapshot, now: number): GaugeRow[] {
         }));
 }
 
+function creditAmount(value: number, unit: string): string {
+    if (unit && /^[A-Z]{3}$/.test(unit)) {
+        try {
+            return new Intl.NumberFormat("en-US", { style: "currency", currency: unit }).format(value);
+        } catch {
+            // An unknown currency code falls back to the plain number and the code.
+        }
+    }
+    return unit ? `${value} ${unit}` : `${value}`;
+}
+
 export function creditsText(credits: UsageCredits): string {
-    if (credits == null || !credits.enabled) {
+    if (credits == null || !credits.enabled || !Number.isFinite(credits.used) || !Number.isFinite(credits.limit)) {
         return "";
     }
     if (credits.unlimited) {
@@ -153,8 +185,36 @@ export function creditsText(credits: UsageCredits): string {
     if (!credits.limit && !credits.used) {
         return "Credits available";
     }
-    const unit = credits.unit ? ` ${credits.unit}` : "";
-    return `Extra usage: ${credits.used}${unit} of ${credits.limit}${unit}`;
+    return `Extra usage: ${creditAmount(credits.used, credits.unit)} of ${creditAmount(credits.limit, credits.unit)}`;
+}
+
+export type ExperimentalView = { kind: "none" } | { kind: "off"; statement: string } | { kind: "on"; reason: string };
+
+export const ExperimentalLabel = "Experimental · undocumented source";
+export const ExperimentalExplanation =
+    "Also reads each model's weekly limit and extra usage credits from an undocumented Anthropic endpoint.";
+
+// The confirmation of FR-SHELL-028-AC1, naming where the token is read.
+export function experimentalStatement(store: string): string {
+    const where = store || "where Claude Code keeps it";
+    return (
+        `MoltenTerm will read your Claude Code sign-in token from ${where} to ask Anthropic for your plan usage. ` +
+        "The token stays in memory, is never saved or sent anywhere else. Undocumented: it may stop working."
+    );
+}
+
+// The experimental source's row: offered while the gauges are on, its reason when it gives nothing.
+export function experimentalView(info: CompanionUsageInfo): ExperimentalView {
+    const exp = info?.experimental;
+    if (exp == null || !info.hasgauges || info.gauges === "off") {
+        return { kind: "none" };
+    }
+    if (!exp.on) {
+        return { kind: "off", statement: experimentalStatement(exp.store) };
+    }
+    // Waiting is its first answer on the way, not a failure.
+    const failed = exp.reason && exp.reason !== "waiting";
+    return { kind: "on", reason: failed ? usageReasonText(exp.reason) : "" };
 }
 
 // What the plan usage section shows. Hidden for an agent without a gauges source; any failure is one muted line,

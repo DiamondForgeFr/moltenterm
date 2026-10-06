@@ -20,6 +20,8 @@ const (
 	CompanionUsageCommand   = "moltencompanionusage"
 	// Show or hide plan usage for the agent of a block (FR-SHELL-027).
 	CompanionUsageGaugesCommand = "moltencompanionusagegauges"
+	// Turn the agent's experimental usage source on (after its confirmation) or off (FR-SHELL-028).
+	CompanionUsageExperimentalCommand = "moltencompanionusageexperimental"
 	// The plan gauges of a block, when its status line relay brings new windows.
 	CompanionUsageEvent = "molten:companionusage"
 	// What `molten agent statusline` sends: the rate limit windows of Claude Code's status line input.

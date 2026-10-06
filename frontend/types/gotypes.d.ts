@@ -1429,6 +1429,7 @@ declare global {
         "term:trimtrailingwhitespace"?: boolean;
         "agent:sessionroots"?: {[key: string]: string[]};
         "companion:usagegauges"?: string[];
+        "companion:usageclaudeoauth"?: boolean;
         "editor:minimapenabled"?: boolean;
         "editor:stickyscrollenabled"?: boolean;
         "editor:wordwrap"?: boolean;
