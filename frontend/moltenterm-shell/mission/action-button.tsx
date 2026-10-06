@@ -15,11 +15,12 @@ export const ActionSecondaryClass =
 export const ActionRunningClass =
     "flex cursor-pointer items-center gap-2 rounded border border-accent/50 px-3 py-1.5 text-xs whitespace-nowrap text-primary transition-colors hover:bg-hover";
 
-// The pulsing dot of an action under way; still under reduced motion (the media query and MoltenTerm's setting).
+// The pulsing dot of an action under way, in steps (mt-step-ping in moltenterm-shell.css); still under reduced motion
+// (the media query and MoltenTerm's setting).
 export function RunningDot({ className }: { className?: string }) {
     return (
         <span className={cn("relative flex h-1.5 w-1.5 text-accent", className)} aria-hidden>
-            <span className="mt-running-ping absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-60 motion-reduce:animate-none" />
+            <span className="mt-step-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-0" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
         </span>
     );

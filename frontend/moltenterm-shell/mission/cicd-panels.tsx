@@ -35,7 +35,7 @@ const ToneClasses: Record<CheckState, string> = {
 const ToneIcons: Record<CheckState, string> = {
     success: "fa-circle-check text-success",
     failure: "fa-circle-xmark text-error",
-    pending: "fa-circle-notch fa-spin text-warning",
+    pending: "fa-circle-notch fa-spin mt-step-spin text-warning",
     neutral: "fa-circle-minus text-muted",
 };
 
@@ -91,8 +91,8 @@ function Placeholder({ rows }: { rows: number }) {
         <div className="flex flex-col gap-3 p-3" aria-busy="true">
             {Array.from({ length: rows }, (_, i) => (
                 <div key={i} className="flex flex-col gap-1.5">
-                    <div className="h-4 w-3/4 animate-pulse rounded bg-hover" />
-                    <div className="h-3 w-1/2 animate-pulse rounded bg-hover" />
+                    <div className="h-4 w-3/4 mt-step-blink rounded bg-hover" />
+                    <div className="h-3 w-1/2 mt-step-blink rounded bg-hover" />
                 </div>
             ))}
         </div>

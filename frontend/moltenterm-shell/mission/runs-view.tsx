@@ -198,7 +198,7 @@ export function RunStateBadge({ state }: { state: RunState }) {
     return (
         <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-medium", StateClasses[state])}>
             {state === "running" ? (
-                <i className="fa fa-solid fa-circle-notch fa-spin mr-1 text-[9px] text-accent" />
+                <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1 text-[9px] text-accent" />
             ) : null}
             {RunStateLabels[state] ?? state}
         </span>
@@ -220,7 +220,7 @@ function PhaseIcon({ status }: { status: BuildPhaseStatus }) {
         return <i className="fa fa-solid fa-xmark text-[11px]" />;
     }
     if (status === "running") {
-        return <i className="fa fa-solid fa-circle-notch fa-spin text-[11px] motion-reduce:animate-none" />;
+        return <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-[11px]" />;
     }
     return <span className="h-1.5 w-1.5 rounded-full bg-current" />;
 }

@@ -157,7 +157,9 @@ export function BuildLocalMenu({
                         </div>
                     ))}
                     <div className="flex items-start gap-1.5 rounded border border-border bg-hover/40 p-2 text-[11px] text-muted">
-                        {fetching ? <i className="fa fa-solid fa-circle-notch fa-spin mt-0.5 text-[10px]" /> : null}
+                        {fetching ? (
+                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mt-0.5 text-[10px]" />
+                        ) : null}
                         <span>
                             Built from {facts?.trunk || "the trunk"} as it is on GitHub, in a separate worktree, then
                             delivered to the local builds folder.
@@ -169,7 +171,9 @@ export function BuildLocalMenu({
                         onClick={launch}
                         className="molten-btn cursor-pointer rounded px-3 py-1.5 text-xs disabled:cursor-default disabled:opacity-50"
                     >
-                        {busy ? <i className="fa fa-solid fa-circle-notch fa-spin mr-1.5 text-[10px]" /> : null}
+                        {busy ? (
+                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-[10px]" />
+                        ) : null}
                         {chosen ? `Build ${chosen.title || chosen.id}` : "Choose a build"}
                         <MoltenWave />
                     </button>

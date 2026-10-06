@@ -11,11 +11,13 @@
 // of its branches in git, and an active one lands hundreds of tickets in three weeks: its landed work is shown on
 // develop itself, as its commits (one tick each, or a mark per day when they are too dense).
 
+import { NextStation, nextStation } from "../project/next-station-model";
 import { BranchPr, projectBranchRows } from "../project/project-model";
 import { channelOfTag, DefaultTagPrefix, parseVersion, VersionRules } from "../releases/versions";
 import { CiBranch, CiVerdictStatus } from "./ci-model";
 import { GithubRelease, PullRequest } from "./github";
 import { MissionGit, RawCommit, toTreeData } from "./mission-model";
+import { ReleaseSession } from "./release-model";
 import { isPrereleaseTag, readableSubject, releaseState, treeRules } from "./versions";
 
 const Day = 86_400_000;
@@ -75,13 +77,9 @@ export type LineMapStation = {
     url: string;
 };
 
-export type LineMapTerminus = {
-    version: string;
-    tag: string;
-    how: "decision" | "derived" | "nothing";
-    reason: string;
-    waiting: number;
-};
+// The next station of the Project header, from the same function (nextStation), so both always agree; and how many
+// changes wait for it.
+export type LineMapTerminus = NextStation & { waiting: number };
 
 export type LineMapModel = {
     start: number;
@@ -109,6 +107,8 @@ export type LineMapInput = {
     prs?: readonly PullRequest[];
     ciBranches?: readonly CiBranch[];
     releases?: readonly GithubRelease[];
+    // The release under way: a public one carries the number chosen in the Release menu.
+    session?: ReleaseSession;
     now: number;
     days: number;
 };
@@ -375,14 +375,7 @@ export function buildLineMap(input: LineMapInput): LineMapModel {
     const earlier = all.filter((s) => s.at < start).reverse();
 
     const state = releaseState(tree.tags, git.ahead ?? [], git.sincepublic ?? [], rules);
-    const prefix = rules.tagprefix || DefaultTagPrefix;
-    const terminus: LineMapTerminus = {
-        version: state.next.version,
-        tag: state.next.version ? prefix + state.next.version : null,
-        how: state.next.how,
-        reason: state.next.reason,
-        waiting: state.pending.total,
-    };
+    const terminus: LineMapTerminus = { ...nextStation(git, input.session), waiting: state.pending.total };
 
     const headCommit = trunkCommits[0];
     const oldestRead = trunkCommits.length >= TrunkCommitsRead ? time(trunkCommits[trunkCommits.length - 1].date) : NaN;

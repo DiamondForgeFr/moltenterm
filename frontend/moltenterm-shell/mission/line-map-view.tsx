@@ -8,7 +8,7 @@ import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { atom } from "jotai";
 import { CiState } from "./ci-model";
 import { LineMap } from "./line-map";
-import { useCiState } from "./mission-client";
+import { useCiState, useReleaseSession } from "./mission-client";
 import { ActiveProject, MissionFrame, MissionHeader } from "./mission-frame";
 import { MissionSnapshot } from "./mission-model";
 
@@ -60,6 +60,7 @@ function LineMapFullContent({
     refresh: () => void;
 }) {
     const { state: ci } = useCiState(project.dir);
+    const { session } = useReleaseSession(project.dir);
     return (
         <>
             <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh} />
@@ -69,6 +70,7 @@ function LineMapFullContent({
                     snapshot={snapshot}
                     ciBranches={ci?.branches}
                     ciRunning={ciRunningBranch(ci)}
+                    session={session}
                     full={true}
                 />
             </div>

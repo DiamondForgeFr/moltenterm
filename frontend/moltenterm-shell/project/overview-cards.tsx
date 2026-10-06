@@ -98,7 +98,7 @@ function Dot({ tone, className }: { tone: CardTone; className?: string }) {
             className={cn(
                 "inline-block h-2 w-2 shrink-0 rounded-full",
                 ToneDot[tone],
-                tone === "running" && "animate-pulse motion-reduce:animate-none",
+                tone === "running" && "mt-step-blink",
                 className
             )}
             aria-hidden
@@ -162,7 +162,7 @@ function AgentLine({ info }: { info: AgentStateInfo }) {
                 className={cn(
                     "inline-block h-2 w-2 shrink-0 rounded-full",
                     AgentStateDotClasses[info.state] ?? AgentStateDotClasses.idle,
-                    info.state === "working" && "animate-pulse motion-reduce:animate-none"
+                    info.state === "working" && "mt-step-blink"
                 )}
                 aria-hidden
             />

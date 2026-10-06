@@ -146,7 +146,7 @@ export function ReleaseMenu({
                 <MenuPopover anchor={anchor} onClose={() => setOpen(false)} className="flex w-80 flex-col gap-2">
                     {plan == null && error == null ? (
                         <div className="flex items-center gap-2 py-2 text-xs text-muted">
-                            <i className="fa fa-solid fa-circle-notch fa-spin text-[11px]" />
+                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-[11px]" />
                             Computing the numbers…
                         </div>
                     ) : null}
@@ -217,7 +217,9 @@ export function ReleaseMenu({
                                 onClick={launch}
                                 className="molten-btn cursor-pointer rounded px-3 py-1.5 text-xs disabled:cursor-default disabled:opacity-50"
                             >
-                                {busy ? <i className="fa fa-solid fa-circle-notch fa-spin mr-1.5 text-[10px]" /> : null}
+                                {busy ? (
+                                    <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-[10px]" />
+                                ) : null}
                                 {tag ? `Start ${tag}` : "Choose a release"}
                                 <MoltenWave />
                             </button>

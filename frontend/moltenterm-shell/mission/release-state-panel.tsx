@@ -40,7 +40,7 @@ function Waiting({ rows }: { rows: number }) {
     return (
         <div className="flex flex-col gap-2" aria-busy="true">
             {Array.from({ length: rows }, (_, i) => (
-                <div key={i} className="h-5 w-full animate-pulse rounded bg-hover motion-reduce:animate-none" />
+                <div key={i} className="h-5 w-full mt-step-blink rounded bg-hover" />
             ))}
         </div>
     );
