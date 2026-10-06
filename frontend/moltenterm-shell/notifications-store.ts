@@ -127,10 +127,13 @@ export class MoltentermNotifications {
             return;
         }
         const now = Date.now();
+        const { global, ...rest } = input;
         const full: MoltentermNotificationInput = {
-            ...input,
+            ...rest,
             read: input.read || delivery === "quiet",
-            ...notificationLocation(input, globalStore.get(atoms.workspace), globalStore.get(activeTabIdAtom)),
+            ...(global
+                ? {}
+                : notificationLocation(input, globalStore.get(atoms.workspace), globalStore.get(activeTabIdAtom))),
         };
         this.write(publishUpdate(this.entries(), full, now, makeNotificationId(now)));
     }

@@ -130,6 +130,7 @@ export class GoldUpdateModel {
         }
         addMoltentermNotification({
             source: "moltenterm",
+            global: true,
             kind: "success",
             title: `MoltenTerm updated (build ${own})`,
             message: "Your configuration and workspaces are as you left them.",
@@ -151,6 +152,7 @@ export class GoldUpdateModel {
                 addMoltentermNotification({
                     key: updateAvailableKey(offer.buildId),
                     source: "moltenterm",
+                    global: true,
                     kind: "info",
                     title: `A new MoltenTerm gold is ready (${updateLabel(offer)})`,
                     message: `${offer.notes.length} change(s). Review them, then update now or when you quit.`,
@@ -173,6 +175,7 @@ export class GoldUpdateModel {
             resolveMoltentermNotification(updateAvailableKey(status.buildId));
             addMoltentermNotification({
                 source: "moltenterm",
+                global: true,
                 kind: "warning",
                 title: `The new gold did not start: MoltenTerm went back to the previous one`,
                 message: `Build ${status.buildId} will not be offered again; a newer gold will.`,
@@ -180,6 +183,7 @@ export class GoldUpdateModel {
         } else {
             addMoltentermNotification({
                 source: "moltenterm",
+                global: true,
                 kind: "error",
                 title: "The update could not be installed",
                 message: status.detail,

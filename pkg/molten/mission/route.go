@@ -4,12 +4,14 @@
 package mission
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/baseds"
+	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
@@ -193,7 +195,11 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 		}
 		return nil, l.runs.SaveReleaseNotes(req.Dir, req.Tag, req.Text)
 	case WorkCommand:
-		return RunningWork(l.runs, l.ci), nil
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return WithWorkspaces(RunningWork(l.runs, l.ci), func(dir string) string {
+			return attention.ProjectWorkspace(ctx, dir)
+		}), nil
 	case BranchesPlanCommand:
 		var req GetRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

@@ -42,3 +42,25 @@ func TestCiWorkMeasuresJobs(t *testing.T) {
 		t.Fatalf("ci work: %+v", item)
 	}
 }
+
+func TestWithWorkspacesNamesTheLinkedWorkspace(t *testing.T) {
+	lookups := 0
+	items := WithWorkspaces([]WorkItem{{Id: "a", Dir: "/p"}, {Id: "b", Dir: "/p"}, {Id: "c", Dir: "/other"}, {Id: "d"}},
+		func(dir string) string {
+			lookups++
+			if dir == "/p" {
+				return "ws-1"
+			}
+			return ""
+		})
+	got := []string{items[0].WorkspaceId, items[1].WorkspaceId, items[2].WorkspaceId, items[3].WorkspaceId}
+	want := []string{"ws-1", "ws-1", "", ""}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("item %d: %q, want %q", i, got[i], want[i])
+		}
+	}
+	if lookups != 2 {
+		t.Fatalf("a project folder is looked up once: %d lookups", lookups)
+	}
+}

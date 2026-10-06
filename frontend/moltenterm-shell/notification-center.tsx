@@ -7,7 +7,7 @@
 // a warning or an error opens the panel by itself for a few seconds, each subject says only what the user chose, and
 // the work running in every project shows on top, with a progress ring on the bell.
 
-import { getApi } from "@/app/store/global";
+import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
@@ -24,6 +24,8 @@ import {
     NotificationSubjects,
     subjectOf,
 } from "./notification-rules";
+import { workspaceLabel, WorkspaceLabel } from "./notification-workspace";
+import { WorkspaceChip } from "./notification-workspace-chip";
 import {
     activeEntries,
     archivedEntries,
@@ -34,9 +36,9 @@ import {
     visibleActions,
 } from "./notifications-model";
 import { MoltentermNotifications, registerNotificationGesture, startNotificationAutoRead } from "./notifications-store";
+import { showProjectTab } from "./project/project-tab";
 import { canStop, overallProgress, stopWork, useRunningWork, WorkItem } from "./running-work";
-import { WorkspaceIcon } from "./workspace-icon";
-import { pathParent, readWorkspaceProject } from "./workspace-project";
+import { pathParent } from "./workspace-project";
 import { loadWorkspaceSources } from "./workspace-rail";
 
 const KindIcons: Record<MoltentermNotification["kind"], string> = {
@@ -69,7 +71,7 @@ function registerBuiltInGestures(): () => void {
 
 function NotificationRow({
     entry,
-    workspace,
+    label,
     now,
     archived,
     running,
@@ -80,7 +82,7 @@ function NotificationRow({
     onSilence,
 }: {
     entry: MoltentermNotification;
-    workspace: Workspace;
+    label: WorkspaceLabel;
     now: number;
     archived: boolean;
     running: Record<string, boolean>;
@@ -137,26 +139,21 @@ function NotificationRow({
                     <div className="mt-0.5 line-clamp-3 text-xs text-secondary">{entry.message}</div>
                 ) : null}
                 <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
+                    {label ? (
+                        <>
+                            <WorkspaceChip label={label} onGo={onOpen} />
+                            <span>·</span>
+                        </>
+                    ) : null}
                     {resolved ? (
                         <>
-                            <span>✓ Resolved</span>
+                            <span className="shrink-0">✓ Resolved</span>
                             <span>·</span>
                         </>
                     ) : null}
-                    {workspace ? (
-                        <>
-                            <WorkspaceIcon
-                                icon={workspace.icon}
-                                color={workspace.color}
-                                logo={readWorkspaceProject(workspace).logo}
-                            />
-                            <span className="truncate">{workspace.name}</span>
-                            <span>·</span>
-                        </>
-                    ) : null}
-                    <span>{entry.source}</span>
+                    <span className="shrink-0">{entry.source}</span>
                     <span>·</span>
-                    <span className="tabular-nums">{formatAge(entry.updated, now)}</span>
+                    <span className="shrink-0 tabular-nums">{formatAge(entry.updated, now)}</span>
                     {entry.kind === "info" && subject != null && !archived ? (
                         <button
                             type="button"
@@ -247,7 +244,7 @@ function ProgressRing({ progress }: { progress: number }) {
     );
 }
 
-function WorkRow({ item, now }: { item: WorkItem; now: number }) {
+function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; now: number }) {
     const [confirming, setConfirming] = useState(false);
     const [error, setError] = useState<string>(null);
     const measured = item.progress >= 0;
@@ -277,9 +274,24 @@ function WorkRow({ item, now }: { item: WorkItem; now: number }) {
                 />
             </div>
             <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
-                {item.detail ? <span className="truncate">{item.detail}</span> : null}
+                {label ? (
+                    <>
+                        <WorkspaceChip
+                            label={label}
+                            onGo={() => {
+                                if (!label.current) {
+                                    getApi().switchWorkspace(label.id);
+                                    return;
+                                }
+                                fireAndForget(() => showProjectTab(label.id));
+                            }}
+                        />
+                        {item.detail || elapsed ? <span>·</span> : null}
+                    </>
+                ) : null}
+                {item.detail ? <span className="min-w-0 truncate">{item.detail}</span> : null}
                 {item.detail && elapsed ? <span>·</span> : null}
-                {elapsed ? <span className="tabular-nums">started {elapsed}</span> : null}
+                {elapsed ? <span className="shrink-0 tabular-nums">started {elapsed}</span> : null}
             </div>
             {confirming ? (
                 <div className="mt-1.5 flex items-center justify-end gap-2 text-xs">
@@ -383,6 +395,7 @@ export function NotificationCenter() {
     const [highlight, setHighlight] = useState<NotificationSubject>(null);
     const [workspaces, setWorkspaces] = useState<Map<string, Workspace>>(new Map());
     const [now, setNow] = useState(Date.now());
+    const currentWorkspace = useAtomValue(atoms.workspace);
     const rootRef = useRef<HTMLDivElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
     const bellRef = useRef<HTMLButtonElement>(null);
@@ -521,7 +534,11 @@ export function NotificationCenter() {
         }
         fireAndForget(async () => {
             const sources = await loadWorkspaceSources();
-            setWorkspaces(new Map(sources.map((s) => [s.workspace.oid, s.workspace])));
+            const known = new Map(sources.map((s) => [s.workspace.oid, s.workspace]));
+            if (currentWorkspace != null && !known.has(currentWorkspace.oid)) {
+                known.set(currentWorkspace.oid, currentWorkspace);
+            }
+            setWorkspaces(known);
         });
         const onPointerDown = (e: PointerEvent) => {
             const target = e.target as Node;
@@ -685,7 +702,16 @@ export function NotificationCenter() {
                                           Running
                                       </div>
                                       {work.map((item) => (
-                                          <WorkRow key={`${item.kind}:${item.id}`} item={item} now={now} />
+                                          <WorkRow
+                                              key={`${item.kind}:${item.id}`}
+                                              item={item}
+                                              label={workspaceLabel(
+                                                  item.workspaceid,
+                                                  workspaces,
+                                                  currentWorkspace?.oid
+                                              )}
+                                              now={now}
+                                          />
                                       ))}
                                   </div>
                               ) : null}
@@ -699,7 +725,11 @@ export function NotificationCenter() {
                                         <RowBoundary key={entry.id}>
                                             <NotificationRow
                                                 entry={entry}
-                                                workspace={workspaces.get(entry.workspaceid)}
+                                                label={workspaceLabel(
+                                                    entry.workspaceid,
+                                                    workspaces,
+                                                    currentWorkspace?.oid
+                                                )}
                                                 now={now}
                                                 archived={tab === "archived"}
                                                 running={running}
