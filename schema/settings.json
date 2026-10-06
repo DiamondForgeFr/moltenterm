@@ -219,6 +219,14 @@
         "tab:background": {
           "type": "string"
         },
+        "tab:holdtoclose": {
+          "type": "boolean",
+          "description": "Closing a tab with its close button takes a press-and-hold; false closes on a single click"
+        },
+        "tab:holdtoclosems": {
+          "type": "integer",
+          "description": "How long the close button is held before the tab closes, in milliseconds (200 to 2000)"
+        },
         "widget:*": {
           "type": "boolean"
         },

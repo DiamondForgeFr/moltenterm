@@ -1452,6 +1452,8 @@ declare global {
         "tab:preset"?: string;
         "tab:confirmclose"?: boolean;
         "tab:background"?: string;
+        "tab:holdtoclose"?: boolean;
+        "tab:holdtoclosems"?: number;
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;
         "window:*"?: boolean;

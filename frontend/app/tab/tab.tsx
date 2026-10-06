@@ -12,6 +12,7 @@ import { fireAndForget } from "@/util/util";
 import clsx from "clsx";
 import { useAtomValue } from "jotai";
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { HoldToCloseButton } from "../../moltenterm-shell/hold-to-close"; // MOLTENTERM-PATCH (#255)
 import { MoltentermTabMarks } from "../../moltenterm-shell/project/tab-marks"; // MOLTENTERM-PATCH (#109, #113)
 import { useTabTreesTooltip } from "../../moltenterm-shell/worktree-ui"; // MOLTENTERM-PATCH (#114)
 import { makeORef } from "../store/wos";
@@ -186,6 +187,16 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
         event.stopPropagation();
     };
 
+    // MOLTENTERM-PATCH (#255): a middle-click closes the tab at once, through the same handler as the close button
+    const handleAuxClick = (event: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+        if (event.button !== 1 || isEditable) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        onClose(null);
+    };
+
     // MOLTENTERM-PATCH (#81): while the name is edited, pressing places the caret or selects text; it never drags the tab
     const handleMouseDown = (event: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
         if (isEditable) {
@@ -204,6 +215,7 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
             })}
             onMouseDown={handleMouseDown}
             onClick={onClick}
+            onAuxClick={handleAuxClick} // MOLTENTERM-PATCH (#255)
             onContextMenu={onContextMenu}
             data-tab-id={tabId}
             // MOLTENTERM-PATCH (#114): the tooltip lists the trees of the tab's terminals
@@ -226,14 +238,16 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
                 {/* MOLTENTERM-PATCH (#109): the most urgent state of the tab's coding agents */}
                 {agentDot}
                 <TabBadges badges={badges} flagColor={flagColor} />
-                <Button
+                {/* MOLTENTERM-PATCH (#255): the close button closes after a press-and-hold (FR-SHELL-025) */}
+                <HoldToCloseButton
+                    as={Button}
                     className="ghost grey close"
-                    onClick={onClose}
+                    onClose={onClose}
                     onMouseDown={handleMouseDownOnClose}
-                    title="Close Tab"
+                    plainTitle="Close Tab"
                 >
                     <i className="fa fa-solid fa-xmark" />
-                </Button>
+                </HoldToCloseButton>
             </div>
         </div>
     );
