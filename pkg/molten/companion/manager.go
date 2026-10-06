@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 )
 
 // The companion of a terminal block follows its agent's session while a view looks at it: each view opens it and
@@ -87,6 +89,8 @@ type CompanionView struct {
 	Files   []FileInfo  `json:"files,omitempty"`
 	Todos   []Todo      `json:"todos,omitempty"`
 	Pending []ToolCall  `json:"pending,omitempty"`
+	// Usage: the agent's usage page when it has a usage adapter (FR-SHELL-026); the view holds no URL of its own.
+	Usage *usage.UsagePage `json:"usage,omitempty"`
 }
 
 type blockInfo struct {
@@ -121,12 +125,13 @@ type Manager struct {
 	claims   map[string]sessionClaim
 	version  int64
 
-	// Injected: the agent states, the object store, the event bus and the clock; replaced in tests.
+	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
 	runOf      func(blockId string) (molten.AgentRunInfo, bool)
 	allRuns    func() []molten.AgentRunInfo
 	blockInfo  func(blockId string) (blockInfo, error)
 	publish    func(view CompanionView)
 	adapterFor func(agent string) Adapter
+	settings   func() *wconfig.SettingsType
 	now        func() time.Time
 	tick       time.Duration
 }
@@ -922,6 +927,7 @@ func (w *watcher) view(elide bool) CompanionView {
 	}
 	if w.agent != "" {
 		v.AgentName = molten.AgentDisplayName(w.agent)
+		v.Usage = usage.PageOf(w.agent)
 	}
 	if w.path == "" || w.session == nil {
 		return v

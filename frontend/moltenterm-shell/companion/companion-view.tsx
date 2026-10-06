@@ -45,6 +45,7 @@ import {
     todoCounts,
 } from "./companion-model";
 import { openChangedFile } from "./companion-open";
+import { UsageButton } from "./companion-usage";
 
 export { MoltentermCompanionView };
 
@@ -190,7 +191,11 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     }
     const message = statusMessage(view);
     if (message != null && view?.status !== "choose") {
-        return <Centered title={message.title} detail={message.detail} />;
+        return (
+            <Centered title={message.title} detail={message.detail}>
+                <UsageButton view={view} />
+            </Centered>
+        );
     }
     if (view?.status === "choose") {
         return (
@@ -221,11 +226,12 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     );
 }
 
-function Centered({ title, detail }: { title: string; detail?: string }) {
+function Centered({ title, detail, children }: { title: string; detail?: string; children?: React.ReactNode }) {
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-6 text-center">
             <div className="text-sm font-medium text-primary">{title}</div>
             {detail ? <div className="max-w-[360px] text-xs text-secondary">{detail}</div> : null}
+            {children}
         </div>
     );
 }
@@ -301,8 +307,11 @@ function SessionBar({ view }: { view: CompanionView }) {
             <span className="font-medium text-secondary">{view.agentname}</span>
             {view.session?.format ? <span>{view.session.format}</span> : null}
             <span>{linked}</span>
-            {view.ended ? <span className="ml-auto text-warning">Agent exited · last session</span> : null}
-            {view.status === "loading" ? <span className="ml-auto">Reading…</span> : null}
+            <div className="ml-auto flex items-center gap-2">
+                {view.ended ? <span className="text-warning">Agent exited · last session</span> : null}
+                {view.status === "loading" ? <span>Reading…</span> : null}
+                <UsageButton view={view} className="-my-0.5" />
+            </div>
         </div>
     );
 }

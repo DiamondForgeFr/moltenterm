@@ -12,6 +12,7 @@ export const CompanionCloseCommand = "moltencompanionclose";
 export const CompanionPickCommand = "moltencompanionpick";
 export const CompanionAnswerCommand = "moltencompanionanswer";
 export const CompanionDiffCommand = "moltencompaniondiff";
+export const CompanionUsageCommand = "moltencompanionusage";
 
 export const MoltentermCompanionView = "molten-companion";
 // The companion block's meta key naming the terminal it follows.
@@ -77,7 +78,11 @@ export type CompanionView = {
     files?: CompanionFile[];
     todos?: CompanionTodo[];
     pending?: CompanionToolCall[];
+    // The agent's usage page, from its usage adapter (pkg/molten/usage): the frontend holds no provider URL.
+    usage?: CompanionUsagePage;
 };
+
+export type CompanionUsagePage = { pageurl: string; pagename: string };
 
 // A snapshot and the events race: the newest version wins. An event without the latest answer's markdown (unchanged)
 // keeps the copy the view has; when the view has no copy of that answer, the markdown stays empty and elided, and
@@ -153,6 +158,19 @@ export function statusMessage(view: CompanionView): { title: string; detail?: st
             return { title: "The companion stopped", detail: view.message };
     }
     return null;
+}
+
+// The Usage action (FR-SHELL-026): shown for an agent whose usage adapter gives a page, whatever the agent does
+// (working, waiting, exited); never for a terminal without an agent or for an agent without an adapter.
+export function usageAction(view: CompanionView): { url: string; title: string } {
+    const page = view?.usage;
+    if (page == null || !page.pageurl?.startsWith("https://") || !view.agent) {
+        return null;
+    }
+    if (view.status === "noagent" || view.status === "unsupportedagent") {
+        return null;
+    }
+    return { url: page.pageurl, title: `Open ${page.pagename || "usage page"}` };
 }
 
 // A pending call is a permission request when the transcript says so (Codex's approval requests), or when the

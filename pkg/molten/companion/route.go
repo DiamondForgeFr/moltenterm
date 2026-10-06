@@ -142,6 +142,12 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 			return nil, err
 		}
 		return l.m.Diff(req.BlockId, req.Path)
+	case molten.CompanionUsageCommand:
+		var req usageRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.m.Usage(req.BlockId)
 	case molten.CompanionSessionCommand:
 		var req molten.AgentSessionRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -204,6 +210,10 @@ func Start() {
 	m.allRuns = attention.AgentRuns
 	m.blockInfo = readBlockInfo
 	m.publish = publishView
+	m.settings = func() *wconfig.SettingsType {
+		settings := wconfig.GetWatcher().GetFullConfig().Settings
+		return &settings
+	}
 	defaultManager = m
 	link := &routeLink{m: m, output: make(chan []byte, routeQueueSize)}
 	if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, molten.CompanionRoute); err != nil {
