@@ -21,6 +21,12 @@ import { getElectronAppBasePath, isDev, unamePlatform } from "./emain-platform";
 import { getOrCreateWebViewForTab, getWaveTabViewByWebContentsId, WaveTabView } from "./emain-tabview";
 import { delay, ensureBoundsAreVisible, waveKeyToElectronKey } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
+import {
+    awaitViewInitialized,
+    isDuplicateSwitch,
+    MoltentermFreshReadyTimeoutMs,
+    MoltentermWaveReadyTimeoutMs,
+} from "./moltenterm-spare-ready"; // MOLTENTERM-PATCH (#283)
 import { checkReusedTabViewPainted, noteTabViewLeftScreen } from "./moltenterm-tabview-repaint"; // MOLTENTERM-PATCH (#223)
 import {
     MoltentermFirstRenderTimeoutMs,
@@ -416,7 +422,15 @@ export class WaveBrowserWindow extends BaseWindow {
 
     private async initializeTab(tabView: WaveTabView, primaryStartupTab: boolean, offScreen = false) {
         const clientId = await getClientId();
-        await this.awaitWithDevTimeout(tabView.initPromise, "initPromise", tabView.waveTabId);
+        // MOLTENTERM-PATCH (#283): the queue never waits indefinitely on one view's init
+        const viewReady = await this.awaitWithDevTimeout(
+            awaitViewInitialized(tabView, MoltentermFreshReadyTimeoutMs),
+            "initPromise",
+            tabView.waveTabId
+        );
+        if (!viewReady) {
+            throw new Error(`tab view ${tabView.waveTabId} not initialized after ${MoltentermFreshReadyTimeoutMs}ms`);
+        }
         const winBounds = this.getContentBounds();
         tabView.setBounds({ x: 0, y: 0, width: winBounds.width, height: winBounds.height });
         // MOLTENTERM-PATCH (#68): rendered off-screen first, so the previous workspace stays visible until it is ready
@@ -446,7 +460,7 @@ export class WaveBrowserWindow extends BaseWindow {
         // MOLTENTERM-PATCH (#68): never leave the window on the previous workspace when a renderer does not answer
         const waveReady = offScreen
             ? withTimeout(tabView.waveReadyPromise, MoltentermFirstRenderTimeoutMs)
-            : tabView.waveReadyPromise;
+            : withTimeout(tabView.waveReadyPromise, MoltentermWaveReadyTimeoutMs); // MOLTENTERM-PATCH (#283)
         await this.awaitWithDevTimeout(waveReady, "waveReadyPromise", tabView.waveTabId);
         console.log("wave-ready init time", Date.now() - startTime + "ms");
     }
@@ -497,7 +511,22 @@ export class WaveBrowserWindow extends BaseWindow {
         this.allLoadedTabViews.set(tabView.waveTabId, tabView);
         if (!tabInitialized) {
             console.log("initializing a new tab", primaryStartupTab ? "(primary startup)" : "");
-            await this.initializeTab(tabView, primaryStartupTab, waitReady);
+            try {
+                await this.initializeTab(tabView, primaryStartupTab, waitReady);
+            } catch (e) {
+                // MOLTENTERM-PATCH (#283): a view that never initialized is dropped, so the next switch builds a new one
+                console.log("[#283] initializing a new tab failed, dropping its view", tabView.waveTabId, e);
+                this.activeTabView = oldActiveView;
+                if (oldActiveView != null) {
+                    oldActiveView.isActiveTab = true;
+                }
+                this.allLoadedTabViews.delete(tabView.waveTabId);
+                if (!this.isDestroyed()) {
+                    this.contentView.removeChildView(tabView);
+                }
+                tabView.destroy();
+                throw e;
+            }
             this.finalizePositioning();
         } else {
             console.log("reusing an existing tab, calling wave-init", tabView.waveTabId);
@@ -552,6 +581,11 @@ export class WaveBrowserWindow extends BaseWindow {
     }
 
     private async _queueActionInternal(entry: WindowActionQueueEntry) {
+        // MOLTENTERM-PATCH (#283)
+        if (entry.op === "switchworkspace" && isDuplicateSwitch(this.actionQueue, entry.workspaceId)) {
+            console.log("[#283] switchworkspace already pending, coalesced", entry.workspaceId);
+            return;
+        }
         if (this.actionQueue.length >= 2) {
             this.actionQueue[1] = entry;
             return;
