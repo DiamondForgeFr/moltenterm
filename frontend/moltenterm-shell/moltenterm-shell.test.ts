@@ -197,3 +197,48 @@ describe("text on the accent (NFR-SHELL-003, #244)", () => {
         }
     });
 });
+
+// Every file the Project overview and CI/CD draw a running indicator from.
+const IndicatorSources = [
+    "mission/action-button.tsx",
+    "mission/branch-cleanup.tsx",
+    "mission/build-local-menu.tsx",
+    "mission/ci-local-panel.tsx",
+    "mission/cicd-panels.tsx",
+    "mission/line-map.tsx",
+    "mission/mission-frame.tsx",
+    "mission/release-menu.tsx",
+    "mission/release-run-panel.tsx",
+    "mission/release-state-panel.tsx",
+    "mission/runs-view.tsx",
+    "project/next-station-header.tsx",
+    "project/overview-cards.tsx",
+    "status-bar-model.ts",
+];
+
+describe("running indicators (NFR-MC-004)", () => {
+    it.each(IndicatorSources)("%s moves only in steps", (file) => {
+        const source = readFileSync(new URL(`./${file}`, import.meta.url), "utf8");
+        expect(source).not.toMatch(/\banimate-(ping|pulse|spin|bounce)\b/);
+        expect(source.match(/\bfa-spin\b(?! mt-step-spin)/g)).toBeNull();
+    });
+
+    it("steps every indicator on the line map's 0.25 s grid", () => {
+        expect(shellCss).toMatch(/\.mt-step-blink \{\s*animation: mt-step-blink 1\.5s step-end infinite;/);
+        expect(shellCss).toMatch(/\.mt-step-ping \{\s*animation: mt-step-ping 1\.5s step-end infinite;/);
+        expect(shellCss).toMatch(
+            /\.mt-step-spin \{\s*--fa-animation-duration: 2s;\s*--fa-animation-timing: steps\(8\);/
+        );
+    });
+
+    it("stands still under the system preference and MoltenTerm's own setting", () => {
+        for (const name of ["blink", "ping", "spin"]) {
+            expect(shellCss).toMatch(
+                new RegExp(`\\.prefers-reduced-motion \\.mt-step-${name}[,\\s][^}]*animation: none;`)
+            );
+        }
+        expect(shellCss).toMatch(
+            /@media \(prefers-reduced-motion: reduce\) \{\s*\.mt-step-blink,\s*\.mt-step-ping,\s*\.mt-step-spin \{\s*animation: none;/
+        );
+    });
+});

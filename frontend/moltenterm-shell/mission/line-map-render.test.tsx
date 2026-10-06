@@ -61,7 +61,7 @@ function model(): LineMapModel {
         ],
         stations: [station("v1.0.0-1", NOW - 10 * Day), station("v1.0.0-2", NOW - 4 * Day)],
         earlier: [],
-        terminus: { version: "1.0.0", tag: "v1.0.0", how: "decision", reason: "", waiting: 3 },
+        terminus: { tag: "v1.0.0", state: "decision", chip: "to decide", note: "", waiting: 3 },
         github: "",
         historyFrom: null,
     } as LineMapModel;

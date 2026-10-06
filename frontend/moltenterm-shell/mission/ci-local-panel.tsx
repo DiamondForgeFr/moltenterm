@@ -32,7 +32,7 @@ const MaxLogChars = 512 * 1024;
 const StatusIcons: Record<CiStatus, string> = {
     success: "fa-circle-check text-success",
     failure: "fa-circle-xmark text-error",
-    running: "fa-circle-notch fa-spin text-accent",
+    running: "fa-circle-notch fa-spin mt-step-spin text-accent",
     interrupted: "fa-triangle-exclamation text-warning",
     queued: "fa-clock text-muted",
     cancelled: "fa-ban text-muted",
@@ -327,7 +327,7 @@ export function LocalCiRunner({ dir, projectName }: { dir: string; projectName: 
                 >
                     {running != null ? (
                         <>
-                            <i className="fa fa-solid fa-circle-notch fa-spin mr-1 text-[10px]" />
+                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1 text-[10px]" />
                             Running…
                         </>
                     ) : (

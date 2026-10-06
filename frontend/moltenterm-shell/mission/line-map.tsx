@@ -51,6 +51,7 @@ import {
 import { useLineMapDays } from "./line-map-store";
 import { MenuPopover } from "./menu-popover";
 import { MissionSnapshot } from "./mission-model";
+import { ReleaseSession } from "./release-model";
 import { formatDay, formatWhen, timeAgo } from "./time-format";
 import { readableSubject } from "./versions";
 
@@ -465,14 +466,12 @@ function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; 
             return (
                 <>
                     <div className="font-semibold text-primary">{model.terminus.tag ?? "Next"} · public release</div>
-                    <div className="text-secondary">
-                        {model.terminus.how === "decision"
-                            ? "The number is a decision: choose it when you release."
-                            : model.terminus.how === "nothing"
-                              ? "Nothing waiting justifies a public release yet."
-                              : `${model.terminus.waiting} change${model.terminus.waiting === 1 ? "" : "s"} on ${model.trunk} not yet on ${model.release ?? "a release"}.`}
-                    </div>
-                    {model.terminus.reason ? <div className="text-muted">{model.terminus.reason}</div> : null}
+                    <div className="text-secondary">{model.terminus.note}</div>
+                    {model.terminus.state === "nothing" ? null : (
+                        <div className="text-muted">
+                            {`${model.terminus.waiting} change${model.terminus.waiting === 1 ? "" : "s"} on ${model.trunk} not yet on ${model.release ?? "a release"}.`}
+                        </div>
+                    )}
                 </>
             );
         case "day":
@@ -615,6 +614,8 @@ export type LineMapProps = {
     ciBranches?: CiBranch[];
     // The branch the local CI runs on right now, if any.
     ciRunning?: string;
+    // The release under way, if any: the terminus shows the number a public one carries.
+    session?: ReleaseSession;
     full?: boolean;
     onFullSize?: () => void;
 };
@@ -629,7 +630,7 @@ function useStable<T>(value: T, key: string): T {
     return last.current.value;
 }
 
-export function LineMap({ dir, snapshot, ciBranches, ciRunning, full = false, onFullSize }: LineMapProps) {
+export function LineMap({ dir, snapshot, ciBranches, ciRunning, session, full = false, onFullSize }: LineMapProps) {
     const [days, setDays] = useLineMapDays(dir, full);
     const box = useRef<HTMLDivElement>(null);
     const width = useWidth(box);
@@ -649,11 +650,12 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, full = false, on
         (snapshot?.github?.releases ?? []).map((r) => `${r.tagName}:${r.isDraft}`).join(",")
     );
     const ci = useStable(ciBranches, (ciBranches ?? []).map((b) => `${b.name}:${b.verdict}`).join(","));
+    const release = useStable(session, session ? `${session.channel}:${session.version}:${session.tag}` : "");
     // "now" follows each new read of the project, not the clock: the map holds still between refreshes.
     const now = useMemo(() => Date.now(), [git, days]);
     const model = useMemo(
-        () => (git ? buildLineMap({ git, prs, ciBranches: ci, releases, now, days }) : null),
-        [git, prs, releases, ci, now, days]
+        () => (git ? buildLineMap({ git, prs, ciBranches: ci, releases, session: release, now, days }) : null),
+        [git, prs, releases, ci, release, now, days]
     );
     // A detail opened on a mark the new data no longer has would float detached, with old figures.
     useEffect(() => setHover(null), [model]);
@@ -788,10 +790,7 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, full = false, on
                 {geo && model ? (
                     <MapSvg key={intro.run} geo={geo} model={model} ciRunning={ciRunning} hit={hit} />
                 ) : (
-                    <div
-                        className="h-[220px] w-full animate-pulse bg-hover/40 motion-reduce:animate-none"
-                        aria-busy="true"
-                    />
+                    <div className="h-[220px] w-full mt-step-blink bg-hover/40" aria-busy="true" />
                 )}
             </div>
             {hover && model ? (

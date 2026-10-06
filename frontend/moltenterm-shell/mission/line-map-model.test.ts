@@ -320,7 +320,7 @@ describe("the terminus", () => {
     it("is a decision before the first public release", () => {
         const git = makeGit({ tags: [{ name: "v1.0.0-1", sha: "t", date: "2026-10-01T00:00:00Z" }] });
         const model = buildLineMap({ git, now: NOW, days: 21 });
-        expect(model.terminus.how).toBe("decision");
+        expect(model.terminus).toMatchObject({ state: "decision", chip: "to decide" });
     });
 
     it("is derived from the commits after a public release", () => {
@@ -332,7 +332,7 @@ describe("the terminus", () => {
             sincepublic: [feat],
         });
         const model = buildLineMap({ git, now: NOW, days: 21 });
-        expect(model.terminus).toMatchObject({ how: "derived", version: "1.3.0", tag: "v1.3.0", waiting: 1 });
+        expect(model.terminus).toMatchObject({ state: "derived", chip: "minor", tag: "v1.3.0", waiting: 1 });
     });
 });
 

@@ -63,7 +63,7 @@ function StatusIcon({ status }: { status: PhaseStatus }) {
         case "done":
             return <i className="fa fa-solid fa-check text-[11px]" />;
         case "running":
-            return <i className="fa fa-solid fa-circle-notch fa-spin text-[11px]" />;
+            return <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-[11px]" />;
         case "waiting":
             return <i className="fa fa-solid fa-hand text-[11px]" />;
         case "failed":
@@ -174,7 +174,9 @@ function ActionButton({
                     className={plain ? PlainButton : AccentButton}
                     onClick={() => (confirm && !confirming ? setConfirming(true) : go())}
                 >
-                    {busy ? <i className="fa fa-solid fa-circle-notch fa-spin mr-1.5 text-[10px]" /> : null}
+                    {busy ? (
+                        <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-[10px]" />
+                    ) : null}
                     {confirming ? "Confirm" : action.label}
                     {plain ? null : <MoltenWave />}
                 </button>

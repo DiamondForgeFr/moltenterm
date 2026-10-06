@@ -99,7 +99,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                     ) : null}
                     {plan == null && error == null ? (
                         <div className="flex items-center gap-2 text-muted">
-                            <i className="fa fa-solid fa-circle-notch fa-spin text-[11px]" />
+                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-[11px]" />
                             Comparing each branch with {trunk}…
                         </div>
                     ) : null}
@@ -153,7 +153,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                             )}
                         >
                             {busy ? (
-                                <i className="fa fa-solid fa-circle-notch fa-spin text-[10px]" />
+                                <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-[10px]" />
                             ) : (
                                 <i className="fa fa-solid fa-trash-can text-[10px]" />
                             )}

@@ -10,7 +10,7 @@ import { ciRunningBranch, MoltentermLineMapView } from "../mission/line-map-view
 import { openMoltentermView } from "../open-view";
 import { ProjectCardProps } from "./project-context";
 
-export function LineMapCard({ project, snapshot, ci }: ProjectCardProps) {
+export function LineMapCard({ project, snapshot, ci, release }: ProjectCardProps) {
     return (
         <div data-testid="project-linemap">
             <LineMap
@@ -18,6 +18,7 @@ export function LineMapCard({ project, snapshot, ci }: ProjectCardProps) {
                 snapshot={snapshot}
                 ciBranches={ci?.branches}
                 ciRunning={ciRunningBranch(ci)}
+                session={release}
                 onFullSize={() => fireAndForget(() => openMoltentermView(MoltentermLineMapView))}
             />
         </div>

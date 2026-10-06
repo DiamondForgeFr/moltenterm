@@ -47,8 +47,8 @@ export type RunCiTarget = {
     disabled: string;
 };
 
-// The release state the line map's terminus reads (buildLineMap in ../mission/line-map-model.ts), from the same
-// inputs, so the header and the map name the same next version in the same state.
+// The next station of the header, which the line map's terminus also reads (buildLineMap in
+// ../mission/line-map-model.ts), so the header and the map name the same next version in the same state.
 export function nextStation(git: MissionGit, session: ReleaseSession): NextStation {
     if (git == null) {
         return null;

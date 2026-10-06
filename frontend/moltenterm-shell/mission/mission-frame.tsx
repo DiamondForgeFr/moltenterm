@@ -196,7 +196,12 @@ export function MissionHeader({
                     onClick={onRefresh}
                     className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary"
                 >
-                    <i className={cn("fa fa-solid fa-rotate text-[11px]", snapshot?.refreshing && "fa-spin")} />
+                    <i
+                        className={cn(
+                            "fa fa-solid fa-rotate text-[11px]",
+                            snapshot?.refreshing && "fa-spin mt-step-spin"
+                        )}
+                    />
                 </button>
             </div>
         </div>

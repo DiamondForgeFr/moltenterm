@@ -169,21 +169,20 @@ export function tickStep(pxPerDay: number): number {
     return TickSteps.find((s) => s * pxPerDay >= MinTickSpacing) ?? TickSteps[TickSteps.length - 1];
 }
 
-// The terminus reads "v<next> · public release", then where it stands.
+// The terminus reads "v<next> · public release", then where it stands: the Project header's chip ("to decide", the
+// bump level, "chosen"), with what waits for it when the number follows from the commits.
 export function terminusText(model: LineMapModel): { title: string; sub: string; status: string } {
     const t = model.terminus;
     const title = t.tag ?? "next";
     const sub = "public release";
-    if (t.how === "decision") {
-        return { title, sub, status: "to decide" };
-    }
-    if (t.how === "nothing" || !t.version) {
+    if (t.state === "nothing" || !t.tag) {
         return { title, sub, status: "nothing to release yet" };
     }
-    if (t.waiting === 0) {
-        return { title, sub, status: "all on main" };
+    if (t.state !== "derived") {
+        return { title, sub, status: t.chip };
     }
-    return { title, sub, status: `${t.waiting} change${t.waiting === 1 ? "" : "s"} waiting` };
+    const waiting = t.waiting === 0 ? "all on main" : `${t.waiting} change${t.waiting === 1 ? "" : "s"} waiting`;
+    return { title, sub, status: t.chip ? `${t.chip} · ${waiting}` : waiting };
 }
 
 function labelHeight(name: string, date: string): number {

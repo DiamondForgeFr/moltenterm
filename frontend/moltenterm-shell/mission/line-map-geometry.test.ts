@@ -66,7 +66,7 @@ function model(over: Partial<LineMapModel> = {}): LineMapModel {
         branches: [],
         stations: [],
         earlier: [],
-        terminus: { version: "1.0.0", tag: "v1.0.0", how: "decision", reason: "", waiting: 3 },
+        terminus: { tag: "v1.0.0", state: "decision", chip: "to decide", note: "", waiting: 3 },
         github: "",
         historyFrom: null,
         ...over,
@@ -308,7 +308,7 @@ describe("degraded projects", () => {
 
     it("draws an empty project: lines, now and the terminus", () => {
         const geo = layoutLineMap(
-            model({ terminus: { version: null, tag: null, how: "nothing", reason: "", waiting: 0 } }),
+            model({ terminus: { tag: null, state: "nothing", chip: null, note: "", waiting: 0 } }),
             {
                 width: 1000,
             }

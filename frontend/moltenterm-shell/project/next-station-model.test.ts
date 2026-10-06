@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { CiState } from "../mission/ci-model";
+import { terminusText } from "../mission/line-map-geometry";
 import { buildLineMap } from "../mission/line-map-model";
 import { MissionGit, PipelineDef } from "../mission/mission-model";
 import { ReleaseSession } from "../mission/release-model";
@@ -95,12 +96,33 @@ describe("next station", () => {
         expect(nextStation(git({ tagprefix: "release-" }), null).tag).toBe("release-1.0.0");
     });
 
-    it("names the same version in the same state as the line map's terminus", () => {
-        for (const g of [git(), Released, git({ ...Released, sincepublic: commits("chore: x") })]) {
-            const { terminus } = buildLineMap({ git: g, now: Now, days: 21 });
-            const s = nextStation(g, null);
-            expect(s.tag).toBe(terminus.tag);
-            expect(s.state).toBe(terminus.how);
+    it("names the same version in the same state as the line map's terminus, in every state", () => {
+        const since = (...subjects: string[]) => git({ ...Released, sincepublic: commits(...subjects) });
+        const cases: [string, MissionGit, ReleaseSession, string][] = [
+            ["to decide", git(), null, "to decide"],
+            ["a release candidate on its way", git(), session("rc", "1.0.0", "v1.0.0-1"), "to decide"],
+            ["major", since("feat(#1)!: drop the old format"), null, "major"],
+            ["minor", Released, null, "minor"],
+            ["patch", since("fix(#2): a crash"), null, "patch"],
+            ["the derived number on its way", Released, session("public", "1.2.0"), "minor"],
+            ["the first number chosen", git(), session("public", "1.0.0"), "chosen"],
+            ["another number chosen", Released, session("public", "2.0.0"), "chosen"],
+            ["nothing", since("chore: x"), null, null],
+        ];
+        for (const [name, g, s, chip] of cases) {
+            const station = nextStation(g, s);
+            const model = buildLineMap({ git: g, session: s, now: Now, days: 21 });
+            const { status } = terminusText(model);
+            expect({ name, chip: station.chip }).toEqual({ name, chip });
+            expect({ name, tag: model.terminus.tag, state: model.terminus.state }).toEqual({
+                name,
+                tag: station.tag,
+                state: station.state,
+            });
+            expect({ name, status: chip ? status.startsWith(chip) : status === "nothing to release yet" }).toEqual({
+                name,
+                status: true,
+            });
         }
     });
 
