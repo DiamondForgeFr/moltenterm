@@ -6,12 +6,14 @@ import { describe, expect, it, vi } from "vitest";
 import { PlanUsageBody } from "./companion-gauges";
 import {
     CompanionUsageInfo,
+    creditsText,
     gaugeLevel,
     gaugePercent,
     gaugeRows,
     gaugesView,
     resetText,
     usageFor,
+    usageReasonText,
     UsageReasonTexts,
     usageStale,
     UsageStaleMs,
@@ -217,5 +219,74 @@ describe("plan usage section", () => {
             setup: { source: "claude-statusline", file: "~/.claude/settings.json", language: "json", snippet },
         });
         expect(fresh).toContain("Add this to ");
+    });
+});
+
+// What wavesrv sends for Codex (pkg/molten/usage/codex.go): windows labelled from their length, credits as a balance.
+const codex: CompanionUsageInfo = {
+    blockid: "b2",
+    agent: "codex",
+    pageurl: "https://chatgpt.com/codex/settings/usage",
+    pagename: "Codex usage",
+    hasgauges: true,
+    gauges: "enabled",
+    sourcename: "Codex session log",
+    snapshot: {
+        agent: "codex",
+        source: "codex-transcript",
+        plan: "plus",
+        readat: now - 3 * Min,
+        windows: [
+            { id: "session", label: "5-hour", usedpercent: 12.5, resetsat: now + 3 * Hour, windowmins: 300 },
+            { id: "week", label: "This week", usedpercent: 96, resetsat: now + 4 * 24 * Hour, windowmins: 10080 },
+        ],
+        credits: { enabled: true, used: 0, limit: 0, balance: "17.5" },
+    },
+};
+
+describe("Codex plan usage", () => {
+    it("shows the windows with their age, and the credits balance", () => {
+        const html = markup(codex);
+        expect(html).toContain("From the Codex session log");
+        expect(html).toContain("Updated 3 min ago");
+        expect(html).toContain(">5-hour<");
+        expect(html).toContain(">12.5 % used<");
+        expect(html).toContain("Resets in 3 h");
+        expect(html).toContain(">This week<");
+        expect(html).toMatch(/bg-error[^"]*" style="width:96%/);
+        expect(html).toContain("Credits: 17.5 left");
+    });
+
+    it("has no credits line without credits", () => {
+        expect(markup({ ...codex, snapshot: { ...codex.snapshot, credits: undefined } })).not.toContain("Credits");
+        expect(creditsText({ enabled: false, used: 0, limit: 0, balance: "3" })).toBe("");
+        expect(creditsText({ enabled: true, used: 0, limit: 0, unlimited: true })).toBe("Credits: unlimited");
+        expect(creditsText({ enabled: true, used: 0, limit: 0 })).toBe("Credits available");
+        expect(creditsText({ enabled: true, used: 4, limit: 50, unit: "USD" })).toBe("Extra usage: 4 USD of 50 USD");
+    });
+
+    it("names the merged sources", () => {
+        expect(markup({ ...codex, sourcename: "Codex app-server" })).toContain("From the Codex app-server");
+    });
+
+    it("gives Codex's own reasons", () => {
+        expect(usageReasonText("waiting", "codex")).toBe("Waiting for Codex: the limits come with its next response");
+        expect(usageReasonText("noplan", "codex")).toBe("Codex reports no plan limits for this sign-in");
+        expect(usageReasonText("format", "codex")).toBe(UsageReasonTexts.format);
+        expect(usageReasonText("noplan", "claude")).toBe("Not on a Pro or Max plan");
+        const html = markup({ ...codex, gauges: "unavailable", reason: "waiting", snapshot: undefined });
+        expect(html).toContain('title="Waiting for Codex: the limits come with its next response"');
+        const expired = { ...codex, snapshot: { ...codex.snapshot, credits: undefined } };
+        expect(gaugesView(expired, now + 5 * 24 * Hour)).toEqual({
+            kind: "unavailable",
+            reason: "The limits were reset: new values come with Codex's next response",
+        });
+    });
+
+    it("turns the Refresh icon while a read runs", () => {
+        const html = renderToStaticMarkup(<PlanUsageBody view={gaugesView(codex, now)} refreshing {...noop} />);
+        expect(html).toContain('aria-busy="true"');
+        expect(html).toContain("fa-rotate-right fa-spin");
+        expect(markup(codex)).not.toContain("fa-spin");
     });
 });

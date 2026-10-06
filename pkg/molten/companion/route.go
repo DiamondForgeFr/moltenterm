@@ -14,6 +14,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -239,6 +240,7 @@ func Start() {
 		return &settings
 	}
 	defaultManager = m
+	usage.DefaultCodexUsage.SetTranscript(m.CodexLimits)
 	wconfig.GetWatcher().RegisterUpdateHandler(func(config wconfig.FullConfigType) {
 		settingsChanged(&config.Settings)
 	})

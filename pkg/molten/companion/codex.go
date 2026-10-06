@@ -15,8 +15,8 @@ import (
 // Codex keeps one JSONL "rollout" per session in <home>/sessions/YYYY/MM/DD/rollout-<time>-<id>.jsonl, the home being
 // $CODEX_HOME or ~/.codex. Each line is {timestamp, type, payload}: session_meta (folder, version, source),
 // response_item (the model's messages and tool calls, as sent to the API), event_msg (what the interface shows:
-// prompts, turn starts and ends, approval requests, file changes) and bookkeeping this adapter ignores. The oldest
-// rollouts wrote the response items bare, without the wrapper.
+// prompts, turn starts and ends, approval requests, file changes, and the plan's rate limits of each token_count)
+// and bookkeeping this adapter ignores. The oldest rollouts wrote the response items bare, without the wrapper.
 
 const codexMaxDays = 7
 
@@ -278,6 +278,8 @@ func (a *CodexAdapter) parseEvent(ev map[string]any, s *Session, at int64) {
 		}
 	case "plan_update":
 		s.SetTodos(codexPlan(arr(ev, "plan")))
+	case "token_count":
+		s.AddCodexRateLimits(ev["rate_limits"], at)
 	case "item_completed":
 		item := obj(ev, "item")
 		switch str(item, "type") {

@@ -153,6 +153,9 @@ type UsageCredits struct {
 	Used    float64 `json:"used"`
 	Limit   float64 `json:"limit"`
 	Unit    string  `json:"unit,omitempty"`
+	// Codex gives a balance, as text, or unlimited credits, instead of used and limit.
+	Balance   string `json:"balance,omitempty"`
+	Unlimited bool   `json:"unlimited,omitempty"`
 }
 
 // MergeSnapshots merges the snapshots of an agent's sources, given best source first: a window id a better source

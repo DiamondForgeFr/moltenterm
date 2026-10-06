@@ -35,7 +35,9 @@ func MakeClaudeUsageAdapter() UsageAdapter {
 	}
 }
 
-// MakeCodexUsageAdapter: Codex's plan usage is on ChatGPT's Codex usage settings.
+// MakeCodexUsageAdapter: Codex's plan usage is on ChatGPT's Codex usage settings; its gauges come from its session
+// log, else its app-server (codex.go).
 func MakeCodexUsageAdapter() UsageAdapter {
-	return &pageAdapter{id: "codex", pageURL: CodexUsagePageURL, pageName: "Codex usage", domain: "chatgpt.com"}
+	return &pageAdapter{id: "codex", pageURL: CodexUsagePageURL, pageName: "Codex usage", domain: "chatgpt.com",
+		sources: []GaugesSource{MakeCodexTranscriptSource(DefaultCodexUsage), MakeCodexAppServerSource(DefaultCodexUsage)}}
 }
