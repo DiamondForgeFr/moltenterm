@@ -125,7 +125,7 @@ export function EngineChoiceBar({ choices, tabId, list, onStay, onHandOff, onDis
             <span className="min-w-[150px] flex-1 truncate text-secondary">
                 <span className="text-primary">{choice.site}</span> opened in MoltenTerm.
             </span>
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <Button ref={choices.primaryRef} className="!h-6 !px-2.5 !text-xs" onClick={() => onStay(choice)}>
                     Open with MoltenTerm
                 </Button>
