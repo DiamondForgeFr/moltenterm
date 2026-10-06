@@ -44,6 +44,8 @@ export type MoltentermNotificationInput = {
     blockid?: string;
     actions?: NotificationAction[];
     read?: boolean;
+    // App-wide news (the gold update): it belongs to no workspace, so it is not given the shown one.
+    global?: boolean;
 };
 
 export type MoltentermNotification = MoltentermNotificationInput & {

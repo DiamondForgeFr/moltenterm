@@ -21,12 +21,14 @@ const (
 )
 
 type WorkItem struct {
-	Id        string `json:"id"`
-	Kind      string `json:"kind"`
-	Dir       string `json:"dir"`
-	Title     string `json:"title"`
-	Detail    string `json:"detail,omitempty"`
-	StartedAt int64  `json:"startedat"`
+	Id   string `json:"id"`
+	Kind string `json:"kind"`
+	Dir  string `json:"dir"`
+	// The workspace linked to the project, empty when none is: the panel shows it beside the work.
+	WorkspaceId string `json:"workspaceid,omitempty"`
+	Title       string `json:"title"`
+	Detail      string `json:"detail,omitempty"`
+	StartedAt   int64  `json:"startedat"`
 	// From 0 to 1, or -1 when the work does not say.
 	Progress float64 `json:"progress"`
 }
@@ -134,5 +136,23 @@ func RunningWork(runs *Runs, ci *Ci) []WorkItem {
 		}
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].StartedAt < items[j].StartedAt })
+	return items
+}
+
+// WithWorkspaces names the workspace of each item through its project folder; a folder is looked up once.
+func WithWorkspaces(items []WorkItem, lookup func(dir string) string) []WorkItem {
+	found := map[string]string{}
+	for i := range items {
+		dir := items[i].Dir
+		if dir == "" {
+			continue
+		}
+		id, ok := found[dir]
+		if !ok {
+			id = lookup(dir)
+			found[dir] = id
+		}
+		items[i].WorkspaceId = id
+	}
 	return items
 }

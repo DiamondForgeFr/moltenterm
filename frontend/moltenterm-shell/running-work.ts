@@ -19,6 +19,8 @@ export type WorkItem = {
     id: string;
     kind: string;
     dir: string;
+    // The workspace linked to the project, absent when none is.
+    workspaceid?: string;
     title: string;
     detail?: string;
     startedat: number;
