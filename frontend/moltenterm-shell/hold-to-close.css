@@ -1,0 +1,30 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* FR-SHELL-025 / NFR-SHELL-010: the top tab bar hides its close button with visibility, which also takes it out of
+   the keyboard order. Opacity hides it the same way and keeps it reachable with Tab; pointer events stay off while it
+   is invisible so a hidden button never catches a press. */
+.tab .close.molten-hold-close {
+    visibility: visible;
+    opacity: 0;
+    pointer-events: none;
+}
+
+body:not(.nohover) .tab:hover .close.molten-hold-close,
+body:not(.nohover) .tab.dragging .close.molten-hold-close,
+body.nohover .tab.active .close.molten-hold-close,
+.tab .close.molten-hold-close:focus-visible,
+.tab .close.molten-hold-close[data-holding] {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* The vertical tab bar's close button is transparent until hovered; a keyboard focus or a hold shows it too. */
+.molten-hold-close:focus-visible,
+.molten-hold-close[data-holding] {
+    opacity: 1;
+}
+
+.molten-hold-close[data-holding] {
+    color: var(--main-text-color);
+}

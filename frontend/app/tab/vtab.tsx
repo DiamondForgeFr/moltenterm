@@ -5,6 +5,7 @@ import { refocusNode } from "@/app/store/global";
 import { validateCssColor } from "@/util/color-validator";
 import { cn } from "@/util/util";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { HoldToCloseButton } from "../../moltenterm-shell/hold-to-close"; // MOLTENTERM-PATCH (#255)
 import { TabBadges } from "./tabbadges";
 
 const RenameFocusDelayMs = 50;
@@ -151,6 +152,15 @@ export function VTab({
             draggable
             data-tabid={tab.id}
             onClick={onSelect}
+            // MOLTENTERM-PATCH (#255): a middle-click closes the tab at once, with no hold (FR-SHELL-025)
+            onAuxClick={(event) => {
+                if (event.button !== 1 || onClose == null || isEditable) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                onClose();
+            }}
             onDoubleClick={(event) => {
                 event.stopPropagation();
                 startRename();
@@ -204,21 +214,18 @@ export function VTab({
             >
                 {tab.name}
             </div>
+            {/* MOLTENTERM-PATCH (#255): the close button closes after a press-and-hold (FR-SHELL-025) */}
             {onClose && (
-                <button
-                    type="button"
+                <HoldToCloseButton
                     className={cn(
                         "absolute top-1/2 right-0 shrink-0 -translate-y-1/2 cursor-pointer py-1 pl-1 pr-3 text-secondary transition",
                         isReordering ? "opacity-0" : "opacity-0 group-hover:opacity-100 hover:text-primary"
                     )}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        onClose();
-                    }}
-                    aria-label="Close tab"
+                    onClose={() => onClose()}
+                    plainLabel="Close tab"
                 >
                     <i className="fa fa-solid fa-xmark" />
-                </button>
+                </HoldToCloseButton>
             )}
         </div>
     );

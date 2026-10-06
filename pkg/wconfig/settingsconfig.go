@@ -150,6 +150,10 @@ type SettingsType struct {
 	TabConfirmClose bool   `json:"tab:confirmclose,omitempty"`
 	TabBackground   string `json:"tab:background,omitempty"`
 
+	// MOLTENTERM-PATCH (#255): the tab bars' close button closes after a press-and-hold (FR-SHELL-025, frontend/moltenterm-shell/hold-to-close.tsx).
+	TabHoldToClose   *bool  `json:"tab:holdtoclose,omitempty" jsonschema_description:"Closing a tab with its close button takes a press-and-hold; false closes on a single click"`
+	TabHoldToCloseMs *int64 `json:"tab:holdtoclosems,omitempty" jsonschema_description:"How long the close button is held before the tab closes, in milliseconds (200 to 2000)"`
+
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`
 
