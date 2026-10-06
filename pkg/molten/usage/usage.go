@@ -216,12 +216,25 @@ func PageOf(agent string) *UsagePage {
 }
 
 // GaugesResult is what the gauges show: State, the merged snapshot when enabled, and Reason when unavailable.
-// SourceName names the sources the windows came from, else the best source turned on.
+// SourceName names the sources the windows came from, else the best source turned on. Failures gives the reason of
+// each source turned on that gave nothing, so a failing source can say why its windows are missing.
 type GaugesResult struct {
 	State      string
 	Snapshot   *UsageSnapshot
 	Reason     string
 	SourceName string
+	Failures   map[string]string
+
+	agent string
+	reads []sourceRead
+}
+
+type sourceRead struct {
+	id     string
+	name   string
+	polled bool
+	snap   UsageSnapshot
+	err    error
 }
 
 // ReadGauges reads the sources the user turned on, best first, and merges what they give. A failing source only
@@ -232,27 +245,85 @@ func ReadGauges(ctx context.Context, a UsageAdapter, settings *wconfig.SettingsT
 	if len(sources) == 0 {
 		return GaugesResult{State: GaugesOff}
 	}
-	rtn := GaugesResult{State: GaugesUnavailable, SourceName: sources[0].Name()}
-	var snapshots []UsageSnapshot
-	names := map[string]string{}
+	var reads []sourceRead
 	for _, s := range sources {
 		if ctx.Err() != nil {
 			break
 		}
 		snap, err := s.Read(ctx, blockId)
-		if err != nil {
-			if rtn.Reason == "" {
-				rtn.Reason = ReasonOf(err)
-			}
-			continue
-		}
-		if snap.Source == "" {
+		if err == nil && snap.Source == "" {
 			snap.Source = s.Id()
 		}
-		names[snap.Source] = s.Name()
-		snapshots = append(snapshots, snap)
+		_, polled := s.(PolledSource)
+		reads = append(reads, sourceRead{id: s.Id(), name: s.Name(), polled: polled, snap: snap, err: err})
 	}
-	merged, ok := MergeSnapshots(a.Id(), snapshots, nowMs)
+	return mergeReads(a.Id(), sources[0].Name(), reads, nowMs)
+}
+
+// Without merges again what the other sources gave, as if the given one were off: the gauges show those sources'
+// windows while the given one waits to be set up.
+func (r GaugesResult) Without(sourceId string, nowMs int64) GaugesResult {
+	var reads []sourceRead
+	for _, sr := range r.reads {
+		if sr.id != sourceId {
+			reads = append(reads, sr)
+		}
+	}
+	if len(reads) == 0 {
+		return GaugesResult{State: GaugesUnavailable, Reason: ReasonFailed, agent: r.agent}
+	}
+	return mergeReads(r.agent, reads[0].name, reads, nowMs)
+}
+
+// PushedStale tells whether a source that reports by itself (not one the companion polls) gave values older than
+// maxAgeMs.
+func (r GaugesResult) PushedStale(nowMs int64, maxAgeMs int64) bool {
+	for _, sr := range r.reads {
+		if sr.err == nil && !sr.polled && sr.snap.ReadAt > 0 && nowMs-sr.snap.ReadAt > maxAgeMs {
+			return true
+		}
+	}
+	return false
+}
+
+// FreshFirst merges again with the sources whose values are older than maxAgeMs last: a window both give then
+// comes from the one that still reports.
+func (r GaugesResult) FreshFirst(nowMs int64, maxAgeMs int64) GaugesResult {
+	if len(r.reads) == 0 {
+		return r
+	}
+	var fresh, old []sourceRead
+	for _, sr := range r.reads {
+		if sr.err == nil && !sr.polled && sr.snap.ReadAt > 0 && nowMs-sr.snap.ReadAt > maxAgeMs {
+			old = append(old, sr)
+			continue
+		}
+		fresh = append(fresh, sr)
+	}
+	reads := append(fresh, old...)
+	return mergeReads(r.agent, reads[0].name, reads, nowMs)
+}
+
+func mergeReads(agent string, bestName string, reads []sourceRead, nowMs int64) GaugesResult {
+	rtn := GaugesResult{State: GaugesUnavailable, SourceName: bestName, agent: agent, reads: reads}
+	var snapshots []UsageSnapshot
+	names := map[string]string{}
+	for _, sr := range reads {
+		if sr.err != nil {
+			reason := ReasonOf(sr.err)
+			if rtn.Reason == "" {
+				rtn.Reason = reason
+			}
+			if rtn.Failures == nil {
+				rtn.Failures = map[string]string{}
+			}
+			rtn.Failures[sr.id] = reason
+			continue
+		}
+		names[sr.snap.Source] = sr.name
+		snapshots = append(snapshots, sr.snap)
+	}
+	merged, ok := MergeSnapshots(agent, snapshots, nowMs)
 	if !ok {
 		if rtn.Reason == "" {
 			rtn.Reason = ReasonExpired

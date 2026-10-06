@@ -262,7 +262,7 @@ describe("Codex plan usage", () => {
         expect(creditsText({ enabled: false, used: 0, limit: 0, balance: "3" })).toBe("");
         expect(creditsText({ enabled: true, used: 0, limit: 0, unlimited: true })).toBe("Credits: unlimited");
         expect(creditsText({ enabled: true, used: 0, limit: 0 })).toBe("Credits available");
-        expect(creditsText({ enabled: true, used: 4, limit: 50, unit: "USD" })).toBe("Extra usage: 4 USD of 50 USD");
+        expect(creditsText({ enabled: true, used: 4, limit: 50, unit: "USD" })).toBe("Extra usage: $4.00 of $50.00");
     });
 
     it("names the merged sources", () => {

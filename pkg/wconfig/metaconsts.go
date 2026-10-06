@@ -66,6 +66,7 @@ const (
 	ConfigKey_AgentSessionRoots              = "agent:sessionroots"
 
 	ConfigKey_CompanionUsageGauges           = "companion:usagegauges"
+	ConfigKey_CompanionUsageClaudeOAuth      = "companion:usageclaudeoauth"
 
 	ConfigKey_EditorMinimapEnabled           = "editor:minimapenabled"
 	ConfigKey_EditorStickyScrollEnabled      = "editor:stickyscrollenabled"

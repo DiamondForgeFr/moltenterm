@@ -25,14 +25,26 @@ const usageRepublishInterval = 30 * time.Second
 // frontend/moltenterm-shell/companion/companion-gauges-model.ts).
 const usageStaleAfter = 5 * time.Minute
 
+// Fetch: the companion asks while its window shows, so a network source may call (NFR-SHELL-013).
 type usageRequest struct {
 	BlockId string `json:"blockid"`
 	Refresh bool   `json:"refresh,omitempty"`
+	Fetch   bool   `json:"fetch,omitempty"`
 }
 
 type usageGaugesRequest struct {
 	BlockId string `json:"blockid"`
 	On      bool   `json:"on"`
+}
+
+// ExperimentalInfo is the agent's experimental source as the companion offers it (FR-SHELL-028): whether the user
+// turned it on, where it reads the credentials it uses (for the confirmation) and, when on, why it gave nothing.
+type ExperimentalInfo struct {
+	Source string `json:"source"`
+	Name   string `json:"name"`
+	On     bool   `json:"on"`
+	Store  string `json:"store"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // UsageInfo answers `moltencompanionusage` (DS-SHELL-029, DS-SHELL-030): the agent's usage page, and its plan
@@ -49,6 +61,10 @@ type UsageInfo struct {
 	Reason     string               `json:"reason,omitempty"`
 	Setup      *usage.UsageSetup    `json:"setup,omitempty"`
 	Snapshot   *usage.UsageSnapshot `json:"snapshot,omitempty"`
+	// Experimental: only while the agent's gauges are on and it has such a source.
+	Experimental *ExperimentalInfo `json:"experimental,omitempty"`
+	// RefreshMs: how often a visible companion asks again, while a source that is not pushed is on.
+	RefreshMs int64 `json:"refreshms,omitempty"`
 }
 
 // blockAgent is the agent the block's companion follows, else the one the agent states know.
@@ -88,31 +104,47 @@ func (m *Manager) usageAdapter(blockId string) (string, usage.UsageAdapter, erro
 	return agent, a, nil
 }
 
+// Usage answers the companion's own request; a refresh is the user's click, so it may call too.
 func (m *Manager) Usage(blockId string, refresh bool) (UsageInfo, error) {
-	agent, a, err := m.usageAdapter(blockId)
+	return m.usageFor(usageRequest{BlockId: blockId, Refresh: refresh})
+}
+
+// usageFor answers `moltencompanionusage`: only a companion that shows may make a network source call
+// (NFR-SHELL-013).
+func (m *Manager) usageFor(req usageRequest) (UsageInfo, error) {
+	agent, a, err := m.usageAdapter(req.BlockId)
 	if err != nil {
 		return UsageInfo{}, err
 	}
-	return m.usageInfo(blockId, agent, a, m.currentSettings(), refresh), nil
+	return m.usageInfo(req.BlockId, agent, a, m.currentSettings(), usageRead{refresh: req.Refresh, fetch: req.Fetch || req.Refresh}), nil
+}
+
+// usageRead says what a read may do: fetch lets a network source call, refresh is the user's Refresh.
+type usageRead struct {
+	refresh bool
+	fetch   bool
 }
 
 // usageInfo reads the gauges with the given settings. A source the user sets up outside MoltenTerm that never
-// reported is looked up, read-only, for the setup to show.
-func (m *Manager) usageInfo(blockId string, agent string, a usage.UsageAdapter, settings *wconfig.SettingsType, refresh bool) UsageInfo {
-	return m.usageInfoCtx(context.Background(), blockId, agent, a, settings, refresh)
+// reported is looked up, read-only, for the setup to show, unless another source gives the windows.
+func (m *Manager) usageInfo(blockId string, agent string, a usage.UsageAdapter, settings *wconfig.SettingsType, read usageRead) UsageInfo {
+	return m.usageInfoCtx(context.Background(), blockId, agent, a, settings, read)
 }
 
-func (m *Manager) usageInfoCtx(parent context.Context, blockId string, agent string, a usage.UsageAdapter, settings *wconfig.SettingsType, refresh bool) UsageInfo {
+func (m *Manager) usageInfoCtx(parent context.Context, blockId string, agent string, a usage.UsageAdapter, settings *wconfig.SettingsType, read usageRead) UsageInfo {
 	info := UsageInfo{BlockId: blockId, Agent: agent, PageURL: a.PageURL(), PageName: a.PageName(), HasGauges: usage.HasSources(a)}
-	ctx, cancel := context.WithTimeout(usage.WithRefresh(parent, refresh), usageReadTimeout)
+	ctx := usage.WithFetch(usage.WithRefresh(parent, read.refresh), read.fetch)
+	ctx, cancel := context.WithTimeout(ctx, usageReadTimeout)
 	defer cancel()
 	nowMs := m.now().UnixMilli()
 	res := usage.ReadGauges(ctx, a, settings, blockId, nowMs)
+	info.Experimental = experimentalInfo(a, settings, res)
+	info.RefreshMs = usage.RefreshEveryOf(a, settings).Milliseconds()
 	info.Gauges, info.Snapshot, info.Reason, info.SourceName = res.State, res.Snapshot, res.Reason, res.SourceName
 	waiting := res.State == usage.GaugesUnavailable && res.Reason == usage.ReasonWaiting
 	// Values that stopped coming may be those of a relay the user took out of the settings: they show, with their
 	// age, only while the settings still run it.
-	stale := res.State == usage.GaugesEnabled && res.Snapshot != nil && nowMs-res.Snapshot.ReadAt > usageStaleAfter.Milliseconds()
+	stale := res.State == usage.GaugesEnabled && res.PushedStale(nowMs, usageStaleAfter.Milliseconds())
 	if !waiting && !stale {
 		return info
 	}
@@ -122,8 +154,34 @@ func (m *Manager) usageInfoCtx(parent context.Context, blockId string, agent str
 			cwd = bi.cwd
 		}
 	}
-	if setup := usage.SetupOf(a, settings, cwd); setup != nil {
-		info.Gauges, info.Reason, info.Setup, info.Snapshot = usage.GaugesUnavailable, usage.ReasonNotSetUp, setup, nil
+	setup := usage.SetupOf(a, settings, cwd)
+	if setup == nil {
+		// Still set up but quiet: a window another source still reports comes from it.
+		if stale {
+			fresh := res.FreshFirst(nowMs, usageStaleAfter.Milliseconds())
+			info.Snapshot, info.SourceName = fresh.Snapshot, fresh.SourceName
+		}
+		return info
+	}
+	// Another source's windows (the experimental one's session and week) show rather than the setup.
+	if other := res.Without(setup.Source, nowMs); other.State == usage.GaugesEnabled {
+		info.Gauges, info.Snapshot, info.Reason, info.SourceName = other.State, other.Snapshot, "", other.SourceName
+		return info
+	}
+	info.Gauges, info.Reason, info.Setup, info.Snapshot = usage.GaugesUnavailable, usage.ReasonNotSetUp, setup, nil
+	return info
+}
+
+// experimentalInfo offers the agent's experimental source only while its gauges are on.
+func experimentalInfo(a usage.UsageAdapter, settings *wconfig.SettingsType, res usage.GaugesResult) *ExperimentalInfo {
+	src := usage.OptInOf(a)
+	if src == nil || !usage.GaugesOn(settings, a.Id()) {
+		return nil
+	}
+	on := src.OptedIn(settings)
+	info := &ExperimentalInfo{Source: src.Id(), Name: src.Name(), On: on, Store: src.Store()}
+	if on {
+		info.Reason = res.Failures[src.Id()]
 	}
 	return info
 }
@@ -151,14 +209,67 @@ func (m *Manager) SetUsageGauges(blockId string, on bool) (UsageInfo, error) {
 	if !on {
 		usage.ClearValues(a)
 	}
-	info := m.usageInfo(blockId, agent, a, &settings, false)
+	usage.SyncSources(a, &settings)
+	// Showing plan usage is the user's click: an experimental source already turned on calls within the Refresh limit.
+	info := m.usageInfo(blockId, agent, a, &settings, usageRead{refresh: on, fetch: on})
+	m.publishAgentUsage(blockId, agent, a, &settings)
+	return info, nil
+}
+
+// publishAgentUsage gives the agent's other open companions the gauges the settings now give, from memory only.
+func (m *Manager) publishAgentUsage(blockId string, agent string, a usage.UsageAdapter, settings *wconfig.SettingsType) {
 	for _, other := range m.OpenBlocks() {
 		if other == blockId || m.blockAgent(other) != agent {
 			continue
 		}
-		m.publishBlockUsage(m.usageInfo(other, agent, a, &settings, false))
+		m.publishBlockUsage(m.usageInfo(other, agent, a, settings, usageRead{}))
 	}
+}
+
+// SetUsageExperimental turns the experimental source of the block's agent on or off (FR-SHELL-028). On comes only
+// from the companion's confirmation and needs the agent's gauges on; off stops its calls and forgets what it read.
+func (m *Manager) SetUsageExperimental(blockId string, on bool) (UsageInfo, error) {
+	agent, a, err := m.usageAdapter(blockId)
+	if err != nil {
+		return UsageInfo{}, err
+	}
+	src := usage.OptInOf(a)
+	if src == nil {
+		return UsageInfo{}, fmt.Errorf("no experimental usage source for %s", molten.AgentDisplayName(agent))
+	}
+	settings := wconfig.SettingsType{}
+	if current := m.currentSettings(); current != nil {
+		settings = *current
+	}
+	if on && !usage.GaugesOn(&settings, agent) {
+		return UsageInfo{}, fmt.Errorf("show plan usage first")
+	}
+	// Stopped before the setting is written: a companion asking meanwhile, with the settings not yet reloaded,
+	// makes no call.
+	if !on {
+		if c, ok := src.(interface{ Clear() }); ok {
+			c.Clear()
+		}
+	}
+	if m.writeSetting != nil {
+		var value any
+		if on {
+			value = true
+		}
+		if err := m.writeSetting(src.SettingKey(), value); err != nil {
+			return UsageInfo{}, fmt.Errorf("the setting was not saved: %w", err)
+		}
+	}
+	src.SetOptIn(&settings, on)
+	usage.SyncSources(a, &settings)
+	// Turning it on is the user's click: it calls at once, within the Refresh limit.
+	info := m.usageInfo(blockId, agent, a, &settings, usageRead{refresh: on, fetch: on})
+	m.publishAgentUsage(blockId, agent, a, &settings)
 	return info, nil
+}
+
+func writeUsageSetting(key string, value any) error {
+	return wconfig.SetBaseConfigValue(waveobj.MetaMapType{key: value})
 }
 
 func writeGaugesSetting(agents []string) error {
@@ -194,7 +305,7 @@ func (m *Manager) RecordStatusLine(req molten.AgentStatusLineRequest) error {
 		return nil
 	}
 	a := usage.For("claude")
-	m.publishBlockUsage(m.usageInfo(req.BlockId, "claude", a, settings, false))
+	m.publishBlockUsage(m.usageInfo(req.BlockId, "claude", a, settings, usageRead{}))
 	return nil
 }
 
@@ -216,13 +327,11 @@ func (m *Manager) publishBlockUsage(info UsageInfo) {
 	m.publishUsage(info)
 }
 
-// settingsChanged clears what the sources of an agent read once the user turned its gauges off, from the companion
-// or in settings.json.
+// settingsChanged clears what a source read once the user turned it off (the agent's gauges or the source's own
+// opt-in), from the companion or in settings.json.
 func settingsChanged(settings *wconfig.SettingsType) {
 	for _, agent := range usage.Agents() {
-		if !usage.GaugesOn(settings, agent) {
-			usage.ClearValues(usage.For(agent))
-		}
+		usage.SyncSources(usage.For(agent), settings)
 	}
 }
 
@@ -287,13 +396,13 @@ func (m *Manager) codexLimitsChanged(blockId string, first bool) {
 		return
 	}
 	if !first {
-		m.publishBlockUsage(m.usageInfoCtx(usage.WithoutProcess(context.Background()), blockId, "codex", a, settings, false))
+		m.publishBlockUsage(m.usageInfoCtx(usage.WithoutProcess(context.Background()), blockId, "codex", a, settings, usageRead{}))
 		return
 	}
 	go func() {
 		defer func() {
 			panichandler.PanicHandler("molten:companion:usage", recover())
 		}()
-		m.publishBlockUsage(m.usageInfo(blockId, "codex", a, settings, false))
+		m.publishBlockUsage(m.usageInfo(blockId, "codex", a, settings, usageRead{}))
 	}()
 }
