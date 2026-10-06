@@ -149,9 +149,9 @@ export function GoldUpdateButton() {
                 type="button"
                 onClick={() => globalStore.set(model.dialogOpenAtom, true)}
                 title={pendingOnQuit ? "Installs when you quit MoltenTerm" : `Update to ${updateLabel(offer)}`}
-                className="flex cursor-pointer items-center gap-1 rounded border border-accent/60 px-1.5 leading-[16px] text-accent hover:bg-accent/15"
+                className="flex cursor-pointer items-center gap-1 rounded border border-accent/60 px-1.5 leading-[16px] text-primary hover:bg-accent/15"
             >
-                <i className="fa fa-solid fa-circle-arrow-up text-[10px]" />
+                <i className="fa fa-solid fa-circle-arrow-up text-[10px] text-accent" />
                 {pendingOnQuit ? "Update on quit" : "Update"}
             </button>
             {open ? <UpdateDialog /> : null}
