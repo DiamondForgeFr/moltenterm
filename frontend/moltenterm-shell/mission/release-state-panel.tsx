@@ -61,10 +61,7 @@ export function NextPublicRelease({ view }: { view: NextReleaseView }) {
                     <span className="font-mono text-secondary tabular-nums" data-testid="release-pending">
                         {view.total}
                     </span>{" "}
-                    {view.total === 1 ? "change" : "changes"} {view.scope} ·{" "}
-                    <span className="text-secondary" data-testid="release-next-version">
-                        {view.caption}
-                    </span>
+                    {view.total === 1 ? "change" : "changes"} {view.scope}{" "}
                 </p>
             </div>
             <div className="mt-auto" data-testid="release-milestone">

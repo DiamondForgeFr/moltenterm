@@ -25,8 +25,6 @@ export type MilestoneView = {
 };
 
 export type NextReleaseView = {
-    // "v1.2.0 · derived · minor", until the header (FR-MC-021) holds the next version.
-    caption: string;
     // What the bars count: "on develop, not yet on main", or "since v1.1.0" on a single-branch project.
     scope: string;
     total: number;
@@ -124,26 +122,26 @@ function milestoneNote(githubState: GithubState): string {
     return "No open milestone on GitHub.";
 }
 
+// What waits for the next public release: on the trunk and not yet on the release branch, or, on a single-branch
+// project, what came since the last public tag. The header band (FR-MC-021) counts the same set.
+export function pendingCommits(git: Pick<MissionGit, "trunk" | "release" | "ahead" | "sincepublic">): RawCommit[] {
+    const singleBranch = !git.release || git.release === git.trunk;
+    return (singleBranch ? git.sincepublic : git.ahead) ?? [];
+}
+
+// The next version itself lives in the header band (DS-MC-012: one home); the card shows what it is made of.
 export function nextReleaseView(
     state: ReleaseState,
     git: Pick<MissionGit, "trunk" | "release" | "ahead" | "sincepublic" | "lastpublic">,
     milestones: readonly Milestone[],
-    githubState: GithubState,
-    tagPrefix = "v"
+    githubState: GithubState
 ): NextReleaseView {
     if (state == null || git == null) {
         return null;
     }
     const { next } = state;
     const singleBranch = !git.release || git.release === git.trunk;
-    const commits = singleBranch ? (git.sincepublic ?? []) : (git.ahead ?? []);
-    const { total, bars } = releaseBars(commits);
-    const how =
-        next.how === "decision"
-            ? "to decide"
-            : next.how === "derived"
-              ? `derived · ${next.level}`
-              : "nothing to release";
+    const { total, bars } = releaseBars(pendingCommits(git));
     const scope = singleBranch
         ? git.lastpublic
             ? `since ${git.lastpublic}`
@@ -151,7 +149,6 @@ export function nextReleaseView(
         : `on ${git.trunk}, not yet on ${git.release}`;
     const m = milestoneView(pickMilestone(milestones, next.version));
     return {
-        caption: next.version ? `${tagPrefix}${next.version} · ${how}` : how,
         scope,
         total,
         bars,
@@ -239,8 +236,8 @@ function ciTone(status: string): CardTone {
     return "neutral";
 }
 
-// The local CI on the trunk: running with its elapsed time, else its last run's result and when, else the verdict
-// the CI keeps for the branch, else "not run".
+// The local CI on the trunk: running with its elapsed time, else the result of the last run of the trunk's head and
+// when, else the verdict the CI keeps for the head's code, else "not run".
 export function trunkCiLine(ci: CiState, trunk: string, now = Date.now()): NowLine {
     if (!trunk) {
         return null;
@@ -257,21 +254,32 @@ export function trunkCiLine(ci: CiState, trunk: string, now = Date.now()): NowLi
             title: `${done} of ${running.jobs.length} jobs done`,
         };
     }
+    // The status bar reads the CI's verdict on the checked-out code: a run of an older trunk commit says nothing about
+    // the trunk as it is now, so the line follows the trunk's head (#234).
+    const branch = (ci?.branches ?? []).find((b) => b.name === trunk);
     const last = runs.find((r) => r.status !== "queued");
-    if (last) {
-        const when = agoText(last.finishedat || last.startedat, now);
-        return {
-            label,
-            text: [CiStatusLabels[last.status] ?? last.status, when].filter((s) => s).join(" · "),
-            tone: ciTone(last.status),
-        };
+    const lastText = last
+        ? [CiStatusLabels[last.status] ?? last.status, agoText(last.finishedat || last.startedat, now)]
+              .filter((s) => s)
+              .join(" · ")
+        : "";
+    if (last && (branch == null || !branch.sha || last.sha === branch.sha)) {
+        return { label, text: lastText, tone: ciTone(last.status) };
     }
-    const verdict = (ci?.branches ?? []).find((b) => b.name === trunk)?.verdict;
+    const verdict = branch?.verdict;
     if (verdict === "success" || verdict === "failure" || verdict === "running") {
         return {
             label,
             text: verdict === "success" ? "passed" : verdict === "failure" ? "failed" : "running",
             tone: ciTone(verdict),
+        };
+    }
+    if (last) {
+        return {
+            label,
+            text: "not run on the latest commit",
+            tone: "neutral",
+            title: `Last run, on ${(last.sha ?? "").slice(0, 7)}: ${lastText}`,
         };
     }
     return { label, text: "not run", tone: "neutral" };

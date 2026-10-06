@@ -10,6 +10,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { MoltenWave } from "../molten-button";
 import { pathParent } from "../workspace-project";
+import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-button";
 import { buildCardTitle, BuildFacts, BuildsFacts, ciLine, lastBuildLine } from "./builds-model";
 import { MenuPopover } from "./menu-popover";
 import { missionBuilds } from "./mission-client";
@@ -75,15 +76,8 @@ export function BuildLocalMenu({
 
     if (running != null) {
         return (
-            <button
-                type="button"
-                onClick={onShowRun}
-                className="flex cursor-pointer items-center gap-1.5 rounded border border-accent/50 px-2 py-1 text-xs text-primary hover:bg-hover"
-            >
-                <span className="relative flex h-1.5 w-1.5" aria-hidden>
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/60 motion-reduce:animate-none" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
-                </span>
+            <button type="button" onClick={onShowRun} className={ActionRunningClass}>
+                <RunningDot />
                 Build {running.title}…
             </button>
         );
@@ -113,11 +107,7 @@ export function BuildLocalMenu({
         });
     return (
         <div ref={setAnchor} className="relative">
-            <button
-                type="button"
-                onClick={() => setOpen(!open)}
-                className="flex cursor-pointer items-center gap-1.5 rounded border border-border px-2 py-1 text-xs whitespace-nowrap text-secondary hover:bg-hover hover:text-primary"
-            >
+            <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={ActionSecondaryClass}>
                 <i className="fa fa-solid fa-hammer text-[10px]" />
                 Build local
             </button>

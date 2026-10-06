@@ -86,12 +86,11 @@ describe("next public release card", () => {
         expect(bars.every((b) => b.count === 0 && b.share === 0)).toBe(true);
     });
 
-    it("reads what waits on the trunk, with the next version as a caption", () => {
+    it("reads what waits on the trunk, without the next version (the header holds it)", () => {
         const g = git();
         const view = nextReleaseView(stateOf(g), g, [], "ok");
         expect(view.total).toBe(6);
         expect(view.scope).toBe("on develop, not yet on main");
-        expect(view.caption).toBe("v1.0.0 · to decide");
         expect(view.milestone).toBeNull();
         expect(view.milestoneNote).toBe("No open milestone on GitHub.");
     });
@@ -108,7 +107,6 @@ describe("next public release card", () => {
         const view = nextReleaseView(stateOf(g), g, [], "ok");
         expect(view.scope).toBe("since v1.1.0");
         expect(view.bars.map((b) => b.count)).toEqual([1, 1, 0]);
-        expect(view.caption).toBe("v1.2.0 · derived · minor");
     });
 
     it("picks the milestone of the next version, then its line, then the one due first", () => {
@@ -238,6 +236,25 @@ describe("now card", () => {
             branches: [],
         };
         expect(trunkCiLine(ci, "develop", Now)).toMatchObject({ text: "failed · 50 minutes ago", tone: "failure" });
+    });
+
+    it("follows the trunk's head, as the status bar does on a checkout of it (#234)", () => {
+        const head = (verdict: any) => [{ name: "develop", sha: "new", date: 0, verdict }];
+        const older = ciRun("r1", "develop", "success", Now - 7_200_000, Now - 7_000_000);
+        expect(trunkCiLine({ runs: [older], branches: head("missing") }, "develop", Now)).toMatchObject({
+            text: "not run on the latest commit",
+            tone: "neutral",
+            title: "Last run, on s: passed · 2 hours ago",
+        });
+        // Same code under a new commit (a merge that changed nothing): the verdict on the code holds.
+        expect(trunkCiLine({ runs: [older], branches: head("success") }, "develop", Now)).toMatchObject({
+            text: "passed",
+            tone: "success",
+        });
+        const current = { ...older, sha: "new" };
+        expect(trunkCiLine({ runs: [current], branches: head("success") }, "develop", Now)).toMatchObject({
+            text: "passed · 2 hours ago",
+        });
     });
 
     it("falls back to the kept verdict, then to not run", () => {

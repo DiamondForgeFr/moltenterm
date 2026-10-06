@@ -8,6 +8,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { MoltenWave } from "../molten-button";
+import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-button";
 import { MenuPopover } from "./menu-popover";
 import { missionRefresh, missionTrust, releaseStart } from "./mission-client";
 import { PipelineReleaseStep, toTreeData, UntrustedInfo } from "./mission-model";
@@ -90,15 +91,8 @@ export function ReleaseMenu({
 
     if (session != null) {
         return (
-            <button
-                type="button"
-                onClick={onShowRelease}
-                className="flex cursor-pointer items-center gap-1.5 rounded border border-accent/50 px-2 py-1 text-xs text-primary hover:bg-hover"
-            >
-                <span className="relative flex h-1.5 w-1.5" aria-hidden>
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/60 motion-reduce:animate-none" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
-                </span>
+            <button type="button" onClick={onShowRelease} className={ActionRunningClass}>
+                <RunningDot />
                 Release {session.tag}
             </button>
         );
@@ -144,11 +138,7 @@ export function ReleaseMenu({
             : "Public release";
     return (
         <div ref={setAnchor} className="relative">
-            <button
-                type="button"
-                onClick={() => setOpen(!open)}
-                className="flex cursor-pointer items-center gap-1.5 rounded border border-border px-2 py-1 text-xs whitespace-nowrap text-secondary hover:bg-hover hover:text-primary"
-            >
+            <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={ActionSecondaryClass}>
                 <i className="fa fa-solid fa-rocket text-[10px]" />
                 Release
             </button>

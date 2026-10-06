@@ -8,6 +8,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { ActionSecondaryClass } from "./action-button";
 import {
     branchesClean,
     BranchesCleanResult,
@@ -170,11 +171,7 @@ export function BranchCleanupButton({ dir, onCleaned }: { dir: string; onCleaned
     const [open, setOpen] = useState(false);
     return (
         <>
-            <button
-                type="button"
-                onClick={() => setOpen(true)}
-                className="flex cursor-pointer items-center gap-1.5 rounded border border-border px-2 py-1 text-xs whitespace-nowrap text-secondary hover:bg-hover hover:text-primary"
-            >
+            <button type="button" onClick={() => setOpen(true)} className={ActionSecondaryClass}>
                 <i className="fa fa-solid fa-broom text-[10px]" />
                 Clean branches
             </button>
