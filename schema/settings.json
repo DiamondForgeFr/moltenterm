@@ -137,6 +137,13 @@
           "type": "object",
           "description": "Extra configuration folders per coding agent (claude: like CLAUDE_CONFIG_DIR, codex: like CODEX_HOME) whose sessions the agent companion reads"
         },
+        "companion:usagegauges": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Coding agents (claude, codex) whose plan usage gauges the agent companion shows; empty shows none. Set from the companion's Show plan usage"
+        },
         "editor:minimapenabled": {
           "type": "boolean"
         },

@@ -44,14 +44,14 @@ func TestCompanionViewCarriesTheUsagePage(t *testing.T) {
 		t.Errorf("an agent without a usage adapter has no usage page: %+v", v.Usage)
 	}
 
-	info, err := m.Usage("b1")
+	info, err := m.Usage("b1", false)
 	if err != nil || info.PageURL != usage.ClaudeUsagePageURL || info.Gauges != usage.GaugesOff || info.Snapshot != nil {
 		t.Errorf("usage of b1: %+v %v", info, err)
 	}
-	if _, err := m.Usage("b2"); err == nil {
+	if _, err := m.Usage("b2", false); err == nil {
 		t.Error("no usage page for an agent without an adapter")
 	}
-	if _, err := m.Usage("nothing"); err == nil {
+	if _, err := m.Usage("nothing", false); err == nil {
 		t.Error("no usage page without an agent")
 	}
 
@@ -59,7 +59,7 @@ func TestCompanionViewCarriesTheUsagePage(t *testing.T) {
 	env.lock.Lock()
 	env.runs["b3"] = molten.AgentRunInfo{BlockId: "b3", Agent: "codex", Started: start}
 	env.lock.Unlock()
-	if info, err := m.Usage("b3"); err != nil || info.PageURL != usage.CodexUsagePageURL || info.Agent != "codex" {
+	if info, err := m.Usage("b3", false); err != nil || info.PageURL != usage.CodexUsagePageURL || info.Agent != "codex" {
 		t.Errorf("usage of b3: %+v %v", info, err)
 	}
 }

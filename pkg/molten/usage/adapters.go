@@ -23,9 +23,16 @@ func (a *pageAdapter) PageName() string        { return a.pageName }
 func (a *pageAdapter) Domain() string          { return a.domain }
 func (a *pageAdapter) Sources() []GaugesSource { return a.sources }
 
-// MakeClaudeUsageAdapter: Claude Code's plan usage is on claude.ai's usage settings.
+// MakeClaudeUsageAdapter: Claude Code's plan usage is on claude.ai's usage settings; its gauges come from its
+// documented status line input.
 func MakeClaudeUsageAdapter() UsageAdapter {
-	return &pageAdapter{id: "claude", pageURL: ClaudeUsagePageURL, pageName: "Claude usage", domain: "claude.ai"}
+	return &pageAdapter{
+		id:       "claude",
+		pageURL:  ClaudeUsagePageURL,
+		pageName: "Claude usage",
+		domain:   "claude.ai",
+		sources:  []GaugesSource{MakeClaudeStatusLineSource(DefaultStatusLineStore, claudeStatusLineSetup)},
+	}
 }
 
 // MakeCodexUsageAdapter: Codex's plan usage is on ChatGPT's Codex usage settings.

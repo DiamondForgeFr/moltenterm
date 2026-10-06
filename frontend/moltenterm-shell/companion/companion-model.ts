@@ -13,6 +13,8 @@ export const CompanionPickCommand = "moltencompanionpick";
 export const CompanionAnswerCommand = "moltencompanionanswer";
 export const CompanionDiffCommand = "moltencompaniondiff";
 export const CompanionUsageCommand = "moltencompanionusage";
+export const CompanionUsageGaugesCommand = "moltencompanionusagegauges";
+export const CompanionUsageEvent = "molten:companionusage";
 
 export const MoltentermCompanionView = "molten-companion";
 // The companion block's meta key naming the terminal it follows.
