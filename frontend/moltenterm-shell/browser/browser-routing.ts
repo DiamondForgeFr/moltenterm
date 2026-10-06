@@ -21,6 +21,7 @@ import {
     noteBrowserFocus,
     pickBrowserPanel,
 } from "./browser-model";
+import { withFocusHandoff } from "./focus-handoff";
 import { choiceSite } from "./link-choice";
 
 // What BrowserViewModel offers here, without importing the view (which imports the global store).
@@ -65,7 +66,11 @@ async function routeToInstalledBrowser(url: string): Promise<{ route: BrowserRou
     }
 }
 
-export async function openInBrowserPanel(url: string): Promise<void> {
+export function openInBrowserPanel(url: string): Promise<void> {
+    return withFocusHandoff(() => openInBrowserPanelNow(url));
+}
+
+async function openInBrowserPanelNow(url: string): Promise<void> {
     const tab = currentTab();
     const targetId = pickBrowserPanel(browserPanelsOfTab(tab), tab?.meta?.[BrowserRecentMetaKey]);
     const model = targetId ? browserPanelModel(targetId) : null;

@@ -21,6 +21,7 @@ import { isBlank, useAtomValueSafe } from "@/util/util";
 import clsx from "clsx";
 import { useAtomValue } from "jotai";
 import { memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { focusHandoffActive } from "../../moltenterm-shell/browser/focus-handoff"; // MOLTENTERM-PATCH (#268)
 import "./block.scss";
 import { BlockEnv } from "./blockenv";
 import { BlockFrame } from "./blockframe";
@@ -119,6 +120,9 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
             return;
         }
         setBlockClicked(false);
+        if (focusHandoffActive()) {
+            return; // MOLTENTERM-PATCH (#268): a link opened from here hands the focus to a browser panel
+        }
         const focusWithin = focusedBlockId() == nodeModel.blockId;
         if (!focusWithin) {
             setFocusTarget();
@@ -129,6 +133,9 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
     }, [blockClicked, isFocused]);
 
     const setBlockClickedTrue = useCallback(() => {
+        if (focusHandoffActive()) {
+            return; // MOLTENTERM-PATCH (#268)
+        }
         setBlockClicked(true);
     }, []);
 
@@ -166,6 +173,9 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
     const handleChildFocus = useCallback(
         (event: React.FocusEvent<HTMLDivElement, Element>) => {
             console.log("setFocusedChild", nodeModel.blockId, getElemAsStr(event.target));
+            if (focusHandoffActive()) {
+                return; // MOLTENTERM-PATCH (#268)
+            }
             if (!isFocused) {
                 console.log("focusedChild focus", nodeModel.blockId);
                 nodeModel.focusNode();
