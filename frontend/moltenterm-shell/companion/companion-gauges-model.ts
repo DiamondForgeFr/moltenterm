@@ -8,7 +8,15 @@ import { relativeTime } from "./companion-model";
 
 // must match pkg/molten/usage/usage.go and pkg/molten/companion/usage.go
 export type UsageWindow = { id: string; label: string; usedpercent: number; resetsat?: number; windowmins?: number };
-export type UsageCredits = { enabled: boolean; used: number; limit: number; unit?: string };
+// Codex gives a balance (as text) or unlimited credits instead of used and limit.
+export type UsageCredits = {
+    enabled: boolean;
+    used: number;
+    limit: number;
+    unit?: string;
+    balance?: string;
+    unlimited?: boolean;
+};
 export type UsageSnapshot = {
     agent: string;
     source: string;
@@ -42,8 +50,21 @@ export const UsageReasonTexts: Record<UsageReason, string> = {
     failed: "The source could not be read",
 };
 
-export function usageReasonText(reason: string): string {
-    return UsageReasonTexts[reason as UsageReason] ?? UsageReasonTexts.failed;
+// Codex's sources are its session log and its app-server (FR-SHELL-029): their own words where Claude Code's differ.
+const AgentReasonTexts: Record<string, Partial<Record<UsageReason, string>>> = {
+    codex: {
+        waiting: "Waiting for Codex: the limits come with its next response",
+        noplan: "Codex reports no plan limits for this sign-in",
+        expired: "The limits were reset: new values come with Codex's next response",
+    },
+};
+
+export function usageReasonText(reason: string, agent?: string): string {
+    return (
+        AgentReasonTexts[agent]?.[reason as UsageReason] ??
+        UsageReasonTexts[reason as UsageReason] ??
+        UsageReasonTexts.failed
+    );
 }
 
 export type GaugeLevel = "normal" | "warning" | "error";
@@ -121,6 +142,17 @@ export function creditsText(credits: UsageCredits): string {
     if (credits == null || !credits.enabled) {
         return "";
     }
+    if (credits.unlimited) {
+        return "Credits: unlimited";
+    }
+    if (credits.balance != null && credits.balance !== "") {
+        const n = Number(credits.balance);
+        const balance = Number.isFinite(n) ? String(Math.round(n * 100) / 100) : credits.balance;
+        return `Credits: ${balance} left`;
+    }
+    if (!credits.limit && !credits.used) {
+        return "Credits available";
+    }
     const unit = credits.unit ? ` ${credits.unit}` : "";
     return `Extra usage: ${credits.used}${unit} of ${credits.limit}${unit}`;
 }
@@ -138,12 +170,12 @@ export function gaugesView(info: CompanionUsageInfo, now: number): GaugesView {
         return { kind: "setup", setup: info.setup };
     }
     if (info.gauges !== "enabled") {
-        return { kind: "unavailable", reason: usageReasonText(info.reason) };
+        return { kind: "unavailable", reason: usageReasonText(info.reason, info.agent) };
     }
     const rows = gaugeRows(info.snapshot, now);
     const credits = creditsText(info.snapshot?.credits);
     if (rows.length === 0 && !credits) {
-        return { kind: "unavailable", reason: UsageReasonTexts.expired };
+        return { kind: "unavailable", reason: usageReasonText("expired", info.agent) };
     }
     const at = info.snapshot?.readat;
     return {

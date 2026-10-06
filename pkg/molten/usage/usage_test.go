@@ -29,8 +29,9 @@ func TestBuiltinAdapters(t *testing.T) {
 	if s := For("claude").Sources(); len(s) != 1 || s[0].Id() != ClaudeStatusLineSourceId || !s[0].Documented() {
 		t.Errorf("claude: the status line source, documented: %v", s)
 	}
-	if HasSources(For("codex")) {
-		t.Error("codex: no gauges source yet (#263)")
+	s := For("codex").Sources()
+	if len(s) != 2 || s[0].Id() != CodexTranscriptSourceId || s[0].Documented() || s[1].Id() != CodexAppServerSourceId || !s[1].Documented() {
+		t.Errorf("codex: the session log first (undocumented), then the app-server (documented): %v", s)
 	}
 }
 

@@ -56,6 +56,8 @@ function useNow(intervalMs: number): number {
 function usePlanUsage(target: string, agent: string, now: number) {
     const [info, setInfo] = useState<CompanionUsageInfo>(null);
     const [failed, setFailed] = useState(false);
+    // A Refresh may run the agent's own tool (Codex's app-server, a few seconds): the icon turns meanwhile.
+    const [refreshing, setRefreshing] = useState(false);
     const accept = (next: CompanionUsageInfo) => {
         if (usageFor(next, target, agent)) {
             setInfo(next);
@@ -120,20 +122,40 @@ function usePlanUsage(target: string, agent: string, now: number) {
             call(CompanionUsageCommand, {});
         }
     }, [stale, now, target]);
+    const refresh = () => {
+        setRefreshing(true);
+        fireAndForget(async () => {
+            try {
+                accept(await usageCall(CompanionUsageCommand, { blockid: target, refresh: true }));
+            } catch {
+                setFailed(true);
+            } finally {
+                setRefreshing(false);
+            }
+        });
+    };
     return {
         info,
         failed,
+        refreshing,
         show: () => call(CompanionUsageGaugesCommand, { on: true }),
         hide: () => call(CompanionUsageGaugesCommand, { on: false }),
-        refresh: () => call(CompanionUsageCommand, { refresh: true }),
+        refresh,
     };
 }
 
 export function PlanUsageSection({ target, agent }: { target: string; agent: string }) {
     const now = useNow(ClockTickMs);
-    const { info, failed, show, hide, refresh } = usePlanUsage(target, agent, now);
+    const { info, failed, refreshing, show, hide, refresh } = usePlanUsage(target, agent, now);
     return (
-        <PlanUsageBody view={gaugesView(info, now)} failed={failed} onShow={show} onHide={hide} onRefresh={refresh} />
+        <PlanUsageBody
+            view={gaugesView(info, now)}
+            failed={failed}
+            refreshing={refreshing}
+            onShow={show}
+            onHide={hide}
+            onRefresh={refresh}
+        />
     );
 }
 
@@ -158,10 +180,11 @@ const PercentColours: Record<GaugeLevel, string> = {
 export function PlanUsageBody({
     view,
     failed,
+    refreshing,
     onShow,
     onHide,
     onRefresh,
-}: { view: GaugesView; failed?: boolean } & PlanUsageActions) {
+}: { view: GaugesView; failed?: boolean; refreshing?: boolean } & PlanUsageActions) {
     if (view.kind === "hidden") {
         return null;
     }
@@ -208,7 +231,13 @@ export function PlanUsageBody({
             data-testid="companion-plan-usage"
             data-state="enabled"
         >
-            <GaugesHeader source={view.source} age={view.age} onRefresh={onRefresh} onHide={onHide} />
+            <GaugesHeader
+                source={view.source}
+                age={view.age}
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                onHide={onHide}
+            />
             <ul className="mt-1.5 flex flex-col gap-2">
                 {view.rows.map((row) => (
                     <GaugeRowView key={row.id} row={row} />
@@ -233,11 +262,13 @@ function ExperimentalBadge() {
 function GaugesHeader({
     source,
     age,
+    refreshing,
     onRefresh,
     onHide,
 }: {
     source: string;
     age: string;
+    refreshing?: boolean;
     onRefresh: () => void;
     onHide: () => void;
 }) {
@@ -253,8 +284,9 @@ function GaugesHeader({
                     onClick={onRefresh}
                     title="Refresh plan usage"
                     aria-label="Refresh plan usage"
+                    aria-busy={refreshing || undefined}
                 >
-                    <i className="fa fa-solid fa-rotate-right" aria-hidden="true" />
+                    <i className={cn("fa fa-solid fa-rotate-right", refreshing && "fa-spin")} aria-hidden="true" />
                 </button>
                 <button type="button" className={GhostButton} onClick={onHide}>
                     Hide

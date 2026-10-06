@@ -10,6 +10,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
 )
@@ -98,8 +99,12 @@ func (m *Manager) Usage(blockId string, refresh bool) (UsageInfo, error) {
 // usageInfo reads the gauges with the given settings. A source the user sets up outside MoltenTerm that never
 // reported is looked up, read-only, for the setup to show.
 func (m *Manager) usageInfo(blockId string, agent string, a usage.UsageAdapter, settings *wconfig.SettingsType, refresh bool) UsageInfo {
+	return m.usageInfoCtx(context.Background(), blockId, agent, a, settings, refresh)
+}
+
+func (m *Manager) usageInfoCtx(parent context.Context, blockId string, agent string, a usage.UsageAdapter, settings *wconfig.SettingsType, refresh bool) UsageInfo {
 	info := UsageInfo{BlockId: blockId, Agent: agent, PageURL: a.PageURL(), PageName: a.PageName(), HasGauges: usage.HasSources(a)}
-	ctx, cancel := context.WithTimeout(usage.WithRefresh(context.Background(), refresh), usageReadTimeout)
+	ctx, cancel := context.WithTimeout(usage.WithRefresh(parent, refresh), usageReadTimeout)
 	defer cancel()
 	nowMs := m.now().UnixMilli()
 	res := usage.ReadGauges(ctx, a, settings, blockId, nowMs)
@@ -219,4 +224,76 @@ func settingsChanged(settings *wconfig.SettingsType) {
 			usage.ClearValues(usage.For(agent))
 		}
 	}
+}
+
+// CodexLimits is the Codex usage source's lookup (DS-SHELL-033): the plan limits of the Codex session the block's
+// companion follows, read with the transcript; nothing else is opened for them.
+func (m *Manager) CodexLimits(blockId string) (usage.CodexTranscriptLimits, bool) {
+	w := m.watcher(blockId)
+	if w == nil {
+		return usage.CodexTranscriptLimits{}, false
+	}
+	return w.codexLimits()
+}
+
+func (w *watcher) codexLimits() (usage.CodexTranscriptLimits, bool) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.agent != "codex" || w.session == nil {
+		return usage.CodexTranscriptLimits{}, false
+	}
+	limits, _ := w.session.CodexLimits()
+	limits.Loading = w.status == StatusLoading
+	return limits, true
+}
+
+// limitsState: the session the loop follows for Codex, its limits' revision, and whether it was read through.
+func (w *watcher) limitsState() (*Session, int64, bool) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.agent != "codex" || w.session == nil {
+		return nil, 0, false
+	}
+	return w.session, w.session.LimitsRev(), w.status == StatusLive
+}
+
+// publishLimitsIfChanged publishes the block's Codex gauges once its session is read through, and whenever a new
+// token_count changes its limits, so they show within a tick of Codex writing them (FR-SHELL-029).
+func (w *watcher) publishLimitsIfChanged() {
+	session, rev, ready := w.limitsState()
+	if session != w.limitsSession {
+		w.limitsSession, w.limitsReady, w.limitsRev = session, false, 0
+	}
+	if session == nil || !ready {
+		return
+	}
+	first := !w.limitsReady
+	if !first && rev == w.limitsRev {
+		return
+	}
+	w.limitsReady, w.limitsRev = true, rev
+	w.m.codexLimitsChanged(w.blockId, first)
+}
+
+// codexLimitsChanged publishes a block's Codex gauges while they show. A new token_count never waits for a process;
+// a session read through without any may start the app-server, off the companion's loop.
+func (m *Manager) codexLimitsChanged(blockId string, first bool) {
+	settings := m.currentSettings()
+	if !usage.GaugesOn(settings, "codex") {
+		return
+	}
+	a := usage.For("codex")
+	if a == nil {
+		return
+	}
+	if !first {
+		m.publishBlockUsage(m.usageInfoCtx(usage.WithoutProcess(context.Background()), blockId, "codex", a, settings, false))
+		return
+	}
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:companion:usage", recover())
+		}()
+		m.publishBlockUsage(m.usageInfo(blockId, "codex", a, settings, false))
+	}()
 }

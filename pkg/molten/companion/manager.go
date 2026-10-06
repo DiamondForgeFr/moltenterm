@@ -497,6 +497,10 @@ type watcher struct {
 	latestIndex   int
 	latestRev     int64
 	latestStarted bool
+	// The Codex session whose plan limits were last published, and their revision.
+	limitsSession *Session
+	limitsRev     int64
+	limitsReady   bool
 }
 
 func makeWatcher(m *Manager, blockId string) *watcher {
@@ -529,6 +533,7 @@ func (w *watcher) loop() {
 		}
 		more := w.step()
 		w.publishIfChanged()
+		w.publishLimitsIfChanged()
 		if more {
 			continue
 		}

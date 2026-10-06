@@ -16,6 +16,8 @@ import (
 	"sort"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 )
 
 const (
@@ -113,6 +115,10 @@ type Session struct {
 	todos       []Todo
 	pending     []ToolCall
 	editedCalls map[string]bool
+	// Codex's plan limits, from its token_count events (FR-SHELL-029): read by the usage source, not the view, so
+	// they change limitsRev and not Version.
+	codexLimits usage.CodexTranscriptLimits
+	limitsRev   int64
 }
 
 func MakeSession() *Session {
@@ -121,6 +127,21 @@ func MakeSession() *Session {
 
 func (s *Session) touch() {
 	s.Version++
+}
+
+// AddCodexRateLimits keeps a token_count event's `rate_limits` (FR-SHELL-029).
+func (s *Session) AddCodexRateLimits(rateLimits any, at int64) {
+	s.codexLimits.Add(rateLimits, at)
+	s.limitsRev++
+}
+
+func (s *Session) LimitsRev() int64 {
+	return s.limitsRev
+}
+
+// CodexLimits returns the plan limits read so far and their revision.
+func (s *Session) CodexLimits() (usage.CodexTranscriptLimits, int64) {
+	return s.codexLimits.Copy(), s.limitsRev
 }
 
 // Unsupported tells that the transcript is not in a format its adapter reads: enough lines, none recognised, or

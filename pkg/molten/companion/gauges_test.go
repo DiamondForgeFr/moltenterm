@@ -108,11 +108,8 @@ func TestPlanGaugesAreOptInPerAgent(t *testing.T) {
 	if err != nil || info.Gauges != usage.GaugesOff || !info.HasGauges || info.Setup != nil || info.Snapshot != nil {
 		t.Fatalf("off by default: %+v %v", info, err)
 	}
-	if info, _ := m.Usage("b2", false); info.HasGauges || info.Gauges != usage.GaugesOff {
-		t.Errorf("Codex has no gauges source yet: %+v", info)
-	}
-	if _, err := m.SetUsageGauges("b2", true); err == nil {
-		t.Error("no opt-in for an agent without a source")
+	if info, _ := m.Usage("b2", false); !info.HasGauges || info.Gauges != usage.GaugesOff {
+		t.Errorf("Codex offers its gauges, off by default: %+v", info)
 	}
 
 	// Before the opt-in, what the relay sends is dropped (NFR-SHELL-011).
