@@ -6,8 +6,7 @@
 
 import { CiRunRecord, CiState, CiStatusLabels } from "../mission/ci-model";
 import { Milestone, plainText } from "../mission/github";
-import { GithubState, MissionGit, RunRecord, RunStateLabels } from "../mission/mission-model";
-import { RawCommit, RawTag } from "../mission/tree";
+import { GithubState, MissionGit, RawCommit, RawTag, RunRecord, RunStateLabels } from "../mission/mission-model";
 import { ReleaseState } from "../mission/versions";
 
 const TypeRegex = /^([a-z]+)(\([^)]*\))?!?:/;

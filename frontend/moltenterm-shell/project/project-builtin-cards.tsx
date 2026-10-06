@@ -84,7 +84,6 @@ function ActionsCard({
     );
 }
 
-
 // The header and map slots frame themselves; the four cards of the row get the core's frame with their title.
 export const BuiltinProjectCards: ProjectCard<ProjectCardProps>[] = [
     { id: "moltenterm:actions", title: "Actions", region: "header", order: 10, bare: true, component: ActionsCard },
