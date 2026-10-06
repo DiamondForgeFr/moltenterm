@@ -6,12 +6,15 @@
 // is line-map-model.ts, the pixels line-map-geometry.ts; this file only draws and explains. Hovering or focusing a
 // mark opens its detail (portalled, so no pane edge clips it); clicking opens it on GitHub.
 //
-// Drawn still: the motion of FR-MC-023 comes on top through the lm-* classes and the data-* attributes (data-ci on
-// the root, data-state on branches, data-kind on stations), and must honour prefers-reduced-motion.
+// The motion (FR-MC-023, DS-MC-015) is CSS only, keyed on the frame's data-motion / data-intro / data-paused and on
+// the SVG's data-ci, so nothing re-renders while it moves; line-map-motion.ts holds its logic. An infinite animation
+// never shares an element with a load-sequence one (the sequence fades a wrapper instead): when the sequence ends and
+// its rules stop matching, a glint or a dash must not jump.
 
-import { openLink } from "@/app/store/global";
+import { atoms, openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useAtomValue } from "jotai";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { checkWebUrl } from "../project/project-model";
 import { ciVerdictView } from "../status-bar-model";
 import { CiBranch } from "./ci-model";
@@ -29,6 +32,22 @@ import {
     LineMapStation,
     prsFingerprint,
 } from "./line-map-model";
+import {
+    delayStyle,
+    initialIntro,
+    introDelay,
+    IntroEvent,
+    IntroGlints,
+    IntroHead,
+    IntroLength,
+    IntroLineDraw,
+    IntroPulse,
+    IntroRoute,
+    introStep,
+    IntroTerminus,
+    IntroTerminusText,
+    motionAttrs,
+} from "./line-map-motion";
 import { useLineMapDays } from "./line-map-store";
 import { MenuPopover } from "./menu-popover";
 import { MissionSnapshot } from "./mission-model";
@@ -36,6 +55,38 @@ import { formatDay, formatWhen, timeAgo } from "./time-format";
 import { readableSubject } from "./versions";
 
 const HideDelay = 160;
+// Every continuous motion moves in steps, by opacity or by an HTML transform. Measured in the app: a smooth animation,
+// even a composited opacity one, makes Chromium draw a frame at every display refresh (15 to 20% of a core for one
+// blinking dot), and a dashoffset or SVG transform animation restyles and repaints the whole SVG every frame. A stepped
+// opacity animation, or a stepped transform on an HTML element, runs on the compositor and draws a frame only when a
+// step changes. Every step below falls on one 0.25 s grid, so the whole map wakes at most four times a second while
+// CI is idle.
+// The glints: a light every GlintPeriod pixels along the line, moved forward in GlintSteps steps of 5 px per cycle.
+const GlintPeriod = 160;
+const GlintSteps = 32;
+// Seconds per glint cycle: 20 px/s, and 80 px/s on develop while CI runs there.
+const GlintCycle = 8;
+const GlintCycleCi = 2;
+// The route's dash pattern (6 on, 8 off) and its march: three copies a third of a period apart, 0.25 s each.
+const RouteDash = 14;
+const RouteEchoes = [0, 1, 2];
+const RouteCycle = 0.75;
+// The head's pulse: rings growing outward, each lit for 0.25 s, then a rest.
+const PulseRings = [
+    { r: 12, opacity: 0.7 },
+    { r: 15.5, opacity: 0.45 },
+    { r: 19, opacity: 0.25 },
+];
+const PulseStep = 0.25;
+const PulseCycle = 2.5;
+const BlinkCycle = 1.5;
+
+// A copy's opacity over one cycle of a chase: on for its share, then off, in one step each (step-end timing), so the
+// copies hand the light over one to the next.
+function chaseKeyframes(name: string, copies: number): string {
+    const share = (100 / copies).toFixed(3);
+    return `@keyframes ${name} { 0% { opacity: 1; } ${share}% { opacity: 0; } 100% { opacity: 0; } }`;
+}
 const CommitsListed = 6;
 const EarlierListed = 8;
 
@@ -82,6 +133,63 @@ const Styles = `
 .lm-hit .lm-focus { fill: none; stroke: none; }
 .lm-hit:hover .lm-br, .lm-hit:focus-visible .lm-br { stroke: var(--color-secondary); }
 .lm-hit:hover .lm-st, .lm-hit:focus-visible .lm-st { fill: color-mix(in srgb, var(--color-accent) 25%, var(--color-background)); }
+.lm-plot { position: relative; }
+.lm-flows { position: absolute; inset: 0; pointer-events: none; }
+.lm-pulse { pointer-events: none; }
+.lm-glints { position: absolute; overflow: hidden; border-radius: 3px; }
+.lm-glint-band {
+    position: absolute; top: 0; bottom: 0; left: -${GlintPeriod}px; right: 0;
+    background: repeating-linear-gradient(90deg, transparent 0 ${GlintPeriod - 12}px, color-mix(in srgb, var(--color-accent) 12%, white) ${GlintPeriod - 6}px, transparent ${GlintPeriod}px);
+}
+.lm-glints-dev { opacity: .55; }
+.lm-glints-main { opacity: .32; }
+.lm-ring { fill: none; stroke: var(--color-accent); stroke-width: 1.5; opacity: 0; }
+.lm-route-echo { display: none; }
+.lm-clock { fill: none; }
+.lm-cibadge { display: none; pointer-events: none; }
+.lm-cibadge rect { fill: var(--color-background); stroke: var(--color-accent); stroke-width: 1.5; }
+.lm-cibadge circle { fill: var(--color-accent); }
+.lm-cibadge text { font-size: 10px; font-weight: 500; fill: var(--color-accent); }
+`;
+
+// The load sequence: only while the frame says so, and only with motion on.
+const Intro = `.lm-frame[data-motion="full"][data-intro="play"]`;
+// The continuous motion, with motion on.
+const Moving = `.lm-frame[data-motion="full"]`;
+
+export const MotionStyles = `
+${Intro} .lm-main, ${Intro} .lm-dev { stroke-dasharray: 1; animation: lm-draw ${IntroLineDraw}s cubic-bezier(.45,.05,.55,.95) both; }
+${Intro} .lm-rc { stroke-dasharray: 1; animation: lm-draw .45s ease-out var(--lm-d, 0s) both; }
+${Intro} .lm-br:not(.lm-br-guess) { stroke-dasharray: 1; animation: lm-draw .6s ease-out var(--lm-d, 0s) both; }
+${Intro} .lm-br-guess { animation: lm-fade .6s ease-out var(--lm-d, 0s) both; }
+${Intro} .lm-br-open { stroke-dasharray: 1; animation: lm-draw .7s ease-out var(--lm-d, 0s) both; }
+${Intro} .lm-st, ${Intro} .lm-merge, ${Intro} .lm-fork, ${Intro} .lm-head, ${Intro} .lm-term {
+    transform-box: fill-box; transform-origin: center; animation: lm-pop .35s cubic-bezier(.3,1.6,.5,1) var(--lm-d, 0s) both;
+}
+${Intro} .lm-landed, ${Intro} .lm-stlabel, ${Intro} .lm-brlabel, ${Intro} .lm-livelabel, ${Intro} .lm-wrap {
+    animation: lm-fade .4s ease var(--lm-d, 0s) both;
+}
+${Intro} .lm-flows { animation: lm-fade 1s ease var(--lm-d, 0s) both; }
+${Intro} .lm-clock { animation: lm-clock ${IntroLength}s linear both; }
+${Moving} .lm-glint-band { animation: lm-glide ${GlintCycle}s steps(${GlintSteps}) infinite; }
+${Moving} .lm-plot[data-ci="running"] .lm-glints-dev { opacity: .9; }
+${Moving} .lm-plot[data-ci="running"] .lm-glints-dev .lm-glint-band { animation-duration: ${GlintCycleCi}s; }
+${Moving} .lm-route-echo { display: inline; animation: lm-chase ${RouteCycle}s step-end infinite; }
+${RouteEchoes.map((k) => `${Moving} .lm-route-echo-${k} { stroke-dashoffset: ${(-(k * RouteDash) / RouteEchoes.length).toFixed(2)}; animation-delay: ${((k * RouteCycle) / RouteEchoes.length - RouteCycle).toFixed(3)}s; }`).join("\n")}
+${Moving} .lm-route-base { display: none; }
+${Moving} .lm-ring { animation: lm-ripple ${PulseCycle}s step-end calc(var(--lm-k) * ${PulseStep}s) infinite; }
+${Moving} .lm-tip { animation: lm-blink ${BlinkCycle}s step-end infinite; }
+.lm-frame[data-paused="true"] .lm-plot * { animation-play-state: paused !important; }
+.lm-frame[data-motion="reduce"] .lm-flows, .lm-frame[data-motion="reduce"] .lm-pulse { display: none; }
+.lm-frame[data-motion="reduce"] .lm-cibadge { display: inline; }
+@keyframes lm-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes lm-fade { from { opacity: 0; } }
+@keyframes lm-pop { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes lm-clock { from { opacity: 0; } to { opacity: 0; } }
+@keyframes lm-glide { from { transform: translateX(0); } to { transform: translateX(${GlintPeriod}px); } }
+${chaseKeyframes("lm-chase", RouteEchoes.length)}
+${chaseKeyframes("lm-ripple", PulseCycle / PulseStep)}
+@keyframes lm-blink { 50% { opacity: .25; } }
 `;
 
 type MapItem =
@@ -456,6 +564,51 @@ function useWidth(ref: React.RefObject<HTMLDivElement>): number {
     return width;
 }
 
+// Hidden under reduced motion: there is no sequence to replay (AC6).
+export function ReplayButton({ reduced, onReplay }: { reduced: boolean; onReplay: () => void }) {
+    if (reduced) {
+        return null;
+    }
+    return (
+        <button
+            type="button"
+            onClick={onReplay}
+            className="flex cursor-pointer items-center gap-1.5 rounded border border-border px-2 py-0.5 text-[11px] text-secondary transition-colors hover:bg-hover hover:text-primary"
+            title="Play the map's drawing again"
+            data-testid="line-map-replay"
+        >
+            <i className="fa fa-solid fa-rotate-left text-[9px]" />
+            Replay
+        </button>
+    );
+}
+
+// Paused while the page is hidden or the map is out of view: nobody sees it, so nothing should run.
+function usePaused(ref: React.RefObject<HTMLDivElement>): boolean {
+    const [hidden, setHidden] = useState(() => document.hidden);
+    const [outOfView, setOutOfView] = useState(false);
+    useEffect(() => {
+        const onVisibility = () => setHidden(document.hidden);
+        document.addEventListener("visibilitychange", onVisibility);
+        return () => document.removeEventListener("visibilitychange", onVisibility);
+    }, []);
+    useEffect(() => {
+        const el = ref.current;
+        if (!el || typeof IntersectionObserver === "undefined") {
+            return;
+        }
+        const observer = new IntersectionObserver((entries) => {
+            const last = entries[entries.length - 1];
+            setOutOfView(!last.isIntersecting);
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [ref]);
+    return hidden || outOfView;
+}
+
+type IntroAction = { event: IntroEvent; reduced: boolean };
+
 export type LineMapProps = {
     dir: string;
     snapshot: MissionSnapshot;
@@ -482,6 +635,13 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, full = false, on
     const width = useWidth(box);
     const [hover, setHover] = useState<{ item: MapItem; anchor: Element }>(null);
     const hideTimer = useRef<number>(null);
+    const reduced = useAtomValue(atoms.prefersReducedMotionAtom);
+    const paused = usePaused(box);
+    const [intro, dispatchIntro] = useReducer(
+        (state: ReturnType<typeof initialIntro>, action: IntroAction) => introStep(state, action.event, action.reduced),
+        reduced,
+        initialIntro
+    );
     const git = useStable(snapshot?.git, gitFingerprint(snapshot?.git));
     const prs = useStable(snapshot?.github?.prs, prsFingerprint(snapshot?.github?.prs));
     const releases = useStable(
@@ -510,6 +670,19 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, full = false, on
         [model, width, full]
     );
     const trunkCi = (ciBranches ?? []).find((b) => b.name === git?.trunk)?.verdict;
+    useEffect(() => {
+        if (reduced) {
+            dispatchIntro({ event: "reduce", reduced });
+        }
+    }, [reduced]);
+    const onAnimationEnd = useCallback(
+        (e: React.AnimationEvent<HTMLDivElement>) => {
+            if (e.animationName === "lm-clock") {
+                dispatchIntro({ event: "end", reduced });
+            }
+        },
+        [reduced]
+    );
 
     // A map wider than its pane opens on "now": the recent part is what one looks for first. Only a new width or
     // window scrolls back; a refresh leaves the user where they scrolled.
@@ -581,7 +754,7 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, full = false, on
             aria-label="Line map"
             data-testid="line-map"
         >
-            <style>{Styles}</style>
+            <style>{Styles + MotionStyles}</style>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
                 <span className="text-[11px] font-medium tracking-wide text-secondary uppercase">
                     Line · last {days} days
@@ -589,6 +762,7 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, full = false, on
                 <Legend />
                 <span className="flex-1" />
                 <WindowChoice days={days} choices={choices} onChange={setDays} />
+                <ReplayButton reduced={reduced} onReplay={() => dispatchIntro({ event: "replay", reduced })} />
                 {onFullSize ? (
                     <button
                         type="button"
@@ -604,13 +778,15 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, full = false, on
             <div
                 ref={box}
                 className={cn(
-                    "min-h-[220px] overflow-x-auto overflow-y-hidden rounded border border-border",
+                    "lm-frame min-h-[220px] overflow-x-auto overflow-y-hidden rounded border border-border",
                     full && "min-h-0 flex-1 overflow-y-auto"
                 )}
                 data-testid="line-map-scroll"
+                {...motionAttrs({ reduced, paused, intro: intro.phase })}
+                onAnimationEnd={onAnimationEnd}
             >
                 {geo && model ? (
-                    <MapSvg geo={geo} model={model} ciRunning={ciRunning} hit={hit} />
+                    <MapSvg key={intro.run} geo={geo} model={model} ciRunning={ciRunning} hit={hit} />
                 ) : (
                     <div
                         className="h-[220px] w-full animate-pulse bg-hover/40 motion-reduce:animate-none"
@@ -636,17 +812,24 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, full = false, on
 
 type HitProps = (item: MapItem) => React.SVGProps<SVGGElement>;
 
-function StationMark({ g, hit }: { g: GeometryStation; hit: HitProps }) {
+function StationMark({ g, hit, geo }: { g: GeometryStation; hit: HitProps; geo: LineMapGeometry }) {
     const s = g.station;
     return (
         <g {...hit({ kind: "station", station: s })} data-kind={s.kind} data-testid={`line-map-station-${s.name}`}>
             <circle className="lm-hitdot" cx={g.x} cy={g.y} r={g.r + 6} />
             <circle className="lm-focus" cx={g.x} cy={g.y} r={g.r + 4} />
-            <circle className={cn("lm-st", s.kind === "public" && "lm-st-public")} cx={g.x} cy={g.y} r={g.r} />
+            <circle
+                className={cn("lm-st", s.kind === "public" && "lm-st-public")}
+                cx={g.x}
+                cy={g.y}
+                r={g.r}
+                style={delayStyle(introDelay(geo, "station", g.x))}
+            />
             {g.label ? (
                 <text
                     className={cn("lm-stlabel", s.latest && "lm-stlabel-latest")}
                     transform={`translate(${g.label.x} ${g.label.y}) rotate(-55)`}
+                    style={delayStyle(introDelay(geo, "label", g.x))}
                 >
                     {g.label.name}
                     <tspan className="lm-stdate" x="0" dy="12">
@@ -658,19 +841,54 @@ function StationMark({ g, hit }: { g: GeometryStation; hit: HitProps }) {
     );
 }
 
-function BranchMark({ g, hit }: { g: GeometryBranch; hit: HitProps }) {
+// A branch's start in the load sequence, from where it leaves develop.
+function branchDelay(geo: LineMapGeometry, g: GeometryBranch): number {
+    return introDelay(geo, g.branch.state === "open" ? "open" : "branch", g.x1);
+}
+
+function BranchMark({ g, hit, geo }: { g: GeometryBranch; hit: HitProps; geo: LineMapGeometry }) {
     const b = g.branch;
     const open = b.state === "open";
+    const guess = !b.forkKnown && !open;
+    const start = branchDelay(geo, g);
     return (
         <g {...hit({ kind: "branch", g })} data-state={b.state} data-testid={`line-map-branch-${b.name}`}>
             <path className="lm-hitline" d={g.path} />
-            <path className={cn(open ? "lm-br-open" : "lm-br", !b.forkKnown && !open && "lm-br-guess")} d={g.path} />
-            {g.tip ? <circle className="lm-tip" cx={g.tip.x} cy={g.tip.y} r={5} /> : null}
+            {/* pathLength lets the load sequence draw a solid branch; a dashed one keeps its dashes in pixels. */}
+            <path
+                className={cn(open ? "lm-br-open" : "lm-br", guess && "lm-br-guess")}
+                d={g.path}
+                pathLength={guess ? undefined : 1}
+                style={delayStyle(start)}
+            />
+            {g.tip ? (
+                <g className="lm-wrap" style={delayStyle(start + 0.7)}>
+                    <circle className="lm-tip" cx={g.tip.x} cy={g.tip.y} r={5} />
+                </g>
+            ) : null}
         </g>
     );
 }
 
-const MapSvg = memo(function MapSvg({
+// The running CI as a static badge by develop's head: under reduced motion the glints cannot say it (AC6).
+function CiBadge({ geo }: { geo: LineMapGeometry }) {
+    // "CI running" at 10 px monospace, after the dot, with room on both sides.
+    const w = 90;
+    const h = 18;
+    const x = geo.head.x - 14 - w;
+    const y = geo.head.y - 30;
+    return (
+        <g className="lm-cibadge" data-testid="line-map-ci-badge">
+            <rect x={x} y={y} width={w} height={h} rx={h / 2} />
+            <circle cx={x + 10} cy={y + h / 2} r={3} />
+            <text x={x + 18} y={y + h / 2 + 3.5}>
+                CI running
+            </text>
+        </g>
+    );
+}
+
+export const MapSvg = memo(function MapSvg({
     geo,
     model,
     ciRunning,
@@ -682,173 +900,269 @@ const MapSvg = memo(function MapSvg({
     hit: HitProps;
 }) {
     const trunkCi = ciRunning && ciRunning === model.trunk ? "running" : "idle";
+    const dev = `M ${geo.develop.x1} ${geo.develop.y} L ${geo.develop.x2} ${geo.develop.y}`;
+    const main = `M ${geo.main.x1} ${geo.main.y} L ${geo.main.x2} ${geo.main.y}`;
+    const at = (x: number) => delayStyle(introDelay(geo, "line", x));
     return (
-        <svg
-            className="lm-svg"
-            width={geo.width}
-            height={geo.height}
-            viewBox={`0 0 ${geo.width} ${geo.height}`}
-            role="group"
-            aria-label={`Line map of the last ${model.days} days`}
-            data-ci={trunkCi}
-            data-single={geo.single ? "true" : undefined}
-        >
-            {geo.unread ? (
-                <g data-testid="line-map-unread">
-                    <rect
-                        className="lm-unread"
-                        x={geo.unread.x1}
-                        y={geo.tickTop}
-                        width={Math.max(0, geo.unread.x2 - geo.unread.x1)}
-                        height={geo.tickBottom - geo.tickTop}
-                    />
-                    <text className="lm-ticktxt" x={geo.unread.x1 + 6} y={geo.tickTop + 12}>
-                        {geo.unread.label}
-                    </text>
-                </g>
-            ) : null}
-            {geo.ticks.map((t) => (
-                <g key={`${t.x}-${t.label}`}>
-                    <line className="lm-tick" x1={t.x} x2={t.x} y1={geo.tickTop} y2={geo.tickBottom} />
-                    <text
-                        className={cn("lm-ticktxt", t.now && "lm-ticktxt-now")}
-                        x={t.x}
-                        y={geo.height - 6}
-                        textAnchor="middle"
-                    >
-                        {t.label}
-                    </text>
-                </g>
-            ))}
-
-            {geo.single ? null : (
-                <text className="lm-line-name" x={10} y={geo.mainY + 5} fill="var(--color-secondary)">
-                    {(model.release ?? "").slice(0, 9)}
-                </text>
-            )}
-            <text className="lm-line-name" x={10} y={geo.devY + 5} fill="var(--color-accent)">
-                {model.trunk.slice(0, 9)}
-            </text>
-
-            {geo.single ? null : (
-                <path className="lm-main" d={`M ${geo.main.x1} ${geo.main.y} L ${geo.main.x2} ${geo.main.y}`} />
-            )}
-            {geo.future ? <path className="lm-future" d={geo.future} /> : null}
-            <path className="lm-route" d={geo.route} />
-
-            {geo.stations.map((g) =>
-                g.connector ? <path key={`c-${g.station.name}`} className="lm-rc" d={g.connector} /> : null
-            )}
-            {geo.branches.map((g) => (
-                <BranchMark key={g.branch.id} g={g} hit={hit} />
-            ))}
-            {/* Labels above every branch: a deeper lane's curve passes through the lanes above it. */}
-            <g className="pointer-events-none">
-                {geo.branches.map((g) =>
-                    g.label ? (
-                        <text
-                            key={`l-${g.branch.id}`}
-                            className={g.branch.state === "open" ? "lm-livelabel" : "lm-brlabel"}
-                            x={g.label.x}
-                            y={g.label.y}
-                        >
-                            {g.label.text}
+        <div className="lm-plot" style={{ width: geo.width, height: geo.height }} data-ci={trunkCi}>
+            <svg
+                className="lm-svg"
+                width={geo.width}
+                height={geo.height}
+                viewBox={`0 0 ${geo.width} ${geo.height}`}
+                role="group"
+                aria-label={`Line map of the last ${model.days} days`}
+                data-ci={trunkCi}
+                data-single={geo.single ? "true" : undefined}
+            >
+                {/* Times the load sequence: its end tells the map the sequence played. */}
+                <rect className="lm-clock" width={0} height={0} />
+                {geo.unread ? (
+                    <g data-testid="line-map-unread">
+                        <rect
+                            className="lm-unread"
+                            x={geo.unread.x1}
+                            y={geo.tickTop}
+                            width={Math.max(0, geo.unread.x2 - geo.unread.x1)}
+                            height={geo.tickBottom - geo.tickTop}
+                        />
+                        <text className="lm-ticktxt" x={geo.unread.x1 + 6} y={geo.tickTop + 12}>
+                            {geo.unread.label}
                         </text>
-                    ) : null
-                )}
-            </g>
-
-            <path className="lm-dev" d={`M ${geo.develop.x1} ${geo.develop.y} L ${geo.develop.x2} ${geo.develop.y}`} />
-
-            {/* The work that landed on develop answers the pointer only: hundreds of marks in the tab order would
-                bury the stations and branches a keyboard user is after. */}
-            <g data-testid="line-map-landed" data-mode={geo.landed.mode}>
-                {geo.landed.marks.map((m) => (
-                    <g
-                        key={`${m.at}-${m.commits[0].sha}`}
-                        {...hit(
-                            geo.landed.mode === "commits"
-                                ? { kind: "commit", commit: m.commits[0] }
-                                : { kind: "day", day: m.at, commits: m.commits }
-                        )}
-                        tabIndex={-1}
-                    >
-                        <rect
-                            className="lm-hitdot"
-                            x={m.x - Math.max(4, m.w)}
-                            y={m.y - 10}
-                            width={Math.max(8, m.w * 2)}
-                            height={20}
-                        />
-                        <rect
-                            className="lm-landed"
-                            x={m.x - m.w / 2}
-                            y={m.y - m.h / 2}
-                            width={m.w}
-                            height={m.h}
-                            rx={Math.min(1.5, m.w / 2)}
-                        />
+                    </g>
+                ) : null}
+                {geo.ticks.map((t) => (
+                    <g key={`${t.x}-${t.label}`}>
+                        <line className="lm-tick" x1={t.x} x2={t.x} y1={geo.tickTop} y2={geo.tickBottom} />
+                        <text
+                            className={cn("lm-ticktxt", t.now && "lm-ticktxt-now")}
+                            x={t.x}
+                            y={geo.height - 6}
+                            textAnchor="middle"
+                        >
+                            {t.label}
+                        </text>
                     </g>
                 ))}
-            </g>
-            {geo.branches.map((g) =>
-                g.merge ? (
-                    <circle key={`m-${g.branch.id}`} className="lm-merge" cx={g.merge.x} cy={g.merge.y} r={3.5} />
-                ) : null
-            )}
-            {geo.landings.map((p, i) => (
-                <circle key={`h-${i}`} className="lm-merge" cx={p.x} cy={p.y} r={2.5} />
-            ))}
-            {geo.hidden ? (
-                <g {...hit({ kind: "hidden", branches: geo.hidden.branches })} data-testid="line-map-hidden">
-                    <text className="lm-livelabel" x={geo.hidden.x} y={geo.hidden.y}>
-                        {geo.hidden.text}
+
+                {geo.single ? null : (
+                    <text className="lm-line-name" x={10} y={geo.mainY + 5} fill="var(--color-secondary)">
+                        {(model.release ?? "").slice(0, 9)}
                     </text>
+                )}
+                <text className="lm-line-name" x={10} y={geo.devY + 5} fill="var(--color-accent)">
+                    {model.trunk.slice(0, 9)}
+                </text>
+
+                {geo.single ? null : <path className="lm-main" d={main} pathLength={1} />}
+                <g className="lm-wrap" style={delayStyle(IntroRoute)}>
+                    {geo.future ? <path className="lm-future" d={geo.future} /> : null}
+                    <path className="lm-route lm-route-base" d={geo.route} />
+                    {RouteEchoes.map((k) => (
+                        <path key={k} className={`lm-route lm-route-echo lm-route-echo-${k}`} d={geo.route} />
+                    ))}
                 </g>
-            ) : null}
-            {geo.stations.map((g) =>
-                g.source ? (
-                    <circle key={`f-${g.station.name}`} className="lm-fork" cx={g.source.x} cy={g.source.y} r={3} />
-                ) : null
-            )}
 
-            {geo.earlier ? (
-                <g {...hit({ kind: "earlier" })} data-testid="line-map-earlier">
-                    <circle className="lm-hitdot" cx={geo.earlier.x} cy={geo.earlier.y} r={12} />
-                    <circle className="lm-focus" cx={geo.earlier.x} cy={geo.earlier.y} r={10} />
-                    <circle className="lm-earlier" cx={geo.earlier.x} cy={geo.earlier.y} r={6} />
-                    <text
-                        className="lm-stdate"
-                        transform={`translate(${geo.earlier.label.x} ${geo.earlier.label.y}) rotate(-55)`}
-                    >
-                        {geo.earlier.label.text}
-                    </text>
+                {geo.stations.map((g) =>
+                    g.connector ? (
+                        <path
+                            key={`c-${g.station.name}`}
+                            className="lm-rc"
+                            d={g.connector}
+                            pathLength={1}
+                            style={at(g.source?.x ?? g.x)}
+                        />
+                    ) : null
+                )}
+                {geo.branches.map((g) => (
+                    <BranchMark key={g.branch.id} g={g} hit={hit} geo={geo} />
+                ))}
+                {/* Labels above every branch: a deeper lane's curve passes through the lanes above it. */}
+                <g className="pointer-events-none">
+                    {geo.branches.map((g) =>
+                        g.label ? (
+                            <text
+                                key={`l-${g.branch.id}`}
+                                className={g.branch.state === "open" ? "lm-livelabel" : "lm-brlabel"}
+                                x={g.label.x}
+                                y={g.label.y}
+                                style={delayStyle(branchDelay(geo, g) + 0.5)}
+                            >
+                                {g.label.text}
+                            </text>
+                        ) : null
+                    )}
                 </g>
-            ) : null}
-            {geo.stations.map((g) => (
-                <StationMark key={g.station.name} g={g} hit={hit} />
-            ))}
 
-            <g {...hit({ kind: "head" })} data-testid="line-map-head">
-                <circle className="lm-focus" cx={geo.head.x} cy={geo.head.y} r={13} />
-                <circle className="lm-head" cx={geo.head.x} cy={geo.head.y} r={9} />
-            </g>
+                <path className="lm-dev" d={dev} pathLength={1} />
+                {/* The glints: light flowing along the lines, spaced in pixels so they keep their spacing and speed at
+                every width; not a vehicle (FR-MC-023 rules out a train). */}
 
-            <g {...hit({ kind: "terminus" })} data-testid="line-map-terminus">
-                <circle className="lm-focus" cx={geo.terminus.x} cy={geo.terminus.y} r={geo.terminus.r + 4} />
-                <circle className="lm-term" cx={geo.terminus.x} cy={geo.terminus.y} r={geo.terminus.r} />
-                <circle className="lm-termcore" cx={geo.terminus.x} cy={geo.terminus.y} r={7} />
-                <text className="lm-termtxt" x={geo.terminus.textX} y={geo.terminus.y - 4}>
-                    {geo.terminus.title}
-                </text>
-                <text className="lm-termsub" x={geo.terminus.textX} y={geo.terminus.y + 13}>
-                    {geo.terminus.sub}
-                </text>
-                <text className="lm-termstatus" x={geo.terminus.textX} y={geo.terminus.y + 28}>
-                    {geo.terminus.status}
-                </text>
-            </g>
-        </svg>
+                {/* The work that landed on develop answers the pointer only: hundreds of marks in the tab order would
+                bury the stations and branches a keyboard user is after. */}
+                <g data-testid="line-map-landed" data-mode={geo.landed.mode}>
+                    {geo.landed.marks.map((m) => (
+                        <g
+                            key={`${m.at}-${m.commits[0].sha}`}
+                            {...hit(
+                                geo.landed.mode === "commits"
+                                    ? { kind: "commit", commit: m.commits[0] }
+                                    : { kind: "day", day: m.at, commits: m.commits }
+                            )}
+                            tabIndex={-1}
+                        >
+                            <rect
+                                className="lm-hitdot"
+                                x={m.x - Math.max(4, m.w)}
+                                y={m.y - 10}
+                                width={Math.max(8, m.w * 2)}
+                                height={20}
+                            />
+                            <rect
+                                className="lm-landed"
+                                x={m.x - m.w / 2}
+                                y={m.y - m.h / 2}
+                                width={m.w}
+                                height={m.h}
+                                rx={Math.min(1.5, m.w / 2)}
+                                style={at(m.x)}
+                            />
+                        </g>
+                    ))}
+                </g>
+                {geo.branches.map((g) =>
+                    g.merge ? (
+                        <circle
+                            key={`m-${g.branch.id}`}
+                            className="lm-merge"
+                            cx={g.merge.x}
+                            cy={g.merge.y}
+                            r={3.5}
+                            style={delayStyle(branchDelay(geo, g) + 0.55)}
+                        />
+                    ) : null
+                )}
+                {geo.landings.map((p, i) => (
+                    <circle key={`h-${i}`} className="lm-merge" cx={p.x} cy={p.y} r={2.5} style={at(p.x)} />
+                ))}
+                {geo.hidden ? (
+                    <g {...hit({ kind: "hidden", branches: geo.hidden.branches })} data-testid="line-map-hidden">
+                        <text
+                            className="lm-livelabel"
+                            x={geo.hidden.x}
+                            y={geo.hidden.y}
+                            style={delayStyle(introDelay(geo, "open", geo.hidden.x) + 0.5)}
+                        >
+                            {geo.hidden.text}
+                        </text>
+                    </g>
+                ) : null}
+                {geo.stations.map((g) =>
+                    g.source ? (
+                        <circle
+                            key={`f-${g.station.name}`}
+                            className="lm-fork"
+                            cx={g.source.x}
+                            cy={g.source.y}
+                            r={3}
+                            style={at(g.source.x)}
+                        />
+                    ) : null
+                )}
+
+                {geo.earlier ? (
+                    <g {...hit({ kind: "earlier" })} data-testid="line-map-earlier">
+                        <g className="lm-wrap" style={delayStyle(introDelay(geo, "station", geo.earlier.x))}>
+                            <circle className="lm-hitdot" cx={geo.earlier.x} cy={geo.earlier.y} r={12} />
+                            <circle className="lm-focus" cx={geo.earlier.x} cy={geo.earlier.y} r={10} />
+                            <circle className="lm-earlier" cx={geo.earlier.x} cy={geo.earlier.y} r={6} />
+                            <text
+                                className="lm-stdate"
+                                transform={`translate(${geo.earlier.label.x} ${geo.earlier.label.y}) rotate(-55)`}
+                            >
+                                {geo.earlier.label.text}
+                            </text>
+                        </g>
+                    </g>
+                ) : null}
+                {geo.stations.map((g) => (
+                    <StationMark key={g.station.name} g={g} hit={hit} geo={geo} />
+                ))}
+
+                <g className="lm-pulse lm-wrap" style={delayStyle(IntroPulse)} aria-hidden="true">
+                    {PulseRings.map((ring, k) => (
+                        <circle
+                            key={ring.r}
+                            className="lm-ring"
+                            cx={geo.head.x}
+                            cy={geo.head.y}
+                            r={ring.r}
+                            strokeOpacity={ring.opacity}
+                            style={{ ["--lm-k" as string]: k } as React.CSSProperties}
+                        />
+                    ))}
+                </g>
+                <g {...hit({ kind: "head" })} data-testid="line-map-head">
+                    <circle className="lm-focus" cx={geo.head.x} cy={geo.head.y} r={13} />
+                    <circle className="lm-head" cx={geo.head.x} cy={geo.head.y} r={9} style={delayStyle(IntroHead)} />
+                </g>
+                {trunkCi === "running" ? <CiBadge geo={geo} /> : null}
+
+                <g {...hit({ kind: "terminus" })} data-testid="line-map-terminus">
+                    <circle className="lm-focus" cx={geo.terminus.x} cy={geo.terminus.y} r={geo.terminus.r + 4} />
+                    <circle
+                        className="lm-term"
+                        cx={geo.terminus.x}
+                        cy={geo.terminus.y}
+                        r={geo.terminus.r}
+                        style={delayStyle(IntroTerminus)}
+                    />
+                    <g className="lm-wrap" style={delayStyle(IntroTerminusText)}>
+                        <circle className="lm-termcore" cx={geo.terminus.x} cy={geo.terminus.y} r={7} />
+                        <text className="lm-termtxt" x={geo.terminus.textX} y={geo.terminus.y - 4}>
+                            {geo.terminus.title}
+                        </text>
+                        <text className="lm-termsub" x={geo.terminus.textX} y={geo.terminus.y + 13}>
+                            {geo.terminus.sub}
+                        </text>
+                        <text className="lm-termstatus" x={geo.terminus.textX} y={geo.terminus.y + 28}>
+                            {geo.terminus.status}
+                        </text>
+                    </g>
+                </g>
+            </svg>
+            {/* The glints: light flowing along the lines, spaced in pixels so they keep their spacing and speed at
+                every width; not a vehicle (FR-MC-023 rules out a train). HTML over the SVG, so their stepped
+                transform stays on the compositor. */}
+            <div className="lm-flows" style={delayStyle(IntroGlints)} aria-hidden="true">
+                {geo.single ? null : <Glints line={geo.main} thickness={4} kind="main" />}
+                <Glints line={geo.develop} thickness={6} kind="dev" />
+            </div>
+        </div>
     );
 });
 MapSvg.displayName = "MapSvg";
+
+function Glints({
+    line,
+    thickness,
+    kind,
+}: {
+    line: { x1: number; x2: number; y: number };
+    thickness: number;
+    kind: "dev" | "main";
+}) {
+    return (
+        <div
+            className={`lm-glints lm-glints-${kind}`}
+            style={{
+                left: line.x1,
+                top: line.y - thickness / 2,
+                width: Math.max(0, line.x2 - line.x1),
+                height: thickness,
+            }}
+        >
+            <div className="lm-glint-band" />
+        </div>
+    );
+}
