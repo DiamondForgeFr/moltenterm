@@ -13,7 +13,8 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { currentMissionView } from "./project/project-model";
 
-export async function openMoltentermView(requested: string): Promise<void> {
+// Focuses the view when the active tab holds it; false when it does not.
+export async function focusMoltentermView(requested: string): Promise<boolean> {
     const view = currentMissionView(requested);
     const layoutModel = getLayoutModelForStaticTab();
     const tabAtom = getActiveTabModel()?.tabAtom;
@@ -26,8 +27,15 @@ export async function openMoltentermView(requested: string): Promise<void> {
         const node = layoutModel?.getNodeByBlockId(blockId);
         if (node != null) {
             layoutModel.focusNode(node.id);
-            return;
+            return true;
         }
     }
-    await createBlock({ meta: { view } });
+    return false;
+}
+
+export async function openMoltentermView(requested: string): Promise<void> {
+    if (await focusMoltentermView(requested)) {
+        return;
+    }
+    await createBlock({ meta: { view: currentMissionView(requested) } });
 }

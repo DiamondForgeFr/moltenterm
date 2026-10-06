@@ -1,13 +1,13 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The tabs of the CI/CD panel (FR-MC-002). CI remote is ported from Notulia's Dev › CI (GithubPanels.tsx): open pull
-// requests with their checks, scheduled workflows with their next runs, recent runs. CD lists what was released.
-// CI local shows the pipeline's state until local runs are wired (FR-MC-005).
+// The tabs of the CI/CD workshop (FR-MC-025, formerly FR-MC-002). CI remote is ported from Notulia's Dev › CI
+// (GithubPanels.tsx): open pull requests with their checks, scheduled workflows with their next runs, recent runs. CD
+// holds the local builds with their logs and the full tag registry. Summaries and actions live in Project (DS-MC-012).
 
 import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
     CheckState,
     describeCron,
@@ -22,8 +22,8 @@ import {
 } from "./github";
 import { githubStateMessage, MissionGit, MissionGithub, PipelineReport, RunRecord } from "./mission-model";
 import { RecentBuilds } from "./runs-view";
+import { RegistryKind, RegistryRow, tagRegistry } from "./tag-registry";
 import { formatWhen, timeAgo } from "./time-format";
-import { isPrereleaseTag } from "./versions";
 
 const ToneClasses: Record<CheckState, string> = {
     success: "border-success/40 bg-success/10 text-success",
@@ -283,30 +283,102 @@ export function RemoteCiTab({ github, trunk }: { github: MissionGithub; trunk: s
     );
 }
 
-type Delivery = { tag: string; date: string; rc: boolean; github?: { draft: boolean; latest: boolean; name: string } };
+const KindLabels: Record<RegistryKind, string> = {
+    planned: "planned",
+    rc: "release candidate",
+    public: "public",
+};
 
-// What was delivered: the version tags from git, with their GitHub release when there is one.
-export function makeDeliveries(git: MissionGit, github: MissionGithub): Delivery[] {
-    const releases = new Map((github?.releases ?? []).map((r) => [r.tagName, r]));
-    const rows: Delivery[] = (git?.tags ?? []).map((t) => {
-        const release = releases.get(t.name);
-        releases.delete(t.name);
-        return {
-            tag: t.name,
-            date: t.date,
-            rc: isPrereleaseTag(t.name, git.tagprefix),
-            github: release ? { draft: release.isDraft, latest: release.isLatest, name: release.name } : undefined,
-        };
-    });
-    for (const release of releases.values()) {
-        rows.push({
-            tag: release.tagName,
-            date: release.publishedAt || release.createdAt,
-            rc: release.isPrerelease || isPrereleaseTag(release.tagName, git?.tagprefix),
-            github: { draft: release.isDraft, latest: release.isLatest, name: release.name },
-        });
-    }
-    return rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+const KindIcons: Record<RegistryKind, string> = {
+    planned: "fa-map-pin text-muted",
+    rc: "fa-flag text-warning",
+    public: "fa-box text-accent",
+};
+
+const RowButton =
+    "flex shrink-0 cursor-pointer items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[11px] text-secondary hover:bg-hover hover:text-primary";
+
+function RegistryLine({ row, repoUrl, github }: { row: RegistryRow; repoUrl: string; github: MissionGithub }) {
+    const [notes, setNotes] = useState(false);
+    const link =
+        row.kind === "planned"
+            ? row.milestone?.url
+            : repoUrl
+              ? `${repoUrl}/releases/tag/${encodeURIComponent(row.tag)}`
+              : "";
+    const total = (row.milestone?.open ?? 0) + (row.milestone?.closed ?? 0);
+    return (
+        <div
+            className="border-b border-border px-3 py-2 last:border-b-0"
+            data-testid="registry-row"
+            data-kind={row.kind}
+        >
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <i className={cn("fa fa-solid text-[11px]", KindIcons[row.kind])} />
+                <span className={cn("font-mono text-sm font-medium", row.kind === "planned" && "text-secondary")}>
+                    {row.tag}
+                </span>
+                <span className="rounded border border-border px-1 text-[11px] text-muted">{KindLabels[row.kind]}</span>
+                {row.github?.latest ? (
+                    <span className="rounded border border-accent/50 px-1 text-[11px] text-accent">latest</span>
+                ) : null}
+                {row.github?.draft ? (
+                    <span className="rounded border border-warning/50 px-1 text-[11px] text-warning">draft</span>
+                ) : null}
+                {row.kind !== "planned" && !row.github && github?.state === "ok" ? (
+                    <span className="text-[11px] text-muted">tag only</span>
+                ) : null}
+                {row.builds.map((b) => (
+                    <span
+                        key={b}
+                        className="flex items-center gap-1 rounded border border-border px-1 text-[11px] text-secondary"
+                        title={`A local ${b} build was made from this tag's commit`}
+                    >
+                        <i className="fa fa-solid fa-hammer text-[9px] text-muted" />
+                        {b} built
+                    </span>
+                ))}
+                {row.milestone ? (
+                    <span className="text-[11px] text-muted" title={row.milestone.title}>
+                        {total === 0 ? "milestone with no issue" : `${row.milestone.closed} of ${total} issues closed`}
+                    </span>
+                ) : null}
+                <span className="ml-auto flex items-center gap-1.5">
+                    {row.date ? (
+                        <span className="text-xs text-muted" title={formatWhen(row.date)}>
+                            {row.kind === "planned" ? `due ${timeAgo(row.date)}` : timeAgo(row.date)}
+                        </span>
+                    ) : null}
+                    {row.notes ? (
+                        <button
+                            type="button"
+                            className={RowButton}
+                            aria-expanded={notes}
+                            onClick={() => setNotes(!notes)}
+                        >
+                            {notes ? "Hide notes" : "Notes"}
+                        </button>
+                    ) : null}
+                    {link ? (
+                        <button
+                            type="button"
+                            className={RowButton}
+                            onClick={() => open(link)}
+                            title={row.kind === "planned" ? "Open the milestone" : "Open the release page"}
+                        >
+                            <i className="fa fa-solid fa-arrow-up-right-from-square text-[9px]" />
+                            Open
+                        </button>
+                    ) : null}
+                </span>
+            </div>
+            {notes && row.notes ? (
+                <pre className="mt-2 max-h-64 overflow-auto rounded-md border border-border bg-black/30 px-2 py-1.5 font-sans text-xs leading-relaxed whitespace-pre-wrap text-secondary">
+                    {row.notes}
+                </pre>
+            ) : null}
+        </div>
+    );
 }
 
 export function CdTab({
@@ -320,13 +392,13 @@ export function CdTab({
     pipeline: PipelineReport;
     runs: RunRecord[];
 }) {
-    const deliveries = makeDeliveries(git, github);
+    const registry = useMemo(() => tagRegistry(git, github, runs), [git, github, runs]);
     const repoUrl = github?.url || git?.remoteurl;
     const builds = pipeline?.valid ? (pipeline.pipeline?.builds ?? []) : [];
     return (
         <div className="flex flex-col gap-5">
             <section className="flex flex-col gap-2">
-                <BlockHeader title="Local builds" hint="gold and other builds made on this machine" />
+                <BlockHeader title="Local builds" hint="gold and other builds made on this machine, with their logs" />
                 {builds.length === 0 ? (
                     <Notice text="No local build declared: they appear here once the project's pipeline declares one." />
                 ) : (
@@ -336,41 +408,15 @@ export function CdTab({
                 )}
             </section>
             <section className="flex flex-col gap-2">
-                <BlockHeader title="Releases and release candidates" hint="from the project's version tags" />
+                <BlockHeader
+                    title="Tag registry"
+                    hint="every version tag, and the versions planned in a milestone · newest first"
+                />
                 {githubStateMessage(github) ? <Notice text={githubStateMessage(github)} /> : null}
                 <div className="overflow-hidden rounded border border-border">
-                    {deliveries.length === 0 ? <p className="p-3 text-sm text-muted">No version tagged yet.</p> : null}
-                    {deliveries.map((d) => (
-                        <button
-                            key={d.tag}
-                            type="button"
-                            disabled={!repoUrl}
-                            onClick={() => open(`${repoUrl}/releases/tag/${encodeURIComponent(d.tag)}`)}
-                            className="flex w-full cursor-pointer items-center gap-2 border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-hover"
-                        >
-                            <i
-                                className={cn(
-                                    "fa fa-solid text-[11px]",
-                                    d.rc ? "fa-flag text-warning" : "fa-box text-accent"
-                                )}
-                            />
-                            <span className="font-mono text-sm font-medium">{d.tag}</span>
-                            <span className="rounded border border-border px-1 text-[11px] text-muted">
-                                {d.rc ? "release candidate" : "public"}
-                            </span>
-                            {d.github?.latest ? (
-                                <span className="rounded bg-accent/20 px-1 text-[11px] text-accent">latest</span>
-                            ) : null}
-                            {d.github?.draft ? (
-                                <span className="rounded bg-warning/20 px-1 text-[11px] text-warning">draft</span>
-                            ) : null}
-                            {!d.github && github?.state === "ok" ? (
-                                <span className="text-[11px] text-muted">tag only</span>
-                            ) : null}
-                            <span className="ml-auto text-xs text-muted" title={formatWhen(d.date)}>
-                                {timeAgo(d.date)}
-                            </span>
-                        </button>
+                    {registry.length === 0 ? <p className="p-3 text-sm text-muted">No version tagged yet.</p> : null}
+                    {registry.map((row) => (
+                        <RegistryLine key={`${row.kind}:${row.tag}`} row={row} repoUrl={repoUrl} github={github} />
                     ))}
                 </div>
             </section>

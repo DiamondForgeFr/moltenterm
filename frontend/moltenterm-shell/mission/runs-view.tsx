@@ -362,15 +362,42 @@ export function RecentBuilds({ runs }: { runs: RunRecord[] }) {
     return (
         <>
             {builds.map((run) => (
-                <div key={run.id} className="flex items-center gap-2 border-b border-border px-3 py-2 last:border-b-0">
-                    <RunStateBadge state={run.state} />
-                    <span className="min-w-0 flex-1 truncate text-sm text-primary" title={run.command}>
-                        {run.title}
-                    </span>
-                    <span className="text-xs text-muted">{timeAgo(new Date(run.startedat).toISOString())}</span>
-                    <ArtifactActions run={run} />
-                </div>
+                <BuildHistoryRow key={run.id} run={run} />
             ))}
         </>
+    );
+}
+
+function BuildLog({ run }: { run: RunRecord }) {
+    const lines = logTail(useRunLog(run), 2000);
+    return (
+        <pre className="mt-2 max-h-[50vh] overflow-auto rounded-md border border-border bg-black/30 px-2 py-1.5 font-mono text-[10.5px] leading-relaxed whitespace-pre-wrap text-secondary">
+            {lines.length === 0 ? "(no output)" : lines.join("\n")}
+        </pre>
+    );
+}
+
+function BuildHistoryRow({ run }: { run: RunRecord }) {
+    const [log, setLog] = useState(false);
+    return (
+        <div className="border-b border-border px-3 py-2 last:border-b-0" data-testid="build-history-row">
+            <div className="flex flex-wrap items-center gap-2">
+                <RunStateBadge state={run.state} />
+                <span className="min-w-0 flex-1 truncate text-sm text-primary" title={run.command}>
+                    {run.title}
+                </span>
+                {run.commit ? (
+                    <code className="text-[11px] text-muted" title={`Built from ${run.commit}`}>
+                        {run.commit.slice(0, 7)}
+                    </code>
+                ) : null}
+                <span className="text-xs text-muted">{timeAgo(new Date(run.startedat).toISOString())}</span>
+                <ArtifactActions run={run} />
+                <button type="button" onClick={() => setLog(!log)} className={PlainButton} aria-expanded={log}>
+                    {log ? "Less" : "Log"}
+                </button>
+            </div>
+            {log ? <BuildLog run={run} /> : null}
+        </div>
     );
 }

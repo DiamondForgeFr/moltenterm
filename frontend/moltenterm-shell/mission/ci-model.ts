@@ -71,8 +71,37 @@ export function defaultCiJob(run: CiRunRecord, picked: string): string {
     );
 }
 
-export function branchMark(verdict: CiVerdictStatus): string {
-    switch (verdict) {
+// What the CI says about a branch as it is now, by the rule the Project's Now card reads for develop (#234): a run
+// under way on the branch, else the result of the last run of its current commit, else the verdict kept for its code.
+// A run of an older commit says nothing about the branch today, so it only shows as `last`.
+export type BranchCi = {
+    status: CiStatus | CiVerdictStatus;
+    source: "running" | "run" | "verdict" | "none";
+    running: CiRunRecord;
+    // The branch's last run out of the queue, whichever commit it ran on.
+    last: CiRunRecord;
+};
+
+export function branchCi(ci: CiState, name: string): BranchCi {
+    const runs = (ci?.runs ?? []).filter((r) => r.branch === name);
+    const running = ci?.running ? (runs.find((r) => r.id === ci.running) ?? null) : null;
+    const last = runs.find((r) => r.status !== "queued") ?? null;
+    if (running) {
+        return { status: "running", source: "running", running, last };
+    }
+    const branch = (ci?.branches ?? []).find((b) => b.name === name);
+    if (last && (branch == null || !branch.sha || last.sha === branch.sha)) {
+        return { status: last.status, source: "run", running, last };
+    }
+    const verdict = branch?.verdict;
+    if (verdict === "success" || verdict === "failure" || verdict === "running") {
+        return { status: verdict, source: "verdict", running, last };
+    }
+    return { status: "missing", source: "none", running, last };
+}
+
+export function branchMark(status: CiStatus | CiVerdictStatus): string {
+    switch (status) {
         case "success":
             return " ✓";
         case "failure":
