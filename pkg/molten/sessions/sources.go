@@ -213,23 +213,16 @@ func (src *liveSources) readPanes(ctx context.Context, s *Snapshot, blockIds []s
 	return nil
 }
 
+// The executable comes from proctree: gopsutil hands libproc a buffer on the goroutine's stack on macOS (#249).
 func readProcessArgs(pid int32) (string, []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), procReadTimeout)
 	defer cancel()
-	p := &goproc.Process{Pid: pid}
-	exe, _ := p.ExeWithContext(ctx)
-	args, _ := p.CmdlineSliceWithContext(ctx)
-	return exe, args
+	args, _ := (&goproc.Process{Pid: pid}).CmdlineSliceWithContext(ctx)
+	return proctree.Exe(pid), args
 }
 
 func readProcessCwd(pid int32) string {
-	ctx, cancel := context.WithTimeout(context.Background(), procReadTimeout)
-	defer cancel()
-	cwd, err := (&goproc.Process{Pid: pid}).CwdWithContext(ctx)
-	if err != nil {
-		return ""
-	}
-	return cwd
+	return proctree.Cwd(pid)
 }
 
 // readProcs reads the process table once for the local sessions no pane shows: what runs in each one's foreground

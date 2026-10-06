@@ -9,6 +9,7 @@ import (
 
 	goproc "github.com/shirou/gopsutil/v4/process"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 	"github.com/wavetermdev/waveterm/pkg/util/procinfo"
 )
 
@@ -16,9 +17,8 @@ import (
 func moltenAgentProcessCommand(ctx context.Context, pi *procinfo.ProcInfo) string {
 	key := strconv.Itoa(int(pi.Pid)) + "/" + strconv.Itoa(int(pi.Ppid))
 	return molten.AgentProcessCommand(key, pi.Command, func() (string, []string) {
-		proc := &goproc.Process{Pid: pi.Pid}
-		exe, _ := proc.ExeWithContext(ctx)
-		args, _ := proc.CmdlineSliceWithContext(ctx)
-		return exe, args
+		// proctree, not gopsutil, for the executable: gopsutil hands libproc a stack buffer on macOS (#249).
+		args, _ := (&goproc.Process{Pid: pi.Pid}).CmdlineSliceWithContext(ctx)
+		return proctree.Exe(pi.Pid), args
 	})
 }

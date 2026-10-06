@@ -99,13 +99,12 @@ func makeProcWatcher(agents *agentStates) *procWatcher {
 	}
 }
 
+// The executable comes from proctree: gopsutil hands libproc a buffer on the goroutine's stack on macOS (#249).
 func readProcessArgs(pid int32) (string, []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), procReadArgs)
 	defer cancel()
-	p := &goproc.Process{Pid: pid}
-	exe, _ := p.ExeWithContext(ctx)
-	args, _ := p.CmdlineSliceWithContext(ctx)
-	return exe, args
+	args, _ := (&goproc.Process{Pid: pid}).CmdlineSliceWithContext(ctx)
+	return proctree.Exe(pid), args
 }
 
 func (w *procWatcher) poke() {
