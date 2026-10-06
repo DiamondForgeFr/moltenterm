@@ -14,6 +14,7 @@ import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useState } from "react";
 import { useBlockAgentState } from "../agent-state-ui";
+import { PlanUsageSection } from "./companion-gauges";
 import {
     CompanionAnswer,
     CompanionAnswerCommand,
@@ -212,6 +213,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     return (
         <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
             <SessionBar view={view} />
+            {view.usage != null && view.agent ? <PlanUsageSection target={target} agent={view.agent} /> : null}
             <PermissionCard pending={view.pending} agentState={agentState?.state} />
             <AnswerSection key={view.session?.path} target={target} view={view} />
             <TodoSection todos={view.todos} />

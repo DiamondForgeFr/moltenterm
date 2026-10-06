@@ -103,11 +103,16 @@ func isWindowSource(source string) bool {
 	return strings.HasPrefix(source, wshutil.RoutePrefix_Tab)
 }
 
+// fromTerminal: the commands a terminal's wsh sends, from the agent's hook or status line.
+func fromTerminal(command string) bool {
+	return command == molten.CompanionSessionCommand || command == molten.AgentStatusLineCommand
+}
+
 func (l *routeLink) handle(command string, source string, data any) (any, error) {
-	if command != molten.CompanionSessionCommand && !isWindowSource(source) {
+	if !fromTerminal(command) && !isWindowSource(source) {
 		return nil, fmt.Errorf("the companion answers MoltenTerm windows only")
 	}
-	if command == molten.CompanionSessionCommand && strings.HasPrefix(source, wshutil.RoutePrefix_Conn) {
+	if fromTerminal(command) && strings.HasPrefix(source, wshutil.RoutePrefix_Conn) {
 		return nil, fmt.Errorf("no companion for a remote terminal")
 	}
 	switch command {
@@ -147,7 +152,19 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
-		return l.m.Usage(req.BlockId)
+		return l.m.Usage(req.BlockId, req.Refresh)
+	case molten.CompanionUsageGaugesCommand:
+		var req usageGaugesRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.m.SetUsageGauges(req.BlockId, req.On)
+	case molten.AgentStatusLineCommand:
+		var req molten.AgentStatusLineRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return nil, l.m.RecordStatusLine(req)
 	case molten.CompanionSessionCommand:
 		var req molten.AgentSessionRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -190,6 +207,11 @@ func publishView(view CompanionView) {
 	wps.Broker.Publish(wps.WaveEvent{Event: molten.CompanionEvent, Scopes: scopes, Data: view})
 }
 
+func publishUsage(info UsageInfo) {
+	scopes := []string{waveobj.MakeORef(waveobj.OType_Block, info.BlockId).String()}
+	wps.Broker.Publish(wps.WaveEvent{Event: molten.CompanionUsageEvent, Scopes: scopes, Data: info})
+}
+
 func handleBlockClose(m *Manager, event *wps.WaveEvent) {
 	blockId, ok := event.Data.(string)
 	if !ok || blockId == "" {
@@ -210,11 +232,16 @@ func Start() {
 	m.allRuns = attention.AgentRuns
 	m.blockInfo = readBlockInfo
 	m.publish = publishView
+	m.publishUsage = publishUsage
+	m.writeGauges = writeGaugesSetting
 	m.settings = func() *wconfig.SettingsType {
 		settings := wconfig.GetWatcher().GetFullConfig().Settings
 		return &settings
 	}
 	defaultManager = m
+	wconfig.GetWatcher().RegisterUpdateHandler(func(config wconfig.FullConfigType) {
+		settingsChanged(&config.Settings)
+	})
 	link := &routeLink{m: m, output: make(chan []byte, routeQueueSize)}
 	if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, molten.CompanionRoute); err != nil {
 		log.Printf("molten: agent companion route not started: %v\n", err)

@@ -1428,6 +1428,7 @@ declare global {
         "term:showsplitbuttons"?: boolean;
         "term:trimtrailingwhitespace"?: boolean;
         "agent:sessionroots"?: {[key: string]: string[]};
+        "companion:usagegauges"?: string[];
         "editor:minimapenabled"?: boolean;
         "editor:stickyscrollenabled"?: boolean;
         "editor:wordwrap"?: boolean;

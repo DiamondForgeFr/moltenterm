@@ -124,27 +124,32 @@ type Manager struct {
 	picks    map[string]sessionPick
 	claims   map[string]sessionClaim
 	version  int64
+	// When each block's plan gauges were last published.
+	usagePublished map[string]time.Time
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
-	runOf      func(blockId string) (molten.AgentRunInfo, bool)
-	allRuns    func() []molten.AgentRunInfo
-	blockInfo  func(blockId string) (blockInfo, error)
-	publish    func(view CompanionView)
-	adapterFor func(agent string) Adapter
-	settings   func() *wconfig.SettingsType
-	now        func() time.Time
-	tick       time.Duration
+	runOf        func(blockId string) (molten.AgentRunInfo, bool)
+	allRuns      func() []molten.AgentRunInfo
+	blockInfo    func(blockId string) (blockInfo, error)
+	publish      func(view CompanionView)
+	publishUsage func(info UsageInfo)
+	writeGauges  func(agents []string) error
+	adapterFor   func(agent string) Adapter
+	settings     func() *wconfig.SettingsType
+	now          func() time.Time
+	tick         time.Duration
 }
 
 func MakeManager() *Manager {
 	return &Manager{
-		watchers:   map[string]*watcher{},
-		reports:    map[string]sessionReport{},
-		picks:      map[string]sessionPick{},
-		claims:     map[string]sessionClaim{},
-		adapterFor: AdapterFor,
-		now:        time.Now,
-		tick:       tickInterval,
+		watchers:       map[string]*watcher{},
+		reports:        map[string]sessionReport{},
+		picks:          map[string]sessionPick{},
+		claims:         map[string]sessionClaim{},
+		usagePublished: map[string]time.Time{},
+		adapterFor:     AdapterFor,
+		now:            time.Now,
+		tick:           tickInterval,
 	}
 }
 
@@ -246,6 +251,8 @@ func (m *Manager) ForgetBlock(blockId string) {
 	m.stopLocked(blockId)
 	delete(m.reports, blockId)
 	delete(m.picks, blockId)
+	delete(m.usagePublished, blockId)
+	usage.DefaultStatusLineStore.Forget(blockId)
 }
 
 func (m *Manager) releaseClaimsLocked(blockId string) {

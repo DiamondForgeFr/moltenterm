@@ -118,6 +118,9 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#141): the agent companion also reads coding agents' sessions from these configuration folders.
 	AgentSessionRoots map[string][]string `json:"agent:sessionroots,omitempty" jsonschema_description:"Extra configuration folders per coding agent (claude: like CLAUDE_CONFIG_DIR, codex: like CODEX_HOME) whose sessions the agent companion reads"`
 
+	// MOLTENTERM-PATCH (#261): the coding agents whose plan usage gauges the agent companion shows (FR-SHELL-027, pkg/molten/usage).
+	CompanionUsageGauges []string `json:"companion:usagegauges,omitempty" jsonschema_description:"Coding agents (claude, codex) whose plan usage gauges the agent companion shows; empty shows none. Set from the companion's Show plan usage"`
+
 	EditorMinimapEnabled      bool    `json:"editor:minimapenabled,omitempty"`
 	EditorStickyScrollEnabled bool    `json:"editor:stickyscrollenabled,omitempty"`
 	EditorWordWrap            bool    `json:"editor:wordwrap,omitempty"`

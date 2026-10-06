@@ -25,9 +25,12 @@ func TestBuiltinAdapters(t *testing.T) {
 		if page == nil || *page != want {
 			t.Errorf("%s: page %+v, want %+v", agent, page, want)
 		}
-		if len(For(agent).Sources()) != 0 {
-			t.Errorf("%s: no gauges source exists yet", agent)
-		}
+	}
+	if s := For("claude").Sources(); len(s) != 1 || s[0].Id() != ClaudeStatusLineSourceId || !s[0].Documented() {
+		t.Errorf("claude: the status line source, documented: %v", s)
+	}
+	if HasSources(For("codex")) {
+		t.Error("codex: no gauges source yet (#263)")
 	}
 }
 
@@ -102,6 +105,7 @@ type fakeSource struct {
 }
 
 func (s *fakeSource) Id() string                                  { return s.id }
+func (s *fakeSource) Name() string                                { return "the " + s.id + " source" }
 func (s *fakeSource) Documented() bool                            { return true }
 func (s *fakeSource) Enabled(settings *wconfig.SettingsType) bool { return s.enabled }
 func (s *fakeSource) Read(ctx context.Context, blockId string) (UsageSnapshot, error) {
@@ -150,23 +154,56 @@ func TestReadGauges(t *testing.T) {
 	working := &fakeSource{id: "working", enabled: true, snap: UsageSnapshot{Windows: []UsageWindow{{Id: WindowSession, UsedPercent: 12}}}}
 	a := &pageAdapter{id: "claude", sources: []GaugesSource{off, failing, working}}
 
-	state, snap := ReadGauges(context.Background(), a, settings, "b1", now)
-	if state != GaugesEnabled || snap == nil || snap.Source != "working" || len(snap.Windows) != 1 {
-		t.Fatalf("state %s, snapshot %+v", state, snap)
+	res := ReadGauges(context.Background(), a, settings, "b1", now)
+	if res.State != GaugesEnabled || res.Snapshot == nil || res.Snapshot.Source != "working" || len(res.Snapshot.Windows) != 1 {
+		t.Fatalf("result %+v", res)
+	}
+	if res.SourceName != "the working source" || res.Reason != "" {
+		t.Errorf("named after the source the windows came from: %+v", res)
 	}
 	if off.reads != 0 {
 		t.Error("a source the user did not turn on is never read")
 	}
 
-	state, snap = ReadGauges(context.Background(), &pageAdapter{id: "claude", sources: []GaugesSource{off}}, settings, "b1", now)
-	if state != GaugesOff || snap != nil || off.reads != 0 {
-		t.Errorf("nothing on: %s %+v", state, snap)
+	res = ReadGauges(context.Background(), &pageAdapter{id: "claude", sources: []GaugesSource{off}}, settings, "b1", now)
+	if res.State != GaugesOff || res.Snapshot != nil || off.reads != 0 {
+		t.Errorf("nothing on: %+v", res)
 	}
-	state, snap = ReadGauges(context.Background(), &pageAdapter{id: "claude", sources: []GaugesSource{failing}}, settings, "b1", now)
-	if state != GaugesUnavailable || snap != nil {
-		t.Errorf("failing source: %s %+v", state, snap)
+	res = ReadGauges(context.Background(), &pageAdapter{id: "claude", sources: []GaugesSource{failing}}, settings, "b1", now)
+	if res.State != GaugesUnavailable || res.Snapshot != nil || res.Reason != ReasonFailed || res.SourceName != "the failing source" {
+		t.Errorf("failing source: %+v", res)
 	}
-	if state, _ := ReadGauges(context.Background(), For("claude"), settings, "b1", now); state != GaugesOff {
-		t.Errorf("built-in Claude adapter: %s", state)
+	named := &fakeSource{id: "named", enabled: true, err: Unavailable(ReasonNoPlan)}
+	res = ReadGauges(context.Background(), &pageAdapter{id: "claude", sources: []GaugesSource{named, failing}}, settings, "b1", now)
+	if res.State != GaugesUnavailable || res.Reason != ReasonNoPlan {
+		t.Errorf("the best source's reason: %+v", res)
+	}
+	expired := &fakeSource{id: "expired", enabled: true, snap: UsageSnapshot{Windows: []UsageWindow{{Id: WindowWeek, ResetsAt: now - 1}}}}
+	res = ReadGauges(context.Background(), &pageAdapter{id: "claude", sources: []GaugesSource{expired}}, settings, "b1", now)
+	if res.State != GaugesUnavailable || res.Reason != ReasonExpired {
+		t.Errorf("only windows past their reset: %+v", res)
+	}
+	if res := ReadGauges(context.Background(), For("claude"), settings, "b1", now); res.State != GaugesOff {
+		t.Errorf("built-in Claude adapter, not turned on: %+v", res)
+	}
+}
+
+func TestGaugesOptIn(t *testing.T) {
+	settings := &wconfig.SettingsType{CompanionUsageGauges: []string{"codex"}}
+	if GaugesOn(settings, "claude") || !GaugesOn(settings, "codex") || GaugesOn(nil, "codex") || GaugesOn(settings, "") {
+		t.Error("the opt-in is per agent")
+	}
+	if got := WithGauges([]string{"codex", "claude", "codex", ""}, "claude", false); !reflect.DeepEqual(got, []string{"codex"}) {
+		t.Errorf("off: %v", got)
+	}
+	if got := WithGauges([]string{"codex"}, "claude", true); !reflect.DeepEqual(got, []string{"codex", "claude"}) {
+		t.Errorf("on: %v", got)
+	}
+	if got := WithGauges([]string{"claude"}, "claude", true); !reflect.DeepEqual(got, []string{"claude"}) {
+		t.Errorf("on twice: %v", got)
+	}
+	ctx := context.Background()
+	if IsRefresh(ctx) || !IsRefresh(WithRefresh(ctx, true)) || IsRefresh(WithRefresh(ctx, false)) {
+		t.Error("refresh flag")
 	}
 }

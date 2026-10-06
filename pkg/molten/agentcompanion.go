@@ -18,6 +18,12 @@ const (
 	CompanionDiffCommand    = "moltencompaniondiff"
 	CompanionSessionCommand = "moltencompanionsession"
 	CompanionUsageCommand   = "moltencompanionusage"
+	// Show or hide plan usage for the agent of a block (FR-SHELL-027).
+	CompanionUsageGaugesCommand = "moltencompanionusagegauges"
+	// The plan gauges of a block, when its status line relay brings new windows.
+	CompanionUsageEvent = "molten:companionusage"
+	// What `molten agent statusline` sends: the rate limit windows of Claude Code's status line input.
+	AgentStatusLineCommand = "moltenagentstatusline"
 )
 
 // AgentSessionRequest is what `molten agent session` reports: the transcript of the agent's session in a block.
