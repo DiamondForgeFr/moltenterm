@@ -17,7 +17,7 @@ import (
 // diffs, and LinkedSession tells which transcript is the pane's without claiming it.
 
 // At most this many chunks (tailChunkMax each) are read per Poll: a burst is caught up over the next polls.
-const readerMaxChunks = 32
+const readerMaxChunks = 8
 
 // SessionReader follows one transcript for its digest.
 type SessionReader struct {

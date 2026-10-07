@@ -40,6 +40,21 @@ func TestRedactSecrets(t *testing.T) {
 		{"jwt", "token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U", "dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U", "token"},
 		{"url credentials", "git clone https://alice:s3cr3tpass@github.com/x/y.git", "s3cr3tpass", "https://alice:"},
 		{"postgres url", "DATABASE_URL=postgres://app:pa55word@db:5432/app", "pa55word", "DATABASE_URL="},
+		{"redis url without user", "redis://:s3cretvalue@cache:6379", "s3cretvalue", "redis://"},
+		{"pass", "DB_PASS=letmein99", "letmein99", "DB_PASS="},
+		{"smtp pass", "SMTP_PASS: mailpw", "mailpw", "SMTP_PASS:"},
+		{"strong short number", "password=123456", "123456", "password="},
+		{"strong placeholder-like", "API_PASSWORD=<x>real", "<x>real", "API_PASSWORD="},
+		{"stripe", "use sk_" + "live_51HabcdefghijklmnopQRST now", "sk_" + "live_51HabcdefghijklmnopQRST", "now"},
+		{"stripe restricted", "rk_" + "test_abcdefghijklmnop1234", "rk_" + "test_abcdefghijklmnop1234", ""},
+		{"slack app", "xa" + "pp-1-A0123456789-abcdef", "xa" + "pp-1-A0123456789-abcdef", ""},
+		{"slack webhook", "post to https://hooks.slack.com/" + "services/T000/B000/XXXXXXXX", "T000/B000/XXXXXXXX", "post to"},
+		{"google oauth", "ya" + "29.a0AfH6SMBabcdefghijklmnop", "ya" + "29.a0AfH6SMBabcdefghijklmnop", ""},
+		{"sendgrid", "SG" + ".abcdefghijklmnopqr.stuvwxyz0123456789ab", "SG" + ".abcdefghijklmnopqr.stuvwxyz0123456789ab", ""},
+		{"digitalocean", "dop_" + "v1_0123456789abcdef0123456789abcdef0123456789abcdef", "dop_" + "v1_0123456789abcdef", ""},
+		{"password flag", "psql --password Hunter22 -h db", "Hunter22", "-h db"},
+		{"api key flag", "tool --api-key abc123xyz run", "abc123xyz", "run"},
+		{"curl user", "curl -u admin:pw-123 https://x", "pw-123", "-u admin:"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -69,7 +84,9 @@ func TestRedactKeepsNonSecrets(t *testing.T) {
 		"author: Jane Doe",
 		"See the primary key: id",
 		"API_KEY=$OPENAI_API_KEY and TOKEN=${GH_TOKEN}",
-		"password: <your password>",
+		"api_key: <your key>",
+		"Take the compass and the passenger list",
+		"mkdir -p build && ls -u dir",
 		"Run go test ./pkg/... then task check:ts",
 		"https://github.com/DiamondForgeFr/moltenterm/pull/335",
 	}

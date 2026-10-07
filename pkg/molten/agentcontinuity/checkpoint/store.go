@@ -329,7 +329,10 @@ func (s *Store) writeLocked(wsId string, c *Checkpoint, author string, previous 
 		if author != OwnerAuto {
 			return ErrTooLarge
 		}
-		out = shrinkAuto(c)
+		// The user's and the agents' sections alone are over the cap: nothing is written until they shrink.
+		if out = shrinkAuto(c); len(out) > MaxCheckpointBytes {
+			return ErrTooLarge
+		}
 	}
 	dir := s.dir(wsId)
 	if err := ensureDir(s.root); err != nil {
@@ -384,7 +387,21 @@ func (s *Store) coalesceLocked(wsId string, author string, previousBy string, no
 	return now.Sub(time.UnixMilli(versions[0].at)) < AutoVersionEvery
 }
 
-func (s *Store) archiveLocked(wsId string, data []byte, now time.Time) error {
+// archiveLocked keeps a previous version in the history, redacted (a hand edit may hold a secret the next write
+// redacts). An empty version, or one equal to the newest kept, is not archived: repeated clears or restores cannot
+// push the user's versions out of the history.
+func (s *Store) archiveLocked(wsId string, previous []byte, now time.Time) error {
+	prev := Parse(previous)
+	if prev.Empty() {
+		return nil
+	}
+	prev.redactAll()
+	data := prev.Render()
+	if versions := s.versionsLocked(wsId); len(versions) > 0 {
+		if newest, err := readFile(versions[0].path); err == nil && string(newest) == string(data) {
+			return nil
+		}
+	}
 	hist := filepath.Join(s.dir(wsId), HistoryDir)
 	if err := ensureDir(hist); err != nil {
 		return err
@@ -409,6 +426,10 @@ type version struct {
 // versionsLocked lists the history, newest first.
 func (s *Store) versionsLocked(wsId string) []version {
 	hist := filepath.Join(s.dir(wsId), HistoryDir)
+	// A history folder replaced by a link is not listed: pruning would remove files elsewhere.
+	if info, err := os.Lstat(hist); err != nil || !info.IsDir() {
+		return nil
+	}
 	entries, err := os.ReadDir(hist)
 	if err != nil {
 		return nil
@@ -452,7 +473,7 @@ func (s *Store) History(wsId string) ([]molten.TaskVersion, error) {
 				tv.UpdatedBy = c.UpdatedBy
 				if goal := c.Section(SectionGoal); goal != nil {
 					redacted, _ := Redact(goal.Body)
-					tv.Goal = cutText(markdownLine(redacted), 120)
+					tv.Goal = cutText(strings.Join(strings.Fields(redacted), " "), 120)
 				}
 			}
 			rtn = append(rtn, tv)

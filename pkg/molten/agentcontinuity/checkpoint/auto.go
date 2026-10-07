@@ -118,7 +118,7 @@ func ApplyAuto(c *Checkpoint, in AutoInput) bool {
 // since tells whether something observed at `at` belongs to the current task (a task cleared at Started does not take
 // back what came before).
 func since(c *Checkpoint, at int64) bool {
-	return c.Started == 0 || at == 0 || at >= c.Started
+	return c.Started == 0 || at >= c.Started
 }
 
 func goalOf(c *Checkpoint, d companion.SessionDigest) string {
@@ -129,7 +129,7 @@ func goalOf(c *Checkpoint, d companion.SessionDigest) string {
 	prompts = append(prompts, d.Prompts...)
 	for _, p := range prompts {
 		if since(c, p.At) && strings.TrimSpace(p.Text) != "" {
-			return cutText(p.Text, MaxGoalBytes)
+			return inertMarkdown(cutText(p.Text, MaxGoalBytes))
 		}
 	}
 	return ""
@@ -263,7 +263,14 @@ func transcriptBody(in AutoInput) string {
 
 // markdownLine keeps a todo on one list line.
 func markdownLine(text string) string {
-	return strings.Join(strings.Fields(text), " ")
+	return inertMarkdown(strings.Join(strings.Fields(text), " "))
+}
+
+// inertMarkdown keeps an agent's or a prompt's text from loading anything when the checkpoint is shown rendered: no
+// image (a remote image is a request out) and no raw HTML.
+func inertMarkdown(text string) string {
+	text = strings.ReplaceAll(text, "![", "!\\[")
+	return strings.ReplaceAll(text, "<", "\\<")
 }
 
 func cutText(text string, max int) string {
