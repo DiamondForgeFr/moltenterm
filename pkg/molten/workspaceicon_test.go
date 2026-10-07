@@ -87,6 +87,22 @@ func makeIco(images ...[]byte) []byte {
 	return buf.Bytes()
 }
 
+// count directory entries that all point at the same image: the decode-it-thousands-of-times attack.
+func makeOverlappingIco(img []byte, count int) []byte {
+	var buf bytes.Buffer
+	buf.Write([]byte{0, 0, 1, 0})
+	binary.Write(&buf, binary.LittleEndian, uint16(count))
+	offset := 6 + 16*count
+	for i := 0; i < count; i++ {
+		entry := make([]byte, 16)
+		binary.LittleEndian.PutUint32(entry[8:12], uint32(len(img)))
+		binary.LittleEndian.PutUint32(entry[12:16], uint32(offset))
+		buf.Write(entry)
+	}
+	buf.Write(img)
+	return buf.Bytes()
+}
+
 func makeBmpHeader(w int32, h int32) []byte {
 	header := make([]byte, 40+16)
 	binary.LittleEndian.PutUint32(header[0:4], 40)
@@ -122,7 +138,10 @@ func TestPrepareWorkspaceIcon(t *testing.T) {
 		{"webp without an image chunk", []byte("RIFF\x04\x00\x00\x00WEBP"), "", IconRefusedUnreadable},
 		{"ico pointing outside the file", []byte{0, 0, 1, 0, 1, 0, 16, 16, 0, 0, 0, 0, 0, 0, 0xff, 0, 0, 0, 22, 0, 0, 0}, "", IconRefusedUnreadable},
 		{"ico without entries", []byte{0, 0, 1, 0, 0, 0}, "", IconRefusedUnreadable},
-		{"ico with a huge bitmap", makeIco(makeBmpHeader(9000, 16)), "", IconRefusedPixels},
+		{"ico with a huge bitmap", makeIco(makeBmpHeader(9000, 16)), "", IconRefusedUnreadable},
+		{"ico with a 512 px png entry", makeIco(makePng(t, 512, 16)), "", IconRefusedUnreadable},
+		{"ico with overlapping entries", makeOverlappingIco(makePng(t, 16, 16), 2), "", IconRefusedUnreadable},
+		{"ico with thousands of entries on one image", makeOverlappingIco(makePng(t, 16, 16), 5000), "", IconRefusedUnreadable},
 		{"ico with a truncated png", makeIco(goodPng[:40]), "", IconRefusedUnreadable},
 		{"xml that is not svg", []byte(`<html><body>hi</body></html>`), "", IconRefusedType},
 		{"oversized", append(bytes.Repeat([]byte{0}, MaxWorkspaceIconBytes), 1), "", IconRefusedTooLarge},
@@ -238,6 +257,28 @@ func TestWorkspaceIconNames(t *testing.T) {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func TestWorkspaceIconOwner(t *testing.T) {
+	if !CheckWorkspaceIconOwner("a-0123456789ab.png", "a") {
+		t.Fatalf("own file refused")
+	}
+	for _, name := range []string{"a-b-0123456789ab.png", "b-0123456789ab.png", "a-0123456789ab.gif", ""} {
+		if CheckWorkspaceIconOwner(name, "a") {
+			t.Fatalf("%q accepted as workspace a's", name)
+		}
+	}
+	dir := t.TempDir()
+	for _, name := range []string{"a-0123456789ab.png", "a-ffffffffffff.svg", "a-b-0123456789ab.png", "b-0123456789ab.png"} {
+		os.WriteFile(filepath.Join(dir, name), []byte("x"), 0600)
+	}
+	removed := RemoveWorkspaceIconFiles(dir, "a")
+	if len(removed) != 2 || !fileExists(filepath.Join(dir, "a-b-0123456789ab.png")) || !fileExists(filepath.Join(dir, "b-0123456789ab.png")) {
+		t.Fatalf("removed %v", removed)
+	}
+	if RemoveWorkspaceIconFiles(dir, "../x") != nil {
+		t.Fatalf("a path accepted as a workspace id")
+	}
 }
 
 func TestSweepWorkspaceIcons(t *testing.T) {

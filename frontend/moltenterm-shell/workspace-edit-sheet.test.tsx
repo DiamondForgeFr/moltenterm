@@ -119,7 +119,7 @@ describe("imported icon slot (FR-SHELL-031)", () => {
                 `<img src="http://localhost/wave/stream-local-file\\?path=${src.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`
             )
         );
-        expect(html).toMatch(/data-icon-kind="imported" class="[^"]*object-cover/);
+        expect(html).toMatch(/data-icon-kind="imported" decoding="async" class="[^"]*object-cover/);
         expect(html).toContain("Replace image…");
         expect(html).toMatch(/data-action="use-builtin-icon"[^>]*>Use built-in icon</);
         expect(html).toContain("Shown in place of the icon and colour, which stay set.");

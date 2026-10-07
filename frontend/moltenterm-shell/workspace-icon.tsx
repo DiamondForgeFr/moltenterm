@@ -33,10 +33,14 @@ function getDataDir(): string {
     return dataDir;
 }
 
+type FailedImages = { revision: number; paths: string[] };
+
 export function WorkspaceIcon({ source, className }: { source: WorkspaceIconSource; className?: string }) {
-    // The paths that failed to display: the badge steps down one level for each, with no error.
-    const [failed, setFailed] = useState<string[]>([]);
-    const resolved = resolveWorkspaceIcon(source, getDataDir(), failed);
+    // The paths that failed to display: the badge steps down one level for each, with no error. A new revision of the
+    // workspace (an image imported again under the same name, after its file went missing) tries them again.
+    const [failed, setFailed] = useState<FailedImages>({ revision: source?.revision, paths: [] });
+    const failedPaths = failed.revision === source?.revision ? failed.paths : [];
+    const resolved = resolveWorkspaceIcon(source, getDataDir(), failedPaths);
     if (resolved.kind !== "builtin") {
         return (
             <img
@@ -45,8 +49,12 @@ export function WorkspaceIcon({ source, className }: { source: WorkspaceIconSour
                 alt=""
                 draggable={false}
                 data-icon-kind={resolved.kind}
+                decoding="async"
                 onError={() =>
-                    setFailed((paths) => (paths.includes(resolved.path) ? paths : [...paths, resolved.path]))
+                    setFailed({
+                        revision: source?.revision,
+                        paths: failedPaths.includes(resolved.path) ? failedPaths : [...failedPaths, resolved.path],
+                    })
                 }
                 className={cn(WorkspaceImageClass, className)}
             />

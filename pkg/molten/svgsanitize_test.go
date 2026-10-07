@@ -4,6 +4,7 @@
 package molten
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -70,6 +71,57 @@ func TestSanitizeSvgRemovesActiveAndExternalParts(t *testing.T) {
 	}
 }
 
+func TestSanitizeSvgResourceFunctionsAndDuplicates(t *testing.T) {
+	in := `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="Layer_1" width="1" width="2">
+<rect style="background:image-set('http://e/x.png' 1x)" fill="image(http://e/y.png)" transform="translate(2 3) rotate(4)"/>
+<style>svg{background-image:-webkit-image-set("http://e/x.png" 1x)}</style>
+<style>.a{mask-image:src('http://x')}</style>
+<style>.b{fill:rgb(1,2,3)}</style>
+<use href="#a" xlink:href="#b"/>
+</svg>`
+	out, err := SanitizeSvg([]byte(in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(out)
+	for _, gone := range []string{"image-set", "image(", "src(", "http://e", "http://x", "Layer_1", `width="2"`, `href="#b"`} {
+		if strings.Contains(got, gone) {
+			t.Fatalf("%q survived:\n%s", gone, got)
+		}
+	}
+	for _, kept := range []string{`width="1"`, `transform="translate(2 3) rotate(4)"`, `<style>.b{fill:rgb(1,2,3)}</style>`, `<use href="#a">`} {
+		if !strings.Contains(got, kept) {
+			t.Fatalf("%q missing:\n%s", kept, got)
+		}
+	}
+}
+
+// A chain of groups, each holding two <use> of the previous one, would render 2^n instances.
+func TestSanitizeSvgUseFanOut(t *testing.T) {
+	var b strings.Builder
+	b.WriteString(`<svg xmlns="http://www.w3.org/2000/svg"><defs><path id="l0" d="M0 0h1v1z"/>`)
+	for i := 1; i <= 30; i++ {
+		b.WriteString(fmt.Sprintf(`<g id="l%d"><use href="#l%d"/><use href="#l%d" x="1"/></g>`, i, i-1, i-1))
+	}
+	b.WriteString(`</defs><use href="#l30"/><use href="#l0" x="5"/></svg>`)
+	out, err := SanitizeSvg([]byte(b.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(out)
+	if n := strings.Count(got, "<use"); n != 2 {
+		t.Fatalf("%d <use> kept, want only the 2 outside an element with an id:\n%s", n, got)
+	}
+	if !strings.Contains(got, `<g id="l30"></g>`) || !strings.Contains(got, `<path id="l0" d="M0 0h1v1z">`) {
+		t.Fatalf("shapes lost:\n%s", got)
+	}
+	many := `<svg xmlns="http://www.w3.org/2000/svg">` + strings.Repeat(`<use href="#a"/>`, maxSvgUses+10) + `</svg>`
+	out, err = SanitizeSvg([]byte(many))
+	if err != nil || strings.Count(string(out), "<use") != maxSvgUses {
+		t.Fatalf("use cap: %v, %d kept", err, strings.Count(string(out), "<use"))
+	}
+}
+
 func TestSanitizeSvgRefusals(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -124,6 +176,9 @@ func TestSanitizeSvgValues(t *testing.T) {
 		`fill: u\72l(https://x)`:        false,
 		"background: url(https://x)":    false,
 		"behavior: url(#x); color: red": true,
+		"fill: image-set('x' 1x)":       false,
+		"fill: cross-fade(a, b)":        false,
+		"filter: drop-shadow(0 0 1px)":  true,
 	} {
 		if got := safeSvgCss(css); got != safe {
 			t.Fatalf("css %q: safe %v, want %v", css, got, safe)

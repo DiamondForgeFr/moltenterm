@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 )
@@ -36,6 +37,9 @@ const (
 	MaxWorkspaceIconSide  = 4096
 	workspaceIconHashLen  = 12
 	workspaceIconTempGlob = ".import-*"
+	// Real icons hold a handful of sizes; an entry is at most 256 px a side.
+	maxIcoEntries = 64
+	maxIcoSide    = 256
 )
 
 const (
@@ -101,24 +105,28 @@ func WorkspaceIconFileName(workspaceId string, data []byte, ext string) string {
 	return fmt.Sprintf("%s-%s.%s", workspaceId, hex.EncodeToString(sum[:])[:workspaceIconHashLen], ext)
 }
 
-// The source is stat'ed before it is opened, and read only up to one byte past the limit: a 3 GB file, a FIFO or a
-// device never gets read in full.
+// The source is checked before anything is read, and read only up to one byte past the limit: a 3 GB file, a FIFO or
+// a device never gets read in full. It is opened non-blocking and checked through the open file, so a FIFO swapped in
+// after a check can neither block the open nor be read.
 func ReadWorkspaceIconSource(path string) ([]byte, error) {
 	if path == "" {
 		return nil, refuseIcon(IconRefusedUnreadable)
 	}
-	info, err := os.Stat(path)
+	if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+		return nil, refuseIcon(IconRefusedUnreadable)
+	}
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, refuseIcon(IconRefusedUnreadable)
+	}
+	defer f.Close()
+	info, err := f.Stat()
 	if err != nil || !info.Mode().IsRegular() {
 		return nil, refuseIcon(IconRefusedUnreadable)
 	}
 	if info.Size() > MaxWorkspaceIconBytes {
 		return nil, refuseIcon(IconRefusedTooLarge)
 	}
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, refuseIcon(IconRefusedUnreadable)
-	}
-	defer f.Close()
 	data, err := io.ReadAll(io.LimitReader(f, MaxWorkspaceIconBytes+1))
 	if err != nil {
 		return nil, refuseIcon(IconRefusedUnreadable)
@@ -264,14 +272,17 @@ func checkWebp(data []byte) error {
 	return checkIconSide(width, height)
 }
 
-// An ICO is a directory of images: every entry must lie inside the file; PNG entries are decoded, BMP entries must
-// carry a sane header.
+// An ICO is a directory of images: every entry must lie inside the file without overlapping another, so a crafted
+// directory cannot make one large image be decoded thousands of times. Entries are at most 256 px a side, which keeps
+// each PNG decode small; BMP entries must carry a sane header.
 func checkIco(data []byte) error {
 	count := int(binary.LittleEndian.Uint16(data[4:6]))
 	dirEnd := 6 + 16*count
-	if count == 0 || dirEnd > len(data) {
+	if count == 0 || count > maxIcoEntries || dirEnd > len(data) {
 		return refuseIcon(IconRefusedUnreadable)
 	}
+	type span struct{ start, end int }
+	spans := make([]span, 0, count)
 	for i := 0; i < count; i++ {
 		entry := data[6+16*i : 6+16*(i+1)]
 		size := int(binary.LittleEndian.Uint32(entry[8:12]))
@@ -279,9 +290,17 @@ func checkIco(data []byte) error {
 		if size <= 0 || offset < dirEnd || offset > len(data) || size > len(data)-offset {
 			return refuseIcon(IconRefusedUnreadable)
 		}
-		image := data[offset : offset+size]
+		for _, s := range spans {
+			if offset < s.end && s.start < offset+size {
+				return refuseIcon(IconRefusedUnreadable)
+			}
+		}
+		spans = append(spans, span{offset, offset + size})
+	}
+	for _, s := range spans {
+		image := data[s.start:s.end]
 		if bytes.HasPrefix(image, pngSignature) {
-			if err := checkPng(image); err != nil {
+			if err := checkIcoPng(image); err != nil {
 				return err
 			}
 			continue
@@ -293,6 +312,17 @@ func checkIco(data []byte) error {
 	return nil
 }
 
+func checkIcoPng(image []byte) error {
+	cfg, err := png.DecodeConfig(bytes.NewReader(image))
+	if err != nil {
+		return refuseIcon(IconRefusedUnreadable)
+	}
+	if cfg.Width > maxIcoSide || cfg.Height > maxIcoSide {
+		return refuseIcon(IconRefusedUnreadable)
+	}
+	return checkPng(image)
+}
+
 func checkIcoBitmap(image []byte) error {
 	if len(image) < 40 || binary.LittleEndian.Uint32(image[0:4]) < 40 {
 		return refuseIcon(IconRefusedUnreadable)
@@ -302,6 +332,9 @@ func checkIcoBitmap(image []byte) error {
 	height := int(int32(binary.LittleEndian.Uint32(image[8:12]))) / 2
 	if height < 0 {
 		height = -height
+	}
+	if width > maxIcoSide || height > maxIcoSide {
+		return refuseIcon(IconRefusedUnreadable)
 	}
 	return checkIconSide(width, height)
 }
@@ -383,6 +416,37 @@ func RemoveWorkspaceIconFile(dir string, name string) error {
 		return err
 	}
 	return nil
+}
+
+// Every stored copy of one workspace: a delete also catches a copy an import wrote while the workspace was going.
+func RemoveWorkspaceIconFiles(dir string, workspaceId string) []string {
+	if !workspaceIdRe.MatchString(workspaceId) {
+		return nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var removed []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if !entry.Type().IsRegular() || !CheckWorkspaceIconOwner(name, workspaceId) {
+			continue
+		}
+		if err := os.Remove(filepath.Join(dir, name)); err == nil {
+			removed = append(removed, name)
+		}
+	}
+	return removed
+}
+
+// A stored name belongs to the workspace it starts with: a meta value copied from another workspace (through the
+// generic meta call) never deletes that workspace's file. The length check keeps workspace "a" from owning the files
+// of a workspace "a-b".
+func CheckWorkspaceIconOwner(name string, workspaceId string) bool {
+	return CheckWorkspaceIconName(name) &&
+		strings.HasPrefix(name, workspaceId+"-") &&
+		len(name) == len(workspaceId)+1+workspaceIconHashLen+len(filepath.Ext(name))
 }
 
 // Removes the stored copies no workspace references, and imports interrupted half way. Other files are left alone.

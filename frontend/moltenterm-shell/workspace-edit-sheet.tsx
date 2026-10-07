@@ -110,6 +110,30 @@ function RadioGrid({
 
 type ImportResult = { ok: boolean; text: string };
 
+// While the sheet invites a drop, a file released beside the target must not reach Chromium, which would navigate to
+// it and have Electron open it in another app. The targets handle their own drops before this runs.
+function guardFileDrops(): () => void {
+    const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
+    const onDragOver = (e: DragEvent) => {
+        if (!hasFiles(e) || e.defaultPrevented) {
+            return;
+        }
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "none";
+    };
+    const onDrop = (e: DragEvent) => {
+        if (hasFiles(e)) {
+            e.preventDefault();
+        }
+    };
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("drop", onDrop);
+    return () => {
+        window.removeEventListener("dragover", onDragOver);
+        window.removeEventListener("drop", onDrop);
+    };
+}
+
 // The drop half of the icon area (FR-SHELL-031 AC1): the preview and the image slot both take a dropped file. Electron
 // gives a dropped file's path; an image dragged from a web page has none and is refused with a line.
 function useIconDrop(onPath: (path: string) => void, onRefused: (text: string) => void) {
@@ -335,7 +359,10 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
     const removeImage = () =>
         runIconChange(async () => {
             await WorkspaceService.RemoveWorkspaceIcon(ws.oid);
-            return { ok: true, text: "Back to the built-in icon" };
+            return {
+                ok: true,
+                text: workspaceIconSource(ws).logo ? "Back to the project logo" : "Back to the built-in icon",
+            };
         });
     const drop = useIconDrop(importPath, (text) => setResult({ ok: false, text }));
     return (
@@ -519,6 +546,7 @@ export function WorkspaceEditSheet({
         nameRef.current?.focus();
         nameRef.current?.select();
     }, [loaded]);
+    useEffect(() => guardFileDrops(), []);
     if (ws == null) {
         return null;
     }
