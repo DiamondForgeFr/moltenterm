@@ -60,6 +60,10 @@ func AgentHookOffer(ctx context.Context, blockId string) (molten.AgentHookOffer,
 		offer.Agent, offer.AgentName, offer.Reason = run.Agent, molten.AgentDisplayName(run.Agent), molten.HookOfferRemote
 		return offer, nil
 	}
+	if IsAgentIntegrated(blockId) {
+		offer.Agent, offer.AgentName, offer.Reason = run.Agent, molten.AgentDisplayName(run.Agent), molten.HookOfferIntegrated
+		return offer, nil
+	}
 	env, err := hookOfferEnv()
 	if err != nil {
 		return offer, err

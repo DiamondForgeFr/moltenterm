@@ -1,6 +1,17 @@
 # We source this file with -NoExit -File
 $env:PATH = {{.WSHBINDIR_PWSH}} + "{{.PATHSEP}}" + $env:PATH
 
+# MOLTENTERM-PATCH (#318): the agent launchers first on PATH, after the user's profile (DS-SHELL-044); any other copy
+# of the folder is dropped
+$_moltenterm_agentbindir = {{.AGENTBINDIR_PWSH}}
+if (Test-Path -LiteralPath $_moltenterm_agentbindir -PathType Container) {
+    $env:MOLTENTERM_AGENTBINDIR = $_moltenterm_agentbindir
+    $_moltenterm_rest = @($env:PATH -split [regex]::Escape("{{.PATHSEP}}") | Where-Object { $_ -ne "" -and $_ -ne $_moltenterm_agentbindir })
+    $env:PATH = (@($_moltenterm_agentbindir) + $_moltenterm_rest) -join "{{.PATHSEP}}"
+    Remove-Variable -Name _moltenterm_rest
+}
+Remove-Variable -Name _moltenterm_agentbindir
+
 # Source dynamic script from wsh token
 $waveterm_swaptoken_output = wsh token $env:WAVETERM_SWAPTOKEN pwsh 2>$null | Out-String
 if ($waveterm_swaptoken_output -and $waveterm_swaptoken_output -ne "") {

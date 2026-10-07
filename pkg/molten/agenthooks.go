@@ -35,6 +35,8 @@ const (
 	HookOfferDeclined    = "declined"
 	HookOfferRemoved     = "removed"
 	HookOfferConfigured  = "configured"
+	// The agent was started through MoltenTerm's launcher, which added its hooks to the run (FR-SHELL-036).
+	HookOfferIntegrated = "integrated"
 )
 
 const claudeHooksSnippet = `{

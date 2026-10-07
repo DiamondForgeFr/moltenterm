@@ -92,6 +92,8 @@ type CompanionView struct {
 	Pending []ToolCall  `json:"pending,omitempty"`
 	// Usage: the agent's usage page when it has a usage adapter (FR-SHELL-026); the view holds no URL of its own.
 	Usage *usage.UsagePage `json:"usage,omitempty"`
+	// Integration: what MoltenTerm's launcher added to this run, or why nothing (FR-SHELL-036).
+	Integration *molten.AgentIntegrationReport `json:"integration,omitempty"`
 }
 
 type blockInfo struct {
@@ -134,17 +136,18 @@ type Manager struct {
 	limitsState atomic.Int32
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
-	runOf        func(blockId string) (molten.AgentRunInfo, bool)
-	allRuns      func() []molten.AgentRunInfo
-	blockInfo    func(blockId string) (blockInfo, error)
-	publish      func(view CompanionView)
-	publishUsage func(info UsageInfo)
-	writeGauges  func(agents []string) error
-	writeSetting func(key string, value any) error
-	adapterFor   func(agent string) Adapter
-	settings     func() *wconfig.SettingsType
-	now          func() time.Time
-	tick         time.Duration
+	runOf         func(blockId string) (molten.AgentRunInfo, bool)
+	integrationOf func(blockId string) (molten.AgentIntegrationReport, bool)
+	allRuns       func() []molten.AgentRunInfo
+	blockInfo     func(blockId string) (blockInfo, error)
+	publish       func(view CompanionView)
+	publishUsage  func(info UsageInfo)
+	writeGauges   func(agents []string) error
+	writeSetting  func(key string, value any) error
+	adapterFor    func(agent string) Adapter
+	settings      func() *wconfig.SettingsType
+	now           func() time.Time
+	tick          time.Duration
 }
 
 func MakeManager() *Manager {
@@ -492,6 +495,8 @@ type watcher struct {
 	session    *Session
 	candidates []Candidate
 	version    int64
+	// integration: the launcher's report for the current run, nil without one.
+	integration *molten.AgentIntegrationReport
 
 	// The loop's own state.
 	follower      *follower
@@ -608,6 +613,7 @@ func (w *watcher) refreshInfo(force bool) error {
 // step does one pass: which agent runs, which session is its, what was appended. It tells whether unread bytes
 // remain.
 func (w *watcher) step() bool {
+	w.refreshIntegration()
 	run, ok := w.resolveRun()
 	if !ok {
 		w.noRun()
@@ -647,6 +653,30 @@ func (w *watcher) step() bool {
 		return false
 	}
 	return w.read()
+}
+
+// refreshIntegration follows the launcher's report of the block's run; a new or gone report is a new view.
+func (w *watcher) refreshIntegration() {
+	var current *molten.AgentIntegrationReport
+	if w.m.integrationOf != nil {
+		if rep, ok := w.m.integrationOf(w.blockId); ok {
+			current = &rep
+		}
+	}
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if sameIntegration(w.integration, current) {
+		return
+	}
+	w.integration = current
+	w.version++
+}
+
+func sameIntegration(a *molten.AgentIntegrationReport, b *molten.AgentIntegrationReport) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.At == b.At && a.BlockId == b.BlockId
 }
 
 func (w *watcher) noRun() {
@@ -953,6 +983,7 @@ func (w *watcher) view(elide bool) CompanionView {
 		Ended:      w.ended,
 		Candidates: w.candidates,
 	}
+	v.Integration = w.integration
 	if w.agent != "" {
 		v.AgentName = molten.AgentDisplayName(w.agent)
 		v.Usage = usage.PageOf(w.agent)

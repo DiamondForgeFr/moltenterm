@@ -236,6 +236,7 @@ func Start() {
 	})
 	m := MakeManager()
 	m.runOf = attention.AgentRun
+	m.integrationOf = attention.AgentIntegration
 	m.allRuns = attention.AgentRuns
 	m.blockInfo = readBlockInfo
 	m.publish = publishView

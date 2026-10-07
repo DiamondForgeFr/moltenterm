@@ -97,6 +97,22 @@ func handleAgentCommand(command string, data any) (any, error) {
 		return nil, DismissAgentHookOffer(req.Agent)
 	case molten.AgentStatesDocCommand:
 		return molten.AgentStatesDocPath(wavebase.GetWaveDataDir(), wavebase.WaveVersion)
+	case molten.AgentIntegrationReportCommand:
+		var req molten.AgentIntegrationReport
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return nil, RecordAgentIntegration(req)
+	case molten.AgentIntegrationStatusCommand:
+		var req molten.AgentIntegrationStatusRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		rep, ok := AgentIntegration(req.BlockId)
+		if !ok {
+			return molten.AgentIntegrationStatus{}, nil
+		}
+		return molten.AgentIntegrationStatus{Found: true, Report: &rep}, nil
 	}
 	return nil, fmt.Errorf("unknown agent state command %q", command)
 }

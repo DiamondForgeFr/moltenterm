@@ -387,6 +387,10 @@ func InitRcFiles(waveHome string, absWshBinDir string) error {
 		"WSHBINDIR":      HardQuote(absWshBinDir),
 		"WSHBINDIR_PWSH": HardQuotePowerShell(absWshBinDir),
 		"PATHSEP":        pathSep,
+		// MOLTENTERM-PATCH (#318): the agent launchers' folder, put first on PATH after the user's startup files
+		"AGENTBINDIR":      HardQuote(filepath.Join(absWshBinDir, AgentBinDirName)),
+		"AGENTBINDIR_FISH": HardQuoteFish(filepath.Join(absWshBinDir, AgentBinDirName)),
+		"AGENTBINDIR_PWSH": HardQuotePowerShell(filepath.Join(absWshBinDir, AgentBinDirName)),
 	}
 
 	// write files to directory

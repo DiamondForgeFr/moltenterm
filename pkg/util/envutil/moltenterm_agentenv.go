@@ -33,6 +33,10 @@ var AgentSessionMarkers = map[string]bool{
 	"CODEX_SANDBOX_NETWORK_DISABLED": true,
 	// Gemini CLI
 	"GEMINI_CLI": true,
+	// MoltenTerm's agent launcher (pkg/molten/agentlaunch): a MoltenTerm started from an integrated agent must not
+	// take its own terminals for that agent's subprocesses, nor keep the other MoltenTerm's launchers' folder.
+	"MOLTENTERM_AGENT_LAUNCHED": true,
+	"MOLTENTERM_AGENTBINDIR":    true,
 }
 
 // StripAgentSessionMarkers returns env ("KEY=VALUE" entries) without the agent session markers.

@@ -604,6 +604,7 @@ func AgentStatesSnapshot() []molten.AgentStateInfo {
 func ForgetBlock(blockId string) {
 	defaultAttentionWatcher.forget(blockId)
 	defaultAgentStates.forget(blockId)
+	defaultIntegrationReports.forget(blockId)
 }
 
 var startOnce sync.Once

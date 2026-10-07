@@ -10,6 +10,7 @@ import {
     displayPath,
     firstChangedLine,
     formatArgs,
+    integrationProblem,
     needsLatest,
     neighbourAnswer,
     newerView,
@@ -128,6 +129,25 @@ describe("companion model", () => {
         expect(needsLatest(merged)).toBe(false);
         const changed = view({ version: 3, session, latest: { index: 2, rev: 4, markdown: "", elided: true } });
         expect(needsLatest(newerView(merged, changed))).toBe(true);
+    });
+
+    // FR-SHELL-036 AC10: a launch that could not add the integration says why; an integrated run says nothing here.
+    it("tells why the launcher added nothing", () => {
+        expect(integrationProblem(view({}))).toBeNull();
+        const integrated = {
+            agent: "claude",
+            realpath: "/r/claude",
+            added: [{ kind: "statehooks", name: "Agent state hooks" }],
+        };
+        expect(integrationProblem(view({ integration: integrated }))).toBeNull();
+        const failed = {
+            agent: "claude",
+            realpath: "/r/claude",
+            stepaside: "the integration could not be written: disk full",
+        };
+        expect(integrationProblem(view({ integration: failed }))).toBe(
+            "MoltenTerm added nothing to this run: the integration could not be written: disk full."
+        );
     });
 });
 

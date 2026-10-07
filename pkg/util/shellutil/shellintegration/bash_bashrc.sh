@@ -26,6 +26,24 @@ if [[ ":$PATH:" != *":$WAVETERM_WSHBINDIR:"* ]]; then
     export PATH="$WAVETERM_WSHBINDIR:$PATH"
 fi
 unset WAVETERM_WSHBINDIR
+
+# MOLTENTERM-PATCH (#318): the agent launchers first on PATH, after the user's startup files, which often prepend
+# ~/.local/bin, where Claude Code's installer puts claude (DS-SHELL-044); any other copy of the folder is dropped
+_moltenterm_agentpath() {
+  local dir={{.AGENTBINDIR}}
+  [ -d "$dir" ] || return 0
+  export MOLTENTERM_AGENTBINDIR="$dir"
+  local rest=":$PATH:"
+  while [[ "$rest" == *":$dir:"* ]]; do
+    rest="${rest//":$dir:"/:}"
+  done
+  rest="${rest#:}"
+  rest="${rest%:}"
+  export PATH="$dir${rest:+:$rest}"
+}
+_moltenterm_agentpath
+unset -f _moltenterm_agentpath
+
 if type _init_completion &>/dev/null; then
   source <(wsh completion bash)
 fi
