@@ -26,6 +26,8 @@ import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
+import { AgentTabs, BrowserAgentModel, controlBarView } from "./browser-agent";
 import {
     browserActivate,
     BrowserEngineModel,
@@ -54,11 +56,13 @@ import {
     BrowserTab,
     browserTabTitle,
     closeTab,
+    consumeCloseRequestsMeta,
     consumeOpenRequestsMeta,
     makeTabId,
     MoltentermBrowserView,
     moveTab,
     readBrowserState,
+    readCloseRequests,
     readOpenRequests,
     setTabEngine,
     toBrowserUrl,
@@ -74,6 +78,15 @@ export { MoltentermBrowserView };
 
 const PersistDelayMs = 400;
 const FallbackUrl = "about:blank";
+
+// The agents' DevTools controller needs each tab's webview (emain/moltenterm-browseragent.ts, FR-BRW-008).
+type BrowserAgentElectronApi = ElectronApi & {
+    moltentermRegisterWebview?: (blockId: string, browserTabId: string, webContentsId: number) => void;
+};
+
+function registerWebview(blockId: string, browserTabId: string, webContentsId: number): void {
+    (getApi() as BrowserAgentElectronApi).moltentermRegisterWebview?.(blockId, browserTabId, webContentsId);
+}
 
 function webviewPreloadUrl(): string {
     const path = getApi().getWebviewPreload();
@@ -106,6 +119,9 @@ export class BrowserViewModel implements ViewModel {
     loads = new BrowserLoadModel();
     // The first-link engine choice per tab (FR-BRW-006).
     choices = new BrowserChoiceModel();
+    // The tabs agents drive, and their control bars (FR-BRW-008).
+    agents: BrowserAgentModel;
+    handledCloseIds = new Set<string>();
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
@@ -113,6 +129,8 @@ export class BrowserViewModel implements ViewModel {
         this.layoutNode = nodeModel as Partial<NodeModel>;
         this.blockAtom = makeBlockAtom(blockId);
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
+        this.agents = new BrowserAgentModel(blockId);
+        this.agents.start();
         this.takeInitialNotice();
         this.takeInitialAsk();
         fireAndForget(() => this.engines.ensureLoaded());
@@ -492,6 +510,11 @@ export class BrowserViewModel implements ViewModel {
         const fresh = requests.filter((r) => !this.handledOpenIds.has(r.id));
         for (const request of fresh) {
             this.handledOpenIds.add(request.id);
+            if (request.agent) {
+                // Shown in the panel, but the focus stays where the user is (the agent's terminal).
+                this.setState(addTab(this.state(), request.url, makeTabId, { id: request.tabId }));
+                continue;
+            }
             if (request.engine) {
                 this.addHandoffEntry(request.url, request.engine);
                 continue;
@@ -508,9 +531,34 @@ export class BrowserViewModel implements ViewModel {
                 meta: consumeOpenRequestsMeta(requests) as MetaType,
             })
         );
-        if (fresh.some((r) => !r.keepFocus)) {
+        if (fresh.some((r) => !r.keepFocus && !r.agent)) {
             this.focusPanel();
         }
+    }
+
+    // Tabs an agent closes (tabs_close); the panel closes with its last tab, as Cmd+W does.
+    handleCloseRequests(meta: Record<string, any>): void {
+        const requests = readCloseRequests(meta);
+        if (requests.length === 0) {
+            return;
+        }
+        for (const request of requests.filter((r) => !this.handledCloseIds.has(r.id))) {
+            this.handledCloseIds.add(request.id);
+            if (this.findTab(request.tabId) == null) {
+                continue;
+            }
+            if (this.state().tabs.length <= 1) {
+                uxCloseBlock(this.blockId);
+                return;
+            }
+            this.closeTab(request.tabId);
+        }
+        fireAndForget(() =>
+            RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: makeORef("block", this.blockId),
+                meta: consumeCloseRequestsMeta(requests) as MetaType,
+            })
+        );
     }
 
     closeTab(id: string): void {
@@ -566,6 +614,7 @@ export class BrowserViewModel implements ViewModel {
         if (this.persistTimer != null) {
             clearTimeout(this.persistTimer);
         }
+        this.agents.dispose();
     }
 }
 
@@ -622,6 +671,7 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
         // emain/preload.ts routes a page's new window by this attribute; the preload cannot call the element's methods.
         const onDomReady = () => {
             webview.dataset.webcontentsid = String(webview.getWebContentsId());
+            registerWebview(model.blockId, tab.id, webview.getWebContentsId());
         };
         webview.addEventListener("did-navigate", onNavigate);
         webview.addEventListener("did-navigate-in-page", onNavigate);
@@ -672,6 +722,7 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
     const [dragId, setDragId] = useState<string>(null);
     const list = useAtomValue(model.engines.listAtom);
     const loads = useAtomValue(model.loads.loadsAtom);
+    const agentTabs = useAtomValue(model.agents.tabsAtom);
     const scrollRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const active = scrollRef.current?.querySelector<HTMLElement>(`[data-tabid="${state.activeId}"]`);
@@ -733,6 +784,7 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                         <span className={cn("min-w-0 flex-1 truncate", tab.engine && "text-secondary")}>
                             {browserTabTitle(tab) || "New tab"}
                         </span>
+                        <AgentTabMarker agentTabs={agentTabs} tabId={tab.id} />
                         {state.tabs.length > 1 ? (
                             <button
                                 type="button"
@@ -766,6 +818,25 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
             />
             <BrowserPanelButtons model={model} />
         </div>
+    );
+}
+
+// A tab an agent controls carries its mark, so the user sees it even when the tab is not shown.
+function AgentTabMarker({ agentTabs, tabId }: { agentTabs: AgentTabs; tabId: string }) {
+    const view = controlBarView(agentTabs[tabId]);
+    if (view == null) {
+        return null;
+    }
+    return (
+        <i
+            role="img"
+            aria-label={view.title}
+            title={view.title}
+            className={cn(
+                "fa fa-solid fa-robot shrink-0 text-[10px]",
+                view.takenOver ? "text-secondary" : "text-accent"
+            )}
+        />
     );
 }
 
@@ -1026,12 +1097,14 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const defaultSetting = useAtomValue(getSettingsKeyAtom("browser:default"));
     const sitesSetting = useAtomValue(getSettingsKeyAtom("browser:sites"));
     const engineList = useAtomValue(model.engines.listAtom);
+    const agentTabs = useAtomValue(model.agents.tabsAtom);
     const blockMeta = block?.meta;
     useEffect(() => {
         fireAndForget(() => model.engines.ensureLoaded());
     }, [model, installedSetting, defaultSetting, sitesSetting]);
     useEffect(() => {
         model.handleOpenRequests(blockMeta);
+        model.handleCloseRequests(blockMeta);
     }, [model, blockMeta]);
     useEffect(() => {
         if (isFocused) {
@@ -1059,6 +1132,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                 }
                 onDismiss={() => model.dismissChoice(state.activeId)}
             />
+            <AgentControlBar agents={model.agents} tabId={state.activeId} />
             <div className="relative min-h-0 flex-1">
                 {state.tabs.map((tab) =>
                     tab.engine ? (
@@ -1069,6 +1143,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                         <TabWebview key={tab.id} model={model} tab={tab} active={tab.id === state.activeId} />
                     )
                 )}
+                <AgentActionCueOverlay tabs={agentTabs} tabId={state.activeId} />
             </div>
         </div>
     );

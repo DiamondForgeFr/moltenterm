@@ -20,6 +20,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/browseragent"
 	"github.com/wavetermdev/waveterm/pkg/molten/browsers"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
@@ -438,6 +439,8 @@ func Start() {
 		}
 		return wconfig.SetBaseConfigValue(waveobj.MetaMapType{wconfig.ConfigKey_BrowserSites: sites})
 	})
+	// The agent sessions of `molten mcp browser` (FR-BRW-008).
+	browseragent.Start()
 	for _, start := range starters {
 		start()
 	}

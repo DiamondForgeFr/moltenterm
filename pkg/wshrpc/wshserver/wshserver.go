@@ -32,6 +32,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/genconn"
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
+	"github.com/wavetermdev/waveterm/pkg/molten" // MOLTENTERM-PATCH (#300)
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
@@ -176,7 +177,7 @@ func (ws *WshServer) UpdateWorkspaceTabIdsCommand(ctx context.Context, workspace
 }
 
 func (ws *WshServer) SetMetaCommand(ctx context.Context, data wshrpc.CommandSetMetaData) error {
-	log.Printf("SetMetaCommand: %s | %v\n", data.ORef, data.Meta)
+	log.Printf("SetMetaCommand: %s | %v\n", data.ORef, molten.LoggableMeta(data.Meta)) // MOLTENTERM-PATCH (#300): no page URLs or titles in the logs
 	oref := data.ORef
 	err := wstore.UpdateObjectMeta(ctx, oref, data.Meta, false)
 	if err != nil {

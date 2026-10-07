@@ -5,6 +5,7 @@ package molten
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
@@ -24,6 +25,10 @@ const (
 	// block meta: the queue of pages to open in the panel as new tabs, one key per page (prefix + time-ordered id =
 	// url), so concurrent writers merge instead of overwriting a shared list; the panel removes what it opened (#140)
 	BrowserOpenKeyPrefix = "molten:browser:open:"
+	// block meta: the queue of tabs to close, one key per request (prefix + time-ordered id = the browser tab id); the
+	// panel removes what it handled (FR-BRW-008, an agent's tabs_close). Must match BrowserCloseKeyPrefix in
+	// frontend/moltenterm-shell/browser/browser-model.ts.
+	BrowserCloseKeyPrefix = "molten:browser:close:"
 	// tab meta: the tab's browser panels, most recently focused first, written by the frontend (#140)
 	BrowserRecentMetaKey = "molten:browser:recent"
 	// block meta: the panel was created for a link whose site may have no engine yet; its first tab asks (FR-BRW-006).
@@ -130,4 +135,71 @@ func BrowserPageURL(blockMeta waveobj.MetaMapType) string {
 		return firstURL
 	}
 	return blockMeta.GetString(waveobj.MetaKey_Url, "")
+}
+
+// LoggableMeta returns meta as it may be logged (NFR-BRW-008): the page addresses and titles of web blocks and browser
+// panels (meta "url", molten:browser:*) are replaced by a mark, since a URL's query can carry a token. meta is never
+// modified.
+func LoggableMeta(meta waveobj.MetaMapType) waveobj.MetaMapType {
+	var rtn waveobj.MetaMapType
+	for k, v := range meta {
+		if v == nil || (k != waveobj.MetaKey_Url && !strings.HasPrefix(k, "molten:browser:")) {
+			continue
+		}
+		if rtn == nil {
+			rtn = make(waveobj.MetaMapType, len(meta))
+			for k2, v2 := range meta {
+				rtn[k2] = v2
+			}
+		}
+		rtn[k] = "(page data not logged)"
+	}
+	if rtn == nil {
+		return meta
+	}
+	return rtn
+}
+
+// BrowserAgentTabRequestMeta queues a tab an agent opens (FR-BRW-008): its id is chosen by wavesrv, so the agent
+// session knows it before the panel creates it, and the panel opens it without taking the focus from the terminal.
+func BrowserAgentTabRequestMeta(id string, url string, browserTabId string) waveobj.MetaMapType {
+	return waveobj.MetaMapType{BrowserOpenKeyPrefix + id: map[string]any{"url": url, "tabid": browserTabId, "agent": true}}
+}
+
+// BrowserCloseRequestMeta queues the closing of a panel tab.
+func BrowserCloseRequestMeta(id string, browserTabId string) waveobj.MetaMapType {
+	return waveobj.MetaMapType{BrowserCloseKeyPrefix + id: browserTabId}
+}
+
+// BrowserPanelTab is one tab of a browser panel as the panel saves it (BrowserTabsMetaKey). Engine is "" for the
+// in-app engine, else the installed browser a handed-off entry went to.
+type BrowserPanelTab struct {
+	Id     string
+	Url    string
+	Title  string
+	Engine string
+}
+
+// BrowserPanelTabs reads a panel's saved tabs; a panel that has not saved them yet has none.
+func BrowserPanelTabs(blockMeta waveobj.MetaMapType) []BrowserPanelTab {
+	raw, _ := blockMeta[BrowserTabsMetaKey].([]any)
+	rtn := make([]BrowserPanelTab, 0, len(raw))
+	for _, item := range raw {
+		tab, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		id, _ := tab["id"].(string)
+		url, okUrl := tab["url"].(string)
+		if id == "" || !okUrl {
+			continue
+		}
+		title, _ := tab["title"].(string)
+		engine, _ := tab["engine"].(string)
+		if engine == "app" {
+			engine = ""
+		}
+		rtn = append(rtn, BrowserPanelTab{Id: id, Url: url, Title: title, Engine: engine})
+	}
+	return rtn
 }
