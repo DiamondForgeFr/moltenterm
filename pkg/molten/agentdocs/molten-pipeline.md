@@ -40,6 +40,14 @@ what is missing, and only after the user agreed.
    - `steps`: anything else project-specific the user wants in a panel.
    - `icon`: the project's square app icon (not a wide logo), relative to the project folder, when it is not at a
      usual place such as `icon.svg` or `build/icon.png`.
+   - `group`: ask the user whether this repository belongs to a product made of several repositories (an app, its
+     website, its release repository). If it does, propose the group name: the product's name, the same in every
+     repository of the product (an existing `group` in a sibling's `.molten/project.json` gives it).
+   - `dependson`: look for scripts that read a sibling repository (a path such as `../<repo>/`, e.g.
+     `../Notulia/features/*.json`) and propose one entry per source: `project` from the sibling's pipeline `name`,
+     `paths` from what the script reads, `output` from the files it writes, `sync` from the command that runs it. Suggest
+     that the script read `MOLTEN_DEP_SOURCE_DIR` first and keep its relative path as a fallback (see "Groups and
+     dependencies" in `pipeline-format.md`).
 7. Show the user the mapping and what is missing. Propose the smallest additions (for example a `scripts/ci-local.sh`
    running the same checks as the GitHub workflow), and ask before creating anything. Never invent a release
    process: when the project has none, leave `release` out and say so.
@@ -55,6 +63,8 @@ what is missing, and only after the user agreed.
 - `.molten/project.json` describes commands; it never holds a secret, a token or a password. Commands use the
   user's own tools (`gh`, the package manager) already signed in.
 - Keep `branches` out of the file when `.saasfoundry.json` declares them: Mission Control reads them from there.
+- Write only this repository's own `.molten/project.json`, at its root: never a sibling's file, never a nested one. Each
+  repository of a product declares its `group` itself, from its own session.
 - Commands run from the project's root unless `cwd` says otherwise; keep `cwd` inside the project.
 - Prefer the project's existing entry points (`bun run check`, `task build`, `./scripts/release.sh`) over long
   inline shell lines.

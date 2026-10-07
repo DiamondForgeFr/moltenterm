@@ -111,9 +111,20 @@ export type PipelineReleaseStep = PipelineCommand & {
     notes?: boolean;
 };
 
+// must match PipelineDependency in pkg/molten/pipeline.go
+export type PipelineDependency = {
+    project: string;
+    paths: string[];
+    branch?: string;
+    sync?: string;
+    output: string[];
+};
+
 export type PipelineDef = {
     schema: number;
     name: string;
+    group?: string;
+    dependson?: PipelineDependency[];
     branches?: { trunk?: string; release?: string };
     versions?: {
         tagprefix?: string;

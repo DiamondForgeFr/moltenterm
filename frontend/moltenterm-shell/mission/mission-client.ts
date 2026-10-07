@@ -10,6 +10,7 @@ import { fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useState } from "react";
 import { BuildsFacts } from "./builds-model";
 import { CiRunRecord, CiState, upsertCiRun } from "./ci-model";
+import { GroupsAnswer, MissionGroupsCommand } from "./group-model";
 import { LogChunk, MissionSnapshot, RunRecord, RunResult, UntrustedInfo, upsertRun } from "./mission-model";
 import { ReleaseChannel, ReleaseMilestone, ReleaseSession } from "./release-model";
 import { ReleaseFacts } from "./release-run";
@@ -52,6 +53,15 @@ export function missionGet(dir: string, maxAgeSec?: number): Promise<MissionSnap
     return TabRpcClient.wshRpcCall(
         MissionGetCommand,
         { dir, maxagesec: maxAgeSec },
+        { route: MissionRouteId, timeout: MissionRpcTimeoutMs }
+    );
+}
+
+// The project groups (FR-MC-026); with a folder, only the group it is a member of. Changes come as MissionGroupsEvent.
+export function missionGroups(dir?: string): Promise<GroupsAnswer> {
+    return TabRpcClient.wshRpcCall(
+        MissionGroupsCommand,
+        { dir: dir || undefined },
         { route: MissionRouteId, timeout: MissionRpcTimeoutMs }
     );
 }
