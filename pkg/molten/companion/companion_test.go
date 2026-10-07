@@ -440,8 +440,8 @@ func TestManagerFollowsSession(t *testing.T) {
 		t.Errorf("earlier answer: %+v %v", a, err)
 	}
 
-	// A second Claude Code in the same folder: its companion never takes the first one's session, and with two
-	// sessions to choose from it asks.
+	// A second Claude Code in the same folder: its companion never takes the first one's session; with two agents in
+	// the folder it cannot be sure, so it opens on its guess, and the user's pick replaces it.
 	env.lock.Lock()
 	env.runs["b2"] = molten.AgentRunInfo{BlockId: "b2", Agent: "claude", Started: start.UnixMilli(), Running: true}
 	env.lock.Unlock()
@@ -449,9 +449,12 @@ func TestManagerFollowsSession(t *testing.T) {
 	waitView(t, env, "b2", func(v CompanionView) bool { return v.Status == StatusSearching })
 	session2 := filepath.Join(dir, "s2.jsonl")
 	os.WriteFile(session2, []byte(text), 0o600)
-	v2 := waitView(t, env, "b2", func(v CompanionView) bool { return v.Status == StatusChoose })
-	if len(v2.Candidates) != 1 || v2.Candidates[0].Path != canonicalPath(session2) {
-		t.Fatalf("candidates: %+v", v2.Candidates)
+	v2 := waitView(t, env, "b2", func(v CompanionView) bool { return v.Session != nil && v.Status == StatusLive })
+	if v2.Session.Path != canonicalPath(session2) || v2.Session.LinkedBy != LinkGuessed || v2.Session.Guess != GuessStarted {
+		t.Fatalf("guessed: %+v", v2.Session)
+	}
+	if list, err := m.Sessions("b2", "v"); err != nil || len(list) != 1 || !list[0].Current || list[0].Path != canonicalPath(session2) {
+		t.Fatalf("history: %+v %v", list, err)
 	}
 	if _, err := m.Pick("b2", "v", session); err == nil {
 		t.Error("another terminal's session cannot be picked")
@@ -459,8 +462,8 @@ func TestManagerFollowsSession(t *testing.T) {
 	if _, err := m.Pick("b2", "v", session2); err != nil {
 		t.Fatal(err)
 	}
-	v2 = waitView(t, env, "b2", func(v CompanionView) bool { return v.Status == StatusLive })
-	if v2.Session.LinkedBy != LinkPicked {
+	v2 = waitView(t, env, "b2", func(v CompanionView) bool { return v.Session != nil && v.Session.LinkedBy == LinkPicked })
+	if v2.Session.Guess != "" {
 		t.Errorf("picked: %+v", v2.Session)
 	}
 

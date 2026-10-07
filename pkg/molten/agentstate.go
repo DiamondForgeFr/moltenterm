@@ -280,4 +280,6 @@ type AgentRunInfo struct {
 	Started int64
 	Running bool
 	State   string
+	// StateSince: when the agent entered State, in Unix milliseconds.
+	StateSince int64
 }

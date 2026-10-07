@@ -216,6 +216,7 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 	msg := obj(rec, "message")
 	isMeta := boolean(rec, "isMeta")
 	if text, ok := msg["content"].(string); ok {
+		s.NoteCommand(commandName(text))
 		if !isMeta && !boolean(rec, "isCompactSummary") && cleanTitleText(text) != "" && !isCommandRecord(text) {
 			s.StartTurn(at)
 			s.AddPrompt(titlePrompt(text), at)
@@ -236,6 +237,7 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 			s.ResolveTool(id)
 		case "text":
 			text := str(block, "text")
+			s.NoteCommand(commandName(text))
 			if !isCommandRecord(text) && cleanTitleText(text) != "" {
 				prompt = true
 				texts = append(texts, text)

@@ -143,9 +143,14 @@ func (m *Manager) discoverLinked(blockId string, run molten.AgentRunInfo) (strin
 	return run.Agent, resolved, true
 }
 
+// linkedPath is the session the companion follows, unless it is only a guess: the other readers (the task
+// checkpoint) must not take another terminal's session for this one's.
 func (w *watcher) linkedPath() (string, string) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
+	if w.linkedBy == LinkGuessed {
+		return w.agent, ""
+	}
 	return w.agent, w.path
 }
 

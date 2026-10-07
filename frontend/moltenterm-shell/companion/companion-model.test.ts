@@ -10,11 +10,16 @@ import {
     displayPath,
     firstChangedLine,
     formatArgs,
+    guessHint,
     integrationProblem,
+    linkLabel,
     needsLatest,
     neighbourAnswer,
     newerView,
     permissionRequest,
+    sessionTitle,
+    sessionTooltipLine,
+    startedLabel,
     statusMessage,
     todoCounts,
 } from "./companion-model";
@@ -40,7 +45,10 @@ describe("companion model", () => {
         );
         expect(statusMessage(view({ status: "unsupportedformat" })).detail).toContain("not affected");
         expect(statusMessage(view({ status: "noagent" })).title).toContain("No agent");
-        expect(statusMessage(view({ status: "choose" })).title).toContain("Which session");
+        expect(statusMessage(view({ status: "searching", agentname: "Claude Code" })).title).toBe(
+            "Waiting for the Claude Code session"
+        );
+        expect(statusMessage(view({ status: "live", session: { path: "/x", linkedby: "guessed" } }))).toBeNull();
         expect(statusMessage(view({ status: "live" }))).toBeNull();
         expect(statusMessage(view({ status: "loading", session: { path: "/x", linkedby: "hook" } }))).toBeNull();
         expect(statusMessage(null).title).toContain("Reading");
@@ -167,5 +175,49 @@ describe("candidateTitle", () => {
 
     it("keeps the placeholder for a session with nothing yet", () => {
         expect(candidateTitle({ path: "p", started: 1 })).toBe("(no prompt yet)");
+    });
+});
+
+describe("the session the companion shows (DS-SHELL-060)", () => {
+    const today = new Date(2026, 9, 7, 14, 32).getTime();
+    const now = new Date(2026, 9, 7, 16, 0).getTime();
+
+    it("says how it was linked", () => {
+        expect(linkLabel({ path: "p", linkedby: "hook" })).toBe("linked by the agent's hook");
+        expect(linkLabel({ path: "p", linkedby: "picked" })).toBe("picked");
+        expect(linkLabel({ path: "p", linkedby: "discovery" })).toBe("found by folder");
+        expect(linkLabel({ path: "p", linkedby: "guessed" })).toBe("guessed");
+    });
+
+    it("explains a guess in one line, and only a guess", () => {
+        expect(guessHint({ path: "p", linkedby: "guessed", guess: "started" })).toContain("started after");
+        expect(guessHint({ path: "p", linkedby: "guessed", guess: "activity" })).toContain("worked");
+        expect(guessHint({ path: "p", linkedby: "guessed", guess: "recent" })).toContain("most recently updated");
+        expect(guessHint({ path: "p", linkedby: "hook" })).toBeNull();
+        expect(guessHint(null)).toBeNull();
+    });
+
+    it("names it like the history does", () => {
+        expect(sessionTitle({ path: "p", linkedby: "hook", title: "fix the tests", command: "/clear" })).toBe(
+            "fix the tests"
+        );
+        expect(sessionTitle({ path: "p", linkedby: "hook", command: "/clear", started: today })).toBe("/clear · 14:32");
+        expect(sessionTitle({ path: "p", linkedby: "hook" })).toBe("(no prompt yet)");
+    });
+
+    it("says when it started: the time today, the date before", () => {
+        expect(startedLabel(today, now)).toBe("started 14:32");
+        expect(startedLabel(new Date(2026, 9, 5, 9, 3).getTime(), now)).toMatch(/^started .*5.* 09:03$/);
+        expect(startedLabel(0, now)).toBe("");
+    });
+
+    it("gives the terminal's agent label a line naming it", () => {
+        expect(
+            sessionTooltipLine({ path: "p", linkedby: "guessed", title: "fix the tests", started: today }, now)
+        ).toBe("Session: fix the tests · started 14:32 (guessed)");
+        expect(sessionTooltipLine({ path: "p", linkedby: "hook", title: "fix the tests" }, now)).toBe(
+            "Session: fix the tests"
+        );
+        expect(sessionTooltipLine(null, now)).toBeNull();
     });
 });

@@ -136,6 +136,12 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 			return nil, err
 		}
 		return l.m.Pick(req.BlockId, req.ViewId, req.Path)
+	case molten.CompanionSessionsCommand:
+		var req blockRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.m.Sessions(req.BlockId, req.ViewId)
 	case molten.CompanionAnswerCommand:
 		var req answerRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

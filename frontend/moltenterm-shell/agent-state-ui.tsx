@@ -13,7 +13,9 @@ import { useMemo } from "react";
 import { AgentHookOfferChip } from "./agent-hooks-ui";
 import { agentHeaderParts, AgentStateDotClasses, AgentStateInfo, agentStateTitle } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
+import { sessionTooltipLine } from "./companion/companion-model";
 import { toggleCompanion } from "./companion/companion-open";
+import { CompanionSessions } from "./companion/companion-session-store";
 import { usePaneStatus } from "./pane-status";
 import { blockFolder, makePaneView } from "./status-bar-model";
 
@@ -81,12 +83,17 @@ export function AgentHeaderLabel({ blockId, localName }: { blockId: string; loca
             ? ""
             : blockFolder({ view: meta?.view, connection: meta?.connection, "cmd:cwd": meta?.["cmd:cwd"] });
     const paneState = usePaneStatus(folder, folder ? blockId : null);
+    const companionSession = useAtomValue(CompanionSessions.getInstance().sessionAtom(blockId));
     if (info == null) {
         return null;
     }
     const pane = folder ? makePaneView(folder, paneState, ws) : null;
     const parts = agentHeaderParts(info, pane?.projectName, pane?.branch);
-    const title = [agentStateTitle(info), folder, localName ? `on ${localName}` : ""].filter((s) => !!s).join("\n");
+    // The session the open companion shows, so the terminal and its companion match at a glance (DS-SHELL-060).
+    const sessionLine = sessionTooltipLine(companionSession, Date.now());
+    const title = [agentStateTitle(info), sessionLine, folder, localName ? `on ${localName}` : ""]
+        .filter((s) => !!s)
+        .join("\n");
     // The label opens the agent companion next to the pane (FR-SHELL-018); the hook setup offer follows it (#221).
     return (
         <>

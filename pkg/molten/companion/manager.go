@@ -32,7 +32,6 @@ const (
 	StatusUnsupportedAgent  = "unsupportedagent"
 	StatusRemote            = "remote"
 	StatusSearching         = "searching"
-	StatusChoose            = "choose"
 	StatusLive              = "live"
 	StatusUnsupportedFormat = "unsupportedformat"
 	StatusError             = "error"
@@ -40,6 +39,8 @@ const (
 	LinkHook      = "hook"
 	LinkPicked    = "picked"
 	LinkDiscovery = "discovery"
+	// LinkGuessed: discovery could not tell, the companion chose the likeliest session (guess.go).
+	LinkGuessed = "guessed"
 )
 
 const (
@@ -55,11 +56,12 @@ const (
 	reportUntracked = 24 * time.Hour
 	// A new agent writes its own session only at its first prompt: until then, another program's session of the
 	// folder (an IDE's) would pass for a resumed one. The resumed-session rule waits this long after the agent started.
-	resumeGrace  = 15 * time.Second
-	maxReports   = 1000
-	maxWatchers  = 16
-	maxLeases    = 8
-	maxCandidate = 10
+	resumeGrace = 15 * time.Second
+	maxReports  = 1000
+	maxWatchers = 16
+	maxLeases   = 8
+	// The companion's history lists at most this many sessions.
+	maxHistory = 30
 	// Records larger than this are not decoded unless they may carry a file change: a tool's result only ends its
 	// call, read from its id.
 	largeRecordBytes = 1024 * 1024
@@ -72,18 +74,23 @@ type SessionInfo struct {
 	Path     string `json:"path"`
 	Format   string `json:"format,omitempty"`
 	LinkedBy string `json:"linkedby"`
+	// Guess: how a guessed session was chosen (GuessStarted, GuessActivity, GuessRecent).
+	Guess string `json:"guess,omitempty"`
+	// Title: the session's first real prompt (FR-SHELL-039); Command: its first slash command, the title until then.
+	Title   string `json:"title,omitempty"`
+	Command string `json:"command,omitempty"`
+	Started int64  `json:"started,omitempty"`
 }
 
 // CompanionView is what the companion view shows of a block; the earlier answers and the diffs are fetched on demand.
 type CompanionView struct {
-	BlockId    string       `json:"blockid"`
-	Version    int64        `json:"version"`
-	Status     string       `json:"status"`
-	Agent      string       `json:"agent,omitempty"`
-	AgentName  string       `json:"agentname,omitempty"`
-	Message    string       `json:"message,omitempty"`
-	Session    *SessionInfo `json:"session,omitempty"`
-	Candidates []Candidate  `json:"candidates,omitempty"`
+	BlockId   string       `json:"blockid"`
+	Version   int64        `json:"version"`
+	Status    string       `json:"status"`
+	Agent     string       `json:"agent,omitempty"`
+	AgentName string       `json:"agentname,omitempty"`
+	Message   string       `json:"message,omitempty"`
+	Session   *SessionInfo `json:"session,omitempty"`
 	// Ended: the agent no longer runs; the view shows its last session.
 	Ended   bool         `json:"ended,omitempty"`
 	Answers []AnswerInfo `json:"answers,omitempty"`
@@ -287,13 +294,18 @@ func (m *Manager) releaseClaims(blockId string) {
 	m.releaseClaimsLocked(blockId)
 }
 
-// claim links a transcript to a block. A link by discovery gives way to another block's hook report or pick; any
-// other link of another block keeps the transcript.
+// weakLink: a link wavesrv made on its own, which gives way to a hook report or a pick.
+func weakLink(by string) bool {
+	return by == LinkDiscovery || by == LinkGuessed
+}
+
+// claim links a transcript to a block. A link by discovery or guess gives way to another block's hook report or
+// pick; any other link of another block keeps the transcript.
 func (m *Manager) claim(blockId string, path string, by string) bool {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if c, ok := m.claims[path]; ok && c.blockId != blockId {
-		if c.by != LinkDiscovery || by == LinkDiscovery {
+		if !weakLink(c.by) || weakLink(by) {
 			return false
 		}
 	}
@@ -324,6 +336,16 @@ func (m *Manager) takenByOther(blockId string, path string) bool {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if c, ok := m.claims[path]; ok && c.blockId != blockId {
+		return true
+	}
+	return m.reportedByOtherLocked(blockId, path)
+}
+
+// heldByOther is takenByOther without the sessions another block only guessed: the user may take those.
+func (m *Manager) heldByOther(blockId string, path string) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if c, ok := m.claims[path]; ok && c.blockId != blockId && c.by != LinkGuessed {
 		return true
 	}
 	return m.reportedByOtherLocked(blockId, path)
@@ -484,7 +506,7 @@ func (m *Manager) Pick(blockId string, viewId string, path string) (CompanionVie
 	if err != nil {
 		return CompanionView{}, err
 	}
-	if m.takenByOther(blockId, resolved) || !m.claim(blockId, resolved, LinkPicked) {
+	if m.heldByOther(blockId, resolved) || !m.claim(blockId, resolved, LinkPicked) {
 		return CompanionView{}, fmt.Errorf("this session belongs to another terminal")
 	}
 	m.lock.Lock()
@@ -492,6 +514,56 @@ func (m *Manager) Pick(blockId string, viewId string, path string) (CompanionVie
 	m.lock.Unlock()
 	w.poke()
 	return w.view(false), nil
+}
+
+// Sessions lists the sessions of a block's folder written since its agent started, for the companion's history: the
+// one the companion shows first (flagged Current), then the others no other terminal holds, newest first.
+func (m *Manager) Sessions(blockId string, viewId string) ([]Candidate, error) {
+	w, err := m.lease(blockId, viewId)
+	if err != nil {
+		return nil, err
+	}
+	run, ok := w.currentRun()
+	if !ok {
+		return nil, fmt.Errorf("no agent runs in this terminal")
+	}
+	adapter := m.adapterFor(run.Agent)
+	if adapter == nil {
+		return nil, fmt.Errorf("no companion exists for %s", molten.AgentDisplayName(run.Agent))
+	}
+	var info blockInfo
+	if m.blockInfo != nil {
+		info, err = m.blockInfo(blockId)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if info.remote {
+		return nil, fmt.Errorf("no companion for a remote terminal")
+	}
+	var rtn []Candidate
+	current, hasCurrent := w.currentCandidate()
+	if hasCurrent {
+		rtn = append(rtn, current)
+	}
+	if info.cwd == "" {
+		return rtn, nil
+	}
+	for _, c := range adapter.Discover(info.cwd, time.UnixMilli(run.Started)) {
+		if len(rtn) >= maxHistory {
+			break
+		}
+		c.Path = canonicalPath(c.Path)
+		if hasCurrent && c.Path == current.Path {
+			continue
+		}
+		if m.heldByOther(blockId, c.Path) {
+			continue
+		}
+		c.Elsewhere = m.takenByOther(blockId, c.Path)
+		rtn = append(rtn, c)
+	}
+	return rtn, nil
 }
 
 func (m *Manager) pick(blockId string) (sessionPick, bool) {
@@ -529,7 +601,14 @@ func (m *Manager) sameFolderRuns(agent string, cwd string) int {
 	if m.allRuns == nil {
 		return 1
 	}
-	count := 0
+	return len(m.sameFolderRunList(agent, cwd))
+}
+
+func (m *Manager) sameFolderRunList(agent string, cwd string) []molten.AgentRunInfo {
+	if m.allRuns == nil {
+		return nil
+	}
+	var rtn []molten.AgentRunInfo
 	for _, run := range m.allRuns() {
 		if run.Agent != agent || !run.Running {
 			continue
@@ -538,9 +617,22 @@ func (m *Manager) sameFolderRuns(agent string, cwd string) int {
 		if err != nil || info.remote || !samePath(info.cwd, cwd) {
 			continue
 		}
-		count++
+		rtn = append(rtn, run)
 	}
-	return count
+	return rtn
+}
+
+// blockLinked tells whether a block has a session of its own: followed by its companion, or reported by its hook.
+func (m *Manager) blockLinked(blockId string) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	for _, c := range m.claims {
+		if c.blockId == blockId {
+			return true
+		}
+	}
+	r, ok := m.reports[blockId]
+	return ok && m.reportCurrentLocked(blockId, r)
 }
 
 // watcher follows one block's agent session.
@@ -562,8 +654,8 @@ type watcher struct {
 	ended      bool
 	path       string
 	linkedBy   string
+	guess      string
 	session    *Session
-	candidates []Candidate
 	version    int64
 	// integration: the launcher's report for the current run, nil without one.
 	integration *molten.AgentIntegrationReport
@@ -604,6 +696,27 @@ func (w *watcher) currentRun() (molten.AgentRunInfo, bool) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	return molten.AgentRunInfo{BlockId: w.blockId, Agent: w.agent, Started: w.runStarted}, w.hasRun
+}
+
+// currentCandidate describes the session the companion shows, as a history entry.
+func (w *watcher) currentCandidate() (Candidate, bool) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.path == "" || w.session == nil {
+		return Candidate{}, false
+	}
+	c := Candidate{
+		Path:    w.path,
+		Id:      w.session.Id,
+		Started: w.session.StartedAt(),
+		Prompt:  w.session.Title(),
+		Command: w.session.FirstCommand(),
+		Current: true,
+	}
+	if info, err := os.Stat(w.path); err == nil {
+		c.Modified = info.ModTime().UnixMilli()
+	}
+	return c, true
 }
 
 func (w *watcher) loop() {
@@ -772,7 +885,7 @@ func (w *watcher) unlink() {
 	w.m.releaseClaims(w.blockId)
 	w.lock.Lock()
 	defer w.lock.Unlock()
-	w.path, w.linkedBy, w.session, w.candidates, w.ended = "", "", nil, nil, false
+	w.path, w.linkedBy, w.guess, w.session, w.ended = "", "", "", nil, false
 	w.linkedStarted = 0
 	w.discoveredAt = time.Time{}
 	w.version++
@@ -786,11 +899,11 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 		w.unlink()
 	}
 	if report, ok := w.m.report(w.blockId); ok && report.agent == run.Agent && !report.at.Before(time.UnixMilli(run.Started).Add(-reportSlack)) {
-		w.follow(report.path, LinkHook, 0)
+		w.follow(report.path, LinkHook, 0, "")
 		return
 	}
 	if pick, ok := w.m.pick(w.blockId); ok && pick.agent == run.Agent && pick.started == run.Started {
-		w.follow(pick.path, LinkPicked, 0)
+		w.follow(pick.path, LinkPicked, 0, "")
 		return
 	}
 	now := w.m.now()
@@ -828,7 +941,8 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 			}
 		}
 		if len(newer) == 1 && runs <= 1 {
-			w.follow(newer[0].Path, LinkDiscovery, newer[0].Started)
+			by, guess := w.linkKind()
+			w.follow(newer[0].Path, by, newer[0].Started, guess)
 		}
 		return
 	}
@@ -837,19 +951,38 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 	}
 	chosen, ambiguous := chooseCandidate(free, written, run.Started, runs)
 	if chosen != nil && !ambiguous {
-		w.follow(chosen.Path, LinkDiscovery, chosen.Started)
+		w.follow(chosen.Path, LinkDiscovery, chosen.Started, "")
 		return
 	}
+	// Discovery cannot tell: the companion opens on the likeliest session rather than on a list (DS-SHELL-060).
+	if guess, reason := w.guessSession(run, free); guess != nil {
+		w.follow(guess.Path, LinkGuessed, guess.Started, reason)
+		return
+	}
+	w.setStatus(StatusSearching, "")
+}
+
+// guessSession weighs this block's agent against the other unlinked agents of the same folder.
+func (w *watcher) guessSession(run molten.AgentRunInfo, free []Candidate) (*Candidate, string) {
 	if len(free) == 0 {
-		w.setCandidates(nil)
-		w.setStatus(StatusSearching, "")
-		return
+		return nil, ""
 	}
-	if len(free) > maxCandidate {
-		free = free[:maxCandidate]
+	self := makeGuessRun(run)
+	self.blockId = w.blockId
+	var others []guessRun
+	for _, other := range w.m.sameFolderRunList(run.Agent, w.info.cwd) {
+		if other.BlockId == w.blockId || w.m.blockLinked(other.BlockId) {
+			continue
+		}
+		others = append(others, makeGuessRun(other))
 	}
-	w.setCandidates(free)
-	w.setStatus(StatusChoose, "")
+	return guessCandidate(free, self, others, w.m.now().UnixMilli())
+}
+
+func (w *watcher) linkKind() (string, string) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	return w.linkedBy, w.guess
 }
 
 // canonicalPath resolves symlinks, so a session reached through two paths is claimed once.
@@ -888,33 +1021,11 @@ func chooseCandidate(free []Candidate, written int, runStarted int64, runsInFold
 	return nil, true
 }
 
-func (w *watcher) setCandidates(list []Candidate) {
-	w.lock.Lock()
-	defer w.lock.Unlock()
-	if candidatesEqual(w.candidates, list) {
-		return
-	}
-	w.candidates = list
-	w.version++
-}
-
-func candidatesEqual(a []Candidate, b []Candidate) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i].Path != b[i].Path || a[i].Modified != b[i].Modified {
-			return false
-		}
-	}
-	return true
-}
-
-func (w *watcher) follow(path string, linkedBy string, started int64) {
+func (w *watcher) follow(path string, linkedBy string, started int64, guess string) {
 	w.lock.Lock()
 	same := w.path == path && w.follower != nil
-	if same && w.linkedBy != linkedBy {
-		w.linkedBy = linkedBy
+	if same && (w.linkedBy != linkedBy || w.guess != guess) {
+		w.linkedBy, w.guess = linkedBy, guess
 		w.version++
 	}
 	w.lock.Unlock()
@@ -943,7 +1054,7 @@ func (w *watcher) follow(path string, linkedBy string, started int64) {
 	w.linkedStarted = started
 	w.lock.Lock()
 	defer w.lock.Unlock()
-	w.path, w.linkedBy, w.session, w.candidates = resolved, linkedBy, MakeSession(), nil
+	w.path, w.linkedBy, w.guess, w.session = resolved, linkedBy, guess, MakeSession()
 	w.status, w.message = StatusLoading, ""
 	w.version++
 }
@@ -1049,13 +1160,12 @@ func (w *watcher) view(elide bool) CompanionView {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	v := CompanionView{
-		BlockId:    w.blockId,
-		Version:    w.m.nextVersion(),
-		Status:     w.status,
-		Agent:      w.agent,
-		Message:    w.message,
-		Ended:      w.ended,
-		Candidates: w.candidates,
+		BlockId: w.blockId,
+		Version: w.m.nextVersion(),
+		Status:  w.status,
+		Agent:   w.agent,
+		Message: w.message,
+		Ended:   w.ended,
 	}
 	v.Integration = w.integration
 	if w.agent != "" {
@@ -1065,7 +1175,15 @@ func (w *watcher) view(elide bool) CompanionView {
 	if w.path == "" || w.session == nil {
 		return v
 	}
-	v.Session = &SessionInfo{Path: w.path, Format: w.session.Format, LinkedBy: w.linkedBy}
+	v.Session = &SessionInfo{
+		Path:     w.path,
+		Format:   w.session.Format,
+		LinkedBy: w.linkedBy,
+		Guess:    w.guess,
+		Title:    w.session.Title(),
+		Command:  w.session.FirstCommand(),
+		Started:  w.session.StartedAt(),
+	}
 	if w.status == StatusUnsupportedFormat {
 		return v
 	}
