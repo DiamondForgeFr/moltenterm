@@ -16,6 +16,7 @@ import { BranchPr, projectBranchRows } from "../project/project-model";
 import { channelOfTag, DefaultTagPrefix, parseVersion, VersionRules } from "../releases/versions";
 import { CiBranch, CiVerdictStatus } from "./ci-model";
 import { GithubRelease, PullRequest } from "./github";
+import { BuildMarker, LocalBuild, placeBuildMarkers } from "./line-map-builds";
 import { MissionGit, RawCommit, toTreeData } from "./mission-model";
 import { ReleaseSession } from "./release-model";
 import { isPrereleaseTag, readableSubject, releaseState, treeRules } from "./versions";
@@ -100,6 +101,8 @@ export type LineMapModel = {
     // When the window starts before the oldest develop commit the collector read (it reads a bounded history), the
     // date from which the map is complete; null when it is complete over the whole window.
     historyFrom: number;
+    // Where the most recent local build of each flavor sits (#288).
+    builds?: BuildMarker[];
 };
 
 export type LineMapInput = {
@@ -109,6 +112,8 @@ export type LineMapInput = {
     releases?: readonly GithubRelease[];
     // The release under way: a public one carries the number chosen in the Release menu.
     session?: ReleaseSession;
+    // The delivered local builds, from their manifests.
+    builds?: readonly LocalBuild[];
     now: number;
     days: number;
 };
@@ -393,6 +398,14 @@ export function buildLineMap(input: LineMapInput): LineMapModel {
         terminus,
         github,
         historyFrom: oldestRead > start ? oldestRead : null,
+        builds: placeBuildMarkers(input.builds ?? [], {
+            trunk: trunkCommits,
+            release: releaseCommits,
+            stations: all,
+            findSource: makeSourceFinder(trunkCommits, releaseCommits),
+            start,
+            trunkRead: TrunkCommitsRead,
+        }),
     };
 }
 

@@ -19,7 +19,8 @@ import { checkWebUrl } from "../project/project-model";
 import { ciVerdictView } from "../status-bar-model";
 import { CiBranch } from "./ci-model";
 import { plainText } from "./github";
-import { GeometryBranch, GeometryStation, layoutLineMap, LineMapGeometry } from "./line-map-geometry";
+import { BuildMarker } from "./line-map-builds";
+import { GeometryBranch, GeometryBuild, GeometryStation, layoutLineMap, LineMapGeometry } from "./line-map-geometry";
 import {
     buildLineMap,
     commitUrl,
@@ -48,7 +49,7 @@ import {
     IntroTerminusText,
     motionAttrs,
 } from "./line-map-motion";
-import { useLineMapDays } from "./line-map-store";
+import { useLineMapDays, useLocalBuilds } from "./line-map-store";
 import { MenuPopover } from "./menu-popover";
 import { MissionSnapshot } from "./mission-model";
 import { ReleaseSession } from "./release-model";
@@ -116,6 +117,11 @@ const Styles = `
 .lm-st-public { stroke: var(--color-accent); stroke-width: 3.5; }
 .lm-earlier { fill: var(--color-background); stroke: var(--color-muted); stroke-width: 2; stroke-dasharray: 3 2; }
 .lm-unread { fill: var(--color-hover); }
+.lm-build-pill { fill: color-mix(in srgb, var(--color-success) 16%, var(--color-background)); stroke: color-mix(in srgb, var(--color-success) 65%, var(--color-background)); stroke-width: 1; }
+.lm-build-chip { stroke-dasharray: 3 2; }
+.lm-build-tick { stroke: color-mix(in srgb, var(--color-success) 65%, var(--color-background)); stroke-width: 1.5; }
+.lm-build-text { font-size: 10px; font-weight: 500; fill: var(--color-primary); }
+.lm-hit:hover .lm-build-pill, .lm-hit:focus-visible .lm-build-pill { fill: color-mix(in srgb, var(--color-success) 30%, var(--color-background)); }
 .lm-stlabel, .lm-brlabel, .lm-livelabel, .lm-ticktxt { paint-order: stroke; stroke: var(--color-background); stroke-width: 3px; stroke-linejoin: round; }
 .lm-stlabel { font-size: 11px; font-weight: 500; fill: var(--color-primary); }
 .lm-stlabel-latest { fill: var(--color-accent); }
@@ -198,6 +204,7 @@ type MapItem =
     | { kind: "branch"; g: GeometryBranch }
     | { kind: "commit"; commit: LineMapCommit }
     | { kind: "head" }
+    | { kind: "build"; marker: BuildMarker }
     | { kind: "earlier" }
     | { kind: "terminus" }
     | { kind: "day"; day: number; commits: LineMapCommit[] }
@@ -227,6 +234,8 @@ function itemLabel(item: MapItem, model: LineMapModel): string {
             return `Commit ${item.commit.sha.slice(0, 7)}: ${item.commit.subject}`;
         case "head":
             return `${model.trunk} now`;
+        case "build":
+            return `${item.marker.label} build, commit ${item.marker.commit.slice(0, 7)}`;
         case "earlier":
             return `${model.earlier.length} earlier versions`;
         case "terminus":
@@ -403,12 +412,51 @@ function BranchDetail({ b }: { b: GeometryBranch["branch"] }) {
     );
 }
 
+function BuildDetail({ m, model }: { m: BuildMarker; model: LineMapModel }) {
+    const manifest = m.build.manifest;
+    const where = m.build.artifact ?? "";
+    return (
+        <>
+            <div className="font-semibold text-primary">
+                {m.label}
+                <span className="ml-1.5 font-normal text-muted">
+                    · build {manifest.buildId ?? manifest.version ?? m.build.id}
+                </span>
+            </div>
+            <div className="flex min-w-0 items-baseline gap-1.5 text-secondary">
+                <code className="shrink-0 text-[10px] text-muted">{m.commit.slice(0, 7)}</code>
+                {m.subject ? (
+                    <Subject subject={m.subject} />
+                ) : (
+                    <span className="text-muted">not in the history read</span>
+                )}
+            </div>
+            {manifest.builtAt ? (
+                <div className="text-secondary">
+                    Built {formatWhen(manifest.builtAt)} ({timeAgo(manifest.builtAt)})
+                </div>
+            ) : null}
+            {where ? <div className="min-w-0 break-all text-muted">Delivered to {where}</div> : null}
+            <div className="text-secondary">
+                {m.behind == null
+                    ? `Where it stands on ${model.trunk} is not known: its commit is not in the history read.`
+                    : m.behind === 0
+                      ? `Up to date with ${model.trunk}.`
+                      : `${m.behind}${m.behindCapped ? "+" : ""} commit${m.behind === 1 ? "" : "s"} on ${model.trunk} since.`}
+            </div>
+            {m.tag ? <div className="text-muted">Made from {m.tag}.</div> : null}
+        </>
+    );
+}
+
 function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; trunkCi: string }) {
     switch (item.kind) {
         case "station":
             return <StationDetail s={item.station} />;
         case "branch":
             return <BranchDetail b={item.g.branch} />;
+        case "build":
+            return <BuildDetail m={item.marker} model={model} />;
         case "commit":
             return (
                 <>
@@ -543,6 +591,10 @@ function Legend() {
                 <span className="h-3.5 w-3.5 rounded-full border-[3px] border-accent" />
                 public release
             </span>
+            <span className={item}>
+                <span className="h-2.5 w-[18px] rounded-full border border-success/60 bg-success/20" />
+                local build
+            </span>
         </div>
     );
 }
@@ -653,9 +705,14 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, session, full = 
     const release = useStable(session, session ? `${session.channel}:${session.version}:${session.tag}` : "");
     // "now" follows each new read of the project, not the clock: the map holds still between refreshes.
     const now = useMemo(() => Date.now(), [git, days]);
+    const fetched = useLocalBuilds(dir, gitFingerprint(git));
+    const builds = useStable(
+        fetched,
+        (fetched ?? []).map((b) => `${b.id}:${b.manifest.commit}:${b.manifest.builtAt}`).join(",")
+    );
     const model = useMemo(
-        () => (git ? buildLineMap({ git, prs, ciBranches: ci, releases, session: release, now, days }) : null),
-        [git, prs, releases, ci, release, now, days]
+        () => (git ? buildLineMap({ git, prs, ciBranches: ci, releases, session: release, builds, now, days }) : null),
+        [git, prs, releases, ci, release, builds, now, days]
     );
     // A detail opened on a mark the new data no longer has would float detached, with old figures.
     useEffect(() => setHover(null), [model]);
@@ -843,6 +900,31 @@ function StationMark({ g, hit, geo }: { g: GeometryStation; hit: HitProps; geo: 
 // A branch's start in the load sequence, from where it leaves develop.
 function branchDelay(geo: LineMapGeometry, g: GeometryBranch): number {
     return introDelay(geo, g.branch.state === "open" ? "open" : "branch", g.x1);
+}
+
+function BuildMark({ g, hit, geo }: { g: GeometryBuild; hit: HitProps; geo: LineMapGeometry }) {
+    const m = g.marker;
+    return (
+        <g {...hit({ kind: "build", marker: m })} data-place={m.place} data-testid={`line-map-build-${m.flavor}`}>
+            <g className="lm-wrap" style={delayStyle(introDelay(geo, "station", g.x + g.w / 2))}>
+                {g.tick ? (
+                    <line className="lm-build-tick" x1={g.tick.x} x2={g.tick.x} y1={g.tick.y1} y2={g.tick.y2} />
+                ) : null}
+                <rect className="lm-focus" x={g.x - 2} y={g.y - 2} width={g.w + 4} height={g.h + 4} rx={g.h / 2 + 2} />
+                <rect
+                    className={cn("lm-build-pill", g.chip && "lm-build-chip")}
+                    x={g.x}
+                    y={g.y}
+                    width={g.w}
+                    height={g.h}
+                    rx={g.h / 2}
+                />
+                <text className="lm-build-text" x={g.x + g.w / 2} y={g.y + g.h / 2 + 3.5} textAnchor="middle">
+                    {g.text}
+                </text>
+            </g>
+        </g>
+    );
 }
 
 function BranchMark({ g, hit, geo }: { g: GeometryBranch; hit: HitProps; geo: LineMapGeometry }) {
@@ -1086,6 +1168,9 @@ export const MapSvg = memo(function MapSvg({
                 ) : null}
                 {geo.stations.map((g) => (
                     <StationMark key={g.station.name} g={g} hit={hit} geo={geo} />
+                ))}
+                {geo.builds.map((g) => (
+                    <BuildMark key={g.marker.key} g={g} hit={hit} geo={geo} />
                 ))}
 
                 <g className="lm-pulse lm-wrap" style={delayStyle(IntroPulse)} aria-hidden="true">
