@@ -9,14 +9,25 @@
 
 import { Button } from "@/app/element/button";
 import { useAtomValue } from "jotai";
-import { BrowserAgentModel, permissionBarView } from "./browser-agent";
+import { useRef } from "react";
+import { answerTooSoon, BrowserAgentModel, permissionBarView, PermissionDecision } from "./browser-agent";
 
 export function AgentPermissionBar({ agents, tabId }: { agents: BrowserAgentModel; tabId: string }) {
     const tabs = useAtomValue(agents.tabsAtom);
+    const shown = useRef({ requestId: "", at: 0 });
     const view = permissionBarView(tabs[tabId]);
+    if (view != null && shown.current.requestId !== view.requestId) {
+        shown.current = { requestId: view.requestId, at: Date.now() };
+    }
     if (view == null) {
         return null;
     }
+    const click = (decision: PermissionDecision) => {
+        if (answerTooSoon(shown.current.at, Date.now())) {
+            return;
+        }
+        agents.answer(tabId, view.requestId, decision);
+    };
     return (
         <div
             role="region"
@@ -38,18 +49,14 @@ export function AgentPermissionBar({ agents, tabId }: { agents: BrowserAgentMode
             <div className="flex shrink-0 items-center gap-2">
                 {view.buttons.map((b) =>
                     b.primary ? (
-                        <Button
-                            key={b.decision}
-                            className="!h-6 !px-2.5 !text-xs"
-                            onClick={() => agents.answer(tabId, view.requestId, b.decision)}
-                        >
+                        <Button key={b.decision} className="!h-6 !px-2.5 !text-xs" onClick={() => click(b.decision)}>
                             {b.label}
                         </Button>
                     ) : (
                         <button
                             key={b.decision}
                             type="button"
-                            onClick={() => agents.answer(tabId, view.requestId, b.decision)}
+                            onClick={() => click(b.decision)}
                             className="h-6 cursor-pointer rounded border border-border px-2.5 text-primary hover:bg-hover focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent"
                         >
                             {b.label}

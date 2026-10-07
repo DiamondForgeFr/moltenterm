@@ -486,6 +486,8 @@ async function checkInput(client, tabId, opts) {
       `type ${typed.ms} ms, key ${select.ms} ms`
     );
     check(!keys.isError && !quit.isError, "cmd+w and cmd+q are sent", keys.text);
+    const paste = await client.callTool("computer", { tabId, action: "key", text: "ctrl+v" });
+    check(paste.isError && paste.text.includes("clipboard"), "copy, cut and paste shortcuts are refused", paste.text);
     log = await pageLog(client, tabId);
     check(log.includes("keydown meta+w") && log.includes("keydown meta+q"), "cmd+w and cmd+q reach the page");
     const stillHere = await client.callTool("tabs_context", {});

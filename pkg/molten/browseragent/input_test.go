@@ -841,3 +841,130 @@ func TestADownloadAsksAndItsDenyFailsTheClickThatStartedIt(t *testing.T) {
 		t.Fatalf("a tab the user took over gets no download through the agent's question")
 	}
 }
+
+func TestClipboardShortcutsAreRefusedOnEverySystem(t *testing.T) {
+	for _, mac := range []bool{true, false} {
+		for _, keys := range []string{"ctrl+v", "ctrl+c", "ctrl+x", "cmd+v", "ctrl+shift+v", "a shift+Insert", "ctrl+Insert", "shift+Delete"} {
+			if _, errText := planInput(inputArgs{Action: mcpbrowser.ActionKey, Text: &keys}, mac); errText != mcpbrowser.ErrClipboardKey {
+				t.Fatalf("%q (mac %v): %q", keys, mac, errText)
+			}
+		}
+		for _, keys := range []string{"ctrl+a", "cmd+z", "Delete", "Insert", "shift+a", "v"} {
+			if _, errText := planInput(inputArgs{Action: mcpbrowser.ActionKey, Text: &keys}, mac); errText != "" {
+				t.Fatalf("%q (mac %v) should pass: %q", keys, mac, errText)
+			}
+		}
+	}
+	w, ip := makeInputWorld(t)
+	w.navigateAllowed(t, "https://example.com/login")
+	expectError(t, w.call(mcpbrowser.ToolComputer, w.args(`"action":"key","text":"Tab ctrl+v"`)), mcpbrowser.ErrClipboardKey)
+	if len(ip.sent()) != 0 {
+		t.Fatalf("a refused key sequence sends nothing: %s", ip.kinds())
+	}
+}
+
+func TestInputStopsWhenTheTabMovesToAnotherSite(t *testing.T) {
+	w, ip := makeInputWorld(t)
+	w.navigateAllowed(t, "https://example.com/login")
+	ip.set(func(ip *inputPage) {
+		ip.focused = targetInfo{Found: true, Kind: "textbox", Editable: true}
+		ip.onEvent = func(e inputEvent) error {
+			if e.params["moltenhost"] != "example.com" {
+				return fmt.Errorf("no host on %s", e.method)
+			}
+			// emain's refusal once Enter took the tab to another site.
+			if e.params["key"] == "x" {
+				return errors.New("molten:site-changed")
+			}
+			return nil
+		}
+	})
+	r := w.call(mcpbrowser.ToolComputer, w.args(`"action":"key","text":"Enter x y z"`))
+	expectError(t, r, mcpbrowser.ErrSiteChanged)
+	if n := ip.count("Input.dispatchKeyEvent"); n != 3 {
+		t.Fatalf("the keys after the site changed are not sent: %s", ip.kinds())
+	}
+}
+
+func TestARefClickAsksForWhatLiesOnTopOfIt(t *testing.T) {
+	w, ip := makeInputWorld(t)
+	w.navigateAllowed(t, "https://example.com/login")
+	ref := refIn(t, text(w.call(mcpbrowser.ToolFind, w.args(`"query":"sign in button"`))), `button "Sign in"`)
+	ip.set(func(ip *inputPage) {
+		ip.nodes[7] = targetInfo{Found: true, Kind: "element", Label: "Remember me"}
+		ip.atPoint = targetInfo{Found: true, Kind: "button", Label: "Sign in", SubmitControl: true, FormSensitive: true}
+	})
+	pending := w.callAsync(mcpbrowser.ToolComputer, w.args(fmt.Sprintf(`"action":"left_click","ref":%q`, ref)))
+	p := w.actionPrompt(t)
+	if p.Action != actionPromptText(reasonSensitiveForm) {
+		t.Fatalf("prompt %+v", p)
+	}
+	w.answer(t, p, DecisionDeny)
+	expectError(t, waitResult(t, pending), mcpbrowser.ErrActionDenied)
+	if ip.count("Input.dispatchMouseEvent") != 0 {
+		t.Fatalf("a denied click sends nothing")
+	}
+}
+
+func TestATargetThatChangedWhileTheUserWasAskedIsNotClicked(t *testing.T) {
+	w, ip := makeInputWorld(t)
+	w.navigateAllowed(t, "https://example.com/login")
+	ip.set(func(ip *inputPage) {
+		ip.atPoint = targetInfo{Found: true, Kind: "button", Label: "Sign in", SubmitControl: true, FormSensitive: true}
+	})
+	pending := w.callAsync(mcpbrowser.ToolComputer, w.args(`"action":"left_click","coordinate":[100,200]`))
+	p := w.actionPrompt(t)
+	ip.set(func(ip *inputPage) { ip.atPoint = targetInfo{Found: true, Kind: "file", FileInput: true} })
+	w.answer(t, p, DecisionAllow)
+	expectError(t, waitResult(t, pending), mcpbrowser.ErrPageChanged)
+	if ip.count("Input.dispatchMouseEvent") != 0 {
+		t.Fatalf("nothing is clicked: %s", ip.kinds())
+	}
+}
+
+func TestEnterOnAnyControlOfASensitiveFormAsks(t *testing.T) {
+	enter, _ := parseChord("Enter", false)
+	space, _ := parseChord("Space", false)
+	letter, _ := parseChord("a", false)
+	checkbox := targetInfo{Found: true, Kind: "checkbox", FormSensitive: true}
+	if keyReason(checkbox, enter) != reasonSensitiveForm {
+		t.Fatalf("Enter on a checkbox of a sign-in form submits it")
+	}
+	if keyReason(checkbox, space) != "" || keyReason(checkbox, letter) != "" {
+		t.Fatalf("Space or a letter on a checkbox submits nothing")
+	}
+	if p := keyInspectParams(letter); p["lean"] != true {
+		t.Fatalf("a letter needs the lean look: %v", p)
+	}
+	if p := keyInspectParams(enter); p["lean"] != nil {
+		t.Fatalf("Enter needs the form: %v", p)
+	}
+	if got := cleanLabel("Sign‮ in⁦"); got != "Sign in" {
+		t.Fatalf("format characters are dropped: %q", got)
+	}
+}
+
+func TestADragThatFailsReleasesTheButton(t *testing.T) {
+	w, ip := makeInputWorld(t)
+	w.navigateAllowed(t, "https://example.com/login")
+	moves := 0
+	ip.set(func(ip *inputPage) {
+		ip.onEvent = func(e inputEvent) error {
+			if e.kind() == "mouseMoved" && e.params["buttons"] == buttonsLeft {
+				moves++
+				if moves == 3 {
+					return errors.New("the page did not answer")
+				}
+			}
+			return nil
+		}
+	})
+	r := w.call(mcpbrowser.ToolComputer, w.args(`"action":"left_click_drag","start_coordinate":[10,10],"coordinate":[500,500]`))
+	if !r.IsError {
+		t.Fatalf("the drag failed: %s", text(r))
+	}
+	events := ip.sent()
+	if last := events[len(events)-1]; last.kind() != "mouseReleased" || last.params["buttons"] != 0 {
+		t.Fatalf("the button is released after a failure: %s", ip.kinds())
+	}
+}

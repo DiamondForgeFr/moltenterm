@@ -277,7 +277,8 @@ export function isSyntheticInputMethod(method: string): boolean {
 }
 
 const MouseEventTypes = new Set(["mousePressed", "mouseReleased", "mouseMoved", "mouseWheel"]);
-const MouseButtons = new Set(["none", "left", "middle", "right"]);
+// No middle button: on Linux it pastes the selection, outside the page.
+const MouseButtons = new Set(["none", "left", "right"]);
 const KeyEventTypes = new Set(["keyDown", "keyUp", "rawKeyDown", "char"]);
 // Selection and undo only: copy, cut and paste would reach the user's clipboard, outside the page (FR-BRW-010 AC6).
 export const AllowedEditingCommands: ReadonlySet<string> = new Set(["selectAll", "undo", "redo"]);
@@ -293,6 +294,49 @@ function wholeIn(v: unknown, lo: number, hi: number): v is number {
 function shortString(v: unknown, max: number): v is string {
     return typeof v === "string" && v.length <= max;
 }
+
+const ModCtrl = 2;
+const ModMeta = 4;
+const ModShift = 8;
+
+// Copy, cut and paste shortcuts on every system (FR-BRW-010 AC6): on Windows and Linux the page's engine runs them from
+// the key itself, without any editing command, so dropping the commands is not enough.
+export function isClipboardChord(key: string, code: string, modifiers: number): boolean {
+    const k = String(key ?? "").toLowerCase();
+    const c = String(code ?? "");
+    if (
+        (modifiers & (ModCtrl | ModMeta)) !== 0 &&
+        (["c", "x", "v"].includes(k) || ["KeyC", "KeyX", "KeyV"].includes(c))
+    ) {
+        return true;
+    }
+    if (k === "insert" || c === "Insert") {
+        return (modifiers & (ModCtrl | ModShift)) !== 0;
+    }
+    if (k === "delete" || c === "Delete") {
+        return (modifiers & ModShift) !== 0;
+    }
+    return k === "paste" || k === "copy" || k === "cut";
+}
+
+// The host of the page an input action was planned on must still be the tab's (FR-BRW-008 AC7): a key or a chunk of
+// text that reaches a page of another site has skipped that site's permission.
+export function inputHostMatches(pageUrl: string, expected: unknown): boolean {
+    if (typeof expected !== "string" || expected === "") {
+        return false;
+    }
+    try {
+        const u = new URL(pageUrl);
+        if (u.protocol !== "http:" && u.protocol !== "https:") {
+            return false;
+        }
+        return u.host.toLowerCase() === expected;
+    } catch {
+        return false;
+    }
+}
+
+export const SiteChangedError = "molten:site-changed";
 
 // The Input.* events emain sends for wavesrv, rebuilt from known fields with bounded values; anything else is refused.
 export function sanitizeInputParams(method: string, params: any): any {
@@ -342,6 +386,9 @@ export function sanitizeInputParams(method: string, params: any): any {
         }
         const keyCode = params.windowsVirtualKeyCode ?? 0;
         if (!wholeIn(keyCode, 0, 255)) {
+            return null;
+        }
+        if (isClipboardChord(key, code ?? "", modifiers)) {
             return null;
         }
         const out: any = { type, key, code: code ?? "", windowsVirtualKeyCode: keyCode, modifiers };
@@ -506,11 +553,16 @@ export function pageSignature(report: any): InputSignature {
     return null;
 }
 
-export type InspectParams = { backendNodeId?: number; point?: { x: number; y: number }; focused?: boolean };
+export type InspectParams = {
+    backendNodeId?: number;
+    point?: { x: number; y: number };
+    focused?: boolean;
+    lean?: boolean;
+};
 
 export function inspectParams(params: any): InspectParams {
     if (params?.focused === true) {
-        return { focused: true };
+        return params.lean === true ? { focused: true, lean: true } : { focused: true };
     }
     if (Number.isInteger(params?.backendnodeid) && params.backendnodeid > 0) {
         return { backendNodeId: params.backendnodeid };
@@ -539,70 +591,103 @@ export function setFieldParams(params: any): SetFieldParams {
 
 // The fixed function Molten.inspect runs on an element in MoltenTerm's isolated world: the page's scripts cannot
 // change what it reads. It says what the element is for the sensitive-action rules (DS-BRW-016) and the bar's line,
-// never a field's value. Must match targetInfo in pkg/molten/browseragent/sensitive.go.
-export const InspectElementSource = `(el) => {
+// never a field's value. Must match targetInfo in pkg/molten/browseragent/sensitive.go. With lean set (a key that
+// types a character) it skips the label, the box and the form, which cost a layout on every key.
+// Types are checked through the element's own window, never this world's constructors: an element of a same-origin
+// frame comes from another realm, where instanceof would say it is no field at all and nothing would ask.
+export const InspectElementSource = `(el, lean) => {
     const SensitiveAutocomplete = /(^|\\s)(cc-[a-z-]+|current-password|new-password|one-time-code)(\\s|$)/i;
     const CardName = /(card.?num|cc.?num|cc-?number|credit.?card|cvc|cvv|csc|card.?code|security.?code|card.?verif)/i;
+    const SecretName = /(^|[^a-z])(pass(word|wd|code|phrase)?|pwd|otp|pin(code)?)([^a-z]|$)/i;
     const TextTypes = new Set(["", "text", "search", "email", "url", "tel", "number", "password", "date", "datetime-local", "month", "time", "week"]);
-    const isField = (f) => f instanceof HTMLInputElement || f instanceof HTMLTextAreaElement;
+    if (el == null || el.nodeType !== 1) {
+        return { found: false, kind: "element" };
+    }
+    const doc = el.ownerDocument || document;
+    const win = doc.defaultView || window;
+    const tagOf = (e) => (e && e.nodeType === 1 ? String(e.tagName).toLowerCase() : "");
+    const isInput = (e) => tagOf(e) === "input";
+    const isField = (e) => isInput(e) || tagOf(e) === "textarea";
+    // Fields seen as passwords keep counting as one after a "show password" toggle made them text.
+    const seenKey = "__moltentermSecretFields";
+    const seen = globalThis[seenKey] || (globalThis[seenKey] = new WeakSet());
+    try {
+        for (const f of doc.querySelectorAll("input[type=password]")) {
+            seen.add(f);
+        }
+    } catch {}
     const sensitive = (f) => {
         if (!isField(f)) {
             return false;
         }
-        if ((f.getAttribute("type") || "").toLowerCase() === "password") {
+        if ((f.getAttribute("type") || "").toLowerCase() === "password" || seen.has(f)) {
             return true;
         }
         if (SensitiveAutocomplete.test(f.getAttribute("autocomplete") || "")) {
             return true;
         }
-        if (CardName.test((f.getAttribute("name") || "") + " " + (f.getAttribute("id") || ""))) {
+        const names = ((f.getAttribute("name") || "") + " " + (f.getAttribute("id") || "")).replace(/([a-z])([A-Z])/g, "$1 $2");
+        if (CardName.test(names) || SecretName.test(names)) {
             return true;
         }
         try {
-            const masked = getComputedStyle(f).webkitTextSecurity;
+            const masked = win.getComputedStyle(f).webkitTextSecurity;
             return Boolean(masked) && masked !== "none";
         } catch {
             return false;
         }
     };
-    if (el == null || !(el instanceof Element)) {
-        return { found: false, kind: "element" };
-    }
-    const tag = el.tagName.toLowerCase();
+    const tag = tagOf(el);
     if (tag === "iframe" || tag === "frame" || tag === "object" || tag === "embed") {
         const r = el.getBoundingClientRect();
         return { found: true, kind: "frame", frame: true, label: el.getAttribute("title") || "", rect: { x: r.x, y: r.y, width: r.width, height: r.height } };
     }
     const target = el.closest("a[href], button, input, select, textarea, label, [role=button], [role=link], [contenteditable=''], [contenteditable=true]") || el;
-    const t = target.tagName.toLowerCase();
+    const t = tagOf(target);
     const type = t === "input" ? (target.getAttribute("type") || "text").toLowerCase() : "";
     let control = target;
     if (t === "label" && target.control) {
         control = target.control;
     }
-    const ctype = control instanceof HTMLInputElement ? control.type : "";
-    const fileInput = control instanceof HTMLInputElement && ctype === "file";
-    const submitter = target.closest("button, input[type=submit], input[type=image]");
-    const submitControl = submitter != null && (submitter instanceof HTMLInputElement || submitter.type === "submit") && submitter.form != null;
-    const form = (submitter && submitter.form) || control.form || target.closest("form");
-    const formSensitive = form != null && Array.from(form.elements || []).some(sensitive);
-    const editable = (control instanceof HTMLTextAreaElement) || (control instanceof HTMLInputElement && TextTypes.has(ctype)) || Boolean(target.isContentEditable);
+    const ctag = tagOf(control);
+    const ctype = ctag === "input" ? String(control.type || "").toLowerCase() : "";
+    const fileInput = ctag === "input" && ctype === "file";
+    const editable = ctag === "textarea" || (ctag === "input" && TextTypes.has(ctype)) || Boolean(target.isContentEditable);
     let kind = "element";
     if (fileInput) {
         kind = "file";
     } else if (t === "a" || target.getAttribute("role") === "link") {
         kind = "link";
-    } else if (t === "button" || target.getAttribute("role") === "button" || ["button", "submit", "reset", "image"].includes(type)) {
+    } else if (ctag === "button" || target.getAttribute("role") === "button" || ["button", "submit", "reset", "image"].includes(ctype || type)) {
         kind = "button";
     } else if (ctype === "checkbox") {
         kind = "checkbox";
     } else if (ctype === "radio") {
         kind = "radio";
-    } else if (control instanceof HTMLSelectElement) {
+    } else if (ctag === "select") {
         kind = "select";
     } else if (editable) {
         kind = "textbox";
     }
+    if (lean) {
+        return { found: true, kind, sensitive: sensitive(control), editable, fileinput: fileInput, frame: false };
+    }
+    const form = control.form || target.closest("form");
+    let scope = form != null ? Array.from(form.elements || []) : [];
+    // A sign-in without a form element (a script sends it): the nearest few containers stand for the form, never the
+    // whole page, where any button would ask.
+    if (form == null && kind === "button") {
+        let up = target.parentElement;
+        for (let i = 0; i < 6 && up != null && up !== doc.body && up !== doc.documentElement && scope.length === 0; i++, up = up.parentElement) {
+            const fields = Array.from(up.querySelectorAll("input, textarea"));
+            if (fields.some(sensitive)) {
+                scope = fields;
+            }
+        }
+    }
+    const formSensitive = scope.some(sensitive);
+    // Any button of a form holding a sensitive field may send it, from script as well as as a submit button.
+    const submitControl = kind === "button" && ctype !== "reset" && formSensitive;
     const text = (e) => (e && typeof e.innerText === "string" ? e.innerText : "");
     let label = control.getAttribute("aria-label") || target.getAttribute("aria-label") || "";
     if (!label && control.labels && control.labels.length > 0) {
@@ -641,12 +726,13 @@ export function inspectPointScript(x: number, y: number): string {
         }
         el = inner;
     }
-    return (${InspectElementSource})(el);
+    return (${InspectElementSource})(el, false);
 })()`;
 }
 
 // The focused element, through open shadow roots and same-origin frames; the page's body counts as no field.
-export const InspectFocusedScript = `(() => {
+export function inspectFocusedScript(lean: boolean): string {
+    return `(() => {
     let el = document.activeElement;
     for (let i = 0; i < 20 && el; i++) {
         if (el.shadowRoot && el.shadowRoot.activeElement) {
@@ -665,11 +751,14 @@ export const InspectFocusedScript = `(() => {
         }
         break;
     }
-    if (el == null || el === document.body || el === document.documentElement) {
+    if (el == null || el === document.body || el === document.documentElement || el === (el.ownerDocument && el.ownerDocument.body)) {
         return { found: false, kind: "element" };
     }
-    return (${InspectElementSource})(el);
+    return (${InspectElementSource})(el, ${lean ? "true" : "false"});
 })()`;
+}
+
+export const InspectFocusedScript = inspectFocusedScript(false);
 
 // The fixed function form_input runs on its field in MoltenTerm's isolated world: it sets the value, the checked
 // state or the option, then fires input and change so the page's own code sees the change.

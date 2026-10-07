@@ -117,7 +117,8 @@ func keyReason(focused targetInfo, chord keyChord) string {
 	if focused.FileInput {
 		return reasonFileChooser
 	}
-	if focused.FormSensitive && (focused.SubmitControl || (chord.isEnter() && focused.Editable)) {
+	// Enter in any control of such a form submits it, a checkbox's included.
+	if focused.FormSensitive && (focused.SubmitControl || chord.isEnter()) {
 		return reasonSensitiveForm
 	}
 	if focused.Frame && chord.isEnter() {
@@ -131,11 +132,35 @@ func keyNeedsInspection(chord keyChord) bool {
 	return chord.producesText() || chord.isEnter() || chord.isSpace()
 }
 
+// keyInspectParams: a key that only types a character needs the focused field's own kind, not its form or label (the
+// lean look, which spares the page a layout on every key).
+func keyInspectParams(chord keyChord) map[string]any {
+	if chord.isEnter() || chord.isSpace() {
+		return map[string]any{"focused": true}
+	}
+	return map[string]any{"focused": true, "lean": true}
+}
+
+// withTargetAt adds to a ref's element what a click at its centre would really hit, since another element may lie on
+// top of it: the click asks when either one is sensitive.
+func withTargetAt(ref targetInfo, at targetInfo) targetInfo {
+	if !at.Found {
+		return ref
+	}
+	ref.FileInput = ref.FileInput || at.FileInput
+	ref.Link = ref.Link || at.Link
+	if at.SubmitControl && at.FormSensitive {
+		ref.SubmitControl, ref.FormSensitive = true, true
+	}
+	return ref
+}
+
 // cleanLabel keeps a label fit for the bar: one line of printable text, without quotes, cut short. It comes from the
 // page, so it is shown in MoltenTerm's own words around it and never logged.
 func cleanLabel(label string) string {
 	label = strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) || r == '"' || r == '“' || r == '”' {
+		// Format characters (bidi overrides) would let a page reorder the bar's line around its label.
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || r == '"' || r == '“' || r == '”' {
 			return ' '
 		}
 		return r

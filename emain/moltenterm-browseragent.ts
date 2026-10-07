@@ -19,8 +19,9 @@ import {
     downloadHost,
     expectedSignature,
     flattenBitmapOnWhite,
+    inputHostMatches,
     InspectElementSource,
-    InspectFocusedScript,
+    inspectFocusedScript,
     inspectParams,
     inspectPointScript,
     isMoltenOperation,
@@ -44,6 +45,7 @@ import {
     sanitizeInputParams,
     setFieldParams,
     SetFieldSource,
+    SiteChangedError,
     slimAxTree,
     SyntheticInputLedger,
     validRegistration,
@@ -84,6 +86,10 @@ const emulated = new Map<number, { width: number; height: number }>();
 // A download the user allowed, started again by emain: it goes through once.
 const allowedDownloads = new Map<number, { url: string; until: number }>();
 const hookedSessions = new WeakSet<Electron.Session>();
+// Downloads waiting for the user's answer: one question per tab at a time, so a page cannot pile them up.
+const pendingDownloads = new Set<number>();
+// A mouse button the agent holds down (a drag in progress), released when control ends.
+const heldButtons = new Map<number, { x: number; y: number; button: string }>();
 const DownloadAllowanceMs = 30000;
 let reportTakeover: TakeoverReport = () => {};
 let askDownload: DownloadAsk = async () => false;
@@ -160,6 +166,9 @@ function stopWatching(wc: WebContents): void {
     stop?.();
     synthetic.forget(wc.id);
     allowedDownloads.delete(wc.id);
+    readerContexts.delete(wc.id);
+    const held = heldButtons.get(wc.id);
+    heldButtons.delete(wc.id);
     if (!wc.debugger.isAttached()) {
         emulated.delete(wc.id);
         return;
@@ -173,12 +182,24 @@ function stopWatching(wc: WebContents): void {
             console.log("molten browser agent: detach failed", e);
         }
     };
+    // A drag cut short by Stop must not leave the page with a button held down.
+    const release: Promise<unknown> =
+        held == null
+            ? Promise.resolve()
+            : wc.debugger
+                  .sendCommand("Input.dispatchMouseEvent", {
+                      type: "mouseReleased",
+                      ...held,
+                      buttons: 0,
+                      clickCount: 1,
+                  })
+                  .catch(() => {});
     if (!emulated.delete(wc.id)) {
-        detach();
+        release.then(detach);
         return;
     }
     // The page returns to the panel's size when control ends (FR-BRW-010 AC3).
-    wc.debugger.sendCommand("Emulation.clearDeviceMetricsOverride", {}).then(detach, detach);
+    release.then(() => wc.debugger.sendCommand("Emulation.clearDeviceMetricsOverride", {})).then(detach, detach);
 }
 
 // Downloads of a tab under an agent's control wait for the user (DS-BRW-016): emain cancels them and asks wavesrv,
@@ -205,15 +226,24 @@ function hookDownloads(wc: WebContents): void {
             return;
         }
         event.preventDefault();
+        if (pendingDownloads.has(source.id)) {
+            return;
+        }
+        pendingDownloads.add(source.id);
+        const sourceId = source.id;
         askDownload(reg.blockId, reg.browserTabId, downloadHost(url)).then(
             (allow) => {
+                pendingDownloads.delete(sourceId);
                 if (!allow || source.isDestroyed()) {
                     return;
                 }
                 allowedDownloads.set(source.id, { url, until: Date.now() + DownloadAllowanceMs });
                 source.downloadURL(url);
             },
-            (e) => console.log("molten browser agent: download question failed", e)
+            (e) => {
+                pendingDownloads.delete(sourceId);
+                console.log("molten browser agent: download question failed", e);
+            }
         );
     });
 }
@@ -273,6 +303,9 @@ function register(event: Electron.IpcMainEvent, blockId: unknown, browserTabId: 
         synthetic.forget(reg.webContentsId);
         emulated.delete(reg.webContentsId);
         allowedDownloads.delete(reg.webContentsId);
+        pendingDownloads.delete(reg.webContentsId);
+        heldButtons.delete(reg.webContentsId);
+        readerContexts.delete(reg.webContentsId);
         if (registry.get(key)?.webContentsId === reg.webContentsId) {
             registry.delete(key);
         }
@@ -346,6 +379,9 @@ export async function runBrowserAgentCdp(data: CdpCallData): Promise<any> {
     attachDebugger(wc);
     let params = data.params ?? {};
     if (isSyntheticInputMethod(data.method)) {
+        if (!inputHostMatches(wc.getURL(), params.moltenhost)) {
+            throw new Error(SiteChangedError);
+        }
         params = sanitizeInputParams(data.method, params);
         if (params == null) {
             throw new Error("bad input parameters");
@@ -359,10 +395,24 @@ export async function runBrowserAgentCdp(data: CdpCallData): Promise<any> {
         if (params == null) {
             throw new Error("bad viewport size");
         }
-        emulated.set(wc.id, { width: params.width, height: params.height });
     }
     const result = await wc.debugger.sendCommand(data.method, params);
+    if (data.method === "Emulation.setDeviceMetricsOverride") {
+        emulated.set(wc.id, { width: params.width, height: params.height });
+    } else if (data.method === "Input.dispatchMouseEvent") {
+        noteHeldButton(wc.id, params);
+    }
     return data.method === "Accessibility.getFullAXTree" ? slimAxTree(result) : result;
+}
+
+function noteHeldButton(wcId: number, params: any): void {
+    if (params.type === "mousePressed") {
+        heldButtons.set(wcId, { x: params.x, y: params.y, button: params.button });
+        return;
+    }
+    if (params.type === "mouseReleased") {
+        heldButtons.delete(wcId);
+    }
 }
 
 function attachDebugger(wc: WebContents): void {
@@ -450,9 +500,16 @@ async function inspectOp(wc: WebContents, raw: any): Promise<any> {
         throw new Error("bad inspect parameters");
     }
     if (params.backendNodeId != null) {
-        return callOnNode(wc, params.backendNodeId, `function () { return (${InspectElementSource})(this); }`, []);
+        return callOnNode(
+            wc,
+            params.backendNodeId,
+            `function () { return (${InspectElementSource})(this, false); }`,
+            []
+        );
     }
-    const code = params.focused ? InspectFocusedScript : inspectPointScript(params.point.x, params.point.y);
+    const code = params.focused
+        ? inspectFocusedScript(params.lean === true)
+        : inspectPointScript(params.point.x, params.point.y);
     return wc.executeJavaScriptInIsolatedWorld(ReaderWorldId, [{ code }]);
 }
 

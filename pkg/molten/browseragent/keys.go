@@ -227,6 +227,22 @@ func parseKeys(text string, macCommands bool) ([]keyChord, bool) {
 	return chords, true
 }
 
+// isClipboard: copy, cut and paste shortcuts, refused on every system (FR-BRW-010 AC6). On Windows and Linux the
+// page's engine runs them from the key itself, so leaving out the editing commands is not enough.
+func (c keyChord) isClipboard() bool {
+	k := strings.ToLower(c.key)
+	if c.modifiers&(modCtrl|modMeta) != 0 && (k == "c" || k == "x" || k == "v") {
+		return true
+	}
+	switch c.key {
+	case "Insert":
+		return c.modifiers&(modCtrl|modShift) != 0
+	case "Delete":
+		return c.modifiers&modShift != 0
+	}
+	return false
+}
+
 // producesText: the chord would type a character into the focused field.
 func (c keyChord) producesText() bool {
 	return c.text != "" && c.key != "Enter"

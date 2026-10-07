@@ -125,6 +125,8 @@ const (
 	ErrRefOutside        = "The element is outside the viewport: scroll to it with scroll_to first"
 	ErrPageChanged       = "The page changed while the user was asked; look at it again"
 	ErrTooManyKeys       = "key presses at most 1000 keys per call, repeats included"
+	ErrClipboardKey      = "Copy, cut and paste shortcuts are not sent: they would reach the user's clipboard"
+	ErrBatchTooLarge     = "its result would make the batch's answer too large: take screenshots and zooms in separate calls"
 )
 
 // UntrustedNotice precedes any page-originated text (DS-BRW-020).
