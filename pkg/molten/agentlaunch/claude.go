@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -30,10 +31,15 @@ const (
 	claudeExecutable   = "claude"
 	claudeSettingsFlag = "--settings"
 	claudeFilePrefix   = "claude"
+	// The file that also holds the user's own --settings (which may carry secrets: env, apiKeyHelper) is kept
+	// for a shorter time (files.go).
+	claudeFlagFilePrefix = "claude-flag"
+	// A settings file larger than this is not read: it is taken as unreadable.
+	maxSettingsBytes = 4 * 1024 * 1024
 )
 
-// Options that make a run that starts no interactive session of this pane: printing, a detached or remote session,
-// or a run meant to be minimal or without customizations.
+// Options that make a run that starts no session of this pane: version and help, a detached or desktop session, or
+// a run meant to be minimal or without customizations. -p runs are integrated: they are the pane's agent too.
 var claudePassThroughFlags = map[string]bool{
 	"-v": true, "--version": true, "-h": true, "--help": true,
 	"--bg": true, "--background": true, "--desktop": true,
@@ -78,10 +84,13 @@ func (claudeAdapter) PassThrough(args []string) bool {
 
 // claudeArgs is what the plan reads of the user's arguments.
 type claudeArgs struct {
-	// rest: the arguments without the user's --settings, which the generated file takes in.
+	// rest: the arguments without the user's --settings, which the generated file takes in; at: where the last one
+	// was in rest, so the generated one takes its place (a variadic option before it, such as --allowedTools, must
+	// still end where it ended).
 	rest       []string
 	settings   string
 	hasSetting bool
+	at         int
 	// sources: --setting-sources, nil when absent; restricted: --restricted ignores user, project and local files.
 	sources    []string
 	restricted bool
@@ -96,7 +105,7 @@ func parseClaudeArgs(args []string) claudeArgs {
 			break
 		}
 		if value, ok := optionValue(args, &i, claudeSettingsFlag); ok {
-			rtn.settings, rtn.hasSetting = value, true
+			rtn.settings, rtn.hasSetting, rtn.at = value, true, len(rtn.rest)
 			continue
 		}
 		rtn.rest = append(rtn.rest, arg)
@@ -146,7 +155,7 @@ type settingsSource struct {
 
 func readSettingsSource(env molten.AgentEnv, path string) (settingsSource, bool) {
 	src := settingsSource{display: molten.DisplayHomePath(env, path)}
-	data, err := os.ReadFile(path)
+	data, err := readBounded(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return src, false
 	}
@@ -160,6 +169,26 @@ func readSettingsSource(env molten.AgentEnv, path string) (settingsSource, bool)
 	return src, true
 }
 
+// readBounded reads a regular file of at most maxSettingsBytes: a FIFO or a device would block the launch.
+func readBounded(path string) ([]byte, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", path)
+	}
+	if info.Size() > maxSettingsBytes {
+		return nil, fmt.Errorf("%s is too large", path)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(io.LimitReader(f, maxSettingsBytes))
+}
+
 // readUserSettingsFlag reads the user's own --settings: a JSON object, inline or in a file.
 func readUserSettingsFlag(value string, cwd string) (map[string]json.RawMessage, error) {
 	data := []byte(value)
@@ -168,7 +197,7 @@ func readUserSettingsFlag(value string, cwd string) (map[string]json.RawMessage,
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(cwd, path)
 		}
-		read, err := os.ReadFile(path)
+		read, err := readBounded(path)
 		if err != nil {
 			return nil, fmt.Errorf("your --settings %s could not be read: %w", value, err)
 		}
@@ -382,10 +411,17 @@ func (claudeAdapter) Plan(ctx LaunchContext) (LaunchPlan, error) {
 	if err != nil {
 		return plan, err
 	}
-	plan.Files = []PlannedFile{{Prefix: claudeFilePrefix, Data: data}}
-	rest := args.rest
+	prefix := claudeFilePrefix
+	if flag != nil {
+		prefix = claudeFlagFilePrefix
+	}
+	plan.Files = []PlannedFile{{Prefix: prefix, Data: data}}
+	rest, at := args.rest, args.at
 	plan.MakeArgs = func(paths []string) []string {
-		return append([]string{claudeSettingsFlag, paths[0]}, rest...)
+		rtn := make([]string, 0, len(rest)+2)
+		rtn = append(rtn, rest[:at]...)
+		rtn = append(rtn, claudeSettingsFlag, paths[0])
+		return append(rtn, rest[at:]...)
 	}
 	return plan, nil
 }

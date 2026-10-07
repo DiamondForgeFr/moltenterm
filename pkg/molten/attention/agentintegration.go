@@ -5,6 +5,7 @@ package attention
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,11 +35,17 @@ type integrationReports struct {
 
 var defaultIntegrationReports = &integrationReports{reports: map[string]molten.AgentIntegrationReport{}, now: time.Now}
 
+// clipText bounds a report's text and drops control characters: it is printed in terminals.
 func clipText(s string) string {
 	if len(s) > maxIntegrationText {
-		return s[:maxIntegrationText]
+		s = s[:maxIntegrationText]
 	}
-	return s
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || (r >= 0x7f && r < 0xa0) {
+			return -1
+		}
+		return r
+	}, strings.ToValidUTF8(s, ""))
 }
 
 func clipItems(items []molten.IntegrationItem) []molten.IntegrationItem {

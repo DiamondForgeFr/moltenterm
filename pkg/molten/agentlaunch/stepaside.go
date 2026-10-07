@@ -3,6 +3,8 @@
 
 package agentlaunch
 
+import "strings"
+
 // Why a launch adds nothing (DS-SHELL-045): the real binary then runs with the user's arguments unchanged.
 const (
 	StepAsideOutsidePane = "not in a MoltenTerm terminal"
@@ -25,6 +27,10 @@ func StepAsideReason(getenv func(string) string, args []string, adapter LaunchAd
 		if getenv(name) != "" {
 			return StepAsideNested
 		}
+	}
+	// The Agent SDK starts claude for a program, not for the pane's user.
+	if strings.HasPrefix(getenv("CLAUDE_CODE_ENTRYPOINT"), "sdk") {
+		return StepAsideNested
 	}
 	if getenv(IntegrationVarName) == "0" {
 		return StepAsideTurnedOff

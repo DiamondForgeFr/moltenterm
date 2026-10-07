@@ -27,6 +27,9 @@ const moltenAgentLaunchReportTimeout = 300 * time.Millisecond
 
 const moltenAgentLaunchMissingCode = 127
 
+// Planning (reading the settings files) is capped too: past it, the agent starts with nothing added.
+const moltenAgentLaunchPlanTimeout = 250 * time.Millisecond
+
 var moltenAgentLaunchCmd = &cobra.Command{
 	Use:   "launch --agent <agent> -- [args...]",
 	Short: "start a coding agent with MoltenTerm's integration for this run (what the claude launcher runs)",
@@ -103,7 +106,7 @@ func planMoltenAgentLaunch(adapter agentlaunch.LaunchAdapter, real string, args 
 		report.Pid = os.Getpid()
 	}
 	env := append(os.Environ(), agentlaunch.LaunchedVarName+"="+adapter.Id())
-	plan, dataDir, err := moltenLaunchPlan(adapter, args, getenv)
+	plan, dataDir, err := moltenLaunchPlanWithin(adapter, args, getenv, moltenAgentLaunchPlanTimeout)
 	if err != nil {
 		report.StepAside = err.Error()
 		return report, args, env
@@ -118,17 +121,48 @@ func planMoltenAgentLaunch(adapter agentlaunch.LaunchAdapter, real string, args 
 	}
 	dir := agentlaunch.LaunchDir(dataDir)
 	var paths []string
+	sweep := false
 	for _, f := range plan.Files {
-		path, err := agentlaunch.WriteLaunchFile(dir, f.Prefix, f.Data, now)
+		path, created, err := agentlaunch.WriteLaunchFile(dir, f.Prefix, f.Data, now)
 		if err != nil {
 			report.StepAside, report.Added = "the integration could not be written: "+err.Error(), nil
 			return report, args, env
 		}
 		paths = append(paths, path)
+		sweep = sweep || created
 	}
-	agentlaunch.SweepLaunchFiles(dir, now)
+	if sweep {
+		agentlaunch.SweepLaunchFiles(dir, now)
+	}
 	report.Settings = paths[0]
 	return report, plan.MakeArgs(paths), env
+}
+
+type moltenPlanResult struct {
+	plan    agentlaunch.LaunchPlan
+	dataDir string
+	err     error
+}
+
+// moltenLaunchPlanWithin plans within a time cap: settings on a stalled network folder must not hold the agent's
+// start, which then runs with nothing added.
+func moltenLaunchPlanWithin(adapter agentlaunch.LaunchAdapter, args []string, getenv func(string) string, timeout time.Duration) (agentlaunch.LaunchPlan, string, error) {
+	done := make(chan moltenPlanResult, 1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				done <- moltenPlanResult{err: fmt.Errorf("the integration could not be prepared: %v", r)}
+			}
+		}()
+		plan, dataDir, err := moltenLaunchPlan(adapter, args, getenv)
+		done <- moltenPlanResult{plan: plan, dataDir: dataDir, err: err}
+	}()
+	select {
+	case r := <-done:
+		return r.plan, r.dataDir, r.err
+	case <-time.After(timeout):
+		return agentlaunch.LaunchPlan{}, "", fmt.Errorf("reading your settings took longer than %v", timeout)
+	}
 }
 
 // moltenLaunchPlan asks the adapter what to add to a run started now with these arguments in this folder.
@@ -164,7 +198,12 @@ func moltenLaunchDataDir(getenv func(string) string) (string, error) {
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
 	}
-	return filepath.Dir(filepath.Dir(exe)), nil
+	dir := filepath.Dir(exe)
+	if filepath.Base(dir) == agentlaunch.AgentBinDirName {
+		// A copy of wsh in the launchers' folder (Windows), not a link to <data>/bin/wsh.
+		dir = filepath.Dir(dir)
+	}
+	return filepath.Dir(dir), nil
 }
 
 // moltenLaunchConnect opens the connection to wavesrv while the plan is made; the channel says whether it is up.

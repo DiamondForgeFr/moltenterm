@@ -330,7 +330,7 @@ func moltenRewriteArgs(args []string) []string {
 	if base == MoltenOpenProgramName {
 		return moltenBrowserEnvArgs(args)
 	}
-	if adapter := agentlaunch.AdapterForProgram(base); adapter != nil {
+	if adapter := agentlaunch.AdapterForProgram(strings.TrimSuffix(strings.ToLower(base), ".exe")); adapter != nil {
 		return moltenAgentLaunchArgs(args, adapter.Id())
 	}
 	if base != MoltenProgramName {

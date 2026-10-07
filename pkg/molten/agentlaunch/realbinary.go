@@ -18,7 +18,12 @@ func FindRealBinary(name string, pathEnv string, launcherDir string, isLauncher 
 	if launcherDir != "" {
 		skip = filepath.Clean(launcherDir)
 	}
+	home, _ := os.UserHomeDir()
 	for _, dir := range filepath.SplitList(pathEnv) {
+		// Shells expand a leading ~ of a PATH entry when they look a command up.
+		if rest, ok := strings.CutPrefix(dir, "~"); ok && home != "" && (rest == "" || rest[0] == '/' || rest[0] == filepath.Separator) {
+			dir = home + rest
+		}
 		if dir == "" || !filepath.IsAbs(dir) {
 			continue
 		}

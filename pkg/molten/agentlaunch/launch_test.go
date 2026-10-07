@@ -90,14 +90,14 @@ func TestStepAsideReason(t *testing.T) {
 func TestWriteAndSweepLaunchFiles(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "molten", "agent-launch")
 	now := time.Now()
-	path, err := WriteLaunchFile(dir, "claude", []byte(`{"a":1}`), now)
+	path, created, err := WriteLaunchFile(dir, "claude", []byte(`{"a":1}`), now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again, err := WriteLaunchFile(dir, "claude", []byte(`{"a":1}`), now); err != nil || again != path {
+	if again, again2, err := WriteLaunchFile(dir, "claude", []byte(`{"a":1}`), now); err != nil || again != path || again2 || !created {
 		t.Fatalf("same content, same file: %q %v", again, err)
 	}
-	other, _ := WriteLaunchFile(dir, "claude", []byte(`{"a":2}`), now)
+	other, _, _ := WriteLaunchFile(dir, "claude", []byte(`{"a":2}`), now)
 	if other == path || !strings.HasPrefix(filepath.Base(path), "claude-") {
 		t.Fatalf("names %q %q", path, other)
 	}
@@ -124,11 +124,64 @@ func TestWriteAndSweepLaunchFiles(t *testing.T) {
 		t.Fatalf("a file of another kind must stay")
 	}
 	os.Chtimes(path, old, old)
-	if _, err := WriteLaunchFile(dir, "claude", []byte(`{"a":1}`), now); err != nil {
+	if _, _, err := WriteLaunchFile(dir, "claude", []byte(`{"a":1}`), now); err != nil {
 		t.Fatal(err)
 	}
 	SweepLaunchFiles(dir, now)
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("reuse marks the file as used: %v", err)
+	}
+}
+
+// NFR-SHELL-021: a file folding in the user's own --settings (which may hold secrets) goes after a day unused.
+func TestFlagFilesAreSweptSooner(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	flag, _, _ := WriteLaunchFile(dir, claudeFlagFilePrefix, []byte(`{"env":{}}`), now)
+	plain, _, _ := WriteLaunchFile(dir, claudeFilePrefix, []byte(`{}`), now)
+	old := now.Add(-25 * time.Hour)
+	os.Chtimes(flag, old, old)
+	os.Chtimes(plain, old, old)
+	SweepLaunchFiles(dir, now)
+	if _, err := os.Stat(flag); !os.IsNotExist(err) {
+		t.Fatalf("the --settings copy must go after a day")
+	}
+	if _, err := os.Stat(plain); err != nil {
+		t.Fatalf("a commands-only file stays a week: %v", err)
+	}
+	tree := makeFakeTree(t)
+	tree.write(t, filepath.Join(tree.project, "mine.json"), `{"model":"x"}`)
+	plan, _, _ := planOf(t, tree.ctx("--settings", "mine.json"))
+	if plan.Files[0].Prefix != claudeFlagFilePrefix {
+		t.Fatalf("prefix %q", plan.Files[0].Prefix)
+	}
+	if _, err := (claudeAdapter{}).Plan(tree.ctx("--settings", tree.project)); err == nil {
+		t.Fatalf("a --settings that is not a regular file must not be read")
+	}
+}
+
+// Review of #318: the generated --settings takes the user's own place, so a variadic option before it still ends
+// where it ended; ~ in PATH is expanded as shells do; the Agent SDK's runs are not the pane's.
+func TestLaunchEdgeCases(t *testing.T) {
+	tree := makeFakeTree(t)
+	tree.write(t, filepath.Join(tree.project, "s.json"), `{}`)
+	plan, _, _ := planOf(t, tree.ctx("--allowedTools", "Bash", "--settings", "s.json", "fix it"))
+	if got := plan.MakeArgs([]string{"/g.json"}); strings.Join(got, "|") != "--allowedTools|Bash|--settings|/g.json|fix it" {
+		t.Fatalf("args %q", got)
+	}
+	getenv := func(name string) string {
+		return map[string]string{"WAVETERM_BLOCKID": "b", "WAVETERM_JWT": "j", "CLAUDE_CODE_ENTRYPOINT": "sdk-py"}[name]
+	}
+	if StepAsideReason(getenv, nil, claudeAdapter{}) != StepAsideNested {
+		t.Fatalf("an SDK run must step aside")
+	}
+	if runtime.GOOS == "windows" {
+		return
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeExec(t, filepath.Join(home, ".local", "bin", "claude"))
+	if got, ok := FindRealBinary("claude", "~/.local/bin:/nonexistent", "", IsLauncher); !ok || got != filepath.Join(home, ".local", "bin", "claude") {
+		t.Fatalf("~ entry: %q %v", got, ok)
 	}
 }

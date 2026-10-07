@@ -26,6 +26,8 @@ func TestMoltenRewriteArgsForLaunchers(t *testing.T) {
 		{[]string{"/d/bin/agents/claude", "-p", "--version", "--", "x"}, []string{"/d/bin/agents/claude", "molten", "agent", "launch", "--agent", "claude", "--", "-p", "--version", "--", "x"}},
 		{[]string{`C:\d\bin\agents\claude.exe`, "mcp"}, []string{`C:\d\bin\agents\claude.exe`, "molten", "agent", "launch", "--agent", "claude", "--", "mcp"}},
 		{[]string{"/d/bin/claude-wrapper", "x"}, []string{"/d/bin/claude-wrapper", "x"}},
+		{[]string{"Claude", "x"}, []string{"Claude", "molten", "agent", "launch", "--agent", "claude", "--", "x"}},
+		{[]string{`C:\d\CLAUDE.EXE`}, []string{`C:\d\CLAUDE.EXE`, "molten", "agent", "launch", "--agent", "claude", "--"}},
 	}
 	for _, c := range cases {
 		if got := moltenRewriteArgs(c.in); !slices.Equal(got, c.want) {
