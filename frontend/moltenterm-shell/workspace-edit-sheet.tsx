@@ -365,6 +365,15 @@ export function WorkspaceEditSheet({
     );
 }
 
+function hasDialogOver(): boolean {
+    if (typeof document === "undefined") {
+        return false;
+    }
+    return Array.from(document.querySelectorAll('[role="dialog"][aria-modal="true"]')).some(
+        (el) => el.closest('[data-role="workspace-edit"]') == null
+    );
+}
+
 // Mounted once by the rail, in every tab view: it shows the sheet of the open request, and picks up a double-click
 // handed over by the tab view the window switched away from.
 export function WorkspaceEditHost({ entries }: { entries: { id: string }[] }) {
@@ -373,7 +382,8 @@ export function WorkspaceEditHost({ entries }: { entries: { id: string }[] }) {
     const ws = useAtomValue(atoms.workspace);
     const staticTabId = useAtomValue(atoms.staticTabId);
     const close = () => model.close();
-    useEscape(request != null, close);
+    // A dialog opened over the sheet (the project logo offer) answers Escape first.
+    useEscape(() => request != null && !hasDialogOver(), close);
     useEffect(() => {
         listenWorkspaceMenu();
         const onStorage = (e: StorageEvent) => {

@@ -8,10 +8,11 @@ import { cn } from "@/util/util";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
-export function useEscape(enabled: boolean, onEscape: () => void) {
+// enabled may be a function, read at the key press, for a state the component does not render from.
+export function useEscape(enabled: boolean | (() => boolean), onEscape: () => void) {
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape" && enabled) {
+            if (e.key === "Escape" && (typeof enabled === "function" ? enabled() : enabled)) {
                 e.stopPropagation();
                 e.preventDefault();
                 onEscape();
@@ -28,6 +29,14 @@ const FocusableSelector =
 // Tab and Shift+Tab stay inside the dialog (NFR-SHELL-014): aria-modal alone does not keep the keyboard in it.
 function keepFocusInside(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key !== "Tab") {
+        return;
+    }
+    // A dialog opened over this one (the project logo offer after Link a project…) gets the keyboard.
+    const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]');
+    const top = dialogs[dialogs.length - 1];
+    if (top != null && top !== e.currentTarget && !e.currentTarget.contains(top)) {
+        e.preventDefault();
+        top.querySelector<HTMLElement>(FocusableSelector)?.focus();
         return;
     }
     const focusables = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(FocusableSelector)).filter(
@@ -73,6 +82,35 @@ export function DialogFrame({
     buttons: React.ReactNode;
 }) {
     const backdropPressed = useRef(false);
+    const dialogRef = useRef<HTMLDivElement>(null);
+    const lastInside = useRef<HTMLElement>(null);
+    useEffect(() => {
+        if (!trapFocus) {
+            return;
+        }
+        // A tab view that has just been shown focuses its terminal after the dialog took the focus: bring it back.
+        const onFocusIn = (e: FocusEvent) => {
+            const dialog = dialogRef.current;
+            const target = e.target as HTMLElement;
+            if (dialog == null || target == null) {
+                return;
+            }
+            if (dialog.contains(target)) {
+                lastInside.current = target;
+                return;
+            }
+            // Another dialog opened over this one (the project logo offer after Link a project…) keeps its focus.
+            if (target.closest('[role="dialog"], [aria-modal="true"]') != null) {
+                return;
+            }
+            const back = lastInside.current?.isConnected
+                ? lastInside.current
+                : dialog.querySelector<HTMLElement>(FocusableSelector);
+            back?.focus();
+        };
+        document.addEventListener("focusin", onFocusIn, true);
+        return () => document.removeEventListener("focusin", onFocusIn, true);
+    }, [trapFocus]);
     return createPortal(
         <div
             className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40"
@@ -90,6 +128,7 @@ export function DialogFrame({
             }}
         >
             <div
+                ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-label={title}

@@ -85,9 +85,15 @@ export class WorkspaceEditModel {
         const request = globalStore.get(this.requestAtom);
         globalStore.set(this.requestAtom, null);
         const opener = request?.opener;
-        if (opener != null && opener.isConnected) {
-            opener.focus();
+        if (opener == null) {
+            return;
         }
+        // After the sheet is gone: while it is mounted, its focus trap takes the focus back.
+        setTimeout(() => {
+            if (opener.isConnected) {
+                opener.focus();
+            }
+        }, 0);
     }
 }
 
