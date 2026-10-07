@@ -55,7 +55,7 @@ func (e *Env) Promote(ctx context.Context, opts PromoteOptions) error {
 		return nil
 	}
 
-	if e.onGithub(ctx, root) {
+	if e.OnGithub(ctx, root) {
 		if err := e.requireCi(ctx, root, p.Trunk, trunk, opts.Workflows, opts.DryRun); err != nil {
 			return err
 		}

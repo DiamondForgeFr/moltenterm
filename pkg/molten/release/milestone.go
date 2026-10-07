@@ -71,6 +71,10 @@ func pickMilestone(list []githubMilestone, version string) *githubMilestone {
 
 // MilestoneOf reads the open milestone of a public version (X.Y.Z) and its open issues; nil when there is none.
 func (e *Env) MilestoneOf(ctx context.Context, dir string, version string) (*Milestone, error) {
+	return e.milestoneOf(ctx, dir, version, false)
+}
+
+func (e *Env) milestoneOf(ctx context.Context, dir string, version string, exact bool) (*Milestone, error) {
 	if _, err := versions.ParseBase(version); err != nil {
 		return nil, fmt.Errorf("%q is not a public version (X.Y.Z)", version)
 	}
@@ -83,6 +87,9 @@ func (e *Env) MilestoneOf(ctx context.Context, dir string, version string) (*Mil
 		return nil, fmt.Errorf("gh api milestones: unreadable answer")
 	}
 	found := pickMilestone(list, version)
+	if found != nil && exact && MilestoneKey(found.Title) != version {
+		found = nil
+	}
 	if found == nil {
 		return nil, nil
 	}
@@ -137,7 +144,7 @@ func (e *Env) CloseMilestone(ctx context.Context, tag string) error {
 		e.printf("%s is a release candidate: the milestone stays open until %s is published.\n", tag, p.Rules.Tag(v.Base()))
 		return nil
 	}
-	if !e.onGithub(ctx, p.Root) {
+	if !e.OnGithub(ctx, p.Root) {
 		e.printf("origin is not on GitHub: no milestone to close.\n")
 		return nil
 	}
@@ -155,12 +162,13 @@ func (e *Env) CloseMilestone(ctx context.Context, tag string) error {
 	if rel.IsDraft {
 		return fmt.Errorf("the GitHub release of %s is still a draft: publish it first (%s)", tag, rel.Url)
 	}
-	m, err := e.MilestoneOf(ctx, p.Root, v.String())
+	// A milestone of the whole line ("v1") stays open for the next versions of the line.
+	m, err := e.milestoneOf(ctx, p.Root, v.String(), true)
 	if err != nil {
 		return err
 	}
 	if m == nil {
-		e.printf("No open milestone for %s: nothing to close.\n", v)
+		e.printf("No open milestone named %s: nothing to close.\n", v)
 		return nil
 	}
 	e.warnOpenIssues(m)

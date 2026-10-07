@@ -26,6 +26,12 @@ func (p *Project) checkNumber(v versions.Version, tags []string) error {
 				return fmt.Errorf("%s is already released: its candidates are closed", tag)
 			}
 		}
+		if last := p.Rules.LastPublic(tags); last != "" {
+			lastVersion, _ := p.Rules.ReleaseOf(last)
+			if versions.Compare(v.Base(), lastVersion) <= 0 {
+				return fmt.Errorf("%s leads to %s, not above the last public release, %s", p.Rules.Tag(v), v.Base(), last)
+			}
+		}
 		if next := p.Rules.NextRc(v.Base(), tags); next != v.Rc {
 			return fmt.Errorf("the next release candidate of %s is %s, not %s", v.Base(), p.Rules.Tag(v.Base().WithRc(next)), p.Rules.Tag(v))
 		}
@@ -73,6 +79,9 @@ func (e *Env) Prepare(ctx context.Context, tag string) error {
 	if e.revParse(ctx, p.Root, start) == "" {
 		return fmt.Errorf("origin has no %s branch: promote %s first", p.Release, p.Trunk)
 	}
+	if pending := e.releasesNotCarriedBack(ctx, p); len(pending) > 0 {
+		return fmt.Errorf("%s holds release commits %s lacks (%s): merge their sync-back pull request first, or run molten release sync-back", p.Release, p.Trunk, strings.Join(pending, ", "))
+	}
 	wt, err := e.ReleaseWorktree(ctx, p.Root)
 	if err != nil {
 		return err
@@ -118,6 +127,38 @@ func (e *Env) Prepare(ctx context.Context, tag string) error {
 func insideDir(dir string, path string) bool {
 	rel, err := filepath.Rel(dir, path)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
+}
+
+// releasesNotCarriedBack lists the release commits on the release branch whose change the trunk does not hold yet:
+// cutting another release before they are carried back would make its sync-back conflict, and its notes start from a
+// trunk that never saw the previous version.
+func (e *Env) releasesNotCarriedBack(ctx context.Context, p *Project) []string {
+	trunk := "origin/" + p.Trunk
+	lines, err := e.gitLines(ctx, p.Root, "log", "--no-merges", "--format=%H %s", trunk+"..origin/"+p.Release)
+	if err != nil {
+		return nil
+	}
+	var pending []string
+	for _, line := range lines {
+		sha, subject, _ := strings.Cut(line, " ")
+		name, ok := strings.CutPrefix(subject, "chore(release): ")
+		if !ok {
+			continue
+		}
+		// Each commit on its own, as Mission Control reads a release back on the trunk: once a promotion merged the
+		// trunk, its cherry-pick is reachable from both branches and a branch-wide comparison no longer sees it.
+		cherry, err := e.gitLines(ctx, p.Root, "cherry", trunk, sha, sha+"^")
+		if err != nil {
+			continue
+		}
+		for _, c := range cherry {
+			if strings.HasPrefix(c, "+") {
+				pending = append(pending, name)
+				break
+			}
+		}
+	}
+	return pending
 }
 
 // releaseFiles are the paths a prepared tree may change: the version files and the tag's notes.
