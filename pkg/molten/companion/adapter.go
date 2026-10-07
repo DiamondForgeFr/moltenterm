@@ -45,6 +45,8 @@ type Candidate struct {
 	Modified int64  `json:"modified,omitempty"`
 	// Prompt: the session's first prompt, cut short, to tell sessions apart in the picker (shown locally only).
 	Prompt string `json:"prompt,omitempty"`
+	// Command: the first slash command of the session ("/clear"), the title while there is no prompt yet.
+	Command string `json:"command,omitempty"`
 	cwd    string
 }
 
