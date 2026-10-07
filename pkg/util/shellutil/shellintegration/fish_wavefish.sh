@@ -2,6 +2,18 @@
 # Add Wave binary directory to PATH
 set -x PATH {{.WSHBINDIR}} $PATH
 
+# MOLTENTERM-PATCH (#318): the agent launchers first on PATH (DS-SHELL-044); fish runs this (-C) after config.fish,
+# which often prepends ~/.local/bin, where Claude Code's installer puts claude; any other copy of the folder is dropped
+set -l _moltenterm_agentbindir {{.AGENTBINDIR_FISH}}
+if test -d "$_moltenterm_agentbindir"
+    set -gx MOLTENTERM_AGENTBINDIR $_moltenterm_agentbindir
+    set -l _moltenterm_path
+    for _moltenterm_entry in $PATH
+        test "$_moltenterm_entry" = "$_moltenterm_agentbindir"; or set -a _moltenterm_path $_moltenterm_entry
+    end
+    set -gx PATH $_moltenterm_agentbindir $_moltenterm_path
+end
+
 # Source dynamic script from wsh token (the echo is to prevent fish from complaining about empty input)
 wsh token "$WAVETERM_SWAPTOKEN" fish 2>/dev/null | source
 set -e WAVETERM_SWAPTOKEN

@@ -20,6 +20,8 @@ func TestStripAgentSessionMarkers(t *testing.T) {
 		"CLAUDE_CODE_MAX_OUTPUT_TOKENS=8000",
 		"CODEX_SANDBOX=seatbelt",
 		"GEMINI_CLI=1",
+		"MOLTENTERM_AGENT_LAUNCHED=claude",
+		"MOLTENTERM_AGENTBINDIR=/gold/bin/agents",
 		"PATH=/usr/bin:/bin",
 		"WEIRD=a=b",
 	}

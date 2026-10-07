@@ -25,23 +25,40 @@ const MoltenOpenCommandName = "molten-open"
 // BrowserVarName is the variable programs read to open a web page (gh, npm, Python's webbrowser, xdg-open...).
 const BrowserVarName = "BROWSER"
 
+// AgentBinDirName is the folder of the agent launchers (FR-SHELL-036, DS-SHELL-044), under the wsh bin folder: the
+// shell integration scripts put it first on PATH after the user's startup files, so `claude` runs the launcher.
+const AgentBinDirName = "agents"
+
+// AgentLauncherNames are the agents started through a launcher; must match pkg/molten/agentlaunch's adapters
+// (checked by its tests).
+var AgentLauncherNames = []string{"claude"}
+
 // InstallMoltenCommand makes `molten` and `molten-open` available wherever wsh is: a relative symlink to wsh, so that
-// they follow every wsh update, or a copy on Windows, where symlinks need extra rights.
+// they follow every wsh update, or a copy on Windows, where symlinks need extra rights. The agent launchers go in
+// their own folder (agents/claude -> ../wsh), which only local shells put on PATH.
 func InstallMoltenCommand(binDir string, wshPath string) error {
 	for _, name := range []string{MoltenCommandName, MoltenOpenCommandName} {
-		if err := installWshAlias(binDir, wshPath, name); err != nil {
+		if err := installWshAlias(binDir, wshPath, name, filepath.Base(wshPath)); err != nil {
+			return err
+		}
+	}
+	agentDir := filepath.Join(binDir, AgentBinDirName)
+	if err := os.MkdirAll(agentDir, 0755); err != nil {
+		return fmt.Errorf("creating %s: %w", agentDir, err)
+	}
+	for _, name := range AgentLauncherNames {
+		if err := installWshAlias(agentDir, wshPath, name, filepath.Join("..", filepath.Base(wshPath))); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func installWshAlias(binDir string, wshPath string, name string) error {
+func installWshAlias(binDir string, wshPath string, name string, target string) error {
 	if runtime.GOOS == "windows" {
 		return utilfn.AtomicRenameCopy(filepath.Join(binDir, name+".exe"), wshPath, 0755)
 	}
 	aliasPath := filepath.Join(binDir, name)
-	target := filepath.Base(wshPath)
 	if current, err := os.Readlink(aliasPath); err == nil && current == target {
 		return nil
 	}

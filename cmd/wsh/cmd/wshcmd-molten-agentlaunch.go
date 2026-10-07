@@ -1,0 +1,208 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+package cmd
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
+	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/wavetermdev/waveterm/pkg/wshutil"
+)
+
+// The agent launcher (FR-SHELL-036, DS-SHELL-045). `claude` in a local MoltenTerm terminal is wsh under that name
+// (<data>/bin/agents/claude): it runs `molten agent launch --agent claude -- <args>`, which finds the real binary,
+// adds MoltenTerm's integration for this run when it may, tells the pane what it added, and replaces itself with the
+// real binary. On any doubt it adds nothing; it never keeps the agent from starting.
+
+// The report, connection included, never holds the agent's start longer than this (NFR-SHELL-020).
+const moltenAgentLaunchReportTimeout = 300 * time.Millisecond
+
+const moltenAgentLaunchMissingCode = 127
+
+var moltenAgentLaunchCmd = &cobra.Command{
+	Use:   "launch --agent <agent> -- [args...]",
+	Short: "start a coding agent with MoltenTerm's integration for this run (what the claude launcher runs)",
+	Long: "Start a coding agent's real binary with MoltenTerm's integration added for this run only, through the " +
+		"agent's own per-run settings: the state hooks, the session link and the status line relay around your own " +
+		"status line. Nothing of yours is edited. Outside a MoltenTerm terminal, in an agent's own subprocess, for " +
+		"commands that start no session, or with MOLTENTERM_AGENT_INTEGRATION=0, the real binary runs with nothing " +
+		"added. In a MoltenTerm terminal, `claude` runs this.",
+	DisableFlagParsing: true,
+	RunE:               moltenAgentLaunchRun,
+}
+
+func init() {
+	moltenAgentCmd.AddCommand(moltenAgentLaunchCmd)
+}
+
+// moltenAgentLaunchArgs is the wsh command line a launcher runs: every argument is passed after "--", untouched.
+func moltenAgentLaunchArgs(args []string, agent string) []string {
+	rtn := []string{args[0], MoltenProgramName, "agent", "launch", "--agent", agent, "--"}
+	return append(rtn, args[1:]...)
+}
+
+func parseMoltenAgentLaunchArgs(args []string) (string, []string, error) {
+	if len(args) >= 3 && args[0] == "--agent" && args[2] == "--" {
+		return args[1], args[3:], nil
+	}
+	if len(args) >= 2 && strings.HasPrefix(args[0], "--agent=") && args[1] == "--" {
+		return strings.TrimPrefix(args[0], "--agent="), args[2:], nil
+	}
+	return "", nil, fmt.Errorf("usage: molten agent launch --agent <agent> -- [args...]")
+}
+
+func moltenAgentLaunchRun(cmd *cobra.Command, args []string) error {
+	if len(args) > 0 && (args[0] == "-h" || args[0] == "--help") {
+		return cmd.Help()
+	}
+	agent, rest, err := parseMoltenAgentLaunchArgs(args)
+	if err != nil {
+		WriteStderr("%v\n", err)
+		WshExitCode = 2
+		return nil
+	}
+	WshExitCode = runMoltenAgentLaunch(agent, rest, os.Getenv)
+	return nil
+}
+
+func runMoltenAgentLaunch(agent string, args []string, getenv func(string) string) int {
+	adapter := agentlaunch.FindAdapter(agent)
+	if adapter == nil {
+		WriteStderr("molten agent launch: no launcher for %q\n", agent)
+		return 2
+	}
+	real, ok := agentlaunch.FindRealBinary(adapter.Executable(), getenv("PATH"), getenv(agentlaunch.AgentBinDirVarName), agentlaunch.IsLauncher)
+	if !ok {
+		WriteStderr("%s: no %s found on PATH (MoltenTerm launcher)\n", adapter.Executable(), molten.AgentDisplayName(agent))
+		return moltenAgentLaunchMissingCode
+	}
+	if reason := agentlaunch.StepAsideReason(getenv, args, adapter); reason != "" {
+		return execAgentBinary(real, args, os.Environ())
+	}
+	start := time.Now()
+	connected := moltenLaunchConnect(getenv(wshutil.WaveJwtTokenVarName))
+	report, finalArgs, env := planMoltenAgentLaunch(adapter, real, args, getenv, start)
+	sendMoltenLaunchReport(connected, report, start)
+	return execAgentBinary(real, finalArgs, env)
+}
+
+// planMoltenAgentLaunch asks the adapter what to add and writes its files. Whatever fails, the user's arguments
+// run unchanged and the report says why. The run is the pane's agent either way: its own subprocesses are marked as
+// nested, so a `claude -p` they start never takes the pane's session link.
+func planMoltenAgentLaunch(adapter agentlaunch.LaunchAdapter, real string, args []string, getenv func(string) string, now time.Time) (molten.AgentIntegrationReport, []string, []string) {
+	report := molten.AgentIntegrationReport{BlockId: getenv("WAVETERM_BLOCKID"), Agent: adapter.Id(), RealPath: real}
+	if execKeepsPid {
+		report.Pid = os.Getpid()
+	}
+	env := append(os.Environ(), agentlaunch.LaunchedVarName+"="+adapter.Id())
+	plan, dataDir, err := moltenLaunchPlan(adapter, args, getenv)
+	if err != nil {
+		report.StepAside = err.Error()
+		return report, args, env
+	}
+	report.Added, report.Skipped = plan.Added, plan.Skipped
+	if plan.StepAside != "" {
+		report.StepAside, report.Added = plan.StepAside, nil
+		return report, args, env
+	}
+	if len(plan.Files) == 0 {
+		return report, args, env
+	}
+	dir := agentlaunch.LaunchDir(dataDir)
+	var paths []string
+	for _, f := range plan.Files {
+		path, err := agentlaunch.WriteLaunchFile(dir, f.Prefix, f.Data, now)
+		if err != nil {
+			report.StepAside, report.Added = "the integration could not be written: "+err.Error(), nil
+			return report, args, env
+		}
+		paths = append(paths, path)
+	}
+	agentlaunch.SweepLaunchFiles(dir, now)
+	report.Settings = paths[0]
+	return report, plan.MakeArgs(paths), env
+}
+
+// moltenLaunchPlan asks the adapter what to add to a run started now with these arguments in this folder.
+func moltenLaunchPlan(adapter agentlaunch.LaunchAdapter, args []string, getenv func(string) string) (agentlaunch.LaunchPlan, string, error) {
+	dataDir, err := moltenLaunchDataDir(getenv)
+	if err != nil {
+		return agentlaunch.LaunchPlan{}, "", fmt.Errorf("MoltenTerm's data folder was not found: %w", err)
+	}
+	home, _ := os.UserHomeDir()
+	cwd, _ := os.Getwd()
+	ctx := agentlaunch.LaunchContext{
+		Args:    args,
+		Env:     molten.AgentEnv{Home: home, DataDir: dataDir, Getenv: getenv},
+		Cwd:     cwd,
+		BlockId: getenv("WAVETERM_BLOCKID"),
+	}
+	plan, err := adapter.Plan(ctx)
+	if err != nil {
+		return plan, dataDir, fmt.Errorf("the integration could not be prepared: %w", err)
+	}
+	return plan, dataDir, nil
+}
+
+// moltenLaunchDataDir is MoltenTerm's data folder: the launcher is <data>/bin/agents/<name>, a link to <data>/bin/wsh.
+func moltenLaunchDataDir(getenv func(string) string) (string, error) {
+	if dir := getenv(agentlaunch.AgentBinDirVarName); dir != "" && filepath.IsAbs(dir) {
+		return filepath.Dir(filepath.Dir(filepath.Clean(dir))), nil
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	return filepath.Dir(filepath.Dir(exe)), nil
+}
+
+// moltenLaunchConnect opens the connection to wavesrv while the plan is made; the channel says whether it is up.
+func moltenLaunchConnect(jwt string) chan bool {
+	done := make(chan bool, 1)
+	go func() {
+		done <- jwt != "" && setupRpcClient(nil, jwt) == nil
+	}()
+	return done
+}
+
+// sendMoltenLaunchReport tells the pane what was added, within the launch's time cap: a slow or absent MoltenTerm
+// only loses the report.
+func sendMoltenLaunchReport(connected chan bool, report molten.AgentIntegrationReport, start time.Time) {
+	deadline := start.Add(moltenAgentLaunchReportTimeout)
+	select {
+	case ok := <-connected:
+		if !ok {
+			return
+		}
+	case <-time.After(time.Until(deadline)):
+		return
+	}
+	if RpcContext.BlockId != "" {
+		report.BlockId = RpcContext.BlockId
+	}
+	left := time.Until(deadline)
+	if left <= 0 {
+		return
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		opts := &wshrpc.RpcOpts{Route: molten.AgentStatesRoute, Timeout: max(int64(left/time.Millisecond), 1)}
+		RpcClient.SendRpcRequest(molten.AgentIntegrationReportCommand, report, opts)
+	}()
+	select {
+	case <-done:
+	case <-time.After(left):
+	}
+}

@@ -90,7 +90,29 @@ export type CompanionView = {
     pending?: CompanionToolCall[];
     // The agent's usage page, from its usage adapter (pkg/molten/usage): the frontend holds no provider URL.
     usage?: CompanionUsagePage;
+    // What MoltenTerm's launcher added to this run, or why nothing (FR-SHELL-036, pkg/molten/agentintegration.go).
+    integration?: CompanionIntegration;
 };
+
+export type CompanionIntegrationItem = { kind: string; name: string; reason?: string };
+
+export type CompanionIntegration = {
+    agent: string;
+    realpath: string;
+    added?: CompanionIntegrationItem[];
+    skipped?: CompanionIntegrationItem[];
+    stepaside?: string;
+};
+
+// The launcher could not add MoltenTerm's integration to this run (FR-SHELL-036 AC10): the companion says why, since
+// the session link and the precise states it would have brought are missing.
+export function integrationProblem(view: CompanionView): string {
+    const reason = view?.integration?.stepaside;
+    if (!reason) {
+        return null;
+    }
+    return `MoltenTerm added nothing to this run: ${reason}.`;
+}
 
 export type CompanionUsagePage = { pageurl: string; pagename: string };
 

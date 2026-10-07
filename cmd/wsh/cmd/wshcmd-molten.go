@@ -23,6 +23,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentparts"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -328,6 +329,9 @@ func moltenRewriteArgs(args []string) []string {
 	base = strings.TrimSuffix(base, ".exe")
 	if base == MoltenOpenProgramName {
 		return moltenBrowserEnvArgs(args)
+	}
+	if adapter := agentlaunch.AdapterForProgram(base); adapter != nil {
+		return moltenAgentLaunchArgs(args, adapter.Id())
 	}
 	if base != MoltenProgramName {
 		return args

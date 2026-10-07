@@ -37,6 +37,7 @@ import {
     displayPath,
     firstChangedLine,
     formatArgs,
+    integrationProblem,
     MoltentermCompanionView,
     needsLatest,
     neighbourAnswer,
@@ -195,6 +196,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     if (message != null && view?.status !== "choose") {
         return (
             <Centered title={message.title} detail={message.detail}>
+                <IntegrationNotice view={view} />
                 <UsageButton view={view} />
             </Centered>
         );
@@ -208,12 +210,14 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 title={message.title}
                 detail={message.detail}
                 onPicked={setView}
+                notice={<IntegrationNotice view={view} />}
             />
         );
     }
     return (
         <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
             <SessionBar view={view} />
+            <IntegrationNotice view={view} className="mx-3 mt-2" />
             {view.usage != null && view.agent ? <PlanUsageSection target={target} agent={view.agent} /> : null}
             <PermissionCard pending={view.pending} agentState={agentState?.state} />
             <AnswerSection key={view.session?.path} target={target} view={view} />
@@ -246,6 +250,7 @@ function SessionPicker({
     title,
     detail,
     onPicked,
+    notice,
 }: {
     target: string;
     viewId: string;
@@ -253,6 +258,7 @@ function SessionPicker({
     title: string;
     detail: string;
     onPicked: (v: CompanionView) => void;
+    notice?: React.ReactNode;
 }) {
     const [error, setError] = useState<string>(null);
     const pick = (path: string) =>
@@ -271,6 +277,7 @@ function SessionPicker({
             <div>
                 <div className="text-sm font-medium text-primary">{title}</div>
                 <div className="text-xs text-secondary">{detail}</div>
+                {notice}
             </div>
             {candidates.map((c) => (
                 <button
@@ -315,6 +322,21 @@ function SessionBar({ view }: { view: CompanionView }) {
                 {view.status === "loading" ? <span>Reading…</span> : null}
                 <UsageButton view={view} className="-my-0.5" />
             </div>
+        </div>
+    );
+}
+
+function IntegrationNotice({ view, className }: { view: CompanionView; className?: string }) {
+    const problem = integrationProblem(view);
+    if (problem == null) {
+        return null;
+    }
+    return (
+        <div
+            className={cn("max-w-[360px] text-[11px] text-warning", className)}
+            data-testid="companion-integration-problem"
+        >
+            {problem}
         </div>
     );
 }
