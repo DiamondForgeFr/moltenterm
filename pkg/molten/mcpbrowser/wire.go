@@ -77,6 +77,7 @@ const (
 	ErrPageFailed        = "MoltenTerm could not read the page"
 	ErrCaptureFailed     = "MoltenTerm could not capture the page"
 	ErrNavigationFailed  = "The page did not load"
+	ErrTooManyRedirects  = "The page redirected too many times"
 )
 
 // UntrustedNotice precedes any page-originated text (DS-BRW-020).

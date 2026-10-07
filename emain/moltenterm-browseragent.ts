@@ -26,6 +26,8 @@ import {
     pageTextParams,
     pageTextScript,
     ReaderWorldId,
+    redirectLeavesHost,
+    slimAxTree,
     validRegistration,
     webviewKey,
 } from "./moltenterm-browseragent-policy";
@@ -252,7 +254,8 @@ export async function runBrowserAgentCdp(data: CdpCallData): Promise<any> {
         syntheticDepth.set(wc.id, (syntheticDepth.get(wc.id) ?? 0) + 1);
     }
     try {
-        return await wc.debugger.sendCommand(data.method, data.params ?? {});
+        const result = await wc.debugger.sendCommand(data.method, data.params ?? {});
+        return data.method === "Accessibility.getFullAXTree" ? slimAxTree(result) : result;
     } finally {
         if (synthetic) {
             syntheticDepth.set(wc.id, Math.max(0, (syntheticDepth.get(wc.id) ?? 1) - 1));
@@ -261,7 +264,7 @@ export async function runBrowserAgentCdp(data: CdpCallData): Promise<any> {
     }
 }
 
-type NavigateOutcome = { url: string; title: string; status: number; error: string };
+type NavigateOutcome = { url: string; title: string; status: number; error: string; redirect?: string };
 
 // Molten.navigate: loads a URL or moves in the history, and answers once the load ends (or at the timeout) with the
 // final URL, the main frame's HTTP status and the load error, if any.
@@ -275,6 +278,9 @@ function navigateOp(wc: WebContents, raw: any): Promise<NavigateOutcome> {
         let error = "";
         let started = false;
         let finished = false;
+        let redirect = "";
+        // A history move is stopped too when the entry's server now redirects elsewhere.
+        let current = params.url ?? params.history?.expect;
         const onNavigate = (_e: Electron.Event, _url: string, code: number) => {
             status = code;
         };
@@ -298,8 +304,13 @@ function navigateOp(wc: WebContents, raw: any): Promise<NavigateOutcome> {
             wc.off("did-fail-load", onFail);
             wc.off("did-stop-loading", onStop);
             wc.off("did-navigate-in-page", onInPage);
+            wc.off("will-redirect", onRedirect);
             if (wc.isDestroyed()) {
                 resolve({ url: "", title: "", status, error: error || "ERR_TAB_CLOSED" });
+                return;
+            }
+            if (redirect !== "") {
+                resolve({ url: wc.getURL(), title: "", status: 0, error: "", redirect });
                 return;
             }
             resolve({ url: wc.getURL(), title: wc.getTitle(), status, error });
@@ -314,7 +325,20 @@ function navigateOp(wc: WebContents, raw: any): Promise<NavigateOutcome> {
                 finish();
             }
         };
+        const onRedirect = (details: Electron.Event<Electron.WebContentsWillRedirectEventParams>) => {
+            if (!details.isMainFrame || current == null) {
+                return;
+            }
+            if (!redirectLeavesHost(current, details.url)) {
+                current = details.url;
+                return;
+            }
+            details.preventDefault();
+            redirect = details.url.slice(0, 8192);
+            finish();
+        };
         const timer = setTimeout(finish, params.timeoutMs);
+        wc.on("will-redirect", onRedirect);
         wc.on("did-navigate", onNavigate);
         wc.on("did-start-loading", onStart);
         wc.on("did-fail-load", onFail);
@@ -325,17 +349,14 @@ function navigateOp(wc: WebContents, raw: any): Promise<NavigateOutcome> {
             return;
         }
         const history = wc.navigationHistory;
-        const can = params.history < 0 ? history.canGoBack() : history.canGoForward();
-        if (!can) {
-            error = "ERR_NO_HISTORY";
+        const { index, expect } = params.history;
+        // The tab may have moved since wavesrv checked the entry: go only to the entry it allowed.
+        if (index >= history.length() || history.getEntryAtIndex(index)?.url !== expect) {
+            error = "ERR_HISTORY_CHANGED";
             finish();
             return;
         }
-        if (params.history < 0) {
-            history.goBack();
-        } else {
-            history.goForward();
-        }
+        history.goToIndex(index);
     });
 }
 
@@ -389,18 +410,23 @@ async function captureOp(wc: WebContents, raw: any): Promise<any> {
               height: Math.max(1, Math.round(params.clip.height * zoom)),
           }
         : undefined;
-    const captured = await wc.capturePage(rect, { stayHidden: true });
-    if (captured.isEmpty()) {
+    const image = await wc.capturePage(rect, { stayHidden: true });
+    if (image.isEmpty()) {
         throw new Error("The page could not be captured: show its MoltenTerm tab once");
     }
-    const image = flattenOnWhite(captured);
     const dip = image.getSize();
     const pixelScale = Math.max(1, ...(image.getScaleFactors?.() ?? [1]));
     let size = captureTargetSize(dip.width * pixelScale, dip.height * pixelScale, params.maxSide, params.scale);
     let format = params.format;
     let quality = params.quality;
+    let resized: Electron.NativeImage = null;
+    let resizedFor = "";
     for (let attempt = 0; attempt < 8; attempt++) {
-        const resized = image.resize({ width: size.width, height: size.height, quality: "good" });
+        const sizeKey = `${size.width}x${size.height}`;
+        if (resizedFor !== sizeKey) {
+            resized = flattenOnWhite(image.resize({ width: size.width, height: size.height, quality: "good" }));
+            resizedFor = sizeKey;
+        }
         const data = encodeImage(resized, format, quality);
         if (data.length <= params.maxBytes || size.width <= 64) {
             const out = resized.getSize();

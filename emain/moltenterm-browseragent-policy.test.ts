@@ -14,6 +14,8 @@ import {
     navigateParams,
     pageTextParams,
     pageTextScript,
+    redirectLeavesHost,
+    slimAxTree,
     validRegistration,
     webviewKey,
 } from "./moltenterm-browseragent-policy";
@@ -99,9 +101,17 @@ describe("MoltenTerm operations (FR-BRW-009)", () => {
             timeoutMs: 5000,
         });
         expect(navigateParams({ url: "http://localhost:3000" })?.timeoutMs).toBe(30000);
-        expect(navigateParams({ history: -1 })).toEqual({ history: -1, timeoutMs: 30000 });
-        expect(navigateParams({ history: 2 })).toBe(null);
-        expect(navigateParams({ history: 1, url: "https://x.example" })).toBe(null);
+        expect(navigateParams({ history: { index: 2, expect: "https://x.example/a" } })).toEqual({
+            history: { index: 2, expect: "https://x.example/a" },
+            timeoutMs: 30000,
+        });
+        expect(navigateParams({ history: { index: 0, expect: "about:blank" } })?.history.index).toBe(0);
+        expect(navigateParams({ history: { index: -1, expect: "https://x.example" } })).toBe(null);
+        expect(navigateParams({ history: { index: 1.5, expect: "https://x.example" } })).toBe(null);
+        expect(navigateParams({ history: { index: 1, expect: "file:///etc/passwd" } })).toBe(null);
+        expect(navigateParams({ history: { index: 1, expect: "https://x.example" }, url: "https://x.example" })).toBe(
+            null
+        );
         expect(navigateParams({ url: "https://x.example", timeoutms: 999999 })?.timeoutMs).toBe(30000);
         for (const url of [
             "file:///etc/passwd",
@@ -117,6 +127,48 @@ describe("MoltenTerm operations (FR-BRW-009)", () => {
         ]) {
             expect(navigateParams({ url })).toBe(null);
         }
+    });
+
+    it("sends only what the reading tools use of the accessibility tree", () => {
+        const slim = slimAxTree({
+            nodes: [
+                {
+                    nodeId: "1",
+                    ignored: false,
+                    ignoredReasons: [{ name: "x" }],
+                    role: { type: "role", value: "button" },
+                    name: { type: "computedString", value: "Go", sources: [{ type: "contents" }] },
+                    properties: [
+                        { name: "focusable", value: { type: "booleanOrUndefined", value: true } },
+                        { name: "disabled", value: { type: "boolean", value: true } },
+                    ],
+                    childIds: ["2"],
+                    backendDOMNodeId: 7,
+                    frameId: "F",
+                },
+            ],
+        });
+        expect(slim).toEqual({
+            nodes: [
+                {
+                    nodeId: "1",
+                    ignored: false,
+                    role: { value: "button" },
+                    name: { value: "Go" },
+                    properties: [{ name: "disabled", value: { value: true } }],
+                    childIds: ["2"],
+                    backendDOMNodeId: 7,
+                },
+            ],
+        });
+        expect(slimAxTree(null)).toEqual({ nodes: [] });
+    });
+
+    it("stops a redirect that leaves the host", () => {
+        expect(redirectLeavesHost("https://a.example/x", "https://a.example/y")).toBe(false);
+        expect(redirectLeavesHost("https://a.example/x", "https://b.example/y")).toBe(true);
+        expect(redirectLeavesHost("http://127.0.0.1:3000/", "http://127.0.0.1:4000/")).toBe(true);
+        expect(redirectLeavesHost("https://a.example/", "not a url")).toBe(true);
     });
 
     it("page text takes a bounded size and its script is fixed", () => {

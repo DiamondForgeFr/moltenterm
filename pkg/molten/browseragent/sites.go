@@ -44,7 +44,32 @@ func webUrl(rawUrl string) (*url.URL, bool) {
 	if cleanHost(u.Host) != strings.ToLower(u.Host) {
 		return nil, false
 	}
+	// Chromium reads 2130706433, 0x7f.1 or 127.1 as 127.0.0.1: such a host would get a site of its own name and dodge
+	// a decision stored for the address. Only the canonical form of an IPv4 address is a site.
+	if !canonicalIpv4Form(strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")) {
+		return nil, false
+	}
+	u.Host = strings.TrimSuffix(u.Host, ".")
+	if port := u.Port(); port != "" {
+		u.Host = strings.TrimSuffix(strings.TrimSuffix(u.Host, ":"+port), ".") + ":" + port
+	}
 	return u, true
+}
+
+// canonicalIpv4Form: a host whose last label is a number (or 0x…) is an IPv4 address to the URL standard; it must be
+// written as a dotted quad.
+func canonicalIpv4Form(hostname string) bool {
+	labels := strings.Split(hostname, ".")
+	last := labels[len(labels)-1]
+	if last == "" {
+		return true
+	}
+	numeric := strings.HasPrefix(last, "0x") || strings.Trim(last, "0123456789") == ""
+	if !numeric {
+		return true
+	}
+	ip := net.ParseIP(hostname)
+	return ip != nil && ip.To4() != nil && ip.String() == hostname
 }
 
 // ownSiteHost: localhost, IP addresses and single-label hosts have no registrable domain; they are sites of their own,
@@ -138,8 +163,7 @@ func navigateTarget(arg string) (string, string) {
 		return "", "missing"
 	}
 	if !schemeRe.MatchString(text) || isHostPort(text) {
-		lower := strings.ToLower(text)
-		if strings.HasPrefix(lower, "localhost") || strings.HasPrefix(lower, "127.0.0.1") || strings.HasPrefix(lower, "[::1]") {
+		if isLoopbackHost(bareHost(text)) {
 			text = "http://" + text
 		} else {
 			text = "https://" + text
@@ -150,6 +174,25 @@ func navigateTarget(arg string) (string, string) {
 		return "", "scheme"
 	}
 	return u.String(), ""
+}
+
+// bareHost is the host of an address typed without a scheme, without its port, path, query or fragment.
+func bareHost(text string) string {
+	lower := strings.ToLower(text)
+	if strings.HasPrefix(lower, "[") {
+		if end := strings.Index(lower, "]"); end > 0 {
+			return lower[:end+1]
+		}
+	}
+	if end := strings.IndexAny(lower, ":/?#"); end >= 0 {
+		return lower[:end]
+	}
+	return lower
+}
+
+// isLoopbackHost: these get http, as the address bar does; localhost.example.com is not one of them.
+func isLoopbackHost(host string) bool {
+	return host == "localhost" || host == "127.0.0.1" || host == "[::1]"
 }
 
 // isHostPort tells "localhost:3000/x" (a host with a port) from a scheme such as "mailto:".

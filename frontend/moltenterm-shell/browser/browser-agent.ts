@@ -179,13 +179,22 @@ export function agentSiteDecision(
     if (parsed.host !== parsed.hostname) {
         candidates.push(parsed.host);
     }
-    for (let host = parsed.hostname; host; ) {
-        candidates.push(host);
+    candidates.push(parsed.hostname);
+    // localhost, IP addresses and single-label hosts are sites of their own; other hosts walk up their parent domains,
+    // never to a bare top-level domain (wavesrv stops at the registrable domain).
+    const ownSite =
+        parsed.hostname === "localhost" ||
+        parsed.hostname.endsWith(".localhost") ||
+        /^[0-9.]+$/.test(parsed.hostname) ||
+        parsed.hostname.startsWith("[") ||
+        !parsed.hostname.includes(".");
+    for (let host = parsed.hostname; !ownSite; ) {
         const dot = host.indexOf(".");
-        if (dot < 0) {
+        host = host.slice(dot + 1);
+        if (!host.includes(".")) {
             break;
         }
-        host = host.slice(dot + 1);
+        candidates.push(host);
     }
     let allowed: string = null;
     for (const candidate of candidates) {

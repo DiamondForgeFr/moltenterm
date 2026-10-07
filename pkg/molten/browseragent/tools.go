@@ -97,6 +97,7 @@ func resultSentence(result mcpbrowser.CallResult) string {
 		mcpbrowser.ErrUrlRequired, mcpbrowser.ErrNoHistory, mcpbrowser.ErrSiteChanged, mcpbrowser.ErrUnreadablePage,
 		mcpbrowser.ErrRefUnknown, mcpbrowser.ErrQueryRequired, mcpbrowser.ErrActionRequired, mcpbrowser.ErrRegionRequired,
 		mcpbrowser.ErrDurationRequired, mcpbrowser.ErrPageFailed, mcpbrowser.ErrCaptureFailed, mcpbrowser.ErrNavigationFailed,
+		mcpbrowser.ErrTooManyRedirects,
 	}
 	if slices.Contains(fixed, result.Content[0].Text) {
 		return result.Content[0].Text
@@ -291,6 +292,9 @@ func (m *Manager) readTabs(ctx context.Context, s sessionInfo, loc BlockLocation
 			owner := ownerAgent
 			if info.origin == OriginShared {
 				owner = ownerUser
+			}
+			if page.Url != blankUrl && !m.siteAllowedNow(s.id, page.Url) {
+				page = molten.BrowserPanelTab{Id: page.Id, Url: originOf(page.Url)}
 			}
 			reads[i] = read{
 				ok:    true,

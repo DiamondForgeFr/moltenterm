@@ -26,7 +26,9 @@ const (
 	opPageText = "Molten.pageText"
 	opCapture  = "Molten.capture"
 
-	navigateTimeout   = 30 * time.Second
+	navigateTimeout = 30 * time.Second
+	// Redirects to other hosts each come back to wavesrv for their site; a chain longer than this is refused.
+	maxRedirects      = 8
 	navigateMargin    = 5 * time.Second
 	pageReadTimeout   = 20 * time.Second
 	maxWaitSeconds    = 10
@@ -77,10 +79,12 @@ type livePageInfo struct {
 	url     string
 	title   string
 	index   int
+	entryId int64
 	entries []historyEntry
 }
 
 type historyEntry struct {
+	Id    int64  `json:"id"`
 	Url   string `json:"url"`
 	Title string `json:"title"`
 }
@@ -98,16 +102,17 @@ func (m *Manager) currentPage(ctx context.Context, key TabKey) (livePageInfo, er
 		return livePageInfo{}, fmt.Errorf("no current history entry")
 	}
 	current := history.Entries[history.CurrentIndex]
-	return livePageInfo{url: current.Url, title: current.Title, index: history.CurrentIndex, entries: history.Entries}, nil
+	return livePageInfo{url: current.Url, title: current.Title, index: history.CurrentIndex, entryId: current.Id, entries: history.Entries}, nil
 }
 
 // pageContext is the page a gated tool works on: its tab and the site the user allowed.
 type pageContext struct {
-	tabId int64
-	key   TabKey
-	url   string
-	site  string
-	blank bool
+	tabId   int64
+	key     TabKey
+	url     string
+	site    string
+	entryId int64
+	blank   bool
 }
 
 type pageFunc func(ctx context.Context, p pageContext) (mcpbrowser.CallResult, error)
@@ -146,7 +151,7 @@ func (m *Manager) onPage(ctx context.Context, s sessionInfo, loc BlockLocation, 
 			return err
 		}
 		entry.site = siteOf(page.url)
-		p := pageContext{tabId: tabId, key: key, url: page.url, site: permissionSite(page.url), blank: page.url == blankUrl}
+		p := pageContext{tabId: tabId, key: key, url: page.url, site: permissionSite(page.url), entryId: page.entryId, blank: page.url == blankUrl}
 		if p.blank {
 			result = mcpbrowser.TextResult(fmt.Sprintf("Tab %d shows an empty page (about:blank): open a page with navigate first.", tabId))
 			return nil
@@ -165,7 +170,9 @@ func (m *Manager) onPage(ctx context.Context, s sessionInfo, loc BlockLocation, 
 		if err != nil {
 			return err
 		}
-		if permissionSite(after.url) != p.site {
+		// The same site is not enough: a Blocked subdomain of an allowed site, or a round trip through another site,
+		// must not be read.
+		if hostOf(after.url) != hostOf(p.url) || !m.siteAllowedNow(s.id, after.url) {
 			result = mcpbrowser.CallResult{}
 			return refusal(mcpbrowser.ErrSiteChanged)
 		}
@@ -179,10 +186,11 @@ type navigateArgs struct {
 }
 
 type navigateResult struct {
-	Url    string `json:"url"`
-	Title  string `json:"title"`
-	Status int    `json:"status"`
-	Error  string `json:"error"`
+	Url      string `json:"url"`
+	Title    string `json:"title"`
+	Status   int    `json:"status"`
+	Error    string `json:"error"`
+	Redirect string `json:"redirect"`
 }
 
 // navigate loads a URL, or goes back or forward (DS-BRW-015). The target's site is allowed before anything loads; a
@@ -224,16 +232,15 @@ func (m *Manager) navigate(ctx context.Context, s sessionInfo, loc BlockLocation
 			}
 			index := page.index - 1
 			action = actionBack
-			params["history"] = -1
 			if direction == urlForward {
 				index = page.index + 1
 				action = actionForward
-				params["history"] = 1
 			}
 			if index < 0 || index >= len(page.entries) {
 				return refusal(mcpbrowser.ErrNoHistory)
 			}
 			target = page.entries[index].Url
+			params["history"] = map[string]any{"index": index, "expect": target}
 			entry.site = siteOf(target)
 			if target == blankUrl {
 				target = ""
@@ -252,8 +259,8 @@ func (m *Manager) navigate(ctx context.Context, s sessionInfo, loc BlockLocation
 		m.noteAction(s.id, tabId, action)
 		navCtx, cancel := context.WithTimeout(ctx, navigateTimeout+navigateMargin)
 		defer cancel()
-		var nav navigateResult
-		if err := m.cdp(navCtx, key, opNavigate, params, &nav); err != nil {
+		nav, err := m.followRedirects(navCtx, s, tabId, key, params)
+		if err != nil {
 			return err
 		}
 		entry.site = siteOf(nav.Url)
@@ -261,6 +268,48 @@ func (m *Manager) navigate(ctx context.Context, s sessionInfo, loc BlockLocation
 		return nil
 	})
 	return toolResult(errText, err, result, mcpbrowser.ErrNavigationFailed), entry
+}
+
+// followRedirects loads the page; a main-frame redirect to another host comes back unloaded, and loads only once its
+// site is allowed, so an open redirect on an allowed site cannot load a blocked one (NFR-BRW-005).
+func (m *Manager) followRedirects(ctx context.Context, s sessionInfo, tabId int64, key TabKey, params map[string]any) (navigateResult, error) {
+	for hop := 0; ; hop++ {
+		var nav navigateResult
+		if err := m.cdp(ctx, key, opNavigate, params, &nav); err != nil {
+			return navigateResult{}, err
+		}
+		if nav.Redirect == "" {
+			return nav, nil
+		}
+		if hop >= maxRedirects {
+			return navigateResult{}, refusal(mcpbrowser.ErrTooManyRedirects)
+		}
+		if permissionSite(nav.Redirect) == "" {
+			return navigateResult{}, refusal(mcpbrowser.ErrSchemeRefused)
+		}
+		if err := m.ensureSite(ctx, s, tabId, key, nav.Redirect); err != nil {
+			return navigateResult{}, err
+		}
+		params = map[string]any{"timeoutms": params["timeoutms"], "url": nav.Redirect}
+	}
+}
+
+// documentKey names the document refs belong to: its root node and its history entry, since node ids start over in a
+// new renderer process (another site, with site isolation).
+func documentKey(rootId int64, entryId int64) string {
+	if rootId == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d/%d", rootId, entryId)
+}
+
+// hostOf is a page's host with its port, lowercased.
+func hostOf(rawUrl string) string {
+	u, ok := webUrl(rawUrl)
+	if !ok {
+		return ""
+	}
+	return cleanHost(u.Host)
 }
 
 // errorCodeChars keeps Chromium's error code (ERR_NAME_NOT_RESOLVED) and drops anything else.
@@ -283,7 +332,7 @@ func (m *Manager) navigateOutcome(s sessionInfo, tabId int64, target string, nav
 	}
 	site := permissionSite(nav.Url)
 	head := map[string]any{"tabId": tabId, "status": nav.Status, "site": site}
-	if site != "" && site != permissionSite(target) && !m.siteAllowedNow(s.id, nav.Url) {
+	if site != "" && !m.siteAllowedNow(s.id, nav.Url) {
 		head["url"] = originOf(nav.Url)
 		return mcpbrowser.TextResult(jsonText(head) + "\n" + fmt.Sprintf("The page moved to %s, which needs the user's "+
 			"permission: your next action on this tab asks the user.", site))
@@ -308,7 +357,12 @@ type describeResult struct {
 // value only when the DOM says it is not a password, card or one-time code field (NFR-BRW-006).
 func (m *Manager) readTree(ctx context.Context, key TabKey) (*axDoc, error) {
 	var tree axTree
-	if err := m.cdp(ctx, key, "Accessibility.getFullAXTree", map[string]any{}, &tree); err != nil {
+	err := m.cdp(ctx, key, "Accessibility.getFullAXTree", map[string]any{}, &tree)
+	// Chromium keeps the page's accessibility tree up to date while the domain is on, which slows a busy page.
+	disableCtx, cancelDisable := context.WithTimeout(context.Background(), time.Second)
+	m.cdp(disableCtx, key, "Accessibility.disable", map[string]any{}, nil)
+	cancelDisable()
+	if err != nil {
 		return nil, err
 	}
 	doc := makeAxDoc(tree)
@@ -348,16 +402,21 @@ func (m *Manager) readTree(ctx context.Context, key TabKey) (*axDoc, error) {
 
 // assignRefs gives refs to DOM nodes of the document the tab shows; a new document starts the refs over, so a ref
 // from an old page never names a node of the new one.
-func (m *Manager) assignRefs(sessionId string, tabId int64, docId int64, ids []int64) map[int64]string {
+func (m *Manager) assignRefs(sessionId string, tabId int64, docId string, ids []int64) map[int64]string {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	t := m.sessions[sessionId].tabOrNil(tabId)
 	rtn := make(map[int64]string, len(ids))
-	if t == nil || docId == 0 {
+	if t == nil || docId == "" {
 		return rtn
 	}
 	if t.refs == nil || t.refs.docId != docId || len(t.refs.byRef)+len(ids) > maxRefsPerDocument {
-		t.refs = makeRefTable(docId)
+		// The numbering goes on: a ref handed out before never names another node.
+		next := 0
+		if t.refs != nil {
+			next = t.refs.next
+		}
+		t.refs = makeRefTable(docId, next)
 	}
 	for _, id := range ids {
 		if ref := t.refs.refFor(id); ref != "" {
@@ -368,11 +427,11 @@ func (m *Manager) assignRefs(sessionId string, tabId int64, docId int64, ids []i
 }
 
 // lookupRef finds the DOM node of a ref, for the document it was given in only.
-func (m *Manager) lookupRef(sessionId string, tabId int64, docId int64, ref string) (int64, bool) {
+func (m *Manager) lookupRef(sessionId string, tabId int64, docId string, ref string) (int64, bool) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	t := m.sessions[sessionId].tabOrNil(tabId)
-	if t == nil || t.refs == nil || t.refs.docId != docId || docId == 0 {
+	if t == nil || t.refs == nil || t.refs.docId != docId || docId == "" {
 		return 0, false
 	}
 	id, ok := t.refs.byRef[strings.TrimSpace(ref)]
@@ -389,7 +448,11 @@ func (m *Manager) resolveRef(ctx context.Context, sessionId string, tabId int64,
 	if err := m.cdp(ctx, key, "DOM.getDocument", map[string]any{"depth": 0}, &doc); err != nil {
 		return 0, err
 	}
-	id, ok := m.lookupRef(sessionId, tabId, doc.Root.BackendNodeId, ref)
+	page, err := m.currentPage(ctx, key)
+	if err != nil {
+		return 0, err
+	}
+	id, ok := m.lookupRef(sessionId, tabId, documentKey(doc.Root.BackendNodeId, page.entryId), ref)
 	if !ok {
 		return 0, refusal(mcpbrowser.ErrRefUnknown)
 	}
@@ -424,8 +487,9 @@ func (m *Manager) readPage(ctx context.Context, s sessionInfo, loc BlockLocation
 		if err != nil {
 			return mcpbrowser.CallResult{}, err
 		}
+		docKey := documentKey(doc.docId, p.entryId)
 		if ref := strings.TrimSpace(parsed.RefId); ref != "" {
-			backendId, ok := m.lookupRef(s.id, p.tabId, doc.docId, ref)
+			backendId, ok := m.lookupRef(s.id, p.tabId, docKey, ref)
 			if !ok {
 				return mcpbrowser.CallResult{}, refusal(mcpbrowser.ErrRefUnknown)
 			}
@@ -435,12 +499,13 @@ func (m *Manager) readPage(ctx context.Context, s sessionInfo, loc BlockLocation
 			}
 		}
 		lines := doc.lines(opts)
-		ids := make([]int64, 0, len(lines))
-		for _, l := range lines {
+		kept, total := cutLines(lines, maxChars)
+		ids := make([]int64, 0, len(kept))
+		for _, l := range kept {
 			ids = append(ids, l.backendId)
 		}
-		refs := m.assignRefs(s.id, p.tabId, doc.docId, ids)
-		body, truncated := renderLines(lines, func(id int64) string { return refs[id] }, maxChars)
+		refs := m.assignRefs(s.id, p.tabId, docKey, ids)
+		body, truncated := renderLines(kept, func(id int64) string { return refs[id] }, len(kept) < len(lines), total)
 		if body == "" {
 			body = "(no elements)"
 		}
@@ -514,7 +579,7 @@ func (m *Manager) findElements(ctx context.Context, s sessionInfo, loc BlockLoca
 		for _, match := range shown {
 			ids = append(ids, match.node.BackendDOMNodeId)
 		}
-		refs := m.assignRefs(s.id, p.tabId, doc.docId, ids)
+		refs := m.assignRefs(s.id, p.tabId, documentKey(doc.docId, p.entryId), ids)
 		lines := make([]string, 0, len(shown))
 		for _, match := range shown {
 			lines = append(lines, doc.findLine(match)+" ["+refs[match.node.BackendDOMNodeId]+"]")
@@ -610,7 +675,8 @@ func zoomClip(region []float64, width float64, height float64) (map[string]float
 	if x1-x0 < 1 || y1-y0 < 1 {
 		return nil, false
 	}
-	return map[string]float64{"x": math.Floor(x0), "y": math.Floor(y0), "width": math.Ceil(x1 - x0), "height": math.Ceil(y1 - y0)}, true
+	left, top := math.Floor(x0), math.Floor(y0)
+	return map[string]float64{"x": left, "y": top, "width": math.Min(math.Ceil(x1), width) - left, "height": math.Min(math.Ceil(y1), height) - top}, true
 }
 
 // capture returns the viewport (screenshot) or a region of it (zoom) as an image the agent sees, in emain's

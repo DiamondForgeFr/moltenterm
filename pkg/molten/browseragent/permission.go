@@ -73,7 +73,8 @@ func (m *Manager) siteDecision(sessionId string, rawUrl string, site string) str
 	}
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	if recent, ok := m.recent[site]; ok && m.now().Sub(recent.at) < recentDecisionTtl {
+	m.pruneRecentLocked()
+	if recent, ok := m.recent[site]; ok {
 		if recent.decision == SiteBlock {
 			return SiteBlock
 		}
@@ -130,7 +131,8 @@ func (m *Manager) ensureSite(ctx context.Context, s sessionInfo, tabId int64, ke
 	return refusal(mcpbrowser.ErrSiteNotAllowed)
 }
 
-// askSite joins the session's request for the site (one per site at a time; later calls wait on it) and waits for it.
+// askSite joins the request for the site on this tab (one at a time; later calls wait on it) and waits for it. Another
+// tab of the session asks on its own bar; one answer wakes the others.
 func (m *Manager) askSite(ctx context.Context, s sessionInfo, tabId int64, key TabKey, rawUrl string, site string) (string, error) {
 	req, created := m.joinRequest(s.id, tabId, key, site)
 	if req == nil {
@@ -170,7 +172,7 @@ func (m *Manager) joinRequest(sessionId string, tabId int64, key TabKey, site st
 		return nil, false
 	}
 	for _, req := range m.requests {
-		if req.sessionId == sessionId && req.site == site && req.outcome == "" {
+		if req.sessionId == sessionId && req.site == site && req.tabId == tabId && req.outcome == "" {
 			req.waiters++
 			return req, false
 		}
@@ -298,7 +300,7 @@ func (m *Manager) Answer(source string, req AnswerRequest) error {
 		}
 	}
 	m.publishPanel(key.PanelId)
-	for _, panelId := range m.wakeOthers(pending) {
+	for _, panelId := range m.wakeOthers(pending, req.Decision) {
 		m.publishPanel(panelId)
 	}
 	m.logf("%s session=%s agent=%q permission %s site=%s\n", logPrefix, shortId(info.id), info.agentName, req.Decision, pending.site)
@@ -333,19 +335,24 @@ func (m *Manager) takeRequest(requestId string, key TabKey, decision string) (*p
 	return pending, sessionInfo{id: s.id, blockId: s.blockId, agentName: s.agentName}, true
 }
 
-// wakeOthers: Always and Block apply to every agent, so the other sessions' requests for the site end and look again.
-func (m *Manager) wakeOthers(answered *permissionRequest) []string {
+// wakeOthers ends the other requests the answer decides, so they look again: Allow once covers the session's other
+// tabs, Always and Block every agent. Escape decides nothing for them.
+func (m *Manager) wakeOthers(answered *permissionRequest, decision string) []string {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	if m.recent[answered.site].decision == "" {
+	if decision == DecisionDismiss {
 		return nil
 	}
 	var panels []string
 	for _, req := range m.requests {
-		if req.site == answered.site && req.outcome == "" {
-			m.setOutcomeLocked(req, outcomeRecheck)
-			panels = append(panels, req.key.PanelId)
+		if req.site != answered.site || req.outcome != "" {
+			continue
 		}
+		if decision == DecisionOnce && req.sessionId != answered.sessionId {
+			continue
+		}
+		m.setOutcomeLocked(req, outcomeRecheck)
+		panels = append(panels, req.key.PanelId)
 	}
 	return panels
 }
@@ -369,27 +376,44 @@ func (m *Manager) SetSite(source string, req SiteRequest) error {
 	default:
 		return fmt.Errorf("unknown decision %q", req.Decision)
 	}
-	m.revokeOnce(req.Site, stored)
 	if err := m.env.SetAgentSite(req.Site, stored); err != nil {
 		return err
 	}
+	m.revokeOnce(req.Site, stored)
 	m.logf("%s site decision set site=%s decision=%q\n", logPrefix, req.Site, stored)
 	return nil
 }
 
-func (m *Manager) revokeOnce(site string, stored string) {
+// revokeOnce applies a menu decision to the running sessions at once. Sessions hold their decisions by registrable site,
+// so a key for a subdomain (mail.example.com) revokes its site (example.com) too.
+func (m *Manager) revokeOnce(key string, stored string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
+	sites := []string{key}
+	if site := permissionSite("https://" + key + "/"); site != "" && site != key {
+		sites = append(sites, site)
+	}
 	if stored == SiteAllow {
-		m.recent[site] = recentDecision{decision: SiteAllow, at: m.now()}
+		m.recent[key] = recentDecision{decision: SiteAllow, at: m.now()}
 		return
 	}
-	if stored == SiteBlock {
-		m.recent[site] = recentDecision{decision: SiteBlock, at: m.now()}
-	} else {
-		delete(m.recent, site)
+	for _, site := range sites {
+		if stored == SiteBlock {
+			m.recent[site] = recentDecision{decision: SiteBlock, at: m.now()}
+		} else {
+			delete(m.recent, site)
+		}
+		for _, s := range m.sessions {
+			delete(s.allowedOnce, site)
+		}
 	}
-	for _, s := range m.sessions {
-		delete(s.allowedOnce, site)
+}
+
+// pruneRecentLocked forgets decisions older than the settings reload they bridge.
+func (m *Manager) pruneRecentLocked() {
+	for site, recent := range m.recent {
+		if m.now().Sub(recent.at) >= recentDecisionTtl {
+			delete(m.recent, site)
+		}
 	}
 }

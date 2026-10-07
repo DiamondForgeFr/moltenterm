@@ -89,6 +89,15 @@ describe("agent site decisions (browser:agentsites)", () => {
         });
     });
 
+    it("never applies a top-level domain or splits an IP address", () => {
+        expect(agentSiteDecision({ com: "block", "co.uk": "block" }, "https://example.com/")).toBe(null);
+        expect(agentSiteDecision({ "0.0.1": "block", "1": "block" }, "http://127.0.0.1/")).toBe(null);
+        expect(agentSiteDecision({ "127.0.0.1": "allow" }, "http://127.0.0.1:3000/")).toEqual({
+            site: "127.0.0.1",
+            decision: "allow",
+        });
+    });
+
     it("has nothing for other sites and other pages", () => {
         expect(agentSiteDecision(sites, "http://localhost:8080/")).toBe(null);
         expect(agentSiteDecision(sites, "https://example.com.attacker.io/")).toBe(null);
