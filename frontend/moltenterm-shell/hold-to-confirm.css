@@ -1,0 +1,93 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* DS-SHELL-059 (#354): the look of the press-and-hold shared by the tab close button and the rail pencil. */
+
+/* A control that is transparent until hovered; a keyboard focus or a hold shows it too. */
+.molten-hold:focus-visible,
+.molten-hold[data-holding] {
+    opacity: 1;
+}
+
+/* #271: one circular control. The disc, its tint and its ring share one centre and one radius. The button around it
+   keeps its box (the target), but draws nothing: Wave's ghost button (molten-btn-ghost) paints a rounded-square hover
+   and focus outline of its own, so the selector is doubled to outrank its :hover and :focus-visible rules. */
+.molten-hold.molten-hold,
+.molten-hold.molten-hold:hover,
+.molten-hold.molten-hold:focus-visible {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    outline: none;
+}
+
+.molten-hold-disc {
+    --molten-hold-glyph: color-mix(in srgb, var(--mt-accent) 55%, white);
+    transition:
+        background-color 120ms ease-out,
+        transform 120ms ease-out;
+}
+
+.molten-hold-glyph {
+    transition: color 120ms ease-out;
+}
+
+.molten-hold-tint {
+    background-color: var(--mt-accent);
+    opacity: 0;
+}
+
+.molten-hold[data-holding] .molten-hold-glyph,
+.molten-hold[data-completing] .molten-hold-glyph {
+    color: var(--molten-hold-glyph);
+}
+
+.molten-hold[data-holding] .molten-hold-disc {
+    transform: scale(0.92);
+}
+
+@keyframes molten-hold-flash {
+    from {
+        opacity: 0.25;
+    }
+    40% {
+        opacity: 0.7;
+    }
+    to {
+        opacity: 0.45;
+    }
+}
+
+.molten-hold[data-completing] .molten-hold-tint {
+    animation: molten-hold-flash 120ms ease-out forwards;
+}
+
+/* The focus ring sits outside the progress ring and follows its circle, not the button's box. */
+.molten-hold:focus-visible .molten-hold-disc {
+    outline: 2px solid color-mix(in srgb, var(--mt-accent) 45%, white);
+    outline-offset: 2px;
+}
+
+.molten-hold[data-reduced-motion] .molten-hold-disc,
+.molten-hold[data-reduced-motion] .molten-hold-glyph {
+    transition: none;
+}
+
+.molten-hold[data-reduced-motion][data-holding] .molten-hold-disc {
+    transform: none;
+}
+
+.molten-hold[data-reduced-motion][data-completing] .molten-hold-tint {
+    animation: none;
+}
+
+/* Wave's reduced-motion rule (app.scss) switches every transition off, which would make the stepped fill jump to
+   complete at once. The fill and the tint are the hold's only progress signal, so they keep their stepped transition. */
+.prefers-reduced-motion .molten-hold[data-reduced-motion] .molten-hold-fill {
+    transition-property: stroke-dashoffset !important;
+}
+
+.prefers-reduced-motion .molten-hold[data-reduced-motion] .molten-hold-tint {
+    transition-property: opacity !important;
+}
