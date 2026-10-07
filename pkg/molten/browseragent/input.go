@@ -6,6 +6,7 @@ package browseragent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"runtime"
@@ -37,6 +38,14 @@ const (
 	maxViewportPx  = 4096
 	maxBatchItems  = 50
 	inputTimeout   = 20 * time.Second
+	// Each DevTools call of an action gets this long: the call's own budget includes the user's answers, which a page
+	// stuck behind a dialog must not use up.
+	inputStepTimeout = 10 * time.Second
+	releaseTimeout   = 2 * time.Second
+	// browser_batch stops once its answer would grow past this (screenshots and zooms are up to 2 MB each).
+	maxBatchBytes = 10 << 20
+	// emain's refusal of an input event once the tab shows another site than the one the action was planned on.
+	siteChangedMarker = "molten:site-changed"
 	// A click on a link or a submit control may start a download a moment later: the call waits that long for it, so
 	// the user's Deny fails this call.
 	downloadSettle = 250 * time.Millisecond
@@ -173,6 +182,11 @@ func planInput(a inputArgs, macCommands bool) (inputPlan, string) {
 		if !ok {
 			return plan, mcpbrowser.ErrUnknownKey
 		}
+		for _, c := range chords {
+			if c.isClipboard() {
+				return plan, mcpbrowser.ErrClipboardKey
+			}
+		}
 		if len(chords)*repeat > maxKeyPresses {
 			return plan, mcpbrowser.ErrTooManyKeys
 		}
@@ -207,10 +221,28 @@ func (m *Manager) inputAction(ctx context.Context, s sessionInfo, loc BlockLocat
 	})
 }
 
+// step runs one DevTools call of an input action within inputStepTimeout.
+func (m *Manager) step(ctx context.Context, key TabKey, method string, params any, out any) error {
+	stepCtx, cancel := context.WithTimeout(ctx, inputStepTimeout)
+	defer cancel()
+	return m.cdp(stepCtx, key, method, params, out)
+}
+
+// send dispatches one input event to the page p; emain refuses it once the tab shows another site, whose permission
+// the action never passed (FR-BRW-008 AC7), even in the middle of a key sequence or a long text.
+func (m *Manager) send(ctx context.Context, p pageContext, method string, params map[string]any) error {
+	params["moltenhost"] = hostOf(p.url)
+	err := m.step(ctx, p.key, method, params, nil)
+	if err != nil && strings.Contains(err.Error(), siteChangedMarker) {
+		return refusal(mcpbrowser.ErrSiteChanged)
+	}
+	return err
+}
+
 // viewportSize is the page's layout viewport in CSS pixels (the emulated one after resize).
 func (m *Manager) viewportSize(ctx context.Context, key TabKey) (float64, float64, error) {
 	var metrics layoutMetrics
-	if err := m.cdp(ctx, key, "Page.getLayoutMetrics", map[string]any{}, &metrics); err != nil {
+	if err := m.step(ctx, key, "Page.getLayoutMetrics", map[string]any{}, &metrics); err != nil {
 		return 0, 0, err
 	}
 	return metrics.CssLayoutViewport.ClientWidth, metrics.CssLayoutViewport.ClientHeight, nil
@@ -224,7 +256,7 @@ func inViewport(pt point, width float64, height float64) bool {
 // MoltenTerm cannot check, so typing there asks.
 func (m *Manager) inspect(ctx context.Context, key TabKey, params map[string]any) targetInfo {
 	var info targetInfo
-	if err := m.cdp(ctx, key, opInspect, params, &info); err != nil {
+	if err := m.step(ctx, key, opInspect, params, &info); err != nil {
 		return unknownTarget
 	}
 	return info
@@ -242,14 +274,14 @@ func (m *Manager) refTarget(ctx context.Context, s sessionInfo, p pageContext, r
 	if err != nil {
 		return 0, point{}, nil, err
 	}
-	if err := m.cdp(ctx, p.key, "DOM.scrollIntoViewIfNeeded", map[string]any{"backendNodeId": backendId}, nil); err != nil {
+	if err := m.step(ctx, p.key, "DOM.scrollIntoViewIfNeeded", map[string]any{"backendNodeId": backendId}, nil); err != nil {
 		if ctx.Err() != nil {
 			return 0, point{}, nil, ctx.Err()
 		}
 		return 0, point{}, nil, refusal(mcpbrowser.ErrElementGone)
 	}
 	var box boxModel
-	if err := m.cdp(ctx, p.key, "DOM.getBoxModel", map[string]any{"backendNodeId": backendId}, &box); err != nil || len(box.Model.Content) != 8 {
+	if err := m.step(ctx, p.key, "DOM.getBoxModel", map[string]any{"backendNodeId": backendId}, &box); err != nil || len(box.Model.Content) != 8 {
 		if ctx.Err() != nil {
 			return 0, point{}, nil, ctx.Err()
 		}
@@ -278,6 +310,7 @@ func (m *Manager) pointTarget(ctx context.Context, s sessionInfo, p pageContext,
 			return point{}, targetInfo{}, nil, refusal(mcpbrowser.ErrRefOutside)
 		}
 		info := m.inspect(ctx, p.key, map[string]any{"backendnodeid": backendId})
+		info = withTargetAt(info, m.inspect(ctx, p.key, map[string]any{"x": pt.x, "y": pt.y}))
 		return pt, info, &ActionCue{Kind: "box", X: rect.X, Y: rect.Y, Width: rect.Width, Height: rect.Height}, nil
 	}
 	pt := *plan.point
@@ -322,13 +355,25 @@ func mouseParams(kind string, pt point, button string, clicks int, buttons int, 
 	}
 }
 
-func (m *Manager) mouse(ctx context.Context, key TabKey, params map[string]any) error {
-	return m.cdp(ctx, key, "Input.dispatchMouseEvent", params, nil)
+func (m *Manager) mouse(ctx context.Context, p pageContext, params map[string]any) error {
+	return m.send(ctx, p, "Input.dispatchMouseEvent", params)
+}
+
+// releaseAfter lets go of a button an action pressed and could not release: a failure or a timeout must not leave the
+// page mid-drag. Stop and takeover cancel instead: emain releases the button when control ends, and after a takeover
+// the user's own mouse does.
+func (m *Manager) releaseAfter(ctx context.Context, p pageContext, pt point, button string) {
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return
+	}
+	releaseCtx, cancel := context.WithTimeout(context.Background(), releaseTimeout)
+	defer cancel()
+	m.mouse(releaseCtx, p, mouseParams("mouseReleased", pt, button, 1, 0, 0))
 }
 
 // click moves to the point and presses and releases clicks times, as a double click does (clickCount 1, then 2).
-func (m *Manager) click(ctx context.Context, key TabKey, pt point, button string, clicks int, mods int) error {
-	if err := m.mouse(ctx, key, mouseParams("mouseMoved", pt, buttonNone, 0, 0, mods)); err != nil {
+func (m *Manager) click(ctx context.Context, p pageContext, pt point, button string, clicks int, mods int) error {
+	if err := m.mouse(ctx, p, mouseParams("mouseMoved", pt, buttonNone, 0, 0, mods)); err != nil {
 		return err
 	}
 	held := buttonsLeft
@@ -336,10 +381,11 @@ func (m *Manager) click(ctx context.Context, key TabKey, pt point, button string
 		held = buttonsRight
 	}
 	for i := 1; i <= clicks; i++ {
-		if err := m.mouse(ctx, key, mouseParams("mousePressed", pt, button, i, held, mods)); err != nil {
+		if err := m.mouse(ctx, p, mouseParams("mousePressed", pt, button, i, held, mods)); err != nil {
 			return err
 		}
-		if err := m.mouse(ctx, key, mouseParams("mouseReleased", pt, button, i, 0, mods)); err != nil {
+		if err := m.mouse(ctx, p, mouseParams("mouseReleased", pt, button, i, 0, mods)); err != nil {
+			m.releaseAfter(ctx, p, pt, button)
 			return err
 		}
 	}
@@ -379,9 +425,17 @@ func (m *Manager) runInput(ctx context.Context, s sessionInfo, p pageContext, pl
 			if err := m.confirm(ctx, s, p, reason); err != nil {
 				return mcpbrowser.CallResult{}, err
 			}
+			// The user answered about this target: one that moved or changed while they were asked is not it.
+			again, againInfo, _, err := m.pointTarget(ctx, s, p, plan)
+			if err != nil {
+				return mcpbrowser.CallResult{}, err
+			}
+			if clickReason(againInfo, how.button) != reason || math.Abs(again.x-pt.x) > 2 || math.Abs(again.y-pt.y) > 2 {
+				return mcpbrowser.CallResult{}, refusal(mcpbrowser.ErrPageChanged)
+			}
 		}
 		m.noteActionAt(s.id, p.tabId, actionLine(how.verb, info, pt.x, pt.y, true), cue)
-		if err := m.click(ctx, p.key, pt, how.button, how.clicks, plan.modifiers); err != nil {
+		if err := m.click(ctx, p, pt, how.button, how.clicks, plan.modifiers); err != nil {
 			return mcpbrowser.CallResult{}, err
 		}
 		settle := time.Duration(0)
@@ -398,7 +452,7 @@ func (m *Manager) runInput(ctx context.Context, s sessionInfo, p pageContext, pl
 			return mcpbrowser.CallResult{}, err
 		}
 		m.noteActionAt(s.id, p.tabId, actionLine("Hovered over", info, pt.x, pt.y, true), cue)
-		if err := m.mouse(ctx, p.key, mouseParams("mouseMoved", pt, buttonNone, 0, 0, plan.modifiers)); err != nil {
+		if err := m.mouse(ctx, p, mouseParams("mouseMoved", pt, buttonNone, 0, 0, plan.modifiers)); err != nil {
 			return mcpbrowser.CallResult{}, err
 		}
 		return mcpbrowser.TextResult(fmt.Sprintf("Moved the mouse to %s.", targetWords(plan, pt))), nil
@@ -454,7 +508,7 @@ func (m *Manager) scroll(ctx context.Context, s sessionInfo, p pageContext, plan
 	}
 	m.noteActionAt(s.id, p.tabId, "Scrolled "+scrollWord(plan), &ActionCue{Kind: "click", X: pt.x, Y: pt.y})
 	params := map[string]any{"type": "mouseWheel", "x": pt.x, "y": pt.y, "deltaX": plan.dx, "deltaY": plan.dy, "modifiers": plan.modifiers}
-	if err := m.mouse(ctx, p.key, params); err != nil {
+	if err := m.mouse(ctx, p, params); err != nil {
 		return mcpbrowser.CallResult{}, err
 	}
 	return mcpbrowser.TextResult(fmt.Sprintf("Scrolled %s by %g CSS pixels at (%d, %d).", scrollWord(plan),
@@ -475,6 +529,9 @@ func (m *Manager) typeText(ctx context.Context, s sessionInfo, p pageContext, pl
 		if err := m.confirm(ctx, s, p, reason); err != nil {
 			return mcpbrowser.CallResult{}, err
 		}
+		if typeReason(m.inspect(ctx, p.key, map[string]any{"focused": true})) != reason {
+			return mcpbrowser.CallResult{}, refusal(mcpbrowser.ErrPageChanged)
+		}
 	}
 	m.noteActionAt(s.id, p.tabId, actionLine("Typing in", focused, 0, 0, false), rectCue(focused.Rect))
 	runes := []rune(plan.text)
@@ -483,7 +540,7 @@ func (m *Manager) typeText(ctx context.Context, s sessionInfo, p pageContext, pl
 			return mcpbrowser.CallResult{}, err
 		}
 		chunk := string(runes[i:min(i+typeChunkRunes, len(runes))])
-		if err := m.cdp(ctx, p.key, "Input.insertText", map[string]any{"text": chunk}, nil); err != nil {
+		if err := m.send(ctx, p, "Input.insertText", map[string]any{"text": chunk}); err != nil {
 			return mcpbrowser.CallResult{}, err
 		}
 	}
@@ -516,16 +573,19 @@ func (m *Manager) pressKeys(ctx context.Context, s sessionInfo, p pageContext, p
 				return mcpbrowser.CallResult{}, err
 			}
 			if keyNeedsInspection(chord) {
-				focused := m.inspect(ctx, p.key, map[string]any{"focused": true})
+				focused := m.inspect(ctx, p.key, keyInspectParams(chord))
 				if reason := keyReason(focused, chord); reason != "" && !allowed[reason] {
 					if err := m.confirm(ctx, s, p, reason); err != nil {
 						return mcpbrowser.CallResult{}, err
+					}
+					if keyReason(m.inspect(ctx, p.key, keyInspectParams(chord)), chord) != reason {
+						return mcpbrowser.CallResult{}, refusal(mcpbrowser.ErrPageChanged)
 					}
 					allowed[reason] = true
 				}
 			}
 			for _, event := range chord.keyEvents() {
-				if err := m.cdp(ctx, p.key, "Input.dispatchKeyEvent", event, nil); err != nil {
+				if err := m.send(ctx, p, "Input.dispatchKeyEvent", event); err != nil {
 					return mcpbrowser.CallResult{}, err
 				}
 			}
@@ -549,24 +609,29 @@ func (m *Manager) drag(ctx context.Context, s sessionInfo, p pageContext, plan i
 	}
 	m.noteActionAt(s.id, p.tabId, fmt.Sprintf("Dragged from (%d, %d) to (%d, %d)", int(from.x), int(from.y), int(to.x), int(to.y)),
 		&ActionCue{Kind: "click", X: to.x, Y: to.y})
-	if err := m.mouse(ctx, p.key, mouseParams("mouseMoved", from, buttonNone, 0, 0, plan.modifiers)); err != nil {
+	if err := m.mouse(ctx, p, mouseParams("mouseMoved", from, buttonNone, 0, 0, plan.modifiers)); err != nil {
 		return mcpbrowser.CallResult{}, err
 	}
-	if err := m.mouse(ctx, p.key, mouseParams("mousePressed", from, buttonLeft, 1, buttonsLeft, plan.modifiers)); err != nil {
+	if err := m.mouse(ctx, p, mouseParams("mousePressed", from, buttonLeft, 1, buttonsLeft, plan.modifiers)); err != nil {
 		return mcpbrowser.CallResult{}, err
 	}
+	at := from
 	for i := 1; i <= dragSteps; i++ {
 		step := point{x: from.x + (to.x-from.x)*float64(i)/dragSteps, y: from.y + (to.y-from.y)*float64(i)/dragSteps}
-		if err := m.mouse(ctx, p.key, mouseParams("mouseMoved", step, buttonLeft, 0, buttonsLeft, plan.modifiers)); err != nil {
+		if err := m.mouse(ctx, p, mouseParams("mouseMoved", step, buttonLeft, 0, buttonsLeft, plan.modifiers)); err != nil {
+			m.releaseAfter(ctx, p, at, buttonLeft)
 			return mcpbrowser.CallResult{}, err
 		}
+		at = step
 		select {
 		case <-ctx.Done():
+			m.releaseAfter(ctx, p, at, buttonLeft)
 			return mcpbrowser.CallResult{}, ctx.Err()
 		case <-time.After(dragStepPause):
 		}
 	}
-	if err := m.mouse(ctx, p.key, mouseParams("mouseReleased", to, buttonLeft, 1, 0, plan.modifiers)); err != nil {
+	if err := m.mouse(ctx, p, mouseParams("mouseReleased", to, buttonLeft, 1, 0, plan.modifiers)); err != nil {
+		m.releaseAfter(ctx, p, to, buttonLeft)
 		return mcpbrowser.CallResult{}, err
 	}
 	return mcpbrowser.TextResult(fmt.Sprintf("Dragged from (%d, %d) to (%d, %d).", int(from.x), int(from.y), int(to.x), int(to.y))), nil
@@ -658,7 +723,7 @@ func (m *Manager) formInput(ctx context.Context, s sessionInfo, loc BlockLocatio
 		}
 		m.noteActionAt(s.id, p.tabId, actionLine("Set", info, 0, 0, false), rectCue(info.Rect))
 		var out setFieldResult
-		if err := m.cdp(inputCtx, p.key, opSetField, map[string]any{"backendnodeid": backendId, "value": value}, &out); err != nil {
+		if err := m.step(inputCtx, p.key, opSetField, map[string]any{"backendnodeid": backendId, "value": value}, &out); err != nil {
 			return mcpbrowser.CallResult{}, err
 		}
 		if !out.Ok {
@@ -703,7 +768,7 @@ func (m *Manager) resize(ctx context.Context, s sessionInfo, loc BlockLocation, 
 	}
 	return m.onPageMode(ctx, s, loc, args, "", mcpbrowser.ErrInputFailed, true, func(ctx context.Context, p pageContext) (mcpbrowser.CallResult, error) {
 		params := map[string]any{"width": width, "height": height, "deviceScaleFactor": 0, "mobile": false}
-		if err := m.cdp(ctx, p.key, "Emulation.setDeviceMetricsOverride", params, nil); err != nil {
+		if err := m.step(ctx, p.key, "Emulation.setDeviceMetricsOverride", params, nil); err != nil {
 			return mcpbrowser.CallResult{}, err
 		}
 		m.setViewport(s.id, p.tabId, &Viewport{Width: width, Height: height})
@@ -729,6 +794,7 @@ func (m *Manager) batch(ctx context.Context, s sessionInfo, loc BlockLocation, a
 	}
 	var content []mcpbrowser.ContentItem
 	var entry callLog
+	size := 0
 	for i, item := range parsed.Actions {
 		name := strings.TrimSpace(item.Name)
 		var result mcpbrowser.CallResult
@@ -761,6 +827,14 @@ func (m *Manager) batch(ctx context.Context, s sessionInfo, loc BlockLocation, a
 			}
 			content = append(content, mcpbrowser.ContentItem{Type: mcpbrowser.ContentText,
 				Text: fmt.Sprintf("Item %d (%s) failed: %s\nThe batch stopped there; items after it did not run.", i+1, toolName, reason)})
+			return mcpbrowser.CallResult{Content: content, IsError: true}, entry
+		}
+		for _, c := range result.Content {
+			size += len(c.Text) + len(c.Data)
+		}
+		if size > maxBatchBytes {
+			content = append(content, mcpbrowser.ContentItem{Type: mcpbrowser.ContentText,
+				Text: fmt.Sprintf("Item %d (%s) ran, but %s\nThe batch stopped there; items after it did not run.", i+1, toolName, mcpbrowser.ErrBatchTooLarge)})
 			return mcpbrowser.CallResult{Content: content, IsError: true}, entry
 		}
 		content = append(content, mcpbrowser.ContentItem{Type: mcpbrowser.ContentText, Text: fmt.Sprintf("Item %d (%s):", i+1, toolName)})

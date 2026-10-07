@@ -185,6 +185,14 @@ export function permissionBarView(tab: AgentTab): PermissionBarView {
     };
 }
 
+// A click on a bar that appeared this recently is ignored: a double click meant for the previous question, or a click
+// already on its way, must not answer the next one (the next request takes the same slot, its Allow under the cursor).
+export const AnswerGuardMs = 400;
+
+export function answerTooSoon(shownAt: number, now: number): boolean {
+    return now - shownAt < AnswerGuardMs;
+}
+
 // The bar after the user answers, before wavesrv's event confirms it.
 export function applyAnswer(tabs: AgentTabs, browserTabId: string, requestId: string): AgentTabs {
     const tab = tabs?.[browserTabId];

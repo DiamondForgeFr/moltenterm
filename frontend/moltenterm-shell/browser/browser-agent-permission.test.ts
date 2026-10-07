@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
     agentSiteDecision,
     AgentTab,
+    AnswerGuardMs,
+    answerTooSoon,
     applyAnswer,
     BrowserAgentModel,
     controlBarView,
@@ -196,5 +198,12 @@ describe("emulated viewport on the control bar (FR-BRW-010 AC3)", () => {
         expect(viewportText({ width: 0, height: 10 })).toBe("");
         expect(viewportText({ width: 1.5, height: 10 } as any)).toBe("");
         expect(viewportText(null)).toBe("");
+    });
+});
+
+describe("the answer guard (FR-BRW-010 review)", () => {
+    it("ignores a click that lands right after a new question appeared", () => {
+        expect(answerTooSoon(1000, 1100)).toBe(true);
+        expect(answerTooSoon(1000, 1000 + AnswerGuardMs)).toBe(false);
     });
 });

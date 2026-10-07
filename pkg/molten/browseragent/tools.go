@@ -115,7 +115,7 @@ func resultSentence(result mcpbrowser.CallResult) string {
 		mcpbrowser.ErrStartRequired, mcpbrowser.ErrValueRequired, mcpbrowser.ErrFieldUnsupported, mcpbrowser.ErrFileInput,
 		mcpbrowser.ErrOptionNotFound, mcpbrowser.ErrResizeBounds, mcpbrowser.ErrBatchActions, mcpbrowser.ErrBatchNested,
 		mcpbrowser.ErrActionDenied, mcpbrowser.ErrActionTimeout, mcpbrowser.ErrInputFailed, mcpbrowser.ErrPageChanged, mcpbrowser.ErrRefOutside,
-		mcpbrowser.ErrTooManyKeys,
+		mcpbrowser.ErrTooManyKeys, mcpbrowser.ErrClipboardKey,
 	}
 	if slices.Contains(fixed, result.Content[0].Text) {
 		return result.Content[0].Text

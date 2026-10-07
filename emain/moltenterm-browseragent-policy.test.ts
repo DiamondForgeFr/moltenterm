@@ -9,10 +9,13 @@ import {
     downloadHost,
     expectedSignature,
     flattenBitmapOnWhite,
+    inputHostMatches,
     InspectElementSource,
     InspectFocusedScript,
+    inspectFocusedScript,
     inspectParams,
     inspectPointScript,
+    isClipboardChord,
     isMoltenOperation,
     isSyntheticInputMethod,
     isTakeoverKey,
@@ -385,6 +388,11 @@ describe("Molten.inspect and Molten.setField (FR-BRW-010)", () => {
     it("run fixed functions that parse and never read a field's value for the label", () => {
         expect(() => new Function(`return (${InspectElementSource});`)).not.toThrow();
         expect(() => new Function(`return ${InspectFocusedScript};`)).not.toThrow();
+        expect(() => new Function(`return ${inspectFocusedScript(true)};`)).not.toThrow();
+        expect(inspectFocusedScript(true)).toContain("(el, true)");
+        expect(inspectParams({ focused: true, lean: true })).toEqual({ focused: true, lean: true });
+        // Types come from the element's own window: a same-origin frame's field is another realm's.
+        expect(InspectElementSource).not.toMatch(/instanceof/);
         expect(() => new Function(`return ${inspectPointScript(1, 2)};`)).not.toThrow();
         expect(() => new Function(`return (${SetFieldSource});`)).not.toThrow();
         expect(inspectPointScript(Number.NaN, 2)).toContain("elementFromPoint(NaN, 2)");
@@ -395,5 +403,35 @@ describe("Molten.inspect and Molten.setField (FR-BRW-010)", () => {
         expect(downloadHost("https://Files.Example.com:8443/a.zip?token=SECRET")).toBe("files.example.com:8443");
         expect(downloadHost("blob:https://app.example.com/1234-5678")).toBe("app.example.com");
         expect(downloadHost("data:text/plain,hi")).toBe("");
+    });
+});
+
+describe("input guards (FR-BRW-010 review)", () => {
+    it("refuses copy, cut and paste shortcuts on every system", () => {
+        expect(isClipboardChord("v", "KeyV", 2)).toBe(true);
+        expect(isClipboardChord("c", "KeyC", 4)).toBe(true);
+        expect(isClipboardChord("V", "KeyV", 2 | 8)).toBe(true);
+        expect(isClipboardChord("Insert", "Insert", 8)).toBe(true);
+        expect(isClipboardChord("Insert", "Insert", 2)).toBe(true);
+        expect(isClipboardChord("Delete", "Delete", 8)).toBe(true);
+        expect(isClipboardChord("Paste", "", 0)).toBe(true);
+        expect(isClipboardChord("a", "KeyA", 4)).toBe(false);
+        expect(isClipboardChord("v", "KeyV", 0)).toBe(false);
+        expect(isClipboardChord("Delete", "Delete", 0)).toBe(false);
+        expect(
+            sanitizeInputParams("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "x", code: "KeyX", modifiers: 2 })
+        ).toBeNull();
+        expect(
+            sanitizeInputParams("Input.dispatchMouseEvent", { type: "mousePressed", x: 1, y: 1, button: "middle" })
+        ).toBeNull();
+    });
+
+    it("matches the page's host exactly", () => {
+        expect(inputHostMatches("https://Example.com:8443/a?q=1", "example.com:8443")).toBe(true);
+        expect(inputHostMatches("https://example.com/", "example.com")).toBe(true);
+        expect(inputHostMatches("https://evil.example/", "example.com")).toBe(false);
+        expect(inputHostMatches("about:blank", "example.com")).toBe(false);
+        expect(inputHostMatches("https://example.com/", "")).toBe(false);
+        expect(inputHostMatches("https://example.com/", undefined)).toBe(false);
     });
 });

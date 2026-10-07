@@ -35,6 +35,7 @@ describe("browser agent takeover and input", () => {
             getType: () => "webview",
             isDevToolsOpened: () => false,
             getZoomFactor: () => 1,
+            getURL: () => "https://example.com/login",
             setBackgroundThrottling: vi.fn(),
             downloadURL: vi.fn(),
             debugger: {
@@ -69,7 +70,15 @@ describe("browser agent takeover and input", () => {
         token: Token,
     });
     const press = (x: number, y: number) =>
-        call("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", buttons: 1, clickCount: 1 });
+        call("Input.dispatchMouseEvent", {
+            type: "mousePressed",
+            x,
+            y,
+            button: "left",
+            buttons: 1,
+            clickCount: 1,
+            moltenhost: "example.com",
+        });
 
     it("pauses at once and coalesces native and preload reports until Give back", async () => {
         wc.emit("before-mouse-event", {}, { type: "mouseDown", button: "left", x: 5, y: 5 });
@@ -138,6 +147,7 @@ describe("browser agent takeover and input", () => {
                 code: "KeyW",
                 windowsVirtualKeyCode: 87,
                 modifiers: 4,
+                moltenhost: "example.com",
             })
         );
         expect(report).not.toHaveBeenCalled();
@@ -146,23 +156,83 @@ describe("browser agent takeover and input", () => {
         expect(agent.isAgentInput(wc.id, usersOwn as any)).toBe(false);
     });
 
-    it("sanitises input: clipboard commands are dropped, unknown events refused", async () => {
+    it("sanitises input: clipboard commands and shortcuts are dropped, unknown events refused", async () => {
         await agent.runBrowserAgentCdp(
             call("Input.dispatchKeyEvent", {
                 type: "rawKeyDown",
-                key: "v",
-                code: "KeyV",
+                key: "a",
+                code: "KeyA",
                 modifiers: 4,
                 commands: ["paste", "selectAll"],
                 autoRepeat: true,
+                moltenhost: "example.com",
             })
         );
         const sent = wc.debugger.sendCommand.mock.calls.at(-1);
         expect(sent[1].commands).toEqual(["selectAll"]);
         expect(sent[1].autoRepeat).toBeUndefined();
+        expect(sent[1].moltenhost).toBeUndefined();
+        const calls = wc.debugger.sendCommand.mock.calls.length;
         await expect(
-            agent.runBrowserAgentCdp(call("Input.dispatchMouseEvent", { type: "mouseDragStart", x: 1, y: 1 }))
+            agent.runBrowserAgentCdp(
+                call("Input.dispatchKeyEvent", {
+                    type: "rawKeyDown",
+                    key: "v",
+                    code: "KeyV",
+                    modifiers: 2,
+                    moltenhost: "example.com",
+                })
+            )
         ).rejects.toThrow("bad input parameters");
+        await expect(
+            agent.runBrowserAgentCdp(
+                call("Input.dispatchMouseEvent", { type: "mouseDragStart", x: 1, y: 1, moltenhost: "example.com" })
+            )
+        ).rejects.toThrow("bad input parameters");
+        expect(wc.debugger.sendCommand.mock.calls.length).toBe(calls);
+    });
+
+    it("refuses input once the tab shows another site than the action was planned on", async () => {
+        await expect(
+            agent.runBrowserAgentCdp(call("Input.insertText", { text: "secret", moltenhost: "other.example" }))
+        ).rejects.toThrow("molten:site-changed");
+        await expect(agent.runBrowserAgentCdp(call("Input.insertText", { text: "secret" }))).rejects.toThrow(
+            "molten:site-changed"
+        );
+        expect(wc.debugger.sendCommand).not.toHaveBeenCalled();
+        await agent.runBrowserAgentCdp(call("Input.insertText", { text: "ok", moltenhost: "example.com" }));
+        expect(wc.debugger.sendCommand).toHaveBeenLastCalledWith("Input.insertText", { text: "ok" });
+    });
+
+    it("releases a button the agent holds when control ends", async () => {
+        await agent.runBrowserAgentCdp(press(100, 200));
+        agent.setBrowserAgentControl({ blockid: "panel", browsertabid: "agent-tab", controlled: false, token: Token });
+        await vi.runAllTimersAsync();
+        expect(wc.debugger.sendCommand).toHaveBeenLastCalledWith("Input.dispatchMouseEvent", {
+            type: "mouseReleased",
+            x: 100,
+            y: 200,
+            button: "left",
+            buttons: 0,
+            clickCount: 1,
+        });
+        expect(wc.debugger.detach).toHaveBeenCalled();
+    });
+
+    it("asks about one download of a tab at a time", async () => {
+        let answer: (allow: boolean) => void;
+        ask.mockImplementation(() => new Promise<boolean>((resolve) => (answer = resolve)));
+        const item = { getURL: () => "https://files.example.com/a.zip" };
+        for (let i = 0; i < 5; i++) {
+            const e = { preventDefault: vi.fn() };
+            session.emit("will-download", e, item, wc);
+            expect(e.preventDefault).toHaveBeenCalled();
+        }
+        expect(ask).toHaveBeenCalledTimes(1);
+        answer(false);
+        await vi.runAllTimersAsync();
+        session.emit("will-download", { preventDefault: vi.fn() }, item, wc);
+        expect(ask).toHaveBeenCalledTimes(2);
     });
 
     it("clears the emulated viewport before detaching when control ends", async () => {
