@@ -15,7 +15,7 @@ import { latestRun } from "../mission/mission-model";
 import { ReleaseMenu } from "../mission/release-menu";
 import { MoltenWave } from "../molten-button";
 import { WorkspaceIcon } from "../workspace-icon";
-import { readWorkspaceProject } from "../workspace-project";
+import { WorkspaceIconSource, workspaceIconSource } from "../workspace-icon-model";
 import {
     countsLine,
     nextStation,
@@ -40,14 +40,15 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
     return <span className="text-[11px] font-semibold tracking-[0.14em] text-muted uppercase">{children}</span>;
 }
 
-function ProjectBadge({ name, logo }: { name: string; logo: string }) {
-    if (logo) {
+// The workspace's badge (FR-SHELL-031): its imported image or its project's logo; the project's initial otherwise.
+function ProjectBadge({ name, source }: { name: string; source: WorkspaceIconSource }) {
+    if (source.image || source.logo) {
         return (
             <span
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] border border-border bg-hover text-[28px]"
                 aria-hidden
             >
-                <WorkspaceIcon icon="folder" logo={logo} />
+                <WorkspaceIcon source={source} />
             </span>
         );
     }
@@ -157,14 +158,14 @@ export function NextStationHeader({
     const items = useMemo(() => tickerItems(git), [git]);
     const target = runCiTarget(git, pipeline, ci);
     const lastBuild = latestRun(runs, "build");
-    const logo = readWorkspaceProject(project.workspace).logo;
+    const iconSource = workspaceIconSource(project.workspace);
     const trunk = git?.trunk || "develop";
     return (
         <div className="flex flex-col" data-testid="next-station">
             <div className="h-1 bg-[var(--mt-accent)]" aria-hidden />
             <div className="flex flex-wrap items-center gap-x-7 gap-y-4 px-4 py-4 @min-[42rem]:px-6">
                 <div className="flex min-w-0 items-center gap-x-7 gap-y-4 @max-[30rem]:flex-wrap">
-                    <ProjectBadge name={projectName} logo={logo} />
+                    <ProjectBadge name={projectName} source={iconSource} />
                     <div className="flex min-w-0 flex-col gap-0.5" data-testid="next-station-version">
                         <Eyebrow>Next station</Eyebrow>
                         <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">

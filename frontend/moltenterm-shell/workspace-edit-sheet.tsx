@@ -26,8 +26,10 @@ import {
     WorkspaceEditIntentKey,
 } from "./workspace-edit-model";
 import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
-import { readWorkspaceProject } from "./workspace-project";
+import { hasImportedIcon, iconKindLabel, workspaceIconSource } from "./workspace-icon-model";
+import { pathBaseName } from "./workspace-project";
 import { WorkspaceFolderLine, WorkspaceProjectBlock } from "./workspace-project-section";
+import { chooseMoltentermPath } from "./workspace-project-store";
 import { askResetWorkspace } from "./workspace-reset";
 import { canCloseWorkspace } from "./workspace-reset-model";
 
@@ -35,6 +37,10 @@ const SectionHeadingClass = "mb-2 text-xs font-semibold tracking-wide text-secon
 const FieldLabelClass = "mb-1 text-xs text-secondary";
 const DangerButtonClass =
     "shrink-0 cursor-pointer rounded border border-error px-3 py-1.5 text-xs text-primary transition-colors hover:bg-error/15";
+const SecondaryButtonClass =
+    "shrink-0 cursor-pointer rounded border border-border px-3 py-1.5 text-xs text-secondary transition-colors hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
+const NoDroppedFileText = "Drop an image file from your disk";
+const ImportFailedText = "The image could not be imported";
 const FocusRingClass =
     "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
@@ -102,23 +108,160 @@ function RadioGrid({
     );
 }
 
-// FR-SHELL-031 (#295) puts Import image… here, under the colours: the picker, the drop target and its one-line result
-// (aria-live). The preview above then shows the resolved icon.
-function ImportImageSlot(): React.ReactNode {
-    return null;
+type ImportResult = { ok: boolean; text: string };
+
+// The drop half of the icon area (FR-SHELL-031 AC1): the preview and the image slot both take a dropped file. Electron
+// gives a dropped file's path; an image dragged from a web page has none and is refused with a line.
+function useIconDrop(onPath: (path: string) => void, onRefused: (text: string) => void) {
+    const depth = useRef(0);
+    const [over, setOver] = useState(false);
+    const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
+    const handlers = {
+        onDragEnter: (e: React.DragEvent) => {
+            if (!hasFiles(e)) {
+                return;
+            }
+            e.preventDefault();
+            depth.current++;
+            setOver(true);
+        },
+        onDragOver: (e: React.DragEvent) => {
+            if (!hasFiles(e)) {
+                return;
+            }
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+        },
+        onDragLeave: () => {
+            depth.current = Math.max(0, depth.current - 1);
+            if (depth.current === 0) {
+                setOver(false);
+            }
+        },
+        onDrop: (e: React.DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            depth.current = 0;
+            setOver(false);
+            const file = e.dataTransfer?.files?.[0];
+            let path = "";
+            try {
+                path = file ? (getApi().getPathForFile(file) ?? "") : "";
+            } catch {
+                path = "";
+            }
+            if (!path) {
+                onRefused(NoDroppedFileText);
+                return;
+            }
+            onPath(path);
+        },
+    };
+    return { over, handlers };
 }
 
-function RailBadgePreview({ ws }: { ws: Workspace }) {
-    const { logo } = readWorkspaceProject(ws);
+// Import image… and the drop target, under the colours (FR-SHELL-031): wavesrv checks and copies the file; the result
+// is one line, announced. With an image set, Use built-in icon removes it and its stored copy.
+function ImportImageSlot({
+    ws,
+    over,
+    busy,
+    result,
+    dropHandlers,
+    onPick,
+    onRemove,
+}: {
+    ws: Workspace;
+    over: boolean;
+    busy: boolean;
+    result: ImportResult;
+    dropHandlers: React.HTMLAttributes<HTMLDivElement>;
+    onPick: () => void;
+    onRemove: () => void;
+}) {
+    const labelId = useId();
+    const imported = hasImportedIcon(ws);
     return (
-        <div className="flex shrink-0 flex-col items-center gap-1">
+        <div className="min-w-0" role="group" aria-labelledby={labelId}>
+            <div id={labelId} className={FieldLabelClass}>
+                Image
+            </div>
+            <div
+                {...dropHandlers}
+                data-role="icon-drop"
+                data-over={over ? "true" : undefined}
+                className={cn(
+                    "rounded border border-dashed px-3 py-2 transition-colors motion-reduce:transition-none",
+                    over ? "border-accent bg-accent/10" : "border-border"
+                )}
+            >
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="min-w-0 flex-1 basis-48 text-xs text-secondary">
+                        {over
+                            ? "Drop to use this image"
+                            : imported
+                              ? "Shown in place of the icon and colour, which stay set."
+                              : "PNG, JPG, WebP, SVG or ICO, up to 1 MB. Pick one or drop it here."}
+                    </span>
+                    <button
+                        type="button"
+                        disabled={busy}
+                        onClick={onPick}
+                        className={cn(SecondaryButtonClass, FocusRingClass)}
+                    >
+                        {busy ? "Importing…" : imported ? "Replace image…" : "Import image…"}
+                    </button>
+                    {imported ? (
+                        <button
+                            type="button"
+                            disabled={busy}
+                            onClick={onRemove}
+                            data-action="use-builtin-icon"
+                            className={cn(SecondaryButtonClass, FocusRingClass)}
+                        >
+                            Use built-in icon
+                        </button>
+                    ) : null}
+                </div>
+                <div role="status" aria-live="polite" data-role="icon-import-result" className="min-h-4 text-xs">
+                    {result ? (
+                        <span className={result.ok ? "text-secondary" : "text-primary"}>
+                            {result.ok ? null : (
+                                <i className="fa fa-solid fa-circle-exclamation mr-1 text-error" aria-hidden />
+                            )}
+                            {result.text}
+                        </span>
+                    ) : null}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function RailBadgePreview({
+    ws,
+    over,
+    dropHandlers,
+}: {
+    ws: Workspace;
+    over: boolean;
+    dropHandlers: React.HTMLAttributes<HTMLDivElement>;
+}) {
+    const source = workspaceIconSource(ws);
+    const kind = iconKindLabel(source.image ? "imported" : source.logo ? "logo" : "builtin");
+    return (
+        <div className="flex shrink-0 flex-col items-center gap-1" {...dropHandlers}>
             <div
                 role="img"
-                aria-label={`Rail badge: ${iconName(ws.icon)}, ${colourName(ws.color)}${logo ? ", project logo" : ""}`}
+                aria-label={`Rail badge: ${iconName(ws.icon)}, ${colourName(ws.color)}${kind ? `, ${kind}` : ""}`}
                 data-role="rail-preview"
-                className={cn(RailBadgeClass, "bg-hover")}
+                className={cn(
+                    RailBadgeClass,
+                    "bg-hover",
+                    over && "outline outline-2 outline-offset-2 outline-accent outline-dashed"
+                )}
             >
-                <WorkspaceIcon icon={ws.icon} color={ws.color} logo={logo} />
+                <WorkspaceIcon source={source} />
             </div>
             <div className="text-[11px] text-muted" aria-hidden>
                 In the rail
@@ -158,10 +301,47 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
             save({ name: value });
         }
     };
+    const [busy, setBusy] = useState(false);
+    const [result, setResult] = useState<ImportResult>(null);
+    const runIconChange = (fn: () => Promise<ImportResult>) => {
+        if (busy) {
+            return;
+        }
+        setBusy(true);
+        setResult(null);
+        fireAndForget(async () => {
+            try {
+                setResult(await fn());
+            } catch (e) {
+                console.log("workspace icon:", e);
+                setResult({ ok: false, text: ImportFailedText });
+            } finally {
+                setBusy(false);
+            }
+        });
+    };
+    const importPath = (path: string) =>
+        runIconChange(async () => {
+            const refusal = await WorkspaceService.ImportWorkspaceIcon(ws.oid, path);
+            return refusal ? { ok: false, text: refusal } : { ok: true, text: `Imported ${pathBaseName(path)}` };
+        });
+    const pick = () =>
+        fireAndForget(async () => {
+            const path = await chooseMoltentermPath({ kind: "workspaceicon", title: "Workspace icon" });
+            if (path) {
+                importPath(path);
+            }
+        });
+    const removeImage = () =>
+        runIconChange(async () => {
+            await WorkspaceService.RemoveWorkspaceIcon(ws.oid);
+            return { ok: true, text: "Back to the built-in icon" };
+        });
+    const drop = useIconDrop(importPath, (text) => setResult({ ok: false, text }));
     return (
         <Section title="Identity" first>
             <div className="flex min-w-0 items-start gap-3">
-                <RailBadgePreview ws={ws} />
+                <RailBadgePreview ws={ws} over={drop.over} dropHandlers={drop.handlers} />
                 <div className="min-w-0 flex-1">
                     <label htmlFor={nameId} className={cn(FieldLabelClass, "flex")}>
                         Name
@@ -193,7 +373,15 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                     onSelect={(icon) => save({ icon })}
                 />
                 <ColourChoices colors={choices.colors} selected={ws.color} onSelect={(color) => save({ color })} />
-                <ImportImageSlot />
+                <ImportImageSlot
+                    ws={ws}
+                    over={drop.over}
+                    busy={busy}
+                    result={result}
+                    dropHandlers={drop.handlers}
+                    onPick={pick}
+                    onRemove={removeImage}
+                />
             </div>
         </Section>
     );

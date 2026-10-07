@@ -4,6 +4,7 @@
 // The workspace an item of the notification center belongs to (#282), as the row shows it at the start of its meta
 // line. Kept apart from the component so the rules can be tested without the app.
 
+import { workspaceIconSource } from "./workspace-icon-model";
 import { pathBaseName, readWorkspaceProject } from "./workspace-project";
 
 export type WorkspaceLabel = {
@@ -14,6 +15,8 @@ export type WorkspaceLabel = {
     icon: string;
     color: string;
     logo: string;
+    // The stored name of its imported icon (FR-SHELL-031): the chip resolves it like the rail.
+    image: string;
     current: boolean;
     // The workspace no longer exists: the label stays, but leads nowhere.
     missing: boolean;
@@ -39,11 +42,13 @@ export function workspaceLabel(
             icon: "",
             color: "",
             logo: "",
+            image: "",
             current: false,
             missing: true,
         };
     }
-    const { dir, logo } = readWorkspaceProject(ws);
+    const dir = readWorkspaceProject(ws).dir;
+    const { logo, image } = workspaceIconSource(ws);
     const name = ws.name || "Unsaved workspace";
     const projectFolder = pathBaseName(dir);
     return {
@@ -53,6 +58,7 @@ export function workspaceLabel(
         icon: ws.icon,
         color: ws.color,
         logo,
+        image,
         current: workspaceId === currentId,
         missing: false,
     };

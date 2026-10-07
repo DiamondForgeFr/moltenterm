@@ -36,6 +36,14 @@ describe("nextProjectOffer", () => {
         expect(nextProjectOffer({ dir: "/p", logo: "", logoOffer: "/p" }, "/other", [], home)).toBeNull();
         expect(nextProjectOffer({ dir: "/p", logo: "/p/icon.png", logoOffer: "" }, "/other", [], home)).toBeNull();
     });
+
+    it("makes no logo offer over an imported image (FR-SHELL-031 AC7), but still offers to link", () => {
+        expect(nextProjectOffer({ dir: "/p", logo: "", logoOffer: "" }, "/other", [], home, true)).toBeNull();
+        expect(nextProjectOffer(unlinked, "/Users/a/p/notulia", [], home, true)).toEqual({
+            mode: "link",
+            dir: "/Users/a/p/notulia",
+        });
+    });
 });
 
 describe("helpers", () => {

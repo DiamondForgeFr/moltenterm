@@ -1,39 +1,67 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// A workspace's icon: the project's logo when the user chose one (FR-MC-001), otherwise its Font Awesome icon. The
-// Font Awesome icon stays set on the workspace: Wave needs it, and it comes back when the image cannot be shown.
+// A workspace's badge, as every surface draws it (FR-SHELL-031, DS-SHELL-037): the imported image, the project's logo
+// (FR-MC-001) or its Font Awesome icon in its colour, resolved by workspace-icon-model.ts. The Font Awesome icon stays
+// set on the workspace: Wave needs it, and it comes back when an image cannot be shown.
 
+import { getApi } from "@/app/store/global";
 import { getWebServerEndpoint } from "@/util/endpoints";
 import { cn, makeIconClass } from "@/util/util";
 import { useState } from "react";
+import { resolveWorkspaceIcon, WorkspaceIconSource } from "./workspace-icon-model";
 import { logoUrl } from "./workspace-project";
 
 // The rail item's box and glyph size, shared with the edit sheet's preview so it shows the badge at its real size.
 export const RailBadgeClass = "relative flex h-9 w-9 items-center justify-center rounded text-[17px]";
 
-export function WorkspaceIcon({
-    icon,
-    color,
-    logo,
-    className,
-}: {
-    icon: string;
-    color?: string;
-    logo?: string;
-    className?: string;
-}) {
-    const [failedLogo, setFailedLogo] = useState<string>(null);
-    if (logo && logo !== failedLogo) {
+// Images fill more of the badge than a glyph does, square and cropped to cover, never stretched (FR-SHELL-031 AC5):
+// 24 px with a 4 px radius in the 36 px rail badge, in proportion elsewhere.
+export const WorkspaceImageClass = "inline-block h-[1.4em] w-[1.4em] shrink-0 rounded-[0.24em] object-cover";
+
+let dataDir: string = null;
+
+// Read once: wavesrv and the renderer share the data folder for the whole run.
+function getDataDir(): string {
+    if (dataDir == null) {
+        try {
+            dataDir = getApi()?.getDataDir?.() ?? "";
+        } catch {
+            dataDir = "";
+        }
+    }
+    return dataDir;
+}
+
+export function WorkspaceIcon({ source, className }: { source: WorkspaceIconSource; className?: string }) {
+    // The paths that failed to display: the badge steps down one level for each, with no error.
+    const [failed, setFailed] = useState<string[]>([]);
+    const resolved = resolveWorkspaceIcon(source, getDataDir(), failed);
+    if (resolved.kind !== "builtin") {
         return (
             <img
-                src={logoUrl(getWebServerEndpoint(), logo)}
+                key={resolved.path}
+                src={logoUrl(getWebServerEndpoint(), resolved.path)}
                 alt=""
                 draggable={false}
-                onError={() => setFailedLogo(logo)}
-                className={cn("inline-block h-[1.1em] w-[1.1em] rounded-[2px] object-contain", className)}
+                data-icon-kind={resolved.kind}
+                onError={() =>
+                    setFailed((paths) => (paths.includes(resolved.path) ? paths : [...paths, resolved.path]))
+                }
+                className={cn(WorkspaceImageClass, className)}
             />
         );
     }
-    return <i className={cn(makeIconClass(icon, false), className)} style={{ color }} />;
+    return (
+        <i
+            className={cn(makeIconClass(resolved.icon, false), className)}
+            style={{ color: resolved.color || undefined }}
+            data-icon-kind="builtin"
+        />
+    );
+}
+
+// A badge for a folder that is not a workspace (a project's logo, or a folder glyph).
+export function folderIconSource(logo: string): WorkspaceIconSource {
+    return { icon: "folder", color: "", image: "", logo: logo ?? "" };
 }

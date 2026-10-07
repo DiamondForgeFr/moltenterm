@@ -5,10 +5,12 @@
 // "Link a project" action, and the offer to show the project's logo as the workspace icon (FR-MC-001); the folder the
 // workspace works in (FR-SHELL-009). The sheet gives each its heading.
 
+import { WorkspaceService } from "@/app/store/services";
 import { cn, fireAndForget } from "@/util/util";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MoltenWave } from "./molten-button";
 import { WorkspaceIcon } from "./workspace-icon";
+import { hasImportedIcon } from "./workspace-icon-model";
 import {
     checkPathInside,
     effectiveWorkspaceFolder,
@@ -45,32 +47,85 @@ function ProjectStatusLine({ facts }: { facts: ProjectFacts }) {
     );
 }
 
+// Asked before a project logo replaces the imported image (FR-SHELL-031 AC7): the image would be deleted.
+function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+    const confirmRef = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        confirmRef.current?.focus();
+    }, []);
+    return (
+        <div
+            role="group"
+            aria-label="Replace the imported image"
+            data-role="replace-image-confirm"
+            className="mt-2 flex flex-wrap items-center gap-2 rounded border border-border px-2 py-1.5"
+        >
+            <span className="min-w-0 flex-1 basis-48 text-xs text-secondary">
+                Replace the imported image with this logo? The image is deleted.
+            </span>
+            <button
+                ref={confirmRef}
+                type="button"
+                onClick={onConfirm}
+                className="molten-btn molten-btn-warning shrink-0 cursor-pointer rounded px-2 py-1 text-xs"
+            >
+                Replace
+                <MoltenWave />
+            </button>
+            <button type="button" onClick={onCancel} className={LinkButtonClass}>
+                Cancel
+            </button>
+        </div>
+    );
+}
+
 function LogoChoices({ ws, logos, chosen, dir }: { ws: Workspace; logos: string[]; chosen: string; dir: string }) {
+    const imported = hasImportedIcon(ws);
+    const [pending, setPending] = useState<string>(null);
+    const choose = (logo: string) => {
+        if (logo && imported) {
+            setPending(logo);
+            return;
+        }
+        fireAndForget(() => setWorkspaceLogo(ws.oid, logo || null));
+    };
+    const confirmReplace = () => {
+        const logo = pending;
+        setPending(null);
+        fireAndForget(async () => {
+            await setWorkspaceLogo(ws.oid, logo);
+            await WorkspaceService.RemoveWorkspaceIcon(ws.oid);
+        });
+    };
     const pickOther = () =>
         fireAndForget(async () => {
             const file = await chooseMoltentermPath({ kind: "image", title: "Workspace icon", defaultPath: dir });
             if (file) {
-                await setWorkspaceLogo(ws.oid, file);
+                choose(file);
             }
         });
     const choices = chosen && !logos.includes(chosen) ? [chosen, ...logos] : logos;
     return (
         <div className="mt-2">
             <div className="mb-1 text-xs text-secondary">
-                {chosen ? "Workspace icon" : "Use an image of the project as the workspace icon?"}
+                {imported
+                    ? "Project logo · the imported image shows instead"
+                    : chosen
+                      ? "Workspace icon"
+                      : "Use an image of the project as the workspace icon?"}
             </div>
             <div className="flex flex-wrap items-center gap-1">
                 <button
                     type="button"
                     title="Keep the workspace's icon"
                     aria-pressed={!chosen}
-                    onClick={() => fireAndForget(() => setWorkspaceLogo(ws.oid, null))}
+                    onClick={() => choose(null)}
                     className={cn(
                         "flex h-8 w-8 cursor-pointer items-center justify-center rounded border text-[15px] hover:bg-hover",
                         !chosen ? "border-accent" : "border-border"
                     )}
                 >
-                    <WorkspaceIcon icon={ws.icon} color={ws.color} />
+                    <WorkspaceIcon source={{ icon: ws.icon, color: ws.color, image: "", logo: "" }} />
                 </button>
                 {choices.map((logo) => (
                     <button
@@ -78,19 +133,20 @@ function LogoChoices({ ws, logos, chosen, dir }: { ws: Workspace; logos: string[
                         type="button"
                         title={logo}
                         aria-pressed={logo === chosen}
-                        onClick={() => fireAndForget(() => setWorkspaceLogo(ws.oid, logo))}
+                        onClick={() => choose(logo)}
                         className={cn(
                             "flex h-8 w-8 cursor-pointer items-center justify-center rounded border text-[18px] hover:bg-hover",
                             logo === chosen ? "border-accent" : "border-border"
                         )}
                     >
-                        <WorkspaceIcon icon={ws.icon} color={ws.color} logo={logo} />
+                        <WorkspaceIcon source={{ icon: ws.icon, color: ws.color, image: "", logo }} />
                     </button>
                 ))}
                 <button type="button" onClick={pickOther} className={LinkButtonClass}>
                     Other image…
                 </button>
             </div>
+            {pending ? <ReplaceImageConfirm onConfirm={confirmReplace} onCancel={() => setPending(null)} /> : null}
         </div>
     );
 }

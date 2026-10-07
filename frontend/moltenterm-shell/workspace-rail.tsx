@@ -24,6 +24,7 @@ import { PaneFocusKeeper } from "./sessions/pane-focus";
 import { handOverWorkspaceEdit, openWorkspaceEditor, recordSwitchClick, takeSwitchClick } from "./workspace-edit";
 import { WorkspaceEditHost } from "./workspace-edit-sheet";
 import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
+import { workspaceIconSource } from "./workspace-icon-model";
 import { readWorkspaceProject } from "./workspace-project";
 import { RailEditButton } from "./workspace-rail-edit";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
@@ -71,9 +72,13 @@ function RailButton({
     onHover: (label: string, anchor: Anchor) => void;
 }) {
     const ref = useRef<HTMLButtonElement>(null);
-    // Read live: the logo can change from the editor or from molten while the rail's list is not refreshed.
+    // Read live: the icon can change from the editor or from molten while the rail's list is not refreshed.
     const [workspace] = useWaveObjectValue<Workspace>(makeORef("workspace", entry.id));
-    const { logo, dir: projectDir } = readWorkspaceProject(workspace);
+    const projectDir = readWorkspaceProject(workspace).dir;
+    const iconSource =
+        workspace != null
+            ? workspaceIconSource(workspace)
+            : { icon: entry.icon, color: entry.color, image: "", logo: "" };
     const anchorOf = (): Anchor => {
         const rect = ref.current.getBoundingClientRect();
         return { top: rect.top + rect.height / 2, left: rect.right + 8 };
@@ -160,7 +165,7 @@ function RailButton({
                     <span className="absolute top-1.5 bottom-1.5 -left-1.5 w-[2px] rounded bg-accent" aria-hidden />
                 ) : null}
                 {entry.saved ? (
-                    <WorkspaceIcon icon={entry.icon} color={entry.color} logo={logo} />
+                    <WorkspaceIcon source={iconSource} />
                 ) : (
                     <i className="fa fa-solid fa-floppy-disk text-secondary" />
                 )}

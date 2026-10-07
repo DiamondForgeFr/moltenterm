@@ -26,7 +26,16 @@ const PanelNames: Record<string, string> = {
     "defwidget@processviewer": "Processes",
 };
 
-export type PaletteWorkspace = { id: string; name: string; icon: string; color: string; active: boolean };
+export type PaletteWorkspace = {
+    id: string;
+    name: string;
+    icon: string;
+    color: string;
+    // The imported icon's stored name and the project logo: the entry shows the rail's resolved badge (FR-SHELL-031).
+    image?: string;
+    logo?: string;
+    active: boolean;
+};
 
 export type PaletteSourceInput = {
     presets: { [key: string]: MetaType };
@@ -239,6 +248,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
             label: `Switch to ${ws.name}`,
             icon: ws.icon || "circle",
             color: ws.color || undefined,
+            badge: { icon: ws.icon || "circle", color: ws.color ?? "", image: ws.image ?? "", logo: ws.logo ?? "" },
             keywords: ["workspace", ws.name],
             run: { kind: "switchworkspace", workspaceId: ws.id },
         });

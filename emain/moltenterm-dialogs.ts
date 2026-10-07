@@ -6,6 +6,7 @@ import {
     MoltentermChoosePathChannel,
     MoltentermChoosePathOpts,
     MoltentermImageExtensions,
+    MoltentermWorkspaceIconExtensions,
 } from "../frontend/util/moltenterm-dialogs";
 
 // Answers the chosen path, or null when the user cancels. The dialog is attached to the asking window, so it stays
@@ -13,12 +14,14 @@ import {
 export function initMoltentermDialogs() {
     electron.ipcMain.handle(MoltentermChoosePathChannel, async (event, opts: MoltentermChoosePathOpts) => {
         const win = electron.BrowserWindow.fromWebContents(event.sender);
-        const image = opts?.kind === "image";
+        const workspaceIcon = opts?.kind === "workspaceicon";
+        const image = opts?.kind === "image" || workspaceIcon;
+        const extensions = workspaceIcon ? MoltentermWorkspaceIconExtensions : MoltentermImageExtensions;
         const options: electron.OpenDialogOptions = {
             title: opts?.title,
             defaultPath: opts?.defaultPath || undefined,
             properties: image ? ["openFile"] : ["openDirectory", "createDirectory"],
-            filters: image ? [{ name: "Images", extensions: MoltentermImageExtensions }] : undefined,
+            filters: image ? [{ name: "Images", extensions }] : undefined,
         };
         const result =
             win == null

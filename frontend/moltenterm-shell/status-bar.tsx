@@ -25,7 +25,8 @@ import {
     statusBarFolder,
 } from "./status-bar-model";
 import { GoldUpdateButton } from "./update/update-dialog";
-import { WorkspaceIcon } from "./workspace-icon";
+import { folderIconSource, WorkspaceIcon } from "./workspace-icon";
+import { WorkspaceIconSource, workspaceIconSource } from "./workspace-icon-model";
 import { readWorkspaceProject } from "./workspace-project";
 import { readWorktreeLink, TreeMarker, treeMarker } from "./worktree-model";
 import { WorktreeChip } from "./worktree-ui";
@@ -56,20 +57,21 @@ function FocusedBlockMeta({ blockId, onMeta }: { blockId: string; onMeta: (meta:
     return null;
 }
 
+// The workspace's own badge; the logo found in the folder only stands in when the workspace has none chosen.
+function linkedIconSource(ws: Workspace, folderLogo: string): WorkspaceIconSource {
+    const source = workspaceIconSource(ws);
+    return source.logo ? source : { ...source, logo: folderLogo ?? "" };
+}
+
 function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: TreeMarker }) {
     const openView = (view: string) => fireAndForget(() => openMoltentermView(view));
     return (
         <span className="flex min-w-0 items-center gap-2">
             <span className="flex min-w-0 items-center gap-1" title={pane.projectTitle}>
                 {pane.linked ? (
-                    <WorkspaceIcon
-                        icon={ws?.icon}
-                        color={ws?.color}
-                        logo={readWorkspaceProject(ws).logo || pane.projectLogo}
-                        className="text-[11px]"
-                    />
+                    <WorkspaceIcon source={linkedIconSource(ws, pane.projectLogo)} className="text-[11px]" />
                 ) : (
-                    <WorkspaceIcon icon="folder" logo={pane.projectLogo} className="text-[11px]" />
+                    <WorkspaceIcon source={folderIconSource(pane.projectLogo)} className="text-[11px]" />
                 )}
                 <span className="truncate text-primary">{pane.projectName}</span>
             </span>

@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 import { MoltenWave } from "./molten-button";
 import { hasDefaultName, nextProjectOffer, ProjectOffer, readDismissed, withDismissed } from "./project-detect";
 import { WorkspaceIcon } from "./workspace-icon";
+import { hasImportedIcon } from "./workspace-icon-model";
 import { nextWorkspaceFolder, pathBaseName, readWorkspaceFolder, readWorkspaceProject } from "./workspace-project";
 import {
     chooseMoltentermPath,
@@ -56,12 +57,15 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
     const [rename, setRename] = useState(offer.mode === "link" && hasDefaultName(ws.name));
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
+    // An imported image wins over the project's logo (FR-SHELL-031 AC7): linking never swaps it without asking, so the
+    // icon choice is left to the edit sheet, which asks first.
+    const keepsImage = hasImportedIcon(ws);
     useEffect(() => {
         fireAndForget(async () => {
             const [facts, found] = await Promise.all([readProjectFacts(offer.dir), findProjectLogos(offer.dir)]);
             setName(facts.name);
             setLogos(found);
-            setChosen(found[0] ?? "");
+            setChosen(keepsImage ? "" : (found[0] ?? ""));
         });
     }, [offer.dir]);
     useEffect(() => {
@@ -91,7 +95,7 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
             if (offer.mode === "link") {
                 await linkWorkspaceProject(ws, offer.dir);
             }
-            if (chosen) {
+            if (chosen && !keepsImage) {
                 await setWorkspaceLogo(ws.oid, chosen);
             }
             await markLogoOffered(ws.oid, offer.dir);
@@ -142,29 +146,35 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
                             Control (Project, CI/CD).
                         </div>
                     ) : null}
-                    <div>
-                        <div className="mb-1.5 text-secondary">Workspace icon</div>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                            {choices.map((c) => (
-                                <button
-                                    key={c.logo || "keep"}
-                                    type="button"
-                                    title={c.title}
-                                    aria-pressed={chosen === c.logo}
-                                    onClick={() => setChosen(c.logo)}
-                                    className={cn(
-                                        "flex h-10 w-10 cursor-pointer items-center justify-center rounded border text-[18px] hover:bg-hover",
-                                        chosen === c.logo ? "border-accent ring-1 ring-accent" : "border-border"
-                                    )}
-                                >
-                                    <WorkspaceIcon icon={ws.icon} color={ws.color} logo={c.logo || undefined} />
+                    {keepsImage ? (
+                        <div className="text-secondary">The workspace keeps its imported icon.</div>
+                    ) : (
+                        <div>
+                            <div className="mb-1.5 text-secondary">Workspace icon</div>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                {choices.map((c) => (
+                                    <button
+                                        key={c.logo || "keep"}
+                                        type="button"
+                                        title={c.title}
+                                        aria-pressed={chosen === c.logo}
+                                        onClick={() => setChosen(c.logo)}
+                                        className={cn(
+                                            "flex h-10 w-10 cursor-pointer items-center justify-center rounded border text-[18px] hover:bg-hover",
+                                            chosen === c.logo ? "border-accent ring-1 ring-accent" : "border-border"
+                                        )}
+                                    >
+                                        <WorkspaceIcon
+                                            source={{ icon: ws.icon, color: ws.color, image: "", logo: c.logo }}
+                                        />
+                                    </button>
+                                ))}
+                                <button type="button" onClick={pickOther} className={PlainButton}>
+                                    Other image…
                                 </button>
-                            ))}
-                            <button type="button" onClick={pickOther} className={PlainButton}>
-                                Other image…
-                            </button>
+                            </div>
                         </div>
-                    </div>
+                    )}
                     {offer.mode === "link" ? (
                         <label className="flex cursor-pointer items-center gap-2 text-secondary">
                             <input type="checkbox" checked={rename} onChange={(e) => setRename(e.target.checked)} />
@@ -219,7 +229,9 @@ export function ProjectLinkDetector() {
     // A view kept for another workspace (#68) still sees the window's workspace, with its own terminal: offering then
     // would link the shown workspace to the other one's project (#80).
     const ownTab = ws?.tabids?.includes(staticTabId) ?? false;
-    const offer = !ownTab ? null : nextProjectOffer(project, terminalProject, dismissed, getApi().getEnv("HOME"));
+    const offer = !ownTab
+        ? null
+        : nextProjectOffer(project, terminalProject, dismissed, getApi().getEnv("HOME"), hasImportedIcon(ws));
     const offerKey = offer ? `${offer.mode}:${offer.dir}` : "";
     useEffect(() => {
         if (

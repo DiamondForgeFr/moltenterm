@@ -5,6 +5,8 @@
 // global shortcut. This file holds the rules (fuzzy match, grouping, keyboard) as pure functions, tested without the
 // app; palette-sources.ts builds the entries and palette-actions.ts runs them.
 
+import type { WorkspaceIconSource } from "../workspace-icon-model";
+
 export type PaletteGroupId = "agents" | "panels" | "folders" | "actions";
 
 export const PaletteGroupOrder: PaletteGroupId[] = ["agents", "panels", "folders", "actions"];
@@ -39,6 +41,8 @@ export type PaletteEntry = {
     detail?: string;
     icon: string;
     color?: string;
+    // A workspace's badge, resolved as the rail resolves it, in place of icon and color (FR-SHELL-031).
+    badge?: WorkspaceIconSource;
     // The command line that does the same thing, shown so the palette teaches the CLI (Terminal first).
     cli?: string;
     // A key hint shown instead of the CLI when an entry has no command line (a shortcut).

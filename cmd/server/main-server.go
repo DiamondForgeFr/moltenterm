@@ -582,6 +582,7 @@ func main() {
 	molten.StartAgentGuideSync()
 	// MOLTENTERM-PATCH (#161): first run, skip variable, onboarding route
 	wcore.StartMoltenFirstRun()
+	wcore.StartWorkspaceIconSweep() // MOLTENTERM-PATCH (#295): imported icons no workspace references
 	aiusechat.InitAIModeConfigWatcher()
 	maybeStartPprofServer()
 	go stdinReadWatch()
