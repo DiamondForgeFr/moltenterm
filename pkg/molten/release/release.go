@@ -187,7 +187,8 @@ func (e *Env) gh(ctx context.Context, dir string, args ...string) ([]byte, error
 	return e.run(ctx, dir, "gh", ghArgs(GithubRepo(url), args)...)
 }
 
-func (e *Env) onGithub(ctx context.Context, root string) bool {
+// OnGithub tells whether the project's origin is on GitHub.
+func (e *Env) OnGithub(ctx context.Context, root string) bool {
 	if e.IsGithub != nil {
 		return e.IsGithub(ctx)
 	}
@@ -297,12 +298,12 @@ func (e *Env) isAncestor(ctx context.Context, dir string, a string, b string) bo
 // tagTaken tells where a tag already exists: locally or on origin. A collision found after the commit would leave a
 // release commit with no tag (Notulia's release.sh).
 func (e *Env) tagTaken(ctx context.Context, root string, tag string) string {
-	if e.revParse(ctx, root, "refs/tags/"+tag) != "" {
-		return "locally"
-	}
 	out, err := e.git(ctx, root, "ls-remote", "--tags", "--refs", "origin", "refs/tags/"+tag)
 	if err == nil && strings.Contains(out, "refs/tags/"+tag) {
 		return "on origin"
+	}
+	if e.revParse(ctx, root, "refs/tags/"+tag) != "" {
+		return "locally only (left by an interrupted finalize? git tag -d " + tag + " removes it)"
 	}
 	return ""
 }

@@ -279,11 +279,35 @@ func (r *Runs) readGithubRelease(ctx context.Context, dir string, facts *Release
 		var prs []ReleasePr
 		json.Unmarshal(out, &prs)
 		for _, pr := range prs {
-			if strings.Contains(pr.HeadRefName, facts.Version) || strings.Contains(pr.Title, facts.Tag) {
+			if mentionsRelease(pr.HeadRefName, facts.Tag) || mentionsRelease(pr.Title, facts.Tag) {
 				facts.BackPr = &pr
 				break
 			}
 		}
+	}
+}
+
+var tagVersionRegex = regexp.MustCompile(`\d+\.\d+\.\d+(?:-\d+)?$`)
+
+// mentionsRelease tells whether a branch name or a title names this release's version as a whole: the pull request
+// carrying v1.0.0-1 back is not v1.0.0's, nor v1.0.0-10's.
+func mentionsRelease(s string, tag string) bool {
+	version := tagVersionRegex.FindString(tag)
+	if version == "" {
+		return false
+	}
+	for from := 0; ; {
+		i := strings.Index(s[from:], version)
+		if i < 0 {
+			return false
+		}
+		start, end := from+i, from+i+len(version)
+		before := start == 0 || !strings.ContainsRune("0123456789.", rune(s[start-1]))
+		after := end == len(s) || !(s[end] >= '0' && s[end] <= '9' || s[end] == '.' || (s[end] == '-' && end+1 < len(s) && s[end+1] >= '0' && s[end+1] <= '9'))
+		if before && after {
+			return true
+		}
+		from = start + 1
 	}
 }
 

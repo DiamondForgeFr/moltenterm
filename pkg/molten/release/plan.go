@@ -5,6 +5,7 @@ package release
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -39,7 +40,11 @@ func (e *Env) Plan(ctx context.Context, channels []string, override string) ([]P
 		rangeArg = last + ".." + base
 	}
 	commits := []versions.CommitInput{}
-	out, err := e.git(ctx, p.Root, "log", "--no-merges", "-n", strconv.Itoa(maxPlanCommits), "--format=%s%x1f%b%x1e", rangeArg)
+	args := []string{"log", "--no-merges", "-n", strconv.Itoa(maxPlanCommits), "--format=%s%x1f%b%x1e", rangeArg}
+	if remotes, _ := e.gitLines(ctx, p.Root, "remote"); slices.Contains(remotes, "upstream") {
+		args = append(args, "--not", "--remotes=upstream")
+	}
+	out, err := e.git(ctx, p.Root, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +55,7 @@ func (e *Env) Plan(ctx context.Context, channels []string, override string) ([]P
 		}
 		commits = append(commits, versions.CommitInput{Subject: subject, Body: body})
 	}
-	github := e.onGithub(ctx, p.Root)
+	github := e.OnGithub(ctx, p.Root)
 	reports := []PlanReport{}
 	for _, channel := range channels {
 		r := PlanReport{PlanResult: p.Rules.Plan(tags, commits, channel, override)}

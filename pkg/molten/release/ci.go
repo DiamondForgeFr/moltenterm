@@ -111,8 +111,8 @@ func (e *Env) requireCi(ctx context.Context, root string, branch string, sha str
 			}
 			return nil
 		}
-		if dryRun && len(missing) > 0 {
-			e.printf("  no run of %s on this commit: a real promotion would start it and wait.\n", strings.Join(missing, ", "))
+		if dryRun {
+			e.printf("  not green yet: %s; a real promotion would start what is missing and wait.\n", strings.Join(pending, ", "))
 			return nil
 		}
 		for _, wf := range missing {

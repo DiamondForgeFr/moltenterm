@@ -29,5 +29,8 @@ func ReleaseMilestoneOf(run Runner, req ReleaseMilestoneRequest) (*release.Miles
 	ctx, cancel := context.WithTimeout(context.Background(), releaseMilestoneTimeout)
 	defer cancel()
 	env := &release.Env{Dir: req.Dir, Run: release.Runner(run)}
+	if !env.OnGithub(ctx, req.Dir) {
+		return nil, nil
+	}
 	return env.MilestoneOf(ctx, req.Dir, req.Version)
 }

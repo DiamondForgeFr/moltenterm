@@ -77,7 +77,7 @@ func (e *Env) SyncBack(ctx context.Context, tag string) error {
 	}
 	// The worktree lets go of the branch, so that a later checkout of it elsewhere is not refused.
 	e.git(ctx, wt, "checkout", "--quiet", "--detach")
-	if !e.onGithub(ctx, p.Root) {
+	if !e.OnGithub(ctx, p.Root) {
 		e.printf("%s pushed. origin is not on GitHub: merge it into %s there.\n", branch, p.Trunk)
 		return nil
 	}

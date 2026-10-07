@@ -98,7 +98,7 @@ func (f *fakeGh) answer(args []string) ([]byte, error) {
 		}
 		return []byte(fmt.Sprintf(`{"isDraft":%v,"url":"https://github.example/releases/%s"}`, f.draft, args[2])), nil
 	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/milestones?"):
-		return []byte(`[{"number":7,"title":"Later","html_url":"https://m/7","open_issues":4},{"number":12,"title":"1.0.0","html_url":"https://m/12","open_issues":2}]`), nil
+		return []byte(`[{"number":7,"title":"Later","html_url":"https://m/7","open_issues":4},{"number":12,"title":"1.0.0","html_url":"https://m/12","open_issues":2},{"number":3,"title":"v1","html_url":"https://m/3","open_issues":0}]`), nil
 	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/issues?milestone=12"):
 		if f.issues != "" {
 			return []byte(f.issues), nil
@@ -363,6 +363,35 @@ func TestPromoteRefusesWhatTheTrunkLacks(t *testing.T) {
 	mustFail(t, f, "promote", f.env().Promote(ctx, PromoteOptions{Workflows: []string{"ci.yml"}}), "not carried back")
 	if f.originRef(t, "main") != before {
 		t.Fatalf("main moved although the promotion was refused")
+	}
+}
+
+// A second candidate cut before the first one's sync-back is merged would conflict when carried back.
+func TestPrepareWaitsForTheLastReleaseToBeCarriedBack(t *testing.T) {
+	f := makeFixture(t)
+	ctx := context.Background()
+	f.commitOnDevelop(t, "feat(#2): a feature")
+	cutRelease(t, f, "v1.0.0-1")
+	e := f.env()
+	mustRun(t, f, "promote with nothing new", e.Promote(ctx, PromoteOptions{Workflows: []string{"ci.yml"}}))
+	mustFail(t, f, "prepare the next candidate", e.Prepare(ctx, "v1.0.0-2"), "v1.0.0-1 (rc)")
+	mustRun(t, f, "sync-back", e.SyncBack(ctx, "v1.0.0-1"))
+	gitIn(t, f.checkout, "fetch", "--quiet", "origin")
+	gitIn(t, f.checkout, "push", "--quiet", "origin", "origin/chore/sync-back-v1.0.0-1:refs/heads/develop")
+	mustRun(t, f, "prepare once carried back", e.Prepare(ctx, "v1.0.0-2"))
+	mustFail(t, f, "a candidate below the last public release", func() error {
+		mustRun(t, f, "finalize v1.0.0-2", e.Finalize(ctx, "v1.0.0-2"))
+		gitIn(t, f.origin, "tag", "v1.1.0", "main")
+		return e.Prepare(ctx, "v1.0.1-1")
+	}(), "not above the last public release")
+}
+
+func TestCloseMilestoneLeavesALineMilestoneOpen(t *testing.T) {
+	f := makeFixture(t)
+	f.out.Reset()
+	mustRun(t, f, "close-milestone of 1.0.1", f.env().CloseMilestone(context.Background(), "v1.0.1"))
+	if len(f.gh.called("api", "--method", "PATCH")) != 0 || !strings.Contains(f.out.String(), "No open milestone named 1.0.1") {
+		t.Fatalf("a milestone not named after the version was closed:\n%s", f.out.String())
 	}
 }
 
