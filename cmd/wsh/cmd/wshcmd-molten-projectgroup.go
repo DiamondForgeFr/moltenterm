@@ -208,7 +208,7 @@ func formatMoltenGroupState(state moltenGroupMemberState) string {
 		parts = append(parts, "no public release, newest tag "+state.LastTag)
 	}
 	if len(parts) == 0 {
-		return "nothing to report"
+		return fmt.Sprintf("no CI verdict, build or release yet on %s", trunk)
 	}
 	text := strings.Join(parts, ", ")
 	if badge := formatMoltenGroupWorst(state.Worst); badge != "" {
