@@ -69,7 +69,7 @@ func formatMoltenAgentListings(listings []agentcontinuity.AgentListing) string {
 	tw := tabwriter.NewWriter(&sb, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(tw, "AGENT\tINSTALLED\tVERSION\tBRIEFING\tMODELS\tRESUME\tTRANSCRIPT\tQUOTA\tMCP\tPATH\n")
 	for _, l := range listings {
-		version := l.Version
+		version := agentcontinuity.StripControl(l.Version)
 		if version == "" {
 			version = "-"
 		}
@@ -79,9 +79,9 @@ func formatMoltenAgentListings(listings []agentcontinuity.AgentListing) string {
 		}
 		models := "-"
 		if l.Supported {
-			models = fmt.Sprintf("%d", len(l.Models))
+			models = fmt.Sprintf("%d", moltenNamedModels(l.Models))
 		}
-		path := l.Path
+		path := agentcontinuity.StripControl(l.Path)
 		if path == "" {
 			path = "-"
 		}
@@ -99,9 +99,20 @@ func formatMoltenAgentListings(listings []agentcontinuity.AgentListing) string {
 			why = append(why, l.Unsupported)
 		}
 		if len(why) > 0 {
-			fmt.Fprintf(&sb, "%s: %s\n", l.Name, strings.Join(why, "; "))
+			fmt.Fprintf(&sb, "%s: %s\n", l.Name, agentcontinuity.StripControl(strings.Join(why, "; ")))
 		}
 	}
-	sb.WriteString("D documented, U undocumented, - unavailable, * used by MoltenTerm today; details with --json\n")
+	sb.WriteString("D documented, U undocumented, - unavailable, * used by MoltenTerm today; MODELS besides your default; details with --json\n")
 	return sb.String()
+}
+
+// moltenNamedModels counts the models offered besides the agent's default.
+func moltenNamedModels(models []agentcontinuity.ModelChoice) int {
+	count := 0
+	for _, m := range models {
+		if m.Id != "" {
+			count++
+		}
+	}
+	return count
 }

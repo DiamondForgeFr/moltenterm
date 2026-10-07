@@ -4,6 +4,8 @@
 package agentcontinuity
 
 import (
+	"fmt"
+
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
@@ -24,7 +26,25 @@ const (
 	claudeBriefingFlag  = "--append-system-prompt-file"
 	claudeContextWindow = 200000
 	claudeExitCommand   = "/exit"
+	claudeAttachCommand = "attach"
 )
+
+// Claude Code's options whose value is the next argument, and those taking several (claude --help, 2.1.292), so that
+// a value is never taken for the attach subcommand.
+var claudeOptionGrammar = optionGrammar{
+	value: map[string]bool{
+		"--model": true, "--agent": true, "--agents": true, "--permission-mode": true, "--effort": true, "--settings": true,
+		"--setting-sources": true, "--append-system-prompt": true, "--append-system-prompt-file": true,
+		"--system-prompt": true, "--system-prompt-file": true, "-n": true, "--name": true, "--session-id": true,
+		"--fallback-model": true, "--output-format": true, "--input-format": true, "--debug-file": true,
+		"--plugin-dir": true, "--plugin-url": true, "--json-schema": true, "--max-budget-usd": true,
+		"--permission-prompts": true, "--environment": true, "--autocompact": true,
+	},
+	greedy: map[string]bool{
+		"--add-dir": true, "--mcp-config": true, "--allowedTools": true, "--allowed-tools": true,
+		"--disallowedTools": true, "--disallowed-tools": true, "--tools": true, "--betas": true, "--file": true,
+	},
+}
 
 var claudeModels = []ModelChoice{
 	{Id: "", Label: "Your default model"},
@@ -68,6 +88,9 @@ func (claudeAdapter) FreshArgs(model string, initialPrompt string) ([]string, er
 	if model != "" {
 		rtn = append(rtn, claudeModelFlag, model)
 	}
+	if singleWordPrompt(initialPrompt) {
+		return nil, fmt.Errorf("a one-word initial prompt could start a claude subcommand; give a sentence")
+	}
 	prompt, err := promptArgs(initialPrompt)
 	if err != nil {
 		return nil, err
@@ -82,10 +105,15 @@ func (claudeAdapter) ResumeArgs(sessionId string) ([]string, error) {
 	return []string{claudeResumeFlag, sessionId}, nil
 }
 
-// ResumesSession: --continue, --resume (with or without an id, which opens the picker) and --from-pr all reopen an
-// existing session.
+// ResumesSession: --continue, --resume (with or without an id, which opens the picker), --from-pr, --teleport,
+// --cloud with a session and the attach subcommand all reopen an existing session. --cloud also creates a session from
+// a description; it is taken as a resume, since such a session runs in the cloud, not in the pane.
 func (claudeAdapter) ResumesSession(args []string) bool {
-	return hasOption(args, "-c", "--continue", "-r", "--resume", "--from-pr")
+	if hasOption(args, "-c", "--continue", "-r", "--resume", "--from-pr", "--teleport", "--cloud") {
+		return true
+	}
+	words := claudeOptionGrammar.words(args)
+	return len(words) > 0 && words[0] == claudeAttachCommand
 }
 
 func (claudeAdapter) Exit() ExitSequence {
