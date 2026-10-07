@@ -222,9 +222,16 @@ export function logoProbeOrder(readmeImage: string, declaredIcon = ""): string[]
     return order.filter(isLogoFile);
 }
 
-// Offered once per linked project, only when the workspace still shows its own icon and an image was found.
-export function shouldOfferLogo(project: WorkspaceProject, logos: string[]): boolean {
-    return project.dir !== "" && project.logo === "" && project.logoOffer !== project.dir && (logos?.length ?? 0) > 0;
+// Offered once per linked project, only when the workspace still shows its own icon and an image was found. An
+// imported image is a chosen icon too (FR-SHELL-031 AC7).
+export function shouldOfferLogo(project: WorkspaceProject, logos: string[], hasImportedIcon = false): boolean {
+    return (
+        project.dir !== "" &&
+        project.logo === "" &&
+        project.logoOffer !== project.dir &&
+        !hasImportedIcon &&
+        (logos?.length ?? 0) > 0
+    );
 }
 
 // The meta written when a workspace is linked: a logo chosen for another project would stand for the wrong one.

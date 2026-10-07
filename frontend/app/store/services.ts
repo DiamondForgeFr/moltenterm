@@ -201,8 +201,18 @@ export class WorkspaceServiceType {
     GetWorkspace(workspaceId: string): Promise<Workspace> {
         return callBackendService(this?.waveEnv, "workspace", "GetWorkspace", Array.from(arguments))
     }
+
+    // @returns the refusal shown to the user, empty when the image was imported (and object updates)
+    ImportWorkspaceIcon(workspaceId: string, path: string): Promise<string> {
+        return callBackendService(this?.waveEnv, "workspace", "ImportWorkspaceIcon", Array.from(arguments))
+    }
     ListWorkspaces(): Promise<WorkspaceListEntry[]> {
         return callBackendService(this?.waveEnv, "workspace", "ListWorkspaces", Array.from(arguments))
+    }
+
+    // @returns object updates
+    RemoveWorkspaceIcon(workspaceId: string): Promise<void> {
+        return callBackendService(this?.waveEnv, "workspace", "RemoveWorkspaceIcon", Array.from(arguments))
     }
 
     // @returns tabId (and object updates)

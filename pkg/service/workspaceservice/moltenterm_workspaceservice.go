@@ -83,3 +83,57 @@ func (svc *WorkspaceService) ResetWorkspace(workspaceId string) (string, waveobj
 	}()
 	return newTabId, updates, nil
 }
+
+// An image imported as the workspace's icon (FR-SHELL-031, DS-SHELL-039). The renderer gives the path the user picked
+// or dropped; wavesrv reads, checks and copies it. A refused image is not an error: its one-line reason is returned
+// for the edit sheet, and nothing changes.
+
+func (svc *WorkspaceService) ImportWorkspaceIcon_Meta() tsgenmeta.MethodMeta {
+	return tsgenmeta.MethodMeta{
+		ArgNames:   []string{"workspaceId", "path"},
+		ReturnDesc: "the refusal shown to the user, empty when the image was imported",
+	}
+}
+
+func (svc *WorkspaceService) ImportWorkspaceIcon(workspaceId string, path string) (string, waveobj.UpdatesRtnType, error) {
+	ctx, cancelFn := context.WithTimeout(context.Background(), DefaultTimeout)
+	defer cancelFn()
+	ctx = waveobj.ContextWithUpdates(ctx)
+	reason, err := wcore.ImportWorkspaceIcon(ctx, workspaceId, path)
+	if err != nil {
+		return "", nil, fmt.Errorf("error importing the workspace icon: %w", err)
+	}
+	if reason != "" {
+		return reason, nil, nil
+	}
+	return "", sendWorkspaceIconUpdates(ctx), nil
+}
+
+func (svc *WorkspaceService) RemoveWorkspaceIcon_Meta() tsgenmeta.MethodMeta {
+	return tsgenmeta.MethodMeta{
+		ArgNames: []string{"workspaceId"},
+	}
+}
+
+// "Use built-in icon": the meta goes, then the stored copy.
+func (svc *WorkspaceService) RemoveWorkspaceIcon(workspaceId string) (waveobj.UpdatesRtnType, error) {
+	ctx, cancelFn := context.WithTimeout(context.Background(), DefaultTimeout)
+	defer cancelFn()
+	ctx = waveobj.ContextWithUpdates(ctx)
+	if err := wcore.RemoveWorkspaceIcon(ctx, workspaceId); err != nil {
+		return nil, fmt.Errorf("error removing the workspace icon: %w", err)
+	}
+	return sendWorkspaceIconUpdates(ctx), nil
+}
+
+// The other windows and tab views learn of the change from the update events; the caller gets them back directly.
+func sendWorkspaceIconUpdates(ctx context.Context) waveobj.UpdatesRtnType {
+	updates := waveobj.ContextGetUpdatesRtn(ctx)
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("WorkspaceService:WorkspaceIcon:SendUpdateEvents", recover())
+		}()
+		wps.Broker.SendUpdateEvents(updates)
+	}()
+	return updates
+}

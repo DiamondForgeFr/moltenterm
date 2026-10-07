@@ -8,9 +8,13 @@
 export const MoltentermChoosePathChannel = "moltenterm-choose-path";
 
 export type MoltentermChoosePathOpts = {
-    kind: "folder" | "image";
+    // "workspaceicon": the five types an imported workspace icon accepts (FR-SHELL-031).
+    kind: "folder" | "image" | "workspaceicon";
     title?: string;
     defaultPath?: string;
 };
 
 export const MoltentermImageExtensions = ["svg", "png", "ico", "jpg", "jpeg", "webp", "gif"];
+
+// must match WorkspaceIconExtensions in frontend/moltenterm-shell/workspace-icon-model.ts
+export const MoltentermWorkspaceIconExtensions = ["png", "jpg", "jpeg", "webp", "svg", "ico"];

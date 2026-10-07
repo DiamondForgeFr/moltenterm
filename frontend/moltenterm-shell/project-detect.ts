@@ -22,12 +22,13 @@ export function withDismissed(dismissed: readonly string[], dir: string): string
 }
 
 // Linking is offered for a project found from a terminal, when the workspace has none; choosing the icon, once, when
-// the workspace has a project and still its own icon.
+// the workspace has a project and still its own icon. An imported image counts as a chosen icon (FR-SHELL-031 AC7).
 export function nextProjectOffer(
     project: WorkspaceProject,
     terminalProject: string,
     dismissed: readonly string[],
-    home: string
+    home: string,
+    hasImportedIcon = false
 ): ProjectOffer {
     if (project.dir === "") {
         if (!terminalProject || terminalProject === home || dismissed.includes(terminalProject)) {
@@ -35,7 +36,7 @@ export function nextProjectOffer(
         }
         return { mode: "link", dir: terminalProject };
     }
-    if (project.logo === "" && project.logoOffer !== project.dir) {
+    if (project.logo === "" && project.logoOffer !== project.dir && !hasImportedIcon) {
         return { mode: "logo", dir: project.dir };
     }
     return null;

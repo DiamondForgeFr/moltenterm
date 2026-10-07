@@ -5,7 +5,7 @@ import { cn } from "@/util/util";
 import { WorkspaceLabel, workspaceLabelText } from "./notification-workspace";
 import { WorkspaceIcon } from "./workspace-icon";
 
-// The workspace an item belongs to, at the start of its meta line (#282). The badge is the rail's icon or logo in the
+// The workspace an item belongs to, at the start of its meta line (#282). The badge is the rail's resolved icon in the
 // workspace's colour, on a faint tint drawn with an inline style: the panel's text colours stay on the name, so no
 // accent foreground lands on a tint (#244). In a narrow popover the name truncates and the badge never does.
 export function WorkspaceChip({ label, onGo }: { label: WorkspaceLabel; onGo: () => void }) {
@@ -25,7 +25,10 @@ export function WorkspaceChip({ label, onGo }: { label: WorkspaceLabel; onGo: ()
                 {label.missing ? (
                     <i className="fa fa-solid fa-ghost text-muted" />
                 ) : (
-                    <WorkspaceIcon icon={label.icon} color={label.color} logo={label.logo} className="text-[10px]" />
+                    <WorkspaceIcon
+                        source={{ icon: label.icon, color: label.color, image: label.image, logo: label.logo }}
+                        className="text-[10px]"
+                    />
                 )}
             </span>
             <span className="min-w-0 truncate" data-testid="workspace-name">

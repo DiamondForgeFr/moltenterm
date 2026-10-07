@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { MissingWorkspaceName, workspaceLabel, workspaceLabelText } from "./notification-workspace";
+import { WorkspaceIconMetaKey } from "./workspace-icon-model";
 import { ProjectLogoMetaKey, ProjectMetaKey } from "./workspace-project";
 
 function ws(oid: string, name: string, dir = "", logo = ""): Workspace {
@@ -60,5 +61,13 @@ describe("workspaceLabel", () => {
             current: false,
             missing: true,
         });
+    });
+
+    it("carries the imported icon, so the chip resolves it like the rail (FR-SHELL-031 AC8)", () => {
+        const withImage = ws("d", "Client", "", "icon.svg");
+        (withImage.meta as Record<string, any>)[WorkspaceIconMetaKey] = "d-0123456789ab.png";
+        const label = workspaceLabel("d", new Map([["d", withImage]]), "x");
+        expect(label).toMatchObject({ image: "d-0123456789ab.png", logo: "icon.svg", icon: "rocket" });
+        expect(workspaceLabel("gone", Known, "a").image).toBe("");
     });
 });

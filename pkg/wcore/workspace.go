@@ -156,6 +156,8 @@ func DeleteWorkspace(ctx context.Context, workspaceId string, force bool) (bool,
 	}
 	log.Printf("deleted workspace %s\n", workspaceId)
 	noticeKeptWorktrees() // MOLTENTERM-PATCH (#134): its terminals' worktrees are still on disk
+	// MOLTENTERM-PATCH (#295): its imported icon goes with it
+	moltenRemoveDeletedWorkspaceIcon(workspace)
 	wps.Broker.Publish(wps.WaveEvent{
 		Event: wps.Event_WorkspaceUpdate,
 	})

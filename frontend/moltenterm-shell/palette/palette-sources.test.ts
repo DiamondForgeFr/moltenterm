@@ -119,6 +119,34 @@ describe("workspace actions", () => {
         expect(actions[6].cli).toBe("wsh editconfig");
     });
 
+    it("gives each workspace entry the rail's badge, imported image and logo included (FR-SHELL-031 AC8)", () => {
+        const actions = actionEntries([
+            {
+                id: "w2",
+                name: "Client",
+                icon: "book",
+                color: "#0f0",
+                image: "w2-0123456789ab.png",
+                logo: "/p/l.svg",
+                active: false,
+            },
+            { id: "w3", name: "Plain", icon: "", color: "", active: false },
+        ]);
+        expect(actions.find((a) => a.id === "action:switch:w2").badge).toEqual({
+            icon: "book",
+            color: "#0f0",
+            image: "w2-0123456789ab.png",
+            logo: "/p/l.svg",
+        });
+        expect(actions.find((a) => a.id === "action:switch:w3").badge).toEqual({
+            icon: "circle",
+            color: "",
+            image: "",
+            logo: "",
+        });
+        expect(actions.find((a) => a.id === "action:newtab").badge).toBeUndefined();
+    });
+
     it("always offers Edit workspace…, for the workspace the window shows (FR-SHELL-030)", () => {
         for (const linked of [false, true]) {
             const entry = actionEntries([], linked).find((a) => a.id === "action:editworkspace");

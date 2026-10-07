@@ -10,7 +10,7 @@ vi.mock("@/app/store/wos", () => ({
     makeORef: (otype: string, oid: string) => `${otype}:${oid}`,
     useWaveObjectValue: () => [current.ws, false],
 }));
-vi.mock("@/app/store/global", () => ({ atoms: {}, getApi: () => ({}) }));
+vi.mock("@/app/store/global", () => ({ atoms: {}, getApi: () => ({ getDataDir: () => "/data" }) }));
 vi.mock("@/app/store/services", () => ({ WorkspaceService: {} }));
 vi.mock("@/util/endpoints", () => ({ getWebServerEndpoint: () => "http://localhost" }));
 vi.mock("./workspace-edit", () => ({
@@ -19,6 +19,7 @@ vi.mock("./workspace-edit", () => ({
     pickUpWorkspaceEdit: () => false,
 }));
 vi.mock("./workspace-reset", () => ({ askResetWorkspace: () => {} }));
+vi.mock("./workspace-project-store", () => ({ chooseMoltentermPath: async () => null }));
 vi.mock("./workspace-project-section", () => ({
     WorkspaceProjectBlock: () => <div data-stub="project">Link a project…</div>,
     WorkspaceFolderLine: () => <div data-stub="folder">Change…</div>,
@@ -87,6 +88,56 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
     it("shows nothing until the workspace is known", () => {
         current.ws = null;
         expect(renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />)).toBe("");
+    });
+});
+
+describe("imported icon slot (FR-SHELL-031)", () => {
+    const Stored = "w1-0123456789ab.png";
+
+    function sheetWith(meta: Record<string, any>) {
+        current.ws = { ...ws, meta } as any as Workspace;
+        return renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />);
+    }
+
+    it("offers Import image… in a labelled drop target, under the colours, with an announced result line", () => {
+        const html = sheetWith({});
+        expect(html.indexOf(">Colour<")).toBeLessThan(html.indexOf('data-role="icon-drop"'));
+        expect(html).toMatch(/role="group" aria-labelledby="([^"]+)"><div id="\1"[^>]*>Image<\/div>/);
+        expect(html).toMatch(/data-role="icon-drop" class="[^"]*border-dashed/);
+        expect(html).toContain("PNG, JPG, WebP, SVG or ICO, up to 1 MB. Pick one or drop it here.");
+        expect(html).toMatch(/<button type="button" class="[^"]*cursor-pointer[^"]*">Import image…<\/button>/);
+        expect(html).toMatch(/role="status" aria-live="polite" data-role="icon-import-result"/);
+        expect(html).not.toContain("Use built-in icon");
+    });
+
+    it("shows the imported image in the preview, square and cropped, and offers Use built-in icon", () => {
+        const html = sheetWith({ "molten:workspaceicon": Stored, "molten:projectlogo": "/p/logo.svg" });
+        expect(html).toContain('aria-label="Rail badge: Rocket, Blue, imported image"');
+        const src = encodeURIComponent(`/data/workspace-icons/${Stored}`);
+        expect(html).toMatch(
+            new RegExp(
+                `<img src="http://localhost/wave/stream-local-file\\?path=${src.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`
+            )
+        );
+        expect(html).toMatch(/data-icon-kind="imported" class="[^"]*object-cover/);
+        expect(html).toContain("Replace image…");
+        expect(html).toMatch(/data-action="use-builtin-icon"[^>]*>Use built-in icon</);
+        expect(html).toContain("Shown in place of the icon and colour, which stay set.");
+    });
+
+    it("previews the project logo when no image was imported, and the glyph otherwise", () => {
+        expect(sheetWith({ "molten:projectlogo": "/p/logo.svg" })).toContain(
+            'aria-label="Rail badge: Rocket, Blue, project logo"'
+        );
+        const plain = sheetWith({});
+        expect(plain).toContain('aria-label="Rail badge: Rocket, Blue"');
+        expect(plain).toMatch(/<i class="[^"]*fa-rocket[^"]*" style="color:#429DFF" data-icon-kind="builtin"/);
+    });
+
+    it("ignores a meta value that is not a stored name", () => {
+        const html = sheetWith({ "molten:workspaceicon": "/etc/passwd" });
+        expect(html).not.toContain("passwd");
+        expect(html).toContain('data-icon-kind="builtin"');
     });
 });
 

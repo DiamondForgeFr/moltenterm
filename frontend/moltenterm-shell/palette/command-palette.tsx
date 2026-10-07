@@ -12,6 +12,8 @@ import { useAtomValue } from "jotai";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
+import { WorkspaceIcon } from "../workspace-icon";
+import { workspaceIconSource } from "../workspace-icon-model";
 import { effectiveWorkspaceFolder, readRecentFolders, readWorkspaceProject } from "../workspace-project";
 import { isSavedWorkspace } from "../workspace-rail-model";
 import { PalettePlacement, runPaletteEntry } from "./palette-actions";
@@ -64,7 +66,16 @@ async function loadWorkspaces(activeId: string): Promise<OtherWorkspaces> {
         if (ws == null || !isSavedWorkspace(ws)) {
             continue;
         }
-        list.push({ id: ws.oid, name: ws.name, icon: ws.icon, color: ws.color, active: ws.oid === activeId });
+        const { image, logo } = workspaceIconSource(ws);
+        list.push({
+            id: ws.oid,
+            name: ws.name,
+            icon: ws.icon,
+            color: ws.color,
+            image,
+            logo,
+            active: ws.oid === activeId,
+        });
         if (ws.oid !== activeId) {
             folders.push(effectiveWorkspaceFolder(ws), readWorkspaceProject(ws).dir);
         }
@@ -170,10 +181,19 @@ function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteR
                 selected ? "molten-palette-selected text-primary" : "text-secondary"
             )}
         >
-            <i
-                className={cn(makeIconClass(entry.icon, true, { defaultIcon: "browser" }), "w-4 shrink-0 text-center")}
-                style={{ color: entry.color }}
-            />
+            {entry.badge ? (
+                <span className="flex w-4 shrink-0 items-center justify-center" data-role="palette-workspace-badge">
+                    <WorkspaceIcon source={entry.badge} />
+                </span>
+            ) : (
+                <i
+                    className={cn(
+                        makeIconClass(entry.icon, true, { defaultIcon: "browser" }),
+                        "w-4 shrink-0 text-center"
+                    )}
+                    style={{ color: entry.color }}
+                />
+            )}
             <span className="shrink-0 whitespace-nowrap">
                 <Highlighted text={entry.label} indices={indices} />
             </span>
