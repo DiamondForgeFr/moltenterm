@@ -881,6 +881,10 @@ func (w *watcher) follow(path string, linkedBy string, started int64) {
 // parseLine reads one record into the session. A very large record (a tool's whole output) is decoded only when it
 // may carry a file change; otherwise only the call it ends is read from it.
 func (w *watcher) parseLine(s *Session, line []byte) {
+	parseRecordLine(w.adapter, s, line)
+}
+
+func parseRecordLine(adapter Adapter, s *Session, line []byte) {
 	if len(line) > largeRecordBytes {
 		carries := false
 		for _, marker := range largeRecordMarkers {
@@ -902,7 +906,7 @@ func (w *watcher) parseLine(s *Session, line []byte) {
 		s.countLine(false, false)
 		return
 	}
-	s.countLine(true, w.adapter.Parse(rec, s))
+	s.countLine(true, adapter.Parse(rec, s))
 }
 
 // read parses what was appended to the transcript. The lock is held per chunk (tailChunkMax), so the commands wait
