@@ -9,7 +9,7 @@ import { Button } from "@/app/element/button";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
-import { ActionCueMs, activeCue, AgentTabs, BrowserAgentModel, controlBarView } from "./browser-agent";
+import { ActionCueMs, activeCue, BrowserAgentModel, controlBarView } from "./browser-agent";
 
 export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; tabId: string }) {
     const tabs = useAtomValue(agents.tabsAtom);
@@ -62,7 +62,8 @@ export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; 
 
 // Where the agent just acted, drawn over the page (not injected in it): a pointer at the click point, an outline on the
 // element. FR-BRW-010's tools send the cue with each action.
-export function AgentActionCueOverlay({ tabs, tabId }: { tabs: AgentTabs; tabId: string }) {
+export function AgentActionCueOverlay({ agents, tabId }: { agents: BrowserAgentModel; tabId: string }) {
+    const tabs = useAtomValue(agents.tabsAtom);
     const tab = tabs[tabId];
     const [now, setNow] = useState(() => Date.now());
     useEffect(() => {

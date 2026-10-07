@@ -43,6 +43,8 @@ const (
 	ErrTabIdRequired   = "tabId must be the integer id of one of your tabs (see tabs_context)"
 	ErrUnknownTool     = "Unknown tool"
 	ErrPanelUnreadable = "MoltenTerm could not reach the browser panel"
+	ErrRemotePane      = "MoltenTerm's browser can be driven from local terminals only, not over SSH or WSL"
+	ErrTooManyTabs     = "Too many tabs open: close some with tabs_close first"
 )
 
 // UntrustedNotice precedes any page-originated text (DS-BRW-020).

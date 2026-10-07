@@ -48,7 +48,7 @@ func (m *Manager) Call(ctx context.Context, source string, req mcpbrowser.CallRe
 		return mcpbrowser.ErrorResult(mcpbrowser.ErrSessionEnded)
 	}
 	loc, err := m.env.LocateBlock(ctx, s.blockId)
-	if err != nil || loc.View != TermView {
+	if err != nil || loc.View != TermView || !loc.Local {
 		m.logCall(s, req.Tool, callLog{}, mcpbrowser.ErrNotInMoltenTerm, start)
 		return mcpbrowser.ErrorResult(mcpbrowser.ErrNotInMoltenTerm)
 	}
@@ -81,7 +81,7 @@ func resultSentence(result mcpbrowser.CallResult) string {
 	fixed := []string{
 		mcpbrowser.ErrNotInMoltenTerm, mcpbrowser.ErrNotYourTab, mcpbrowser.ErrTakenOver, mcpbrowser.ErrStopped,
 		mcpbrowser.ErrOtherEngine, mcpbrowser.ErrTabClosed, mcpbrowser.ErrNotOpenedByYou, mcpbrowser.ErrSessionEnded,
-		mcpbrowser.ErrTabIdRequired, mcpbrowser.ErrUnknownTool, mcpbrowser.ErrPanelUnreadable,
+		mcpbrowser.ErrTabIdRequired, mcpbrowser.ErrUnknownTool, mcpbrowser.ErrPanelUnreadable, mcpbrowser.ErrTooManyTabs,
 	}
 	if slices.Contains(fixed, result.Content[0].Text) {
 		return result.Content[0].Text
@@ -304,6 +304,9 @@ func (m *Manager) livePage(ctx context.Context, s sessionInfo, tabId int64, key 
 
 // tabsCreate opens an empty tab in the panel of the pane's tab, or in a new panel next to the terminal (AC2).
 func (m *Manager) tabsCreate(ctx context.Context, s sessionInfo, loc BlockLocation) (mcpbrowser.CallResult, callLog) {
+	if m.openTabCount(s.id) >= maxTabsPerSession {
+		return mcpbrowser.ErrorResult(mcpbrowser.ErrTooManyTabs), callLog{}
+	}
 	panels, recent, err := m.env.TabPanels(ctx, loc.TabId)
 	if err != nil {
 		return mcpbrowser.ErrorResult(mcpbrowser.ErrPanelUnreadable), callLog{}

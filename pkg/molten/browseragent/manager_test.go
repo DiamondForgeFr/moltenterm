@@ -28,6 +28,7 @@ type fakeEnv struct {
 	control    map[TabKey]bool
 	published  []PanelState
 	cdpCalls   []string
+	closed     []TabKey
 	cdpBlock   chan struct{}
 	cdpStarted chan struct{}
 	nextPanel  int
@@ -35,7 +36,7 @@ type fakeEnv struct {
 
 func makeFakeEnv() *fakeEnv {
 	return &fakeEnv{
-		tokens:     map[string]string{"tok-a": "term-a", "tok-b": "term-b", "tok-c": "term-c", "tok-web": "web-1"},
+		tokens:     map[string]string{"tok-a": "term-a", "tok-b": "term-b", "tok-c": "term-c", "tok-web": "web-1", "tok-r": "term-r"},
 		blocks:     map[string]BlockLocation{},
 		panels:     map[string]*Panel{},
 		agentNames: map[string]string{},
@@ -46,7 +47,7 @@ func makeFakeEnv() *fakeEnv {
 func (e *fakeEnv) addBlock(blockId, tabId, wsId, view string) {
 	e.lock.Lock()
 	defer e.lock.Unlock()
-	e.blocks[blockId] = BlockLocation{TabId: tabId, WorkspaceId: wsId, View: view}
+	e.blocks[blockId] = BlockLocation{TabId: tabId, WorkspaceId: wsId, View: view, Local: true}
 }
 
 func (e *fakeEnv) addPanel(panelId, tabId, wsId string, tabs ...molten.BrowserPanelTab) {
@@ -135,6 +136,7 @@ func (e *fakeEnv) OpenTab(ctx context.Context, req OpenTabRequest) (string, erro
 func (e *fakeEnv) CloseTab(ctx context.Context, key TabKey) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
+	e.closed = append(e.closed, key)
 	p := e.panels[key.PanelId]
 	if p == nil {
 		return nil
@@ -538,7 +540,7 @@ func TestSessionEndLeavesTabsAsUserTabs(t *testing.T) {
 	}
 	m.Bye("proc:a", sa)
 	state, _ := env.lastPublished("p1")
-	if len(state.Tabs) != 1 || state.Tabs[0].SessionId != sb {
+	if len(state.Tabs) != 1 || state.Tabs[0].AgentName != "b" {
 		t.Fatalf("a's bar is gone, b's stays: %+v", state)
 	}
 	m.EndSessionsForRoute("proc:b")
@@ -627,6 +629,47 @@ func TestLogsHoldNoPageSecrets(t *testing.T) {
 		if !strings.Contains(logs, want) {
 			t.Fatalf("the log misses %q:\n%s", want, logs)
 		}
+	}
+}
+
+func TestRemotePanesCannotDriveTheLocalBrowser(t *testing.T) {
+	m, env, _ := makeWorld(t)
+	env.addBlock("term-r", "t1", "ws1", TermView)
+	env.lock.Lock()
+	loc := env.blocks["term-r"]
+	loc.Local = false
+	env.blocks["term-r"] = loc
+	env.lock.Unlock()
+	if _, err := m.Hello(context.Background(), "proc:r", mcpbrowser.HelloRequest{Token: "tok-r"}); err == nil || err.Error() != mcpbrowser.ErrRemotePane {
+		t.Fatalf("an SSH/WSL pane must be refused, got %v", err)
+	}
+}
+
+func TestTabCapAndUnopenedTabs(t *testing.T) {
+	m, env, _ := makeWorld(t)
+	sa := hello(t, m, "proc:a", "tok-a", "a")
+	for i := 0; i < maxTabsPerSession; i++ {
+		createdTabId(t, call(m, "proc:a", sa, mcpbrowser.ToolTabsCreate, `{}`))
+	}
+	expectError(t, call(m, "proc:a", sa, mcpbrowser.ToolTabsCreate, `{}`), mcpbrowser.ErrTooManyTabs)
+
+	// A tab queued in a panel that never opens it is closed when the session gives up on it, so it cannot appear
+	// later with no agent and no bar.
+	m2, env2, _ := makeWorld(t)
+	sb := hello(t, m2, "proc:b", "tok-b", "b")
+	key := TabKey{PanelId: "p1", BrowserTabId: "agent-never"}
+	tabId := m2.addTab(sb, key, OriginOpened, actionOpened)
+	m2.now = func() time.Time { return time.Now().Add(pendingTabGrace + time.Second) }
+	expectError(t, call(m2, "proc:b", sb, mcpbrowser.ToolTabsClose, fmt.Sprintf(`{"tabId":%d}`, tabId)), mcpbrowser.ErrTabClosed)
+	env2.lock.Lock()
+	controlled := env2.control[key]
+	closed := len(env2.closed) == 1 && env2.closed[0] == key
+	env2.lock.Unlock()
+	if controlled || !closed {
+		t.Fatalf("the unopened tab is released and closed (controlled=%v closed=%v)", controlled, closed)
+	}
+	if len(env.panels["p1"].Tabs) != maxTabsPerSession+1 {
+		t.Fatalf("the cap left the panel with %d tabs", len(env.panels["p1"].Tabs))
 	}
 }
 

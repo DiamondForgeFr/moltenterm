@@ -35,6 +35,9 @@ type BlockLocation struct {
 	TabId       string
 	WorkspaceId string
 	View        string
+	// Local: the terminal runs on this computer. A pane on an SSH or WSL connection may not drive the local browser,
+	// which holds the user's sign-ins and reaches localhost.
+	Local bool
 }
 
 type Panel struct {
@@ -80,7 +83,6 @@ type ActionCue struct {
 // PanelAgentTab is what a panel shows for one controlled tab. Must match frontend/moltenterm-shell/browser/browser-agent.ts.
 type PanelAgentTab struct {
 	BrowserTabId string     `json:"browsertabid"`
-	SessionId    string     `json:"sessionid"`
 	AgentName    string     `json:"agentname"`
 	Origin       string     `json:"origin"`
 	State        string     `json:"state"`
@@ -118,6 +120,7 @@ type Env interface {
 	AgentName(blockId string) string
 	// OpenTab queues the tab in its panel (or creates the panel) and returns the panel's block id.
 	OpenTab(ctx context.Context, req OpenTabRequest) (string, error)
+	// CloseTab closes a panel tab; a tab still queued for opening is closed as soon as it opens.
 	CloseTab(ctx context.Context, key TabKey) error
 	// Cdp runs one DevTools method on the tab's webview through emain's allow-list (DS-BRW-012).
 	Cdp(ctx context.Context, key TabKey, method string, params any) (json.RawMessage, error)

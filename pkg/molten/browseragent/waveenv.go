@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
+	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -54,11 +56,11 @@ type EmainControlRequest struct {
 	Token        string `json:"token"`
 }
 
-func emainToken() string {
+var emainToken = sync.OnceValue(func() string {
 	mac := hmac.New(sha256.New, []byte(authkey.GetAuthKey()))
 	mac.Write([]byte(emainTokenLabel))
 	return hex.EncodeToString(mac.Sum(nil))
-}
+})
 
 type waveEnv struct{}
 
@@ -95,7 +97,12 @@ func (waveEnv) LocateBlock(ctx context.Context, blockId string) (BlockLocation, 
 	if err != nil {
 		return BlockLocation{}, err
 	}
-	return BlockLocation{TabId: tabId, WorkspaceId: wsId, View: block.Meta.GetString(waveobj.MetaKey_View, "")}, nil
+	return BlockLocation{
+		TabId:       tabId,
+		WorkspaceId: wsId,
+		View:        block.Meta.GetString(waveobj.MetaKey_View, ""),
+		Local:       conncontroller.IsLocalConnName(block.Meta.GetString(waveobj.MetaKey_Connection, "")),
+	}, nil
 }
 
 func (waveEnv) TabPanels(ctx context.Context, tabId string) ([]string, any, error) {

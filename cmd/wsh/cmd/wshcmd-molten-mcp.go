@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -78,11 +79,25 @@ type moltenMcpRpcBackend struct {
 	token string
 
 	lock      sync.Mutex
+	client    mcpbrowser.ClientInfo
 	sessionId string
 	startErr  string
 }
 
 func (b *moltenMcpRpcBackend) Start(ctx context.Context, client mcpbrowser.ClientInfo) {
+	b.setClient(client)
+	b.hello()
+}
+
+func (b *moltenMcpRpcBackend) setClient(client mcpbrowser.ClientInfo) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.client = client
+}
+
+// hello opens the session; a call made while there is none tries again (wavesrv was starting, or restarted).
+func (b *moltenMcpRpcBackend) hello() {
+	client := b.clientInfo()
 	var result mcpbrowser.HelloResult
 	resp, err := RpcClient.SendRpcRequest(mcpbrowser.HelloCommand, mcpbrowser.HelloRequest{
 		Token:         b.token,
@@ -92,14 +107,38 @@ func (b *moltenMcpRpcBackend) Start(ctx context.Context, client mcpbrowser.Clien
 	if err == nil {
 		err = utilfn.ReUnmarshal(&result, resp)
 	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "molten mcp browser: no session: %v\n", err)
+	}
+	b.setSession(result.SessionId, moltenMcpStartError(err))
+}
+
+func (b *moltenMcpRpcBackend) clientInfo() mcpbrowser.ClientInfo {
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	if err != nil {
-		b.startErr = fmt.Sprintf("MoltenTerm's browser could not start a session for this pane: %v", err)
-		fmt.Fprintf(os.Stderr, "molten mcp browser: %s\n", b.startErr)
-		return
+	return b.client
+}
+
+func (b *moltenMcpRpcBackend) setSession(sessionId string, startErr string) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.sessionId = sessionId
+	b.startErr = startErr
+}
+
+// moltenMcpStartError keeps wavesrv's refusals as their fixed sentences (an agent outside a local MoltenTerm pane
+// reads "Not running in a MoltenTerm terminal"); anything else says the session could not start.
+func moltenMcpStartError(err error) string {
+	if err == nil {
+		return ""
 	}
-	b.sessionId = result.SessionId
+	msg := err.Error()
+	for _, fixed := range []string{mcpbrowser.ErrNotInMoltenTerm, mcpbrowser.ErrRemotePane} {
+		if strings.HasSuffix(msg, fixed) {
+			return fixed
+		}
+	}
+	return fmt.Sprintf("MoltenTerm's browser could not start a session for this pane: %s", msg)
 }
 
 func (b *moltenMcpRpcBackend) session() (string, string) {
@@ -109,9 +148,14 @@ func (b *moltenMcpRpcBackend) session() (string, string) {
 }
 
 func (b *moltenMcpRpcBackend) CallTool(ctx context.Context, tool string, args json.RawMessage) mcpbrowser.CallResult {
-	sessionId, startErr := b.session()
+	sessionId, _ := b.session()
 	if sessionId == "" {
-		return mcpbrowser.ErrorResult(startErr)
+		b.hello()
+		var startErr string
+		sessionId, startErr = b.session()
+		if sessionId == "" {
+			return mcpbrowser.ErrorResult(startErr)
+		}
 	}
 	handler, err := RpcClient.SendComplexRequest(mcpbrowser.CallCommand, mcpbrowser.CallRequest{
 		SessionId: sessionId,

@@ -48,6 +48,13 @@ export type BrowserOpenRequest = {
 
 export type BrowserCloseRequest = { id: string; tabId: string };
 
+// must match agentTabIdPrefix in pkg/molten/browseragent/tools.go
+export const AgentTabIdPrefix = "agent-";
+
+export function isAgentTabId(id: string): boolean {
+    return typeof id === "string" && id.startsWith(AgentTabIdPrefix);
+}
+
 const MaxTabIdLength = 200;
 
 // engine is unset for the in-app engine, else the id of the installed browser the page was handed off to (FR-BRW-002):

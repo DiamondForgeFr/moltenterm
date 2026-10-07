@@ -7,6 +7,7 @@ import {
     addTab,
     BrowserState,
     consumeCloseRequestsMeta,
+    isAgentTabId,
     readBrowserState,
     readCloseRequests,
     readOpenRequests,
@@ -14,7 +15,6 @@ import {
 
 const tab = (over: Partial<AgentTab> = {}): AgentTab => ({
     browsertabid: "agent-1",
-    sessionid: "s1",
     agentname: "Claude Code",
     origin: "opened",
     state: "active",
@@ -121,6 +121,12 @@ describe("agent tab requests", () => {
             "molten:browser:close:01": null,
             "molten:browser:close:02": null,
         });
+    });
+
+    it("closes only an agent's tab through the queue", () => {
+        expect(isAgentTabId("agent-0f1c")).toBe(true);
+        expect(isAgentTabId("muxxpzvh-1")).toBe(false);
+        expect(isAgentTabId(null)).toBe(false);
     });
 
     it("opens a panel created for an agent on the agent's tab", () => {
