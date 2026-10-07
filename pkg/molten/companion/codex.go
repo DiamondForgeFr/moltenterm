@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -149,6 +150,56 @@ func (a *CodexAdapter) discoverDir(dir string, cwd string, since time.Time) []Ca
 		rtn = append(rtn, c)
 	}
 	return rtn
+}
+
+// A Codex thread id is a UUID; anything else is never looked up.
+var codexThreadIdRegex = regexp.MustCompile(`^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$`)
+
+// FindSession finds the rollout of a thread id (rollout-<time>-<id>.jsonl): in the folders of the last days first,
+// where a session that just ended a turn almost always is, then in every dated folder, for a resumed old session.
+func (a *CodexAdapter) FindSession(id string) (string, bool) {
+	if !codexThreadIdRegex.MatchString(id) {
+		return "", false
+	}
+	suffix := "-" + strings.ToLower(id) + ".jsonl"
+	now := time.Now()
+	seen := map[string]bool{}
+	for _, root := range a.roots {
+		for day := now.Add(24 * time.Hour); !day.Before(now.Add(-codexMaxDays * 24 * time.Hour)); day = day.Add(-24 * time.Hour) {
+			dir := filepath.Join(root, day.Format("2006"), day.Format("01"), day.Format("02"))
+			seen[dir] = true
+			if path, ok := codexRolloutIn(dir, suffix); ok {
+				return path, true
+			}
+		}
+	}
+	for _, root := range a.roots {
+		dirs, _ := filepath.Glob(filepath.Join(root, "[0-9][0-9][0-9][0-9]", "[0-9][0-9]", "[0-9][0-9]"))
+		sort.Sort(sort.Reverse(sort.StringSlice(dirs)))
+		for _, dir := range dirs {
+			if seen[dir] {
+				continue
+			}
+			if path, ok := codexRolloutIn(dir, suffix); ok {
+				return path, true
+			}
+		}
+	}
+	return "", false
+}
+
+func codexRolloutIn(dir string, suffix string) (string, bool) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", false
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if e.Type().IsRegular() && strings.HasPrefix(name, "rollout-") && strings.HasSuffix(strings.ToLower(name), suffix) {
+			return filepath.Join(dir, name), true
+		}
+	}
+	return "", false
 }
 
 // Sub-agents and reviewers write their own rollouts next to the session that started them.

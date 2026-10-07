@@ -10,9 +10,10 @@ import (
 	"strings"
 )
 
-// Agent integration at launch (FR-SHELL-036, DS-SHELL-045 to 048): in a local MoltenTerm terminal, `claude` runs
-// MoltenTerm's launcher (pkg/molten/agentlaunch), which adds the hooks and the status line relay of this package for
-// that run only, through the agent's own per-run settings. Nothing of the user's is written (NFR-SHELL-019). The
+// Agent integration at launch (FR-SHELL-036, DS-SHELL-045 to 048, FR-SHELL-038): in a local MoltenTerm terminal,
+// `claude` and `codex` run MoltenTerm's launcher (pkg/molten/agentlaunch), which adds the hooks and the status line
+// relay of this package (Claude Code) or the notify wrapper (Codex) for that run only, through the agent's own
+// per-run settings. Nothing of the user's is written (NFR-SHELL-019). The
 // launcher tells the pane's agent states what it added (DS-SHELL-051); these names are shared with wsh.
 
 const (
@@ -35,6 +36,8 @@ const (
 	IntegrationStatusLine = "statusline"
 	// The molten-browser MCP server (FR-SHELL-037): added, or skipped as the user's own.
 	IntegrationBrowser = "browser"
+	// Codex's notify, run through `molten agent notify` around the user's own (FR-SHELL-038).
+	IntegrationNotify = "notify"
 )
 
 // IntegrationItem is one thing added to a run, or left out (Reason says why, in plain words).
@@ -46,12 +49,14 @@ type IntegrationItem struct {
 
 // AgentIntegrationReport is what the launcher tells of one run. StepAside: nothing was added, and why.
 type AgentIntegrationReport struct {
-	BlockId   string            `json:"blockid"`
-	Agent     string            `json:"agent"`
-	RealPath  string            `json:"realpath"`
-	Pid       int               `json:"pid,omitempty"`
-	Settings  string            `json:"settings,omitempty"`
-	McpConfig string            `json:"mcpconfig,omitempty"`
+	BlockId   string `json:"blockid"`
+	Agent     string `json:"agent"`
+	RealPath  string `json:"realpath"`
+	Pid       int    `json:"pid,omitempty"`
+	Settings  string `json:"settings,omitempty"`
+	McpConfig string `json:"mcpconfig,omitempty"`
+	// Args: the arguments added before the user's when the run gets no file (Codex's -c overrides).
+	Args      []string          `json:"args,omitempty"`
 	Added     []IntegrationItem `json:"added,omitempty"`
 	Skipped   []IntegrationItem `json:"skipped,omitempty"`
 	StepAside string            `json:"stepaside,omitempty"`

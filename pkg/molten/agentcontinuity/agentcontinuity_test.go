@@ -79,7 +79,7 @@ func TestCapabilityMatrix(t *testing.T) {
 	}
 	inUse := map[string][]string{
 		molten.AgentIdClaude: {CapHooks, CapQuota, CapTranscript},
-		molten.AgentIdCodex:  {CapQuota, CapTranscript},
+		molten.AgentIdCodex:  {CapHooks, CapQuota, CapTranscript},
 	}
 	for id, caps := range want {
 		a := Find(id)
@@ -501,7 +501,7 @@ func TestListWritesNothing(t *testing.T) {
 	if claude.Quota.Sources[0].Support != SupportDocumented || claude.Quota.Sources[1].Support != SupportUndocumented {
 		t.Errorf("claude quota sources %+v", claude.Quota.Sources)
 	}
-	if !codex.Offered() || codex.Version != "0.160.1" || codex.Launcher || codex.GuideProfile != "codex" || codex.Quota.PageURL != usage.CodexUsagePageURL ||
+	if !codex.Offered() || codex.Version != "0.160.1" || !codex.Launcher || codex.GuideProfile != "codex" || codex.Quota.PageURL != usage.CodexUsagePageURL ||
 		len(codex.Models) != 2 || !codex.Models[1].Configured {
 		t.Errorf("codex listing %+v", codex)
 	}

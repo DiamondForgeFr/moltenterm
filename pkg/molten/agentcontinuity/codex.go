@@ -22,7 +22,7 @@ import (
 // model, `codex resume <id>` resumes a session. The briefing goes in developer_instructions ("Additional developer
 // instructions injected into the session") with -c for the run, after the user's own value, which -c would replace.
 // Codex lists the models it offers in $CODEX_HOME/models_cache.json (undocumented file, read-only); the user's model
-// is config.toml's top-level `model`. Launch integration, per-run MCP and notify come with #320.
+// is config.toml's top-level `model`. The launcher (agentlaunch, #320) adds the per-run MCP server and notify.
 
 const (
 	codexName          = "Codex"
@@ -62,7 +62,7 @@ var codexCapabilities = map[string]Capability{
 	CapTranscript:    {Support: SupportUndocumented, Note: "$CODEX_HOME/sessions documented; the rollout file layout is source only and migrating", InUse: true},
 	CapQuota:         {Support: SupportUndocumented, Note: "token_count rate_limits in the session log (#263), else the app-server", InUse: true},
 	CapMcp:           {Support: SupportDocumented, Note: "-c mcp_servers.<name> for the run (FR-SHELL-038, #320)"},
-	CapHooks:         {Support: SupportDocumented, Note: "notify for the run (#320); today the snippet the pane header offers"},
+	CapHooks:         {Support: SupportDocumented, Note: "notify for the run, around the user's own, through the #320 launcher; hooks need the user's trust and are not added", InUse: true},
 }
 
 var codexConfigModelRegex = regexp.MustCompile(`^model\s*=\s*"([^"\\]*)"\s*(#.*)?$`)
@@ -224,7 +224,7 @@ func (codexAdapter) Capabilities() map[string]Capability {
 	return copyCapabilities(codexCapabilities)
 }
 
-// Launch: nil until #320 registers Codex's launcher.
+// Launch: Codex's launcher (#320).
 func (codexAdapter) Launch() agentlaunch.LaunchAdapter {
 	return agentlaunch.FindAdapter(molten.AgentIdCodex)
 }

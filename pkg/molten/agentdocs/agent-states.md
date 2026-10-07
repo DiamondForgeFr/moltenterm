@@ -118,6 +118,15 @@ notify = ["sh", "-c", "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state done -
 
 Codex's own terminal notifications (`[tui] notifications = true`) send OSC 9, which MoltenTerm reads as well.
 
+In a local MoltenTerm terminal you do not need this line: `codex` runs MoltenTerm's launcher, which adds, for that run
+only, `-c notify=[<molten>, "agent", "notify", "--agent", "codex", "--", <your own notify>]` and the MoltenTerm
+browser server (`-c mcp_servers.molten-browser...`). `molten agent notify` runs your own notify first, with the same
+JSON argument Codex gives it, then reports done and links the companion to the session from the payload's thread id.
+Your `config.toml` is only read, never written. Your own `-c notify=...`, a profile or a project `.codex/config.toml`
+that sets notify, or a `config.toml` that cannot be read leave notify as you set it. `molten agent integration status`
+shows what a run gets; `MOLTENTERM_AGENT_INTEGRATION=0 codex` starts it with nothing added. Codex hooks are not
+added: Codex runs hooks given for one run only after you trust them, and MoltenTerm never bypasses that trust.
+
 ## Gemini CLI, OpenCode and other agents
 
 Call the same commands from whatever the agent offers: hooks, plugins (an OpenCode plugin can run

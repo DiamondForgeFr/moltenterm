@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package agentlaunch starts coding agents with MoltenTerm's integration for one run (FR-SHELL-036, DS-SHELL-044 to
-// 048). In a local MoltenTerm terminal, `claude` is a launcher placed first on PATH (a link to wsh in
+// 048, FR-SHELL-038 for Codex). In a local MoltenTerm terminal, `claude` and `codex` are launchers placed first on
+// PATH (links to wsh in
 // <data>/bin/agents/); it finds the real binary, asks the agent's adapter what to add through the agent's documented
 // per-run mechanism, and replaces itself with the real binary. Nothing of the user's is written (NFR-SHELL-019): the
 // adapters only read the agent's configuration, and what they add lives in MoltenTerm's data folder.
@@ -38,6 +39,8 @@ type LaunchContext struct {
 	BlockId string
 	// ManagedSettings: Claude Code's managed settings file, "" for the system's (tests set their own).
 	ManagedSettings string
+	// CodexSystemConfig: Codex's system config.toml, "" for /etc/codex's (tests set their own).
+	CodexSystemConfig string
 	// MoltenPath: the absolute path of MoltenTerm's molten (MoltenPath), "" when it is not installed.
 	MoltenPath string
 }
@@ -79,6 +82,7 @@ type LaunchAdapter interface {
 
 var adapters = map[string]LaunchAdapter{
 	ClaudeAgentId: claudeAdapter{},
+	CodexAgentId:  codexAdapter{},
 }
 
 // FindAdapter returns the adapter of an agent id, or nil.

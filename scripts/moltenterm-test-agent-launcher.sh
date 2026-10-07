@@ -12,6 +12,9 @@
 #   of molten; nothing of it with --strict-mcp-config or when the user has a molten-browser; their --mcp-config kept;
 # - that the status line in the generated file prints the user's status line byte for byte, through the real relay;
 # - pass-through commands and step-asides (nothing added), a missing claude (exit 127), and that no user file changed;
+# - the codex launcher (FR-SHELL-038), with a fake codex and a fake user notify: the -c overrides first, the
+#   generated notify run as Codex runs it (the user's notify gets the same payload, once), the user's own -c notify
+#   left alone, pass-through commands and step-asides;
 # - the launcher's overhead (NFR-SHELL-020: at most 50 ms at the 95th percentile).
 # MoltenTerm itself is not running: the launcher's report finds no wavesrv and is dropped, as when MoltenTerm is slow.
 #
@@ -51,7 +54,31 @@ mkdir -p "${agents}" "${home}/.local/bin" "${home}/.claude" "${project}/.git" "$
 cp "${wsh}" "${bin}/wsh"
 ln -s wsh "${bin}/molten"
 ln -s ../wsh "${agents}/claude"
+ln -s ../wsh "${agents}/codex"
 log="${work}/claude.log"
+codexlog="${work}/codex.log"
+notifylog="${work}/notify.log"
+
+# A fake codex (FR-SHELL-038): it records its arguments, one per line, and its exit code is FAKE_EXIT.
+cat >"${home}/.local/bin/codex" <<'EOF'
+#!/bin/sh
+{
+    for a in "$@"; do printf 'arg=%s\n' "$a"; done
+    printf 'launched=%s\n' "${MOLTENTERM_AGENT_LAUNCHED-unset}"
+} >>"${FAKE_CODEX_LOG:?}"
+exit "${FAKE_EXIT:-0}"
+EOF
+chmod +x "${home}/.local/bin/codex"
+# The user's own notify: it records each argument it gets, NUL-terminated.
+cat >"${work}/user-notify.sh" <<'EOF'
+#!/bin/sh
+for a in "$@"; do printf '%s\0' "$a"; done >>"${FAKE_NOTIFY_LOG:?}"
+EOF
+chmod +x "${work}/user-notify.sh"
+mkdir -p "${home}/.codex"
+printf 'model = "o3"\nnotify = ["%s", "--from", "codex"]\n\n[mcp_servers.github]\ncommand = "gh-mcp"\n' "${work}/user-notify.sh" >"${home}/.codex/config.toml"
+printf '{"never":"read"}\n' >"${home}/.codex/auth.json"
+chmod 000 "${home}/.codex/auth.json"
 
 cat >"${home}/.local/bin/claude" <<'EOF'
 #!/bin/sh
@@ -89,7 +116,8 @@ mkdir -p "${home}/.config/fish"
 printf 'set -gx PATH $HOME/.local/bin $PATH\n' >"${home}/.config/fish/config.fish"
 
 hash_user_files() {
-    find "${home}" -type f \( -name '*.json' -o -name '.zshrc' \) -print0 | sort -z | xargs -0 shasum | shasum
+    find "${home}" -type f \( -name '*.json' -o -name '*.toml' -o -name '.zshrc' \) ! -name auth.json -print0 | sort -z | xargs -0 shasum | shasum
+    ls -l "${home}/.codex/auth.json"
 }
 before="$(hash_user_files)"
 
@@ -278,8 +306,73 @@ else
     fail "missing claude: code ${code}, ${msg}"
 fi
 
+# Codex (FR-SHELL-038): -c overrides first, the user's arguments unchanged, the user's notify wrapped.
+codex_env=("${pane_env[@]}" FAKE_CODEX_LOG="${codexlog}" FAKE_NOTIFY_LOG="${notifylog}")
+codex_args() { sed -n 's/^arg=//p' "${codexlog}"; }
+: >"${codexlog}"
+code=0
+"${codex_env[@]}" FAKE_EXIT=4 codex --model o3 "fix the 'tests'" || code=$?
+cargs="$(codex_args)"
+want_head="$(printf -- '-c\nmcp_servers.molten-browser.command="%s"\n-c\nmcp_servers.molten-browser.args=["mcp","browser"]\n-c' "${bin}/molten")"
+if [ "$(printf '%s\n' "${cargs}" | sed -n '1,5p')" = "${want_head}" ] && [ "$(printf '%s\n' "${cargs}" | sed -n '7,$p')" = "$(printf -- "--model\no3\nfix the 'tests'")" ]; then
+    pass "codex: the browser and notify overrides first, the user's arguments unchanged"
+else
+    fail "codex arguments: ${cargs}"
+fi
+[ "${code}" = 4 ] && pass "codex: exit code passed through" || fail "codex exit code ${code}, want 4"
+grep -q '^launched=codex$' "${codexlog}" && pass "codex: the agent's processes are marked as nested" || fail "codex MOLTENTERM_AGENT_LAUNCHED: $(cat "${codexlog}")"
+notify_value="$(printf '%s\n' "${cargs}" | sed -n '6s/^notify=//p')"
+payload='{"type":"agent-turn-complete","thread-id":"0199a8b2-4c1d-7e3f-9a0b-1c2d3e4f5a6b","turn-id":"t1","cwd":"/x","input-messages":["fix \"it\" now"],"last-assistant-message":"done\nok"}'
+# The generated value is TOML made of basic strings, which JSON reads the same way; run it as Codex does: the argv,
+# then the payload as the last argument, without a shell.
+: >"${notifylog}"
+if "${codex_env[@]}" python3 - "${notify_value}" "${payload}" "${bin}/molten" "${work}/user-notify.sh" <<'EOF'; then
+import json, os, subprocess, sys
+argv = json.loads(sys.argv[1])
+want = [sys.argv[3], "agent", "notify", "--agent", "codex", "--", sys.argv[4], "--from", "codex"]
+assert argv == want, argv
+env = dict(os.environ)
+r = subprocess.run(argv + [sys.argv[2]], env=env, timeout=10)
+sys.exit(r.returncode)
+EOF
+    pass "codex: notify runs molten agent notify around the user's notify"
+else
+    fail "codex notify value: ${notify_value}"
+fi
+got_notify="$(python3 -c 'import sys; print(repr(open(sys.argv[1], "rb").read().split(b"\0")[:-1]))' "${notifylog}")"
+want_notify="$(python3 -c 'import sys; print(repr([b"--from", b"codex", sys.argv[1].encode()]))' "${payload}")"
+[ "${got_notify}" = "${want_notify}" ] && pass "codex: the user's notify got the same payload, once" || fail "user notify got ${got_notify}"
+
+: >"${codexlog}"
+"${codex_env[@]}" codex -c 'notify=["/x/other.sh"]' exec hi || true
+cargs="$(codex_args | tr '\n' ' ')"
+if [ "${cargs}" = "-c mcp_servers.molten-browser.command=\"${bin}/molten\" -c mcp_servers.molten-browser.args=[\"mcp\",\"browser\"] -c notify=[\"/x/other.sh\"] exec hi " ]; then
+    pass "codex: the user's own -c notify is left alone, the browser still added"
+else
+    fail "codex with -c notify: ${cargs}"
+fi
+
+codex_nothing_added() {
+    local label="$1"
+    shift
+    : >"${codexlog}"
+    "$@" || true
+    if grep -q -- '^arg=-c$' "${codexlog}" || ! grep -q "^launched=${LAUNCHED_WANT:-unset}$" "${codexlog}"; then
+        fail "${label}: something was added ($(codex_args | tr '\n' ' '))"
+    else
+        pass "${label}: real binary, nothing added ($(codex_args | tr '\n' ' ' | sed 's/ $//'))"
+    fi
+}
+for cmd in "--version" "--help" "login" "logout" "mcp list" "features list" "completion zsh" "app-server" "mcp-server"; do
+    # shellcheck disable=SC2086
+    codex_nothing_added "codex ${cmd}" "${codex_env[@]}" codex ${cmd}
+done
+codex_nothing_added "codex outside a pane" "${base_env[@]}" PATH="${pane_path}" MOLTENTERM_AGENTBINDIR="${agents}" FAKE_CODEX_LOG="${codexlog}" codex hi
+codex_nothing_added "codex with MOLTENTERM_AGENT_INTEGRATION=0" "${codex_env[@]}" MOLTENTERM_AGENT_INTEGRATION=0 codex hi
+LAUNCHED_WANT=codex codex_nothing_added "codex in a running agent" "${codex_env[@]}" MOLTENTERM_AGENT_LAUNCHED=codex codex hi
+
 after="$(hash_user_files)"
-[ "${before}" = "${after}" ] && pass "no user file changed (settings, .claude.json, .mcp.json, rc files)" || fail "user files changed"
+[ "${before}" = "${after}" ] && pass "no user file changed (settings, .claude.json, .mcp.json, ~/.codex/config.toml, rc files)" || fail "user files changed"
 
 # NFR-SHELL-020: the launcher's p95 overhead against the fake run by its full path.
 p95="$(cd "${project}" && "${pane_env[@]}" python3 - "${home}/.local/bin/claude" <<'EOF'

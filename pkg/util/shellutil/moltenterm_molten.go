@@ -31,7 +31,7 @@ const AgentBinDirName = "agents"
 
 // AgentLauncherNames are the agents started through a launcher; must match pkg/molten/agentlaunch's adapters
 // (checked by its tests).
-var AgentLauncherNames = []string{"claude"}
+var AgentLauncherNames = []string{"claude", "codex"}
 
 // InstallMoltenCommand makes `molten` and `molten-open` available wherever wsh is: a relative symlink to wsh, so that
 // they follow every wsh update, or a copy on Windows, where symlinks need extra rights. The agent launchers go in

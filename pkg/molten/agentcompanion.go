@@ -29,8 +29,11 @@ const (
 )
 
 // AgentSessionRequest is what `molten agent session` reports: the transcript of the agent's session in a block.
+// SessionId, when Path is empty: the agent's session id, which its companion adapter resolves to the transcript
+// (Codex's notify payload carries the thread id, not the rollout's path: `molten agent notify`).
 type AgentSessionRequest struct {
-	BlockId string `json:"blockid"`
-	Agent   string `json:"agent,omitempty"`
-	Path    string `json:"path"`
+	BlockId   string `json:"blockid"`
+	Agent     string `json:"agent,omitempty"`
+	Path      string `json:"path"`
+	SessionId string `json:"sessionid,omitempty"`
 }
