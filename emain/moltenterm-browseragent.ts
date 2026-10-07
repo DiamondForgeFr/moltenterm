@@ -31,7 +31,6 @@ const ExpectedToken = createHmac("sha256", AuthKey).update(EmainTokenLabel).dige
 
 // After the agent's own input, the guest's events for it may still arrive.
 const SyntheticInputGraceMs = 150;
-const TakeoverReportEveryMs = 250;
 
 export type CdpCallData = { blockid: string; browsertabid: string; method: string; params?: any; token: string };
 export type ControlData = { blockid: string; browsertabid: string; controlled: boolean; token: string };
@@ -46,7 +45,6 @@ const paused = new Set<string>();
 const watchers = new Map<number, () => void>();
 const syntheticDepth = new Map<number, number>();
 const syntheticUntil = new Map<number, number>();
-const lastReport = new Map<string, number>();
 let reportTakeover: TakeoverReport = () => {};
 
 function fromWavesrv(token: unknown): boolean {
@@ -70,11 +68,9 @@ function noteUserInput(reg: Registration): void {
         return;
     }
     const key = webviewKey(reg.blockId, reg.browserTabId);
-    const now = Date.now();
-    if (now - (lastReport.get(key) ?? 0) < TakeoverReportEveryMs) {
+    if (paused.has(key)) {
         return;
     }
-    lastReport.set(key, now);
     paused.add(key);
     reportTakeover(reg.blockId, reg.browserTabId);
 }
@@ -180,7 +176,6 @@ export function setBrowserAgentControl(data: ControlData): void {
         controlled.add(key);
     } else {
         controlled.delete(key);
-        lastReport.delete(key);
     }
     applyControl(key);
 }

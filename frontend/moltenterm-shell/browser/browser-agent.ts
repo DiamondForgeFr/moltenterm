@@ -123,8 +123,8 @@ export class BrowserAgentModel {
     blockId: string;
     tabsAtom = atom({}) as PrimitiveAtom<AgentTabs>;
     unsubscribe: () => void = null;
-    // An event is newer than any snapshot still on its way.
-    eventSeen = false;
+    // A snapshot must not overwrite an event or a user action that arrived while it was in flight.
+    stateVersion = 0;
 
     constructor(blockId: string) {
         this.blockId = blockId;
@@ -143,7 +143,6 @@ export class BrowserAgentModel {
                 eventType: BrowserAgentStateEvent as WaveEventName,
                 scope: `block:${this.blockId}`,
                 handler: (event) => {
-                    this.eventSeen = true;
                     this.apply(event.data as PanelAgentState);
                 },
             });
@@ -157,13 +156,14 @@ export class BrowserAgentModel {
 
     // force: after a failed Stop or Give back, the bar shows wavesrv's state again, not what the click assumed.
     async loadSnapshot(force: boolean): Promise<void> {
+        const version = this.stateVersion;
         try {
             const state: PanelAgentState = await TabRpcClient.wshRpcCall(
                 BrowserAgentStateCommand,
                 { blockid: this.blockId },
                 { route: BrowserAgentRouteId, timeout: SnapshotTimeoutMs }
             );
-            if (force || !this.eventSeen) {
+            if (this.stateVersion === version && (force || version === 0)) {
                 this.apply(state);
             }
         } catch {
@@ -175,10 +175,12 @@ export class BrowserAgentModel {
         if (state?.blockid !== this.blockId) {
             return;
         }
+        this.stateVersion++;
         globalStore.set(this.tabsAtom, readPanelAgentState(state));
     }
 
     control(browserTabId: string, action: AgentControlAction): void {
+        this.stateVersion++;
         globalStore.set(this.tabsAtom, applyControl(this.tabs(), browserTabId, action));
         fireAndForget(async () => {
             try {
