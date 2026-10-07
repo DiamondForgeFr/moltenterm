@@ -28,6 +28,13 @@ func TestPermissionSite(t *testing.T) {
 		"wave://settings":                    "",
 		"https://a\"b.example/":              "",
 		"https://xn--bcher-kva.example/":     "xn--bcher-kva.example",
+		"http://127.0.0.1.:8080/":            "127.0.0.1:8080",
+		"https://example.com.:443/":          "example.com",
+		"http://2130706433:8080/":            "",
+		"http://0x7f.1/":                     "",
+		"http://127.1/":                      "",
+		"http://192.168.001.1/":              "",
+		"http://192.168.1.1/":                "192.168.1.1",
 	}
 	for in, want := range cases {
 		if got := permissionSite(in); got != want {
@@ -72,6 +79,9 @@ func TestNavigateTarget(t *testing.T) {
 		"https://example.com/a#b": "https://example.com/a#b",
 		"  https://example.com  ": "https://example.com",
 		"example.com:8443/secure": "https://example.com:8443/secure",
+		"localhost.example.com":   "https://localhost.example.com",
+		"127.0.0.1.nip.io":        "https://127.0.0.1.nip.io",
+		"[::1]:5173/":             "http://[::1]:5173/",
 	}
 	for in, want := range ok {
 		got, problem := navigateTarget(in)

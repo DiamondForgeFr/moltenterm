@@ -180,7 +180,9 @@ function serve(handler) {
 }
 
 async function startTestSites() {
+  let bHits = 0;
   const siteB = await serve((req, res) => {
+    bHits++;
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     res.end(`<!doctype html><title>Other site</title><main><p>The other site</p></main>`);
   });
@@ -195,7 +197,7 @@ async function startTestSites() {
     res.end(req.url.startsWith("/article") ? ArticlePage : LoginPage);
   });
   const aUrl = `http://127.0.0.1:${siteA.address().port}`;
-  return { aUrl, bUrl, close: () => (siteA.close(), siteB.close()) };
+  return { aUrl, bUrl, bHits: () => bHits, close: () => (siteA.close(), siteB.close()) };
 }
 
 function saveImage(dir, name, item) {
@@ -291,18 +293,15 @@ async function checkPages(client, tabId, opts) {
 
     const moved = await client.callTool("navigate", { tabId, url: `${sites.aUrl}/redirect` });
     check(
-      !moved.isError && moved.text.includes("needs the user's permission") && !moved.text.includes("/landing"),
-      "a redirect to site B says only where it went",
-      oneLine(moved.text, 200)
+      moved.isError && moved.text === SiteBlocked,
+      "a redirect to site B asks before it loads, Block refuses",
+      `${moved.ms} ms, ${moved.text}`
     );
-    const blocked = await client.callTool("get_page_text", { tabId });
-    check(
-      blocked.isError && blocked.text === SiteBlocked,
-      "the next action on site B asks, Block refuses",
-      `${blocked.ms} ms, ${blocked.text}`
-    );
+    check(sites.bHits() === 0, "site B was never loaded", `${sites.bHits()} requests`);
+    const still = await client.callTool("get_page_text", { tabId });
+    check(!still.isError && still.text.includes("Molten glass"), "the tab stays on site A");
     const back = await client.callTool("navigate", { tabId, url: "back" });
-    check(!back.isError && back.text.includes("/article"), "back returns to site A", oneLine(back.text, 200));
+    check(!back.isError && back.text.includes("/login"), "back returns to the sign-in page", oneLine(back.text, 200));
   } finally {
     sites.close();
   }

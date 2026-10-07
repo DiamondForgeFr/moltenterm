@@ -19,6 +19,7 @@ export const CdpAllowedMethods: ReadonlySet<string> = new Set([
     "Page.getLayoutMetrics",
     "Page.createIsolatedWorld",
     "Accessibility.getFullAXTree",
+    "Accessibility.disable",
     "Accessibility.getPartialAXTree",
     "Accessibility.queryAXTree",
     "DOM.getDocument",
@@ -51,7 +52,8 @@ export function isMoltenOperation(method: unknown): boolean {
     return typeof method === "string" && MoltenOperations.has(method);
 }
 
-export type NavigateParams = { url?: string; history?: -1 | 1; timeoutMs: number };
+// history moves to the entry wavesrv checked: index, which must still hold the URL expect.
+export type NavigateParams = { url?: string; history?: { index: number; expect: string }; timeoutMs: number };
 export type PageTextParams = { maxChars: number };
 export type CaptureParams = {
     clip?: { x: number; y: number; width: number; height: number };
@@ -95,11 +97,82 @@ export function navigateParams(params: any): NavigateParams {
     const timeoutMs = finiteNumber(params?.timeoutms)
         ? clamp(params.timeoutms, 1000, MaxNavigateTimeoutMs)
         : MaxNavigateTimeoutMs;
-    if (params?.history === -1 || params?.history === 1) {
-        return params?.url == null ? { history: params.history, timeoutMs } : null;
+    if (params?.history != null) {
+        const index = params.history.index;
+        const expect = params.history.expect;
+        if (params.url != null || !Number.isInteger(index) || index < 0 || typeof expect !== "string") {
+            return null;
+        }
+        if (expect !== "about:blank" && webPageUrl(expect) == null) {
+            return null;
+        }
+        return { history: { index, expect }, timeoutMs };
     }
     const url = webPageUrl(params?.url);
     return url == null ? null : { url, timeoutMs };
+}
+
+// The properties read_page and find use (pkg/molten/browseragent/axtree.go); the rest of a node stays in emain.
+const AxProperties = new Set([
+    "editable",
+    "checked",
+    "selected",
+    "expanded",
+    "pressed",
+    "disabled",
+    "required",
+    "level",
+    "url",
+]);
+
+function axValue(v: any): any {
+    if (v == null || v.value == null) {
+        return undefined;
+    }
+    const value = typeof v.value === "string" ? v.value.slice(0, 2000) : v.value;
+    return typeof value === "object" ? undefined : { value };
+}
+
+// A large page's tree is tens of megabytes as DevTools sends it (name sources, ignored reasons, every property): only
+// what the reading tools use crosses to wavesrv.
+export function slimAxTree(tree: any): any {
+    const nodes = Array.isArray(tree?.nodes) ? tree.nodes : [];
+    return {
+        nodes: nodes.map((n: any) => {
+            const slim: any = { nodeId: n?.nodeId, ignored: n?.ignored === true };
+            for (const field of ["role", "name", "value", "description"]) {
+                const v = axValue(n?.[field]);
+                if (v !== undefined) {
+                    slim[field] = v;
+                }
+            }
+            const props = (Array.isArray(n?.properties) ? n.properties : [])
+                .filter((p: any) => AxProperties.has(p?.name))
+                .map((p: any) => ({ name: p.name, value: axValue(p.value) ?? {} }));
+            if (props.length > 0) {
+                slim.properties = props;
+            }
+            if (Array.isArray(n?.childIds) && n.childIds.length > 0) {
+                slim.childIds = n.childIds;
+            }
+            if (n?.parentId != null) {
+                slim.parentId = n.parentId;
+            }
+            if (Number.isInteger(n?.backendDOMNodeId)) {
+                slim.backendDOMNodeId = n.backendDOMNodeId;
+            }
+            return slim;
+        }),
+    };
+}
+
+// A main-frame redirect to another host stops, so wavesrv can ask for its site before it loads (NFR-BRW-005).
+export function redirectLeavesHost(from: string, to: string): boolean {
+    try {
+        return new URL(from).host.toLowerCase() !== new URL(to).host.toLowerCase();
+    } catch {
+        return true;
+    }
 }
 
 export function pageTextParams(params: any): PageTextParams {
@@ -180,7 +253,8 @@ export function pageTextScript(maxChars: number): string {
         root = articles[0];
     }
     const all = text(root);
-    return { text: all.slice(0, ${max}), length: all.length, source, title: String(document.title || "") };
+    const chars = Array.from(all);
+    return { text: chars.slice(0, ${max}).join(""), length: chars.length, source, title: String(document.title || "") };
 })()`;
 }
 

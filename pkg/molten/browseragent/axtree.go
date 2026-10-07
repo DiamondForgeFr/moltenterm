@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // The accessibility tree behind read_page and find (DS-BRW-014): DevTools' Accessibility.getFullAXTree, flattened to
@@ -86,10 +87,12 @@ type axDoc struct {
 	root   *axNode
 	docId  int64
 	fields map[int64]fieldInfo
+	// roots memoises fieldRoot.
+	roots map[*axNode]*axNode
 }
 
 func makeAxDoc(tree axTree) *axDoc {
-	doc := &axDoc{byId: make(map[string]*axNode, len(tree.Nodes)), fields: map[int64]fieldInfo{}}
+	doc := &axDoc{byId: make(map[string]*axNode, len(tree.Nodes)), fields: map[int64]fieldInfo{}, roots: map[*axNode]*axNode{}}
 	for i := range tree.Nodes {
 		n := &tree.Nodes[i]
 		if n.NodeId == "" {
@@ -164,11 +167,50 @@ func oneLine(text string, max int) string {
 	return b.String()
 }
 
+// quoted keeps a page's text from passing for the line's syntax: no closing quote, and no [ref_N] of its own.
 func quoted(text string) string {
-	return `"` + strings.ReplaceAll(text, `"`, `'`) + `"`
+	return `"` + strings.NewReplacer(`"`, `'`, "[", "(", "]", ")").Replace(text) + `"`
 }
 
-// editableNodes are the elements whose DOM must be checked before their value is shown.
+func (n *axNode) editable() bool {
+	return editableRoles[n.role()] || n.property("editable") != ""
+}
+
+// fieldRoot is the outermost form field n is in (n itself included), nil outside fields. Chromium shows what a field
+// holds as text nodes under it, themselves editable: they are the field's value, not page text.
+func (d *axDoc) fieldRoot(n *axNode) *axNode {
+	if root, ok := d.roots[n]; ok {
+		return root
+	}
+	var root *axNode
+	if parent := d.byId[n.ParentId]; parent != nil && parent != n {
+		root = d.fieldRoot(parent)
+	}
+	if root == nil && n.editable() {
+		root = n
+	}
+	d.roots[n] = root
+	return root
+}
+
+// fieldOpen: the DOM cleared the field (not a password, card or one-time code), so what it holds may be shown.
+func (d *axDoc) fieldOpen(root *axNode) bool {
+	info, checked := d.fields[root.BackendDOMNodeId]
+	return checked && !info.sensitive
+}
+
+// hiddenInField tells whether a node inside a field stays out of the output: everything inside a field the DOM did not
+// clear (a card number's text, a sensitive select's options), and the text of any field, whose value= line says what
+// may be shown (NFR-BRW-006).
+func (d *axDoc) hiddenInField(n *axNode) bool {
+	root := d.fieldRoot(n)
+	if root == nil || root == n {
+		return false
+	}
+	return !d.fieldOpen(root) || n.role() == "StaticText" || n.role() == "InlineTextBox"
+}
+
+// editableNodes are the fields whose DOM must be checked before what they hold is shown.
 func (d *axDoc) editableNodes() []int64 {
 	var rtn []int64
 	for _, id := range d.order {
@@ -176,7 +218,7 @@ func (d *axDoc) editableNodes() []int64 {
 		if n.Ignored || n.BackendDOMNodeId == 0 {
 			continue
 		}
-		if editableRoles[n.role()] || n.property("editable") != "" {
+		if d.fieldRoot(n) == n {
 			rtn = append(rtn, n.BackendDOMNodeId)
 		}
 	}
@@ -190,11 +232,8 @@ func (d *axDoc) valueOf(n *axNode) string {
 	if value == "" {
 		return ""
 	}
-	if editableRoles[n.role()] || n.property("editable") != "" {
-		info, checked := d.fields[n.BackendDOMNodeId]
-		if !checked || info.sensitive {
-			return maskedValue
-		}
+	if root := d.fieldRoot(n); root != nil && !d.fieldOpen(root) {
+		return maskedValue
 	}
 	return oneLine(value, maxValueRunes)
 }
@@ -251,6 +290,9 @@ func (d *axDoc) lines(opts readOptions) []treeLine {
 			return
 		}
 		seen[n.NodeId] = true
+		if d.hiddenInField(n) {
+			return
+		}
 		role := n.role()
 		name := oneLine(axString(n.Name), maxNameRunes)
 		shown := !n.Ignored && !(transparentRoles[role] && name == "")
@@ -338,40 +380,54 @@ func (d *axDoc) nodeForBackend(backendId int64) *axNode {
 	return nil
 }
 
-// renderLines joins lines with their refs, cut at a line boundary at maxChars, with a note giving the full size.
-func renderLines(lines []treeLine, refOf func(int64) string, maxChars int) (string, bool) {
-	full := make([]string, len(lines))
+// refAllowance is what a line's ref adds, counted before refs are given: only the lines shown get one.
+const refAllowance = len(" [ref_00000]")
+
+func lineLen(l treeLine) int {
+	return 2*l.depth + utf8.RuneCountInString(l.text) + refAllowance + 1
+}
+
+// cutLines keeps the lines that fit in maxChars, cut at a line boundary, and the size of the whole output.
+func cutLines(lines []treeLine, maxChars int) ([]treeLine, int) {
 	total := 0
+	kept := len(lines)
 	for i, l := range lines {
-		text := strings.Repeat("  ", l.depth) + l.text
-		if ref := refOf(l.backendId); ref != "" {
-			text += " [" + ref + "]"
+		total += lineLen(l)
+		if total > maxChars && kept == len(lines) {
+			kept = i
 		}
-		full[i] = text
-		total += len(text) + 1
 	}
+	return lines[:kept], total
+}
+
+// renderLines joins lines with their refs; a cut output ends with a note giving the full size.
+func renderLines(lines []treeLine, refOf func(int64) string, cut bool, total int) (string, bool) {
 	var b strings.Builder
-	for _, line := range full {
-		if b.Len()+len(line)+1 > maxChars {
-			fmt.Fprintf(&b, "[Cut at %d of %d characters: pass a larger max_chars, or use depth or ref_id to read part of the page.]", b.Len(), total)
-			return b.String(), true
+	for _, l := range lines {
+		b.WriteString(strings.Repeat("  ", l.depth))
+		b.WriteString(l.text)
+		if ref := refOf(l.backendId); ref != "" {
+			b.WriteString(" [" + ref + "]")
 		}
-		b.WriteString(line)
 		b.WriteString("\n")
 	}
-	return strings.TrimSuffix(b.String(), "\n"), false
+	if !cut {
+		return strings.TrimSuffix(b.String(), "\n"), false
+	}
+	fmt.Fprintf(&b, "[Cut at %d of about %d characters: pass a larger max_chars, or use depth or ref_id to read part of the page.]", b.Len(), total)
+	return b.String(), true
 }
 
 // refTable maps refs to the DOM nodes of one document; it starts over when the tab shows another document.
 type refTable struct {
-	docId  int64
+	docId  string
 	next   int
 	byRef  map[string]int64
 	byNode map[int64]string
 }
 
-func makeRefTable(docId int64) *refTable {
-	return &refTable{docId: docId, byRef: map[string]int64{}, byNode: map[int64]string{}}
+func makeRefTable(docId string, next int) *refTable {
+	return &refTable{docId: docId, next: next, byRef: map[string]int64{}, byNode: map[int64]string{}}
 }
 
 func (r *refTable) refFor(backendId int64) string {
@@ -509,11 +565,23 @@ func wordSet(text string) map[string]bool {
 	return rtn
 }
 
-func matchWords(words []string, text string) (int, int) {
+// wordCache tokenises each text once per find: names repeat across an element's text nodes, and lists repeat labels.
+type wordCache map[string]map[string]bool
+
+func (c wordCache) words(text string) map[string]bool {
+	if set, ok := c[text]; ok {
+		return set
+	}
+	set := wordSet(text)
+	c[text] = set
+	return set
+}
+
+func (c wordCache) matchWords(words []string, text string) (int, int) {
 	if text == "" {
 		return 0, 0
 	}
-	set := wordSet(text)
+	set := c.words(text)
 	matched := 0
 	prefix := 0
 	for _, w := range words {
@@ -554,19 +622,26 @@ func (d *axDoc) find(query string) []findMatch {
 		return nil
 	}
 	best := map[*axNode]*findMatch{}
+	cache := wordCache{}
+	elements := map[string]*axNode{}
 	for i, id := range d.order {
 		n := d.byId[id]
 		if n.Ignored || n == d.root || n.BackendDOMNodeId == 0 {
 			continue
 		}
 		role := n.role()
-		if role == "InlineTextBox" {
+		if role == "InlineTextBox" || d.hiddenInField(n) {
 			continue
 		}
 		target := n
 		text := ""
 		if role == "StaticText" {
-			target = d.elementFor(n)
+			parent, seen := elements[n.ParentId]
+			if !seen {
+				parent = d.elementFor(n)
+				elements[n.ParentId] = parent
+			}
+			target = parent
 			if target == nil || target == d.root {
 				continue
 			}
@@ -577,17 +652,17 @@ func (d *axDoc) find(query string) []findMatch {
 		score := 0
 		matched := 0
 		if len(q.words) > 0 {
-			nameHits, namePrefix := matchWords(q.words, name)
-			textHits, textPrefix := matchWords(q.words, text)
-			placeholderHits, _ := matchWords(q.words, d.fields[target.BackendDOMNodeId].placeholder)
+			nameHits, namePrefix := cache.matchWords(q.words, name)
+			textHits, textPrefix := cache.matchWords(q.words, text)
+			placeholderHits, _ := cache.matchWords(q.words, d.fields[target.BackendDOMNodeId].placeholder)
 			valueHits := 0
 			if value := d.valueOf(target); value != maskedValue {
-				valueHits, _ = matchWords(q.words, value)
+				valueHits, _ = cache.matchWords(q.words, value)
 			}
-			descHits, _ := matchWords(q.words, axString(target.Description))
+			descHits, _ := cache.matchWords(q.words, axString(target.Description))
 			matched = max(nameHits, textHits, placeholderHits, valueHits, descHits)
 			score = 4*nameHits + 2*namePrefix + 3*textHits + textPrefix + 3*placeholderHits + valueHits + descHits
-			if nameHits == len(q.words) && len(wordSet(name)) == len(q.words) {
+			if nameHits == len(q.words) && len(cache.words(name)) == len(q.words) {
 				score += 3
 			}
 			if matched == 0 && namePrefix+textPrefix == 0 {

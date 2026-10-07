@@ -76,12 +76,17 @@ func (p *fakePage) cdp(key TabKey, method string, params any) (json.RawMessage, 
 		return json.Marshal(map[string]any{"currentIndex": p.index, "entries": p.entries})
 	case opNavigate:
 		p.navParams = append(p.navParams, args)
-		if h, ok := args["history"].(int); ok {
-			p.index += h
+		if h, ok := args["history"].(map[string]any); ok {
+			index := h["index"].(int)
+			if index < 0 || index >= len(p.entries) || p.entries[index].Url != h["expect"] {
+				return json.Marshal(map[string]any{"url": p.entries[p.index].Url, "error": "ERR_HISTORY_CHANGED"})
+			}
+			p.index = index
 		} else {
 			url := args["url"].(string)
+			// emain stops a main-frame redirect to another host and returns it unloaded.
 			if to, ok := p.redirects[url]; ok {
-				url = to
+				return json.Marshal(map[string]any{"url": p.entries[p.index].Url, "redirect": to})
 			}
 			p.goTo(url)
 		}
@@ -435,16 +440,40 @@ func TestASettingsChangeEndsTheWait(t *testing.T) {
 	}
 }
 
-func TestCrossSiteNavigationPausesTheNextAction(t *testing.T) {
+func TestARedirectToAnotherSiteAsksBeforeItLoads(t *testing.T) {
 	w := makePageWorld(t)
 	w.page.redirects["https://a.example/go"] = "https://b.example/landing"
-	w.page.titles["https://b.example/landing"] = "PLANTED-B-TITLE"
-	w.navigateAllowed(t, "https://a.example/go")
-	r := w.call(mcpbrowser.ToolNavigate, w.args(`"url":"https://a.example/go"`))
-	out := text(r)
-	if r.IsError || !strings.Contains(out, "b.example") || strings.Contains(out, "PLANTED-B-TITLE") || strings.Contains(out, "/landing") {
-		t.Fatalf("a redirect to a site without permission says only where it went: %s", out)
+	w.page.redirects["https://a.example/blocked"] = "https://evil.example/logout"
+	w.env.SetAgentSite("evil.example", SiteBlock)
+	w.navigateAllowed(t, "https://a.example/start")
+	expectError(t, w.call(mcpbrowser.ToolNavigate, w.args(`"url":"https://a.example/blocked"`)), mcpbrowser.ErrSiteBlocked)
+	if strings.Contains(w.page.current(), "evil.example") {
+		t.Fatalf("an open redirect loaded a blocked site")
 	}
+	pending := w.callAsync(mcpbrowser.ToolNavigate, w.args(`"url":"https://a.example/go"`))
+	p := w.prompt(t)
+	if p.Site != "b.example" || strings.Contains(w.page.current(), "b.example") {
+		t.Fatalf("the redirect target is asked for before it loads: %q %s", p.Site, w.page.current())
+	}
+	w.answer(t, p, DecisionOnce)
+	if r := waitResult(t, pending); r.IsError || !strings.Contains(text(r), "b.example/landing") {
+		t.Fatalf("allowed, the redirect loads: %s", text(r))
+	}
+	w.page.lock.Lock()
+	w.page.redirects = map[string]string{"https://b.example/loop": "https://a.example/loop", "https://a.example/loop": "https://b.example/loop"}
+	w.page.lock.Unlock()
+	w.env.SetAgentSite("a.example", SiteAllow)
+	w.env.SetAgentSite("b.example", SiteAllow)
+	expectError(t, w.call(mcpbrowser.ToolNavigate, w.args(`"url":"https://b.example/loop"`)), mcpbrowser.ErrTooManyRedirects)
+}
+
+func TestCrossSiteNavigationPausesTheNextAction(t *testing.T) {
+	w := makePageWorld(t)
+	w.navigateAllowed(t, "https://a.example/go")
+	// A link or a script takes the tab to another site (not through navigate).
+	w.page.lock.Lock()
+	w.page.goTo("https://b.example/landing")
+	w.page.lock.Unlock()
 	pending := w.callAsync(mcpbrowser.ToolGetPageText, w.args(""))
 	p := w.prompt(t)
 	if p.Site != "b.example" {
@@ -709,4 +738,142 @@ func TestTabsContextReadsTabsInParallel(t *testing.T) {
 	if elapsed := time.Since(start); elapsed > 450*time.Millisecond {
 		t.Fatalf("four 150 ms reads took %v: they must run in parallel", elapsed)
 	}
+}
+
+func TestEachTabAsksOnItsOwnBarAndOneAnswerServesTheSession(t *testing.T) {
+	w := makePageWorld(t)
+	second := createdTabId(t, w.call(mcpbrowser.ToolTabsCreate, `{}`))
+	secondInfo, _ := w.m.tab(w.sid, second)
+	first := w.callAsync(mcpbrowser.ToolNavigate, w.args(`"url":"https://example.com/1"`))
+	p := w.prompt(t)
+	other := w.callAsync(mcpbrowser.ToolNavigate, fmt.Sprintf(`{"tabId":%d,"url":"https://example.com/2"}`, second))
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && w.m.panelState(secondInfo.key.PanelId).Tabs[1].Permission == nil {
+		time.Sleep(5 * time.Millisecond)
+	}
+	// Closing the first tab ends its own wait only.
+	if r := w.call(mcpbrowser.ToolTabsClose, w.args("")); r.IsError {
+		t.Fatalf("close: %s", text(r))
+	}
+	expectError(t, waitResult(t, first), mcpbrowser.ErrTabClosed)
+	select {
+	case r := <-other:
+		t.Fatalf("the other tab still waits for the user: %s", text(r))
+	case <-time.After(50 * time.Millisecond):
+	}
+	state := w.m.panelState(secondInfo.key.PanelId)
+	var prompt *PermissionPrompt
+	for _, tab := range state.Tabs {
+		if tab.BrowserTabId == secondInfo.key.BrowserTabId {
+			prompt = tab.Permission
+		}
+	}
+	if prompt == nil || prompt.RequestId == p.RequestId {
+		t.Fatalf("the second tab has its own bar: %+v", state)
+	}
+	if err := w.m.Answer(wshutil.ElectronRoute, AnswerRequest{BlockId: secondInfo.key.PanelId, BrowserTabId: secondInfo.key.BrowserTabId, RequestId: prompt.RequestId, Decision: DecisionOnce}); err != nil {
+		t.Fatalf("answer: %v", err)
+	}
+	if r := waitResult(t, other); r.IsError {
+		t.Fatalf("allowed: %s", text(r))
+	}
+}
+
+// cardTree: fields whose content Chromium also shows as text nodes under them, as on a real page.
+func cardTree() (axTree, map[int64]describeResult) {
+	str := func(v string) *axValue { return &axValue{Type: "string", Value: v} }
+	editable := []axProperty{{Name: "editable", Value: axValue{Type: "token", Value: "plaintext"}}}
+	node := func(id string, parent string, role string, name string, backend int64, children ...string) axNode {
+		return axNode{NodeId: id, ParentId: parent, Role: str(role), Name: str(name), BackendDOMNodeId: backend, ChildIds: children}
+	}
+	card := node("10", "2", "textbox", "Card number", 10, "11")
+	card.Value = str("4111 1111 1111 1111")
+	cardInner := node("11", "10", "generic", "", 11, "12")
+	cardInner.Properties = editable
+	cardText := node("12", "11", "StaticText", "4111 1111 1111 1111", 12)
+	cardText.Properties = editable
+	nick := node("20", "2", "textbox", "Nickname", 20, "21")
+	nick.Value = str("Bob")
+	nickInner := node("21", "20", "generic", "", 21, "22")
+	nickInner.Properties = editable
+	nickText := node("22", "21", "StaticText", "Bob", 22)
+	nickText.Properties = editable
+	expiry := node("30", "2", "combobox", "Expiry", 30, "31")
+	expiry.Value = str("12/29")
+	list := node("31", "30", "listbox", "", 31, "32")
+	option := node("32", "31", "option", "12/29", 32)
+	option.Properties = []axProperty{{Name: "selected", Value: axValue{Type: "boolean", Value: true}}}
+	tree := axTree{Nodes: []axNode{
+		node("1", "", "RootWebArea", "Pay", 1, "2"),
+		node("2", "1", "main", "", 2, "10", "20", "30"),
+		card, cardInner, cardText, nick, nickInner, nickText, expiry, list, option,
+	}}
+	d := func(name string, attrs ...string) describeResult {
+		var r describeResult
+		r.Node.NodeName = name
+		r.Node.Attributes = attrs
+		return r
+	}
+	return tree, map[int64]describeResult{
+		10: d("INPUT", "type", "text", "autocomplete", "cc-number"),
+		20: d("INPUT", "type", "text"),
+		30: d("SELECT", "autocomplete", "cc-exp"),
+	}
+}
+
+func TestWhatAFieldHoldsNeverLeaksThroughItsTextNodes(t *testing.T) {
+	w := makePageWorld(t)
+	w.page.tree, w.page.describe = cardTree()
+	w.navigateAllowed(t, "https://shop.example/pay")
+	out := text(w.call(mcpbrowser.ToolReadPage, w.args("")))
+	for _, secret := range []string{"4111", "12/29"} {
+		if strings.Contains(out, secret) {
+			t.Fatalf("read_page leaked %q:\n%s", secret, out)
+		}
+	}
+	if !strings.Contains(out, `textbox "Card number" value="••••"`) || !strings.Contains(out, `textbox "Nickname" value="Bob"`) ||
+		strings.Contains(out, `text "Bob"`) {
+		t.Fatalf("a field says what it holds once, masked when sensitive:\n%s", out)
+	}
+	for _, query := range []string{"4111", "1111 1111", "12/29"} {
+		if found := text(w.call(mcpbrowser.ToolFind, w.args(fmt.Sprintf(`"query":%q`, query)))); strings.Contains(found, "4111") ||
+			strings.Contains(found, "12/29") || strings.Contains(found, "[ref_") {
+			t.Fatalf("find %q matched a field's secret content:\n%s", query, found)
+		}
+	}
+	w.page.lock.Lock()
+	delete(w.page.describe, 20)
+	w.page.lock.Unlock()
+	if out := text(w.call(mcpbrowser.ToolReadPage, w.args(""))); strings.Contains(out, "Bob") {
+		t.Fatalf("an unchecked field's text nodes are hidden too:\n%s", out)
+	}
+}
+
+func TestAMoveToABlockedSubdomainWhileReadingIsRefused(t *testing.T) {
+	w := makePageWorld(t)
+	w.env.SetAgentSite("example.com", SiteAllow)
+	w.env.SetAgentSite("mail.example.com", SiteBlock)
+	w.navigateAllowed(t, "https://www.example.com/")
+	w.page.onRead = func(p *fakePage) {
+		p.goTo("https://mail.example.com/inbox")
+		p.onRead = nil
+	}
+	expectError(t, w.call(mcpbrowser.ToolReadPage, w.args("")), mcpbrowser.ErrSiteChanged)
+	expectError(t, w.call(mcpbrowser.ToolReadPage, w.args("")), mcpbrowser.ErrSiteBlocked)
+}
+
+func TestForgettingASubdomainRevokesItsSite(t *testing.T) {
+	w := makePageWorld(t)
+	pending := w.callAsync(mcpbrowser.ToolNavigate, w.args(`"url":"https://mail.example.com/"`))
+	w.answer(t, w.prompt(t), DecisionOnce)
+	if r := waitResult(t, pending); r.IsError {
+		t.Fatalf("allowed once: %s", text(r))
+	}
+	// Forget for the subdomain's entry ends the session's Allow once of its site: the next action asks again.
+	if err := w.m.SetSite(wshutil.ElectronRoute, SiteRequest{Site: "mail.example.com"}); err != nil {
+		t.Fatalf("forget: %v", err)
+	}
+	pending = w.callAsync(mcpbrowser.ToolReadPage, w.args(""))
+	w.answer(t, w.prompt(t), DecisionDismiss)
+	expectError(t, waitResult(t, pending), mcpbrowser.ErrSiteNotAllowed)
 }
