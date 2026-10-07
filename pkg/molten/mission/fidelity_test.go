@@ -93,10 +93,10 @@ func TestReleaseVersionFollowsTheRules(t *testing.T) {
 }
 
 func TestBranchIsExpandedForEachKind(t *testing.T) {
-	if got := expandCommand("deploy {branch} {tag} {version} {other}", CommandVars{Version: "1.2.0", Tag: "v1.2.0", Branch: "develop"}); got != "deploy develop v1.2.0 1.2.0 {other}" {
+	if got, _ := expandCommand("deploy {branch} {tag} {version} {other}", CommandVars{Version: "1.2.0", Tag: "v1.2.0", Branch: "develop"}); got != "deploy develop v1.2.0 1.2.0 {other}" {
 		t.Fatalf("expand: %q", got)
 	}
-	if got := expandCommand("x {version}", CommandVars{}); got != "x {version}" {
+	if got, _ := expandCommand("x {version}", CommandVars{}); got != "x {version}" {
 		t.Fatalf("an empty value leaves its variable: %q", got)
 	}
 	r, dir := makeRunsFixture(t, `{"id":"gold","title":"Gold","run":"echo built from {branch}","artifact":"out"}`)

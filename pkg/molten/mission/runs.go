@@ -175,7 +175,45 @@ type CommandVars struct {
 	Branch  string
 }
 
-func expandCommand(run string, vars CommandVars) string {
+var (
+	commandVersionRegex = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$`)
+	commandRefRegex     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]*$`)
+)
+
+// checkRefShape applies git's ref rules on top of the safe alphabet: no "..", no empty or dotted component, no
+// ".lock" suffix. The alphabet holds no shell metacharacter and no leading "-", so a checked value is safe to
+// substitute as written, inside or outside quotes.
+func checkRefShape(value string) bool {
+	if !commandRefRegex.MatchString(value) || strings.Contains(value, "..") || strings.Contains(value, "//") ||
+		strings.HasSuffix(value, "/") || strings.HasSuffix(value, ".") {
+		return false
+	}
+	for _, part := range strings.Split(value, "/") {
+		if strings.HasPrefix(part, ".") || strings.HasSuffix(part, ".lock") {
+			return false
+		}
+	}
+	return true
+}
+
+// validateCommandVars refuses a value that is not of the shape of its variable, before any shell sees it.
+func validateCommandVars(vars CommandVars) error {
+	if vars.Version != "" && !commandVersionRegex.MatchString(vars.Version) {
+		return fmt.Errorf("the version %q is not X.Y.Z: refusing to put it in a command", vars.Version)
+	}
+	if vars.Tag != "" && !checkRefShape(vars.Tag) {
+		return fmt.Errorf("the tag %q is not a plain tag name: refusing to put it in a command", vars.Tag)
+	}
+	if vars.Branch != "" && !checkRefShape(vars.Branch) {
+		return fmt.Errorf("the branch %q is not a plain branch name: refusing to put it in a command", vars.Branch)
+	}
+	return nil
+}
+
+func expandCommand(run string, vars CommandVars) (string, error) {
+	if err := validateCommandVars(vars); err != nil {
+		return "", err
+	}
 	var pairs []string
 	for _, kv := range [][2]string{{"{version}", vars.Version}, {"{tag}", vars.Tag}, {"{branch}", vars.Branch}} {
 		if kv[1] != "" {
@@ -183,9 +221,9 @@ func expandCommand(run string, vars CommandVars) string {
 		}
 	}
 	if len(pairs) == 0 {
-		return run
+		return run, nil
 	}
-	return strings.NewReplacer(pairs...).Replace(run)
+	return strings.NewReplacer(pairs...).Replace(run), nil
 }
 
 // versionVars names a version's tag with the project's tag prefix.
@@ -306,13 +344,17 @@ func (r *Runs) runningOf(dir string, kind string) *RunRecord {
 
 func (r *Runs) launch(dir string, command TrustedCommand, artifact string, version string, tag string) (RunRecord, error) {
 	now := r.now()
+	expanded, err := expandCommand(command.Run, withBranch(versionVars(dir, version), currentBranch(r.git, dir)))
+	if err != nil {
+		return RunRecord{}, err
+	}
 	rec := RunRecord{
 		Id:        newRunId(now),
 		Dir:       dir,
 		Kind:      command.Kind,
 		StepId:    command.Id,
 		Title:     command.Title,
-		Command:   expandCommand(command.Run, withBranch(versionVars(dir, version), currentBranch(r.git, dir))),
+		Command:   expanded,
 		Cwd:       command.Cwd,
 		Artifact:  artifactPath(dir, artifact),
 		StartedAt: now.UnixMilli(),

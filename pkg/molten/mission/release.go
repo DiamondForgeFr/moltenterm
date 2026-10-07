@@ -160,13 +160,13 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-func expandRelease(run string, version string, tag string, branch string) string {
+func expandRelease(run string, version string, tag string, branch string) (string, error) {
 	return expandCommand(run, CommandVars{Version: version, Tag: tag, Branch: branch})
 }
 
 // preparationCommand chains the preparation steps in one shell: each announced as a phase, in its own folder and
 // with its own variables; the first failure stops the rest.
-func preparationCommand(steps []molten.PipelineStep, version string, tag string, branch string) string {
+func preparationCommand(steps []molten.PipelineStep, version string, tag string, branch string) (string, error) {
 	var parts []string
 	for _, step := range steps {
 		var line strings.Builder
@@ -182,10 +182,14 @@ func preparationCommand(steps []molten.PipelineStep, version string, tag string,
 		for _, k := range keys {
 			fmt.Fprintf(&line, "export %s=%s && ", k, shellQuote(step.Env[k]))
 		}
-		fmt.Fprintf(&line, "%s )", expandRelease(step.Run, version, tag, branch))
+		expanded, err := expandRelease(step.Run, version, tag, branch)
+		if err != nil {
+			return "", err
+		}
+		fmt.Fprintf(&line, "%s )", expanded)
 		parts = append(parts, line.String())
 	}
-	return strings.Join(parts, " && ")
+	return strings.Join(parts, " && "), nil
 }
 
 // tagExists tells whether the tag is cut: on origin, as Notulia reads it, since a cut whose push failed leaves a local
@@ -287,11 +291,15 @@ func channelSteps(p *molten.Pipeline, channel string) []molten.PipelineStep {
 }
 
 func (r *Runs) launchPreparation(dir string, steps []molten.PipelineStep, session ReleaseSession) (RunRecord, error) {
+	run, err := preparationCommand(molten.ReleasePreparation(steps), session.Version, session.Tag, currentBranch(r.git, dir))
+	if err != nil {
+		return RunRecord{}, err
+	}
 	command := TrustedCommand{
 		Kind:  RunKindRelease,
 		Id:    ReleasePreparationStepId,
 		Title: "Prepare " + session.Tag,
-		Run:   preparationCommand(molten.ReleasePreparation(steps), session.Version, session.Tag, currentBranch(r.git, dir)),
+		Run:   run,
 	}
 	return r.launch(dir, command, "", "", session.Tag)
 }
