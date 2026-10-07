@@ -58,6 +58,7 @@ import {
     closeTab,
     consumeCloseRequestsMeta,
     consumeOpenRequestsMeta,
+    isAgentTabId,
     makeTabId,
     MoltentermBrowserView,
     moveTab,
@@ -431,15 +432,20 @@ export class BrowserViewModel implements ViewModel {
         if (this.persistTimer != null) {
             clearTimeout(this.persistTimer);
         }
-        this.persistTimer = setTimeout(() => {
-            this.persistTimer = null;
-            fireAndForget(() =>
-                RpcApi.SetMetaCommand(TabRpcClient, {
-                    oref: makeORef("block", this.blockId),
-                    meta: browserMeta(this.state()),
-                })
-            );
-        }, PersistDelayMs);
+        this.persistTimer = setTimeout(() => this.persistNow(), PersistDelayMs);
+    }
+
+    persistNow(): void {
+        if (this.persistTimer != null) {
+            clearTimeout(this.persistTimer);
+        }
+        this.persistTimer = null;
+        fireAndForget(() =>
+            RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: makeORef("block", this.blockId),
+                meta: browserMeta(this.state()),
+            })
+        );
     }
 
     toggleMagnify(): void {
@@ -508,11 +514,13 @@ export class BrowserViewModel implements ViewModel {
             return;
         }
         const fresh = requests.filter((r) => !this.handledOpenIds.has(r.id));
+        let agentOpened = false;
         for (const request of fresh) {
             this.handledOpenIds.add(request.id);
             if (request.agent) {
                 // Shown in the panel, but the focus stays where the user is (the agent's terminal).
                 this.setState(addTab(this.state(), request.url, makeTabId, { id: request.tabId }));
+                agentOpened = true;
                 continue;
             }
             if (request.engine) {
@@ -531,6 +539,10 @@ export class BrowserViewModel implements ViewModel {
                 meta: consumeOpenRequestsMeta(requests) as MetaType,
             })
         );
+        if (agentOpened) {
+            // The agent's session waits for the saved tab before its next call can use it.
+            this.persistNow();
+        }
         if (fresh.some((r) => !r.keepFocus && !r.agent)) {
             this.focusPanel();
         }
@@ -544,7 +556,8 @@ export class BrowserViewModel implements ViewModel {
         }
         for (const request of requests.filter((r) => !this.handledCloseIds.has(r.id))) {
             this.handledCloseIds.add(request.id);
-            if (this.findTab(request.tabId) == null) {
+            // Only an agent's tab closes this way: any terminal can write block meta.
+            if (!isAgentTabId(request.tabId) || this.findTab(request.tabId) == null) {
                 continue;
             }
             if (this.state().tabs.length <= 1) {
@@ -1097,7 +1110,6 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const defaultSetting = useAtomValue(getSettingsKeyAtom("browser:default"));
     const sitesSetting = useAtomValue(getSettingsKeyAtom("browser:sites"));
     const engineList = useAtomValue(model.engines.listAtom);
-    const agentTabs = useAtomValue(model.agents.tabsAtom);
     const blockMeta = block?.meta;
     useEffect(() => {
         fireAndForget(() => model.engines.ensureLoaded());
@@ -1143,7 +1155,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                         <TabWebview key={tab.id} model={model} tab={tab} active={tab.id === state.activeId} />
                     )
                 )}
-                <AgentActionCueOverlay tabs={agentTabs} tabId={state.activeId} />
+                <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
             </div>
         </div>
     );

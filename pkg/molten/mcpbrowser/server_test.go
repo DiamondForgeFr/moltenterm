@@ -288,3 +288,14 @@ func TestOfflineBackendAnswersNotInMoltenTerm(t *testing.T) {
 		}
 	}
 }
+
+func TestResponsesFromTheClientAreNotAnswered(t *testing.T) {
+	c := startServer(t, &fakeBackend{})
+	defer c.close()
+	c.send(`{"jsonrpc":"2.0","id":5,"result":{}}`)
+	c.send(`{"jsonrpc":"2.0","id":6,"error":{"code":-1,"message":"x"}}`)
+	c.send(`{"jsonrpc":"2.0","id":7,"method":"ping"}`)
+	if resp := c.recv(); resp["id"] != float64(7) {
+		t.Fatalf("a response was answered: %v", resp)
+	}
+}

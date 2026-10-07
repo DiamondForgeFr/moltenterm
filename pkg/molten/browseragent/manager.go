@@ -27,6 +27,9 @@ const (
 	openPollEvery   = 100 * time.Millisecond
 	liveReadTimeout = 1500 * time.Millisecond
 
+	// A runaway agent cannot fill the panel.
+	maxTabsPerSession = 20
+
 	defaultAgentName = "An agent"
 	maxAgentNameLen  = 40
 	logPrefix        = "molten browser agent:"
@@ -130,6 +133,9 @@ func (m *Manager) Hello(ctx context.Context, source string, req mcpbrowser.Hello
 	loc, err := m.env.LocateBlock(ctx, blockId)
 	if err != nil || loc.View != TermView {
 		return mcpbrowser.HelloResult{}, errors.New(mcpbrowser.ErrNotInMoltenTerm)
+	}
+	if !loc.Local {
+		return mcpbrowser.HelloResult{}, errors.New(mcpbrowser.ErrRemotePane)
 	}
 	s := &session{
 		id:        uuid.NewString(),
@@ -259,6 +265,10 @@ func (m *Manager) Control(source string, req ControlRequest) error {
 		m.env.SetControl(key, false)
 	}
 	m.publishPanel(key.PanelId)
+	if req.Action == ControlGiveBack {
+		// emain paused the tab on the user's input; control comes back with the bar.
+		m.env.SetControl(key, true)
+	}
 	m.logf("%s session=%s agent=%q control=%s\n", logPrefix, shortId(info.id), info.agentName, req.Action)
 	return nil
 }
@@ -333,7 +343,6 @@ func (m *Manager) panelState(panelId string) PanelState {
 		}
 		rtn.Tabs = append(rtn.Tabs, PanelAgentTab{
 			BrowserTabId: key.BrowserTabId,
-			SessionId:    s.id,
 			AgentName:    s.agentName,
 			Origin:       t.origin,
 			State:        t.state,
@@ -352,13 +361,27 @@ func (m *Manager) publishPanel(panelId string) {
 	m.env.Publish(m.panelState(panelId))
 }
 
-// addTab registers a tab for the session and returns its agent-facing id; 0 when the session ended meanwhile or the
-// tab already belongs to another session (a tab has one owner at a time).
+// openTabCount counts the tabs a session holds (stopped ones are the user's).
+func (m *Manager) openTabCount(sessionId string) int {
+	return len(m.listTabs(sessionId))
+}
+
+// addTab registers a tab for the session and returns its agent-facing id; 0 when the session ended meanwhile, holds
+// too many tabs, or the tab already belongs to another session (a tab has one owner at a time).
 func (m *Manager) addTab(sessionId string, key TabKey, origin string, action string) int64 {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	s := m.sessions[sessionId]
 	if s == nil {
+		return 0
+	}
+	open := 0
+	for _, t := range s.tabs {
+		if t.state != TabStateStopped {
+			open++
+		}
+	}
+	if open >= maxTabsPerSession {
 		return 0
 	}
 	if owner, taken := m.owners[key]; taken && owner != sessionId {
@@ -428,11 +451,16 @@ func (s *session) tabOrNil(tabId int64) *agentTab {
 	return s.tabs[tabId]
 }
 
-// dropTab forgets a tab that is closed or gone; it releases the tab if the session still owned it.
+// dropTab forgets a tab that is closed or gone; it releases the tab if the session still owned it. A tab that never
+// opened (its panel was not shown) is closed too, so it cannot appear later with no agent and no bar.
 func (m *Manager) dropTab(sessionId string, tabId int64) {
+	info, _ := m.tab(sessionId, tabId)
 	key, released := m.removeTab(sessionId, tabId)
 	if key.PanelId == "" {
 		return
+	}
+	if !info.confirmed {
+		m.env.CloseTab(context.Background(), key)
 	}
 	if released {
 		m.env.SetControl(key, false)

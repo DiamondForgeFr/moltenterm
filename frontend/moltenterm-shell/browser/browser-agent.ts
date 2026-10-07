@@ -33,7 +33,6 @@ export type AgentActionCue = { kind: string; x?: number; y?: number; width?: num
 // must match PanelAgentTab in pkg/molten/browseragent/env.go
 export type AgentTab = {
     browsertabid: string;
-    sessionid: string;
     agentname: string;
     origin: string;
     state: string;
@@ -124,6 +123,8 @@ export class BrowserAgentModel {
     blockId: string;
     tabsAtom = atom({}) as PrimitiveAtom<AgentTabs>;
     unsubscribe: () => void = null;
+    // An event is newer than any snapshot still on its way.
+    eventSeen = false;
 
     constructor(blockId: string) {
         this.blockId = blockId;
@@ -141,25 +142,33 @@ export class BrowserAgentModel {
             this.unsubscribe = waveEventSubscribeSingle({
                 eventType: BrowserAgentStateEvent as WaveEventName,
                 scope: `block:${this.blockId}`,
-                handler: (event) => this.apply(event.data as PanelAgentState),
+                handler: (event) => {
+                    this.eventSeen = true;
+                    this.apply(event.data as PanelAgentState);
+                },
             });
         } catch (e) {
             // The preview server has no event bus.
             console.log("browser agents: no event bus", e);
             return;
         }
-        fireAndForget(async () => {
-            try {
-                const state: PanelAgentState = await TabRpcClient.wshRpcCall(
-                    BrowserAgentStateCommand,
-                    { blockid: this.blockId },
-                    { route: BrowserAgentRouteId, timeout: SnapshotTimeoutMs }
-                );
+        fireAndForget(() => this.loadSnapshot(false));
+    }
+
+    // force: after a failed Stop or Give back, the bar shows wavesrv's state again, not what the click assumed.
+    async loadSnapshot(force: boolean): Promise<void> {
+        try {
+            const state: PanelAgentState = await TabRpcClient.wshRpcCall(
+                BrowserAgentStateCommand,
+                { blockid: this.blockId },
+                { route: BrowserAgentRouteId, timeout: SnapshotTimeoutMs }
+            );
+            if (force || !this.eventSeen) {
                 this.apply(state);
-            } catch {
-                // wavesrv still starting: the events bring the state.
             }
-        });
+        } catch {
+            // wavesrv still starting: the events bring the state.
+        }
     }
 
     apply(state: PanelAgentState): void {
@@ -180,6 +189,7 @@ export class BrowserAgentModel {
                 );
             } catch (e) {
                 console.log("browser agents: control failed", action, e);
+                await this.loadSnapshot(true);
             }
         });
     }

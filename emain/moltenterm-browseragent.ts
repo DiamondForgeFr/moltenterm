@@ -41,6 +41,8 @@ type Registration = { blockId: string; browserTabId: string; webContentsId: numb
 
 const registry = new Map<string, Registration>();
 const controlled = new Set<string>();
+// Tabs the user took over: refused here at once, before wavesrv hears of it, until control is granted again.
+const paused = new Set<string>();
 const watchers = new Map<number, () => void>();
 const syntheticDepth = new Map<number, number>();
 const syntheticUntil = new Map<number, number>();
@@ -73,6 +75,7 @@ function noteUserInput(reg: Registration): void {
         return;
     }
     lastReport.set(key, now);
+    paused.add(key);
     reportTakeover(reg.blockId, reg.browserTabId);
 }
 
@@ -172,6 +175,7 @@ export function setBrowserAgentControl(data: ControlData): void {
         return;
     }
     const key = webviewKey(data.blockid, data.browsertabid);
+    paused.delete(key);
     if (data.controlled) {
         controlled.add(key);
     } else {
@@ -196,6 +200,9 @@ export async function runBrowserAgentCdp(data: CdpCallData): Promise<any> {
     const key = webviewKey(data.blockid, data.browsertabid);
     if (!controlled.has(key)) {
         throw new Error("This tab is not under agent control");
+    }
+    if (paused.has(key)) {
+        throw new Error("The user has taken over");
     }
     const reg = registry.get(key);
     const wc = reg ? liveContents(reg.webContentsId) : null;

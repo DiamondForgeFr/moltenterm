@@ -70,6 +70,8 @@ type inMessage struct {
 	Id      json.RawMessage `json:"id,omitempty"`
 	Method  string          `json:"method"`
 	Params  json.RawMessage `json:"params,omitempty"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   json.RawMessage `json:"error,omitempty"`
 }
 
 type outResponse struct {
@@ -99,8 +101,10 @@ type Server struct {
 
 	writeLock sync.Mutex
 
-	lock      sync.Mutex
-	started   bool
+	lock    sync.Mutex
+	started bool
+	// closing: stdin closed, so nothing more is written (the client is gone, and stdout may be too).
+	closing   bool
 	inflight  map[string]*inflightCall
 	callGroup sync.WaitGroup
 }
@@ -119,6 +123,7 @@ func MakeServer(backend Backend, in io.Reader, out io.Writer, version string) *S
 func (s *Server) Serve(ctx context.Context) error {
 	ctx, cancelAll := context.WithCancel(ctx)
 	defer func() {
+		s.setClosing()
 		cancelAll()
 		s.callGroup.Wait()
 		s.backend.Close()
@@ -176,6 +181,10 @@ func (s *Server) handleLine(ctx context.Context, line []byte) {
 		s.writeError(nil, CodeParseError, "parse error")
 		return
 	}
+	if msg.Method == "" && (len(msg.Result) > 0 || len(msg.Error) > 0) {
+		// A response: this server sends no requests, and a response is never answered.
+		return
+	}
 	isRequest := len(msg.Id) > 0 && string(msg.Id) != "null"
 	if msg.JsonRpc != JsonRpcVersion || msg.Method == "" {
 		if isRequest {
@@ -213,6 +222,18 @@ func (s *Server) handleNotification(msg inMessage) {
 		return
 	}
 	s.cancelCall(string(params.RequestId))
+}
+
+func (s *Server) setClosing() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.closing = true
+}
+
+func (s *Server) isClosing() bool {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.closing
 }
 
 func (s *Server) cancelCall(key string) {
@@ -355,6 +376,9 @@ func (s *Server) writeError(id json.RawMessage, code int, message string) {
 }
 
 func (s *Server) write(resp outResponse) {
+	if s.isClosing() {
+		return
+	}
 	out, err := json.Marshal(resp)
 	if err != nil {
 		out, _ = json.Marshal(outResponse{JsonRpc: JsonRpcVersion, Id: resp.Id, Error: &rpcError{Code: CodeInternalError, Message: "internal error"}})

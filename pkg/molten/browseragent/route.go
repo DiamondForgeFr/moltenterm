@@ -21,8 +21,10 @@ import (
 )
 
 // The sessions answer on a leaf of wavesrv's router with plain command names (the pattern of
-// pkg/molten/browsers/route.go): nothing is declared in pkg/wshrpc. The router stamps each request with the route of
-// the link it came from, which is what binds a session to its MCP server and keeps terminals off the control commands.
+// pkg/molten/browsers/route.go): nothing is declared in pkg/wshrpc. The router stamps a leaf's requests with the
+// leaf's route, but a router link (an SSH connserver, the windows' websocket) forwards whatever source its sender
+// wrote: a source is believed only when the router maps it to the link the request came in on. That binds a session
+// to its MCP server's connection and keeps terminals and remote hosts off the control commands.
 
 const (
 	routeQueueSize        = 64
@@ -34,6 +36,8 @@ const (
 type routeLink struct {
 	manager *Manager
 	output  chan []byte
+	// sourceOnLink tells whether the router routes source through the link a request came in on.
+	sourceOnLink func(source string, ingressLinkId baseds.LinkId) bool
 
 	lock    sync.Mutex
 	pending map[string]context.CancelFunc
@@ -62,8 +66,13 @@ func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debu
 	if req.Command == "" {
 		return true
 	}
-	go l.answer(req)
+	// Not here: the router calls SendRpcMessage with its lock held, and checking the source takes it.
+	go l.answer(req, ingressLinkId)
 	return true
+}
+
+func sourceOnIngressLink(source string, ingressLinkId baseds.LinkId) bool {
+	return source != "" && ingressLinkId != baseds.NoLinkId && wshutil.DefaultRouter.GetLinkIdForRoute(source) == ingressLinkId
 }
 
 func (l *routeLink) track(reqId string, cancel context.CancelFunc) {
@@ -86,7 +95,7 @@ func (l *routeLink) cancel(reqId string) {
 	}
 }
 
-func (l *routeLink) answer(req wshutil.RpcMessage) {
+func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) {
 	defer func() {
 		panichandler.PanicHandler("molten:browseragent:route", recover())
 	}()
@@ -104,7 +113,11 @@ func (l *routeLink) answer(req wshutil.RpcMessage) {
 		defer l.untrack(req.ReqId)
 	}
 	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := l.handle(ctx, req.Command, req.Source, req.Data)
+	source := req.Source
+	if !l.sourceOnLink(source, ingressLinkId) {
+		source = ""
+	}
+	data, err := l.handle(ctx, req.Command, source, req.Data)
 	if req.ReqId == "" {
 		return
 	}
@@ -170,7 +183,12 @@ var startOnce sync.Once
 func Start() {
 	startOnce.Do(func() {
 		manager := MakeManager(MakeWaveEnv())
-		link := &routeLink{manager: manager, output: make(chan []byte, routeQueueSize), pending: make(map[string]context.CancelFunc)}
+		link := &routeLink{
+			manager:      manager,
+			output:       make(chan []byte, routeQueueSize),
+			sourceOnLink: sourceOnIngressLink,
+			pending:      make(map[string]context.CancelFunc),
+		}
 		if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, mcpbrowser.RouteId); err != nil {
 			log.Printf("molten: browser agent route not started: %v\n", err)
 			return
