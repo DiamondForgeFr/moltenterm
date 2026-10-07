@@ -27,8 +27,8 @@ import (
 const (
 	moltenMcpHelloTimeoutMs = 5000
 	moltenMcpByeTimeoutMs   = 2000
-	// Longer than any tool of this version; later tools that wait for the user (site permission, 120 s) raise it.
-	moltenMcpCallTimeoutMs = 150000
+	// Longer than wavesrv's own limit on a call (a 2-minute site permission wait, then a page load).
+	moltenMcpCallTimeoutMs = 200000
 )
 
 var moltenMcpCmd = &cobra.Command{

@@ -138,6 +138,8 @@ type SettingsType struct {
 	BrowserInstalled string            `json:"browser:installed,omitempty" jsonschema_description:"The installed Chromium browser pages are handed off to: brave, chrome, edge, arc, vivaldi, opera, chromium, or the path of its app bundle (macOS) or desktop entry (Linux); empty uses the first one found"`
 	BrowserDefault   string            `json:"browser:default,omitempty" jsonschema_description:"Where web pages open by default: app (MoltenTerm's browser panel) installed (the installed browser) or a browser id"`
 	BrowserSites     map[string]string `json:"browser:sites,omitempty" jsonschema_description:"Per-site engine, host (subdomains included) to app, installed or a browser id"`
+	// MOLTENTERM-PATCH (#301): site permissions of the agents in the browser panel (FR-BRW-009, pkg/molten/browseragent).
+	BrowserAgentSites map[string]string `json:"browser:agentsites,omitempty" jsonschema_description:"Sites agents may use in the browser panel: a site (registrable domain, or host:port for localhost and IP addresses) to allow or block; set from the panel's permission bar, Block wins"`
 
 	AutoUpdateClear         bool    `json:"autoupdate:*,omitempty"`
 	AutoUpdateEnabled       bool    `json:"autoupdate:enabled,omitempty"`

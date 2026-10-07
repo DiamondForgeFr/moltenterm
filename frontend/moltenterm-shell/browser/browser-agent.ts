@@ -3,7 +3,8 @@
 
 // Agents in the browser panel (FR-BRW-008, DS-BRW-011): which tabs of this panel an agent controls, as wavesrv's
 // sessions publish it (pkg/molten/browseragent), and what the control bar shows. Stop, takeover and Give back go to
-// wavesrv, which cancels the agent's call in flight; the bar changes at once, without waiting for the answer.
+// wavesrv, which cancels the agent's call in flight; the bar changes at once, without waiting for the answer. The site
+// permission bar (FR-BRW-009, DS-BRW-013) asks before an agent uses a site; its answer goes to wavesrv the same way.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
@@ -16,16 +17,25 @@ export const BrowserAgentRouteId = "molten:browseragent";
 export const BrowserAgentControlCommand = "moltenbrowseragentcontrol";
 export const BrowserAgentStateCommand = "moltenbrowseragentstate";
 export const BrowserAgentStateEvent = "molten:browseragent";
+export const BrowserAgentAnswerCommand = "moltenbrowseragentanswer";
+export const BrowserAgentSiteCommand = "moltenbrowseragentsite";
 
 // must match TabStateActive, TabStateTakenOver and the Control* actions in pkg/molten/browseragent/env.go
 export const AgentStateActive = "active";
 export const AgentStateTakenOver = "takenover";
 export type AgentControlAction = "stop" | "takeover" | "giveback";
+// must match the Decision* constants in pkg/molten/browseragent/env.go
+export type PermissionDecision = "once" | "always" | "block" | "dismiss";
+// must match SiteAllow and SiteBlock in pkg/molten/browseragent/sites.go
+export type AgentSiteDecision = "allow" | "block";
 
 const ControlTimeoutMs = 5000;
 const SnapshotTimeoutMs = 5000;
 // A cue shows where the agent just acted, then fades out.
 export const ActionCueMs = 1500;
+
+// A site permission request waiting on a tab (must match PermissionPrompt in pkg/molten/browseragent/env.go).
+export type AgentPermission = { requestid: string; site: string };
 
 // Where an action happens, in the page's CSS pixels (FR-BRW-010's input tools fill it).
 export type AgentActionCue = { kind: string; x?: number; y?: number; width?: number; height?: number };
@@ -39,6 +49,7 @@ export type AgentTab = {
     action?: string;
     actionts?: number;
     cue?: AgentActionCue;
+    permission?: AgentPermission;
 };
 
 export type PanelAgentState = { blockid: string; tabs: AgentTab[] };
@@ -52,6 +63,16 @@ export type ControlBarView = {
     title: string;
     detail: string;
     buttons: ControlBarButton[];
+};
+
+export type PermissionBarButton = { label: string; decision: PermissionDecision; primary: boolean };
+
+export type PermissionBarView = {
+    requestId: string;
+    site: string;
+    title: string;
+    detail: string;
+    buttons: PermissionBarButton[];
 };
 
 export function readPanelAgentState(state: PanelAgentState): AgentTabs {
@@ -94,6 +115,97 @@ export function controlBarView(tab: AgentTab): ControlBarView {
         detail: tab.action ?? "",
         buttons: [{ label: "Stop", action: "stop", primary: false }],
     };
+}
+
+// The permission bar of a tab whose agent waits for the user's decision on a site, or null (DS-BRW-013). Allow once is
+// first so it is the first tab stop; Always for this site is the primary action.
+export function permissionBarView(tab: AgentTab): PermissionBarView {
+    if (tab?.permission?.requestid == null || !tab.permission.site || tab.state !== AgentStateActive) {
+        return null;
+    }
+    const site = tab.permission.site;
+    return {
+        requestId: tab.permission.requestid,
+        site,
+        title: `Let ${agentName(tab)} use ${site}?`,
+        detail: "It can read and act on this site's pages, with your sign-ins.",
+        buttons: [
+            { label: "Allow once", decision: "once", primary: false },
+            { label: "Always for this site", decision: "always", primary: true },
+            { label: "Block", decision: "block", primary: false },
+        ],
+    };
+}
+
+// The bar after the user answers, before wavesrv's event confirms it.
+export function applyAnswer(tabs: AgentTabs, browserTabId: string, requestId: string): AgentTabs {
+    const tab = tabs?.[browserTabId];
+    if (tab?.permission?.requestid !== requestId) {
+        return tabs;
+    }
+    const { permission: _answered, ...rest } = tab;
+    return { ...tabs, [browserTabId]: rest };
+}
+
+function hostOf(url: string): { host: string; hostname: string } {
+    try {
+        const u = new URL(url);
+        if ((u.protocol !== "http:" && u.protocol !== "https:") || !u.hostname) {
+            return null;
+        }
+        return { host: u.host.toLowerCase(), hostname: u.hostname.toLowerCase().replace(/\.$/, "") };
+    } catch {
+        return null;
+    }
+}
+
+// The stored agent decision that applies to a page, and the entry it comes from: the host with its port, the host,
+// then each parent domain; Block wins. Must match storedDecision in pkg/molten/browseragent/sites.go.
+export function agentSiteDecision(
+    sites: Record<string, string>,
+    url: string
+): { site: string; decision: AgentSiteDecision } {
+    const parsed = hostOf(url);
+    if (parsed == null || sites == null) {
+        return null;
+    }
+    const lower: Record<string, string> = {};
+    for (const [k, v] of Object.entries(sites)) {
+        if (typeof v === "string") {
+            lower[k.trim().toLowerCase()] = v.trim().toLowerCase();
+        }
+    }
+    const candidates: string[] = [];
+    if (parsed.host !== parsed.hostname) {
+        candidates.push(parsed.host);
+    }
+    for (let host = parsed.hostname; host; ) {
+        candidates.push(host);
+        const dot = host.indexOf(".");
+        if (dot < 0) {
+            break;
+        }
+        host = host.slice(dot + 1);
+    }
+    let allowed: string = null;
+    for (const candidate of candidates) {
+        if (lower[candidate] === "block") {
+            return { site: candidate, decision: "block" };
+        }
+        if (lower[candidate] === "allow" && allowed == null) {
+            allowed = candidate;
+        }
+    }
+    return allowed == null ? null : { site: allowed, decision: "allow" };
+}
+
+// Forget (or set) the agents' decision for a site, from the panel's site menu.
+export async function setAgentSite(site: string, decision: AgentSiteDecision | ""): Promise<void> {
+    await TabRpcClient.wshRpcCall(
+        BrowserAgentSiteCommand,
+        { site, decision },
+        { route: BrowserAgentRouteId, timeout: ControlTimeoutMs }
+    );
 }
 
 // What the bar shows right after a click, before wavesrv's event confirms it.
@@ -191,6 +303,23 @@ export class BrowserAgentModel {
                 );
             } catch (e) {
                 console.log("browser agents: control failed", action, e);
+                await this.loadSnapshot(true);
+            }
+        });
+    }
+
+    answer(browserTabId: string, requestId: string, decision: PermissionDecision): void {
+        this.stateVersion++;
+        globalStore.set(this.tabsAtom, applyAnswer(this.tabs(), browserTabId, requestId));
+        fireAndForget(async () => {
+            try {
+                await TabRpcClient.wshRpcCall(
+                    BrowserAgentAnswerCommand,
+                    { blockid: this.blockId, browsertabid: browserTabId, requestid: requestId, decision },
+                    { route: BrowserAgentRouteId, timeout: ControlTimeoutMs }
+                );
+            } catch (e) {
+                console.log("browser agents: answer failed", decision, e);
                 await this.loadSnapshot(true);
             }
         });

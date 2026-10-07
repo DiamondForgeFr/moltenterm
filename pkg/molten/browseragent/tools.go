@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -61,6 +62,16 @@ func (m *Manager) Call(ctx context.Context, source string, req mcpbrowser.CallRe
 		result, entry = m.tabsCreate(ctx, s, loc)
 	case mcpbrowser.ToolTabsClose:
 		result, entry = m.tabsClose(ctx, s, loc, req.Args)
+	case mcpbrowser.ToolNavigate:
+		result, entry = m.navigate(ctx, s, loc, req.Args)
+	case mcpbrowser.ToolReadPage:
+		result, entry = m.readPage(ctx, s, loc, req.Args)
+	case mcpbrowser.ToolGetPageText:
+		result, entry = m.getPageText(ctx, s, loc, req.Args)
+	case mcpbrowser.ToolFind:
+		result, entry = m.findElements(ctx, s, loc, req.Args)
+	case mcpbrowser.ToolComputer:
+		result, entry = m.computer(ctx, s, loc, req.Args)
 	default:
 		result = mcpbrowser.ErrorResult(mcpbrowser.ErrUnknownTool)
 	}
@@ -82,6 +93,10 @@ func resultSentence(result mcpbrowser.CallResult) string {
 		mcpbrowser.ErrNotInMoltenTerm, mcpbrowser.ErrNotYourTab, mcpbrowser.ErrTakenOver, mcpbrowser.ErrStopped,
 		mcpbrowser.ErrOtherEngine, mcpbrowser.ErrTabClosed, mcpbrowser.ErrNotOpenedByYou, mcpbrowser.ErrSessionEnded,
 		mcpbrowser.ErrTabIdRequired, mcpbrowser.ErrUnknownTool, mcpbrowser.ErrPanelUnreadable, mcpbrowser.ErrTooManyTabs,
+		mcpbrowser.ErrSiteBlocked, mcpbrowser.ErrSiteNotAllowed, mcpbrowser.ErrPermissionTimeout, mcpbrowser.ErrSchemeRefused,
+		mcpbrowser.ErrUrlRequired, mcpbrowser.ErrNoHistory, mcpbrowser.ErrSiteChanged, mcpbrowser.ErrUnreadablePage,
+		mcpbrowser.ErrRefUnknown, mcpbrowser.ErrQueryRequired, mcpbrowser.ErrActionRequired, mcpbrowser.ErrRegionRequired,
+		mcpbrowser.ErrDurationRequired, mcpbrowser.ErrPageFailed, mcpbrowser.ErrCaptureFailed, mcpbrowser.ErrNavigationFailed,
 	}
 	if slices.Contains(fixed, result.Content[0].Text) {
 		return result.Content[0].Text
@@ -249,27 +264,49 @@ func (m *Manager) tabsContext(ctx context.Context, s sessionInfo, loc BlockLocat
 }
 
 // readTabs lists the session's visible tabs with their page: live from the webview when the agent may act on the
-// tab, else as the panel last saved it.
+// tab, else as the panel last saved it. The tabs are read in parallel, so a slow page does not delay the others.
 func (m *Manager) readTabs(ctx context.Context, s sessionInfo, loc BlockLocation) ([]tabEntry, []tabPage) {
+	infos := m.listTabs(s.id)
+	type read struct {
+		ok    bool
+		entry tabEntry
+		page  tabPage
+	}
+	reads := make([]read, len(infos))
+	var wg sync.WaitGroup
+	for i, info := range infos {
+		wg.Add(1)
+		go func(i int, info tabInfo) {
+			defer wg.Done()
+			resolved, errText := m.resolveTab(ctx, s, loc, info.id, false)
+			if errText != "" {
+				return
+			}
+			page := resolved.page
+			if resolved.info.state == TabStateActive && resolved.info.confirmed {
+				if live, ok := m.livePage(ctx, s, info.id, resolved.info.key); ok {
+					page = live
+				}
+			}
+			owner := ownerAgent
+			if info.origin == OriginShared {
+				owner = ownerUser
+			}
+			reads[i] = read{
+				ok:    true,
+				entry: tabEntry{TabId: info.id, Owner: owner, State: resolved.info.state, Site: siteOf(page.Url)},
+				page:  tabPage{TabId: info.id, Title: page.Title, Url: page.Url},
+			}
+		}(i, info)
+	}
+	wg.Wait()
 	var entries []tabEntry
 	var pages []tabPage
-	for _, info := range m.listTabs(s.id) {
-		resolved, errText := m.resolveTab(ctx, s, loc, info.id, false)
-		if errText != "" {
-			continue
+	for _, r := range reads {
+		if r.ok {
+			entries = append(entries, r.entry)
+			pages = append(pages, r.page)
 		}
-		page := resolved.page
-		if resolved.info.state == TabStateActive && resolved.info.confirmed {
-			if live, ok := m.livePage(ctx, s, info.id, resolved.info.key); ok {
-				page = live
-			}
-		}
-		owner := ownerAgent
-		if info.origin == OriginShared {
-			owner = ownerUser
-		}
-		entries = append(entries, tabEntry{TabId: info.id, Owner: owner, State: resolved.info.state, Site: siteOf(page.Url)})
-		pages = append(pages, tabPage{TabId: info.id, Title: page.Title, Url: page.Url})
 	}
 	return entries, pages
 }

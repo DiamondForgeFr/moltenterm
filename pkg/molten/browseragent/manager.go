@@ -45,6 +45,8 @@ type agentTab struct {
 	createdAt time.Time
 	confirmed bool
 	calls     map[int64]context.CancelFunc
+	// refs maps read_page and find's element refs to the page's DOM nodes, for the document they were read from.
+	refs *refTable
 }
 
 type session struct {
@@ -53,6 +55,8 @@ type session struct {
 	blockId   string
 	agentName string
 	tabs      map[int64]*agentTab
+	// allowedOnce holds the sites the user allowed for this session only (Allow once).
+	allowedOnce map[string]bool
 }
 
 // sessionInfo is a copy of a session's identity, read outside the lock.
@@ -77,11 +81,16 @@ type Manager struct {
 	now  func() time.Time
 	logf func(format string, args ...any)
 
+	permissionTimeout time.Duration
+	permissionPoll    time.Duration
+
 	lock       sync.Mutex
 	sessions   map[string]*session
 	owners     map[TabKey]string
 	nextTabId  int64
 	nextCallId int64
+	requests   map[string]*permissionRequest
+	recent     map[string]recentDecision
 }
 
 func MakeManager(env Env) *Manager {
@@ -91,6 +100,11 @@ func MakeManager(env Env) *Manager {
 		logf:     log.Printf,
 		sessions: make(map[string]*session),
 		owners:   make(map[TabKey]string),
+		requests: make(map[string]*permissionRequest),
+		recent:   make(map[string]recentDecision),
+
+		permissionTimeout: defaultPermissionTimeout,
+		permissionPoll:    defaultPermissionPoll,
 	}
 }
 
@@ -138,11 +152,12 @@ func (m *Manager) Hello(ctx context.Context, source string, req mcpbrowser.Hello
 		return mcpbrowser.HelloResult{}, errors.New(mcpbrowser.ErrRemotePane)
 	}
 	s := &session{
-		id:        uuid.NewString(),
-		source:    source,
-		blockId:   blockId,
-		agentName: agentDisplayName(m.env.AgentName(blockId), req.ClientName),
-		tabs:      make(map[int64]*agentTab),
+		id:          uuid.NewString(),
+		source:      source,
+		blockId:     blockId,
+		agentName:   agentDisplayName(m.env.AgentName(blockId), req.ClientName),
+		tabs:        make(map[int64]*agentTab),
+		allowedOnce: make(map[string]bool),
 	}
 	m.addSession(s)
 	m.logf("%s session=%s agent=%q started\n", logPrefix, shortId(s.id), s.agentName)
@@ -208,6 +223,7 @@ func (m *Manager) removeSessions(match func(s *session) bool) ([]TabKey, []sessi
 		if !match(s) {
 			continue
 		}
+		m.endRequestsLocked(s.id, 0)
 		for _, t := range s.tabs {
 			cancelCallsLocked(t)
 			if m.owners[t.key] == s.id {
@@ -288,6 +304,7 @@ func (m *Manager) applyControl(key TabKey, action string) (bool, sessionInfo, bo
 	switch action {
 	case ControlStop:
 		cancelCallsLocked(t)
+		m.endRequestsLocked(s.id, t.id)
 		t.state = TabStateStopped
 		delete(m.owners, key)
 		return true, info, true
@@ -348,6 +365,7 @@ func (m *Manager) panelState(panelId string) PanelState {
 			State:        t.state,
 			Action:       t.action,
 			ActionTs:     t.actionTs,
+			Permission:   m.pendingPromptLocked(key),
 		})
 	}
 	sort.Slice(rtn.Tabs, func(i, j int) bool { return rtn.Tabs[i].BrowserTabId < rtn.Tabs[j].BrowserTabId })
@@ -477,6 +495,7 @@ func (m *Manager) removeTab(sessionId string, tabId int64) (TabKey, bool) {
 		return TabKey{}, false
 	}
 	cancelCallsLocked(t)
+	m.endRequestsLocked(sessionId, tabId)
 	delete(s.tabs, tabId)
 	if m.owners[t.key] != sessionId {
 		return t.key, false
@@ -552,4 +571,23 @@ func (m *Manager) runOnTab(ctx context.Context, sessionId string, tabId int64, f
 		}
 	}
 	return "", err
+}
+
+// noteAction shows what the agent does on a tab in its control bar (NFR-BRW-007): fixed words and a host, never page
+// text.
+func (m *Manager) noteAction(sessionId string, tabId int64, action string) {
+	panelId := m.setAction(sessionId, tabId, action)
+	m.publishPanel(panelId)
+}
+
+func (m *Manager) setAction(sessionId string, tabId int64, action string) string {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	t := m.sessions[sessionId].tabOrNil(tabId)
+	if t == nil {
+		return ""
+	}
+	t.action = action
+	t.actionTs = m.now().UnixMilli()
+	return t.key.PanelId
 }

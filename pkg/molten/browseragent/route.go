@@ -27,9 +27,10 @@ import (
 // to its MCP server's connection and keeps terminals and remote hosts off the control commands.
 
 const (
-	routeQueueSize        = 64
-	helloTimeout          = 10 * time.Second
-	callTimeout           = 150 * time.Second
+	routeQueueSize = 64
+	helloTimeout   = 10 * time.Second
+	// A call may wait 2 minutes for the user's site permission, then load a page for up to 30 seconds.
+	callTimeout           = 190 * time.Second
 	defaultControlTimeout = 5 * time.Second
 )
 
@@ -166,6 +167,18 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return l.manager.PanelSnapshot(source, req.BlockId)
+	case mcpbrowser.AnswerCommand:
+		var req AnswerRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return nil, l.manager.Answer(source, req)
+	case mcpbrowser.SiteCommand:
+		var req SiteRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return nil, l.manager.SetSite(source, req)
 	}
 	return nil, fmt.Errorf("unknown browser agent command %q", command)
 }
