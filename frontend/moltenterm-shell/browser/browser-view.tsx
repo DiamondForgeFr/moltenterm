@@ -47,6 +47,7 @@ import {
     activateTab,
     addTab,
     BrowserAskMetaKey,
+    BrowserKeepFocusMetaKey,
     browserMeta,
     BrowserNoticeMetaKey,
     BrowserState,
@@ -141,12 +142,12 @@ export class BrowserViewModel implements ViewModel {
         const tab = this.findTab(this.state().activeId);
         const site = siteOf(tab?.url);
         if (site != null) {
-            this.choices.ask(tab.id, tab.url, site);
+            this.choices.ask(tab.id, tab.url, site, meta[BrowserKeepFocusMetaKey] === true);
         }
         fireAndForget(() =>
             RpcApi.SetMetaCommand(TabRpcClient, {
                 oref: makeORef("block", this.blockId),
-                meta: { [BrowserAskMetaKey]: null } as MetaType,
+                meta: { [BrowserAskMetaKey]: null, [BrowserKeepFocusMetaKey]: null } as MetaType,
             })
         );
     }
@@ -482,7 +483,7 @@ export class BrowserViewModel implements ViewModel {
 
     // Pages wsh queues for this panel (BrowserOpenKeyPrefix), opened as tabs in queue order. Only the entries read
     // here leave the queue, so a page wsh adds meanwhile is kept; ids already opened are skipped until their removal
-    // comes back.
+    // comes back. A page from BROWSER (FR-BRW-007) may ask for its site's engine and leaves the focus where it is.
     handleOpenRequests(meta: Record<string, any>): void {
         const requests = readOpenRequests(meta);
         if (requests.length === 0) {
@@ -496,6 +497,10 @@ export class BrowserViewModel implements ViewModel {
                 continue;
             }
             this.newTab(request.url);
+            const site = request.ask ? siteOf(request.url) : null;
+            if (site != null) {
+                this.choices.ask(this.state().activeId, request.url, site, request.keepFocus);
+            }
         }
         fireAndForget(() =>
             RpcApi.SetMetaCommand(TabRpcClient, {
@@ -503,7 +508,7 @@ export class BrowserViewModel implements ViewModel {
                 meta: consumeOpenRequestsMeta(requests) as MetaType,
             })
         );
-        if (fresh.length > 0) {
+        if (fresh.some((r) => !r.keepFocus)) {
             this.focusPanel();
         }
     }

@@ -5,7 +5,8 @@
 // browser panel the user last focused in the current tab, and only gets a panel of its own when the tab has none.
 // wsh does the same from the backend (cmd/wsh/cmd/wshcmd-molten-browser.go) through a queue in the block meta (BrowserOpenKeyPrefix).
 // Interface links reach it through Wave's openLink (FR-BRW-006, DS-BRW-006); the routing never activates another tab or
-// workspace. The first link to a site without an engine opens here at once and asks (DS-BRW-007); wsh never asks.
+// workspace. The first link to a site without an engine opens here at once and asks (DS-BRW-007); `molten open` never
+// asks, a page a terminal program opens through BROWSER (molten-open) does (DS-BRW-022).
 
 import { atoms, createBlock, getBlockComponentModel, getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";

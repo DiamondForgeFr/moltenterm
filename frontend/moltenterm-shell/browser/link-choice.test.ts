@@ -121,6 +121,14 @@ describe("first-link engine choice (DS-BRW-007)", () => {
         expect(choiceOnNavigate(null)).toBeNull();
     });
 
+    it("leaves the focus in the terminal for a page opened through BROWSER (FR-BRW-007)", () => {
+        expect(makeEngineChoice("https://github.com/a", "github.com").keepFocus).toBeUndefined();
+        const choice = makeEngineChoice("https://github.com/a", "github.com", true);
+        expect(choice.keepFocus).toBe(true);
+        expect(choiceOnNavigate(choice)).toEqual({ ...choice, loaded: true });
+        expect(choiceBarVisible(choice, undefined, {}, TwoBrowsers)).toBe(true);
+    });
+
     it("shows the bar only with an installed browser and while the site still has no choice", () => {
         const choice = makeEngineChoice("https://github.com/a", "github.com");
         expect(choiceBarVisible(choice, undefined, {}, TwoBrowsers)).toBe(true);

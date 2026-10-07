@@ -111,6 +111,9 @@ func StartLocalShellJob(ctx context.Context, logCtx context.Context, termSize wa
 	if pluginDirs, set := moltenAgentPartsEnv(); set {
 		env[agentparts.PluginDirsVarName] = pluginDirs
 	}
+	if browser := moltenBrowserEnv(); browser != "" {
+		env[shellutil.BrowserVarName] = browser
+	}
 	env[localJobCwdVarName] = cwd
 	env[LocalJobProtocolVarName] = strconv.Itoa(LocalJobProtocol)
 	if termSize.Rows <= 0 || termSize.Cols <= 0 {

@@ -43,8 +43,8 @@ export class BrowserChoiceModel {
         globalStore.set(this.choicesAtom, { ...all, [tabId]: next });
     }
 
-    ask(tabId: string, url: string, site: string): void {
-        this.set(tabId, makeEngineChoice(url, site));
+    ask(tabId: string, url: string, site: string, keepFocus?: boolean): void {
+        this.set(tabId, makeEngineChoice(url, site, keepFocus));
     }
 
     noteNavigation(tabId: string): void {
@@ -89,11 +89,12 @@ export function EngineChoiceBar({ choices, tabId, list, onStay, onHandOff, onDis
     const sites = useAtomValue(getSettingsKeyAtom("browser:sites"));
     const choice = all[tabId];
     const visible = choiceBarVisible(choice, defaultEngine, sites, list);
+    const keepFocus = choice?.keepFocus === true;
     useEffect(() => {
-        if (visible) {
+        if (visible && !keepFocus) {
             choices.primaryRef.current?.focus();
         }
-    }, [choices, visible, tabId]);
+    }, [choices, visible, tabId, keepFocus]);
     if (!visible) {
         return null;
     }

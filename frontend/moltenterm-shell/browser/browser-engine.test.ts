@@ -127,6 +127,19 @@ describe("handed-off entries in the tab strip", () => {
         ]);
     });
 
+    it("read the ask and keep-focus flags of a page a terminal program opened through BROWSER (FR-BRW-007)", () => {
+        const meta = {
+            "molten:browser:open:01": { url: "https://a.dev", ask: true, keepfocus: true },
+            "molten:browser:open:02": { url: "https://b.dev", keepfocus: true },
+            "molten:browser:open:03": { url: "https://c.dev", ask: "yes", keepfocus: 1 },
+        };
+        expect(readOpenRequests(meta)).toEqual([
+            { id: "01", url: "https://a.dev", ask: true, keepFocus: true },
+            { id: "02", url: "https://b.dev", keepFocus: true },
+            { id: "03", url: "https://c.dev" },
+        ]);
+    });
+
     it("carry a fallback notice into a new panel", () => {
         expect(browserBlockDef("https://a.dev", "Brave is not installed.").meta[BrowserNoticeMetaKey]).toBe(
             "Brave is not installed."
