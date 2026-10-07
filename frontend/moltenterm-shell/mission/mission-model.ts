@@ -331,13 +331,40 @@ export function logTail(text: string, lines: number): string[] {
 
 export type RunLogMode = "auto" | "full" | "hidden";
 
-// "auto" shows the last lines of a run that is running or did not succeed; "hidden" is the user's choice until the
-// next run, so a new failure is never hidden
-export function runLogVisible(run: RunRecord, mode: RunLogMode): boolean {
+// A failure left alone for this long is no longer an alarm.
+export const StaleRunMs = 24 * 60 * 60 * 1000;
+
+// A run that did not succeed is stale when a later run of the same step succeeded, or when it ended long ago: the
+// step is then shown quiet, its log one click away.
+export function runStale(run: RunRecord, runs: readonly RunRecord[], now: number): boolean {
+    if (run == null || run.state === "running" || run.state === "success") {
+        return false;
+    }
+    if (
+        (runs ?? []).some(
+            (r) =>
+                r.kind === run.kind && r.stepid === run.stepid && r.state === "success" && r.startedat > run.startedat
+        )
+    ) {
+        return true;
+    }
+    return now - (run.finishedat || run.startedat) > StaleRunMs;
+}
+
+// "auto" shows the last lines of a run that is running or did not succeed, unless the user hid it (kept with the run
+// record: `closed`) or it is stale; "hidden" is the choice made on this screen. A new run is a new record, so a new
+// failure is never hidden.
+export function runLogVisible(run: RunRecord, mode: RunLogMode, stale?: boolean): boolean {
     if (run == null || mode === "hidden") {
         return false;
     }
-    return mode === "full" || run.state !== "success";
+    if (mode === "full") {
+        return true;
+    }
+    if (run.state === "running") {
+        return true;
+    }
+    return run.state !== "success" && !run.closed && !stale;
 }
 
 export function formatElapsed(ms: number): string {

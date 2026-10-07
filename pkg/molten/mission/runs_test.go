@@ -174,6 +174,27 @@ func TestCloseFinishedRun(t *testing.T) {
 	}
 }
 
+func TestClosedFailureSurvivesRestart(t *testing.T) {
+	r, dir := makeRunsFixture(t, `{"id":"bad","run":"exit 3"}`)
+	first := waitRun(t, r, dir, trustAndStart(t, r, dir, "bad").Id)
+	if first.Closed {
+		t.Fatalf("a finished run is not closed until the user closes it: %+v", first)
+	}
+	if err := r.Close(dir, first.Id); err != nil {
+		t.Fatal(err)
+	}
+	restarted := MakeRuns(r.baseDir, r.trust, nil)
+	restarted.git = plainRunner
+	runs := restarted.List(dir)
+	if len(runs) != 1 || !runs[0].Closed || runs[0].State != RunStateFailure {
+		t.Fatalf("the closed flag is stored with the run: %+v", runs)
+	}
+	second := waitRun(t, restarted, dir, trustAndStart(t, restarted, dir, "bad").Id)
+	if second.Closed || second.Id == first.Id {
+		t.Fatalf("a new run of the same step starts open: %+v", second)
+	}
+}
+
 func TestRunLostAfterRestart(t *testing.T) {
 	r, dir := makeRunsFixture(t, `{"id":"gold","run":"true"}`)
 	runDir := filepath.Join(r.projectDir(dir), "20260101-000000-aaaaaa")

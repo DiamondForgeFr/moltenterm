@@ -8,8 +8,8 @@ import { cn, fireAndForget } from "@/util/util";
 import { useState } from "react";
 import { MoltenWave } from "../molten-button";
 import { BlockHeader } from "./cicd-panels";
-import { missionCancel } from "./mission-client";
-import { logTail, PipelineDef, RunLogMode, runLogVisible, RunRecord } from "./mission-model";
+import { missionCancel, missionClose } from "./mission-client";
+import { logTail, PipelineDef, RunLogMode, runLogVisible, RunRecord, runStale } from "./mission-model";
 import { RunStateBadge, useRunLog, useStartRun } from "./runs-view";
 import { timeAgo } from "./time-format";
 
@@ -44,12 +44,14 @@ function lastRun(runs: RunRecord[], stepId: string): RunRecord {
 function StepRow({
     step,
     last,
+    runs,
     busy,
     onRun,
     stacked,
 }: {
     step: { id: string; title: string };
     last: RunRecord;
+    runs: RunRecord[];
     busy: boolean;
     onRun: () => void;
     stacked?: boolean;
@@ -57,15 +59,21 @@ function StepRow({
     const [logMode, setLogMode] = useState<RunLogMode>("auto");
     const running = last?.state === "running";
     const full = logMode === "full";
-    const showLog = runLogVisible(last, logMode);
+    const showLog = runLogVisible(last, logMode, runStale(last, runs, Date.now()));
     const when = last ? timeAgo(new Date(last.startedat).toISOString()) : "";
+    const hide = () => {
+        setLogMode("hidden");
+        if (last.state !== "running") {
+            fireAndForget(() => missionClose(last.dir, last.id));
+        }
+    };
     const logButtons = last ? (
         <>
             <button type="button" className={PlainButton} onClick={() => setLogMode(full ? "hidden" : "full")}>
                 {full ? "Less" : "Log"}
             </button>
             {showLog && !full ? (
-                <button type="button" className={PlainButton} onClick={() => setLogMode("hidden")}>
+                <button type="button" className={PlainButton} onClick={hide}>
                     Hide
                 </button>
             ) : null}
@@ -161,6 +169,7 @@ export function AdapterSteps({
                         key={`${step.id}:${lastRun(runs, step.id)?.id ?? ""}`}
                         step={step}
                         last={lastRun(runs, step.id)}
+                        runs={runs}
                         busy={anyRunning}
                         onRun={() => start("step", step.id)}
                         stacked={bare}
