@@ -24,6 +24,18 @@ Early development. MoltenTerm currently builds on **Wave Terminal v0.14.5** with
 services operated by the Wave project, and openly licensed assets. The mod system described in the manifesto is the
 next milestone.
 
+## Install
+
+Release candidates and releases are on the [releases page](https://github.com/DiamondForgeFr/moltenterm/releases),
+for macOS (Apple Silicon and Intel) and Linux (x64 and arm64, AppImage and .deb).
+
+- **macOS**: open the `.dmg` and drag MoltenTerm to Applications. The builds are not signed with an Apple Developer ID
+  yet, so macOS refuses to open them the first time: right-click MoltenTerm in Applications and choose **Open**, or
+  run `xattr -dr com.apple.quarantine /Applications/MoltenTerm.app`.
+- **Linux**: make the `.AppImage` executable and run it, or install the `.deb` with `sudo apt install ./<file>.deb`.
+
+`SHA256SUMS.txt` in each release lists the checksum of every file.
+
 ## Build from source
 
 Requirements: Go ≥ 1.25.6, [Task](https://taskfile.dev) v3, Node.js 22 with npm 10, and the Xcode Command Line Tools

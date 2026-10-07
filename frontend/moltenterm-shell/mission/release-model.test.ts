@@ -3,7 +3,15 @@
 
 import { describe, expect, it } from "vitest";
 import { RawTag } from "./mission-model";
-import { preparationSteps, releaseChoiceTag, releaseNote, releasePlan } from "./release-model";
+import {
+    MaxListedMilestoneIssues,
+    milestoneWarning,
+    preparationSteps,
+    releaseBaseOf,
+    releaseChoiceTag,
+    releaseNote,
+    releasePlan,
+} from "./release-model";
 import { releaseState } from "./versions";
 
 const tag = (name: string, date: string): RawTag => ({ name, date, sha: "c" + name, notes: null, notesInternal: null });
@@ -97,5 +105,39 @@ describe("Release menu (FR-MC-015)", () => {
         expect(releaseChoiceTag(plan, "public", "0.15.0")).toBeNull();
         expect(releaseChoiceTag(plan, "public", "1.0.0")).toBe("v1.0.0");
         expect(releaseChoiceTag(plan, "public", "")).toBeNull();
+    });
+});
+
+describe("the milestone a release ships", () => {
+    const rules = { tagprefix: "v", firstpublic: "1.0.0" };
+
+    it("reads the public version a tag leads to", () => {
+        expect(releaseBaseOf(rules, "v1.0.0-3")).toBe("1.0.0");
+        expect(releaseBaseOf(rules, "v1.2.0")).toBe("1.2.0");
+        expect(releaseBaseOf(rules, "v0.14.5")).toBeNull();
+        expect(releaseBaseOf(rules, null)).toBeNull();
+    });
+
+    it("lists open issues as a warning that never blocks", () => {
+        const issues = Array.from({ length: MaxListedMilestoneIssues + 2 }, (_, i) => ({
+            number: 40 + i,
+            title: `Issue ${i}`,
+            url: "",
+        }));
+        const warning = milestoneWarning("1.0.0", { number: 12, title: "1.0.0", url: "", opencount: 8, issues });
+        expect(warning.warn).toBe(true);
+        expect(warning.text).toContain("8 open issues");
+        expect(warning.text).toContain("can still go ahead");
+        expect(warning.issues).toHaveLength(MaxListedMilestoneIssues);
+        expect(warning.more).toBe(2);
+    });
+
+    it("says when nothing is left open, or when there is no milestone", () => {
+        const done = milestoneWarning("1.0.0", { number: 12, title: "1.0.0", url: "", opencount: 0, issues: [] });
+        expect(done.warn).toBe(false);
+        expect(done.text).toContain("no issue left open");
+        const none = milestoneWarning("1.1.0", null);
+        expect(none.warn).toBe(false);
+        expect(none.text).toBe("No open milestone for 1.1.0.");
     });
 });

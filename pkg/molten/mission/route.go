@@ -173,6 +173,12 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 			return nil, err
 		}
 		return l.runs.ReleaseFactsOf(req.Dir)
+	case ReleaseMilestoneCommand:
+		var req ReleaseMilestoneRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return ReleaseMilestoneOf(ExecRunner, req)
 	case ReleaseStepCommand:
 		var req ReleaseStepRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

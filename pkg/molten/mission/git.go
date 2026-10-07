@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
 
@@ -99,12 +100,8 @@ type GitSnapshot struct {
 	FirstPublic string `json:"firstpublic,omitempty"`
 }
 
-// ProjectBranches are the two long-lived branches: work is merged into the trunk, releases are cut from the release
-// branch. The same branch for both is a single-branch project.
-type ProjectBranches struct {
-	Trunk   string `json:"trunk"`
-	Release string `json:"release"`
-}
+// ProjectBranches are the two long-lived branches (molten.ProjectBranches).
+type ProjectBranches = molten.ProjectBranches
 
 func readJson(path string, target any) bool {
 	data, err := os.ReadFile(path)
@@ -114,31 +111,9 @@ func readJson(path string, target any) bool {
 	return json.Unmarshal(data, target) == nil
 }
 
-// ConfiguredBranches reads the branch names the project declares: `.molten/project.json` first, then
-// `.saasfoundry.json`. Empty names are left to the repository's defaults.
+// ConfiguredBranches reads the branch names the project declares (molten.ConfiguredBranches).
 func ConfiguredBranches(dir string) ProjectBranches {
-	var rtn ProjectBranches
-	var pipeline struct {
-		Branches ProjectBranches `json:"branches"`
-	}
-	if readJson(filepath.Join(dir, ".molten", "project.json"), &pipeline) {
-		rtn = pipeline.Branches
-	}
-	var sf struct {
-		MainBranch string `json:"mainBranch"`
-		Workflow   struct {
-			WorkingBranch string `json:"workingBranch"`
-		} `json:"workflow"`
-	}
-	if readJson(filepath.Join(dir, ".saasfoundry.json"), &sf) {
-		if rtn.Trunk == "" {
-			rtn.Trunk = sf.Workflow.WorkingBranch
-		}
-		if rtn.Release == "" {
-			rtn.Release = sf.MainBranch
-		}
-	}
-	return rtn
+	return molten.ConfiguredBranches(dir)
 }
 
 type gitReader struct {

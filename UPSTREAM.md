@@ -80,6 +80,28 @@ instead of waiting for them through `needs`, so its check is pending from the fi
 ready cannot satisfy the ruleset with its draft's result while the full run is still going. Run the same commands
 locally before pushing: the ledger check reads the working tree, so it also sees uncommitted changes.
 
+## Releases
+
+Releases are cut from Mission Control (Project tab › Release, then each step on its click in the release panel) or
+from a terminal with the same commands. The steps are `release.rc` and `release.public` in `.molten/project.json`; they
+call the generic `molten release` commands ("Generic release commands" in `pkg/molten/agentdocs/pipeline-format.md`).
+Release candidates are `v1.0.0-N` until the first public release, `v1.0.0` (FR-REL-001).
+
+| Phase   | Step                                               | What happens                                                                                                                                                                                                 |
+| ------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| prepare | `molten release promote --workflow ci.yml`         | `develop` reaches `main` (fast-forward, else a merge commit) once CI is green on its commit. Refused while `main` holds a release commit `develop` lacks: merge the previous sync-back first.                |
+| prepare | `molten release prepare <tag>`                     | In `../MoltenTerm-release` (a worktree on `origin/main`): `package.json` and `package-lock.json` bumped, `releases/<tag>.md` drafted from the commit subjects. Review and edit the notes before the cut.     |
+| cut     | `molten release finalize <tag>`                    | Commit `chore(release): <tag> (rc\|public)`, tag, `git push --atomic origin main <tag>` (as a repository admin: the `main` ruleset accepts pull requests only).                                              |
+| build   | `.github/workflows/release.yml`                    | On the tag: macOS arm64 and x64 (dmg, zip; ad-hoc signed, not notarized) and Linux x64 and arm64 (AppImage, deb), checked to come from `main` and carry the tag's version.                                   |
+| publish | release.yml, then `molten release close-milestone` | The GitHub release with every file, `SHA256SUMS.txt` and electron-builder's `latest*.yml`: a candidate is published as a prerelease, a public release waits as a draft. Its milestone closes once published. |
+| back    | `molten release sync-back <tag>`                   | The release commit cherry-picked onto `develop` in `chore/sync-back-<tag>`, with its pull request.                                                                                                           |
+
+The release needs nothing more on GitHub than the repository's own token (`contents: write` for the publish job only).
+Until an Apple Developer ID exists, macOS builds are ad-hoc signed and not notarized: the release text tells users to
+right-click › Open (or `xattr -dr com.apple.quarantine`). Developer ID signing and notarization are required before
+the first public release, 1.0.0, is published. The update feeds the app reads (per channel) are not published yet;
+Windows builds come later. Wave's `RELEASES.md` describes Wave's own process and does not apply.
+
 ## Remotes, once per clone
 
 ```bash
