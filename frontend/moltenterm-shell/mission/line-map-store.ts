@@ -10,8 +10,10 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { LocalBuild, localBuildsOf } from "./line-map-builds";
 import { lineMapDays, LineMapMetaKey, LineMapPrefs, withLineMapDays } from "./line-map-model";
+import { missionBuilds, useMissionRuns } from "./mission-client";
 
 const NoClient = atom(null) as Atom<Client>;
 
@@ -63,4 +65,29 @@ export function useLineMapDays(dir: string, full: boolean): [number, (days: numb
         [dir, full]
     );
     return [chosen?.dir === dir ? chosen.days : stored, set];
+}
+
+// The delivered local builds, read from their manifests (the ones the Build local menu reads) again when the project's
+// history changes or a run ends: a build delivered ends a run.
+export function useLocalBuilds(dir: string, historyKey: string): LocalBuild[] {
+    const [builds, setBuilds] = useState<{ dir: string; list: LocalBuild[] }>(null);
+    const runsKey = useMissionRuns(dir)
+        .map((r) => `${r.id}:${r.state}`)
+        .join(",");
+    useEffect(() => {
+        if (!dir) {
+            return;
+        }
+        let cancelled = false;
+        fireAndForget(async () => {
+            const facts = await missionBuilds(dir, false);
+            if (!cancelled) {
+                setBuilds({ dir, list: localBuildsOf(facts?.builds) });
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [dir, historyKey, runsKey]);
+    return builds?.dir === dir ? builds.list : null;
 }

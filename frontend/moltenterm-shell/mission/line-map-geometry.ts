@@ -6,6 +6,7 @@
 // develop the one below; branches hang under develop in lanes; stations sit on main with their labels slanted above
 // it. Pure and tested: the component only draws what this returns.
 
+import { BuildMarker } from "./line-map-builds";
 import { LineMapBranch, LineMapCommit, LineMapModel, LineMapStation } from "./line-map-model";
 import { formatDay } from "./time-format";
 
@@ -80,6 +81,20 @@ export type GeometryStation = {
     source: Point;
 };
 
+// A local build's pill: at its commit on a line (a thin tick down to it), or, when the commit is out of the window, a
+// chip at the left edge.
+export type GeometryBuild = {
+    marker: BuildMarker;
+    chip: boolean;
+    text: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    // The tick from the pill to the line it sits on; null for a chip, which sits on no line.
+    tick: { x: number; y1: number; y2: number };
+};
+
 export type LandedMark = {
     x: number;
     y: number;
@@ -152,6 +167,7 @@ export type LineMapGeometry = {
     landings: Point[];
     hidden: { branches: LineMapBranch[]; text: string; x: number; y: number };
     stations: GeometryStation[];
+    builds: GeometryBuild[];
     earlier: { x: number; y: number; count: number; label: { x: number; y: number; text: string } };
     // The work that landed on develop: one tick per commit, or one mark per day when the commits would crowd.
     landed: { mode: "commits" | "days"; marks: LandedMark[] };
@@ -278,6 +294,71 @@ function connectorPath(sx: number, x: number, devY: number, mainY: number): stri
     return `M ${sx} ${devY} C ${sx} ${devY - h} ${x} ${mainY + h} ${x} ${mainY}`;
 }
 
+const BuildPillHeight = 16;
+const BuildPillGap = 18;
+const BuildPillPad = 14;
+// Between a pill and the line it sits on, room for the tick.
+const BuildTickLength = 14;
+
+export function buildText(m: BuildMarker): string {
+    switch (m.place) {
+        case "develop":
+        case "main":
+            return m.label;
+        case "unknown":
+            return `${m.label} · commit not found`;
+    }
+    if (m.behind == null) {
+        return `${m.label} ← before the window`;
+    }
+    const count = `${m.behind}${m.behindCapped ? "+" : ""}`;
+    return `${m.label} ← ${count} commit${m.behind === 1 && !m.behindCapped ? "" : "s"} behind`;
+}
+
+// The builds' pills and chips. Those on develop (and the chips) stand above it, those on main under it; a pill that
+// would overlap one beside it goes one row further from its line.
+export function layoutBuilds(
+    markers: readonly BuildMarker[],
+    o: { xOf: (t: number) => number; left: number; mainY: number; devY: number; single: boolean }
+): GeometryBuild[] {
+    const drafts = markers.map((marker) => {
+        const text = buildText(marker);
+        const w = Math.round(text.length * Char10 + BuildPillPad);
+        const chip = marker.place !== "develop" && marker.place !== "main";
+        const x = Math.max(chip ? 0 : o.xOf(marker.at), o.left + 4 + w / 2);
+        return { marker, chip, text, x, w, onMain: marker.place === "main" };
+    });
+    const rows = new Map<boolean, number[]>();
+    return drafts
+        .sort((a, b) => a.x - b.x)
+        .map((d) => {
+            const ends = rows.get(d.onMain) ?? [];
+            const left = d.x - d.w / 2;
+            let row = ends.findIndex((end) => end + 6 <= left);
+            if (row < 0) {
+                row = ends.length;
+            }
+            ends[row] = left + d.w;
+            rows.set(d.onMain, ends);
+            // With no main above develop, the pills hang under it, where nothing is written.
+            const below = d.onMain || o.single;
+            const lineY = d.onMain ? o.mainY : o.devY;
+            const y = below
+                ? lineY + BuildTickLength + row * BuildPillGap
+                : lineY - BuildTickLength - BuildPillHeight - row * BuildPillGap;
+            return {
+                marker: d.marker,
+                chip: d.chip,
+                text: d.text,
+                x: left,
+                y,
+                w: d.w,
+                h: BuildPillHeight,
+                tick: d.chip ? null : { x: o.xOf(d.marker.at), y1: below ? y : y + BuildPillHeight, y2: lineY },
+            };
+        });
+}
+
 export function branchLabel(branch: LineMapBranch, full: boolean): string {
     const name = truncate(branch.name, full ? 32 : 24);
     if (branch.state !== "open") {
@@ -372,7 +453,12 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
     const hiddenOpen = hidden.filter((b) => b.state === "open");
     // The open branches past the cap are counted on the row under the last lane, beside the open tips at now.
     const hiddenY = laneY(laneCount);
-    const lowest = hiddenOpen.length ? hiddenY + 12 : laneCount ? laneY(laneCount - 1) + 26 : devY + 30;
+    const builds = layoutBuilds(model.builds ?? [], { xOf, left: Left, mainY, devY, single });
+    const underDevelop = builds.filter((b) => b.y > devY).map((b) => b.y + b.h);
+    const lowest = Math.max(
+        hiddenOpen.length ? hiddenY + 12 : laneCount ? laneY(laneCount - 1) + 26 : devY + 30,
+        ...underDevelop
+    );
     const tickBottom = Math.round(lowest + 8);
     const height = tickBottom + 22;
 
@@ -431,6 +517,7 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
               }
             : null,
         stations,
+        builds,
         earlier: earlierCount
             ? {
                   x: Left,
