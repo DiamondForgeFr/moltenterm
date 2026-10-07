@@ -65,8 +65,12 @@ func (r *Reader) RecvData(dataPk wshrpc.CommandStreamData) {
 		return
 	}
 
+	// MOLTENTERM-PATCH (#308): a resend after a stall may start before nextSeq (its ACK was lost) or overlap it.
 	if dataPk.Seq < r.nextSeq {
-		return
+		if !r.trimOverlapLocked(&dataPk) {
+			r.sendAckLocked(false, false, "")
+			return
+		}
 	}
 	if dataPk.Seq > r.nextSeq {
 		r.addOOOPacketLocked(dataPk)
@@ -96,6 +100,31 @@ func (r *Reader) recvDataOrderedLocked(dataPk wshrpc.CommandStreamData) {
 	}
 }
 
+// MOLTENTERM-PATCH (#308): trimOverlapLocked drops the bytes of a packet that start before nextSeq; false when nothing
+// new is left (an EOF still counts).
+func (r *Reader) trimOverlapLocked(dataPk *wshrpc.CommandStreamData) bool {
+	var data []byte
+	if dataPk.Data64 != "" {
+		decoded, err := base64.StdEncoding.DecodeString(dataPk.Data64)
+		if err != nil {
+			return false
+		}
+		data = decoded
+	}
+	end := dataPk.Seq + int64(len(data))
+	if end <= r.nextSeq {
+		if !dataPk.Eof || end != r.nextSeq {
+			return false
+		}
+		dataPk.Seq = r.nextSeq
+		dataPk.Data64 = ""
+		return true
+	}
+	dataPk.Data64 = base64.StdEncoding.EncodeToString(data[r.nextSeq-dataPk.Seq:])
+	dataPk.Seq = r.nextSeq
+	return true
+}
+
 func (r *Reader) addOOOPacketLocked(dataPk wshrpc.CommandStreamData) {
 	for _, pkt := range r.oooPackets {
 		if pkt.Seq == dataPk.Seq {
@@ -119,6 +148,13 @@ func (r *Reader) processOOOPacketsLocked() {
 			// we're done, so we can clear any pending ooo packets
 			r.oooPackets = nil
 			return
+		}
+		if pkt.Seq < r.nextSeq {
+			if r.trimOverlapLocked(&pkt) {
+				r.recvDataOrderedLocked(pkt)
+			}
+			consumed++
+			continue
 		}
 		if pkt.Seq != r.nextSeq {
 			break

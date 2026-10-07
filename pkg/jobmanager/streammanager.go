@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 )
@@ -18,6 +19,12 @@ const (
 	CirBufSize    = 2 * 1024 * 1024 // 2 MB max buffer size
 	DisconnReadSz = 4 * 1024        // 4 KB read chunks when disconnected
 	MaxPacketSize = 4 * 1024        // 4 KB max data per packet
+
+	// MOLTENTERM-PATCH (#308): nothing retransmits a packet or an ACK the transport dropped (an RPC send gives up
+	// after its 5 s timeout and the error is ignored), so a stream with no ACK for this long is resent from the last
+	// acknowledged byte, with a one byte window probe when the window is shut.
+	StallTimeout    = 3 * time.Second
+	StallCheckEvery = 500 * time.Millisecond
 )
 
 type DataSender interface {
@@ -60,6 +67,12 @@ type StreamManager struct {
 	// terminal state - once true, stream is complete
 	terminalEventAcked bool
 	closed             bool
+
+	// MOLTENTERM-PATCH (#308): lastActivity is the last ACK, the connection or the first send of a flight;
+	// probe lets the next packet go out although the window is shut.
+	lastActivity time.Time
+	probe        bool
+	now          func() time.Time
 }
 
 func MakeStreamManager() *StreamManager {
@@ -72,9 +85,11 @@ func MakeStreamManagerWithSizes(cwndSize, cirbufSize int) *StreamManager {
 		eofPos:   -1,
 		cwndSize: cwndSize,
 		rwndSize: cwndSize,
+		now:      time.Now,
 	}
 	sm.drainCond = sync.NewCond(&sm.lock)
 	go sm.senderLoop()
+	go sm.stallLoop()
 	return sm
 }
 
@@ -130,6 +145,8 @@ func (sm *StreamManager) ClientConnected(streamId string, dataSender DataSender,
 	sm.connected = true
 	sm.rwndSize = rwndSize
 	sm.sentNotAcked = 0
+	sm.lastActivity = sm.now()
+	sm.probe = false
 	effectiveWindow := sm.cwndSize
 	if sm.rwndSize < effectiveWindow {
 		effectiveWindow = sm.rwndSize
@@ -203,6 +220,7 @@ func (sm *StreamManager) RecvAck(ackPk wshrpc.CommandStreamAckData) {
 		return
 	}
 
+	sm.lastActivity = sm.now()
 	seq := ackPk.Seq
 	rwnd := ackPk.RWnd
 
@@ -223,7 +241,8 @@ func (sm *StreamManager) RecvAck(ackPk wshrpc.CommandStreamAckData) {
 	}
 
 	ackedBytes := seq - headPos
-	if ackedBytes > sm.sentNotAcked {
+	// MOLTENTERM-PATCH (#308): after a stall resend, an ACK may cover bytes the resend has not counted as sent again.
+	if ackedBytes > int64(sm.buf.Size()) {
 		return
 	}
 
@@ -232,6 +251,9 @@ func (sm *StreamManager) RecvAck(ackPk wshrpc.CommandStreamAckData) {
 			return
 		}
 		sm.sentNotAcked -= ackedBytes
+		if sm.sentNotAcked < 0 {
+			sm.sentNotAcked = 0
+		}
 	}
 
 	prevRwnd := sm.rwndSize
@@ -385,6 +407,9 @@ func (sm *StreamManager) prepareNextPacket() (done bool, pkt *wshrpc.CommandStre
 	}
 	availableToSend := int64(effectiveRwnd) - sm.sentNotAcked
 
+	if availableToSend <= 0 && sm.probe {
+		availableToSend = 1
+	}
 	if availableToSend <= 0 {
 		sm.drainCond.Wait()
 		return false, nil, nil
@@ -407,7 +432,11 @@ func (sm *StreamManager) prepareNextPacket() (done bool, pkt *wshrpc.CommandStre
 	data = data[:n]
 
 	seq := sm.buf.HeadPos() + sm.sentNotAcked
+	if sm.sentNotAcked == 0 {
+		sm.lastActivity = sm.now()
+	}
 	sm.sentNotAcked += int64(n)
+	sm.probe = false
 
 	return false, &wshrpc.CommandStreamData{
 		Id:     sm.streamId,
@@ -434,4 +463,45 @@ func (sm *StreamManager) prepareTerminalPacket() *wshrpc.CommandStreamData {
 
 	sm.terminalEventSent = true
 	return pkt
+}
+
+// MOLTENTERM-PATCH (#308)
+func (sm *StreamManager) stallLoop() {
+	ticker := time.NewTicker(StallCheckEvery)
+	defer ticker.Stop()
+	for range ticker.C {
+		if sm.checkStall() {
+			return
+		}
+	}
+}
+
+// checkStall resends what has gone unacknowledged for StallTimeout. It returns true once the stream is over.
+func (sm *StreamManager) checkStall() bool {
+	sm.lock.Lock()
+	defer sm.lock.Unlock()
+
+	if sm.closed || sm.terminalEventAcked {
+		return true
+	}
+	if !sm.connected {
+		return false
+	}
+	terminalPending := sm.terminalEvent != nil && sm.terminalEventSent
+	if sm.sentNotAcked == 0 && sm.buf.Size() == 0 && !terminalPending {
+		return false
+	}
+	if sm.now().Sub(sm.lastActivity) < StallTimeout {
+		return false
+	}
+	log.Printf("streammanager: no ACK for %s, resending from seq=%d (sentNotAcked=%d buffered=%d rwnd=%d terminalPending=%t)",
+		StallTimeout, sm.buf.HeadPos(), sm.sentNotAcked, sm.buf.Size(), sm.rwndSize, terminalPending)
+	sm.lastActivity = sm.now()
+	sm.sentNotAcked = 0
+	sm.probe = true
+	if terminalPending {
+		sm.terminalEventSent = false
+	}
+	sm.drainCond.Signal()
+	return false
 }
