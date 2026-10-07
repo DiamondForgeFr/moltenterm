@@ -1,0 +1,273 @@
+# Copyright 2026, DiamondForge
+# SPDX-License-Identifier: Apache-2.0
+
+# Builds a release tag and publishes its GitHub release (FR-REL-002, DS-REL-002). The tag is pushed by
+# `molten release finalize` (the cut step of .molten/project.json); see UPSTREAM.md, "Releases".
+#
+#   vX.Y.Z-N  a release candidate: published as a prerelease at once, never the latest release
+#   vX.Y.Z    a public release: left as a draft the developer publishes on GitHub
+#
+# macOS builds are ad-hoc signed and not notarized until a Developer ID exists; the release text says how to open
+# them. The channel feeds read by the app are #188's: the electron-builder update files (latest*.yml) are published
+# with the binaries for it.
+
+name: Release
+
+on:
+    push:
+        tags: ["v*"]
+
+permissions:
+    contents: read
+
+concurrency:
+    group: release-${{ github.ref }}
+    cancel-in-progress: false
+
+env:
+    NODE_VERSION: 22
+
+jobs:
+    meta:
+        name: Release tag
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        outputs:
+            channel: ${{ steps.tag.outputs.channel }}
+            version: ${{ steps.tag.outputs.version }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
+            # A tag nobody can classify is never published under a default, and a release is only built from main.
+            - name: Read the tag
+              id: tag
+              env:
+                  TAG: ${{ github.ref_name }}
+              run: |
+                  if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-([1-9][0-9]*))?$ ]]; then
+                      echo "::error::$TAG is not a release tag (vX.Y.Z or vX.Y.Z-N)"
+                      exit 1
+                  fi
+                  version="${TAG#v}"
+                  if [[ "$version" == *-* ]]; then
+                      channel=rc
+                  else
+                      channel=public
+                  fi
+                  package_version="$(node -p 'require("./package.json").version')"
+                  if [ "$package_version" != "$version" ]; then
+                      echo "::error::package.json reads $package_version at $TAG, not $version: cut releases with molten release"
+                      exit 1
+                  fi
+                  if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+                      echo "::error::$TAG is not on main: releases are cut from main"
+                      exit 1
+                  fi
+                  if [ ! -s "releases/$TAG.md" ]; then
+                      echo "::warning::releases/$TAG.md is missing: the release text will say so"
+                  fi
+                  if [ "$channel" = public ]; then
+                      echo "::warning::The macOS builds are not signed with a Developer ID nor notarized: sign them before publishing a public release"
+                  fi
+                  echo "channel=$channel" >> "$GITHUB_OUTPUT"
+                  echo "version=$version" >> "$GITHUB_OUTPUT"
+                  echo "$TAG: $channel release $version"
+
+    macos:
+        name: macOS (arm64, x64)
+        needs: meta
+        # Both architectures on one runner: electron-builder writes one latest-mac.yml listing both.
+        runs-on: macos-latest
+        timeout-minutes: 90
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  # The build stamps the last release reachable from the commit (frontend/moltenterm-shell/build).
+                  fetch-depth: 0
+                  persist-credentials: false
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+              with:
+                  go-version-file: go.mod
+                  cache-dependency-path: go.sum
+            - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+              with:
+                  version: 3.x
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+            - run: npm ci --no-audit --no-fund
+            # Ad hoc (`-`): an unsigned arm64 app does not start at all, an ad-hoc one opens once Gatekeeper is told to.
+            # The github publish provider only makes electron-builder write latest-mac.yml: `-p never` uploads nothing.
+            - name: Package
+              env:
+                  MOLTENTERM_BUILD_CHANNEL: ${{ needs.meta.outputs.channel }}
+                  MOLTENTERM_BUILD_ID: ${{ github.run_id }}
+                  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+                  OWNER: ${{ github.repository_owner }}
+                  REPO: ${{ github.event.repository.name }}
+              run: >-
+                  task package -- --mac zip dmg --arm64 --x64 -c.mac.identity=-
+                  -c.publish.provider=github "-c.publish.owner=$OWNER" "-c.publish.repo=$REPO"
+            - name: Check the signatures
+              run: |
+                  for app in make/mac*/*.app; do
+                      codesign --verify --deep --strict "$app"
+                      echo "$app: valid ad-hoc signature"
+                  done
+            - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: release-macos
+                  path: |
+                      make/*.dmg
+                      make/*.zip
+                      make/*.blockmap
+                      make/latest-mac.yml
+                  if-no-files-found: error
+                  retention-days: 7
+
+    linux:
+        name: Linux (${{ matrix.arch }})
+        needs: meta
+        # wavesrv's CGO build targets the runner's own architecture (Taskfile.yml, build:server:linux).
+        runs-on: ${{ matrix.runner }}
+        timeout-minutes: 90
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - runner: ubuntu-latest
+                      arch: x64
+                    - runner: ubuntu-24.04-arm
+                      arch: arm64
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+              with:
+                  go-version-file: go.mod
+                  cache-dependency-path: go.sum
+            - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+              with:
+                  version: 3.x
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+            - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+              with:
+                  version: 0.16.0
+            # electron-builder's bundled fpm has no arm64 build: the deb is made with the system's (USE_SYSTEM_FPM).
+            - name: Packaging tools
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y --no-install-recommends libarchive-tools squashfs-tools ruby ruby-dev build-essential
+                  sudo gem install --no-document fpm
+            - run: npm ci --no-audit --no-fund
+            - name: Package
+              env:
+                  MOLTENTERM_BUILD_CHANNEL: ${{ needs.meta.outputs.channel }}
+                  MOLTENTERM_BUILD_ID: ${{ github.run_id }}
+                  USE_SYSTEM_FPM: "true"
+                  ARCH: ${{ matrix.arch }}
+                  OWNER: ${{ github.repository_owner }}
+                  REPO: ${{ github.event.repository.name }}
+              run: >-
+                  task package -- --linux AppImage deb "--$ARCH"
+                  -c.publish.provider=github "-c.publish.owner=$OWNER" "-c.publish.repo=$REPO"
+            - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: release-linux-${{ matrix.arch }}
+                  path: |
+                      make/*.AppImage
+                      make/*.deb
+                      make/latest-linux*.yml
+                  if-no-files-found: error
+                  retention-days: 7
+
+    publish:
+        name: GitHub release
+        needs: [meta, macos, linux]
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+              with:
+                  pattern: release-*
+                  path: dist-release
+                  merge-multiple: true
+            # Every platform or none: a release missing one would be offered as complete.
+            - name: Check the files and write the checksums
+              working-directory: dist-release
+              run: |
+                  missing=0
+                  for pattern in "*.dmg:2" "*darwin*.zip:2" "*.AppImage:2" "*.deb:2" "latest-mac.yml:1" "latest-linux.yml:1" "latest-linux-arm64.yml:1"; do
+                      glob="${pattern%:*}"
+                      want="${pattern##*:}"
+                      found=0
+                      # shellcheck disable=SC2086
+                      for file in $glob; do
+                          if [ -e "$file" ]; then
+                              found=$((found + 1))
+                          fi
+                      done
+                      if [ "$found" -ne "$want" ]; then
+                          echo "::error::expected $want file(s) matching $glob, found $found"
+                          missing=1
+                      fi
+                  done
+                  if [ "$missing" -ne 0 ]; then
+                      ls -l
+                      exit 1
+                  fi
+                  sha256sum -- *.dmg *.zip *.AppImage *.deb > SHA256SUMS.txt
+                  cat SHA256SUMS.txt
+            - name: Write the release text
+              env:
+                  TAG: ${{ github.ref_name }}
+              run: |
+                  {
+                      if [ -s "releases/$TAG.md" ]; then
+                          cat "releases/$TAG.md"
+                      else
+                          echo "The notes of $TAG are missing."
+                      fi
+                      cat <<'EOF'
+
+                  ## Install
+
+                  - **macOS**: open the `.dmg` (`darwin-arm64` for Apple Silicon, `darwin-x64` for Intel) and drag MoltenTerm to Applications. This build is not signed with an Apple Developer ID yet, so macOS refuses to open it the first time: right-click MoltenTerm in Applications and choose **Open**, or run `xattr -dr com.apple.quarantine /Applications/MoltenTerm.app`.
+                  - **Linux**: make the `.AppImage` executable (`chmod +x`) and run it, or install the `.deb` with `sudo apt install ./<file>.deb`. `arm64` is for ARM machines, the other files for Intel and AMD.
+                  - **Checksums**: `SHA256SUMS.txt` lists the SHA-256 of every file (`sha256sum --ignore-missing -c SHA256SUMS.txt`).
+                  EOF
+                  } > release-body.md
+            - name: Create or update the release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+                  TAG: ${{ github.ref_name }}
+                  CHANNEL: ${{ needs.meta.outputs.channel }}
+              run: |
+                  files=(dist-release/*)
+                  if gh release view "$TAG" > /dev/null 2>&1; then
+                      # A re-run: the files are replaced, the text rewritten; `--tag` is sent again so that editing a
+                      # draft never detaches it from its tag.
+                      gh release upload "$TAG" "${files[@]}" --clobber
+                      gh release edit "$TAG" --tag "$TAG" --title "MoltenTerm $TAG" --notes-file release-body.md
+                  elif [ "$CHANNEL" = rc ]; then
+                      gh release create "$TAG" "${files[@]}" --verify-tag --title "MoltenTerm $TAG" --notes-file release-body.md --prerelease --latest=false
+                  else
+                      gh release create "$TAG" "${files[@]}" --verify-tag --title "MoltenTerm $TAG" --notes-file release-body.md --draft
+                  fi
+                  gh release view "$TAG" --json url,isDraft,isPrerelease --jq '"\(.url) draft=\(.isDraft) prerelease=\(.isPrerelease)"'

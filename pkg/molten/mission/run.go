@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/wavebase"
 )
 
 const maxCommandOutput = 16 << 20
@@ -19,8 +21,29 @@ const maxCommandOutput = 16 << 20
 // Runner runs a program in a folder and returns its standard output. Tests inject their own.
 type Runner func(ctx context.Context, dir string, name string, args ...string) ([]byte, error)
 
-// Tests replace it.
+// Tests replace them.
 var readLoginPath = molten.LoginPath
+var appBinDir = func() string {
+	dataDir := wavebase.GetWaveDataDir()
+	if dataDir == "" {
+		return ""
+	}
+	return filepath.Join(dataDir, "bin")
+}
+
+// commandPath is the login shell's PATH, after the app's own bin folder: a step that runs `molten release …` gets the
+// molten of the app running it, the one that knows the project's pipeline format.
+func commandPath() string {
+	path := readLoginPath()
+	bin := appBinDir()
+	if bin == "" {
+		return path
+	}
+	if info, err := os.Stat(bin); err != nil || !info.IsDir() {
+		return path
+	}
+	return bin + string(os.PathListSeparator) + path
+}
 
 func commandEnv() []string {
 	env := []string{}
@@ -31,7 +54,7 @@ func commandEnv() []string {
 		env = append(env, kv)
 	}
 	// Nothing may wait for a password or a prompt: the collector has no terminal.
-	return append(env, "PATH="+readLoginPath(), "GIT_TERMINAL_PROMPT=0", "GH_PROMPT_DISABLED=1", "GH_NO_UPDATE_NOTIFIER=1", "NO_COLOR=1")
+	return append(env, "PATH="+commandPath(), "GIT_TERMINAL_PROMPT=0", "GH_PROMPT_DISABLED=1", "GH_NO_UPDATE_NOTIFIER=1", "NO_COLOR=1")
 }
 
 type limitedBuffer struct {

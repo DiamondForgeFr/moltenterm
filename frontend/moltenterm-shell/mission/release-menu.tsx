@@ -10,9 +10,12 @@ import { useEffect, useState } from "react";
 import { MoltenWave } from "../molten-button";
 import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-button";
 import { MenuPopover } from "./menu-popover";
-import { missionRefresh, missionTrust, releaseStart } from "./mission-client";
+import { missionRefresh, missionTrust, releaseMilestone, releaseStart } from "./mission-client";
 import { PipelineReleaseStep, toTreeData, UntrustedInfo } from "./mission-model";
 import {
+    milestoneWarning,
+    MilestoneWarning,
+    releaseBaseOf,
     ReleaseChannel,
     releaseChoiceTag,
     releaseNote,
@@ -48,6 +51,7 @@ export function ReleaseMenu({
     const [error, setError] = useState<string>(null);
     const [untrusted, setUntrusted] = useState<UntrustedInfo>(null);
     const [anchor, setAnchor] = useState<HTMLDivElement>(null);
+    const [milestone, setMilestone] = useState<{ version: string; warning: MilestoneWarning; error: string }>(null);
 
     // The numbers are computed when the menu opens, from the remote as it is now.
     useEffect(() => {
@@ -89,6 +93,33 @@ export function ReleaseMenu({
         };
     }, [open, dir]);
 
+    const tag = releaseChoiceTag(plan, choice, version);
+    const shipped = releaseBaseOf(plan?.rules, tag);
+
+    // The milestone the chosen release ships, read once the choice is made: its open issues are listed, never blocking.
+    useEffect(() => {
+        if (!open || !shipped) {
+            setMilestone(null);
+            return;
+        }
+        let cancelled = false;
+        fireAndForget(async () => {
+            try {
+                const found = await releaseMilestone(dir, shipped);
+                if (!cancelled) {
+                    setMilestone({ version: shipped, warning: milestoneWarning(shipped, found), error: null });
+                }
+            } catch (e) {
+                if (!cancelled) {
+                    setMilestone({ version: shipped, warning: null, error: String(e?.message ?? e) });
+                }
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [open, dir, shipped]);
+
     if (session != null) {
         return (
             <button type="button" onClick={onShowRelease} className={ActionRunningClass}>
@@ -98,7 +129,6 @@ export function ReleaseMenu({
         );
     }
 
-    const tag = releaseChoiceTag(plan, choice, version);
     const steps = choice === "rc" ? rcSteps : publicSteps;
     const launch = () =>
         fireAndForget(async () => {
@@ -206,6 +236,9 @@ export function ReleaseMenu({
                                     />
                                 </label>
                             ) : null}
+                            {choice && milestone?.version === shipped ? (
+                                <MilestoneNote warning={milestone.warning} error={milestone.error} />
+                            ) : null}
                             {choice ? (
                                 <div className="rounded border border-border bg-hover/40 p-2 text-[11px] text-muted">
                                     {releaseNote(steps)}
@@ -236,6 +269,37 @@ export function ReleaseMenu({
                     onTrust={trustAndLaunch}
                     onCancel={() => setUntrusted(null)}
                 />
+            ) : null}
+        </div>
+    );
+}
+
+function MilestoneNote({ warning, error }: { warning: MilestoneWarning; error: string }) {
+    if (error) {
+        return <div className="text-[11px] text-muted">The milestone could not be read: {error}</div>;
+    }
+    return (
+        <div
+            className={cn(
+                "flex flex-col gap-1 rounded border p-2 text-[11px]",
+                warning.warn ? "border-warning/50 bg-warning/10 text-primary" : "border-border text-muted"
+            )}
+        >
+            <div className="flex items-start gap-1.5">
+                {warning.warn ? (
+                    <i className="fa fa-solid fa-triangle-exclamation mt-[2px] text-[10px] text-warning" />
+                ) : null}
+                <span>{warning.text}</span>
+            </div>
+            {warning.issues.length ? (
+                <ul className="flex flex-col gap-0.5 pl-4">
+                    {warning.issues.map((issue) => (
+                        <li key={issue.number} className="truncate text-muted">
+                            #{issue.number} {issue.title}
+                        </li>
+                    ))}
+                    {warning.more ? <li className="text-muted">and {warning.more} more</li> : null}
+                </ul>
             ) : null}
         </div>
     );

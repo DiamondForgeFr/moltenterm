@@ -33,3 +33,19 @@ func TestExecRunnerUsesLoginPathOnly(t *testing.T) {
 		t.Fatalf("output = %q", out)
 	}
 }
+
+// A release step runs `molten release …`: the app's own bin folder comes first on the steps' PATH.
+func TestCommandPathPutsTheAppBinFirst(t *testing.T) {
+	bin := t.TempDir()
+	savedLogin, savedBin := readLoginPath, appBinDir
+	readLoginPath = func() string { return "/usr/bin:/bin" }
+	appBinDir = func() string { return bin }
+	t.Cleanup(func() { readLoginPath, appBinDir = savedLogin, savedBin })
+	if got := commandPath(); got != bin+":/usr/bin:/bin" {
+		t.Fatalf("PATH = %q", got)
+	}
+	appBinDir = func() string { return filepath.Join(bin, "missing") }
+	if got := commandPath(); got != "/usr/bin:/bin" {
+		t.Fatalf("PATH with no bin folder = %q", got)
+	}
+}

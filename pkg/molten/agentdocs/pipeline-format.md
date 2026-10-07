@@ -150,6 +150,25 @@ ends, whatever else runs meanwhile.
   among phased ones, a step declared after a step of a later phase, a list without phases (how it is read), and a
   list without any `confirm`.
 
+### Generic release commands
+
+A project without release scripts of its own can call `molten release`, which reads everything from
+`.molten/project.json`: `branches` (trunk and release branch), `versions.files` (where the version is written),
+`versions.tagprefix` and `versions.notes`. Each command follows the rules above: non-interactive, safe to run again,
+and the cut is prepared in a release worktree beside the main checkout (`../<repo>-release`), never in the checkout.
+
+| Command | Phase | What it does |
+| --- | --- | --- |
+| `molten release promote --workflow <file>` | `prepare` | Brings the trunk onto the release branch: a fast-forward, else a merge commit, refused when the result's tree differs from the trunk's (a release commit not carried back). The named GitHub workflows must be green on the trunk's commit: a missing run is started and waited for (up to 90 minutes), a red one stops the promotion. Pushed without force. `--dry-run` pushes and starts nothing. |
+| `molten release prepare {tag}` | `prepare` | Checks the tag (a release of the project, the next candidate number, above the last public release, not taken here or on origin), writes the version in every `versions.files` place (read back), drafts the notes from the conventional commit subjects since the previous release (`feat` under New; `fix`, `perf`, `revert` under Fixes; no scope, no ticket number) unless the release branch already has them, and announces them with `▶ notes:`. Commits nothing. |
+| `molten release finalize {tag}` | `cut`, with `confirm` | Checks the prepared tree again (the version read back, only the release files changed, the release branch not moved, the notes present), commits `chore(release): {tag} (rc\|public)`, tags it and pushes the release branch and the tag atomically. A refused push undoes the local commit and tag, so the step can be run again. |
+| `molten release close-milestone {tag}` | `publish` | For a public release whose GitHub release is published: closes the open milestone named after its version (or its line, `v1` for 1.x.y), listing its open issues as a warning. A release candidate leaves the milestone open. |
+| `molten release sync-back {tag}` | `back` | Cherry-picks the release commit onto the trunk in `chore/sync-back-{tag}`, pushes it and opens the pull request (or reuses the open one); nothing when the trunk already has it. |
+
+`molten release plan [--rc|--public] [--version X.Y.Z] [--json]` shows what the Release menu would start: the tag,
+the milestone it ships and the milestone's open issues. Off GitHub, nothing waits for CI, opens a pull request or
+closes a milestone. Steps run by Mission Control find `molten` first on their PATH: it is the running app's own.
+
 ## Ids
 
 Ids (`name` of a job, `id` of a build or step) are lowercase letters, digits, `.`, `_` and `-`, unique in their list.

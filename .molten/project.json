@@ -54,5 +54,67 @@
             "run": "./scripts/moltenterm-build-gold.sh",
             "artifact": "~/Library/Application Support/Moltenterm Local Builds/gold.noindex/Moltenterm.app"
         }
-    ]
+    ],
+    "release": {
+        "rc": [
+            {
+                "id": "promote",
+                "title": "Promote develop onto main once CI is green",
+                "phase": "prepare",
+                "run": "molten release promote --workflow ci.yml"
+            },
+            {
+                "id": "prepare",
+                "title": "Bump the version and draft the notes beside the checkout",
+                "phase": "prepare",
+                "run": "molten release prepare {tag}"
+            },
+            {
+                "id": "finalize",
+                "title": "Commit, tag and push: release.yml builds macOS and Linux and publishes the prerelease",
+                "phase": "cut",
+                "confirm": "{tag} is public once pushed: the release workflow builds it and publishes it as a prerelease.",
+                "run": "molten release finalize {tag}"
+            },
+            {
+                "id": "sync-back",
+                "title": "Carry the release commit back to develop by pull request",
+                "phase": "back",
+                "run": "molten release sync-back {tag}"
+            }
+        ],
+        "public": [
+            {
+                "id": "promote",
+                "title": "Promote develop onto main once CI is green",
+                "phase": "prepare",
+                "run": "molten release promote --workflow ci.yml"
+            },
+            {
+                "id": "prepare",
+                "title": "Bump the version and draft the notes beside the checkout",
+                "phase": "prepare",
+                "run": "molten release prepare {tag}"
+            },
+            {
+                "id": "finalize",
+                "title": "Commit, tag and push: release.yml builds macOS and Linux and leaves a draft release",
+                "phase": "cut",
+                "confirm": "{tag} is public once pushed, and goes to every user once its draft release is published.",
+                "run": "molten release finalize {tag}"
+            },
+            {
+                "id": "close-milestone",
+                "title": "Close the milestone once the release is published",
+                "phase": "publish",
+                "run": "molten release close-milestone {tag}"
+            },
+            {
+                "id": "sync-back",
+                "title": "Carry the release commit back to develop by pull request",
+                "phase": "back",
+                "run": "molten release sync-back {tag}"
+            }
+        ]
+    }
 }

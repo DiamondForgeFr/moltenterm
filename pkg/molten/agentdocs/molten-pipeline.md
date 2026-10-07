@@ -33,7 +33,10 @@ what is missing, and only after the user agreed.
    - `builds`: the local builds the user installs (`gold` at least when the project ships an app), with where the
      result lands (`artifact`);
    - `release.rc` and `release.public`: the steps that cut, build and publish a version, in order, each with its
-     `phase`, and `confirm` on the step that pushes the tag (see "The release contract" in `pipeline-format.md`);
+     `phase`, and `confirm` on the step that pushes the tag (see "The release contract" in `pipeline-format.md`).
+     The project's own release scripts come first; a project that releases from a trunk and a release branch, with
+     its version in files `versions.files` can declare, can use the `molten release` commands instead
+     ("Generic release commands" in `pipeline-format.md`);
    - `steps`: anything else project-specific the user wants in a panel.
    - `icon`: the project's square app icon (not a wide logo), relative to the project folder, when it is not at a
      usual place such as `icon.svg` or `build/icon.png`.

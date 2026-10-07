@@ -5,7 +5,16 @@
 // next version, and the next public release, derived from the tags and the commits, or asked for when it is a choice.
 // Kept apart from the component so the rules can be tested without the app.
 
-import { DefaultTagPrefix, nextRc, parseBase, planRelease, tagOf, VersionRules } from "../releases/versions";
+import {
+    DefaultTagPrefix,
+    formatVersion,
+    nextRc,
+    parseBase,
+    planRelease,
+    releaseOf,
+    tagOf,
+    VersionRules,
+} from "../releases/versions";
 import { PipelineReleaseStep, ReleasePhase } from "./mission-model";
 import { ReleaseState } from "./versions";
 
@@ -55,6 +64,48 @@ export function releaseChoiceTag(plan: ReleasePlan, choice: ReleaseChannel, vers
     }
     const chosen = planRelease(plan.rules, plan.tags, [], "public", version);
     return chosen.how === "refused" ? null : chosen.tag;
+}
+
+// must match Milestone in pkg/molten/release/milestone.go
+export type ReleaseMilestone = {
+    number: number;
+    title: string;
+    url: string;
+    opencount: number;
+    issues: { number: number; title: string; url: string }[];
+};
+
+export const MaxListedMilestoneIssues = 6;
+
+// The public version a release tag leads to ("v1.0.0-3" → "1.0.0"), or null for a tag that is not a release.
+export function releaseBaseOf(rules: VersionRules, tag: string): string {
+    const v = tag ? releaseOf(rules, tag) : null;
+    return v ? formatVersion({ ...v, rc: 0 }) : null;
+}
+
+export type MilestoneWarning = {
+    text: string;
+    // Open issues are a warning, never a refusal: a milestone reports, it does not block (FR-REL-002).
+    warn: boolean;
+    issues: ReleaseMilestone["issues"];
+    more: number;
+};
+
+export function milestoneWarning(version: string, milestone: ReleaseMilestone): MilestoneWarning {
+    if (milestone == null) {
+        return { text: `No open milestone for ${version}.`, warn: false, issues: [], more: 0 };
+    }
+    const issues = milestone.issues ?? [];
+    if (issues.length === 0) {
+        return { text: `Ships milestone ${milestone.title}: no issue left open.`, warn: false, issues: [], more: 0 };
+    }
+    const count = issues.length === 1 ? "1 open issue" : `${issues.length} open issues`;
+    return {
+        text: `Ships milestone ${milestone.title}, with ${count}. They are reported; the release can still go ahead.`,
+        warn: true,
+        issues: issues.slice(0, MaxListedMilestoneIssues),
+        more: Math.max(0, issues.length - MaxListedMilestoneIssues),
+    };
 }
 
 // must match ReleaseStepPhase in pkg/molten/pipeline.go: each step's phase as declared, or, in a list that declares

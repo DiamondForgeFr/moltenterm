@@ -11,7 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BuildsFacts } from "./builds-model";
 import { CiRunRecord, CiState, upsertCiRun } from "./ci-model";
 import { LogChunk, MissionSnapshot, RunRecord, RunResult, UntrustedInfo, upsertRun } from "./mission-model";
-import { ReleaseChannel, ReleaseSession } from "./release-model";
+import { ReleaseChannel, ReleaseMilestone, ReleaseSession } from "./release-model";
 import { ReleaseFacts } from "./release-run";
 
 // must match the names in pkg/molten/mission/collector.go
@@ -40,6 +40,7 @@ export const MissionReleaseStepCommand = "moltenmissionreleasestep";
 export const MissionReleaseRerunCommand = "moltenmissionreleasererun";
 export const MissionReleaseNotesCommand = "moltenmissionreleasenotes";
 export const MissionReleaseNotesSaveCommand = "moltenmissionreleasenotessave";
+export const MissionReleaseMilestoneCommand = "moltenmissionreleasemilestone";
 export const MissionBranchesPlanCommand = "moltenmissionbranchesplan";
 export const MissionBranchesCleanCommand = "moltenmissionbranchesclean";
 
@@ -312,6 +313,11 @@ export function releaseNotes(dir: string, tag: string): Promise<{ path: string; 
 
 export function releaseNotesSave(dir: string, tag: string, text: string): Promise<void> {
     return releaseCall(MissionReleaseNotesSaveCommand, { dir, tag, text });
+}
+
+// The open milestone of a public version and its open issues; null when the project has none.
+export function releaseMilestone(dir: string, version: string): Promise<ReleaseMilestone> {
+    return releaseCall(MissionReleaseMilestoneCommand, { dir, version });
 }
 
 // The facts of the release followed: read again every 15 s while one is, every 2 min otherwise, and whenever `bump`
