@@ -133,7 +133,7 @@ func (a *CodexAdapter) discoverDir(dir string, cwd string, since time.Time) []Ca
 				subagent = codexSubagent(payload)
 			case "event_msg":
 				if c.Prompt == "" && str(payload, "type") == "user_message" {
-					c.Prompt = preview(str(payload, "message"))
+					c.Prompt = preview(cleanTitleText(str(payload, "message")))
 				}
 			}
 			if c.cwd != "" && c.Prompt != "" {

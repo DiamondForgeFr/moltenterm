@@ -64,7 +64,14 @@ export type CompanionFile = {
 
 export type CompanionDiff = { path: string; kind: FileKind; diff: string; truncated?: boolean };
 
-export type CompanionCandidate = { path: string; id?: string; started?: number; modified?: number; prompt?: string };
+export type CompanionCandidate = {
+    path: string;
+    id?: string;
+    started?: number;
+    modified?: number;
+    prompt?: string;
+    command?: string;
+};
 
 export type CompanionView = {
     blockid: string;
@@ -280,6 +287,20 @@ export function relativeTime(at: number, now: number): string {
         return `${h} h ago`;
     }
     return `${Math.round(h / 24)} d ago`;
+}
+
+export function candidateTitle(c: CompanionCandidate): string {
+    if (c.prompt) {
+        return c.prompt;
+    }
+    if (!c.command) {
+        return "(no prompt yet)";
+    }
+    if (!c.started) {
+        return c.command;
+    }
+    const time = new Date(c.started).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    return `${c.command} · ${time}`;
 }
 
 const FenceOpenRegex = /^ {0,3}(`{3,}(?=[^`]*$)|~{3,})/;

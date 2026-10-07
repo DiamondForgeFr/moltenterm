@@ -3,14 +3,15 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    candidateTitle,
     companionMarkdown,
     CompanionView,
     diffLineKind,
     displayPath,
     firstChangedLine,
     formatArgs,
-    neighbourAnswer,
     needsLatest,
+    neighbourAnswer,
     newerView,
     permissionRequest,
     statusMessage,
@@ -127,5 +128,24 @@ describe("companion model", () => {
         expect(needsLatest(merged)).toBe(false);
         const changed = view({ version: 3, session, latest: { index: 2, rev: 4, markdown: "", elided: true } });
         expect(needsLatest(newerView(merged, changed))).toBe(true);
+    });
+});
+
+describe("candidateTitle", () => {
+    it("prefers the prompt", () => {
+        expect(candidateTitle({ path: "p", prompt: "fix the tests", command: "/clear", started: 1 })).toBe(
+            "fix the tests"
+        );
+    });
+
+    it("names a session with only a command by it and its start time", () => {
+        expect(candidateTitle({ path: "p", command: "/clear", started: Date.now() })).toMatch(
+            /^\/clear · \d{2}:\d{2}$/
+        );
+        expect(candidateTitle({ path: "p", command: "/clear" })).toBe("/clear");
+    });
+
+    it("keeps the placeholder for a session with nothing yet", () => {
+        expect(candidateTitle({ path: "p", started: 1 })).toBe("(no prompt yet)");
     });
 });

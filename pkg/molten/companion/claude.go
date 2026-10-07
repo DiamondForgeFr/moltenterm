@@ -143,8 +143,12 @@ func (a *ClaudeAdapter) discoverDir(dir string, cwd string, since time.Time) []C
 			if c.Started == 0 {
 				c.Started = parseTime(str(rec, "timestamp"))
 			}
-			if c.Prompt == "" && str(rec, "type") == "user" && !boolean(rec, "isMeta") {
-				c.Prompt = preview(claudePromptText(obj(rec, "message")))
+			if c.Prompt == "" && str(rec, "type") == "user" && !boolean(rec, "isMeta") && !boolean(rec, "isCompactSummary") {
+				text := claudePromptText(obj(rec, "message"))
+				if c.Command == "" {
+					c.Command = commandName(text)
+				}
+				c.Prompt = preview(titlePrompt(text))
 			}
 			if c.cwd != "" && c.Started != 0 && c.Prompt != "" {
 				break
@@ -206,7 +210,7 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 	msg := obj(rec, "message")
 	isMeta := boolean(rec, "isMeta")
 	if text, ok := msg["content"].(string); ok {
-		if !isMeta && strings.TrimSpace(text) != "" {
+		if !isMeta && !boolean(rec, "isCompactSummary") && cleanTitleText(text) != "" && !isCommandRecord(text) {
 			s.StartTurn(at)
 		}
 		return
@@ -222,7 +226,12 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 				callId = id
 			}
 			s.ResolveTool(id)
-		case "text", "image":
+		case "text":
+			text := str(block, "text")
+			if !isCommandRecord(text) && cleanTitleText(text) != "" {
+				prompt = true
+			}
+		case "image":
 			prompt = true
 		}
 	}

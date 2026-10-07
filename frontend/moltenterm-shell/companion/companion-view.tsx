@@ -16,6 +16,7 @@ import { memo, useEffect, useMemo, useState } from "react";
 import { useBlockAgentState } from "../agent-state-ui";
 import { PlanUsageSection } from "./companion-gauges";
 import {
+    candidateTitle,
     CompanionAnswer,
     CompanionAnswerCommand,
     CompanionCandidate,
@@ -278,7 +279,7 @@ function SessionPicker({
                     onClick={() => pick(c.path)}
                     className="flex cursor-pointer flex-col items-start gap-0.5 rounded border border-border px-3 py-2 text-left hover:bg-hover"
                 >
-                    <span className="line-clamp-2 text-xs text-primary">{c.prompt || "(no prompt yet)"}</span>
+                    <span className="line-clamp-2 text-xs text-primary">{candidateTitle(c)}</span>
                     <span className="text-[11px] text-muted">
                         {[
                             c.started ? `started ${relativeTime(c.started, now)}` : "",
