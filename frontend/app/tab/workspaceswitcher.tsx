@@ -18,6 +18,7 @@ import { splitAtom } from "jotai/utils";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { CSSProperties, forwardRef, useCallback, useEffect } from "react";
 import { askResetWorkspace } from "../../moltenterm-shell/workspace-reset"; // MOLTENTERM-PATCH (#222)
+import { openWorkspaceEditor } from "../../moltenterm-shell/workspace-edit"; // MOLTENTERM-PATCH (#294)
 import WorkspaceSVG from "../asset/workspace.svg";
 import { IconButton } from "../element/iconbutton";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -103,7 +104,9 @@ const WorkspaceSwitcher = forwardRef<HTMLDivElement>((_, ref) => {
         fireAndForget(async () => {
             await env.services.workspace.UpdateWorkspace(activeWorkspace.oid, "", "", "", true);
             await updateWorkspaceList();
-            setEditingWorkspace(activeWorkspace.oid);
+            // MOLTENTERM-PATCH (#294): the workspace is named in MoltenTerm's edit sheet
+            document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+            openWorkspaceEditor(activeWorkspace.oid);
         });
     };
 
@@ -173,7 +176,7 @@ const WorkspaceSwitcherItem = ({
     const env = useWaveEnv<WorkspaceSwitcherEnv>();
     const activeWorkspace = useAtomValueSafe(env.atoms.workspace);
     const [workspaceEntry, setWorkspaceEntry] = useAtom(entryAtom);
-    const [editingWorkspace, setEditingWorkspace] = useAtom(editingWorkspaceAtom);
+    const editingWorkspace = useAtomValue(editingWorkspaceAtom); // MOLTENTERM-PATCH (#294): the sheet edits
 
     const workspace = workspaceEntry.workspace;
     const isCurrentWorkspace = activeWorkspace.oid === workspace.oid;
@@ -201,11 +204,9 @@ const WorkspaceSwitcherItem = ({
         title: "Edit workspace",
         click: (e) => {
             e.stopPropagation();
-            if (editingWorkspace === workspace.oid) {
-                setEditingWorkspace(null);
-            } else {
-                setEditingWorkspace(workspace.oid);
-            }
+            // MOLTENTERM-PATCH (#294): MoltenTerm's edit sheet in place of the inline editor; the popover closes first
+            document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+            openWorkspaceEditor(workspace.oid);
         },
     };
     const windowIconDecl: IconButtonDecl = {

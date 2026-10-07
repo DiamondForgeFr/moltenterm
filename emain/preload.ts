@@ -84,6 +84,8 @@ contextBridge.exposeInMainWorld("api", {
     // MOLTENTERM-PATCH (#161): the app menu's Getting Started (emain/moltenterm-onboarding.ts)
     onMoltentermGettingStarted: (callback: () => void) =>
         ipcRenderer.on("moltenterm-getting-started", () => callback()),
+    // MOLTENTERM-PATCH (#294): the app menu's Edit Workspace… (emain/moltenterm-workspace-menu.ts)
+    onMoltentermEditWorkspace: (callback: () => void) => ipcRenderer.on("moltenterm-edit-workspace", () => callback()),
 });
 
 // Custom event for "new-window"

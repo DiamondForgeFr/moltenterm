@@ -22,6 +22,7 @@ import {
 import { ElectronWshClient } from "./emain-wsh";
 import { makeMoltentermGettingStartedMenuItem } from "./moltenterm-onboarding"; // MOLTENTERM-PATCH (#161)
 import { makeMoltentermSafeModeMenuItem } from "./moltenterm-safemode"; // MOLTENTERM-PATCH (#20)
+import { makeMoltentermEditWorkspaceMenuItem } from "./moltenterm-workspace-menu"; // MOLTENTERM-PATCH (#294)
 // MOLTENTERM-PATCH (#5): `updater` is no longer imported; the menu has no update item.
 
 type AppMenuCallbacks = {
@@ -54,6 +55,8 @@ async function getWorkspaceMenu(ww?: WaveBrowserWindow): Promise<Electron.MenuIt
             label: "Create Workspace",
             click: (_, window) => fireAndForget(() => createWorkspace((window as WaveBrowserWindow) ?? ww)),
         },
+        // MOLTENTERM-PATCH (#294): the workspace edit sheet of the window's workspace
+        makeMoltentermEditWorkspaceMenuItem((window) => getWindowWebContents(window ?? ww)),
     ];
     function getWorkspaceSwitchAccelerator(i: number): string {
         if (i < 9) {

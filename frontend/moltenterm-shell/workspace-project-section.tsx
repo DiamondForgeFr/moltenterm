@@ -1,10 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The "Project" part of the workspace editor (FR-MC-001): the linked folder, or a "Link a project" action, and the
-// offer to show the project's logo as the workspace icon; then the folder the workspace works in (FR-SHELL-009).
+// The Project and Folder sections of the workspace edit sheet (FR-SHELL-030, DS-SHELL-036): the linked folder, or a
+// "Link a project" action, and the offer to show the project's logo as the workspace icon (FR-MC-001); the folder the
+// workspace works in (FR-SHELL-009). The sheet gives each its heading.
 
-import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { MoltenWave } from "./molten-button";
@@ -96,7 +96,7 @@ function LogoChoices({ ws, logos, chosen, dir }: { ws: Workspace; logos: string[
 }
 
 // Where the workspace's new terminals, tabs and file explorer start (FR-SHELL-009).
-function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
+export function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
     const folder = effectiveWorkspaceFolder(ws);
     const stored = readWorkspaceFolder(ws);
     const projectDir = readWorkspaceProject(ws).dir;
@@ -113,10 +113,9 @@ function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
             }
         });
     return (
-        <div className="mt-3">
-            <div className="mb-1 text-xs font-semibold tracking-wide text-secondary uppercase">Folder</div>
-            <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
+        <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <div className="min-w-0 flex-1 basis-40">
                     <div className={cn("truncate text-sm", folder ? "" : "text-muted")}>
                         {folder ? pathBaseName(folder) || folder : "Not set yet"}
                     </div>
@@ -138,7 +137,7 @@ function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
                     </button>
                 ) : null}
             </div>
-            <div className="text-xs text-muted">
+            <div className="mt-1 text-xs text-muted">
                 {outsideProject
                     ? "Outside the project: new panels start at its root."
                     : "New terminals, tabs and files start here."}
@@ -147,8 +146,7 @@ function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
     );
 }
 
-export function WorkspaceProjectSection({ workspaceId }: { workspaceId: string }) {
-    const [ws] = useWaveObjectValue<Workspace>(makeORef("workspace", workspaceId));
+export function WorkspaceProjectBlock({ ws }: { ws: Workspace }) {
     const project = readWorkspaceProject(ws);
     const [facts, setFacts] = useState<ProjectFacts>(null);
     const [logos, setLogos] = useState<string[]>([]);
@@ -197,11 +195,10 @@ export function WorkspaceProjectSection({ workspaceId }: { workspaceId: string }
             }
         });
     return (
-        <div className="molten-workspace-project mt-2 w-full min-w-0 self-stretch border-t border-border px-1 pt-2 text-left">
-            <div className="mb-1 text-xs font-semibold tracking-wide text-secondary uppercase">Project</div>
+        <div className="molten-workspace-project min-w-0 text-left">
             {project.dir === "" ? (
-                <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-muted">Mission Control shows the linked project.</span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="min-w-0 text-xs text-muted">Mission Control shows the linked project.</span>
                     <button
                         type="button"
                         onClick={link}
@@ -213,8 +210,8 @@ export function WorkspaceProjectSection({ workspaceId }: { workspaceId: string }
                 </div>
             ) : (
                 <>
-                    <div className="flex items-center gap-2">
-                        <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <div className="min-w-0 flex-1 basis-40">
                             <div className="truncate text-sm">{facts?.name ?? pathBaseName(project.dir)}</div>
                             <div className="truncate text-xs text-muted" title={project.dir}>
                                 {project.dir}
@@ -237,8 +234,11 @@ export function WorkspaceProjectSection({ workspaceId }: { workspaceId: string }
                     ) : null}
                 </>
             )}
-            {error ? <div className="mt-1 text-xs text-error">{error}</div> : null}
-            <WorkspaceFolderLine ws={ws} />
+            {error ? (
+                <div role="alert" className="mt-1 text-xs text-error">
+                    {error}
+                </div>
+            ) : null}
         </div>
     );
 }

@@ -109,13 +109,27 @@ describe("workspace actions", () => {
         expect(actions.map((a) => a.label)).toEqual([
             "New tab",
             "New workspace",
+            "Edit workspace…",
             "Switch to Notulia",
             "Getting started",
             "Sessions",
             "Settings",
         ]);
-        expect(actions[2].run).toEqual({ kind: "switchworkspace", workspaceId: "w2" });
-        expect(actions[5].cli).toBe("wsh editconfig");
+        expect(actions[3].run).toEqual({ kind: "switchworkspace", workspaceId: "w2" });
+        expect(actions[6].cli).toBe("wsh editconfig");
+    });
+
+    it("always offers Edit workspace…, for the workspace the window shows (FR-SHELL-030)", () => {
+        for (const linked of [false, true]) {
+            const entry = actionEntries([], linked).find((a) => a.id === "action:editworkspace");
+            expect(entry).toMatchObject({
+                group: "actions",
+                label: "Edit workspace…",
+                icon: "pencil",
+                run: { kind: "editworkspace" },
+            });
+            expect(entry.keywords).toEqual(expect.arrayContaining(["rename", "icon", "colour", "color"]));
+        }
     });
 
     it("always offers Getting started, found by its onboarding words", () => {
@@ -130,6 +144,7 @@ describe("workspace actions", () => {
             "Project tab",
             "New tab",
             "New workspace",
+            "Edit workspace…",
             "Getting started",
             "Sessions",
             "Settings",

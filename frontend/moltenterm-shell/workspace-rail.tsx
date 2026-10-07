@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The workspace rail (FR-SHELL-001, DS-SHELL-002): every workspace at a glance on the left, one click to switch, as
-// in Notulia. It replaces the switcher of the tab bar and reuses Wave's workspace calls and editor.
+// in Notulia. It replaces the switcher of the tab bar and reuses Wave's workspace calls; a workspace is edited in
+// MoltenTerm's sheet (FR-SHELL-030), from its context menu, its pencil or a double-click.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms, getApi } from "@/app/store/global";
@@ -10,7 +11,6 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { WorkspaceService } from "@/app/store/services";
 import { getWaveObjectAtom, makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
-import { WorkspaceEditor } from "@/app/tab/workspaceeditor";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -21,9 +21,11 @@ import { ProjectLinkDetector } from "./project-link-modal";
 import { openProjectTab, ProjectTabKeeper } from "./project/project-tab";
 import { RailTools } from "./rail-tools";
 import { PaneFocusKeeper } from "./sessions/pane-focus";
-import { WorkspaceIcon } from "./workspace-icon";
+import { handOverWorkspaceEdit, openWorkspaceEditor, recordSwitchClick, takeSwitchClick } from "./workspace-edit";
+import { WorkspaceEditHost } from "./workspace-edit-sheet";
+import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
 import { readWorkspaceProject } from "./workspace-project";
-import { WorkspaceProjectSection } from "./workspace-project-section";
+import { RailEditButton } from "./workspace-rail-edit";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
 import { askResetWorkspace, WorkspaceResetHost } from "./workspace-reset";
 import { canCloseWorkspace, LastWorkspaceReason } from "./workspace-reset-model";
@@ -56,90 +58,17 @@ function RailTooltip({ label, anchor }: { label: string; anchor: Anchor }) {
     );
 }
 
-function WorkspaceEditPanel({
-    entry,
-    anchor,
-    closable,
-    onClose,
-}: {
-    entry: WorkspaceRailEntry;
-    anchor: Anchor;
-    closable: boolean;
-    onClose: () => void;
-}) {
-    const panelRef = useRef<HTMLDivElement>(null);
-    const [draft, setDraft] = useState({ name: entry.name, icon: entry.icon, color: entry.color });
-    useEffect(() => {
-        const onPointerDown = (e: PointerEvent) => {
-            if (!panelRef.current?.contains(e.target as Node)) {
-                onClose();
-            }
-        };
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                onClose();
-            }
-        };
-        document.addEventListener("pointerdown", onPointerDown, true);
-        document.addEventListener("keydown", onKeyDown, true);
-        return () => {
-            document.removeEventListener("pointerdown", onPointerDown, true);
-            document.removeEventListener("keydown", onKeyDown, true);
-        };
-    }, [onClose]);
-    const update = (next: typeof draft) => {
-        setDraft(next);
-        if (next.name === "") {
-            return;
-        }
-        fireAndForget(() => WorkspaceService.UpdateWorkspace(entry.id, next.name, next.icon, next.color, false));
-    };
-    return (
-        <div
-            ref={panelRef}
-            className="workspace-switcher-content fixed z-[9500] rounded border border-border bg-modalbg p-2 shadow-lg"
-            // Wave's .workspace-switcher-content (unlayered) would win over Tailwind's width and padding classes.
-            style={{ top: anchor.top, left: anchor.left, width: 300, padding: 8 }}
-        >
-            <WorkspaceEditor
-                title={draft.name}
-                icon={draft.icon}
-                color={draft.color}
-                focusInput={true}
-                onTitleChange={(name) => update({ ...draft, name })}
-                onColorChange={(color) => update({ ...draft, color })}
-                onIconChange={(icon) => update({ ...draft, icon })}
-                onDeleteWorkspace={() => {
-                    onClose();
-                    getApi().deleteWorkspace(entry.id);
-                }}
-                onResetWorkspace={
-                    closable
-                        ? null
-                        : () => {
-                              onClose();
-                              askResetWorkspace(entry.id);
-                          }
-                }
-            />
-            <WorkspaceProjectSection workspaceId={entry.id} />
-        </div>
-    );
-}
-
 function RailButton({
     entry,
     closable,
     unread,
     onHover,
-    onEdit,
 }: {
     entry: WorkspaceRailEntry;
     // Deleting it lands the user on another workspace (#222); otherwise it is reset instead.
     closable: boolean;
     unread: number;
     onHover: (label: string, anchor: Anchor) => void;
-    onEdit: (entry: WorkspaceRailEntry, anchor: Anchor) => void;
 }) {
     const ref = useRef<HTMLButtonElement>(null);
     // Read live: the logo can change from the editor or from molten while the rail's list is not refreshed.
@@ -149,18 +78,30 @@ function RailButton({
         const rect = ref.current.getBoundingClientRect();
         return { top: rect.top + rect.height / 2, left: rect.right + 8 };
     };
-    const onClick = () => {
+    const edit = (opener: HTMLElement) => {
+        onHover(null, null);
+        openWorkspaceEditor(entry.id, opener);
+    };
+    const onClick = (e: React.MouseEvent) => {
         if (!entry.saved && entry.active) {
-            // Saving gives the workspace a default name and icon; the user then names it in the editor.
-            fireAndForget(async () => {
-                await WorkspaceService.UpdateWorkspace(entry.id, "", "", "", true);
-                const ws = await WorkspaceService.GetWorkspace(entry.id);
-                onEdit({ ...entry, name: ws.name, icon: ws.icon, color: ws.color, saved: true }, anchorOf());
-            });
+            // Saving gives the workspace a default name and icon; the user then names it in the sheet.
+            edit(ref.current);
             return;
         }
         if (!entry.active) {
+            recordSwitchClick(entry.id);
             getApi().switchWorkspace(entry.id);
+            return;
+        }
+        // A double-click, or the second click of one that started on this item in the tab view the window just left.
+        if (e.detail >= 2 || takeSwitchClick(entry.id)) {
+            edit(ref.current);
+        }
+    };
+    const onDoubleClick = () => {
+        // The first click is already switching the window to that workspace's tab view: that one opens the sheet.
+        if (entry.saved && !entry.active) {
+            handOverWorkspaceEdit(entry.id);
         }
     };
     const onContextMenu = (e: React.MouseEvent) => {
@@ -176,7 +117,7 @@ function RailButton({
         ContextMenuModel.getInstance().showContextMenu(
             [
                 ...projectTab,
-                { label: "Edit workspace…", click: () => onEdit(entry, anchorOf()) },
+                { label: "Edit workspace…", click: () => edit(ref.current) },
                 { type: "separator" },
                 ...(closable ? [] : [{ label: "Reset workspace…", click: () => askResetWorkspace(entry.id) }]),
                 {
@@ -190,44 +131,59 @@ function RailButton({
         );
     };
     return (
-        <button
-            ref={ref}
-            type="button"
-            aria-label={entry.name}
-            aria-current={entry.active ? "true" : undefined}
-            data-workspace-id={entry.id}
-            onClick={onClick}
-            onContextMenu={onContextMenu}
-            onMouseEnter={() =>
-                onHover(
-                    (entry.saved ? entry.name : "Unsaved workspace: click to save it") +
-                        (unread > 0 ? ` · ${unread} unread` : ""),
-                    anchorOf()
-                )
-            }
-            onMouseLeave={() => onHover(null, null)}
-            className={cn(
-                "molten-rail-item relative flex h-9 w-9 cursor-pointer items-center justify-center rounded text-[17px] transition-colors hover:bg-hover",
-                entry.active && "bg-hover",
-                !entry.active && entry.open && "outline outline-1 -outline-offset-1 outline-border"
-            )}
-        >
-            {entry.active ? (
-                <span className="absolute top-1.5 bottom-1.5 -left-1.5 w-[2px] rounded bg-accent" aria-hidden />
-            ) : null}
+        <div className="group relative shrink-0">
+            <button
+                ref={ref}
+                type="button"
+                aria-label={entry.name}
+                aria-current={entry.active ? "true" : undefined}
+                data-workspace-id={entry.id}
+                onClick={onClick}
+                onDoubleClick={onDoubleClick}
+                onContextMenu={onContextMenu}
+                onMouseEnter={() =>
+                    onHover(
+                        (entry.saved ? entry.name : "Unsaved workspace: click to save it") +
+                            (unread > 0 ? ` · ${unread} unread` : ""),
+                        anchorOf()
+                    )
+                }
+                onMouseLeave={() => onHover(null, null)}
+                className={cn(
+                    "molten-rail-item cursor-pointer transition-colors hover:bg-hover",
+                    RailBadgeClass,
+                    entry.active && "bg-hover",
+                    !entry.active && entry.open && "outline outline-1 -outline-offset-1 outline-border"
+                )}
+            >
+                {entry.active ? (
+                    <span className="absolute top-1.5 bottom-1.5 -left-1.5 w-[2px] rounded bg-accent" aria-hidden />
+                ) : null}
+                {entry.saved ? (
+                    <WorkspaceIcon icon={entry.icon} color={entry.color} logo={logo} />
+                ) : (
+                    <i className="fa fa-solid fa-floppy-disk text-secondary" />
+                )}
+                {unread > 0 ? (
+                    <span
+                        className="molten-rail-dot absolute top-1 right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-[var(--color-background)]"
+                        aria-label={`${unread} unread`}
+                    />
+                ) : null}
+                <AgentRailDot workspaceId={entry.id} />
+            </button>
             {entry.saved ? (
-                <WorkspaceIcon icon={entry.icon} color={entry.color} logo={logo} />
-            ) : (
-                <i className="fa fa-solid fa-floppy-disk text-secondary" />
-            )}
-            {unread > 0 ? (
-                <span
-                    className="molten-rail-dot absolute top-1 right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-[var(--color-background)]"
-                    aria-label={`${unread} unread`}
+                <RailEditButton
+                    name={entry.name}
+                    onEdit={(opener) => edit(opener)}
+                    onHover={(opener) => {
+                        const rect = opener.getBoundingClientRect();
+                        onHover(`Edit ${entry.name}`, { top: rect.top + rect.height / 2, left: rect.right + 8 });
+                    }}
+                    onLeave={() => onHover(null, null)}
                 />
             ) : null}
-            <AgentRailDot workspaceId={entry.id} />
-        </button>
+        </div>
     );
 }
 
@@ -235,7 +191,6 @@ export function WorkspaceRail() {
     const active = useAtomValue(atoms.workspace);
     const [sources, setSources] = useState<WorkspaceRailSource[]>([]);
     const [tooltip, setTooltip] = useState<{ label: string; anchor: Anchor }>(null);
-    const [editing, setEditing] = useState<{ entry: WorkspaceRailEntry; anchor: Anchor }>(null);
 
     const refresh = useCallback(() => {
         fireAndForget(async () => setSources(await loadWorkspaceSources()));
@@ -249,7 +204,6 @@ export function WorkspaceRail() {
     const entries = makeWorkspaceRailEntries(sources, active);
     const notifications = useAtomValue(MoltentermNotifications.getInstance().entriesAtom);
     const unread = unreadByWorkspace(notifications);
-    const closeEditor = useCallback(() => setEditing(null), []);
     return (
         <nav
             aria-label="Workspaces"
@@ -262,10 +216,6 @@ export function WorkspaceRail() {
                     closable={canCloseWorkspace(entries, entry.id)}
                     unread={unread.get(entry.id) ?? 0}
                     onHover={(label, anchor) => setTooltip(label == null ? null : { label, anchor })}
-                    onEdit={(e, anchor) => {
-                        setTooltip(null);
-                        setEditing({ entry: e, anchor });
-                    }}
                 />
             ))}
             <button
@@ -291,14 +241,7 @@ export function WorkspaceRail() {
             <PaneFocusKeeper />
             <WorktreeCloseHost />
             <WorkspaceResetHost />
-            {editing ? (
-                <WorkspaceEditPanel
-                    entry={editing.entry}
-                    anchor={editing.anchor}
-                    closable={canCloseWorkspace(entries, editing.entry.id)}
-                    onClose={closeEditor}
-                />
-            ) : null}
+            <WorkspaceEditHost entries={entries} />
         </nav>
     );
 }

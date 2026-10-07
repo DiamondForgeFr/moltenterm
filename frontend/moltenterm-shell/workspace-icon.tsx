@@ -9,6 +9,9 @@ import { cn, makeIconClass } from "@/util/util";
 import { useState } from "react";
 import { logoUrl } from "./workspace-project";
 
+// The rail item's box and glyph size, shared with the edit sheet's preview so it shows the badge at its real size.
+export const RailBadgeClass = "relative flex h-9 w-9 items-center justify-center rounded text-[17px]";
+
 export function WorkspaceIcon({
     icon,
     color,

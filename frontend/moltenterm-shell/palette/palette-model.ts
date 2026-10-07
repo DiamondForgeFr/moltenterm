@@ -17,6 +17,8 @@ export type PaletteRun =
     | { kind: "newtab" }
     | { kind: "newworkspace" }
     | { kind: "switchworkspace"; workspaceId: string }
+    // The edit sheet of the workspace the window shows (FR-SHELL-030).
+    | { kind: "editworkspace" }
     | { kind: "settings" }
     // The workspace's Project tab (FR-SHELL-015): shown, or made again after the user closed it.
     | { kind: "projecttab" }
