@@ -115,7 +115,7 @@ func moltenRunningIntegration(agent string) (MoltenIntegrationStatus, error) {
 	return status, nil
 }
 
-// moltenPlannedIntegration is what `claude` would run with if started now in this shell.
+// moltenPlannedIntegration is what the agent (`claude`, `codex`) would run with if started now in this shell.
 func moltenPlannedIntegration(adapter agentlaunch.LaunchAdapter, getenv func(string) string) MoltenIntegrationStatus {
 	status := MoltenIntegrationStatus{Agent: adapter.Id()}
 	if onPath, err := exec.LookPath(adapter.Executable()); err == nil {
@@ -155,6 +155,9 @@ func planMoltenAgentLaunchDry(adapter agentlaunch.LaunchAdapter, real string, ge
 		paths = append(paths, filepath.Join(agentlaunch.LaunchDir(dataDir), agentlaunch.LaunchFileName(f.Prefix, f.Data)))
 	}
 	setReportFiles(&report, plan.Files, paths)
+	if len(plan.Files) == 0 && plan.MakeArgs != nil && plan.StepAside == "" {
+		report.Args = plan.MakeArgs(nil)
+	}
 	return report
 }
 
@@ -199,6 +202,17 @@ func formatMoltenIntegrationStatus(s MoltenIntegrationStatus) string {
 		}
 		if r.McpConfig != "" {
 			fmt.Fprintf(&b, "    through --mcp-config %s (added to your own MCP servers)\n", r.McpConfig)
+		}
+		if len(r.Args) > 0 {
+			b.WriteString("    through these arguments, before yours (your own files are not edited):\n")
+			for i := 0; i < len(r.Args); i++ {
+				if r.Args[i] == "-c" && i+1 < len(r.Args) {
+					fmt.Fprintf(&b, "      -c %s\n", r.Args[i+1])
+					i++
+					continue
+				}
+				fmt.Fprintf(&b, "      %s\n", r.Args[i])
+			}
 		}
 	}
 	if len(r.Skipped) > 0 {

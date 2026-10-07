@@ -189,3 +189,30 @@ func TestActivityWithoutAgent(t *testing.T) {
 		t.Fatalf("output without an agent keeps nothing: %v", h.states.panes)
 	}
 }
+
+// FR-SHELL-038: the Codex notify wrapper reports only the turn's end. It is not the user's hooks: the pane's output
+// activity keeps giving working on the next turns, and the hook setup offer still counts Codex as not set up.
+func TestTurnEndReportKeepsActivity(t *testing.T) {
+	h := makeAgentHarness()
+	h.out("b1", cmdMark("codex"))
+	h.stream("b1", 100*time.Millisecond, 3*time.Second)
+	if _, _, err := h.states.report(molten.AgentStateRequest{BlockId: "b1", State: molten.AgentStateDone, Agent: "codex", TurnEnd: true}); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.state("b1"); got != molten.AgentStateDone {
+		t.Fatalf("the turn's end shows done, got %q", got)
+	}
+	h.stream("b1", 100*time.Millisecond, 5*time.Second)
+	if got := h.state("b1"); got != molten.AgentStateDone {
+		t.Fatalf("output never ends done, got %q", got)
+	}
+	h.states.input("b1", []byte("\r"))
+	h.clock = h.clock.Add(time.Second)
+	h.stream("b1", 100*time.Millisecond, 3*time.Second)
+	if got := h.state("b1"); got != molten.AgentStateWorking {
+		t.Fatalf("the next turn shows working from the output, got %q", got)
+	}
+	if h.states.isAgentHooked("codex") {
+		t.Fatal("the notify wrapper does not count as the user's hooks")
+	}
+}

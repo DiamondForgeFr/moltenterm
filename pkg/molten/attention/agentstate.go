@@ -331,8 +331,10 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		rec.pid = 0
 		a.markDirtyLocked(req.BlockId)
 	}
-	a.hookedLocked(req.BlockId, rec.agent)
-	a.agentHookedLocked(rec.agent)
+	if !req.TurnEnd {
+		a.hookedLocked(req.BlockId, rec.agent)
+		a.agentHookedLocked(rec.agent)
+	}
 	rec.fromActivity = false
 	a.setStateLocked(req.BlockId, rec, req.State, message)
 	if previous == req.State || (req.State != molten.AgentStateWaiting && req.State != molten.AgentStateDone) {

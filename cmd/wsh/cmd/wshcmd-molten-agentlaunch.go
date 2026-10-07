@@ -17,8 +17,9 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
-// The agent launcher (FR-SHELL-036, DS-SHELL-045). `claude` in a local MoltenTerm terminal is wsh under that name
-// (<data>/bin/agents/claude): it runs `molten agent launch --agent claude -- <args>`, which finds the real binary,
+// The agent launcher (FR-SHELL-036, FR-SHELL-038, DS-SHELL-045). `claude` and `codex` in a local MoltenTerm terminal
+// are wsh under those names (<data>/bin/agents/claude): `claude` runs `molten agent launch --agent claude -- <args>`,
+// which finds the real binary,
 // adds MoltenTerm's integration for this run when it may, tells the pane what it added, and replaces itself with the
 // real binary. On any doubt it adds nothing; it never keeps the agent from starting.
 
@@ -32,12 +33,13 @@ const moltenAgentLaunchPlanTimeout = 250 * time.Millisecond
 
 var moltenAgentLaunchCmd = &cobra.Command{
 	Use:   "launch --agent <agent> -- [args...]",
-	Short: "start a coding agent with MoltenTerm's integration for this run (what the claude launcher runs)",
+	Short: "start a coding agent with MoltenTerm's integration for this run (what the claude and codex launchers run)",
 	Long: "Start a coding agent's real binary with MoltenTerm's integration added for this run only, through the " +
-		"agent's own per-run settings: the state hooks, the session link and the status line relay around your own " +
-		"status line. Nothing of yours is edited. Outside a MoltenTerm terminal, in an agent's own subprocess, for " +
-		"commands that start no session, or with MOLTENTERM_AGENT_INTEGRATION=0, the real binary runs with nothing " +
-		"added. In a MoltenTerm terminal, `claude` runs this.",
+		"agent's own per-run settings: for Claude Code the state hooks, the session link and the status line relay " +
+		"around your own status line; for Codex a notify wrapper around your own notify (done state, session link); " +
+		"for both the MoltenTerm browser. Nothing of yours is edited. Outside a MoltenTerm terminal, in an agent's own " +
+		"subprocess, for commands that start no session, or with MOLTENTERM_AGENT_INTEGRATION=0, the real binary runs " +
+		"with nothing added. In a MoltenTerm terminal, `claude` and `codex` run this.",
 	DisableFlagParsing: true,
 	RunE:               moltenAgentLaunchRun,
 }
@@ -116,8 +118,13 @@ func planMoltenAgentLaunch(adapter agentlaunch.LaunchAdapter, real string, args 
 		report.StepAside, report.Added = plan.StepAside, nil
 		return report, args, env
 	}
-	if len(plan.Files) == 0 {
+	if plan.MakeArgs == nil {
 		return report, args, env
+	}
+	if len(plan.Files) == 0 {
+		finalArgs := plan.MakeArgs(nil)
+		report.Args = addedArgs(finalArgs, args)
+		return report, finalArgs, env
 	}
 	dir := agentlaunch.LaunchDir(dataDir)
 	var paths []string
@@ -136,6 +143,14 @@ func planMoltenAgentLaunch(adapter agentlaunch.LaunchAdapter, real string, args 
 	}
 	setReportFiles(&report, plan.Files, paths)
 	return report, plan.MakeArgs(paths), env
+}
+
+// addedArgs is what a plan without files put before the user's arguments (Codex's -c overrides), for the report.
+func addedArgs(finalArgs []string, userArgs []string) []string {
+	if len(finalArgs) < len(userArgs) {
+		return nil
+	}
+	return finalArgs[:len(finalArgs)-len(userArgs)]
 }
 
 // setReportFiles names the generated files in the report, by what they are.

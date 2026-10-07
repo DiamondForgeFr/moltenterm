@@ -359,7 +359,19 @@ func (m *Manager) ReportSession(req molten.AgentSessionRequest) error {
 	if adapter == nil {
 		return fmt.Errorf("no companion exists for %s", molten.AgentDisplayName(agent))
 	}
-	path, err := ValidateSessionPath(adapter, req.Path)
+	reqPath := req.Path
+	if reqPath == "" && req.SessionId != "" {
+		finder, ok := adapter.(SessionFinder)
+		if !ok {
+			return fmt.Errorf("%s's sessions cannot be found by id", molten.AgentDisplayName(agent))
+		}
+		found, ok := finder.FindSession(req.SessionId)
+		if !ok {
+			return fmt.Errorf("no transcript was found for this session id")
+		}
+		reqPath = found
+	}
+	path, err := ValidateSessionPath(adapter, reqPath)
 	if err != nil {
 		return err
 	}

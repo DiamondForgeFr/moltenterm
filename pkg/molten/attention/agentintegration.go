@@ -59,6 +59,17 @@ func clipItems(items []molten.IntegrationItem) []molten.IntegrationItem {
 	return rtn
 }
 
+func clipArgs(args []string) []string {
+	if len(args) > maxIntegrationItems {
+		args = args[:maxIntegrationItems]
+	}
+	var rtn []string
+	for _, a := range args {
+		rtn = append(rtn, clipText(a))
+	}
+	return rtn
+}
+
 func (r *integrationReports) record(report molten.AgentIntegrationReport) error {
 	if report.BlockId == "" {
 		return fmt.Errorf("no block")
@@ -69,6 +80,7 @@ func (r *integrationReports) record(report molten.AgentIntegrationReport) error 
 	report.RealPath = clipText(report.RealPath)
 	report.Settings = clipText(report.Settings)
 	report.McpConfig = clipText(report.McpConfig)
+	report.Args = clipArgs(report.Args)
 	report.StepAside = clipText(report.StepAside)
 	report.Added = clipItems(report.Added)
 	report.Skipped = clipItems(report.Skipped)

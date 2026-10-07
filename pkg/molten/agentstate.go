@@ -245,11 +245,15 @@ func CleanAgentMessage(message string) string {
 	return clean
 }
 
+// AgentStateRequest is a state report. TurnEnd: the report comes from a source that only sees turns end (the Codex
+// notify wrapper of the launcher, `molten agent notify`), not from the user's hooks: the pane's output activity keeps
+// giving working, and the hook setup offer does not count the agent as set up.
 type AgentStateRequest struct {
 	BlockId string `json:"blockid"`
 	State   string `json:"state"`
 	Agent   string `json:"agent,omitempty"`
 	Message string `json:"message,omitempty"`
+	TurnEnd bool   `json:"turnend,omitempty"`
 }
 
 type AgentStateInfo struct {

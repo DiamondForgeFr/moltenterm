@@ -39,6 +39,12 @@ type Adapter interface {
 	Parse(rec map[string]any, s *Session) bool
 }
 
+// SessionFinder is an adapter that resolves one of its sessions' transcripts from the session id an agent reports
+// (Codex's notify payload). The path it returns is still validated like any reported path.
+type SessionFinder interface {
+	FindSession(id string) (string, bool)
+}
+
 // Candidate is a session discovery found for a block.
 type Candidate struct {
 	Path     string `json:"path"`
