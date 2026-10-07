@@ -152,6 +152,7 @@ type PipelineReport struct {
 }
 
 var pipelineIdRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
+var tagPrefixRegex = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._/-]*$`)
 var pipelineVariableRegex = regexp.MustCompile(`\{[a-z]+\}`)
 
 type pipelineChecker struct {
@@ -373,6 +374,14 @@ func (c *pipelineChecker) checkIcon(icon string) {
 func (c *pipelineChecker) checkVersions(v *PipelineVersions) {
 	if v.Notes != "" && !strings.Contains(v.Notes, "{tag}") {
 		c.errorf("versions.notes must contain {tag} (e.g. releases/{tag}.md)")
+	}
+	// The notes are written and the tag passed to git: a path leaving the project, or a tag read as an option, is
+	// refused before any release runs.
+	if v.Notes != "" && (strings.Contains(v.Notes, "..") || !insideProject(c.dir, filepath.FromSlash(strings.ReplaceAll(v.Notes, "{tag}", "v1.0.0")))) {
+		c.errorf("versions.notes must name a file of the project, without .. (got %q)", v.Notes)
+	}
+	if v.TagPrefix != "" && !tagPrefixRegex.MatchString(v.TagPrefix) {
+		c.errorf("versions.tagprefix must start with a letter and hold only letters, digits, '.', '_', '/' or '-' (got %q)", v.TagPrefix)
 	}
 	if v.FirstPublic != "" {
 		if _, err := versions.ParseBase(v.FirstPublic); err != nil {

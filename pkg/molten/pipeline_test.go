@@ -182,6 +182,29 @@ func TestOwnPipelineIsValid(t *testing.T) {
 	}
 }
 
+// The release commands write the notes and pass the tag to git: neither may leave the project or read as an option.
+func TestValidatePipelineReleasePaths(t *testing.T) {
+	for _, versionsJson := range []string{
+		`{"notes": "{tag}/../../../elsewhere.md"}`,
+		`{"notes": "/tmp/{tag}.md"}`,
+		`{"tagprefix": "--upload-pack=x"}`,
+		`{"tagprefix": "v x"}`,
+	} {
+		report := validateWith(t, map[string]string{
+			".molten/project.json": `{"schema": 1, "name": "x", "versions": ` + versionsJson + `, "ci": {"jobs": [{"name": "a", "run": "true"}]}}`,
+		})
+		if report.Valid {
+			t.Errorf("%s was accepted", versionsJson)
+		}
+	}
+	report := validateWith(t, map[string]string{
+		".molten/project.json": `{"schema": 1, "name": "x", "versions": {"tagprefix": "release-", "notes": "docs/releases/{tag}.md"}, "ci": {"jobs": [{"name": "a", "run": "true"}]}}`,
+	})
+	if !report.Valid {
+		t.Errorf("a prefix with a dash and a notes folder: %v", report.Errors)
+	}
+}
+
 func TestValidatePipelineVersions(t *testing.T) {
 	report := validateWith(t, map[string]string{
 		".molten/project.json": `{
