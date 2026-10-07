@@ -29,6 +29,7 @@ import {
 } from "./companion-task-model";
 
 const RpcTimeoutMs = 5000;
+const RefreshMs = 15000;
 const PlainButton =
     "cursor-pointer rounded border border-border px-2 py-1 text-[11px] text-secondary hover:bg-hover hover:text-primary";
 const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded px-2 py-1 text-[11px]";
@@ -108,6 +109,14 @@ function useWorkspaceTask(target: string): { view: TaskView; error: string; setV
         }
         return () => unsubscribe();
     }, [wsId]);
+    // A save in the editor writes the file without an event; the periodic read also keeps "updated … ago" current.
+    useEffect(() => {
+        if (!target) {
+            return;
+        }
+        const timer = setInterval(() => setReload((n) => n + 1), RefreshMs);
+        return () => clearInterval(timer);
+    }, [target]);
     return { view, error, setView };
 }
 
@@ -152,7 +161,7 @@ export function WorkspaceTaskSection({ target, companionId }: { target: string; 
             view={view}
             now={Date.now()}
             confirming={confirming}
-            actionError={actionError}
+            actionError={actionError ?? (error ? `Not refreshed: ${error}` : null)}
             onOpen={() => open(false)}
             onEdit={() => open(true)}
             onAskClear={() => setConfirming(true)}

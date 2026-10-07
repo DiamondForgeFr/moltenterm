@@ -18,12 +18,14 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
+	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
+	"github.com/wavetermdev/waveterm/pkg/wslconn"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
@@ -40,6 +42,8 @@ const (
 type routeLink struct {
 	store  *Store
 	output chan []byte
+	// localSource tells a request from a local window or terminal; replaced in tests.
+	localSource func(source string, ingressLinkId baseds.LinkId) bool
 }
 
 func (l *routeLink) GetPeerInfo() string {
@@ -59,16 +63,21 @@ func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debu
 	if req.Command == "" || req.ReqId == "" {
 		return true
 	}
-	go l.answer(req)
+	// Not here: the router calls SendRpcMessage with its lock held, and checking the source takes it.
+	go l.answer(req, ingressLinkId)
 	return true
 }
 
-func (l *routeLink) answer(req wshutil.RpcMessage) {
+func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) {
 	defer func() {
 		panichandler.PanicHandler("molten:task:route", recover())
 	}()
 	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := l.handle(req.Command, req.Source, req.Data)
+	source := req.Source
+	if !l.localSource(source, ingressLinkId) {
+		source = ""
+	}
+	data, err := l.handle(req.Command, source, req.Data)
 	if err != nil {
 		resp.Error = err.Error()
 	} else {
@@ -81,8 +90,25 @@ func (l *routeLink) answer(req wshutil.RpcMessage) {
 	l.output <- out
 }
 
-// A window (its route is stamped by the router) or wsh in a local terminal; a remote host never reads the task memory
-// of this machine (NFR-CONT-001).
+// localSourceOnLink: the request's source is a route of the link it came in on, and that link is not a connection's
+// (an SSH or WSL host is a router whose requests keep the source they claim): a remote host never reads or clears the
+// task memory of this machine (NFR-CONT-001).
+func localSourceOnLink(source string, ingressLinkId baseds.LinkId) bool {
+	if source == "" || ingressLinkId == baseds.NoLinkId || wshutil.DefaultRouter.GetLinkIdForRoute(source) != ingressLinkId {
+		return false
+	}
+	for _, st := range append(conncontroller.GetAllConnStatus(), wslconn.GetAllConnStatus()...) {
+		if st.Connection == "" {
+			continue
+		}
+		if wshutil.DefaultRouter.GetLinkIdForRoute(wshutil.MakeConnectionRouteId(st.Connection)) == ingressLinkId {
+			return false
+		}
+	}
+	return true
+}
+
+// A window (its route is stamped by the router) or wsh in a local terminal.
 func isWindowSource(source string) bool {
 	return strings.HasPrefix(source, wshutil.RoutePrefix_Tab)
 }
@@ -249,7 +275,7 @@ func start() {
 	attention.SetTurnEndListener(u.TurnEnded)
 	go u.Run(make(chan struct{}))
 	go sweepLoop(store)
-	link := &routeLink{store: store, output: make(chan []byte, routeQueueSize)}
+	link := &routeLink{store: store, output: make(chan []byte, routeQueueSize), localSource: localSourceOnLink}
 	if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, molten.TaskRoute); err != nil {
 		log.Printf("molten: task checkpoint route not started: %v\n", err)
 		return

@@ -86,7 +86,12 @@ export function firstLine(text: string): string {
     if (!line) {
         return "";
     }
-    return line.replace(/^[-*]\s+(\[[ xX]\]\s+)?/, "");
+    return plainText(line.replace(/^[-*]\s+(\[[ xX]\]\s+)?/, ""));
+}
+
+// The Markdown a line shows as plain text: code spans unwrapped, the escapes MoltenTerm adds (\< and \[) undone.
+export function plainText(text: string): string {
+    return (text ?? "").replace(/`([^`]*)`/g, "$1").replace(/\\([<[])/g, "$1");
 }
 
 // The plan's checkboxes: "- [x]" done, "- [ ]" not yet.

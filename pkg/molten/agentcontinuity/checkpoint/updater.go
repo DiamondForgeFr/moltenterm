@@ -35,7 +35,9 @@ const (
 	BlockForget = 2 * time.Minute
 	gitTimeout  = 2 * time.Second
 	// The transcript of a pane whose agent is not hooked is looked for at most this often, once linked.
-	relinkInterval = 15 * time.Second
+	relinkInterval    = 15 * time.Second
+	unlinkedFastTries = 12
+	unlinkedInterval  = 30 * time.Second
 )
 
 // sessionReader is what the updater needs of companion.SessionReader.
@@ -57,15 +59,19 @@ type blockState struct {
 	reader    sessionReader
 	signature string
 	turns     int
+	// forgotten: the pane closed; no reader is opened for it again (guarded by lock).
+	forgotten bool
 	// Guarded by the updater's lock.
 	wsId     string
 	seen     time.Time
 	linkedAt time.Time
+	misses   int
 }
 
 type wsState struct {
-	last    time.Time
-	pending map[string]bool
+	last time.Time
+	// pending: the panes to read, with when each was triggered (applied in that order: the latest wins).
+	pending map[string]time.Time
 	timer   func() bool
 }
 
@@ -138,10 +144,10 @@ func (u *Updater) Trigger(blockId string) {
 	defer u.lock.Unlock()
 	ws := u.workspaces[wsId]
 	if ws == nil {
-		ws = &wsState{pending: map[string]bool{}}
+		ws = &wsState{pending: map[string]time.Time{}}
 		u.workspaces[wsId] = ws
 	}
-	ws.pending[blockId] = true
+	ws.pending[blockId] = u.now()
 	if ws.timer != nil {
 		return
 	}
@@ -194,16 +200,24 @@ func (u *Updater) takePending(wsId string) []string {
 	for blockId := range ws.pending {
 		rtn = append(rtn, blockId)
 	}
-	ws.pending = map[string]bool{}
-	sort.Strings(rtn)
+	pending := ws.pending
+	sort.Slice(rtn, func(i, j int) bool {
+		if !pending[rtn[i]].Equal(pending[rtn[j]]) {
+			return pending[rtn[i]].Before(pending[rtn[j]])
+		}
+		return rtn[i] < rtn[j]
+	})
+	ws.pending = map[string]time.Time{}
 	return rtn
 }
 
 // flush writes one update of a workspace from every pane that triggered it.
 func (u *Updater) flush(wsId string) {
 	var inputs []AutoInput
+	// Panes of the same folder read its branch once per update.
+	gitStates := map[string]GitState{}
 	for _, blockId := range u.takePending(wsId) {
-		if in, ok := u.inputOf(blockId); ok {
+		if in, ok := u.inputOf(blockId, gitStates); ok {
 			inputs = append(inputs, in)
 		}
 	}
@@ -223,7 +237,7 @@ func (u *Updater) flush(wsId string) {
 }
 
 // inputOf reads what a pane's session says now.
-func (u *Updater) inputOf(blockId string) (AutoInput, bool) {
+func (u *Updater) inputOf(blockId string, gitStates map[string]GitState) (AutoInput, bool) {
 	bs := u.block(blockId)
 	if agent, path, ok := u.linkedSession(blockId); ok {
 		u.setSession(bs, agent, path)
@@ -246,7 +260,12 @@ func (u *Updater) inputOf(blockId string) (AutoInput, bool) {
 	}
 	in.Folder = folder
 	if folder != "" && u.gitState != nil {
-		in.Git = u.gitState(folder)
+		g, ok := gitStates[folder]
+		if !ok {
+			g = u.gitState(folder)
+			gitStates[folder] = g
+		}
+		in.Git = g
 	}
 	return in, true
 }
@@ -262,7 +281,7 @@ func (u *Updater) linkedSession(blockId string) (string, string, bool) {
 func (u *Updater) setSession(bs *blockState, agent string, path string) bool {
 	bs.lock.Lock()
 	defer bs.lock.Unlock()
-	if bs.path == path && bs.agent == agent && bs.reader != nil {
+	if bs.forgotten || (bs.path == path && bs.agent == agent && bs.reader != nil) {
 		return false
 	}
 	if bs.reader != nil {
@@ -364,21 +383,32 @@ func (u *Updater) Tick() {
 	u.forgetGone(running, now)
 }
 
-// shouldRelink: an unlinked pane is looked at on every tick, a linked one every relinkInterval (a /clear starts a new
-// session).
+// shouldRelink: a linked pane is looked at every relinkInterval (a /clear starts a new session); an unlinked one on
+// every tick for its first unlinkedFastTries, then every unlinkedInterval (discovery reads the agent's session folder).
 func (u *Updater) shouldRelink(bs *blockState, now time.Time) bool {
 	bs.lock.Lock()
 	linked := bs.reader != nil
 	bs.lock.Unlock()
 	u.lock.Lock()
 	defer u.lock.Unlock()
-	return !linked || now.Sub(bs.linkedAt) >= relinkInterval
+	if linked {
+		return now.Sub(bs.linkedAt) >= relinkInterval
+	}
+	return bs.misses < unlinkedFastTries || now.Sub(bs.linkedAt) >= unlinkedInterval
 }
 
 func (u *Updater) markLinked(bs *blockState, now time.Time) {
 	u.lock.Lock()
 	defer u.lock.Unlock()
 	bs.linkedAt = now
+	bs.lock.Lock()
+	linked := bs.reader != nil
+	bs.lock.Unlock()
+	if linked {
+		bs.misses = 0
+		return
+	}
+	bs.misses++
 }
 
 func (u *Updater) forgetGone(running map[string]bool, now time.Time) {
@@ -407,7 +437,7 @@ func (u *Updater) forgetGone(running map[string]bool, now time.Time) {
 
 func (u *Updater) blockPendingLocked(blockId string) bool {
 	for _, ws := range u.workspaces {
-		if ws.pending[blockId] {
+		if _, ok := ws.pending[blockId]; ok {
 			return true
 		}
 	}
@@ -417,6 +447,7 @@ func (u *Updater) blockPendingLocked(blockId string) bool {
 func closeBlock(bs *blockState) {
 	bs.lock.Lock()
 	defer bs.lock.Unlock()
+	bs.forgotten = true
 	if bs.reader != nil {
 		bs.reader.Close()
 		bs.reader = nil

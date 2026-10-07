@@ -141,20 +141,14 @@ func Parse(data []byte) *Checkpoint {
 	var preamble []string
 	var raws []*rawSection
 	var cur *rawSection
-	fence := ""
 	scanner := bufio.NewScanner(strings.NewReader(text))
 	scanner.Buffer(make([]byte, 64*1024), MaxFileBytes)
 	for scanner.Scan() {
 		line := scanner.Text()
 		trimmed := strings.TrimSpace(line)
-		if marker := fenceMarker(trimmed); marker != "" {
-			if fence == "" {
-				fence = marker
-			} else if strings.HasPrefix(trimmed, fence) {
-				fence = ""
-			}
-		}
-		if fence == "" && strings.HasPrefix(line, "## ") {
+		// Every "## " line starts a section, in a code fence too: Render escapes the bodies' own, so a fence a body
+		// leaves open (a pasted prompt) cannot swallow the sections after it.
+		if strings.HasPrefix(line, "## ") {
 			cur = &rawSection{name: strings.TrimSpace(strings.TrimPrefix(line, "## "))}
 			raws = append(raws, cur)
 			continue
@@ -194,15 +188,6 @@ func Parse(data []byte) *Checkpoint {
 	return c
 }
 
-func fenceMarker(trimmed string) string {
-	for _, marker := range []string{"```", "~~~"} {
-		if strings.HasPrefix(trimmed, marker) {
-			return marker
-		}
-	}
-	return ""
-}
-
 func parseSection(name string, lines []string) (Section, bool) {
 	sec := Section{Name: name}
 	start := 0
@@ -227,7 +212,7 @@ func parseSection(name string, lines []string) (Section, bool) {
 	case !commented:
 		sec.Owner = OwnerUser
 		return sec, true
-	case sec.Owner == OwnerAuto && hash != bodyHash(sec.Body):
+	case hash != "" && hash != bodyHash(sec.Body):
 		sec.Owner = OwnerUser
 		sec.At = 0
 		return sec, true
@@ -238,6 +223,9 @@ func parseSection(name string, lines []string) (Section, bool) {
 func (c *Checkpoint) parseFrontMatter(text string) string {
 	if !strings.HasPrefix(text, "---\n") {
 		return text
+	}
+	if text[4:] == "---" || strings.HasPrefix(text[4:], "---\n") {
+		return strings.TrimPrefix(strings.TrimPrefix(text[4:], "---"), "\n")
 	}
 	end := strings.Index(text[4:], "\n---")
 	if end < 0 {
@@ -345,9 +333,7 @@ func ownerComment(sec Section, body string) string {
 	if sec.At > 0 {
 		b.WriteString(" at " + formatTime(sec.At))
 	}
-	if sec.Owner == OwnerAuto {
-		b.WriteString(" sha " + bodyHash(escapeHeadings(body)))
-	}
+	b.WriteString(" sha " + bodyHash(escapeHeadings(body)))
 	b.WriteString(" -->")
 	return b.String()
 }
@@ -356,23 +342,14 @@ func oneLineName(name string) string {
 	return strings.Join(strings.Fields(name), " ")
 }
 
-// escapeHeadings keeps a body's own "## " lines (outside code fences) from starting a new section when read back.
+// escapeHeadings keeps a body's own "## " lines (in a code fence or not) from starting a new section when read back.
 func escapeHeadings(body string) string {
 	if !strings.Contains(body, "## ") {
 		return body
 	}
 	lines := strings.Split(body, "\n")
-	fence := ""
 	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if marker := fenceMarker(trimmed); marker != "" {
-			if fence == "" {
-				fence = marker
-			} else if strings.HasPrefix(trimmed, fence) {
-				fence = ""
-			}
-		}
-		if fence == "" && strings.HasPrefix(line, "## ") {
+		if strings.HasPrefix(line, "## ") {
 			lines[i] = "#" + line
 		}
 	}

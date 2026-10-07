@@ -73,7 +73,7 @@ describe("workspace task model", () => {
         const s = taskSummary(view);
         expect(s.empty).toBe(false);
         expect(s.goal).toBe("Plan the login page in three steps. Use [redacted]");
-        expect(s.ticket).toBe("#42, on branch `feature/42-login`.");
+        expect(s.ticket).toBe("#42, on branch feature/42-login.");
         expect(s.plan).toEqual({ done: 1, total: 3 });
         expect(s.files).toBe(2);
         expect(s.next).toBe("Run the e2e suite");
@@ -94,6 +94,8 @@ describe("workspace task model", () => {
         expect(firstLine("\n- [x] done\n- other")).toBe("done");
         expect(firstLine("* item")).toBe("item");
         expect(firstLine("")).toBe("");
+        expect(firstLine("#42, on branch `feature/42-login`.")).toBe("#42, on branch feature/42-login.");
+        expect(firstLine("Fix the \\<Button> and !\\[x](y)")).toBe("Fix the <Button> and ![x](y)");
         expect(planCounts("- [X] a\n- [ ] b\n  - [x] c\nnot a task")).toEqual({ done: 2, total: 3 });
         expect(filesCount("- `a`\n- `b`\n\ntext")).toBe(2);
         expect(redactionLabel(0)).toBe("");
