@@ -13,6 +13,8 @@ import {
     pipelineStage,
     prsByBranch,
     runLogVisible,
+    runStale,
+    StaleRunMs,
     toTreeData,
     upsertRun,
 } from "./mission-model";
@@ -110,6 +112,28 @@ describe("runs", () => {
         expect(runLogVisible({ ...run("a", 1), state: "success" }, "auto")).toBe(false);
         expect(runLogVisible({ ...run("a", 1), state: "success" }, "full")).toBe(true);
         expect(runLogVisible(null, "full")).toBe(false);
+    });
+
+    it("keeps a run the user hid quiet, but shows the log on request and for a new run", () => {
+        const failed = { ...run("a", 1), state: "failure" as const };
+        const hidden = { ...failed, closed: true };
+        expect(runLogVisible(hidden, "auto")).toBe(false);
+        expect(runLogVisible(hidden, "full")).toBe(true);
+        expect(runLogVisible({ ...run("b", 2), state: "failure" as const }, "auto")).toBe(true);
+    });
+
+    it("keeps a stale failure quiet", () => {
+        const step = { kind: "step", stepid: "explain" };
+        const failed = { ...run("a", 1000), ...step, state: "failure" as const, finishedat: 2000 };
+        expect(runStale(failed, [failed], 3000)).toBe(false);
+        expect(runStale(failed, [failed], 2000 + StaleRunMs + 1)).toBe(true);
+        const later = { ...run("b", 5000), ...step, state: "success" as const };
+        expect(runStale(failed, [later, failed], 6000)).toBe(true);
+        const otherStep = { ...later, stepid: "other" };
+        expect(runStale(failed, [otherStep, failed], 6000)).toBe(false);
+        expect(runStale({ ...failed, state: "running" as const }, [later], 6000)).toBe(false);
+        expect(runLogVisible(failed, "auto", true)).toBe(false);
+        expect(runLogVisible(failed, "full", true)).toBe(true);
     });
 
     it("formats elapsed times", () => {
