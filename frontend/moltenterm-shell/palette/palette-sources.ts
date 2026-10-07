@@ -218,6 +218,15 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
             label: "New workspace",
             icon: "layer-group",
             run: { kind: "newworkspace" },
+        },
+        {
+            id: "action:editworkspace",
+            group: "actions",
+            label: "Edit workspace…",
+            detail: "name, icon, colour, project, folder",
+            icon: "pencil",
+            keywords: ["workspace", "rename", "icon", "colour", "color", "settings", "delete", "reset"],
+            run: { kind: "editworkspace" },
         }
     );
     for (const ws of workspaces ?? []) {

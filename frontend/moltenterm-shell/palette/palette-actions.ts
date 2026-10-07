@@ -21,6 +21,7 @@ import { handOffActivePage } from "../browser/browser-routing";
 import { openMoltentermView } from "../open-view";
 import { openProjectTab } from "../project/project-tab";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
+import { openCurrentWorkspaceEditor } from "../workspace-edit";
 import { PaletteRun } from "./palette-model";
 
 export type PalettePlacement = "replace" | "new" | "right";
@@ -115,6 +116,9 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             return;
         case "switchworkspace":
             getApi().switchWorkspace(run.workspaceId);
+            return;
+        case "editworkspace":
+            openCurrentWorkspaceEditor();
             return;
         case "settings":
             openSettings();
