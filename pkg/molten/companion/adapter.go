@@ -59,7 +59,11 @@ type Candidate struct {
 	Prompt string `json:"prompt,omitempty"`
 	// Command: the first slash command of the session ("/clear"), the title while there is no prompt yet.
 	Command string `json:"command,omitempty"`
-	cwd     string
+	// Current: the session this terminal's companion shows now (the history lists it first).
+	Current bool `json:"current,omitempty"`
+	// Elsewhere: another terminal's companion shows it as a guess; picking it here takes it.
+	Elsewhere bool `json:"elsewhere,omitempty"`
+	cwd       string
 }
 
 func homeDir() string {

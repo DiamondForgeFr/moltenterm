@@ -16,7 +16,6 @@ import { memo, useEffect, useMemo, useState } from "react";
 import { useBlockAgentState } from "../agent-state-ui";
 import { PlanUsageSection } from "./companion-gauges";
 import {
-    candidateTitle,
     CompanionAnswer,
     CompanionAnswerCommand,
     CompanionCandidate,
@@ -29,6 +28,7 @@ import {
     CompanionOpenCommand,
     CompanionPickCommand,
     CompanionRoute,
+    CompanionSessionsCommand,
     CompanionTargetMetaKey,
     CompanionTodo,
     CompanionToolCall,
@@ -43,11 +43,12 @@ import {
     neighbourAnswer,
     newerView,
     permissionRequest,
-    relativeTime,
     statusMessage,
     todoCounts,
 } from "./companion-model";
 import { openChangedFile } from "./companion-open";
+import { CompanionSessions } from "./companion-session-store";
+import { GuessNotice, SessionBar, SessionHistoryList } from "./companion-session-ui";
 import { WorkspaceTaskSection } from "./companion-task";
 import { UsageButton } from "./companion-usage";
 
@@ -186,38 +187,62 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     const agentState = useBlockAgentState(target);
     const terminal = useAtomValueSafe(target ? getWaveObjectAtom<Block>(makeORef("block", target)) : null);
     const { view, error, viewId, setView } = useCompanion(target);
+    const [history, setHistory] = useState(false);
     const folder = (terminal?.meta?.["cmd:cwd"] as string) ?? "";
+    const session = view?.session;
+    // The terminal's agent label names the session this companion shows, while it is open.
+    useEffect(() => {
+        CompanionSessions.getInstance().set(target, session);
+    }, [target, session?.path, session?.title, session?.command, session?.started, session?.linkedby]);
+    useEffect(() => {
+        return () => CompanionSessions.getInstance().set(target, null);
+    }, [target]);
+    useEffect(() => {
+        setHistory(false);
+    }, [target, view?.agent]);
     if (!target) {
         return <Centered title="No terminal" detail="This companion is not attached to a terminal." />;
     }
     if (error && view == null) {
         return <Centered title="The companion is not available" detail={error} />;
     }
+    if (history) {
+        return (
+            <SessionHistory
+                target={target}
+                viewId={viewId}
+                onPicked={(v) => {
+                    setView(v);
+                    setHistory(false);
+                }}
+                onClose={() => setHistory(false)}
+            />
+        );
+    }
     const message = statusMessage(view);
-    if (message != null && view?.status !== "choose") {
+    if (message != null) {
         return (
             <Centered title={message.title} detail={message.detail}>
                 <IntegrationNotice view={view} />
                 <UsageButton view={view} />
+                {view?.status === "searching" ? (
+                    <button
+                        type="button"
+                        onClick={() => setHistory(true)}
+                        className="cursor-pointer rounded border border-border px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary"
+                        data-testid="companion-history-open"
+                    >
+                        <i className="fa fa-solid fa-clock-rotate-left mr-1.5" />
+                        Choose from the folder's sessions
+                    </button>
+                ) : null}
             </Centered>
-        );
-    }
-    if (view?.status === "choose") {
-        return (
-            <SessionPicker
-                target={target}
-                viewId={viewId}
-                candidates={view.candidates ?? []}
-                title={message.title}
-                detail={message.detail}
-                onPicked={setView}
-                notice={<IntegrationNotice view={view} />}
-            />
         );
     }
     return (
         <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
-            <SessionBar view={view} />
+            <SessionBar view={view} onHistory={() => setHistory(true)} />
+            <GuessNotice session={session} onHistory={() => setHistory(true)} />
             <IntegrationNotice view={view} className="mx-3 mt-2" />
             {view.usage != null && view.agent ? <PlanUsageSection target={target} agent={view.agent} /> : null}
             <PermissionCard pending={view.pending} agentState={agentState?.state} />
@@ -245,24 +270,42 @@ function Centered({ title, detail, children }: { title: string; detail?: string;
     );
 }
 
-function SessionPicker({
+// The folder's sessions since the agent started, this terminal's current one first (DS-SHELL-060): the former picker,
+// now opened on demand. Choosing one links it as picked, the current one included (a guess the user confirms).
+function SessionHistory({
     target,
     viewId,
-    candidates,
-    title,
-    detail,
     onPicked,
-    notice,
+    onClose,
 }: {
     target: string;
     viewId: string;
-    candidates: CompanionCandidate[];
-    title: string;
-    detail: string;
     onPicked: (v: CompanionView) => void;
-    notice?: React.ReactNode;
+    onClose: () => void;
 }) {
+    const [sessions, setSessions] = useState<CompanionCandidate[]>(null);
     const [error, setError] = useState<string>(null);
+    useEffect(() => {
+        let cancelled = false;
+        fireAndForget(async () => {
+            try {
+                const list = await companionCall<CompanionCandidate[]>(CompanionSessionsCommand, {
+                    blockid: target,
+                    viewid: viewId,
+                });
+                if (!cancelled) {
+                    setSessions(list ?? []);
+                }
+            } catch (e) {
+                if (!cancelled) {
+                    setError(String(e?.message ?? e));
+                }
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [target, viewId]);
     const pick = (path: string) =>
         fireAndForget(async () => {
             try {
@@ -273,59 +316,7 @@ function SessionPicker({
                 setError(String(e?.message ?? e));
             }
         });
-    const now = Date.now();
-    return (
-        <div className="flex h-full w-full flex-col gap-3 overflow-y-auto p-4" data-testid="companion-picker">
-            <div>
-                <div className="text-sm font-medium text-primary">{title}</div>
-                <div className="text-xs text-secondary">{detail}</div>
-                {notice}
-            </div>
-            {candidates.map((c) => (
-                <button
-                    key={c.path}
-                    type="button"
-                    onClick={() => pick(c.path)}
-                    className="flex cursor-pointer flex-col items-start gap-0.5 rounded border border-border px-3 py-2 text-left hover:bg-hover"
-                >
-                    <span className="line-clamp-2 text-xs text-primary">{candidateTitle(c)}</span>
-                    <span className="text-[11px] text-muted">
-                        {[
-                            c.started ? `started ${relativeTime(c.started, now)}` : "",
-                            c.modified ? `updated ${relativeTime(c.modified, now)}` : "",
-                        ]
-                            .filter((s) => !!s)
-                            .join(" · ")}
-                    </span>
-                </button>
-            ))}
-            {error ? <div className="text-xs text-error">{error}</div> : null}
-        </div>
-    );
-}
-
-function SessionBar({ view }: { view: CompanionView }) {
-    const linked =
-        view.session?.linkedby === "hook"
-            ? "linked by the agent's hook"
-            : view.session?.linkedby === "picked"
-              ? "picked"
-              : "found by folder";
-    return (
-        <div
-            className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5 text-[11px] text-muted"
-            title={view.session?.path}
-        >
-            <span className="font-medium text-secondary">{view.agentname}</span>
-            {view.session?.format ? <span>{view.session.format}</span> : null}
-            <span>{linked}</span>
-            <div className="ml-auto flex items-center gap-2">
-                {view.ended ? <span className="text-warning">Agent exited · last session</span> : null}
-                {view.status === "loading" ? <span>Reading…</span> : null}
-                <UsageButton view={view} className="-my-0.5" />
-            </div>
-        </div>
-    );
+    return <SessionHistoryList sessions={sessions} error={error} now={Date.now()} onPick={pick} onClose={onClose} />;
 }
 
 function IntegrationNotice({ view, className }: { view: CompanionView; className?: string }) {

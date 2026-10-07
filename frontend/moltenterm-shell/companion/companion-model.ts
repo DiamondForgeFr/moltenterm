@@ -10,6 +10,7 @@ export const CompanionEvent = "molten:companion";
 export const CompanionOpenCommand = "moltencompanionopen";
 export const CompanionCloseCommand = "moltencompanionclose";
 export const CompanionPickCommand = "moltencompanionpick";
+export const CompanionSessionsCommand = "moltencompanionsessions";
 export const CompanionAnswerCommand = "moltencompanionanswer";
 export const CompanionDiffCommand = "moltencompaniondiff";
 export const CompanionUsageCommand = "moltencompanionusage";
@@ -28,7 +29,6 @@ export type CompanionStatus =
     | "unsupportedagent"
     | "remote"
     | "searching"
-    | "choose"
     | "live"
     | "unsupportedformat"
     | "error";
@@ -71,6 +71,23 @@ export type CompanionCandidate = {
     modified?: number;
     prompt?: string;
     command?: string;
+    // current: the session this terminal's companion shows; elsewhere: another terminal's companion guessed it.
+    current?: boolean;
+    elsewhere?: boolean;
+};
+
+// must match pkg/molten/companion/manager.go and guess.go
+export type CompanionLinkKind = "hook" | "picked" | "discovery" | "guessed";
+export type CompanionGuess = "started" | "activity" | "recent";
+
+export type CompanionSession = {
+    path: string;
+    format?: string;
+    linkedby: CompanionLinkKind;
+    guess?: CompanionGuess;
+    title?: string;
+    command?: string;
+    started?: number;
 };
 
 export type CompanionView = {
@@ -80,8 +97,7 @@ export type CompanionView = {
     agent?: string;
     agentname?: string;
     message?: string;
-    session?: { path: string; format?: string; linkedby: "hook" | "picked" | "discovery" };
-    candidates?: CompanionCandidate[];
+    session?: CompanionSession;
     ended?: boolean;
     answers?: CompanionAnswerInfo[];
     latest?: CompanionAnswer;
@@ -175,11 +191,6 @@ export function statusMessage(view: CompanionView): { title: string; detail?: st
                 detail:
                     view.message ||
                     "It shows once the agent writes its first message. A SessionStart hook links it at once (see `molten docs`, agent-states.md).",
-            };
-        case "choose":
-            return {
-                title: "Which session is this terminal's?",
-                detail: "Another terminal runs the same agent in this folder: pick this terminal's session.",
             };
         case "unsupportedformat":
             return {
@@ -311,6 +322,73 @@ export function relativeTime(at: number, now: number): string {
     return `${Math.round(h / 24)} d ago`;
 }
 
+// How the session was linked, as the session bar says it.
+export function linkLabel(session: CompanionSession): string {
+    switch (session?.linkedby) {
+        case "hook":
+            return "linked by the agent's hook";
+        case "picked":
+            return "picked";
+        case "guessed":
+            return "guessed";
+    }
+    return "found by folder";
+}
+
+// The one-line reason of a guessed link (DS-SHELL-060), or null for any other link.
+export function guessHint(session: CompanionSession): string {
+    if (session?.linkedby !== "guessed") {
+        return null;
+    }
+    switch (session.guess) {
+        case "started":
+            return "Guessed: the session that started after this terminal's agent.";
+        case "activity":
+            return "Guessed: the session written while this terminal's agent worked.";
+    }
+    return "Guessed: the most recently updated session of this folder.";
+}
+
+function clockTime(at: number): string {
+    return new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+// When a session started: the time today, else the date and time.
+export function startedLabel(at: number, now: number): string {
+    if (!at) {
+        return "";
+    }
+    const day = new Date(at);
+    if (day.toDateString() === new Date(now).toDateString()) {
+        return `started ${clockTime(at)}`;
+    }
+    return `started ${day.toLocaleDateString([], { day: "numeric", month: "short" })} ${clockTime(at)}`;
+}
+
+// The linked session's name, as in the history: its first real prompt, else its first command (FR-SHELL-039).
+export function sessionTitle(session: CompanionSession): string {
+    if (session == null) {
+        return null;
+    }
+    return candidateTitle({
+        path: session.path,
+        prompt: session.title,
+        command: session.command,
+        started: session.started,
+    });
+}
+
+// The line the terminal's agent label adds to its tooltip while its companion shows a session, so the terminal and
+// its companion match at a glance.
+export function sessionTooltipLine(session: CompanionSession, now: number): string {
+    if (session == null) {
+        return null;
+    }
+    const started = startedLabel(session.started, now);
+    const guessed = session.linkedby === "guessed" ? " (guessed)" : "";
+    return `Session: ${sessionTitle(session)}${started ? ` · ${started}` : ""}${guessed}`;
+}
+
 export function candidateTitle(c: CompanionCandidate): string {
     if (c.prompt) {
         return c.prompt;
@@ -321,8 +399,7 @@ export function candidateTitle(c: CompanionCandidate): string {
     if (!c.started) {
         return c.command;
     }
-    const time = new Date(c.started).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-    return `${c.command} · ${time}`;
+    return `${c.command} · ${clockTime(c.started)}`;
 }
 
 const FenceOpenRegex = /^ {0,3}(`{3,}(?=[^`]*$)|~{3,})/;

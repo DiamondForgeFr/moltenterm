@@ -18,6 +18,8 @@ const (
 	CompanionDiffCommand    = "moltencompaniondiff"
 	CompanionSessionCommand = "moltencompanionsession"
 	CompanionUsageCommand   = "moltencompanionusage"
+	// The sessions of a block's folder, its current one first: the companion's history.
+	CompanionSessionsCommand = "moltencompanionsessions"
 	// Show or hide plan usage for the agent of a block (FR-SHELL-027).
 	CompanionUsageGaugesCommand = "moltencompanionusagegauges"
 	// Turn the agent's experimental usage source on (after its confirmation) or off (FR-SHELL-028).

@@ -137,6 +137,9 @@ type Session struct {
 	turnsEnded  int
 	// recordAt: the time of the record being parsed, for the changes whose call does not carry it.
 	recordAt int64
+	// startedAt: the time of the first record; firstCommand: the first slash command, the title until a prompt.
+	startedAt    int64
+	firstCommand string
 	// lean: no diff is kept (a reader that only needs which files changed).
 	lean bool
 }
@@ -156,7 +159,34 @@ func MakeLeanSession() *Session {
 func (s *Session) SetRecordTime(at int64) {
 	if at > 0 {
 		s.recordAt = at
+		if s.startedAt == 0 {
+			s.startedAt = at
+		}
 	}
+}
+
+// NoteCommand keeps the session's first slash command ("/clear"), which names it until its first prompt.
+func (s *Session) NoteCommand(name string) {
+	if s.firstCommand == "" && name != "" {
+		s.firstCommand = name
+	}
+}
+
+// Title names the session by its first real prompt (FR-SHELL-039), cut short; empty before one.
+func (s *Session) Title() string {
+	if s.firstPrompt == nil {
+		return ""
+	}
+	return preview(s.firstPrompt.Text)
+}
+
+func (s *Session) FirstCommand() string {
+	return s.firstCommand
+}
+
+// StartedAt is the time of the session's first record, in Unix milliseconds (0 when none says it).
+func (s *Session) StartedAt() int64 {
+	return s.startedAt
 }
 
 // AddPrompt keeps a prompt of the user, already cleaned of the agent's markup. It does not change Version: the

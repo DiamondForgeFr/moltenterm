@@ -417,13 +417,13 @@ func (w *watcher) rereadIfAsked() {
 	w.lock.Lock()
 	asked := w.reread
 	w.reread = false
-	path, linkedBy, started := w.path, w.linkedBy, w.linkedStarted
+	path, linkedBy, started, guess := w.path, w.linkedBy, w.linkedStarted, w.guess
 	w.lock.Unlock()
 	if !asked || w.follower == nil || path == "" {
 		return
 	}
 	w.closeFollower()
-	w.follow(path, linkedBy, started)
+	w.follow(path, linkedBy, started, guess)
 }
 
 func (m *Manager) setUsageVisible(blockId string, visible bool) {

@@ -148,15 +148,22 @@ func TestResumedSessionLinked(t *testing.T) {
 		t.Errorf("latest: %+v", v.Latest)
 	}
 
-	// A second pane resumes another session in the same folder: two agents there, the picker, never b1's session.
+	// A second pane resumes another session in the same folder: two agents there, so a guess, never b1's session.
 	env.lock.Lock()
 	env.runs["b2"] = molten.AgentRunInfo{BlockId: "b2", Agent: "claude", Started: started.UnixMilli(), Running: true}
 	env.lock.Unlock()
 	other := filepath.Join(dir, "other.jsonl")
 	os.WriteFile(other, []byte(line), 0o600)
 	m.Open("b2", "v")
-	v2 := waitView(t, env, "b2", func(v CompanionView) bool { return v.Status == StatusChoose })
-	for _, c := range v2.Candidates {
+	v2 := waitView(t, env, "b2", func(v CompanionView) bool { return v.Session != nil })
+	if filepath.Base(v2.Session.Path) != "other.jsonl" || v2.Session.LinkedBy != LinkGuessed || v2.Session.Guess != GuessRecent {
+		t.Errorf("guessed: %+v", v2.Session)
+	}
+	list, err := m.Sessions("b2", "v")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range list {
 		if filepath.Base(c.Path) == "resumed.jsonl" {
 			t.Error("another pane's session is offered")
 		}
@@ -181,7 +188,11 @@ func TestFreshAgentDoesNotTakeAnotherProgramsSession(t *testing.T) {
 	m := makeTestManager(env, root)
 	defer m.Close("b1", "v")
 	m.Open("b1", "v")
-	v := waitView(t, env, "b1", func(v CompanionView) bool { return v.Status == StatusChoose })
+	waitView(t, env, "b1", func(v CompanionView) bool { return v.Status == StatusSearching })
+	time.Sleep(100 * time.Millisecond)
+	env.lock.Lock()
+	v := env.views["b1"]
+	env.lock.Unlock()
 	if v.Session != nil {
 		t.Errorf("linked another program's session: %+v", v.Session)
 	}
