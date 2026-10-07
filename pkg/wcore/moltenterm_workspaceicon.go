@@ -47,10 +47,26 @@ func setWorkspaceIconMeta(ctx context.Context, workspaceId string, name string) 
 	return wstore.UpdateObjectMeta(ctx, oref, waveobj.MetaMapType{molten.WorkspaceIconMetaKey: value}, false)
 }
 
-// Copies the image at path in as the workspace's icon. The new file is written first, then the meta, then the
-// previous file is deleted, so the workspace always points to a file that exists. Returns the refusal shown to the
-// user ("" when imported); err is for failures that are not the image's fault.
+// Copies the image at path in as the workspace's icon. The image is read and checked before the lock, so a slow
+// decode never holds up another workspace's import or a delete. The new file is written first, then the meta, then
+// the previous file is deleted, so the workspace always points to a file that exists. Returns the refusal shown to
+// the user ("" when imported); err is for failures that are not the image's fault.
 func ImportWorkspaceIcon(ctx context.Context, workspaceId string, path string) (string, error) {
+	data, err := molten.ReadWorkspaceIconSource(path)
+	if err == nil {
+		data, ext, prepErr := molten.PrepareWorkspaceIcon(data)
+		if prepErr == nil {
+			return storeWorkspaceIcon(ctx, workspaceId, data, ext)
+		}
+		err = prepErr
+	}
+	if reason := molten.IconRefusalReason(err); reason != "" {
+		return reason, nil
+	}
+	return "", err
+}
+
+func storeWorkspaceIcon(ctx context.Context, workspaceId string, data []byte, ext string) (string, error) {
 	return withWorkspaceIconLock(func() (string, error) {
 		ws, err := GetWorkspace(ctx, workspaceId)
 		if err != nil {
@@ -58,10 +74,7 @@ func ImportWorkspaceIcon(ctx context.Context, workspaceId string, path string) (
 		}
 		dir := molten.WorkspaceIconsDir()
 		previous := workspaceIconName(ws)
-		name, err := molten.ImportWorkspaceIconFile(dir, ws.OID, path)
-		if reason := molten.IconRefusalReason(err); reason != "" {
-			return reason, nil
-		}
+		name, err := molten.StoreWorkspaceIcon(dir, ws.OID, data, ext)
 		if err != nil {
 			return "", err
 		}
@@ -71,7 +84,7 @@ func ImportWorkspaceIcon(ctx context.Context, workspaceId string, path string) (
 			}
 			return "", fmt.Errorf("error saving the workspace icon: %w", err)
 		}
-		if previous != "" && previous != name {
+		if previous != name && molten.CheckWorkspaceIconOwner(previous, ws.OID) {
 			if err := molten.RemoveWorkspaceIconFile(dir, previous); err != nil {
 				log.Printf("error removing the previous icon %q of workspace %q: %v\n", previous, ws.OID, err)
 			}
@@ -94,6 +107,9 @@ func RemoveWorkspaceIcon(ctx context.Context, workspaceId string) error {
 		if err := setWorkspaceIconMeta(ctx, ws.OID, ""); err != nil {
 			return false, fmt.Errorf("error saving the workspace icon: %w", err)
 		}
+		if !molten.CheckWorkspaceIconOwner(previous, ws.OID) {
+			return true, nil
+		}
 		if err := molten.RemoveWorkspaceIconFile(molten.WorkspaceIconsDir(), previous); err != nil {
 			log.Printf("error removing the icon %q of workspace %q: %v\n", previous, ws.OID, err)
 		}
@@ -102,15 +118,15 @@ func RemoveWorkspaceIcon(ctx context.Context, workspaceId string) error {
 	return err
 }
 
-// Called once the workspace is gone from the database.
+// Called once the workspace is gone from the database. Every file named after it goes, not only the one its meta
+// held when the delete started: an import may have replaced it while the tabs were closing.
 func moltenRemoveDeletedWorkspaceIcon(ws *waveobj.Workspace) {
-	name := workspaceIconName(ws)
-	if name == "" {
+	if ws == nil {
 		return
 	}
 	withWorkspaceIconLock(func() (bool, error) {
-		if err := molten.RemoveWorkspaceIconFile(molten.WorkspaceIconsDir(), name); err != nil {
-			log.Printf("error removing the icon %q of deleted workspace %q: %v\n", name, ws.OID, err)
+		for _, name := range molten.RemoveWorkspaceIconFiles(molten.WorkspaceIconsDir(), ws.OID) {
+			log.Printf("removed the icon %q of deleted workspace %q\n", name, ws.OID)
 		}
 		return true, nil
 	})

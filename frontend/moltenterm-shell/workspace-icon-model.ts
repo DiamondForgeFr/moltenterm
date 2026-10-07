@@ -19,8 +19,9 @@ const StoredIconNameRegex = /^[A-Za-z0-9-]{1,64}-[0-9a-f]{12}\.(png|jpg|webp|svg
 
 export type WorkspaceIconKind = "imported" | "logo" | "builtin";
 
-// What a surface needs to draw a workspace's badge; image is the stored file name, logo an absolute path.
-export type WorkspaceIconSource = { icon: string; color: string; image: string; logo: string };
+// What a surface needs to draw a workspace's badge; image is the stored file name, logo an absolute path. revision is
+// the workspace's version, when the surface reads it live.
+export type WorkspaceIconSource = { icon: string; color: string; image: string; logo: string; revision?: number };
 
 export type ResolvedWorkspaceIcon = { kind: WorkspaceIconKind; path: string; icon: string; color: string };
 
@@ -44,6 +45,7 @@ export function workspaceIconSource(ws: Workspace): WorkspaceIconSource {
         color: ws?.color ?? "",
         image: metaString(meta, WorkspaceIconMetaKey),
         logo: metaString(meta, ProjectLogoMetaKey),
+        revision: ws?.version,
     };
 }
 

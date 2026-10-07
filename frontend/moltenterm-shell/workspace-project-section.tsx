@@ -89,12 +89,13 @@ function LogoChoices({ ws, logos, chosen, dir }: { ws: Workspace; logos: string[
         }
         fireAndForget(() => setWorkspaceLogo(ws.oid, logo || null));
     };
+    // The image goes first: if removing it fails, the logo is not set under an image that still wins.
     const confirmReplace = () => {
         const logo = pending;
         setPending(null);
         fireAndForget(async () => {
-            await setWorkspaceLogo(ws.oid, logo);
             await WorkspaceService.RemoveWorkspaceIcon(ws.oid);
+            await setWorkspaceLogo(ws.oid, logo);
         });
     };
     const pickOther = () =>

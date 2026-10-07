@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -24,6 +25,7 @@ const (
 	xmlNamespace   = "http://www.w3.org/XML/1998/namespace"
 	maxSvgDepth    = 64
 	maxSvgElements = 20000
+	maxSvgUses     = 256
 )
 
 var svgAllowedElements = toSet(
@@ -64,6 +66,17 @@ var svgAllowedAttrs = toSet(
 var localRefRe = regexp.MustCompile(`^#[A-Za-z_][A-Za-z0-9_.:-]*$`)
 var cssUrlRe = regexp.MustCompile(`url\(`)
 var invisibleRe = regexp.MustCompile(`[\x00-\x20\x7f]+`)
+var cssFunctionRe = regexp.MustCompile(`([a-z0-9_-]*)\(`)
+
+// The only functions a value may call: colours, maths, transforms and filter effects. Anything that takes a resource
+// (image-set, image, src, cross-fade, element, -webkit-image-set…) is not on the list; url() is, for a local #id only.
+var svgAllowedFunctions = toSet(
+	"", "url", "rgb", "rgba", "hsl", "hsla", "hwb", "lab", "lch", "oklab", "oklch", "color", "color-mix", "var",
+	"calc", "min", "max", "clamp", "matrix", "matrix3d", "translate", "translatex", "translatey", "translate3d",
+	"scale", "scalex", "scaley", "scale3d", "rotate", "rotatex", "rotatey", "rotate3d", "skew", "skewx", "skewy",
+	"perspective", "blur", "brightness", "contrast", "drop-shadow", "grayscale", "hue-rotate", "invert", "opacity",
+	"saturate", "sepia",
+)
 
 func toSet(values ...string) map[string]bool {
 	set := make(map[string]bool, len(values))
@@ -89,6 +102,15 @@ func onlyLocalUrls(squashed string) bool {
 	return true
 }
 
+func onlyAllowedFunctions(squashed string) bool {
+	for _, match := range cssFunctionRe.FindAllStringSubmatch(squashed, -1) {
+		if !svgAllowedFunctions[match[1]] {
+			return false
+		}
+	}
+	return true
+}
+
 func safeSvgValue(value string) bool {
 	squashed := squashValue(value)
 	for _, bad := range []string{"javascript:", "vbscript:", "data:", "expression(", "@import", "<", "&#"} {
@@ -96,7 +118,7 @@ func safeSvgValue(value string) bool {
 			return false
 		}
 	}
-	return onlyLocalUrls(squashed)
+	return onlyAllowedFunctions(squashed) && onlyLocalUrls(squashed)
 }
 
 // CSS gets a stricter rule than an attribute: no at-rule and no escape at all, since an escape can spell any of the
@@ -138,8 +160,10 @@ func (w *svgWriter) end(local string) {
 	w.out.WriteString("</" + local + ">")
 }
 
-func keepSvgAttrs(local string, attrs []xml.Attr) []xml.Attr {
+// root drops the outermost svg's id: a <use> pointing at the whole document would instantiate every other <use>.
+func keepSvgAttrs(local string, attrs []xml.Attr, root bool) []xml.Attr {
 	var kept []xml.Attr
+	seen := make(map[string]bool)
 	for _, attr := range attrs {
 		name := attr.Name
 		if name.Space == xmlNamespace && name.Local == "space" {
@@ -152,6 +176,10 @@ func keepSvgAttrs(local string, attrs []xml.Attr) []xml.Attr {
 			continue
 		}
 		if strings.HasPrefix(strings.ToLower(name.Local), "on") || !svgAllowedAttrs[name.Local] {
+			continue
+		}
+		// A repeated attribute (href and xlink:href both become href) would make the file malformed.
+		if seen[name.Local] || (root && name.Local == "id") {
 			continue
 		}
 		if local == "style" && name.Local != "type" && name.Local != "media" && name.Local != "id" {
@@ -173,6 +201,7 @@ func keepSvgAttrs(local string, attrs []xml.Attr) []xml.Attr {
 				continue
 			}
 		}
+		seen[name.Local] = true
 		kept = append(kept, xml.Attr{Name: name, Value: value})
 	}
 	return kept
@@ -189,8 +218,11 @@ func SanitizeSvg(data []byte) ([]byte, error) {
 	dec := xml.NewDecoder(bytes.NewReader(data))
 	dec.Strict = true
 	var w svgWriter
-	// The open elements kept (by local name); skip counts the depth inside a dropped element.
+	// The open elements kept (by local name), and whether each one below the root carries an id; skip counts the
+	// depth inside a dropped element.
 	var open []string
+	var openWithId []bool
+	uses := 0
 	skip := 0
 	elements := 0
 	rootSeen, rootDone := false, false
@@ -228,12 +260,24 @@ func SanitizeSvg(data []byte) ([]byte, error) {
 				skip++
 				continue
 			}
-			attrs := keepSvgAttrs(t.Name.Local, t.Attr)
+			// A <use> inside an element another <use> can point at multiplies at each level (a "billion laughs" of
+			// instances when the browser renders it): <use> is kept only outside every element with an id.
+			if t.Name.Local == "use" {
+				uses++
+				if uses > maxSvgUses || slices.Contains(openWithId, true) {
+					skip++
+					continue
+				}
+			}
+			attrs := keepSvgAttrs(t.Name.Local, t.Attr, len(open) == 0)
 			if t.Name.Local == "style" {
 				style = &pendingStyle{attrs: attrs}
 				continue
 			}
 			w.start(t.Name.Local, attrs, len(open) == 0)
+			if len(open) > 0 {
+				openWithId = append(openWithId, slices.ContainsFunc(attrs, func(a xml.Attr) bool { return a.Name.Local == "id" }))
+			}
 			open = append(open, t.Name.Local)
 		case xml.EndElement:
 			if skip > 0 {
@@ -254,6 +298,9 @@ func SanitizeSvg(data []byte) ([]byte, error) {
 			}
 			w.end(open[len(open)-1])
 			open = open[:len(open)-1]
+			if len(open) > 0 {
+				openWithId = openWithId[:len(open)-1]
+			}
 			if len(open) == 0 {
 				rootDone = true
 			}

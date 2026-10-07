@@ -181,9 +181,9 @@ function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteR
                 selected ? "molten-palette-selected text-primary" : "text-secondary"
             )}
         >
-            {entry.badge ? (
+            {entry.badge?.image || entry.badge?.logo ? (
                 <span className="flex w-4 shrink-0 items-center justify-center" data-role="palette-workspace-badge">
-                    <WorkspaceIcon source={entry.badge} />
+                    <WorkspaceIcon source={entry.badge} className="text-[11px]" />
                 </span>
             ) : (
                 <i

@@ -40,9 +40,10 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
     return <span className="text-[11px] font-semibold tracking-[0.14em] text-muted uppercase">{children}</span>;
 }
 
-// The workspace's badge (FR-SHELL-031): its imported image or its project's logo; the project's initial otherwise.
+// The workspace's badge, as the rail shows it (FR-SHELL-031 AC8); the project's initial only when there is no
+// workspace to take it from.
 function ProjectBadge({ name, source }: { name: string; source: WorkspaceIconSource }) {
-    if (source.image || source.logo) {
+    if (source.image || source.logo || source.icon) {
         return (
             <span
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] border border-border bg-hover text-[28px]"
