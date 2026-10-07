@@ -8,6 +8,8 @@
 #   when the user's startup files prepend ~/.local/bin, where Claude Code's installer puts claude (TC-SHELL-062);
 # - an integrated run: --settings <generated file> first, the user's arguments unchanged, stdin, exit code, the same
 #   process (a signal sent to the launcher reaches the agent), the generated file's content and modes;
+# - the MoltenTerm browser (FR-SHELL-037): --mcp-config=<file> first, declaring molten-browser with the absolute path
+#   of molten; nothing of it with --strict-mcp-config or when the user has a molten-browser; their --mcp-config kept;
 # - that the status line in the generated file prints the user's status line byte for byte, through the real relay;
 # - pass-through commands and step-asides (nothing added), a missing claude (exit 127), and that no user file changed;
 # - the launcher's overhead (NFR-SHELL-020: at most 50 ms at the 95th percentile).
@@ -75,8 +77,12 @@ import json, sys
 json.dump({"statusLine": {"type": "command", "command": sys.argv[2], "padding": 1},
            "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "./my-log.sh"}]}]}}, open(sys.argv[1], "w"))
 EOF
-echo '{"mcpServers":{}}' >"${home}/.claude.json"
-echo '{"mcpServers":{}}' >"${project}/.mcp.json"
+echo '{"mcpServers":{"github":{"command":"gh-mcp"}}}' >"${home}/.claude.json"
+echo '{"mcpServers":{"db":{"command":"db-mcp"}}}' >"${project}/.mcp.json"
+echo '{"mcpServers":{"other":{"command":"other-mcp"}}}' >"${project}/other.json"
+mine="${home}/src/mine"
+mkdir -p "${mine}/.git"
+echo '{"mcpServers":{"molten-browser":{"command":"molten","args":["mcp","browser"]}}}' >"${mine}/.mcp.json"
 printf 'export PATH="$HOME/.local/bin:$PATH"\n' >"${home}/.zshrc"
 printf 'export PATH="$HOME/.local/bin:$PATH"\n' >"${home}/.bash_profile"
 mkdir -p "${home}/.config/fish"
@@ -146,12 +152,29 @@ cd "${project}"
 code=0
 printf 'piped input' | "${pane_env[@]}" FAKE_STDIN=1 FAKE_EXIT=7 sh -c 'claude -p "say ok" --model opus; rc=$?; echo "shellpid=$$" >>"$FAKE_LOG"; exit $rc' || code=$?
 args="$(sed -n 's/^arg=//p' "${log}")"
-settings="$(printf '%s\n' "${args}" | sed -n '2p')"
+mcpconfig="$(printf '%s\n' "${args}" | sed -n '1s/^--mcp-config=//p')"
+settings="$(printf '%s\n' "${args}" | sed -n '3p')"
 want_rest="$(printf -- '-p\nsay ok\n--model\nopus')"
-if [ "$(printf '%s\n' "${args}" | sed -n '1p')" = "--settings" ] && [ "$(printf '%s\n' "${args}" | sed -n '3,$p')" = "${want_rest}" ]; then
-    pass "integrated run: --settings <file> first, the user's arguments unchanged"
+if [ -n "${mcpconfig}" ] && [ "$(printf '%s\n' "${args}" | sed -n '2p')" = "--settings" ] && [ "$(printf '%s\n' "${args}" | sed -n '4,$p')" = "${want_rest}" ]; then
+    pass "integrated run: --mcp-config=<file> then --settings <file> first, the user's arguments unchanged"
 else
     fail "integrated run arguments: ${args}"
+fi
+case "${mcpconfig}" in
+    "${data}/molten/agent-launch/claude-mcp-"*.json) pass "the MCP config is in MoltenTerm's data folder" ;;
+    *) fail "mcp config path ${mcpconfig}" ;;
+esac
+if [ -f "${mcpconfig}" ]; then
+    python3 - "${mcpconfig}" "${bin}/molten" <<'EOF' && pass "MCP config: molten-browser runs MoltenTerm's molten by its absolute path, owner-only" || fail "MCP config content: $(cat "${mcpconfig}")"
+import json, os, sys
+doc = json.load(open(sys.argv[1]))
+assert doc == {"mcpServers": {"molten-browser": {"type": "stdio", "command": sys.argv[2], "args": ["mcp", "browser"]}}}, doc
+assert os.stat(sys.argv[1]).st_mode & 0o777 == 0o600
+EOF
+    out="$("${base_env[@]}" "${bin}/molten" mcp browser --help 2>&1 || true)"
+    printf '%s' "${out}" | grep -q 'stdio MCP server' && pass "the configured command is a molten that serves mcp browser" || fail "molten mcp browser --help: ${out}"
+else
+    fail "no MCP config written"
 fi
 grep -q '^stdin=piped input$' "${log}" && pass "stdin reaches the agent" || fail "stdin: $(cat "${log}")"
 grep -q '^launched=claude$' "${log}" && pass "the agent's processes are marked as nested" || fail "MOLTENTERM_AGENT_LAUNCHED: $(cat "${log}")"
@@ -159,6 +182,32 @@ ppid="$(sed -n 's/^ppid=//p' "${log}")"
 shellpid="$(sed -n 's/^shellpid=//p' "${log}")"
 [ -n "${ppid}" ] && [ "${ppid}" = "${shellpid}" ] && pass "the agent replaced the launcher (its parent is the shell)" || fail "ppid ${ppid}, shell ${shellpid}"
 [ "${code}" = 7 ] && pass "exit code passed through" || fail "exit code ${code}, want 7"
+
+browser_skipped() {
+    local label="$1" want="$2"
+    shift 2
+    : >"${log}"
+    "$@" || true
+    local got
+    got="$(sed -n 's/^arg=//p' "${log}" | tr '\n' ' ')"
+    if grep -q -- '^arg=--mcp-config=' "${log}" || ! grep -q -- '^arg=--settings$' "${log}"; then
+        fail "${label}: ${got}"
+    else
+        pass "${label}: no molten-browser added, the rest is (${got% })"
+    fi
+    if [ -n "${want}" ] && [ "$(sed -n 's/^arg=//p' "${log}" | sed -n '3,$p' | tr '\n' ' ')" != "${want}" ]; then
+        fail "${label}: the user's arguments changed: ${got}"
+    fi
+}
+browser_skipped "--strict-mcp-config" "--strict-mcp-config --mcp-config other.json -p x " "${pane_env[@]}" claude --strict-mcp-config --mcp-config other.json -p x
+browser_skipped "a molten-browser of the user's (.mcp.json)" "-p x " sh -c 'cd "$0" && exec "$@"' "${mine}" "${pane_env[@]}" claude -p x
+: >"${log}"
+"${pane_env[@]}" claude --mcp-config other.json -p x || true
+if [ "$(sed -n 's/^arg=//p' "${log}" | sed -n '4,$p' | tr '\n' ' ')" = "--mcp-config other.json -p x " ] && grep -q -- '^arg=--mcp-config=' "${log}"; then
+    pass "the user's own --mcp-config is kept next to MoltenTerm's"
+else
+    fail "user --mcp-config: $(sed -n 's/^arg=//p' "${log}" | tr '\n' ' ')"
+fi
 
 case "${settings}" in
     "${data}/molten/agent-launch/claude-"*.json) pass "the generated file is in MoltenTerm's data folder" ;;
@@ -203,7 +252,7 @@ nothing_added() {
     "$@" || true
     local got
     got="$(sed -n 's/^arg=//p' "${log}" | tr '\n' ' ')"
-    if grep -q -- '^arg=--settings$' "${log}" || ! grep -q '^launched=unset$' "${log}"; then
+    if grep -q -- '^arg=--settings$' "${log}" || grep -q -- '^arg=--mcp-config=' "${log}" || ! grep -q '^launched=unset$' "${log}"; then
         fail "${label}: something was added (${got})"
     else
         pass "${label}: real binary, nothing added (${got% })"

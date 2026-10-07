@@ -385,8 +385,8 @@ func planClaudeStatusLine(managed settingsSource, sources []settingsSource, plan
 	return rtn
 }
 
-// Plan builds the run's settings. The user's own --settings is folded into the generated file (theirs win, hooks
-// concatenated, their status line wrapped), since Claude Code takes one --settings.
+// Plan builds the run's settings and its --mcp-config (claudemcp.go). The user's own --settings is folded into the
+// generated file (theirs win, hooks concatenated, their status line wrapped), since Claude Code takes one --settings.
 func (claudeAdapter) Plan(ctx LaunchContext) (LaunchPlan, error) {
 	var plan LaunchPlan
 	args := parseClaudeArgs(ctx.Args)
@@ -404,26 +404,55 @@ func (claudeAdapter) Plan(ctx LaunchContext) (LaunchPlan, error) {
 	}
 	hooks := planClaudeHooks(managed, sources, &plan)
 	statusLine := planClaudeStatusLine(managed, sources, &plan)
-	if len(hooks) == 0 && statusLine == nil {
+	if len(hooks) > 0 || statusLine != nil {
+		data, err := claudeSettingsJSON(flag, hooks, statusLine)
+		if err != nil {
+			return plan, err
+		}
+		prefix := claudeFilePrefix
+		if flag != nil {
+			prefix = claudeFlagFilePrefix
+		}
+		plan.Files = append(plan.Files, PlannedFile{Kind: FileSettings, Prefix: prefix, Data: data})
+	}
+	if mcp := planClaudeBrowser(ctx, managed, &plan); mcp != nil {
+		plan.Files = append(plan.Files, PlannedFile{Kind: FileMcpConfig, Prefix: claudeMcpFilePrefix, Data: mcp})
+	}
+	if len(plan.Files) == 0 {
 		return plan, nil
 	}
-	data, err := claudeSettingsJSON(flag, hooks, statusLine)
-	if err != nil {
-		return plan, err
-	}
-	prefix := claudeFilePrefix
-	if flag != nil {
-		prefix = claudeFlagFilePrefix
-	}
-	plan.Files = []PlannedFile{{Prefix: prefix, Data: data}}
-	rest, at := args.rest, args.at
+	files := plan.Files
 	plan.MakeArgs = func(paths []string) []string {
-		rtn := make([]string, 0, len(rest)+2)
-		rtn = append(rtn, rest[:at]...)
-		rtn = append(rtn, claudeSettingsFlag, paths[0])
-		return append(rtn, rest[at:]...)
+		return claudeFinalArgs(args, files, paths)
 	}
 	return plan, nil
+}
+
+// claudeFinalArgs places the generated files. --mcp-config takes several values (<configs...>) and Commander keeps
+// reading them after `--mcp-config <path>` until the next option, so a prompt after it would be read as a config:
+// it goes first in its `=` form, which takes exactly one value; repeated --mcp-config values add up, so the user's
+// own still apply. The generated --settings takes the place of the user's (first when they passed none); with no
+// generated settings, the user's own --settings is put back where it was.
+func claudeFinalArgs(args claudeArgs, files []PlannedFile, paths []string) []string {
+	rest, at := args.rest, args.at
+	rtn := make([]string, 0, len(rest)+3)
+	settings := ""
+	if args.hasSetting {
+		settings = args.settings
+	}
+	for i, f := range files {
+		switch f.Kind {
+		case FileMcpConfig:
+			rtn = append(rtn, claudeMcpConfigFlag+"="+paths[i])
+		case FileSettings:
+			settings = paths[i]
+		}
+	}
+	rtn = append(rtn, rest[:at]...)
+	if settings != "" || args.hasSetting {
+		rtn = append(rtn, claudeSettingsFlag, settings)
+	}
+	return append(rtn, rest[at:]...)
 }
 
 // claudeSettingsJSON writes the generated settings: the user's --settings keys, then the hooks appended to theirs

@@ -68,6 +68,7 @@ func (r *integrationReports) record(report molten.AgentIntegrationReport) error 
 	}
 	report.RealPath = clipText(report.RealPath)
 	report.Settings = clipText(report.Settings)
+	report.McpConfig = clipText(report.McpConfig)
 	report.StepAside = clipText(report.StepAside)
 	report.Added = clipItems(report.Added)
 	report.Skipped = clipItems(report.Skipped)

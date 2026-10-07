@@ -134,8 +134,20 @@ func planMoltenAgentLaunch(adapter agentlaunch.LaunchAdapter, real string, args 
 	if sweep {
 		agentlaunch.SweepLaunchFiles(dir, now)
 	}
-	report.Settings = paths[0]
+	setReportFiles(&report, plan.Files, paths)
 	return report, plan.MakeArgs(paths), env
+}
+
+// setReportFiles names the generated files in the report, by what they are.
+func setReportFiles(report *molten.AgentIntegrationReport, files []agentlaunch.PlannedFile, paths []string) {
+	for i, f := range files {
+		switch f.Kind {
+		case agentlaunch.FileSettings:
+			report.Settings = paths[i]
+		case agentlaunch.FileMcpConfig:
+			report.McpConfig = paths[i]
+		}
+	}
 }
 
 type moltenPlanResult struct {
@@ -174,10 +186,11 @@ func moltenLaunchPlan(adapter agentlaunch.LaunchAdapter, args []string, getenv f
 	home, _ := os.UserHomeDir()
 	cwd, _ := os.Getwd()
 	ctx := agentlaunch.LaunchContext{
-		Args:    args,
-		Env:     molten.AgentEnv{Home: home, DataDir: dataDir, Getenv: getenv},
-		Cwd:     cwd,
-		BlockId: getenv("WAVETERM_BLOCKID"),
+		Args:       args,
+		Env:        molten.AgentEnv{Home: home, DataDir: dataDir, Getenv: getenv},
+		Cwd:        cwd,
+		BlockId:    getenv("WAVETERM_BLOCKID"),
+		MoltenPath: agentlaunch.MoltenPath(dataDir),
 	}
 	plan, err := adapter.Plan(ctx)
 	if err != nil {

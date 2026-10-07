@@ -38,10 +38,19 @@ type LaunchContext struct {
 	BlockId string
 	// ManagedSettings: Claude Code's managed settings file, "" for the system's (tests set their own).
 	ManagedSettings string
+	// MoltenPath: the absolute path of MoltenTerm's molten (MoltenPath), "" when it is not installed.
+	MoltenPath string
 }
+
+// What a planned file is, for the report.
+const (
+	FileSettings  = "settings"
+	FileMcpConfig = "mcpconfig"
+)
 
 // PlannedFile is a file the run needs, written content-addressed in MoltenTerm's data folder (files.go).
 type PlannedFile struct {
+	Kind   string
 	Prefix string
 	Data   []byte
 }
