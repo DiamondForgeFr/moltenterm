@@ -475,3 +475,124 @@ func TestWorkspaceIconRasterIsStable(t *testing.T) {
 		t.Fatalf("the copy (%d bytes) is not smaller than the source (%d)", len(first), len(data))
 	}
 }
+
+// An EXIF APP1 segment holding only the orientation tag, in the given byte order.
+func makeExifSegment(orientation uint16, bigEndian bool) []byte {
+	var order binary.AppendByteOrder = binary.LittleEndian
+	head := "II"
+	if bigEndian {
+		order = binary.BigEndian
+		head = "MM"
+	}
+	tiff := []byte(head)
+	tiff = order.AppendUint16(tiff, 42)
+	tiff = order.AppendUint32(tiff, 8)
+	tiff = order.AppendUint16(tiff, 1)
+	tiff = order.AppendUint16(tiff, exifOrientationTag)
+	tiff = order.AppendUint16(tiff, 3)
+	tiff = order.AppendUint32(tiff, 1)
+	tiff = order.AppendUint16(tiff, orientation)
+	tiff = append(tiff, 0, 0)
+	tiff = order.AppendUint32(tiff, 0)
+	body := append([]byte("Exif\x00\x00"), tiff...)
+	segment := []byte{0xFF, 0xE1}
+	segment = binary.BigEndian.AppendUint16(segment, uint16(len(body)+2))
+	return append(segment, body...)
+}
+
+func withExif(jpegData []byte, segment []byte) []byte {
+	out := append([]byte{}, jpegData[:2]...)
+	out = append(out, segment...)
+	return append(out, jpegData[2:]...)
+}
+
+// A 300 x 300 JPEG whose top-left quadrant is red and the rest blue.
+func makeQuadrantJpeg(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewNRGBA(image.Rect(0, 0, 300, 300))
+	for y := 0; y < 300; y++ {
+		for x := 0; x < 300; x++ {
+			if x < 150 && y < 150 {
+				img.SetNRGBA(x, y, color.NRGBA{R: 255, A: 255})
+			} else {
+				img.SetNRGBA(x, y, color.NRGBA{B: 255, A: 255})
+			}
+		}
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 95}); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// The corner (0 top-left, 1 top-right, 2 bottom-left, 3 bottom-right) holding the red quadrant.
+func redCorner(t *testing.T, stored []byte) int {
+	t.Helper()
+	img := decodeStored(t, stored)
+	corners := [][2]int{{40, 40}, {215, 40}, {40, 215}, {215, 215}}
+	found := -1
+	for i, pt := range corners {
+		if got := solidAt(img, pt[0], pt[1]); got.R > 200 && got.B < 80 {
+			if found != -1 {
+				t.Fatalf("two red corners")
+			}
+			found = i
+		}
+	}
+	return found
+}
+
+func TestWorkspaceIconJpegOrientation(t *testing.T) {
+	base := makeQuadrantJpeg(t)
+	cases := []struct {
+		name       string
+		data       []byte
+		wantCorner int
+	}{
+		{"no exif", base, 0},
+		{"orientation 1", withExif(base, makeExifSegment(1, false)), 0},
+		{"orientation 3", withExif(base, makeExifSegment(3, false)), 3},
+		{"orientation 6", withExif(base, makeExifSegment(6, false)), 1},
+		{"orientation 6 big endian", withExif(base, makeExifSegment(6, true)), 1},
+		{"orientation 8", withExif(base, makeExifSegment(8, false)), 2},
+		{"orientation 2", withExif(base, makeExifSegment(2, false)), 1},
+		{"orientation 4", withExif(base, makeExifSegment(4, false)), 2},
+		{"orientation 5", withExif(base, makeExifSegment(5, false)), 0},
+		{"orientation 7", withExif(base, makeExifSegment(7, false)), 3},
+		{"orientation 9 is ignored", withExif(base, makeExifSegment(9, false)), 0},
+		{"truncated exif segment", withExif(base, func() []byte {
+			seg := makeExifSegment(6, false)[:14]
+			binary.BigEndian.PutUint16(seg[2:4], uint16(len(seg)-2))
+			return seg
+		}()), 0},
+		{"exif segment longer than the file", append(append([]byte{}, base[:2]...), 0xFF, 0xE1, 0xFF, 0xFF, 'E', 'x'), 0},
+		{"exif without a tiff header", withExif(base, []byte{0xFF, 0xE1, 0x00, 0x0A, 'E', 'x', 'i', 'f', 0, 0, 'X', 'X', 0, 0}), 0},
+		{"ifd offset outside the segment", withExif(base, func() []byte {
+			seg := makeExifSegment(6, false)
+			seg[10+4] = 0xFF
+			return seg
+		}()), 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			data := tc.data
+			if strings.HasPrefix(tc.name, "exif segment longer") {
+				data = append(data, base[2:]...)
+			}
+			stored, _, err := PrepareWorkspaceIcon(data)
+			if tc.name == "exif segment longer than the file" {
+				if err == nil {
+					t.Fatalf("a broken JPEG was accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := redCorner(t, stored); got != tc.wantCorner {
+				t.Fatalf("red corner %d, want %d", got, tc.wantCorner)
+			}
+		})
+	}
+}
