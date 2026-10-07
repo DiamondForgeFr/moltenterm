@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten"
 )
 
 const (
@@ -47,7 +49,7 @@ type Candidate struct {
 	Prompt string `json:"prompt,omitempty"`
 	// Command: the first slash command of the session ("/clear"), the title while there is no prompt yet.
 	Command string `json:"command,omitempty"`
-	cwd    string
+	cwd     string
 }
 
 func homeDir() string {
@@ -61,16 +63,16 @@ func homeDir() string {
 // AdapterFor returns the adapter of an agent id, or nil when no companion exists for it.
 func AdapterFor(agent string) Adapter {
 	switch agent {
-	case "claude":
+	case molten.AgentIdClaude:
 		return MakeClaudeAdapter(nil)
-	case "codex":
+	case molten.AgentIdCodex:
 		return MakeCodexAdapter(nil)
 	}
 	return nil
 }
 
 // SupportedAgents are the agents with a companion.
-var SupportedAgents = []string{"claude", "codex"}
+var SupportedAgents = []string{molten.AgentIdClaude, molten.AgentIdCodex}
 
 // ValidateSessionPath accepts a transcript path only when it is a regular .jsonl file under one of the adapter's
 // roots, symlinks resolved on both sides (no escape through a link), in the adapter's layout. It returns the

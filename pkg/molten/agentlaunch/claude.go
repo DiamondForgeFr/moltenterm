@@ -27,7 +27,7 @@ import (
 // Code shows does not change. Nothing else is set.
 
 const (
-	ClaudeAgentId      = "claude"
+	ClaudeAgentId      = molten.AgentIdClaude
 	claudeExecutable   = "claude"
 	claudeSettingsFlag = "--settings"
 	claudeFilePrefix   = "claude"

@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten"
 )
 
 // Codex keeps one JSONL "rollout" per session in <home>/sessions/YYYY/MM/DD/rollout-<time>-<id>.jsonl, the home being
@@ -47,13 +49,13 @@ func MakeCodexAdapter(roots []string) *CodexAdapter {
 		if home != "" {
 			roots = []string{filepath.Join(home, "sessions")}
 		}
-		roots = withExtraRoots("codex", roots)
+		roots = withExtraRoots(molten.AgentIdCodex, roots)
 	}
 	return &CodexAdapter{roots: roots}
 }
 
 func (a *CodexAdapter) Id() string {
-	return "codex"
+	return molten.AgentIdCodex
 }
 
 func (a *CodexAdapter) Roots() []string {

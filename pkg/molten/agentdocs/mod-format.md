@@ -140,7 +140,7 @@ below found on the login shell's PATH, and again when its version changes. Nothi
 already there; an agent installed later gets them at the next start, or at once with `molten agent install`.
 
 ```
-molten agent list                 # supported agents, where the guide goes, what is installed
+molten agent list                 # coding agents: installed, version, capabilities; where the guides go
 molten agent install <agent>      # shows the path, asks, writes (--yes to skip the question)
 molten agent remove <agent>       # deletes only a file molten wrote; MoltenTerm stops installing for that agent
 ```

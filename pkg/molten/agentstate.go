@@ -33,6 +33,16 @@ const (
 	agentIdMaxLength      = 32
 )
 
+// The agent ids every package uses for the same agent: states, launch, companion, usage and the agent adapters of
+// pkg/molten/agentcontinuity.
+const (
+	AgentIdClaude   = "claude"
+	AgentIdCodex    = "codex"
+	AgentIdGemini   = "gemini"
+	AgentIdOpenCode = "opencode"
+	AgentIdKimi     = "kimi"
+)
+
 type AgentKind struct {
 	Id   string
 	Name string
@@ -44,10 +54,10 @@ type AgentKind struct {
 }
 
 var AgentKinds = []AgentKind{
-	{Id: "claude", Name: "Claude Code", Commands: []string{"claude"}, ProcessHints: []string{"/claude/versions/", "@anthropic-ai/claude-code", "/bin/claude"}},
-	{Id: "codex", Name: "Codex", Commands: []string{"codex"}, ProcessHints: []string{"@openai/codex", "/bin/codex"}},
-	{Id: "gemini", Name: "Gemini CLI", Commands: []string{"gemini"}, ProcessHints: []string{"@google/gemini-cli", "/bin/gemini"}},
-	{Id: "opencode", Name: "OpenCode", Commands: []string{"opencode"}, ProcessHints: []string{"opencode-ai", "/bin/opencode"}},
+	{Id: AgentIdClaude, Name: "Claude Code", Commands: []string{"claude"}, ProcessHints: []string{"/claude/versions/", "@anthropic-ai/claude-code", "/bin/claude"}},
+	{Id: AgentIdCodex, Name: "Codex", Commands: []string{"codex"}, ProcessHints: []string{"@openai/codex", "/bin/codex"}},
+	{Id: AgentIdGemini, Name: "Gemini CLI", Commands: []string{"gemini"}, ProcessHints: []string{"@google/gemini-cli", "/bin/gemini"}},
+	{Id: AgentIdOpenCode, Name: "OpenCode", Commands: []string{"opencode"}, ProcessHints: []string{"opencode-ai", "/bin/opencode"}},
 }
 
 var agentIdRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
