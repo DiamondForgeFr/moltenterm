@@ -151,7 +151,7 @@ describe("hold-to-close rendering", () => {
         const markup = renderWithSettings(<HoldToCloseButton onClose={() => null} />, {});
         expect(markup).toContain(`aria-label="${HoldToCloseLabel}"`);
         expect(markup).toContain('title="Hold to close"');
-        expect(markup).toContain('data-testid="hold-to-close-ring"');
+        expect(markup).toContain('data-testid="hold-ring"');
     });
 
     it("eases the fill, or steps it under reduced motion", () => {
@@ -196,16 +196,16 @@ describe("hold-to-close rendering", () => {
     });
 
     it("flashes the surface on completion and closes after the flash, at once under reduced motion", () => {
-        const css = readFileSync(new URL("./hold-to-close.css", import.meta.url), "utf8");
-        expect(css).toContain("[data-completing] .molten-hold-close-tint");
-        expect(css).toContain("[data-reduced-motion][data-completing] .molten-hold-close-tint");
+        const css = readFileSync(new URL("./hold-to-confirm.css", import.meta.url), "utf8");
+        expect(css).toContain("[data-completing] .molten-hold-tint");
+        expect(css).toContain("[data-reduced-motion][data-completing] .molten-hold-tint");
         expect(css).toContain("scale(0.92)");
-        expect(css).toContain(".molten-hold-close:focus-visible .molten-hold-close-disc");
+        expect(css).toContain(".molten-hold:focus-visible .molten-hold-disc");
         expect(HoldToCloseFlashMs).toBeLessThanOrEqual(150);
     });
 
     it("keeps the glyph readable on the full tint, for every workspace colour (NFR-SHELL-003)", () => {
-        const css = readFileSync(new URL("./hold-to-close.css", import.meta.url), "utf8");
+        const css = readFileSync(new URL("./hold-to-confirm.css", import.meta.url), "utf8");
         const mix = /--molten-hold-glyph: color-mix\(in srgb, var\(--mt-accent\) (\d+)%, white\)/.exec(css);
         expect(mix).not.toBeNull();
         const white = parseColor("#FFFFFF");
@@ -224,7 +224,7 @@ describe("hold-to-close rendering", () => {
             "tab:holdtoclose": false,
         });
         expect(markup).toContain('aria-label="Close tab"');
-        expect(markup).not.toContain("hold-to-close-ring");
+        expect(markup).not.toContain("hold-ring");
     });
 
     it("mounts in the vertical tab bar", () => {

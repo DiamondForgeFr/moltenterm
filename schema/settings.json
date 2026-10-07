@@ -239,11 +239,11 @@
         },
         "tab:holdtoclose": {
           "type": "boolean",
-          "description": "Closing a tab with its close button takes a press-and-hold; false closes on a single click"
+          "description": "Closing a tab with its close button, or opening a workspace's edit sheet from its rail pencil, takes a press-and-hold; false acts on a single click"
         },
         "tab:holdtoclosems": {
           "type": "integer",
-          "description": "How long the close button is held before the tab closes, in milliseconds (200 to 2000)"
+          "description": "How long a tab's close button or a rail pencil is held before it acts, in milliseconds (200 to 2000)"
         },
         "widget:*": {
           "type": "boolean"

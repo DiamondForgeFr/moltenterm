@@ -157,9 +157,10 @@ type SettingsType struct {
 	TabConfirmClose bool   `json:"tab:confirmclose,omitempty"`
 	TabBackground   string `json:"tab:background,omitempty"`
 
-	// MOLTENTERM-PATCH (#255): the tab bars' close button closes after a press-and-hold (FR-SHELL-025, frontend/moltenterm-shell/hold-to-close.tsx).
-	TabHoldToClose   *bool  `json:"tab:holdtoclose,omitempty" jsonschema_description:"Closing a tab with its close button takes a press-and-hold; false closes on a single click"`
-	TabHoldToCloseMs *int64 `json:"tab:holdtoclosems,omitempty" jsonschema_description:"How long the close button is held before the tab closes, in milliseconds (200 to 2000)"`
+	// MOLTENTERM-PATCH (#255, #354): the tab bars' close button closes after a press-and-hold (FR-SHELL-025, frontend/moltenterm-shell/hold-to-close.tsx);
+	// the rail pencil opens the workspace edit sheet with the same gesture and the same two keys (FR-SHELL-030, hold-to-confirm.tsx).
+	TabHoldToClose   *bool  `json:"tab:holdtoclose,omitempty" jsonschema_description:"Closing a tab with its close button, or opening a workspace's edit sheet from its rail pencil, takes a press-and-hold; false acts on a single click"`
+	TabHoldToCloseMs *int64 `json:"tab:holdtoclosems,omitempty" jsonschema_description:"How long a tab's close button or a rail pencil is held before it acts, in milliseconds (200 to 2000)"`
 
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`
