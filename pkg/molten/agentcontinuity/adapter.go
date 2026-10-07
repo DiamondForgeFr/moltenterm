@@ -58,12 +58,14 @@ type Capability struct {
 	InUse   bool   `json:"inuse,omitempty"`
 }
 
-// BriefingChannel is how the agent receives a briefing for one run. Flag: the argument that carries it. The briefing
-// itself is composed and passed by FR-CONT-009 (#180).
+// BriefingChannel is how the agent receives a briefing for one run. Flag: the argument that carries it; Key: the
+// configuration key the flag sets, when it sets one (Codex's -c developer_instructions=...). The briefing itself is
+// composed and passed by FR-CONT-009 (#180).
 type BriefingChannel struct {
 	Channel string `json:"channel"`
 	Support string `json:"support"`
 	Flag    string `json:"flag,omitempty"`
+	Key     string `json:"key,omitempty"`
 	Note    string `json:"note,omitempty"`
 }
 

@@ -48,16 +48,14 @@ func (l AgentListing) Offered() bool {
 	return l.Supported && l.Installed
 }
 
-// List describes every known agent: the adapters in registration order, then the planned agents. Detection runs in
-// parallel and is bounded by the probe timeout.
+// List describes every known agent: the adapters in registration order, then the planned agents. The adapters'
+// detection runs in parallel and is bounded by the probe timeout; a planned agent is only looked up on the PATH,
+// never run.
 func (r *Registry) List(ctx context.Context, detector *Detector, denv DetectEnv, menv ModelEnv) []AgentListing {
 	adapters := r.Adapters()
 	var exes []string
 	for _, a := range adapters {
 		exes = append(exes, a.Executable())
-	}
-	for _, p := range PlannedAgents {
-		exes = append(exes, p.Executable)
 	}
 	detected := detector.DetectAll(ctx, exes, denv)
 	var rtn []AgentListing
@@ -65,7 +63,7 @@ func (r *Registry) List(ctx context.Context, detector *Detector, denv DetectEnv,
 		rtn = append(rtn, describeAdapter(a, detected[a.Executable()], menv))
 	}
 	for _, p := range PlannedAgents {
-		rtn = append(rtn, AgentListing{Id: p.Id, Name: p.Name, Executable: p.Executable, Unsupported: p.Reason, Detection: detected[p.Executable]})
+		rtn = append(rtn, AgentListing{Id: p.Id, Name: p.Name, Executable: p.Executable, Unsupported: p.Reason, Detection: Locate(p.Executable, denv)})
 	}
 	return rtn
 }

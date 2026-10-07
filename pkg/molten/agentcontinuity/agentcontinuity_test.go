@@ -105,7 +105,7 @@ func TestCapabilityMatrix(t *testing.T) {
 	if b := Find("claude").Briefing(); b.Channel != ChannelSystemAppend || b.Flag != "--append-system-prompt-file" || b.Support != SupportDocumented {
 		t.Errorf("claude briefing %+v", b)
 	}
-	if b := Find("codex").Briefing(); b.Channel != ChannelDeveloper || !strings.Contains(b.Flag, "developer_instructions") || b.Support != SupportDocumented {
+	if b := Find("codex").Briefing(); b.Channel != ChannelDeveloper || b.Flag != "-c" || b.Key != "developer_instructions" || b.Support != SupportDocumented {
 		t.Errorf("codex briefing %+v", b)
 	}
 	if e := Find("claude").Exit(); e.Command != "/exit" {
@@ -184,17 +184,26 @@ func TestFreshAndResumeArgs(t *testing.T) {
 	}{
 		{claude, "", "", nil},
 		{claude, "opus", "", []string{"--model", "opus"}},
-		{claude, "opus[1m]", "Continue the task", []string{"--model", "opus[1m]", "Continue the task"}},
-		{claude, "", "-rf everything", []string{"--", "-rf everything"}},
-		{claude, "claude-opus-5-5", "fix it; rm -rf /", []string{"--model", "claude-opus-5-5", "fix it; rm -rf /"}},
+		{claude, "opus[1m]", "Continue the task", []string{"--model", "opus[1m]", "--", "Continue the task"}},
+		{claude, "", "-p everything", []string{"--", "-p everything"}},
+		{claude, "claude-opus-5-5", "fix it; echo $(id)", []string{"--model", "claude-opus-5-5", "--", "fix it; echo $(id)"}},
+		{claude, "", "update the parser", []string{"--", "update the parser"}},
 		{codex, "", "", nil},
 		{codex, "gpt-6.1-sol", "", []string{"-m", "gpt-6.1-sol"}},
-		{codex, "gpt-6.1-sol", "Continue the task", []string{"-m", "gpt-6.1-sol", "Continue the task"}},
+		{codex, "gpt-6.1-sol", "Continue the task", []string{"-m", "gpt-6.1-sol", "--", "Continue the task"}},
 		{codex, "", "--help", []string{"--", "--help"}},
+		{codex, "", "logout", []string{"--", "logout"}},
+		{codex, "", "exec", []string{"--", "exec"}},
 	} {
 		got, err := tc.a.FreshArgs(tc.model, tc.prompt)
 		if err != nil || !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("%s FreshArgs(%q, %q) = %q, %v; want %q", tc.a.Id(), tc.model, tc.prompt, got, err, tc.want)
+		}
+	}
+	// Claude Code's parser runs a subcommand named by a one-word prompt even after "--".
+	for _, prompt := range []string{"update", " doctor ", "continue", "--version"} {
+		if got, err := claude.FreshArgs("", prompt); err == nil {
+			t.Errorf("claude accepted the one-word prompt %q: %q", prompt, got)
 		}
 	}
 	for _, a := range []AgentAdapter{claude, codex} {
@@ -241,6 +250,12 @@ func TestResumesSession(t *testing.T) {
 		{claude, []string{"--from-pr", "12"}, true},
 		{claude, []string{"--", "--resume"}, false},
 		{claude, []string{"--session-id", "abc"}, false},
+		{claude, []string{"attach", "build-bot"}, true},
+		{claude, []string{"--model", "attach"}, false},
+		{claude, []string{"--add-dir", "a", "b", "attach"}, false},
+		{claude, []string{"--teleport"}, true},
+		{claude, []string{"--cloud=0199"}, true},
+		{claude, []string{"mcp", "list"}, false},
 		{codex, nil, false},
 		{codex, []string{"resume", "abc"}, true},
 		{codex, []string{"resume", "--last"}, true},
@@ -249,7 +264,12 @@ func TestResumesSession(t *testing.T) {
 		{codex, []string{"-c", "resume"}, false},
 		{codex, []string{"resume the work on the parser"}, false},
 		{codex, []string{"--", "resume"}, false},
-		{codex, []string{"exec", "resume"}, false},
+		{codex, []string{"exec", "resume", "--last"}, true},
+		{codex, []string{"e", "-m", "x", "resume", "abc"}, true},
+		{codex, []string{"exec", "fix the parser"}, false},
+		{codex, []string{"-i", "a.png", "b.png", "resume"}, false},
+		{codex, []string{"-i", "a.png", "-m", "x", "resume"}, true},
+		{codex, []string{"exec"}, false},
 	} {
 		if got := tc.a.ResumesSession(tc.args); got != tc.want {
 			t.Errorf("%s ResumesSession(%q) = %v", tc.a.Id(), tc.args, got)

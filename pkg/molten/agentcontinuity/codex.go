@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -31,21 +30,28 @@ const (
 	codexModelFlag     = "-m"
 	codexResumeCommand = "resume"
 	codexForkCommand   = "fork"
-	codexBriefingFlag  = "-c developer_instructions=…"
+	codexExecCommand   = "exec"
+	codexExecAlias     = "e"
+	codexBriefingFlag  = "-c"
+	codexBriefingKey   = "developer_instructions"
 	codexExitCommand   = "/exit"
 	codexModelsFile    = "models_cache.json"
 	codexConfigFile    = "config.toml"
 	codexModelListed   = "list"
 	// Larger files are not read: they are not Codex's.
-	maxCodexFileBytes = 8 * 1024 * 1024
+	maxCodexFileBytes = 4 * 1024 * 1024
 	maxCodexModels    = 50
 )
 
-// Codex's options whose value is the next argument (codex --help, 0.160.1): the first other word is its subcommand.
-var codexValueOptions = map[string]bool{
-	"-c": true, "--config": true, "--enable": true, "--disable": true, "--remote": true, "--remote-auth-token-env": true,
-	"-i": true, "--image": true, "-m": true, "--model": true, "--local-provider": true, "-p": true, "--profile": true,
-	"-s": true, "--sandbox": true, "-a": true, "--ask-for-approval": true, "-C": true, "--cd": true, "--add-dir": true,
+// Codex's options whose value is the next argument, and -i, which takes several (codex --help, 0.160.1): the first
+// other word is its subcommand.
+var codexOptionGrammar = optionGrammar{
+	value: map[string]bool{
+		"-c": true, "--config": true, "--enable": true, "--disable": true, "--remote": true, "--remote-auth-token-env": true,
+		"-m": true, "--model": true, "--local-provider": true, "-p": true, "--profile": true, "-s": true, "--sandbox": true,
+		"-a": true, "--ask-for-approval": true, "-C": true, "--cd": true, "--add-dir": true,
+	},
+	greedy: map[string]bool{"-i": true, "--image": true},
 }
 
 var codexCapabilities = map[string]Capability{
@@ -68,7 +74,7 @@ func (codexAdapter) Name() string       { return codexName }
 func (codexAdapter) Executable() string { return codexExecutable }
 
 func (codexAdapter) Briefing() BriefingChannel {
-	return BriefingChannel{Channel: ChannelDeveloper, Support: SupportDocumented, Flag: codexBriefingFlag,
+	return BriefingChannel{Channel: ChannelDeveloper, Support: SupportDocumented, Flag: codexBriefingFlag, Key: codexBriefingKey,
 		Note: "developer instructions for the run, after the user's own; AGENTS.md still applies"}
 }
 
@@ -114,7 +120,7 @@ func readCodexModelsCache(path string) []ModelChoice {
 		if m.Visibility != codexModelListed || !ValidModelId(m.Slug) {
 			continue
 		}
-		label := strings.TrimSpace(m.DisplayName)
+		label := CleanLabel(m.DisplayName)
 		if label == "" {
 			label = m.Slug
 		}
@@ -149,9 +155,15 @@ func readCodexConfiguredModel(path string) string {
 	return ""
 }
 
-// readBoundedFile reads a regular file of at most max bytes: a FIFO or a device would block.
+// readBoundedFile reads a regular file of at most max bytes. It is opened without blocking and checked on the open
+// handle, so a FIFO or a device put in its place never blocks.
 func readBoundedFile(path string, max int64) ([]byte, error) {
-	info, err := os.Stat(path)
+	f, err := openNoBlock(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
 	if err != nil {
 		return nil, err
 	}
@@ -161,12 +173,13 @@ func readBoundedFile(path string, max int64) ([]byte, error) {
 	if info.Size() > max {
 		return nil, fmt.Errorf("%s is too large", path)
 	}
-	f, err := os.Open(path)
-	if err != nil {
+	// Sized from the stat: a file that grows meanwhile is cut, one that shrinks is read to its end.
+	data := make([]byte, info.Size())
+	n, err := io.ReadFull(f, data)
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
 		return nil, err
 	}
-	defer f.Close()
-	return io.ReadAll(io.LimitReader(f, max))
+	return data[:n], nil
 }
 
 func (codexAdapter) FreshArgs(model string, initialPrompt string) ([]string, error) {
@@ -191,10 +204,16 @@ func (codexAdapter) ResumeArgs(sessionId string) ([]string, error) {
 	return []string{codexResumeCommand, sessionId}, nil
 }
 
-// ResumesSession: the resume and fork subcommands reopen an existing session's history.
+// ResumesSession: the resume and fork subcommands reopen an existing session's history, `codex exec resume` too.
 func (codexAdapter) ResumesSession(args []string) bool {
-	word := firstWord(args, codexValueOptions)
-	return word == codexResumeCommand || word == codexForkCommand
+	words := codexOptionGrammar.words(args)
+	if len(words) == 0 {
+		return false
+	}
+	if (words[0] == codexExecCommand || words[0] == codexExecAlias) && len(words) > 1 {
+		words = words[1:]
+	}
+	return words[0] == codexResumeCommand || words[0] == codexForkCommand
 }
 
 func (codexAdapter) Exit() ExitSequence {
