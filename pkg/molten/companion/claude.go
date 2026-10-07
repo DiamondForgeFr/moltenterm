@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten"
 )
 
 // Claude Code keeps one JSONL transcript per session in <config>/projects/<slugified cwd>/<session id>.jsonl, the
@@ -46,13 +48,13 @@ func MakeClaudeAdapter(roots []string) *ClaudeAdapter {
 		if config != "" {
 			roots = []string{filepath.Join(config, "projects")}
 		}
-		roots = withExtraRoots("claude", roots)
+		roots = withExtraRoots(molten.AgentIdClaude, roots)
 	}
 	return &ClaudeAdapter{roots: roots}
 }
 
 func (a *ClaudeAdapter) Id() string {
-	return "claude"
+	return molten.AgentIdClaude
 }
 
 func (a *ClaudeAdapter) Roots() []string {

@@ -3,6 +3,8 @@
 
 package usage
 
+import "github.com/wavetermdev/waveterm/pkg/molten"
+
 const (
 	ClaudeUsagePageURL = "https://claude.ai/settings/usage"
 	CodexUsagePageURL  = "https://chatgpt.com/codex/settings/usage"
@@ -27,7 +29,7 @@ func (a *pageAdapter) Sources() []GaugesSource { return a.sources }
 // documented status line input.
 func MakeClaudeUsageAdapter() UsageAdapter {
 	return &pageAdapter{
-		id:       "claude",
+		id:       molten.AgentIdClaude,
 		pageURL:  ClaudeUsagePageURL,
 		pageName: "Claude usage",
 		domain:   "claude.ai",
@@ -38,6 +40,6 @@ func MakeClaudeUsageAdapter() UsageAdapter {
 // MakeCodexUsageAdapter: Codex's plan usage is on ChatGPT's Codex usage settings; its gauges come from its session
 // log, else its app-server (codex.go).
 func MakeCodexUsageAdapter() UsageAdapter {
-	return &pageAdapter{id: "codex", pageURL: CodexUsagePageURL, pageName: "Codex usage", domain: "chatgpt.com",
+	return &pageAdapter{id: molten.AgentIdCodex, pageURL: CodexUsagePageURL, pageName: "Codex usage", domain: "chatgpt.com",
 		sources: []GaugesSource{MakeCodexTranscriptSource(DefaultCodexUsage), MakeCodexAppServerSource(DefaultCodexUsage)}}
 }

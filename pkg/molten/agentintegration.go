@@ -162,3 +162,13 @@ func ClaudeUserProjectLocalFiles(env AgentEnv, cwd string) []ClaudeSettingsLevel
 func DisplayHomePath(env AgentEnv, path string) string {
 	return displayHomePath(env, path)
 }
+
+// CodexHome is Codex's user folder: CODEX_HOME, else ~/.codex.
+func CodexHome(env AgentEnv) string {
+	return codexHome(env)
+}
+
+// GuideProfileOfAgent maps an agent id (claude) to the profile of its molten guides (claude-code), or "".
+func GuideProfileOfAgent(agent string) string {
+	return guideProfileOfAgent(agent)
+}

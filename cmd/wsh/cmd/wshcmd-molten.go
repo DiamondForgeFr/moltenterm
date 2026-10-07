@@ -195,7 +195,7 @@ var moltenAgentCmd = &cobra.Command{
 
 var moltenAgentListCmd = &cobra.Command{
 	Use:     "list",
-	Short:   "list the supported coding agents and where the molten guides are installed",
+	Short:   "list the coding agents: installed, version, briefing, models and capabilities, and where the molten guides are installed",
 	Args:    cobra.NoArgs,
 	RunE:    moltenWrap(moltenAgentListRun),
 	PreRunE: preRunSetupRpcClient,
@@ -993,10 +993,11 @@ func moltenAgentListRun(cmd *cobra.Command, args []string) error {
 	for _, profile := range molten.AgentProfiles {
 		statuses = append(statuses, profile.Status(env))
 	}
+	listings := moltenAgentListings(env)
 	if moltenJson {
-		return moltenWriteJson(statuses)
+		return moltenWriteJson(MoltenAgentList{Agents: listings, Guides: statuses})
 	}
-	WriteStdout("%s", formatMoltenAgents(statuses))
+	WriteStdout("%s\nMolten guides:\n%s", formatMoltenAgentListings(listings), formatMoltenAgents(statuses))
 	return nil
 }
 
@@ -1296,7 +1297,7 @@ var moltenBuiltinHelp = [][2]string{
 	{"undo", "restore the mods as they were before the last change (repeat to go further back)"},
 	{"history", "list the recorded changes to the mods"},
 	{"docs", "write the offline mod documentation and print its folder"},
-	{"agent list", "the supported coding agents and where the molten guides are installed"},
+	{"agent list", "the coding agents (installed, version, capabilities) and where the molten guides are installed"},
 	{"agent install <agent>", "install /morph, /molten-pipeline and /molten-bug for a coding agent"},
 	{"agent remove <agent>", "remove the molten guides from a coding agent, and stop installing them at start"},
 	{"project link [folder]", "link this workspace to its project (default: this terminal's folder)"},

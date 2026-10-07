@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/wavetermdev/waveterm/pkg/molten"
 )
 
 // Extra session roots (#141): an agent started with CLAUDE_CONFIG_DIR or CODEX_HOME set in the user's shell keeps its
@@ -21,7 +23,7 @@ import (
 
 const maxExtraRoots = 8
 
-var sessionSubdirs = map[string]string{"claude": "projects", "codex": "sessions"}
+var sessionSubdirs = map[string]string{molten.AgentIdClaude: "projects", molten.AgentIdCodex: "sessions"}
 
 var configuredRootsLock sync.Mutex
 var configuredRoots func() map[string][]string
