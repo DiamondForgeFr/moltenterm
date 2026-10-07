@@ -24,12 +24,17 @@ import { SearchAddon } from "@xterm/addon-search";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
-import { defaultSelectionText, installTermCopy } from "../../../moltenterm-shell/term-copy/term-copy"; // MOLTENTERM-PATCH (#119)
 import * as TermTypes from "@xterm/xterm";
 import { Terminal } from "@xterm/xterm";
 import debug from "debug";
 import * as jotai from "jotai";
 import { debounce } from "throttle-debounce";
+import { defaultSelectionText, installTermCopy } from "../../../moltenterm-shell/term-copy/term-copy"; // MOLTENTERM-PATCH (#119)
+import {
+    decideResize,
+    decideWebglLossRecovery,
+    ShowRepaintFollowUpMs,
+} from "../../../moltenterm-shell/term-visibility/term-visibility"; // MOLTENTERM-PATCH (#290)
 import {
     handleOsc16162Command,
     handleOsc52Command,
@@ -97,6 +102,8 @@ export class TermWrap {
     webglAddon: WebglAddon | null = null;
     webglContextLossDisposable: TermTypes.IDisposable | null = null;
     webglEnabledAtom: jotai.PrimitiveAtom<boolean>;
+    webglLossTimes: number[] = []; // MOLTENTERM-PATCH (#290)
+    isDisposed: boolean = false; // MOLTENTERM-PATCH (#290)
     pasteActive: boolean = false;
     lastUpdated: number;
     promptMarkers: TermTypes.IMarker[] = [];
@@ -318,6 +325,12 @@ export class TermWrap {
             },
         });
         this.handleResize();
+        // MOLTENTERM-PATCH (#290): a terminal shown again is repainted in full and takes the size it gained while hidden
+        const visibilityHandler = () => this.handleVisibilityChange();
+        document.addEventListener("visibilitychange", visibilityHandler);
+        this.toDispose.push({
+            dispose: () => document.removeEventListener("visibilitychange", visibilityHandler),
+        });
         const pasteHandler = this.pasteHandler.bind(this);
         this.connectElem.addEventListener("paste", pasteHandler, true);
         this.toDispose.push({
@@ -362,7 +375,7 @@ export class TermWrap {
         if (renderer === "webgl") {
             const addon = new WebglAddon();
             this.webglContextLossDisposable = addon.onContextLoss(() => {
-                this.setTermRenderer("dom");
+                this.handleWebglContextLoss(); // MOLTENTERM-PATCH (#290)
             });
             this.terminal.loadAddon(addon);
             this.webglAddon = addon;
@@ -446,6 +459,7 @@ export class TermWrap {
     }
 
     dispose() {
+        this.isDisposed = true; // MOLTENTERM-PATCH (#290)
         this.promptMarkers.forEach((marker) => {
             try {
                 marker.dispose();
@@ -573,7 +587,24 @@ export class TermWrap {
     handleResize() {
         const oldRows = this.terminal.rows;
         const oldCols = this.terminal.cols;
-        this.fitAddon.fit();
+        // MOLTENTERM-PATCH (#290): the PTY never gets a size the user did not choose (see term-visibility.ts)
+        const proposed = this.fitAddon.proposeDimensions();
+        const decision = decideResize({
+            hidden: document.visibilityState !== "visible",
+            hasSized: this.hasResized,
+            elemWidth: this.connectElem.clientWidth,
+            elemHeight: this.connectElem.clientHeight,
+            proposedCols: proposed?.cols,
+            proposedRows: proposed?.rows,
+            curCols: oldCols,
+            curRows: oldRows,
+        });
+        if (decision === "defer") {
+            return;
+        }
+        if (decision === "apply") {
+            this.fitAddon.fit();
+        }
         if (oldRows !== this.terminal.rows || oldCols !== this.terminal.cols) {
             const termSize: TermSize = { rows: this.terminal.rows, cols: this.terminal.cols };
             console.log(
@@ -589,6 +620,45 @@ export class TermWrap {
             this.hasResized = true;
             this.resyncController("initial resize");
         }
+    }
+
+    // MOLTENTERM-PATCH (#290)
+    handleVisibilityChange() {
+        if (document.visibilityState !== "visible" || this.isDisposed) {
+            return;
+        }
+        this.handleResize();
+        window.requestAnimationFrame(() => this.repaintAll());
+        setTimeout(() => this.repaintAll(), ShowRepaintFollowUpMs);
+    }
+
+    // MOLTENTERM-PATCH (#290): a terminal that sat hidden can keep a stale or half-drawn frame (the compositor or the GPU
+    // dropped it); xterm only redraws rows it knows changed, so the whole viewport and the glyph atlas are rebuilt.
+    repaintAll() {
+        if (this.isDisposed || document.visibilityState !== "visible" || this.terminal.rows <= 0) {
+            return;
+        }
+        this.webglAddon?.clearTextureAtlas();
+        this.terminal.refresh(0, this.terminal.rows - 1);
+    }
+
+    // MOLTENTERM-PATCH (#290): the GPU took the context back; try WebGL again, then settle on the DOM renderer.
+    handleWebglContextLoss() {
+        const recovery = decideWebglLossRecovery(this.webglLossTimes, Date.now());
+        this.webglLossTimes = recovery.losses;
+        console.log("[termwrap] webgl context lost", this.blockId, recovery.action);
+        this.setTermRenderer("dom");
+        if (recovery.action === "recreate") {
+            this.setTermRenderer("webgl");
+        }
+        // cell metrics belong to the renderer, so the size is fitted again once the new one has measured them
+        window.requestAnimationFrame(() => {
+            if (this.isDisposed) {
+                return;
+            }
+            this.handleResize();
+            this.repaintAll();
+        });
     }
 
     processAndCacheData() {
