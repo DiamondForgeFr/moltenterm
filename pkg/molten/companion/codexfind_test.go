@@ -71,8 +71,25 @@ func TestReportSessionById(t *testing.T) {
 	if r, ok := m.report("b"); !ok || r.path != path {
 		t.Fatalf("report: %+v %v", r, ok)
 	}
-	if err := m.ReportSession(molten.AgentSessionRequest{BlockId: "b", Agent: "codex", SessionId: "0199a8b2-4c1d-7e3f-9a0b-ffffffffffff"}); err == nil {
+	// The next turns report the same id: the block's report is reused, nothing is scanned.
+	if !(&CodexAdapter{}).SessionMatches(path, testThreadId) || (&CodexAdapter{}).SessionMatches(path, "0199a8b2-4c1d-7e3f-9a0b-ffffffffffff") {
+		t.Fatal("SessionMatches")
+	}
+	if err := m.ReportSession(molten.AgentSessionRequest{BlockId: "b", Agent: "codex", SessionId: testThreadId}); err != nil {
+		t.Fatal(err)
+	}
+	unknown := "0199a8b2-4c1d-7e3f-9a0b-ffffffffffff"
+	if err := m.ReportSession(molten.AgentSessionRequest{BlockId: "b", Agent: "codex", SessionId: unknown}); err == nil {
 		t.Fatal("an unknown id is an error")
+	}
+	writeRollout(t, root, time.Now(), unknown)
+	if err := m.ReportSession(molten.AgentSessionRequest{BlockId: "b", Agent: "codex", SessionId: unknown}); err == nil {
+		t.Fatal("an id just missed is not looked up again at once")
+	}
+	later := time.Now().Add(idMissTTL + time.Second)
+	m.now = func() time.Time { return later }
+	if err := m.ReportSession(molten.AgentSessionRequest{BlockId: "b", Agent: "codex", SessionId: unknown}); err != nil {
+		t.Fatalf("after the miss expired: %v", err)
 	}
 	if err := m.ReportSession(molten.AgentSessionRequest{BlockId: "b", Agent: "claude", SessionId: testThreadId}); err == nil {
 		t.Fatal("Claude Code's sessions are reported by path")

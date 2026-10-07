@@ -6,7 +6,9 @@ package companion
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -134,6 +136,9 @@ type Manager struct {
 	// Whether Codex's plan limits are kept: set when the gauges are turned on or off, before the reloaded settings
 	// say so; until then (limitsUnset) the settings tell.
 	limitsState atomic.Int32
+	// Session ids reported by an agent and not found among its transcripts, with when: not looked up again for a
+	// while (Codex reports its thread id at every turn's end).
+	idMisses map[string]time.Time
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
 	runOf         func(blockId string) (molten.AgentRunInfo, bool)
@@ -158,6 +163,7 @@ func MakeManager() *Manager {
 		claims:         map[string]sessionClaim{},
 		usagePublished: map[string]time.Time{},
 		usageVisible:   map[string]bool{},
+		idMisses:       map[string]time.Time{},
 		adapterFor:     AdapterFor,
 		now:            time.Now,
 		tick:           tickInterval,
@@ -361,13 +367,9 @@ func (m *Manager) ReportSession(req molten.AgentSessionRequest) error {
 	}
 	reqPath := req.Path
 	if reqPath == "" && req.SessionId != "" {
-		finder, ok := adapter.(SessionFinder)
-		if !ok {
-			return fmt.Errorf("%s's sessions cannot be found by id", molten.AgentDisplayName(agent))
-		}
-		found, ok := finder.FindSession(req.SessionId)
-		if !ok {
-			return fmt.Errorf("no transcript was found for this session id")
+		found, err := m.findSession(req.BlockId, agent, adapter, req.SessionId)
+		if err != nil {
+			return err
 		}
 		reqPath = found
 	}
@@ -388,6 +390,62 @@ func (m *Manager) ReportSession(req molten.AgentSessionRequest) error {
 		w.poke()
 	}
 	return nil
+}
+
+const (
+	idMissTTL = time.Minute
+	maxIdMiss = 256
+)
+
+// findSession resolves a session id to its transcript. The block's current report is reused when it is that
+// session's (an agent reports its id at every turn), and an id just looked up in vain is not looked up again soon.
+func (m *Manager) findSession(blockId string, agent string, adapter Adapter, id string) (string, error) {
+	finder, ok := adapter.(SessionFinder)
+	if !ok {
+		return "", fmt.Errorf("%s's sessions cannot be found by id", molten.AgentDisplayName(agent))
+	}
+	if r, ok := m.report(blockId); ok && r.agent == agent && finder.SessionMatches(r.path, id) {
+		if info, err := os.Stat(r.path); err == nil && info.Mode().IsRegular() {
+			return r.path, nil
+		}
+	}
+	key := agent + "\x00" + id
+	if m.recentMiss(key) {
+		return "", fmt.Errorf("no transcript was found for this session id")
+	}
+	found, ok := finder.FindSession(id)
+	if !ok {
+		m.noteMiss(key)
+		return "", fmt.Errorf("no transcript was found for this session id")
+	}
+	if finder.IsSubagent(found) {
+		return "", errors.New(molten.SubagentSessionError)
+	}
+	return found, nil
+}
+
+func (m *Manager) recentMiss(key string) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	at, ok := m.idMisses[key]
+	return ok && m.now().Sub(at) < idMissTTL
+}
+
+func (m *Manager) noteMiss(key string) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	now := m.now()
+	if len(m.idMisses) >= maxIdMiss {
+		for k, at := range m.idMisses {
+			if now.Sub(at) >= idMissTTL {
+				delete(m.idMisses, k)
+			}
+		}
+	}
+	if len(m.idMisses) >= maxIdMiss {
+		m.idMisses = map[string]time.Time{}
+	}
+	m.idMisses[key] = now
 }
 
 func (m *Manager) evictOldestReportLocked() {

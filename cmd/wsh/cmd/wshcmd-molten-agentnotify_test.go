@@ -19,19 +19,22 @@ import (
 const testNotifyPayload = `{"type":"agent-turn-complete","thread-id":"0199a8b2-4c1d-7e3f-9a0b-1c2d3e4f5a6b","turn-id":"1","cwd":"/x","input-messages":["fix it 'now' \"please\""],"last-assistant-message":"done\nok"}`
 
 func TestParseMoltenAgentNotifyArgs(t *testing.T) {
-	agent, program, payload, err := parseMoltenAgentNotifyArgs([]string{"--agent", "codex", "--", "/bin/notify", "--title", "x", testNotifyPayload})
-	if err != nil || agent != "codex" || !slices.Equal(program, []string{"/bin/notify", "--title", "x"}) || payload != testNotifyPayload {
-		t.Fatalf("parse: %q %q %q %v", agent, program, payload, err)
+	p, err := parseMoltenAgentNotifyArgs([]string{"--agent", "codex", "--", "/bin/notify", "--title", "x", testNotifyPayload})
+	if err != nil || p.agent != "codex" || p.sessionOnly || !slices.Equal(p.program, []string{"/bin/notify", "--title", "x"}) || p.payload != testNotifyPayload {
+		t.Fatalf("parse: %+v %v", p, err)
 	}
-	agent, program, payload, err = parseMoltenAgentNotifyArgs([]string{"--agent", "codex", "--", testNotifyPayload})
-	if err != nil || len(program) != 0 || payload != testNotifyPayload {
-		t.Fatalf("no user notify: %q %q %v", program, payload, err)
+	p, err = parseMoltenAgentNotifyArgs([]string{"--agent", "codex", "--", testNotifyPayload})
+	if err != nil || len(p.program) != 0 || p.payload != testNotifyPayload {
+		t.Fatalf("no user notify: %+v %v", p, err)
 	}
-	if _, _, _, err := parseMoltenAgentNotifyArgs([]string{"--agent", "Bad Name", "--", "x"}); err == nil {
-		t.Fatal("an invalid agent name is refused")
+	p, err = parseMoltenAgentNotifyArgs([]string{"--agent", "codex", "--session-only", "--", "sh", "-c", "x", testNotifyPayload})
+	if err != nil || !p.sessionOnly || !slices.Equal(p.program, []string{"sh", "-c", "x"}) {
+		t.Fatalf("session only: %+v %v", p, err)
 	}
-	if _, _, _, err := parseMoltenAgentNotifyArgs([]string{"x"}); err == nil {
-		t.Fatal("no --agent and --: usage")
+	for _, bad := range [][]string{{"--agent", "Bad Name", "--", "x"}, {"x"}, {"--agent", "codex", "--session-only"}, {"--agent", "codex", "-x", "--"}} {
+		if _, err := parseMoltenAgentNotifyArgs(bad); err == nil {
+			t.Fatalf("%q must be refused", bad)
+		}
 	}
 	found, _, err := rootCmd.Find([]string{"molten", "agent", "notify"})
 	if err != nil || found != moltenAgentNotifyCmd {
@@ -50,7 +53,7 @@ func TestRunMoltenAgentNotifyRunsTheUsersProgram(t *testing.T) {
 	script := filepath.Join(dir, "notify.sh")
 	os.WriteFile(script, []byte("#!/bin/sh\nfor a in \"$@\"; do printf '%s\\0' \"$a\" >>\""+log+"\"; done\nexit 5\n"), 0755)
 	noPane := func(string) string { return "" }
-	code := runMoltenAgentNotify("codex", []string{script, "--title", "a b"}, testNotifyPayload, noPane)
+	code := runMoltenAgentNotify(moltenNotifyArgs{agent: "codex", program: []string{script, "--title", "a b"}, payload: testNotifyPayload}, noPane)
 	if code != 5 {
 		t.Fatalf("exit code %d, want the program's 5", code)
 	}
@@ -59,10 +62,10 @@ func TestRunMoltenAgentNotifyRunsTheUsersProgram(t *testing.T) {
 	if !slices.Equal(got, []string{"--title", "a b", testNotifyPayload}) {
 		t.Fatalf("the program got %q", got)
 	}
-	if code := runMoltenAgentNotify("codex", nil, testNotifyPayload, noPane); code != 0 {
+	if code := runMoltenAgentNotify(moltenNotifyArgs{agent: "codex", payload: testNotifyPayload}, noPane); code != 0 {
 		t.Fatalf("no user notify: %d", code)
 	}
-	if code := runMoltenAgentNotify("codex", []string{filepath.Join(dir, "missing")}, testNotifyPayload, noPane); code != 127 {
+	if code := runMoltenAgentNotify(moltenNotifyArgs{agent: "codex", program: []string{filepath.Join(dir, "missing")}, payload: testNotifyPayload}, noPane); code != 127 {
 		t.Fatalf("a missing program: %d", code)
 	}
 	// A pane whose wavesrv does not answer: the report is given up within its cap, and the program still ran.
@@ -71,7 +74,7 @@ func TestRunMoltenAgentNotifyRunsTheUsersProgram(t *testing.T) {
 		return map[string]string{"WAVETERM_BLOCKID": "b", "WAVETERM_JWT": "not-a-token"}[name]
 	}
 	start := time.Now()
-	if code := runMoltenAgentNotify("codex", []string{script}, testNotifyPayload, inPane); code != 5 {
+	if code := runMoltenAgentNotify(moltenNotifyArgs{agent: "codex", program: []string{script}, payload: testNotifyPayload}, inPane); code != 5 {
 		t.Fatalf("in a pane: %d", code)
 	}
 	// The cap plus room for a loaded machine to start the script.

@@ -35,7 +35,12 @@ const (
 )
 
 // The notify wrapper: <molten> agent notify --agent codex -- <the user's notify argv>; Codex appends the payload.
+// --session-only: the user's notify already reports the state, the wrapper only links the session.
 var codexNotifyWrapper = []string{"agent", "notify", "--agent", CodexAgentId, "--"}
+var codexSessionOnlyWrapper = []string{"agent", "notify", "--agent", CodexAgentId, NotifySessionOnlyFlag, "--"}
+
+// NotifySessionOnlyFlag is the option of `molten agent notify` that leaves the state to the user's own notify.
+const NotifySessionOnlyFlag = "--session-only"
 
 // Options that make a run that starts no session in this pane: version and help, and --remote, whose session runs in
 // a remote app server.
@@ -116,7 +121,7 @@ func parseCodexArgs(args []string) codexArgs {
 		switch name {
 		case codexConfigFlag, codexConfigLong:
 			key, v, _ := strings.Cut(value, "=")
-			rtn.overrides[strings.TrimSpace(key)] = strings.TrimSpace(v)
+			rtn.overrides[normalizeTomlKey(key)] = strings.TrimSpace(v)
 		case codexProfile, codexProfileLng:
 			rtn.profile = value
 		}
@@ -128,6 +133,20 @@ func parseCodexArgs(args []string) codexArgs {
 func (codexAdapter) PassThrough(args []string) bool {
 	parsed := parseCodexArgs(args)
 	return parsed.passFlag || codexSubcommands[parsed.firstWord]
+}
+
+// normalizeTomlKey writes a dotted key as plain segments: spaces around the dots and the quotes of a quoted segment
+// go (mcp_servers . "molten-browser" is mcp_servers.molten-browser).
+func normalizeTomlKey(key string) string {
+	parts := strings.Split(key, ".")
+	for i, p := range parts {
+		p = strings.TrimSpace(p)
+		if len(p) >= 2 && (p[0] == '"' || p[0] == '\'') && p[len(p)-1] == p[0] {
+			p = p[1 : len(p)-1]
+		}
+		parts[i] = p
+	}
+	return strings.Join(parts, ".")
 }
 
 // overridesKey tells whether the user's -c overrides set a key or a key under it (notify, mcp_servers...).
@@ -150,12 +169,13 @@ func (codexAdapter) Plan(ctx LaunchContext) (LaunchPlan, error) {
 		plan.StepAside = config.unreadable + " could not be read"
 		return plan, nil
 	}
-	var extra []string
-	extra = append(extra, planCodexBrowser(ctx, args, config, &plan)...)
+	extra := planCodexBrowser(ctx, args, config, &plan)
+	plan.ShownArgs = append(plan.ShownArgs, extra...)
 	extra = append(extra, planCodexNotify(ctx, args, config, &plan)...)
 	plan.Skipped = append(plan.Skipped, molten.IntegrationItem{Kind: molten.IntegrationStateHooks, Name: codexHooksItemName,
 		Reason: "Codex runs hooks added for one run only once you trust them, and MoltenTerm never bypasses that trust"})
 	if len(extra) == 0 {
+		plan.ShownArgs = nil
 		return plan, nil
 	}
 	user := ctx.Args
@@ -176,7 +196,7 @@ func planCodexBrowser(ctx LaunchContext, args codexArgs, config codexConfig, pla
 		return skip("MoltenTerm's browser server (molten mcp browser) is not installed")
 	}
 	key := codexMcpServersKey + "." + mcpbrowser.ServerName
-	if args.overridesKey(key) || args.overridesKey(codexMcpServersKey+`."`+mcpbrowser.ServerName+`"`) {
+	if args.overridesKey(key) {
 		return skip("already yours, in your -c " + key)
 	}
 	if _, whole := args.overrides[codexMcpServersKey]; whole {
@@ -205,8 +225,9 @@ func planCodexNotify(ctx LaunchContext, args codexArgs, config codexConfig, plan
 	if args.overridesKey(codexNotifyKey) {
 		return skip("you passed your own -c notify: it runs as you set it")
 	}
+	// The --profile option wins over a -c profile, which wins over the files.
 	profile := args.profile
-	if override, ok := args.overrides[codexProfileKey]; ok {
+	if override, ok := args.overrides[codexProfileKey]; ok && profile == "" {
 		profile = strings.Trim(override, `"'`)
 	}
 	if profile == "" {
@@ -215,22 +236,49 @@ func planCodexNotify(ctx LaunchContext, args codexArgs, config codexConfig, plan
 	if where := config.profileNotify(profile); where != "" {
 		return skip("your profile " + profile + " in " + where + " sets notify: it runs as you set it")
 	}
+	if where := config.managedSetsNotify(); where != "" {
+		return skip("your organization's " + where + " sets notify")
+	}
 	if where := config.projectSetsNotify(); where != "" {
 		return skip(where + " may set notify for this project: it runs as you set it")
+	}
+	if where := config.projectRootMarkers(); where != "" {
+		return skip(where + " sets project_root_markers: the project files Codex reads could not be told")
 	}
 	user, where, ok := config.userNotify()
 	if !ok {
 		return skip("the notify of " + where + " is not a list of strings")
 	}
-	name := codexNotifyItemName
-	if len(user) > 0 {
-		name = codexNotifyAroundItemName
+	wrapper := codexNotifyWrapper
+	switch {
+	case molten.IsAgentStateHookCommand(strings.Join(user, " ")):
+		// The setup agent-states.md offers (#221) already reports done: the wrapper then only links the session.
+		wrapper = codexSessionOnlyWrapper
+		plan.Skipped = append(plan.Skipped, molten.IntegrationItem{Kind: molten.IntegrationNotify, Name: codexNotifyItemName,
+			Reason: "already yours, in " + where + ": it runs as you set it, and the session is linked around it"})
+	case len(user) > 0:
+		plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationNotify, Name: codexNotifyAroundItemName})
+	default:
+		plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationNotify, Name: codexNotifyItemName})
 	}
-	plan.Added = append(plan.Added,
-		molten.IntegrationItem{Kind: molten.IntegrationNotify, Name: name},
-		molten.IntegrationItem{Kind: molten.IntegrationSession, Name: codexSessionItemName})
-	argv := append([]string{ctx.MoltenPath}, codexNotifyWrapper...)
-	return []string{codexConfigFlag, codexNotifyKey + "=" + tomlArray(append(argv, user...))}
+	plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationSession, Name: codexSessionItemName})
+	argv := append([]string{ctx.MoltenPath}, wrapper...)
+	key := codexNotifyKey + "="
+	plan.ShownArgs = append(plan.ShownArgs, codexConfigFlag, key+tomlArray(argv)[:len(tomlArray(argv))-1]+codexShownUserNotify(user)+"]")
+	return []string{codexConfigFlag, key + tomlArray(append(argv, user...))}
+}
+
+// codexShownUserNotify stands for the user's notify in the report: its program only, since its arguments may hold a
+// token (a webhook URL).
+func codexShownUserNotify(user []string) string {
+	if len(user) == 0 {
+		return ""
+	}
+	shown := `,` + tomlString(user[0])
+	if len(user) > 1 {
+		shown += fmt.Sprintf(`,"<%d more of your arguments>"`, len(user)-1)
+	}
+	return shown
 }
 
 // tomlString writes a TOML basic string: quotes, backslashes and control characters (DEL included) escaped. Invalid

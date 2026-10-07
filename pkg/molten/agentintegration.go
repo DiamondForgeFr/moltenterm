@@ -64,6 +64,20 @@ type AgentIntegrationReport struct {
 	At int64 `json:"at,omitempty"`
 }
 
+// ReportsStates tells whether what was added reports the agent's states (Claude Code's hooks, Codex's notify
+// wrapper): the hook setup offer then has nothing to bring. A run that only got the browser server still gets it.
+func (r AgentIntegrationReport) ReportsStates() bool {
+	if !r.Integrated() {
+		return false
+	}
+	for _, it := range r.Added {
+		if it.Kind == IntegrationStateHooks || it.Kind == IntegrationNotify {
+			return true
+		}
+	}
+	return false
+}
+
 // Integrated tells whether anything was added to the run.
 func (r AgentIntegrationReport) Integrated() bool {
 	return r.StepAside == "" && len(r.Added) > 0

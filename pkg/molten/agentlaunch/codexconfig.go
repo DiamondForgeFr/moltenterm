@@ -15,9 +15,10 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
 )
 
-// What the Codex launcher reads of the user's configuration, read-only (NFR-SHELL-019): the system config.toml, the
-// user's $CODEX_HOME/config.toml, and the .codex/config.toml files of the folder and its parents up to the
-// repository's root. Codex applies the project files of a trusted folder only, above the user's; whether it takes a
+// What the Codex launcher reads of the user's configuration, read-only (NFR-SHELL-019): the system config.toml and
+// managed_config.toml (/etc/codex), the user's $CODEX_HOME/config.toml, and the .codex/config.toml files of the
+// folder and its parents up to the repository's root. Managed preferences deployed through MDM (macOS) cannot be
+// read: one that sets notify replaces the wrapper. Codex applies the project files of a trusted folder only, above the user's; whether it takes a
 // notify or a profile from them is not documented, so a project file that sets one is a doubt and notify is left
 // alone. Nothing else of Codex's folder is opened: never auth.json, hooks.json or any credential.
 
@@ -25,6 +26,8 @@ const (
 	codexConfigFile        = "config.toml"
 	codexProjectDir        = ".codex"
 	codexUnixSystemConfig  = "/etc/codex/config.toml"
+	codexManagedConfigFile = "managed_config.toml"
+	codexRootMarkersKey    = "project_root_markers"
 	codexNotifyKey         = "notify"
 	codexProfileKey        = "profile"
 	codexProfilesKey       = "profiles"
@@ -32,11 +35,13 @@ const (
 	codexProjectRootMarker = ".git"
 )
 
-// codexConfigSource is one config.toml Codex may read.
+// codexConfigSource is one config.toml Codex may read. managed: the administrator's managed_config.toml, which
+// Codex applies above -c.
 type codexConfigSource struct {
 	display string
 	keys    map[string]any
 	project bool
+	managed bool
 }
 
 // codexConfig is what the plan needs of the user's configuration.
@@ -50,10 +55,20 @@ type codexConfig struct {
 func readCodexConfig(ctx LaunchContext) codexConfig {
 	var rtn codexConfig
 	userPath := filepath.Join(molten.CodexHome(ctx.Env), codexConfigFile)
-	paths := []string{codexSystemConfigPath(ctx), userPath}
+	systemPath := codexSystemConfigPath(ctx)
+	paths := []string{systemPath, userPath}
 	project := map[string]bool{}
+	managedPath := ""
+	if systemPath != "" {
+		managedPath = filepath.Join(filepath.Dir(systemPath), codexManagedConfigFile)
+		paths = append(paths, managedPath)
+	}
+	realUser, userErr := filepath.EvalSymlinks(userPath)
 	for _, p := range codexProjectConfigFiles(ctx.Cwd) {
-		if samePath(p, userPath) {
+		if filepath.Clean(p) == filepath.Clean(userPath) {
+			continue
+		}
+		if real, err := filepath.EvalSymlinks(p); userErr == nil && err == nil && real == realUser {
 			continue
 		}
 		paths = append(paths, p)
@@ -64,6 +79,11 @@ func readCodexConfig(ctx LaunchContext) codexConfig {
 			continue
 		}
 		display := molten.DisplayHomePath(ctx.Env, path)
+		// A repository's file that is a link may point anywhere (~/.codex/auth.json): it is never opened.
+		if info, err := os.Lstat(path); project[path] && err == nil && info.Mode()&fs.ModeSymlink != 0 {
+			rtn.unreadable = display
+			return rtn
+		}
 		data, err := readBounded(path)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
@@ -76,7 +96,7 @@ func readCodexConfig(ctx LaunchContext) codexConfig {
 			rtn.unreadable = display
 			return rtn
 		}
-		rtn.sources = append(rtn.sources, codexConfigSource{display: display, keys: keys, project: project[path]})
+		rtn.sources = append(rtn.sources, codexConfigSource{display: display, keys: keys, project: project[path], managed: path == managedPath})
 	}
 	return rtn
 }
@@ -120,22 +140,13 @@ func codexProjectConfigFiles(cwd string) []string {
 	return rtn
 }
 
-func samePath(a string, b string) bool {
-	if filepath.Clean(a) == filepath.Clean(b) {
-		return true
-	}
-	ra, errA := filepath.EvalSymlinks(a)
-	rb, errB := filepath.EvalSymlinks(b)
-	return errA == nil && errB == nil && ra == rb
-}
-
 // userNotify is the notify of the system and user files, the user's winning: the argv Codex runs at each turn's
 // end, nil for none. ok is false when the value is not an array of strings (Codex would refuse it).
 func (c codexConfig) userNotify() ([]string, string, bool) {
 	var argv []string
 	where := ""
 	for _, s := range c.sources {
-		if s.project {
+		if s.project || s.managed {
 			continue
 		}
 		raw, has := s.keys[codexNotifyKey]
@@ -178,6 +189,26 @@ func (c codexConfig) projectSetsNotify() string {
 			if _, ok := s.keys[key]; ok {
 				return s.display
 			}
+		}
+	}
+	return ""
+}
+
+// managedSetsNotify names the managed file that sets notify: it applies above -c, so the wrapper would not run.
+func (c codexConfig) managedSetsNotify() string {
+	for _, s := range c.sources {
+		if _, ok := s.keys[codexNotifyKey]; ok && s.managed {
+			return s.display
+		}
+	}
+	return ""
+}
+
+// projectRootMarkers names a file that changes how Codex finds a project's root, so its project files.
+func (c codexConfig) projectRootMarkers() string {
+	for _, s := range c.sources {
+		if _, ok := s.keys[codexRootMarkersKey]; ok {
+			return s.display
 		}
 	}
 	return ""
