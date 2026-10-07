@@ -5,6 +5,7 @@ package molten
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
 	"hash/crc32"
 	"image"
@@ -120,7 +121,7 @@ func TestPrepareWorkspaceIcon(t *testing.T) {
 		reason string
 	}{
 		{"png", goodPng, WorkspaceIconPng, ""},
-		{"jpeg", makeJpeg(t, 40, 40), WorkspaceIconJpeg, ""},
+		{"jpeg", makeJpeg(t, 40, 40), WorkspaceIconPng, ""},
 		{"webp", makeWebp(128, 64), WorkspaceIconWebp, ""},
 		{"ico with a png", makeIco(makePng(t, 32, 32)), WorkspaceIconIco, ""},
 		{"ico with a bitmap", makeIco(makeBmpHeader(16, 16)), WorkspaceIconIco, ""},
@@ -206,8 +207,12 @@ func TestImportWorkspaceIconFile(t *testing.T) {
 		t.Fatalf("the user's file name leaked into %q", name)
 	}
 	stored, err := os.ReadFile(filepath.Join(store, name))
-	if err != nil || !bytes.Equal(stored, data) {
-		t.Fatalf("stored copy differs: %v", err)
+	if err != nil {
+		t.Fatalf("stored copy: %v", err)
+	}
+	cfg, err := png.DecodeConfig(bytes.NewReader(stored))
+	if err != nil || cfg.Width != 10 || cfg.Height != 10 {
+		t.Fatalf("stored copy is %dx%d (%v), want the 10x10 centred square", cfg.Width, cfg.Height, err)
 	}
 	after, _ := os.Stat(source)
 	if !after.ModTime().Equal(before.ModTime()) || after.Size() != before.Size() {
@@ -324,5 +329,149 @@ func TestResolveWorkspaceIcon(t *testing.T) {
 				t.Fatalf("got %+v, want %s %q", got, tc.kind, tc.path)
 			}
 		})
+	}
+}
+
+func solidAt(img image.Image, x int, y int) color.NRGBA {
+	return color.NRGBAModel.Convert(img.At(x, y)).(color.NRGBA)
+}
+
+func decodeStored(t *testing.T, data []byte) image.Image {
+	t.Helper()
+	img, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("stored bytes are not a PNG: %v", err)
+	}
+	return img
+}
+
+// Left and right thirds are red, the centre square is green: a cover crop keeps only the green.
+func makeBanner(t *testing.T, w int, h int, centre color.NRGBA, kind string) []byte {
+	t.Helper()
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
+	side := min(w, h)
+	left, top := (w-side)/2, (h-side)/2
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if x >= left && x < left+side && y >= top && y < top+side {
+				img.SetNRGBA(x, y, centre)
+				continue
+			}
+			img.SetNRGBA(x, y, color.NRGBA{R: 255, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	switch kind {
+	case WorkspaceIconJpeg:
+		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 95}); err != nil {
+			t.Fatal(err)
+		}
+	default:
+		if err := png.Encode(&buf, img); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return buf.Bytes()
+}
+
+func TestWorkspaceIconRasterCopy(t *testing.T) {
+	green := color.NRGBA{G: 200, A: 255}
+	cases := []struct {
+		name string
+		data []byte
+		side int
+	}{
+		{"large wide png is cropped and scaled to 256", makeBanner(t, 900, 400, green, WorkspaceIconPng), 256},
+		{"large tall png", makeBanner(t, 300, 700, green, WorkspaceIconPng), 256},
+		{"large jpeg", makeBanner(t, 800, 500, green, WorkspaceIconJpeg), 256},
+		{"exactly 256 square", makeBanner(t, 256, 256, green, WorkspaceIconPng), 256},
+		{"small png is not scaled up", makeBanner(t, 64, 40, green, WorkspaceIconPng), 40},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stored, ext, err := PrepareWorkspaceIcon(tc.data)
+			if err != nil || ext != WorkspaceIconPng {
+				t.Fatalf("ext %q err %v", ext, err)
+			}
+			img := decodeStored(t, stored)
+			if b := img.Bounds(); b.Dx() != tc.side || b.Dy() != tc.side {
+				t.Fatalf("stored %dx%d, want %dx%d", b.Dx(), b.Dy(), tc.side, tc.side)
+			}
+			for _, pt := range [][2]int{{1, 1}, {tc.side - 2, 1}, {tc.side / 2, tc.side / 2}, {1, tc.side - 2}} {
+				got := solidAt(img, pt[0], pt[1])
+				if got.R > 40 || got.G < 150 {
+					t.Fatalf("pixel %v is %+v, want the green centre", pt, got)
+				}
+			}
+		})
+	}
+}
+
+func TestWorkspaceIconRasterKeepsAlpha(t *testing.T) {
+	src := image.NewNRGBA(image.Rect(0, 0, 600, 600))
+	for y := 0; y < 600; y++ {
+		for x := 0; x < 600; x++ {
+			if x < 300 {
+				src.SetNRGBA(x, y, color.NRGBA{B: 255, A: 255})
+			}
+		}
+	}
+	var buf bytes.Buffer
+	png.Encode(&buf, src)
+	stored, _, err := PrepareWorkspaceIcon(buf.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	img := decodeStored(t, stored)
+	if got := solidAt(img, 20, 128); got.A != 255 || got.B < 250 {
+		t.Fatalf("opaque side is %+v", got)
+	}
+	if got := solidAt(img, 235, 128); got.A != 0 {
+		t.Fatalf("transparent side is %+v", got)
+	}
+}
+
+func TestWorkspaceIconWebp(t *testing.T) {
+	// 300 x 200 lossless: magenta sides, green 200 x 200 centre.
+	real, err := base64.StdEncoding.DecodeString("UklGRjIAAABXRUJQVlA4TCYAAAAvK8ExAA8wyPu///MfHjCQtk3h/h0fImMR/Y+qegAAgKuq+T/FAA==")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, ext, err := PrepareWorkspaceIcon(real)
+	if err != nil || ext != WorkspaceIconPng {
+		t.Fatalf("a decodable WebP: ext %q err %v", ext, err)
+	}
+	img := decodeStored(t, stored)
+	if b := img.Bounds(); b.Dx() != 200 || b.Dy() != 200 {
+		t.Fatalf("stored %v, want 200x200", b)
+	}
+	if got := solidAt(img, 2, 100); got.G < 190 || got.R > 10 {
+		t.Fatalf("edge pixel %+v, want the green centre", got)
+	}
+	// Structurally valid but not decodable here (the decoder has no animation): kept as it is.
+	undecodable := makeWebp(128, 64)
+	kept, ext, err := PrepareWorkspaceIcon(undecodable)
+	if err != nil || ext != WorkspaceIconWebp || !bytes.Equal(kept, undecodable) {
+		t.Fatalf("an undecodable WebP: ext %q err %v", ext, err)
+	}
+}
+
+func TestWorkspaceIconIcoKeptAsIs(t *testing.T) {
+	ico := makeIco(makePng(t, 32, 32))
+	stored, ext, err := PrepareWorkspaceIcon(ico)
+	if err != nil || ext != WorkspaceIconIco || !bytes.Equal(stored, ico) {
+		t.Fatalf("ico: ext %q err %v", ext, err)
+	}
+}
+
+func TestWorkspaceIconRasterIsStable(t *testing.T) {
+	data := makeBanner(t, 500, 300, color.NRGBA{G: 200, A: 255}, WorkspaceIconPng)
+	first, _, _ := PrepareWorkspaceIcon(data)
+	second, _, _ := PrepareWorkspaceIcon(data)
+	if WorkspaceIconFileName("ws-1", first, "png") != WorkspaceIconFileName("ws-1", second, "png") {
+		t.Fatalf("the same image gave two names")
+	}
+	if len(first) >= len(data) && len(data) > 2000 {
+		t.Fatalf("the copy (%d bytes) is not smaller than the source (%d)", len(first), len(data))
 	}
 }

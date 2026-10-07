@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"image/jpeg"
 	"image/png"
 	"io"
 	"os"
@@ -190,20 +189,6 @@ func checkPng(data []byte) error {
 	return nil
 }
 
-func checkJpeg(data []byte) error {
-	cfg, err := jpeg.DecodeConfig(bytes.NewReader(data))
-	if err != nil {
-		return refuseIcon(IconRefusedUnreadable)
-	}
-	if err := checkIconSide(cfg.Width, cfg.Height); err != nil {
-		return err
-	}
-	if _, err := jpeg.Decode(bytes.NewReader(data)); err != nil {
-		return refuseIcon(IconRefusedUnreadable)
-	}
-	return nil
-}
-
 func le24(b []byte) int {
 	return int(b[0]) | int(b[1])<<8 | int(b[2])<<16
 }
@@ -339,7 +324,8 @@ func checkIcoBitmap(image []byte) error {
 	return checkIconSide(width, height)
 }
 
-// Returns the bytes to store and their extension, or a refusal.
+// Returns the bytes to store and their extension, or a refusal. PNG, JPEG and WebP come back as a PNG copy of at most
+// StoredWorkspaceIconSide px; ICO and SVG are stored as checked or sanitised.
 func PrepareWorkspaceIcon(data []byte) ([]byte, string, error) {
 	if len(data) > MaxWorkspaceIconBytes {
 		return nil, "", refuseIcon(IconRefusedTooLarge)
@@ -347,12 +333,12 @@ func PrepareWorkspaceIcon(data []byte) ([]byte, string, error) {
 	kind := DetectWorkspaceIconType(data)
 	var err error
 	switch kind {
-	case WorkspaceIconPng:
-		err = checkPng(data)
-	case WorkspaceIconJpeg:
-		err = checkJpeg(data)
+	case WorkspaceIconPng, WorkspaceIconJpeg:
+		return NormalizeWorkspaceIconRaster(kind, data)
 	case WorkspaceIconWebp:
-		err = checkWebp(data)
+		if err = checkWebp(data); err == nil {
+			return NormalizeWorkspaceIconRaster(kind, data)
+		}
 	case WorkspaceIconIco:
 		err = checkIco(data)
 	case WorkspaceIconSvg:
