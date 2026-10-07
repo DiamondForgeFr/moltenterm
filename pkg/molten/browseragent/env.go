@@ -27,6 +27,11 @@ const (
 	ControlGiveBack = "giveback"
 
 	TermView = "term"
+
+	DecisionOnce    = "once"
+	DecisionAlways  = "always"
+	DecisionBlock   = "block"
+	DecisionDismiss = "dismiss"
 )
 
 // BlockLocation is where a block is now: re-read on every call, so a pane moved to another tab or workspace is scoped
@@ -89,6 +94,14 @@ type PanelAgentTab struct {
 	Action       string     `json:"action,omitempty"`
 	ActionTs     int64      `json:"actionts,omitempty"`
 	Cue          *ActionCue `json:"cue,omitempty"`
+	// Permission is the site permission request waiting on this tab (DS-BRW-013), shown instead of the control bar.
+	Permission *PermissionPrompt `json:"permission,omitempty"`
+}
+
+// PermissionPrompt asks the user whether the agent may use a site. Must match frontend/moltenterm-shell/browser/browser-agent.ts.
+type PermissionPrompt struct {
+	RequestId string `json:"requestid"`
+	Site      string `json:"site"`
 }
 
 type PanelState struct {
@@ -104,6 +117,20 @@ type ControlRequest struct {
 
 type StateRequest struct {
 	BlockId string `json:"blockid"`
+}
+
+// AnswerRequest is the user's answer in the permission bar: once, always, block, or dismiss (Escape).
+type AnswerRequest struct {
+	BlockId      string `json:"blockid"`
+	BrowserTabId string `json:"browsertabid"`
+	RequestId    string `json:"requestid"`
+	Decision     string `json:"decision"`
+}
+
+// SiteRequest sets or forgets (empty decision) a stored site decision, from the panel's menu.
+type SiteRequest struct {
+	Site     string `json:"site"`
+	Decision string `json:"decision,omitempty"`
 }
 
 // Env is what the sessions need from wavesrv, the windows and emain; tests replace it.
@@ -128,4 +155,8 @@ type Env interface {
 	// and detaching the debugger when control ends.
 	SetControl(key TabKey, controlled bool)
 	Publish(state PanelState)
+	// AgentSites is browser:agentsites, the stored site decisions (site to allow or block).
+	AgentSites() map[string]string
+	// SetAgentSite stores a site decision in the user's settings; an empty decision removes it.
+	SetAgentSite(site string, decision string) error
 }

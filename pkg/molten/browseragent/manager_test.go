@@ -32,6 +32,10 @@ type fakeEnv struct {
 	cdpBlock   chan struct{}
 	cdpStarted chan struct{}
 	nextPanel  int
+	sites      map[string]string
+	siteWrites []string
+	// cdpFn plays the page for the reading tools; without it only Page.getNavigationHistory answers.
+	cdpFn func(key TabKey, method string, params any) (json.RawMessage, error)
 }
 
 func makeFakeEnv() *fakeEnv {
@@ -41,7 +45,30 @@ func makeFakeEnv() *fakeEnv {
 		panels:     map[string]*Panel{},
 		agentNames: map[string]string{},
 		control:    map[TabKey]bool{},
+		sites:      map[string]string{},
 	}
+}
+
+func (e *fakeEnv) AgentSites() map[string]string {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	rtn := make(map[string]string, len(e.sites))
+	for k, v := range e.sites {
+		rtn[k] = v
+	}
+	return rtn
+}
+
+func (e *fakeEnv) SetAgentSite(site string, decision string) error {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	e.siteWrites = append(e.siteWrites, site+"="+decision)
+	if decision == "" {
+		delete(e.sites, site)
+		return nil
+	}
+	e.sites[site] = decision
+	return nil
 }
 
 func (e *fakeEnv) addBlock(blockId, tabId, wsId, view string) {
@@ -156,6 +183,7 @@ func (e *fakeEnv) Cdp(ctx context.Context, key TabKey, method string, params any
 	e.cdpCalls = append(e.cdpCalls, method)
 	block := e.cdpBlock
 	started := e.cdpStarted
+	cdpFn := e.cdpFn
 	var page molten.BrowserPanelTab
 	if p := e.panels[key.PanelId]; p != nil {
 		page, _ = p.findTab(key.BrowserTabId)
@@ -170,6 +198,9 @@ func (e *fakeEnv) Cdp(ctx context.Context, key TabKey, method string, params any
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
+	}
+	if cdpFn != nil {
+		return cdpFn(key, method, params)
 	}
 	if method != "Page.getNavigationHistory" {
 		return nil, errors.New("not allowed")

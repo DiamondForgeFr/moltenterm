@@ -6,15 +6,26 @@
 // runs the allow-listed DevTools methods wavesrv sends through webContents.debugger, and watches a controlled tab for
 // the user's own clicks and keys, which take over from the agent.
 
-import { ipcMain, webContents, type WebContents } from "electron";
+import { ipcMain, nativeImage, webContents, type WebContents } from "electron";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { AuthKey } from "./authkey";
 import {
+    captureParams,
+    captureTargetSize,
     cdpMethodAllowed,
     CdpProtocolVersion,
+    flattenBitmapOnWhite,
+    isMoltenOperation,
     isSyntheticInputMethod,
     isTakeoverKey,
     isTakeoverMouse,
+    navigateParams,
+    OpCapture,
+    OpNavigate,
+    OpPageText,
+    pageTextParams,
+    pageTextScript,
+    ReaderWorldId,
     validRegistration,
     webviewKey,
 } from "./moltenterm-browseragent-policy";
@@ -31,6 +42,8 @@ const ExpectedToken = createHmac("sha256", AuthKey).update(EmainTokenLabel).dige
 
 // After the agent's own input, the guest's events for it may still arrive.
 const SyntheticInputGraceMs = 150;
+const RegistrationWaitMs = 5000;
+const RegistrationPollMs = 50;
 
 export type CdpCallData = { blockid: string; browsertabid: string; method: string; params?: any; token: string };
 export type ControlData = { blockid: string; browsertabid: string; controlled: boolean; token: string };
@@ -180,13 +193,28 @@ export function setBrowserAgentControl(data: ControlData): void {
     applyControl(key);
 }
 
+// A tab the agent just opened registers its webview once the panel has mounted it: the first call waits for it a
+// moment instead of failing.
+async function registeredContents(key: string): Promise<WebContents> {
+    const deadline = Date.now() + RegistrationWaitMs;
+    for (;;) {
+        const reg = registry.get(key);
+        const wc = reg ? liveContents(reg.webContentsId) : null;
+        if (wc != null || Date.now() >= deadline || !controlled.has(key)) {
+            return wc;
+        }
+        await new Promise((resolve) => setTimeout(resolve, RegistrationPollMs));
+    }
+}
+
 // moltenbrowsercdp: one allow-listed DevTools method on a controlled, registered tab. The debugger attaches on first
 // use and detaches when control ends.
 export async function runBrowserAgentCdp(data: CdpCallData): Promise<any> {
     if (!fromWavesrv(data?.token)) {
         throw new Error("only MoltenTerm's agent sessions can drive a browser tab");
     }
-    if (!cdpMethodAllowed(data?.method)) {
+    const operation = isMoltenOperation(data?.method);
+    if (!operation && !cdpMethodAllowed(data?.method)) {
         throw new Error(`DevTools method not allowed: ${String(data?.method).slice(0, 80)}`);
     }
     if (!validRegistration(data.blockid, data.browsertabid, 1)) {
@@ -199,10 +227,19 @@ export async function runBrowserAgentCdp(data: CdpCallData): Promise<any> {
     if (paused.has(key)) {
         throw new Error("The user has taken over");
     }
-    const reg = registry.get(key);
-    const wc = reg ? liveContents(reg.webContentsId) : null;
+    const wc = await registeredContents(key);
     if (wc == null) {
         throw new Error("The tab's page is not loaded: show its MoltenTerm tab");
+    }
+    // The wait may have outlived the agent's control of the tab.
+    if (!controlled.has(key)) {
+        throw new Error("This tab is not under agent control");
+    }
+    if (paused.has(key)) {
+        throw new Error("The user has taken over");
+    }
+    if (operation) {
+        return runOperation(wc, data.method, data.params);
     }
     if (wc.isDevToolsOpened()) {
         throw new Error("Close DevTools on this tab to let the agent use it");
@@ -222,6 +259,193 @@ export async function runBrowserAgentCdp(data: CdpCallData): Promise<any> {
             syntheticUntil.set(wc.id, Date.now() + SyntheticInputGraceMs);
         }
     }
+}
+
+type NavigateOutcome = { url: string; title: string; status: number; error: string };
+
+// Molten.navigate: loads a URL or moves in the history, and answers once the load ends (or at the timeout) with the
+// final URL, the main frame's HTTP status and the load error, if any.
+function navigateOp(wc: WebContents, raw: any): Promise<NavigateOutcome> {
+    const params = navigateParams(raw);
+    if (params == null) {
+        return Promise.reject(new Error("Only http and https pages can be opened"));
+    }
+    return new Promise((resolve) => {
+        let status = 0;
+        let error = "";
+        let started = false;
+        let finished = false;
+        const onNavigate = (_e: Electron.Event, _url: string, code: number) => {
+            status = code;
+        };
+        const onStart = () => {
+            started = true;
+        };
+        const onFail = (_e: Electron.Event, code: number, description: string, _url: string, isMainFrame: boolean) => {
+            // -3 is ERR_ABORTED: another navigation (a redirect by script, a download) replaced this one.
+            if (isMainFrame && code !== -3) {
+                error = description || `ERR_${-code}`;
+            }
+        };
+        const finish = () => {
+            if (finished) {
+                return;
+            }
+            finished = true;
+            clearTimeout(timer);
+            wc.off("did-navigate", onNavigate);
+            wc.off("did-start-loading", onStart);
+            wc.off("did-fail-load", onFail);
+            wc.off("did-stop-loading", onStop);
+            wc.off("did-navigate-in-page", onInPage);
+            if (wc.isDestroyed()) {
+                resolve({ url: "", title: "", status, error: error || "ERR_TAB_CLOSED" });
+                return;
+            }
+            resolve({ url: wc.getURL(), title: wc.getTitle(), status, error });
+        };
+        const onStop = () => {
+            if (started) {
+                finish();
+            }
+        };
+        const onInPage = (_e: Electron.Event, _url: string, isMainFrame: boolean) => {
+            if (isMainFrame && !wc.isLoading()) {
+                finish();
+            }
+        };
+        const timer = setTimeout(finish, params.timeoutMs);
+        wc.on("did-navigate", onNavigate);
+        wc.on("did-start-loading", onStart);
+        wc.on("did-fail-load", onFail);
+        wc.on("did-stop-loading", onStop);
+        wc.on("did-navigate-in-page", onInPage);
+        if (params.url != null) {
+            wc.loadURL(params.url).then(finish, finish);
+            return;
+        }
+        const history = wc.navigationHistory;
+        const can = params.history < 0 ? history.canGoBack() : history.canGoForward();
+        if (!can) {
+            error = "ERR_NO_HISTORY";
+            finish();
+            return;
+        }
+        if (params.history < 0) {
+            history.goBack();
+        } else {
+            history.goForward();
+        }
+    });
+}
+
+// Molten.pageText: the fixed reading script, in a world of MoltenTerm's own.
+async function pageTextOp(wc: WebContents, raw: any): Promise<any> {
+    const params = pageTextParams(raw);
+    if (params == null) {
+        throw new Error("bad page text parameters");
+    }
+    const result = await wc.executeJavaScriptInIsolatedWorld(ReaderWorldId, [
+        { code: pageTextScript(params.maxChars) },
+    ]);
+    return {
+        text: typeof result?.text === "string" ? result.text.slice(0, params.maxChars) : "",
+        length: Number.isFinite(result?.length) ? result.length : 0,
+        source: typeof result?.source === "string" ? result.source : "body",
+        title: typeof result?.title === "string" ? result.title.slice(0, 1000) : "",
+    };
+}
+
+// The panel's pages are drawn on a transparent background; a page without a background of its own would come out
+// black in a JPEG. The agent sees what a browser draws: the page over white.
+function flattenOnWhite(image: Electron.NativeImage): Electron.NativeImage {
+    const size = image.getSize();
+    const bitmap = image.toBitmap();
+    if (bitmap.length !== size.width * size.height * 4) {
+        return image;
+    }
+    flattenBitmapOnWhite(bitmap);
+    return nativeImage.createFromBitmap(bitmap, { width: size.width, height: size.height });
+}
+
+function encodeImage(image: Electron.NativeImage, format: "jpeg" | "png", quality: number): Buffer {
+    return format === "png" ? image.toPNG() : image.toJPEG(quality);
+}
+
+// Molten.capture: the viewport or a region of it, in CSS pixels. capturePage paints a page whose MoltenTerm tab is
+// hidden (stayHidden keeps it hidden from the page's point of view); the image is scaled down and encoded until it
+// fits maxBytes.
+async function captureOp(wc: WebContents, raw: any): Promise<any> {
+    const params = captureParams(raw);
+    if (params == null) {
+        throw new Error("bad capture parameters");
+    }
+    const zoom = wc.getZoomFactor() || 1;
+    const rect = params.clip
+        ? {
+              x: Math.round(params.clip.x * zoom),
+              y: Math.round(params.clip.y * zoom),
+              width: Math.max(1, Math.round(params.clip.width * zoom)),
+              height: Math.max(1, Math.round(params.clip.height * zoom)),
+          }
+        : undefined;
+    const captured = await wc.capturePage(rect, { stayHidden: true });
+    if (captured.isEmpty()) {
+        throw new Error("The page could not be captured: show its MoltenTerm tab once");
+    }
+    const image = flattenOnWhite(captured);
+    const dip = image.getSize();
+    const pixelScale = Math.max(1, ...(image.getScaleFactors?.() ?? [1]));
+    let size = captureTargetSize(dip.width * pixelScale, dip.height * pixelScale, params.maxSide, params.scale);
+    let format = params.format;
+    let quality = params.quality;
+    for (let attempt = 0; attempt < 8; attempt++) {
+        const resized = image.resize({ width: size.width, height: size.height, quality: "good" });
+        const data = encodeImage(resized, format, quality);
+        if (data.length <= params.maxBytes || size.width <= 64) {
+            const out = resized.getSize();
+            return {
+                data: data.toString("base64"),
+                mimetype: format === "png" ? "image/png" : "image/jpeg",
+                width: out.width,
+                height: out.height,
+            };
+        }
+        if (format === "png") {
+            format = "jpeg";
+            quality = 90;
+        } else if (quality > 50) {
+            quality = Math.max(50, quality - 20);
+        } else {
+            size = { width: Math.round(size.width * 0.75), height: Math.round(size.height * 0.75) };
+        }
+    }
+    throw new Error("The capture is too large");
+}
+
+function runOperation(wc: WebContents, method: string, params: any): Promise<any> {
+    switch (method) {
+        case OpNavigate:
+            return navigateOp(wc, params);
+        case OpPageText:
+            return pageTextOp(wc, params);
+        case OpCapture:
+            return captureOp(wc, params);
+    }
+    return Promise.reject(new Error("unknown operation"));
+}
+
+// A Wave tab view showing a tab under agent control stays in emain's cache (DS-BRW-010): evicting it would destroy the
+// page the agent drives and reads.
+export function hostsControlledTab(hostWebContentsId: number): boolean {
+    for (const key of controlled) {
+        const reg = registry.get(key);
+        const wc = reg ? liveContents(reg.webContentsId) : null;
+        if (wc?.hostWebContents?.id === hostWebContentsId) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // The preload sees input in the page's main frame, synthetic or not; before-input-event and before-mouse-event also

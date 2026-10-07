@@ -3,10 +3,17 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    captureParams,
+    captureTargetSize,
     cdpMethodAllowed,
+    flattenBitmapOnWhite,
+    isMoltenOperation,
     isSyntheticInputMethod,
     isTakeoverKey,
     isTakeoverMouse,
+    navigateParams,
+    pageTextParams,
+    pageTextScript,
     validRegistration,
     webviewKey,
 } from "./moltenterm-browseragent-policy";
@@ -72,5 +79,92 @@ describe("DevTools allow-list (DS-BRW-012)", () => {
         expect(validRegistration("block", "tab", -1)).toBe(false);
         expect(validRegistration({}, "tab", 3)).toBe(false);
         expect(webviewKey("b", "t")).toBe("b/t");
+    });
+});
+
+describe("MoltenTerm operations (FR-BRW-009)", () => {
+    it("are not DevTools methods and keep Runtime off the allow-list", () => {
+        expect(isMoltenOperation("Molten.navigate")).toBe(true);
+        expect(isMoltenOperation("Molten.pageText")).toBe(true);
+        expect(isMoltenOperation("Molten.capture")).toBe(true);
+        expect(isMoltenOperation("Molten.evaluate")).toBe(false);
+        expect(isMoltenOperation("Runtime.evaluate")).toBe(false);
+        expect(cdpMethodAllowed("Molten.navigate")).toBe(false);
+        expect(cdpMethodAllowed("Runtime.evaluate")).toBe(false);
+    });
+
+    it("navigate loads http and https pages only", () => {
+        expect(navigateParams({ url: "https://example.com/a?b=1", timeoutms: 5000 })).toEqual({
+            url: "https://example.com/a?b=1",
+            timeoutMs: 5000,
+        });
+        expect(navigateParams({ url: "http://localhost:3000" })?.timeoutMs).toBe(30000);
+        expect(navigateParams({ history: -1 })).toEqual({ history: -1, timeoutMs: 30000 });
+        expect(navigateParams({ history: 2 })).toBe(null);
+        expect(navigateParams({ history: 1, url: "https://x.example" })).toBe(null);
+        expect(navigateParams({ url: "https://x.example", timeoutms: 999999 })?.timeoutMs).toBe(30000);
+        for (const url of [
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "data:text/html,x",
+            "about:blank",
+            "chrome://settings",
+            "devtools://devtools",
+            "https://user:pw@example.com",
+            "not a url",
+            "https://" + "a".repeat(9000) + ".com",
+            42,
+        ]) {
+            expect(navigateParams({ url })).toBe(null);
+        }
+    });
+
+    it("page text takes a bounded size and its script is fixed", () => {
+        expect(pageTextParams({ maxchars: 50000 })).toEqual({ maxChars: 50000 });
+        expect(pageTextParams({ maxchars: 1e12 })).toEqual({ maxChars: 2000000 });
+        expect(pageTextParams({ maxchars: "50000" })).toBe(null);
+        expect(pageTextParams({ maxchars: 0 })).toBe(null);
+        const script = pageTextScript(123.9);
+        expect(script).toContain("slice(0, 123)");
+        expect(script).toContain("innerText");
+        expect(script).not.toContain("value");
+    });
+
+    it("capture checks its region, size and format", () => {
+        expect(captureParams({ format: "gif" })).toBe(null);
+        expect(captureParams({ format: "jpeg" })).toEqual({
+            maxSide: 1568,
+            scale: 1,
+            format: "jpeg",
+            quality: 80,
+            maxBytes: 1 << 20,
+        });
+        expect(captureParams({ format: "png", clip: { x: 10, y: 20, width: 100, height: 50 } })?.clip).toEqual({
+            x: 10,
+            y: 20,
+            width: 100,
+            height: 50,
+        });
+        expect(captureParams({ format: "png", clip: { x: -1, y: 0, width: 10, height: 10 } })).toBe(null);
+        expect(captureParams({ format: "png", clip: { x: 0, y: 0, width: 0, height: 10 } })).toBe(null);
+        expect(captureParams({ format: "png", clip: { x: 0, y: 0, width: NaN, height: 10 } })).toBe(null);
+        expect(captureParams({ format: "jpeg", scale: 5, quality: 1000, maxside: 1e9 })).toMatchObject({
+            scale: 1,
+            quality: 100,
+            maxSide: 4096,
+        });
+    });
+
+    it("draws a transparent page over white", () => {
+        const bitmap = new Uint8Array([0, 0, 0, 0, 10, 20, 30, 255, 50, 50, 50, 128]);
+        flattenBitmapOnWhite(bitmap);
+        expect([...bitmap]).toEqual([255, 255, 255, 255, 10, 20, 30, 255, 177, 177, 177, 255]);
+    });
+
+    it("scales a capture to the long side, never up", () => {
+        expect(captureTargetSize(2560, 1600, 1568, 1)).toEqual({ width: 1568, height: 980 });
+        expect(captureTargetSize(800, 600, 1568, 1)).toEqual({ width: 800, height: 600 });
+        expect(captureTargetSize(800, 600, 1568, 0.5)).toEqual({ width: 400, height: 300 });
+        expect(captureTargetSize(0, 0, 1568, 1)).toEqual({ width: 0, height: 0 });
     });
 });

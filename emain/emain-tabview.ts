@@ -20,6 +20,7 @@ import {
     shNavHandler,
 } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
+import { hostsControlledTab } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#301)
 import { attachWebviewWindowOpen } from "./moltenterm-popups"; // MOLTENTERM-PATCH (#207)
 import { acquireReadyView } from "./moltenterm-spare-ready"; // MOLTENTERM-PATCH (#283)
 
@@ -258,6 +259,11 @@ function tryEvictEntry(waveTabId: string): boolean {
         return false;
     }
     if (tabView.isActiveTab) {
+        return false;
+    }
+    // MOLTENTERM-PATCH (#301): a tab view holding a browser tab an agent drives stays, so its page keeps running and can
+    // be read and captured while the tab is hidden (FR-BRW-009, emain/moltenterm-browseragent.ts)
+    if (!tabView.webContents.isDestroyed() && hostsControlledTab(tabView.webContents.id)) {
         return false;
     }
     const lastUsedDiff = Date.now() - tabView.lastUsedTs;

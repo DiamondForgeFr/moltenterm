@@ -27,7 +27,15 @@ import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
-import { AgentTabs, BrowserAgentModel, controlBarView } from "./browser-agent";
+import { AgentPermissionBar } from "./agent-permission-bar";
+import {
+    agentSiteDecision,
+    AgentTabs,
+    BrowserAgentModel,
+    controlBarView,
+    permissionBarView,
+    setAgentSite,
+} from "./browser-agent";
 import {
     browserActivate,
     BrowserEngineModel,
@@ -388,6 +396,39 @@ export class BrowserViewModel implements ViewModel {
                     },
                 }
             );
+        }
+        menu.push(...this.agentSiteMenu(tab));
+        ContextMenuModel.getInstance().showContextMenu(menu, e);
+    }
+
+    // The agents' decision for the page's site (FR-BRW-009 AC3), with Forget: the next agent action there asks again.
+    agentSiteMenu(tab: BrowserTab): ContextMenuItem[] {
+        const decided = agentSiteDecision(globalStore.get(getSettingsKeyAtom("browser:agentsites")), tab?.url);
+        if (decided == null) {
+            return [];
+        }
+        const verb = decided.decision === "block" ? "Blocked" : "Allowed";
+        return [
+            { type: "separator" },
+            { label: `Agents: ${verb} on ${decided.site}`, enabled: false },
+            {
+                label: `Forget the Agents' Decision for ${decided.site}`,
+                click: () =>
+                    fireAndForget(async () => {
+                        try {
+                            await setAgentSite(decided.site, "");
+                        } catch (err) {
+                            this.showNotice(`The agents' decision could not be forgotten: ${err}`);
+                        }
+                    }),
+            },
+        ];
+    }
+
+    showAgentSiteMenu(e: React.MouseEvent, tab: BrowserTab): void {
+        const menu = this.agentSiteMenu(tab).filter((item) => item.type !== "separator");
+        if (menu.length === 0) {
+            return;
         }
         ContextMenuModel.getInstance().showContextMenu(menu, e);
     }
@@ -840,6 +881,17 @@ function AgentTabMarker({ agentTabs, tabId }: { agentTabs: AgentTabs; tabId: str
     if (view == null) {
         return null;
     }
+    const asking = permissionBarView(agentTabs[tabId]);
+    if (asking != null) {
+        return (
+            <i
+                role="img"
+                aria-label={asking.title}
+                title={asking.title}
+                className="fa fa-solid fa-circle-question shrink-0 text-[10px] text-[var(--mt-state-waiting)]"
+            />
+        );
+    }
     return (
         <i
             role="img"
@@ -1001,7 +1053,11 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
 function EngineButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
     const list = useAtomValue(model.engines.listAtom);
     const sites = useAtomValue(getSettingsKeyAtom("browser:sites"));
+    const agentSites = useAtomValue(getSettingsKeyAtom("browser:agentsites"));
     const chosen = list?.chosen;
+    if (chosen == null && tab != null && agentSiteDecision(agentSites, tab.url) != null) {
+        return <AgentSiteButton model={model} tab={tab} />;
+    }
     if (chosen == null || tab == null || siteOf(tab.url) == null) {
         return null;
     }
@@ -1039,6 +1095,22 @@ function EngineButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab
                 <i className="fa fa-solid fa-chevron-down text-[9px]" />
             </button>
         </div>
+    );
+}
+
+// Without an installed browser there is no engine button: the agents' site decision keeps a caret of its own.
+function AgentSiteButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+    return (
+        <button
+            type="button"
+            aria-label="Agent site permission"
+            title="Agent site permission"
+            onClick={(e) => model.showAgentSiteMenu(e, tab)}
+            className="molten-browser-engine flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded border border-border px-1.5 text-xs text-secondary hover:bg-hover hover:text-primary"
+        >
+            <i className="fa fa-solid fa-robot text-[10px]" />
+            <i className="fa fa-solid fa-chevron-down text-[9px]" />
+        </button>
     );
 }
 
@@ -1144,6 +1216,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                 }
                 onDismiss={() => model.dismissChoice(state.activeId)}
             />
+            <AgentPermissionBar agents={model.agents} tabId={state.activeId} />
             <AgentControlBar agents={model.agents} tabId={state.activeId} />
             <div className="relative min-h-0 flex-1">
                 {state.tabs.map((tab) =>

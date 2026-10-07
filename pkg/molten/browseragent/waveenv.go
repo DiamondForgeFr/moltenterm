@@ -22,6 +22,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
@@ -252,6 +253,27 @@ func (waveEnv) SetControl(key TabKey, controlled bool) {
 		Controlled:   controlled,
 		Token:        emainToken(),
 	}, &wshrpc.RpcOpts{Route: wshutil.ElectronRoute})
+}
+
+func (waveEnv) AgentSites() map[string]string {
+	return wconfig.GetWatcher().GetFullConfig().Settings.BrowserAgentSites
+}
+
+func (waveEnv) SetAgentSite(site string, decision string) error {
+	// The settings writer checks the value against the field's type, map[string]string.
+	sites := make(map[string]string)
+	for k, v := range wconfig.GetWatcher().GetFullConfig().Settings.BrowserAgentSites {
+		sites[k] = v
+	}
+	if decision == "" {
+		delete(sites, site)
+	} else {
+		sites[site] = decision
+	}
+	if len(sites) == 0 {
+		return wconfig.SetBaseConfigValue(waveobj.MetaMapType{wconfig.ConfigKey_BrowserAgentSites: nil})
+	}
+	return wconfig.SetBaseConfigValue(waveobj.MetaMapType{wconfig.ConfigKey_BrowserAgentSites: sites})
 }
 
 func (waveEnv) Publish(state PanelState) {

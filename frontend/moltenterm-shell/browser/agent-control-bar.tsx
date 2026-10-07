@@ -9,12 +9,13 @@ import { Button } from "@/app/element/button";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
-import { ActionCueMs, activeCue, BrowserAgentModel, controlBarView } from "./browser-agent";
+import { ActionCueMs, activeCue, BrowserAgentModel, controlBarView, permissionBarView } from "./browser-agent";
 
 export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; tabId: string }) {
     const tabs = useAtomValue(agents.tabsAtom);
     const view = controlBarView(tabs[tabId]);
-    if (view == null) {
+    // The site permission bar takes this slot while the agent waits for the user's answer.
+    if (view == null || permissionBarView(tabs[tabId]) != null) {
         return null;
     }
     return (

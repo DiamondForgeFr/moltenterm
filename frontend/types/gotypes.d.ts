@@ -1442,6 +1442,7 @@ declare global {
         "browser:installed"?: string;
         "browser:default"?: string;
         "browser:sites"?: {[key: string]: string};
+        "browser:agentsites"?: {[key: string]: string};
         "autoupdate:*"?: boolean;
         "autoupdate:enabled"?: boolean;
         "autoupdate:intervalms"?: number;

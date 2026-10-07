@@ -190,6 +190,13 @@
           "type": "object",
           "description": "Per-site engine, host (subdomains included) to app, installed or a browser id"
         },
+        "browser:agentsites": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Sites agents may use in the browser panel: a site (registrable domain, or host:port for localhost and IP addresses) to allow or block; set from the panel's permission bar, Block wins"
+        },
         "autoupdate:*": {
           "type": "boolean"
         },

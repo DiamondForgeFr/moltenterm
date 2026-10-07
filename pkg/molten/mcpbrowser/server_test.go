@@ -173,7 +173,7 @@ func TestToolsListAndCall(t *testing.T) {
 			t.Fatalf("tool %v: description must say what it drives", tool["name"])
 		}
 	}
-	if strings.Join(names, ",") != "tabs_context,tabs_create,tabs_close" {
+	if strings.Join(names, ",") != "tabs_context,tabs_create,tabs_close,navigate,read_page,get_page_text,find,computer" {
 		t.Fatalf("tools = %v", names)
 	}
 	c.send(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"tabs_close","arguments":{"tabId":4}}}`)
@@ -276,7 +276,7 @@ func TestOfflineBackendAnswersNotInMoltenTerm(t *testing.T) {
 	c := startServer(t, OfflineBackend{})
 	defer c.close()
 	c.send(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
-	if tools := c.recv()["result"].(map[string]any)["tools"].([]any); len(tools) != 3 {
+	if tools := c.recv()["result"].(map[string]any)["tools"].([]any); len(tools) != len(Tools()) {
 		t.Fatalf("offline server must still list its tools, got %d", len(tools))
 	}
 	for i, name := range []string{"tabs_context", "tabs_create", "tabs_close"} {
