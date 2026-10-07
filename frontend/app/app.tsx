@@ -31,6 +31,7 @@ import { useEffect, useRef } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { openInBrowserPanel } from "../moltenterm-shell/browser/browser-routing"; // MOLTENTERM-PATCH (#132, #140)
+import { makeFirstClickGuard } from "../moltenterm-shell/first-click-guard"; // MOLTENTERM-PATCH (#334)
 import { AppBackground } from "./app-bg";
 import { CenteredDiv } from "./element/quickelems";
 
@@ -205,10 +206,15 @@ const MacOSFirstClickHandler = () => {
         if (PLATFORM !== "darwin") {
             return;
         }
-        let windowFocusTime: number = null;
+        const firstClickGuard = makeFirstClickGuard(); // MOLTENTERM-PATCH (#334)
         let cancelNextClick = false;
         const handleWindowFocus = (e: FocusEvent) => {
-            windowFocusTime = Date.now();
+            firstClickGuard.noteWindowFocus(Date.now()); // MOLTENTERM-PATCH (#334)
+        };
+        const handleElementFocus = (e: FocusEvent) => {
+            if ((e.target as HTMLElement)?.tagName === "WEBVIEW") {
+                firstClickGuard.noteWebviewFocus(e.type === "focus"); // MOLTENTERM-PATCH (#334)
+            }
         };
         const getBlockIdFromTarget = (target: EventTarget): string => {
             let elem = target as HTMLElement;
@@ -232,8 +238,8 @@ const MacOSFirstClickHandler = () => {
             return false;
         };
         const handleMouseDown = (e: MouseEvent) => {
-            const timeDiff = Date.now() - windowFocusTime;
-            if (windowFocusTime != null && timeDiff < 50) {
+            if (firstClickGuard.swallowsMouseDown(Date.now())) {
+                // MOLTENTERM-PATCH (#334)
                 e.preventDefault();
                 e.stopPropagation();
                 e.stopImmediatePropagation();
@@ -250,7 +256,7 @@ const MacOSFirstClickHandler = () => {
                         FocusManager.getInstance().setWaveAIFocused(true);
                     }, 10);
                 }
-                console.log("macos first-click detected, canceled", timeDiff + "ms");
+                console.log("macos first-click detected, canceled");
                 return;
             }
             cancelNextClick = false;
@@ -266,10 +272,14 @@ const MacOSFirstClickHandler = () => {
             console.log("macos first-click (click event) canceled");
         };
         window.addEventListener("focus", handleWindowFocus);
+        window.addEventListener("focus", handleElementFocus, true); // MOLTENTERM-PATCH (#334)
+        window.addEventListener("blur", handleElementFocus, true); // MOLTENTERM-PATCH (#334)
         window.addEventListener("mousedown", handleMouseDown, true);
         window.addEventListener("click", handleClick, true);
         return () => {
             window.removeEventListener("focus", handleWindowFocus);
+            window.removeEventListener("focus", handleElementFocus, true); // MOLTENTERM-PATCH (#334)
+            window.removeEventListener("blur", handleElementFocus, true); // MOLTENTERM-PATCH (#334)
             window.removeEventListener("mousedown", handleMouseDown, true);
             window.removeEventListener("click", handleClick, true);
         };
