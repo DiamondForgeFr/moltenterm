@@ -571,7 +571,44 @@ func ReportAgentState(ctx context.Context, req molten.AgentStateRequest) error {
 	if signal != nil {
 		defaultAgentStates.notify(req.BlockId, *signal, kind)
 	}
+	if req.State == molten.AgentStateDone {
+		turnEnded(req.BlockId)
+	}
 	return nil
+}
+
+var turnEndLock sync.Mutex
+var turnEndListener func(blockId string, agent string)
+
+// SetTurnEndListener is called with every end of turn an agent's hook reports (`molten agent state done`, the Stop
+// hook of #318 or Codex's notify): the workspace task checkpoint updates from it (FR-CONT-007).
+func SetTurnEndListener(fn func(blockId string, agent string)) {
+	turnEndLock.Lock()
+	defer turnEndLock.Unlock()
+	turnEndListener = fn
+}
+
+func getTurnEndListener() func(blockId string, agent string) {
+	turnEndLock.Lock()
+	defer turnEndLock.Unlock()
+	return turnEndListener
+}
+
+func turnEnded(blockId string) {
+	fn := getTurnEndListener()
+	if fn == nil {
+		return
+	}
+	run, ok := defaultAgentStates.runOf(blockId)
+	if !ok {
+		return
+	}
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:agentStates:turnEnd", recover())
+		}()
+		fn(blockId, run.Agent)
+	}()
 }
 
 // AgentRun tells which agent runs in a terminal block and since when (the agent companion, DS-SHELL-019).

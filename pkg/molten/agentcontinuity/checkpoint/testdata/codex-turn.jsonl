@@ -1,0 +1,10 @@
+{"timestamp":"2026-10-07T11:00:00.000Z","type":"session_meta","payload":{"id":"0199bbbb-cccc-7ddd-8eee-ffff00001111","timestamp":"2026-10-07T11:00:00.000Z","cwd":"__CWD__","originator":"codex_cli_rs","cli_version":"0.160.1","source":"cli"}}
+{"timestamp":"2026-10-07T11:00:01.000Z","type":"turn_context","payload":{"cwd":"__CWD__","approval_policy":"on-request","model":"some-model"}}
+{"timestamp":"2026-10-07T11:00:01.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"t1"}}
+{"timestamp":"2026-10-07T11:00:01.100Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>cwd</environment_context>"}]}}
+{"timestamp":"2026-10-07T11:00:01.200Z","type":"event_msg","payload":{"type":"user_message","message":"Add rate limiting to the login endpoint"}}
+{"timestamp":"2026-10-07T11:00:02.000Z","type":"event_msg","payload":{"type":"plan_update","plan":[{"step":"Read the login handler","status":"completed"},{"step":"Add the limiter","status":"in_progress"}]}}
+{"timestamp":"2026-10-07T11:00:03.000Z","type":"event_msg","payload":{"type":"patch_apply_begin","call_id":"call_patch","auto_approved":true,"changes":{"__CWD__/src/limiter.go":{"add":{"content":"package src\n"}},"src/login.go":{"update":{"unified_diff":"@@ -1 +1 @@\n-a\n+b\n"}}}}}
+{"timestamp":"2026-10-07T11:00:03.100Z","type":"event_msg","payload":{"type":"patch_apply_end","call_id":"call_patch","success":true}}
+{"timestamp":"2026-10-07T11:00:04.000Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"The limiter is in."}]}}
+{"timestamp":"2026-10-07T11:00:04.100Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"t1","last_agent_message":"The limiter is in."}}

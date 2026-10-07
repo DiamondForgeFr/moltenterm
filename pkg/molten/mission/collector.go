@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity/checkpoint"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/browseragent"
 	"github.com/wavetermdev/waveterm/pkg/molten/browsers"
@@ -429,6 +430,8 @@ func Start() {
 	attention.StartAgentRoute()
 	// The agent companion (FR-SHELL-018) follows the agents the states know.
 	companion.Start()
+	// The workspace task checkpoint (FR-CONT-007) updates from the agents' turns the companion reads.
+	checkpoint.Start()
 	// Pages handed off to the installed browser (FR-BRW-002).
 	browsers.StartRoute(func() browsers.Settings {
 		s := wconfig.GetWatcher().GetFullConfig().Settings

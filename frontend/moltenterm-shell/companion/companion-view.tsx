@@ -48,6 +48,7 @@ import {
     todoCounts,
 } from "./companion-model";
 import { openChangedFile } from "./companion-open";
+import { WorkspaceTaskSection } from "./companion-task";
 import { UsageButton } from "./companion-usage";
 
 export { MoltentermCompanionView };
@@ -229,6 +230,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 files={view.files}
                 folder={folder}
             />
+            <WorkspaceTaskSection target={target} companionId={model.blockId} />
         </div>
     );
 }

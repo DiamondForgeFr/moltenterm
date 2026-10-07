@@ -33,6 +33,9 @@ const (
 	MaxArgsBytes        = 4 * 1024
 	MaxPreviewRunes     = 140
 	MaxPathBytes        = 4096
+	// The user's prompts kept for the workspace task checkpoint (FR-CONT-007): the first, and the latest ones.
+	MaxPrompts     = 50
+	MaxPromptBytes = 4096
 
 	// A transcript whose first lines are none of the records its adapter knows is a format it does not read.
 	unsupportedMinLines = 5
@@ -48,6 +51,12 @@ const (
 	FileUpdated = "update"
 	FileDeleted = "delete"
 )
+
+// Prompt is one prompt of the user, on one line, without the agent's markup.
+type Prompt struct {
+	Text string `json:"text"`
+	At   int64  `json:"at,omitempty"`
+}
 
 type Todo struct {
 	Text   string `json:"text"`
@@ -102,6 +111,8 @@ type fileChange struct {
 type Session struct {
 	Version int64
 	Format  string
+	// Id: the agent's session id, when its transcript says it.
+	Id string
 	// Cwd: the agent's folder when its transcript says it, for the relative paths of its edits.
 	Cwd         string
 	lines       int
@@ -119,10 +130,51 @@ type Session struct {
 	// they change limitsRev and not Version.
 	codexLimits usage.CodexTranscriptLimits
 	limitsRev   int64
+	// What the task checkpoint reads (FR-CONT-007): the prompts, when the task list last changed, the turns ended.
+	firstPrompt *Prompt
+	prompts     []Prompt
+	todosAt     int64
+	turnsEnded  int
+	// recordAt: the time of the record being parsed, for the changes whose call does not carry it.
+	recordAt int64
+	// lean: no diff is kept (a reader that only needs which files changed).
+	lean bool
 }
 
 func MakeSession() *Session {
 	return &Session{files: map[string]*fileChange{}, editedCalls: map[string]bool{}}
+}
+
+// MakeLeanSession is a session that keeps no diff: the files changed are counted, their hunks dropped.
+func MakeLeanSession() *Session {
+	s := MakeSession()
+	s.lean = true
+	return s
+}
+
+// SetRecordTime gives the time of the record about to be parsed (0 when the record has none).
+func (s *Session) SetRecordTime(at int64) {
+	if at > 0 {
+		s.recordAt = at
+	}
+}
+
+// AddPrompt keeps a prompt of the user, already cleaned of the agent's markup. It does not change Version: the
+// companion view does not show prompts.
+func (s *Session) AddPrompt(text string, at int64) {
+	text = strings.TrimSpace(oneLine(text))
+	if text == "" {
+		return
+	}
+	p := Prompt{Text: cutString(text, MaxPromptBytes), At: at}
+	if s.firstPrompt == nil {
+		first := p
+		s.firstPrompt = &first
+	}
+	s.prompts = append(s.prompts, p)
+	if len(s.prompts) > MaxPrompts {
+		s.prompts = append([]Prompt(nil), s.prompts[len(s.prompts)-MaxPrompts:]...)
+	}
 }
 
 func (s *Session) touch() {
@@ -305,6 +357,7 @@ func (s *Session) ResolveTool(id string) {
 
 // EndTurn: the agent finished its turn, nothing it asked is pending any more.
 func (s *Session) EndTurn() {
+	s.turnsEnded++
 	if len(s.pending) == 0 {
 		return
 	}
@@ -322,6 +375,7 @@ func (s *Session) SetTodos(todos []Todo) {
 		todos[i].Status = normaliseTodoStatus(todos[i].Status)
 	}
 	s.todos = todos
+	s.todosAt = s.recordAt
 	s.touch()
 }
 
@@ -339,6 +393,7 @@ func (s *Session) UpsertTodo(index int, text string, status string) {
 	if status != "" {
 		s.todos[index].Status = normaliseTodoStatus(status)
 	}
+	s.todosAt = s.recordAt
 	s.touch()
 }
 
@@ -386,7 +441,7 @@ func (s *Session) AddFileEdit(path string, kind string, diff string, at int64) {
 	added, removed := countDiff(diff)
 	fc.added += added
 	fc.removed += removed
-	if diff != "" {
+	if diff != "" && !s.lean {
 		diff = cutString(diff, MaxDiffBytes)
 		if !strings.HasSuffix(diff, "\n") {
 			diff += "\n"
@@ -558,6 +613,38 @@ func (s *Session) Todos() []Todo {
 
 func (s *Session) Pending() []ToolCall {
 	return append([]ToolCall(nil), s.pending...)
+}
+
+// SessionDigest is what the workspace task checkpoint reads of a session (FR-CONT-007): never an answer or a diff.
+type SessionDigest struct {
+	Id     string `json:"id,omitempty"`
+	Format string `json:"format,omitempty"`
+	Cwd    string `json:"cwd,omitempty"`
+	// FirstPrompt: the session's first prompt; Prompts: the latest ones, oldest first.
+	FirstPrompt *Prompt    `json:"firstprompt,omitempty"`
+	Prompts     []Prompt   `json:"prompts,omitempty"`
+	Todos       []Todo     `json:"todos,omitempty"`
+	TodosAt     int64      `json:"todosat,omitempty"`
+	Files       []FileInfo `json:"files,omitempty"`
+	TurnsEnded  int        `json:"turnsended,omitempty"`
+}
+
+func (s *Session) Digest() SessionDigest {
+	d := SessionDigest{
+		Id:         s.Id,
+		Format:     s.Format,
+		Cwd:        s.Cwd,
+		Prompts:    append([]Prompt(nil), s.prompts...),
+		Todos:      s.Todos(),
+		TodosAt:    s.todosAt,
+		Files:      s.Files(),
+		TurnsEnded: s.turnsEnded,
+	}
+	if s.firstPrompt != nil {
+		first := *s.firstPrompt
+		d.FirstPrompt = &first
+	}
+	return d
 }
 
 func oneLine(text string) string {

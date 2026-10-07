@@ -191,6 +191,10 @@ func (a *ClaudeAdapter) Parse(rec map[string]any, s *Session) bool {
 		return true
 	}
 	at := parseTime(str(rec, "timestamp"))
+	s.SetRecordTime(at)
+	if s.Id == "" {
+		s.Id = str(rec, "sessionId")
+	}
 	switch kind {
 	case "user":
 		a.parseUser(rec, s, at)
@@ -214,11 +218,13 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 	if text, ok := msg["content"].(string); ok {
 		if !isMeta && !boolean(rec, "isCompactSummary") && cleanTitleText(text) != "" && !isCommandRecord(text) {
 			s.StartTurn(at)
+			s.AddPrompt(titlePrompt(text), at)
 		}
 		return
 	}
 	prompt := false
 	callId := ""
+	var texts []string
 	for _, item := range arr(msg, "content") {
 		block := asObj(item)
 		switch str(block, "type") {
@@ -232,6 +238,7 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 			text := str(block, "text")
 			if !isCommandRecord(text) && cleanTitleText(text) != "" {
 				prompt = true
+				texts = append(texts, text)
 			}
 		case "image":
 			prompt = true
@@ -239,6 +246,9 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 	}
 	if prompt && !isMeta && callId == "" {
 		s.StartTurn(at)
+		if !boolean(rec, "isCompactSummary") {
+			s.AddPrompt(titlePrompt(strings.Join(texts, "\n")), at)
+		}
 	}
 	if result := obj(rec, "toolUseResult"); result != nil {
 		a.parseEdits(result, callId, s, at)

@@ -167,6 +167,7 @@ func (a *CodexAdapter) Parse(rec map[string]any, s *Session) bool {
 	kind := str(rec, "type")
 	payload := obj(rec, "payload")
 	at := parseTime(str(rec, "timestamp"))
+	s.SetRecordTime(at)
 	if payload == nil && codexResponseTypes[kind] {
 		a.parseItem(rec, s, at)
 		return true
@@ -178,6 +179,9 @@ func (a *CodexAdapter) Parse(rec map[string]any, s *Session) bool {
 		}
 		if cwd := str(payload, "cwd"); cwd != "" {
 			s.Cwd = cwd
+		}
+		if id := str(payload, "id"); id != "" && s.Id == "" && !codexSubagent(payload) {
+			s.Id = id
 		}
 		return true
 	case "turn_context":
@@ -262,7 +266,10 @@ func codexPlan(items []any) []Todo {
 
 func (a *CodexAdapter) parseEvent(ev map[string]any, s *Session, at int64) {
 	switch str(ev, "type") {
-	case "user_message", "task_started", "turn_started":
+	case "user_message":
+		s.StartTurn(at)
+		s.AddPrompt(cleanTitleText(str(ev, "message")), at)
+	case "task_started", "turn_started":
 		s.StartTurn(at)
 	case "task_complete", "turn_complete", "turn_aborted":
 		s.EndTurn()
