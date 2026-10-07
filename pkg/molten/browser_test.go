@@ -4,10 +4,56 @@
 package molten
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
+
+// NFR-BRW-008: a panel's saved tabs and queued pages never reach the logs, whatever the key's value.
+func TestLoggableMeta(t *testing.T) {
+	meta := waveobj.MetaMapType{
+		"view":                         BrowserView,
+		"url":                          "https://bank.example/?token=PLANTED",
+		BrowserTabsMetaKey:             []any{map[string]any{"id": "a", "url": "https://x.example/?q=PLANTED", "title": "PLANTED"}},
+		BrowserOpenKeyPrefix + "0001":  "https://y.example/#PLANTED",
+		BrowserCloseKeyPrefix + "0002": nil,
+	}
+	got := LoggableMeta(meta)
+	if strings.Contains(fmt.Sprintf("%v", got), "PLANTED") {
+		t.Fatalf("page data logged: %v", got)
+	}
+	if got["view"] != BrowserView || meta["url"] != "https://bank.example/?token=PLANTED" {
+		t.Fatalf("other keys kept, the source untouched: %v / %v", got, meta)
+	}
+	plain := waveobj.MetaMapType{"view": "term", "cmd:cwd": "/tmp"}
+	if fmt.Sprintf("%p", LoggableMeta(plain)) != fmt.Sprintf("%p", plain) {
+		t.Fatalf("meta without page data is returned as is")
+	}
+}
+
+// An agent's tab is queued with the id wavesrv chose, and read back from the panel's saved tabs.
+func TestBrowserAgentTabMeta(t *testing.T) {
+	meta := BrowserAgentTabRequestMeta("0001", "about:blank", "agent-x")
+	entry, _ := meta[BrowserOpenKeyPrefix+"0001"].(map[string]any)
+	if entry["tabid"] != "agent-x" || entry["agent"] != true || entry["url"] != "about:blank" {
+		t.Fatalf("agent request = %v", meta)
+	}
+	if BrowserCloseRequestMeta("0002", "agent-x")[BrowserCloseKeyPrefix+"0002"] != "agent-x" {
+		t.Fatalf("close request")
+	}
+	tabs := BrowserPanelTabs(waveobj.MetaMapType{BrowserTabsMetaKey: []any{
+		map[string]any{"id": "a", "url": "https://a.example", "title": "A"},
+		map[string]any{"id": "b", "url": "https://b.example", "engine": "brave"},
+		map[string]any{"id": "c", "url": "about:blank", "engine": "app"},
+		map[string]any{"url": "no id"},
+		"junk",
+	}})
+	if len(tabs) != 3 || tabs[0].Title != "A" || tabs[1].Engine != "brave" || tabs[2].Engine != "" {
+		t.Fatalf("panel tabs = %+v", tabs)
+	}
+}
 
 func TestBrowserBlockMeta(t *testing.T) {
 	src := waveobj.MetaMapType{"view": "web", "url": "https://example.com", "web:zoom": 1.5}

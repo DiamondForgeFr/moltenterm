@@ -36,4 +36,18 @@ document.addEventListener("mouseup", (event) => {
     }
 });
 
+// MOLTENTERM-PATCH (#300): a click or key of the user in a page an agent drives takes over (emain/moltenterm-browseragent.ts
+// ignores it for pages under no agent's control). Captured before the page's own listeners; only the kind of input is sent.
+let moltentermLastInputTs = 0;
+function moltentermNoteInput(event: Event) {
+    const now = Date.now();
+    if (!event.isTrusted || now - moltentermLastInputTs < 200) {
+        return;
+    }
+    moltentermLastInputTs = now;
+    ipcRenderer.send("moltenterm-webview-input");
+}
+window.addEventListener("mousedown", moltentermNoteInput, true);
+window.addEventListener("keydown", moltentermNoteInput, true);
+
 console.log("loaded wave preload-webview.ts");

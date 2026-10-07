@@ -27,10 +27,28 @@ export const BrowserAskMetaKey = "molten:browser:ask";
 // pkg/molten/browser.go.
 export const BrowserKeepFocusMetaKey = "molten:browser:keepfocus";
 
+// Block meta: the queue of tabs to close (FR-BRW-008, an agent's tabs_close), "molten:browser:close:<id>" = tab id.
+// Must match BrowserCloseKeyPrefix in pkg/molten/browser.go.
+export const BrowserCloseKeyPrefix = "molten:browser:close:";
+
 // engine: a handed-off entry, a page wsh already opened in that installed browser (FR-BRW-002). ask and keepFocus: a
 // page a terminal program opened through BROWSER (FR-BRW-007, BrowserEnvRequestMeta in pkg/molten/browser.go) asks
-// which engine its site uses when nothing is decided yet, and leaves the focus in the terminal.
-export type BrowserOpenRequest = { id: string; url: string; engine?: string; ask?: boolean; keepFocus?: boolean };
+// which engine its site uses when nothing is decided yet, and leaves the focus in the terminal. tabId and agent: a tab
+// an agent opens (FR-BRW-008, BrowserAgentTabRequestMeta in pkg/molten/browser.go), with the id wavesrv chose; the
+// panel never takes the focus for it.
+export type BrowserOpenRequest = {
+    id: string;
+    url: string;
+    engine?: string;
+    ask?: boolean;
+    keepFocus?: boolean;
+    tabId?: string;
+    agent?: boolean;
+};
+
+export type BrowserCloseRequest = { id: string; tabId: string };
+
+const MaxTabIdLength = 200;
 
 // engine is unset for the in-app engine, else the id of the installed browser the page was handed off to (FR-BRW-002):
 // the tab is then an entry with no page of its own here.
@@ -121,6 +139,12 @@ export function readOpenRequests(meta: Record<string, any>): BrowserOpenRequest[
             rtn.push({ id, url: value });
             continue;
         }
+        if (value?.agent === true && typeof value.url === "string" && value.url !== "") {
+            if (typeof value.tabid === "string" && value.tabid !== "" && value.tabid.length <= MaxTabIdLength) {
+                rtn.push({ id, url: value.url, tabId: value.tabid, agent: true });
+            }
+            continue;
+        }
         // A handed-off entry or a page from BROWSER (BrowserHandoffRequestMeta, BrowserEnvRequestMeta in
         // pkg/molten/browser.go).
         if (value != null && typeof value.url === "string" && value.url !== "") {
@@ -150,6 +174,26 @@ export function consumeOpenRequestsMeta(consumed: BrowserOpenRequest[]): Record<
     return rtn;
 }
 
+// The tabs queued for closing, in queue order.
+export function readCloseRequests(meta: Record<string, any>): BrowserCloseRequest[] {
+    const rtn: BrowserCloseRequest[] = [];
+    for (const [key, value] of Object.entries(meta ?? {})) {
+        const id = key.startsWith(BrowserCloseKeyPrefix) ? key.slice(BrowserCloseKeyPrefix.length) : "";
+        if (id !== "" && typeof value === "string" && value !== "") {
+            rtn.push({ id, tabId: value });
+        }
+    }
+    return rtn.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+export function consumeCloseRequestsMeta(consumed: BrowserCloseRequest[]): Record<string, null> {
+    const rtn: Record<string, null> = {};
+    for (const request of consumed) {
+        rtn[BrowserCloseKeyPrefix + request.id] = null;
+    }
+    return rtn;
+}
+
 export function browserMeta(state: BrowserState): Record<string, any> {
     return {
         [BrowserTabsMetaKey]: state.tabs.map((t) => {
@@ -166,11 +210,16 @@ export function browserMeta(state: BrowserState): Record<string, any> {
     };
 }
 
-export type AddTabOpts = { engine?: string; activate?: boolean };
+// id: the tab's id when it is chosen elsewhere (an agent's tab, FR-BRW-008).
+export type AddTabOpts = { engine?: string; activate?: boolean; id?: string };
 
 // A new tab opens right after the active one, as in a browser, and becomes active unless opts.activate is false.
 export function addTab(state: BrowserState, url: string, newId = makeTabId, opts?: AddTabOpts): BrowserState {
-    const tab: BrowserTab = opts?.engine ? { id: newId(), url, engine: opts.engine } : { id: newId(), url };
+    if (opts?.id && state.tabs.some((t) => t.id === opts.id)) {
+        return state;
+    }
+    const id = opts?.id || newId();
+    const tab: BrowserTab = opts?.engine ? { id, url, engine: opts.engine } : { id, url };
     const index = state.tabs.findIndex((t) => t.id === state.activeId);
     const tabs = [...state.tabs];
     tabs.splice(index + 1, 0, tab);

@@ -9,6 +9,12 @@ import { getResolvedUpdateChannel } from "emain/updater";
 import { unamePlatform } from "./emain-platform";
 import { getWebContentsByBlockId, webGetSelector } from "./emain-web";
 import { createBrowserWindow, getWaveWindowById, getWaveWindowByWorkspaceId } from "./emain-window";
+import {
+    runBrowserAgentCdp,
+    setBrowserAgentControl,
+    type CdpCallData,
+    type ControlData,
+} from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#300)
 
 export class ElectronWshClientType extends WshClient {
     constructor() {
@@ -108,6 +114,16 @@ export class ElectronWshClientType extends WshClient {
 
     async handle_electronsystembell(rh: RpcResponseHelper): Promise<void> {
         shell.beep();
+    }
+
+    // MOLTENTERM-PATCH (#300): agents in the browser panel, DevTools allow-list and control (emain/moltenterm-browseragent.ts)
+    async handle_moltenbrowsercdp(rh: RpcResponseHelper, data: CdpCallData): Promise<any> {
+        return runBrowserAgentCdp(data);
+    }
+
+    // MOLTENTERM-PATCH (#300)
+    async handle_moltenbrowsercontrol(rh: RpcResponseHelper, data: ControlData): Promise<void> {
+        setBrowserAgentControl(data);
     }
 
     // async handle_workspaceupdate(rh: RpcResponseHelper) {

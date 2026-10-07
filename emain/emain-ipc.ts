@@ -26,6 +26,7 @@ import { handleCtrlShiftState } from "./emain-util";
 import { getWaveVersion } from "./emain-wavesrv";
 import { createNewWaveWindow, getWaveWindowByWebContentsId } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
+import { initMoltentermBrowserAgent } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#300)
 import { initMoltentermDialogs } from "./moltenterm-dialogs"; // MOLTENTERM-PATCH (#30)
 import { initMoltentermUpdate } from "./moltenterm-update"; // MOLTENTERM-PATCH (#64)
 
@@ -197,6 +198,16 @@ function saveImageFileWithNativeDialog(
 export function initIpcHandlers() {
     initMoltentermDialogs(); // MOLTENTERM-PATCH (#30): folder and image pickers of the Moltenterm shell
     initMoltentermUpdate(); // MOLTENTERM-PATCH (#64): gold updates
+    // MOLTENTERM-PATCH (#300): a user's click or key in an agent's tab takes over (route molten:browseragent)
+    initMoltentermBrowserAgent((blockId, browserTabId) =>
+        fireAndForget(() =>
+            ElectronWshClient.wshRpcCall(
+                "moltenbrowseragentcontrol",
+                { blockid: blockId, browsertabid: browserTabId, action: "takeover" },
+                { route: "molten:browseragent", noresponse: true }
+            )
+        )
+    );
     electron.ipcMain.on("open-external", (event, url) => {
         if (url && typeof url === "string") {
             fireAndForget(() =>
