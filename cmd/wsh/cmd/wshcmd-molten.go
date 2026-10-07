@@ -326,6 +326,9 @@ func moltenRewriteArgs(args []string) []string {
 	// Both separators: the name is checked the same way whatever the OS the tests run on.
 	base := args[0][strings.LastIndexAny(args[0], `/\`)+1:]
 	base = strings.TrimSuffix(base, ".exe")
+	if base == MoltenOpenProgramName {
+		return moltenBrowserEnvArgs(args)
+	}
 	if base != MoltenProgramName {
 		return args
 	}

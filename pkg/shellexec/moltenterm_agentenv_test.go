@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/agentparts"
+	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 )
 
@@ -84,5 +85,49 @@ func TestLocalShellBaseEnvCarriesTheSlots(t *testing.T) {
 	t.Setenv(agentparts.PluginDirsVarName, "/mine")
 	if value, set := moltenAgentPartsEnv(); set || value != "/mine" {
 		t.Fatalf("an unchanged value needs no override: %q %v", value, set)
+	}
+}
+
+func browserEntries(env []string) []string {
+	var found []string
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "BROWSER=") {
+			found = append(found, kv)
+		}
+	}
+	return found
+}
+
+// FR-BRW-007: a local shell starts with BROWSER set to molten-open's absolute path, replacing an inherited value; the
+// user's startup files and cmd:env run after it. Without molten-open, the inherited value is kept.
+func TestLocalShellBaseEnvSetsBrowser(t *testing.T) {
+	dataDir := t.TempDir()
+	savedDataDir := wavebase.DataHome_VarCache
+	wavebase.DataHome_VarCache = dataDir
+	defer func() { wavebase.DataHome_VarCache = savedDataDir }()
+	t.Setenv("BROWSER", "/usr/bin/inherited")
+	if got := browserEntries(localShellBaseEnv()); len(got) != 1 || got[0] != "BROWSER=/usr/bin/inherited" {
+		t.Fatalf("molten-open not installed: got %v, want the inherited value", got)
+	}
+	if got := moltenBrowserEnv(); got != "" {
+		t.Fatalf("molten-open not installed: the job env must not set BROWSER, got %q", got)
+	}
+	binDir := filepath.Join(dataDir, shellutil.WaveHomeBinDir)
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	name := "molten-open"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	openPath := filepath.Join(binDir, name)
+	if err := os.WriteFile(openPath, nil, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if got := browserEntries(localShellBaseEnv()); len(got) != 1 || got[0] != "BROWSER="+openPath {
+		t.Fatalf("got %v, want BROWSER=%s once", got, openPath)
+	}
+	if got := moltenBrowserEnv(); got != openPath {
+		t.Fatalf("job env: got %q, want %q", got, openPath)
 	}
 }

@@ -82,6 +82,9 @@ type moltenOpenResult struct {
 }
 
 func moltenOpenRun(cmd *cobra.Command, args []string) error {
+	if moltenOpenFromBrowserEnv {
+		return moltenBrowserEnvRun(args[0])
+	}
 	url := moltenPageUrl(args[0])
 	engine := strings.ToLower(strings.TrimSpace(moltenOpenBrowser))
 	tabId := getTabIdFromEnv()

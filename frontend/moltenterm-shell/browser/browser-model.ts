@@ -22,9 +22,15 @@ export const BrowserNoticeMetaKey = "molten:browser:notice";
 // Block meta: the panel was created for an interface link whose site has no engine yet (FR-BRW-006); its first tab
 // shows the engine choice, taken once.
 export const BrowserAskMetaKey = "molten:browser:ask";
+// Block meta, with BrowserAskMetaKey: the panel was created for a page a terminal program opened through BROWSER
+// (FR-BRW-007); the choice shows without taking the focus from the terminal. Must match BrowserKeepFocusMetaKey in
+// pkg/molten/browser.go.
+export const BrowserKeepFocusMetaKey = "molten:browser:keepfocus";
 
-// engine: a handed-off entry, a page wsh already opened in that installed browser (FR-BRW-002).
-export type BrowserOpenRequest = { id: string; url: string; engine?: string };
+// engine: a handed-off entry, a page wsh already opened in that installed browser (FR-BRW-002). ask and keepFocus: a
+// page a terminal program opened through BROWSER (FR-BRW-007, BrowserEnvRequestMeta in pkg/molten/browser.go) asks
+// which engine its site uses when nothing is decided yet, and leaves the focus in the terminal.
+export type BrowserOpenRequest = { id: string; url: string; engine?: string; ask?: boolean; keepFocus?: boolean };
 
 // engine is unset for the in-app engine, else the id of the installed browser the page was handed off to (FR-BRW-002):
 // the tab is then an entry with no page of its own here.
@@ -115,10 +121,20 @@ export function readOpenRequests(meta: Record<string, any>): BrowserOpenRequest[
             rtn.push({ id, url: value });
             continue;
         }
-        // A handed-off entry (BrowserHandoffRequestMeta in pkg/molten/browser.go).
+        // A handed-off entry or a page from BROWSER (BrowserHandoffRequestMeta, BrowserEnvRequestMeta in
+        // pkg/molten/browser.go).
         if (value != null && typeof value.url === "string" && value.url !== "") {
-            const engine = typeof value.engine === "string" && value.engine !== "app" ? value.engine : undefined;
-            rtn.push(engine ? { id, url: value.url, engine } : { id, url: value.url });
+            const request: BrowserOpenRequest = { id, url: value.url };
+            if (typeof value.engine === "string" && value.engine !== "" && value.engine !== "app") {
+                request.engine = value.engine;
+            }
+            if (value.ask === true) {
+                request.ask = true;
+            }
+            if (value.keepfocus === true) {
+                request.keepFocus = true;
+            }
+            rtn.push(request);
         }
     }
     return rtn.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));

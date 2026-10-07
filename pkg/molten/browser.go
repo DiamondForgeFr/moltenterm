@@ -26,6 +26,12 @@ const (
 	BrowserOpenKeyPrefix = "molten:browser:open:"
 	// tab meta: the tab's browser panels, most recently focused first, written by the frontend (#140)
 	BrowserRecentMetaKey = "molten:browser:recent"
+	// block meta: the panel was created for a link whose site may have no engine yet; its first tab asks (FR-BRW-006).
+	// Must match BrowserAskMetaKey in frontend/moltenterm-shell/browser/browser-model.ts.
+	BrowserAskMetaKey = "molten:browser:ask"
+	// block meta: the panel was created for a page from BROWSER; it leaves the focus in the terminal (FR-BRW-007).
+	// Must match BrowserKeepFocusMetaKey in frontend/moltenterm-shell/browser/browser-model.ts.
+	BrowserKeepFocusMetaKey = "molten:browser:keepfocus"
 )
 
 // PickBrowserPanel returns the browser panel a link opened inside Moltenterm goes to (#140): the most recently
@@ -57,6 +63,29 @@ func BrowserOpenRequestMeta(id string, url string) waveobj.MetaMapType {
 // object instead of the plain url of BrowserOpenRequestMeta.
 func BrowserHandoffRequestMeta(id string, url string, engine string) waveobj.MetaMapType {
 	return waveobj.MetaMapType{BrowserOpenKeyPrefix + id: map[string]any{"url": url, "engine": engine}}
+}
+
+// BrowserEnvRequestMeta returns the block meta update that queues a page a terminal program opened through BROWSER
+// (FR-BRW-007): the panel leaves the keyboard focus in the terminal the program runs in and, with ask, asks which
+// engine the site uses when nothing is decided yet (DS-BRW-022). A page an installed browser sent back had an engine
+// already: it never asks.
+func BrowserEnvRequestMeta(id string, url string, ask bool) waveobj.MetaMapType {
+	entry := map[string]any{"url": url, "keepfocus": true}
+	if ask {
+		entry["ask"] = true
+	}
+	return waveobj.MetaMapType{BrowserOpenKeyPrefix + id: entry}
+}
+
+// BrowserEnvBlockMeta is the meta of a browser panel created for a page a terminal program opened through BROWSER,
+// when the tab has none: with ask, its first tab asks like a queued page does (BrowserEnvRequestMeta).
+func BrowserEnvBlockMeta(url string, ask bool) waveobj.MetaMapType {
+	meta := waveobj.MetaMapType{waveobj.MetaKey_View: BrowserView, waveobj.MetaKey_Url: url}
+	if ask {
+		meta[BrowserAskMetaKey] = true
+		meta[BrowserKeepFocusMetaKey] = true
+	}
+	return meta
 }
 
 // BrowserBlockMeta returns the meta of a block opened in the browser panel instead of Wave's web view, and whether it

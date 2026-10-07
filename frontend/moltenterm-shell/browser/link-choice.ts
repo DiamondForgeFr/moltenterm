@@ -56,11 +56,16 @@ export function choiceEngineId(browser: InstalledBrowser): string {
 }
 
 // A tab opened by an interface link that asks for its engine. loaded: the link's own page committed, so the next
-// main-frame navigation is the user moving on.
-export type EngineChoice = { url: string; site: string; remember: boolean; loaded: boolean };
+// main-frame navigation is the user moving on. keepFocus: a page a terminal program opened through BROWSER
+// (FR-BRW-007); the bar shows without taking the focus from the terminal.
+export type EngineChoice = { url: string; site: string; remember: boolean; loaded: boolean; keepFocus?: boolean };
 
-export function makeEngineChoice(url: string, site: string): EngineChoice {
-    return { url, site, remember: true, loaded: false };
+export function makeEngineChoice(url: string, site: string, keepFocus?: boolean): EngineChoice {
+    const choice: EngineChoice = { url, site, remember: true, loaded: false };
+    if (keepFocus) {
+        choice.keepFocus = true;
+    }
+    return choice;
 }
 
 // The first committed navigation is the link's own load (after any redirect); a later one dismisses the choice.

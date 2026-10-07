@@ -88,6 +88,8 @@ func TestMoltenRewriteArgs(t *testing.T) {
 		{[]string{"/data/bin/wsh", "molten", "help"}, []string{"/data/bin/wsh", "molten", "help"}},
 		{[]string{"molten"}, []string{"molten", "molten"}},
 		{[]string{}, []string{}},
+		{[]string{"/data/bin/molten-open", "https://example.com"}, []string{"/data/bin/molten-open", "molten", "open", "--from-browser-env", "--", "https://example.com"}},
+		{[]string{`C:\data\bin\molten-open.exe`, "https://example.com"}, []string{`C:\data\bin\molten-open.exe`, "molten", "open", "--from-browser-env", "--", "https://example.com"}},
 	}
 	for _, c := range cases {
 		got := moltenRewriteArgs(c.in)

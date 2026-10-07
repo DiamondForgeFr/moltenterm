@@ -76,6 +76,27 @@ func TestPickBrowserPanel(t *testing.T) {
 	}
 }
 
+// FR-BRW-007: a page from BROWSER is queued like any other, with the ask and keep-focus flags the panel reads.
+func TestBrowserEnvRequestMeta(t *testing.T) {
+	meta := waveobj.MergeMeta(waveobj.MetaMapType{"view": BrowserView}, BrowserEnvRequestMeta("0001", "https://example.com", true), false)
+	meta = waveobj.MergeMeta(meta, BrowserEnvRequestMeta("0002", "https://example.org", false), false)
+	entry, ok := meta[BrowserOpenKeyPrefix+"0001"].(map[string]any)
+	if !ok || entry["url"] != "https://example.com" || entry["ask"] != true || entry["keepfocus"] != true {
+		t.Fatalf("got %v", meta)
+	}
+	entry, ok = meta[BrowserOpenKeyPrefix+"0002"].(map[string]any)
+	if _, asks := entry["ask"]; !ok || asks || entry["keepfocus"] != true {
+		t.Fatalf("a page sent back by a browser never asks: got %v", entry)
+	}
+	block := BrowserEnvBlockMeta("https://example.com", true)
+	if block["view"] != BrowserView || block["url"] != "https://example.com" || block[BrowserAskMetaKey] != true || block[BrowserKeepFocusMetaKey] != true {
+		t.Fatalf("new panel meta: got %v", block)
+	}
+	if _, asks := BrowserEnvBlockMeta("https://example.com", false)[BrowserAskMetaKey]; asks {
+		t.Fatalf("a new panel without ask must not carry the ask flag")
+	}
+}
+
 // Two wsh opens land before the panel reacts: setmeta merges each into the block meta (as UpdateObjectMeta does), so
 // neither drops the other; the panel's removal of what it opened keeps a page queued meanwhile.
 func TestBrowserOpenQueue(t *testing.T) {
