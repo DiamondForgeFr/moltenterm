@@ -62,7 +62,10 @@ type PlannedFile struct {
 type LaunchPlan struct {
 	Files []PlannedFile
 	// MakeArgs builds the real binary's arguments from the written files' paths, in Files' order.
-	MakeArgs  func(paths []string) []string
+	MakeArgs func(paths []string) []string
+	// ShownArgs: for a plan without files, the arguments it adds as the report shows them (the user's own values
+	// that may hold a secret elided).
+	ShownArgs []string
 	Added     []molten.IntegrationItem
 	Skipped   []molten.IntegrationItem
 	StepAside string

@@ -155,8 +155,8 @@ func planMoltenAgentLaunchDry(adapter agentlaunch.LaunchAdapter, real string, ge
 		paths = append(paths, filepath.Join(agentlaunch.LaunchDir(dataDir), agentlaunch.LaunchFileName(f.Prefix, f.Data)))
 	}
 	setReportFiles(&report, plan.Files, paths)
-	if len(plan.Files) == 0 && plan.MakeArgs != nil && plan.StepAside == "" {
-		report.Args = plan.MakeArgs(nil)
+	if len(plan.Files) == 0 && plan.StepAside == "" {
+		report.Args = plan.ShownArgs
 	}
 	return report
 }

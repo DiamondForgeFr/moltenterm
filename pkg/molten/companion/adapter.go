@@ -43,6 +43,10 @@ type Adapter interface {
 // (Codex's notify payload). The path it returns is still validated like any reported path.
 type SessionFinder interface {
 	FindSession(id string) (string, bool)
+	// SessionMatches tells whether a transcript path is the one of a session id, without reading anything.
+	SessionMatches(path string, id string) bool
+	// IsSubagent tells whether a transcript is a sub-agent's (or a reviewer's), which no pane is linked to.
+	IsSubagent(path string) bool
 }
 
 // Candidate is a session discovery found for a block.

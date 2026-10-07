@@ -170,8 +170,9 @@ func AgentIntegration(blockId string) (molten.AgentIntegrationReport, bool) {
 	return defaultIntegrationReports.current(blockId, rec, hasRun)
 }
 
-// IsAgentIntegrated tells whether the agent running in a block got MoltenTerm's integration at launch.
+// IsAgentIntegrated tells whether the agent running in a block got, at launch, MoltenTerm's integration of its
+// states (a run that only got the browser server is not).
 func IsAgentIntegrated(blockId string) bool {
 	rep, ok := AgentIntegration(blockId)
-	return ok && rep.Integrated()
+	return ok && rep.ReportsStates()
 }

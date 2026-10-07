@@ -28,6 +28,10 @@ const (
 	AgentStatusLineCommand = "moltenagentstatusline"
 )
 
+// SubagentSessionError is the error of a session reported by id that is a sub-agent's: `molten agent notify` then
+// reports no turn end either, since the pane's own agent is still at work.
+const SubagentSessionError = "this session is a sub-agent's"
+
 // AgentSessionRequest is what `molten agent session` reports: the transcript of the agent's session in a block.
 // SessionId, when Path is empty: the agent's session id, which its companion adapter resolves to the transcript
 // (Codex's notify payload carries the thread id, not the rollout's path: `molten agent notify`).

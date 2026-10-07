@@ -155,8 +155,19 @@ func (a *CodexAdapter) discoverDir(dir string, cwd string, since time.Time) []Ca
 // A Codex thread id is a UUID; anything else is never looked up.
 var codexThreadIdRegex = regexp.MustCompile(`^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$`)
 
+// How many dated folders, newest first, a lookup by id reads after the last days: a resumed session older than
+// about a year is linked by folder discovery or the picker instead.
+const codexFindMaxDays = 400
+
+// SessionMatches tells whether a rollout path is the one of a thread id.
+func (a *CodexAdapter) SessionMatches(path string, id string) bool {
+	name := filepath.Base(path)
+	return codexThreadIdRegex.MatchString(id) && strings.HasPrefix(name, "rollout-") && strings.HasSuffix(strings.ToLower(name), "-"+strings.ToLower(id)+".jsonl")
+}
+
 // FindSession finds the rollout of a thread id (rollout-<time>-<id>.jsonl): in the folders of the last days first,
-// where a session that just ended a turn almost always is, then in every dated folder, for a resumed old session.
+// where a session that just ended a turn almost always is, then in the older dated folders, newest first, for a
+// resumed session.
 func (a *CodexAdapter) FindSession(id string) (string, bool) {
 	if !codexThreadIdRegex.MatchString(id) {
 		return "", false
@@ -174,11 +185,13 @@ func (a *CodexAdapter) FindSession(id string) (string, bool) {
 		}
 	}
 	for _, root := range a.roots {
-		dirs, _ := filepath.Glob(filepath.Join(root, "[0-9][0-9][0-9][0-9]", "[0-9][0-9]", "[0-9][0-9]"))
-		sort.Sort(sort.Reverse(sort.StringSlice(dirs)))
-		for _, dir := range dirs {
+		read := 0
+		for _, dir := range codexDayDirs(root) {
 			if seen[dir] {
 				continue
+			}
+			if read++; read > codexFindMaxDays {
+				break
 			}
 			if path, ok := codexRolloutIn(dir, suffix); ok {
 				return path, true
@@ -186,6 +199,41 @@ func (a *CodexAdapter) FindSession(id string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func (a *CodexAdapter) IsSubagent(path string) bool {
+	for _, rec := range readHead(path, 50) {
+		if str(rec, "type") == "session_meta" {
+			return codexSubagent(obj(rec, "payload"))
+		}
+	}
+	return false
+}
+
+// codexDayDirs lists a root's YYYY/MM/DD folders, newest first.
+func codexDayDirs(root string) []string {
+	var rtn []string
+	for _, year := range codexDigitDirs(root, 4) {
+		for _, month := range codexDigitDirs(year, 2) {
+			rtn = append(rtn, codexDigitDirs(month, 2)...)
+		}
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(rtn)))
+	return rtn
+}
+
+func codexDigitDirs(dir string, n int) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var rtn []string
+	for _, e := range entries {
+		if e.IsDir() && allDigits(e.Name(), n) {
+			rtn = append(rtn, filepath.Join(dir, e.Name()))
+		}
+	}
+	return rtn
 }
 
 func codexRolloutIn(dir string, suffix string) (string, bool) {

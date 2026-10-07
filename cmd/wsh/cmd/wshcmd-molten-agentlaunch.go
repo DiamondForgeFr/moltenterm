@@ -122,9 +122,8 @@ func planMoltenAgentLaunch(adapter agentlaunch.LaunchAdapter, real string, args 
 		return report, args, env
 	}
 	if len(plan.Files) == 0 {
-		finalArgs := plan.MakeArgs(nil)
-		report.Args = addedArgs(finalArgs, args)
-		return report, finalArgs, env
+		report.Args = plan.ShownArgs
+		return report, plan.MakeArgs(nil), env
 	}
 	dir := agentlaunch.LaunchDir(dataDir)
 	var paths []string
@@ -143,14 +142,6 @@ func planMoltenAgentLaunch(adapter agentlaunch.LaunchAdapter, real string, args 
 	}
 	setReportFiles(&report, plan.Files, paths)
 	return report, plan.MakeArgs(paths), env
-}
-
-// addedArgs is what a plan without files put before the user's arguments (Codex's -c overrides), for the report.
-func addedArgs(finalArgs []string, userArgs []string) []string {
-	if len(finalArgs) < len(userArgs) {
-		return nil
-	}
-	return finalArgs[:len(finalArgs)-len(userArgs)]
 }
 
 // setReportFiles names the generated files in the report, by what they are.
