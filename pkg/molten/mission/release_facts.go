@@ -405,8 +405,11 @@ func (r *Runs) RunReleaseStep(req ReleaseStepRequest) (RunResult, error) {
 		if step.Id != req.Step {
 			continue
 		}
-		command := TrustedCommand{Kind: RunKindRelease, Id: step.Id, Title: step.Title, Cwd: step.Cwd, Env: step.Env,
-			Run: expandRelease(step.Run, session.Version, session.Tag, currentBranch(r.git, dir))}
+		run, err := expandRelease(step.Run, session.Version, session.Tag, currentBranch(r.git, dir))
+		if err != nil {
+			return RunResult{}, err
+		}
+		command := TrustedCommand{Kind: RunKindRelease, Id: step.Id, Title: step.Title, Cwd: step.Cwd, Env: step.Env, Run: run}
 		rec, err = r.launch(dir, command, "", "", session.Tag)
 		return RunResult{Run: &rec}, err
 	}

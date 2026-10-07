@@ -87,13 +87,17 @@ func resolveTrunk(ctx context.Context, run Runner, dir string) (string, string) 
 
 func (r *Runs) startBuild(dir string, build molten.PipelineBuild, version string) (RunRecord, error) {
 	now := r.now()
+	command, err := expandCommand(build.Run, r.buildVars(dir, version))
+	if err != nil {
+		return RunRecord{}, err
+	}
 	rec := RunRecord{
 		Id:        newRunId(now),
 		Dir:       dir,
 		Kind:      RunKindBuild,
 		StepId:    build.Id,
 		Title:     build.Title,
-		Command:   expandCommand(build.Run, r.buildVars(dir, version)),
+		Command:   command,
 		Cwd:       build.Cwd,
 		Artifact:  artifactPath(dir, build.Artifact),
 		StartedAt: now.UnixMilli(),
@@ -184,7 +188,12 @@ func (r *Runs) prepareAndLaunch(rec RunRecord, build molten.PipelineBuild) {
 		return
 	}
 	if build.Prepare != nil {
-		prepare := expandCommand(build.Prepare.Run, r.buildVars(rec.Dir, ""))
+		prepare, err := expandCommand(build.Prepare.Run, r.buildVars(rec.Dir, ""))
+		if err != nil {
+			b.say("%v", err)
+			b.finish(1)
+			return
+		}
 		b.say("$ %s", prepare)
 		code, err := runBuildCommand(filepath.Join(tree, build.Prepare.Cwd), prepare, build.Prepare.Env, rec, file)
 		if err != nil || code != 0 {

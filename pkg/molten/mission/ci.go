@@ -677,7 +677,11 @@ func (c *Ci) prepare(rec CiRunRecord, pipeline *molten.Pipeline) (string, error)
 		return tree, nil
 	}
 	prepare := *pipeline.Ci.Prepare
-	prepare.Run = expandCommand(prepare.Run, CommandVars{Branch: c.branchOf(rec)})
+	prepare.Run, err = expandCommand(prepare.Run, CommandVars{Branch: c.branchOf(rec)})
+	if err != nil {
+		fmt.Fprintf(logFile, "%v\n", err)
+		return "", err
+	}
 	fmt.Fprintf(logFile, "$ %s\n", prepare.Run)
 	exit, err := c.runCommand(rec.Dir, ciPrepareLog, filepath.Join(tree, prepare.Cwd), prepare.Run, prepare.Env, logFile)
 	if err != nil {
@@ -758,9 +762,12 @@ func (c *Ci) runJob(progress *ciRunProgress, rec CiRunRecord, tree string, job m
 	var exitCode *int
 	logFile, err := os.OpenFile(filepath.Join(c.runDir(rec.Dir, rec.Id), job.Name+".log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err == nil {
-		command := expandCommand(job.Run, CommandVars{Branch: c.branchOf(rec)})
-		fmt.Fprintf(logFile, "$ %s\n", command)
-		exit, runErr := c.runCommand(rec.Dir, job.Name, filepath.Join(tree, job.Cwd), command, job.Env, logFile)
+		exit := 1
+		command, runErr := expandCommand(job.Run, CommandVars{Branch: c.branchOf(rec)})
+		if runErr == nil {
+			fmt.Fprintf(logFile, "$ %s\n", command)
+			exit, runErr = c.runCommand(rec.Dir, job.Name, filepath.Join(tree, job.Cwd), command, job.Env, logFile)
+		}
 		if runErr != nil {
 			fmt.Fprintf(logFile, "%v\n", runErr)
 		}
