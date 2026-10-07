@@ -90,6 +90,43 @@ func TestPlanMoltenAgentLaunch(t *testing.T) {
 	}
 }
 
+// FR-SHELL-037: with MoltenTerm's molten installed, the run also gets --mcp-config=<file> first, and the report names it.
+func TestPlanMoltenAgentLaunchBrowser(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks")
+	}
+	env, data := launchEnv(t)
+	getenv := func(name string) string { return env[name] }
+	os.WriteFile(filepath.Join(data, "bin", "wsh"), []byte("#!/bin/sh\n"), 0755)
+	os.Symlink("wsh", filepath.Join(data, "bin", "molten"))
+	report, args, _ := planMoltenAgentLaunch(agentlaunch.FindAdapter("claude"), "/real/claude", []string{"fix it"}, getenv, time.Now())
+	mcp, ok := strings.CutPrefix(args[0], "--mcp-config=")
+	if !ok || report.McpConfig != mcp || args[1] != "--settings" || args[2] != report.Settings || !slices.Equal(args[3:], []string{"fix it"}) {
+		t.Fatalf("args %q report %+v", args, report)
+	}
+	if !strings.HasPrefix(filepath.Base(mcp), "claude-mcp-") {
+		t.Fatalf("mcp file %q", mcp)
+	}
+	content, err := os.ReadFile(mcp)
+	if err != nil || !strings.Contains(string(content), `"command": "`+filepath.Join(data, "bin", "molten")+`"`) {
+		t.Fatalf("mcp file content %s (%v)", content, err)
+	}
+	if info, _ := os.Stat(mcp); info.Mode().Perm() != 0600 {
+		t.Fatalf("mode %v", info.Mode().Perm())
+	}
+	if !slices.ContainsFunc(report.Added, func(it molten.IntegrationItem) bool { return it.Kind == molten.IntegrationBrowser }) {
+		t.Fatalf("added %+v", report.Added)
+	}
+	dry := planMoltenAgentLaunchDry(agentlaunch.FindAdapter("claude"), "/real/claude", getenv)
+	if dry.McpConfig != report.McpConfig || dry.Settings == "" {
+		t.Fatalf("dry run %+v", dry)
+	}
+	report, args, _ = planMoltenAgentLaunch(agentlaunch.FindAdapter("claude"), "/real/claude", []string{"--strict-mcp-config", "x"}, getenv, time.Now())
+	if report.McpConfig != "" || args[0] != "--settings" || !strings.Contains(formatMoltenIntegrationStatus(MoltenIntegrationStatus{Agent: "claude", Running: true, Report: &report}), "MoltenTerm browser: you passed --strict-mcp-config") {
+		t.Fatalf("strict: %q %+v", args, report)
+	}
+}
+
 // FR-SHELL-036 AC10: when preparing fails, the user's arguments run unchanged and the report says why.
 func TestPlanMoltenAgentLaunchFailures(t *testing.T) {
 	if runtime.GOOS == "windows" {
@@ -114,12 +151,12 @@ func TestPlanMoltenAgentLaunchFailures(t *testing.T) {
 
 func TestFormatMoltenIntegrationStatus(t *testing.T) {
 	running := MoltenIntegrationStatus{Agent: "claude", Running: true, Launcher: true, Report: &molten.AgentIntegrationReport{
-		Agent: "claude", RealPath: "/h/.local/bin/claude", Settings: "/d/molten/agent-launch/claude-1.json",
+		Agent: "claude", RealPath: "/h/.local/bin/claude", Settings: "/d/molten/agent-launch/claude-1.json", McpConfig: "/d/molten/agent-launch/claude-mcp-1.json",
 		Added:   []molten.IntegrationItem{{Kind: molten.IntegrationStateHooks, Name: "Agent state hooks (Stop)"}},
 		Skipped: []molten.IntegrationItem{{Kind: molten.IntegrationSession, Name: "Session link", Reason: "already yours, in ~/.claude/settings.json"}},
 	}}
 	out := formatMoltenIntegrationStatus(running)
-	for _, want := range []string{"Claude Code", "Real binary: /h/.local/bin/claude", "Added to this run", "Agent state hooks (Stop)", "--settings /d/molten", "Session link: already yours"} {
+	for _, want := range []string{"Claude Code", "Real binary: /h/.local/bin/claude", "Added to this run", "Agent state hooks (Stop)", "--settings /d/molten", "--mcp-config /d/molten/agent-launch/claude-mcp-1.json", "Session link: already yours"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("running status misses %q:\n%s", want, out)
 		}

@@ -33,6 +33,8 @@ const (
 	IntegrationStateHooks = "statehooks"
 	IntegrationSession    = "sessionlink"
 	IntegrationStatusLine = "statusline"
+	// The molten-browser MCP server (FR-SHELL-037): added, or skipped as the user's own.
+	IntegrationBrowser = "browser"
 )
 
 // IntegrationItem is one thing added to a run, or left out (Reason says why, in plain words).
@@ -49,6 +51,7 @@ type AgentIntegrationReport struct {
 	RealPath  string            `json:"realpath"`
 	Pid       int               `json:"pid,omitempty"`
 	Settings  string            `json:"settings,omitempty"`
+	McpConfig string            `json:"mcpconfig,omitempty"`
 	Added     []IntegrationItem `json:"added,omitempty"`
 	Skipped   []IntegrationItem `json:"skipped,omitempty"`
 	StepAside string            `json:"stepaside,omitempty"`

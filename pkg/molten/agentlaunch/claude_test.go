@@ -81,11 +81,14 @@ func planOf(t *testing.T, ctx LaunchContext) (LaunchPlan, generatedSettings, map
 	}
 	var gen generatedSettings
 	var raw map[string]json.RawMessage
-	if len(plan.Files) == 1 {
-		if err := json.Unmarshal(plan.Files[0].Data, &gen); err != nil {
-			t.Fatalf("generated settings do not parse: %v\n%s", err, plan.Files[0].Data)
+	for _, f := range plan.Files {
+		if f.Kind != FileSettings {
+			continue
 		}
-		json.Unmarshal(plan.Files[0].Data, &raw)
+		if err := json.Unmarshal(f.Data, &gen); err != nil {
+			t.Fatalf("generated settings do not parse: %v\n%s", err, f.Data)
+		}
+		json.Unmarshal(f.Data, &raw)
 	}
 	return plan, gen, raw
 }
@@ -300,7 +303,7 @@ func TestClaudePlanStepsAsideOrLeavesOut(t *testing.T) {
 	if len(plan.Files) != 0 || gen.StatusLine != nil {
 		t.Fatalf("managed status line and hooks only: %+v", plan)
 	}
-	if got := itemKinds(plan.Skipped); !slices.Equal(got, []string{molten.IntegrationStateHooks, molten.IntegrationSession, molten.IntegrationStatusLine}) {
+	if got := itemKinds(plan.Skipped); !slices.Equal(got, []string{molten.IntegrationStateHooks, molten.IntegrationSession, molten.IntegrationStatusLine, molten.IntegrationBrowser}) {
 		t.Fatalf("skipped %v", got)
 	}
 	os.Remove(tree.managed)
@@ -366,19 +369,22 @@ func hashTree(t *testing.T, root string) map[string]string {
 	return rtn
 }
 
-// FR-SHELL-036 AC5, NFR-SHELL-019: planning and writing the run's file leave every user file as it was.
+// FR-SHELL-036 AC5, FR-SHELL-037 AC2, NFR-SHELL-019: planning and writing the run's files leave every user file as
+// it was.
 func TestClaudePlanWritesNothingOfTheUsers(t *testing.T) {
 	tree := makeFakeTree(t)
 	tree.write(t, tree.userSettings(), `{"statusLine":{"type":"command","command":"echo a"},"hooks":{}}`)
-	tree.write(t, filepath.Join(tree.home, ".claude.json"), `{"mcpServers":{}}`)
-	tree.write(t, filepath.Join(tree.project, ".mcp.json"), `{"mcpServers":{}}`)
+	tree.write(t, filepath.Join(tree.home, ".claude.json"), `{"mcpServers":{"github":{"command":"gh"}},"projects":{}}`)
+	tree.write(t, filepath.Join(tree.project, ".mcp.json"), `{"mcpServers":{"db":{"command":"db"}}}`)
 	tree.write(t, filepath.Join(tree.project, ".claude", "settings.json"), `{}`)
 	before := hashTree(t, tree.home)
 	dataDir := t.TempDir()
 	for i := 0; i < 3; i++ {
-		plan, _, _ := planOf(t, tree.ctx())
-		if _, _, err := WriteLaunchFile(LaunchDir(dataDir), plan.Files[0].Prefix, plan.Files[0].Data, time.Now()); err != nil {
-			t.Fatal(err)
+		plan, _, _ := planOf(t, tree.browserCtx())
+		for _, f := range plan.Files {
+			if _, _, err := WriteLaunchFile(LaunchDir(dataDir), f.Prefix, f.Data, time.Now()); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	after := hashTree(t, tree.home)
@@ -391,8 +397,8 @@ func TestClaudePlanWritesNothingOfTheUsers(t *testing.T) {
 		}
 	}
 	entries, _ := os.ReadDir(LaunchDir(dataDir))
-	if len(entries) != 1 {
-		t.Fatalf("one content-addressed file, got %d", len(entries))
+	if len(entries) != 2 {
+		t.Fatalf("one content-addressed settings and MCP file, got %d", len(entries))
 	}
 }
 

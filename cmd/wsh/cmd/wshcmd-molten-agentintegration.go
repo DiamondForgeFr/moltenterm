@@ -150,9 +150,11 @@ func planMoltenAgentLaunchDry(adapter agentlaunch.LaunchAdapter, real string, ge
 		return report
 	}
 	report.Added, report.Skipped, report.StepAside = plan.Added, plan.Skipped, plan.StepAside
-	if len(plan.Files) > 0 {
-		report.Settings = filepath.Join(agentlaunch.LaunchDir(dataDir), agentlaunch.LaunchFileName(plan.Files[0].Prefix, plan.Files[0].Data))
+	var paths []string
+	for _, f := range plan.Files {
+		paths = append(paths, filepath.Join(agentlaunch.LaunchDir(dataDir), agentlaunch.LaunchFileName(f.Prefix, f.Data)))
 	}
+	setReportFiles(&report, plan.Files, paths)
 	return report
 }
 
@@ -194,6 +196,9 @@ func formatMoltenIntegrationStatus(s MoltenIntegrationStatus) string {
 		}
 		if r.Settings != "" {
 			fmt.Fprintf(&b, "    through --settings %s (your own files are not edited)\n", r.Settings)
+		}
+		if r.McpConfig != "" {
+			fmt.Fprintf(&b, "    through --mcp-config %s (added to your own MCP servers)\n", r.McpConfig)
 		}
 	}
 	if len(r.Skipped) > 0 {
