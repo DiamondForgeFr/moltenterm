@@ -24,6 +24,11 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 )
 
+// Fake binaries that answer get a generous timeout: a full `go test ./...` loads the machine
+// enough that a shell script can take seconds to start (#338). Only the hanging-binary test
+// relies on a short timeout, and a binary that never answers times out at any load.
+const AnsweringProbeTimeout = 30 * time.Second
+
 func writeFakeAgent(t *testing.T, dir string, name string, script string) string {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -345,21 +350,13 @@ func TestDetect(t *testing.T) {
 	bin := filepath.Join(dir, "bin")
 	counter := filepath.Join(dir, "count")
 	writeFakeAgent(t, bin, "claude", `echo x >> "`+counter+`"; echo "2.1.292 (Claude Code)"`)
-	writeFakeAgent(t, bin, "codex", `sleep 30`)
 	writeFakeAgent(t, bin, "gemini", `echo boom >&2; exit 3`)
 	writeFakeAgent(t, bin, "opencode", `echo "no digits"`)
-	d := MakeDetector(RunVersionProbe, 2*time.Second)
+	d := MakeDetector(RunVersionProbe, AnsweringProbeTimeout)
 	env := DetectEnv{PathList: "relative:" + bin}
-	start := time.Now()
-	got := d.DetectAll(context.Background(), []string{"claude", "codex", "gemini", "opencode", "kimi"}, env)
-	if elapsed := time.Since(start); elapsed > 4*time.Second {
-		t.Errorf("detection took %s", elapsed)
-	}
+	got := d.DetectAll(context.Background(), []string{"claude", "gemini", "opencode", "kimi"}, env)
 	if c := got["claude"]; !c.Installed || c.Version != "2.1.292" || c.Path != filepath.Join(bin, "claude") || c.Reason != "" {
 		t.Errorf("claude %+v", c)
-	}
-	if c := got["codex"]; c.Installed || c.Path == "" || !strings.Contains(c.Reason, "did not answer within 2s") {
-		t.Errorf("hanging codex %+v", c)
 	}
 	if c := got["gemini"]; c.Installed || !strings.Contains(c.Reason, "failed") {
 		t.Errorf("failing gemini %+v", c)
@@ -379,6 +376,25 @@ func TestDetect(t *testing.T) {
 	d.Detect(context.Background(), "claude", env)
 	if data, _ := os.ReadFile(counter); strings.Count(string(data), "x") != 2 {
 		t.Errorf("a changed binary was not probed again: %q", data)
+	}
+}
+
+// FR-CONT-006 AC6: a hanging --version is cut at the timeout and does not hold the others.
+func TestDetectHangingProbeTimesOut(t *testing.T) {
+	skipOnWindows(t)
+	bin := filepath.Join(t.TempDir(), "bin")
+	writeFakeAgent(t, bin, "codex", `sleep 30`)
+	d := MakeDetector(RunVersionProbe, 500*time.Millisecond)
+	start := time.Now()
+	got := d.DetectAll(context.Background(), []string{"codex", "kimi"}, DetectEnv{PathList: bin})
+	if elapsed := time.Since(start); elapsed > 10*time.Second {
+		t.Errorf("detection took %s", elapsed)
+	}
+	if c := got["codex"]; c.Installed || c.Path == "" || !strings.Contains(c.Reason, "did not answer within 500ms") {
+		t.Errorf("hanging codex %+v", c)
+	}
+	if c := got["kimi"]; c.Installed || c.Reason != ReasonNotFound {
+		t.Errorf("missing kimi %+v", c)
 	}
 }
 
@@ -421,7 +437,7 @@ func TestDetectSkipsLaunchers(t *testing.T) {
 	os.MkdirAll(other, 0755)
 	os.Symlink(wsh, filepath.Join(other, "claude"))
 	real := writeFakeAgent(t, filepath.Join(dir, "real"), "claude", `echo "2.1.292 (Claude Code)"`)
-	d := MakeDetector(RunVersionProbe, time.Second)
+	d := MakeDetector(RunVersionProbe, AnsweringProbeTimeout)
 	got := d.Detect(context.Background(), "claude", DetectEnv{PathList: launchers + ":" + other + ":" + filepath.Dir(real), LauncherDir: launchers})
 	if got.Path != real || got.Version != "2.1.292" {
 		t.Errorf("launcher not skipped: %+v", got)
@@ -480,7 +496,7 @@ func TestListWritesNothing(t *testing.T) {
 	os.WriteFile(filepath.Join(home, ".codex", "models_cache.json"), []byte(`{"models":[{"slug":"gpt-6-sol","display_name":"GPT-6-Sol","visibility":"list","context_window":272000}]}`), 0600)
 	os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{}`), 0600)
 	before := hashTree(t, home)
-	listings := Default().List(context.Background(), MakeDetector(RunVersionProbe, time.Second), DetectEnv{PathList: bin},
+	listings := Default().List(context.Background(), MakeDetector(RunVersionProbe, AnsweringProbeTimeout), DetectEnv{PathList: bin},
 		ModelEnv{Home: home, Getenv: func(string) string { return "" }})
 	if after := hashTree(t, home); !reflect.DeepEqual(before, after) {
 		t.Errorf("the listing changed the agents' files")
