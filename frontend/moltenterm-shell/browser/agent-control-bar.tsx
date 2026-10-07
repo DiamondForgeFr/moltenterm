@@ -35,6 +35,14 @@ export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; 
                 <span className="truncate text-primary">{view.title}</span>
                 {view.detail ? <span className="min-w-0 truncate text-secondary">{view.detail}</span> : null}
             </div>
+            {view.viewport ? (
+                <span
+                    title="The agent emulates this viewport size; the page returns to the panel's size when its control ends"
+                    className="shrink-0 rounded border border-border px-1.5 py-px font-mono text-[11px] text-secondary"
+                >
+                    {view.viewport}
+                </span>
+            ) : null}
             <div className="flex shrink-0 items-center gap-2">
                 {view.buttons.map((b) =>
                     b.primary ? (
@@ -62,7 +70,7 @@ export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; 
 }
 
 // Where the agent just acted, drawn over the page (not injected in it): a pointer at the click point, an outline on the
-// element. FR-BRW-010's tools send the cue with each action.
+// element. The input tools send the cue with each action.
 export function AgentActionCueOverlay({ agents, tabId }: { agents: BrowserAgentModel; tabId: string }) {
     const tabs = useAtomValue(agents.tabsAtom);
     const tab = tabs[tabId];

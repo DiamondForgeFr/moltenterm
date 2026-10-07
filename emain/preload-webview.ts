@@ -36,16 +36,26 @@ document.addEventListener("mouseup", (event) => {
     }
 });
 
-// MOLTENTERM-PATCH (#300): a click or key of the user in a page an agent drives takes over (emain/moltenterm-browseragent.ts
-// ignores it for pages under no agent's control). Captured before the page's own listeners; only the kind of input is sent.
-let moltentermLastInputTs = 0;
+// MOLTENTERM-PATCH (#300, #302): a click or key of the user in a page an agent drives takes over (emain/moltenterm-browseragent.ts
+// ignores it for pages under no agent's control). Captured before the page's own listeners. emain tells the agent's own
+// input from the user's by matching each report against the input it dispatched, so the report says which button and
+// point, or which key: never the text of a field.
 function moltentermNoteInput(event: Event) {
-    const now = Date.now();
-    if (!event.isTrusted || now - moltentermLastInputTs < 200) {
+    if (!event.isTrusted) {
         return;
     }
-    moltentermLastInputTs = now;
-    ipcRenderer.send("moltenterm-webview-input");
+    if (event instanceof MouseEvent) {
+        ipcRenderer.send("moltenterm-webview-input", {
+            type: "mousedown",
+            button: event.button,
+            x: event.clientX,
+            y: event.clientY,
+        });
+        return;
+    }
+    if (event instanceof KeyboardEvent) {
+        ipcRenderer.send("moltenterm-webview-input", { type: "keydown", key: event.key, code: event.code });
+    }
 }
 window.addEventListener("mousedown", moltentermNoteInput, true);
 window.addEventListener("keydown", moltentermNoteInput, true);

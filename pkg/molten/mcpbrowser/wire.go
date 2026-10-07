@@ -22,11 +22,13 @@ const (
 	// The panel's answer to a site permission request, and the panel menu's Forget (FR-BRW-009).
 	AnswerCommand = "moltenbrowseragentanswer"
 	SiteCommand   = "moltenbrowseragentsite"
+	// emain asks whether a download an agent's tab started may go on (FR-BRW-010).
+	DownloadCommand = "moltenbrowseragentdownload"
 	// WPS event with the agent state of one browser panel (scope: the panel's block oref).
 	StateEvent = "molten:browseragent"
 )
 
-// The tools of FR-BRW-008 and FR-BRW-009; FR-BRW-010 to FR-BRW-012 add the others. Names follow Claude in Chrome's.
+// The tools of FR-BRW-008 to FR-BRW-010; FR-BRW-012 adds the others. Names follow Claude in Chrome's.
 const (
 	ToolTabsContext = "tabs_context"
 	ToolTabsCreate  = "tabs_create"
@@ -36,14 +38,33 @@ const (
 	ToolGetPageText = "get_page_text"
 	ToolFind        = "find"
 	ToolComputer    = "computer"
+	ToolFormInput   = "form_input"
+	ToolResize      = "resize"
+	ToolBatch       = "browser_batch"
 )
 
-// The computer actions of FR-BRW-009; FR-BRW-010 adds the input actions.
+// The computer actions: reading (FR-BRW-009) and input (FR-BRW-010).
 const (
-	ActionScreenshot = "screenshot"
-	ActionZoom       = "zoom"
-	ActionWait       = "wait"
+	ActionScreenshot  = "screenshot"
+	ActionZoom        = "zoom"
+	ActionWait        = "wait"
+	ActionLeftClick   = "left_click"
+	ActionRightClick  = "right_click"
+	ActionDoubleClick = "double_click"
+	ActionTripleClick = "triple_click"
+	ActionHover       = "hover"
+	ActionScroll      = "scroll"
+	ActionScrollTo    = "scroll_to"
+	ActionKey         = "key"
+	ActionType        = "type"
+	ActionLeftDrag    = "left_click_drag"
 )
+
+// ComputerActions is the computer tool's action enum, in a stable order.
+func ComputerActions() []string {
+	return []string{ActionLeftClick, ActionRightClick, ActionDoubleClick, ActionTripleClick, ActionHover, ActionScroll,
+		ActionScrollTo, ActionKey, ActionType, ActionLeftDrag, ActionScreenshot, ActionZoom, ActionWait}
+}
 
 // Fixed sentences the agent sees (FR-BRW-008 acceptance criteria). Errors are short and never echo page content.
 const (
@@ -71,13 +92,39 @@ const (
 	ErrUnreadablePage    = "Only http and https pages can be read"
 	ErrRefUnknown        = "This ref is unknown or expired: call read_page or find again"
 	ErrQueryRequired     = "query must say what to find"
-	ErrActionRequired    = "action must be screenshot, zoom or wait"
+	ErrActionRequired    = "action must be one of: left_click, right_click, double_click, triple_click, hover, scroll, scroll_to, key, type, left_click_drag, screenshot, zoom, wait"
 	ErrRegionRequired    = "region must be [x0, y0, x1, y1] in the page's CSS pixels, inside the viewport"
 	ErrDurationRequired  = "duration must be a number of seconds from 0 to 10"
 	ErrPageFailed        = "MoltenTerm could not read the page"
 	ErrCaptureFailed     = "MoltenTerm could not capture the page"
 	ErrNavigationFailed  = "The page did not load"
 	ErrTooManyRedirects  = "The page redirected too many times"
+
+	ErrCoordinateOutside = "coordinate must be [x, y] inside the viewport, in the page's CSS pixels (see the latest screenshot)"
+	ErrTargetRequired    = "this action needs coordinate [x, y] or ref"
+	ErrRefRequired       = "ref must be an element ref from read_page or find"
+	ErrElementGone       = "Element not found, read the page again"
+	ErrScrollAmount      = "scroll_amount must be a number of ticks from 1 to 10"
+	ErrScrollDirection   = "scroll_direction must be up, down, left or right"
+	ErrRepeat            = "repeat must be a whole number from 1 to 100"
+	ErrTextRequired      = "text is required for this action"
+	ErrTextTooLong       = "text must be at most 10000 characters per call"
+	ErrUnknownKey        = "text must be keys such as \"Enter\", \"Tab\", \"cmd+a\" or \"ctrl+shift+ArrowLeft\", separated by spaces"
+	ErrModifiers         = "modifiers must be ctrl, shift, alt or cmd, joined with +"
+	ErrStartRequired     = "left_click_drag needs start_coordinate [x, y] and coordinate [x, y]"
+	ErrValueRequired     = "value must be a string, a number or a boolean"
+	ErrFieldUnsupported  = "form_input sets text fields, text areas, checkboxes, radio buttons and selects only"
+	ErrFileInput         = "File inputs cannot be set by a tool: click the input and the user picks the file"
+	ErrOptionNotFound    = "No option of this select has that value or text"
+	ErrResizeBounds      = "width and height must be numbers of CSS pixels from 100 to 4096"
+	ErrBatchActions      = "actions must be a list of 1 to 50 items {name, input}"
+	ErrBatchNested       = "browser_batch cannot be nested"
+	ErrActionDenied      = "The user denied this action"
+	ErrActionTimeout     = "No answer from the user about this action (2 minutes)"
+	ErrInputFailed       = "MoltenTerm could not act on the page"
+	ErrRefOutside        = "The element is outside the viewport: scroll to it with scroll_to first"
+	ErrPageChanged       = "The page changed while the user was asked; look at it again"
+	ErrTooManyKeys       = "key presses at most 1000 keys per call, repeats included"
 )
 
 // UntrustedNotice precedes any page-originated text (DS-BRW-020).

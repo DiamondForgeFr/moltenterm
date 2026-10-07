@@ -32,6 +32,12 @@ const (
 	DecisionAlways  = "always"
 	DecisionBlock   = "block"
 	DecisionDismiss = "dismiss"
+	// The answers to a sensitive action (FR-BRW-010): this once, or not.
+	DecisionAllow = "allow"
+	DecisionDeny  = "deny"
+
+	PromptSite   = "site"
+	PromptAction = "action"
 )
 
 // BlockLocation is where a block is now: re-read on every call, so a pane moved to another tab or workspace is scoped
@@ -75,8 +81,8 @@ type TabKey struct {
 	BrowserTabId string `json:"browsertabid"`
 }
 
-// ActionCue tells the panel where an action happens (DS-BRW-011): a pointer at X,Y and/or an outline of the element's
-// box, in the page's CSS pixels. FR-BRW-010's input tools fill it.
+// ActionCue tells the panel where an action happens (DS-BRW-011): a pointer at X,Y or an outline of the element's box,
+// in the page's CSS pixels.
 type ActionCue struct {
 	X      float64 `json:"x,omitempty"`
 	Y      float64 `json:"y,omitempty"`
@@ -94,14 +100,25 @@ type PanelAgentTab struct {
 	Action       string     `json:"action,omitempty"`
 	ActionTs     int64      `json:"actionts,omitempty"`
 	Cue          *ActionCue `json:"cue,omitempty"`
-	// Permission is the site permission request waiting on this tab (DS-BRW-013), shown instead of the control bar.
+	// Permission is the request waiting on this tab, shown instead of the control bar: a site permission (DS-BRW-013)
+	// or a sensitive action (DS-BRW-016).
 	Permission *PermissionPrompt `json:"permission,omitempty"`
+	// Viewport is the size the resize tool emulates, shown on the control bar.
+	Viewport *Viewport `json:"viewport,omitempty"`
 }
 
-// PermissionPrompt asks the user whether the agent may use a site. Must match frontend/moltenterm-shell/browser/browser-agent.ts.
+type Viewport struct {
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
+// PermissionPrompt asks the user whether the agent may use a site (kind site) or do one sensitive action (kind action,
+// Action saying what). Must match frontend/moltenterm-shell/browser/browser-agent.ts.
 type PermissionPrompt struct {
 	RequestId string `json:"requestid"`
 	Site      string `json:"site"`
+	Kind      string `json:"kind"`
+	Action    string `json:"action,omitempty"`
 }
 
 type PanelState struct {
@@ -119,7 +136,8 @@ type StateRequest struct {
 	BlockId string `json:"blockid"`
 }
 
-// AnswerRequest is the user's answer in the permission bar: once, always, block, or dismiss (Escape).
+// AnswerRequest is the user's answer in the permission bar: once, always, block or dismiss (Escape) for a site; allow,
+// deny or dismiss for a sensitive action.
 type AnswerRequest struct {
 	BlockId      string `json:"blockid"`
 	BrowserTabId string `json:"browsertabid"`
@@ -131,6 +149,17 @@ type AnswerRequest struct {
 type SiteRequest struct {
 	Site     string `json:"site"`
 	Decision string `json:"decision,omitempty"`
+}
+
+// DownloadRequest is emain asking whether a download a controlled tab started may go on; Host is the download's.
+type DownloadRequest struct {
+	BlockId      string `json:"blockid"`
+	BrowserTabId string `json:"browsertabid"`
+	Host         string `json:"host"`
+}
+
+type DownloadAnswer struct {
+	Allow bool `json:"allow"`
 }
 
 // Env is what the sessions need from wavesrv, the windows and emain; tests replace it.

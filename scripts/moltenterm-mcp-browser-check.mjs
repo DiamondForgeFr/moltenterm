@@ -2,14 +2,14 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// A minimal MCP client for `molten mcp browser` (FR-BRW-008, FR-BRW-009): starts the server over stdio and checks
-// initialize, tools/list, the tab tools and the reading tools, the way an agent would call them. Run it from a terminal
+// A minimal MCP client for `molten mcp browser` (FR-BRW-008 to FR-BRW-010): starts the server over stdio and checks
+// initialize, tools/list, the tab tools, the reading tools and the input tools, the way an agent would call them. Run it from a terminal
 // pane of a MoltenTerm build; outside MoltenTerm, use --offline to check that every call answers "Not running in a
 // MoltenTerm terminal".
 //
 // Usage:
 //   node scripts/moltenterm-mcp-browser-check.mjs [--server <cmd>] [--offline] [--hold <seconds>] [--keep]
-//                                                [--pages] [--shots <dir>]
+//                                                [--pages] [--input] [--shots <dir>]
 //     --server  the server command (default: "molten mcp browser")
 //     --offline expect the answers given outside MoltenTerm
 //     --hold    after opening a tab, keep the session for this long and print the tab's state every second (to try
@@ -18,7 +18,12 @@
 //     --pages   also run navigate, read_page, get_page_text, find and computer against test pages this script serves
 //               on 127.0.0.1 (two ports, so two sites). The permission bar must be answered in the panel: Allow once
 //               for the first site, Block for the second (a driver can click them)
-//     --shots   with --pages, save the screenshot and the zoom to this directory
+//     --input   run the input tools (computer's clicks, keys, typing, scroll and drag, form_input, resize, browser_batch)
+//               against a demo form, a fake sign-in, a fake checkout and a files page this script serves on 127.0.0.1.
+//               The bars must be answered in the panel, in this order: Allow once (the site), then Deny, Allow
+//               (password typing), Deny, Allow (the sign-in form), Deny (card field), Deny (download), Deny (file
+//               chooser). A driver can click them
+//     --shots   with --pages or --input, save the screenshots to this directory
 // Exit code 1 when a check fails.
 
 /* global console, process, setTimeout, clearTimeout, Buffer */
@@ -34,12 +39,23 @@ const NotYourTab = "Not your tab";
 const SiteBlocked = "The user blocked agents on this site";
 const SchemeRefused = "Only http and https pages can be opened";
 const PlantedPassword = "PLANTED-PASSWORD-301";
-const AllTools = "tabs_context,tabs_create,tabs_close,navigate,read_page,get_page_text,find,computer";
+const AllTools =
+  "tabs_context,tabs_create,tabs_close,navigate,read_page,get_page_text,find,computer,form_input,resize,browser_batch";
+const ActionDenied = "The user denied this action";
+const PlantedTyped = "PLANTED-TYPED-302";
 // A call may wait 2 minutes for the user's answer in the permission bar.
 const ToolTimeoutMs = 200000;
 
 function parseArgs(argv) {
-  const opts = { server: "molten mcp browser", offline: false, hold: 0, keep: false, pages: false, shots: "" };
+  const opts = {
+    server: "molten mcp browser",
+    offline: false,
+    hold: 0,
+    keep: false,
+    pages: false,
+    input: false,
+    shots: "",
+  };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--server") {
@@ -52,6 +68,8 @@ function parseArgs(argv) {
       opts.keep = true;
     } else if (arg === "--pages") {
       opts.pages = true;
+    } else if (arg === "--input") {
+      opts.input = true;
     } else if (arg === "--shots") {
       opts.shots = argv[++i];
     } else {
@@ -288,8 +306,6 @@ async function checkPages(client, tabId, opts) {
     saveImage(opts.shots, "agent-zoom", zoomImage);
     const waited = await client.callTool("computer", { tabId, action: "wait", duration: 0.5 });
     check(!waited.isError && waited.ms >= 450, "wait", `${waited.ms} ms`);
-    const click = await client.callTool("computer", { tabId, action: "left_click", coordinate: [10, 10] });
-    check(click.isError, "input actions are not in this version", click.text);
 
     const moved = await client.callTool("navigate", { tabId, url: `${sites.aUrl}/redirect` });
     check(
@@ -304,6 +320,281 @@ async function checkPages(client, tabId, opts) {
     check(!back.isError && back.text.includes("/login"), "back returns to the sign-in page", oneLine(back.text, 200));
   } finally {
     sites.close();
+  }
+}
+
+// The input test pages (FR-BRW-010). Every page logs what reaches it into #log, which get_page_text reads back: the
+// events a field got, clicks, keys (with their modifiers), the scroll position and drags.
+const LogScript = `<script>
+const log = (line) => { const el = document.getElementById("log"); el.textContent += line + "\\n"; };
+document.addEventListener("keydown", (e) => log("keydown " + (e.metaKey ? "meta+" : "") + (e.ctrlKey ? "ctrl+" : "") + e.key));
+document.addEventListener("input", (e) => log("input " + (e.target.name || e.target.id)));
+document.addEventListener("change", (e) => log("change " + (e.target.name || e.target.id) + "=" +
+  (e.target.type === "checkbox" || e.target.type === "radio" ? e.target.checked : e.target.type === "password" ? "(hidden)" : e.target.value)));
+document.addEventListener("contextmenu", (e) => { e.preventDefault(); log("contextmenu"); });
+window.addEventListener("scroll", () => { clearTimeout(window.st); window.st = setTimeout(() => log("scrollY " + Math.round(scrollY)), 50); });
+</script>`;
+
+const FormPage = `<!doctype html><html><head><title>Demo form</title><style>
+.menu .items { display: none; } .menu:hover .items { display: block; }
+#drag { width: 60px; height: 40px; background: #c63; position: fixed; left: 300px; top: 150px; }
+footer { margin-top: 2400px; }
+</style></head><body><main>
+<h1>Demo form</h1>
+<form onsubmit="event.preventDefault(); log('submitted ' + new FormData(this).get('name'))">
+<label>Name <input name="name" id="name"></label>
+<label><input type="checkbox" name="news"> Newsletter</label>
+<label><input type="radio" name="size" value="s"> Small</label>
+<label><input type="radio" name="size" value="l"> Large</label>
+<label>Country <select name="country"><option value="fr">France</option><option value="ch">Switzerland</option></select></label>
+<button type="submit">Save</button>
+</form>
+<button id="count" onclick="log('clicked ' + event.detail)" ondblclick="log('dblclick')">Count</button>
+<div class="menu"><button type="button" onmouseenter="log('hovered menu')">Menu</button><div class="items"><a href="#a">Item A</a></div></div>
+<div id="drag" onmousedown="window.dx = event.clientX; log('drag start')"
+  onmouseup="log('drag end ' + Math.round(event.clientX - window.dx))"></div>
+<pre id="log"></pre>
+<footer><a href="#top" id="foot">Back to the top</a></footer>
+</main>${LogScript}
+<script>document.addEventListener("mouseup", (e) => { if (window.dx != null && e.target.id !== "drag") { log("drag end " + Math.round(e.clientX - window.dx)); window.dx = null; } });</script>
+</body></html>`;
+
+const SignInPage = `<!doctype html><html><head><title>Fake sign-in</title></head><body><main>
+<h1>Sign in (test page)</h1>
+<form action="/welcome" method="post">
+<label>Email <input name="email" type="email"></label>
+<label>Password <input name="password" type="password" autocomplete="current-password"></label>
+<button type="submit">Sign in</button>
+</form><pre id="log"></pre></main>${LogScript}</body></html>`;
+
+const CheckoutPage = `<!doctype html><html><head><title>Fake checkout</title></head><body><main>
+<h1>Checkout (test page)</h1>
+<form action="/paid" method="post">
+<label>Card number <input name="cardnumber" autocomplete="cc-number" inputmode="numeric"></label>
+<button type="submit">Pay 4.99</button>
+</form><pre id="log"></pre></main>${LogScript}</body></html>`;
+
+const FilesPage = `<!doctype html><html><head><title>Files</title></head><body><main>
+<h1>Files (test page)</h1>
+<p><a id="dl" href="/report.txt">Download the report</a></p>
+<label>Attach <input type="file" name="attachment"></label>
+<pre id="log"></pre></main>${LogScript}</body></html>`;
+
+async function startInputSite() {
+  const hits = {};
+  const site = await serve((req, res) => {
+    const path = req.url.split("?")[0];
+    hits[path] = (hits[path] ?? 0) + 1;
+    if (path === "/report.txt") {
+      res.writeHead(200, { "content-type": "text/plain", "content-disposition": 'attachment; filename="report.txt"' });
+      res.end("a test report\n");
+      return;
+    }
+    const pages = { "/form": FormPage, "/signin": SignInPage, "/checkout": CheckoutPage, "/files": FilesPage };
+    let body = pages[path];
+    if (path === "/welcome" || path === "/paid") {
+      body = `<!doctype html><title>Done</title><main><h1>${path === "/welcome" ? "Signed in" : "Paid"}</h1></main>`;
+    }
+    res.writeHead(body ? 200 : 404, { "content-type": "text/html; charset=utf-8" });
+    res.end(body ?? "not found");
+  });
+  return { url: `http://127.0.0.1:${site.address().port}`, hits: (p) => hits[p] ?? 0, close: () => site.close() };
+}
+
+async function pageLog(client, tabId) {
+  const r = await client.callTool("get_page_text", { tabId });
+  return r.text;
+}
+
+async function checkInput(client, tabId, opts) {
+  const site = await startInputSite();
+  try {
+    console.log(`input test site: ${site.url}; answer: Allow once, Deny, Allow, Deny, Allow, Deny, Deny, Deny`);
+    const nav = await client.callTool("navigate", { tabId, url: `${site.url}/form` });
+    check(!nav.isError, "navigate to the demo form (Allow once)", `${nav.ms} ms`);
+    const tree = await client.callTool("read_page", { tabId, filter: "interactive" });
+    const nameRef = refOn(tree.text, 'textbox "Name"');
+    const newsRef = refOn(tree.text, 'checkbox "Newsletter"');
+    const largeRef = refOn(tree.text, 'radio "Large"');
+    const countryRef = refOn(tree.text, "combobox");
+    const countRef = refOn(tree.text, 'button "Count"');
+    const footRef = refOn(tree.text, 'link "Back to the top"');
+    check(
+      nameRef && newsRef && largeRef && countryRef && countRef && footRef,
+      "refs for the form",
+      oneLine(tree.text, 400)
+    );
+
+    const fills = [
+      ["text field", { ref: nameRef, value: "Ada" }, "change name=Ada"],
+      ["checkbox", { ref: newsRef, value: true }, "change news=true"],
+      ["radio", { ref: largeRef, value: true }, "change size=true"],
+      ["select by text", { ref: countryRef, value: "Switzerland" }, "change country=ch"],
+    ];
+    for (const [what, args, expect] of fills) {
+      const r = await client.callTool("form_input", { tabId, ...args });
+      check(!r.isError, `form_input sets a ${what}`, `${r.ms} ms, ${oneLine(r.text)}`);
+      check((await pageLog(client, tabId)).includes(expect), `the page got input and change for the ${what}`, expect);
+    }
+    const badOption = await client.callTool("form_input", { tabId, ref: countryRef, value: "Mars" });
+    check(badOption.isError, "form_input refuses an unknown option", badOption.text);
+
+    const click = await client.callTool("computer", { tabId, action: "left_click", ref: countRef });
+    check(!click.isError, "left_click by ref", `${click.ms} ms, ${click.text}`);
+    const dbl = await client.callTool("computer", { tabId, action: "double_click", ref: countRef });
+    const right = await client.callTool("computer", { tabId, action: "right_click", ref: countRef });
+    const hover = await client.callTool("browser_batch", {
+      actions: [
+        { name: "find", input: { tabId, query: "menu" } },
+        { name: "computer", input: { tabId, action: "screenshot", scale: 0.5 } },
+      ],
+    });
+    check(
+      !dbl.isError && !right.isError && !hover.isError,
+      "double_click, right_click and a batch",
+      `${dbl.ms}/${right.ms} ms`
+    );
+    let log = await pageLog(client, tabId);
+    check(
+      log.includes("clicked 1") && log.includes("dblclick") && log.includes("contextmenu"),
+      "clicks reached the page"
+    );
+
+    const shot = await client.callTool("computer", { tabId, action: "screenshot" });
+    saveImage(
+      opts.shots,
+      "input-form",
+      shot.content.find((c) => c.type === "image")
+    );
+    const menuFind = await client.callTool("read_page", { tabId, filter: "interactive" });
+    const menuRef = refOn(menuFind.text, 'button "Menu"');
+    const hovered = await client.callTool("computer", { tabId, action: "hover", ref: menuRef });
+    check(
+      !hovered.isError && (await pageLog(client, tabId)).includes("hovered menu"),
+      "hover reaches the menu",
+      hovered.text
+    );
+
+    const focus = await client.callTool("computer", { tabId, action: "left_click", ref: nameRef });
+    const typed = await client.callTool("computer", { tabId, action: "type", text: ` ${PlantedTyped}` });
+    const select = await client.callTool("computer", { tabId, action: "key", text: "cmd+a Backspace" });
+    const keys = await client.callTool("computer", { tabId, action: "key", text: "cmd+w" });
+    const quit = await client.callTool("computer", { tabId, action: "key", text: "cmd+q ctrl+Tab" });
+    check(
+      !focus.isError && !typed.isError && !select.isError,
+      "click, type and keys",
+      `type ${typed.ms} ms, key ${select.ms} ms`
+    );
+    check(!keys.isError && !quit.isError, "cmd+w and cmd+q are sent", keys.text);
+    log = await pageLog(client, tabId);
+    check(log.includes("keydown meta+w") && log.includes("keydown meta+q"), "cmd+w and cmd+q reach the page");
+    const stillHere = await client.callTool("tabs_context", {});
+    check(
+      (firstJson(stillHere.text)?.tabs ?? []).some((t) => t.tabId === tabId),
+      "cmd+w closed no MoltenTerm tab"
+    );
+    check(log.includes("input name"), "typing reached the field");
+    check(!keys.text.includes(PlantedTyped) && !typed.text.includes(PlantedTyped), "results never echo typed text");
+
+    const scrolled = await client.callTool("computer", {
+      tabId,
+      action: "scroll",
+      scroll_direction: "down",
+      scroll_amount: 5,
+    });
+    await sleep(150);
+    log = await pageLog(client, tabId);
+    check(!scrolled.isError && /scrollY [1-9]/.test(log), "scroll moves the page", scrolled.text);
+    const to = await client.callTool("computer", { tabId, action: "scroll_to", ref: footRef });
+    check(!to.isError, "scroll_to a ref", to.text);
+    const outside = await client.callTool("computer", { tabId, action: "left_click", coordinate: [99999, 10] });
+    check(outside.isError, "a point outside the viewport is refused", outside.text);
+    // The drag box is fixed at (300, 150) in the viewport, wherever the page is scrolled.
+    const dragged = await client.callTool("computer", {
+      tabId,
+      action: "left_click_drag",
+      start_coordinate: [320, 170],
+      coordinate: [420, 170],
+    });
+    check(!dragged.isError, "left_click_drag", `${dragged.ms} ms, ${dragged.text}`);
+    log = await pageLog(client, tabId);
+    check(log.includes("drag start") && log.includes("drag end 100"), "the drag reached the page");
+
+    const batch = await client.callTool("browser_batch", {
+      actions: [
+        { name: "computer", input: { tabId, action: "left_click", ref: countRef } },
+        { name: "computer", input: { tabId, action: "left_click", ref: "ref_99999" } },
+        { name: "computer", input: { tabId, action: "type", text: "never typed" } },
+      ],
+    });
+    check(
+      batch.isError && batch.text.includes("Item 1 (computer):") && batch.text.includes("Item 2 (computer) failed"),
+      "browser_batch stops at the bad ref with the results so far",
+      oneLine(batch.text, 300)
+    );
+    check(!batch.text.includes("Item 3"), "the item after the error never runs");
+
+    const resized = await client.callTool("resize", { tabId, width: 390, height: 844 });
+    const small = await client.callTool("computer", { tabId, action: "screenshot" });
+    check(
+      !resized.isError && /the viewport is 390×84[0-9] CSS pixels/.test(small.text),
+      "resize emulates 390×844",
+      oneLine(small.text, 120)
+    );
+    saveImage(
+      opts.shots,
+      "input-resized",
+      small.content.find((c) => c.type === "image")
+    );
+    await client.callTool("resize", { tabId, width: 1024, height: 700 });
+
+    // Sensitive actions: the driver answers Deny, then Allow.
+    await client.callTool("navigate", { tabId, url: `${site.url}/signin` });
+    const signin = await client.callTool("read_page", { tabId, filter: "interactive" });
+    const pwRef = refOn(signin.text, 'textbox "Password"');
+    const emailRef = refOn(signin.text, 'textbox "Email"');
+    const submitRef = refOn(signin.text, 'button "Sign in"');
+    await client.callTool("form_input", { tabId, ref: emailRef, value: "tester@example.test" });
+    await client.callTool("computer", { tabId, action: "left_click", ref: pwRef });
+    const denied = await client.callTool("computer", { tabId, action: "type", text: "test-password" });
+    check(
+      denied.isError && denied.text === ActionDenied,
+      "typing into a password asks; Deny fails the call",
+      denied.text
+    );
+    check(!(await pageLog(client, tabId)).includes("input password"), "nothing was typed after Deny");
+    const allowed = await client.callTool("computer", { tabId, action: "type", text: "test-password" });
+    check(!allowed.isError, "Allow types it", `${allowed.ms} ms including the answer`);
+    const noSubmit = await client.callTool("computer", { tabId, action: "left_click", ref: submitRef });
+    check(noSubmit.isError && noSubmit.text === ActionDenied, "submitting the sign-in form asks; Deny", noSubmit.text);
+    check(site.hits("/welcome") === 0, "the form was not submitted", `${site.hits("/welcome")} requests`);
+    const submitted = await client.callTool("computer", { tabId, action: "left_click", ref: submitRef });
+    await sleep(500);
+    check(!submitted.isError && site.hits("/welcome") === 1, "Allow submits it", oneLine(submitted.text));
+
+    await client.callTool("navigate", { tabId, url: `${site.url}/checkout` });
+    const checkout = await client.callTool("find", { tabId, query: "card number" });
+    const cardRef = refOn(checkout.text, "textbox");
+    await client.callTool("computer", { tabId, action: "left_click", ref: cardRef });
+    const card = await client.callTool("computer", { tabId, action: "type", text: "4242424242424242" });
+    check(card.isError && card.text === ActionDenied, "typing into a card field asks; Deny", card.text);
+
+    await client.callTool("navigate", { tabId, url: `${site.url}/files` });
+    const files = await client.callTool("read_page", { tabId, filter: "interactive" });
+    const dlRef = refOn(files.text, 'link "Download the report"');
+    const fileRef = refOn(files.text, "Attach");
+    const download = await client.callTool("computer", { tabId, action: "left_click", ref: dlRef });
+    check(download.isError && download.text === ActionDenied, "a download asks; Deny fails the click", download.text);
+    const chooser = await client.callTool("computer", { tabId, action: "left_click", ref: fileRef });
+    check(
+      chooser.isError && chooser.text === ActionDenied,
+      "a file input asks before the file chooser; Deny",
+      chooser.text
+    );
+    const fileSet = await client.callTool("form_input", { tabId, ref: fileRef, value: "/etc/passwd" });
+    check(fileSet.isError, "form_input refuses a file input", fileSet.text);
+  } finally {
+    site.close();
   }
 }
 
@@ -354,6 +645,9 @@ async function main() {
 
   if (opts.pages) {
     await checkPages(client, tabId, opts);
+  }
+  if (opts.input) {
+    await checkInput(client, tabId, opts);
   }
 
   if (opts.hold > 0) {

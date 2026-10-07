@@ -134,6 +134,12 @@ func toolResult(errText string, err error, result mcpbrowser.CallResult, failure
 // onPage runs a tool that reads the tab's page: it resolves the tab, waits for the site's permission, runs fn, and
 // refuses the result if the page moved to another site meanwhile (a script, a redirect).
 func (m *Manager) onPage(ctx context.Context, s sessionInfo, loc BlockLocation, args json.RawMessage, action string, failure string, fn pageFunc) (mcpbrowser.CallResult, callLog) {
+	return m.onPageMode(ctx, s, loc, args, action, failure, false, fn)
+}
+
+// onPageMode with acting set runs an input tool (FR-BRW-010): the same gate, but an action that took the page to another
+// site happened, so its result stands and says that the next action there asks.
+func (m *Manager) onPageMode(ctx context.Context, s sessionInfo, loc BlockLocation, args json.RawMessage, action string, failure string, acting bool, fn pageFunc) (mcpbrowser.CallResult, callLog) {
 	tabId, ok := parseTabId(args)
 	if !ok {
 		return mcpbrowser.ErrorResult(mcpbrowser.ErrTabIdRequired), callLog{}
@@ -167,6 +173,13 @@ func (m *Manager) onPage(ctx context.Context, s sessionInfo, loc BlockLocation, 
 			return err
 		}
 		after, err := m.currentPage(ctx, key)
+		if acting {
+			if err == nil && !m.siteAllowedNow(s.id, after.url) && permissionSite(after.url) != "" {
+				result = appendText(result, fmt.Sprintf("The page moved to %s, which needs the user's permission: your next "+
+					"action on this tab asks the user.", permissionSite(after.url)))
+			}
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -179,6 +192,18 @@ func (m *Manager) onPage(ctx context.Context, s sessionInfo, loc BlockLocation, 
 		return nil
 	})
 	return toolResult(errText, err, result, failure), entry
+}
+
+// appendText adds a line of MoltenTerm's own to a result's first text.
+func appendText(result mcpbrowser.CallResult, line string) mcpbrowser.CallResult {
+	for i := range result.Content {
+		if result.Content[i].Type == mcpbrowser.ContentText {
+			result.Content[i].Text += "\n" + line
+			return result
+		}
+	}
+	result.Content = append(result.Content, mcpbrowser.ContentItem{Type: mcpbrowser.ContentText, Text: line})
+	return result
 }
 
 type navigateArgs struct {
@@ -259,8 +284,13 @@ func (m *Manager) navigate(ctx context.Context, s sessionInfo, loc BlockLocation
 		m.noteAction(s.id, tabId, action)
 		navCtx, cancel := context.WithTimeout(ctx, navigateTimeout+navigateMargin)
 		defer cancel()
+		started := m.now()
 		nav, err := m.followRedirects(navCtx, s, tabId, key, params)
 		if err != nil {
+			return err
+		}
+		// A URL that answers with a file starts a download, which asks the user; its Deny fails this call.
+		if err := m.awaitDownload(ctx, s.id, tabId, started, 0); err != nil {
 			return err
 		}
 		entry.site = siteOf(nav.Url)
@@ -611,6 +641,9 @@ type captureResult struct {
 	MimeType string `json:"mimetype"`
 	Width    int    `json:"width"`
 	Height   int    `json:"height"`
+	// CssWidth and CssHeight are set for an emulated viewport (resize): the CSS area the panel shows of it.
+	CssWidth  float64 `json:"csswidth"`
+	CssHeight float64 `json:"cssheight"`
 }
 
 func (m *Manager) computer(ctx context.Context, s sessionInfo, loc BlockLocation, args json.RawMessage) (mcpbrowser.CallResult, callLog) {
@@ -622,7 +655,11 @@ func (m *Manager) computer(ctx context.Context, s sessionInfo, loc BlockLocation
 	if parsed.Scale != nil && !math.IsNaN(*parsed.Scale) {
 		scale = min(max(*parsed.Scale, 0.1), 1)
 	}
-	switch strings.TrimSpace(parsed.Action) {
+	action := strings.TrimSpace(parsed.Action)
+	if isInputAction(action) {
+		return m.inputAction(ctx, s, loc, args)
+	}
+	switch action {
 	case mcpbrowser.ActionWait:
 		return m.wait(ctx, s, loc, args, parsed.Duration)
 	case mcpbrowser.ActionScreenshot:
@@ -713,6 +750,14 @@ func (m *Manager) capture(ctx context.Context, s sessionInfo, loc BlockLocation,
 		if shot.Data == "" || shot.Width <= 0 || cssWidth <= 0 || (shot.MimeType != "image/jpeg" && shot.MimeType != "image/png") {
 			return mcpbrowser.CallResult{}, fmt.Errorf("empty capture")
 		}
+		partial := ""
+		if region == nil && shot.CssWidth > 0 && shot.CssHeight > 0 {
+			if shot.CssWidth < cssWidth-0.5 || shot.CssHeight < cssHeight-0.5 {
+				partial = fmt.Sprintf(" The panel shows the top-left %g×%g CSS pixels of this emulated viewport, which is what the image holds.",
+					math.Round(shot.CssWidth), math.Round(shot.CssHeight))
+			}
+			cssWidth = shot.CssWidth
+		}
 		ratio := float64(shot.Width) / cssWidth
 		var line string
 		if region != nil {
@@ -723,8 +768,8 @@ func (m *Manager) capture(ctx context.Context, s sessionInfo, loc BlockLocation,
 				cssWidth, cssHeight, shot.Width, shot.Height, ratio)
 		} else {
 			line = fmt.Sprintf("Screenshot of tab %d (%s): the viewport is %g×%g CSS pixels, shown as a %d×%d image "+
-				"(1 CSS pixel = %.3g image pixels). Give coordinates in CSS pixels: image x ÷ %.3g.",
-				p.tabId, p.site, cssWidth, cssHeight, shot.Width, shot.Height, ratio, ratio)
+				"(1 CSS pixel = %.3g image pixels). Give coordinates in CSS pixels: image x ÷ %.3g.%s",
+				p.tabId, p.site, width, height, shot.Width, shot.Height, ratio, ratio, partial)
 		}
 		return mcpbrowser.CallResult{Content: []mcpbrowser.ContentItem{
 			{Type: mcpbrowser.ContentText, Text: line + "\n" + imageNotice},
