@@ -84,3 +84,26 @@ func TestIntegrationReportIsBounded(t *testing.T) {
 		t.Fatalf("%d reports kept", len(reports.reports))
 	}
 }
+
+func TestIntegrationReportDropsControlCharacters(t *testing.T) {
+	reports := &integrationReports{reports: map[string]molten.AgentIntegrationReport{}, now: time.Now}
+	reports.record(molten.AgentIntegrationReport{BlockId: "b", Agent: "claude", RealPath: "/x\x1b]8;;evil\x07y", StepAside: "a\nb\x9bc"})
+	rep, _ := reports.get("b")
+	if rep.RealPath != "/x]8;;evily" || rep.StepAside != "abc" {
+		t.Fatalf("%q %q", rep.RealPath, rep.StepAside)
+	}
+}
+
+// Review of #318: the end of a block's run drops its report, so a later run started without the launcher (by full
+// path, or with the integration off) is never taken for an integrated one.
+func TestRunEndDropsIntegrationReport(t *testing.T) {
+	h := makeAgentHarness()
+	reports := &integrationReports{reports: map[string]molten.AgentIntegrationReport{}, now: func() time.Time { return h.clock }}
+	h.states.onRunEnd = reports.forget
+	h.out("b1", cmdMark("claude"))
+	reports.record(molten.AgentIntegrationReport{BlockId: "b1", Agent: "claude"})
+	h.out("b1", doneMark(0)+promptMark)
+	if _, ok := reports.get("b1"); ok {
+		t.Fatalf("the run ended: its report must go")
+	}
+}

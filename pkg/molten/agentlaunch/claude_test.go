@@ -331,7 +331,7 @@ func TestClaudePlanUserSettingsFlag(t *testing.T) {
 	if gen.StatusLine["command"] != molten.StatusLineRelayCommand("echo flag") {
 		t.Fatalf("their status line wrapped: %v", gen.StatusLine)
 	}
-	if args := plan.MakeArgs([]string{"/g.json"}); !slices.Equal(args, []string{"--settings", "/g.json", "--model", "opus", "-p", "x"}) {
+	if args := plan.MakeArgs([]string{"/g.json"}); !slices.Equal(args, []string{"--model", "opus", "--settings", "/g.json", "-p", "x"}) {
 		t.Fatalf("args %q", args)
 	}
 	_, gen, _ = planOf(t, tree.ctx(`--settings={"statusLine":{"type":"command","command":"echo inline"}}`))
@@ -377,7 +377,7 @@ func TestClaudePlanWritesNothingOfTheUsers(t *testing.T) {
 	dataDir := t.TempDir()
 	for i := 0; i < 3; i++ {
 		plan, _, _ := planOf(t, tree.ctx())
-		if _, err := WriteLaunchFile(LaunchDir(dataDir), plan.Files[0].Prefix, plan.Files[0].Data, time.Now()); err != nil {
+		if _, _, err := WriteLaunchFile(LaunchDir(dataDir), plan.Files[0].Prefix, plan.Files[0].Data, time.Now()); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -419,7 +419,7 @@ func BenchmarkClaudePlan(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		if _, err := WriteLaunchFile(dir, plan.Files[0].Prefix, plan.Files[0].Data, time.Now()); err != nil {
+		if _, _, err := WriteLaunchFile(dir, plan.Files[0].Prefix, plan.Files[0].Data, time.Now()); err != nil {
 			b.Fatal(err)
 		}
 		SweepLaunchFiles(dir, time.Now())

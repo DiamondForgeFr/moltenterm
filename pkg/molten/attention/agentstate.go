@@ -144,8 +144,10 @@ type agentStates struct {
 	// hookedAgents: the agents whose hooks reported in this run; onHooked is told of each once (agenthookoffer.go).
 	hookedAgents map[string]bool
 	onHooked     func(agent string)
-	wake         chan struct{}
-	now          func() time.Time
+	// onRunEnd: told when a block's agent run ends (agentintegration.go drops its launcher report).
+	onRunEnd func(blockId string)
+	wake     chan struct{}
+	now      func() time.Time
 	// Injected: wavesrv's object store and event bus, replaced in tests.
 	locate  func(blockId string) (string, string, error)
 	publish func(info molten.AgentStateInfo)
@@ -178,6 +180,9 @@ func makeDefaultAgentStates() *agentStates {
 	a := makeAgentStates()
 	a.onHooked = func(agent string) {
 		go rememberHookedAgent(agent)
+	}
+	a.onRunEnd = func(blockId string) {
+		defaultIntegrationReports.forget(blockId)
 	}
 	return a
 }
@@ -222,6 +227,9 @@ func (a *agentStates) removeLocked(blockId string) {
 	}
 	delete(a.records, blockId)
 	a.markDirtyLocked(blockId)
+	if a.onRunEnd != nil {
+		a.onRunEnd(blockId)
+	}
 }
 
 func (a *agentStates) shellMark(blockId string, mark ShellMark) {
