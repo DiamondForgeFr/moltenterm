@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -44,6 +45,9 @@ const (
 	ciPollInterval = 30 * time.Second
 	ciWaitLimit    = 90 * time.Minute
 )
+
+// https://host/owner/repo(.git), git@host:owner/repo(.git), ssh://git@host/owner/repo(.git), on a GitHub host.
+var githubUrlRegex = regexp.MustCompile(`^(?:https://|ssh://git@|git@)([^/:]*github[^/:]*)[/:]([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)/?$`)
 
 // Runner runs a program in a folder and returns its standard output; the error carries the program's last error line.
 // Tests replace gh with their own.
@@ -143,8 +147,44 @@ func (e *Env) gitLines(ctx context.Context, dir string, args ...string) ([]strin
 	return strings.Split(out, "\n"), nil
 }
 
+// GithubRepo reads origin's GitHub repository from its URL ("[host/]owner/repo"), or "" when origin is not a GitHub
+// URL it can read.
+func GithubRepo(url string) string {
+	m := githubUrlRegex.FindStringSubmatch(strings.TrimSpace(url))
+	if m == nil {
+		return ""
+	}
+	host, owner, repo := strings.ToLower(m[1]), m[2], strings.TrimSuffix(m[3], ".git")
+	if host == "github.com" {
+		return owner + "/" + repo
+	}
+	return host + "/" + owner + "/" + repo
+}
+
+// ghArgs names the repository in every gh call: gh resolves a remote named upstream before origin, so a fork that
+// keeps its upstream as a remote would otherwise read, and start workflows in, the upstream's repository.
+func ghArgs(repo string, args []string) []string {
+	if repo == "" || len(args) == 0 {
+		return args
+	}
+	if args[0] != "api" {
+		return append(append([]string{}, args...), "--repo", repo)
+	}
+	parts := strings.Split(repo, "/")
+	ownerRepo := strings.Join(parts[len(parts)-2:], "/")
+	rtn := make([]string, 0, len(args)+2)
+	for _, arg := range args {
+		rtn = append(rtn, strings.ReplaceAll(arg, "{owner}/{repo}", ownerRepo))
+	}
+	if len(parts) == 3 {
+		rtn = append(rtn, "--hostname", parts[0])
+	}
+	return rtn
+}
+
 func (e *Env) gh(ctx context.Context, dir string, args ...string) ([]byte, error) {
-	return e.run(ctx, dir, "gh", args...)
+	url, _ := e.git(ctx, dir, "remote", "get-url", "origin")
+	return e.run(ctx, dir, "gh", ghArgs(GithubRepo(url), args)...)
 }
 
 func (e *Env) onGithub(ctx context.Context, root string) bool {

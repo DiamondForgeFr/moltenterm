@@ -26,6 +26,8 @@ import {
 import { TrustPrompt } from "./runs-view";
 import { releaseState, treeRules } from "./versions";
 
+const MilestoneReadDelayMs = 300;
+
 export function ReleaseMenu({
     dir,
     projectName,
@@ -103,20 +105,24 @@ export function ReleaseMenu({
             return;
         }
         let cancelled = false;
-        fireAndForget(async () => {
-            try {
-                const found = await releaseMilestone(dir, shipped);
-                if (!cancelled) {
-                    setMilestone({ version: shipped, warning: milestoneWarning(shipped, found), error: null });
+        // A first public number being typed passes through valid versions: only the one it settles on is read.
+        const timer = setTimeout(() => {
+            fireAndForget(async () => {
+                try {
+                    const found = await releaseMilestone(dir, shipped);
+                    if (!cancelled) {
+                        setMilestone({ version: shipped, warning: milestoneWarning(shipped, found), error: null });
+                    }
+                } catch (e) {
+                    if (!cancelled) {
+                        setMilestone({ version: shipped, warning: null, error: String(e?.message ?? e) });
+                    }
                 }
-            } catch (e) {
-                if (!cancelled) {
-                    setMilestone({ version: shipped, warning: null, error: String(e?.message ?? e) });
-                }
-            }
-        });
+            });
+        }, MilestoneReadDelayMs);
         return () => {
             cancelled = true;
+            clearTimeout(timer);
         };
     }, [open, dir, shipped]);
 

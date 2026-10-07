@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -95,18 +96,20 @@ func (e *Env) Promote(ctx context.Context, opts PromoteOptions) error {
 }
 
 func (e *Env) mergeInTemporaryWorktree(ctx context.Context, root string, p *Project, rel string, trunk string) (string, error) {
-	dir, err := os.MkdirTemp("", "molten-promote-")
+	// The worktree goes inside a private temporary folder: on a shared /tmp, a folder made at a known path could be
+	// taken by another user between its creation and git's.
+	tmp, err := os.MkdirTemp("", "molten-promote-")
 	if err != nil {
 		return "", err
 	}
-	os.Remove(dir)
+	dir := filepath.Join(tmp, "wt")
+	defer func() {
+		e.git(ctx, root, "worktree", "remove", "--force", dir)
+		os.RemoveAll(tmp)
+	}()
 	if _, err := e.git(ctx, root, "worktree", "add", "--quiet", "--detach", dir, rel); err != nil {
 		return "", fmt.Errorf("could not create a temporary worktree: %w", err)
 	}
-	defer func() {
-		e.git(ctx, root, "worktree", "remove", "--force", dir)
-		os.RemoveAll(dir)
-	}()
 	msg := fmt.Sprintf("Merge branch '%s' into %s", p.Trunk, p.Release)
 	if _, err := e.git(ctx, dir, "merge", "--no-ff", "--no-edit", "-m", msg, trunk); err != nil {
 		conflicts, _ := e.gitLines(ctx, dir, "diff", "--name-only", "--diff-filter=U")

@@ -41,6 +41,35 @@ func TestDraftNotes(t *testing.T) {
 	}
 }
 
+func TestGithubRepoPinsEveryGhCall(t *testing.T) {
+	cases := map[string]string{
+		"https://github.com/DiamondForgeFr/moltenterm.git": "DiamondForgeFr/moltenterm",
+		"https://github.com/acme/app":                      "acme/app",
+		"git@github.com:acme/app.git":                      "acme/app",
+		"ssh://git@github.com/acme/app.git":                "acme/app",
+		"https://github.example.com/acme/app.git":          "github.example.com/acme/app",
+		"/tmp/origin.git":                                  "",
+		"https://gitlab.com/acme/app.git":                  "",
+	}
+	for url, want := range cases {
+		if got := GithubRepo(url); got != want {
+			t.Errorf("GithubRepo(%q) = %q, want %q", url, got, want)
+		}
+	}
+	if got := strings.Join(ghArgs("acme/app", []string{"run", "list", "--workflow", "ci.yml"}), " "); got != "run list --workflow ci.yml --repo acme/app" {
+		t.Errorf("run list: %s", got)
+	}
+	if got := strings.Join(ghArgs("acme/app", []string{"api", "repos/{owner}/{repo}/milestones?state=open"}), " "); got != "api repos/acme/app/milestones?state=open" {
+		t.Errorf("api: %s", got)
+	}
+	if got := strings.Join(ghArgs("ghe.example/acme/app", []string{"api", "repos/{owner}/{repo}/milestones"}), " "); got != "api repos/acme/app/milestones --hostname ghe.example" {
+		t.Errorf("api on an enterprise host: %s", got)
+	}
+	if got := ghArgs("", []string{"pr", "list"}); len(got) != 2 {
+		t.Errorf("no repository read: %v", got)
+	}
+}
+
 func TestCiVerdict(t *testing.T) {
 	cases := []struct {
 		runs []CiRun

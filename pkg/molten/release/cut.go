@@ -92,6 +92,9 @@ func (e *Env) Prepare(ctx context.Context, tag string) error {
 
 	notesRel := p.NotesFile(tag)
 	notesPath := filepath.Join(wt, notesRel)
+	if !insideDir(wt, notesPath) {
+		return fmt.Errorf("versions.notes (%s) leaves the project", p.Notes)
+	}
 	if existing, err := os.ReadFile(notesPath); err == nil && strings.TrimSpace(string(existing)) != "" {
 		e.printf("Notes kept: %s is already on %s.\n", notesRel, p.Release)
 	} else {
@@ -110,6 +113,11 @@ func (e *Env) Prepare(ctx context.Context, tag string) error {
 	e.printf("\n%s prepared, nothing committed. Review the notes, then finalize to commit, tag and push.\n", tag)
 	e.printf("%s%s\n", NotesMarker, notesPath)
 	return nil
+}
+
+func insideDir(dir string, path string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 
 // releaseFiles are the paths a prepared tree may change: the version files and the tag's notes.
@@ -204,6 +212,9 @@ func (e *Env) Finalize(ctx context.Context, tag string) error {
 		return fmt.Errorf("the prepared tree holds more than the release (%s): prepare %s again", strings.Join(unexpected, ", "), tag)
 	}
 	notesRel := p.NotesFile(tag)
+	if !insideDir(wt, filepath.Join(wt, notesRel)) {
+		return fmt.Errorf("versions.notes (%s) leaves the project", p.Notes)
+	}
 	notes, err := os.ReadFile(filepath.Join(wt, notesRel))
 	if err != nil || strings.TrimSpace(string(notes)) == "" {
 		return fmt.Errorf("%s is missing or empty: write the notes, or prepare %s again", notesRel, tag)
