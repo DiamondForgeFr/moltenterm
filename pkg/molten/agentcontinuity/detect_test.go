@@ -85,7 +85,7 @@ func TestPlannedAgentsAreNeverRun(t *testing.T) {
 	bin := filepath.Join(dir, "bin")
 	marker := filepath.Join(dir, "ran")
 	writeFakeAgent(t, bin, "gemini", `touch "`+marker+`"; echo 0.63.0`)
-	listings := Default().List(context.Background(), MakeDetector(RunVersionProbe, time.Second), DetectEnv{PathList: bin}, ModelEnv{Home: dir})
+	listings := Default().List(context.Background(), MakeDetector(RunVersionProbe, AnsweringProbeTimeout), DetectEnv{PathList: bin}, ModelEnv{Home: dir})
 	found := false
 	for _, l := range listings {
 		if l.Id != molten.AgentIdGemini {
