@@ -410,7 +410,12 @@ func UseStarter(start func()) {
 // Start registers the collector on wavesrv's router; wavesrv calls it once at start.
 func Start() {
 	dataDir := wavebase.GetWaveDataDir()
-	collector := MakeCollector(CacheDir(dataDir), ExecRunner, publishSnapshot)
+	// The groups (FR-MC-026) follow every collector refresh and every CI run's end; set before the route takes requests.
+	var groups *Groups
+	collector := MakeCollector(CacheDir(dataDir), ExecRunner, func(snap Snapshot) {
+		publishSnapshot(snap)
+		go groups.Refreshed()
+	})
 	trust := MakeTrustStore(filepath.Join(CacheDir(dataDir), TrustFileName))
 	runs := MakeRuns(RunsDir(dataDir), trust, func(rec RunRecord) {
 		publishRun(rec)
@@ -419,11 +424,17 @@ func Start() {
 			collector.Invalidate(rec.Dir)
 		}
 	})
-	ci := MakeCi(CiDir(dataDir), trust, ExecRunner, publishCiRun)
+	ci := MakeCi(CiDir(dataDir), trust, ExecRunner, func(rec CiRunRecord) {
+		publishCiRun(rec)
+		if rec.Status != CiStateRunning {
+			go groups.Refreshed()
+		}
+	})
 	runs.UseCi(ci)
 	runs.UseNotifier(publishBuildNotice)
 	panes := MakePanes(ExecRunner, ci, collector)
-	if err := registerRoute(collector, runs, ci, panes, MakeWorktrees(ExecRunner, nil)); err != nil {
+	groups = MakeGroups(collector, ci, runs, WorkspaceLinks, publishGroups)
+	if err := registerRoute(collector, runs, ci, panes, MakeWorktrees(ExecRunner, nil), groups); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
 	// The agent states (FR-SHELL-011) start with Mission Control, so wavesrv's startup keeps one MoltenTerm entry point.

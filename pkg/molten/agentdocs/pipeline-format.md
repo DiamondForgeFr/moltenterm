@@ -63,6 +63,8 @@ All fields are lowercase. Unknown fields are refused, so a typo does not go unno
 | --- | --- | --- |
 | `schema` | yes | Always `1`. |
 | `name` | yes | The project's name, as Mission Control shows it. |
+| `group` | no | The product the repository belongs to, 1 to 64 characters, e.g. `"Notulia"` in the app and in its website. The projects linked to MoltenTerm workspaces that declare the same group (matched after trimming, ignoring case) form one group, shown together in Mission Control; see "Groups and dependencies". |
+| `dependson` | no | What this repository reads from another member of its group: `[{ "project", "paths", "branch", "sync", "output" }]`; see "Groups and dependencies". |
 | `icon` | no | The project's own icon, relative to the project folder (svg, png, ico, jpg, webp or gif): offered first for the workspace, the status bar and Mission Control, before any icon MoltenTerm would guess. Use the square app icon, not a wide logo. |
 | `branches` | no | `{ "trunk": "develop", "release": "main" }`: where work is merged, and where releases are cut. Leave it out when `.saasfoundry.json` declares them; without either, MoltenTerm uses `develop` then `main`. |
 | `versions` | no | `tagprefix` (default `v`): the release tags start with it, and only those are read as releases: `X.Y.Z` for a public release, `X.Y.Z-N` (N from 1) for a release candidate, e.g. `release-1.2.0-3`; any other form is not a release. `notes`: where a version's release notes are, with `{tag}` (default `releases/{tag}.md`); internal notes sit beside them (`releases/{tag}.internal.md`). `firstpublic` (`X.Y.Z`): the number proposed for the first public release, which is a choice, not a calculation (default: the version the release candidates lead to, else `1.0.0`); tags below its first candidate are not the project's releases (a fork's upstream tags). `files`: the files that carry the version, the first one holding the project's current version; each is `{ "path", "format": "json", "keys": [["version"], ["packages", "", "version"]] }` (each key path names a string; the empty key is a key) or `{ "path", "format": "regex", "pattern" }` (exactly one capture group, matching exactly once). After the last public release, the next number is read from the conventional commits since it: a breaking change (`feat!:` or `BREAKING CHANGE:`) makes a major release, a `feat` a minor one, anything else a user sees a patch; only `chore`, `ci`, `docs`, `test`, `style`, `build` or `refactor` commits justify no release unless a version is given explicitly. |
@@ -88,6 +90,53 @@ A long step may print `▶ phase: <name>` lines; Mission Control shows the curre
 the public notes prints `▶ notes: <path>` (absolute, or relative to its folder): the Project tab edits that file before the
 cut, which waits until the notes are saved; without it, `versions.notes` in the project is used. The exit code decides
 success.
+
+## Groups and dependencies
+
+A product made of several repositories (an app, its website, its release repository) is one **group**: each
+repository declares `"group": "<product>"` in its own `.molten/project.json`. There is no group file, and MoltenTerm
+writes nothing in any repository: a repository leaves the group by removing the field.
+
+- Each repository keeps one `.molten/project.json` at its root, never nested, with its own CI, builds and releases: the
+  website keeps its build and deploy, the app its release candidates, gold and release steps. A file below another
+  repository's root is never read as a member.
+- Only repositories linked to a MoltenTerm workspace are members; one that declares the group but no workspace links
+  is not shown. A workspace stays linked to one repository: Mission Control shows the group around it.
+- The group's name is the spelling of its first member in the workspace rail's order.
+- `molten project group` lists the group of this workspace's project: each member with its workspace, folder and
+  state (trunk CI, last build, last release).
+
+A repository that reads another member's files (a website reading the app's feature registry) declares it, as the
+dependent, in `dependson`:
+
+```json
+{
+    "schema": 1,
+    "name": "notulia-website",
+    "group": "Notulia",
+    "dependson": [
+        {
+            "project": "Notulia",
+            "paths": ["features/*.json"],
+            "branch": "develop",
+            "sync": "node scripts/sync-features.mjs",
+            "output": ["src/data/features.json"]
+        }
+    ]
+}
+```
+
+| Field | Required | What it is |
+| --- | --- | --- |
+| `project` | yes | The source's `name`, a member of the same group (matched ignoring case). Not the project itself. |
+| `paths` | yes | Globs relative to the source's root (`*` within a folder, `**` across folders), without `..`: the files this repository reads. |
+| `branch` | no | The source's branch to watch; default the source's trunk. |
+| `sync` | no | The command that brings this repository up to date, run in its root with the user's login shell environment, through the trust rule like every declared command. While it runs, `MOLTEN_DEP_SOURCE_DIR` points at a clean worktree of the source's watched branch: read the source from there first, and keep a relative path (`../Notulia/`) as a fallback. |
+| `output` | yes | Globs relative to this repository's root, without `..`: the files the sync writes. Their last commit tells when the dependency was last synced. |
+
+The dependency is stale when the source's last commit touching `paths` on the watched branch is newer than this
+repository's last commit touching `output` (or when `output` was never committed). `molten project validate` checks
+the shape only: whether `project` names a member depends on the workspace links, so it is shown at run time.
 
 ## The release contract
 

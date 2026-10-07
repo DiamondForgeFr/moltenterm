@@ -331,6 +331,9 @@ func formatMoltenProjectDetails(status MoltenProjectStatus) string {
 	default:
 		sb.WriteString("  pipeline: none yet (ask your coding agent: /molten-pipeline)\n")
 	}
+	if info.Group != "" {
+		fmt.Fprintf(&sb, "  group: %s (its members: molten project group)\n", info.Group)
+	}
 	if conv := info.Conventions; conv != nil {
 		fmt.Fprintf(&sb, "  harness: SaaSFoundryAI (%s)\n", molten.ProjectSaaSFoundryFile)
 		if conv.WorkingBranch != "" {
@@ -390,13 +393,20 @@ func formatMoltenPipelineSummary(p *molten.Pipeline) string {
 	if p.Release != nil {
 		rc, public = len(p.Release.Rc), len(p.Release.Public)
 	}
-	return strings.Join([]string{
+	parts := []string{
 		moltenCount(jobs, "CI job", "CI jobs"),
 		moltenCount(len(p.Builds), "build", "builds"),
 		moltenCount(rc, "RC step", "RC steps"),
 		moltenCount(public, "release step", "release steps"),
 		moltenCount(len(p.Steps), "extra step", "extra steps"),
-	}, ", ")
+	}
+	if group, err := molten.GroupName(p.Group); err == nil {
+		parts = append(parts, "group "+group)
+	}
+	if len(p.DependsOn) > 0 {
+		parts = append(parts, moltenCount(len(p.DependsOn), "dependency", "dependencies"))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func formatMoltenPipelineReport(report molten.PipelineReport) string {

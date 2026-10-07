@@ -47,9 +47,12 @@ type ProjectInfo struct {
 	GitRoot     string `json:"gitroot,omitempty"`
 	HasPipeline bool   `json:"haspipeline"`
 	// Set when the pipeline file exists but cannot be read; the link still works.
-	PipelineError string              `json:"pipelineerror,omitempty"`
-	Harness       string              `json:"harness,omitempty"`
-	Conventions   *ProjectConventions `json:"conventions,omitempty"`
+	PipelineError string `json:"pipelineerror,omitempty"`
+	// The group the pipeline declares, trimmed (FR-MC-026); empty without one, or when the name is not valid. Read even
+	// when another part of the pipeline has a mistake: a typo in a CI job does not take a member out of its product.
+	Group       string              `json:"group,omitempty"`
+	Harness     string              `json:"harness,omitempty"`
+	Conventions *ProjectConventions `json:"conventions,omitempty"`
 }
 
 // FindGitRoot returns the closest folder at or above dir holding a `.git` entry (a folder, or a file in a worktree).
@@ -158,12 +161,16 @@ func ReadProject(dir string) ProjectInfo {
 	info.Exists = true
 	info.GitRoot = FindGitRoot(dir)
 	var pipeline struct {
-		Name string `json:"name"`
+		Name  string `json:"name"`
+		Group string `json:"group"`
 	}
 	found, err := readJsonFile(filepath.Join(dir, ProjectPipelineFile), &pipeline)
 	info.HasPipeline = found && err == nil
 	if found && err != nil {
 		info.PipelineError = err.Error()
+	}
+	if info.HasPipeline {
+		info.Group, _ = GroupName(pipeline.Group)
 	}
 	conv, sfName, hasSf := readSaaSFoundry(dir)
 	if hasSf {

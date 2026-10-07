@@ -28,6 +28,7 @@ type routeLink struct {
 	ci        *Ci
 	panes     *Panes
 	worktrees *Worktrees
+	groups    *Groups
 	output    chan []byte
 }
 
@@ -283,6 +284,13 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 		}
 		return ensureProjectTab(req)
 	}
+	if command == GroupsCommand {
+		var req GroupsRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.groups.Get(req)
+	}
 	if command == WorktreePlanCommand || command == WorktreeRemoveCommand {
 		return l.handleWorktree(command, source, data)
 	}
@@ -328,8 +336,8 @@ func (l *routeLink) handleWorktree(command string, source string, data any) (any
 	return l.worktrees.Remove(req)
 }
 
-func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees) error {
-	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, output: make(chan []byte, routeQueueSize)}
+func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups) error {
+	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, output: make(chan []byte, routeQueueSize)}
 	_, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId)
 	return err
 }

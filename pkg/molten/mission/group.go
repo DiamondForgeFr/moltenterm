@@ -1,0 +1,297 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+package mission
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
+	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wps"
+	"github.com/wavetermdev/waveterm/pkg/wstore"
+)
+
+// Group resolution in the collector (FR-MC-026, DS-MC-017): the groups come from the workspace links and each linked
+// project's pipeline file (pkg/molten/group.go); each member gets a state summary made only of what Mission Control
+// already knows of it. Asking about a group never fetches, never calls gh and never runs a command in a member's
+// folder (NFR-MC-007), and nothing is written in any project (NFR-MC-006).
+//
+// For the stories built on it: the rail (#348) and the group strip (#349) ask GroupsCommand and follow GroupsEvent;
+// a member's Worst is the rail badge. Stale dependencies (#350) raise a member to GroupWorstAmber in memberWorst.
+
+// must match the names in frontend/moltenterm-shell/mission/group-model.ts and cmd/wsh/cmd/wshcmd-molten-project.go
+const (
+	GroupsCommand   = "moltenmissiongroups"
+	GroupsEvent     = "molten:mission:groups"
+	GroupWorstRed   = "red"
+	GroupWorstAmber = "amber"
+	groupsTimeout   = 20 * time.Second
+)
+
+// GitHub conclusions that make a run red. A cancelled run is left out: a newer push usually cancelled it.
+var githubFailureConclusions = map[string]bool{
+	"failure": true, "error": true, "timed_out": true, "action_required": true, "startup_failure": true,
+}
+
+type GroupsRequest struct {
+	// With a folder, only the group it is a member of (none when it is in no group).
+	Dir string `json:"dir,omitempty"`
+}
+
+// GroupMemberState is a member's state summary, from the collector's cache and MoltenTerm's own records.
+type GroupMemberState struct {
+	// The folder is gone; the link stays until the user removes it.
+	Missing bool `json:"missing,omitempty"`
+	// When the collector last read the member's git; 0 when it never did (its workspace was never opened).
+	CollectedAt int64  `json:"collectedat,omitempty"`
+	Trunk       string `json:"trunk,omitempty"`
+	TrunkSha    string `json:"trunksha,omitempty"`
+	// The local CI's say on the trunk head: success, failure, running or missing; empty without a local CI.
+	TrunkCi string `json:"trunkci,omitempty"`
+	// GitHub's runs on the trunk's newest run commit: success, failure or running; empty when unknown.
+	RemoteCi    string `json:"remoteci,omitempty"`
+	RemoteCiUrl string `json:"remoteciurl,omitempty"`
+	// The last build run: its state (running, success, failure, cancelled, lost) and declared id.
+	Build   string `json:"build,omitempty"`
+	BuildId string `json:"buildid,omitempty"`
+	BuildAt int64  `json:"buildat,omitempty"`
+	// The last public release and the newest release tag (a candidate included).
+	ReleaseTag string `json:"releasetag,omitempty"`
+	LastTag    string `json:"lasttag,omitempty"`
+	// The badge: red (CI or build failed) over amber (stale dependency) over none. A running job gives none.
+	Worst string `json:"worst,omitempty"`
+}
+
+type GroupMemberInfo struct {
+	molten.GroupMember
+	State GroupMemberState `json:"state"`
+}
+
+type GroupInfo struct {
+	Key     string            `json:"key"`
+	Name    string            `json:"name"`
+	Members []GroupMemberInfo `json:"members"`
+	// The worst member state.
+	Worst string `json:"worst,omitempty"`
+}
+
+type GroupsAnswer struct {
+	Groups []GroupInfo `json:"groups"`
+}
+
+type Groups struct {
+	lock        sync.Mutex
+	refreshLock sync.Mutex
+	collector   *Collector
+	ci          *Ci
+	runs        *Runs
+	links       func(ctx context.Context) ([]molten.GroupLink, error)
+	read        func(dir string) molten.ProjectInfo
+	publish     func(GroupsAnswer)
+	// The last published model, so a refresh that changed nothing of the groups is not told again.
+	published string
+}
+
+func MakeGroups(collector *Collector, ci *Ci, runs *Runs, links func(ctx context.Context) ([]molten.GroupLink, error), publish func(GroupsAnswer)) *Groups {
+	return &Groups{collector: collector, ci: ci, runs: runs, links: links, read: molten.ReadProject, publish: publish}
+}
+
+// WorkspaceLinks reads the workspace → project links in the rail's order: Wave's workspace list keeps the database's
+// order, which is the order read here.
+func WorkspaceLinks(ctx context.Context) ([]molten.GroupLink, error) {
+	workspaces, err := wstore.DBGetAllObjsByType[*waveobj.Workspace](ctx, waveobj.OType_Workspace)
+	if err != nil {
+		return nil, err
+	}
+	links := []molten.GroupLink{}
+	for _, ws := range workspaces {
+		dir := ws.Meta.GetString(molten.ProjectMetaKey, "")
+		if dir == "" {
+			continue
+		}
+		links = append(links, molten.GroupLink{WorkspaceId: ws.OID, WorkspaceName: ws.Name, Dir: dir})
+	}
+	return links, nil
+}
+
+// trunkRemoteCi sums up GitHub's runs on the trunk: the runs of the trunk's newest run commit, red when one failed,
+// running while one is not completed, green when all succeeded.
+func trunkRemoteCi(raw json.RawMessage, trunk string) (string, string) {
+	if len(raw) == 0 || trunk == "" {
+		return "", ""
+	}
+	var runs []struct {
+		HeadBranch string `json:"headBranch"`
+		HeadSha    string `json:"headSha"`
+		Status     string `json:"status"`
+		Conclusion string `json:"conclusion"`
+		Url        string `json:"url"`
+	}
+	if json.Unmarshal(raw, &runs) != nil {
+		return "", ""
+	}
+	sha := ""
+	state, url := "", ""
+	for _, run := range runs {
+		if run.HeadBranch != trunk {
+			continue
+		}
+		if sha == "" {
+			sha = run.HeadSha
+		}
+		if run.HeadSha != sha {
+			continue
+		}
+		conclusion := strings.ToLower(run.Conclusion)
+		switch {
+		case githubFailureConclusions[conclusion]:
+			return CiStateFailure, run.Url
+		case !strings.EqualFold(run.Status, "completed"):
+			state, url = CiStateRunning, run.Url
+		case conclusion == "success" && state == "":
+			state, url = CiStateSuccess, run.Url
+		}
+	}
+	return state, url
+}
+
+func memberWorst(state GroupMemberState) string {
+	if state.TrunkCi == CiStateFailure || state.RemoteCi == CiStateFailure || state.Build == RunStateFailure {
+		return GroupWorstRed
+	}
+	return ""
+}
+
+func worstOf(a string, b string) string {
+	if a == GroupWorstRed || b == GroupWorstRed {
+		return GroupWorstRed
+	}
+	if a == GroupWorstAmber || b == GroupWorstAmber {
+		return GroupWorstAmber
+	}
+	return ""
+}
+
+func (g *Groups) memberState(dir string) GroupMemberState {
+	state := GroupMemberState{}
+	if g.collector == nil {
+		return state
+	}
+	snap, known := g.collector.Cached(dir)
+	if known {
+		state.Missing = snap.Missing
+		state.CollectedAt = snap.GitAt
+	}
+	if git := snap.Git; git != nil {
+		state.Trunk = git.Trunk
+		for _, branch := range git.Branches {
+			if branch.Name == git.Trunk {
+				state.TrunkSha = branch.Sha
+			}
+		}
+		state.ReleaseTag = git.LastPublic
+		if len(git.Tags) > 0 {
+			state.LastTag = git.Tags[0].Name
+		}
+	}
+	if snap.Github != nil {
+		state.RemoteCi, state.RemoteCiUrl = trunkRemoteCi(snap.Github.Runs, state.Trunk)
+	}
+	if g.ci != nil && state.TrunkSha != "" {
+		if verdict, err := g.ci.Status(dir, state.TrunkSha); err == nil {
+			state.TrunkCi = verdict.Status
+		}
+	}
+	if g.runs != nil {
+		for _, rec := range g.runs.List(dir) {
+			if rec.Kind != RunKindBuild {
+				continue
+			}
+			state.Build, state.BuildId, state.BuildAt = rec.State, rec.StepId, rec.StartedAt
+			break
+		}
+	}
+	state.Worst = memberWorst(state)
+	return state
+}
+
+// Get resolves the groups now: the links and the members' files are read on every request, so a member that removed
+// its `group` is out at once, and a member that added it is in.
+func (g *Groups) Get(req GroupsRequest) (GroupsAnswer, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), groupsTimeout)
+	defer cancel()
+	links, err := g.links(ctx)
+	if err != nil {
+		return GroupsAnswer{}, fmt.Errorf("reading the workspaces: %w", err)
+	}
+	groups := molten.ResolveGroups(links, g.read)
+	if req.Dir != "" {
+		if err := checkDir(req.Dir); err != nil {
+			return GroupsAnswer{}, err
+		}
+		group := molten.FindGroup(groups, filepath.Clean(req.Dir))
+		groups = []molten.ProjectGroup{}
+		if group != nil {
+			groups = append(groups, *group)
+		}
+	}
+	answer := GroupsAnswer{Groups: []GroupInfo{}}
+	for _, group := range groups {
+		info := GroupInfo{Key: group.Key, Name: group.Name, Members: []GroupMemberInfo{}}
+		for _, member := range group.Members {
+			state := g.memberState(member.Dir)
+			info.Members = append(info.Members, GroupMemberInfo{GroupMember: member, State: state})
+			info.Worst = worstOf(info.Worst, state.Worst)
+		}
+		answer.Groups = append(answer.Groups, info)
+	}
+	return answer, nil
+}
+
+func (g *Groups) changed(answer GroupsAnswer) bool {
+	data, err := json.Marshal(answer)
+	if err != nil {
+		return false
+	}
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	if string(data) == g.published {
+		return false
+	}
+	g.published = string(data)
+	return true
+}
+
+// Refreshed publishes the groups when a collector refresh changed them (a CI verdict, a build, a tag, a member's file).
+func (g *Groups) Refreshed() {
+	if g == nil || g.publish == nil {
+		return
+	}
+	defer func() {
+		panichandler.PanicHandler("molten:mission:groups", recover())
+	}()
+	// Refreshes of several projects end together: one resolution at a time keeps an older model from being told last.
+	g.refreshLock.Lock()
+	defer g.refreshLock.Unlock()
+	answer, err := g.Get(GroupsRequest{})
+	if err != nil {
+		log.Printf("molten: resolving the project groups: %v\n", err)
+		return
+	}
+	if g.changed(answer) {
+		g.publish(answer)
+	}
+}
+
+func publishGroups(answer GroupsAnswer) {
+	wps.Broker.Publish(wps.WaveEvent{Event: GroupsEvent, Data: answer})
+}

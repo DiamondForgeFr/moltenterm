@@ -8,8 +8,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -126,9 +128,28 @@ type PipelineAdapterStep struct {
 	PipelineCommand
 }
 
+// A set of files another member of the project's group writes and this project reads (FR-MC-029, DS-MC-016). It is
+// declared by the dependent and resolves within its group only: whether `project` names a member is known at run
+// time, from the workspace links, so validating the file never checks it.
+type PipelineDependency struct {
+	// The source's pipeline name.
+	Project string `json:"project"`
+	// Globs relative to the source's root: the files this project reads.
+	Paths []string `json:"paths"`
+	// The source's branch to watch; default the source's trunk.
+	Branch string `json:"branch,omitempty"`
+	// The command that brings this project up to date, run in its root like every declared command.
+	Sync string `json:"sync,omitempty"`
+	// Globs relative to this project's root: the files the sync writes, whose last commit tells when it last ran.
+	Output []string `json:"output"`
+}
+
 type Pipeline struct {
 	Schema int    `json:"schema"`
 	Name   string `json:"name"`
+	// The product the project belongs to (FR-MC-026): the linked projects declaring the same name form one group.
+	Group     string               `json:"group,omitempty"`
+	DependsOn []PipelineDependency `json:"dependson,omitempty"`
 	// The project's own icon, relative to the project folder; offered before any guessed image (#189).
 	Icon     string                `json:"icon,omitempty"`
 	Branches *PipelineBranches     `json:"branches,omitempty"`
@@ -155,9 +176,13 @@ var pipelineIdRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
 var tagPrefixRegex = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._/-]*$`)
 var pipelineVariableRegex = regexp.MustCompile(`\{[a-z]+\}`)
 
+var dependencyBranchRegex = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]*$`)
+
 type pipelineChecker struct {
 	dir    string
 	report *PipelineReport
+	// The file holds a `group` key, even an empty one: `"group": ""` is refused, not read as no group.
+	groupSet bool
 }
 
 func (c *pipelineChecker) errorf(format string, args ...any) {
@@ -371,6 +396,58 @@ func (c *pipelineChecker) checkIcon(icon string) {
 	}
 }
 
+// checkDependencyGlobs checks globs that git reads as `:(glob)<pattern>` from a project's root: relative, inside it,
+// and well formed.
+func (c *pipelineChecker) checkDependencyGlobs(where string, field string, globs []string) {
+	if len(globs) == 0 {
+		c.errorf("%s: %s is required (at least one glob)", where, field)
+		return
+	}
+	for _, glob := range globs {
+		trimmed := strings.TrimSpace(glob)
+		switch {
+		case trimmed == "":
+			c.errorf("%s: %s holds an empty glob", where, field)
+		case strings.HasPrefix(trimmed, "/") || filepath.IsAbs(trimmed) || strings.HasPrefix(trimmed, "~"):
+			c.errorf("%s: %s glob %q must be relative to the project's root", where, field, glob)
+		case slices.Contains(strings.Split(filepath.ToSlash(trimmed), "/"), ".."):
+			c.errorf("%s: %s glob %q must not use ..", where, field, glob)
+		case strings.HasPrefix(trimmed, ":") || strings.HasPrefix(trimmed, "!"):
+			c.errorf("%s: %s glob %q must be a plain path or glob (no git pathspec magic)", where, field, glob)
+		default:
+			if _, err := path.Match(trimmed, ""); err != nil {
+				c.errorf("%s: %s glob %q is not a valid glob", where, field, glob)
+			}
+		}
+	}
+}
+
+// checkDependsOn checks the declarations' shape (DS-MC-016). Whether `project` names a member of the group depends on
+// the workspace links, so it is a state shown at run time, never a validation error.
+func (c *pipelineChecker) checkDependsOn(p *Pipeline) {
+	for i, dep := range p.DependsOn {
+		where := fmt.Sprintf("dependson[%d]", i)
+		project := strings.TrimSpace(dep.Project)
+		if project != "" {
+			where = fmt.Sprintf("%s (%s)", where, project)
+		}
+		switch {
+		case project == "":
+			c.errorf("%s: project is required (the source's pipeline name)", where)
+		case SameProjectName(project, p.Name):
+			c.errorf("%s: project names this project itself", where)
+		}
+		c.checkDependencyGlobs(where, "paths", dep.Paths)
+		c.checkDependencyGlobs(where, "output", dep.Output)
+		if dep.Branch != "" && (!dependencyBranchRegex.MatchString(dep.Branch) || strings.Contains(dep.Branch, "..") || strings.HasSuffix(dep.Branch, "/") || strings.HasSuffix(dep.Branch, ".lock")) {
+			c.errorf("%s: branch %q is not a branch name", where, dep.Branch)
+		}
+		if dep.Sync != "" {
+			c.checkCommand(where+" sync", PipelineCommand{Run: dep.Sync})
+		}
+	}
+}
+
 func (c *pipelineChecker) checkVersions(v *PipelineVersions) {
 	if v.Notes != "" && !strings.Contains(v.Notes, "{tag}") {
 		c.errorf("versions.notes must contain {tag} (e.g. releases/{tag}.md)")
@@ -418,6 +495,12 @@ func (c *pipelineChecker) check(p *Pipeline) {
 		c.errorf("name is required")
 	}
 	c.checkIcon(p.Icon)
+	if c.groupSet {
+		if _, err := GroupName(p.Group); err != nil {
+			c.errorf("group: %v", err)
+		}
+	}
+	c.checkDependsOn(p)
 	if p.Branches != nil {
 		var sf struct {
 			Workflow *struct{} `json:"workflow"`
@@ -532,6 +615,10 @@ func ValidatePipeline(dir string) PipelineReport {
 		return report
 	}
 	checker := &pipelineChecker{dir: dir, report: &report}
+	var keys map[string]json.RawMessage
+	if json.Unmarshal(data, &keys) == nil {
+		_, checker.groupSet = keys["group"]
+	}
 	checker.check(&pipeline)
 	sort.Strings(report.Warnings)
 	report.Pipeline = &pipeline
