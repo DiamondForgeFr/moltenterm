@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
+	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
 // Site permissions (FR-BRW-009, DS-BRW-013). Pages keep the user's sign-ins, so no tool loads or reads a page of a site
@@ -34,7 +35,10 @@ const (
 )
 
 type permissionRequest struct {
-	id        string
+	id   string
+	kind string
+	// action says what a sensitive action request asks for (kind action), in the bar's words.
+	action    string
 	sessionId string
 	tabId     int64
 	key       TabKey
@@ -172,13 +176,14 @@ func (m *Manager) joinRequest(sessionId string, tabId int64, key TabKey, site st
 		return nil, false
 	}
 	for _, req := range m.requests {
-		if req.sessionId == sessionId && req.site == site && req.tabId == tabId && req.outcome == "" {
+		if req.kind == PromptSite && req.sessionId == sessionId && req.site == site && req.tabId == tabId && req.outcome == "" {
 			req.waiters++
 			return req, false
 		}
 	}
 	req := &permissionRequest{
 		id:        uuid.NewString(),
+		kind:      PromptSite,
 		sessionId: sessionId,
 		tabId:     tabId,
 		key:       key,
@@ -269,11 +274,26 @@ func (m *Manager) pendingPromptLocked(key TabKey) *PermissionPrompt {
 	if oldest == nil {
 		return nil
 	}
-	return &PermissionPrompt{RequestId: oldest.id, Site: oldest.site}
+	return &PermissionPrompt{RequestId: oldest.id, Site: oldest.site, Kind: oldest.kind, Action: oldest.action}
 }
 
 func validDecision(decision string) bool {
-	return decision == DecisionOnce || decision == DecisionAlways || decision == DecisionBlock || decision == DecisionDismiss
+	switch decision {
+	case DecisionOnce, DecisionAlways, DecisionBlock, DecisionDismiss, DecisionAllow, DecisionDeny:
+		return true
+	}
+	return false
+}
+
+// decisionFits: a site request takes the site answers, an action request Allow or Deny; Escape (dismiss) refuses both.
+func decisionFits(kind string, decision string) bool {
+	if decision == DecisionDismiss {
+		return true
+	}
+	if kind == PromptAction {
+		return decision == DecisionAllow || decision == DecisionDeny
+	}
+	return decision == DecisionOnce || decision == DecisionAlways || decision == DecisionBlock
 }
 
 // Answer applies the user's answer in a tab's permission bar. Only a MoltenTerm window answers, never a terminal (an
@@ -290,7 +310,7 @@ func (m *Manager) Answer(source string, req AnswerRequest) error {
 	if !ok {
 		return nil
 	}
-	if req.Decision == DecisionAlways || req.Decision == DecisionBlock {
+	if pending.kind == PromptSite && (req.Decision == DecisionAlways || req.Decision == DecisionBlock) {
 		stored := SiteAllow
 		if req.Decision == DecisionBlock {
 			stored = SiteBlock
@@ -303,7 +323,7 @@ func (m *Manager) Answer(source string, req AnswerRequest) error {
 	for _, panelId := range m.wakeOthers(pending, req.Decision) {
 		m.publishPanel(panelId)
 	}
-	m.logf("%s session=%s agent=%q permission %s site=%s\n", logPrefix, shortId(info.id), info.agentName, req.Decision, pending.site)
+	m.logf("%s session=%s agent=%q %s %s site=%s\n", logPrefix, shortId(info.id), info.agentName, pending.kind, req.Decision, pending.site)
 	return nil
 }
 
@@ -311,7 +331,7 @@ func (m *Manager) takeRequest(requestId string, key TabKey, decision string) (*p
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	pending := m.requests[requestId]
-	if pending == nil || pending.key != key || pending.outcome != "" {
+	if pending == nil || pending.key != key || pending.outcome != "" || !decisionFits(pending.kind, decision) {
 		return nil, sessionInfo{}, false
 	}
 	s := m.sessions[pending.sessionId]
@@ -319,6 +339,10 @@ func (m *Manager) takeRequest(requestId string, key TabKey, decision string) (*p
 		return nil, sessionInfo{}, false
 	}
 	switch decision {
+	case DecisionAllow:
+		m.setOutcomeLocked(pending, outcomeAllowed)
+	case DecisionDeny:
+		m.setOutcomeLocked(pending, DecisionDeny)
 	case DecisionOnce:
 		s.allowedOnce[pending.site] = true
 		m.setOutcomeLocked(pending, outcomeAllowed)
@@ -340,12 +364,12 @@ func (m *Manager) takeRequest(requestId string, key TabKey, decision string) (*p
 func (m *Manager) wakeOthers(answered *permissionRequest, decision string) []string {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	if decision == DecisionDismiss {
+	if decision == DecisionDismiss || answered.kind != PromptSite {
 		return nil
 	}
 	var panels []string
 	for _, req := range m.requests {
-		if req.site != answered.site || req.outcome != "" {
+		if req.kind != PromptSite || req.site != answered.site || req.outcome != "" {
 			continue
 		}
 		if decision == DecisionOnce && req.sessionId != answered.sessionId {
@@ -416,4 +440,111 @@ func (m *Manager) pruneRecentLocked() {
 			delete(m.recent, site)
 		}
 	}
+}
+
+// askAction asks the user to allow one sensitive action (DS-BRW-016): typing into a password or payment field,
+// submitting a form that holds one, a file chooser, a download. Every action asks anew and nothing is remembered; the
+// call waits inside runOnTab, so Stop and takeover end the wait.
+func (m *Manager) askAction(ctx context.Context, s sessionInfo, tabId int64, key TabKey, site string, reason string) error {
+	// A call Stop or takeover just cancelled asks nothing (its last look at the page failed because of that).
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if errText := m.tabStateError(s.id, tabId); errText != "" {
+		return refusal(errText)
+	}
+	req := m.addActionRequest(s.id, tabId, key, site, reason)
+	if req == nil {
+		return refusal(mcpbrowser.ErrSessionEnded)
+	}
+	defer m.leaveRequest(req)
+	m.publishPanel(req.key.PanelId)
+	m.logf("%s session=%s agent=%q confirmation asked reason=%s site=%s\n", logPrefix, shortId(s.id), s.agentName, reason, site)
+	return m.waitAction(ctx, req)
+}
+
+// waitAction waits for the answer to an action request; Allow returns nil, anything else the refusal to return.
+func (m *Manager) waitAction(ctx context.Context, req *permissionRequest) error {
+	deadline := time.NewTimer(time.Until(req.created.Add(m.permissionTimeout)))
+	defer deadline.Stop()
+	select {
+	case <-req.done:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-deadline.C:
+		m.resolveRequest(req, outcomeTimeout)
+	}
+	switch m.requestOutcome(req) {
+	case outcomeAllowed:
+		return nil
+	case outcomeTimeout:
+		return refusal(mcpbrowser.ErrActionTimeout)
+	case outcomeEnded:
+		return refusal(mcpbrowser.ErrSessionEnded)
+	}
+	return refusal(mcpbrowser.ErrActionDenied)
+}
+
+func (m *Manager) addActionRequest(sessionId string, tabId int64, key TabKey, site string, reason string) *permissionRequest {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	s := m.sessions[sessionId]
+	if s == nil {
+		return nil
+	}
+	req := &permissionRequest{
+		id:        uuid.NewString(),
+		kind:      PromptAction,
+		action:    actionPromptText(reason),
+		sessionId: sessionId,
+		tabId:     tabId,
+		key:       key,
+		site:      site,
+		created:   m.now(),
+		done:      make(chan struct{}),
+		waiters:   1,
+	}
+	m.requests[req.id] = req
+	if reason == reasonDownload {
+		if t := s.tabs[tabId]; t != nil {
+			t.download = req
+		}
+	}
+	return req
+}
+
+// AskDownload is emain asking whether a download that a tab under an agent's control started may go on (DS-BRW-016):
+// only emain asks, since it is the one that holds the download back. The user answers in the tab's bar; a call in
+// flight on the tab waits for the same answer (awaitDownload). A tab the agent does not hold now gets no.
+func (m *Manager) AskDownload(ctx context.Context, source string, req DownloadRequest) (DownloadAnswer, error) {
+	if source != wshutil.ElectronRoute {
+		return DownloadAnswer{}, errors.New("only MoltenTerm can ask about a download")
+	}
+	key := TabKey{PanelId: req.BlockId, BrowserTabId: req.BrowserTabId}
+	s, tabId, ok := m.activeOwner(key)
+	if !ok {
+		return DownloadAnswer{Allow: false}, nil
+	}
+	site := cleanHost(req.Host)
+	if len(site) > 253 {
+		site = site[:253]
+	}
+	err := m.askAction(ctx, s, tabId, key, site, reasonDownload)
+	return DownloadAnswer{Allow: err == nil}, nil
+}
+
+// activeOwner is the session that drives a tab now, and its id for the tab; false when no agent does, or the user took
+// over or stopped it.
+func (m *Manager) activeOwner(key TabKey) (sessionInfo, int64, bool) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	s := m.sessions[m.owners[key]]
+	if s == nil {
+		return sessionInfo{}, 0, false
+	}
+	t := s.tabFor(key)
+	if t == nil || t.state != TabStateActive {
+		return sessionInfo{}, 0, false
+	}
+	return sessionInfo{id: s.id, blockId: s.blockId, agentName: s.agentName}, t.id, true
 }

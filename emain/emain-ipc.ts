@@ -26,7 +26,7 @@ import { handleCtrlShiftState } from "./emain-util";
 import { getWaveVersion } from "./emain-wavesrv";
 import { createNewWaveWindow, getWaveWindowByWebContentsId } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
-import { initMoltentermBrowserAgent } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#300)
+import { initMoltentermBrowserAgent, isAgentInput } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#300, #302)
 import { initMoltentermDialogs } from "./moltenterm-dialogs"; // MOLTENTERM-PATCH (#30)
 import { initMoltentermUpdate } from "./moltenterm-update"; // MOLTENTERM-PATCH (#64)
 
@@ -198,15 +198,30 @@ function saveImageFileWithNativeDialog(
 export function initIpcHandlers() {
     initMoltentermDialogs(); // MOLTENTERM-PATCH (#30): folder and image pickers of the Moltenterm shell
     initMoltentermUpdate(); // MOLTENTERM-PATCH (#64): gold updates
-    // MOLTENTERM-PATCH (#300): a user's click or key in an agent's tab takes over (route molten:browseragent)
-    initMoltentermBrowserAgent((blockId, browserTabId) =>
-        fireAndForget(() =>
-            ElectronWshClient.wshRpcCall(
-                "moltenbrowseragentcontrol",
-                { blockid: blockId, browsertabid: browserTabId, action: "takeover" },
-                { route: "molten:browseragent", noresponse: true }
-            )
-        )
+    // MOLTENTERM-PATCH (#300, #302): a user's click or key in an agent's tab takes over, and a download the agent's tab
+    // starts waits for the user's Allow (route molten:browseragent)
+    initMoltentermBrowserAgent(
+        (blockId, browserTabId) =>
+            fireAndForget(() =>
+                ElectronWshClient.wshRpcCall(
+                    "moltenbrowseragentcontrol",
+                    { blockid: blockId, browsertabid: browserTabId, action: "takeover" },
+                    { route: "molten:browseragent", noresponse: true }
+                )
+            ),
+        async (blockId, browserTabId, host) => {
+            try {
+                const answer = await ElectronWshClient.wshRpcCall(
+                    "moltenbrowseragentdownload",
+                    { blockid: blockId, browsertabid: browserTabId, host },
+                    { route: "molten:browseragent", timeout: 130000 }
+                );
+                return answer?.allow === true;
+            } catch (e) {
+                console.log("molten browser agent: download answer failed", e);
+                return false;
+            }
+        }
     );
     electron.ipcMain.on("open-external", (event, url) => {
         if (url && typeof url === "string") {
@@ -320,6 +335,11 @@ export function initIpcHandlers() {
         if (!hasBeforeInputRegisteredMap.get(focusedId)) {
             hasBeforeInputRegisteredMap.set(focusedId, true);
             webviewWc.on("before-input-event", (e, input) => {
+                // MOLTENTERM-PATCH (#302): keys an agent sends to its page (cmd+w, cmd+t…) stay in the page: they never
+                // reach MoltenTerm's shortcuts.
+                if (isAgentInput(webviewWc.id, input)) {
+                    return;
+                }
                 let waveEvent = keyutil.adaptFromElectronKeyEvent(input);
                 handleCtrlShiftState(parentWc, waveEvent);
                 if (webviewFocusId != focusedId) {

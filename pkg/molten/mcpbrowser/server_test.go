@@ -173,7 +173,7 @@ func TestToolsListAndCall(t *testing.T) {
 			t.Fatalf("tool %v: description must say what it drives", tool["name"])
 		}
 	}
-	if strings.Join(names, ",") != "tabs_context,tabs_create,tabs_close,navigate,read_page,get_page_text,find,computer" {
+	if strings.Join(names, ",") != "tabs_context,tabs_create,tabs_close,navigate,read_page,get_page_text,find,computer,form_input,resize,browser_batch" {
 		t.Fatalf("tools = %v", names)
 	}
 	c.send(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"tabs_close","arguments":{"tabId":4}}}`)

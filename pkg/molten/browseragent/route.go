@@ -104,7 +104,7 @@ func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) 
 	switch req.Command {
 	case mcpbrowser.HelloCommand:
 		timeout = helloTimeout
-	case mcpbrowser.CallCommand:
+	case mcpbrowser.CallCommand, mcpbrowser.DownloadCommand:
 		timeout = callTimeout
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -179,6 +179,12 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return nil, l.manager.SetSite(source, req)
+	case mcpbrowser.DownloadCommand:
+		var req DownloadRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.manager.AskDownload(ctx, source, req)
 	}
 	return nil, fmt.Errorf("unknown browser agent command %q", command)
 }

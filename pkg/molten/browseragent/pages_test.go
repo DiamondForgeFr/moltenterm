@@ -671,7 +671,7 @@ func TestScreenshotZoomAndWait(t *testing.T) {
 	}
 	expectError(t, w.call(mcpbrowser.ToolComputer, w.args(`"action":"zoom","region":[5000,5000,6000,6000]`)), mcpbrowser.ErrRegionRequired)
 	expectError(t, w.call(mcpbrowser.ToolComputer, w.args(`"action":"zoom"`)), mcpbrowser.ErrRegionRequired)
-	expectError(t, w.call(mcpbrowser.ToolComputer, w.args(`"action":"left_click"`)), mcpbrowser.ErrActionRequired)
+	expectError(t, w.call(mcpbrowser.ToolComputer, w.args(`"action":"fly"`)), mcpbrowser.ErrActionRequired)
 	expectError(t, w.call(mcpbrowser.ToolComputer, w.args(`"action":"wait","duration":11`)), mcpbrowser.ErrDurationRequired)
 	start := time.Now()
 	if r := w.call(mcpbrowser.ToolComputer, w.args(`"action":"wait","duration":0.05`)); r.IsError || time.Since(start) < 40*time.Millisecond {

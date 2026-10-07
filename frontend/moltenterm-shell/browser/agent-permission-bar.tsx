@@ -3,8 +3,9 @@
 
 // The site permission bar (FR-BRW-009, DS-BRW-013): the first action of an agent on a site asks here, in the control
 // bar's slot and style. Allow once lasts for the agent's session, Always for this site and Block are remembered for
-// every agent; Escape refuses this time only. The bar never takes the keyboard focus: the user is typing in the
-// terminal, where an Enter must not answer for them.
+// every agent; Escape refuses this time only. A sensitive action (FR-BRW-010, DS-BRW-016) asks here too, with Allow or
+// Deny for that one action. The bar never takes the keyboard focus: the user is typing in the terminal, where an Enter
+// must not answer for them.
 
 import { Button } from "@/app/element/button";
 import { useAtomValue } from "jotai";
@@ -19,13 +20,13 @@ export function AgentPermissionBar({ agents, tabId }: { agents: BrowserAgentMode
     return (
         <div
             role="region"
-            aria-label="Site permission"
+            aria-label={view.escape === "deny" ? "Confirm an agent's action" : "Site permission"}
             onKeyDown={(e) => {
                 if (e.key !== "Escape") {
                     return;
                 }
                 e.stopPropagation();
-                agents.answer(tabId, view.requestId, "dismiss");
+                agents.answer(tabId, view.requestId, view.escape);
             }}
             className="molten-browser-agentpermission flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-border px-2 py-1.5 text-xs"
         >

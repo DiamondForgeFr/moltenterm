@@ -55,25 +55,10 @@ func (m *Manager) Call(ctx context.Context, source string, req mcpbrowser.CallRe
 	}
 	var result mcpbrowser.CallResult
 	var entry callLog
-	switch req.Tool {
-	case mcpbrowser.ToolTabsContext:
-		result = m.tabsContext(ctx, s, loc, req.Args)
-	case mcpbrowser.ToolTabsCreate:
-		result, entry = m.tabsCreate(ctx, s, loc)
-	case mcpbrowser.ToolTabsClose:
-		result, entry = m.tabsClose(ctx, s, loc, req.Args)
-	case mcpbrowser.ToolNavigate:
-		result, entry = m.navigate(ctx, s, loc, req.Args)
-	case mcpbrowser.ToolReadPage:
-		result, entry = m.readPage(ctx, s, loc, req.Args)
-	case mcpbrowser.ToolGetPageText:
-		result, entry = m.getPageText(ctx, s, loc, req.Args)
-	case mcpbrowser.ToolFind:
-		result, entry = m.findElements(ctx, s, loc, req.Args)
-	case mcpbrowser.ToolComputer:
-		result, entry = m.computer(ctx, s, loc, req.Args)
-	default:
-		result = mcpbrowser.ErrorResult(mcpbrowser.ErrUnknownTool)
+	if req.Tool == mcpbrowser.ToolBatch {
+		result, entry = m.batch(ctx, s, loc, req.Args)
+	} else {
+		result, entry = m.dispatch(ctx, s, loc, req.Tool, req.Args)
 	}
 	outcome := logOutcomeOk
 	if result.IsError {
@@ -81,6 +66,33 @@ func (m *Manager) Call(ctx context.Context, source string, req mcpbrowser.CallRe
 	}
 	m.logCall(s, req.Tool, entry, outcome, start)
 	return result
+}
+
+// dispatch runs one tool, on its own or as an item of browser_batch.
+func (m *Manager) dispatch(ctx context.Context, s sessionInfo, loc BlockLocation, tool string, args json.RawMessage) (mcpbrowser.CallResult, callLog) {
+	switch tool {
+	case mcpbrowser.ToolTabsContext:
+		return m.tabsContext(ctx, s, loc, args), callLog{}
+	case mcpbrowser.ToolTabsCreate:
+		return m.tabsCreate(ctx, s, loc)
+	case mcpbrowser.ToolTabsClose:
+		return m.tabsClose(ctx, s, loc, args)
+	case mcpbrowser.ToolNavigate:
+		return m.navigate(ctx, s, loc, args)
+	case mcpbrowser.ToolReadPage:
+		return m.readPage(ctx, s, loc, args)
+	case mcpbrowser.ToolGetPageText:
+		return m.getPageText(ctx, s, loc, args)
+	case mcpbrowser.ToolFind:
+		return m.findElements(ctx, s, loc, args)
+	case mcpbrowser.ToolComputer:
+		return m.computer(ctx, s, loc, args)
+	case mcpbrowser.ToolFormInput:
+		return m.formInput(ctx, s, loc, args)
+	case mcpbrowser.ToolResize:
+		return m.resize(ctx, s, loc, args)
+	}
+	return mcpbrowser.ErrorResult(mcpbrowser.ErrUnknownTool), callLog{}
 }
 
 // resultSentence keeps an error for the log only when it is one of the fixed sentences: other errors may quote
@@ -97,7 +109,13 @@ func resultSentence(result mcpbrowser.CallResult) string {
 		mcpbrowser.ErrUrlRequired, mcpbrowser.ErrNoHistory, mcpbrowser.ErrSiteChanged, mcpbrowser.ErrUnreadablePage,
 		mcpbrowser.ErrRefUnknown, mcpbrowser.ErrQueryRequired, mcpbrowser.ErrActionRequired, mcpbrowser.ErrRegionRequired,
 		mcpbrowser.ErrDurationRequired, mcpbrowser.ErrPageFailed, mcpbrowser.ErrCaptureFailed, mcpbrowser.ErrNavigationFailed,
-		mcpbrowser.ErrTooManyRedirects,
+		mcpbrowser.ErrTooManyRedirects, mcpbrowser.ErrCoordinateOutside, mcpbrowser.ErrTargetRequired, mcpbrowser.ErrRefRequired,
+		mcpbrowser.ErrElementGone, mcpbrowser.ErrScrollAmount, mcpbrowser.ErrScrollDirection, mcpbrowser.ErrRepeat,
+		mcpbrowser.ErrTextRequired, mcpbrowser.ErrTextTooLong, mcpbrowser.ErrUnknownKey, mcpbrowser.ErrModifiers,
+		mcpbrowser.ErrStartRequired, mcpbrowser.ErrValueRequired, mcpbrowser.ErrFieldUnsupported, mcpbrowser.ErrFileInput,
+		mcpbrowser.ErrOptionNotFound, mcpbrowser.ErrResizeBounds, mcpbrowser.ErrBatchActions, mcpbrowser.ErrBatchNested,
+		mcpbrowser.ErrActionDenied, mcpbrowser.ErrActionTimeout, mcpbrowser.ErrInputFailed, mcpbrowser.ErrPageChanged, mcpbrowser.ErrRefOutside,
+		mcpbrowser.ErrTooManyKeys,
 	}
 	if slices.Contains(fixed, result.Content[0].Text) {
 		return result.Content[0].Text

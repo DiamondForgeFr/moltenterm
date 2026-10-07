@@ -36,12 +36,17 @@ const (
 )
 
 type agentTab struct {
-	id        int64
-	key       TabKey
-	origin    string
-	state     string
-	action    string
-	actionTs  int64
+	id       int64
+	key      TabKey
+	origin   string
+	state    string
+	action   string
+	actionTs int64
+	cue      *ActionCue
+	// viewport is the size the resize tool emulates, until control ends.
+	viewport *Viewport
+	// download is the latest download confirmation of the tab, which the call that started it waits for.
+	download  *permissionRequest
 	createdAt time.Time
 	confirmed bool
 	calls     map[int64]context.CancelFunc
@@ -306,6 +311,7 @@ func (m *Manager) applyControl(key TabKey, action string) (bool, sessionInfo, bo
 		cancelCallsLocked(t)
 		m.endRequestsLocked(s.id, t.id)
 		t.state = TabStateStopped
+		t.viewport = nil
 		delete(m.owners, key)
 		return true, info, true
 	case ControlTakeOver:
@@ -365,7 +371,9 @@ func (m *Manager) panelState(panelId string) PanelState {
 			State:        t.state,
 			Action:       t.action,
 			ActionTs:     t.actionTs,
+			Cue:          t.cue,
 			Permission:   m.pendingPromptLocked(key),
+			Viewport:     t.viewport,
 		})
 	}
 	sort.Slice(rtn.Tabs, func(i, j int) bool { return rtn.Tabs[i].BrowserTabId < rtn.Tabs[j].BrowserTabId })
@@ -573,14 +581,19 @@ func (m *Manager) runOnTab(ctx context.Context, sessionId string, tabId int64, f
 	return "", err
 }
 
-// noteAction shows what the agent does on a tab in its control bar (NFR-BRW-007): fixed words and a host, never page
-// text.
+// noteAction shows what the agent does on a tab in its control bar (NFR-BRW-007): fixed words, a host, a key name or
+// an element's short label, never typed text or a field's value.
 func (m *Manager) noteAction(sessionId string, tabId int64, action string) {
-	panelId := m.setAction(sessionId, tabId, action)
+	m.noteActionAt(sessionId, tabId, action, nil)
+}
+
+// noteActionAt also draws where the action happens (DS-BRW-011).
+func (m *Manager) noteActionAt(sessionId string, tabId int64, action string, cue *ActionCue) {
+	panelId := m.setAction(sessionId, tabId, action, cue)
 	m.publishPanel(panelId)
 }
 
-func (m *Manager) setAction(sessionId string, tabId int64, action string) string {
+func (m *Manager) setAction(sessionId string, tabId int64, action string, cue *ActionCue) string {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	t := m.sessions[sessionId].tabOrNil(tabId)
@@ -589,5 +602,22 @@ func (m *Manager) setAction(sessionId string, tabId int64, action string) string
 	}
 	t.action = action
 	t.actionTs = m.now().UnixMilli()
+	t.cue = cue
+	return t.key.PanelId
+}
+
+func (m *Manager) setViewport(sessionId string, tabId int64, viewport *Viewport) {
+	panelId := m.storeViewport(sessionId, tabId, viewport)
+	m.publishPanel(panelId)
+}
+
+func (m *Manager) storeViewport(sessionId string, tabId int64, viewport *Viewport) string {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	t := m.sessions[sessionId].tabOrNil(tabId)
+	if t == nil {
+		return ""
+	}
+	t.viewport = viewport
 	return t.key.PanelId
 }

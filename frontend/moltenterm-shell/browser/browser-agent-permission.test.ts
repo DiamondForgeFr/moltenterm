@@ -11,6 +11,7 @@ import {
     PanelAgentState,
     permissionBarView,
     readPanelAgentState,
+    viewportText,
 } from "./browser-agent";
 
 const Mocks = vi.hoisted(() => ({ subscribe: vi.fn(), call: vi.fn() }));
@@ -141,5 +142,59 @@ describe("answering from the panel", () => {
         Mocks.call.mockRejectedValueOnce(new Error("down")).mockResolvedValue({ blockid: "panel", tabs: [asking()] });
         model.answer("agent-1", "req-1", "block");
         await vi.waitFor(() => expect(model.tabs()["agent-1"]?.permission?.requestid).toBe("req-1"));
+    });
+});
+
+describe("sensitive action bar (DS-BRW-016)", () => {
+    const confirming = (over: Partial<AgentTab> = {}): AgentTab =>
+        asking({
+            permission: {
+                requestid: "req-9",
+                site: "shop.example",
+                kind: "action",
+                action: "type into a password or payment field",
+            },
+            ...over,
+        });
+
+    it("asks Allow or Deny for this one action, Deny first and Allow the primary", () => {
+        const view = permissionBarView(confirming());
+        expect(view.title).toBe("Claude Code wants to type into a password or payment field on shop.example");
+        expect(view.detail).toBe("Allow this once, or deny it.");
+        expect(view.buttons.map((b) => b.label)).toEqual(["Deny", "Allow"]);
+        expect(view.buttons.map((b) => b.decision)).toEqual(["deny", "allow"]);
+        expect(view.buttons.filter((b) => b.primary).map((b) => b.decision)).toEqual(["allow"]);
+        expect(view.escape).toBe("deny");
+        expect(permissionBarView(asking()).escape).toBe("dismiss");
+    });
+
+    it("words a download without a host, and shows nothing for an empty request", () => {
+        const download = permissionBarView(
+            confirming({ permission: { requestid: "r", site: "", kind: "action", action: "start a download" } })
+        );
+        expect(download.title).toBe("Claude Code wants to start a download");
+        expect(permissionBarView(confirming({ permission: { requestid: "r", site: "x", kind: "action" } }))).toBe(null);
+        expect(permissionBarView(confirming({ state: "takenover" }))).toBe(null);
+    });
+
+    it("hides the control bar while it asks", () => {
+        const tabs = readPanelAgentState({ blockid: "p", tabs: [confirming()] });
+        expect(permissionBarView(tabs["agent-1"])).not.toBe(null);
+    });
+});
+
+describe("emulated viewport on the control bar (FR-BRW-010 AC3)", () => {
+    it("shows the size while the agent emulates one", () => {
+        expect(controlBarView(asking({ permission: undefined, viewport: { width: 390, height: 844 } })).viewport).toBe(
+            "390 × 844"
+        );
+        expect(
+            controlBarView(asking({ permission: undefined, state: "takenover", viewport: { width: 390, height: 844 } }))
+                .viewport
+        ).toBe("390 × 844");
+        expect(controlBarView(asking({ permission: undefined })).viewport).toBe("");
+        expect(viewportText({ width: 0, height: 10 })).toBe("");
+        expect(viewportText({ width: 1.5, height: 10 } as any)).toBe("");
+        expect(viewportText(null)).toBe("");
     });
 });

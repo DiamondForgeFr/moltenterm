@@ -4,7 +4,8 @@
 // Agents in the browser panel (FR-BRW-008, DS-BRW-011): which tabs of this panel an agent controls, as wavesrv's
 // sessions publish it (pkg/molten/browseragent), and what the control bar shows. Stop, takeover and Give back go to
 // wavesrv, which cancels the agent's call in flight; the bar changes at once, without waiting for the answer. The site
-// permission bar (FR-BRW-009, DS-BRW-013) asks before an agent uses a site; its answer goes to wavesrv the same way.
+// permission bar (FR-BRW-009, DS-BRW-013) asks before an agent uses a site, and before each sensitive action
+// (FR-BRW-010, DS-BRW-016); its answer goes to wavesrv the same way.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
@@ -25,7 +26,9 @@ export const AgentStateActive = "active";
 export const AgentStateTakenOver = "takenover";
 export type AgentControlAction = "stop" | "takeover" | "giveback";
 // must match the Decision* constants in pkg/molten/browseragent/env.go
-export type PermissionDecision = "once" | "always" | "block" | "dismiss";
+export type PermissionDecision = "once" | "always" | "block" | "dismiss" | "allow" | "deny";
+// must match PromptSite and PromptAction in pkg/molten/browseragent/env.go
+export const PromptKindAction = "action";
 // must match SiteAllow and SiteBlock in pkg/molten/browseragent/sites.go
 export type AgentSiteDecision = "allow" | "block";
 
@@ -34,10 +37,14 @@ const SnapshotTimeoutMs = 5000;
 // A cue shows where the agent just acted, then fades out.
 export const ActionCueMs = 1500;
 
-// A site permission request waiting on a tab (must match PermissionPrompt in pkg/molten/browseragent/env.go).
-export type AgentPermission = { requestid: string; site: string };
+// A request waiting on a tab: a site permission, or one sensitive action, whose words say what (must match
+// PermissionPrompt in pkg/molten/browseragent/env.go).
+export type AgentPermission = { requestid: string; site: string; kind?: string; action?: string };
 
-// Where an action happens, in the page's CSS pixels (FR-BRW-010's input tools fill it).
+// The viewport size the agent emulates (resize), shown on the control bar.
+export type AgentViewport = { width: number; height: number };
+
+// Where an action happens, in the page's CSS pixels.
 export type AgentActionCue = { kind: string; x?: number; y?: number; width?: number; height?: number };
 
 // must match PanelAgentTab in pkg/molten/browseragent/env.go
@@ -50,6 +57,7 @@ export type AgentTab = {
     actionts?: number;
     cue?: AgentActionCue;
     permission?: AgentPermission;
+    viewport?: AgentViewport;
 };
 
 export type PanelAgentState = { blockid: string; tabs: AgentTab[] };
@@ -62,6 +70,8 @@ export type ControlBarView = {
     takenOver: boolean;
     title: string;
     detail: string;
+    // The emulated viewport, e.g. "390 × 844", or "".
+    viewport: string;
     buttons: ControlBarButton[];
 };
 
@@ -72,6 +82,8 @@ export type PermissionBarView = {
     site: string;
     title: string;
     detail: string;
+    // What Escape answers: dismiss for a site, deny for an action.
+    escape: PermissionDecision;
     buttons: PermissionBarButton[];
 };
 
@@ -95,11 +107,13 @@ export function controlBarView(tab: AgentTab): ControlBarView {
         return null;
     }
     const name = agentName(tab);
+    const viewport = viewportText(tab.viewport);
     if (tab.state === AgentStateTakenOver) {
         return {
             takenOver: true,
             title: "You took over",
             detail: `${name} waits until you give the tab back.`,
+            viewport,
             buttons: [
                 { label: "Give back", action: "giveback", primary: true },
                 { label: "Stop", action: "stop", primary: false },
@@ -113,14 +127,47 @@ export function controlBarView(tab: AgentTab): ControlBarView {
         takenOver: false,
         title: `${name} is controlling this tab`,
         detail: tab.action ?? "",
+        viewport,
         buttons: [{ label: "Stop", action: "stop", primary: false }],
     };
 }
 
-// The permission bar of a tab whose agent waits for the user's decision on a site, or null (DS-BRW-013). Allow once is
-// first so it is the first tab stop; Always for this site is the primary action.
+export function viewportText(viewport: AgentViewport): string {
+    if (!Number.isInteger(viewport?.width) || !Number.isInteger(viewport?.height)) {
+        return "";
+    }
+    if (viewport.width <= 0 || viewport.height <= 0) {
+        return "";
+    }
+    return `${viewport.width} × ${viewport.height}`;
+}
+
+// The permission bar of a tab whose agent waits for the user's decision, or null. For a site (DS-BRW-013), Allow once
+// is first so it is the first tab stop, and Always for this site is the primary action. For a sensitive action
+// (DS-BRW-016), Deny is the first tab stop and Allow, for this one action, the primary.
 export function permissionBarView(tab: AgentTab): PermissionBarView {
-    if (tab?.permission?.requestid == null || !tab.permission.site || tab.state !== AgentStateActive) {
+    if (tab?.permission?.requestid == null || tab.state !== AgentStateActive) {
+        return null;
+    }
+    if (tab.permission.kind === PromptKindAction) {
+        const what = tab.permission.action?.trim();
+        if (!what) {
+            return null;
+        }
+        const site = tab.permission.site ?? "";
+        return {
+            requestId: tab.permission.requestid,
+            site,
+            title: site ? `${agentName(tab)} wants to ${what} on ${site}` : `${agentName(tab)} wants to ${what}`,
+            detail: "Allow this once, or deny it.",
+            escape: "deny",
+            buttons: [
+                { label: "Deny", decision: "deny", primary: false },
+                { label: "Allow", decision: "allow", primary: true },
+            ],
+        };
+    }
+    if (!tab.permission.site) {
         return null;
     }
     const site = tab.permission.site;
@@ -129,6 +176,7 @@ export function permissionBarView(tab: AgentTab): PermissionBarView {
         site,
         title: `Let ${agentName(tab)} use ${site}?`,
         detail: "It can read and act on this site's pages, with your sign-ins.",
+        escape: "dismiss",
         buttons: [
             { label: "Allow once", decision: "once", primary: false },
             { label: "Always for this site", decision: "always", primary: true },
