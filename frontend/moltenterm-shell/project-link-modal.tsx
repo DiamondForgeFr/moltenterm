@@ -119,7 +119,12 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
     const choices = [{ logo: "", title: "Keep the workspace's icon" }, ...logos.map((logo) => ({ logo, title: logo }))];
     return createPortal(
         <div className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40">
-            <div className="flex w-[460px] flex-col rounded border border-border bg-modalbg shadow-xl">
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={offer.mode === "link" ? `Link this workspace to ${name}?` : `Use ${name}'s logo?`}
+                className="flex w-[460px] flex-col rounded border border-border bg-modalbg shadow-xl"
+            >
                 <div className="border-b border-border px-4 py-3">
                     <div className="text-sm font-semibold">
                         {offer.mode === "link"

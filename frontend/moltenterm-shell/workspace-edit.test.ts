@@ -115,15 +115,22 @@ describe("one open request (DS-SHELL-035)", () => {
     it("gives the focus back to the opener on close (FR-SHELL-030-AC9)", async () => {
         const opener = { isConnected: true, focus: vi.fn() } as any;
         await WorkspaceEditModel.getInstance().open("w1", opener);
+        vi.useFakeTimers();
         WorkspaceEditModel.getInstance().close();
         expect(request()).toBeNull();
+        // Not while the sheet is still mounted: its focus trap would take the focus back.
+        expect(opener.focus).not.toHaveBeenCalled();
+        vi.runAllTimers();
         expect(opener.focus).toHaveBeenCalledOnce();
     });
 
     it("does not focus an opener that left the page", async () => {
-        const opener = { isConnected: false, focus: vi.fn() } as any;
+        const opener = { isConnected: true, focus: vi.fn() } as any;
         await WorkspaceEditModel.getInstance().open("w1", opener);
+        vi.useFakeTimers();
         WorkspaceEditModel.getInstance().close();
+        opener.isConnected = false;
+        vi.runAllTimers();
         expect(opener.focus).not.toHaveBeenCalled();
     });
 
