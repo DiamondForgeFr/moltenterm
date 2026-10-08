@@ -65,6 +65,11 @@ export function registerNotificationGesture(name: string, gesture: NotificationG
     };
 }
 
+// The action registered under a name, for the other places that offer the same action (the group strip's Sync).
+export function notificationGesture(name: string): NotificationGesture {
+    return gestures.get(name) ?? null;
+}
+
 type Location = Pick<MoltentermNotification, "workspaceid" | "tabid" | "blockid">;
 
 export class MoltentermNotifications {

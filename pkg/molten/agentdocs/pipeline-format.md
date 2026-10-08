@@ -105,6 +105,10 @@ writes nothing in any repository: a repository leaves the group by removing the 
 - The group's name is the spelling of its first member in the workspace rail's order.
 - `molten project group` lists the group of this workspace's project: each member with its workspace, folder and
   state (trunk CI, last build, last release).
+- The Project tab of a member shows the group strip above its next station: every member in rail order with its trunk
+  CI (local and GitHub), last build, last release tag and stale dependencies, the linked one marked. A click on
+  another member switches to its workspace. The strip offers only Sync on a stale dependency: each member's Run CI,
+  Build local, Release and Clean branches stay in its own workspace. A project in no group has no strip.
 
 A repository that reads another member's files (a website reading the app's feature registry) declares it, as the
 dependent, in `dependson`:

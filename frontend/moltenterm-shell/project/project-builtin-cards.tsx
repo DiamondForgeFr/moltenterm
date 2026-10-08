@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The Project overview's own cards (FR-MC-020, DS-MC-012), composed from Mission Control's panels, one home for each
-// piece of information: the next station band with the only copy of the actions (next-station-header.tsx: Run CI on
-// develop, Build local, Release, Clean branches, each showing its plan before it runs), the branches on the line map,
-// then the row of four cards (overview-cards.tsx): Next public release, Releases, Now and Project steps. They register
-// like any contribution.
+// piece of information: the group strip of a product's member (group-strip.tsx, FR-MC-028), the next station band with
+// the only copy of the actions (next-station-header.tsx: Run CI on develop, Build local, Release, Clean branches, each
+// showing its plan before it runs), the branches on the line map, then the row of four cards (overview-cards.tsx): Next
+// public release, Releases, Now and Project steps. They register like any contribution.
 
+import { GroupStrip } from "./group-strip";
 import { LineMapCard } from "./line-map-card";
 import { NextStationHeader } from "./next-station-header";
 import { NextReleaseCard, NowCard, ReleasesCard, StepsCard } from "./overview-cards";
@@ -15,6 +16,8 @@ import { ProjectCardProps } from "./project-context";
 
 // The header and map slots frame themselves; the four cards of the row get the core's frame with their title.
 export const BuiltinProjectCards: ProjectCard<ProjectCardProps>[] = [
+    // The product around the linked project (FR-MC-028), above the band; nothing for a project in no product.
+    { id: "moltenterm:group-strip", title: "Product", region: "header", order: 5, bare: true, component: GroupStrip },
     {
         id: "moltenterm:next-station",
         title: "Next station",

@@ -6,6 +6,7 @@
 
 import { useSyncExternalStore } from "react";
 import { CiState } from "../mission/ci-model";
+import { ProjectGroup } from "../mission/group-model";
 import { ActiveProject } from "../mission/mission-frame";
 import { MissionSnapshot, PipelineDef, RunRecord } from "../mission/mission-model";
 import { ReleaseSession } from "../mission/release-model";
@@ -28,6 +29,8 @@ export type ProjectCardProps = {
     runCi: (branch: string) => void;
     // Scrolls the run cards into view after a start.
     showRuns: () => void;
+    // The product group around the linked project (FR-MC-028); null when it is in none.
+    group: ProjectGroup;
 };
 
 export const ProjectCards = new ProjectCardRegistry<ProjectCardProps>();
