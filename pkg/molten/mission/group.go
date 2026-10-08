@@ -116,7 +116,7 @@ type Groups struct {
 	// the worktrees in use. Without UseSync, Sync is not available.
 	acks      *DepAcks
 	treesDir  string
-	syncing   map[string]bool
+	syncing   map[string]string
 	syncTrees map[string]bool
 }
 
@@ -209,8 +209,12 @@ func worstOf(a string, b string) string {
 func (g *Groups) memberState(group *molten.ProjectGroup, member molten.GroupMember, fresh bool) GroupMemberState {
 	dir := member.Dir
 	state := GroupMemberState{}
+	var runs []RunRecord
+	if g.runs != nil {
+		runs = g.runs.List(dir)
+	}
 	if g.run != nil && g.readDeps != nil {
-		state.Deps = g.memberDeps(group, member, fresh)
+		state.Deps = g.memberDeps(group, member, fresh, runs)
 	}
 	if g.collector == nil {
 		state.Worst = memberWorst(state)
@@ -242,7 +246,7 @@ func (g *Groups) memberState(group *molten.ProjectGroup, member molten.GroupMemb
 		}
 	}
 	if g.runs != nil {
-		for _, rec := range g.runs.List(dir) {
+		for _, rec := range runs {
 			if rec.Kind != RunKindBuild {
 				continue
 			}

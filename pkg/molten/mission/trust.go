@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -73,7 +74,8 @@ func PipelineCommands(p *molten.Pipeline) []TrustedCommand {
 		if dep.Sync == "" {
 			continue
 		}
-		rtn = append(rtn, TrustedCommand{Kind: RunKindSync, Id: DepSyncStepId(i), Title: "Sync from " + strings.TrimSpace(dep.Project), Run: dep.Sync})
+		id := fmt.Sprintf("%s %s@%s", DepSyncStepId(i), strings.ToLower(strings.TrimSpace(dep.Project)), strings.TrimSpace(dep.Branch))
+		rtn = append(rtn, TrustedCommand{Kind: RunKindSync, Id: id, Title: "Sync from " + strings.TrimSpace(dep.Project), Run: dep.Sync})
 	}
 	return rtn
 }

@@ -23,8 +23,12 @@ export type DepSyncResult = {
     cancelled?: boolean;
 };
 
+// A sync's key in this window: the flag (a DependencyState) and the notification (its args) give the same one.
 export function depSyncKey(dir: string, target: DepSyncTarget): string {
-    return `${dir}\u0000${target?.index ?? ""}\u0000${(target?.sourcename || target?.project || "").trim().toLowerCase()}`;
+    if (target?.index != null) {
+        return `${dir}\u0000${target.index}`;
+    }
+    return `${dir}\u0000${(target?.sourcename || target?.project || "").trim().toLowerCase()}`;
 }
 
 export function depSyncResultOf(run: RunRecord, tail: string[]): DepSyncResult {

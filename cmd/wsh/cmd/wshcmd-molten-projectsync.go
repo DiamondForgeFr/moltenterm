@@ -88,13 +88,17 @@ func moltenProjectSyncRun(cmd *cobra.Command, args []string) error {
 	if err := moltenCiRequest(moltenDepSyncCommand, req, &started); err != nil {
 		return err
 	}
-	if started.Untrusted != nil || started.Run == nil {
+	if started.Untrusted != nil {
 		return fmt.Errorf("%s", moltenDepSyncUntrustedMessage)
+	}
+	if started.Run == nil {
+		return fmt.Errorf("the sync did not start")
 	}
 	run := started.Run
 	if !moltenJson {
 		WriteStdout("%s: %s on %s @ %s, in %s\n", moltenPrintable(run.Title), moltenPrintable(run.Command), moltenPrintable(run.Branch),
-			moltenCiShort(run.Commit), dir)
+			moltenCiShort(run.Commit), moltenPrintable(dir))
+		WriteStdout("(stopping this command leaves the sync running; it is cancelled from Mission Control)\n")
 	}
 	ended, err := moltenFollowSync(dir, run.Id)
 	if err != nil {

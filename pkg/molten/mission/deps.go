@@ -91,6 +91,8 @@ type DependencyState struct {
 	// The commits the evaluation read (the source's watched ref, the dependent's trunks): while none moves, the history
 	// is not read again.
 	inputs string
+	// The full ref read for the watched branch (refs/remotes/origin/… or refs/heads/…): a sync checks out its tip.
+	sourceRef string
 }
 
 // Flagged tells a dependency that holds its member's amber flag: stale, or synced and not committed yet.
@@ -425,7 +427,7 @@ func EvaluateDependency(ctx context.Context, run Runner, group *molten.ProjectGr
 		state.State, state.Problem = DepStateBranchNotFound, fmt.Sprintf("%s has no branch %s, local or on origin", source.Name, state.Branch)
 		return state
 	}
-	state.Ref = shortRef(sourceRef)
+	state.Ref, state.sourceRef = shortRef(sourceRef), sourceRef
 	dependent := &gitReader{ctx: ctx, run: run, dir: dependentDir}
 	trunk, trunkRefs, err := dependent.dependentTrunk()
 	if err != nil {
@@ -538,7 +540,8 @@ func (g *Groups) pruneDeps(members map[string]bool) {
 }
 
 // memberDeps evaluates a member's declared dependencies; fresh reads git again, else the last evaluation is reused.
-func (g *Groups) memberDeps(group *molten.ProjectGroup, member molten.GroupMember, fresh bool) []DependencyState {
+// runs are the member's run records (Runs.List), read once by the caller; nil reads them when needed.
+func (g *Groups) memberDeps(group *molten.ProjectGroup, member molten.GroupMember, fresh bool, runs []RunRecord) []DependencyState {
 	name, declared := g.readDeps(member.Dir)
 	if len(declared) == 0 {
 		g.storeDeps(member.Dir, nil)
@@ -569,7 +572,7 @@ func (g *Groups) memberDeps(group *molten.ProjectGroup, member molten.GroupMembe
 	if evaluated {
 		g.storeDeps(member.Dir, cache)
 	}
-	return g.withLastSyncs(member.Dir, states)
+	return g.withLastSyncs(member.Dir, states, runs)
 }
 
 func (g *Groups) evaluate(group *molten.ProjectGroup, dir string, name string, index int, dep molten.PipelineDependency, prev *DependencyState) DependencyState {
@@ -588,7 +591,7 @@ func (g *Groups) Deps(req GroupsRequest) ([]DependencyState, error) {
 	if err != nil {
 		return nil, err
 	}
-	states := g.memberDeps(group, member, true)
+	states := g.memberDeps(group, member, true, nil)
 	if states == nil {
 		states = []DependencyState{}
 	}

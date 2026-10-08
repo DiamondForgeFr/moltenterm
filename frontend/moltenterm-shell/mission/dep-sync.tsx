@@ -29,6 +29,10 @@ type PendingTrust = { dir: string; info: UntrustedInfo; resolve: (trusted: boole
 const FailureLogLines = 3;
 // The run event is the fast path; the list is read again in case an event was missed.
 const RunEndPollMs = 2000;
+// A run missing from the list this many polls in a row is gone (its history was removed).
+const RunGonePolls = 5;
+// wavesrv stops a sync after 30 minutes; past this, the wait gives up.
+const RunEndMaxMs = 35 * 60 * 1000;
 
 export class DepSyncModel {
     private static instance: DepSyncModel = null;
@@ -120,20 +124,34 @@ async function readLogTail(dir: string, runId: string): Promise<string[]> {
     }
 }
 
-// Resolves with the run once it is no longer running.
+// Resolves with the run once it is no longer running; a run that is gone, or still running past wavesrv's own limit,
+// resolves as lost.
 export function waitForRunEnd(dir: string, runId: string): Promise<RunRecord> {
     return new Promise((resolve) => {
         let done = false;
+        let missing = 0;
+        let last: RunRecord = null;
         let timer: ReturnType<typeof setInterval> = null;
         let unsubscribe: () => void = null;
-        const finish = (run: RunRecord) => {
-            if (done || run == null || run.id !== runId || run.state === "running") {
-                return;
-            }
+        const startedAt = Date.now();
+        const settle = (run: RunRecord) => {
             done = true;
             clearInterval(timer);
             unsubscribe?.();
             resolve(run);
+        };
+        const lost = (): RunRecord => ({
+            ...(last ?? { id: runId, dir, kind: "sync", stepid: "", command: "", startedat: startedAt, phases: [], logsize: 0 }),
+            state: "lost",
+        });
+        const finish = (run: RunRecord) => {
+            if (done || run == null || run.id !== runId) {
+                return;
+            }
+            last = run;
+            if (run.state !== "running") {
+                settle(run);
+            }
         };
         unsubscribe = waveEventSubscribeSingle({
             eventType: MissionRunEvent as WaveEventName,
@@ -141,8 +159,21 @@ export function waitForRunEnd(dir: string, runId: string): Promise<RunRecord> {
             handler: (event) => finish(event.data as RunRecord),
         });
         const poll = async () => {
+            if (done) {
+                return;
+            }
+            if (Date.now() - startedAt > RunEndMaxMs) {
+                settle(lost());
+                return;
+            }
             try {
-                finish((await missionRuns(dir))?.find((r) => r.id === runId));
+                const run = (await missionRuns(dir))?.find((r) => r.id === runId);
+                missing = run == null ? missing + 1 : 0;
+                if (missing >= RunGonePolls && !done) {
+                    settle(lost());
+                    return;
+                }
+                finish(run);
             } catch {
                 // The next poll asks again.
             }
