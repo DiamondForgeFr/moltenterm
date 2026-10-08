@@ -932,6 +932,16 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 		}
 	}
 	runs := w.m.sameFolderRuns(run.Agent, w.info.cwd)
+	if by, _ := w.linkKind(); w.follower != nil && by == LinkGuessed {
+		// Several panes of the folder keep a guess from following a /clear by the rule below. A guess moves to a
+		// session started after the linked one only when this pane's agent wrote it as far as its activity tells and
+		// no other pane's agent may have: otherwise two panes would race for the newest session.
+		guess, reason := w.guessSession(run, free)
+		if guess != nil && guess.Path != w.path && guess.Started > w.linkedStarted && reason == GuessActivity && !w.othersMayHaveWritten(run, *guess) {
+			w.follow(guess.Path, LinkGuessed, guess.Started, reason)
+		}
+		return
+	}
 	if w.follower != nil {
 		// Already linked by discovery: move only to the one session started after the linked one (a /clear).
 		var newer []Candidate
@@ -977,6 +987,16 @@ func (w *watcher) guessSession(run molten.AgentRunInfo, free []Candidate) (*Cand
 		others = append(others, makeGuessRun(other))
 	}
 	return guessCandidate(free, self, others, w.m.now().UnixMilli())
+}
+
+// othersMayHaveWritten: another pane's agent of the folder, linked or not, worked when the session was written.
+func (w *watcher) othersMayHaveWritten(run molten.AgentRunInfo, c Candidate) bool {
+	for _, other := range w.m.sameFolderRunList(run.Agent, w.info.cwd) {
+		if other.BlockId != w.blockId && activityMatch(makeGuessRun(other), c) {
+			return true
+		}
+	}
+	return false
 }
 
 func (w *watcher) linkKind() (string, string) {
