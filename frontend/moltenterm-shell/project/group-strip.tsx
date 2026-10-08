@@ -12,7 +12,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useCallback, useMemo, useState } from "react";
 import { RunningDot } from "../mission/action-button";
 import { StripDependency, StripMember, stripMembers, StripTone, SyncArgs } from "../mission/group-strip-model";
-import { syncDependency } from "../mission/group-sync";
+import { startDependencySync } from "../mission/group-sync";
 import { MoltenWave } from "../molten-button";
 import { ProjectCardProps } from "./project-context";
 
@@ -167,7 +167,7 @@ function MemberEntry({
     return (
         <li
             className={cn(
-                "flex w-[260px] min-w-[220px] shrink-0 flex-col gap-2 rounded-md border px-3 py-2.5",
+                "flex w-[300px] min-w-[240px] shrink-0 flex-col gap-2 rounded-md border px-3 py-2.5",
                 entry.current
                     ? "border-accent/60 bg-[color-mix(in_srgb,var(--mt-accent)_6%,transparent)]"
                     : "border-border",
@@ -271,7 +271,7 @@ export function GroupStrip({ project, group }: ProjectCardProps) {
             fireAndForget(async () => {
                 const key = syncKey(args);
                 setSyncs((current) => ({ ...current, [key]: { running: true } }));
-                const result = await syncDependency(args);
+                const result = await startDependencySync(args);
                 setSyncs((current) => ({ ...current, [key]: result?.ok ? {} : { error: result?.error } }));
             }),
         []

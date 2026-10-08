@@ -9,13 +9,13 @@ vi.mock("../notifications-store", () => ({
     notificationGesture: (name: string) => gestures.get(name) ?? null,
 }));
 
-import { DependencySyncGesture, syncDependency } from "./group-sync";
+import { DependencySyncGesture, startDependencySync } from "./group-sync";
 
 describe("the group strip's Sync", () => {
     beforeEach(() => gestures.clear());
 
     it("answers like the notification center while no sync is registered", async () => {
-        expect(await syncDependency({ dir: "/r/site", project: "Notulia", index: 0 })).toEqual({
+        expect(await startDependencySync({ dir: "/r/site", project: "Notulia", index: 0 })).toEqual({
             ok: false,
             error: "This action is not available in this version.",
         });
@@ -24,7 +24,7 @@ describe("the group strip's Sync", () => {
     it("starts the notification's Sync action with the same arguments", async () => {
         const gesture = vi.fn(async () => ({ ok: true }));
         gestures.set(DependencySyncGesture, gesture);
-        expect(await syncDependency({ dir: "/r/site", project: "Notulia", index: 1 })).toEqual({ ok: true });
+        expect(await startDependencySync({ dir: "/r/site", project: "Notulia", index: 1 })).toEqual({ ok: true });
         expect(gesture).toHaveBeenCalledWith({ dir: "/r/site", project: "Notulia", index: 1 });
     });
 
@@ -32,7 +32,7 @@ describe("the group strip's Sync", () => {
         gestures.set(DependencySyncGesture, async () => {
             throw new Error("busy");
         });
-        expect(await syncDependency({ dir: "/r/site", project: "Notulia", index: 0 })).toEqual({
+        expect(await startDependencySync({ dir: "/r/site", project: "Notulia", index: 0 })).toEqual({
             ok: false,
             error: "busy",
         });
