@@ -109,6 +109,10 @@ writes nothing in any repository: a repository leaves the group by removing the 
   CI (local and GitHub), last build, last release tag and stale dependencies, the linked one marked. A click on
   another member switches to its workspace. The strip offers only Sync on a stale dependency: each member's Run CI,
   Build local, Release and Clean branches stay in its own workspace. A project in no group has no strip.
+- The workspace rail shows a group of two members or more as one product: its icon is the member named like the
+  group (else the first member's), with a red badge when a member's trunk CI or last build failed and an amber one for
+  a stale dependency. A click expands or collapses it; MoltenTerm remembers that on this machine. Its members' workspaces
+  stay together: a member moves within its product, and the product moves as a block.
 
 A repository that reads another member's files (a website reading the app's feature registry) declares it, as the
 dependent, in `dependson`:

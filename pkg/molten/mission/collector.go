@@ -24,6 +24,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/browseragent"
 	"github.com/wavetermdev/waveterm/pkg/molten/browsers"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
+	"github.com/wavetermdev/waveterm/pkg/molten/railorder"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -435,6 +436,8 @@ func Start() {
 	panes := MakePanes(ExecRunner, ci, collector)
 	groups = MakeGroups(collector, ci, runs, ExecRunner, WorkspaceLinks, publishGroups, notifyDependencies)
 	groups.UseSync(MakeDepAcks(DepAcksDir(dataDir)), DepSyncTreesDir(dataDir))
+	// The rail keeps a product's workspaces together (FR-MC-027), and a move changes the member order the groups show.
+	railorder.SetGrouping(ProductWorkspaces, func() { go groups.Refreshed() })
 	if err := registerRoute(collector, runs, ci, panes, MakeWorktrees(ExecRunner, nil), groups); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}

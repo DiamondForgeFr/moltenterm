@@ -27,32 +27,44 @@ const routeTimeout = 5 * time.Second
 // Mover applies a move and returns the new order; wcore provides it, since the order sorts Wave's workspace list.
 type Mover func(ctx context.Context, req MoveRequest) ([]string, error)
 
-// MoveCheck may refuse a move before it is written, given the current order. Product groups (FR-MC-027, #348) set one:
-// a member moves within its group only, a product as a block.
-type MoveCheck func(ctx context.Context, order []string, req MoveRequest) error
+// Products tells which product each workspace belongs to (workspace id → product key), only for products of two members
+// or more (FR-MC-027). Mission Control provides it (pkg/molten/mission), which resolves the groups; this package cannot
+// import it, since Mission Control reads the order.
+type Products func(ctx context.Context) (map[string]string, error)
 
-var checkLock sync.Mutex
-var moveCheck MoveCheck
+var groupingLock sync.Mutex
+var productsFn Products
+var movedFn func()
 
-func SetMoveCheck(fn MoveCheck) {
-	checkLock.Lock()
-	defer checkLock.Unlock()
-	moveCheck = fn
+// SetGrouping installs the product resolution and what to tell once a move is written (the groups follow the order).
+func SetGrouping(products Products, moved func()) {
+	groupingLock.Lock()
+	defer groupingLock.Unlock()
+	productsFn = products
+	movedFn = moved
 }
 
-func getMoveCheck() MoveCheck {
-	checkLock.Lock()
-	defer checkLock.Unlock()
-	return moveCheck
+func getGrouping() (Products, func()) {
+	groupingLock.Lock()
+	defer groupingLock.Unlock()
+	return productsFn, movedFn
 }
 
-// CheckMove runs the move check, if one is set.
-func CheckMove(ctx context.Context, order []string, req MoveRequest) error {
-	fn := getMoveCheck()
+// ProductsOf resolves the products; none when no resolution is installed.
+func ProductsOf(ctx context.Context) (map[string]string, error) {
+	fn, _ := getGrouping()
 	if fn == nil {
-		return nil
+		return nil, nil
 	}
-	return fn(ctx, order, req)
+	return fn(ctx)
+}
+
+// Moved tells that a move was written.
+func Moved() {
+	_, fn := getGrouping()
+	if fn != nil {
+		fn()
+	}
 }
 
 type routeLink struct {

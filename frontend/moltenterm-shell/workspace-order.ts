@@ -18,6 +18,8 @@ export type RailMove = {
     workspaceid: string;
     targetid: string;
     place: RailMovePlace;
+    // Moves the whole product the workspace belongs to (FR-MC-027).
+    block?: boolean;
 };
 
 // Move up (-1) or down (+1) by one place; null at the end it would leave.
