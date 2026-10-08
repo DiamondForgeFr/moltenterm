@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/global", () => ({ getApi: () => ({ switchWorkspace: () => {} }) }));
-vi.mock("../mission/group-sync", () => ({ syncDependency: async () => ({ ok: true }) }));
+vi.mock("../mission/group-sync", () => ({ startDependencySync: async () => ({ ok: true }) }));
 
 import { ProjectGroup } from "../mission/group-model";
 import { stripMembers } from "../mission/group-strip-model";
