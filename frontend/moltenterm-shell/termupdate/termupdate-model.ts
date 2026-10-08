@@ -33,6 +33,7 @@ export type TermUpdateStatus =
     | "agentbusy"
     | "agentstuck"
     | "updated"
+    | "uptodate"
     | "unavailable"
     | "failed";
 
@@ -102,13 +103,14 @@ export function updateAllSummary(results: { blockid: string; outcome: TermUpdate
     kind: "success" | "warning";
 } {
     const updated = results.filter((r) => r.outcome?.status === "updated").length;
-    const left = results.filter((r) => r.outcome?.status !== "updated");
+    const left = results.filter((r) => r.outcome?.status !== "updated" && r.outcome?.status !== "uptodate");
     const title =
         updated === 1 ? "1 terminal updated" : updated > 1 ? `${updated} terminals updated` : "No terminal updated";
     if (left.length === 0) {
         return { title, message: "", kind: "success" };
     }
-    const reasons = left.map((r) => r.outcome?.message || "it could not be updated");
+    // Terminals left for the same reason (several running Claude Code) make one sentence.
+    const reasons = Array.from(new Set(left.map((r) => r.outcome?.message || "it could not be updated")));
     const lead = left.length === 1 ? "1 terminal was left as it is" : `${left.length} terminals were left as they are`;
     return { title, message: `${lead}: ${reasons.join(" ")}`, kind: "warning" };
 }

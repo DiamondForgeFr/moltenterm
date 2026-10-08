@@ -53,6 +53,7 @@ func TestAssess(t *testing.T) {
 		{"older, refreshable, agent", makeJob("1", 1, 900), false, agent, 2, ReasonOlderGeneration},
 		{"refreshed after the agent started", makeJob("1", 2, 9000), false, agent, 2, ReasonAgentBeforeRefresh},
 		{"refreshed before the agent started", makeJob("1", 2, 3000), false, agent, 2, ""},
+		{"agent started by the command that refreshed", makeJob("1", 2, 5500), false, agent, 2, ""},
 		{"refreshed, no agent", makeJob("1", 2, 9000), false, none, 2, ""},
 	} {
 		got, ok := Assess(tc.job, tc.isCommand, tc.run, tc.run.Agent != "", tc.current)
@@ -207,7 +208,7 @@ func agentTerm() *fakeTerm {
 	return &fakeTerm{
 		procs:  []proctree.Proc{shellAt(false), {Pid: 200, Ppid: 100, Pgid: 200, Tpgid: 200, Name: "claude", StartMs: 4000}},
 		run:    molten.AgentRunInfo{BlockId: "b1", Agent: "claude", Running: true, State: molten.AgentStateIdle},
-		exitOn: "/exit\r",
+		exitOn: "\x1b\x15/exit\r",
 	}
 }
 
@@ -223,7 +224,7 @@ func TestUpdateRestartsAgentOnItsSession(t *testing.T) {
 	if out.Status != StatusUpdated || out.Command != want || out.Guessed {
 		t.Fatalf("run: %+v", out)
 	}
-	if strings.Join(f.input, "|") != "/exit|\r|"+want+"\r" {
+	if strings.Join(f.input, "|") != "\x1b|\x15|/exit|\r|"+want+"\r" {
 		t.Errorf("typed %q", f.input)
 	}
 	if len(f.replaced) != 1 || f.replaced[0] != "/work/agent" {
@@ -267,5 +268,28 @@ func TestResumeCommand(t *testing.T) {
 	}
 	if got, guessed := ResumeCommand(codex, "codex", companion.ResumeSession{}); got != "codex resume --last" || !guessed {
 		t.Errorf("codex unknown: %q %v", got, guessed)
+	}
+}
+
+// A window's list may be stale: a current shell is never replaced.
+func TestUpdateLeavesACurrentShell(t *testing.T) {
+	f := &fakeTerm{procs: []proctree.Proc{shellAt(true)}}
+	env := f.env()
+	env.LoadJob = func(ctx context.Context, blockId string) (*waveobj.Block, *waveobj.Job, error) {
+		return &waveobj.Block{OID: "b1", JobId: "job1", Meta: waveobj.MetaMapType{}}, makeJob("1", 0, 0), nil
+	}
+	out := MakeUpdater(env).Run(context.Background(), Request{BlockId: "b1"})
+	if out.Status != StatusUpToDate || len(f.replaced) != 0 {
+		t.Fatalf("got %+v, replaced %v", out, f.replaced)
+	}
+}
+
+// Nothing is typed when the agent is no longer the program in the foreground.
+func TestStopAgentChecksTheForeground(t *testing.T) {
+	f := agentTerm()
+	u := MakeUpdater(f.env())
+	gone := molten.AgentProcess{Agent: "claude", Pid: 200, StartMs: 99_000}
+	if got := u.StopAgent("b1", agentcontinuity.Find("claude"), gone, 100); got != StopChanged || len(f.input) != 0 {
+		t.Fatalf("got %q, typed %q", got, f.input)
 	}
 }

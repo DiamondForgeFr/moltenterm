@@ -118,7 +118,7 @@ func StartLocalShellJob(ctx context.Context, logCtx context.Context, termSize wa
 	env[LocalJobProtocolVarName] = strconv.Itoa(LocalJobProtocol)
 	// An interactive shell gets MoltenTerm's managed environment from the integration scripts: its generation tells
 	// later versions whether it is outdated (FR-SHELL-041). A block's command gets none of it.
-	if cmdStr == "" {
+	if cmdStr == "" && moltenIntegratedShell(shellutil.GetShellTypeFromShellPath(shellPath)) {
 		env[shellutil.MoltenShellGenVarName] = strconv.Itoa(shellutil.MoltenShellGeneration)
 	}
 	if termSize.Rows <= 0 || termSize.Cols <= 0 {
@@ -141,6 +141,15 @@ func StartLocalShellJob(ctx context.Context, logCtx context.Context, termSize wa
 		return "", fmt.Errorf("failed to start local job: %w", err)
 	}
 	return jobId, nil
+}
+
+// moltenIntegratedShell: the shells MoltenTerm's integration scripts set up (an sh or a nu gets nothing from them).
+func moltenIntegratedShell(shellType string) bool {
+	switch shellType {
+	case shellutil.ShellType_zsh, shellutil.ShellType_bash, shellutil.ShellType_fish, shellutil.ShellType_pwsh:
+		return true
+	}
+	return false
 }
 
 // LocalJobCompatible tells whether this Moltenterm can reattach to a local job started by an earlier run.

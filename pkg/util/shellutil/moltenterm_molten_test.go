@@ -197,9 +197,15 @@ func TestMoltenRefreshHookKeepsStatus(t *testing.T) {
 		t.Fatal("no _moltenterm_refresh function in .bashrc")
 	}
 	fn := string(rc)[start : start+end+3]
-	out, err := exec.Command(bash, "--norc", "-c", fn+"(exit 3); _moltenterm_refresh; echo $?").CombinedOutput()
-	if err != nil || strings.TrimSpace(string(out)) != "3" {
-		t.Errorf("got %q (%v), want the status 3 kept", out, err)
+	pre := strings.Index(string(rc), "_moltenterm_refresh_preexec() {")
+	preEnd := strings.Index(string(rc)[pre:], "\n}\n")
+	if pre < 0 || preEnd < 0 {
+		t.Fatal("no _moltenterm_refresh_preexec function in .bashrc")
+	}
+	fn += "\n" + string(rc)[pre:pre+preEnd+3]
+	out, err := exec.Command(bash, "--norc", "-c", fn+"(exit 3); _moltenterm_refresh; echo $?; (exit 3); _moltenterm_refresh_preexec; echo $?").CombinedOutput()
+	if err != nil || strings.Fields(string(out))[0] != "3" || strings.Fields(string(out))[1] != "0" {
+		t.Errorf("got %q (%v), want the status 3 kept at the prompt and 0 before a command (extdebug skips it otherwise)", out, err)
 	}
 }
 

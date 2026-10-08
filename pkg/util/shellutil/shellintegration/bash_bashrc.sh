@@ -138,8 +138,14 @@ preexec_functions+=(_waveterm_si_preexec)
 # every MoltenTerm start rewrites, so a shell left open across an update catches up (DS-SHELL-074)
 _moltenterm_refresh() {
     local _moltenterm_status=$?
+    local _moltenterm_rdir _moltenterm_rmiss _moltenterm_rrest
     [ -r {{.MOLTENREFRESH}} ] && source {{.MOLTENREFRESH}}
     return $_moltenterm_status
 }
 precmd_functions+=(_moltenterm_refresh)
-preexec_functions+=(_moltenterm_refresh)
+# a preexec hook's status is never the command's: bash-preexec skips the command when it is not 0 (extdebug)
+_moltenterm_refresh_preexec() {
+    _moltenterm_refresh
+    return 0
+}
+preexec_functions+=(_moltenterm_refresh_preexec)

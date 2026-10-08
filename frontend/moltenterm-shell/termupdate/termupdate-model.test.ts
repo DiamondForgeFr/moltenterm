@@ -53,6 +53,12 @@ describe("outdated terminals", () => {
         ]);
         expect(mixed.kind).toBe("warning");
         expect(mixed.message).toBe("1 terminal was left as it is: Finish or stop sleep first.");
+        const agents = updateAllSummary([
+            { blockid: "b1", outcome: { status: "needconfirm", message: "Claude Code runs in one of them." } },
+            { blockid: "b2", outcome: { status: "needconfirm", message: "Claude Code runs in one of them." } },
+            { blockid: "b3", outcome: { status: "uptodate", message: "" } },
+        ]);
+        expect(agents.message).toBe("2 terminals were left as they are: Claude Code runs in one of them.");
     });
 
     it("offers the palette entry only when some terminal is outdated", () => {

@@ -28,11 +28,12 @@ export function TermUpdateChip({ blockId }: { blockId: string }) {
     }
     const store = TermUpdates.getInstance();
     const finish = (outcome: TermUpdateOutcome) => {
-        if (outcome.status === "updated" && !outcome.guessed) {
+        if ((outcome.status === "updated" && !outcome.guessed) || outcome.status === "uptodate") {
             setDialog(null);
             return;
         }
-        setDialog({ kind: "result", outcome });
+        // An agent started between the check and the update: it still needs the user's yes.
+        setDialog({ kind: outcome.status === "needconfirm" ? "confirm" : "result", outcome });
     };
     const run = (confirmed: boolean) =>
         fireAndForget(async () => {
@@ -139,7 +140,10 @@ function TermUpdateDialog({
                     MoltenTerm types {name}'s exit command, waits for it to exit, starts a fresh shell in the same
                     folder and starts {name} again on the same conversation, with MoltenTerm's integration.
                 </p>
-                <p className="text-muted">Nothing is killed: if {name} does not exit, it keeps running.</p>
+                <p className="text-muted">
+                    Before that, Escape answers No to a question {name} may be asking and an unsent draft in its input
+                    is cleared. Nothing is killed: if {name} does not exit, it keeps running.
+                </p>
             </DialogFrame>
         );
     }

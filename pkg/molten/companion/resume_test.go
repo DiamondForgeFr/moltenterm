@@ -76,4 +76,13 @@ func TestFindResumeSession(t *testing.T) {
 	if got := m.FindResumeSession("b2", "codex", 0); got.Sure {
 		t.Errorf("another agent's report counted: %+v", got)
 	}
+
+	// A pick made for an earlier run of the pane is not this run's session.
+	m.lock.Lock()
+	delete(m.reports, "b2")
+	m.picks["b2"] = sessionPick{agent: "claude", started: start.UnixMilli() - 60_000, path: session}
+	m.lock.Unlock()
+	if got := m.FindResumeSession("b2", "claude", 0); got.Sure {
+		t.Errorf("a stale pick counted: %+v", got)
+	}
 }
