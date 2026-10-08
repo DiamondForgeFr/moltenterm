@@ -69,6 +69,13 @@ const RailBudGlyphs: Record<RailBudKind, string> = {
     link: "fa-link",
 };
 
+// Where a bud's tooltip goes: past the whole chain, so it never covers the next bud.
+export function budTooltipAnchor(opener: HTMLElement): { top: number; left: number } {
+    const rect = opener.getBoundingClientRect();
+    const chain = opener.closest(".molten-rail-bud")?.getBoundingClientRect();
+    return { top: rect.top + rect.height / 2, left: Math.max(rect.right, chain?.right ?? 0) + 6 };
+}
+
 export function railLinkLabel(name: string): string {
     return `Group ${name} with other workspaces`;
 }

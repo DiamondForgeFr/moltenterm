@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -238,7 +239,13 @@ func (r Rail) Normalize() (Rail, []Displaced) {
 			continue
 		}
 		ids[group.Id] = true
-		name := rtn.GroupName(group)
+		var shown []string
+		for _, id := range group.Members {
+			if _, ok := present[id]; ok {
+				shown = append(shown, id)
+			}
+		}
+		name := rtn.GroupName(LocalGroup{Id: group.Id, Name: group.Name, Members: shown})
 		members := make([]string, 0, len(group.Members))
 		for _, id := range group.Members {
 			if _, ok := present[id]; !ok || seen[id] {
@@ -393,8 +400,15 @@ func (r Rail) Move(req MoveRequest) (Rail, error) {
 	return rtn, nil
 }
 
-// CleanGroupName trims a group name and checks its length; empty means the default name.
+// CleanGroupName trims a group name and checks its length; empty means the default name. Control and bidirectional
+// formatting characters are dropped: the name is printed in terminals and shown in the rail.
 func CleanGroupName(name string) (string, error) {
+	name = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r) {
+			return -1
+		}
+		return r
+	}, name)
 	name = strings.TrimSpace(name)
 	if utf8.RuneCountInString(name) > MaxGroupNameRune {
 		return "", fmt.Errorf("a group name is at most %d characters", MaxGroupNameRune)

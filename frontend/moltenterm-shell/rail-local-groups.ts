@@ -107,7 +107,9 @@ export function localGroupOf(groups: LocalRailGroup[], workspaceId: string): Loc
 
 // The rename field's value as the server stores it: trimmed, empty for the default name; null when it is too long.
 export function cleanGroupName(name: string): string {
-    const trimmed = (name ?? "").trim();
+    // Control and bidirectional formatting characters are dropped, as the server does.
+    // eslint-disable-next-line no-control-regex
+    const trimmed = (name ?? "").replace(/[\u0000-\u001f\u007f-\u009f؜‎‏‪-‮⁦-⁩]/g, "").trim();
     if ([...trimmed].length > MaxGroupNameLength) {
         return null;
     }

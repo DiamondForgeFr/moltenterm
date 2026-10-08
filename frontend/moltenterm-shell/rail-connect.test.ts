@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
     connectPressPlace,
     connectTargetSelector,
+    escapeBelongsElsewhere,
     installConnectExits,
     RailConnectHint,
     RailConnectMessageMs,
@@ -126,6 +127,21 @@ describe("connect mode (FR-MC-032-AC2, AC4)", () => {
         });
         vi.advanceTimersByTime(RailConnectMessageMs);
         expect(globalStore.get(model.messageAtom)).toBeNull();
+    });
+});
+
+describe("Escape belongs to a field or a dialog first", () => {
+    it("leaves an edited field's or an open dialog's Escape alone, never a terminal's", () => {
+        const target = (inField: boolean, inXterm: boolean) =>
+            ({
+                closest: (selector: string) => ((selector === ".xterm" ? inXterm : inField) ? ({} as Element) : null),
+            }) as unknown as EventTarget;
+        expect(escapeBelongsElsewhere({ target: target(true, false) })).toBe(true);
+        expect(escapeBelongsElsewhere({ target: target(true, true) })).toBe(false);
+        vi.stubGlobal("document", { querySelector: () => null });
+        expect(escapeBelongsElsewhere({ target: target(false, false) })).toBe(false);
+        vi.stubGlobal("document", { querySelector: () => ({}) });
+        expect(escapeBelongsElsewhere({ target: target(false, false) })).toBe(true);
     });
 });
 

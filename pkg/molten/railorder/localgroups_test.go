@@ -7,9 +7,42 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
+
+func TestCleanGroupNameDropsControls(t *testing.T) {
+	got, err := CleanGroupName(" Cli\x1b[31ments‮ ")
+	if err != nil || got != "Cli[31ments" {
+		t.Fatalf("CleanGroupName = %q, %v", got, err)
+	}
+}
+
+func TestProductsSeenRunsOnePassAtATime(t *testing.T) {
+	defer SetReconcile(nil)
+	release := make(chan struct{})
+	seen := make(chan ProductMap, 8)
+	SetReconcile(func(p ProductMap) {
+		seen <- p
+		<-release
+	})
+	ProductsSeen(ProductMap{Names: map[string]string{"n": "1"}})
+	first := <-seen
+	ProductsSeen(ProductMap{Names: map[string]string{"n": "2"}})
+	ProductsSeen(ProductMap{Names: map[string]string{"n": "3"}})
+	release <- struct{}{}
+	second := <-seen
+	release <- struct{}{}
+	if first.Names["n"] != "1" || second.Names["n"] != "3" {
+		t.Fatalf("passes = %v, %v; want the first, then only the newest", first.Names, second.Names)
+	}
+	select {
+	case extra := <-seen:
+		t.Fatalf("an extra pass ran: %v", extra.Names)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
 
 // Rail: a, b, c, d (plain), app, site (the Notulia product).
 func testRail(groups ...LocalGroup) Rail {
