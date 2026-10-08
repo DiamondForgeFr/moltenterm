@@ -20,6 +20,9 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentRailDot } from "./agent-state-ui";
+import { coffeeCondition, coffeeSupported, coffeeTooltip, railCoffeeLabel } from "./keepawake-model";
+import { KeepAwakeModel } from "./keepawake-store";
+import { RailCoffeeDrop, usePlatform } from "./keepawake-ui";
 import { unreadByWorkspace } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 import { ProjectLinkDetector } from "./project-link-modal";
@@ -174,6 +177,8 @@ function RailButton({
     const ref = useRef<HTMLButtonElement>(null);
     // Read live: the icon can change from the editor or from molten while the rail's list is not refreshed.
     const [workspace] = useWaveObjectValue<Workspace>(makeORef("workspace", entry.id));
+    const coffee = useAtomValue(KeepAwakeModel.getInstance().coffeeAtom(entry.id));
+    const platform = usePlatform();
     const projectDir = readWorkspaceProject(workspace).dir;
     const iconSource =
         workspace != null
@@ -182,8 +187,7 @@ function RailButton({
     const anchorOf = (): Anchor => {
         const rect = ref.current.getBoundingClientRect();
         // Past the buds, which bud out right of a saved item (DS-SHELL-061, DS-MC-029).
-        const buds = grouping != null ? 1 : 0;
-        const offset = entry.saved ? RailBudTooltipOffsetPx + buds * RailBudPitchPx : 8;
+        const offset = entry.saved ? RailBudTooltipOffsetPx + Math.max(0, buds.length - 1) * RailBudPitchPx : 8;
         return { top: rect.top + rect.height / 2, left: rect.right + offset };
     };
     const edit = (opener: HTMLElement) => {
@@ -292,8 +296,29 @@ function RailButton({
             },
         });
     }
+    // The coffee (FR-SHELL-023-AC8, DS-SHELL-062): the chain's last bud, on saved items, where MoltenTerm can keep the
+    // computer awake.
+    if (entry.saved && coffeeSupported(platform)) {
+        buds.push({
+            kind: "coffee",
+            label: railCoffeeLabel(entry.name, coffee != null, platform),
+            tooltip: coffee != null ? coffeeTooltip(coffee, entry.name, platform, Date.now()) : undefined,
+            pressed: coffee != null,
+            onActivate: () => {
+                onHover(null, null);
+                fireAndForget(async () => {
+                    try {
+                        await KeepAwakeModel.getInstance().setCoffee(entry.id, coffee == null);
+                    } catch (err) {
+                        console.log("keep-awake coffee:", err);
+                    }
+                });
+            },
+        });
+    }
     const connect = grouping?.connect;
-    const stateText = member?.stateText ? ` · ${member.stateText}` : "";
+    const coffeeText = coffee != null ? ` · kept awake ${coffeeCondition(coffee, Date.now())}` : "";
+    const stateText = (member?.stateText ? ` · ${member.stateText}` : "") + coffeeText;
     return (
         <div
             data-rail-unit={unitId}
@@ -349,6 +374,7 @@ function RailButton({
                 ) : null}
                 {member != null ? <WorstDot worst={member.worst} /> : null}
                 <AgentRailDot workspaceId={entry.id} />
+                {entry.saved ? <RailCoffeeDrop workspaceId={entry.id} /> : null}
                 {connect?.dropping ? <RailDropToGroup /> : null}
             </button>
             <RailBudChain

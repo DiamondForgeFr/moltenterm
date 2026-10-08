@@ -245,6 +245,15 @@
           "type": "integer",
           "description": "How long a tab's close button is held before it closes the tab, in milliseconds (200 to 2000)"
         },
+        "power:sleeppolicy": {
+          "type": "string",
+          "enum": [
+            "allow",
+            "untilworkends",
+            "letsleep"
+          ],
+          "description": "Whether terminals may keep the computer awake (caffeinate, systemd-inhibit). allow: their blocks go through. untilworkends: MoltenTerm keeps the computer awake itself while work runs (an agent working, its subagents included; a foreground command that is not an idle shell; a Mission Control run) and releases it 2 minutes after the last work stops; an agent waiting for input is not work. letsleep: their blocks are stopped and the computer sleeps as planned. Unset: the first block asks. The display may always sleep."
+        },
         "widget:*": {
           "type": "boolean"
         },

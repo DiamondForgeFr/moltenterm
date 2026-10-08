@@ -102,6 +102,8 @@ const (
 	ConfigKey_TabHoldToClose                 = "tab:holdtoclose"
 	ConfigKey_TabHoldToCloseMs               = "tab:holdtoclosems"
 
+	ConfigKey_PowerSleepPolicy               = "power:sleeppolicy"
+
 	ConfigKey_WidgetClear                    = "widget:*"
 	ConfigKey_WidgetShowHelp                 = "widget:showhelp"
 

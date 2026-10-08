@@ -11,7 +11,8 @@ export const MaxNotifications = 500;
 // Closed notifications (resolved, archived, or read without a key) are kept this long, and this many per key.
 export const ClosedRetentionMs = 30 * 24 * 60 * 60 * 1000;
 export const MaxClosedPerKey = 20;
-export const MaxActions = 2;
+// Three since #276: the ask-once notification of the sleep policy offers its three modes.
+export const MaxActions = 3;
 
 export type MoltentermNotificationSource = "agent" | "mod" | "moltenterm" | "build" | "ci" | "release" | "deps";
 export type MoltentermNotificationKind = "info" | "success" | "warning" | "error";

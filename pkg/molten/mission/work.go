@@ -4,10 +4,14 @@
 package mission
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 )
 
 // Running work across every project (FR-MC-019), for the notification center: the builds, release and adapter steps
@@ -155,4 +159,32 @@ func WithWorkspaces(items []WorkItem, lookup func(dir string) string) []WorkItem
 		items[i].WorkspaceId = id
 	}
 	return items
+}
+
+var currentWorkLock sync.Mutex
+var currentWorkRuns *Runs
+var currentWorkCi *Ci
+
+func useCurrentWork(runs *Runs, ci *Ci) {
+	currentWorkLock.Lock()
+	defer currentWorkLock.Unlock()
+	currentWorkRuns, currentWorkCi = runs, ci
+}
+
+func currentWorkSources() (*Runs, *Ci) {
+	currentWorkLock.Lock()
+	defer currentWorkLock.Unlock()
+	return currentWorkRuns, currentWorkCi
+}
+
+// CurrentWork lists what runs now in every project, each with the workspace linked to its project: a Mission Control
+// run is work for the keep-awake (FR-SHELL-023, pkg/molten/keepawake). Empty until Mission Control started.
+func CurrentWork(ctx context.Context) []WorkItem {
+	runs, ci := currentWorkSources()
+	if runs == nil && ci == nil {
+		return nil
+	}
+	return WithWorkspaces(RunningWork(runs, ci), func(dir string) string {
+		return attention.ProjectWorkspace(ctx, dir)
+	})
 }

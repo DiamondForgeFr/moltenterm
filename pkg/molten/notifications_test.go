@@ -130,7 +130,7 @@ func TestNotificationRetention(t *testing.T) {
 }
 
 func TestNotificationActionsCapped(t *testing.T) {
-	input := NotificationInput{Source: "build", Title: "t", Actions: []NotificationAction{{Id: "a", Label: "A", Kind: "open"}, {Id: "b", Label: "B", Kind: "open"}, {Id: "c", Label: "C", Kind: "open"}}}
+	input := NotificationInput{Source: "build", Title: "t", Actions: []NotificationAction{{Id: "a", Label: "A", Kind: "open"}, {Id: "b", Label: "B", Kind: "open"}, {Id: "c", Label: "C", Kind: "open"}, {Id: "d", Label: "D", Kind: "open"}}}
 	value := NotificationPublishUpdate(nil, input, time.UnixMilli(1), "x")["molten:notif:x"].(map[string]any)
 	if actions, _ := value["actions"].([]any); len(actions) != MaxNotificationActions {
 		t.Fatalf("actions: %+v", value["actions"])

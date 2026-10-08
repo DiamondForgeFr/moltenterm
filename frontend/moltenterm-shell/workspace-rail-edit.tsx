@@ -50,13 +50,16 @@ export function RailBudFilter() {
 // #368 (DS-MC-029): the pencil is the first bud of a chain, in this order: pencil, link (FR-MC-032), coffee (#276).
 // Each later bud is a 16 px badge with a 24 px target, 4 px past the previous one and joined to it by the same neck, so
 // the chain reads as one droplet growing out of the tile; a bud that does not apply is absent.
-export type RailBudKind = "edit" | "link";
+// #276 (DS-SHELL-062): the coffee keeps the computer awake while the workspace works; a toggle, filled in the awake
+// colour while on.
+export type RailBudKind = "edit" | "link" | "coffee";
 
 export type RailBudSpec = {
     kind: RailBudKind;
-    // The accessible name; the hover tooltip says the same.
+    // The accessible name; the hover tooltip says the same unless tooltip is set.
     label: string;
-    // A toggle's state (the link bud while its item is in connect mode): the bud stays out and filled.
+    tooltip?: string;
+    // A toggle's state (the link bud while its item is in connect mode, the coffee while on): the bud is filled.
     pressed?: boolean;
     onActivate: (button: HTMLElement) => void;
 };
@@ -67,7 +70,11 @@ export const RailBudPitchPx = 28;
 const RailBudGlyphs: Record<RailBudKind, string> = {
     edit: "fa-pencil",
     link: "fa-link",
+    coffee: "fa-mug-hot",
 };
+
+// The buds that are toggles: they say whether they are pressed.
+const RailToggleBuds: Set<RailBudKind> = new Set(["link", "coffee"]);
 
 // Where a bud's tooltip goes: past the whole chain, so it never covers the next bud.
 export function budTooltipAnchor(opener: HTMLElement): { top: number; left: number } {
@@ -117,11 +124,11 @@ export function RailBudChain({
                     key={bud.kind}
                     type="button"
                     aria-label={bud.label}
-                    aria-pressed={bud.kind === "link" ? !!bud.pressed : undefined}
+                    aria-pressed={RailToggleBuds.has(bud.kind) ? !!bud.pressed : undefined}
                     data-role={`rail-${bud.kind}`}
                     draggable={false}
                     onClick={(e) => bud.onActivate(e.currentTarget)}
-                    onMouseEnter={(e) => onHover(bud.label, e.currentTarget)}
+                    onMouseEnter={(e) => onHover(bud.tooltip ?? bud.label, e.currentTarget)}
                     onMouseLeave={onLeave}
                     className={cn(
                         "molten-rail-budbtn absolute top-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full",

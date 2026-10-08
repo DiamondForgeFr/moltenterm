@@ -63,6 +63,18 @@ var (
 // (checked by its tests).
 var AgentLauncherNames = []string{"claude", "codex"}
 
+// SleepShimNames are the inhibitor shims (FR-SHELL-023, DS-SHELL-024), installed next to the agent launchers where
+// the tool exists: caffeinate on macOS, systemd-inhibit on Linux. wsh recognises them (wshcmd-molten-sleepshim.go).
+func SleepShimNames() []string {
+	switch runtime.GOOS {
+	case "darwin":
+		return []string{"caffeinate"}
+	case "linux":
+		return []string{"systemd-inhibit"}
+	}
+	return nil
+}
+
 // moltenRefreshParams adds the refresh files' paths to the integration scripts' template values.
 func moltenRefreshParams(waveHome string, params map[string]string) {
 	params["MOLTENREFRESH"] = HardQuote(filepath.Join(waveHome, MoltenRefreshDir, moltenRefreshShName))
@@ -116,8 +128,8 @@ func writeFileAtomic(path string, data []byte) error {
 }
 
 // InstallMoltenCommand makes `molten` and `molten-open` available wherever wsh is: a relative symlink to wsh, so that
-// they follow every wsh update, or a copy on Windows, where symlinks need extra rights. The agent launchers go in
-// their own folder (agents/claude -> ../wsh), which only local shells put on PATH.
+// they follow every wsh update, or a copy on Windows, where symlinks need extra rights. The agent launchers and the
+// inhibitor shims go in their own folder (agents/claude -> ../wsh), which only local shells put on PATH.
 func InstallMoltenCommand(binDir string, wshPath string) error {
 	for _, name := range []string{MoltenCommandName, MoltenOpenCommandName} {
 		if err := installWshAlias(binDir, wshPath, name, filepath.Base(wshPath)); err != nil {
@@ -128,7 +140,7 @@ func InstallMoltenCommand(binDir string, wshPath string) error {
 	if err := os.MkdirAll(agentDir, 0755); err != nil {
 		return fmt.Errorf("creating %s: %w", agentDir, err)
 	}
-	for _, name := range AgentLauncherNames {
+	for _, name := range append(append([]string{}, AgentLauncherNames...), SleepShimNames()...) {
 		if err := installWshAlias(agentDir, wshPath, name, filepath.Join("..", filepath.Base(wshPath))); err != nil {
 			return err
 		}

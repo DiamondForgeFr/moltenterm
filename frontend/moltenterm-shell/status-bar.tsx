@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The status bar: the focused pane's project, branch, local CI verdict and pull request on the left (FR-SHELL-010);
-// the build of Moltenterm that runs as one badge on the right, next to the gold update button (FR-SHELL-008).
+// the build of Moltenterm that runs as one badge on the right, next to the gold update button (FR-SHELL-008), and the
+// sleep item: the sleep policy, the coffees and the blocks terminals asked for (FR-SHELL-023, #276).
 
 import { atoms, getApi, openLink } from "@/app/store/global";
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
@@ -11,6 +12,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { readBuildInfo, readRuntimeChannel } from "./build/current-build";
+import { KeepAwakeStatusItem } from "./keepawake-ui";
 import { MoltentermCicdView } from "./mission/cicd-view";
 import { openMoltentermView } from "./open-view";
 import { usePaneStatus, useWarmLinkedProject } from "./pane-status";
@@ -143,6 +145,7 @@ export function StatusBar() {
             {blockId ? <FocusedBlockMeta key={blockId} blockId={blockId} onMeta={setMeta} /> : null}
             {pane ? <PaneSection pane={pane} ws={ws} tree={fromPane ? treeMarker(state, link) : null} /> : null}
             <span className="ml-auto flex shrink-0 items-center gap-3">
+                <KeepAwakeStatusItem />
                 <GoldUpdateButton />
                 <span
                     title={view.tooltip}

@@ -56,6 +56,7 @@ import {
 } from "./emain-window";
 import { ElectronWshClient, initElectronWshClient } from "./emain-wsh";
 import { getLaunchSettings } from "./launchsettings";
+import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-PATCH (#276)
 import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
 import { configureAutoUpdater, updater } from "./updater";
 
@@ -407,6 +408,7 @@ async function appMain() {
         initElectronWshClient();
         initElectronWshrpc(ElectronWshClient, { authKey: AuthKey });
         initMenuEventSubscriptions();
+        initMoltentermKeepAwake(); // MOLTENTERM-PATCH (#276): the system sleep blocker wavesrv asks for (sleep policy, coffee)
     } catch (e) {
         console.log("error initializing wshrpc", e);
     }

@@ -16,6 +16,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { mostUrgentAgentState } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
 import { AgentStateDot } from "./agent-state-ui";
+import { ProductCoffeeDrop } from "./keepawake-ui";
 import { ProjectGroup } from "./mission/group-model";
 import { productHoverText, productIconEntry, RailProductUnit, UnitMoves, worstLabel } from "./rail-groups";
 
@@ -301,6 +302,7 @@ export function RailProduct({
                         />
                     ) : null}
                     {collapsed ? <ProductAgentDot workspaceIds={workspaceIds} /> : null}
+                    {collapsed ? <ProductCoffeeDrop workspaceIds={workspaceIds} /> : null}
                     {connect?.dropping ? <RailDropToGroup /> : null}
                 </button>
                 {local != null ? (

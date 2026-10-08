@@ -441,6 +441,8 @@ func Start() {
 	railorder.SetGrouping(ProductWorkspaces, func() { go groups.Reordered() }, func(displaced []railorder.Displaced) {
 		go notifyRailGroups(displaced)
 	})
+	// What runs now is also work for the keep-awake (FR-SHELL-023).
+	useCurrentWork(runs, ci)
 	if err := registerRoute(collector, runs, ci, panes, MakeWorktrees(ExecRunner, nil), groups); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
