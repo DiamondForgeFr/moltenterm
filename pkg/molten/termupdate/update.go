@@ -15,6 +15,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
+	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
@@ -24,8 +25,11 @@ import (
 const (
 	// How long an agent has to exit after its exit command (FR-CONT-010 uses the same budget).
 	AgentExitTimeout = 10 * time.Second
-	// Claude Code takes text followed at once by Enter for a paste: Enter goes on its own, this much later.
+	// Claude Code takes text followed at once by Enter for a paste: each key or text goes on its own, this much later.
 	exitEnterDelay = 300 * time.Millisecond
+	// Escape cancels what the agent asks (Claude Code and Codex); Ctrl+U clears the input line.
+	keyEscape    = "\x1b"
+	keyClearLine = "\x15"
 	// How long the companion may look for the agent's session.
 	resumeSessionWait = 2 * time.Second
 	// How long the new shell has to show its first prompt before the agent's command is typed anyway.
@@ -61,8 +65,10 @@ type Env struct {
 	Replace func(ctx context.Context, blockId string, cwd string, notice string) error
 	// WatchPrompt returns a channel told of the block's next prompt marks, and its release.
 	WatchPrompt func(blockId string) (<-chan struct{}, func())
-	Sleep       func(d time.Duration)
-	Now         func() time.Time
+	// Current is the app's shell generation (shellutil.MoltenShellGeneration when 0).
+	Current int
+	Sleep   func(d time.Duration)
+	Now     func() time.Time
 }
 
 // Updater runs Update terminal, one at a time per terminal.
@@ -78,6 +84,9 @@ func MakeUpdater(env Env) *Updater {
 	}
 	if env.Now == nil {
 		env.Now = time.Now
+	}
+	if env.Current == 0 {
+		env.Current = shellutil.MoltenShellGeneration
 	}
 	return &Updater{env: env, running: map[string]bool{}}
 }
@@ -227,6 +236,11 @@ func (u *Updater) Run(ctx context.Context, req Request) Outcome {
 	if out != nil {
 		return *out
 	}
+	// The list the window acted on may be older than this terminal: a current shell is never replaced.
+	run, hasRun := u.env.AgentRun(req.BlockId)
+	if _, outdated := Assess(st.job, false, run, hasRun, u.env.Current); !outdated {
+		return Outcome{Status: StatusUpToDate, Message: "This terminal is already up to date."}
+	}
 	if st.adapter != nil {
 		return u.restartAgent(ctx, req, st)
 	}
@@ -289,7 +303,12 @@ func (u *Updater) restartAgent(ctx context.Context, req Request, st shellState) 
 	cwd = logicalCwd(cwd, st.block)
 	session := u.env.FindSession(req.BlockId, agent, resumeSessionWait)
 	command, guessed := ResumeCommand(st.adapter, agent, session)
-	if !u.StopAgent(req.BlockId, st.adapter, st.agent, st.shell.Pid) {
+	switch u.StopAgent(req.BlockId, st.adapter, st.agent, st.shell.Pid) {
+	case StopChanged:
+		base.Status = StatusBusy
+		base.Message = fmt.Sprintf("%s is no longer the program in the foreground: nothing was typed. Update the terminal again.", name)
+		return base
+	case StopStuck:
 		base.Status = StatusAgentStuck
 		base.Message = fmt.Sprintf("%s did not exit within %d s and is still running. Exit it yourself, then update the terminal.", name, int(AgentExitTimeout/time.Second))
 		return base
@@ -335,7 +354,16 @@ func (u *Updater) restartAgent(ctx context.Context, req Request, st shellState) 
 		// before the line editor starts, then drawn again.
 		u.env.Sleep(lineEditorSettle)
 	case <-time.After(firstPromptTimeout):
+		// Without a prompt, something else may read the terminal (a question of the user's startup files): type nothing.
+		base.Status = StatusFailed
+		base.Command = command
+		base.Message = fmt.Sprintf("The terminal is updated, but its new shell did not show a prompt, so %s was not started. Start it with: %s", name, command)
+		return base
 	case <-ctx.Done():
+		base.Status = StatusFailed
+		base.Command = command
+		base.Message = fmt.Sprintf("The terminal is updated, but %s was not started. Start it with: %s", name, command)
+		return base
 	}
 	if err := u.env.SendInput(req.BlockId, []byte(command+"\r")); err != nil {
 		base.Status = StatusFailed
@@ -354,16 +382,28 @@ func (u *Updater) restartAgent(ctx context.Context, req Request, st shellState) 
 	return base
 }
 
-// StopAgent asks an idle agent to exit with its own exit command and waits for its process to end; it never signals
-// it. It tells whether the agent exited (and the shell took its terminal back) in time. Shared with FR-CONT-010.
-func (u *Updater) StopAgent(blockId string, adapter agentcontinuity.AgentAdapter, agent molten.AgentProcess, shellPid int32) bool {
-	exit := adapter.Exit()
-	if err := u.env.SendInput(blockId, []byte(exit.Command)); err != nil {
-		return false
+// What StopAgent did.
+const (
+	StopExited  = "exited"
+	StopChanged = "changed"
+	StopStuck   = "stuck"
+)
+
+// StopAgent asks an idle agent to exit with its own commands and waits for its process to end; it never signals it.
+// First it checks the agent is still the program in the foreground (nothing is typed otherwise), then it sends
+// Escape, which answers No to a question the agent may be asking (an agent without hooks looks idle while it asks),
+// clears an unsent draft, and types the exit command. Shared with FR-CONT-010.
+func (u *Updater) StopAgent(blockId string, adapter agentcontinuity.AgentAdapter, agent molten.AgentProcess, shellPid int32) string {
+	table, err := u.env.ReadTable()
+	if err != nil || !table.Same(agent.Pid, agent.StartMs) || !inForeground(table, shellPid, agent.Pid) {
+		return StopChanged
 	}
-	u.env.Sleep(exitEnterDelay)
-	if err := u.env.SendInput(blockId, []byte("\r")); err != nil {
-		return false
+	exit := adapter.Exit()
+	for _, step := range []string{keyEscape, keyClearLine, exit.Command, "\r"} {
+		if err := u.env.SendInput(blockId, []byte(step)); err != nil {
+			return StopStuck
+		}
+		u.env.Sleep(exitEnterDelay)
 	}
 	deadline := u.env.Now().Add(AgentExitTimeout)
 	for {
@@ -372,20 +412,26 @@ func (u *Updater) StopAgent(blockId string, adapter agentcontinuity.AgentAdapter
 			break
 		}
 		if !u.env.Now().Before(deadline) {
-			return false
+			return StopStuck
 		}
 		u.env.Sleep(pollInterval)
 	}
 	back := u.env.Now().Add(shellBackTimeout)
 	for {
 		table, err := u.env.ReadTable()
-		if err == nil && !table.Running(shellPid) {
-			return true
-		}
-		if !u.env.Now().Before(back) {
+		if (err == nil && !table.Running(shellPid)) || !u.env.Now().Before(back) {
 			// The agent is gone; whatever holds the terminal now is checked again by the caller's next step.
-			return true
+			return StopExited
 		}
 		u.env.Sleep(pollInterval)
 	}
+}
+
+func inForeground(table *proctree.Table, shellPid int32, pid int32) bool {
+	for _, p := range table.Foreground(shellPid) {
+		if p.Pid == pid {
+			return true
+		}
+	}
+	return false
 }

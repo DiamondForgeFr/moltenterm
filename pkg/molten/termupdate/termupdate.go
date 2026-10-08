@@ -46,8 +46,13 @@ const (
 	StatusAgentBusy   = "agentbusy"
 	StatusAgentStuck  = "agentstuck"
 	StatusUpdated     = "updated"
+	StatusUpToDate    = "uptodate"
 	StatusUnavailable = "unavailable"
 	StatusFailed      = "failed"
+
+	// An agent that started this close to the shell's refresh (the command that started it also ran the refresh hook)
+	// got the refreshed environment.
+	refreshSlackMs = 2000
 )
 
 // OutdatedTerminal is one terminal whose shell environment is older than MoltenTerm's.
@@ -141,7 +146,7 @@ func Assess(job *waveobj.Job, isCommand bool, run molten.AgentRunInfo, hasRun bo
 	if gen >= current {
 		// The shell caught up through its refresh hook: an agent it started before that still runs with the old
 		// environment.
-		if agentRuns && start < current && (reportedAt <= 0 || run.Started < reportedAt) {
+		if agentRuns && start < current && (reportedAt <= 0 || run.Started < reportedAt-refreshSlackMs) {
 			rtn.Reason = ReasonAgentBeforeRefresh
 			return rtn, true
 		}

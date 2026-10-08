@@ -34,7 +34,7 @@ func (w *watcher) resumeLink() (agent string, path string, linkedBy string) {
 // FindResumeSession looks for the session of a block's agent: what the companion already knows, else what its
 // discovery finds within wait (the companion is opened for the time of the search, then closed).
 func (m *Manager) FindResumeSession(blockId string, agent string, wait time.Duration) ResumeSession {
-	if path := m.confidentPath(blockId); path != "" {
+	if path := m.confidentPath(blockId); path != "" && !m.stalePick(blockId, path) {
 		if sameAgentPath(agent, path) {
 			return ResumeSession{Path: path, LinkedBy: m.confidentKind(blockId), Sure: true}
 		}
@@ -62,6 +62,19 @@ func (m *Manager) FindResumeSession(blockId string, agent string, wait time.Dura
 		}
 		time.Sleep(resumePollInterval)
 	}
+}
+
+// stalePick: the path is a pick made for an earlier run of the pane (picks last until the block closes), which would
+// resume the wrong conversation.
+func (m *Manager) stalePick(blockId string, path string) bool {
+	m.lock.Lock()
+	p, ok := m.picks[blockId]
+	m.lock.Unlock()
+	if !ok || p.path != path || m.runOf == nil {
+		return false
+	}
+	run, hasRun := m.runOf(blockId)
+	return !hasRun || p.agent != run.Agent || p.started != run.Started
 }
 
 // confidentKind names how confidentPath linked the block.

@@ -23,6 +23,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
+	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
@@ -31,8 +32,10 @@ import (
 // states (attention/agentroute.go); the outdated terminals are published on an event whenever the list changes.
 
 const (
-	routeQueueSize  = 64
-	publishInterval = 3 * time.Second
+	routeQueueSize = 64
+	// The list follows the agent states and the generation reports at once; the pass also catches shells that
+	// started or ended.
+	publishInterval = 15 * time.Second
 	storeTimeout    = 5 * time.Second
 	// An update waits for an agent to exit and a new shell to start.
 	runTimeout       = time.Minute
@@ -104,6 +107,8 @@ func (p *promptWatchers) prompt(blockId string) {
 type genReport struct {
 	blockId string
 	gen     int
+	// at: when the mark was read, in output order with the agent states' command marks.
+	at time.Time
 }
 
 // service is the running part: the publisher of the outdated terminals, the generation recorder and the updater.
@@ -171,8 +176,13 @@ func (s *service) observe(blockId string, mark attention.ShellMark) {
 	case attention.ShellMarkPrompt:
 		s.prompts.prompt(blockId)
 	case attention.ShellMarkGeneration:
+		// Any program can print the mark: a generation this MoltenTerm does not have yet is not believed, or it would
+		// hide the terminal from every later update.
+		if mark.Gen > shellutil.MoltenShellGeneration {
+			return
+		}
 		select {
-		case s.reports <- genReport{blockId: blockId, gen: mark.Gen}:
+		case s.reports <- genReport{blockId: blockId, gen: mark.Gen, at: time.Now()}:
 		default:
 		}
 	}
@@ -180,7 +190,7 @@ func (s *service) observe(blockId string, mark attention.ShellMark) {
 
 // recordGeneration raises the job's reported generation; the same or a lower one (output replayed after a
 // reconnect) changes nothing, so the time it was reached stays the first one.
-func recordGeneration(ctx context.Context, r genReport, now time.Time) (bool, error) {
+func recordGeneration(ctx context.Context, r genReport) (bool, error) {
 	_, job, err := loadJob(ctx, r.blockId)
 	if err != nil || job == nil {
 		return false, err
@@ -189,7 +199,7 @@ func recordGeneration(ctx context.Context, r genReport, now time.Time) (bool, er
 	if r.gen <= reported {
 		return false, nil
 	}
-	meta := waveobj.MetaMapType{ShellGenMetaKey: r.gen, ShellGenAtMetaKey: now.UnixMilli()}
+	meta := waveobj.MetaMapType{ShellGenMetaKey: r.gen, ShellGenAtMetaKey: r.at.UnixMilli()}
 	return true, wstore.UpdateObjectMeta(ctx, waveobj.MakeORef(waveobj.OType_Job, job.OID), meta, false)
 }
 
@@ -199,7 +209,7 @@ func (s *service) recordLoop() {
 	}()
 	for r := range s.reports {
 		ctx, cancel := context.WithTimeout(context.Background(), storeTimeout)
-		changed, err := recordGeneration(ctx, r, time.Now())
+		changed, err := recordGeneration(ctx, r)
 		cancel()
 		if err != nil {
 			log.Printf("molten: recording the shell generation of block %s: %v\n", r.blockId, err)
@@ -225,7 +235,9 @@ func Outdated(ctx context.Context, current int, runOf func(string) (molten.Agent
 	}
 	rtn := []OutdatedTerminal{}
 	for _, job := range jobs {
-		if !IsLocalShellJob(job, false) {
+		run, hasRun := runOf(job.AttachedBlockId)
+		// Only a candidate's block is read: once every terminal is current, a pass reads the jobs alone.
+		if _, ok := Assess(job, false, run, hasRun, current); !ok {
 			continue
 		}
 		block, err := wstore.DBGet[*waveobj.Block](ctx, job.AttachedBlockId)
@@ -233,7 +245,6 @@ func Outdated(ctx context.Context, current int, runOf func(string) (molten.Agent
 			continue
 		}
 		isCommand := block.Meta.GetString(waveobj.MetaKey_Cmd, "") != ""
-		run, hasRun := runOf(block.OID)
 		if t, ok := Assess(job, isCommand, run, hasRun, current); ok {
 			rtn = append(rtn, t)
 		}
@@ -363,4 +374,10 @@ func Start() {
 	}
 	go s.recordLoop()
 	go s.publishLoop()
+	rpcClient := wshclient.GetBareRpcClient()
+	rpcClient.EventListener.On(molten.AgentStateEvent, func(*wps.WaveEvent) { s.trigger() })
+	rpcClient.EventListener.On(wps.Event_BlockJobStatus, func(*wps.WaveEvent) { s.trigger() })
+	for _, event := range []string{molten.AgentStateEvent, wps.Event_BlockJobStatus} {
+		wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{Event: event, AllScopes: true}, nil)
+	}
 }
