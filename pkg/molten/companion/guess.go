@@ -57,6 +57,13 @@ func activityMatch(r guessRun, c Candidate) bool {
 	return d <= activitySlack.Milliseconds()
 }
 
+func absMillis(d int64) int64 {
+	if d < 0 {
+		return -d
+	}
+	return d
+}
+
 // startedAfter: the session began once the agent ran (a new session of that agent, or one it cleared to).
 func startedAfter(r guessRun, c Candidate) bool {
 	return c.Started != 0 && c.Started >= r.started-startSlack.Milliseconds()
@@ -78,11 +85,19 @@ func explainedByOther(c Candidate, blockId string, runs []guessRun) bool {
 	return false
 }
 
-// better orders two sessions for one agent: the one its activity explains, then the most recently written.
+// better orders two sessions for one agent: the one its activity explains, then, for a working agent both fit, the
+// one started closest to when it started working (two busy agents write two sessions at once: the newest written is
+// a coin flip), then the most recently written.
 func better(r guessRun, a Candidate, b Candidate) bool {
 	am, bm := activityMatch(r, a), activityMatch(r, b)
 	if am != bm {
 		return am
+	}
+	if am && r.state == molten.AgentStateWorking {
+		da, db := absMillis(a.Started-r.since), absMillis(b.Started-r.since)
+		if da != db {
+			return da < db
+		}
 	}
 	if a.Modified != b.Modified {
 		return a.Modified > b.Modified
@@ -91,7 +106,8 @@ func better(r guessRun, a Candidate, b Candidate) bool {
 }
 
 // guessCandidate chooses the session of self among free (the folder's sessions no other pane holds). others are the
-// other panes running the same agent in the same folder without a link of their own.
+// other panes running the same agent in the same folder without a link of their own; witnesses are those that only
+// guessed theirs: they take no session here, but a session their activity explains is not self's.
 //
 // First, each agent that has worked, the most recently started first, is paired with the best of the sessions that
 // started after it and that no other agent's activity explains instead (a new session cannot be older than the agent
@@ -99,7 +115,7 @@ func better(r guessRun, a Candidate, b Candidate) bool {
 // resumed session started before the agent), past the resume grace, among the sessions written since self started
 // that no pairing took and no other agent's activity explains instead: the only one self's activity explains, else
 // the most recently written. Nothing for an agent that has not worked yet.
-func guessCandidate(free []Candidate, self guessRun, others []guessRun, now int64) (*Candidate, string) {
+func guessCandidate(free []Candidate, self guessRun, others []guessRun, witnesses []guessRun, now int64) (*Candidate, string) {
 	if len(free) == 0 || self.neverWorked() {
 		return nil, ""
 	}
@@ -110,6 +126,7 @@ func guessCandidate(free []Candidate, self guessRun, others []guessRun, now int6
 		}
 		return runs[i].blockId < runs[j].blockId
 	})
+	explainers := append(append([]guessRun{}, runs...), witnesses...)
 	paired := map[string]bool{}
 	for _, r := range runs {
 		if r.neverWorked() {
@@ -120,7 +137,7 @@ func guessCandidate(free []Candidate, self guessRun, others []guessRun, now int6
 			if paired[free[i].Path] || !startedAfter(r, free[i]) {
 				continue
 			}
-			if !activityMatch(r, free[i]) && explainedByOther(free[i], r.blockId, runs) {
+			if !activityMatch(r, free[i]) && explainedByOther(free[i], r.blockId, explainers) {
 				continue
 			}
 			if best < 0 || better(r, free[i], free[best]) {
@@ -149,7 +166,7 @@ func guessCandidate(free []Candidate, self guessRun, others []guessRun, now int6
 		if paired[c.Path] || c.Modified < self.started-startSlack.Milliseconds() {
 			continue
 		}
-		if !activityMatch(self, c) && explainedByOther(c, self.blockId, others) {
+		if !activityMatch(self, c) && explainedByOther(c, self.blockId, explainers) {
 			continue
 		}
 		rest = append(rest, c)

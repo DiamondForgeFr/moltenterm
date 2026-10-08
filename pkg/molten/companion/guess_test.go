@@ -24,8 +24,10 @@ func TestGuessCandidate(t *testing.T) {
 		free   []Candidate
 		self   guessRun
 		others []guessRun
-		want   string
-		reason string
+		// witnesses: panes that only guessed their session.
+		witnesses []guessRun
+		want      string
+		reason    string
 	}
 	cases := []tc{
 		{
@@ -127,9 +129,39 @@ func TestGuessCandidate(t *testing.T) {
 			others: []guessRun{{blockId: "b", started: now - 60*minute, state: working, since: now - 3*minute}},
 			want:   "r2", reason: GuessRecent,
 		},
+		{
+			name: "two busy panes: the later one takes the session started when it began working, not the last written",
+			free: []Candidate{
+				{Path: "sa", Started: now - 40*minute, Modified: now - 500},
+				{Path: "sb", Started: now - 30*minute, Modified: now - 1_000},
+			},
+			self:   guessRun{blockId: "b", started: now - 50*minute, state: working, since: now - 30*minute},
+			others: []guessRun{{blockId: "a", started: now - 60*minute, state: working, since: now - 40*minute}},
+			want:   "sb", reason: GuessActivity,
+		},
+		{
+			name: "and the earlier one its own",
+			free: []Candidate{
+				{Path: "sa", Started: now - 40*minute, Modified: now - 500},
+				{Path: "sb", Started: now - 30*minute, Modified: now - 1_000},
+			},
+			self:   guessRun{blockId: "a", started: now - 60*minute, state: working, since: now - 40*minute},
+			others: []guessRun{{blockId: "b", started: now - 50*minute, state: working, since: now - 30*minute}},
+			want:   "sa", reason: GuessActivity,
+		},
+		{
+			name: "a session a guessing pane's activity explains is not taken",
+			free: []Candidate{
+				{Path: "sb", Started: now - 30*minute, Modified: now - 1_000},
+				{Path: "sa", Started: now - 40*minute, Modified: now - 20*minute},
+			},
+			self:      guessRun{blockId: "a", started: now - 60*minute, state: idle, since: now - 20*minute},
+			witnesses: []guessRun{{blockId: "b", started: now - 50*minute, state: working, since: now - 5*minute}},
+			want:      "sa", reason: GuessActivity,
+		},
 	}
 	for _, c := range cases {
-		got, reason := guessCandidate(c.free, c.self, c.others, now)
+		got, reason := guessCandidate(c.free, c.self, c.others, c.witnesses, now)
 		gotPath := ""
 		if got != nil {
 			gotPath = got.Path
@@ -269,6 +301,50 @@ func TestGuessFollowsAClearBesideAnotherPane(t *testing.T) {
 	if filepath.Base(vb.Session.Path) != "b.jsonl" {
 		t.Errorf("b keeps its session: %s", vb.Session.Path)
 	}
+}
+
+// A pane paired with the other pane's session, while nothing told them apart, gives it back once the agents'
+// activity does; another pane's hook report takes a guessed session even while that pane's companion is closed.
+func TestWrongGuessIsGivenBack(t *testing.T) {
+	root := t.TempDir()
+	cwd := t.TempDir()
+	dir := filepath.Join(root, ClaudeSlug(cwd))
+	os.MkdirAll(dir, 0o700)
+	now := time.Now()
+	pa := filepath.Join(dir, "a.jsonl")
+	pb := filepath.Join(dir, "b.jsonl")
+	writeSessionAt(t, pa, cwd, "task of a", now.Add(-8*time.Minute), now.Add(-time.Minute))
+	writeSessionAt(t, pb, cwd, "task of b", now.Add(-7*time.Minute), now.Add(-3*time.Minute))
+	env := &fakeEnv{
+		runs: map[string]molten.AgentRunInfo{
+			"a": {BlockId: "a", Agent: "claude", Started: now.Add(-10 * time.Minute).UnixMilli(), Running: true},
+			"b": {BlockId: "b", Agent: "claude", Started: now.Add(-9 * time.Minute).UnixMilli(), Running: true},
+		},
+		cwds:  map[string]string{"a": cwd, "b": cwd},
+		views: map[string]CompanionView{},
+	}
+	m := makeTestManager(env, root)
+	defer m.Close("a", "v")
+	m.Open("a", "v")
+	// Without states, b (the later agent) is paired with the last written session, a's.
+	waitView(t, env, "a", func(v CompanionView) bool { return v.Session != nil && filepath.Base(v.Session.Path) == "b.jsonl" })
+
+	env.lock.Lock()
+	ra, rb := env.runs["a"], env.runs["b"]
+	ra.State, ra.StateSince = molten.AgentStateIdle, now.Add(-time.Minute+4*time.Second).UnixMilli()
+	rb.State, rb.StateSince = molten.AgentStateIdle, now.Add(-3*time.Minute+4*time.Second).UnixMilli()
+	env.runs["a"], env.runs["b"] = ra, rb
+	env.lock.Unlock()
+	time.Sleep(rediscoverInterval)
+	va := waitView(t, env, "a", func(v CompanionView) bool { return v.Session != nil && filepath.Base(v.Session.Path) == "a.jsonl" })
+	if va.Session.LinkedBy != LinkGuessed || va.Session.Guess != GuessActivity {
+		t.Errorf("given back: %+v", va.Session)
+	}
+
+	if err := m.ReportSession(molten.AgentSessionRequest{BlockId: "b", Agent: "claude", Path: pa}); err != nil {
+		t.Fatal(err)
+	}
+	waitView(t, env, "a", func(v CompanionView) bool { return v.Session == nil || filepath.Base(v.Session.Path) != "a.jsonl" })
 }
 
 func writeSessionAt(t *testing.T, path string, cwd string, prompt string, started time.Time, modified time.Time) {
