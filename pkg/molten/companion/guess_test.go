@@ -211,6 +211,66 @@ func TestTwoPanesGuessTheirOwnSessions(t *testing.T) {
 	}
 }
 
+// A guess follows a /clear even while another pane runs the same agent in the folder, and never takes the other
+// pane's session.
+func TestGuessFollowsAClearBesideAnotherPane(t *testing.T) {
+	root := t.TempDir()
+	cwd := t.TempDir()
+	dir := filepath.Join(root, ClaudeSlug(cwd))
+	os.MkdirAll(dir, 0o700)
+	now := time.Now()
+	startA := now.Add(-10 * time.Minute)
+	startB := now.Add(-5 * time.Minute)
+	writeSessionAt(t, filepath.Join(dir, "a.jsonl"), cwd, "task of a", startA.Add(time.Minute), now.Add(-3*time.Minute))
+	writeSessionAt(t, filepath.Join(dir, "b.jsonl"), cwd, "task of b", startB.Add(time.Minute), now.Add(-time.Minute))
+	env := &fakeEnv{
+		runs: map[string]molten.AgentRunInfo{
+			"a": {BlockId: "a", Agent: "claude", Started: startA.UnixMilli(), Running: true},
+			"b": {BlockId: "b", Agent: "claude", Started: startB.UnixMilli(), Running: true},
+		},
+		cwds:  map[string]string{"a": cwd, "b": cwd},
+		views: map[string]CompanionView{},
+	}
+	m := makeTestManager(env, root)
+	defer m.Close("a", "v")
+	defer m.Close("b", "v")
+	m.Open("a", "v")
+	m.Open("b", "v")
+	waitView(t, env, "a", func(v CompanionView) bool { return v.Session != nil && filepath.Base(v.Session.Path) == "a.jsonl" })
+	waitView(t, env, "b", func(v CompanionView) bool { return v.Session != nil && filepath.Base(v.Session.Path) == "b.jsonl" })
+
+	// A /clear in one of the panes: with nothing telling whose agent wrote it, neither moves.
+	pc := filepath.Join(dir, "c.jsonl")
+	writeSessionAt(t, pc, cwd, "task of a after clear", time.Now(), time.Now())
+	time.Sleep(rediscoverInterval + time.Second)
+	va := waitView(t, env, "a", func(v CompanionView) bool { return v.Session != nil })
+	vb := waitView(t, env, "b", func(v CompanionView) bool { return v.Session != nil })
+	if filepath.Base(va.Session.Path) != "a.jsonl" || filepath.Base(vb.Session.Path) != "b.jsonl" {
+		t.Fatalf("no activity, no move: a %s, b %s", va.Session.Path, vb.Session.Path)
+	}
+
+	// a's agent works and writes it, b's idles since its own turn: a follows, b keeps its session.
+	env.lock.Lock()
+	ra, rb := env.runs["a"], env.runs["b"]
+	ra.State, ra.StateSince = molten.AgentStateWorking, time.Now().Add(-time.Second).UnixMilli()
+	rb.State, rb.StateSince = molten.AgentStateIdle, now.Add(-time.Minute).UnixMilli()
+	env.runs["a"], env.runs["b"] = ra, rb
+	env.lock.Unlock()
+	appendFile(t, pc, `{"type":"assistant","sessionId":"s","timestamp":"`+time.Now().UTC().Format(time.RFC3339Nano)+`","message":{"role":"assistant","content":[{"type":"text","text":"done"}]}}`+"\n")
+	time.Sleep(rediscoverInterval)
+	va = waitView(t, env, "a", func(v CompanionView) bool {
+		return v.Session != nil && filepath.Base(v.Session.Path) == "c.jsonl" && v.Status == StatusLive
+	})
+	if va.Session.LinkedBy != LinkGuessed || va.Session.Guess != GuessActivity {
+		t.Errorf("a after /clear: %+v", va.Session)
+	}
+	time.Sleep(rediscoverInterval)
+	vb = waitView(t, env, "b", func(v CompanionView) bool { return v.Session != nil })
+	if filepath.Base(vb.Session.Path) != "b.jsonl" {
+		t.Errorf("b keeps its session: %s", vb.Session.Path)
+	}
+}
+
 func writeSessionAt(t *testing.T, path string, cwd string, prompt string, started time.Time, modified time.Time) {
 	t.Helper()
 	at := started.UTC().Format(time.RFC3339Nano)
