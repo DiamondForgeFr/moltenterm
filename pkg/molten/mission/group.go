@@ -91,9 +91,11 @@ type GroupsAnswer struct {
 }
 
 type Groups struct {
-	lock        sync.Mutex
-	refreshLock sync.Mutex
-	collector   *Collector
+	lock sync.Mutex
+	// One refresh pass at a time; the refreshes asked meanwhile make one more pass, not one each.
+	refreshing   bool
+	refreshAgain bool
+	collector    *Collector
 	ci          *Ci
 	runs        *Runs
 	links       func(ctx context.Context) ([]molten.GroupLink, error)
@@ -282,11 +284,40 @@ func (g *Groups) resolve(req GroupsRequest, fresh bool) (GroupsAnswer, error) {
 		}
 		answer.Groups = append(answer.Groups, info)
 	}
+	if fresh && req.Dir == "" {
+		members := map[string]bool{}
+		for _, group := range groups {
+			for _, member := range group.Members {
+				members[member.Dir] = true
+			}
+		}
+		g.pruneDeps(members)
+	}
 	return answer, nil
 }
 
+// withoutCheckTimes is the model less the time each dependency was read, which changes on every pass.
+func withoutCheckTimes(answer GroupsAnswer) GroupsAnswer {
+	copied := GroupsAnswer{Groups: make([]GroupInfo, len(answer.Groups))}
+	for i, group := range answer.Groups {
+		members := make([]GroupMemberInfo, len(group.Members))
+		for j, member := range group.Members {
+			deps := make([]DependencyState, len(member.State.Deps))
+			for k, dep := range member.State.Deps {
+				dep.CheckedAt = 0
+				deps[k] = dep
+			}
+			member.State.Deps = deps
+			members[j] = member
+		}
+		group.Members = members
+		copied.Groups[i] = group
+	}
+	return copied
+}
+
 func (g *Groups) changed(answer GroupsAnswer) bool {
-	data, err := json.Marshal(answer)
+	data, err := json.Marshal(withoutCheckTimes(answer))
 	if err != nil {
 		return false
 	}
@@ -305,12 +336,45 @@ func (g *Groups) Refreshed() {
 	if g == nil || g.publish == nil {
 		return
 	}
+	// Refreshes of several projects end together: one pass at a time keeps an older model from being told last, and
+	// the ones asked during a pass are served by a single pass after it.
+	if !g.claimRefresh() {
+		return
+	}
+	for {
+		g.refreshPass()
+		if !g.refreshNext() {
+			return
+		}
+	}
+}
+
+func (g *Groups) claimRefresh() bool {
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	if g.refreshing {
+		g.refreshAgain = true
+		return false
+	}
+	g.refreshing = true
+	return true
+}
+
+func (g *Groups) refreshNext() bool {
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	if g.refreshAgain {
+		g.refreshAgain = false
+		return true
+	}
+	g.refreshing = false
+	return false
+}
+
+func (g *Groups) refreshPass() {
 	defer func() {
 		panichandler.PanicHandler("molten:mission:groups", recover())
 	}()
-	// Refreshes of several projects end together: one resolution at a time keeps an older model from being told last.
-	g.refreshLock.Lock()
-	defer g.refreshLock.Unlock()
 	answer, err := g.resolve(GroupsRequest{}, true)
 	if err != nil {
 		log.Printf("molten: resolving the project groups: %v\n", err)

@@ -47,6 +47,9 @@ type NotificationInput struct {
 	TabId       string               `json:"tabid,omitempty"`
 	BlockId     string               `json:"blockid,omitempty"`
 	Actions     []NotificationAction `json:"actions,omitempty"`
+	// A publisher that tells its situations again on every pass (the stale dependencies) leaves one the user archived
+	// alone while it says the same thing.
+	KeepDismissed bool `json:"-"`
 }
 
 type storedNotification struct {
@@ -271,6 +274,9 @@ func NotificationPublishUpdate(meta waveobj.MetaMapType, input NotificationInput
 			return waveobj.MetaMapType{NotificationKeyPrefix + n.id: value}
 		}
 	}
+	if input.Key != "" && input.KeepDismissed && dismissedSame(entries, input) {
+		return nil
+	}
 	value := inputValue(input)
 	value["time"] = nowMs
 	value["updated"] = nowMs
@@ -283,6 +289,22 @@ func NotificationPublishUpdate(meta waveobj.MetaMapType, input NotificationInput
 		}
 	}
 	return update
+}
+
+// dismissedSame tells whether the newest notification of the input's key was archived by the user and says the same.
+func dismissedSame(entries []storedNotification, input NotificationInput) bool {
+	var newest *storedNotification
+	for i := range entries {
+		if entries[i].str("key") == input.Key && (newest == nil || entries[i].updated() > newest.updated()) {
+			newest = &entries[i]
+		}
+	}
+	if newest == nil {
+		return false
+	}
+	_, archived := newest.num("archived")
+	_, resolved := newest.num("resolved")
+	return archived && !resolved && storedPayload(*newest) == payloadOf(input.Kind, input.Title, input.Message, input.Actions)
 }
 
 // NotificationResolveExceptUpdate closes the situations of every key with the prefix that is not kept: what a

@@ -225,6 +225,7 @@ func formatMoltenGroupState(state moltenGroupMemberState) string {
 func formatMoltenGroupDeps(deps []moltenDepState) string {
 	parts := make([]string, 0, len(deps))
 	for _, dep := range deps {
+		dep = printableMoltenDep(dep)
 		word := strings.ToLower(moltenDepWords[dep.State])
 		if dep.State == moltenDepStateUncommitted {
 			word = "stale (synced, not committed)"

@@ -117,7 +117,7 @@ func formatMoltenProjectDeps(status MoltenProjectDepsStatus) string {
 		fmt.Fprintf(&sb, "%s declares no dependency; to declare one, add \"dependson\" to %s (see molten project group)\n", status.Project, molten.ProjectPipelineFile)
 		return sb.String()
 	}
-	fmt.Fprintf(&sb, "%s: %s\n", status.Project, moltenCount(len(status.Deps), "dependency", "dependencies"))
+	fmt.Fprintf(&sb, "%s: %s\n", moltenPrintable(status.Project), moltenCount(len(status.Deps), "dependency", "dependencies"))
 	for _, dep := range status.Deps {
 		sb.WriteString(formatMoltenDep(dep))
 	}
@@ -148,7 +148,50 @@ func formatMoltenDepCommit(c *moltenDepCommit) string {
 	return fmt.Sprintf("%s %s (%s)", moltenCiShort(c.Sha), c.Subject, time.UnixMilli(c.Time).Format("2006-01-02 15:04"))
 }
 
+// moltenPrintable drops the control characters of a text read from a repository (a commit subject, a file name): printed
+// as is, an escape sequence would drive the terminal (its title, the clipboard through OSC 52).
+func moltenPrintable(text string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || (r >= 0x7f && r < 0xa0) {
+			return -1
+		}
+		return r
+	}, text)
+}
+
+func moltenPrintableList(items []string) []string {
+	rtn := make([]string, len(items))
+	for i, item := range items {
+		rtn[i] = moltenPrintable(item)
+	}
+	return rtn
+}
+
+func moltenPrintableCommit(c *moltenDepCommit) *moltenDepCommit {
+	if c == nil {
+		return nil
+	}
+	copied := *c
+	copied.Sha, copied.Subject, copied.Tickets = moltenPrintable(c.Sha), moltenPrintable(c.Subject), moltenPrintableList(c.Tickets)
+	return &copied
+}
+
+// printableMoltenDep is a dependency whose every text is safe to print.
+func printableMoltenDep(dep moltenDepState) moltenDepState {
+	dep.Project, dep.Sync, dep.Branch, dep.Ref, dep.Problem = moltenPrintable(dep.Project), moltenPrintable(dep.Sync), moltenPrintable(dep.Branch), moltenPrintable(dep.Ref), moltenPrintable(dep.Problem)
+	dep.SourceName, dep.Trunk, dep.State = moltenPrintable(dep.SourceName), moltenPrintable(dep.Trunk), moltenPrintable(dep.State)
+	dep.Paths, dep.Output, dep.Changed, dep.Uncommitted = moltenPrintableList(dep.Paths), moltenPrintableList(dep.Output), moltenPrintableList(dep.Changed), moltenPrintableList(dep.Uncommitted)
+	dep.Source, dep.Synced = moltenPrintableCommit(dep.Source), moltenPrintableCommit(dep.Synced)
+	commits := make([]moltenDepCommit, len(dep.Commits))
+	for i := range dep.Commits {
+		commits[i] = *moltenPrintableCommit(&dep.Commits[i])
+	}
+	dep.Commits = commits
+	return dep
+}
+
 func formatMoltenDep(dep moltenDepState) string {
+	dep = printableMoltenDep(dep)
 	var sb strings.Builder
 	word := moltenDepWords[dep.State]
 	if word == "" {

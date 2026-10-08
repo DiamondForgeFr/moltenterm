@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -38,14 +40,10 @@ type DependencyNotices struct {
 	Keep    []string                   `json:"keep"`
 }
 
-// DepNotificationKey keys a dependency's notification by dependent and source. A second declaration on the same source
-// gets its own.
-func DepNotificationKey(dependentDir string, sourceName string, occurrence int) string {
-	key := DepNotificationKeyPrefix + dependentDir + ":" + strings.ToLower(strings.TrimSpace(sourceName))
-	if occurrence > 0 {
-		key += fmt.Sprintf(":%d", occurrence+1)
-	}
-	return key
+// DepNotificationKey keys a dependency's notification by dependent and source (FR-MC-029-AC5): the declarations of a
+// dependent on the same source share it.
+func DepNotificationKey(dependentDir string, sourceName string) string {
+	return DepNotificationKeyPrefix + dependentDir + ":" + strings.ToLower(strings.TrimSpace(sourceName))
 }
 
 func listShown(items []string, shown int) string {
@@ -103,6 +101,8 @@ func dependencyNotice(dependent GroupMemberInfo, dep DependencyState, key string
 		Kind:    "warning",
 		Title:   fmt.Sprintf("%s is behind %s", dependent.Name, dep.SourceName),
 		Message: message,
+		// Archived, it stays so until the source changes again.
+		KeepDismissed: true,
 	}
 	if len(dependent.Workspaces) > 0 {
 		input.WorkspaceId = dependent.Workspaces[0].Id
@@ -115,26 +115,86 @@ func dependencyNotice(dependent GroupMemberInfo, dep DependencyState, key string
 	return input
 }
 
-// dependencyNotices reads from the groups which dependency notifications should be open.
+// mergeFlagged folds the flagged declarations of one dependent on one source into the one its notification tells:
+// their paths, changed files and commits together, newest first, and the oldest last sync.
+func mergeFlagged(deps []DependencyState) DependencyState {
+	merged := deps[0]
+	if len(deps) == 1 {
+		return merged
+	}
+	merged.Paths, merged.Changed, merged.Commits = nil, nil, nil
+	paths, changed, commits, branches := map[string]bool{}, map[string]bool{}, map[string]bool{}, []string{}
+	for _, dep := range deps {
+		for _, p := range dep.Paths {
+			if !paths[p] {
+				paths[p] = true
+				merged.Paths = append(merged.Paths, p)
+			}
+		}
+		for _, p := range dep.Changed {
+			if !changed[p] {
+				changed[p] = true
+				merged.Changed = append(merged.Changed, p)
+			}
+		}
+		for _, c := range dep.Commits {
+			if !commits[c.Sha] {
+				commits[c.Sha] = true
+				merged.Commits = append(merged.Commits, c)
+			}
+		}
+		merged.MoreCommits = merged.MoreCommits || dep.MoreCommits
+		if !slices.Contains(branches, dep.Branch) {
+			branches = append(branches, dep.Branch)
+		}
+		if dep.Synced == nil || (merged.Synced != nil && dep.Synced.Time < merged.Synced.Time) {
+			merged.Synced = dep.Synced
+		}
+		if dep.Source != nil && (merged.Source == nil || dep.Source.Time > merged.Source.Time) {
+			merged.Source = dep.Source
+		}
+		if merged.Sync == "" && dep.Sync != "" {
+			merged.Sync, merged.Index = dep.Sync, dep.Index
+		}
+	}
+	sort.Strings(merged.Changed)
+	sort.SliceStable(merged.Commits, func(i, j int) bool { return merged.Commits[i].Time > merged.Commits[j].Time })
+	merged.Branch = strings.Join(branches, ", ")
+	return merged
+}
+
+// dependencyNotices reads from the groups which dependency notifications should be open: one per dependent and
+// source with a flagged declaration.
 func dependencyNotices(answer GroupsAnswer) DependencyNotices {
 	notices := DependencyNotices{Notices: []molten.NotificationInput{}, Keep: []string{}}
 	for _, group := range answer.Groups {
 		for _, member := range group.Members {
-			occurrences := map[string]int{}
+			var order []string
+			flagged := map[string][]DependencyState{}
+			kept := map[string]bool{}
 			for _, dep := range member.State.Deps {
 				if dep.SourceName == "" {
 					continue
 				}
-				source := strings.ToLower(strings.TrimSpace(dep.SourceName))
-				key := DepNotificationKey(member.Dir, dep.SourceName, occurrences[source])
-				occurrences[source]++
+				key := DepNotificationKey(member.Dir, dep.SourceName)
 				switch {
 				case dep.Flagged():
-					notices.Notices = append(notices.Notices, dependencyNotice(member, dep, key))
+					if flagged[key] == nil {
+						order = append(order, key)
+					}
+					flagged[key] = append(flagged[key], dep)
 				case dep.State == DepStateError:
-					notices.Keep = append(notices.Keep, key)
+					kept[key] = true
 				}
 			}
+			for _, key := range order {
+				notices.Notices = append(notices.Notices, dependencyNotice(member, mergeFlagged(flagged[key]), key))
+				delete(kept, key)
+			}
+			for key := range kept {
+				notices.Keep = append(notices.Keep, key)
+			}
+			sort.Strings(notices.Keep)
 		}
 	}
 	return notices
