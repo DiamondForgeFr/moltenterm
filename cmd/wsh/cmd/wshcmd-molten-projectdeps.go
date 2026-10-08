@@ -56,7 +56,22 @@ type moltenDepState struct {
 	MoreCommits bool              `json:"morecommits,omitempty"`
 	Changed     []string          `json:"changed,omitempty"`
 	Uncommitted []string          `json:"uncommitted,omitempty"`
-	CheckedAt   int64             `json:"checkedat,omitempty"`
+	// A sync of the source's current commit changed nothing (FR-MC-030): when it was recorded.
+	Acknowledged int64             `json:"acknowledged,omitempty"`
+	LastSync     *moltenDepSyncRun `json:"lastsync,omitempty"`
+	CheckedAt    int64             `json:"checkedat,omitempty"`
+}
+
+// must match DependencySyncRun in pkg/molten/mission/depsync.go
+type moltenDepSyncRun struct {
+	RunId      string   `json:"runid"`
+	State      string   `json:"state"`
+	Exit       *int     `json:"exit,omitempty"`
+	Outcome    string   `json:"outcome,omitempty"`
+	Changed    []string `json:"changed,omitempty"`
+	Commit     string   `json:"commit,omitempty"`
+	StartedAt  int64    `json:"startedat"`
+	FinishedAt int64    `json:"finishedat,omitempty"`
 }
 
 type MoltenProjectDepsStatus struct {
@@ -182,6 +197,11 @@ func printableMoltenDep(dep moltenDepState) moltenDepState {
 	dep.SourceName, dep.Trunk, dep.State = moltenPrintable(dep.SourceName), moltenPrintable(dep.Trunk), moltenPrintable(dep.State)
 	dep.Paths, dep.Output, dep.Changed, dep.Uncommitted = moltenPrintableList(dep.Paths), moltenPrintableList(dep.Output), moltenPrintableList(dep.Changed), moltenPrintableList(dep.Uncommitted)
 	dep.Source, dep.Synced = moltenPrintableCommit(dep.Source), moltenPrintableCommit(dep.Synced)
+	if dep.LastSync != nil {
+		last := *dep.LastSync
+		last.State, last.Outcome, last.Commit, last.Changed = moltenPrintable(last.State), moltenPrintable(last.Outcome), moltenPrintable(last.Commit), moltenPrintableList(last.Changed)
+		dep.LastSync = &last
+	}
 	commits := make([]moltenDepCommit, len(dep.Commits))
 	for i := range dep.Commits {
 		commits[i] = *moltenPrintableCommit(&dep.Commits[i])
@@ -196,6 +216,9 @@ func formatMoltenDep(dep moltenDepState) string {
 	word := moltenDepWords[dep.State]
 	if word == "" {
 		word = dep.State
+	}
+	if dep.State == moltenDepStateInSync && dep.Acknowledged > 0 {
+		word = "in sync, no change"
 	}
 	fmt.Fprintf(&sb, "  %s: %s\n", moltenDepName(dep), word)
 	fmt.Fprintf(&sb, "    reads: %s", strings.Join(dep.Paths, ", "))
@@ -226,6 +249,9 @@ func formatMoltenDep(dep moltenDepState) string {
 	if dep.Source != nil {
 		fmt.Fprintf(&sb, "    source: %s\n", formatMoltenDepCommit(dep.Source))
 	}
+	if dep.LastSync != nil {
+		fmt.Fprintf(&sb, "    last sync run: %s\n", formatMoltenDepSyncRun(*dep.LastSync))
+	}
 	if dep.State == moltenDepStateInSync {
 		return sb.String()
 	}
@@ -252,7 +278,28 @@ func formatMoltenDep(dep moltenDepState) string {
 		fmt.Fprintf(&sb, "    not committed: %s (commit them to clear the flag)\n", strings.Join(dep.Uncommitted, ", "))
 	}
 	if dep.Sync != "" {
-		fmt.Fprintf(&sb, "    sync: %s\n", dep.Sync)
+		fmt.Fprintf(&sb, "    sync: %s (molten project sync %s)\n", dep.Sync, moltenDepName(dep))
+	} else {
+		fmt.Fprintf(&sb, "    sync: no sync command is declared; add \"sync\" to the dependency in %s\n", molten.ProjectPipelineFile)
 	}
 	return sb.String()
+}
+
+// formatMoltenDepSyncRun is a sync run in a line: how it ended and what it changed.
+func formatMoltenDepSyncRun(run moltenDepSyncRun) string {
+	text := run.State
+	switch {
+	case run.State == moltenDepSyncRunning:
+		text = "running"
+	case run.Outcome == moltenDepSyncNoChange:
+		text = "in sync, no change"
+	case run.Outcome == moltenDepSyncChanged:
+		text = "synced, changed " + strings.Join(run.Changed, ", ")
+	case run.Exit != nil:
+		text = fmt.Sprintf("%s (exit %d)", run.State, *run.Exit)
+	}
+	if run.StartedAt > 0 {
+		text += ", " + time.UnixMilli(run.StartedAt).Format("2006-01-02 15:04")
+	}
+	return text
 }

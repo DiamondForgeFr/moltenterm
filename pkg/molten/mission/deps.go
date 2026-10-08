@@ -83,7 +83,11 @@ type DependencyState struct {
 	Changed     []string           `json:"changed,omitempty"`
 	// While stale: the output files changed and not committed in the dependent ("synced, not committed").
 	Uncommitted []string `json:"uncommitted,omitempty"`
-	CheckedAt   int64    `json:"checkedat,omitempty"`
+	// In sync because a sync of the source's current commit changed nothing (FR-MC-030-AC4): when it was recorded.
+	Acknowledged int64 `json:"acknowledged,omitempty"`
+	// The last sync of this declaration, from the dependent's run history; running while it runs.
+	LastSync  *DependencySyncRun `json:"lastsync,omitempty"`
+	CheckedAt int64              `json:"checkedat,omitempty"`
 	// The commits the evaluation read (the source's watched ref, the dependent's trunks): while none moves, the history
 	// is not read again.
 	inputs string
@@ -556,7 +560,7 @@ func (g *Groups) memberDeps(group *molten.ProjectGroup, member molten.GroupMembe
 			if ok {
 				prev = &cached
 			}
-			state = g.evaluate(group, member.Dir, name, i, dep, prev)
+			state = g.withAcknowledgement(member.Dir, dep, g.evaluate(group, member.Dir, name, i, dep, prev))
 			evaluated = true
 		}
 		cache[key] = state
@@ -565,7 +569,7 @@ func (g *Groups) memberDeps(group *molten.ProjectGroup, member molten.GroupMembe
 	if evaluated {
 		g.storeDeps(member.Dir, cache)
 	}
-	return states
+	return g.withLastSyncs(member.Dir, states)
 }
 
 func (g *Groups) evaluate(group *molten.ProjectGroup, dir string, name string, index int, dep molten.PipelineDependency, prev *DependencyState) DependencyState {
@@ -580,12 +584,26 @@ func (g *Groups) Deps(req GroupsRequest) ([]DependencyState, error) {
 	if err := checkDir(req.Dir); err != nil {
 		return nil, err
 	}
-	dir := filepath.Clean(req.Dir)
+	group, member, err := g.memberOf(filepath.Clean(req.Dir))
+	if err != nil {
+		return nil, err
+	}
+	states := g.memberDeps(group, member, true)
+	if states == nil {
+		states = []DependencyState{}
+	}
+	// The groups and the notifications follow what was just read.
+	go g.Refreshed()
+	return states, nil
+}
+
+// memberOf is the group of the project at dir and its member entry; a project in no group is a member of none.
+func (g *Groups) memberOf(dir string) (*molten.ProjectGroup, molten.GroupMember, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), groupsTimeout)
 	defer cancel()
 	links, err := g.links(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("reading the workspaces: %w", err)
+		return nil, molten.GroupMember{}, fmt.Errorf("reading the workspaces: %w", err)
 	}
 	groups := molten.ResolveGroups(links, g.read)
 	group := molten.FindGroup(groups, dir)
@@ -597,11 +615,5 @@ func (g *Groups) Deps(req GroupsRequest) ([]DependencyState, error) {
 			}
 		}
 	}
-	states := g.memberDeps(group, member, true)
-	if states == nil {
-		states = []DependencyState{}
-	}
-	// The groups and the notifications follow what was just read.
-	go g.Refreshed()
-	return states, nil
+	return group, member, nil
 }

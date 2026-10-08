@@ -112,6 +112,12 @@ type Groups struct {
 	noticed string
 	// The last evaluation of each declared dependency, by depCacheKey.
 	deps map[string]DependencyState
+	// Syncs (FR-MC-030): the no-change acknowledgements, where the sources' worktrees go, the dependents syncing and
+	// the worktrees in use. Without UseSync, Sync is not available.
+	acks      *DepAcks
+	treesDir  string
+	syncing   map[string]bool
+	syncTrees map[string]bool
 }
 
 func MakeGroups(collector *Collector, ci *Ci, runs *Runs, run Runner, links func(ctx context.Context) ([]molten.GroupLink, error), publish func(GroupsAnswer), notify func(DependencyNotices) error) *Groups {

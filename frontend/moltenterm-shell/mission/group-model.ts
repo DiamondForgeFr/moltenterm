@@ -10,6 +10,8 @@ export const MissionGroupsCommand = "moltenmissiongroups";
 export const MissionGroupsEvent = "molten:mission:groups";
 // must match pkg/molten/mission/deps.go
 export const MissionDepsCommand = "moltenmissiondeps";
+// must match pkg/molten/mission/depsync.go
+export const MissionDepSyncCommand = "moltenmissiondepsync";
 
 // must match the DepState constants in pkg/molten/mission/deps.go
 export type DependencyStateName =
@@ -52,7 +54,23 @@ export type DependencyState = {
     changed?: string[];
     // "Synced, not committed": the output files changed in the dependent and not committed yet.
     uncommitted?: string[];
+    // In sync because a sync of the source's current commit changed nothing (FR-MC-030): when it was recorded.
+    acknowledged?: number;
+    // The last sync of this declaration, from the dependent's run history.
+    lastsync?: DependencySyncRun;
     checkedat?: number;
+};
+
+// must match DependencySyncRun in pkg/molten/mission/depsync.go
+export type DependencySyncRun = {
+    runid: string;
+    state: "running" | "success" | "failure" | "cancelled" | "lost";
+    exit?: number;
+    outcome?: "changed" | "nochange";
+    changed?: string[];
+    commit?: string;
+    startedat: number;
+    finishedat?: number;
 };
 
 // red (a CI or a build failed) over amber (a stale dependency) over none; a running job gives none.

@@ -159,6 +159,24 @@ How Mission Control reads it, on each refresh of a project, from the local git o
 - `molten project deps [--json]` prints each dependency of this workspace's project with its state: in sync, stale,
   synced not committed, source not found or branch not found.
 
+Sync brings a stale dependency up to date. It is offered on the stale flag in Mission Control, as the notification's
+action and as `molten project sync [source]`; it never starts on its own, and MoltenTerm commits nothing:
+
+- The first sync of a project, and any change to its `sync`, asks the user to trust the project's commands, like every
+  declared command. From a terminal, `molten project sync` cannot trust: press Sync once in MoltenTerm.
+- MoltenTerm checks the source's watched branch tip out in a worktree of its own (in MoltenTerm's data folder, the
+  source's hooks off), then runs `sync` in this repository's root, with:
+  - `MOLTEN_DEP_SOURCE_DIR`: that worktree. The user's own checkout of the source may be on another branch, or dirty;
+    the worktree is exactly the watched branch's tip. A script that ignores it still runs (reading `../Notulia/`).
+  - `MOLTEN_DEP_SOURCE_COMMIT`: the commit checked out there; `MOLTEN_DEP_PROJECT`: the source's name.
+- The worktree is removed when the sync ends. One sync runs at a time per repository; each keeps its log and exit code
+  in the project's run history.
+- Exit 0 with `output` changed: **synced, not committed**, with the changed files; review and commit them, and the flag
+  clears once the commit reaches the trunk. Exit 0 with nothing changed: **in sync, no change**: MoltenTerm records it
+  in its own data folder and the flag clears for that source commit, without an empty commit (a later change to the
+  source's `paths` makes it stale again). Non-zero: the flag stays stale and shows the log and the exit code.
+- Without `sync`, the flag says that no sync command is declared, and offers no button.
+
 ## The release contract
 
 A release is started from the Project tab's Release menu (a release candidate `X.Y.Z-N`, or a public release `X.Y.Z`)
