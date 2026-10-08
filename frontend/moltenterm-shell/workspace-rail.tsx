@@ -89,7 +89,8 @@ type RailItemMoves = {
     onMove: (move: RailMove, refocus: boolean) => void;
 };
 
-// A workspace drawn inside a product (FR-MC-027-AC5): its own badge and state, a smaller box, arrows walking the product.
+// A workspace drawn inside a product (FR-MC-027-AC5): its own badge and state, arrows walking the product. Its box keeps
+// the full size: the pencil's 24 px target would cover most of a smaller one.
 type RailMemberInfo = {
     worst: string;
     stateText: string;
@@ -235,7 +236,6 @@ function RailButton({
                 className={cn(
                     "molten-rail-item cursor-pointer transition-colors hover:bg-hover",
                     RailBadgeClass,
-                    member != null && "h-8 w-8 text-[15px]",
                     entry.active && "bg-hover",
                     !entry.active && entry.open && "outline outline-1 -outline-offset-1 outline-border"
                 )}
