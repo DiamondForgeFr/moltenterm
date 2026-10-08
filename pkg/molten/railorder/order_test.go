@@ -102,25 +102,35 @@ func TestReadOrder(t *testing.T) {
 }
 
 func TestGrouping(t *testing.T) {
-	defer SetGrouping(nil, nil)
+	defer SetGrouping(nil, nil, nil)
 	ctx := context.Background()
-	if products, err := ProductsOf(ctx); err != nil || products != nil {
+	if products, err := ProductsOf(ctx); err != nil || products.Of != nil {
 		t.Fatalf("no grouping set: %v, %v", products, err)
 	}
 	Moved()
+	TellDisplaced([]Displaced{{WorkspaceId: "a"}})
 	told := 0
-	SetGrouping(func(ctx context.Context) (map[string]string, error) {
-		return map[string]string{"a": "p"}, nil
-	}, func() { told++ })
-	if products, err := ProductsOf(ctx); err != nil || products["a"] != "p" {
+	var displaced []Displaced
+	SetGrouping(func(ctx context.Context) (ProductMap, error) {
+		return ProductMap{Of: map[string]string{"a": "p"}}, nil
+	}, func() { told++ }, func(d []Displaced) { displaced = d })
+	if products, err := ProductsOf(ctx); err != nil || products.Of["a"] != "p" {
 		t.Fatalf("grouping not applied: %v, %v", products, err)
 	}
 	Moved()
 	if told != 1 {
 		t.Fatalf("moved told %d times", told)
 	}
+	TellDisplaced(nil)
+	if displaced != nil {
+		t.Fatalf("nothing displaced is not told")
+	}
+	TellDisplaced([]Displaced{{WorkspaceId: "a"}})
+	if len(displaced) != 1 {
+		t.Fatalf("displaced not told: %v", displaced)
+	}
 	failed := errors.New("unreadable")
-	SetGrouping(func(ctx context.Context) (map[string]string, error) { return nil, failed }, nil)
+	SetGrouping(func(ctx context.Context) (ProductMap, error) { return ProductMap{}, failed }, nil, nil)
 	if _, err := ProductsOf(ctx); !errors.Is(err, failed) {
 		t.Fatalf("error not passed on: %v", err)
 	}

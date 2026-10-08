@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/railorder"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -176,13 +177,53 @@ func productsOf(groups []molten.ProjectGroup) map[string]string {
 	return rtn
 }
 
+// productMapOf is productsOf with the products' names, as the rail's writes need them (railorder.ProductMap).
+func productMapOf(groups []molten.ProjectGroup) railorder.ProductMap {
+	names := map[string]string{}
+	for _, group := range groups {
+		if len(group.Members) >= 2 {
+			names[group.Key] = group.Name
+		}
+	}
+	return railorder.ProductMap{Of: productsOf(groups), Names: names}
+}
+
 // ProductWorkspaces resolves the products now, from the links and the members' files, for the rail order's move rule.
-func ProductWorkspaces(ctx context.Context) (map[string]string, error) {
+func ProductWorkspaces(ctx context.Context) (railorder.ProductMap, error) {
 	links, err := WorkspaceLinks(ctx)
 	if err != nil {
-		return nil, err
+		return railorder.ProductMap{}, err
 	}
-	return productsOf(molten.ResolveGroups(links, molten.ReadProject)), nil
+	return productMapOf(molten.ResolveGroups(links, molten.ReadProject)), nil
+}
+
+// RailGroupNoticeKeyPrefix keys the notice of a local rail group member a project product took (FR-MC-032-AC8).
+const RailGroupNoticeKeyPrefix = "molten:railgroups:"
+
+// railGroupNotices are what the notification center says when project products took local members: one per member.
+func railGroupNotices(displaced []railorder.Displaced) []molten.NotificationInput {
+	rtn := make([]molten.NotificationInput, 0, len(displaced))
+	for _, d := range displaced {
+		rtn = append(rtn, molten.NotificationInput{
+			Key:         RailGroupNoticeKeyPrefix + d.GroupId + ":" + d.WorkspaceId,
+			Source:      "moltenterm",
+			Kind:        "info",
+			Title:       fmt.Sprintf("%s moved to %s", d.WorkspaceName, d.ProductName),
+			Message:     fmt.Sprintf("%s now belongs to %s, declared in its project files, so it left the group %s. Project groups come first.", d.WorkspaceName, d.ProductName, d.GroupName),
+			WorkspaceId: d.WorkspaceId,
+		})
+	}
+	return rtn
+}
+
+func notifyRailGroups(displaced []railorder.Displaced) {
+	ctx, cancel := context.WithTimeout(context.Background(), groupsTimeout)
+	defer cancel()
+	for _, input := range railGroupNotices(displaced) {
+		if err := attention.PublishNotification(ctx, input); err != nil {
+			log.Printf("molten: rail groups: notifying a member that moved: %v\n", err)
+		}
+	}
 }
 
 // trunkRemoteCi sums up GitHub's runs on the trunk: the runs of the trunk's newest run commit, red when one failed,
@@ -315,6 +356,9 @@ func (g *Groups) resolve(req GroupsRequest, fresh bool) (GroupsAnswer, error) {
 		return GroupsAnswer{}, fmt.Errorf("reading the workspaces: %w", err)
 	}
 	groups := molten.ResolveGroups(links, g.read)
+	if req.Dir == "" {
+		railorder.ProductsSeen(productMapOf(groups))
+	}
 	if req.Dir != "" {
 		if err := checkDir(req.Dir); err != nil {
 			return GroupsAnswer{}, err

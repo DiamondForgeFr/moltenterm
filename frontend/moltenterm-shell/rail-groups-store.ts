@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GroupsAnswer, MissionGroupsEvent, ProjectGroup } from "./mission/group-model";
 import { missionGroups } from "./mission/mission-client";
 import { RailCollapsedMetaKey, readCollapsed, withCollapsed } from "./rail-groups";
+import { LocalRailGroup, RailGroupsMetaKey, readLocalGroups } from "./rail-local-groups";
 import { ProjectMetaKey } from "./workspace-project";
 
 const NoClient = atom(null) as Atom<Client>;
@@ -68,6 +69,14 @@ export function useCollapsedProducts(): Set<string> {
         }
     }, [override, stored]);
     return useMemo(() => new Set(override ?? stored), [override, stored]);
+}
+
+// The local rail groups (FR-MC-032) as wavesrv stored them, read live from the client meta: every window sees a change
+// at once. effectiveLocalGroups gives the ones the rail draws.
+export function useStoredLocalGroups(): LocalRailGroup[] {
+    const client = useAtomValue(clientAtom());
+    const key = JSON.stringify(client?.meta?.[RailGroupsMetaKey] ?? null);
+    return useMemo(() => readLocalGroups(JSON.parse(key)), [key]);
 }
 
 // The project link of each workspace, read live: linking or unlinking one changes the groups without any rail event.
