@@ -7,6 +7,9 @@
 // Product groups (FR-MC-027, DS-MC-018): what drags and where it may land is a scope. A rail unit (a workspace, or a
 // whole product as a block) drops among the other units; a product's workspace drops among its siblings only, and past
 // its product there is no drop target.
+// Local groups (FR-MC-032): a local member past its group lands among the rail's units (the scope's outer scope) and
+// leaves the group. In connect mode the target's box is a join zone: a workspace released over it joins it, and the
+// drop line gives way to the target's "drop to group" mark.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RailMove } from "./workspace-order";
@@ -18,6 +21,10 @@ export type RailDragView = {
     offsetY: number;
     // The drop line, in the rail's content coordinates; null when the item would land where it is, or nowhere.
     lineY: number;
+    // Over the connect target's box: a release joins it.
+    joining: boolean;
+    // The line is among the rail's units, out of the item's group.
+    outer: boolean;
 };
 
 export type RailDragScope = {
@@ -27,8 +34,16 @@ export type RailDragScope = {
     element: (nav: HTMLElement, id: string) => HTMLElement;
     // The move for a slot among the others (0 = before all of them); null when it would not move.
     moveFor: (slot: number) => RailMove;
-    // Past the first and the last item there is no drop target (a product's workspace stays in its product).
+    // Past the first and the last item there is no drop target (a product's workspace stays in its product)...
     bounded: boolean;
+    // ...unless the pointer is past them into this scope (a local member leaving its group).
+    outer?: RailDragScope;
+};
+
+export type RailDragJoin = {
+    // The connect target's box for a dragged item that may join it; null when it may not (FR-MC-032-AC3).
+    zone: (id: string) => HTMLElement;
+    onJoin: (id: string) => void;
 };
 
 // Past a bounded scope by more than this, the pointer is outside it.
@@ -46,6 +61,9 @@ type Session = {
     cancelled: boolean;
     // null when the pointer is outside a bounded scope.
     slot: number;
+    // The slot is in the scope's outer scope.
+    outer: boolean;
+    joining: boolean;
     frame: number;
 };
 
@@ -74,12 +92,23 @@ export function scopeSlot(boxes: RailItemBox[], bounded: boolean, id: string, y:
     return dropSlot(boxes, id, y);
 }
 
+// Whether the pointer is over the join zone: the target's whole box, not the gaps between items.
+export function overJoinZone(rect: { top: number; bottom: number }, y: number): boolean {
+    return rect != null && y >= rect.top && y <= rect.bottom;
+}
+
 export function useRailDrag(
     navRef: React.RefObject<HTMLElement>,
     scopeOf: (id: string) => RailDragScope,
-    onMove: (move: RailMove) => void
+    onMove: (move: RailMove) => void,
+    join?: RailDragJoin,
+    onDragging?: (dragging: boolean) => void
 ) {
     const [view, setView] = useState<RailDragView>(null);
+    const joinRef = useRef(join);
+    joinRef.current = join;
+    const onDraggingRef = useRef(onDragging);
+    onDraggingRef.current = onDragging;
     const sessionRef = useRef<Session>(null);
     const suppressedClickRef = useRef<string>(null);
     const scopeOfRef = useRef(scopeOf);
@@ -97,15 +126,33 @@ export function useRailDrag(
         if (scope == null) {
             return;
         }
-        const boxes = readBoxes(nav, scope);
+        const offsetY = session.lastY - session.startY + (nav.scrollTop - session.startScroll);
+        const zone = joinRef.current?.zone(session.id);
+        session.joining = zone != null && overJoinZone(zone.getBoundingClientRect(), session.lastY);
+        if (session.joining) {
+            session.slot = null;
+            setView({ id: session.id, offsetY, lineY: null, joining: true, outer: false });
+            return;
+        }
+        let used = scope;
+        let boxes = readBoxes(nav, scope);
         session.slot = scopeSlot(boxes, scope.bounded, session.id, session.lastY);
+        session.outer = false;
+        if (session.slot == null && scope.outer != null) {
+            used = scope.outer;
+            boxes = readBoxes(nav, used);
+            session.slot = scopeSlot(boxes, used.bounded, session.id, session.lastY);
+            session.outer = true;
+        }
         const navRect = nav.getBoundingClientRect();
-        const lands = session.slot != null && scope.moveFor(session.slot) != null;
+        const lands = session.slot != null && used.moveFor(session.slot) != null;
         const lineViewportY = lands ? dropLineY(boxes, session.id, session.slot) : null;
         setView({
             id: session.id,
-            offsetY: session.lastY - session.startY + (nav.scrollTop - session.startScroll),
+            offsetY,
             lineY: lineViewportY == null ? null : lineViewportY - navRect.top + nav.scrollTop,
+            joining: false,
+            outer: session.outer,
         });
     }, [navRef]);
 
@@ -138,6 +185,7 @@ export function useRailDrag(
         }
         cancelAnimationFrame(session.frame);
         if (session.started) {
+            onDraggingRef.current?.(false);
             try {
                 session.button.releasePointerCapture(session.pointerId);
             } catch {
@@ -152,10 +200,18 @@ export function useRailDrag(
             }, 0);
         }
         setView(null);
-        if (!drop || !session.started || session.cancelled || session.slot == null) {
+        if (!drop || !session.started || session.cancelled) {
             return;
         }
-        const move = scopeOfRef.current(session.id)?.moveFor(session.slot);
+        if (session.joining) {
+            joinRef.current?.onJoin(session.id);
+            return;
+        }
+        if (session.slot == null) {
+            return;
+        }
+        const scope = scopeOfRef.current(session.id);
+        const move = (session.outer ? scope?.outer : scope)?.moveFor(session.slot);
         if (move != null) {
             onMoveRef.current(move);
         }
@@ -191,6 +247,8 @@ export function useRailDrag(
                 started: false,
                 cancelled: false,
                 slot: null,
+                outer: false,
+                joining: false,
                 frame: 0,
             };
             sessionRef.current = session;
@@ -213,6 +271,7 @@ export function useRailDrag(
                         return;
                     }
                     session.started = true;
+                    onDraggingRef.current?.(true);
                     try {
                         session.button.setPointerCapture(session.pointerId);
                     } catch {

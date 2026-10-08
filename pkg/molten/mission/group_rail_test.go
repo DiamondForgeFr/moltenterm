@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/railorder"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
@@ -85,5 +86,36 @@ func TestProductsOf(t *testing.T) {
 	}
 	if _, ok := products["lone"]; ok {
 		t.Fatalf("a group of one member is no product: %v", products)
+	}
+}
+
+func TestProductMapOf(t *testing.T) {
+	groups := []molten.ProjectGroup{
+		{Key: "notulia", Name: "Notulia", Members: []molten.GroupMember{
+			{Dir: "/r/app", Workspaces: []molten.GroupWorkspace{{Id: "app"}}},
+			{Dir: "/r/site", Workspaces: []molten.GroupWorkspace{{Id: "site"}}},
+		}},
+		{Key: "lone", Name: "Lone", Members: []molten.GroupMember{{Dir: "/r/lone", Workspaces: []molten.GroupWorkspace{{Id: "lone"}}}}},
+	}
+	products := productMapOf(groups)
+	if products.Of["site"] != "notulia" || products.Names["notulia"] != "Notulia" {
+		t.Fatalf("products = %+v", products)
+	}
+	if _, ok := products.Names["lone"]; ok {
+		t.Fatalf("a group of one member is no product: %+v", products)
+	}
+}
+
+func TestRailGroupNotices(t *testing.T) {
+	notices := railGroupNotices([]railorder.Displaced{{WorkspaceId: "d", WorkspaceName: "D", GroupId: "g", GroupName: "B", ProductName: "Notulia"}})
+	if len(notices) != 1 {
+		t.Fatalf("notices = %+v", notices)
+	}
+	n := notices[0]
+	if n.Title != "D moved to Notulia" || n.Source != "moltenterm" || n.WorkspaceId != "d" || n.Key != RailGroupNoticeKeyPrefix+"g:d" {
+		t.Fatalf("notice = %+v", n)
+	}
+	if n.Message != "D now belongs to Notulia, declared in its project files, so it left the group B. Project groups come first." {
+		t.Fatalf("message = %q", n.Message)
 	}
 }

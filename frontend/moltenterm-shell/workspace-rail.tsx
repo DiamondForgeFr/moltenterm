@@ -7,6 +7,8 @@
 // and drop from anywhere on an item, as tabs, and Alt+Shift+Up/Down (FR-MC-031, #365); wavesrv keeps the order and
 // sorts Wave's list by it.
 // Workspaces whose projects form a product (FR-MC-027) are drawn under one collapsible product entry (rail-product.tsx).
+// The user groups any saved workspaces from an item's link bud, its menu or `molten rail group` (FR-MC-032): a local
+// group is drawn as a product too; connect mode (rail-connect.ts) makes the dragged workspaces join it.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms, getApi } from "@/app/store/global";
@@ -22,20 +24,44 @@ import { unreadByWorkspace } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 import { ProjectLinkDetector } from "./project-link-modal";
 import { openProjectTab, ProjectTabKeeper } from "./project/project-tab";
+import { installConnectExits, RailConnectModel, RailConnectTarget, sameConnectTarget } from "./rail-connect";
+import { RailConnectPopover } from "./rail-connect-ui";
 import {
     applyGroupedMove,
+    leaveSlotMove,
     makeRailUnits,
     memberMoves,
-    memberOfWorkspace,
     memberStateText,
     productKeysOf,
+    ProductUnitPrefix,
     RailProductUnit,
     RailUnit,
+    railUnitKeys,
     unitMoves,
     unitSlotMove,
+    workspaceMemberState,
 } from "./rail-groups";
-import { setProductCollapsed, useCollapsedProducts, useRailGroups, useWorkspaceLinksKey } from "./rail-groups-store";
-import { RailProduct, WorstDot } from "./rail-product";
+import {
+    setProductCollapsed,
+    useCollapsedProducts,
+    useRailGroups,
+    useStoredLocalGroups,
+    useWorkspaceLinksKey,
+} from "./rail-groups-store";
+import {
+    cleanGroupName,
+    effectiveLocalGroups,
+    GroupWithChoice,
+    groupWithChoices,
+    joinRailGroup,
+    leaveRailGroup,
+    localGroupOf,
+    MaxGroupNameLength,
+    projectGroupRefusal,
+    renameRailGroup,
+    ungroupRailGroup,
+} from "./rail-local-groups";
+import { RailConnectState, RailDropToGroup, RailProduct, WorstDot } from "./rail-product";
 import { RailTools } from "./rail-tools";
 import { PaneFocusKeeper } from "./sessions/pane-focus";
 import { handOverWorkspaceEdit, openWorkspaceEditor, recordSwitchClick, takeSwitchClick } from "./workspace-edit";
@@ -46,7 +72,14 @@ import { moveWorkspace, RailMove, slotMove, sortByOrder } from "./workspace-orde
 import { readWorkspaceProject } from "./workspace-project";
 import { RailDragScope, useRailDrag } from "./workspace-rail-dnd";
 import { railMoveKey } from "./workspace-rail-drag";
-import { RailBudFilter, RailEditButton } from "./workspace-rail-edit";
+import {
+    RailBudChain,
+    RailBudFilter,
+    RailBudPitchPx,
+    RailBudSpec,
+    railEditLabel,
+    railLinkLabel,
+} from "./workspace-rail-edit";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
 import { askResetWorkspace, WorkspaceResetHost } from "./workspace-reset";
 import { canCloseWorkspace, LastWorkspaceReason } from "./workspace-reset-model";
@@ -65,7 +98,7 @@ export async function loadWorkspaceSources(): Promise<WorkspaceRailSource[]> {
 
 type Anchor = { top: number; left: number };
 
-// The pencil's target spans 24 px right of the item's edge.
+// The first bud's target spans 24 px right of the item's edge, each later one 28 px more.
 const RailBudTooltipOffsetPx = 30;
 
 function RailTooltip({ label, anchor }: { label: string; anchor: Anchor }) {
@@ -93,6 +126,18 @@ type RailItemMoves = {
     onMove: (move: RailMove, refocus: boolean) => void;
 };
 
+// What a saved workspace outside any project product offers for local groups (FR-MC-032): the link bud, connect mode's
+// state, Group with ▸ and Remove from group.
+type RailItemGrouping = {
+    onLink: () => void;
+    linkPressed: boolean;
+    connect: RailConnectState;
+    groupWith: GroupWithChoice[];
+    onGroupWith: (choice: GroupWithChoice) => void;
+    // Set for a member of a local group.
+    onRemoveFromGroup?: () => void;
+};
+
 // A workspace drawn inside a product (FR-MC-027-AC5): its own badge and state, arrows walking the product. Until #365 its
 // box kept the full size, since the pencil's 24 px target would have covered most of a smaller one; with the buds out
 // beside the icon, it is drawn at 32 px (#368, revision of FR-MC-027), the product entry staying at 36 px.
@@ -111,6 +156,7 @@ function RailButton({
     moves,
     unitId,
     member,
+    grouping,
 }: {
     entry: WorkspaceRailEntry;
     // Deleting it lands the user on another workspace (#222); otherwise it is reset instead.
@@ -121,6 +167,7 @@ function RailButton({
     // Set when the item is a rail unit of its own, the box a drag drops around.
     unitId?: string;
     member?: RailMemberInfo;
+    grouping?: RailItemGrouping;
 }) {
     const ref = useRef<HTMLButtonElement>(null);
     // Read live: the icon can change from the editor or from molten while the rail's list is not refreshed.
@@ -132,8 +179,10 @@ function RailButton({
             : { icon: entry.icon, color: entry.color, image: "", logo: "" };
     const anchorOf = (): Anchor => {
         const rect = ref.current.getBoundingClientRect();
-        // Past the pencil, which buds out right of a saved item (DS-SHELL-061).
-        return { top: rect.top + rect.height / 2, left: rect.right + (entry.saved ? RailBudTooltipOffsetPx : 8) };
+        // Past the buds, which bud out right of a saved item (DS-SHELL-061, DS-MC-029).
+        const buds = grouping != null ? 1 : 0;
+        const offset = entry.saved ? RailBudTooltipOffsetPx + buds * RailBudPitchPx : 8;
+        return { top: rect.top + rect.height / 2, left: rect.right + offset };
     };
     const edit = (opener: HTMLElement) => {
         onHover(null, null);
@@ -174,10 +223,25 @@ function RailButton({
             entry.active && projectDir
                 ? [{ label: "Open the Project tab", click: () => fireAndForget(openProjectTab) }]
                 : [];
+        const groupItems: ContextMenuItem[] = [];
+        if (grouping != null && grouping.groupWith.length > 0) {
+            groupItems.push({
+                label: "Group with",
+                type: "submenu",
+                submenu: grouping.groupWith.map((choice) => ({
+                    label: choice.label,
+                    click: () => grouping.onGroupWith(choice),
+                })),
+            });
+        }
+        if (grouping?.onRemoveFromGroup != null) {
+            groupItems.push({ label: "Remove from group", click: grouping.onRemoveFromGroup });
+        }
         ContextMenuModel.getInstance().showContextMenu(
             [
                 ...projectTab,
                 { label: "Edit workspace…", click: () => edit(ref.current) },
+                ...(groupItems.length > 0 ? [{ type: "separator" } as ContextMenuItem, ...groupItems] : []),
                 { type: "separator" },
                 ...(closable ? [] : [{ label: "Reset workspace…", click: () => askResetWorkspace(entry.id) }]),
                 {
@@ -210,17 +274,36 @@ function RailButton({
         }
     };
     const dragging = moves.dragOffsetY != null;
+    const buds: RailBudSpec[] = [];
+    if (entry.saved) {
+        buds.push({ kind: "edit", label: railEditLabel(entry.name), onActivate: (opener) => edit(opener) });
+    }
+    if (entry.saved && grouping != null) {
+        buds.push({
+            kind: "link",
+            label: railLinkLabel(entry.name),
+            pressed: grouping.linkPressed,
+            onActivate: () => {
+                onHover(null, null);
+                grouping.onLink();
+            },
+        });
+    }
+    const connect = grouping?.connect;
+    const stateText = member?.stateText ? ` · ${member.stateText}` : "";
     return (
         <div
             data-rail-unit={unitId}
             data-rail-member={member != null ? "" : undefined}
+            data-rail-host={entry.id}
+            data-buds-out={connect?.target ? "" : undefined}
             className={cn("molten-rail-budhost relative shrink-0", dragging && "molten-rail-dragging z-10")}
             style={dragging ? { transform: `translateY(${moves.dragOffsetY}px)` } : undefined}
         >
             <button
                 ref={ref}
                 type="button"
-                aria-label={member?.worst ? `${entry.name}, ${member.stateText}` : entry.name}
+                aria-label={member?.worst && member.stateText ? `${entry.name}, ${member.stateText}` : entry.name}
                 aria-current={entry.active ? "true" : undefined}
                 data-workspace-id={entry.id}
                 onClick={onClick}
@@ -231,7 +314,7 @@ function RailButton({
                 onMouseEnter={() =>
                     onHover(
                         (entry.saved ? entry.name : "Unsaved workspace: click to save it") +
-                            (member != null ? ` · ${member.stateText}` : "") +
+                            stateText +
                             (unread > 0 ? ` · ${unread} unread` : ""),
                         anchorOf()
                     )
@@ -242,8 +325,10 @@ function RailButton({
                     RailBadgeClass,
                     member != null && RailMemberBadgeClass,
                     entry.active && "bg-hover",
-                    !entry.active && entry.open && "outline outline-1 -outline-offset-1 outline-border"
+                    !entry.active && entry.open && "outline outline-1 -outline-offset-1 outline-border",
+                    connect?.target && "molten-rail-connect-target"
                 )}
+                data-connect-drop={connect?.dropping ? "" : undefined}
             >
                 {entry.active ? (
                     <span className="absolute top-1.5 bottom-1.5 -left-1.5 w-[2px] rounded bg-accent" aria-hidden />
@@ -261,18 +346,16 @@ function RailButton({
                 ) : null}
                 {member != null ? <WorstDot worst={member.worst} /> : null}
                 <AgentRailDot workspaceId={entry.id} />
+                {connect?.dropping ? <RailDropToGroup /> : null}
             </button>
-            {entry.saved ? (
-                <RailEditButton
-                    name={entry.name}
-                    onEdit={(opener) => edit(opener)}
-                    onHover={(opener) => {
-                        const rect = opener.getBoundingClientRect();
-                        onHover(`Edit ${entry.name}`, { top: rect.top + rect.height / 2, left: rect.right + 6 });
-                    }}
-                    onLeave={() => onHover(null, null)}
-                />
-            ) : null}
+            <RailBudChain
+                buds={buds}
+                onHover={(label, opener) => {
+                    const rect = opener.getBoundingClientRect();
+                    onHover(label, { top: rect.top + rect.height / 2, left: rect.right + 6 });
+                }}
+                onLeave={() => onHover(null, null)}
+            />
         </div>
     );
 }
@@ -281,6 +364,8 @@ export function WorkspaceRail() {
     const active = useAtomValue(atoms.workspace);
     const [sources, setSources] = useState<WorkspaceRailSource[]>([]);
     const [tooltip, setTooltip] = useState<{ label: string; anchor: Anchor }>(null);
+    // The local group whose name is being edited (Rename group…).
+    const [renaming, setRenaming] = useState<string>(null);
 
     const refresh = useCallback(() => {
         fireAndForget(async () => setSources(await loadWorkspaceSources()));
@@ -302,8 +387,16 @@ export function WorkspaceRail() {
     const linksKey = useWorkspaceLinksKey(movableIds);
     const groups = useRailGroups(linksKey);
     const collapsed = useCollapsedProducts();
-    const units = makeRailUnits(entries, groups);
-    const productKeys = useMemo(() => productKeysOf(groups), [groups]);
+    const projectKeys = useMemo(() => productKeysOf(groups), [groups]);
+    // The local groups (FR-MC-032), as the server would read them: a project product always wins.
+    const storedLocal = useStoredLocalGroups();
+    const localGroups = useMemo(
+        () => effectiveLocalGroups(storedLocal, movableIds, projectKeys),
+        [storedLocal, movableIds, projectKeys]
+    );
+    const units = makeRailUnits(entries, groups, localGroups);
+    const productKeys = useMemo(() => railUnitKeys(groups, localGroups), [groups, localGroups]);
+    const nameOf = (id: string) => entries.find((e) => e.id === id)?.name;
     // The rail shows the move at once; the server's workspace:update confirms it, or the refresh undoes it.
     const applyMove = useCallback(
         (move: RailMove, refocus: boolean) => {
@@ -328,16 +421,102 @@ export function WorkspaceRail() {
         },
         [movableIds, productKeys, refresh]
     );
-    // A rail unit drops among the units; a product's workspace among its siblings, while the product is expanded.
+
+    // Connect mode (FR-MC-032-AC2 to AC4): one target per window.
+    const connectModel = RailConnectModel.getInstance();
+    const connectTarget = useAtomValue(connectModel.targetAtom);
+    useEffect(() => installConnectExits(connectModel), [connectModel]);
+    useEffect(() => () => connectModel.end(), [connectModel]);
+    // The target gone ends connect mode; a target workspace that just made a group goes on as that group, so several
+    // workspaces can be added in a row.
+    useEffect(() => {
+        if (connectTarget == null) {
+            return;
+        }
+        if (connectTarget.kind === "group") {
+            if (!localGroups.some((g) => g.id === connectTarget.id)) {
+                connectModel.end();
+            }
+            return;
+        }
+        if (!movableIds.includes(connectTarget.id) || projectKeys.has(connectTarget.id)) {
+            connectModel.end();
+            return;
+        }
+        const group = localGroupOf(localGroups, connectTarget.id);
+        if (group != null) {
+            globalStore.set(connectModel.targetAtom, { kind: "group", id: group.id });
+        }
+    }, [connectTarget, localGroups, movableIds, projectKeys, connectModel]);
+    const tellFailure = (err: unknown, anchor: string) => {
+        const text = (err as Error)?.message ?? String(err);
+        connectModel.showMessage(text.replace(/^Error: /, ""), anchor);
+    };
+    const hostSelector = (id: string) => `[data-rail-host="${CSS.escape(id)}"]`;
+    const runGroupCommand = (call: () => Promise<void>, anchor: string) => {
+        fireAndForget(async () => {
+            try {
+                await call();
+            } catch (err) {
+                console.log("rail groups:", err);
+                tellFailure(err, anchor);
+            }
+        });
+    };
+    const targetIdOf = (target: RailConnectTarget) => target.id;
+    const isTarget = (target: RailConnectTarget) => sameConnectTarget(connectTarget, target);
+    // The box a dragged workspace joins the target over, when it may (no product, not the target nor one of its
+    // members, a saved workspace).
+    const joinZone = (draggedId: string): HTMLElement => {
+        const target = connectModel.getTarget();
+        const nav = navRef.current;
+        if (
+            target == null ||
+            nav == null ||
+            draggedId.startsWith(ProductUnitPrefix) ||
+            !movableIds.includes(draggedId)
+        ) {
+            return null;
+        }
+        if (target.kind === "workspace") {
+            if (target.id === draggedId) {
+                return null;
+            }
+            return nav.querySelector<HTMLElement>(`button[data-workspace-id="${CSS.escape(target.id)}"]`);
+        }
+        if (localGroups.find((g) => g.id === target.id)?.members.includes(draggedId)) {
+            return null;
+        }
+        return nav.querySelector<HTMLElement>(`[data-rail-local="${CSS.escape(target.id)}"]`);
+    };
+    const onJoin = (draggedId: string) => {
+        const target = connectModel.getTarget();
+        if (target == null) {
+            return;
+        }
+        const anchor =
+            target.kind === "group" ? `[data-rail-local="${CSS.escape(target.id)}"]` : hostSelector(target.id);
+        const productKey = projectKeys.get(draggedId);
+        if (productKey != null) {
+            const product = groups.find((g) => g.key === productKey)?.name || productKey;
+            connectModel.showMessage(projectGroupRefusal(nameOf(draggedId) ?? draggedId, product), anchor);
+            return;
+        }
+        runGroupCommand(() => joinRailGroup({ workspaceid: draggedId, targetid: targetIdOf(target) }), anchor);
+    };
+
+    // A rail unit drops among the units; a product's workspace among its siblings, while the product is expanded. A
+    // local group's member past its group drops among the units, out of the group.
     const scopeOf = (id: string): RailDragScope => {
         const movableUnits = units.filter((u) => u.kind === "product" || u.entry.saved);
+        const unitScope = (moveFor: (slot: number) => RailMove): RailDragScope => ({
+            ids: movableUnits.map((u) => u.id),
+            element: (nav, unitId) => nav.querySelector<HTMLElement>(`[data-rail-unit="${CSS.escape(unitId)}"]`),
+            moveFor,
+            bounded: false,
+        });
         if (movableUnits.some((u) => u.id === id)) {
-            return {
-                ids: movableUnits.map((u) => u.id),
-                element: (nav, unitId) => nav.querySelector<HTMLElement>(`[data-rail-unit="${CSS.escape(unitId)}"]`),
-                moveFor: (slot) => unitSlotMove(units, id, slot),
-                bounded: false,
-            };
+            return unitScope((slot) => unitSlotMove(units, id, slot));
         }
         const product = units.find(
             (u): u is RailProductUnit => u.kind === "product" && u.entries.some((e) => e.id === id)
@@ -351,9 +530,16 @@ export function WorkspaceRail() {
             element: (nav, wsId) => nav.querySelector<HTMLElement>(`button[data-workspace-id="${CSS.escape(wsId)}"]`),
             moveFor: (slot) => slotMove(ids, id, slot),
             bounded: true,
+            outer: product.local != null ? unitScope((slot) => leaveSlotMove(units, product, id, slot)) : undefined,
         };
     };
-    const drag = useRailDrag(navRef, scopeOf, (move) => applyMove(move, false));
+    const drag = useRailDrag(
+        navRef,
+        scopeOf,
+        (move) => applyMove(move, false),
+        { zone: joinZone, onJoin },
+        (dragging) => connectModel.setDragging(dragging)
+    );
     useEffect(() => {
         if (drag.view != null) {
             setTooltip(null);
@@ -379,6 +565,33 @@ export function WorkspaceRail() {
         target.focus();
         return true;
     };
+    const joining = drag.view?.joining ?? false;
+    const connectState = (target: RailConnectTarget): RailConnectState => {
+        const on = isTarget(target);
+        return { target: on, dropping: on && joining };
+    };
+    // A saved workspace outside the project products: the link bud and the group menus (FR-MC-032-AC1, AC10).
+    const itemGrouping = (entry: WorkspaceRailEntry): RailItemGrouping => {
+        if (!entry.saved || projectKeys.has(entry.id)) {
+            return undefined;
+        }
+        const own = localGroupOf(localGroups, entry.id);
+        const target: RailConnectTarget =
+            own != null ? { kind: "group", id: own.id } : { kind: "workspace", id: entry.id };
+        const anchor = hostSelector(entry.id);
+        return {
+            onLink: () => connectModel.toggle(target),
+            linkPressed: isTarget(target),
+            connect: own != null ? { target: false, dropping: false } : connectState(target),
+            groupWith: groupWithChoices(entry.id, movableIds, projectKeys, localGroups, nameOf),
+            onGroupWith: (choice) =>
+                runGroupCommand(() => joinRailGroup({ workspaceid: entry.id, targetid: choice.id }), anchor),
+            onRemoveFromGroup:
+                own != null
+                    ? () => runGroupCommand(() => leaveRailGroup({ workspaceid: entry.id }), anchor)
+                    : undefined,
+        };
+    };
     const renderUnit = (unit: RailUnit) => {
         if (unit.kind === "workspace") {
             const entry = unit.entry;
@@ -391,11 +604,14 @@ export function WorkspaceRail() {
                     unread={unread.get(entry.id) ?? 0}
                     onHover={onHover}
                     moves={itemMoves(entry.id, entry.saved ? unitMoves(units, unit.id) : { up: null, down: null })}
+                    grouping={itemGrouping(entry)}
                 />
             );
         }
         const isCollapsed = collapsed.has(unit.key);
         const ids = unit.entries.map((e) => e.id);
+        const local = unit.local;
+        const localAnchor = local != null ? `[data-rail-local="${CSS.escape(local.id)}"]` : null;
         return (
             <RailProduct
                 key={unit.id}
@@ -409,9 +625,34 @@ export function WorkspaceRail() {
                 onMove={applyMove}
                 onPointerDown={(e) => drag.onPointerDown(e, unit.id)}
                 takeSuppressedClick={() => drag.takeSuppressedClick(unit.id)}
+                projectGroups={groups}
+                connect={local != null ? connectState({ kind: "group", id: local.id }) : undefined}
+                local={
+                    local == null
+                        ? undefined
+                        : {
+                              onLink: () => connectModel.toggle({ kind: "group", id: local.id }),
+                              renaming: renaming === local.id,
+                              onRenameStart: () => setRenaming(local.id),
+                              onRenameCancel: () => setRenaming(null),
+                              onRename: (value) => {
+                                  setRenaming(null);
+                                  const name = cleanGroupName(value);
+                                  if (name == null) {
+                                      connectModel.showMessage(
+                                          `A group name is at most ${MaxGroupNameLength} characters.`,
+                                          localAnchor
+                                      );
+                                      return;
+                                  }
+                                  runGroupCommand(() => renameRailGroup(local.id, name), localAnchor);
+                              },
+                              onUngroup: () => runGroupCommand(() => ungroupRailGroup(local.id), localAnchor),
+                          }
+                }
             >
                 {unit.entries.map((entry, index) => {
-                    const state = memberOfWorkspace(unit.group, entry.id)?.state;
+                    const state = workspaceMemberState(groups, entry.id);
                     return (
                         <RailButton
                             key={entry.id}
@@ -420,9 +661,10 @@ export function WorkspaceRail() {
                             unread={unread.get(entry.id) ?? 0}
                             onHover={onHover}
                             moves={itemMoves(entry.id, memberMoves(unit, entry.id))}
+                            grouping={local != null ? itemGrouping(entry) : undefined}
                             member={{
                                 worst: state?.worst ?? "",
-                                stateText: memberStateText(state),
+                                stateText: local != null && state == null ? "" : memberStateText(state),
                                 onArrow: (direction) => {
                                     const next = ids[index + direction];
                                     return focusIn(
@@ -441,7 +683,10 @@ export function WorkspaceRail() {
         );
     };
     const memberDragged =
-        drag.view != null && productKeys.has(drag.view.id) && !units.some((u) => u.id === drag.view.id);
+        drag.view != null &&
+        !drag.view.outer &&
+        productKeys.has(drag.view.id) &&
+        !units.some((u) => u.id === drag.view.id);
     return (
         <nav
             ref={navRef}
@@ -477,6 +722,7 @@ export function WorkspaceRail() {
             </button>
             <RailTools onHover={(label, anchor) => setTooltip(label == null ? null : { label, anchor })} />
             <RailTooltip label={tooltip?.label} anchor={tooltip?.anchor} />
+            <RailConnectPopover navRef={navRef} revision={`${movableKey}|${localGroups.length}|${collapsed.size}`} />
             <RailBudFilter />
             <ProjectLinkDetector />
             <ProjectTabKeeper />

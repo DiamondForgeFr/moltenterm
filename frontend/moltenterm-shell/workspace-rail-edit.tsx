@@ -1,6 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
+import { cn } from "@/util/util";
+import { Fragment } from "react";
 import { useHoldSettings } from "./hold-to-confirm";
 
 // The SVG filter that joins the item's tile, the neck and the badge into one droplet (DS-SHELL-061); the rail draws it
@@ -45,6 +47,91 @@ export function RailBudFilter() {
 // #354 (DS-SHELL-058) made the sheet open after a press-and-hold, the gesture of the tab close button, while the pencil
 // sat on the icon and caught stray clicks. Out of the icon since #365, it opens on a simple click again (#368, revision
 // of FR-SHELL-030, 2026-10-08); the tab close button keeps its hold.
+// #368 (DS-MC-029): the pencil is the first bud of a chain, in this order: pencil, link (FR-MC-032), coffee (#276).
+// Each later bud is a 16 px badge with a 24 px target, 4 px past the previous one and joined to it by the same neck, so
+// the chain reads as one droplet growing out of the tile; a bud that does not apply is absent.
+export type RailBudKind = "edit" | "link";
+
+export type RailBudSpec = {
+    kind: RailBudKind;
+    // The accessible name; the hover tooltip says the same.
+    label: string;
+    // A toggle's state (the link bud while its item is in connect mode): the bud stays out and filled.
+    pressed?: boolean;
+    onActivate: (button: HTMLElement) => void;
+};
+
+// One bud's place along the chain, in px from the item's right edge.
+export const RailBudPitchPx = 28;
+
+const RailBudGlyphs: Record<RailBudKind, string> = {
+    edit: "fa-pencil",
+    link: "fa-link",
+};
+
+export function railLinkLabel(name: string): string {
+    return `Group ${name} with other workspaces`;
+}
+
+export function RailBudChain({
+    buds,
+    onHover,
+    onLeave,
+}: {
+    buds: RailBudSpec[];
+    onHover: (label: string, opener: HTMLElement) => void;
+    onLeave: () => void;
+}) {
+    const { reducedMotion } = useHoldSettings();
+    if (buds.length === 0) {
+        return null;
+    }
+    // The badges have no edge of their own: a ring would cut the necks that join them. The goo drop under each is the
+    // same disc, so the chain reads as one shape.
+    return (
+        <span
+            className="molten-rail-bud"
+            data-reduced-motion={reducedMotion ? "" : undefined}
+            style={{ "--molten-rail-buds": buds.length } as React.CSSProperties}
+        >
+            <span className="molten-rail-bud-clip" aria-hidden>
+                <span className="molten-rail-bud-goo" style={{ filter: `url(#${RailBudFilterId})` }}>
+                    <span className="molten-rail-bud-tile" />
+                    {buds.map((bud, index) => (
+                        <Fragment key={bud.kind}>
+                            <span className="molten-rail-bud-stub" style={{ "--i": index } as React.CSSProperties} />
+                            <span className="molten-rail-bud-drop" style={{ "--i": index } as React.CSSProperties} />
+                        </Fragment>
+                    ))}
+                </span>
+            </span>
+            {buds.map((bud, index) => (
+                <button
+                    key={bud.kind}
+                    type="button"
+                    aria-label={bud.label}
+                    aria-pressed={bud.kind === "link" ? !!bud.pressed : undefined}
+                    data-role={`rail-${bud.kind}`}
+                    draggable={false}
+                    onClick={(e) => bud.onActivate(e.currentTarget)}
+                    onMouseEnter={(e) => onHover(bud.label, e.currentTarget)}
+                    onMouseLeave={onLeave}
+                    className={cn(
+                        "molten-rail-budbtn absolute top-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full",
+                        `molten-rail-${bud.kind}`
+                    )}
+                    style={{ left: index * RailBudPitchPx, "--i": index } as React.CSSProperties}
+                >
+                    <span className="molten-rail-bud-disc relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-[var(--molten-rail-bud-fill)] text-[8px] text-secondary hover:text-primary">
+                        <i className={cn("fa fa-solid", RailBudGlyphs[bud.kind])} aria-hidden />
+                    </span>
+                </button>
+            ))}
+        </span>
+    );
+}
+
+// The pencil alone, as before the chain.
 export function RailEditButton({
     name,
     onEdit,
@@ -56,32 +143,11 @@ export function RailEditButton({
     onHover: (opener: HTMLElement) => void;
     onLeave: () => void;
 }) {
-    const { reducedMotion } = useHoldSettings();
-    // The badge has no edge of its own: a ring would cut the neck that joins it to its item. The goo drop under it is
-    // the same disc, so the droplet reads as one shape.
     return (
-        <span className="molten-rail-bud" data-reduced-motion={reducedMotion ? "" : undefined}>
-            <span className="molten-rail-bud-clip" aria-hidden>
-                <span className="molten-rail-bud-goo" style={{ filter: `url(#${RailBudFilterId})` }}>
-                    <span className="molten-rail-bud-tile" />
-                    <span className="molten-rail-bud-stub" />
-                    <span className="molten-rail-bud-drop" />
-                </span>
-            </span>
-            <button
-                type="button"
-                aria-label={railEditLabel(name)}
-                data-role="rail-edit"
-                draggable={false}
-                onClick={(e) => onEdit(e.currentTarget)}
-                onMouseEnter={(e) => onHover(e.currentTarget)}
-                onMouseLeave={onLeave}
-                className="molten-rail-edit absolute inset-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full"
-            >
-                <span className="molten-rail-bud-disc relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-[var(--molten-rail-bud-fill)] text-[8px] text-secondary hover:text-primary">
-                    <i className="fa fa-solid fa-pencil" aria-hidden />
-                </span>
-            </button>
-        </span>
+        <RailBudChain
+            buds={[{ kind: "edit", label: railEditLabel(name), onActivate: onEdit }]}
+            onHover={(_, opener) => onHover(opener)}
+            onLeave={onLeave}
+        />
     );
 }

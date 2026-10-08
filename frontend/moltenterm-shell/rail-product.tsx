@@ -5,20 +5,102 @@
 // member's (rail-groups.ts); a click expands or collapses it. Collapsed, it carries the worst member state, its
 // members' unread dot and most urgent agent state, and the active mark when one of them is active. Expanded, its
 // workspaces are drawn below it, indented along a thin guide; the rail renders them as ordinary rail items.
+// A local group (FR-MC-032) is drawn the same way, named after its first member until renamed; it has the link bud,
+// Rename group… and Ungroup, and none of a project group's strip, dependencies or Sync.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { cn } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
-import { useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { mostUrgentAgentState } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
 import { AgentStateDot } from "./agent-state-ui";
+import { ProjectGroup } from "./mission/group-model";
 import { productHoverText, productIconEntry, RailProductUnit, UnitMoves, worstLabel } from "./rail-groups";
+import { MaxGroupNameLength } from "./rail-local-groups";
 import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
 import { workspaceIconSource } from "./workspace-icon-model";
 import { RailMove } from "./workspace-order";
 import { railMoveKey } from "./workspace-rail-drag";
+import { RailBudChain, railLinkLabel } from "./workspace-rail-edit";
+
+// Connect mode on a rail item or a local product (FR-MC-032-AC2): the target, and whether a dragged workspace is over it.
+export type RailConnectState = { target: boolean; dropping: boolean };
+
+// What a local product adds (FR-MC-032-AC6, AC7).
+export type RailLocalActions = {
+    onLink: () => void;
+    renaming: boolean;
+    onRenameStart: () => void;
+    // The field's value; the rail trims it and an empty one gives back the default name.
+    onRename: (name: string) => void;
+    onRenameCancel: () => void;
+    onUngroup: () => void;
+};
+
+// The + of "drop to group" over the target while a dragged workspace is over it.
+export function RailDropToGroup() {
+    return (
+        <span
+            className="pointer-events-none absolute inset-0 flex items-center justify-center rounded bg-[color-mix(in_srgb,var(--color-accent)_35%,transparent)]"
+            aria-hidden
+        >
+            <i className="fa fa-solid fa-plus text-[13px] text-primary" />
+        </span>
+    );
+}
+
+function RenameField({
+    anchor,
+    initial,
+    onSave,
+    onCancel,
+}: {
+    anchor: React.RefObject<HTMLElement>;
+    initial: string;
+    onSave: (name: string) => void;
+    onCancel: () => void;
+}) {
+    const [value, setValue] = useState(initial);
+    const [place, setPlace] = useState<{ top: number; left: number }>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+    useLayoutEffect(() => {
+        const rect = anchor.current?.getBoundingClientRect();
+        if (rect != null) {
+            setPlace({ top: rect.top + rect.height / 2, left: rect.right + 8 });
+        }
+        inputRef.current?.focus();
+        inputRef.current?.select();
+    }, [anchor]);
+    return (
+        <div
+            className="fixed z-[9500] -translate-y-1/2 rounded border border-border bg-modalbg p-1 shadow-lg"
+            style={{ top: place?.top ?? 0, left: place?.left ?? 0, visibility: place == null ? "hidden" : undefined }}
+        >
+            <input
+                ref={inputRef}
+                aria-label="Group name (empty: the first workspace's name)"
+                value={value}
+                maxLength={MaxGroupNameLength}
+                placeholder="Name of the first workspace"
+                onChange={(e) => setValue(e.target.value)}
+                onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        onSave(value);
+                    } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        onCancel();
+                    }
+                }}
+                onBlur={onCancel}
+                className="w-44 rounded border border-border bg-transparent px-2 py-1 text-xs text-primary outline-none focus:border-accent"
+            />
+        </div>
+    );
+}
 
 export type RailAnchor = { top: number; left: number };
 
@@ -77,6 +159,9 @@ export function RailProduct({
     onMove,
     onPointerDown,
     takeSuppressedClick,
+    projectGroups,
+    connect,
+    local,
     children,
 }: {
     unit: RailProductUnit;
@@ -91,6 +176,10 @@ export function RailProduct({
     onMove: (move: RailMove, refocus: boolean) => void;
     onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => void;
     takeSuppressedClick: () => boolean;
+    // Mission Control's groups, for a local product's member states.
+    projectGroups?: ProjectGroup[];
+    connect?: RailConnectState;
+    local?: RailLocalActions;
     // Its workspaces, as rail items.
     children: React.ReactNode;
 }) {
@@ -119,8 +208,16 @@ export function RailProduct({
     };
     const onContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
+        const localItems: ContextMenuItem[] =
+            local == null
+                ? []
+                : [
+                      { type: "separator" },
+                      { label: "Rename group…", click: local.onRenameStart },
+                      { label: "Ungroup", click: local.onUngroup },
+                  ];
         ContextMenuModel.getInstance().showContextMenu(
-            [{ label: collapsed ? "Expand" : "Collapse", click: onToggle }],
+            [{ label: collapsed ? "Expand" : "Collapse", click: onToggle }, ...localItems],
             e
         );
     };
@@ -147,18 +244,20 @@ export function RailProduct({
         }
     };
     const dragging = dragOffsetY != null;
-    const hover = productHoverText(unit) + (collapsed && unread > 0 ? `\n${unread} unread` : "");
+    const hover = productHoverText(unit, projectGroups) + (collapsed && unread > 0 ? `\n${unread} unread` : "");
+    const kindLabel = unit.local != null ? "group" : "product";
     return (
         <div
             data-rail-unit={unit.id}
+            data-rail-local={unit.local?.id}
             className={cn("relative flex shrink-0 flex-col items-center", dragging && "molten-rail-dragging z-10")}
             style={dragging ? { transform: `translateY(${dragOffsetY}px)` } : undefined}
         >
-            <div className="group relative shrink-0">
+            <div className="molten-rail-budhost relative shrink-0" data-buds-out={connect?.target ? "" : undefined}>
                 <button
                     ref={ref}
                     type="button"
-                    aria-label={`${name}, product of ${unit.entries.length} workspaces`}
+                    aria-label={`${name}, ${kindLabel} of ${unit.entries.length} workspaces`}
                     aria-expanded={!collapsed}
                     aria-current={showActive ? "true" : undefined}
                     data-rail-product={unit.key}
@@ -168,10 +267,13 @@ export function RailProduct({
                     onPointerDown={onPointerDown}
                     onMouseEnter={() => onHover(hover, anchorOf())}
                     onMouseLeave={() => onHover(null, null)}
+                    data-connect-drop={connect?.dropping ? "" : undefined}
                     className={cn(
                         "molten-rail-item molten-rail-product cursor-pointer transition-colors hover:bg-hover",
+                        local != null && "molten-rail-anchor",
                         RailBadgeClass,
-                        showActive && "bg-hover"
+                        showActive && "bg-hover",
+                        connect?.target && "molten-rail-connect-target"
                     )}
                 >
                     {showActive ? (
@@ -193,7 +295,36 @@ export function RailProduct({
                         />
                     ) : null}
                     {collapsed ? <ProductAgentDot workspaceIds={workspaceIds} /> : null}
+                    {connect?.dropping ? <RailDropToGroup /> : null}
                 </button>
+                {local != null ? (
+                    <RailBudChain
+                        buds={[
+                            {
+                                kind: "link",
+                                label: railLinkLabel(name),
+                                pressed: connect?.target,
+                                onActivate: () => {
+                                    onHover(null, null);
+                                    local.onLink();
+                                },
+                            },
+                        ]}
+                        onHover={(label, opener) => {
+                            const rect = opener.getBoundingClientRect();
+                            onHover(label, { top: rect.top + rect.height / 2, left: rect.right + 6 });
+                        }}
+                        onLeave={() => onHover(null, null)}
+                    />
+                ) : null}
+                {local?.renaming ? (
+                    <RenameField
+                        anchor={ref}
+                        initial={unit.local?.name ?? ""}
+                        onSave={local.onRename}
+                        onCancel={local.onRenameCancel}
+                    />
+                ) : null}
             </div>
             <div
                 className={cn(
