@@ -83,6 +83,13 @@
    hides it once the item is scrolled out. */
 .molten-rail-budhost {
     anchor-scope: --molten-rail-item;
+    --molten-rail-item-h: 36px;
+}
+
+/* A product's workspaces are drawn smaller than the product (#368, revision of FR-MC-027), so the product reads as
+   their parent; the buds keep their size. */
+.molten-rail-budhost[data-rail-member] {
+    --molten-rail-item-h: 32px;
 }
 
 .molten-rail-anchor {
@@ -158,13 +165,14 @@
 
 /* The right part of the item's lit tile, in the goo too, so the tile itself stretches toward the neck with smooth
    fillets instead of the neck sticking to a rigid square: tile, widening neck and badge read as one viscous shape.
-   It lies under the item (36 px tall, 4 px corners) and the clip keeps only what grows past its edge, so the icon,
-   its glyph and its dots stay crisp and uncovered. It fades with the item's own hover background. */
+   It lies under the item (36 px tall, 32 px for a product's member since #368, 4 px corners) and the clip keeps only
+   what grows past its edge, so the icon, its glyph and its dots stay crisp and uncovered. It fades with the item's own
+   hover background. */
 .molten-rail-bud-tile {
     left: -2px;
-    top: -2px;
+    top: calc(16px - var(--molten-rail-item-h) / 2);
     width: 12px;
-    height: 36px;
+    height: var(--molten-rail-item-h);
     border-radius: 0 4px 4px 0;
     opacity: 0;
     transition: opacity 150ms ease-in 60ms;
