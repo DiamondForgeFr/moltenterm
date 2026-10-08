@@ -23,6 +23,7 @@ const (
 	claudeExecutable    = "claude"
 	claudeModelFlag     = "--model"
 	claudeResumeFlag    = "--resume"
+	claudeContinueFlag  = "--continue"
 	claudeBriefingFlag  = "--append-system-prompt-file"
 	claudeContextWindow = 200000
 	claudeExitCommand   = "/exit"
@@ -103,6 +104,11 @@ func (claudeAdapter) ResumeArgs(sessionId string) ([]string, error) {
 		return nil, err
 	}
 	return []string{claudeResumeFlag, sessionId}, nil
+}
+
+// LastSessionArgs: --continue reopens the most recent conversation of the current folder.
+func (claudeAdapter) LastSessionArgs() []string {
+	return []string{claudeContinueFlag}
 }
 
 // ResumesSession: --continue, --resume (with or without an id, which opens the picker), --from-pr, --teleport,

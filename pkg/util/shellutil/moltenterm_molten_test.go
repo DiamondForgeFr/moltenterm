@@ -5,8 +5,10 @@ package shellutil
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -98,5 +100,114 @@ func TestMoltenOpenPath(t *testing.T) {
 	}
 	if got := MoltenOpenPath(); got != filepath.Join(binDir, name) || !filepath.IsAbs(got) {
 		t.Fatalf("installed: got %q, want the absolute path in the bin dir", got)
+	}
+}
+
+// DS-SHELL-055: the refresh file puts the launchers' folder back first on PATH (once, dropping other copies) and
+// reports the generation once, in every shell that sources it from a hook function.
+func TestMoltenRefreshFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no zsh, bash or fish refresh on Windows")
+	}
+	home := t.TempDir()
+	binDir := filepath.Join(home, "bin with space")
+	agentDir := filepath.Join(binDir, AgentBinDirName)
+	if err := os.MkdirAll(agentDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	makeIntegrationDirs(t, home)
+	if err := InitRcFiles(home, binDir); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{filepath.Join(ZshIntegrationDir, ".zshrc"), filepath.Join(BashIntegrationDir, ".bashrc"), filepath.Join(FishIntegrationDir, "wave.fish")} {
+		data, _ := os.ReadFile(filepath.Join(home, name))
+		if !strings.Contains(string(data), "_moltenterm_refresh") || !strings.Contains(string(data), MoltenRefreshDir) {
+			t.Errorf("%s does not register the refresh hook", name)
+		}
+	}
+	shFile := filepath.Join(home, MoltenRefreshDir, moltenRefreshShName)
+	fishFile := filepath.Join(home, MoltenRefreshDir, moltenRefreshFishName)
+	report := "\x1b]16162;MOLTEN;{\"gen\":" + strconv.Itoa(MoltenShellGeneration) + "}\x07"
+	posix := `f() { source "$1"; }; PATH="/usr/bin:$2:/bin"; f "$1"; printf '[%s]\n' "$PATH"; f "$1"; PATH="/usr/bin:/bin"; f "$1"; printf '[%s]\n' "$PATH"`
+	want := report + "[" + agentDir + ":/usr/bin:/bin]\n[" + agentDir + ":/usr/bin:/bin]\n"
+	for _, shell := range []string{"zsh", "bash"} {
+		path, err := exec.LookPath(shell)
+		if err != nil {
+			t.Logf("%s not installed", shell)
+			continue
+		}
+		args := []string{"-c", posix, shell, shFile, agentDir}
+		if shell == "zsh" {
+			args = append([]string{"-f"}, args...)
+		} else {
+			args = append([]string{"--norc", "--noprofile"}, args...)
+		}
+		cmd := exec.Command(path, args...)
+		cmd.Env = []string{"HOME=" + home, "TERM=xterm-256color"}
+		out, err := cmd.CombinedOutput()
+		if err != nil || string(out) != want {
+			t.Errorf("%s: got %q (%v), want %q", shell, out, err, want)
+		}
+	}
+	if fish, err := exec.LookPath("fish"); err == nil {
+		script := `function f; source $argv[1]; end; set -gx PATH /usr/bin $argv[2] /bin; f $argv[1]; printf '[%s]\n' (string join : $PATH); f $argv[1]; set -gx PATH /usr/bin /bin; f $argv[1]; printf '[%s]\n' (string join : $PATH)`
+		cmd := exec.Command(fish, "--no-config", "-c", script, fishFile, agentDir)
+		cmd.Env = []string{"HOME=" + home, "TERM=xterm-256color"}
+		out, err := cmd.CombinedOutput()
+		wantFish := report + "[" + agentDir + ":/usr/bin:/bin]\n[" + agentDir + ":/usr/bin:/bin]\n"
+		if err != nil || string(out) != wantFish {
+			t.Errorf("fish: got %q (%v), want %q", out, err, wantFish)
+		}
+	}
+	// Rewriting the same content keeps the file (shells may be reading it); a remote host has no launchers' folder.
+	before, _ := os.Stat(shFile)
+	if err := InitRcFiles(home, binDir); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := os.Stat(shFile)
+	if !before.ModTime().Equal(after.ModTime()) {
+		t.Errorf("unchanged refresh file was rewritten")
+	}
+	if err := os.RemoveAll(agentDir); err != nil {
+		t.Fatal(err)
+	}
+	if bash, err := exec.LookPath("bash"); err == nil {
+		out, err := exec.Command(bash, "--norc", "-c", `PATH=/usr/bin:/bin; source "$1"; printf '[%s]' "$PATH"`, "bash", shFile).CombinedOutput()
+		if err != nil || string(out) != "[/usr/bin:/bin]" {
+			t.Errorf("without the launchers' folder: got %q (%v)", out, err)
+		}
+	}
+}
+
+// The hook keeps the exit status the prompt and the other hooks read.
+func TestMoltenRefreshHookKeepsStatus(t *testing.T) {
+	bash, err := exec.LookPath("bash")
+	if err != nil || runtime.GOOS == "windows" {
+		t.Skip("no bash")
+	}
+	home := t.TempDir()
+	makeIntegrationDirs(t, home)
+	if err := InitRcFiles(home, filepath.Join(home, "bin")); err != nil {
+		t.Fatal(err)
+	}
+	rc, _ := os.ReadFile(filepath.Join(home, BashIntegrationDir, ".bashrc"))
+	start := strings.Index(string(rc), "_moltenterm_refresh() {")
+	end := strings.Index(string(rc)[start:], "\n}\n")
+	if start < 0 || end < 0 {
+		t.Fatal("no _moltenterm_refresh function in .bashrc")
+	}
+	fn := string(rc)[start : start+end+3]
+	out, err := exec.Command(bash, "--norc", "-c", fn+"(exit 3); _moltenterm_refresh; echo $?").CombinedOutput()
+	if err != nil || strings.TrimSpace(string(out)) != "3" {
+		t.Errorf("got %q (%v), want the status 3 kept", out, err)
+	}
+}
+
+// InitRcFiles creates its folders once per process (wavebase.CacheEnsureDir): a second test home needs them made.
+func makeIntegrationDirs(t *testing.T, home string) {
+	for _, dir := range []string{ZshIntegrationDir, BashIntegrationDir, FishIntegrationDir, PwshIntegrationDir} {
+		if err := os.MkdirAll(filepath.Join(home, dir), 0755); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

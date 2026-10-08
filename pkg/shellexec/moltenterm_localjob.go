@@ -116,6 +116,11 @@ func StartLocalShellJob(ctx context.Context, logCtx context.Context, termSize wa
 	}
 	env[localJobCwdVarName] = cwd
 	env[LocalJobProtocolVarName] = strconv.Itoa(LocalJobProtocol)
+	// An interactive shell gets MoltenTerm's managed environment from the integration scripts: its generation tells
+	// later versions whether it is outdated (FR-SHELL-041). A block's command gets none of it.
+	if cmdStr == "" {
+		env[shellutil.MoltenShellGenVarName] = strconv.Itoa(shellutil.MoltenShellGeneration)
+	}
 	if termSize.Rows <= 0 || termSize.Cols <= 0 {
 		termSize.Rows = shellutil.DefaultTermRows
 		termSize.Cols = shellutil.DefaultTermCols

@@ -223,9 +223,10 @@ func (w *attentionWatcher) handle(blockId string, data []byte) {
 	}
 	for _, item := range w.scan(blockId, data) {
 		if item.shell != nil {
-			if w.agents != nil {
+			if w.agents != nil && item.shell.Kind != ShellMarkGeneration {
 				w.agents.shellMark(blockId, *item.shell)
 			}
+			notifyShellMark(blockId, *item.shell)
 			continue
 		}
 		signal := *item.signal

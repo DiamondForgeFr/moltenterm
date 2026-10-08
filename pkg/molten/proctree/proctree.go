@@ -135,6 +135,35 @@ func (t *Table) Foreground(root int32) []*Proc {
 	return rtn
 }
 
+// Descendants lists the live processes under root (root excluded), nearest first, whatever their process group:
+// background jobs and the helpers a shell started (FR-SHELL-041 checks nothing would be lost with the shell).
+func (t *Table) Descendants(root int32) []*Proc {
+	if t.Get(root) == nil {
+		return nil
+	}
+	var rtn []*Proc
+	queue := []walkItem{{pid: root}}
+	seen := map[int32]bool{root: true}
+	for len(queue) > 0 && len(seen) <= MaxWalk {
+		item := queue[0]
+		queue = queue[1:]
+		if item.depth >= MaxDepth {
+			continue
+		}
+		for _, kid := range t.children[item.pid] {
+			if seen[kid] {
+				continue
+			}
+			seen[kid] = true
+			if kp := t.procs[kid]; !kp.Zombie {
+				rtn = append(rtn, kp)
+			}
+			queue = append(queue, walkItem{pid: kid, depth: item.depth + 1})
+		}
+	}
+	return rtn
+}
+
 // Under tells whether pid is root or one of its descendants (within MaxDepth levels).
 func (t *Table) Under(pid int32, root int32) bool {
 	for i := 0; i <= MaxDepth; i++ {

@@ -39,6 +39,8 @@ const (
 	ShellMarkCommand = "C"
 	ShellMarkDone    = "D"
 	ShellMarkPrompt  = "A"
+	// ShellMarkGeneration: the refresh hook reports the managed environment's generation it applied (FR-SHELL-041).
+	ShellMarkGeneration = "MOLTEN"
 
 	// A hook's notification and the agent's own OSC signal for the same event make one notification.
 	agentNoticeWindow  = AttentionDedup
@@ -63,6 +65,8 @@ type ShellMark struct {
 	Kind     string
 	Cmd      string
 	ExitCode *int
+	// Gen: the generation of a ShellMarkGeneration mark.
+	Gen int
 }
 
 var cmd64Regex = regexp.MustCompile(`"cmd64"\s*:\s*"([A-Za-z0-9+/=]*)`)
@@ -85,6 +89,14 @@ func ParseShellMark(payload string) (ShellMark, bool) {
 		}
 		json.Unmarshal([]byte(data), &d)
 		return ShellMark{Kind: kind, ExitCode: d.ExitCode}, true
+	case ShellMarkGeneration:
+		var d struct {
+			Gen int `json:"gen"`
+		}
+		if err := json.Unmarshal([]byte(data), &d); err != nil || d.Gen <= 0 {
+			return ShellMark{}, false
+		}
+		return ShellMark{Kind: kind, Gen: d.Gen}, true
 	}
 	return ShellMark{}, false
 }

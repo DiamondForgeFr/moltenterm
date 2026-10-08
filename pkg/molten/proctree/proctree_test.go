@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -123,6 +124,26 @@ func TestForegroundBounded(t *testing.T) {
 	cycle := MakeTable([]Proc{{Pid: 1, Ppid: 2, Pgid: 1, Tpgid: -1}, {Pid: 2, Ppid: 1, Pgid: 1, Tpgid: -1}})
 	if got := len(cycle.Foreground(1)); got != 2 {
 		t.Errorf("cycle walked %d", got)
+	}
+}
+
+func TestDescendants(t *testing.T) {
+	table := MakeTable([]Proc{
+		{Pid: 1, Ppid: 0, Name: "zsh"},
+		{Pid: 2, Ppid: 1, Name: "sleep"},
+		{Pid: 3, Ppid: 2, Name: "child"},
+		{Pid: 4, Ppid: 1, Name: "gone", Zombie: true},
+		{Pid: 5, Ppid: 9, Name: "other"},
+	})
+	var names []string
+	for _, p := range table.Descendants(1) {
+		names = append(names, p.Name)
+	}
+	if strings.Join(names, ",") != "sleep,child" {
+		t.Errorf("got %v", names)
+	}
+	if table.Descendants(42) != nil {
+		t.Error("a missing root has no descendants")
 	}
 }
 

@@ -133,3 +133,13 @@ _waveterm_si_preexec() {
 # Add our functions to the bash-preexec arrays
 precmd_functions+=(_waveterm_si_precmd)
 preexec_functions+=(_waveterm_si_preexec)
+
+# MOLTENTERM-PATCH (#366): re-apply MoltenTerm's managed environment before each prompt and each command, from a file
+# every MoltenTerm start rewrites, so a shell left open across an update catches up (DS-SHELL-055)
+_moltenterm_refresh() {
+    local _moltenterm_status=$?
+    [ -r {{.MOLTENREFRESH}} ] && source {{.MOLTENREFRESH}}
+    return $_moltenterm_status
+}
+precmd_functions+=(_moltenterm_refresh)
+preexec_functions+=(_moltenterm_refresh)

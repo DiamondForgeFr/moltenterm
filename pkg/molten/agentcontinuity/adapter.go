@@ -106,6 +106,9 @@ type AgentAdapter interface {
 	FreshArgs(model string, initialPrompt string) ([]string, error)
 	// ResumeArgs builds the arguments that resume one of the agent's sessions by id.
 	ResumeArgs(sessionId string) ([]string, error)
+	// LastSessionArgs builds the arguments that reopen the agent's most recent session of the current folder, for a
+	// restart whose session is not known for sure (FR-SHELL-041; FR-CONT-010's Resume <previous agent>).
+	LastSessionArgs() []string
 	// ResumesSession tells whether the user's arguments resume an existing session (a resumed session gets no
 	// briefing: DS-CONT-013).
 	ResumesSession(args []string) bool
