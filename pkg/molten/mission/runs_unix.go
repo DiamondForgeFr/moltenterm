@@ -29,3 +29,11 @@ func stopRunGroup(pid int) error {
 	}
 	return syscall.Kill(-pid, syscall.SIGTERM)
 }
+
+// killRunGroup is for a group that did not stop on SIGTERM.
+func killRunGroup(pid int) error {
+	if pid <= 0 {
+		return nil
+	}
+	return syscall.Kill(-pid, syscall.SIGKILL)
+}

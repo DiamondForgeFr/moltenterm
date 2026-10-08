@@ -98,7 +98,8 @@ describe("sync results", () => {
     });
 
     it("keys a sync by dependent and declaration", () => {
-        expect(depSyncKey("/p/site", { sourcename: "Notulia", index: 0 })).toBe(depSyncKey("/p/site", { project: " notulia ", index: 0 }));
+        expect(depSyncKey("/p/site", { sourcename: "Notulia", index: 0 })).toBe(depSyncKey("/p/site", { project: "Other", index: 0 }));
+        expect(depSyncKey("/p/site", { sourcename: "Notulia" })).toBe(depSyncKey("/p/site", { project: " notulia " }));
         expect(depSyncKey("/p/site", { project: "Notulia", index: 0 })).not.toBe(depSyncKey("/p/site", { project: "Notulia", index: 1 }));
     });
 });

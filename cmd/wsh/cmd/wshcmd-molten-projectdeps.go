@@ -278,11 +278,26 @@ func formatMoltenDep(dep moltenDepState) string {
 		fmt.Fprintf(&sb, "    not committed: %s (commit them to clear the flag)\n", strings.Join(dep.Uncommitted, ", "))
 	}
 	if dep.Sync != "" {
-		fmt.Fprintf(&sb, "    sync: %s (molten project sync %s)\n", dep.Sync, moltenDepName(dep))
+		fmt.Fprintf(&sb, "    sync: %s (molten project sync %s)\n", dep.Sync, moltenShellWord(moltenDepName(dep)))
 	} else {
 		fmt.Fprintf(&sb, "    sync: no sync command is declared; add \"sync\" to the dependency in %s\n", molten.ProjectPipelineFile)
 	}
 	return sb.String()
+}
+
+// moltenShellWord quotes a name read from a repository so that a suggested command copied as is stays one word.
+func moltenShellWord(word string) string {
+	safe := word != ""
+	for _, r := range word {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("._-/@+", r)) {
+			safe = false
+			break
+		}
+	}
+	if safe {
+		return word
+	}
+	return "'" + strings.ReplaceAll(word, "'", `'\''`) + "'"
 }
 
 // formatMoltenDepSyncRun is a sync run in a line: how it ended and what it changed.

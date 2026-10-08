@@ -27,3 +27,7 @@ func stopRunGroup(pid int) error {
 	}
 	return proc.Kill()
 }
+
+func killRunGroup(pid int) error {
+	return stopRunGroup(pid)
+}

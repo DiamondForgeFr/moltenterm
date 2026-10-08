@@ -35,10 +35,17 @@ const (
 	DepSyncOutcomeChanged  = "changed"
 	DepSyncOutcomeNoChange = "nochange"
 	depSyncTreePrefix      = "deps-"
-	depSyncGitTimeout      = 2 * time.Minute
-	depSyncTimeout         = 30 * time.Minute
-	depSyncCancelPoll      = 500 * time.Millisecond
-	depAckFileVersion      = 1
+	// A worktree add checks out the whole source: a large repository takes a while.
+	depSyncGitTimeout = 10 * time.Minute
+	depSyncCancelPoll = 500 * time.Millisecond
+	depAckFileVersion = 1
+)
+
+// Tests shorten them.
+var (
+	depSyncTimeout = 30 * time.Minute
+	// A command that ignores SIGTERM is killed this long after it.
+	depSyncKillGrace = 10 * time.Second
 )
 
 type DepSyncRequest struct {
@@ -170,11 +177,13 @@ func (g *Groups) withAcknowledgement(dependentDir string, dep molten.PipelineDep
 }
 
 // withLastSyncs attaches to each declaration its last sync from the dependent's run history.
-func (g *Groups) withLastSyncs(dependentDir string, states []DependencyState) []DependencyState {
+func (g *Groups) withLastSyncs(dependentDir string, states []DependencyState, runs []RunRecord) []DependencyState {
 	if g.runs == nil || len(states) == 0 {
 		return states
 	}
-	runs := g.runs.List(dependentDir)
+	if runs == nil {
+		runs = g.runs.List(dependentDir)
+	}
 	rtn := make([]DependencyState, len(states))
 	for i, state := range states {
 		for _, rec := range runs {
@@ -245,23 +254,26 @@ func pickSyncDeclaration(declared []molten.PipelineDependency, req DepSyncReques
 	return -1, fmt.Errorf("several dependencies declare a sync, name one: %s", strings.Join(names, ", "))
 }
 
-func (g *Groups) claimSync(dir string) bool {
+// claimSync holds the dependent for one sync, named by its run id: only that sync releases it, however many times.
+func (g *Groups) claimSync(dir string, runId string) bool {
 	g.lock.Lock()
 	defer g.lock.Unlock()
 	if g.syncing == nil {
-		g.syncing = map[string]bool{}
+		g.syncing = map[string]string{}
 	}
-	if g.syncing[dir] {
+	if g.syncing[dir] != "" {
 		return false
 	}
-	g.syncing[dir] = true
+	g.syncing[dir] = runId
 	return true
 }
 
-func (g *Groups) releaseSync(dir string) {
+func (g *Groups) releaseSync(dir string, runId string) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
-	delete(g.syncing, dir)
+	if g.syncing[dir] == runId {
+		delete(g.syncing, dir)
+	}
 }
 
 func (g *Groups) syncSetup() (*DepAcks, string) {
@@ -287,14 +299,6 @@ func (g *Groups) treeInUse(tree string) bool {
 	g.lock.Lock()
 	defer g.lock.Unlock()
 	return g.syncTrees[tree]
-}
-
-// fullRef turns the ref an evaluation read back into the ref it came from: origin's branch, else the local one.
-func fullRef(ref string) string {
-	if strings.HasPrefix(ref, "origin/") {
-		return "refs/remotes/" + ref
-	}
-	return "refs/heads/" + ref
 }
 
 // depSync is what a sync needs once it is allowed to start.
@@ -337,6 +341,12 @@ func (g *Groups) Sync(req DepSyncRequest) (RunResult, error) {
 	if name == "" {
 		name = member.Name
 	}
+	// Trust comes first: an untrusted request reads no repository.
+	commands := PipelineCommands(report.Pipeline)
+	hash := CommandsHash(commands)
+	if !g.runs.trust.IsTrusted(dir, hash) {
+		return RunResult{Untrusted: &UntrustedInfo{Hash: hash, Commands: commands}}, nil
+	}
 	declared := report.Pipeline.DependsOn
 	evaluated := map[int]DependencyState{}
 	evaluateAt := func(i int) DependencyState {
@@ -353,32 +363,28 @@ func (g *Groups) Sync(req DepSyncRequest) (RunResult, error) {
 	if err != nil {
 		return RunResult{}, err
 	}
-	commands := PipelineCommands(report.Pipeline)
-	hash := CommandsHash(commands)
-	if !g.runs.trust.IsTrusted(dir, hash) {
-		return RunResult{Untrusted: &UntrustedInfo{Hash: hash, Commands: commands}}, nil
-	}
 	state := evaluateAt(index)
 	switch state.State {
 	case DepStateInvalid, DepStateSourceNotFound, DepStateBranchNotFound, DepStateError:
 		return RunResult{}, fmt.Errorf("cannot sync from %s: %s", strings.TrimSpace(declared[index].Project), state.Problem)
 	}
-	if !g.claimSync(dir) {
+	now := g.now()
+	runId := newRunId(now)
+	if !g.claimSync(dir, runId) {
 		return RunResult{}, errors.New("a sync of this project is already running")
 	}
 	started := false
 	defer func() {
 		if !started {
-			g.releaseSync(dir)
+			g.releaseSync(dir, runId)
 		}
 	}()
 	s := depSync{dir: dir, dep: declared[index], sourceDir: state.SourceDir, sourceName: state.SourceName, acks: acks, treesDir: treesDir, dependency: state}
-	if err := g.readTip(&s, state.Ref); err != nil {
+	if err := g.readTip(&s, state.sourceRef); err != nil {
 		return RunResult{}, err
 	}
-	now := g.now()
 	rec := RunRecord{
-		Id:        newRunId(now),
+		Id:        runId,
 		Dir:       dir,
 		Kind:      RunKindSync,
 		StepId:    DepSyncStepId(index),
@@ -396,28 +402,33 @@ func (g *Groups) Sync(req DepSyncRequest) (RunResult, error) {
 	if err := os.MkdirAll(filepath.Join(g.runs.projectDir(dir), rec.Id), 0700); err != nil {
 		return RunResult{}, err
 	}
+	// Marked before the record exists: a List in between would take it for a sync whose wavesrv stopped.
+	g.runs.setPreparing(rec.Id, true)
 	if err := g.runs.writeRecord(rec); err != nil {
+		g.runs.setPreparing(rec.Id, false)
 		return RunResult{}, err
 	}
-	g.runs.setPreparing(rec.Id, true)
 	started = true
-	g.runs.prune(dir)
 	if g.runs.publish != nil {
 		g.runs.publish(rec)
 	}
 	go g.runSync(s, rec)
+	// The flag shows the sync running; its end refreshes the groups through the collector (the run event).
 	go g.Refreshed()
 	return RunResult{Run: &rec}, nil
 }
 
 // readTip reads the watched branch's tip and the newest commit touching paths there, the one an acknowledgement names.
 func (g *Groups) readTip(s *depSync, ref string) error {
+	if !strings.HasPrefix(ref, "refs/") {
+		return fmt.Errorf("the watched branch of %s could not be read", s.sourceName)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), depEvaluateTimeout)
 	defer cancel()
 	src := &gitReader{ctx: WithRunEnv(ctx, "GIT_NO_LAZY_FETCH=1"), run: g.run, dir: s.sourceDir}
-	tip, err := src.out("rev-parse", "--verify", fullRef(ref)+"^{commit}")
+	tip, err := src.out("rev-parse", "--verify", ref+"^{commit}")
 	if err != nil || !depShaRegex.MatchString(strings.TrimSpace(tip)) {
-		return fmt.Errorf("reading %s of %s: %v", ref, s.sourceName, err)
+		return fmt.Errorf("reading %s of %s: %v", shortRef(ref), s.sourceName, err)
 	}
 	s.tip = strings.TrimSpace(tip)
 	newest, err := src.newestTouching(s.tip, depPathspecs(s.dep.Paths), true)
@@ -440,14 +451,21 @@ func (l syncLog) say(format string, args ...any) {
 }
 
 func (g *Groups) runSync(s depSync, rec RunRecord) {
+	ended := false
 	defer func() {
 		panichandler.PanicHandler("molten:mission:depsync", recover())
+		// A sync that stopped without its end written (a panic) still releases the dependent and reads as ended.
+		if !ended {
+			g.endSync(rec, RunStateFailure, nil, "", nil)
+		}
 	}()
-	defer g.releaseSync(s.dir)
-	defer g.runs.setPreparing(rec.Id, false)
+	end := func(state string, exit *int, outcome string, changed []string) {
+		ended = true
+		g.endSync(rec, state, exit, outcome, changed)
+	}
 	file, err := os.OpenFile(g.runs.logFile(rec.Dir, rec.Id), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
-		g.endSync(rec, RunStateFailure, nil, "", nil)
+		end(RunStateFailure, nil, "", nil)
 		return
 	}
 	defer file.Close()
@@ -456,36 +474,46 @@ func (g *Groups) runSync(s depSync, rec RunRecord) {
 	tree, err := g.addSourceTree(s, rec.Id, log)
 	if err != nil {
 		log.say("%v", err)
-		g.endSync(rec, RunStateFailure, nil, "", nil)
+		end(RunStateFailure, nil, "", nil)
 		return
 	}
 	defer g.removeSourceTree(s, tree, log)
 	if g.runs.checkCancelAsked(rec.Id) {
+		g.removeSourceTree(s, tree, log)
 		log.say("cancelled")
 		rec.Cancelled = true
-		g.endSync(rec, RunStateCancelled, nil, "", nil)
+		end(RunStateCancelled, nil, "", nil)
 		return
 	}
+	before := g.outputStatus(s)
+	if len(before) > 0 {
+		log.say("note: %s already had uncommitted changes before the sync", strings.Join(before, ", "))
+	}
 	log.say("$ %s", s.dep.Sync)
-	code, cancelled, err := g.runSyncCommand(s, &rec, tree, file)
-	if err != nil {
-		log.say("%v", err)
+	result := g.runSyncCommand(s, &rec, tree, file)
+	if result.err != nil {
+		log.say("%v", result.err)
 	}
 	g.removeSourceTree(s, tree, log)
+	code := result.code
 	switch {
-	case cancelled:
+	case result.timedOut:
+		log.say("the sync ran for more than %s and was stopped: the dependency stays stale", depSyncTimeout)
+		end(RunStateFailure, &code, "", nil)
+		return
+	case result.cancelled:
 		rec.Cancelled = true
 		log.say("cancelled")
-		g.endSync(rec, RunStateCancelled, &code, "", nil)
+		end(RunStateCancelled, &code, "", nil)
 		return
 	case code != 0:
 		log.say("the sync failed (exit %d): the dependency stays stale", code)
-		g.endSync(rec, RunStateFailure, &code, "", nil)
+		end(RunStateFailure, &code, "", nil)
 		return
 	}
 	outcome, changed, err := g.syncOutcome(s)
 	if err != nil {
-		log.say("the output could not be read: %v", err)
+		log.say("what the sync changed could not be read (%v): nothing is recorded, the flag follows git", err)
 	}
 	switch outcome {
 	case DepSyncOutcomeNoChange:
@@ -497,12 +525,13 @@ func (g *Groups) runSync(s depSync, rec RunRecord) {
 		log.say("synced, not committed: %s", strings.Join(changed, ", "))
 		log.say("review and commit them on %s to clear the flag", s.dependency.Trunk)
 	}
-	g.endSync(rec, RunStateSuccess, &code, outcome, changed)
+	end(RunStateSuccess, &code, outcome, changed)
 }
 
 // addSourceTree checks the watched branch's tip out in a worktree of the source's own, under MoltenTerm's data
-// folder; the source's hooks do not run (core.hooksPath points at an empty folder). Leftovers of a sync that
-// MoltenTerm could not finish are removed first.
+// folder; the source's hooks and fsmonitor do not run (core.hooksPath points at an empty folder). A partial clone may
+// still fetch the files it lacks: the sync needs them. Leftovers of a sync that MoltenTerm could not finish are
+// removed first.
 func (g *Groups) addSourceTree(s depSync, runId string, log syncLog) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), depSyncGitTimeout)
 	defer cancel()
@@ -518,7 +547,7 @@ func (g *Groups) addSourceTree(s depSync, runId string, log syncLog) (string, er
 	tree := filepath.Join(parent, depSyncTreePrefix+runId)
 	g.useTree(tree, true)
 	log.say("$ git worktree add --detach %s %s", tree, shortSha(s.tip))
-	out, err := g.run(ctx, s.sourceDir, "git", "-c", "core.hooksPath="+noHooks, "worktree", "add", "--detach", "--quiet", tree, s.tip)
+	out, err := g.run(ctx, s.sourceDir, "git", "-c", "core.hooksPath="+noHooks, "-c", "core.fsmonitor=false", "worktree", "add", "--detach", "--quiet", tree, s.tip)
 	if len(out) > 0 {
 		log.file.Write(out)
 	}
@@ -575,9 +604,17 @@ func syncEnv(s depSync, tree string, runId string) []string {
 		"MOLTEN_RUN_ID="+runId)
 }
 
+type syncCommandResult struct {
+	code      int
+	cancelled bool
+	timedOut  bool
+	err       error
+}
+
 // runSyncCommand runs the declared command in the dependent's root, in a session of its own so a cancel stops all it
-// started, and waits for it; it reports the exit code and whether it was cancelled (or ran out of time).
-func (g *Groups) runSyncCommand(s depSync, rec *RunRecord, tree string, out *os.File) (int, bool, error) {
+// started, and waits for it. A cancel or the time limit sends SIGTERM to the group, then SIGKILL after a grace delay:
+// a command that ignores SIGTERM must not hold the dependent forever.
+func (g *Groups) runSyncCommand(s depSync, rec *RunRecord, tree string, out *os.File) syncCommandResult {
 	cmd := exec.Command("/bin/sh", "-c", s.dep.Sync)
 	cmd.Dir = s.dir
 	cmd.Env = syncEnv(s, tree, rec.Id)
@@ -586,7 +623,7 @@ func (g *Groups) runSyncCommand(s depSync, rec *RunRecord, tree string, out *os.
 	cmd.Stdin = nil
 	detachRun(cmd)
 	if err := cmd.Start(); err != nil {
-		return 1, false, fmt.Errorf("starting the sync: %w", err)
+		return syncCommandResult{code: 1, err: fmt.Errorf("starting the sync: %w", err)}
 	}
 	rec.Pid = cmd.Process.Pid
 	g.runs.writeRecord(*rec)
@@ -598,39 +635,57 @@ func (g *Groups) runSyncCommand(s depSync, rec *RunRecord, tree string, out *os.
 	ticker := time.NewTicker(depSyncCancelPoll)
 	defer ticker.Stop()
 	deadline := time.After(depSyncTimeout)
-	stopped := false
+	var kill <-chan time.Time
+	result := syncCommandResult{}
+	stop := func() {
+		stopRunGroup(rec.Pid)
+		kill = time.After(depSyncKillGrace)
+	}
 	for {
 		select {
 		case err := <-done:
 			if err == nil {
-				return 0, stopped, nil
+				return result
 			}
+			result.code = 1
 			var exitErr *exec.ExitError
-			if errors.As(err, &exitErr) {
-				code := exitErr.ExitCode()
-				if code < 0 {
-					code = 1
-				}
-				return code, stopped, nil
+			if !errors.As(err, &exitErr) {
+				result.err = err
+				return result
 			}
-			return 1, stopped, err
+			if code := exitErr.ExitCode(); code > 0 {
+				result.code = code
+			}
+			return result
 		case <-ticker.C:
-			if !stopped && g.runs.checkCancelAsked(rec.Id) {
-				stopped = true
-				stopRunGroup(rec.Pid)
+			if !result.cancelled && !result.timedOut && g.runs.checkCancelAsked(rec.Id) {
+				result.cancelled = true
+				stop()
 			}
 		case <-deadline:
-			if !stopped {
-				stopped = true
-				fmt.Fprintf(out, "the sync ran for more than %s: stopped\n", depSyncTimeout)
-				stopRunGroup(rec.Pid)
+			if !result.cancelled && !result.timedOut {
+				result.timedOut = true
+				stop()
 			}
+		case <-kill:
+			killRunGroup(rec.Pid)
+			kill = nil
 		}
 	}
 }
 
+// outputStatus lists the output files changed or untracked in the dependent.
+func (g *Groups) outputStatus(s depSync) []string {
+	ctx, cancel := context.WithTimeout(context.Background(), depEvaluateTimeout)
+	defer cancel()
+	dependent := &gitReader{ctx: WithRunEnv(ctx, "GIT_NO_LAZY_FETCH=1"), run: g.run, dir: s.dir}
+	files, _ := dependent.uncommitted(depPathspecs(s.dep.Output))
+	return files
+}
+
 // syncOutcome reads what a successful sync left: output files changed against HEAD, or a HEAD whose output differs
-// from the trunk's, is a change to review and commit; otherwise the sync changed nothing.
+// from the trunk's, is a change to review and commit; the same output as the trunk's is no change. When git cannot
+// say, the outcome is unknown: no acknowledgement is recorded.
 func (g *Groups) syncOutcome(s depSync) (string, []string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), depEvaluateTimeout)
 	defer cancel()
@@ -644,15 +699,17 @@ func (g *Groups) syncOutcome(s depSync) (string, []string, error) {
 		return DepSyncOutcomeChanged, uncommitted, nil
 	}
 	_, trunkRefs, err := dependent.dependentTrunk()
-	if err != nil || len(trunkRefs) == 0 {
-		return DepSyncOutcomeNoChange, nil, nil
+	if err != nil {
+		return "", nil, err
 	}
 	var changed []string
+	var lastErr error
 	for _, entry := range trunkRefs {
 		ref, _, _ := strings.Cut(entry, "\t")
 		args := append([]string{"-c", "core.quotePath=false", "diff", "--name-only", ref, "HEAD", "--"}, specs...)
 		out, err := dependent.out(args...)
 		if err != nil {
+			lastErr = err
 			continue
 		}
 		if strings.TrimSpace(out) == "" {
@@ -663,7 +720,10 @@ func (g *Groups) syncOutcome(s depSync) (string, []string, error) {
 		}
 	}
 	if changed == nil {
-		return DepSyncOutcomeNoChange, nil, nil
+		if lastErr == nil {
+			lastErr = errors.New("the trunk could not be compared")
+		}
+		return "", nil, lastErr
 	}
 	if len(changed) > maxDepUncommitted {
 		changed = changed[:maxDepUncommitted]
@@ -671,10 +731,11 @@ func (g *Groups) syncOutcome(s depSync) (string, []string, error) {
 	return DepSyncOutcomeChanged, changed, nil
 }
 
-// endSync writes a sync's final record; the run event refreshes the dependent's snapshot, and the groups follow.
+// endSync writes a sync's final record; the run event refreshes the dependent's snapshot through the collector, and
+// the groups follow it.
 func (g *Groups) endSync(rec RunRecord, state string, exit *int, outcome string, changed []string) {
 	// The next sync may start as soon as this one reads as ended.
-	defer g.releaseSync(rec.Dir)
+	defer g.releaseSync(rec.Dir, rec.Id)
 	defer g.runs.setPreparing(rec.Id, false)
 	rec.Preparing = false
 	rec.State = state
@@ -689,5 +750,8 @@ func (g *Groups) endSync(rec RunRecord, state string, exit *int, outcome string,
 	if g.runs.publish != nil {
 		g.runs.publish(rec)
 	}
-	go g.Refreshed()
+	g.runs.prune(rec.Dir)
+	if g.collector == nil {
+		go g.Refreshed()
+	}
 }

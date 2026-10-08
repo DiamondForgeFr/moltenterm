@@ -112,10 +112,12 @@ func (r *Runs) startBuild(dir string, build molten.PipelineBuild, version string
 	if err := os.MkdirAll(filepath.Join(r.projectDir(dir), rec.Id), 0700); err != nil {
 		return rec, err
 	}
+	// Marked before the record exists: a List in between would take it for a build whose wavesrv stopped.
+	r.setPreparing(rec.Id, true)
 	if err := r.writeRecord(rec); err != nil {
+		r.setPreparing(rec.Id, false)
 		return rec, err
 	}
-	r.setPreparing(rec.Id, true)
 	r.prune(dir)
 	if r.publish != nil {
 		r.publish(rec)

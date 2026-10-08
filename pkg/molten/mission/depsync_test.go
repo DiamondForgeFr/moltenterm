@@ -82,8 +82,8 @@ func (f *depSyncFixture) sync(t *testing.T) RunRecord {
 	for time.Now().Before(deadline) {
 		rec, err := f.runs.readRecord(f.site, res.Run.Id)
 		if err == nil && rec.State != RunStateRunning {
-			if f.groups.claimSync(f.site) {
-				f.groups.releaseSync(f.site)
+			if f.groups.claimSync(f.site, "probe") {
+				f.groups.releaseSync(f.site, "probe")
 			} else {
 				t.Fatal("an ended sync must release the dependent")
 			}
@@ -247,19 +247,66 @@ func TestDepSyncLifecycle(t *testing.T) {
 	}
 
 	// One sync at a time per dependent.
-	if !f.groups.claimSync(f.site) {
+	if !f.groups.claimSync(f.site, "first") {
 		t.Fatal("claim")
 	}
 	if _, err := f.groups.Sync(DepSyncRequest{Dir: f.site}); err == nil || !strings.Contains(err.Error(), "already running") {
 		t.Fatalf("a second sync is refused: %v", err)
 	}
-	f.groups.releaseSync(f.site)
+	// Only the sync holding the dependent releases it: a late release of an older one does not.
+	f.groups.releaseSync(f.site, "older")
+	if f.groups.claimSync(f.site, "third") {
+		t.Fatal("a release by another sync must not free the dependent")
+	}
+	f.groups.releaseSync(f.site, "first")
 
 	// A changed sync command asks again (AC2).
 	depWrite(t, f.site, ".molten/project.json", strings.Replace(depSyncSitePipeline, "sh scripts/sync.sh", "sh scripts/sync.sh --all", 1))
 	if res, err := f.groups.Sync(DepSyncRequest{Dir: f.site}); err != nil || res.Untrusted == nil {
 		t.Fatalf("the changed command asks for trust: %+v %v", res, err)
 	}
+}
+
+// A sync that ignores SIGTERM is killed once the time limit passed, and reads as a failure; a cancel ends one too.
+func TestDepSyncStops(t *testing.T) {
+	savedTimeout, savedGrace := depSyncTimeout, depSyncKillGrace
+	depSyncTimeout, depSyncKillGrace = time.Second, 200*time.Millisecond
+	t.Cleanup(func() { depSyncTimeout, depSyncKillGrace = savedTimeout, savedGrace })
+	f := makeDepSyncFixture(t)
+	depCommit(t, f.clock, f.site, "chore: a stubborn sync", map[string]string{"scripts/sync.sh": "trap '' TERM\nsleep 30\n"})
+	f.trust(t)
+	start := time.Now()
+	timedOut := f.sync(t)
+	if timedOut.State != RunStateFailure || time.Since(start) > 15*time.Second {
+		t.Fatalf("the stubborn sync is stopped and fails: %+v after %s", timedOut, time.Since(start))
+	}
+	if text := f.log(t, timedOut); !strings.Contains(text, "was stopped") {
+		t.Fatalf("its log: %s", text)
+	}
+	f.assertNoSourceTree(t)
+
+	depSyncTimeout = time.Minute
+	res, err := f.groups.Sync(DepSyncRequest{Dir: f.site})
+	if err != nil || res.Run == nil {
+		t.Fatalf("%+v %v", res, err)
+	}
+	time.Sleep(700 * time.Millisecond)
+	if err := f.runs.Cancel(f.site, res.Run.Id); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		rec, _ := f.runs.readRecord(f.site, res.Run.Id)
+		if rec.State != RunStateRunning {
+			if rec.State != RunStateCancelled || !rec.Cancelled {
+				t.Fatalf("cancelled: %+v", rec)
+			}
+			f.assertNoSourceTree(t)
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("the cancelled sync did not end")
 }
 
 func TestDepSyncRefusals(t *testing.T) {
@@ -277,6 +324,7 @@ func TestDepSyncRefusals(t *testing.T) {
 	}
 	// Without a sync declared (AC6).
 	depWrite(t, f.site, ".molten/project.json", strings.Replace(depSyncSitePipeline, `"sync": "sh scripts/sync.sh", `, "", 1))
+	f.trust(t)
 	if _, err := f.groups.Sync(DepSyncRequest{Dir: f.site}); err == nil || !strings.Contains(err.Error(), "no dependency declares a sync") {
 		t.Fatalf("no sync declared: %v", err)
 	}

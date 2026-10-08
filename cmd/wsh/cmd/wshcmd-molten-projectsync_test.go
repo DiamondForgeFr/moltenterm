@@ -43,6 +43,14 @@ func TestFormatMoltenSyncEnd(t *testing.T) {
 	}
 }
 
+func TestMoltenShellWord(t *testing.T) {
+	for in, want := range map[string]string{"Notulia": "Notulia", "my app": "'my app'", "a;rm -rf ~": "'a;rm -rf ~'", "it's": `'it'\''s'`, "": "''"} {
+		if got := moltenShellWord(in); got != want {
+			t.Fatalf("%q: %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestMoltenPrintableLog(t *testing.T) {
 	if got := moltenPrintableLog("a\tb\nc\x1b]52;c;eA==\x07d\r\n"); got != "a\tb\nc]52;c;eA==d\n" {
 		t.Fatalf("%q", got)
