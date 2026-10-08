@@ -6,9 +6,9 @@
 // keeps what the build that started it set up: a shell from before FR-SHELL-036 has no agent launchers on PATH, and an
 // agent started there runs without MoltenTerm's browser or hooks.
 //
-// Detection (DS-SHELL-054): each local shell job records the shell generation it got (shellutil.MoltenShellGeneration,
+// Detection (DS-SHELL-073): each local shell job records the shell generation it got (shellutil.MoltenShellGeneration,
 // in its environment at start); the refresh hook of later shells reports the generation it applied (job meta).
-// Update terminal (DS-SHELL-056): an idle shell is replaced in place; an idle coding agent is ended with its own exit
+// Update terminal (DS-SHELL-075): an idle shell is replaced in place; an idle coding agent is ended with its own exit
 // command and started again on its session in a fresh shell; anything else is left alone and named.
 package termupdate
 
@@ -124,7 +124,7 @@ func IsLocalShellJob(job *waveobj.Job, isCommand bool) bool {
 	return conncontroller.IsLocalConnName(job.Connection)
 }
 
-// Assess tells whether a terminal's shell environment is older than current (DS-SHELL-054). run is the agent the
+// Assess tells whether a terminal's shell environment is older than current (DS-SHELL-073). run is the agent the
 // states know in the terminal, if any.
 func Assess(job *waveobj.Job, isCommand bool, run molten.AgentRunInfo, hasRun bool, current int) (OutdatedTerminal, bool) {
 	if !IsLocalShellJob(job, isCommand) {

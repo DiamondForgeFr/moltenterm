@@ -392,7 +392,7 @@ func InitRcFiles(waveHome string, absWshBinDir string) error {
 		"AGENTBINDIR_FISH": HardQuoteFish(filepath.Join(absWshBinDir, AgentBinDirName)),
 		"AGENTBINDIR_PWSH": HardQuotePowerShell(filepath.Join(absWshBinDir, AgentBinDirName)),
 	}
-	// MOLTENTERM-PATCH (#366): the refresh files sourced before each prompt and command (DS-SHELL-055)
+	// MOLTENTERM-PATCH (#366): the refresh files sourced before each prompt and command (DS-SHELL-074)
 	moltenRefreshParams(waveHome, params)
 	if err := writeMoltenRefreshFiles(waveHome, params); err != nil {
 		return fmt.Errorf("error writing the molten refresh files: %v", err)

@@ -18,7 +18,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
-// Update terminal (DS-SHELL-056). Nothing is ever signalled or killed: a shell is replaced only when nothing runs in
+// Update terminal (DS-SHELL-075). Nothing is ever signalled or killed: a shell is replaced only when nothing runs in
 // it, and an agent is only asked to exit with its own command, while it is idle.
 
 const (
@@ -31,6 +31,10 @@ const (
 	// How long the new shell has to show its first prompt before the agent's command is typed anyway.
 	firstPromptTimeout = 15 * time.Second
 	pollInterval       = 200 * time.Millisecond
+	// How long the old shell's prompt, drawn when the agent exits, takes to come through the output.
+	oldPromptSettle = 500 * time.Millisecond
+	// How long a shell's line editor takes to start after its prompt hook.
+	lineEditorSettle = 400 * time.Millisecond
 	// After the agent exits, the shell takes its terminal back.
 	shellBackTimeout = 2 * time.Second
 )
@@ -164,6 +168,23 @@ func shellHelper(name string) bool {
 	return false
 }
 
+// logicalCwd keeps the folder as the shell named it ($PWD, from OSC 7: /tmp/x) when it is the folder the process is in
+// (/private/tmp/x): Claude Code files its sessions under the folder's name, so a resumed session must start there.
+func logicalCwd(physical string, block *waveobj.Block) string {
+	if block == nil {
+		return physical
+	}
+	logical := block.Meta.GetString(waveobj.MetaKey_CmdCwd, "")
+	if logical == "" || physical == "" || logical == physical {
+		return physical
+	}
+	resolved, err := filepath.EvalSymlinks(logical)
+	if err != nil || filepath.Clean(resolved) != filepath.Clean(physical) {
+		return physical
+	}
+	return logical
+}
+
 func busyOutcome(program string) *Outcome {
 	return &Outcome{
 		Status:  StatusBusy,
@@ -212,7 +233,7 @@ func (u *Updater) Run(ctx context.Context, req Request) Outcome {
 	if st.busy != "" {
 		return *busyOutcome(st.busy)
 	}
-	cwd := u.env.Cwd(st.shell.Pid)
+	cwd := logicalCwd(u.env.Cwd(st.shell.Pid), st.block)
 	if err := u.env.Replace(ctx, req.BlockId, cwd, TerminalUpdatedNotice); err != nil {
 		return Outcome{Status: StatusFailed, Message: fmt.Sprintf("The new shell did not start: %v", err)}
 	}
@@ -265,6 +286,7 @@ func (u *Updater) restartAgent(ctx context.Context, req Request, st shellState) 
 	if cwd == "" {
 		cwd = u.env.Cwd(st.shell.Pid)
 	}
+	cwd = logicalCwd(cwd, st.block)
 	session := u.env.FindSession(req.BlockId, agent, resumeSessionWait)
 	command, guessed := ResumeCommand(st.adapter, agent, session)
 	if !u.StopAgent(req.BlockId, st.adapter, st.agent, st.shell.Pid) {
@@ -294,6 +316,12 @@ func (u *Updater) restartAgent(ctx context.Context, req Request, st shellState) 
 	}
 	prompts, release := u.env.WatchPrompt(req.BlockId)
 	defer release()
+	// The old shell shows its prompt again once the agent exits: that mark is not the new shell's first prompt.
+	u.env.Sleep(oldPromptSettle)
+	select {
+	case <-prompts:
+	default:
+	}
 	notice := fmt.Sprintf("%s; %s starts again on its session", TerminalUpdatedNotice, name)
 	if err := u.env.Replace(ctx, req.BlockId, cwd, notice); err != nil {
 		base.Status = StatusFailed
@@ -303,6 +331,9 @@ func (u *Updater) restartAgent(ctx context.Context, req Request, st shellState) 
 	}
 	select {
 	case <-prompts:
+		// The mark comes from the hook that runs just before the prompt is drawn: text sent at once would be echoed
+		// before the line editor starts, then drawn again.
+		u.env.Sleep(lineEditorSettle)
 	case <-time.After(firstPromptTimeout):
 	case <-ctx.Done():
 	}

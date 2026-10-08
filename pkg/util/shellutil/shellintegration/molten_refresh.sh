@@ -1,4 +1,4 @@
-# MoltenTerm's managed shell environment, generation {{.GEN}} (FR-SHELL-041, DS-SHELL-055). MoltenTerm rewrites this
+# MoltenTerm's managed shell environment, generation {{.GEN}} (FR-SHELL-041, DS-SHELL-074). MoltenTerm rewrites this
 # file at every start; its zsh and bash integration sources it before each prompt and each command, so a shell left
 # open across an update catches up. It only acts where the agent launchers' folder exists (never on a remote host).
 _moltenterm_rdir={{.AGENTBINDIR}}

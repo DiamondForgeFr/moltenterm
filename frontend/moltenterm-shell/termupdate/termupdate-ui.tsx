@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The outdated terminal's chip in the pane header (FR-SHELL-041, DS-SHELL-057): quiet, next to the agent label, the
+// The outdated terminal's chip in the pane header (FR-SHELL-041, DS-SHELL-076): quiet, next to the agent label, the
 // shape of the hook offer (#221). A click checks first: an idle shell is updated at once; an agent asks once; a busy
 // terminal says what to finish first. The result shows in the same dialog only when there is something to say.
 
