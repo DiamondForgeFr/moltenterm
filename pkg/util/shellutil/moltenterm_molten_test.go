@@ -103,7 +103,7 @@ func TestMoltenOpenPath(t *testing.T) {
 	}
 }
 
-// DS-SHELL-055: the refresh file puts the launchers' folder back first on PATH (once, dropping other copies) and
+// DS-SHELL-074: the refresh file puts the launchers' folder back first on PATH (once, dropping other copies) and
 // reports the generation once, in every shell that sources it from a hook function.
 func TestMoltenRefreshFiles(t *testing.T) {
 	if runtime.GOOS == "windows" {

@@ -1,7 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Outdated terminals (FR-SHELL-041, DS-SHELL-057): what wavesrv's terminal update route answers and the words the
+// Outdated terminals (FR-SHELL-041, DS-SHELL-076): what wavesrv's terminal update route answers and the words the
 // header chip, its dialog and the palette use. Pure functions, tested without the app.
 
 // must match pkg/molten/termupdate/termupdate.go

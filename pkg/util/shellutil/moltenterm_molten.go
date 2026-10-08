@@ -33,7 +33,7 @@ const BrowserVarName = "BROWSER"
 // shell integration scripts put it first on PATH after the user's startup files, so `claude` runs the launcher.
 const AgentBinDirName = "agents"
 
-// MoltenShellGeneration is the generation of MoltenTerm's managed shell environment (FR-SHELL-041, DS-SHELL-054): bump
+// MoltenShellGeneration is the generation of MoltenTerm's managed shell environment (FR-SHELL-041, DS-SHELL-073): bump
 // it whenever what the shell integration sets up for MoltenTerm changes (PATH, variables), never just for a new
 // version. 1: the agent launchers' folder first on PATH and the refresh hook. A local shell records the generation it
 // got in its job's environment; a shell with an older one is outdated.
@@ -43,7 +43,7 @@ const MoltenShellGeneration = 1
 const MoltenShellGenVarName = "MOLTEN_SHELL_GEN"
 
 // MoltenRefreshDir holds the refresh files the shell integration sources before each prompt and command
-// (DS-SHELL-055), under the data folder.
+// (DS-SHELL-074), under the data folder.
 const MoltenRefreshDir = "shell/molten"
 
 const (

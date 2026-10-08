@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/filestore"
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
@@ -18,7 +17,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
-// Update terminal (FR-SHELL-041, DS-SHELL-056): a terminal's shell is replaced by a fresh one in the same pane, the
+// Update terminal (FR-SHELL-041, DS-SHELL-075): a terminal's shell is replaced by a fresh one in the same pane, the
 // way Restart Session does it, but from wavesrv, in a given folder, and also for a terminal no window shows yet.
 // termupdate decides when (never while a program runs); this file only does it.
 
@@ -68,7 +67,7 @@ func replaceTerminalShell(ctx context.Context, blockId string, cwd string, notic
 	}
 	time.Sleep(replaceSettle)
 	line := "\r\n\x1b[90m[" + notice + "]\x1b[0m\r\n"
-	if err := filestore.WFS.AppendData(ctx, blockId, wavebase.BlockFile_Term, []byte(line)); err != nil {
+	if err := HandleAppendBlockFile(blockId, wavebase.BlockFile_Term, []byte(line)); err != nil {
 		return fmt.Errorf("writing to the terminal: %w", err)
 	}
 	var rtOpts *waveobj.RuntimeOpts

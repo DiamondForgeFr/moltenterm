@@ -74,7 +74,7 @@ function _waveterm_si_chpwd --on-variable PWD
 end
 
 # MOLTENTERM-PATCH (#366): re-apply MoltenTerm's managed environment before each prompt and each command, from a file
-# every MoltenTerm start rewrites, so a shell left open across an update catches up (DS-SHELL-055)
+# every MoltenTerm start rewrites, so a shell left open across an update catches up (DS-SHELL-074)
 function _moltenterm_refresh --on-event fish_prompt --on-event fish_preexec
     set -l _moltenterm_status $status
     test -r {{.MOLTENREFRESH_FISH}}; and source {{.MOLTENREFRESH_FISH}}
