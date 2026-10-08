@@ -437,7 +437,7 @@ func Start() {
 	groups = MakeGroups(collector, ci, runs, ExecRunner, WorkspaceLinks, publishGroups, notifyDependencies)
 	groups.UseSync(MakeDepAcks(DepAcksDir(dataDir)), DepSyncTreesDir(dataDir))
 	// The rail keeps a product's workspaces together (FR-MC-027), and a move changes the member order the groups show.
-	railorder.SetGrouping(ProductWorkspaces, func() { go groups.Refreshed() })
+	railorder.SetGrouping(ProductWorkspaces, func() { go groups.Reordered() })
 	if err := registerRoute(collector, runs, ci, panes, MakeWorktrees(ExecRunner, nil), groups); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
