@@ -17,8 +17,6 @@ import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import {
     atoms,
     createBlock,
-    createBlockSplitHorizontally,
-    createBlockSplitVertically,
     getAllBlockComponentModels,
     getApi,
     getBlockComponentModel,
@@ -43,6 +41,7 @@ import {
     termFileLinkMenuItems,
 } from "../../../moltenterm-shell/term-copy/term-copy"; // MOLTENTERM-PATCH (#119)
 import { openInBrowserPanel } from "../../../moltenterm-shell/browser/browser-routing"; // MOLTENTERM-PATCH (#132, #140)
+import { splitMenuItems } from "../../../moltenterm-shell/split/split-menu"; // MOLTENTERM-PATCH (#370)
 import { isMacOS, isWindows } from "@/util/platformutil";
 import { boundNumber, fireAndForget, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
@@ -934,34 +933,9 @@ export class TermViewModel implements ViewModel {
         termThemeKeys.sort((a, b) => {
             return (termThemes[a]["display:order"] ?? 0) - (termThemes[b]["display:order"] ?? 0);
         });
-        const defaultTermBlockDef: BlockDef = {
-            meta: {
-                view: "term",
-                controller: "shell",
-            },
-        };
-
         const fullMenu: ContextMenuItem[] = [];
-        fullMenu.push({
-            label: "Split Horizontally",
-            click: () => {
-                const blockData = globalStore.get(this.blockAtom);
-                const blockDef: BlockDef = {
-                    meta: blockData?.meta || defaultTermBlockDef.meta,
-                };
-                createBlockSplitHorizontally(blockDef, this.blockId, "after");
-            },
-        });
-        fullMenu.push({
-            label: "Split Vertically",
-            click: () => {
-                const blockData = globalStore.get(this.blockAtom);
-                const blockDef: BlockDef = {
-                    meta: blockData?.meta || defaultTermBlockDef.meta,
-                };
-                createBlockSplitVertically(blockDef, this.blockId, "after");
-            },
-        });
+        // MOLTENTERM-PATCH (#370): Split right / Split down open the content picker in the new panel (FR-SHELL-042)
+        fullMenu.push(...splitMenuItems(this.blockId));
         fullMenu.push({ type: "separator" });
 
         const shellIntegrationStatus = globalStore.get(this.termRef?.current?.shellIntegrationStatusAtom);

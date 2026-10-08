@@ -6,8 +6,6 @@ import { FocusManager } from "@/app/store/focusManager";
 import {
     atoms,
     createBlock,
-    createBlockSplitHorizontally,
-    createBlockSplitVertically,
     createTab,
     getAllBlockComponentModels,
     getApi,
@@ -25,6 +23,7 @@ import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import { deleteLayoutModelForTab, getLayoutModelForStaticTab, NavigateDirection } from "@/layout/index";
 import * as keyutil from "@/util/keyutil";
 import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
+import { splitFocusedPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
 import { closeTabAskingWorktrees, interceptWorktreeClose } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#114, #134)
 import { isWindows } from "@/util/platformutil";
@@ -392,24 +391,14 @@ async function handleCmdN() {
     await createBlock(blockDef);
 }
 
+// MOLTENTERM-PATCH (#370): a split opens the content picker in the new panel (FR-SHELL-042,
+// frontend/moltenterm-shell/split/); choosing Terminal there gives what getDefaultNewBlockDef gave.
 async function handleSplitHorizontal(position: "before" | "after") {
-    const layoutModel = getLayoutModelForStaticTab();
-    const focusedNode = globalStore.get(layoutModel.focusedNode);
-    if (focusedNode == null) {
-        return;
-    }
-    const blockDef = getDefaultNewBlockDef();
-    await createBlockSplitHorizontally(blockDef, focusedNode.data.blockId, position);
+    splitFocusedPanel(position === "before" ? "left" : "right");
 }
 
 async function handleSplitVertical(position: "before" | "after") {
-    const layoutModel = getLayoutModelForStaticTab();
-    const focusedNode = globalStore.get(layoutModel.focusedNode);
-    if (focusedNode == null) {
-        return;
-    }
-    const blockDef = getDefaultNewBlockDef();
-    await createBlockSplitVertically(blockDef, focusedNode.data.blockId, position);
+    splitFocusedPanel(position === "before" ? "up" : "down");
 }
 
 let lastHandledEvent: KeyboardEvent | null = null;

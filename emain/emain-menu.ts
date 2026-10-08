@@ -444,6 +444,11 @@ function convertMenuDefArrToMenu(
             checked: menuDef.checked,
             enabled: menuDef.enabled,
         };
+        // MOLTENTERM-PATCH (#370): the shortcut is shown, never registered: the renderer's key model handles it
+        if (menuDef.accelerator) {
+            menuItemTemplate.accelerator = menuDef.accelerator;
+            menuItemTemplate.registerAccelerator = false;
+        }
         if (menuDef.submenu != null) {
             menuItemTemplate.submenu = convertMenuDefArrToMenu(webContents, menuDef.submenu, menuState);
         }

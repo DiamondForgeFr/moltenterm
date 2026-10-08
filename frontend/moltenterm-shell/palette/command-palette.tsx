@@ -7,11 +7,15 @@
 import { atoms, getApi } from "@/app/store/global";
 import { WorkspaceService } from "@/app/store/services";
 import * as WOS from "@/app/store/wos";
+import { getLayoutModelForStaticTab, LayoutNode } from "@/layout/index";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
-import { useAtomValue } from "jotai";
+import { atom, Atom, useAtomValue } from "jotai";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
+import { formatShortcutById } from "../shortcuts/format";
+import { cancelSplit, consumeSplit, isPendingSplit } from "../split/split";
+import { SplitFromMetaKey } from "../split/split-model";
 import { TermUpdates } from "../termupdate/termupdate-store";
 import { WorkspaceIcon } from "../workspace-icon";
 import { workspaceIconSource } from "../workspace-icon-model";
@@ -26,9 +30,11 @@ import {
     matchEntry,
     moveSelection,
     PaletteEntry,
+    PaletteGroupOrder,
     paletteKeyCommand,
+    PickerGroupOrder,
 } from "./palette-model";
-import { buildPaletteEntries, paletteGroupTitles, PaletteWorkspace } from "./palette-sources";
+import { buildPaletteEntries, paletteGroupTitles, PaletteWorkspace, PickerSource } from "./palette-sources";
 
 export type CommandPaletteHost = "pane" | "modal";
 
@@ -84,7 +90,33 @@ async function loadWorkspaces(activeId: string): Promise<OtherWorkspaces> {
     return { list, folders: folders.filter((f) => f) };
 }
 
-function usePaletteEntries() {
+const NullBlockAtom = atom(null) as Atom<Block>;
+const NullNodeAtom = atom(null) as Atom<LayoutNode>;
+
+function useBlock(blockId: string): Block {
+    return useAtomValue(blockId ? WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId)) : NullBlockAtom);
+}
+
+// The palette is a split's picker when its pane was opened by a split (FR-SHELL-042, DS-SHELL-066).
+function usePickerSource(host: CommandPaletteHost, blockId: string): PickerSource {
+    const own = useBlock(host === "pane" ? blockId : null);
+    const from = own?.meta?.[SplitFromMetaKey as keyof MetaType];
+    const sourceId = typeof from === "string" && from !== "" ? from : null;
+    const source = useBlock(sourceId);
+    return useMemo(() => {
+        if (sourceId == null) {
+            return null;
+        }
+        return {
+            blockId: sourceId,
+            meta: source?.meta ?? {},
+            splitKeys: formatShortcutById("split-right"),
+            companionKeys: formatShortcutById("companion"),
+        };
+    }, [sourceId, source?.meta]);
+}
+
+function usePaletteEntries(picker: PickerSource) {
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const ws = useAtomValue(atoms.workspace);
     const [others, setOthers] = useState<OtherWorkspaces>({ list: [], folders: [] });
@@ -132,6 +164,8 @@ function usePaletteEntries() {
                 installedBrowser,
                 hasBrowserPanel,
                 outdatedTerminals,
+                picker,
+                shortcutsHint: formatShortcutById("shortcuts"),
             }),
         [
             fullConfig,
@@ -144,6 +178,7 @@ function usePaletteEntries() {
             installedBrowser,
             hasBrowserPanel,
             outdatedTerminals,
+            picker,
         ]
     );
     const titles = useMemo(() => paletteGroupTitles(folder, home), [folder, home]);
@@ -180,7 +215,7 @@ type PaletteRowProps = {
 
 function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteRowProps) {
     const indices = query ? (matchEntry(query, entry)?.indices ?? []) : [];
-    const aside = entry.cli ?? entry.hint;
+    const aside = [entry.keyPath ?? entry.cli ?? entry.hint, entry.shortcut].filter((s) => s).join("  ·  ");
     return (
         <div
             role="option"
@@ -189,7 +224,7 @@ function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteR
             onMouseMove={() => onHover(index)}
             onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => onOpen(entry, e.altKey || e.metaKey)}
-            title={entry.cli ? `${entry.label} — ${entry.cli}` : entry.label}
+            title={entry.cli && !entry.keyPath ? `${entry.label} — ${entry.cli}` : entry.label}
             className={cn(
                 "flex cursor-pointer items-center gap-2.5 px-3.5 py-1.5 text-[13px]",
                 selected ? "molten-palette-selected text-primary" : "text-secondary"
@@ -227,18 +262,44 @@ function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteR
 }
 
 export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, onClose }: CommandPaletteProps) {
-    const { entries, titles } = usePaletteEntries();
+    const picker = usePickerSource(host, blockId);
+    const { entries, titles } = usePaletteEntries(picker);
     const [query, setQuery] = useState("");
     const [selected, setSelected] = useState(0);
     const ownInputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
-    const sections = useMemo(() => filterPalette(entries, query, titles), [entries, query, titles]);
+    const order = picker != null ? PickerGroupOrder : PaletteGroupOrder;
+    const sections = useMemo(() => filterPalette(entries, query, titles, order), [entries, query, titles, order]);
     const flat = useMemo(() => flattenSections(sections), [sections]);
     const input = inputRef ?? ownInputRef;
+    const layoutModel = getLayoutModelForStaticTab();
+    const focusedNode = useAtomValue(layoutModel?.focusedNode ?? NullNodeAtom);
+    const focusedBlockId = focusedNode?.data?.blockId;
+    const queryRef = useRef(query);
+    queryRef.current = query;
+    const pickerWasFocused = useRef(false);
 
     useEffect(() => {
         setSelected(Math.max(bestMatchIndex(sections, query), 0));
     }, [query]);
+    // A click on another panel before anything was chosen or typed cancels the split; the clicked panel keeps the
+    // focus (DS-SHELL-066).
+    useEffect(() => {
+        if (picker == null || !blockId) {
+            return;
+        }
+        if (focusedBlockId === blockId) {
+            pickerWasFocused.current = true;
+            return;
+        }
+        if (!pickerWasFocused.current || focusedBlockId == null || queryRef.current.trim() !== "") {
+            return;
+        }
+        if (!isPendingSplit(blockId)) {
+            return;
+        }
+        fireAndForget(() => cancelSplit(blockId, true));
+    }, [focusedBlockId, picker, blockId]);
     useEffect(() => {
         if (autoFocus) {
             input.current?.focus();
@@ -252,9 +313,13 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
         if (entry == null) {
             return;
         }
-        const placement: PalettePlacement = right && blockId ? "right" : inPlace;
+        // In a split's picker the entry fills the new panel: it was opened for that.
+        const placement: PalettePlacement = right && blockId && picker == null ? "right" : inPlace;
         if (host === "modal") {
             onClose?.("open");
+        }
+        if (picker != null) {
+            consumeSplit(blockId);
         }
         fireAndForget(() => runPaletteEntry(entry.run, { placement, blockId }));
     };
@@ -280,9 +345,16 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
             return;
         }
         if (command === "close") {
-            // In a pane there is nothing to close (Cmd+W closes the pane): Esc clears the filter.
+            // In a pane there is nothing to close (Cmd+W closes the pane): Esc clears the filter. A split's picker
+            // cancels the split instead (DS-SHELL-066).
             if (host === "modal") {
                 onClose?.("dismiss");
+            } else if (picker != null) {
+                fireAndForget(async () => {
+                    if (!(await cancelSplit(blockId))) {
+                        setQuery("");
+                    }
+                });
             } else {
                 setQuery("");
             }
@@ -344,8 +416,8 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
             <div className="flex flex-wrap gap-x-3.5 gap-y-1 border-t border-border px-3.5 py-2 text-[10.5px] text-muted">
                 <span>↑↓ choose</span>
                 <span>↵ {inPlace === "replace" ? "open here" : "open"}</span>
-                {blockId && <span>⇥ open to the right</span>}
-                <span>esc {host === "modal" ? "close" : "clear"}</span>
+                {blockId && picker == null && <span>⇥ open to the right</span>}
+                <span>esc {host === "modal" ? "close" : picker != null ? "cancel the split" : "clear"}</span>
             </div>
         </div>
     );

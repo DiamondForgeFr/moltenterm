@@ -82,6 +82,7 @@ import { noteBrowserPanelFocus } from "./browser-routing";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
+import { splitMenuItems } from "../split/split-menu";
 
 export { MoltentermBrowserView };
 
@@ -450,6 +451,12 @@ export class BrowserViewModel implements ViewModel {
         ContextMenuModel.getInstance().showContextMenu(menu, { stopPropagation: () => {} } as React.MouseEvent);
     }
 
+    showPageMenu(): void {
+        ContextMenuModel.getInstance().showContextMenu(splitMenuItems(this.blockId), {
+            stopPropagation: () => {},
+        } as React.MouseEvent);
+    }
+
     initialState(): BrowserState {
         const blockAtom = makeBlockAtom(this.blockId);
         const meta = globalStore.get(blockAtom)?.meta ?? {};
@@ -501,6 +508,8 @@ export class BrowserViewModel implements ViewModel {
         const magnified = globalStore.get(this.nodeModel.isMagnified);
         ContextMenuModel.getInstance().showContextMenu(
             [
+                ...splitMenuItems(this.blockId),
+                { type: "separator" },
                 {
                     label: magnified ? "Un-Magnify Block" : "Magnify Block",
                     click: () => this.nodeModel.toggleMagnify(),
@@ -708,11 +717,18 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
                 model.openLink(url);
             }
         };
+        // A link gets the link menu; a plain spot of the page (no text field, selection or image, whose menus the
+        // page or the main process own) gets the panel's split actions (FR-SHELL-042-AC4).
         const onContextMenu = (e: any) => {
-            const linkUrl = e.params?.linkURL;
-            if (linkUrl) {
-                model.showLinkMenu(linkUrl);
+            const params = e.params ?? {};
+            if (params.linkURL) {
+                model.showLinkMenu(params.linkURL);
+                return;
             }
+            if (params.isEditable || params.selectionText || (params.mediaType && params.mediaType !== "none")) {
+                return;
+            }
+            model.showPageMenu();
         };
         const onFocus = () => {
             getApi().setWebviewFocus(webview.getWebContentsId());

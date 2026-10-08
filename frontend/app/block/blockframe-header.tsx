@@ -11,13 +11,7 @@ import {
 import { ConnectionButton } from "@/app/block/connectionbutton";
 import { DurableSessionFlyover } from "@/app/block/durable-session-flyover";
 import { getBlockBadgeAtom } from "@/app/store/badge";
-import {
-    createBlockSplitHorizontally,
-    createBlockSplitVertically,
-    recordTEvent,
-    refocusNode,
-    WOS,
-} from "@/app/store/global";
+import { recordTEvent, refocusNode } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -31,10 +25,21 @@ import * as React from "react";
 import { AgentHeaderLabel, useBlockAgentState } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#109)
 import { TermUpdateChip } from "../../moltenterm-shell/termupdate/termupdate-ui"; // MOLTENTERM-PATCH (#366)
 import { WorktreeHeaderLabel } from "../../moltenterm-shell/worktree-ui"; // MOLTENTERM-PATCH (#114)
+import { formatShortcutById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#370)
+import { splitPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
+// MOLTENTERM-PATCH (#370)
+import {
+    SplitDownLabel,
+    SplitRightLabel,
+    splitMenuItems,
+    withoutSplitItems,
+} from "../../moltenterm-shell/split/split-menu";
 import { BlockEnv } from "./blockenv";
 import { BlockFrameProps } from "./blocktypes";
 
-function handleHeaderContextMenu(
+// MOLTENTERM-PATCH (#370): exported for the block body's menu (blockframe.tsx); every view's menu starts with Split
+// right / Split down (FR-SHELL-042), and a view's own split items are not repeated.
+export function handleHeaderContextMenu(
     e: React.MouseEvent<HTMLDivElement>,
     blockId: string,
     viewModel: ViewModel,
@@ -45,6 +50,8 @@ function handleHeaderContextMenu(
     e.stopPropagation();
     const magnified = globalStore.get(nodeModel.isMagnified);
     const menu: ContextMenuItem[] = [
+        ...splitMenuItems(blockId),
+        { type: "separator" },
         {
             label: magnified ? "Un-Magnify Block" : "Magnify Block",
             click: () => {
@@ -59,7 +66,7 @@ function handleHeaderContextMenu(
             },
         },
     ];
-    const extraItems = viewModel?.getSettingsMenuItems?.();
+    const extraItems = withoutSplitItems(viewModel?.getSettingsMenuItems?.()); // MOLTENTERM-PATCH (#370)
     if (extraItems && extraItems.length > 0) menu.push({ type: "separator" }, ...extraItems);
     menu.push(
         { type: "separator" },
@@ -135,33 +142,24 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId }: HeaderEndI
     if (endIconButtons && endIconButtons.length > 0) {
         endIconsElem.push(...endIconButtons.map((button, idx) => <IconButton key={idx} decl={button} />));
     }
+    // MOLTENTERM-PATCH (#370): still opt-in and terminal-only; they open the content picker like every split
     if (showSplitButtons && viewModel?.viewType === "term") {
         const splitHorizontalDecl: IconButtonDecl = {
             elemtype: "iconbutton",
             icon: "columns",
-            title: "Split Horizontally",
+            title: `${SplitRightLabel} (${formatShortcutById("split-right")})`,
             click: (e) => {
                 e.stopPropagation();
-                const blockAtom = WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId));
-                const blockData = globalStore.get(blockAtom);
-                const blockDef: BlockDef = {
-                    meta: blockData?.meta || { view: "term", controller: "shell" },
-                };
-                createBlockSplitHorizontally(blockDef, blockId, "after");
+                util.fireAndForget(() => splitPanel(blockId, "right"));
             },
         };
         const splitVerticalDecl: IconButtonDecl = {
             elemtype: "iconbutton",
             icon: "grip-lines",
-            title: "Split Vertically",
+            title: `${SplitDownLabel} (${formatShortcutById("split-down")})`,
             click: (e) => {
                 e.stopPropagation();
-                const blockAtom = WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId));
-                const blockData = globalStore.get(blockAtom);
-                const blockDef: BlockDef = {
-                    meta: blockData?.meta || { view: "term", controller: "shell" },
-                };
-                createBlockSplitVertically(blockDef, blockId, "after");
+                util.fireAndForget(() => splitPanel(blockId, "down"));
             },
         };
         endIconsElem.push(<IconButton key="split-horizontal" decl={splitHorizontalDecl} />);

@@ -51,6 +51,10 @@ class ContextMenuModel {
                 id: crypto.randomUUID(),
                 checked: item.checked,
             };
+            // MOLTENTERM-PATCH (#370): the item's shortcut, from the shortcut registry
+            if (item.accelerator) {
+                electronItem.accelerator = item.accelerator;
+            }
             if (item.visible === false) {
                 electronItem.visible = false;
             }

@@ -21,6 +21,7 @@ import { handOffActivePage } from "../browser/browser-routing";
 import { openMoltentermView } from "../open-view";
 import { openProjectTab } from "../project/project-tab";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
+import { openShortcutsSheet } from "../shortcuts/shortcuts-keys";
 import { TermUpdates } from "../termupdate/termupdate-store";
 import { openCurrentWorkspaceEditor } from "../workspace-edit";
 import { PaletteRun } from "./palette-model";
@@ -141,6 +142,9 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             return;
         case "updateterminals":
             await TermUpdates.getInstance().updateAll();
+            return;
+        case "shortcuts":
+            openShortcutsSheet();
             return;
     }
 }
