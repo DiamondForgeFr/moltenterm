@@ -3,26 +3,24 @@
 
 import { ipcRenderer } from "electron";
 
+// MOLTENTERM-PATCH (#371): a single trusted request after the page can suppress its own menu.
 document.addEventListener("contextmenu", (event) => {
-    console.log("contextmenu event", event);
-    if (event.target == null) {
-        return;
-    }
-    const targetElement = event.target as HTMLElement;
-    // Check if the right-click is on an image
-    if (targetElement.tagName === "IMG") {
-        setTimeout(() => {
-            if (event.defaultPrevented) {
-                return;
-            }
-            event.preventDefault();
-            const imgElem = targetElement as HTMLImageElement;
-            const imageUrl = imgElem.src;
-            ipcRenderer.send("webview-image-contextmenu", { src: imageUrl });
-        }, 50);
-        return;
-    }
-    // do nothing
+    if (!event.isTrusted || !(event.target instanceof Element)) return;
+    const element = event.target;
+    const image = element.closest("img") as HTMLImageElement;
+    const link = element.closest("a[href]") as HTMLAnchorElement;
+    const editable = element.closest("input,textarea,[contenteditable]:not([contenteditable='false'])");
+    setTimeout(() => {
+        if (event.defaultPrevented) return;
+        ipcRenderer.send("moltenterm-contextmenu-guest-request", {
+            x: event.clientX,
+            y: event.clientY,
+            src: image?.currentSrc || image?.src,
+            linkURL: link?.href,
+            selectionText: window.getSelection()?.toString(),
+            editable: !!editable,
+        });
+    }, 0);
 });
 
 document.addEventListener("mouseup", (event) => {

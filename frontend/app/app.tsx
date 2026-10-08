@@ -32,6 +32,7 @@ import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { openInBrowserPanel } from "../moltenterm-shell/browser/browser-routing"; // MOLTENTERM-PATCH (#132, #140)
 import { makeFirstClickGuard } from "../moltenterm-shell/first-click-guard"; // MOLTENTERM-PATCH (#334)
+import { MenuHost } from "../moltenterm-shell/menu/menu-host"; // MOLTENTERM-PATCH (#371)
 import { AppBackground } from "./app-bg";
 import { CenteredDiv } from "./element/quickelems";
 
@@ -54,6 +55,7 @@ const App = ({ onFirstRender }: { onFirstRender: () => void }) => {
             <WaveEnvContext.Provider value={waveEnvRef.current}>
                 <TabModelContext.Provider value={getTabModelByTabId(tabId)}>
                     <AppInner />
+                    <MenuHost />
                 </TabModelContext.Provider>
             </WaveEnvContext.Provider>
         </Provider>
@@ -103,12 +105,23 @@ async function getClipboardURL(): Promise<URL> {
     }
 }
 
+let contextMenuRequest = 0; // MOLTENTERM-PATCH (#371): discard delayed clipboard responses.
 async function handleContextMenu(e: React.MouseEvent<HTMLDivElement>) {
     e.preventDefault();
+    const request = ++contextMenuRequest;
+    const origin = {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        target: e.target,
+        stopPropagation: () => {},
+        preventDefault: () => {},
+    } as React.MouseEvent<HTMLDivElement>;
+    const focus = document.activeElement;
     const canPaste = canEnablePaste();
     const canCopy = canEnableCopy();
     const canCut = canEnableCut();
     const clipboardURL = await getClipboardURL();
+    if (request !== contextMenuRequest || focus !== document.activeElement) return;
     if (!canPaste && !canCopy && !canCut && !clipboardURL) {
         return;
     }
@@ -131,7 +144,7 @@ async function handleContextMenu(e: React.MouseEvent<HTMLDivElement>) {
             },
         });
     }
-    ContextMenuModel.getInstance().showContextMenu(menu, e);
+    ContextMenuModel.getInstance().showContextMenu(menu, origin);
 }
 
 function AppSettingsUpdater() {

@@ -17,6 +17,13 @@ const previewElectronApi: ElectronApi = {
     getZoomFactor: () => 1.0,
     showWorkspaceAppMenu: (_workspaceId: string) => {},
     showBuilderAppMenu: (_builderId: string) => {},
+    // MOLTENTERM-PATCH (#371): previews have no privileged edit/image bridge.
+    revokeContextMenuTarget: () => {},
+    captureContextMenuTarget: () => "",
+    executeContextMenuRole: () => {},
+    saveContextMenuImage: () => {},
+    setContextMenuGuest: () => {},
+    onGuestContextMenu: () => () => {},
     showContextMenu: (_workspaceId: string, _menu: ElectronContextMenuItem[]) => {},
     onContextMenuClick: (_callback: (id: string | null) => void) => {},
     onNavigate: (_callback: (url: string) => void) => {},

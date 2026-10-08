@@ -6,6 +6,7 @@
 package wconfig
 
 const (
+	ConfigKey_AppNativeContextMenu           = "app:nativecontextmenu"
 	ConfigKey_AppClear                       = "app:*"
 	ConfigKey_AppGlobalHotkey                = "app:globalhotkey"
 	ConfigKey_AppDismissArchitectureWarning  = "app:dismissarchitecturewarning"

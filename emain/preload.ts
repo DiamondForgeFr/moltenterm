@@ -20,9 +20,21 @@ contextBridge.exposeInMainWorld("api", {
     openNewWindow: () => ipcRenderer.send("open-new-window"),
     showWorkspaceAppMenu: (workspaceId) => ipcRenderer.send("workspace-appmenu-show", workspaceId),
     showBuilderAppMenu: (builderId) => ipcRenderer.send("builder-appmenu-show", builderId),
-    showContextMenu: (workspaceId, menu) => ipcRenderer.send("contextmenu-show", workspaceId, menu),
-    onContextMenuClick: (callback: (id: string | null) => void) =>
-        ipcRenderer.on("contextmenu-click", (_event, id: string | null) => callback(id)),
+    // MOLTENTERM-PATCH (#371): correlate native dismissal and capture owned edit targets before focus moves.
+    showContextMenu: (workspaceId, menu, token, target) =>
+        ipcRenderer.send("contextmenu-show", workspaceId, menu, token, target),
+    revokeContextMenuTarget: (token) => ipcRenderer.send("moltenterm-contextmenu-revoke", token),
+    captureContextMenuTarget: (guestId) => ipcRenderer.sendSync("moltenterm-contextmenu-capture", guestId),
+    executeContextMenuRole: (token, role) => ipcRenderer.send("moltenterm-contextmenu-role", token, role),
+    saveContextMenuImage: (token) => ipcRenderer.send("moltenterm-contextmenu-save-image", token),
+    setContextMenuGuest: (guestId, active) => ipcRenderer.send("moltenterm-contextmenu-guest", guestId, active),
+    onGuestContextMenu: (callback) => {
+        const listener = (_event, menu) => callback(menu);
+        ipcRenderer.on("moltenterm-contextmenu-guest-show", listener);
+        return () => ipcRenderer.removeListener("moltenterm-contextmenu-guest-show", listener);
+    },
+    onContextMenuClick: (callback: (id: string | null, token?: string) => void) =>
+        ipcRenderer.on("contextmenu-click", (_event, id: string | null, token?: string) => callback(id, token)),
     downloadFile: (filePath) => ipcRenderer.send("download", { filePath }),
     openExternal: (url) => {
         if (url && typeof url === "string") {

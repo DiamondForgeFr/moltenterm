@@ -15,14 +15,17 @@ import {
 } from "@/app/suggestion/suggestion";
 import { MockBoundary } from "@/app/waveenv/mockboundary";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
-import { openLink } from "@/store/global";
+import { ContextMenuModel } from "@/store/contextmenu"; // MOLTENTERM-PATCH (#371)
+import { getApi, openLink } from "@/store/global";
 import { adaptFromReactOrNativeKeyEvent, checkKeyPressed } from "@/util/keyutil";
 import { fireAndForget, useAtomValueSafe } from "@/util/util";
 import clsx from "clsx";
 import { WebviewTag } from "electron";
 import { Atom, PrimitiveAtom, atom, useAtomValue, useSetAtom } from "jotai";
 import { Fragment, createRef, memo, useCallback, useEffect, useRef, useState } from "react";
+import { guestEditMenu, guestMenuEvent } from "../../../moltenterm-shell/menu/guest-menu";
 import { MoltenWave } from "../../../moltenterm-shell/molten-button"; // MOLTENTERM-PATCH (#145)
+import { splitMenuItems } from "../../../moltenterm-shell/split/split-menu";
 import "./webview.scss";
 import type { WebViewEnv } from "./webviewenv";
 
@@ -1055,7 +1058,22 @@ const WebView = memo(({ model, onFailLoad, blockRef, initialSrc }: WebViewProps)
         const webviewBlur = () => {
             env.electron.setWebviewFocus(null);
         };
+        // MOLTENTERM-PATCH (#371): legacy widgets/apps share the same owned guest bridge.
+        const removeContextMenu = getApi().onGuestContextMenu?.((params) => {
+            if (params.guestId !== webview.getWebContentsId() || document.visibilityState !== "visible") return;
+            const menu = guestEditMenu(params, (token) => getApi().saveContextMenuImage?.(token));
+            if (params.linkURL)
+                menu.push({
+                    label: "Open Link",
+                    icon: "arrow-up-right-from-square",
+                    click: () => openLink(params.linkURL),
+                });
+            if (menu.length) menu.push({ type: "separator" });
+            menu.push(...splitMenuItems(model.blockId));
+            ContextMenuModel.getInstance().showContextMenu(menu, guestMenuEvent(params, webview));
+        });
         const handleDomReady = () => {
+            getApi().setContextMenuGuest?.(webview.getWebContentsId(), true);
             globalStore.set(model.domReady, true);
             setBgColor();
         };
@@ -1082,6 +1100,12 @@ const WebView = memo(({ model, onFailLoad, blockRef, initialSrc }: WebViewProps)
 
         // Clean up event listeners on component unmount
         return () => {
+            removeContextMenu?.();
+            const session = ContextMenuModel.getInstance().session;
+            if (session?.event.target === webview) session.cancel();
+            try {
+                getApi().setContextMenuGuest?.(webview.getWebContentsId(), false);
+            } catch {}
             webview.removeEventListener("did-frame-navigate", navigateListener);
             webview.removeEventListener("did-navigate", navigateListener);
             webview.removeEventListener("did-navigate-in-page", navigateListener);

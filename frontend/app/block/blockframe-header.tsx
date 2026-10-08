@@ -23,15 +23,15 @@ import { cn, makeIconClass } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
 import { AgentHeaderLabel, useBlockAgentState } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#109)
+import { acceleratorById, formatShortcutById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
+import { splitPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { TermUpdateChip } from "../../moltenterm-shell/termupdate/termupdate-ui"; // MOLTENTERM-PATCH (#366)
 import { WorktreeHeaderLabel } from "../../moltenterm-shell/worktree-ui"; // MOLTENTERM-PATCH (#114)
-import { formatShortcutById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#370)
-import { splitPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 // MOLTENTERM-PATCH (#370)
 import {
     SplitDownLabel,
-    SplitRightLabel,
     splitMenuItems,
+    SplitRightLabel,
     withoutSplitItems,
 } from "../../moltenterm-shell/split/split-menu";
 import { BlockEnv } from "./blockenv";
@@ -53,7 +53,9 @@ export function handleHeaderContextMenu(
         ...splitMenuItems(blockId),
         { type: "separator" },
         {
-            label: magnified ? "Un-Magnify Block" : "Magnify Block",
+            label: magnified ? "Un-magnify" : "Magnify",
+            icon: "expand",
+            accelerator: acceleratorById("magnify"),
             click: () => {
                 nodeModel.toggleMagnify();
             },
@@ -61,6 +63,7 @@ export function handleHeaderContextMenu(
         { type: "separator" },
         {
             label: "Copy BlockId",
+            icon: "copy",
             click: () => {
                 navigator.clipboard.writeText(blockId);
             },
@@ -72,6 +75,9 @@ export function handleHeaderContextMenu(
         { type: "separator" },
         {
             label: "Close Block",
+            icon: "xmark",
+            destructive: true,
+            accelerator: acceleratorById("close-panel"),
             click: () => uxCloseBlock(blockId),
         }
     );

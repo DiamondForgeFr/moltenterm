@@ -1375,6 +1375,7 @@ declare global {
 
     // wconfig.SettingsType
     type SettingsType = {
+        "app:nativecontextmenu"?: boolean;
         "app:*"?: boolean;
         "app:globalhotkey"?: string;
         "app:dismissarchitecturewarning"?: boolean;

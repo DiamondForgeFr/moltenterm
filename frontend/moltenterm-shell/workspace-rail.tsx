@@ -234,6 +234,7 @@ function RailButton({
         if (choices.length > 0) {
             groupItems.push({
                 label: "Group with",
+                icon: "layer-group",
                 type: "submenu",
                 submenu: choices.map((choice) => ({
                     label: choice.label,
@@ -242,17 +243,21 @@ function RailButton({
             });
         }
         if (grouping?.onRemoveFromGroup != null) {
-            groupItems.push({ label: "Remove from group", click: grouping.onRemoveFromGroup });
+            groupItems.push({ label: "Remove from group", icon: "unlink", click: grouping.onRemoveFromGroup });
         }
         ContextMenuModel.getInstance().showContextMenu(
             [
                 ...projectTab,
-                { label: "Edit workspace…", click: () => edit(ref.current) },
+                { label: "Edit workspace…", icon: "pen", click: () => edit(ref.current) },
                 ...(groupItems.length > 0 ? [{ type: "separator" } as ContextMenuItem, ...groupItems] : []),
                 { type: "separator" },
-                ...(closable ? [] : [{ label: "Reset workspace…", click: () => askResetWorkspace(entry.id) }]),
+                ...(closable
+                    ? []
+                    : [{ label: "Reset workspace…", icon: "rotate-left", click: () => askResetWorkspace(entry.id) }]),
                 {
                     label: "Delete workspace",
+                    icon: "trash",
+                    destructive: true,
                     enabled: closable,
                     sublabel: closable ? undefined : LastWorkspaceReason,
                     click: () => getApi().deleteWorkspace(entry.id),

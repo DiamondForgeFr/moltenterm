@@ -5,6 +5,9 @@
   "$defs": {
     "SettingsType": {
       "properties": {
+        "app:nativecontextmenu": {
+          "type": "boolean"
+        },
         "app:*": {
           "type": "boolean"
         },

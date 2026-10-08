@@ -13,6 +13,7 @@ import { Provider, useAtomValue } from "jotai";
 import { useEffect } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
+import { MenuHost } from "../moltenterm-shell/menu/menu-host"; // MOLTENTERM-PATCH (#371)
 
 type BuilderAppProps = {
     initOpts: BuilderInitOpts;
@@ -67,6 +68,7 @@ export function BuilderApp({ initOpts, onFirstRender }: BuilderAppProps) {
     return (
         <Provider store={globalStore}>
             <BuilderAppInner />
+            <MenuHost />
         </Provider>
     );
 }

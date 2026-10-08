@@ -1,326 +1,73 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
+// MOLTENTERM-PATCH (#371): preview adapter for the shared, Electron-independent surface.
 
-import {
-    autoUpdate,
-    flip,
-    FloatingPortal,
-    offset,
-    shift,
-    type Placement,
-    type VirtualElement,
-    useFloating,
-} from "@floating-ui/react";
-import { cn } from "@/util/util";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useMenuGesture } from "../moltenterm-shell/menu/menu-gesture";
+import { captureMenuFocus, menuPoint } from "../moltenterm-shell/menu/menu-model";
+import { MenuSurface } from "../moltenterm-shell/menu/menu-surface";
 
-type PreviewContextMenuState = {
-    items: ContextMenuItem[];
-    x: number;
-    y: number;
-};
-
-type PreviewContextMenuPanelProps = {
-    items: ContextMenuItem[];
-    point?: { x: number; y: number };
-    referenceElement?: HTMLElement;
-    placement: Placement;
-    depth: number;
-    parentPath: number[];
-    openPath: number[];
-    setOpenPath: (path: number[]) => void;
-    closeMenu: () => void;
-};
-
-type PreviewContextMenuItemProps = {
-    item: ContextMenuItem;
-    itemPath: number[];
-    depth: number;
-    parentPath: number[];
-    openPath: number[];
-    setOpenPath: (path: number[]) => void;
-    closeMenu: () => void;
-};
-
-let previewContextMenuListener: ((state: PreviewContextMenuState) => void) | null = null;
-const previewContextMenuItemIds = new WeakMap<ContextMenuItem, string>();
-
-function makeVirtualElement(x: number, y: number): VirtualElement {
-    return {
-        getBoundingClientRect() {
-            return {
-                x,
-                y,
-                width: 0,
-                height: 0,
-                top: y,
-                right: x,
-                bottom: y,
-                left: x,
-                toJSON: () => ({}),
-            } as DOMRect;
-        },
-    };
+type PreviewMenu = { items: ContextMenuItem[]; point: { x: number; y: number }; restore: () => void };
+let listener: (menu: PreviewMenu) => void;
+export function showPreviewContextMenu(items: ContextMenuItem[], event: React.MouseEvent): void {
+    event.stopPropagation();
+    event.preventDefault();
+    listener?.({ items, point: menuPoint(event), restore: captureMenuFocus() });
 }
-
-function isPathOpen(openPath: number[], path: number[]): boolean {
-    if (path.length > openPath.length) {
-        return false;
-    }
-    return path.every((segment, index) => openPath[index] === segment);
-}
-
-function getVisibleItems(items: ContextMenuItem[]): ContextMenuItem[] {
-    return items.filter((item) => item.visible !== false);
-}
-
-function activateItem(item: ContextMenuItem, closeMenu: () => void): void {
-    closeMenu();
-    item.click?.();
-}
-
-function getPreviewContextMenuItemId(item: ContextMenuItem): string {
-    const existingId = previewContextMenuItemIds.get(item);
-    if (existingId != null) {
-        return existingId;
-    }
-    const newId = crypto.randomUUID();
-    previewContextMenuItemIds.set(item, newId);
-    return newId;
-}
-
-const PreviewContextMenuItem = memo(
-    ({ item, itemPath, depth, parentPath, openPath, setOpenPath, closeMenu }: PreviewContextMenuItemProps) => {
-        const rowRef = useRef<HTMLDivElement>(null);
-        const submenuItems = getVisibleItems(item.submenu ?? []);
-        const hasSubmenu = submenuItems.length > 0;
-        const isDisabled = item.enabled === false;
-        const isHeader = item.type === "header";
-        const isSeparator = item.type === "separator";
-        const isChecked = item.type === "checkbox" || item.type === "radio" ? item.checked === true : false;
-        const isSubmenuOpen = hasSubmenu && isPathOpen(openPath, itemPath);
-
-        if (isSeparator) {
-            return <div className="my-0.5 border-t border-border" role="separator" />;
-        }
-
-        const handleMouseEnter = () => {
-            if (hasSubmenu) {
-                setOpenPath(itemPath);
-                return;
-            }
-            setOpenPath(parentPath);
-        };
-
-        const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-            e.stopPropagation();
-            if (isDisabled || isHeader) {
-                return;
-            }
-            if (hasSubmenu) {
-                setOpenPath(itemPath);
-                return;
-            }
-            activateItem(item, closeMenu);
-        };
-
-        return (
-            <>
-                <div
-                    ref={rowRef}
-                    role={item.type === "checkbox" ? "menuitemcheckbox" : item.type === "radio" ? "menuitemradio" : "menuitem"}
-                    aria-disabled={isDisabled}
-                    aria-checked={item.type === "checkbox" || item.type === "radio" ? isChecked : undefined}
-                    data-context-menu-item={item.label ?? item.type ?? "item"}
-                    className={cn(
-                        "flex min-h-7 items-center gap-2 px-2.5 text-xs text-foreground select-none",
-                        !isHeader && "cursor-pointer",
-                        isHeader && "px-2.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-muted",
-                        !isHeader && !isDisabled && "hover:bg-hoverbg",
-                        isDisabled && "text-muted",
-                        isSubmenuOpen && "bg-hoverbg"
-                    )}
-                    onMouseEnter={handleMouseEnter}
-                    onClick={handleClick}
-                >
-                    {isHeader ? (
-                        <span className="truncate">{item.label}</span>
-                    ) : (
-                        <>
-                            <span className="flex w-3.5 items-center justify-center text-center text-[10px]">
-                                {isChecked ? <i className="fa fa-check" /> : null}
-                            </span>
-                            <div className="flex min-w-0 flex-1 flex-col">
-                                <span className="truncate">{item.label}</span>
-                                {item.sublabel ? <span className="truncate text-[10px] text-muted">{item.sublabel}</span> : null}
-                            </div>
-                            {hasSubmenu ? (
-                                <span className="ml-2 text-[10px] text-muted">
-                                    <i className="fa fa-chevron-right" />
-                                </span>
-                            ) : null}
-                        </>
-                    )}
-                </div>
-                {hasSubmenu && isSubmenuOpen && rowRef.current != null ? (
-                    <PreviewContextMenuPanel
-                        items={submenuItems}
-                        referenceElement={rowRef.current}
-                        placement="right-start"
-                        depth={depth + 1}
-                        parentPath={itemPath}
-                        openPath={openPath}
-                        setOpenPath={setOpenPath}
-                        closeMenu={closeMenu}
-                    />
-                ) : null}
-            </>
-        );
-    }
-);
-
-PreviewContextMenuItem.displayName = "PreviewContextMenuItem";
-
-const PreviewContextMenuPanel = memo(
-    ({ items, point, referenceElement, placement, depth, parentPath, openPath, setOpenPath, closeMenu }: PreviewContextMenuPanelProps) => {
-        const visibleItems = getVisibleItems(items);
-        const virtualReference = useMemo(() => {
-            if (point == null) {
-                return null;
-            }
-            return makeVirtualElement(point.x, point.y);
-        }, [point]);
-        const { refs, floatingStyles } = useFloating({
-            open: true,
-            placement,
-            strategy: "fixed",
-            whileElementsMounted: autoUpdate,
-            middleware: [
-                offset(depth === 0 ? 4 : { mainAxis: -4, crossAxis: -4 }),
-                flip({ padding: 8 }),
-                shift({ padding: 8 }),
-            ],
-        });
-
-        useEffect(() => {
-            if (referenceElement != null) {
-                refs.setReference(referenceElement);
-                return;
-            }
-            refs.setPositionReference(virtualReference);
-        }, [referenceElement, refs, virtualReference]);
-
-        if (visibleItems.length === 0) {
-            return null;
-        }
-
-        return (
-            <div
-                ref={refs.setFloating}
-                style={floatingStyles}
-                className="min-w-[180px] overflow-visible rounded-md border border-border bg-modalbg py-0.5 shadow-2xl"
-                role="menu"
-            >
-                {visibleItems.map((item, index) => (
-                    <PreviewContextMenuItem
-                        key={getPreviewContextMenuItemId(item)}
-                        item={item}
-                        itemPath={[...parentPath, index]}
-                        depth={depth}
-                        parentPath={parentPath}
-                        openPath={openPath}
-                        setOpenPath={setOpenPath}
-                        closeMenu={closeMenu}
-                    />
-                ))}
-            </div>
-        );
-    }
-);
-
-PreviewContextMenuPanel.displayName = "PreviewContextMenuPanel";
-
-export function showPreviewContextMenu(menu: ContextMenuItem[], e: React.MouseEvent): void {
-    e.stopPropagation();
-    e.preventDefault();
-    previewContextMenuListener?.({
-        items: menu,
-        x: e.clientX,
-        y: e.clientY,
-    });
-}
-
 export const PreviewContextMenu = memo(() => {
-    const [menuState, setMenuState] = useState<PreviewContextMenuState | null>(null);
-    const [openPath, setOpenPath] = useState<number[]>([]);
-    const portalRef = useRef<HTMLDivElement>(null);
-
-    const closeMenu = () => {
-        setMenuState(null);
-        setOpenPath([]);
-    };
-
+    const [menu, setMenu] = useState<PreviewMenu>(null);
+    const gesture = useMenuGesture(() => close());
+    const { draining } = gesture;
+    const layer = useRef<HTMLDivElement>(null);
     useEffect(() => {
-        previewContextMenuListener = (state) => {
-            setMenuState(state);
-            setOpenPath([]);
-        };
+        listener = setMenu;
         return () => {
-            previewContextMenuListener = null;
+            listener = null;
         };
     }, []);
-
+    useLayoutEffect(() => {
+        if ((menu || draining) && !layer.current.matches(":popover-open")) layer.current.showPopover();
+        if (!menu && !draining && layer.current.matches(":popover-open")) layer.current.hidePopover();
+    }, [menu, draining]);
+    const close = () => {
+        menu?.restore();
+        setMenu(null);
+    };
     useEffect(() => {
-        if (menuState == null) {
-            return;
-        }
-
-        const handlePointerDown = (event: PointerEvent) => {
-            if (portalRef.current?.contains(event.target as Node)) {
-                return;
-            }
-            closeMenu();
+        const dismiss = () => {
+            close();
+            gesture.reset();
         };
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape") {
-                closeMenu();
-            }
-        };
-
-        document.addEventListener("pointerdown", handlePointerDown, true);
-        document.addEventListener("keydown", handleKeyDown);
-        window.addEventListener("blur", closeMenu);
-        window.addEventListener("resize", closeMenu);
-        window.addEventListener("scroll", closeMenu, true);
+        document.addEventListener("visibilitychange", dismiss);
+        window.addEventListener("blur", dismiss);
+        window.addEventListener("resize", dismiss);
         return () => {
-            document.removeEventListener("pointerdown", handlePointerDown, true);
-            document.removeEventListener("keydown", handleKeyDown);
-            window.removeEventListener("blur", closeMenu);
-            window.removeEventListener("resize", closeMenu);
-            window.removeEventListener("scroll", closeMenu, true);
+            document.removeEventListener("visibilitychange", dismiss);
+            window.removeEventListener("blur", dismiss);
+            window.removeEventListener("resize", dismiss);
         };
-    }, [menuState]);
-
-    if (menuState == null) {
-        return null;
-    }
-
+    }, [menu]);
     return (
-        <FloatingPortal>
-            <div ref={portalRef}>
-                <PreviewContextMenuPanel
-                    items={menuState.items}
-                    point={{ x: menuState.x, y: menuState.y }}
-                    placement="bottom-start"
-                    depth={0}
-                    parentPath={[]}
-                    openPath={openPath}
-                    setOpenPath={setOpenPath}
-                    closeMenu={closeMenu}
+        <div
+            ref={layer}
+            popover="manual"
+            className="molten-menu-layer"
+            {...gesture.handlers}
+            onKeyDown={(event) => event.stopPropagation()}
+        >
+            {menu && (
+                <MenuSurface
+                    portalRoot={layer.current}
+                    items={menu.items}
+                    point={menu.point}
+                    onCancel={close}
+                    onSelect={(item) => {
+                        close();
+                        if (!item.role) item.click?.();
+                    }}
                 />
-            </div>
-        </FloatingPortal>
+            )}
+        </div>
     );
 });
-
 PreviewContextMenu.displayName = "PreviewContextMenu";

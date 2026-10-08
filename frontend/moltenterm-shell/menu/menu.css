@@ -1,0 +1,102 @@
+.molten-menu-layer {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+    z-index: 2147483647;
+    color: var(--main-text-color, #eee);
+    -webkit-app-region: no-drag;
+}
+.molten-menu-layer::backdrop {
+    background: transparent;
+}
+.molten-menu {
+    min-width: min(230px, calc(100vw - 16px));
+    width: max-content;
+    overflow-y: auto;
+    box-sizing: border-box;
+    border: 1px solid var(--border-color, #555);
+    border-radius: 5px;
+    padding: 4px;
+    background: var(--modal-bg-color, #242424);
+    color: var(--main-text-color, #eee);
+    font:
+        12px/1.35 "IBM Plex Sans",
+        sans-serif;
+    box-shadow: 0 6px 22px #0006;
+    overscroll-behavior: contain;
+    outline: none;
+    z-index: 1;
+}
+.molten-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 29px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    font: inherit;
+    user-select: none;
+    outline: none;
+}
+.molten-menu-item:hover:not(:disabled),
+.molten-menu-item:focus,
+.molten-menu-item[aria-expanded="true"] {
+    background: var(--hover-bg-color, #414141);
+}
+.molten-menu-item:disabled {
+    opacity: 0.42;
+    cursor: default;
+}
+.molten-menu-item[data-destructive] {
+    color: #ff9a9a;
+}
+.molten-menu-icon {
+    width: 15px;
+    flex: 0 0 15px;
+    text-align: center;
+    font-size: 11px;
+}
+.molten-menu-label {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    white-space: nowrap;
+}
+.molten-menu-sublabel {
+    font-size: 11px;
+    color: inherit;
+}
+.molten-menu-shortcut {
+    margin-left: 20px;
+    white-space: nowrap;
+    font-size: 11px;
+}
+.molten-menu-chevron {
+    width: 8px;
+    font-size: 18px;
+    line-height: 12px;
+}
+.molten-menu-separator {
+    margin: 4px 5px;
+    border-top: 1px solid var(--border-color, #555);
+}
+.molten-menu-header {
+    padding: 5px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}

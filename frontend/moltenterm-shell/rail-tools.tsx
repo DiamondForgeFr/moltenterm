@@ -192,6 +192,7 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
             [
                 {
                     label: "Edit widgets.json",
+                    icon: "pen",
                     click: () =>
                         fireAndForget(() =>
                             env.createBlock({ meta: { view: "waveconfig", file: "widgets.json" } }, false, true)
