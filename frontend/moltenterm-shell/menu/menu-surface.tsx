@@ -80,7 +80,7 @@ function MenuBranch({ items, point, item, parentProps, parentRef, onSelect, onCa
         middleware: [
             offset(nested ? -2 : 2),
             flip({ padding: 8 }),
-            shift({ padding: 8 }),
+            shift({ padding: 8, crossAxis: true }),
             size({
                 padding: 8,
                 apply({ availableHeight, availableWidth, elements }) {
@@ -114,7 +114,6 @@ function MenuBranch({ items, point, item, parentProps, parentRef, onSelect, onCa
             if (!element) return;
             const index = visible.findIndex(actionableMenuItem);
             setActiveIndex(index < 0 ? null : index);
-            listRef.current[index]?.focus({ preventScroll: true });
         },
         [refs, visible]
     );
@@ -122,8 +121,9 @@ function MenuBranch({ items, point, item, parentProps, parentRef, onSelect, onCa
         if (!open || !isPositioned) return;
         const index = visible.findIndex(actionableMenuItem);
         setActiveIndex(index < 0 ? null : index);
-        listRef.current[index]?.focus({ preventScroll: true });
-    }, [open, isPositioned, visible]);
+        const target = listRef.current[index] ?? refs.floating.current;
+        target?.focus({ preventScroll: true });
+    }, [open, isPositioned, visible, refs]);
     const hover = useHover(context, {
         enabled: nested && item?.enabled !== false,
         delay: { open: 150 },
@@ -177,7 +177,7 @@ function MenuBranch({ items, point, item, parentProps, parentRef, onSelect, onCa
             )}
             {open && (
                 <FloatingPortal root={portalRoot} preserveTabOrder={false}>
-                    <FloatingFocusManager context={context} modal={false} initialFocus={0} returnFocus={false}>
+                    <FloatingFocusManager context={context} modal={false} initialFocus={-1} returnFocus={false}>
                         <div
                             {...getFloatingProps({
                                 onKeyDown(event: React.KeyboardEvent) {
@@ -196,6 +196,7 @@ function MenuBranch({ items, point, item, parentProps, parentRef, onSelect, onCa
                             style={{ ...floatingStyles, visibility: isPositioned ? "visible" : "hidden" }}
                             className="molten-menu"
                             role="menu"
+                            tabIndex={-1}
                             aria-label={item ? menuLabel(item) : "Context menu"}
                         >
                             {visible.map((entry, index) => {
