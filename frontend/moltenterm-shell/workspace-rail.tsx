@@ -3,7 +3,8 @@
 
 // The workspace rail (FR-SHELL-001, DS-SHELL-002): every workspace at a glance on the left, one click to switch, as
 // in Notulia. It replaces the switcher of the tab bar and reuses Wave's workspace calls; a workspace is edited in
-// MoltenTerm's sheet (FR-SHELL-030), from its context menu, its pencil or a double-click.
+// MoltenTerm's sheet (FR-SHELL-030), from its context menu, its pencil or a double-click. The user orders it by drag
+// and drop, Move up / Move down and Alt+Shift+Up/Down (FR-MC-031); wavesrv keeps the order and sorts Wave's list by it.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms, getApi } from "@/app/store/global";
@@ -13,7 +14,7 @@ import { getWaveObjectAtom, makeORef, useWaveObjectValue } from "@/app/store/wos
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentRailDot } from "./agent-state-ui";
 import { unreadByWorkspace } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
@@ -25,7 +26,10 @@ import { handOverWorkspaceEdit, openWorkspaceEditor, recordSwitchClick, takeSwit
 import { WorkspaceEditHost } from "./workspace-edit-sheet";
 import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
 import { workspaceIconSource } from "./workspace-icon-model";
+import { applyRailMove, moveWorkspace, neighbourMove, RailMove, sortByOrder } from "./workspace-order";
 import { readWorkspaceProject } from "./workspace-project";
+import { useRailDrag } from "./workspace-rail-dnd";
+import { railMoveKey } from "./workspace-rail-drag";
 import { RailEditButton } from "./workspace-rail-edit";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
 import { askResetWorkspace, WorkspaceResetHost } from "./workspace-reset";
@@ -59,17 +63,30 @@ function RailTooltip({ label, anchor }: { label: string; anchor: Anchor }) {
     );
 }
 
+type RailItemMoves = {
+    up: RailMove;
+    down: RailMove;
+    // How far a drag draws the item from its place; null when it is not dragged.
+    dragOffsetY: number;
+    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => void;
+    // True for the click that ends a drag of this item.
+    takeSuppressedClick: () => boolean;
+    onMove: (move: RailMove, refocus: boolean) => void;
+};
+
 function RailButton({
     entry,
     closable,
     unread,
     onHover,
+    moves,
 }: {
     entry: WorkspaceRailEntry;
     // Deleting it lands the user on another workspace (#222); otherwise it is reset instead.
     closable: boolean;
     unread: number;
     onHover: (label: string, anchor: Anchor) => void;
+    moves: RailItemMoves;
 }) {
     const ref = useRef<HTMLButtonElement>(null);
     // Read live: the icon can change from the editor or from molten while the rail's list is not refreshed.
@@ -88,6 +105,9 @@ function RailButton({
         openWorkspaceEditor(entry.id, opener);
     };
     const onClick = (e: React.MouseEvent) => {
+        if (moves.takeSuppressedClick()) {
+            return;
+        }
         if (!entry.saved && entry.active) {
             // Saving gives the workspace a default name and icon; the user then names it in the sheet.
             edit(ref.current);
@@ -124,6 +144,9 @@ function RailButton({
                 ...projectTab,
                 { label: "Edit workspace…", click: () => edit(ref.current) },
                 { type: "separator" },
+                { label: "Move up", enabled: moves.up != null, click: () => moves.onMove(moves.up, false) },
+                { label: "Move down", enabled: moves.down != null, click: () => moves.onMove(moves.down, false) },
+                { type: "separator" },
                 ...(closable ? [] : [{ label: "Reset workspace…", click: () => askResetWorkspace(entry.id) }]),
                 {
                     label: "Delete workspace",
@@ -135,8 +158,24 @@ function RailButton({
             e
         );
     };
+    const onKeyDown = (e: React.KeyboardEvent) => {
+        const direction = railMoveKey(e);
+        if (direction == null || !entry.saved) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        const move = direction < 0 ? moves.up : moves.down;
+        if (move != null) {
+            moves.onMove(move, true);
+        }
+    };
+    const dragging = moves.dragOffsetY != null;
     return (
-        <div className="group relative shrink-0">
+        <div
+            className={cn("group relative shrink-0", dragging && "molten-rail-dragging z-10")}
+            style={dragging ? { transform: `translateY(${moves.dragOffsetY}px)` } : undefined}
+        >
             <button
                 ref={ref}
                 type="button"
@@ -146,6 +185,8 @@ function RailButton({
                 onClick={onClick}
                 onDoubleClick={onDoubleClick}
                 onContextMenu={onContextMenu}
+                onKeyDown={onKeyDown}
+                onPointerDown={moves.onPointerDown}
                 onMouseEnter={() =>
                     onHover(
                         (entry.saved ? entry.name : "Unsaved workspace: click to save it") +
@@ -207,12 +248,48 @@ export function WorkspaceRail() {
     useEffect(refresh, [active?.oid, active?.name, active?.icon, active?.color, refresh]);
 
     const entries = makeWorkspaceRailEntries(sources, active);
+    const navRef = useRef<HTMLElement>(null);
+    const movableKey = entries
+        .filter((e) => e.saved)
+        .map((e) => e.id)
+        .join(" ");
+    const movableIds = useMemo(() => (movableKey ? movableKey.split(" ") : []), [movableKey]);
+    // The rail shows the move at once; the server's workspace:update confirms it, or the refresh undoes it.
+    const applyMove = useCallback(
+        (move: RailMove, refocus: boolean) => {
+            const order = applyRailMove(movableIds, move);
+            setSources((prev) => sortByOrder(prev, (s) => s.workspace?.oid, order));
+            if (refocus) {
+                requestAnimationFrame(() => {
+                    navRef.current
+                        ?.querySelector<HTMLElement>(`button[data-workspace-id="${CSS.escape(move.workspaceid)}"]`)
+                        ?.focus();
+                });
+            }
+            fireAndForget(async () => {
+                try {
+                    await moveWorkspace(move);
+                } catch (err) {
+                    console.log("moving workspace in the rail:", err);
+                    refresh();
+                }
+            });
+        },
+        [movableIds, refresh]
+    );
+    const drag = useRailDrag(navRef, movableIds, (move) => applyMove(move, false));
+    useEffect(() => {
+        if (drag.view != null) {
+            setTooltip(null);
+        }
+    }, [drag.view]);
     const notifications = useAtomValue(MoltentermNotifications.getInstance().entriesAtom);
     const unread = unreadByWorkspace(notifications);
     return (
         <nav
+            ref={navRef}
             aria-label="Workspaces"
-            className="molten-workspace-rail flex h-full w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border py-2"
+            className="molten-workspace-rail relative flex h-full w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border py-2"
         >
             {entries.map((entry) => (
                 <RailButton
@@ -220,9 +297,26 @@ export function WorkspaceRail() {
                     entry={entry}
                     closable={canCloseWorkspace(entries, entry.id)}
                     unread={unread.get(entry.id) ?? 0}
-                    onHover={(label, anchor) => setTooltip(label == null ? null : { label, anchor })}
+                    onHover={(label, anchor) =>
+                        setTooltip(label == null || drag.view != null ? null : { label, anchor })
+                    }
+                    moves={{
+                        up: entry.saved ? neighbourMove(movableIds, entry.id, -1) : null,
+                        down: entry.saved ? neighbourMove(movableIds, entry.id, 1) : null,
+                        dragOffsetY: drag.view?.id === entry.id ? drag.view.offsetY : null,
+                        onPointerDown: (e) => drag.onPointerDown(e, entry.id),
+                        takeSuppressedClick: () => drag.takeSuppressedClick(entry.id),
+                        onMove: applyMove,
+                    }}
                 />
             ))}
+            {drag.view?.lineY != null ? (
+                <span
+                    className="molten-rail-drop-line pointer-events-none absolute right-1 left-1 z-20 h-[2px] -translate-y-1/2 rounded bg-accent"
+                    style={{ top: drag.view.lineY }}
+                    aria-hidden
+                />
+            ) : null}
             <button
                 type="button"
                 aria-label="Create workspace"
