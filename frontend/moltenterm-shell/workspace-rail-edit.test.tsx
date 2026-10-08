@@ -6,7 +6,7 @@ import { readFileSync } from "fs";
 import { atom } from "jotai";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { RailBudFilter, RailBudFilterId, RailEditButton, RailEditHint, railEditLabel } from "./workspace-rail-edit";
+import { RailBudFilter, RailBudFilterId, RailEditButton, railEditLabel } from "./workspace-rail-edit";
 
 function render(settings: Record<string, unknown> = {}, reducedMotion = false): string {
     const env = {
@@ -35,8 +35,7 @@ describe("rail pencil (FR-SHELL-030-AC1)", () => {
 
     it("is a real button named after the workspace, inside its bud", () => {
         expect(html).toMatch(/^<span class="molten-rail-bud">/);
-        expect(html).toContain('<button type="button" class="molten-hold molten-rail-edit');
-        expect(html).toContain(`aria-label="Edit Client A, hold to confirm"`);
+        expect(html).toMatch(/<button type="button" aria-label="Edit Client A" data-role="rail-edit"[^>]*class="molten-rail-edit/);
         expect(html).toContain('data-role="rail-edit"');
         expect(html).not.toContain("tabindex");
     });
@@ -81,7 +80,7 @@ describe("the pencil buds out to the right (#365, FR-SHELL-030-AC17 to AC19)", (
     it("never lets the hidden badge catch a click; hover and a keyboard focus show it", () => {
         expect(cssRule(css, ".molten-rail-bud .molten-rail-edit")).toContain("pointer-events: none");
         expect(css).toMatch(
-            /\.molten-rail-budhost:is\(:hover, :has\(:focus-visible\)\) > \.molten-rail-bud \.molten-rail-edit,[^{]*\{\s*opacity: 1;\s*pointer-events: auto;/
+            /\.molten-rail-budhost:is\(:hover, :has\(:focus-visible\)\) > \.molten-rail-bud \.molten-rail-edit[^{]*\{\s*opacity: 1;\s*pointer-events: auto;/
         );
     });
 
@@ -156,36 +155,30 @@ describe("rail order menus (#365, FR-MC-031-AC8)", () => {
     });
 });
 
-describe("hold to edit (#354, FR-SHELL-030-AC11 to AC16)", () => {
-    it("names the hold and the hint", () => {
-        expect(railEditLabel("Client A")).toBe("Edit Client A, hold to confirm");
-        expect(RailEditHint).toBe("Hold to edit");
+describe("a simple click edits (#368, revision of FR-SHELL-030, 2026-10-08)", () => {
+    it("names the pencil without a hold", () => {
+        expect(railEditLabel("Client A")).toBe("Edit Client A");
     });
 
-    it("draws the shared ring and tint around the 16 px pencil badge, with no edge to cut the neck (#365)", () => {
+    it("draws a plain 16 px badge with no hold ring, tint or edge to cut the neck (#365)", () => {
         const html = render();
-        expect(html).toContain('data-testid="hold-ring"');
-        expect(html).toContain('data-testid="hold-tint"');
-        expect(html).toMatch(/class="molten-hold-disc[^"]*h-4 w-4[^"]*bg-\[var\(--molten-rail-bud-fill\)\]/);
-        expect(html).not.toMatch(/class="molten-hold-disc[^"]*ring-inset/);
-        expect(html).not.toMatch(/class="molten-hold-disc[^"]*\sborder[\s"]/);
+        expect(html).not.toContain("hold-ring");
+        expect(html).not.toContain("hold-tint");
+        expect(html).not.toContain("molten-hold");
+        expect(html).toMatch(/class="molten-rail-bud-disc[^"]*h-4 w-4[^"]*bg-\[var\(--molten-rail-bud-fill\)\]/);
         expect(html).toContain("fa-pencil");
-        expect(html).toContain("molten-hold-glyph");
+    });
+
+    it("ignores the hold setting, which stays for the tab close buttons", () => {
+        expect(render({ "tab:holdtoclose": true })).toBe(render({ "tab:holdtoclose": false }));
     });
 
     it("never starts a drag of the rail item", () => {
         expect(render()).toContain('draggable="false"');
     });
 
-    it("follows reduced motion like the tab close button", () => {
+    it("follows reduced motion for the droplet", () => {
         expect(render()).not.toContain("data-reduced-motion");
         expect(render({}, true)).toContain('data-reduced-motion=""');
-    });
-
-    it("opens on a single click again when the hold setting is off", () => {
-        const html = render({ "tab:holdtoclose": false });
-        expect(html).toContain('aria-label="Edit Client A"');
-        expect(html).not.toContain("hold-ring");
-        expect(html).toContain("fa-pencil");
     });
 });

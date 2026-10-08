@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // DS-SHELL-059 (#354): the press-and-hold of FR-SHELL-025 as one piece, so every control that must not act on a stray
-// click (a tab's close button, a rail item's pencil) fills the same ring, shows the same hint and reads the same
+// click (a tab's close button; the rail pencil until #368) fills the same ring, shows the same hint and reads the same
 // settings. The deliberate paths of each control (shortcuts, menus) never go through it.
 
 import { SettingsKeyAtomFnType, useWaveEnv, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
