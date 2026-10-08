@@ -20,7 +20,7 @@ import {
     depSyncResultOf,
     DepSyncTarget,
 } from "./dep-sync-model";
-import { MissionRunEvent, missionDepSync, missionLog, missionRuns, missionTrust } from "./mission-client";
+import { missionDepSync, missionLog, MissionRunEvent, missionRuns, missionTrust } from "./mission-client";
 import { logTail, RunRecord, UntrustedInfo } from "./mission-model";
 import { TrustPrompt } from "./runs-view";
 
@@ -144,7 +144,16 @@ export function waitForRunEnd(dir: string, runId: string): Promise<RunRecord> {
             resolve(run);
         };
         const lost = (): RunRecord => ({
-            ...(last ?? { id: runId, dir, kind: "sync", stepid: "", command: "", startedat: startedAt, phases: [], logsize: 0 }),
+            ...(last ?? {
+                id: runId,
+                dir,
+                kind: "sync",
+                stepid: "",
+                command: "",
+                startedat: startedAt,
+                phases: [],
+                logsize: 0,
+            }),
             state: "lost",
         });
         const finish = (run: RunRecord) => {

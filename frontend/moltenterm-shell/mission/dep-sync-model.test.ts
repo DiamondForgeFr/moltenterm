@@ -2,13 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import {
-    dependencyLabel,
-    depSyncGestureResult,
-    depSyncKey,
-    depSyncResultOf,
-    syncBlocker,
-} from "./dep-sync-model";
+import { dependencyLabel, depSyncGestureResult, depSyncKey, depSyncResultOf, syncBlocker } from "./dep-sync-model";
 import { DependencyState } from "./group-model";
 import { RunRecord } from "./mission-model";
 
@@ -60,7 +54,9 @@ describe("dependencyLabel", () => {
             "stale, last sync interrupted"
         );
         // A failure older than the source's change is not about it.
-        expect(dependencyLabel(dep({ lastsync: { runid: "r", state: "failure", exit: 3, startedat: 1000 } }))).toBe("stale");
+        expect(dependencyLabel(dep({ lastsync: { runid: "r", state: "failure", exit: 3, startedat: 1000 } }))).toBe(
+            "stale"
+        );
     });
 });
 
@@ -69,7 +65,9 @@ describe("syncBlocker", () => {
         expect(syncBlocker(dep({ sync: "" }))).toBe("no sync command is declared");
         expect(syncBlocker(dep({}))).toBeNull();
         expect(syncBlocker(dep({ state: "insync" }))).toBeNull();
-        expect(syncBlocker(dep({ lastsync: { runid: "r", state: "running", startedat: 1 } }))).toBe("a sync is running");
+        expect(syncBlocker(dep({ lastsync: { runid: "r", state: "running", startedat: 1 } }))).toBe(
+            "a sync is running"
+        );
         expect(syncBlocker(dep({ state: "branchnotfound", problem: "Notulia has no branch develop" }))).toBe(
             "Notulia has no branch develop"
         );
@@ -78,8 +76,14 @@ describe("syncBlocker", () => {
 
 describe("sync results", () => {
     it("reads a sync's end", () => {
-        expect(depSyncResultOf(run({ outcome: "nochange", exit: 0 }), [])).toMatchObject({ ok: true, outcome: "nochange" });
-        expect(depSyncResultOf(run({ outcome: "changed", exit: 0 }), [])).toMatchObject({ ok: true, outcome: "changed" });
+        expect(depSyncResultOf(run({ outcome: "nochange", exit: 0 }), [])).toMatchObject({
+            ok: true,
+            outcome: "nochange",
+        });
+        expect(depSyncResultOf(run({ outcome: "changed", exit: 0 }), [])).toMatchObject({
+            ok: true,
+            outcome: "changed",
+        });
         expect(depSyncResultOf(run({ state: "failure", exit: 3 }), ["registry refused"])).toMatchObject({
             ok: false,
             error: "the sync failed (exit 3): registry refused",
@@ -98,8 +102,12 @@ describe("sync results", () => {
     });
 
     it("keys a sync by dependent and declaration", () => {
-        expect(depSyncKey("/p/site", { sourcename: "Notulia", index: 0 })).toBe(depSyncKey("/p/site", { project: "Other", index: 0 }));
+        expect(depSyncKey("/p/site", { sourcename: "Notulia", index: 0 })).toBe(
+            depSyncKey("/p/site", { project: "Other", index: 0 })
+        );
         expect(depSyncKey("/p/site", { sourcename: "Notulia" })).toBe(depSyncKey("/p/site", { project: " notulia " }));
-        expect(depSyncKey("/p/site", { project: "Notulia", index: 0 })).not.toBe(depSyncKey("/p/site", { project: "Notulia", index: 1 }));
+        expect(depSyncKey("/p/site", { project: "Notulia", index: 0 })).not.toBe(
+            depSyncKey("/p/site", { project: "Notulia", index: 1 })
+        );
     });
 });

@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { DependencyState, GroupMember, ProjectGroup } from "./group-model";
-import { shortAgo, stripMember, stripMembers } from "./group-strip-model";
+import { lastSyncNote, shortAgo, stripMember, stripMembers } from "./group-strip-model";
 
 const NOW = new Date("2026-10-08T12:00:00Z").getTime();
 const Minute = 60_000;
@@ -185,5 +185,33 @@ describe("group strip", () => {
         expect(shortAgo(NOW - 10_000, NOW)).toBe("just now");
         expect(shortAgo(NOW - 3 * 3_600_000, NOW)).toBe("3 h ago");
         expect(shortAgo(NOW - 3 * 86_400_000, NOW)).toBe("3 d ago");
+    });
+});
+
+describe("lastSyncNote", () => {
+    it("tells a sync running or failed since the source changed (FR-MC-030)", () => {
+        expect(lastSyncNote(staleDep())).toBe("");
+        expect(lastSyncNote(staleDep({ lastsync: { runid: "r", state: "running", startedat: NOW } }))).toBe("syncing…");
+        expect(lastSyncNote(staleDep({ lastsync: { runid: "r", state: "failure", exit: 4, startedat: NOW } }))).toBe(
+            "last sync failed (exit 4)"
+        );
+        const older = { runid: "r", state: "failure" as const, exit: 4, startedat: NOW - 120 * Minute };
+        expect(lastSyncNote(staleDep({ lastsync: older }))).toBe("");
+        const changed = { runid: "r", state: "success" as const, outcome: "changed" as const, startedat: NOW };
+        expect(lastSyncNote(staleDep({ state: "uncommitted", lastsync: changed }))).toBe("");
+    });
+
+    it("puts the note and the running state on the strip's flag", () => {
+        const running = staleDep({ lastsync: { runid: "r", state: "running", startedat: NOW } });
+        const site: GroupMember = {
+            dir: "/r/site",
+            name: "site",
+            group: "Notulia",
+            workspaces: [],
+            state: { deps: [running] },
+        };
+        const flag = stripMember(site, false, NOW).flagged[0];
+        expect(flag.syncing).toBe(true);
+        expect(flag.syncNote).toBe("syncing…");
     });
 });
