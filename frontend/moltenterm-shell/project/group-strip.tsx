@@ -131,12 +131,12 @@ function DependencyFlag({
                     <button
                         type="button"
                         className="molten-btn flex cursor-pointer items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium disabled:cursor-default disabled:opacity-50"
-                        disabled={status?.running}
+                        disabled={status?.running || dep.syncing}
                         onClick={() => onSync(dep.sync)}
                         title={`Run the declared sync command with ${dep.source}${dep.branch ? `'s ${dep.branch}` : ""}`}
                         data-testid="group-strip-sync"
                     >
-                        {status?.running ? (
+                        {status?.running || dep.syncing ? (
                             <RunningDot className="text-current" />
                         ) : (
                             <i className="fa fa-solid fa-rotate text-[10px]" />
@@ -144,7 +144,16 @@ function DependencyFlag({
                         Sync
                         <MoltenWave />
                     </button>
-                    {status?.error ? <span className="text-[11px] text-error">{status.error}</span> : null}
+                    {status?.error ? (
+                        <span className="text-[11px] text-error">{status.error}</span>
+                    ) : dep.syncNote ? (
+                        <span
+                            className={cn("text-[11px]", dep.syncing ? "text-muted" : "text-error")}
+                            data-testid="group-strip-sync-note"
+                        >
+                            {dep.syncNote}
+                        </span>
+                    ) : null}
                 </div>
             ) : (
                 <div className="text-[11px] text-muted">No sync command is declared for this dependency.</div>

@@ -68,7 +68,9 @@ export function dependencyLabel(dep: DependencyState): string {
         case "stale": {
             // A failure older than the source's change is not about it.
             const last = dep.lastsync;
-            const failed = last != null && last.state !== "success" && (dep.source == null || last.startedat >= dep.source.time);
+            const changedAt = dep.source?.time ?? dep.commits?.[0]?.time;
+            const failed =
+                last != null && last.state !== "success" && (changedAt == null || last.startedat >= changedAt);
             if (!failed) {
                 return "stale";
             }

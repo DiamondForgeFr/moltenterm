@@ -5,6 +5,7 @@
 // rail order, with its state as the collector last read it, the stale flags and their Sync. It shows no other action:
 // each member's Run CI, Build local, Release and Clean branches stay in its own workspace.
 
+import { dependencyLabel } from "./dep-sync-model";
 import { DependencyState, GroupMember, isFlaggedDependency, ProjectGroup } from "./group-model";
 
 export type StripTone = "ok" | "bad" | "running" | "muted";
@@ -34,6 +35,9 @@ export type StripDependency = {
     moreUncommitted: number;
     // Without a declared sync command the flag says so and offers no Sync (FR-MC-030-AC6).
     sync: SyncArgs;
+    // The last sync as wavesrv knows it, from any window or `molten project sync`: running, or why it failed.
+    syncing: boolean;
+    syncNote: string;
 };
 
 export type StripMember = {
@@ -206,7 +210,18 @@ export function stripDependency(member: GroupMember, dep: DependencyState): Stri
         uncommitted: uncommitted.slice(0, StripShownFiles),
         moreUncommitted: Math.max(0, uncommitted.length - StripShownFiles),
         sync: dep.sync ? { dir: member.dir, project: source, index: dep.index } : null,
+        syncing: dep.lastsync?.state === "running",
+        syncNote: lastSyncNote(dep),
     };
+}
+
+// "syncing…" while a sync runs, "last sync failed (exit 4)" after one that failed since the source changed.
+export function lastSyncNote(dep: DependencyState): string {
+    const label = dependencyLabel(dep);
+    if (dep?.lastsync?.state === "running") {
+        return label;
+    }
+    return label.startsWith("stale, ") ? label.slice("stale, ".length) : "";
 }
 
 const UnresolvedWords: Record<string, string> = {

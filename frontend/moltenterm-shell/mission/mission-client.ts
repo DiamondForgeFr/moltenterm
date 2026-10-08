@@ -132,7 +132,11 @@ export function missionDepSync(dir: string, project?: string, index?: number): P
 }
 
 export function missionRuns(dir: string): Promise<RunRecord[]> {
-    return TabRpcClient.wshRpcCall(MissionRunsCommand, { dir }, { route: MissionRouteId, timeout: MissionRpcTimeoutMs });
+    return TabRpcClient.wshRpcCall(
+        MissionRunsCommand,
+        { dir },
+        { route: MissionRouteId, timeout: MissionRpcTimeoutMs }
+    );
 }
 
 export function missionRefresh(dir: string): Promise<MissionSnapshot> {
