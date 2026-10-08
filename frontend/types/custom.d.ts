@@ -77,7 +77,26 @@ declare global {
         windowId: string;
     };
 
+    // MOLTENTERM-PATCH (#371): opaque tokens authorize captured targets, never arbitrary URLs or windows.
+    type GuestContextMenu = {
+        guestX?: number;
+        guestY?: number;
+        guestScale?: number;
+        guestId: number;
+        x: number;
+        y: number;
+        linkURL?: string;
+        selectionText?: string;
+        editable?: boolean;
+        imageToken?: string;
+    };
     type ElectronApi = {
+        revokeContextMenuTarget?: (token: string) => void;
+        captureContextMenuTarget?: (guestId?: number) => string;
+        executeContextMenuRole?: (token: string, role: string) => void;
+        saveContextMenuImage?: (token: string) => void;
+        onGuestContextMenu?: (callback: (menu: GuestContextMenu) => void) => () => void;
+        setContextMenuGuest?: (guestId: number, active: boolean) => void;
         getAuthKey(): string; // get-auth-key
         getIsDev(): boolean; // get-is-dev
         getCursorPoint: () => Electron.Point; // get-cursor-point
@@ -93,8 +112,13 @@ declare global {
         getZoomFactor: () => number; // get-zoom-factor
         showWorkspaceAppMenu: (workspaceId: string) => void; // workspace-appmenu-show
         showBuilderAppMenu: (builderId: string) => void; // builder-appmenu-show
-        showContextMenu: (workspaceId: string, menu: ElectronContextMenuItem[]) => void; // contextmenu-show
-        onContextMenuClick: (callback: (id: string | null) => void) => void; // contextmenu-click
+        showContextMenu: (
+            workspaceId: string,
+            menu: ElectronContextMenuItem[],
+            token?: string,
+            target?: string
+        ) => void; // contextmenu-show
+        onContextMenuClick: (callback: (id: string | null, token?: string) => void) => void; // contextmenu-click
         onNavigate: (callback: (url: string) => void) => void;
         onIframeNavigate: (callback: (url: string) => void) => void;
         downloadFile: (path: string) => void; // download
@@ -152,7 +176,10 @@ declare global {
         accelerator?: string; // MOLTENTERM-PATCH (#370): shown only, the key model handles the keys
     };
 
+    // MOLTENTERM-PATCH (#371): optional presentation metadata.
     type ContextMenuItem = {
+        icon?: string;
+        destructive?: boolean;
         label?: string;
         type?: "separator" | "normal" | "submenu" | "checkbox" | "radio" | "header";
         role?: string; // electron role (optional)

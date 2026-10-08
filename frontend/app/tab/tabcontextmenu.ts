@@ -4,6 +4,7 @@
 import { getOrefMetaKeyAtom, globalStore, recordTEvent } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
+import { acceleratorById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
 import { makeORef } from "../store/wos";
 import type { TabEnv } from "./tab";
 
@@ -44,9 +45,15 @@ export function buildTabContextMenu(
 ): ContextMenuItem[] {
     const menu: ContextMenuItem[] = [];
     menu.push(
-        { label: "Rename Tab", click: () => renameRef.current?.() },
+        {
+            label: "Rename Tab",
+            icon: "pen",
+            accelerator: acceleratorById("rename-tab"),
+            click: () => renameRef.current?.(),
+        },
         {
             label: "Copy TabId",
+            icon: "copy",
             click: () => fireAndForget(() => navigator.clipboard.writeText(id)),
         },
         { type: "separator" }
@@ -73,7 +80,8 @@ export function buildTabContextMenu(
                 ),
         })),
     ];
-    menu.push({ label: "Flag Tab", type: "submenu", submenu: flagSubmenu }, { type: "separator" });
+    menu.push({ label: "Flag Tab", type: "submenu", submenu: flagSubmenu, icon: "flag" });
+    menu.push({ type: "separator" });
     const fullConfig = globalStore.get(env.atoms.fullConfigAtom);
     const backgrounds = fullConfig?.backgrounds ?? {};
     const bgKeys = Object.keys(backgrounds).filter((k) => backgrounds[k] != null);
@@ -112,9 +120,16 @@ export function buildTabContextMenu(
                     }),
             });
         }
-        menu.push({ label: "Backgrounds", type: "submenu", submenu }, { type: "separator" });
+        menu.push({ label: "Backgrounds", type: "submenu", submenu, icon: "image" });
+        menu.push({ type: "separator" });
     }
     menu.push(...buildTabBarContextMenu(env), { type: "separator" });
-    menu.push({ label: "Close Tab", click: () => onClose(null) });
+    menu.push({
+        label: "Close Tab",
+        icon: "xmark",
+        destructive: true,
+        accelerator: acceleratorById("close-tab"),
+        click: () => onClose(null),
+    });
     return menu;
 }

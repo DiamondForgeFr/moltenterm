@@ -26,6 +26,8 @@ import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { guestEditMenu, guestMenuEvent } from "../menu/guest-menu";
+import { splitMenuItems } from "../split/split-menu";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import {
@@ -82,7 +84,6 @@ import { noteBrowserPanelFocus } from "./browser-routing";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
-import { splitMenuItems } from "../split/split-menu";
 
 export { MoltentermBrowserView };
 
@@ -434,7 +435,7 @@ export class BrowserViewModel implements ViewModel {
         ContextMenuModel.getInstance().showContextMenu(menu, e);
     }
 
-    showLinkMenu(url: string): void {
+    showLinkMenu(url: string, event?: React.MouseEvent): void {
         const chosen = this.engines.chosen();
         const menu: ContextMenuItem[] = [{ label: "Open Link in New Tab", click: () => this.newTab(url) }];
         if (chosen != null && siteOf(url) != null) {
@@ -448,7 +449,10 @@ export class BrowserViewModel implements ViewModel {
             { label: "Copy Link Address", click: () => fireAndForget(() => navigator.clipboard.writeText(url)) }
         );
         // The webview's event carries no React event: the menu opens at the pointer anyway.
-        ContextMenuModel.getInstance().showContextMenu(menu, { stopPropagation: () => {} } as React.MouseEvent);
+        ContextMenuModel.getInstance().showContextMenu(
+            menu,
+            event ?? ({ stopPropagation: () => {} } as React.MouseEvent)
+        );
     }
 
     showPageMenu(): void {
@@ -689,6 +693,15 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
     const ref = useRef<WebviewTag>(null);
     // The src is set once: later navigation happens inside the page, and re-rendering with a new src would reload it.
     const [initialUrl] = useState(tab.url);
+    // MOLTENTERM-PATCH (#371): hidden mounted tabs are never valid edit/image targets.
+    useEffect(() => {
+        try {
+            const guestId = ref.current?.getWebContentsId();
+            getApi().setContextMenuGuest?.(guestId, active);
+            const session = ContextMenuModel.getInstance().session;
+            if (!active && (session?.event as any)?.contextMenuGuestId === guestId) session?.cancel();
+        } catch {}
+    }, [active]);
     useEffect(() => {
         const webview = ref.current;
         if (webview == null) {
@@ -717,19 +730,19 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
                 model.openLink(url);
             }
         };
-        // A link gets the link menu; a plain spot of the page (no text field, selection or image, whose menus the
-        // page or the main process own) gets the panel's split actions (FR-SHELL-042-AC4).
-        const onContextMenu = (e: any) => {
-            const params = e.params ?? {};
-            if (params.linkURL) {
-                model.showLinkMenu(params.linkURL);
+        // MOLTENTERM-PATCH (#371): one guest request, filtered against the active inner browser tab.
+        const removeContextMenu = getApi().onGuestContextMenu?.((params) => {
+            if (params.guestId !== webview.getWebContentsId() || model.state().activeId !== tab.id) return;
+            const event = guestMenuEvent(params, webview);
+            if (params.linkURL && !params.imageToken && !params.editable && !params.selectionText) {
+                model.showLinkMenu(params.linkURL, event);
                 return;
             }
-            if (params.isEditable || params.selectionText || (params.mediaType && params.mediaType !== "none")) {
-                return;
-            }
-            model.showPageMenu();
-        };
+            const menu = guestEditMenu(params, (token) => getApi().saveContextMenuImage(token));
+            if (menu.length) menu.push({ type: "separator" });
+            menu.push(...splitMenuItems(model.blockId));
+            ContextMenuModel.getInstance().showContextMenu(menu, event);
+        });
         const onFocus = () => {
             getApi().setWebviewFocus(webview.getWebContentsId());
             model.nodeModel.focusNode();
@@ -742,7 +755,14 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
         const onDomReady = () => {
             webview.dataset.webcontentsid = String(webview.getWebContentsId());
             registerWebview(model.blockId, tab.id, webview.getWebContentsId());
+            getApi().setContextMenuGuest?.(webview.getWebContentsId(), model.state().activeId === tab.id);
         };
+        const onVisibility = () => {
+            try {
+                getApi().setContextMenuGuest?.(webview.getWebContentsId(), model.state().activeId === tab.id);
+            } catch {}
+        };
+        document.addEventListener("visibilitychange", onVisibility);
         webview.addEventListener("did-navigate", onNavigate);
         webview.addEventListener("did-navigate-in-page", onNavigate);
         webview.addEventListener("page-title-updated", onTitle);
@@ -751,7 +771,7 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
         webview.addEventListener("focus", onFocus);
         webview.addEventListener("blur", onBlur);
         webview.addEventListener("dom-ready", onDomReady);
-        webview.addEventListener("context-menu", onContextMenu);
+
         webview.addEventListener("did-start-loading", onStartLoading);
         webview.addEventListener("did-stop-loading", onStopLoading);
         webview.addEventListener("page-favicon-updated", onFavicon);
@@ -759,7 +779,13 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
             webview.removeEventListener("did-start-loading", onStartLoading);
             webview.removeEventListener("did-stop-loading", onStopLoading);
             webview.removeEventListener("page-favicon-updated", onFavicon);
-            webview.removeEventListener("context-menu", onContextMenu);
+            document.removeEventListener("visibilitychange", onVisibility);
+            removeContextMenu?.();
+            const session = ContextMenuModel.getInstance().session;
+            if (session?.event.target === webview) session.cancel();
+            try {
+                getApi().setContextMenuGuest?.(webview.getWebContentsId(), false);
+            } catch {}
             webview.removeEventListener("did-navigate", onNavigate);
             webview.removeEventListener("did-navigate-in-page", onNavigate);
             webview.removeEventListener("page-title-updated", onTitle);

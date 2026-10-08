@@ -34,18 +34,19 @@ import {
 import * as services from "@/store/services";
 import * as keyutil from "@/util/keyutil";
 import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
+import { isMacOS, isWindows } from "@/util/platformutil";
+import { boundNumber, fireAndForget, stringToBase64 } from "@/util/util";
+import * as jotai from "jotai";
+import * as React from "react";
+import { openInBrowserPanel } from "../../../moltenterm-shell/browser/browser-routing"; // MOLTENTERM-PATCH (#132, #140)
+import { acceleratorById } from "../../../moltenterm-shell/shortcuts/format";
+import { splitMenuItems } from "../../../moltenterm-shell/split/split-menu"; // MOLTENTERM-PATCH (#370)
 import {
     copyText,
     plainSelectionText,
     termCopyMenuItems,
     termFileLinkMenuItems,
 } from "../../../moltenterm-shell/term-copy/term-copy"; // MOLTENTERM-PATCH (#119)
-import { openInBrowserPanel } from "../../../moltenterm-shell/browser/browser-routing"; // MOLTENTERM-PATCH (#132, #140)
-import { splitMenuItems } from "../../../moltenterm-shell/split/split-menu"; // MOLTENTERM-PATCH (#370)
-import { isMacOS, isWindows } from "@/util/platformutil";
-import { boundNumber, fireAndForget, stringToBase64 } from "@/util/util";
-import * as jotai from "jotai";
-import * as React from "react";
 import { getBlockingCommand } from "./shellblocking";
 import { computeTheme, DefaultTermTheme, trimTerminalSelection } from "./termutil";
 import { TermWrap, WebGLSupported } from "./termwrap";
@@ -837,6 +838,7 @@ export class TermViewModel implements ViewModel {
         });
     }
 
+    // MOLTENTERM-PATCH (#371): main menu order and registered shortcut metadata.
     getContextMenuItems(): ContextMenuItem[] {
         const menu: ContextMenuItem[] = [];
         const hasSelection = this.termRef.current?.terminal?.hasSelection();
@@ -896,6 +898,8 @@ export class TermViewModel implements ViewModel {
 
         menu.push({
             label: "Paste",
+            icon: "paste",
+            accelerator: acceleratorById("term-paste"),
             click: () => {
                 getApi().nativePaste();
             },
@@ -905,7 +909,9 @@ export class TermViewModel implements ViewModel {
 
         const magnified = globalStore.get(this.nodeModel.isMagnified);
         menu.push({
-            label: magnified ? "Un-Magnify Block" : "Magnify Block",
+            label: magnified ? "Un-magnify" : "Magnify",
+            icon: "expand",
+            accelerator: acceleratorById("magnify"),
             click: () => {
                 this.nodeModel.toggleMagnify();
             },
@@ -942,29 +948,9 @@ export class TermViewModel implements ViewModel {
         const cwd = blockData?.meta?.["cmd:cwd"];
         const canShowFileBrowser = shellIntegrationStatus === "ready" && cwd != null;
 
-        if (canShowFileBrowser) {
-            fullMenu.push({
-                label: "File Browser",
-                click: () => {
-                    const blockData = globalStore.get(this.blockAtom);
-                    const connection = blockData?.meta?.connection;
-                    const cwd = blockData?.meta?.["cmd:cwd"];
-                    const meta: Record<string, any> = {
-                        view: "preview",
-                        file: cwd,
-                    };
-                    if (connection) {
-                        meta.connection = connection;
-                    }
-                    const blockDef: BlockDef = { meta };
-                    createBlock(blockDef);
-                },
-            });
-            fullMenu.push({ type: "separator" });
-        }
-
         fullMenu.push({
-            label: "Save Session As...",
+            label: "Save session as…",
+            icon: "floppy-disk",
             click: () => {
                 if (this.termRef.current) {
                     const content = this.termRef.current.getScrollbackContent();
@@ -1155,22 +1141,47 @@ export class TermViewModel implements ViewModel {
         ];
         fullMenu.push({
             label: "Themes",
+            icon: "palette",
             submenu: submenu,
         });
         fullMenu.push({
-            label: "Font Size",
+            label: "Font size",
+            icon: "text-height",
             submenu: fontSizeSubMenu,
         });
         fullMenu.push({
             label: "Cursor",
+            icon: "i-cursor",
             submenu: cursorSubMenu,
         });
         fullMenu.push({
             label: "Transparency",
+            icon: "circle-half-stroke",
             submenu: transparencySubMenu,
         });
         fullMenu.push({ type: "separator" });
         const advancedSubmenu: ContextMenuItem[] = [];
+        if (canShowFileBrowser) {
+            advancedSubmenu.push({
+                label: "File Browser",
+                click: () => {
+                    const blockData = globalStore.get(this.blockAtom);
+                    const connection = blockData?.meta?.connection;
+                    const cwd = blockData?.meta?.["cmd:cwd"];
+                    const meta: Record<string, any> = {
+                        view: "preview",
+                        file: cwd,
+                    };
+                    if (connection) {
+                        meta.connection = connection;
+                    }
+                    const blockDef: BlockDef = { meta };
+                    createBlock(blockDef);
+                },
+            });
+            advancedSubmenu.push({ type: "separator" });
+        }
+
         const allowBracketedPaste = blockData?.meta?.["term:allowbracketedpaste"];
         advancedSubmenu.push({
             label: "Allow Bracketed Paste Mode",
@@ -1335,6 +1346,7 @@ export class TermViewModel implements ViewModel {
 
         fullMenu.push({
             label: "Advanced",
+            icon: "sliders",
             submenu: advancedSubmenu,
         });
         if (blockData?.meta?.["term:vdomtoolbarblockid"]) {

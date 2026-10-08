@@ -27,11 +27,13 @@ export function splitMenuItems(blockId: string): ContextMenuItem[] {
     return [
         {
             label: SplitRightLabel,
+            icon: "columns",
             accelerator: acceleratorById("split-right"),
             click: () => fireAndForget(() => splitPanel(blockId, "right")),
         },
         {
             label: SplitDownLabel,
+            icon: "table-columns",
             accelerator: acceleratorById("split-down"),
             click: () => fireAndForget(() => splitPanel(blockId, "down")),
         },

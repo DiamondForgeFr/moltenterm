@@ -4,6 +4,7 @@
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import * as electron from "electron";
+import { MenuRoleLabels } from "../frontend/moltenterm-shell/menu/menu-model"; // MOLTENTERM-PATCH (#371)
 import { fireAndForget } from "../frontend/util/util";
 import { focusedBuilderWindow, getBuilderWindowById } from "./emain-builder";
 import { openBuilderWindow } from "./emain-ipc";
@@ -20,6 +21,14 @@ import {
     WaveBrowserWindow,
 } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
+import {
+    ContextMenuEvents,
+    contextMenuTargetLive,
+    contextMenuWindow,
+    executeCapturedContextMenuRole,
+    liveContextMenuHost,
+} from "./moltenterm-contextmenu";
+import { contextMenuRole } from "./moltenterm-contextmenu-policy";
 import { makeMoltentermGettingStartedMenuItem } from "./moltenterm-onboarding"; // MOLTENTERM-PATCH (#161)
 import { makeMoltentermSafeModeMenuItem } from "./moltenterm-safemode"; // MOLTENTERM-PATCH (#20)
 import { makeMoltentermEditWorkspaceMenuItem } from "./moltenterm-workspace-menu"; // MOLTENTERM-PATCH (#294)
@@ -429,20 +438,24 @@ function getWebContentsByWorkspaceOrBuilderId(workspaceOrBuilderId: string): ele
 function convertMenuDefArrToMenu(
     webContents: electron.WebContents,
     menuDefArr: ElectronContextMenuItem[],
-    menuState: { hasClick: boolean }
+    menuState: { hasClick: boolean; token?: string; target?: string; active: boolean }
 ): electron.Menu {
     const menuItems: electron.MenuItem[] = [];
     for (const menuDef of menuDefArr) {
         const menuItemTemplate: electron.MenuItemConstructorOptions = {
-            role: menuDef.role as any,
-            label: menuDef.label,
-            type: menuDef.type,
+            label: menuDef.label ?? MenuRoleLabels[menuDef.role],
+            type: menuDef.type === "header" ? "normal" : menuDef.type,
+            visible: menuDef.visible,
             click: () => {
+                if (!menuState.active || !contextMenuTargetLive(webContents, menuState.target)) return;
+                if (menuDef.role && !executeCapturedContextMenuRole(webContents, menuState.target, menuDef.role))
+                    return;
                 menuState.hasClick = true;
-                webContents.send("contextmenu-click", menuDef.id);
+                webContents.send("contextmenu-click", menuDef.id, menuState.token);
             },
             checked: menuDef.checked,
-            enabled: menuDef.enabled,
+            enabled:
+                menuDef.type === "header" || (menuDef.role && !contextMenuRole(menuDef.role)) ? false : menuDef.enabled,
         };
         // MOLTENTERM-PATCH (#370): the shortcut is shown, never registered: the renderer's key model handles it
         if (typeof menuDef.accelerator === "string" && /^[A-Za-z0-9+\-=[\]\\;',./`]{1,40}$/.test(menuDef.accelerator)) {
@@ -458,27 +471,53 @@ function convertMenuDefArrToMenu(
     return electron.Menu.buildFromTemplate(menuItems);
 }
 
+const nativeContextMenus = new Map<number, () => void>(); // MOLTENTERM-PATCH (#371): retire native popups on replacement/lifecycle changes.
 electron.ipcMain.on(
     "contextmenu-show",
-    (event, workspaceOrBuilderId: string, menuDefArr: ElectronContextMenuItem[]) => {
-        const webContents = getWebContentsByWorkspaceOrBuilderId(workspaceOrBuilderId);
+    (event, workspaceOrBuilderId: string, menuDefArr: ElectronContextMenuItem[], token?: string, target?: string) => {
+        // MOLTENTERM-PATCH (#371): the sender, not a renderer-supplied workspace, owns this request.
+        const webContents = liveContextMenuHost(event.sender) ? event.sender : null;
         if (!webContents) {
             console.error("invalid window for context menu:", workspaceOrBuilderId);
             event.returnValue = true;
             return;
         }
-        if (menuDefArr.length === 0) {
-            webContents.send("contextmenu-click", null);
+        nativeContextMenus.get(webContents.id)?.();
+        if (!contextMenuTargetLive(webContents, target) || menuDefArr.length === 0) {
+            webContents.send("contextmenu-click", null, token);
             event.returnValue = true;
             return;
         }
         fireAndForget(async () => {
-            const menuState = { hasClick: false };
+            const menuState = { hasClick: false, token, target, active: true };
             const menu = convertMenuDefArrToMenu(webContents, menuDefArr, menuState);
+            const window = contextMenuWindow(webContents);
+            const cleanup = () => {
+                menuState.active = false;
+                if (nativeContextMenus.get(webContents.id) === retire) nativeContextMenus.delete(webContents.id);
+                window.removeListener("blur", retire);
+                ContextMenuEvents.removeListener("revoke", revoke);
+                webContents.removeListener("did-start-navigation", retire);
+                webContents.removeListener("destroyed", retire);
+            };
+            const retire = () => {
+                cleanup();
+                menu.closePopup(window);
+            };
+            const revoke = (host: electron.WebContents, lease: string) => {
+                if (host === webContents && lease === target) retire();
+            };
+            nativeContextMenus.set(webContents.id, retire);
+            window.on("blur", retire);
+            ContextMenuEvents.on("revoke", revoke);
+            webContents.on("did-start-navigation", retire);
+            webContents.once("destroyed", retire);
             menu.popup({
+                window,
                 callback: () => {
-                    if (!menuState.hasClick) {
-                        webContents.send("contextmenu-click", null);
+                    cleanup();
+                    if (!menuState.hasClick && !webContents.isDestroyed()) {
+                        webContents.send("contextmenu-click", null, token);
                     }
                 },
             });

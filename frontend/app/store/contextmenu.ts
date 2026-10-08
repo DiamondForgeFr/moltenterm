@@ -1,94 +1,133 @@
-// Copyright 2025, Command Line Inc.
+// Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
+// MOLTENTERM-PATCH (#371): renderer presentation with correlated, exactly-once sessions.
 
 import { atoms, getApi, globalStore } from "./global";
 
-type ShowContextMenuOpts = {
+export type ShowContextMenuOpts = {
     onSelect?: (item: ContextMenuItem) => void;
     onCancel?: () => void;
     onClose?: (item: ContextMenuItem | null) => void;
 };
+export type ContextMenuSession = {
+    token: string;
+    menu: ContextMenuItem[];
+    event: React.MouseEvent<any>;
+    select: (item: ContextMenuItem, roleAction?: () => void) => void;
+    cancel: () => void;
+};
+type Presenter = (session: ContextMenuSession | null) => void;
 
 class ContextMenuModel {
     private static instance: ContextMenuModel;
-    handlers: Map<string, ContextMenuItem> = new Map(); // id -> item
-    activeOpts: ShowContextMenuOpts | null = null;
+    handlers = new Map<string, ContextMenuItem>();
+    activeOpts: ShowContextMenuOpts = null;
+    session: ContextMenuSession = null;
+    native = false;
+    nativeTarget: string = null;
+    presenter: Presenter = null;
+    useNative: () => boolean = () => false;
 
     private constructor() {
         getApi().onContextMenuClick(this.handleContextMenuClick.bind(this));
     }
-
     static getInstance(): ContextMenuModel {
-        if (ContextMenuModel.instance == null) {
-            ContextMenuModel.instance = new ContextMenuModel();
-        }
-        return ContextMenuModel.instance;
+        return (ContextMenuModel.instance ??= new ContextMenuModel());
     }
-
-    handleContextMenuClick(id: string | null): void {
+    registerPresenter(presenter: Presenter, useNative: () => boolean): () => void {
+        this.presenter = presenter;
+        this.useNative = useNative;
+        return () => {
+            if (this.presenter !== presenter) return;
+            const session = this.session;
+            this.presenter = null;
+            presenter(null);
+            session?.cancel();
+        };
+    }
+    finish(token: string, item: ContextMenuItem, roleAction?: () => void): void {
+        if (this.session?.token !== token) return;
         const opts = this.activeOpts;
+        const presented = !this.native;
+        const nativeTarget = this.nativeTarget;
+        this.nativeTarget = null;
+        this.session = null;
         this.activeOpts = null;
-        const item = id != null ? this.handlers.get(id) : null;
         this.handlers.clear();
-        if (item == null) {
-            opts?.onCancel?.();
-            opts?.onClose?.(null);
-            return;
+        if (presented) this.presenter?.(null);
+        try {
+            if (item == null) opts?.onCancel?.();
+            else {
+                try {
+                    if (item.role) roleAction?.();
+                    else item.click?.();
+                } finally {
+                    opts?.onSelect?.(item);
+                }
+            }
+        } finally {
+            try {
+                opts?.onClose?.(item ?? null);
+            } finally {
+                if (nativeTarget) getApi().revokeContextMenuTarget?.(nativeTarget);
+            }
         }
-        item.click?.();
-        opts?.onSelect?.(item);
-        opts?.onClose?.(item);
     }
-
+    handleContextMenuClick(id: string | null, token?: string): void {
+        if (!this.native || this.session == null || (token != null && token !== this.session.token)) return;
+        const item = id != null ? this.handlers.get(id) : null;
+        if (id != null && item == null) return;
+        this.finish(this.session.token, item);
+    }
     _convertAndRegisterMenu(menu: ContextMenuItem[]): ElectronContextMenuItem[] {
-        const electronMenuItems: ElectronContextMenuItem[] = [];
-        for (const item of menu) {
+        return menu.map((item) => {
             const electronItem: ElectronContextMenuItem = {
+                id: crypto.randomUUID(),
                 role: item.role,
                 type: item.type,
                 label: item.label,
                 sublabel: item.sublabel,
-                id: crypto.randomUUID(),
                 checked: item.checked,
+                accelerator: item.accelerator,
+                visible: item.visible,
+                enabled: item.enabled,
             };
-            // MOLTENTERM-PATCH (#370): the item's shortcut, from the shortcut registry
-            if (item.accelerator) {
-                electronItem.accelerator = item.accelerator;
-            }
-            if (item.visible === false) {
-                electronItem.visible = false;
-            }
-            if (item.enabled === false) {
-                electronItem.enabled = false;
-            }
-            if (item.click) {
+            if ((item.click || item.role) && !item.submenu && item.type !== "header" && item.type !== "separator") {
                 this.handlers.set(electronItem.id, item);
             }
-            if (item.submenu) {
-                electronItem.submenu = this._convertAndRegisterMenu(item.submenu);
-            }
-            electronMenuItems.push(electronItem);
-        }
-        return electronMenuItems;
+            if (item.submenu) electronItem.submenu = this._convertAndRegisterMenu(item.submenu);
+            return electronItem;
+        });
     }
-
     showContextMenu(menu: ContextMenuItem[], ev: React.MouseEvent<any>, opts?: ShowContextMenuOpts): void {
         ev.stopPropagation();
-        this.handlers.clear();
+        ev.preventDefault?.();
+        this.session?.cancel();
+        // A cancellation callback may itself have opened a new menu.
+        if (this.session != null) return;
+        const token = crypto.randomUUID();
         this.activeOpts = opts;
-        const electronMenuItems = this._convertAndRegisterMenu(menu);
-        
-        const workspaceId = globalStore.get(atoms.workspaceId);
-        let oid: string;
-        
-        if (workspaceId != null) {
-            oid = workspaceId;
-        } else {
-            oid = globalStore.get(atoms.builderId);
+        this.native = !this.presenter || this.useNative();
+        const session: ContextMenuSession = {
+            token,
+            menu,
+            event: ev,
+            select: (item, action) => this.finish(token, item, action),
+            cancel: () => this.finish(token, null),
+        };
+        this.session = session;
+        if (menu.every((item) => item.visible === false)) {
+            session.cancel();
+            return;
         }
-        
-        getApi().showContextMenu(oid, electronMenuItems);
+        if (!this.native) {
+            this.presenter(session);
+            return;
+        }
+        const items = this._convertAndRegisterMenu(menu);
+        const oid = globalStore.get(atoms.workspaceId) ?? globalStore.get(atoms.builderId);
+        this.nativeTarget = getApi().captureContextMenuTarget?.((ev as any).contextMenuGuestId);
+        getApi().showContextMenu(oid, items, token, this.nativeTarget);
     }
 }
-
 export { ContextMenuModel };

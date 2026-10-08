@@ -220,8 +220,8 @@ export function RailProduct({
                 ? []
                 : [
                       { type: "separator" },
-                      { label: "Rename group…", click: local.onRenameStart },
-                      { label: "Ungroup", click: local.onUngroup },
+                      { label: "Rename group…", icon: "pen", click: local.onRenameStart },
+                      { label: "Ungroup", icon: "layer-group", click: local.onUngroup },
                   ];
         ContextMenuModel.getInstance().showContextMenu(
             [{ label: collapsed ? "Expand" : "Collapse", click: onToggle }, ...localItems],

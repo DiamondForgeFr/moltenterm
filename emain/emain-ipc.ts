@@ -27,6 +27,7 @@ import { getWaveVersion } from "./emain-wavesrv";
 import { createNewWaveWindow, getWaveWindowByWebContentsId } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
 import { initMoltentermBrowserAgent, isAgentInput } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#300, #302)
+import { initMoltentermContextMenu } from "./moltenterm-contextmenu";
 import { initMoltentermDialogs } from "./moltenterm-dialogs"; // MOLTENTERM-PATCH (#30)
 import { initMoltentermUpdate } from "./moltenterm-update"; // MOLTENTERM-PATCH (#64)
 
@@ -142,7 +143,8 @@ function saveImageFileWithNativeDialog(
     if (defaultFileName == null || defaultFileName == "") {
         defaultFileName = "image";
     }
-    const ww = electron.BrowserWindow.fromWebContents(sender);
+    // MOLTENTERM-PATCH (#371): Wave uses BaseWindow and an owned tab WebContentsView.
+    const ww = getWaveWindowByWebContentsId(sender.id) ?? electron.BrowserWindow.fromWebContents(sender);
     if (ww == null) {
         readStream.destroy();
         return;
@@ -195,7 +197,16 @@ function saveImageFileWithNativeDialog(
         });
 }
 
+// MOLTENTERM-PATCH (#371): owned, captured context-menu actions.
 export function initIpcHandlers() {
+    initMoltentermContextMenu(async (host, guest, source, valid) => {
+        const result = await getUrlInSession(guest.session, source);
+        if (!valid()) {
+            result.stream.destroy();
+            return;
+        }
+        saveImageFileWithNativeDialog(host, result.fileName, result.mimeType, result.stream);
+    });
     initMoltentermDialogs(); // MOLTENTERM-PATCH (#30): folder and image pickers of the Moltenterm shell
     initMoltentermUpdate(); // MOLTENTERM-PATCH (#64): gold updates
     // MOLTENTERM-PATCH (#300, #302): a user's click or key in an agent's tab takes over, and a download the agent's tab
@@ -235,35 +246,6 @@ export function initIpcHandlers() {
         } else {
             console.error("Invalid URL received in open-external event:", url);
         }
-    });
-
-    electron.ipcMain.on("webview-image-contextmenu", (event: electron.IpcMainEvent, payload: { src: string }) => {
-        const menu = new electron.Menu();
-        const win = getWaveWindowByWebContentsId(event.sender.hostWebContents?.id);
-        if (win == null) {
-            return;
-        }
-        menu.append(
-            new electron.MenuItem({
-                label: "Save Image",
-                click: () => {
-                    const resultP = getUrlInSession(event.sender.session, payload.src);
-                    resultP
-                        .then((result) => {
-                            saveImageFileWithNativeDialog(
-                                event.sender.hostWebContents,
-                                result.fileName,
-                                result.mimeType,
-                                result.stream
-                            );
-                        })
-                        .catch((e) => {
-                            console.log("error getting image", e);
-                        });
-                },
-            })
-        );
-        menu.popup();
     });
 
     electron.ipcMain.on("webview-mouse-navigate", (event: electron.IpcMainEvent, direction: string) => {
