@@ -425,7 +425,7 @@ func ListWorkspaces(ctx context.Context) (waveobj.WorkspaceList, error) {
 			WindowId:    windowId,
 		})
 	}
-	return wl, nil
+	return moltenOrderWorkspaceList(ctx, wl), nil // MOLTENTERM-PATCH (#358): the rail order the user set
 }
 
 func SetIcon(workspaceId string, icon string) error {

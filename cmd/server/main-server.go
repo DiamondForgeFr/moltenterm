@@ -583,6 +583,8 @@ func main() {
 	// MOLTENTERM-PATCH (#161): first run, skip variable, onboarding route
 	wcore.StartMoltenFirstRun()
 	wcore.StartWorkspaceIconSweep() // MOLTENTERM-PATCH (#295): imported icons no workspace references
+	// MOLTENTERM-PATCH (#358): the windows move workspaces in the rail
+	wcore.StartWorkspaceOrderRoute()
 	aiusechat.InitAIModeConfigWatcher()
 	maybeStartPprofServer()
 	go stdinReadWatch()
