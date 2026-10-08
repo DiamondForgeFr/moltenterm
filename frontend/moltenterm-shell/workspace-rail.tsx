@@ -40,7 +40,7 @@ import { RailTools } from "./rail-tools";
 import { PaneFocusKeeper } from "./sessions/pane-focus";
 import { handOverWorkspaceEdit, openWorkspaceEditor, recordSwitchClick, takeSwitchClick } from "./workspace-edit";
 import { WorkspaceEditHost } from "./workspace-edit-sheet";
-import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
+import { RailBadgeClass, RailMemberBadgeClass, WorkspaceIcon } from "./workspace-icon";
 import { workspaceIconSource } from "./workspace-icon-model";
 import { moveWorkspace, RailMove, slotMove, sortByOrder } from "./workspace-order";
 import { readWorkspaceProject } from "./workspace-project";
@@ -93,9 +93,9 @@ type RailItemMoves = {
     onMove: (move: RailMove, refocus: boolean) => void;
 };
 
-// A workspace drawn inside a product (FR-MC-027-AC5): its own badge and state, arrows walking the product. Its box keeps
-// the full size: the pencil's 24 px target would cover most of a smaller one. Since #365 the pencil buds out beside the
-// icon, so a smaller box is possible again; it is left as it is.
+// A workspace drawn inside a product (FR-MC-027-AC5): its own badge and state, arrows walking the product. Until #365 its
+// box kept the full size, since the pencil's 24 px target would have covered most of a smaller one; with the buds out
+// beside the icon, it is drawn at 32 px (#368, revision of FR-MC-027), the product entry staying at 36 px.
 type RailMemberInfo = {
     worst: string;
     stateText: string;
@@ -213,6 +213,7 @@ function RailButton({
     return (
         <div
             data-rail-unit={unitId}
+            data-rail-member={member != null ? "" : undefined}
             className={cn("molten-rail-budhost relative shrink-0", dragging && "molten-rail-dragging z-10")}
             style={dragging ? { transform: `translateY(${moves.dragOffsetY}px)` } : undefined}
         >
@@ -239,6 +240,7 @@ function RailButton({
                 className={cn(
                     "molten-rail-item molten-rail-anchor cursor-pointer transition-colors hover:bg-hover",
                     RailBadgeClass,
+                    member != null && RailMemberBadgeClass,
                     entry.active && "bg-hover",
                     !entry.active && entry.open && "outline outline-1 -outline-offset-1 outline-border"
                 )}
