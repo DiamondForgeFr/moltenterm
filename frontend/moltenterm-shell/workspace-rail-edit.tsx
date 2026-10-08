@@ -1,16 +1,14 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { HoldToConfirmButton, useHoldSettings } from "./hold-to-confirm";
-
-export const RailEditHint = "Hold to edit";
+import { useHoldSettings } from "./hold-to-confirm";
 
 // The SVG filter that joins the item's tile, the neck and the badge into one droplet (DS-SHELL-061); the rail draws it
 // once.
 export const RailBudFilterId = "molten-rail-bud-goo";
 
 export function railEditLabel(name: string): string {
-    return `Edit ${name}, hold to confirm`;
+    return `Edit ${name}`;
 }
 
 // A metaball filter: the blur spreads the shapes' alpha into each other, the threshold cuts it back to a hard edge, so
@@ -44,8 +42,9 @@ export function RailBudFilter() {
 // like a cell dividing, and settles just before the pinch-off: a 16 px badge still joined to the icon by a thin neck,
 // whose target lies wholly outside the icon. It is anchored to the item's button (moltenterm-shell.css) and fixed, so
 // the rail's narrow, scrolling box neither clips nor holds it.
-// #354 (DS-SHELL-058): the sheet opens after a press-and-hold, the gesture of the tab close button. The double-click,
-// the context menu, the palette and the app menu stay immediate.
+// #354 (DS-SHELL-058) made the sheet open after a press-and-hold, the gesture of the tab close button, while the pencil
+// sat on the icon and caught stray clicks. Out of the icon since #365, it opens on a simple click again (#368, revision
+// of FR-SHELL-030, 2026-10-08); the tab close button keeps its hold.
 export function RailEditButton({
     name,
     onEdit,
@@ -69,18 +68,20 @@ export function RailEditButton({
                     <span className="molten-rail-bud-drop" />
                 </span>
             </span>
-            <HoldToConfirmButton
-                label={railEditLabel(name)}
-                hint={RailEditHint}
-                plainLabel={`Edit ${name}`}
-                dataRole="rail-edit"
-                onConfirm={(_, button) => onEdit(button)}
+            <button
+                type="button"
+                aria-label={railEditLabel(name)}
+                data-role="rail-edit"
+                draggable={false}
+                onClick={(e) => onEdit(e.currentTarget)}
                 onMouseEnter={(e) => onHover(e.currentTarget)}
                 onMouseLeave={onLeave}
                 className="molten-rail-edit absolute inset-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full"
-                discClassName="bg-[var(--molten-rail-bud-fill)] text-[8px] text-secondary hover:text-primary"
-                glyph={<i className="molten-hold-glyph fa fa-solid fa-pencil relative" aria-hidden />}
-            />
+            >
+                <span className="molten-rail-bud-disc relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-[var(--molten-rail-bud-fill)] text-[8px] text-secondary hover:text-primary">
+                    <i className="fa fa-solid fa-pencil" aria-hidden />
+                </span>
+            </button>
         </span>
     );
 }

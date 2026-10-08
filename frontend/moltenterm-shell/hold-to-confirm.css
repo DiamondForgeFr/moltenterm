@@ -1,7 +1,7 @@
 /* Copyright 2026, DiamondForge */
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* DS-SHELL-059 (#354): the look of the press-and-hold shared by the tab close button and the rail pencil. */
+/* DS-SHELL-059 (#354): the look of the press-and-hold shared by the tab close button and, until #368, the rail pencil. */
 
 /* A control that is transparent until hovered; a keyboard focus or a hold shows it too. */
 .molten-hold:focus-visible,

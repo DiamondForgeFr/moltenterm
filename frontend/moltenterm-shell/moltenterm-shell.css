@@ -118,9 +118,7 @@
     transition: opacity 80ms ease-in;
 }
 
-.molten-rail-budhost:is(:hover, :has(:focus-visible)) > .molten-rail-bud .molten-rail-edit,
-.molten-rail-bud .molten-rail-edit[data-holding],
-.molten-rail-bud .molten-rail-edit[data-completing] {
+.molten-rail-budhost:is(:hover, :has(:focus-visible)) > .molten-rail-bud .molten-rail-edit {
     opacity: 1;
     pointer-events: auto;
     transition: opacity 110ms ease-out 140ms;
