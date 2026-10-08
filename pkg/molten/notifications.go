@@ -21,7 +21,8 @@ const (
 	MaxNotifications             = 500
 	NotificationClosedRetention  = 30 * 24 * time.Hour
 	MaxClosedNotificationsPerKey = 20
-	MaxNotificationActions       = 2
+	// Three since #276: the ask-once notification of the sleep policy offers its three modes.
+	MaxNotificationActions = 3
 )
 
 type NotificationAction struct {

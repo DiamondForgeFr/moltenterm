@@ -6,11 +6,13 @@ import { readFileSync } from "fs";
 import { atom } from "jotai";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { railCoffeeLabel } from "./keepawake-model";
 import {
     RailBudChain,
     RailBudFilter,
     RailBudFilterId,
     RailBudPitchPx,
+    RailBudSpec,
     RailEditButton,
     railEditLabel,
     railLinkLabel,
@@ -257,5 +259,54 @@ describe("the bud chain: pencil, link, coffee (#368, DS-MC-029)", () => {
 
     it("draws the pencil alone when the link does not apply", () => {
         expect(render()).not.toContain("rail-link");
+    });
+});
+
+describe("the coffee bud ends the chain (#276, FR-SHELL-023-AC8 to AC10)", () => {
+    const css = source("./moltenterm-shell.css");
+
+    function renderCoffee(on: boolean, withLink: boolean): string {
+        const env = {
+            getSettingsKeyAtom: () => atom(undefined),
+            atoms: { prefersReducedMotionAtom: atom(false) },
+        };
+        const buds: RailBudSpec[] = [{ kind: "edit", label: railEditLabel("Client A"), onActivate: () => {} }];
+        if (withLink) {
+            buds.push({ kind: "link", label: railLinkLabel("Client A"), onActivate: () => {} });
+        }
+        buds.push({
+            kind: "coffee",
+            label: railCoffeeLabel("Client A", on, "darwin"),
+            pressed: on,
+            onActivate: () => {},
+        });
+        return renderToStaticMarkup(
+            <WaveEnvContext.Provider value={env as any}>
+                <RailBudChain buds={buds} onHover={() => {}} onLeave={() => {}} />
+            </WaveEnvContext.Provider>
+        );
+    }
+
+    it("comes after the pencil and the link, a toggle named for what it does", () => {
+        const html = renderCoffee(false, true);
+        expect(html).toMatch(/^<span class="molten-rail-bud" style="--molten-rail-buds:3">/);
+        expect(html.indexOf('data-role="rail-link"')).toBeLessThan(html.indexOf('data-role="rail-coffee"'));
+        expect(html).toContain('aria-label="Keep the Mac awake while Client A works" aria-pressed="false"');
+        expect(html).toMatch(/data-role="rail-coffee"[^>]*style="left:56px;--i:2"/);
+        expect(html).toContain("fa-mug-hot");
+        expect(html).not.toContain("tabindex");
+        const on = renderCoffee(true, false);
+        expect(on).toContain('aria-label="Stop keeping the Mac awake for Client A" aria-pressed="true"');
+        expect(on).toMatch(/data-role="rail-coffee"[^>]*style="left:28px;--i:1"/);
+    });
+
+    it("is filled in the awake colour while on, and leaves a droplet out of hover", () => {
+        expect(cssRule(css, '.molten-rail-coffee[aria-pressed="true"] .molten-rail-bud-disc')).toContain(
+            "background-color: var(--color-awake);"
+        );
+        expect(cssRule(css, ".molten-rail-coffee-drop")).toContain("background-color: var(--color-awake);");
+        expect(css).toContain(
+            ".molten-rail-budhost:is(:hover, :has(:focus-visible), [data-buds-out]) .molten-rail-coffee-drop {\n    opacity: 0;"
+        );
     });
 });

@@ -162,6 +162,9 @@ type SettingsType struct {
 	TabHoldToClose   *bool  `json:"tab:holdtoclose,omitempty" jsonschema_description:"Closing a tab with its close button takes a press-and-hold; false closes it on a single click"`
 	TabHoldToCloseMs *int64 `json:"tab:holdtoclosems,omitempty" jsonschema_description:"How long a tab's close button is held before it closes the tab, in milliseconds (200 to 2000)"`
 
+	// MOLTENTERM-PATCH (#276): whether terminals may keep the computer awake (FR-SHELL-023, pkg/molten/keepawake); unset asks once.
+	PowerSleepPolicy string `json:"power:sleeppolicy,omitempty" jsonschema:"enum=allow,enum=untilworkends,enum=letsleep" jsonschema_description:"Whether terminals may keep the computer awake (caffeinate, systemd-inhibit). allow: their blocks go through. untilworkends: MoltenTerm keeps the computer awake itself while work runs (an agent working, its subagents included; a foreground command that is not an idle shell; a Mission Control run) and releases it 2 minutes after the last work stops; an agent waiting for input is not work. letsleep: their blocks are stopped and the computer sleeps as planned. Unset: the first block asks. The display may always sleep."`
+
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`
 

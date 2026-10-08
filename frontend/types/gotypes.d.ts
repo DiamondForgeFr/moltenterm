@@ -1457,6 +1457,7 @@ declare global {
         "tab:background"?: string;
         "tab:holdtoclose"?: boolean;
         "tab:holdtoclosems"?: number;
+        "power:sleeppolicy"?: string;
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;
         "window:*"?: boolean;

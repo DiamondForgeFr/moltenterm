@@ -142,9 +142,10 @@ describe("situations (FR-MC-010)", () => {
         expect(Object.keys(publishUpdate([first], ready(), 20, "b"))).toEqual(["molten:notif:b"]);
     });
 
-    it("keeps at most two actions", () => {
-        const update = publishUpdate([], { ...ready(), actions: [reveal, timeline, { ...timeline, id: "x" }] }, 1, "a");
-        expect(update["molten:notif:a"].actions.map((a: NotificationAction) => a.id)).toEqual(["reveal", "open"]);
+    it("keeps at most three actions", () => {
+        const actions = [reveal, timeline, { ...timeline, id: "x" }, { ...timeline, id: "y" }];
+        const update = publishUpdate([], { ...ready(), actions }, 1, "a");
+        expect(update["molten:notif:a"].actions.map((a: NotificationAction) => a.id)).toEqual(["reveal", "open", "x"]);
     });
 
     it("resolves a key, keeping only lasting actions", () => {

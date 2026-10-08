@@ -117,6 +117,33 @@
     color: var(--mt-accent-fg);
 }
 
+/* The coffee (FR-SHELL-023, DS-SHELL-062, #276): while on, its bud is filled in the awake colour, a state of
+   MoltenTerm rather than a place, so not the workspace accent. Out of hover a small droplet of the same colour stays
+   at the item's right edge (and on a collapsed product holding the workspace); the full bud takes its place when the
+   chain buds out. */
+.molten-rail-coffee[aria-pressed="true"] .molten-rail-bud-disc {
+    background-color: var(--color-awake);
+    color: var(--color-awake-fg);
+}
+
+.molten-rail-coffee-drop {
+    position: absolute;
+    top: 50%;
+    right: -4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    translate: 0 -50%;
+    background-color: var(--color-awake);
+    box-shadow: 0 0 6px 0 color-mix(in srgb, var(--color-awake) 55%, transparent);
+    pointer-events: none;
+    transition: opacity 120ms ease-out;
+}
+
+.molten-rail-budhost:is(:hover, :has(:focus-visible), [data-buds-out]) .molten-rail-coffee-drop {
+    opacity: 0;
+}
+
 /* The rail pencil buds out of its item's right edge (FR-SHELL-030, DS-SHELL-061, #365). Each item's button is the
    anchor of its own pencil, which is fixed: the rail is 48 px wide and scrolls (overflow clips both ways), while the
    bud lies past its right border, over the content. Anchoring keeps it on its item through the rail's scroll and
@@ -389,6 +416,10 @@
     --mt-state-waiting: rgb(224, 185, 86);
     --mt-state-error: rgb(229, 77, 46);
     --mt-state-done: rgb(78, 154, 6);
+    /* MoltenTerm keeps the computer awake (the coffee, #276): a warm crema, apart from working's orange and waiting's
+       amber, fixed like the states. */
+    --color-awake: rgb(240, 168, 122);
+    --color-awake-fg: #1f1208;
     --warning-color: var(--mt-state-waiting);
     --color-warning: var(--mt-state-waiting);
     --error-color: var(--mt-state-error);
