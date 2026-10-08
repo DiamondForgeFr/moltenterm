@@ -26,7 +26,9 @@ import { TrustPrompt } from "./runs-view";
 
 type PendingTrust = { dir: string; info: UntrustedInfo; resolve: (trusted: boolean) => void };
 
-const FailureLogLines = 3;
+const FailureLogLines = 2;
+// must match the closing lines runSync writes in pkg/molten/mission/depsync.go
+const OwnLogLine = /^(the sync failed \(exit|the sync ran for more than|cancelled$)/;
 // The run event is the fast path; the list is read again in case an event was missed.
 const RunEndPollMs = 2000;
 // A run missing from the list this many polls in a row is gone (its history was removed).
@@ -118,7 +120,8 @@ export function syncDependency(dir: string, target: DepSyncTarget): Promise<DepS
 async function readLogTail(dir: string, runId: string): Promise<string[]> {
     try {
         const chunk = await missionLog(dir, runId, 0);
-        return logTail(chunk?.text ?? "", FailureLogLines);
+        const lines = logTail(chunk?.text ?? "", FailureLogLines + 2);
+        return lines.filter((l) => !OwnLogLine.test(l.trim())).slice(-FailureLogLines);
     } catch {
         return [];
     }
