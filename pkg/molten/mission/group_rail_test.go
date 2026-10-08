@@ -4,6 +4,7 @@
 package mission
 
 import (
+	"context"
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
@@ -44,6 +45,27 @@ func TestLinksFollowTheRailOrder(t *testing.T) {
 	}
 	if got := linksInOrder(workspaces, nil); len(got) != 3 || got[0].WorkspaceId != "app" {
 		t.Fatalf("without a stored order the database's order stays: %+v", got)
+	}
+}
+
+func TestReorderedPublishesTheNewMemberOrder(t *testing.T) {
+	links := []molten.GroupLink{{WorkspaceId: "app", Dir: "/r/app"}, {WorkspaceId: "site", Dir: "/r/site"}}
+	published := []GroupsAnswer{}
+	g := MakeGroups(nil, nil, nil, nil, func(ctx context.Context) ([]molten.GroupLink, error) {
+		return links, nil
+	}, func(answer GroupsAnswer) { published = append(published, answer) }, nil)
+	g.read = func(dir string) molten.ProjectInfo {
+		return molten.ProjectInfo{Exists: true, Name: dir[3:], Group: "Notulia"}
+	}
+	g.Reordered()
+	links = []molten.GroupLink{links[1], links[0]}
+	g.Reordered()
+	g.Reordered()
+	if len(published) != 2 {
+		t.Fatalf("published %d models; want 2 (an unchanged order is not told again)", len(published))
+	}
+	if first := published[1].Groups[0].Members[0].Name; first != "site" {
+		t.Fatalf("member order after the move: %s first", first)
 	}
 }
 

@@ -401,6 +401,36 @@ func (g *Groups) Refreshed() {
 	}
 }
 
+// Reordered publishes the groups again after a rail move, which changes their member order and spelling only: the
+// dependencies keep their last evaluation, so a burst of keyboard moves never re-reads git. A collector refresh asked
+// meanwhile still makes its full pass after it.
+func (g *Groups) Reordered() {
+	if g == nil || g.publish == nil {
+		return
+	}
+	if !g.claimRefresh() {
+		return
+	}
+	g.republishPass()
+	for g.refreshNext() {
+		g.refreshPass()
+	}
+}
+
+func (g *Groups) republishPass() {
+	defer func() {
+		panichandler.PanicHandler("molten:mission:groups", recover())
+	}()
+	answer, err := g.resolve(GroupsRequest{}, false)
+	if err != nil {
+		log.Printf("molten: resolving the project groups: %v\n", err)
+		return
+	}
+	if g.changed(answer) {
+		g.publish(answer)
+	}
+}
+
 func (g *Groups) claimRefresh() bool {
 	g.lock.Lock()
 	defer g.lock.Unlock()

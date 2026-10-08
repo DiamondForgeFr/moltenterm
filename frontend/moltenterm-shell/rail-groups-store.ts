@@ -19,6 +19,7 @@ import { RailCollapsedMetaKey, readCollapsed, withCollapsed } from "./rail-group
 import { ProjectMetaKey } from "./workspace-project";
 
 const NoClient = atom(null) as Atom<Client>;
+const RailGroupsAttempts = 3;
 
 function clientAtom(): Atom<Client> {
     return ClientModel.getInstance().clientAtom ?? NoClient;
@@ -70,8 +71,9 @@ export function useCollapsedProducts(): Set<string> {
 }
 
 // The project link of each workspace, read live: linking or unlinking one changes the groups without any rail event.
+// Sorted: a move alone changes no group (the collector publishes the new member order itself).
 export function useWorkspaceLinksKey(ids: string[]): string {
-    const idsKey = ids.join(" ");
+    const idsKey = [...ids].sort().join(" ");
     const linksAtom = useMemo(
         () =>
             atom((get) =>
@@ -88,7 +90,8 @@ export function useWorkspaceLinksKey(ids: string[]): string {
 }
 
 // The groups, asked again whenever `key` changes (the rail's workspaces, their order or their links) and replaced by
-// every model the collector publishes. An answer to a request made before the last published model is dropped.
+// every model the collector publishes. A model published while a request travels may have been resolved before the
+// change that made the request, so the request is made again rather than its answer dropped or trusted.
 export function useRailGroups(key: string): ProjectGroup[] {
     const [groups, setGroups] = useState<ProjectGroup[]>([]);
     const heardRef = useRef(0);
@@ -105,15 +108,22 @@ export function useRailGroups(key: string): ProjectGroup[] {
     );
     useEffect(() => {
         let cancelled = false;
-        const heard = heardRef.current;
         fireAndForget(async () => {
-            try {
-                const answer = await missionGroups();
-                if (!cancelled && heardRef.current === heard) {
+            for (let attempt = 0; attempt < RailGroupsAttempts && !cancelled; attempt++) {
+                const heard = heardRef.current;
+                try {
+                    const answer = await missionGroups();
+                    if (cancelled) {
+                        return;
+                    }
                     setGroups(answer?.groups ?? []);
+                    if (heardRef.current === heard) {
+                        return;
+                    }
+                } catch (e) {
+                    console.log("rail product groups:", e?.message ?? e);
+                    return;
                 }
-            } catch (e) {
-                console.log("rail product groups:", e?.message ?? e);
             }
         });
         return () => {

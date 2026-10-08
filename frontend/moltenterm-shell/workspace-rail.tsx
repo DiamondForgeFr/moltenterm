@@ -93,7 +93,8 @@ type RailItemMoves = {
 type RailMemberInfo = {
     worst: string;
     stateText: string;
-    onArrow: (direction: -1 | 1) => void;
+    // True when it moved the focus.
+    onArrow: (direction: -1 | 1) => boolean;
 };
 
 function RailButton({
@@ -188,8 +189,9 @@ function RailButton({
     const onKeyDown = (e: React.KeyboardEvent) => {
         const plainArrow = !e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey;
         if (member != null && plainArrow && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
-            e.preventDefault();
-            member.onArrow(e.key === "ArrowUp" ? -1 : 1);
+            if (member.onArrow(e.key === "ArrowUp" ? -1 : 1)) {
+                e.preventDefault();
+            }
             return;
         }
         const direction = railMoveKey(e);
@@ -364,11 +366,13 @@ export function WorkspaceRail() {
         takeSuppressedClick: () => drag.takeSuppressedClick(id),
         onMove: applyMove,
     });
-    const focusIn = (selector: string) => {
-        if (!selector) {
-            return;
+    const focusIn = (selector: string): boolean => {
+        const target = selector ? navRef.current?.querySelector<HTMLElement>(selector) : null;
+        if (target == null) {
+            return false;
         }
-        navRef.current?.querySelector<HTMLElement>(selector)?.focus();
+        target.focus();
+        return true;
     };
     const renderUnit = (unit: RailUnit) => {
         if (unit.kind === "workspace") {
@@ -416,7 +420,7 @@ export function WorkspaceRail() {
                                 stateText: memberStateText(state),
                                 onArrow: (direction) => {
                                     const next = ids[index + direction];
-                                    focusIn(
+                                    return focusIn(
                                         next != null
                                             ? `button[data-workspace-id="${CSS.escape(next)}"]`
                                             : direction < 0

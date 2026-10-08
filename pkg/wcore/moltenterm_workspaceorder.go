@@ -6,6 +6,7 @@ package wcore
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/railorder"
@@ -54,10 +55,12 @@ func moltenOrderWorkspaceList(ctx context.Context, wl waveobj.WorkspaceList) wav
 // workspaces leave it and workspaces never moved take their current place in it.
 func MoveWorkspaceInRail(ctx context.Context, req railorder.MoveRequest) ([]string, error) {
 	// Resolving the products reads each linked project's file: done before the lock and the transaction, so a slow disk
-	// never holds the database. A link changed meanwhile is caught by the next move.
+	// never holds the database. A link changed meanwhile is caught by the next move. When the groups cannot be read, the
+	// move is checked as one of an ungrouped rail rather than refused.
 	products, err := railorder.ProductsOf(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("resolving the product groups: %w", err)
+		log.Printf("molten: rail order: resolving the product groups: %v\n", err)
+		products = nil
 	}
 	var order []string
 	var changed bool
