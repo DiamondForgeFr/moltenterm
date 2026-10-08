@@ -188,7 +188,7 @@ export function projectWork(ci: CiState, runs: readonly RunRecord[], release: Re
 // Mission Control's views a build, CI or release notification points at: they land on the Project tab when the
 // workspace has one (CI/CD stays one click away from it). Older notifications still name the Timeline.
 export const MissionPanelViews = [MoltentermProjectView, LegacyTimelineView, "molten-cicd"];
-export const ProjectNotificationSources = ["build", "ci", "release"];
+export const ProjectNotificationSources = ["build", "ci", "release", "deps"];
 
 export function checkProjectRoute(source: string, view: string): boolean {
     return ProjectNotificationSources.includes(source) && MissionPanelViews.includes(view);

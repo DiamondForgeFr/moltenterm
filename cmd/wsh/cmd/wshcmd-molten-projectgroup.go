@@ -23,19 +23,20 @@ const (
 )
 
 type moltenGroupMemberState struct {
-	Missing     bool   `json:"missing,omitempty"`
-	CollectedAt int64  `json:"collectedat,omitempty"`
-	Trunk       string `json:"trunk,omitempty"`
-	TrunkSha    string `json:"trunksha,omitempty"`
-	TrunkCi     string `json:"trunkci,omitempty"`
-	RemoteCi    string `json:"remoteci,omitempty"`
-	RemoteCiUrl string `json:"remoteciurl,omitempty"`
-	Build       string `json:"build,omitempty"`
-	BuildId     string `json:"buildid,omitempty"`
-	BuildAt     int64  `json:"buildat,omitempty"`
-	ReleaseTag  string `json:"releasetag,omitempty"`
-	LastTag     string `json:"lasttag,omitempty"`
-	Worst       string `json:"worst,omitempty"`
+	Missing     bool             `json:"missing,omitempty"`
+	CollectedAt int64            `json:"collectedat,omitempty"`
+	Trunk       string           `json:"trunk,omitempty"`
+	TrunkSha    string           `json:"trunksha,omitempty"`
+	TrunkCi     string           `json:"trunkci,omitempty"`
+	RemoteCi    string           `json:"remoteci,omitempty"`
+	RemoteCiUrl string           `json:"remoteciurl,omitempty"`
+	Build       string           `json:"build,omitempty"`
+	BuildId     string           `json:"buildid,omitempty"`
+	BuildAt     int64            `json:"buildat,omitempty"`
+	ReleaseTag  string           `json:"releasetag,omitempty"`
+	LastTag     string           `json:"lasttag,omitempty"`
+	Deps        []moltenDepState `json:"deps,omitempty"`
+	Worst       string           `json:"worst,omitempty"`
 }
 
 type moltenGroupMember struct {
@@ -150,6 +151,9 @@ func formatMoltenProjectGroup(status MoltenProjectGroupStatus) string {
 		fmt.Fprintf(&sb, "    %s: %s\n", label, strings.Join(workspaces, ", "))
 		fmt.Fprintf(&sb, "    folder: %s\n", member.Dir)
 		fmt.Fprintf(&sb, "    state: %s\n", formatMoltenGroupState(member.State))
+		if deps := formatMoltenGroupDeps(member.State.Deps); deps != "" {
+			fmt.Fprintf(&sb, "    dependencies: %s\n", deps)
+		}
 	}
 	if len(group.Members) == 1 {
 		sb.WriteString("  no other linked project declares this group yet: the rail shows it as an ordinary workspace\n")
@@ -215,4 +219,20 @@ func formatMoltenGroupState(state moltenGroupMemberState) string {
 		text += "; " + badge
 	}
 	return text
+}
+
+// formatMoltenGroupDeps says each declared dependency in a word; the details are in `molten project deps`.
+func formatMoltenGroupDeps(deps []moltenDepState) string {
+	parts := make([]string, 0, len(deps))
+	for _, dep := range deps {
+		word := strings.ToLower(moltenDepWords[dep.State])
+		if dep.State == moltenDepStateUncommitted {
+			word = "stale (synced, not committed)"
+		}
+		if word == "" {
+			word = dep.State
+		}
+		parts = append(parts, fmt.Sprintf("%s %s", moltenDepName(dep), word))
+	}
+	return strings.Join(parts, ", ")
 }

@@ -65,6 +65,26 @@ func TestNotificationResolveThenNewEpisode(t *testing.T) {
 	}
 }
 
+func TestNotificationResolveExcept(t *testing.T) {
+	now := time.UnixMilli(7000)
+	meta := waveobj.MetaMapType{
+		"molten:notif:a": notif(map[string]any{"source": "deps", "key": "molten:deps:/site:app"}),
+		"molten:notif:b": notif(map[string]any{"source": "deps", "key": "molten:deps:/site:gone"}),
+		"molten:notif:c": notif(map[string]any{"source": "deps", "key": "molten:deps:/old:app", "resolved": float64(1)}),
+		"molten:notif:d": notif(map[string]any{"key": "build:gold"}),
+	}
+	update := NotificationResolveExceptUpdate(meta, "molten:deps:", map[string]bool{"molten:deps:/site:app": true}, now)
+	if len(update) != 1 || update["molten:notif:b"].(map[string]any)["resolved"] != float64(7000) {
+		t.Fatalf("only the open notification of the prefix that is not kept is resolved: %+v", update)
+	}
+	if len(NotificationResolveExceptUpdate(meta, "", nil, now)) != 0 {
+		t.Fatal("no prefix, nothing resolved")
+	}
+	if NotificationSubjects["deps"] != "dependencies" {
+		t.Fatal("the dependencies are a subject of their own")
+	}
+}
+
 func TestNotificationRetention(t *testing.T) {
 	now := time.UnixMilli(NotificationClosedRetention.Milliseconds() + 10000)
 	recent := float64(now.UnixMilli() - 100)

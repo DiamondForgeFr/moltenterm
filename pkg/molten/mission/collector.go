@@ -433,7 +433,7 @@ func Start() {
 	runs.UseCi(ci)
 	runs.UseNotifier(publishBuildNotice)
 	panes := MakePanes(ExecRunner, ci, collector)
-	groups = MakeGroups(collector, ci, runs, WorkspaceLinks, publishGroups)
+	groups = MakeGroups(collector, ci, runs, ExecRunner, WorkspaceLinks, publishGroups, notifyDependencies)
 	if err := registerRoute(collector, runs, ci, panes, MakeWorktrees(ExecRunner, nil), groups); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}

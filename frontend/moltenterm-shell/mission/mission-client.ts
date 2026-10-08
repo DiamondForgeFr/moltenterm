@@ -10,7 +10,7 @@ import { fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useState } from "react";
 import { BuildsFacts } from "./builds-model";
 import { CiRunRecord, CiState, upsertCiRun } from "./ci-model";
-import { GroupsAnswer, MissionGroupsCommand } from "./group-model";
+import { DependencyState, GroupsAnswer, MissionDepsCommand, MissionGroupsCommand } from "./group-model";
 import { LogChunk, MissionSnapshot, RunRecord, RunResult, UntrustedInfo, upsertRun } from "./mission-model";
 import { ReleaseChannel, ReleaseMilestone, ReleaseSession } from "./release-model";
 import { ReleaseFacts } from "./release-run";
@@ -62,6 +62,15 @@ export function missionGroups(dir?: string): Promise<GroupsAnswer> {
     return TabRpcClient.wshRpcCall(
         MissionGroupsCommand,
         { dir: dir || undefined },
+        { route: MissionRouteId, timeout: MissionRpcTimeoutMs }
+    );
+}
+
+// The dependencies of the project at dir (FR-MC-029), evaluated afresh.
+export function missionDeps(dir: string): Promise<DependencyState[]> {
+    return TabRpcClient.wshRpcCall(
+        MissionDepsCommand,
+        { dir },
         { route: MissionRouteId, timeout: MissionRpcTimeoutMs }
     );
 }

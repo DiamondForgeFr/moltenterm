@@ -135,8 +135,25 @@ dependent, in `dependson`:
 | `output` | yes | Globs relative to this repository's root, without `..`: the files the sync writes. Their last commit tells when the dependency was last synced. |
 
 The dependency is stale when the source's last commit touching `paths` on the watched branch is newer than this
-repository's last commit touching `output` (or when `output` was never committed). `molten project validate` checks
-the shape only: whether `project` names a member depends on the workspace links, so it is shown at run time.
+repository's last commit touching `output` on its trunk (or when `output` was never committed there). `molten project
+validate` checks the shape only: whether `project` names a member depends on the workspace links, so it is shown at
+run time.
+
+How Mission Control reads it, on each refresh of a project, from the local git only (no fetch, nothing written):
+
+- The source's watched branch is read on `origin` when it exists there, else locally. A change counts from when it
+  landed on that branch: a commit made on a feature branch before the last sync and merged after it makes the
+  dependency stale.
+- This repository's last sync is its newest commit touching `output` on its trunk, local or on `origin`, whichever is
+  newer. A sync committed on a feature branch counts once it reaches the trunk.
+- While stale, the files of `output` changed and not committed read **synced, not committed**: the flag stays until
+  the commit lands.
+- A stale dependency turns the member amber and raises one notification (subject Dependencies) naming the source, the
+  branch, the changed paths and the commits since the last sync with their tickets; it resolves itself once the flag
+  clears. A `project` that names no linked member of the group reads **source not found**, a `branch` that exists
+  neither on `origin` nor locally **branch not found**: neither is ever stale.
+- `molten project deps [--json]` prints each dependency of this workspace's project with its state: in sync, stale,
+  synced not committed, source not found or branch not found.
 
 ## The release contract
 

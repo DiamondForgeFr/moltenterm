@@ -85,13 +85,13 @@ func TestGroupsGet(t *testing.T) {
 		molt: groupProject("MoltenTerm", ""),
 	}
 	var published []GroupsAnswer
-	groups := MakeGroups(collector, nil, nil, func(ctx context.Context) ([]molten.GroupLink, error) {
+	groups := MakeGroups(collector, nil, nil, nil, func(ctx context.Context) ([]molten.GroupLink, error) {
 		return []molten.GroupLink{
 			{WorkspaceId: "w-app", WorkspaceName: "App", Dir: app},
 			{WorkspaceId: "w-molten", WorkspaceName: "MoltenTerm", Dir: molt},
 			{WorkspaceId: "w-site", WorkspaceName: "Site", Dir: site},
 		}, nil
-	}, func(answer GroupsAnswer) { published = append(published, answer) })
+	}, func(answer GroupsAnswer) { published = append(published, answer) }, nil)
 	groups.read = func(dir string) molten.ProjectInfo { return projects[dir](dir) }
 
 	answer, err := groups.Get(GroupsRequest{})

@@ -218,6 +218,7 @@ var NotificationSubjects = map[string]string{
 	"release":    "releases",
 	"moltenterm": "updates",
 	"mod":        "mods",
+	"deps":       "dependencies",
 }
 
 // NotificationDelivery is how a message is said, from the user's choice for its subject: an error is always told, a
@@ -280,6 +281,28 @@ func NotificationPublishUpdate(meta waveobj.MetaMapType, input NotificationInput
 		if dropId != id {
 			update[NotificationKeyPrefix+dropId] = nil
 		}
+	}
+	return update
+}
+
+// NotificationResolveExceptUpdate closes the situations of every key with the prefix that is not kept: what a
+// publisher whose situations are all known at once (the stale dependencies) no longer holds open.
+func NotificationResolveExceptUpdate(meta waveobj.MetaMapType, prefix string, keep map[string]bool, now time.Time) waveobj.MetaMapType {
+	update := waveobj.MetaMapType{}
+	if prefix == "" {
+		return update
+	}
+	for _, n := range readStoredNotifications(meta) {
+		key := n.str("key")
+		if !strings.HasPrefix(key, prefix) || keep[key] || n.closedMark() {
+			continue
+		}
+		value := map[string]any{}
+		for k, v := range n.value {
+			value[k] = v
+		}
+		value["resolved"] = float64(now.UnixMilli())
+		update[NotificationKeyPrefix+n.id] = value
 	}
 	return update
 }

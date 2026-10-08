@@ -1305,6 +1305,7 @@ var moltenBuiltinHelp = [][2]string{
 	{"project logo [file]", "use an image of the project as the workspace icon"},
 	{"project validate [folder]", "check the project's pipeline (.molten/project.json) without running it"},
 	{"project group", "list this workspace's product group: each member with its workspace, folder and state"},
+	{"project deps", "check this workspace's project dependencies on its group: stale or in sync, with the commits since the last sync"},
 	{"project unlink", "remove this workspace's project link"},
 	{"worktree link [folder]", "link this terminal to the git worktree its task runs in"},
 	{"worktree show", "show this terminal's worktree link and the tree of its folder"},
