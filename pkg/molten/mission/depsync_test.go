@@ -324,7 +324,6 @@ func TestDepSyncRefusals(t *testing.T) {
 	}
 	// Without a sync declared (AC6).
 	depWrite(t, f.site, ".molten/project.json", strings.Replace(depSyncSitePipeline, `"sync": "sh scripts/sync.sh", `, "", 1))
-	f.trust(t)
 	if _, err := f.groups.Sync(DepSyncRequest{Dir: f.site}); err == nil || !strings.Contains(err.Error(), "no dependency declares a sync") {
 		t.Fatalf("no sync declared: %v", err)
 	}
@@ -342,6 +341,9 @@ func TestPickSyncDeclaration(t *testing.T) {
 		{Project: "Brand", Sync: "b"},
 	}
 	none := func(int) bool { return false }
+	if _, err := pickSyncDeclaration(declared, DepSyncRequest{}, nil); err != errAmbiguousSync {
+		t.Fatalf("without the flags, several candidates are ambiguous: %v", err)
+	}
 	cases := []struct {
 		req     DepSyncRequest
 		flagged func(int) bool

@@ -199,8 +199,11 @@ func (g *Groups) withLastSyncs(dependentDir string, states []DependencyState, ru
 	return rtn
 }
 
+// errAmbiguousSync: several declarations could be meant, and which ones are stale was not asked.
+var errAmbiguousSync = errors.New("several dependencies declare a sync")
+
 // pickSyncDeclaration finds the declaration a request means; flagged tells which ones are stale, read only when the
-// request names none of several.
+// request names none of several. Without flagged, that case is errAmbiguousSync.
 func pickSyncDeclaration(declared []molten.PipelineDependency, req DepSyncRequest, flagged func(index int) bool) (int, error) {
 	project := strings.TrimSpace(req.Project)
 	if req.Index != nil {
@@ -237,6 +240,8 @@ func pickSyncDeclaration(declared []molten.PipelineDependency, req DepSyncReques
 		return -1, fmt.Errorf("no dependency declares a sync command: add \"sync\" to one in %s", molten.ProjectPipelineFile)
 	case len(withSync) == 1:
 		return withSync[0], nil
+	case flagged == nil:
+		return -1, errAmbiguousSync
 	}
 	var stale []int
 	for _, i := range withSync {
@@ -341,7 +346,11 @@ func (g *Groups) Sync(req DepSyncRequest) (RunResult, error) {
 	if name == "" {
 		name = member.Name
 	}
-	// Trust comes first: an untrusted request reads no repository.
+	// What the request names is read from the file alone; trust comes before any repository is read.
+	index, err := pickSyncDeclaration(report.Pipeline.DependsOn, req, nil)
+	if err != nil && err != errAmbiguousSync {
+		return RunResult{}, err
+	}
 	commands := PipelineCommands(report.Pipeline)
 	hash := CommandsHash(commands)
 	if !g.runs.trust.IsTrusted(dir, hash) {
@@ -359,9 +368,11 @@ func (g *Groups) Sync(req DepSyncRequest) (RunResult, error) {
 		evaluated[i] = g.withAcknowledgement(dir, declared[i], state)
 		return evaluated[i]
 	}
-	index, err := pickSyncDeclaration(declared, req, func(i int) bool { return evaluateAt(i).Flagged() })
-	if err != nil {
-		return RunResult{}, err
+	if index < 0 {
+		index, err = pickSyncDeclaration(declared, req, func(i int) bool { return evaluateAt(i).Flagged() })
+		if err != nil {
+			return RunResult{}, err
+		}
 	}
 	state := evaluateAt(index)
 	switch state.State {
