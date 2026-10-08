@@ -12,6 +12,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
@@ -28,9 +29,10 @@ const (
 )
 
 type routeLink struct {
-	output  chan []byte
-	model   *Model
-	actions *Actions
+	output      chan []byte
+	model       *Model
+	actions     *Actions
+	localSource func(source string, ingressLinkId baseds.LinkId) bool
 }
 
 func (l *routeLink) GetPeerInfo() string {
@@ -50,16 +52,21 @@ func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debu
 	if req.Command == "" || req.ReqId == "" {
 		return true
 	}
-	go l.answer(req)
+	// Source checks take the router's lock, which is held while it calls SendRpcMessage.
+	go l.answer(req, ingressLinkId)
 	return true
 }
 
-func (l *routeLink) answer(req wshutil.RpcMessage) {
+func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) {
 	defer func() {
 		panichandler.PanicHandler("molten:sessions:route", recover())
 	}()
 	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := l.handle(req.Command, req.Source, req.Data)
+	source := req.Source
+	if l.localSource == nil || !l.localSource(source, ingressLinkId) {
+		source = ""
+	}
+	data, err := l.handle(req.Command, source, req.Data)
 	if err != nil {
 		resp.Error = err.Error()
 	} else {
@@ -70,6 +77,10 @@ func (l *routeLink) answer(req wshutil.RpcMessage) {
 		return
 	}
 	l.output <- out
+}
+
+func localSourceOnLink(source string, ingressLinkId baseds.LinkId) bool {
+	return localroute.OnLink(wshutil.DefaultRouter, source, ingressLinkId)
 }
 
 // isWindowSource tells a request from a MoltenTerm window apart from one sent by a local terminal: the router stamps the
@@ -86,7 +97,7 @@ func isTerminalSource(source string) bool {
 
 func (l *routeLink) handle(command string, source string, data any) (any, error) {
 	if !isWindowSource(source) && !isTerminalSource(source) {
-		return nil, fmt.Errorf("sessions are answered to MoltenTerm's windows and terminals only")
+		return nil, fmt.Errorf("sessions are answered to MoltenTerm's windows and local terminals only")
 	}
 	switch command {
 	case molten.DurableSessionsListCommand:

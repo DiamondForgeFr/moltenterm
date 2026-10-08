@@ -179,7 +179,7 @@ func Start() {
 	startOnce.Do(func() {
 		src := makeLiveSources()
 		model := MakeModel(src.Build, publishSessions)
-		link := &routeLink{output: make(chan []byte, routeQueueSize), model: model, actions: MakeActions(model, liveOps{})}
+		link := &routeLink{output: make(chan []byte, routeQueueSize), model: model, actions: MakeActions(model, liveOps{}), localSource: localSourceOnLink}
 		if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, molten.DurableSessionsRoute); err != nil {
 			log.Printf("molten: sessions route not started: %v\n", err)
 		}

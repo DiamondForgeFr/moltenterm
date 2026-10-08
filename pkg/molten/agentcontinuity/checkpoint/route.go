@@ -17,15 +17,14 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
-	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
-	"github.com/wavetermdev/waveterm/pkg/wslconn"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
@@ -94,18 +93,7 @@ func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) 
 // (an SSH or WSL host is a router whose requests keep the source they claim): a remote host never reads or clears the
 // task memory of this machine (NFR-CONT-001).
 func localSourceOnLink(source string, ingressLinkId baseds.LinkId) bool {
-	if source == "" || ingressLinkId == baseds.NoLinkId || wshutil.DefaultRouter.GetLinkIdForRoute(source) != ingressLinkId {
-		return false
-	}
-	for _, st := range append(conncontroller.GetAllConnStatus(), wslconn.GetAllConnStatus()...) {
-		if st.Connection == "" {
-			continue
-		}
-		if wshutil.DefaultRouter.GetLinkIdForRoute(wshutil.MakeConnectionRouteId(st.Connection)) == ingressLinkId {
-			return false
-		}
-	}
-	return true
+	return localroute.OnLink(wshutil.DefaultRouter, source, ingressLinkId)
 }
 
 // A window (its route is stamped by the router) or wsh in a local terminal.
