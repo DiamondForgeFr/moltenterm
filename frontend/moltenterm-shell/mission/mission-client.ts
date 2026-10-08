@@ -10,7 +10,15 @@ import { fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useState } from "react";
 import { BuildsFacts } from "./builds-model";
 import { CiRunRecord, CiState, upsertCiRun } from "./ci-model";
-import { DependencyState, GroupsAnswer, MissionDepsCommand, MissionGroupsCommand } from "./group-model";
+import {
+    DependencyState,
+    GroupsAnswer,
+    MissionDepsCommand,
+    MissionGroupsCommand,
+    MissionGroupsEvent,
+    productGroupOfWorkspace,
+    ProjectGroup,
+} from "./group-model";
 import { LogChunk, MissionSnapshot, RunRecord, RunResult, UntrustedInfo, upsertRun } from "./mission-model";
 import { ReleaseChannel, ReleaseMilestone, ReleaseSession } from "./release-model";
 import { ReleaseFacts } from "./release-run";
@@ -64,6 +72,43 @@ export function missionGroups(dir?: string): Promise<GroupsAnswer> {
         { dir: dir || undefined },
         { route: MissionRouteId, timeout: MissionRpcTimeoutMs }
     );
+}
+
+// The product group the workspace's project belongs to (FR-MC-028), null when it is in none: the collector's cached
+// answer when the tab opens, then every model it publishes (each event carries all the groups). No poll and no
+// collection of its own (FR-MC-028-AC6).
+export function useMissionGroup(workspaceId: string, dir: string): ProjectGroup {
+    const [group, setGroup] = useState<ProjectGroup>(null);
+    useEffect(() => {
+        setGroup(null);
+        if (!workspaceId || !dir) {
+            return;
+        }
+        let cancelled = false;
+        let heard = false;
+        const unsubscribe = waveEventSubscribeSingle({
+            eventType: MissionGroupsEvent as WaveEventName,
+            handler: (event) => {
+                heard = true;
+                setGroup(productGroupOfWorkspace((event.data as GroupsAnswer)?.groups, workspaceId));
+            },
+        });
+        fireAndForget(async () => {
+            try {
+                const answer = await missionGroups(dir);
+                if (!cancelled && !heard) {
+                    setGroup(productGroupOfWorkspace(answer?.groups, workspaceId));
+                }
+            } catch (e) {
+                console.log("project group:", e?.message ?? e);
+            }
+        });
+        return () => {
+            cancelled = true;
+            unsubscribe();
+        };
+    }, [workspaceId, dir]);
+    return group;
 }
 
 // The dependencies of the project at dir (FR-MC-029), evaluated afresh.

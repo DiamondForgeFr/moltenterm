@@ -13,7 +13,14 @@ import { atom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Notice, Problem } from "../mission/cicd-panels";
 import { MoltentermCicdView } from "../mission/cicd-view";
-import { ciRun, missionTrust, useCiState, useMissionRuns, useReleaseSession } from "../mission/mission-client";
+import {
+    ciRun,
+    missionTrust,
+    useCiState,
+    useMissionGroup,
+    useMissionRuns,
+    useReleaseSession,
+} from "../mission/mission-client";
 import { ActiveProject, MissionFrame, MissionHeader, PipelineBanner } from "../mission/mission-frame";
 import { MissionSnapshot, UntrustedInfo } from "../mission/mission-model";
 import { TrustPrompt, useStartRun } from "../mission/runs-view";
@@ -107,6 +114,7 @@ function ProjectContent({
     const runs = useMissionRuns(dir);
     const { state: ci, reload: reloadCi } = useCiState(dir);
     const { session: release, reload: reloadRelease } = useReleaseSession(dir);
+    const group = useMissionGroup(project.workspace?.oid, dir);
     const { startAsync, prompt, error, clearError } = useStartRun(dir, projectName);
     const [ciError, setCiError] = useState<string>(null);
     const [untrusted, setUntrusted] = useState<{ branch: string; info: UntrustedInfo }>(null);
@@ -173,6 +181,7 @@ function ProjectContent({
         startBuild: (id) => startAsync("build", id),
         runCi,
         showRuns,
+        group,
     };
     const problem = error ?? ciError;
     return (

@@ -10,8 +10,8 @@ import { layoutProjectCards } from "./project-cards";
 describe("project overview", () => {
     const layout = layoutProjectCards(BuiltinProjectCards);
 
-    it("puts the actions in the header and the branches on the line map", () => {
-        expect(layout.header.map((c) => c.id)).toEqual(["moltenterm:next-station"]);
+    it("puts the group strip above the actions in the header and the branches on the line map", () => {
+        expect(layout.header.map((c) => c.id)).toEqual(["moltenterm:group-strip", "moltenterm:next-station"]);
         expect(layout.map.map((c) => c.id)).toEqual(["moltenterm:linemap"]);
     });
 
