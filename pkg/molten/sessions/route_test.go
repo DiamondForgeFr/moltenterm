@@ -4,16 +4,68 @@
 package sessions
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/wps"
+	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
 func makeTestLink(sessions ...molten.DurableSession) (*routeLink, *fakeOps) {
 	a, _, ops := makeTestActions(sessions...)
 	return &routeLink{output: make(chan []byte, 1), model: a.model, actions: a}, ops
+}
+
+func TestRouteRefusesForwardedCallers(t *testing.T) {
+	for _, source := range []string{"proc:remote", "tab:forged", "conn:remote"} {
+		for _, command := range []string{molten.DurableSessionsListCommand, molten.DurableSessionsShowCommand, molten.DurableSessionsEndCommand, molten.DurableSessionsReconnectCommand, molten.DurableSessionsCleanupCommand} {
+			t.Run(source+"/"+command, func(t *testing.T) {
+				l, ops := makeTestLink(detachedS)
+				l.localSource = func(gotSource string, gotLink baseds.LinkId) bool {
+					if gotSource != source || gotLink != 7 {
+						t.Errorf("source check got %q on %d", gotSource, gotLink)
+					}
+					return false
+				}
+				req := wshutil.RpcMessage{Command: command, ReqId: "r1", Source: source, Data: map[string]any{"id": "detached", "ids": []string{"detached"}}}
+				msg, err := json.Marshal(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				l.SendRpcMessage(msg, 7, "")
+				select {
+				case msg := <-l.output:
+					var resp wshutil.RpcMessage
+					if err := json.Unmarshal(msg, &resp); err != nil || resp.ResId != "r1" || !strings.Contains(resp.Error, "local terminals only") || resp.Data != nil {
+						t.Fatalf("refused caller: %s (%v)", msg, err)
+					}
+				case <-time.After(5 * time.Second):
+					t.Fatal("source check did not answer")
+				}
+				if len(ops.calls) != 0 {
+					t.Fatalf("refused caller acted on a session: %s", ops.trace())
+				}
+			})
+		}
+	}
+}
+
+func TestRouteAnswersVerifiedLocalCallers(t *testing.T) {
+	for _, source := range []string{"proc:local", "tab:window"} {
+		t.Run(source, func(t *testing.T) {
+			l, _ := makeTestLink(detachedS)
+			l.localSource = func(string, baseds.LinkId) bool { return true }
+			l.answer(wshutil.RpcMessage{Command: molten.DurableSessionsListCommand, ReqId: "r1", Source: source}, 7)
+			var resp wshutil.RpcMessage
+			if err := json.Unmarshal(<-l.output, &resp); err != nil || resp.Error != "" || resp.Data == nil {
+				t.Fatalf("local list: %+v (%v)", resp, err)
+			}
+		})
+	}
 }
 
 func TestRouteCallers(t *testing.T) {
