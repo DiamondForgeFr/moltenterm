@@ -20,7 +20,7 @@ import {
     shNavHandler,
 } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
-import { hostsControlledTab } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#301)
+import { hostsBrowserPage, hostsControlledTab } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#301, #375)
 import { attachWebviewWindowOpen } from "./moltenterm-popups"; // MOLTENTERM-PATCH (#207)
 import { acquireReadyView } from "./moltenterm-spare-ready"; // MOLTENTERM-PATCH (#283)
 
@@ -266,6 +266,11 @@ function tryEvictEntry(waveTabId: string): boolean {
     if (!tabView.webContents.isDestroyed() && hostsControlledTab(tabView.webContents.id)) {
         return false;
     }
+    // MOLTENTERM-PATCH (#375): so does one showing a browser panel with a loaded page, driven or not: its page (a
+    // sign-in, a form) survives the wake refresh and the cache eviction
+    if (!tabView.webContents.isDestroyed() && hostsBrowserPage(tabView.webContents.id)) {
+        return false;
+    }
     const lastUsedDiff = Date.now() - tabView.lastUsedTs;
     if (lastUsedDiff < 1000) {
         return false;
@@ -295,17 +300,23 @@ function checkAndEvictCache(): void {
         // Otherwise, sort by lastUsedTs
         return a.lastUsedTs - b.lastUsedTs;
     });
-    for (let i = 0; i < sorted.length - MaxCacheSize; i++) {
+    // MOLTENTERM-PATCH (#375): views tryEvictEntry keeps do not use up the evictions, the next oldest go instead
+    for (let i = 0; i < sorted.length && wcvCache.size > MaxCacheSize; i++) {
         tryEvictEntry(sorted[i].waveTabId);
     }
 }
 
-export function clearTabCache() {
+// MOLTENTERM-PATCH (#375): returns the views it had to keep, for the wake refresh to repaint them when shown
+export function clearTabCache(): WaveTabView[] {
+    const kept: WaveTabView[] = [];
     const wcVals = Array.from(wcvCache.values());
     for (let i = 0; i < wcVals.length; i++) {
         const tabView = wcVals[i];
-        tryEvictEntry(tabView.waveTabId);
+        if (!tryEvictEntry(tabView.waveTabId) && wcvCache.get(tabView.waveTabId) === tabView) {
+            kept.push(tabView);
+        }
     }
+    return kept;
 }
 
 // returns [tabview, initialized]

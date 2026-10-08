@@ -19,6 +19,7 @@ import {
     downloadHost,
     expectedSignature,
     flattenBitmapOnWhite,
+    holdsPage,
     inputHostMatches,
     InspectElementSource,
     inspectFocusedScript,
@@ -750,6 +751,18 @@ export function hostsControlledTab(hostWebContentsId: number): boolean {
         const reg = registry.get(key);
         const wc = reg ? liveContents(reg.webContentsId) : null;
         if (wc?.hostWebContents?.id === hostWebContentsId) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// A Wave tab view showing a browser panel with a loaded page stays too, whoever drives it (#375): the wake refresh and
+// the cache eviction would otherwise destroy a page the user signed in to and an agent's next run relies on.
+export function hostsBrowserPage(hostWebContentsId: number): boolean {
+    for (const reg of registry.values()) {
+        const wc = liveContents(reg.webContentsId);
+        if (wc?.hostWebContents?.id === hostWebContentsId && holdsPage(wc.getURL())) {
             return true;
         }
     }

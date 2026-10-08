@@ -21,6 +21,15 @@ export function noteTabViewLeftScreen(tabView: WaveTabView) {
     leftScreenAt.set(tabView, Date.now());
 }
 
+// A hidden view kept through a wake (#375) gets the visibility cycle when it is next shown, however short its hidden
+// time looks: the sleep may have dropped its frame.
+export function noteTabViewNeedsRepaint(tabView: WaveTabView) {
+    if (tabView == null) {
+        return;
+    }
+    leftScreenAt.set(tabView, 0);
+}
+
 // See moltenterm-tabview-health.ts (#223). Runs once a reused view is on screen, so a healthy switch is not delayed.
 export function checkReusedTabViewPainted(win: WindowShowingTabViews, tabView: WaveTabView) {
     const leftAt = leftScreenAt.get(tabView);
