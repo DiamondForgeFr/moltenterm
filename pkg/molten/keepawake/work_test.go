@@ -55,6 +55,12 @@ func TestComputeWork(t *testing.T) {
 	if !reflect.DeepEqual(work.Workspaces, want) || !work.Local {
 		t.Fatalf("work %+v, want %v", work, want)
 	}
+	// A shell that exited during its command (`exit`, `exec`) never marks its end: its command is no work.
+	src.ShellRunning = func(blockId string) bool { return blockId != "build" }
+	work = ComputeWork(context.Background(), src)
+	if work.Workspaces["ws-d"] {
+		t.Fatalf("the command of an exited shell counts: %+v", work)
+	}
 }
 
 func TestComputeWorkLocalOnlyCountsLocalSessions(t *testing.T) {
@@ -84,6 +90,10 @@ func TestIsSshCommand(t *testing.T) {
 		"":                        false,
 		"echo ssh":                false,
 		"autossh -M 0 tunnel-box": true,
+		"sudo -u deploy ssh host": true,
+		"env -i TERM=xterm ssh h": true,
+		"nohup make all":          false,
+		"sudo -u deploy make":     false,
 	}
 	for in, want := range cases {
 		if got := IsSshCommand(in); got != want {
@@ -123,6 +133,8 @@ func TestParseCaffeinate(t *testing.T) {
 		{[]string{"-s", "--", "-weird"}, CaffeinateCall{Command: []string{"-weird"}}},
 		{[]string{"make", "-j8"}, CaffeinateCall{Command: []string{"make", "-j8"}}},
 		{[]string{}, CaffeinateCall{}},
+		{[]string{"-u"}, CaffeinateCall{Timeout: 5 * time.Second}},
+		{[]string{"-u", "-t", "60"}, CaffeinateCall{Timeout: 60 * time.Second}},
 		{[]string{"-x"}, CaffeinateCall{Invalid: true}},
 		{[]string{"-t"}, CaffeinateCall{Invalid: true}},
 		{[]string{"-t", "soon"}, CaffeinateCall{Invalid: true}},

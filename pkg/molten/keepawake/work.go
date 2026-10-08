@@ -37,7 +37,10 @@ type WorkSources struct {
 	Commands func() map[string]string
 	// CommandBlocks: the cmd blocks whose command runs now.
 	CommandBlocks func() []string
-	Locate        func(ctx context.Context, blockId string) (BlockInfo, bool)
+	// ShellRunning: the block's shell still runs. A shell that exits during a command (`exit`, `exec`, a kill) never
+	// says the command ended; its block stays open, "shell terminated". Nil: every shell is taken as running.
+	ShellRunning func(blockId string) bool
+	Locate       func(ctx context.Context, blockId string) (BlockInfo, bool)
 	// MissionWorkspaces: the workspaces linked to a project with a Mission Control run going.
 	MissionWorkspaces func(ctx context.Context) []string
 }
@@ -53,17 +56,34 @@ type Work struct {
 // sshClients are the programs whose foreground session runs on another machine.
 var sshClients = map[string]bool{"ssh": true, "autossh": true, "mosh": true, "mosh-client": true, "et": true}
 
-var commandPrefixes = map[string]bool{"exec": true, "command": true, "sudo": true, "env": true}
+// The prefixes that keep the program in the foreground, with their options that take a value.
+var commandPrefixes = map[string]map[string]bool{
+	"exec":    {"-a": true},
+	"command": {},
+	"nohup":   {},
+	"env":     {"-u": true, "-C": true, "-S": true},
+	"sudo":    {"-u": true, "-g": true, "-h": true, "-p": true, "-C": true, "-D": true, "-r": true, "-t": true, "-U": true},
+}
 
 // IsSshCommand tells a command line that opens a session on another machine.
 func IsSshCommand(cmdline string) bool {
 	fields := strings.Fields(cmdline)
+	var prefixOptions map[string]bool
 	for len(fields) > 0 {
 		word := fields[0]
-		// Environment assignments and the common prefixes that keep the program in the foreground.
-		assignment := strings.Contains(word, "=") && !strings.HasPrefix(word, "=")
-		if assignment || commandPrefixes[word] {
-			fields = fields[1:]
+		fields = fields[1:]
+		if prefixOptions != nil && strings.HasPrefix(word, "-") {
+			if prefixOptions[word] && len(fields) > 0 {
+				fields = fields[1:]
+			}
+			continue
+		}
+		// Environment assignments come before the program.
+		if strings.Contains(word, "=") && !strings.HasPrefix(word, "=") {
+			continue
+		}
+		if options, ok := commandPrefixes[word]; ok {
+			prefixOptions = options
 			continue
 		}
 		return sshClients[filepath.Base(word)]
@@ -84,7 +104,11 @@ func ComputeWork(ctx context.Context, src WorkSources) Work {
 	}
 	commands := map[string]string{}
 	if src.Commands != nil {
-		commands = src.Commands()
+		for blockId, cmdline := range src.Commands() {
+			if src.ShellRunning == nil || src.ShellRunning(blockId) {
+				commands[blockId] = cmdline
+			}
+		}
 	}
 	cmdBlocks := map[string]bool{}
 	if src.CommandBlocks != nil {

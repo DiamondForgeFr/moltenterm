@@ -29,7 +29,17 @@ type Env struct {
 	Publish      func(state State)
 	ProcessAlive func(pid int32) bool
 	ProcessName  func(pid int32) string
+	// Async runs work that must not hold a shim's answer; nil runs it at once (tests).
+	Async func(fn func())
 }
+
+const (
+	// An answer this close to the shim's deadline may arrive late: the shim then runs the real tool.
+	shimAnswerMargin = 50 * time.Millisecond
+	completeTimeout  = 3 * time.Second
+	maxAttemptArgs   = 16
+	maxAttemptArgLen = 200
+)
 
 type coffeeRec struct {
 	since   int64
@@ -117,11 +127,33 @@ func (k *Keeper) removeCoffee(wsId string) {
 
 // Shim decides a shim's block attempt and records it. The session's override wins over the global policy; with no
 // policy set, the first attempt of the run raises the ask-once notification and the tool runs meanwhile.
+//
+// The answer comes from memory only (the policy, the session's override): the shim's caller waits for it (NFR-SHELL-009,
+// under 50 ms). Where the session is, the parent's name, the notification and the publish follow off that path. An
+// answer that would reach the shim after its deadline is recorded as allowed: the shim has run the real tool by then.
 func (k *Keeper) Shim(ctx context.Context, req ShimRequest) (ShimAnswer, error) {
 	if !IsShimTool(req.Tool) {
 		return ShimAnswer{Policy: PolicyAllow}, fmt.Errorf("unknown tool %q", req.Tool)
 	}
 	policy := k.policyNow()
+	late := req.Deadline > 0 && k.env.Now().UnixMilli() > req.Deadline-shimAnswerMargin.Milliseconds()
+	answer, id, ask := k.recordAttempt(req, policy, late)
+	k.async(func() { k.completeAttempt(id, req, ask) })
+	return answer, nil
+}
+
+func (k *Keeper) async(fn func()) {
+	if k.env.Async == nil {
+		fn()
+		return
+	}
+	k.env.Async(fn)
+}
+
+// completeAttempt names the attempt's session and parent, raises the ask-once notification and publishes.
+func (k *Keeper) completeAttempt(id string, req ShimRequest, ask bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), completeTimeout)
+	defer cancel()
 	var wsId, wsName, tabName, parentName string
 	if k.env.LocateNames != nil && req.BlockId != "" {
 		wsId, wsName, tabName = k.env.LocateNames(ctx, req.BlockId)
@@ -129,15 +161,43 @@ func (k *Keeper) Shim(ctx context.Context, req ShimRequest) (ShimAnswer, error) 
 	if k.env.ProcessName != nil && req.ParentPid > 0 {
 		parentName = k.env.ProcessName(req.ParentPid)
 	}
-	answer, ask := k.recordAttempt(req, policy, wsId, wsName, tabName, parentName)
+	k.nameAttempt(id, req.BlockId, wsId, wsName, tabName, parentName)
 	if ask && k.env.Notify != nil {
 		k.env.Notify(askNotification(req.Tool, parentName, wsId, tabName))
 	}
 	k.publishIfChanged()
-	return answer, nil
 }
 
-func (k *Keeper) recordAttempt(req ShimRequest, policy string, wsId string, wsName string, tabName string, parentName string) (ShimAnswer, bool) {
+func (k *Keeper) nameAttempt(id string, blockId string, wsId string, wsName string, tabName string, parentName string) {
+	k.lock.Lock()
+	defer k.lock.Unlock()
+	for i := range k.attempts {
+		if k.attempts[i].Id == id {
+			a := &k.attempts[i]
+			a.WorkspaceId, a.WorkspaceName, a.TabName, a.ParentName = wsId, wsName, tabName, parentName
+		}
+	}
+	if override := k.overrides[blockId]; override != nil {
+		override.WorkspaceId, override.WorkspaceName, override.TabName = wsId, wsName, tabName
+	}
+}
+
+// clipArgs keeps what the list needs of a command line: a few arguments, each short.
+func clipArgs(args []string) []string {
+	if len(args) > maxAttemptArgs {
+		args = args[:maxAttemptArgs]
+	}
+	rtn := make([]string, len(args))
+	for i, arg := range args {
+		if len(arg) > maxAttemptArgLen {
+			arg = arg[:maxAttemptArgLen] + "…"
+		}
+		rtn[i] = arg
+	}
+	return rtn
+}
+
+func (k *Keeper) recordAttempt(req ShimRequest, policy string, late bool) (ShimAnswer, string, bool) {
 	k.lock.Lock()
 	defer k.lock.Unlock()
 	effective := policy
@@ -146,31 +206,28 @@ func (k *Keeper) recordAttempt(req ShimRequest, policy string, wsId string, wsNa
 		effective = override.Policy
 	}
 	answer := ShimAnswer{Policy: ShimPolicy(effective)}
+	if late {
+		answer.Policy = PolicyAllow
+	}
 	outcome := OutcomeAllowed
 	if answer.Policy == PolicyLetSleep {
 		outcome = OutcomeNeutralised
 	}
 	k.nextId++
-	args := req.Args
-	if len(args) > 16 {
-		args = args[:16]
-	}
+	id := strconv.FormatInt(k.nextId, 10)
 	k.attempts = append(k.attempts, Attempt{
-		Id: strconv.FormatInt(k.nextId, 10), BlockId: req.BlockId, WorkspaceId: wsId, WorkspaceName: wsName,
-		TabName: tabName, Tool: req.Tool, Args: args, Pid: req.Pid, ParentPid: req.ParentPid, ParentName: parentName,
+		Id: id, BlockId: req.BlockId, Tool: req.Tool, Args: clipArgs(req.Args), Pid: req.Pid, ParentPid: req.ParentPid,
 		Since: k.env.Now().UnixMilli(), Outcome: outcome,
 	})
 	if len(k.attempts) > MaxAttempts {
 		k.attempts = k.attempts[len(k.attempts)-MaxAttempts:]
 	}
-	if override != nil {
-		override.WorkspaceId, override.WorkspaceName, override.TabName = wsId, wsName, tabName
-	}
+	k.policy = policy
 	ask := policy == PolicyAsk && override == nil && !k.asked
 	if ask {
 		k.asked = true
 	}
-	return answer, ask
+	return answer, id, ask
 }
 
 func askNotification(tool string, parentName string, wsId string, tabName string) molten.NotificationInput {
@@ -182,9 +239,8 @@ func askNotification(tool string, parentName string, wsId string, tabName string
 	if tabName != "" {
 		where = " in " + tabName
 	}
-	message := fmt.Sprintf("%s%s ran %s to keep %s awake. Choose once what MoltenTerm does with such requests: let "+
-		"them through, keep %s awake itself until the work ends (2 minutes after the last agent, command or Mission "+
-		"Control run), or let it sleep.", who, where, tool, computerName(), computerName())
+	message := fmt.Sprintf("%s%s ran %s. Choose once what MoltenTerm does with such requests: let them through, keep "+
+		"%s awake itself until the work ends, or let it sleep.", who, where, tool, computerName())
 	action := func(id string, label string, policy string) molten.NotificationAction {
 		return molten.NotificationAction{Id: id, Label: label, Kind: "gesture", Gesture: PolicyGesture, Args: map[string]any{"policy": policy}}
 	}
@@ -249,12 +305,13 @@ func (k *Keeper) forgetBlockLocked(blockId string) {
 	k.attempts = kept
 }
 
-// NeedsWork tells whether an evaluation must look at what runs: a coffee is on, or the policy is Until work ends.
-func (k *Keeper) NeedsWork() bool {
+// Active tells whether an evaluation has anything to do besides noticing a new policy: a coffee is on, the policy is
+// Until work ends or still holds, or an attempt's process may end. Otherwise what runs in the terminals is not read.
+func (k *Keeper) Active() bool {
 	policy := k.policyNow()
 	k.lock.Lock()
 	defer k.lock.Unlock()
-	return policy == PolicyUntilWorkEnds || len(k.coffees) > 0 || k.policyHolding
+	return policy == PolicyUntilWorkEnds || len(k.coffees) > 0 || k.policyHolding || len(k.attempts) > 0 || k.policy != policy
 }
 
 type coffeeCheck struct {

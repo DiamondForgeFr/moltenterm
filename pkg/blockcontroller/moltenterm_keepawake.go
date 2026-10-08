@@ -23,6 +23,7 @@ func init() {
 	mission.UseStarter(func() {
 		keepawake.Start(keepawake.Hooks{
 			CommandBlocks:     runningCommandBlocks,
+			ShellRunning:      shellRunning,
 			MissionWorkspaces: cache.workspaces,
 		})
 	})
@@ -47,6 +48,16 @@ func runningCommandBlocks() []string {
 		}
 	}
 	return rtn
+}
+
+// shellRunning tells whether a terminal's shell still runs. A terminal no window opened yet has no controller while its
+// durable job may run (reconnected at startup): it is taken as running, its marks decide.
+func shellRunning(blockId string) bool {
+	controller := getController(blockId)
+	if controller == nil {
+		return true
+	}
+	return controller.GetRuntimeStatus().ShellProcStatus == Status_Running
 }
 
 type missionWorkCache struct {

@@ -11,6 +11,7 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
+import { selectAtom } from "jotai/utils";
 import {
     applyKeepAwakeState,
     cleanSleepPolicy,
@@ -32,6 +33,20 @@ const StateTimeoutMs = 5000;
 const StateRetryMs = 2000;
 const StateMaxTries = 10;
 const CommandTimeoutMs = 10000;
+const RefreshDelayMs = 50;
+
+function sameCoffee(a: KeepAwakeCoffee, b: KeepAwakeCoffee): boolean {
+    if (a == null || b == null) {
+        return a === b;
+    }
+    return (
+        a.workspaceid === b.workspaceid &&
+        a.since === b.since &&
+        a.working === b.working &&
+        a.endsat === b.endsat &&
+        a.workspacename === b.workspacename
+    );
+}
 
 export class KeepAwakeModel {
     private static instance: KeepAwakeModel = null;
@@ -40,6 +55,7 @@ export class KeepAwakeModel {
     coffeeAtoms = new Map<string, Atom<KeepAwakeCoffee>>();
     anyCoffeeAtoms = new Map<string, Atom<boolean>>();
     started = false;
+    refreshTimer: ReturnType<typeof setTimeout> = null;
 
     private constructor() {}
 
@@ -59,7 +75,8 @@ export class KeepAwakeModel {
         }
     }
 
-    // Subscribes first, so nothing published while the first read travels is lost (versions order the two).
+    // Any wsh client can publish an event under any name, so the event only says the state changed: it is read back
+    // from wavesrv's route (versions order the reads). Subscribes first, so no change is missed during the first read.
     start(): void {
         if (this.started) {
             return;
@@ -68,7 +85,7 @@ export class KeepAwakeModel {
         try {
             waveEventSubscribeSingle({
                 eventType: KeepAwakeEvent as WaveEventName,
-                handler: (event) => this.apply(event.data as KeepAwakeState),
+                handler: () => this.refresh(),
             });
         } catch (e) {
             // The preview server has no event bus.
@@ -99,6 +116,23 @@ export class KeepAwakeModel {
         load();
     }
 
+    // Changes that come close together make one read.
+    refresh(): void {
+        if (this.refreshTimer != null) {
+            return;
+        }
+        this.refreshTimer = setTimeout(() => {
+            this.refreshTimer = null;
+            fireAndForget(async () => {
+                try {
+                    this.apply(await this.call(KeepAwakeStateCommand, {}, StateTimeoutMs));
+                } catch (e) {
+                    console.log("keep-awake: state read failed", e);
+                }
+            });
+        }, RefreshDelayMs);
+    }
+
     private async call(command: string, data: any, timeout = CommandTimeoutMs): Promise<KeepAwakeState> {
         return (await TabRpcClient.wshRpcCall(command, data, { route: KeepAwakeRoute, timeout })) as KeepAwakeState;
     }
@@ -106,7 +140,12 @@ export class KeepAwakeModel {
     coffeeAtom(workspaceId: string): Atom<KeepAwakeCoffee> {
         let rtn = this.coffeeAtoms.get(workspaceId);
         if (rtn == null) {
-            rtn = atom((get) => (workspaceId == null ? null : coffeeOf(get(this.stateAtom), workspaceId)));
+            // Every state is a new object: a rail item re-renders only when its own coffee changed.
+            rtn = selectAtom(
+                this.stateAtom,
+                (state) => (workspaceId == null ? null : coffeeOf(state, workspaceId)),
+                sameCoffee
+            );
             this.coffeeAtoms.set(workspaceId, rtn);
         }
         return rtn;

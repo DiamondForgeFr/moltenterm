@@ -6,10 +6,11 @@
 // list offers the policy, the coffees ("Kept awake by you", each with Stop) and the blocks the shims reported, with the
 // per-session override. The OS-level detection and the marks on panes, tabs and the Sessions view are FR-SHELL-022's.
 
-import { getApi, useSettingsKeyAtom } from "@/app/store/global";
+import { useSettingsKeyAtom } from "@/app/store/global";
+import { PLATFORM } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
     coffeeCondition,
@@ -26,8 +27,10 @@ import { KeepAwakeModel } from "./keepawake-store";
 
 const TickMs = 1000;
 
+// The platform wave.ts set once at start: reading it costs nothing on every render (getApi().getPlatform() is a
+// synchronous IPC call).
 export function usePlatform(): string {
-    return getApi().getPlatform();
+    return PLATFORM;
 }
 
 // The clock the countdowns read: it ticks only while asked to.
@@ -103,6 +106,10 @@ function SessionRow({ session, now }: { session: KeepAwakeSession; now: number }
     );
 }
 
+function formatClock(at: number): string {
+    return new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 function formatSince(since: number, now: number): string {
     const minutes = Math.floor(Math.max(0, now - since) / 60000);
     if (minutes < 1) {
@@ -111,7 +118,7 @@ function formatSince(since: number, now: number): string {
     if (minutes < 60) {
         return `${minutes} min`;
     }
-    return new Date(since).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return formatClock(since);
 }
 
 function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () => void }) {
@@ -166,7 +173,7 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
                         <input
                             type="radio"
                             name="molten-sleep-policy"
-                            className="mt-0.5 cursor-pointer"
+                            className="mt-0.5 cursor-pointer accent-[var(--color-accent)]"
                             checked={policy === choice.policy}
                             onChange={() => fireAndForget(() => model.setPolicy(choice.policy))}
                         />
@@ -205,11 +212,10 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
                             className="flex items-center gap-2 rounded px-2 py-1 hover:bg-hover"
                         >
                             <i className="fa fa-solid fa-mug-hot text-[10px] text-[var(--color-awake)]" aria-hidden />
-                            <span className="min-w-0 flex-1 truncate">
-                                <span className="text-primary">{coffee.workspacename || "Workspace"}</span>
-                                <span className="text-muted">
-                                    {" "}
-                                    · since {formatSince(coffee.since, now)} · {coffeeCondition(coffee, now)}
+                            <span className="flex min-w-0 flex-1 flex-col">
+                                <span className="truncate text-primary">{coffee.workspacename || "Workspace"}</span>
+                                <span className="truncate text-[11px] text-muted">
+                                    since {formatClock(coffee.since)} · {coffeeCondition(coffee, now)}
                                 </span>
                             </span>
                             <button
@@ -255,6 +261,7 @@ export function KeepAwakeStatusItem() {
     const state = useAtomValue(model.stateAtom);
     const [open, setOpen] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
+    const close = useCallback(() => setOpen(false), []);
     if (!coffeeSupported(platform)) {
         return null;
     }
@@ -280,9 +287,7 @@ export function KeepAwakeStatusItem() {
                 <i className={cn("fa fa-solid text-[10px]", state.hold ? "fa-mug-hot" : "fa-moon")} aria-hidden />
                 {count > 0 ? <span>{count}</span> : null}
             </button>
-            {open && buttonRef.current != null ? (
-                <KeepAwakePanel anchor={buttonRef.current} onClose={() => setOpen(false)} />
-            ) : null}
+            {open && buttonRef.current != null ? <KeepAwakePanel anchor={buttonRef.current} onClose={close} /> : null}
         </>
     );
 }

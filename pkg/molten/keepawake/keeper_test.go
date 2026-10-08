@@ -283,6 +283,26 @@ func TestShimDecisionsAndAskOnce(t *testing.T) {
 	}
 }
 
+func TestLateShimAnswerIsRecordedAsAllowed(t *testing.T) {
+	f := makeFakeEnv()
+	k := f.keeper()
+	f.policy = PolicyLetSleep
+	// The shim stops waiting at its deadline and runs the real tool: an answer past it cannot stop the block.
+	answer, _ := k.Shim(context.Background(), ShimRequest{BlockId: "b1", Tool: ToolCaffeinate, Pid: 10, Deadline: f.now.UnixMilli() + 10})
+	if answer.Policy != PolicyAllow || k.State().Attempts[0].Outcome != OutcomeAllowed {
+		t.Fatalf("late answer: %v %+v", answer, k.State().Attempts)
+	}
+	answer, _ = k.Shim(context.Background(), ShimRequest{BlockId: "b1", Tool: ToolCaffeinate, Pid: 11, Deadline: f.now.UnixMilli() + 400})
+	if answer.Policy != PolicyLetSleep {
+		t.Fatalf("answer in time: %v", answer)
+	}
+	long := strings.Repeat("x", 1000)
+	k.Shim(context.Background(), ShimRequest{BlockId: "b1", Tool: ToolCaffeinate, Pid: 12, Args: []string{long}})
+	if got := k.State().Attempts[2].Args[0]; len(got) > 210 {
+		t.Fatalf("argument not clipped: %d bytes", len(got))
+	}
+}
+
 func TestPublishOnlyOnChangeWithGrowingVersion(t *testing.T) {
 	f := makeFakeEnv()
 	k := f.keeper()

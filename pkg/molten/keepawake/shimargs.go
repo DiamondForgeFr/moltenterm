@@ -12,6 +12,8 @@ import (
 // What the shims read of their command line under Let it sleep (DS-SHELL-024): the command to run without the block,
 // or, for a bare caffeinate, what ends it. Anything they cannot read goes to the real tool, which reports it.
 
+const caffeinateUserActiveTimeout = 5 * time.Second
+
 // CaffeinateCall is `caffeinate [-disum] [-t timeout] [-w pid] [utility arguments...]`.
 type CaffeinateCall struct {
 	Timeout time.Duration
@@ -25,6 +27,7 @@ type CaffeinateCall struct {
 // next, "--" ending the options, the first other word starting the utility.
 func ParseCaffeinate(args []string) CaffeinateCall {
 	var call CaffeinateCall
+	userActive := false
 	i := 0
 	for i < len(args) {
 		arg := args[i]
@@ -39,7 +42,10 @@ func ParseCaffeinate(args []string) CaffeinateCall {
 		flags := arg[1:]
 		for j := 0; j < len(flags); j++ {
 			switch flags[j] {
-			case 'd', 'i', 's', 'u', 'm':
+			case 'd', 'i', 's', 'm':
+				continue
+			case 'u':
+				userActive = true
 				continue
 			case 't', 'w':
 				value := flags[j+1:]
@@ -70,6 +76,10 @@ func ParseCaffeinate(args []string) CaffeinateCall {
 	}
 	if i < len(args) {
 		call.Command = append([]string{}, args[i:]...)
+	}
+	// caffeinate -u alone asserts for 5 seconds.
+	if userActive && call.Timeout == 0 && call.WaitPid == 0 && len(call.Command) == 0 {
+		call.Timeout = caffeinateUserActiveTimeout
 	}
 	return call
 }
