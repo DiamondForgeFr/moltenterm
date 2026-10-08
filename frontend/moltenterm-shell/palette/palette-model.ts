@@ -31,7 +31,9 @@ export type PaletteRun =
     // Back to the pane the palette was opened from, to type an agent's own command there.
     | { kind: "focusorigin" }
     // The browser panel's active page, handed off to the installed browser (FR-BRW-002).
-    | { kind: "openinbrowser" };
+    | { kind: "openinbrowser" }
+    // Every terminal started before MoltenTerm's update, brought up to date (FR-SHELL-041).
+    | { kind: "updateterminals" };
 
 export type PaletteEntry = {
     id: string;

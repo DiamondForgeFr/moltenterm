@@ -4,11 +4,15 @@
 package shellutil
 
 import (
+	"bytes"
+	_ "embed"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"text/template"
 
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -29,9 +33,87 @@ const BrowserVarName = "BROWSER"
 // shell integration scripts put it first on PATH after the user's startup files, so `claude` runs the launcher.
 const AgentBinDirName = "agents"
 
+// MoltenShellGeneration is the generation of MoltenTerm's managed shell environment (FR-SHELL-041, DS-SHELL-054): bump
+// it whenever what the shell integration sets up for MoltenTerm changes (PATH, variables), never just for a new
+// version. 1: the agent launchers' folder first on PATH and the refresh hook. A local shell records the generation it
+// got in its job's environment; a shell with an older one is outdated.
+const MoltenShellGeneration = 1
+
+// MoltenShellGenVarName records the generation in a local shell job's environment (next to MOLTEN_JOB_PROTOCOL).
+const MoltenShellGenVarName = "MOLTEN_SHELL_GEN"
+
+// MoltenRefreshDir holds the refresh files the shell integration sources before each prompt and command
+// (DS-SHELL-055), under the data folder.
+const MoltenRefreshDir = "shell/molten"
+
+const (
+	moltenRefreshShName   = "refresh.sh"
+	moltenRefreshFishName = "refresh.fish"
+)
+
+var (
+	//go:embed shellintegration/molten_refresh.sh
+	moltenRefreshShTemplate string
+
+	//go:embed shellintegration/molten_refresh.fish
+	moltenRefreshFishTemplate string
+)
+
 // AgentLauncherNames are the agents started through a launcher; must match pkg/molten/agentlaunch's adapters
 // (checked by its tests).
 var AgentLauncherNames = []string{"claude", "codex"}
+
+// moltenRefreshParams adds the refresh files' paths to the integration scripts' template values.
+func moltenRefreshParams(waveHome string, params map[string]string) {
+	params["MOLTENREFRESH"] = HardQuote(filepath.Join(waveHome, MoltenRefreshDir, moltenRefreshShName))
+	params["MOLTENREFRESH_FISH"] = HardQuoteFish(filepath.Join(waveHome, MoltenRefreshDir, moltenRefreshFishName))
+	params["GEN"] = strconv.Itoa(MoltenShellGeneration)
+}
+
+// writeMoltenRefreshFiles writes the refresh files. Running shells source them at any moment, so each is replaced by
+// a rename, never truncated in place: a shell reads the old file or the new one, never half of one.
+func writeMoltenRefreshFiles(waveHome string, params map[string]string) error {
+	dir := filepath.Join(waveHome, MoltenRefreshDir)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("creating %s: %w", dir, err)
+	}
+	files := map[string]string{moltenRefreshShName: moltenRefreshShTemplate, moltenRefreshFishName: moltenRefreshFishTemplate}
+	for name, tmpl := range files {
+		var buf bytes.Buffer
+		if err := template.Must(template.New(name).Parse(tmpl)).Execute(&buf, params); err != nil {
+			return fmt.Errorf("rendering %s: %w", name, err)
+		}
+		if err := writeFileAtomic(filepath.Join(dir, name), buf.Bytes()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeFileAtomic(path string, data []byte) error {
+	if current, err := os.ReadFile(path); err == nil && bytes.Equal(current, data) {
+		return nil
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
+	if err != nil {
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+	if err := os.Chmod(tmp.Name(), 0644); err != nil {
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+	return nil
+}
 
 // InstallMoltenCommand makes `molten` and `molten-open` available wherever wsh is: a relative symlink to wsh, so that
 // they follow every wsh update, or a copy on Windows, where symlinks need extra rights. The agent launchers go in

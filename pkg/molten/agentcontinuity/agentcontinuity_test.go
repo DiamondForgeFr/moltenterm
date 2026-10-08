@@ -236,6 +236,12 @@ func TestFreshAndResumeArgs(t *testing.T) {
 	if got, err := codex.ResumeArgs(id); err != nil || !reflect.DeepEqual(got, []string{"resume", id}) {
 		t.Errorf("codex resume %q %v", got, err)
 	}
+	if got := claude.LastSessionArgs(); !reflect.DeepEqual(got, []string{"--continue"}) || !claude.ResumesSession(got) {
+		t.Errorf("claude last session %q", got)
+	}
+	if got := codex.LastSessionArgs(); !reflect.DeepEqual(got, []string{"resume", "--last"}) || !codex.ResumesSession(got) {
+		t.Errorf("codex last session %q", got)
+	}
 }
 
 func TestResumesSession(t *testing.T) {

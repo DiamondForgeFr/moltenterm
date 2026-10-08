@@ -29,6 +29,7 @@ const (
 	codexExecutable    = "codex"
 	codexModelFlag     = "-m"
 	codexResumeCommand = "resume"
+	codexLastFlag      = "--last"
 	codexForkCommand   = "fork"
 	codexExecCommand   = "exec"
 	codexExecAlias     = "e"
@@ -202,6 +203,11 @@ func (codexAdapter) ResumeArgs(sessionId string) ([]string, error) {
 		return nil, err
 	}
 	return []string{codexResumeCommand, sessionId}, nil
+}
+
+// LastSessionArgs: `codex resume --last` reopens the most recent session, without the picker.
+func (codexAdapter) LastSessionArgs() []string {
+	return []string{codexResumeCommand, codexLastFlag}
 }
 
 // ResumesSession: the resume and fork subcommands reopen an existing session's history, `codex exec resume` too.

@@ -12,6 +12,7 @@ import { useAtomValue } from "jotai";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
+import { TermUpdates } from "../termupdate/termupdate-store";
 import { WorkspaceIcon } from "../workspace-icon";
 import { workspaceIconSource } from "../workspace-icon-model";
 import { effectiveWorkspaceFolder, readRecentFolders, readWorkspaceProject } from "../workspace-project";
@@ -106,6 +107,7 @@ function usePaletteEntries() {
     useEffect(() => {
         fireAndForget(() => BrowserEngineModel.getInstance().ensureLoaded());
     }, []);
+    const outdatedTerminals = useAtomValue(TermUpdates.getInstance().countAtom);
     const installedBrowser = browserList?.chosen ?? null;
     const hasBrowserPanel = (tab?.blockids ?? []).some(
         (blockId) => WOS.getObjectValue<Block>(WOS.makeORef("block", blockId))?.meta?.view === MoltentermBrowserView
@@ -129,8 +131,20 @@ function usePaletteEntries() {
                 projectLinked,
                 installedBrowser,
                 hasBrowserPanel,
+                outdatedTerminals,
             }),
-        [fullConfig, wsId, folder, recentKey, others, home, projectLinked, installedBrowser, hasBrowserPanel]
+        [
+            fullConfig,
+            wsId,
+            folder,
+            recentKey,
+            others,
+            home,
+            projectLinked,
+            installedBrowser,
+            hasBrowserPanel,
+            outdatedTerminals,
+        ]
     );
     const titles = useMemo(() => paletteGroupTitles(folder, home), [folder, home]);
     return { entries, titles };

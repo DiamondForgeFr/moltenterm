@@ -6,6 +6,7 @@
 // the app.
 
 import { AgentCopyProfiles } from "../term-copy/agent-copy-profiles";
+import { updateAllDetail } from "../termupdate/termupdate-model";
 import { PaletteEntry, PaletteGroupId } from "./palette-model";
 
 // Agent presets live with Wave's presets, under their own prefix: defaults in pkg/wconfig/defaultconfig/presets/
@@ -52,6 +53,8 @@ export type PaletteSourceInput = {
     // The installed browser pages are handed off to (FR-BRW-002), and whether the tab has a browser panel.
     installedBrowser?: { id: string; name: string };
     hasBrowserPanel?: boolean;
+    // How many terminals still run with an older MoltenTerm shell environment (FR-SHELL-041).
+    outdatedTerminals?: number;
 };
 
 function str(value: unknown): string {
@@ -317,6 +320,24 @@ export function browserEntries(browser: { id: string; name: string }, hasBrowser
     ];
 }
 
+// "Update outdated terminals" (FR-SHELL-041), while some terminals started before MoltenTerm's update.
+export function termUpdateEntries(count: number): PaletteEntry[] {
+    if (!(count > 0)) {
+        return [];
+    }
+    return [
+        {
+            id: "action:updateterminals",
+            group: "actions",
+            label: "Update outdated terminals",
+            detail: updateAllDetail(count),
+            icon: "arrows-rotate",
+            keywords: ["update", "refresh", "restart", "outdated", "shell", "terminal", "path", "launcher"],
+            run: { kind: "updateterminals" },
+        },
+    ];
+}
+
 export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
     const folders = recentFolderList(input.folder, input.recentFolders, input.otherFolders);
     return [
@@ -325,6 +346,7 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
         ...folderEntries(folders, input.home),
         ...actionEntries(input.workspaces, input.projectLinked),
         ...browserEntries(input.installedBrowser, input.hasBrowserPanel),
+        ...termUpdateEntries(input.outdatedTerminals),
         ...agentCopyEntries(),
     ];
 }

@@ -29,6 +29,7 @@ import { cn, makeIconClass } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
 import { AgentHeaderLabel, useBlockAgentState } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#109)
+import { TermUpdateChip } from "../../moltenterm-shell/termupdate/termupdate-ui"; // MOLTENTERM-PATCH (#366)
 import { WorktreeHeaderLabel } from "../../moltenterm-shell/worktree-ui"; // MOLTENTERM-PATCH (#114)
 import { BlockEnv } from "./blockenv";
 import { BlockFrameProps } from "./blocktypes";
@@ -287,6 +288,8 @@ const BlockFrame_Header = ({
             {isTerminalBlock && !preview && (
                 <WorktreeHeaderLabel blockId={nodeModel.blockId} hideBranch={agentState != null} />
             )}
+            {/* MOLTENTERM-PATCH (#366): a terminal started before MoltenTerm's update offers to update itself */}
+            {isTerminalBlock && !preview && <TermUpdateChip blockId={nodeModel.blockId} />}
             {useTermHeader && termConfigedDurable != null && (
                 <DurableSessionFlyover
                     key="durable-status"
