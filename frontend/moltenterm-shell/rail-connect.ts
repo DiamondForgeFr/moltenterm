@@ -118,10 +118,20 @@ export function connectPressPlace(element: Element, target: RailConnectTarget): 
     return "outside";
 }
 
+// A field being edited (the group's rename field) or an open dialog (the edit sheet) takes its own Escape; connect
+// mode waits for the next one.
+export function escapeBelongsElsewhere(e: Pick<KeyboardEvent, "target">): boolean {
+    const el = e.target as HTMLElement;
+    if (el?.closest?.("input, textarea, select, [contenteditable=true], [role=dialog]") != null) {
+        return el.closest(".xterm") == null;
+    }
+    return typeof document !== "undefined" && document.querySelector?.("[role=dialog]") != null;
+}
+
 // Installs the exits of connect mode on the document; returns the uninstall.
 export function installConnectExits(model: RailConnectModel): () => void {
     const onKeyDown = (e: KeyboardEvent) => {
-        if (e.key !== "Escape" || model.getTarget() == null || model.dragging) {
+        if (e.key !== "Escape" || model.getTarget() == null || model.dragging || escapeBelongsElsewhere(e)) {
             return;
         }
         // Escape ends connect mode and nothing else: a terminal must not receive it.

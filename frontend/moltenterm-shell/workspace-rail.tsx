@@ -73,6 +73,7 @@ import { readWorkspaceProject } from "./workspace-project";
 import { RailDragScope, useRailDrag } from "./workspace-rail-dnd";
 import { railMoveKey } from "./workspace-rail-drag";
 import {
+    budTooltipAnchor,
     RailBudChain,
     RailBudFilter,
     RailBudPitchPx,
@@ -132,7 +133,8 @@ type RailItemGrouping = {
     onLink: () => void;
     linkPressed: boolean;
     connect: RailConnectState;
-    groupWith: GroupWithChoice[];
+    // Read when the menu opens: the rail renders on every drag frame.
+    groupWith: () => GroupWithChoice[];
     onGroupWith: (choice: GroupWithChoice) => void;
     // Set for a member of a local group.
     onRemoveFromGroup?: () => void;
@@ -224,11 +226,12 @@ function RailButton({
                 ? [{ label: "Open the Project tab", click: () => fireAndForget(openProjectTab) }]
                 : [];
         const groupItems: ContextMenuItem[] = [];
-        if (grouping != null && grouping.groupWith.length > 0) {
+        const choices = grouping?.groupWith() ?? [];
+        if (choices.length > 0) {
             groupItems.push({
                 label: "Group with",
                 type: "submenu",
-                submenu: grouping.groupWith.map((choice) => ({
+                submenu: choices.map((choice) => ({
                     label: choice.label,
                     click: () => grouping.onGroupWith(choice),
                 })),
@@ -350,10 +353,7 @@ function RailButton({
             </button>
             <RailBudChain
                 buds={buds}
-                onHover={(label, opener) => {
-                    const rect = opener.getBoundingClientRect();
-                    onHover(label, { top: rect.top + rect.height / 2, left: rect.right + 6 });
-                }}
+                onHover={(label, opener) => onHover(label, budTooltipAnchor(opener))}
                 onLeave={() => onHover(null, null)}
             />
         </div>
@@ -396,7 +396,8 @@ export function WorkspaceRail() {
     );
     const units = makeRailUnits(entries, groups, localGroups);
     const productKeys = useMemo(() => railUnitKeys(groups, localGroups), [groups, localGroups]);
-    const nameOf = (id: string) => entries.find((e) => e.id === id)?.name;
+    const names = new Map(entries.map((e) => [e.id, e.name]));
+    const nameOf = (id: string) => names.get(id);
     // The rail shows the move at once; the server's workspace:update confirms it, or the refresh undoes it.
     const applyMove = useCallback(
         (move: RailMove, refocus: boolean) => {
@@ -583,7 +584,7 @@ export function WorkspaceRail() {
             onLink: () => connectModel.toggle(target),
             linkPressed: isTarget(target),
             connect: own != null ? { target: false, dropping: false } : connectState(target),
-            groupWith: groupWithChoices(entry.id, movableIds, projectKeys, localGroups, nameOf),
+            groupWith: () => groupWithChoices(entry.id, movableIds, projectKeys, localGroups, nameOf),
             onGroupWith: (choice) =>
                 runGroupCommand(() => joinRailGroup({ workspaceid: entry.id, targetid: choice.id }), anchor),
             onRemoveFromGroup:

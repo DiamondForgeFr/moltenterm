@@ -89,6 +89,7 @@ describe("stored local groups (FR-MC-032, DS-MC-028)", () => {
         expect(cleanGroupName("   ")).toBe("");
         expect(cleanGroupName("é".repeat(64))).toBe("é".repeat(64));
         expect(cleanGroupName("é".repeat(65))).toBeNull();
+        expect(cleanGroupName(" Cli\u001b[31ments‮ ")).toBe("Cli[31ments");
     });
 
     it("offers Group with the other groupable workspaces and the groups it is not in", () => {

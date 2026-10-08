@@ -64,10 +64,14 @@ type Session = {
     // The slot is in the scope's outer scope.
     outer: boolean;
     joining: boolean;
+    // The offset of the last view, the one the item is drawn at.
+    drawnOffset: number;
     frame: number;
 };
 
-function readBoxes(nav: HTMLElement, scope: RailDragScope): RailItemBox[] {
+// The dragged item is drawn offsetY away from its place; its box is read back at its place, so a bounded scope keeps
+// the dragged item's own slot inside it (a local member leaves its group only past it, #368).
+function readBoxes(nav: HTMLElement, scope: RailDragScope, draggedId: string, offsetY: number): RailItemBox[] {
     const boxes: RailItemBox[] = [];
     for (const id of scope.ids) {
         const el = scope.element(nav, id);
@@ -75,7 +79,8 @@ function readBoxes(nav: HTMLElement, scope: RailDragScope): RailItemBox[] {
             continue;
         }
         const rect = el.getBoundingClientRect();
-        boxes.push({ id, top: rect.top, bottom: rect.bottom });
+        const shift = id === draggedId ? offsetY : 0;
+        boxes.push({ id, top: rect.top - shift, bottom: rect.bottom - shift });
     }
     return boxes;
 }
@@ -131,22 +136,26 @@ export function useRailDrag(
         session.joining = zone != null && overJoinZone(zone.getBoundingClientRect(), session.lastY);
         if (session.joining) {
             session.slot = null;
+            session.drawnOffset = offsetY;
             setView({ id: session.id, offsetY, lineY: null, joining: true, outer: false });
             return;
         }
         let used = scope;
-        let boxes = readBoxes(nav, scope);
+        // The offset the item is drawn at, as last rendered.
+        const drawnOffset = session.drawnOffset;
+        let boxes = readBoxes(nav, scope, session.id, drawnOffset);
         session.slot = scopeSlot(boxes, scope.bounded, session.id, session.lastY);
         session.outer = false;
         if (session.slot == null && scope.outer != null) {
             used = scope.outer;
-            boxes = readBoxes(nav, used);
+            boxes = readBoxes(nav, used, session.id, drawnOffset);
             session.slot = scopeSlot(boxes, used.bounded, session.id, session.lastY);
             session.outer = true;
         }
         const navRect = nav.getBoundingClientRect();
         const lands = session.slot != null && used.moveFor(session.slot) != null;
         const lineViewportY = lands ? dropLineY(boxes, session.id, session.slot) : null;
+        session.drawnOffset = offsetY;
         setView({
             id: session.id,
             offsetY,
@@ -249,6 +258,7 @@ export function useRailDrag(
                 slot: null,
                 outer: false,
                 joining: false,
+                drawnOffset: 0,
                 frame: 0,
             };
             sessionRef.current = session;

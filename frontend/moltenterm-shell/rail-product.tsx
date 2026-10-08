@@ -12,18 +12,18 @@ import { ContextMenuModel } from "@/app/store/contextmenu";
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { cn } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { mostUrgentAgentState } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
 import { AgentStateDot } from "./agent-state-ui";
 import { ProjectGroup } from "./mission/group-model";
 import { productHoverText, productIconEntry, RailProductUnit, UnitMoves, worstLabel } from "./rail-groups";
-import { MaxGroupNameLength } from "./rail-local-groups";
+
 import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
 import { workspaceIconSource } from "./workspace-icon-model";
 import { RailMove } from "./workspace-order";
 import { railMoveKey } from "./workspace-rail-drag";
-import { RailBudChain, railLinkLabel } from "./workspace-rail-edit";
+import { budTooltipAnchor, RailBudChain, railLinkLabel } from "./workspace-rail-edit";
 
 // Connect mode on a rail item or a local product (FR-MC-032-AC2): the target, and whether a dragged workspace is over it.
 export type RailConnectState = { target: boolean; dropping: boolean };
@@ -70,9 +70,16 @@ function RenameField({
         if (rect != null) {
             setPlace({ top: rect.top + rect.height / 2, left: rect.right + 8 });
         }
+    }, [anchor]);
+    // Focused once placed: a hidden field cannot take the focus.
+    const placed = place != null;
+    useEffect(() => {
+        if (!placed) {
+            return;
+        }
         inputRef.current?.focus();
         inputRef.current?.select();
-    }, [anchor]);
+    }, [placed]);
     return (
         <div
             className="fixed z-[9500] -translate-y-1/2 rounded border border-border bg-modalbg p-1 shadow-lg"
@@ -82,7 +89,6 @@ function RenameField({
                 ref={inputRef}
                 aria-label="Group name (empty: the first workspace's name)"
                 value={value}
-                maxLength={MaxGroupNameLength}
                 placeholder="Name of the first workspace"
                 onChange={(e) => setValue(e.target.value)}
                 onKeyDown={(e) => {
@@ -310,10 +316,7 @@ export function RailProduct({
                                 },
                             },
                         ]}
-                        onHover={(label, opener) => {
-                            const rect = opener.getBoundingClientRect();
-                            onHover(label, { top: rect.top + rect.height / 2, left: rect.right + 6 });
-                        }}
+                        onHover={(label, opener) => onHover(label, budTooltipAnchor(opener))}
                         onLeave={() => onHover(null, null)}
                     />
                 ) : null}

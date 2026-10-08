@@ -43,6 +43,12 @@ var movedFn func()
 var displacedFn func([]Displaced)
 var reconcileFn func(ProductMap)
 
+// One reconcile runs at a time; products seen meanwhile replace the pending ones, so a burst of resolutions makes at
+// most one more pass, with the newest products.
+var reconcileLock sync.Mutex
+var reconcileRunning bool
+var reconcilePending *ProductMap
+
 // SetGrouping installs the product resolution, what to tell once a move is written (the groups follow the order) and
 // what to tell when a project product took local members (FR-MC-032-AC8: one notification).
 func SetGrouping(products Products, moved func(), displaced func([]Displaced)) {
@@ -95,15 +101,45 @@ func TellDisplaced(displaced []Displaced) {
 // now shows leaves its group (FR-MC-032-AC8). Linking a workspace changes no rail data, so this is how the rail learns.
 func ProductsSeen(products ProductMap) {
 	_, _, _, fn := getGrouping()
-	if fn == nil {
+	if fn == nil || !queueReconcile(products) {
 		return
 	}
 	go func() {
 		defer func() {
 			panichandler.PanicHandler("molten:railorder:reconcile", recover())
 		}()
-		fn(products)
+		for {
+			next, ok := nextReconcile()
+			if !ok {
+				return
+			}
+			fn(next)
+		}
 	}()
+}
+
+// queueReconcile keeps the products for the next pass; true when no pass is running, so the caller starts one.
+func queueReconcile(products ProductMap) bool {
+	reconcileLock.Lock()
+	defer reconcileLock.Unlock()
+	reconcilePending = &products
+	if reconcileRunning {
+		return false
+	}
+	reconcileRunning = true
+	return true
+}
+
+func nextReconcile() (ProductMap, bool) {
+	reconcileLock.Lock()
+	defer reconcileLock.Unlock()
+	if reconcilePending == nil {
+		reconcileRunning = false
+		return ProductMap{}, false
+	}
+	next := *reconcilePending
+	reconcilePending = nil
+	return next, true
 }
 
 type routeLink struct {
@@ -128,16 +164,17 @@ func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debu
 	if req.Command == "" || req.ReqId == "" {
 		return true
 	}
-	go l.answer(req)
+	go l.answer(req, ingressLinkId)
 	return true
 }
 
-func (l *routeLink) answer(req wshutil.RpcMessage) {
+func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) {
 	defer func() {
 		panichandler.PanicHandler("molten:railorder:route", recover())
 	}()
 	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := l.handle(req.Command, req.Source, req.Data)
+	terminal := isTerminalSource(req.Source) && wshutil.DefaultRouter.IsLeafSource(ingressLinkId, req.Source)
+	data, err := l.handle(req.Command, req.Source, terminal, req.Data)
 	if err != nil {
 		resp.Error = err.Error()
 	} else {
@@ -156,8 +193,9 @@ func isWindowSource(source string) bool {
 	return strings.HasPrefix(source, wshutil.RoutePrefix_Tab)
 }
 
-// wsh in one of MoltenTerm's local terminals (`molten rail group`, FR-MC-032-AC10), as `molten session` (#159); a
-// remote connection's wsh is refused.
+// wsh in one of MoltenTerm's local terminals (`molten rail group`, FR-MC-032-AC10), as `molten session` (#159). A
+// remote connection's wsh carries a "proc:" source too: the route also checks that the request came in through that
+// terminal's own link (IsLeafSource), not through a connection's router link.
 func isTerminalSource(source string) bool {
 	return strings.HasPrefix(source, wshutil.RoutePrefix_Proc)
 }
@@ -176,9 +214,9 @@ func (l *routeLink) apply(ctx context.Context, change func(Rail) (Rail, error)) 
 	return rail.List(), nil
 }
 
-func (l *routeLink) handle(command string, source string, data any) (any, error) {
-	if !isWindowSource(source) && !isTerminalSource(source) {
-		return nil, fmt.Errorf("the rail order answers MoltenTerm windows and terminals only")
+func (l *routeLink) handle(command string, source string, localTerminal bool, data any) (any, error) {
+	if !isWindowSource(source) && !localTerminal {
+		return nil, fmt.Errorf("the rail order answers MoltenTerm windows and local terminals only")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), routeTimeout)
 	defer cancel()
