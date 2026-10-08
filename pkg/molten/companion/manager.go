@@ -351,6 +351,51 @@ func (m *Manager) heldByOther(blockId string, path string) bool {
 	return m.reportedByOtherLocked(blockId, path)
 }
 
+// reportedByOther: another block's hook reports the session, its companion open or not.
+func (m *Manager) reportedByOther(blockId string, path string) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	return m.reportedByOtherLocked(blockId, path)
+}
+
+// confidentPath is the session a block's hook report, pick or discovery links, "" when none or only a guess.
+func (m *Manager) confidentPath(blockId string) string {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if r, ok := m.reports[blockId]; ok && m.reportCurrentLocked(blockId, r) {
+		return r.path
+	}
+	if p, ok := m.picks[blockId]; ok {
+		return p.path
+	}
+	for path, c := range m.claims {
+		if c.blockId == blockId && c.by != LinkGuessed {
+			return path
+		}
+	}
+	return ""
+}
+
+// guessedOnly: the block's only link is a guess (its companion is open on a session it guessed).
+func (m *Manager) guessedOnly(blockId string) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if r, ok := m.reports[blockId]; ok && m.reportCurrentLocked(blockId, r) {
+		return false
+	}
+	guessed := false
+	for _, c := range m.claims {
+		if c.blockId != blockId {
+			continue
+		}
+		if c.by != LinkGuessed {
+			return false
+		}
+		guessed = true
+	}
+	return guessed
+}
+
 func (m *Manager) reportedByOtherLocked(blockId string, path string) bool {
 	for other, report := range m.reports {
 		if other != blockId && report.path == path && m.reportCurrentLocked(other, report) {
@@ -898,6 +943,10 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 		// Another terminal's hook or pick took the session discovery had linked here.
 		w.unlink()
 	}
+	if by, _ := w.linkKind(); w.follower != nil && weakLink(by) && w.m.reportedByOther(w.blockId, w.path) {
+		// Another terminal's hook reports it while that terminal's companion is closed (no claim of its own).
+		w.unlink()
+	}
 	if report, ok := w.m.report(w.blockId); ok && report.agent == run.Agent && !report.at.Before(time.UnixMilli(run.Started).Add(-reportSlack)) {
 		w.follow(report.path, LinkHook, 0, "")
 		return
@@ -921,7 +970,10 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 		return
 	}
 	var free []Candidate
+	var current *Candidate
 	written := 0
+	// guessedElsewhere: sessions left out only because another pane guessed them, which discovery cannot rule out.
+	guessedElsewhere := 0
 	for _, c := range w.adapter.Discover(w.info.cwd, time.UnixMilli(run.Started)) {
 		c.Path = canonicalPath(c.Path)
 		if c.Modified >= run.Started {
@@ -929,6 +981,11 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 		}
 		if !w.m.takenByOther(w.blockId, c.Path) {
 			free = append(free, c)
+			if c.Path == w.path {
+				current = &free[len(free)-1]
+			}
+		} else if !w.m.heldByOther(w.blockId, c.Path) {
+			guessedElsewhere++
 		}
 	}
 	runs := w.m.sameFolderRuns(run.Agent, w.info.cwd)
@@ -936,11 +993,17 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 		// Several panes of the folder keep a guess from following a /clear by the rule below. A guess moves to a
 		// session started after the linked one only when this pane's agent wrote it as far as its activity tells and
 		// no other pane's agent may have: otherwise two panes would race for the newest session.
-		guess, reason := w.guessSession(run, free)
-		if guess != nil && guess.Path != w.path && guess.Started > w.linkedStarted && reason == GuessActivity && !w.othersMayHaveWritten(run, *guess) {
-			w.follow(guess.Path, LinkGuessed, guess.Started, reason)
+		if current != nil && w.wrongGuess(run, *current) {
+			// Another pane's agent explains the guessed session and this one's does not: give it back and guess again.
+			w.unlink()
+			current = nil
+		} else {
+			guess, reason := w.guessSession(run, free)
+			if guess != nil && guess.Path != w.path && guess.Started > w.linkedStarted && reason == GuessActivity && !w.othersMayHaveWritten(run, *guess) {
+				w.follow(guess.Path, LinkGuessed, guess.Started, reason)
+			}
+			return
 		}
-		return
 	}
 	if w.follower != nil {
 		// Already linked by discovery: move only to the one session started after the linked one (a /clear).
@@ -960,7 +1023,7 @@ func (w *watcher) link(run molten.AgentRunInfo) {
 		written = 0
 	}
 	chosen, ambiguous := chooseCandidate(free, written, run.Started, runs)
-	if chosen != nil && !ambiguous {
+	if chosen != nil && !ambiguous && guessedElsewhere == 0 {
 		w.follow(chosen.Path, LinkDiscovery, chosen.Started, "")
 		return
 	}
@@ -979,20 +1042,49 @@ func (w *watcher) guessSession(run molten.AgentRunInfo, free []Candidate) (*Cand
 	}
 	self := makeGuessRun(run)
 	self.blockId = w.blockId
-	var others []guessRun
+	var others, witnesses []guessRun
 	for _, other := range w.m.sameFolderRunList(run.Agent, w.info.cwd) {
-		if other.BlockId == w.blockId || w.m.blockLinked(other.BlockId) {
+		if other.BlockId == w.blockId {
 			continue
 		}
-		others = append(others, makeGuessRun(other))
+		if !w.m.blockLinked(other.BlockId) {
+			others = append(others, makeGuessRun(other))
+		} else if w.m.guessedOnly(other.BlockId) {
+			witnesses = append(witnesses, makeGuessRun(other))
+		}
 	}
-	return guessCandidate(free, self, others, w.m.now().UnixMilli())
+	return guessCandidate(free, self, others, witnesses, w.m.now().UnixMilli())
 }
 
-// othersMayHaveWritten: another pane's agent of the folder, linked or not, worked when the session was written.
+// wrongGuess: this pane's agent activity does not explain its guessed session and another pane's (unlinked or
+// guessing too) does: two busy panes paired the wrong way round, or the other pane's agent wrote it since.
+func (w *watcher) wrongGuess(run molten.AgentRunInfo, current Candidate) bool {
+	self := makeGuessRun(run)
+	if activityMatch(self, current) {
+		return false
+	}
+	for _, other := range w.m.sameFolderRunList(run.Agent, w.info.cwd) {
+		if other.BlockId == w.blockId || w.m.confidentPath(other.BlockId) != "" {
+			continue
+		}
+		if activityMatch(makeGuessRun(other), current) {
+			return true
+		}
+	}
+	return false
+}
+
+// othersMayHaveWritten: another pane's agent of the folder worked when the session was written, unless that pane's
+// hook, pick or discovery links another session (its writes go there).
 func (w *watcher) othersMayHaveWritten(run molten.AgentRunInfo, c Candidate) bool {
 	for _, other := range w.m.sameFolderRunList(run.Agent, w.info.cwd) {
-		if other.BlockId != w.blockId && activityMatch(makeGuessRun(other), c) {
+		if other.BlockId == w.blockId {
+			continue
+		}
+		if path := w.m.confidentPath(other.BlockId); path != "" && path != c.Path {
+			continue
+		}
+		if activityMatch(makeGuessRun(other), c) {
 			return true
 		}
 	}
