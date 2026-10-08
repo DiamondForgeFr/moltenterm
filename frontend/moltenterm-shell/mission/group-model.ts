@@ -8,6 +8,52 @@
 // must match the names in pkg/molten/mission/group.go
 export const MissionGroupsCommand = "moltenmissiongroups";
 export const MissionGroupsEvent = "molten:mission:groups";
+// must match pkg/molten/mission/deps.go
+export const MissionDepsCommand = "moltenmissiondeps";
+
+// must match the DepState constants in pkg/molten/mission/deps.go
+export type DependencyStateName =
+    | "insync"
+    | "stale"
+    | "uncommitted"
+    | "sourcenotfound"
+    | "branchnotfound"
+    | "invalid"
+    | "error";
+
+// must match DependencyCommit in pkg/molten/mission/deps.go
+export type DependencyCommit = {
+    sha: string;
+    time: number;
+    subject: string;
+    tickets?: string[];
+};
+
+// One declared dependency, evaluated (FR-MC-029, DS-MC-019); must match DependencyState in pkg/molten/mission/deps.go.
+export type DependencyState = {
+    index: number;
+    project: string;
+    paths: string[];
+    output: string[];
+    sync?: string;
+    branch?: string;
+    ref?: string;
+    state: DependencyStateName;
+    problem?: string;
+    sourcedir?: string;
+    sourcename?: string;
+    // The source's newest commit on the watched branch touching paths.
+    source?: DependencyCommit;
+    // The dependent's last sync: its newest commit touching output on its trunk. None when it never synced.
+    synced?: DependencyCommit;
+    trunk?: string;
+    commits?: DependencyCommit[];
+    morecommits?: boolean;
+    changed?: string[];
+    // "Synced, not committed": the output files changed in the dependent and not committed yet.
+    uncommitted?: string[];
+    checkedat?: number;
+};
 
 // red (a CI or a build failed) over amber (a stale dependency) over none; a running job gives none.
 export type GroupWorst = "" | "red" | "amber";
@@ -27,6 +73,7 @@ export type GroupMemberState = {
     buildat?: number;
     releasetag?: string;
     lasttag?: string;
+    deps?: DependencyState[];
     worst?: GroupWorst;
 };
 
@@ -80,4 +127,13 @@ export function groupMemberOf(group: ProjectGroup, dir: string): GroupMember {
         return null;
     }
     return group?.members?.find((m) => m.dir === dir) ?? null;
+}
+
+// A dependency that holds its member's amber flag: stale, or synced and not committed yet.
+export function isFlaggedDependency(dep: DependencyState): boolean {
+    return dep?.state === "stale" || dep?.state === "uncommitted";
+}
+
+export function flaggedDependencies(member: GroupMember): DependencyState[] {
+    return (member?.state?.deps ?? []).filter(isFlaggedDependency);
 }

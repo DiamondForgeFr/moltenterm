@@ -13,7 +13,7 @@ export const ClosedRetentionMs = 30 * 24 * 60 * 60 * 1000;
 export const MaxClosedPerKey = 20;
 export const MaxActions = 2;
 
-export type MoltentermNotificationSource = "agent" | "mod" | "moltenterm" | "build" | "ci" | "release";
+export type MoltentermNotificationSource = "agent" | "mod" | "moltenterm" | "build" | "ci" | "release" | "deps";
 export type MoltentermNotificationKind = "info" | "success" | "warning" | "error";
 
 // "open" goes where it points (a workspace, a tab, a block, or a view opened in the active tab); "gesture" runs a

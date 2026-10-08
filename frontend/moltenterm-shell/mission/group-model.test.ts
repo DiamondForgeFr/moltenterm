@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { groupMemberOf, isProductGroup, productGroupOfWorkspace, ProjectGroup } from "./group-model";
+import {
+    flaggedDependencies,
+    groupMemberOf,
+    isProductGroup,
+    productGroupOfWorkspace,
+    ProjectGroup,
+} from "./group-model";
 
 const notulia: ProjectGroup = {
     key: "notulia",
@@ -37,5 +43,22 @@ describe("project groups", () => {
         expect(groupMemberOf(notulia, "/p/site")?.name).toBe("notulia-website");
         expect(groupMemberOf(notulia, "/p/molten")).toBeNull();
         expect(groupMemberOf(null, "/p/site")).toBeNull();
+    });
+
+    it("flags the stale and the not committed dependencies only", () => {
+        const dep = (state: any) => ({
+            index: 0,
+            project: "Notulia",
+            paths: ["features/*.json"],
+            output: ["src/features.json"],
+            state,
+        });
+        const member = {
+            ...notulia.members[1],
+            state: { deps: [dep("insync"), dep("stale"), dep("uncommitted"), dep("sourcenotfound"), dep("error")] },
+        };
+        expect(flaggedDependencies(member).map((d) => d.state)).toEqual(["stale", "uncommitted"]);
+        expect(flaggedDependencies(notulia.members[0])).toEqual([]);
+        expect(flaggedDependencies(null)).toEqual([]);
     });
 });

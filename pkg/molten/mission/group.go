@@ -67,6 +67,8 @@ type GroupMemberState struct {
 	// The last public release and the newest release tag (a candidate included).
 	ReleaseTag string `json:"releasetag,omitempty"`
 	LastTag    string `json:"lasttag,omitempty"`
+	// The member's declared dependencies, each evaluated (FR-MC-029); a stale one raises the badge to amber.
+	Deps []DependencyState `json:"deps,omitempty"`
 	// The badge: red (CI or build failed) over amber (stale dependency) over none. A running job gives none.
 	Worst string `json:"worst,omitempty"`
 }
@@ -96,13 +98,23 @@ type Groups struct {
 	runs        *Runs
 	links       func(ctx context.Context) ([]molten.GroupLink, error)
 	read        func(dir string) molten.ProjectInfo
+	readDeps    func(dir string) (string, []molten.PipelineDependency)
+	run         Runner
+	now         func() time.Time
 	publish     func(GroupsAnswer)
+	// Tells the stale dependencies in the notification center; nil in tests that do not look.
+	notify func(DependencyNotices) error
 	// The last published model, so a refresh that changed nothing of the groups is not told again.
 	published string
+	// The last notices told, so a refresh that changed none of them does not read the notifications again.
+	noticed string
+	// The last evaluation of each declared dependency, by depCacheKey.
+	deps map[string]DependencyState
 }
 
-func MakeGroups(collector *Collector, ci *Ci, runs *Runs, links func(ctx context.Context) ([]molten.GroupLink, error), publish func(GroupsAnswer)) *Groups {
-	return &Groups{collector: collector, ci: ci, runs: runs, links: links, read: molten.ReadProject, publish: publish}
+func MakeGroups(collector *Collector, ci *Ci, runs *Runs, run Runner, links func(ctx context.Context) ([]molten.GroupLink, error), publish func(GroupsAnswer), notify func(DependencyNotices) error) *Groups {
+	return &Groups{collector: collector, ci: ci, runs: runs, run: run, links: links, read: molten.ReadProject, readDeps: ReadDependsOn,
+		now: time.Now, publish: publish, notify: notify, deps: map[string]DependencyState{}}
 }
 
 // WorkspaceLinks reads the workspace → project links in the rail's order: Wave's workspace list keeps the database's
@@ -168,6 +180,11 @@ func memberWorst(state GroupMemberState) string {
 	if state.TrunkCi == CiStateFailure || state.RemoteCi == CiStateFailure || state.Build == RunStateFailure {
 		return GroupWorstRed
 	}
+	for _, dep := range state.Deps {
+		if dep.Flagged() {
+			return GroupWorstAmber
+		}
+	}
 	return ""
 }
 
@@ -181,9 +198,14 @@ func worstOf(a string, b string) string {
 	return ""
 }
 
-func (g *Groups) memberState(dir string) GroupMemberState {
+func (g *Groups) memberState(group *molten.ProjectGroup, member molten.GroupMember, fresh bool) GroupMemberState {
+	dir := member.Dir
 	state := GroupMemberState{}
+	if g.run != nil && g.readDeps != nil {
+		state.Deps = g.memberDeps(group, member, fresh)
+	}
 	if g.collector == nil {
+		state.Worst = memberWorst(state)
 		return state
 	}
 	snap, known := g.collector.Cached(dir)
@@ -225,8 +247,13 @@ func (g *Groups) memberState(dir string) GroupMemberState {
 }
 
 // Get resolves the groups now: the links and the members' files are read on every request, so a member that removed
-// its `group` is out at once, and a member that added it is in.
+// its `group` is out at once, and a member that added it is in. The dependencies keep their last evaluation, except
+// the ones never read; each collector refresh reads them all again.
 func (g *Groups) Get(req GroupsRequest) (GroupsAnswer, error) {
+	return g.resolve(req, false)
+}
+
+func (g *Groups) resolve(req GroupsRequest, fresh bool) (GroupsAnswer, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), groupsTimeout)
 	defer cancel()
 	links, err := g.links(ctx)
@@ -245,10 +272,11 @@ func (g *Groups) Get(req GroupsRequest) (GroupsAnswer, error) {
 		}
 	}
 	answer := GroupsAnswer{Groups: []GroupInfo{}}
-	for _, group := range groups {
+	for i := range groups {
+		group := &groups[i]
 		info := GroupInfo{Key: group.Key, Name: group.Name, Members: []GroupMemberInfo{}}
 		for _, member := range group.Members {
-			state := g.memberState(member.Dir)
+			state := g.memberState(group, member, fresh)
 			info.Members = append(info.Members, GroupMemberInfo{GroupMember: member, State: state})
 			info.Worst = worstOf(info.Worst, state.Worst)
 		}
@@ -271,7 +299,8 @@ func (g *Groups) changed(answer GroupsAnswer) bool {
 	return true
 }
 
-// Refreshed publishes the groups when a collector refresh changed them (a CI verdict, a build, a tag, a member's file).
+// Refreshed evaluates the dependencies again, publishes the groups when a collector refresh changed them (a CI
+// verdict, a build, a tag, a member's file, a dependency) and tells the stale dependencies.
 func (g *Groups) Refreshed() {
 	if g == nil || g.publish == nil {
 		return
@@ -282,7 +311,7 @@ func (g *Groups) Refreshed() {
 	// Refreshes of several projects end together: one resolution at a time keeps an older model from being told last.
 	g.refreshLock.Lock()
 	defer g.refreshLock.Unlock()
-	answer, err := g.Get(GroupsRequest{})
+	answer, err := g.resolve(GroupsRequest{}, true)
 	if err != nil {
 		log.Printf("molten: resolving the project groups: %v\n", err)
 		return
@@ -290,6 +319,7 @@ func (g *Groups) Refreshed() {
 	if g.changed(answer) {
 		g.publish(answer)
 	}
+	g.tellDependencies(answer)
 }
 
 func publishGroups(answer GroupsAnswer) {

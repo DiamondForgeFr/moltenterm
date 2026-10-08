@@ -54,6 +54,7 @@ describe("notification preferences (FR-MC-019)", () => {
         expect(subjectOf("build")).toBe("builds");
         expect(subjectOf("moltenterm")).toBe("updates");
         expect(subjectOf("mod")).toBe("mods");
+        expect(subjectOf("deps")).toBe("dependencies");
         expect(subjectOf("unknown")).toBeNull();
     });
 

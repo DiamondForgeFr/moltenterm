@@ -396,54 +396,71 @@ func (c *pipelineChecker) checkIcon(icon string) {
 	}
 }
 
-// checkDependencyGlobs checks globs that git reads as `:(glob)<pattern>` from a project's root: relative, inside it,
+// dependencyGlobProblems checks globs that git reads as `:(glob)<pattern>` from a project's root: relative, inside it,
 // and well formed.
-func (c *pipelineChecker) checkDependencyGlobs(where string, field string, globs []string) {
+func dependencyGlobProblems(where string, field string, globs []string) []string {
 	if len(globs) == 0 {
-		c.errorf("%s: %s is required (at least one glob)", where, field)
-		return
+		return []string{fmt.Sprintf("%s: %s is required (at least one glob)", where, field)}
 	}
+	var problems []string
 	for _, glob := range globs {
 		trimmed := strings.TrimSpace(glob)
 		switch {
 		case trimmed == "":
-			c.errorf("%s: %s holds an empty glob", where, field)
+			problems = append(problems, fmt.Sprintf("%s: %s holds an empty glob", where, field))
 		case strings.HasPrefix(trimmed, "/") || filepath.IsAbs(trimmed) || strings.HasPrefix(trimmed, "~"):
-			c.errorf("%s: %s glob %q must be relative to the project's root", where, field, glob)
+			problems = append(problems, fmt.Sprintf("%s: %s glob %q must be relative to the project's root", where, field, glob))
 		case slices.Contains(strings.Split(filepath.ToSlash(trimmed), "/"), ".."):
-			c.errorf("%s: %s glob %q must not use ..", where, field, glob)
+			problems = append(problems, fmt.Sprintf("%s: %s glob %q must not use ..", where, field, glob))
 		case strings.HasPrefix(trimmed, ":") || strings.HasPrefix(trimmed, "!"):
-			c.errorf("%s: %s glob %q must be a plain path or glob (no git pathspec magic)", where, field, glob)
+			problems = append(problems, fmt.Sprintf("%s: %s glob %q must be a plain path or glob (no git pathspec magic)", where, field, glob))
 		default:
 			if _, err := path.Match(trimmed, ""); err != nil {
-				c.errorf("%s: %s glob %q is not a valid glob", where, field, glob)
+				problems = append(problems, fmt.Sprintf("%s: %s glob %q is not a valid glob", where, field, glob))
 			}
 		}
 	}
+	return problems
+}
+
+// DependencyWhere names a declaration in messages: its index, and the project it names.
+func DependencyWhere(index int, dep PipelineDependency) string {
+	where := fmt.Sprintf("dependson[%d]", index)
+	if project := strings.TrimSpace(dep.Project); project != "" {
+		where = fmt.Sprintf("%s (%s)", where, project)
+	}
+	return where
+}
+
+// DependencyShapeProblems is what is wrong with a declaration's shape (DS-MC-016), its sync command aside: validate
+// refuses the file for it, and Mission Control never evaluates such a declaration (FR-MC-029).
+func DependencyShapeProblems(index int, dep PipelineDependency, selfName string) []string {
+	where := DependencyWhere(index, dep)
+	var problems []string
+	project := strings.TrimSpace(dep.Project)
+	switch {
+	case project == "":
+		problems = append(problems, fmt.Sprintf("%s: project is required (the source's pipeline name)", where))
+	case SameProjectName(project, selfName):
+		problems = append(problems, fmt.Sprintf("%s: project names this project itself", where))
+	}
+	problems = append(problems, dependencyGlobProblems(where, "paths", dep.Paths)...)
+	problems = append(problems, dependencyGlobProblems(where, "output", dep.Output)...)
+	if dep.Branch != "" && (!dependencyBranchRegex.MatchString(dep.Branch) || strings.Contains(dep.Branch, "..") || strings.HasSuffix(dep.Branch, "/") || strings.HasSuffix(dep.Branch, ".lock")) {
+		problems = append(problems, fmt.Sprintf("%s: branch %q is not a branch name", where, dep.Branch))
+	}
+	return problems
 }
 
 // checkDependsOn checks the declarations' shape (DS-MC-016). Whether `project` names a member of the group depends on
 // the workspace links, so it is a state shown at run time, never a validation error.
 func (c *pipelineChecker) checkDependsOn(p *Pipeline) {
 	for i, dep := range p.DependsOn {
-		where := fmt.Sprintf("dependson[%d]", i)
-		project := strings.TrimSpace(dep.Project)
-		if project != "" {
-			where = fmt.Sprintf("%s (%s)", where, project)
-		}
-		switch {
-		case project == "":
-			c.errorf("%s: project is required (the source's pipeline name)", where)
-		case SameProjectName(project, p.Name):
-			c.errorf("%s: project names this project itself", where)
-		}
-		c.checkDependencyGlobs(where, "paths", dep.Paths)
-		c.checkDependencyGlobs(where, "output", dep.Output)
-		if dep.Branch != "" && (!dependencyBranchRegex.MatchString(dep.Branch) || strings.Contains(dep.Branch, "..") || strings.HasSuffix(dep.Branch, "/") || strings.HasSuffix(dep.Branch, ".lock")) {
-			c.errorf("%s: branch %q is not a branch name", where, dep.Branch)
+		for _, problem := range DependencyShapeProblems(i, dep, p.Name) {
+			c.errorf("%s", problem)
 		}
 		if dep.Sync != "" {
-			c.checkCommand(where+" sync", PipelineCommand{Run: dep.Sync})
+			c.checkCommand(DependencyWhere(i, dep)+" sync", PipelineCommand{Run: dep.Sync})
 		}
 	}
 }

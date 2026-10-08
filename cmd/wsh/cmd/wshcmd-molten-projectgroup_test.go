@@ -36,6 +36,7 @@ func TestFormatMoltenProjectGroup(t *testing.T) {
 				},
 				{
 					GroupMember: molten.GroupMember{Dir: "/p/site", Name: "notulia-website", Workspaces: []molten.GroupWorkspace{{Id: "s", Name: "Site"}, {Id: "u"}}},
+					State:       moltenGroupMemberState{Deps: []moltenDepState{{Project: "Notulia", SourceName: "Notulia", State: moltenDepStateStale}}},
 				},
 			},
 		},
@@ -46,7 +47,7 @@ func TestFormatMoltenProjectGroup(t *testing.T) {
 		"  Notulia (this workspace)\n    workspace: App\n    folder: /p/app\n",
 		"local CI green on develop, GitHub CI red on develop, last build gold success, release v1.2.0, newest tag v1.3.0-1; red",
 		"    workspaces: Site, unsaved workspace\n",
-		"not read yet (open the Project tab of its workspace)",
+		"not read yet (open the Project tab of its workspace)\n    dependencies: Notulia stale\n",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("missing %q in:\n%s", want, text)

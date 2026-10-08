@@ -48,7 +48,7 @@ export function attentionArrivals(entries: MoltentermNotification[], seen: Map<s
 // How a message is said: in the center with the badge and the appearance; kept already read; or not stored at all.
 export type Delivery = "notify" | "quiet" | "off";
 
-export type NotificationSubject = "agents" | "builds" | "ci" | "releases" | "updates" | "mods";
+export type NotificationSubject = "agents" | "builds" | "ci" | "releases" | "updates" | "mods" | "dependencies";
 
 // must match NotificationSubjects in pkg/molten/notifications.go
 export const NotificationSubjects: {
@@ -62,6 +62,7 @@ export const NotificationSubjects: {
     { id: "releases", label: "Releases", sources: ["release"] },
     { id: "updates", label: "MoltenTerm updates", sources: ["moltenterm"] },
     { id: "mods", label: "Mods", sources: ["mod"] },
+    { id: "dependencies", label: "Dependencies", sources: ["deps"] },
 ];
 
 export const DeliveryLabels: Record<Delivery, string> = { notify: "Notify", quiet: "Quiet", off: "Off" };

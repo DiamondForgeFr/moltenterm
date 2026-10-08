@@ -291,6 +291,13 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 		}
 		return l.groups.Get(req)
 	}
+	if command == DepsCommand {
+		var req GroupsRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.groups.Deps(req)
+	}
 	if command == WorktreePlanCommand || command == WorktreeRemoveCommand {
 		return l.handleWorktree(command, source, data)
 	}
