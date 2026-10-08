@@ -101,7 +101,7 @@ func makeDepFixture(t *testing.T) *depFixture {
 
 func (f *depFixture) evaluate(t *testing.T, dep molten.PipelineDependency) DependencyState {
 	t.Helper()
-	return EvaluateDependency(context.Background(), plainRunner, &f.group, f.site, "notulia-website", 0, dep, time.Now())
+	return EvaluateDependency(context.Background(), plainRunner, &f.group, f.site, "notulia-website", 0, dep, time.Now(), nil)
 }
 
 func siteDependency() molten.PipelineDependency {
@@ -225,12 +225,12 @@ func TestDependencyNotFound(t *testing.T) {
 		t.Fatalf("a malformed declaration: %+v", got)
 	}
 	// Outside a group no member resolves.
-	if got := EvaluateDependency(context.Background(), plainRunner, nil, f.site, "notulia-website", 0, siteDependency(), time.Now()); got.State != DepStateSourceNotFound {
+	if got := EvaluateDependency(context.Background(), plainRunner, nil, f.site, "notulia-website", 0, siteDependency(), time.Now(), nil); got.State != DepStateSourceNotFound {
 		t.Fatalf("no group: %+v", got)
 	}
 	// A project that is not a member (unlinked) is never found, even with the right name in the same folder tree.
 	alone := molten.ProjectGroup{Key: "notulia", Name: "Notulia", Members: f.group.Members[1:]}
-	if got := EvaluateDependency(context.Background(), plainRunner, &alone, f.site, "notulia-website", 0, siteDependency(), time.Now()); got.State != DepStateSourceNotFound {
+	if got := EvaluateDependency(context.Background(), plainRunner, &alone, f.site, "notulia-website", 0, siteDependency(), time.Now(), nil); got.State != DepStateSourceNotFound {
 		t.Fatalf("an unlinked source: %+v", got)
 	}
 	// The default branch is the source's trunk.
@@ -298,7 +298,7 @@ func TestGroupsDependencies(t *testing.T) {
 		t.Fatalf("one notification for the stale dependency: %+v", notified)
 	}
 	notice := notified[1].Notices[0]
-	if notice.Key != DepNotificationKey(f.site, "Notulia", 0) || notice.Source != DepNotificationSource || notice.WorkspaceId != "w-site" || notice.Kind != "warning" {
+	if notice.Key != DepNotificationKey(f.site, "Notulia") || notice.Source != DepNotificationSource || notice.WorkspaceId != "w-site" || notice.Kind != "warning" {
 		t.Fatalf("keyed by dependent and source, in the site's workspace: %+v", notice)
 	}
 	if notice.Title != "notulia-website is behind Notulia" || !strings.Contains(notice.Message, "features/live-notes.json changed on develop") ||
@@ -346,19 +346,27 @@ func TestGroupsDependencies(t *testing.T) {
 func TestDependencyNoticesKeepErrors(t *testing.T) {
 	member := GroupMemberInfo{GroupMember: molten.GroupMember{Dir: "/p/site", Name: "site"}}
 	member.State.Deps = []DependencyState{
-		{Index: 0, SourceName: "App", State: DepStateError},
-		{Index: 1, SourceName: "app", State: DepStateStale, Branch: "develop", Paths: []string{"a/*"}, Commits: []DependencyCommit{{Sha: "abc"}}},
+		{Index: 0, SourceName: "Api", State: DepStateError},
+		{Index: 1, SourceName: "app", State: DepStateStale, Branch: "develop", Paths: []string{"a/*"}, Changed: []string{"a/x"},
+			Commits: []DependencyCommit{{Sha: "abc", Time: 2000, Tickets: []string{"1"}}}},
 		{Index: 2, SourceName: "Other", State: DepStateSourceNotFound},
+		{Index: 3, SourceName: "App", State: DepStateUncommitted, Branch: "main", Paths: []string{"b/*"}, Changed: []string{"b/y"}, Sync: "make sync",
+			Synced: &DependencyCommit{Sha: "s", Time: 500}, Commits: []DependencyCommit{{Sha: "def", Time: 3000, Tickets: []string{"2"}}, {Sha: "abc", Time: 2000}}},
 	}
 	notices := dependencyNotices(GroupsAnswer{Groups: []GroupInfo{{Members: []GroupMemberInfo{member}}}})
-	if !reflect.DeepEqual(notices.Keep, []string{DepNotificationKey("/p/site", "App", 0)}) {
+	if !reflect.DeepEqual(notices.Keep, []string{DepNotificationKey("/p/site", "Api")}) {
 		t.Fatalf("a dependency that could not be read keeps its notification: %+v", notices.Keep)
 	}
-	if len(notices.Notices) != 1 || notices.Notices[0].Key != DepNotificationKey("/p/site", "app", 1) || len(notices.Notices[0].Actions) != 1 {
-		t.Fatalf("a second declaration on the same source has its own key; no Sync without a sync command: %+v", notices.Notices)
+	if len(notices.Notices) != 1 || notices.Notices[0].Key != DepNotificationKey("/p/site", "app") {
+		t.Fatalf("one notification per dependent and source: %+v", notices.Notices)
 	}
-	if !strings.Contains(notices.Notices[0].Message, "never synced") {
-		t.Fatalf("never synced: %s", notices.Notices[0].Message)
+	notice := notices.Notices[0]
+	if !strings.Contains(notice.Message, "never synced") || !strings.Contains(notice.Message, "a/x, b/y") || !strings.Contains(notice.Message, "2 commits") ||
+		!strings.Contains(notice.Message, "#2, #1") || !strings.Contains(notice.Message, "develop, main") {
+		t.Fatalf("both declarations told together: %s", notice.Message)
+	}
+	if len(notice.Actions) != 2 || notice.Actions[0].Args["index"] != 3 || !notice.KeepDismissed {
+		t.Fatalf("Sync runs the declaration that has a sync command: %+v", notice)
 	}
 }
 
@@ -407,4 +415,79 @@ func TestDependencyCost(t *testing.T) {
 		t.Fatalf("one dependency took %v on %d commits", took, commits)
 	}
 	t.Logf("one dependency on %d commits: %v", commits, took)
+}
+
+// While none of the commits a dependency read moved, a refresh reads no history again: only the worktree of a flagged
+// one (NFR-MC-008).
+func TestDependencyReusesUnmovedHistory(t *testing.T) {
+	f := makeDepFixture(t)
+	dep := siteDependency()
+	calls := map[string]int{}
+	counting := func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
+		for _, arg := range args {
+			if !strings.HasPrefix(arg, "-") && arg != "core.quotePath=false" {
+				calls[arg]++
+				break
+			}
+		}
+		return plainRunner(ctx, dir, name, args...)
+	}
+	evaluate := func(prev *DependencyState) DependencyState {
+		return EvaluateDependency(context.Background(), counting, &f.group, f.site, "notulia-website", 0, dep, time.Now(), prev)
+	}
+	first := evaluate(nil)
+	if first.State != DepStateStale || calls["log"] == 0 {
+		t.Fatalf("first evaluation reads the history: %+v %v", first.State, calls)
+	}
+	clear(calls)
+	depWrite(t, f.site, "src/data/features/live-notes.json", `{"plan": "free"}`)
+	again := evaluate(&first)
+	if again.State != DepStateUncommitted || calls["log"] != 0 || calls["rev-list"] != 0 || calls["status"] != 1 || len(again.Commits) != 1 {
+		t.Fatalf("nothing moved: only the worktree is read: %+v %v", again, calls)
+	}
+	clear(calls)
+	depCommit(t, f.clock, f.site, "chore: sync", nil)
+	if got := evaluate(&again); got.State != DepStateInSync || calls["log"] == 0 {
+		t.Fatalf("the trunk moved: read again: %+v %v", got, calls)
+	}
+}
+
+func TestParseDepCommitNeedsASha(t *testing.T) {
+	if _, ok := parseDepCommit("1111111111111111111111111111111111111111\t1\tFAKE #999"); !ok {
+		t.Fatal("a full sha is read")
+	}
+	if _, ok := parseDepCommit("forged\t1\tFAKE #999"); ok {
+		t.Fatal("a line that is not a commit is refused")
+	}
+}
+
+func TestGroupsRefreshCoalesces(t *testing.T) {
+	g := &Groups{}
+	if !g.claimRefresh() || g.claimRefresh() || g.claimRefresh() {
+		t.Fatal("one pass at a time")
+	}
+	if !g.refreshNext() {
+		t.Fatal("the refreshes asked during a pass make one more pass")
+	}
+	if g.refreshNext() || !g.claimRefresh() {
+		t.Fatal("then the pass ends, and the next refresh starts one")
+	}
+}
+
+func TestGroupsPublishIgnoresCheckTimes(t *testing.T) {
+	f := makeDepFixture(t)
+	var notified []DependencyNotices
+	groups := depGroups(t, f, &notified)
+	published := 0
+	groups.publish = func(GroupsAnswer) { published++ }
+	tick := time.Now()
+	groups.now = func() time.Time {
+		tick = tick.Add(time.Second)
+		return tick
+	}
+	groups.Refreshed()
+	groups.Refreshed()
+	if published != 1 || len(notified) != 1 {
+		t.Fatalf("a pass that only read the dependencies again tells nothing: %d published, %d notified", published, len(notified))
+	}
 }

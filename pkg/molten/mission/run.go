@@ -45,6 +45,18 @@ func commandPath() string {
 	return bin + string(os.PathListSeparator) + path
 }
 
+type runEnvKey struct{}
+
+// WithRunEnv adds variables to the environment of the commands ExecRunner runs with this context.
+func WithRunEnv(ctx context.Context, vars ...string) context.Context {
+	return context.WithValue(ctx, runEnvKey{}, append(append([]string{}, runEnvOf(ctx)...), vars...))
+}
+
+func runEnvOf(ctx context.Context) []string {
+	vars, _ := ctx.Value(runEnvKey{}).([]string)
+	return vars
+}
+
 func commandEnv() []string {
 	env := []string{}
 	for _, kv := range os.Environ() {
@@ -82,7 +94,7 @@ func ExecRunner(ctx context.Context, dir string, name string, args ...string) ([
 	// PATH and keeps that failure in cmd.Err, which setting cmd.Path afterwards does not clear.
 	cmd := exec.CommandContext(ctx, program, args...)
 	cmd.Dir = dir
-	cmd.Env = commandEnv()
+	cmd.Env = append(commandEnv(), runEnvOf(ctx)...)
 	var stdout, stderr limitedBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

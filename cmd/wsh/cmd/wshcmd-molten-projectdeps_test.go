@@ -61,4 +61,12 @@ func TestFormatMoltenProjectDeps(t *testing.T) {
 	if out = formatMoltenProjectDeps(MoltenProjectDepsStatus{}); !strings.Contains(out, "not linked") {
 		t.Fatalf("not linked:\n%s", out)
 	}
+
+	forged := stale
+	forged.Commits = []moltenDepCommit{{Sha: "cccccccccc", Subject: "feat: x\x1b]52;c;ZWNobyBoaQ==\x07 done"}}
+	forged.Uncommitted = []string{"src/a\nfake line.json"}
+	forged.State = moltenDepStateUncommitted
+	if out = formatMoltenDep(forged); strings.ContainsAny(out, "\x1b\x07") || !strings.Contains(out, "feat: x]52;c;ZWNobyBoaQ== done") || !strings.Contains(out, "src/afake line.json") {
+		t.Fatalf("control characters from the repository are not printed:\n%q", out)
+	}
 }

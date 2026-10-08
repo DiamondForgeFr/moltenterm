@@ -38,12 +38,15 @@ const (
 	maxDepCommits      = 20
 	maxDepChangedPaths = 50
 	maxDepUncommitted  = 50
-	depEvaluateTimeout = 10 * time.Second
+	// Each dependency on its own: a slow one does not use up the others' time.
+	depEvaluateTimeout = 5 * time.Second
 	depCommitFormat    = "--format=%H%x09%ct%x09%s"
-	depRecordSeparator = "\x1e"
+	// A commit subject never holds a NUL, so it cannot forge a record.
+	depRecordSeparator = "\x00"
 )
 
 var depTicketRegex = regexp.MustCompile(`#(\d+)\b`)
+var depShaRegex = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
 
 type DependencyCommit struct {
 	Sha     string `json:"sha"`
@@ -81,6 +84,9 @@ type DependencyState struct {
 	// While stale: the output files changed and not committed in the dependent ("synced, not committed").
 	Uncommitted []string `json:"uncommitted,omitempty"`
 	CheckedAt   int64    `json:"checkedat,omitempty"`
+	// The commits the evaluation read (the source's watched ref, the dependent's trunks): while none moves, the history
+	// is not read again.
+	inputs string
 }
 
 // Flagged tells a dependency that holds its member's amber flag: stale, or synced and not committed yet.
@@ -127,12 +133,12 @@ func safeRef(ref string) bool {
 	return ref != "" && !strings.HasPrefix(ref, "-")
 }
 
-// depRefs are the branches of a repository that exist, read in one git call: each git call costs a process, and the
-// check has 200 ms per dependency (NFR-MC-008).
-type depRefs map[string]bool
+// depRefs are the branches of a repository that exist, with the commit each points at, read in one git call: each
+// git call costs a process, and the check has 200 ms per dependency (NFR-MC-008).
+type depRefs map[string]string
 
 func (g *gitReader) readDepRefs(names ...string) (depRefs, error) {
-	args := []string{"for-each-ref", "--format=%(refname)"}
+	args := []string{"for-each-ref", "--format=%(refname)%09%(objectname)"}
 	for _, name := range names {
 		if safeRef(name) {
 			args = append(args, "refs/heads/"+name, "refs/remotes/origin/"+name)
@@ -147,22 +153,22 @@ func (g *gitReader) readDepRefs(names ...string) (depRefs, error) {
 		return nil, err
 	}
 	for _, line := range strings.Split(out, "\n") {
-		if line = strings.TrimSpace(line); line != "" {
-			refs[line] = true
+		if ref, sha, ok := strings.Cut(strings.TrimSpace(line), "\t"); ok && ref != "" {
+			refs[ref] = sha
 		}
 	}
 	return refs, nil
 }
 
 func (r depRefs) local(name string) string {
-	if safeRef(name) && r["refs/heads/"+name] {
+	if safeRef(name) && r["refs/heads/"+name] != "" {
 		return "refs/heads/" + name
 	}
 	return ""
 }
 
 func (r depRefs) remote(name string) string {
-	if safeRef(name) && r["refs/remotes/origin/"+name] {
+	if safeRef(name) && r["refs/remotes/origin/"+name] != "" {
 		return "refs/remotes/origin/" + name
 	}
 	return ""
@@ -205,6 +211,9 @@ func parseDepCommit(line string) (DependencyCommit, bool) {
 	if err != nil {
 		return DependencyCommit{}, false
 	}
+	if !depShaRegex.MatchString(parts[0]) {
+		return DependencyCommit{}, false
+	}
 	return DependencyCommit{Sha: parts[0], Time: seconds * 1000, Subject: parts[2], Tickets: CommitTickets(parts[2])}, true
 }
 
@@ -244,7 +253,8 @@ func (g *gitReader) landedBefore(ref string, at int64) (string, error) {
 // newest first, merges aside, with the paths each changed. The range starts from what ref held at that time, not from
 // the commits' own dates: a feature commit older than the sync and merged after it is listed.
 func (g *gitReader) commitsSince(ref string, specs []string, after int64) ([]DependencyCommit, bool, []string, error) {
-	args := []string{"log", "-n", strconv.Itoa(maxDepCommits + 1), "--no-merges", "--name-only", "--format=" + depRecordSeparator + "%H%x09%ct%x09%s", ref}
+	args := []string{"-c", "core.quotePath=false", "log", "-n", strconv.Itoa(maxDepCommits + 1), "--no-merges", "--name-only",
+		"--format=%x00%H%x09%ct%x09%s", ref}
 	if after > 0 {
 		base, err := g.landedBefore(ref, after)
 		if err != nil {
@@ -306,8 +316,8 @@ func (g *gitReader) uncommitted(specs []string) ([]string, error) {
 			continue
 		}
 		files = append(files, entry[3:])
-		// A rename or copy is followed by its original path.
-		if entry[0] == 'R' || entry[0] == 'C' {
+		// A rename or copy, in the index or in the worktree, is followed by its original path.
+		if strings.ContainsAny(entry[:2], "RC") {
 			i++
 		}
 		if len(files) == maxDepUncommitted {
@@ -317,32 +327,45 @@ func (g *gitReader) uncommitted(specs []string) ([]string, error) {
 	return files, nil
 }
 
-// lastSync is the dependent's newest commit touching output on its trunk, local or remote: the newest wins, so a sync
-// committed and not pushed yet counts, and so does one pushed from another checkout and fetched.
-func (g *gitReader) lastSync(specs []string) (*DependencyCommit, string, error) {
+// dependentTrunk is the dependent's trunk and its refs, local and on origin.
+func (g *gitReader) dependentTrunk() (string, []string, error) {
 	candidates := trunkCandidates(g.dir)
 	refs, err := g.readDepRefs(candidates...)
 	if err != nil {
-		return nil, "", err
+		return "", nil, err
 	}
 	trunk := refs.trunk(candidates)
 	if trunk == "" {
-		return nil, "", fmt.Errorf("the project has no trunk branch (develop, main or master, or branches.trunk)")
+		return "", nil, fmt.Errorf("the project has no trunk branch (develop, main or master, or branches.trunk)")
 	}
-	var newest *DependencyCommit
+	var trunkRefs []string
+	seen := map[string]bool{}
 	for _, ref := range []string{refs.local(trunk), refs.remote(trunk)} {
-		if ref == "" {
+		// The local trunk and origin's often point at the same commit: its history is read once.
+		if ref == "" || seen[refs[ref]] {
 			continue
 		}
+		seen[refs[ref]] = true
+		trunkRefs = append(trunkRefs, ref+"\t"+refs[ref])
+	}
+	return trunk, trunkRefs, nil
+}
+
+// lastSync is the dependent's newest commit touching output on its trunk refs, local or remote: the newest wins, so a
+// sync committed and not pushed yet counts, and so does one pushed from another checkout and fetched.
+func (g *gitReader) lastSync(trunkRefs []string, specs []string) (*DependencyCommit, error) {
+	var newest *DependencyCommit
+	for _, entry := range trunkRefs {
+		ref, _, _ := strings.Cut(entry, "\t")
 		commit, err := g.newestTouching(ref, specs, false)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		if commit != nil && (newest == nil || commit.Time > newest.Time) {
 			newest = commit
 		}
 	}
-	return newest, trunk, nil
+	return newest, nil
 }
 
 // findSource resolves a declaration's project among the other members of the dependent's group (FR-MC-029: within
@@ -359,8 +382,9 @@ func findSource(group *molten.ProjectGroup, dependentDir string, project string)
 	return molten.GroupMember{}, fmt.Sprintf("no other project linked to a workspace declares the group %s with the name %q", group.Name, strings.TrimSpace(project))
 }
 
-// EvaluateDependency evaluates one declaration of the dependent, on its own (FR-MC-029-AC8).
-func EvaluateDependency(ctx context.Context, run Runner, group *molten.ProjectGroup, dependentDir string, dependentName string, index int, dep molten.PipelineDependency, now time.Time) DependencyState {
+// EvaluateDependency evaluates one declaration of the dependent, on its own (FR-MC-029-AC8). prev is its last
+// evaluation, if any: while none of the commits it read moved, the history is not read again.
+func EvaluateDependency(ctx context.Context, run Runner, group *molten.ProjectGroup, dependentDir string, dependentName string, index int, dep molten.PipelineDependency, now time.Time, prev *DependencyState) DependencyState {
 	state := DependencyState{Index: index, Project: strings.TrimSpace(dep.Project), Paths: dep.Paths, Output: dep.Output, Sync: dep.Sync, Branch: dep.Branch, CheckedAt: now.UnixMilli()}
 	if problems := molten.DependencyShapeProblems(index, dep, dependentName); len(problems) > 0 {
 		state.State, state.Problem = DepStateInvalid, strings.Join(problems, "; ")
@@ -376,6 +400,8 @@ func EvaluateDependency(ctx context.Context, run Runner, group *molten.ProjectGr
 		state.State, state.Problem = DepStateSourceNotFound, fmt.Sprintf("the folder of %s no longer exists: %s", source.Name, source.Dir)
 		return state
 	}
+	// A partial clone would fetch the trees it lacks from its remote: the check makes no network call and writes nothing.
+	ctx = WithRunEnv(ctx, "GIT_NO_LAZY_FETCH=1")
 	src := &gitReader{ctx: ctx, run: run, dir: source.Dir}
 	candidates := trunkCandidates(source.Dir)
 	refs, err := src.readDepRefs(append([]string{state.Branch}, candidates...)...)
@@ -396,20 +422,35 @@ func EvaluateDependency(ctx context.Context, run Runner, group *molten.ProjectGr
 		return state
 	}
 	state.Ref = shortRef(sourceRef)
+	dependent := &gitReader{ctx: ctx, run: run, dir: dependentDir}
+	trunk, trunkRefs, err := dependent.dependentTrunk()
+	if err != nil {
+		state.State, state.Problem = DepStateError, fmt.Sprintf("reading this project's history: %v", err)
+		return state
+	}
+	state.Trunk = trunk
+	state.inputs = strings.Join(append([]string{sourceRef, refs[sourceRef]}, trunkRefs...), "\n")
+	outputSpecs := depPathspecs(dep.Output)
+	if prev != nil && prev.inputs == state.inputs && (prev.State == DepStateInSync || prev.Flagged()) {
+		reused := *prev
+		reused.CheckedAt = state.CheckedAt
+		if !reused.Flagged() {
+			return reused
+		}
+		return withUncommitted(reused, dependent, outputSpecs)
+	}
 	sourceCommit, err := src.newestTouching(sourceRef, depPathspecs(dep.Paths), true)
 	if err != nil {
 		state.State, state.Problem = DepStateError, fmt.Sprintf("reading %s's history: %v", source.Name, err)
 		return state
 	}
 	state.Source = sourceCommit
-	dependent := &gitReader{ctx: ctx, run: run, dir: dependentDir}
-	outputSpecs := depPathspecs(dep.Output)
-	synced, trunk, err := dependent.lastSync(outputSpecs)
+	synced, err := dependent.lastSync(trunkRefs, outputSpecs)
 	if err != nil {
 		state.State, state.Problem = DepStateError, fmt.Sprintf("reading this project's history: %v", err)
 		return state
 	}
-	state.Synced, state.Trunk = synced, trunk
+	state.Synced = synced
 	// No commit of the source ever touched paths: there is nothing to read yet, so nothing to be behind on.
 	if sourceCommit == nil || (synced != nil && sourceCommit.Time <= synced.Time) {
 		state.State = DepStateInSync
@@ -424,7 +465,17 @@ func EvaluateDependency(ctx context.Context, run Runner, group *molten.ProjectGr
 		state.State, state.Problem = DepStateError, fmt.Sprintf("reading %s's history: %v", source.Name, err)
 		return state
 	}
-	state.State = DepStateStale
+	// A change made only by a merge (a conflict resolved in paths) lists no other commit: the merge itself is named.
+	if len(state.Commits) == 0 {
+		state.Commits = []DependencyCommit{*sourceCommit}
+	}
+	return withUncommitted(state, dependent, outputSpecs)
+}
+
+// withUncommitted reads a flagged dependency's output in the worktree: changed and not committed, it is "synced, not
+// committed"; the flag holds until the commit lands.
+func withUncommitted(state DependencyState, dependent *gitReader, outputSpecs []string) DependencyState {
+	state.State, state.Uncommitted = DepStateStale, nil
 	uncommitted, err := dependent.uncommitted(outputSpecs)
 	if err == nil && len(uncommitted) > 0 {
 		state.State, state.Uncommitted = DepStateUncommitted, uncommitted
@@ -446,6 +497,8 @@ func (g *Groups) cachedDep(key string) (DependencyState, bool) {
 	return state, ok
 }
 
+// storeDeps keeps a member's evaluations: a newer one already stored (a concurrent refresh) is never replaced by an
+// older one, and the member's declarations that are gone are dropped.
 func (g *Groups) storeDeps(dependentDir string, states map[string]DependencyState) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
@@ -461,7 +514,22 @@ func (g *Groups) storeDeps(dependentDir string, states map[string]DependencyStat
 		}
 	}
 	for key, state := range states {
+		if stored, ok := g.deps[key]; ok && stored.CheckedAt > state.CheckedAt {
+			continue
+		}
 		g.deps[key] = state
+	}
+}
+
+// pruneDeps drops the evaluations of the projects that are no longer members of any group.
+func (g *Groups) pruneDeps(members map[string]bool) {
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	for key := range g.deps {
+		dir, _, _ := strings.Cut(key, "\x00")
+		if !members[dir] {
+			delete(g.deps, key)
+		}
 	}
 }
 
@@ -475,22 +543,35 @@ func (g *Groups) memberDeps(group *molten.ProjectGroup, member molten.GroupMembe
 	if name == "" {
 		name = member.Name
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), depEvaluateTimeout)
-	defer cancel()
 	states := make([]DependencyState, 0, len(declared))
 	cache := map[string]DependencyState{}
+	evaluated := false
 	for i, dep := range declared {
 		source, _ := findSource(group, member.Dir, dep.Project)
 		key := depCacheKey(member.Dir, i, dep, source.Dir)
-		state, ok := g.cachedDep(key)
+		cached, ok := g.cachedDep(key)
+		state := cached
 		if fresh || !ok {
-			state = EvaluateDependency(ctx, g.run, group, member.Dir, name, i, dep, g.now())
+			var prev *DependencyState
+			if ok {
+				prev = &cached
+			}
+			state = g.evaluate(group, member.Dir, name, i, dep, prev)
+			evaluated = true
 		}
 		cache[key] = state
 		states = append(states, state)
 	}
-	g.storeDeps(member.Dir, cache)
+	if evaluated {
+		g.storeDeps(member.Dir, cache)
+	}
 	return states
+}
+
+func (g *Groups) evaluate(group *molten.ProjectGroup, dir string, name string, index int, dep molten.PipelineDependency, prev *DependencyState) DependencyState {
+	ctx, cancel := context.WithTimeout(context.Background(), depEvaluateTimeout)
+	defer cancel()
+	return EvaluateDependency(ctx, g.run, group, dir, name, index, dep, g.now(), prev)
 }
 
 // Deps evaluates afresh the dependencies of the project at dir (`molten project deps`). A project in no group still

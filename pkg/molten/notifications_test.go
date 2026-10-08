@@ -85,6 +85,27 @@ func TestNotificationResolveExcept(t *testing.T) {
 	}
 }
 
+func TestNotificationKeepDismissed(t *testing.T) {
+	now := time.UnixMilli(9000)
+	input := NotificationInput{Key: "molten:deps:/site:app", Source: "deps", Kind: "warning", Title: "site is behind app", Message: "m", KeepDismissed: true}
+	meta := waveobj.MetaMapType{
+		"molten:notif:a": notif(map[string]any{"source": "deps", "key": input.Key, "kind": "warning", "title": input.Title, "message": "m", "updated": float64(5000), "archived": float64(6000)}),
+	}
+	if update := NotificationPublishUpdate(meta, input, now, "new"); len(update) != 0 {
+		t.Fatalf("an archived notification saying the same stays archived: %+v", update)
+	}
+	changed := input
+	changed.Message = "a later change"
+	if update := NotificationPublishUpdate(meta, changed, now, "new"); update["molten:notif:new"] == nil {
+		t.Fatalf("a new situation is told again: %+v", update)
+	}
+	plain := input
+	plain.KeepDismissed = false
+	if update := NotificationPublishUpdate(meta, plain, now, "new"); update["molten:notif:new"] == nil {
+		t.Fatalf("other publishers open a new episode: %+v", update)
+	}
+}
+
 func TestNotificationRetention(t *testing.T) {
 	now := time.UnixMilli(NotificationClosedRetention.Milliseconds() + 10000)
 	recent := float64(now.UnixMilli() - 100)
