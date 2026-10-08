@@ -1,0 +1,232 @@
+/* Copyright 2026, DiamondForge
+   SPDX-License-Identifier: Apache-2.0 */
+
+/* Edge split handles (FR-SHELL-042, DS-SHELL-065): an overlay of the block frame that takes no pointer, except the
+   shown bud, the webview catchers and the whole overlay while a drag is in progress. Nothing here changes the size or
+   the place of anything in the panel (NFR-SHELL-023). */
+.molten-split-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    pointer-events: none;
+    overflow: hidden;
+    border-radius: var(--block-border-radius);
+    /* The bud is the rail bud's droplet (#365, DS-SHELL-061), tinted by the workspace accent so it reads over a
+       terminal or a page; the goo threshold needs an opaque fill. */
+    --molten-split-bud-fill: color-mix(in srgb, var(--mt-accent) 38%, var(--color-background));
+}
+
+.molten-split-overlay-dragging {
+    pointer-events: auto;
+}
+
+.molten-split-overlay[data-dragging="right"] {
+    cursor: col-resize;
+}
+
+.molten-split-overlay[data-dragging="down"] {
+    cursor: row-resize;
+}
+
+.molten-split-catcher {
+    position: absolute;
+    pointer-events: auto;
+}
+
+.molten-split-preview {
+    position: absolute;
+    pointer-events: none;
+    background-color: color-mix(in srgb, var(--mt-accent) 10%, transparent);
+}
+
+.molten-split-preview[data-edge="right"] {
+    box-shadow: inset 2px 0 0 var(--mt-accent);
+}
+
+.molten-split-preview[data-edge="down"] {
+    box-shadow: inset 0 2px 0 var(--mt-accent);
+}
+
+.molten-split-bud {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    pointer-events: none;
+}
+
+.molten-split-bud[data-edge="right"] {
+    right: 0;
+    top: calc(50% - 16px);
+}
+
+.molten-split-bud[data-edge="down"] {
+    bottom: 0;
+    left: calc(50% - 16px);
+}
+
+.molten-split-bud-goo {
+    position: absolute;
+    inset: -6px;
+}
+
+.molten-split-bud-tile,
+.molten-split-bud-stub,
+.molten-split-bud-drop {
+    position: absolute;
+    border-radius: 9999px;
+    background-color: var(--molten-split-bud-fill);
+}
+
+/* Coordinates are in the goo layer, 6 px larger than the bud on every side. */
+.molten-split-bud[data-edge="right"] .molten-split-bud-tile {
+    right: 6px;
+    top: 4px;
+    width: 4px;
+    height: 36px;
+    opacity: 0;
+    transition: opacity 150ms ease-in 60ms;
+}
+
+.molten-split-bud[data-edge="down"] .molten-split-bud-tile {
+    bottom: 6px;
+    left: 4px;
+    width: 36px;
+    height: 4px;
+    opacity: 0;
+    transition: opacity 150ms ease-in 60ms;
+}
+
+.molten-split-bud[data-edge="right"] .molten-split-bud-stub {
+    right: 8px;
+    top: 16px;
+    width: 12px;
+    height: 12px;
+    translate: 4px 0;
+}
+
+.molten-split-bud[data-edge="down"] .molten-split-bud-stub {
+    bottom: 8px;
+    left: 16px;
+    width: 12px;
+    height: 12px;
+    translate: 0 4px;
+}
+
+.molten-split-bud[data-edge="right"] .molten-split-bud-drop {
+    right: 18px;
+    top: 14px;
+    width: 16px;
+    height: 16px;
+    translate: 12px 0;
+}
+
+.molten-split-bud[data-edge="down"] .molten-split-bud-drop {
+    bottom: 18px;
+    left: 14px;
+    width: 16px;
+    height: 16px;
+    translate: 0 12px;
+}
+
+.molten-split-bud-stub {
+    scale: 0;
+    transition:
+        translate 100ms ease-out,
+        scale 90ms ease-in 120ms;
+}
+
+.molten-split-bud-drop {
+    scale: 0;
+    transition:
+        translate 180ms ease-in,
+        scale 120ms ease-in 90ms;
+}
+
+.molten-split-bud[data-shown] .molten-split-bud-tile {
+    opacity: 1;
+    transition: opacity 150ms ease-out;
+}
+
+.molten-split-bud[data-shown] .molten-split-bud-stub {
+    translate: 0 0;
+    scale: 1;
+    transition:
+        scale 90ms ease-out,
+        translate 140ms ease-out 80ms;
+}
+
+.molten-split-bud[data-shown] .molten-split-bud-drop {
+    translate: 0 0;
+    scale: 1;
+    transition:
+        translate 220ms cubic-bezier(0.3, 0.7, 0.3, 1.05) 20ms,
+        scale 200ms ease-out 20ms;
+}
+
+/* The target: 16 x 24 px over the drop, only while the bud is out. */
+.molten-split-bud-hit {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-primary);
+    font-size: 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 80ms ease-in;
+}
+
+.molten-split-bud[data-edge="right"] .molten-split-bud-hit {
+    right: 12px;
+    top: 4px;
+    width: 16px;
+    height: 24px;
+}
+
+.molten-split-bud[data-edge="down"] .molten-split-bud-hit {
+    bottom: 12px;
+    left: 4px;
+    width: 24px;
+    height: 16px;
+}
+
+.molten-split-bud[data-shown] .molten-split-bud-hit {
+    opacity: 1;
+    pointer-events: auto;
+    transition: opacity 110ms ease-out 140ms;
+}
+
+.molten-split-bud-hit:hover .molten-split-bud-glyph {
+    color: var(--mt-accent);
+    filter: brightness(1.6);
+}
+
+/* Reduced motion: no division; the settled droplet fades in and out. */
+.molten-split-bud[data-reduced-motion] .molten-split-bud-stub,
+.molten-split-bud[data-reduced-motion] .molten-split-bud-drop {
+    translate: none;
+    scale: none;
+    transition: none;
+}
+
+.molten-split-bud[data-reduced-motion] .molten-split-bud-tile {
+    opacity: 1;
+    transition: none;
+}
+
+.molten-split-bud[data-reduced-motion] .molten-split-bud-goo {
+    opacity: 0;
+    transition: opacity 120ms linear;
+}
+
+.molten-split-bud[data-reduced-motion][data-shown] .molten-split-bud-goo {
+    opacity: 1;
+}
+
+.molten-split-bud[data-reduced-motion] .molten-split-bud-hit,
+.molten-split-bud[data-reduced-motion][data-shown] .molten-split-bud-hit {
+    transition: opacity 120ms linear;
+}

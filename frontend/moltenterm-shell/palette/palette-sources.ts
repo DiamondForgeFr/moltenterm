@@ -5,9 +5,13 @@
 // panels (widgets.json), recent folders (FR-SHELL-009) and workspace actions. Pure, so the rules are tested without
 // the app.
 
+import { CompanionTargetMetaKey, MoltentermCompanionView } from "../companion/companion-model";
+import { MoltentermProjectView } from "../project/project-model";
+import { MoltentermSessionsView } from "../sessions/sessions-model";
+import { panelKindRank, terminalBlockDefFrom } from "../split/split-model";
 import { AgentCopyProfiles } from "../term-copy/agent-copy-profiles";
 import { updateAllDetail } from "../termupdate/termupdate-model";
-import { PaletteEntry, PaletteGroupId } from "./palette-model";
+import { PaletteEntry, PaletteGroupId, PickerGroupOrder, shortestSelectingPrefix } from "./palette-model";
 
 // Agent presets live with Wave's presets, under their own prefix: defaults in pkg/wconfig/defaultconfig/presets/
 // agents.json, the user's in presets.json or presets/*.json of the config folder (a mod can ship one later).
@@ -21,7 +25,7 @@ export const MaxRecentFolders = 8;
 const PanelNames: Record<string, string> = {
     "defwidget@terminal": "Terminal",
     "defwidget@files": "Files",
-    "defwidget@web": "Web",
+    "defwidget@web": "Browser",
     "defwidget@cicd": "CI/CD",
     "defwidget@sysinfo": "System info",
     "defwidget@processviewer": "Processes",
@@ -55,6 +59,19 @@ export type PaletteSourceInput = {
     hasBrowserPanel?: boolean;
     // How many terminals still run with an older MoltenTerm shell environment (FR-SHELL-041).
     outdatedTerminals?: number;
+    // The palette is a split's picker (FR-SHELL-042): the panel the split came from, and the keys that make a split.
+    picker?: PickerSource;
+    // The shortcuts sheet's keys, shown on its entry.
+    shortcutsHint?: string;
+};
+
+export type PickerSource = {
+    blockId: string;
+    meta: MetaType;
+    // The split's own keys ("⌘D"), the start of every key path.
+    splitKeys: string;
+    // The companion's global shortcut ("⇧⌘J").
+    companionKeys?: string;
 };
 
 function str(value: unknown): string {
@@ -283,7 +300,108 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         keywords: ["config", "preferences"],
         run: { kind: "settings" },
     });
+    rtn.push(shortcutsEntry());
     return rtn;
+}
+
+// The shortcuts sheet (FR-SHELL-042-AC8): the palette names it, with its keys.
+export function shortcutsEntry(hint?: string): PaletteEntry {
+    return {
+        id: "action:shortcuts",
+        group: "actions",
+        label: "Keyboard shortcuts",
+        icon: "keyboard",
+        hint: hint || undefined,
+        keywords: ["keys", "keybindings", "hotkeys", "help", "cheat sheet"],
+        run: { kind: "shortcuts" },
+    };
+}
+
+// The panel kinds a split's picker offers first (DS-SHELL-066), in a fixed order: the configured panels, with the
+// terminal and the file browser opened where the source panel is, then Mission Control's overview when the workspace
+// is linked to a project, the source terminal's companion, and Sessions.
+export function pickerPanelEntries(
+    widgets: { [key: string]: WidgetConfigType },
+    workspaceId: string,
+    source: PickerSource,
+    projectLinked = false
+): PaletteEntry[] {
+    const sourceMeta = source?.meta ?? {};
+    const cwd = sourceMeta.view === "term" ? sourceMeta["cmd:cwd"] : null;
+    const panels = panelEntries(widgets, workspaceId).map((entry): PaletteEntry => {
+        const view = entry.run.kind === "widget" ? entry.run.blockdef?.meta?.view : null;
+        if (view === "term") {
+            return {
+                ...entry,
+                detail: cwd || entry.detail,
+                run: { kind: "widget", blockdef: terminalBlockDefFrom(sourceMeta) },
+            };
+        }
+        if (view === "preview" && cwd) {
+            const meta: MetaType = { view: "preview", file: cwd };
+            if (sourceMeta.connection != null) {
+                meta.connection = sourceMeta.connection;
+            }
+            return { ...entry, detail: cwd, run: { kind: "widget", blockdef: { meta } } };
+        }
+        return entry;
+    });
+    if (projectLinked) {
+        panels.push({
+            id: "panel:missioncontrol",
+            group: "panels",
+            label: "Mission Control",
+            detail: "the project overview",
+            icon: "gauge",
+            keywords: ["project", "overview", "dashboard"],
+            run: { kind: "widget", blockdef: { meta: { view: MoltentermProjectView } } },
+        });
+    }
+    if (sourceMeta.view === "term" && source?.blockId) {
+        panels.push({
+            id: "panel:companion",
+            group: "panels",
+            label: "Companion",
+            detail: "the agent of this terminal",
+            icon: "book-open",
+            shortcut: source.companionKeys || undefined,
+            keywords: ["agent", "companion"],
+            run: {
+                kind: "widget",
+                blockdef: {
+                    meta: { view: MoltentermCompanionView, [CompanionTargetMetaKey]: source.blockId } as MetaType,
+                },
+            },
+        });
+    }
+    panels.push({
+        id: "panel:sessions",
+        group: "panels",
+        label: "Sessions",
+        detail: "terminals and agents still running",
+        icon: "layer-group",
+        keywords: ["durable", "running", "ssh"],
+        run: { kind: "widget", blockdef: { meta: { view: MoltentermSessionsView } } },
+    });
+    const viewOf = (e: PaletteEntry) => (e.run.kind === "widget" ? e.run.blockdef?.meta?.view : "");
+    return panels
+        .map((entry, order) => ({ entry, order, rank: panelKindRank(viewOf(entry)) }))
+        .sort((a, b) => a.rank - b.rank || a.order - b.order)
+        .map((r) => r.entry);
+}
+
+// Each panel row of the picker shows how to reach it: the split's keys, the start of its name that selects it, Enter.
+export function withKeyPaths(entries: PaletteEntry[], splitKeys: string): PaletteEntry[] {
+    return entries.map((entry) => {
+        if (entry.group !== "panels") {
+            return entry;
+        }
+        const prefix = shortestSelectingPrefix(entries, entry, PickerGroupOrder);
+        if (prefix == null) {
+            return entry;
+        }
+        return { ...entry, keyPath: [splitKeys, prefix, "↵"].filter((p) => p).join("  ") };
+    });
 }
 
 // The agents' own copy commands (FR-SHELL-017): Claude Code's /copy puts its last answer on the clipboard through
@@ -340,15 +458,23 @@ export function termUpdateEntries(count: number): PaletteEntry[] {
 
 export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
     const folders = recentFolderList(input.folder, input.recentFolders, input.otherFolders);
-    return [
+    const panels =
+        input.picker != null
+            ? pickerPanelEntries(input.widgets, input.workspaceId, input.picker, input.projectLinked)
+            : panelEntries(input.widgets, input.workspaceId);
+    const actions = actionEntries(input.workspaces, input.projectLinked).map((e) =>
+        e.id === "action:shortcuts" && input.shortcutsHint ? { ...e, hint: input.shortcutsHint } : e
+    );
+    const entries = [
         ...agentEntries(input.presets),
-        ...panelEntries(input.widgets, input.workspaceId),
+        ...panels,
         ...folderEntries(folders, input.home),
-        ...actionEntries(input.workspaces, input.projectLinked),
+        ...actions,
         ...browserEntries(input.installedBrowser, input.hasBrowserPanel),
         ...termUpdateEntries(input.outdatedTerminals),
         ...agentCopyEntries(),
     ];
+    return input.picker != null ? withKeyPaths(entries, input.picker.splitKeys) : entries;
 }
 
 export function paletteGroupTitles(folder: string, home: string): Partial<Record<PaletteGroupId, string>> {

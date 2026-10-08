@@ -11,6 +11,9 @@ export type PaletteGroupId = "agents" | "panels" | "folders" | "actions";
 
 export const PaletteGroupOrder: PaletteGroupId[] = ["agents", "panels", "folders", "actions"];
 
+// The picker of a split panel puts the panel kinds first (FR-SHELL-042, DS-SHELL-066).
+export const PickerGroupOrder: PaletteGroupId[] = ["panels", "agents", "folders", "actions"];
+
 // What choosing an entry does, as data so the sources stay testable; palette-actions.ts carries it out.
 export type PaletteRun =
     | { kind: "agent"; command: string }
@@ -33,7 +36,9 @@ export type PaletteRun =
     // The browser panel's active page, handed off to the installed browser (FR-BRW-002).
     | { kind: "openinbrowser" }
     // Every terminal started before MoltenTerm's update, brought up to date (FR-SHELL-041).
-    | { kind: "updateterminals" };
+    | { kind: "updateterminals" }
+    // The shortcuts sheet (FR-SHELL-042, DS-SHELL-067).
+    | { kind: "shortcuts" };
 
 export type PaletteEntry = {
     id: string;
@@ -51,6 +56,9 @@ export type PaletteEntry = {
     hint?: string;
     // Extra words the filter matches, with less weight than the label.
     keywords?: string[];
+    // In a split's picker: how to reach the entry from the keyboard ("⌘D co ↵"), and its own global shortcut.
+    keyPath?: string;
+    shortcut?: string;
     run: PaletteRun;
 };
 
@@ -158,11 +166,12 @@ export function matchEntry(query: string, entry: PaletteEntry): PaletteMatch {
 export function filterPalette(
     entries: PaletteEntry[],
     query: string,
-    titles: Partial<Record<PaletteGroupId, string>> = {}
+    titles: Partial<Record<PaletteGroupId, string>> = {},
+    order: PaletteGroupId[] = PaletteGroupOrder
 ): PaletteSection[] {
     const q = (query ?? "").trim();
     const sections: PaletteSection[] = [];
-    for (const group of PaletteGroupOrder) {
+    for (const group of order) {
         const inGroup = (entries ?? []).filter((e) => e.group === group);
         let kept: PaletteEntry[];
         if (q === "") {
@@ -283,4 +292,27 @@ export function highlightRuns(text: string, indices: number[]): { text: string; 
         }
     }
     return runs;
+}
+
+// The shortest start of an entry's label that, typed in the palette, selects that entry (DS-SHELL-066): the picker
+// shows it as the entry's key path. Null when no start of the label does (another entry always ranks higher).
+export function shortestSelectingPrefix(
+    entries: PaletteEntry[],
+    entry: PaletteEntry,
+    order: PaletteGroupId[] = PaletteGroupOrder
+): string {
+    const label = (entry?.label ?? "").toLowerCase();
+    for (let len = 1; len <= label.length; len++) {
+        const prefix = label.slice(0, len);
+        if (prefix.endsWith(" ")) {
+            continue;
+        }
+        const sections = filterPalette(entries, prefix, {}, order);
+        const flat = flattenSections(sections);
+        const index = bestMatchIndex(sections, prefix);
+        if (index >= 0 && flat[index]?.id === entry.id) {
+            return prefix;
+        }
+    }
+    return null;
 }

@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The tool section of the workspace rail (FR-SHELL-012, DS-SHELL-012): what Wave's right widget bar offered (the user's
-// widgets.json widgets, the add-panel button, apps, settings), icon-only at the bottom of the rail, so the content gains
-// the bar's width. Apps and settings reuse Wave's own flyouts, opened to the right of the rail.
+// widgets.json widgets, apps, settings), icon-only at the bottom of the rail, so the content gains the bar's width. Apps
+// and settings reuse Wave's own flyouts, opened to the right of the rail. The add-panel button left the rail with
+// FR-SHELL-042 (DS-SHELL-068): panels are added where the user works, by splitting one.
 
 import { useWaveEnv } from "@/app/waveenv/waveenv";
 import { AppsFloatingWindow, SettingsFloatingWindow, WidgetsEnv } from "@/app/workspace/widgets";
@@ -19,7 +20,6 @@ import {
 } from "@floating-ui/react";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
-import { MoltentermAddPanelWidget } from "./add-panel";
 import { openMoltentermView } from "./open-view";
 import { railCustomWidgets, railWidgetTooltip, splitRailWidgets } from "./rail-tools-model";
 import { MoltentermSessionsView, RailBadge } from "./sessions/sessions-model";
@@ -232,13 +232,6 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
                     <i className={makeIconClass("ellipsis", true)} />
                 </ToolButton>
             ) : null}
-            <ToolButton
-                label={MoltentermAddPanelWidget.description}
-                onHover={onHover}
-                onClick={() => openWidget(env, MoltentermAddPanelWidget)}
-            >
-                <i className={makeIconClass(MoltentermAddPanelWidget.icon, true)} />
-            </ToolButton>
             {showApps ? (
                 <ToolButton
                     label="Local WaveApps"

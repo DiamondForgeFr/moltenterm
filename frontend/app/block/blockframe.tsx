@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { BlockModel } from "@/app/block/block-model";
-import { BlockFrame_Header } from "@/app/block/blockframe-header";
+import { BlockFrame_Header, handleHeaderContextMenu } from "@/app/block/blockframe-header"; // MOLTENTERM-PATCH (#370)
 import { blockViewToIcon, getViewIconElem, useTabBackground } from "@/app/block/blockutil";
 import { ConnStatusOverlay } from "@/app/block/connstatusoverlay";
 import { ChangeConnectionBlockModal } from "@/app/modals/conntypeahead";
@@ -21,6 +21,8 @@ import clsx from "clsx";
 import * as jotai from "jotai";
 import * as React from "react";
 import { useBlockAgentState } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#112)
+import { openBlockBodyMenu } from "../../moltenterm-shell/split/split-body-menu"; // MOLTENTERM-PATCH (#370)
+import { SplitEdgeHandles } from "../../moltenterm-shell/split/split-handles"; // MOLTENTERM-PATCH (#370)
 import { BlockEnv } from "./blockenv";
 import { BlockFrameProps } from "./blocktypes";
 
@@ -198,10 +200,23 @@ const BlockFrame_Default_Component = (props: BlockFrameProps) => {
                     changeConnModalAtom={changeConnModalAtom}
                 />
             )}
-            <div className="block-frame-default-inner" style={innerStyle}>
+            <div
+                className="block-frame-default-inner"
+                style={innerStyle}
+                // MOLTENTERM-PATCH (#370): a right-click a view leaves alone opens the block menu (Split right / down)
+                onContextMenu={
+                    preview || viewModel == null
+                        ? undefined
+                        : (e) => openBlockBodyMenu(e, () =>
+                              handleHeaderContextMenu(e, nodeModel.blockId, viewModel, nodeModel, waveEnv)
+                          )
+                }
+            >
                 {noHeader || <ErrorBoundary fallback={headerElemNoView}>{headerElem}</ErrorBoundary>}
                 {preview ? previewElem : children}
             </div>
+            {/* MOLTENTERM-PATCH (#370): edge split handles (FR-SHELL-042, moltenterm-shell/split/) */}
+            {preview ? null : <SplitEdgeHandles nodeModel={nodeModel} viewType={metaView} preview={preview} />}
             {preview || viewModel == null || !connModalOpen ? null : (
                 <ChangeConnectionBlockModal
                     blockId={nodeModel.blockId}

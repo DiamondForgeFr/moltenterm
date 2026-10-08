@@ -8,6 +8,7 @@ import { UpgradeOnboardingPatch } from "@/app/onboarding/onboarding-upgrade-patc
 import { DeleteFileModal, PublishAppModal, RenameFileModal } from "@/builder/builder-apppanel";
 import { SetSecretDialog } from "@/builder/tabs/builder-secrettab";
 import { MoltentermCommandPaletteModal } from "../../moltenterm-shell/palette/palette-modal"; // MOLTENTERM-PATCH (#111)
+import { MoltentermShortcutsSheet } from "../../moltenterm-shell/shortcuts/shortcuts-sheet"; // MOLTENTERM-PATCH (#370)
 import { AboutModal } from "./moltenterm-about"; // MOLTENTERM-PATCH (#4): Moltenterm's About panel
 import { UserInputModal } from "./userinputmodal";
 
@@ -24,6 +25,8 @@ const modalRegistry: { [key: string]: React.ComponentType<any> } = {
     [SetSecretDialog.displayName || "SetSecretDialog"]: SetSecretDialog,
     // MOLTENTERM-PATCH (#111): the global command palette (frontend/moltenterm-shell/palette/)
     [MoltentermCommandPaletteModal.displayName]: MoltentermCommandPaletteModal,
+    // MOLTENTERM-PATCH (#370): the shortcuts sheet (frontend/moltenterm-shell/shortcuts/)
+    [MoltentermShortcutsSheet.displayName]: MoltentermShortcutsSheet,
 };
 
 export const getModalComponent = (key: string): React.ComponentType<any> | undefined => {

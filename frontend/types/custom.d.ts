@@ -149,6 +149,7 @@ declare global {
         visible?: boolean;
         enabled?: boolean;
         sublabel?: string;
+        accelerator?: string; // MOLTENTERM-PATCH (#370): shown only, the key model handles the keys
     };
 
     type ContextMenuItem = {
@@ -161,6 +162,7 @@ declare global {
         visible?: boolean;
         enabled?: boolean;
         sublabel?: string;
+        accelerator?: string; // MOLTENTERM-PATCH (#370): an Electron accelerator, from the shortcut registry
     };
 
     type KeyPressDecl = {

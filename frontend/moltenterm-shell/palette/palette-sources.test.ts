@@ -60,7 +60,14 @@ describe("agent presets", () => {
 describe("panels", () => {
     it("lists the default widgets in display order with full names and wsh launch", () => {
         const panels = panelEntries(DefaultWidgets, "ws1");
-        expect(panels.map((p) => p.label)).toEqual(["Terminal", "Files", "Web", "CI/CD", "System info", "Processes"]);
+        expect(panels.map((p) => p.label)).toEqual([
+            "Terminal",
+            "Files",
+            "Browser",
+            "CI/CD",
+            "System info",
+            "Processes",
+        ]);
         expect(panels[3].cli).toBe("wsh launch defwidget@cicd");
         expect(panels[0].run).toEqual({ kind: "widget", blockdef: DefaultWidgets["defwidget@terminal"].blockdef });
     });
@@ -114,6 +121,7 @@ describe("workspace actions", () => {
             "Getting started",
             "Sessions",
             "Settings",
+            "Keyboard shortcuts",
         ]);
         expect(actions[3].run).toEqual({ kind: "switchworkspace", workspaceId: "w2" });
         expect(actions[6].cli).toBe("wsh editconfig");
@@ -176,6 +184,7 @@ describe("workspace actions", () => {
             "Getting started",
             "Sessions",
             "Settings",
+            "Keyboard shortcuts",
         ]);
         expect(actions[0].run).toEqual({ kind: "projecttab" });
     });
