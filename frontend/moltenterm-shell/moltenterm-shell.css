@@ -60,6 +60,23 @@
     scrollbar-width: none;
 }
 
+/* A rail item being dragged (FR-MC-031, DS-MC-025): lifted above the others, which stay in place; the drop line shows
+   where it lands. */
+.molten-rail-dragging {
+    cursor: grabbing;
+    filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.45));
+}
+
+.molten-rail-dragging .molten-rail-item {
+    cursor: grabbing;
+    background-color: var(--mt-neutral-modal);
+}
+
+/* The pencil travels with the dragged item, but nothing can be done with it until the drop. */
+.molten-rail-dragging .molten-rail-edit {
+    visibility: hidden;
+}
+
 /* The command palette's selected entry (FR-SHELL-013): a tint and an accent bar, so the keyboard selection is
    obvious; tinted rather than filled, so its text keeps the panel's colours. */
 .molten-palette-selected {
