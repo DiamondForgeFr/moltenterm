@@ -14,7 +14,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
 import { formatShortcutById } from "../shortcuts/format";
-import { cancelSplit, consumeSplit, isPendingSplit } from "../split/split";
+import { cancelSplit, consumeSplit, isPendingSplit, readSplitFrom } from "../split/split";
 import { SplitFromMetaKey } from "../split/split-model";
 import { TermUpdates } from "../termupdate/termupdate-store";
 import { WorkspaceIcon } from "../workspace-icon";
@@ -24,6 +24,7 @@ import { isSavedWorkspace } from "../workspace-rail-model";
 import { PalettePlacement, runPaletteEntry } from "./palette-actions";
 import {
     bestMatchIndex,
+    fillsPanel,
     filterPalette,
     flattenSections,
     highlightRuns,
@@ -103,17 +104,28 @@ function usePickerSource(host: CommandPaletteHost, blockId: string): PickerSourc
     const from = own?.meta?.[SplitFromMetaKey as keyof MetaType];
     const sourceId = typeof from === "string" && from !== "" ? from : null;
     const source = useBlock(sourceId);
+    // Only what the picker reads of the source: its other meta changes (a terminal's state) must not rebuild the list.
+    const view = source?.meta?.view;
+    const cwd = source?.meta?.["cmd:cwd"];
+    const connection = source?.meta?.connection;
     return useMemo(() => {
         if (sourceId == null) {
             return null;
         }
+        const meta: MetaType = { view };
+        if (cwd != null) {
+            meta["cmd:cwd"] = cwd;
+        }
+        if (connection != null) {
+            meta.connection = connection;
+        }
         return {
             blockId: sourceId,
-            meta: source?.meta ?? {},
+            meta,
             splitKeys: formatShortcutById("split-right"),
             companionKeys: formatShortcutById("companion"),
         };
-    }, [sourceId, source?.meta]);
+    }, [sourceId, view, cwd, connection]);
 }
 
 function usePaletteEntries(picker: PickerSource) {
@@ -295,6 +307,10 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
         if (!pickerWasFocused.current || focusedBlockId == null || queryRef.current.trim() !== "") {
             return;
         }
+        // The picker was split again (Cmd+D in it): the new picker comes from this one, which stays.
+        if (readSplitFrom(focusedBlockId) === blockId) {
+            return;
+        }
         if (!isPendingSplit(blockId)) {
             return;
         }
@@ -317,6 +333,17 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
         const placement: PalettePlacement = right && blockId && picker == null ? "right" : inPlace;
         if (host === "modal") {
             onClose?.("open");
+        }
+        if (picker != null && !fillsPanel(entry.run)) {
+            // An action that opens nothing in the new panel (a tab, the settings, a workspace) cancels the split
+            // first, so no empty panel stays behind; "back to the origin" is the source panel.
+            fireAndForget(async () => {
+                await cancelSplit(blockId, entry.run.kind !== "focusorigin");
+                if (entry.run.kind !== "focusorigin") {
+                    await runPaletteEntry(entry.run, { placement: "new", blockId: picker.blockId });
+                }
+            });
+            return;
         }
         if (picker != null) {
             consumeSplit(blockId);

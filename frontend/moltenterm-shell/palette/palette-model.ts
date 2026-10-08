@@ -40,6 +40,11 @@ export type PaletteRun =
     // The shortcuts sheet (FR-SHELL-042, DS-SHELL-067).
     | { kind: "shortcuts" };
 
+// The entries that open something in the palette's pane; the others act elsewhere (a tab, a sheet, a workspace).
+export function fillsPanel(run: PaletteRun): boolean {
+    return run?.kind === "widget" || run?.kind === "folder" || run?.kind === "agent";
+}
+
 export type PaletteEntry = {
     id: string;
     group: PaletteGroupId;
