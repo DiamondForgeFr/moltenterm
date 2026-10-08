@@ -291,8 +291,17 @@ export type RunRecord = {
     commit?: string;
     buildkind?: string;
     preparing?: boolean;
+    // A sync's source and watched branch (commit is that branch's tip), and once it ended with exit 0 whether its
+    // output changed, with the files (FR-MC-030).
+    source?: string;
+    branch?: string;
+    outcome?: DepSyncOutcome;
+    changed?: string[];
     logsize: number;
 };
+
+// must match the DepSyncOutcome constants in pkg/molten/mission/depsync.go
+export type DepSyncOutcome = "changed" | "nochange";
 
 export type TrustedCommand = {
     kind: string;

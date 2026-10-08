@@ -36,6 +36,8 @@ const (
 	RunKindBuild = "build"
 	// A project-specific adapter step (FR-MC-007), shown in its panel section.
 	RunKindStep = "step"
+	// The sync of a stale dependency (FR-MC-030), run by Groups.Sync.
+	RunKindSync = "sync"
 
 	RunStateRunning   = "running"
 	RunStateSuccess   = "success"
@@ -76,6 +78,12 @@ type RunRecord struct {
 	BuildKind string `json:"buildkind,omitempty"`
 	// The release a release step belongs to.
 	Tag string `json:"tag,omitempty"`
+	// A sync's source, its watched branch (Commit is that branch's tip), and once it ended with exit 0 whether its
+	// output changed, with the files.
+	Source  string   `json:"source,omitempty"`
+	Branch  string   `json:"branch,omitempty"`
+	Outcome string   `json:"outcome,omitempty"`
+	Changed []string `json:"changed,omitempty"`
 	// Still fetching, verifying or preparing in wavesrv: there is no process to follow yet.
 	Preparing bool `json:"preparing,omitempty"`
 	// Its end was told in the notification center (FR-MC-014).

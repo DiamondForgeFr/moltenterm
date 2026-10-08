@@ -35,6 +35,7 @@ import {
     NotificationAction,
     visibleActions,
 } from "./notifications-model";
+import { DepSyncHost } from "./mission/dep-sync";
 import { MoltentermNotifications, registerNotificationGesture, startNotificationAutoRead } from "./notifications-store";
 import { showProjectTab } from "./project/project-tab";
 import { canStop, overallProgress, stopWork, useRunningWork, WorkItem } from "./running-work";
@@ -619,6 +620,7 @@ export function NotificationCenter() {
                     <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-accent" />
                 ) : null}
             </button>
+            <DepSyncHost />
             {/* Portaled to the body: inside the tab bar the panel would sit under the blocks' stacking context. */}
             {panelOpen && anchor
                 ? createPortal(

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
@@ -66,6 +67,13 @@ func PipelineCommands(p *molten.Pipeline) []TrustedCommand {
 	}
 	for _, step := range p.Steps {
 		rtn = append(rtn, TrustedCommand{Kind: "step", Id: step.Id, Title: step.Title, Run: step.Run, Cwd: step.Cwd, Env: step.Env})
+	}
+	// A dependency's sync runs in this project's root like any step (FR-MC-030-AC2): declaring or changing one asks again.
+	for i, dep := range p.DependsOn {
+		if dep.Sync == "" {
+			continue
+		}
+		rtn = append(rtn, TrustedCommand{Kind: RunKindSync, Id: DepSyncStepId(i), Title: "Sync from " + strings.TrimSpace(dep.Project), Run: dep.Sync})
 	}
 	return rtn
 }

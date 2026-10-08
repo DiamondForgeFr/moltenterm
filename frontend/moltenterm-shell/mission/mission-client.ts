@@ -14,6 +14,7 @@ import {
     DependencyState,
     GroupsAnswer,
     MissionDepsCommand,
+    MissionDepSyncCommand,
     MissionGroupsCommand,
     MissionGroupsEvent,
     productGroupOfWorkspace,
@@ -118,6 +119,20 @@ export function missionDeps(dir: string): Promise<DependencyState[]> {
         { dir },
         { route: MissionRouteId, timeout: MissionRpcTimeoutMs }
     );
+}
+
+// Starts the sync of one of the dependent's declarations (FR-MC-030); untrusted, nothing runs and the commands come
+// back to review. Callers go through syncDependency (dep-sync.tsx), which asks for trust and waits for the end.
+export function missionDepSync(dir: string, project?: string, index?: number): Promise<RunResult> {
+    return TabRpcClient.wshRpcCall(
+        MissionDepSyncCommand,
+        { dir, project: project || undefined, index },
+        { route: MissionRouteId, timeout: MissionRpcTimeoutMs }
+    );
+}
+
+export function missionRuns(dir: string): Promise<RunRecord[]> {
+    return TabRpcClient.wshRpcCall(MissionRunsCommand, { dir }, { route: MissionRouteId, timeout: MissionRpcTimeoutMs });
 }
 
 export function missionRefresh(dir: string): Promise<MissionSnapshot> {
