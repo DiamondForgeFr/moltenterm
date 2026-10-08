@@ -120,6 +120,8 @@ type ShimRequest struct {
 	Args      []string `json:"args,omitempty"`
 	Pid       int32    `json:"pid"`
 	ParentPid int32    `json:"parentpid,omitempty"`
+	// Deadline: when the shim stops waiting and runs the real tool (Unix milliseconds).
+	Deadline int64 `json:"deadline,omitempty"`
 }
 
 // ShimAnswer: Policy is PolicyLetSleep when the shim must not assert, PolicyAllow otherwise.

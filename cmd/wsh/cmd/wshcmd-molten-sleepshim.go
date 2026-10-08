@@ -66,7 +66,9 @@ func moltenSleepShimRun(cmd *cobra.Command, args []string) error {
 func runMoltenSleepShim(tool string, args []string, getenv func(string) string) int {
 	real, found := agentlaunch.FindRealBinary(tool, getenv("PATH"), getenv(agentlaunch.AgentBinDirVarName), agentlaunch.IsLauncher)
 	policy := askMoltenSleepPolicy(tool, args, getenv)
-	if policy == keepawake.PolicyLetSleep {
+	// Without the real tool (systemd-inhibit on a system without systemd), the caller still gets its command run:
+	// a script that found the shim on PATH must not break.
+	if policy == keepawake.PolicyLetSleep || !found {
 		if code, handled := neutraliseSleepTool(tool, args); handled {
 			return code
 		}
@@ -104,6 +106,7 @@ func askMoltenSleepPolicy(tool string, args []string, getenv func(string) string
 		Args:      args,
 		Pid:       int32(os.Getpid()),
 		ParentPid: int32(os.Getppid()),
+		Deadline:  deadline.UnixMilli(),
 	}
 	if RpcContext.BlockId != "" {
 		req.BlockId = RpcContext.BlockId
@@ -160,7 +163,12 @@ func execWrappedCommand(command []string) int {
 // or a signal; with neither a timeout nor a process, until a signal.
 func waitLikeCaffeinate(call keepawake.CaffeinateCall) int {
 	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+	// A signal the caller's shell ignores (Ctrl-C for a background job of a script) stays ignored.
+	for _, sig := range []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP} {
+		if !signal.Ignored(sig) {
+			signal.Notify(signals, sig)
+		}
+	}
 	var timeout <-chan time.Time
 	if call.Timeout > 0 {
 		timeout = time.After(call.Timeout)
