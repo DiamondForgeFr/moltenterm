@@ -290,4 +290,18 @@ describe("browser agent takeover and input", () => {
         expect(wc.listenerCount("before-input-event")).toBe(0);
         expect(wc.listenerCount("before-mouse-event")).toBe(0);
     });
+
+    it("keeps the Wave tab view of a loaded panel page, driven or not (#375)", () => {
+        expect(agent.hostsControlledTab(1)).toBe(true);
+        expect(agent.hostsBrowserPage(1)).toBe(true);
+        expect(agent.hostsBrowserPage(2)).toBe(false);
+        agent.setBrowserAgentControl({ blockid: "panel", browsertabid: "agent-tab", controlled: false, token: Token });
+        expect(agent.hostsControlledTab(1)).toBe(false);
+        expect(agent.hostsBrowserPage(1)).toBe(true);
+        wc.getURL = () => "about:blank";
+        expect(agent.hostsBrowserPage(1)).toBe(false);
+        wc.getURL = () => "https://example.com/login";
+        wc.emit("destroyed");
+        expect(agent.hostsBrowserPage(1)).toBe(false);
+    });
 });

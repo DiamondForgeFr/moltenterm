@@ -9,6 +9,7 @@ import {
     downloadHost,
     expectedSignature,
     flattenBitmapOnWhite,
+    holdsPage,
     inputHostMatches,
     InspectElementSource,
     InspectFocusedScript,
@@ -99,6 +100,15 @@ describe("DevTools allow-list (DS-BRW-012)", () => {
         expect(validRegistration("block", "tab", -1)).toBe(false);
         expect(validRegistration({}, "tab", 3)).toBe(false);
         expect(webviewKey("b", "t")).toBe("b/t");
+    });
+
+    it("counts any loaded document but a blank one as a page to keep (#375)", () => {
+        expect(holdsPage("https://odoo.example/web#action=1")).toBe(true);
+        expect(holdsPage("http://localhost:8069/")).toBe(true);
+        expect(holdsPage("file:///tmp/page.html")).toBe(true);
+        expect(holdsPage("about:blank")).toBe(false);
+        expect(holdsPage("")).toBe(false);
+        expect(holdsPage(undefined)).toBe(false);
     });
 });
 

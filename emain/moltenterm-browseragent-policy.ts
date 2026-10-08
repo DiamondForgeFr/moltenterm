@@ -846,3 +846,9 @@ export function validRegistration(blockId: unknown, browserTabId: unknown, webCo
 export function webviewKey(blockId: string, browserTabId: string): string {
     return `${blockId}/${browserTabId}`;
 }
+
+// A panel tab holds a page worth keeping once it has loaded anything but a blank document: its state (a sign-in, a
+// half-filled form) would be lost with its webview.
+export function holdsPage(url: unknown): boolean {
+    return typeof url === "string" && url !== "" && !url.startsWith("about:");
+}
