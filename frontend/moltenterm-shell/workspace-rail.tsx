@@ -5,6 +5,7 @@
 // in Notulia. It replaces the switcher of the tab bar and reuses Wave's workspace calls; a workspace is edited in
 // MoltenTerm's sheet (FR-SHELL-030), from its context menu, its pencil or a double-click. The user orders it by drag
 // and drop, Move up / Move down and Alt+Shift+Up/Down (FR-MC-031); wavesrv keeps the order and sorts Wave's list by it.
+// Workspaces whose projects form a product (FR-MC-027) are drawn under one collapsible product entry (rail-product.tsx).
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms, getApi } from "@/app/store/global";
@@ -20,15 +21,29 @@ import { unreadByWorkspace } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 import { ProjectLinkDetector } from "./project-link-modal";
 import { openProjectTab, ProjectTabKeeper } from "./project/project-tab";
+import {
+    applyGroupedMove,
+    makeRailUnits,
+    memberMoves,
+    memberOfWorkspace,
+    memberStateText,
+    productKeysOf,
+    RailProductUnit,
+    RailUnit,
+    unitMoves,
+    unitSlotMove,
+} from "./rail-groups";
+import { setProductCollapsed, useCollapsedProducts, useRailGroups, useWorkspaceLinksKey } from "./rail-groups-store";
+import { RailProduct, WorstDot } from "./rail-product";
 import { RailTools } from "./rail-tools";
 import { PaneFocusKeeper } from "./sessions/pane-focus";
 import { handOverWorkspaceEdit, openWorkspaceEditor, recordSwitchClick, takeSwitchClick } from "./workspace-edit";
 import { WorkspaceEditHost } from "./workspace-edit-sheet";
 import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
 import { workspaceIconSource } from "./workspace-icon-model";
-import { applyRailMove, moveWorkspace, neighbourMove, RailMove, sortByOrder } from "./workspace-order";
+import { moveWorkspace, RailMove, slotMove, sortByOrder } from "./workspace-order";
 import { readWorkspaceProject } from "./workspace-project";
-import { useRailDrag } from "./workspace-rail-dnd";
+import { RailDragScope, useRailDrag } from "./workspace-rail-dnd";
 import { railMoveKey } from "./workspace-rail-drag";
 import { RailEditButton } from "./workspace-rail-edit";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
@@ -55,7 +70,7 @@ function RailTooltip({ label, anchor }: { label: string; anchor: Anchor }) {
     }
     return (
         <div
-            className="pointer-events-none fixed z-[9500] -translate-y-1/2 rounded border border-border bg-modalbg px-2 py-1 text-xs whitespace-nowrap text-primary shadow-lg"
+            className="pointer-events-none fixed z-[9500] -translate-y-1/2 rounded border border-border bg-modalbg px-2 py-1 text-xs whitespace-pre text-primary shadow-lg"
             style={{ top: anchor.top, left: anchor.left }}
         >
             {label}
@@ -74,12 +89,21 @@ type RailItemMoves = {
     onMove: (move: RailMove, refocus: boolean) => void;
 };
 
+// A workspace drawn inside a product (FR-MC-027-AC5): its own badge and state, a smaller box, arrows walking the product.
+type RailMemberInfo = {
+    worst: string;
+    stateText: string;
+    onArrow: (direction: -1 | 1) => void;
+};
+
 function RailButton({
     entry,
     closable,
     unread,
     onHover,
     moves,
+    unitId,
+    member,
 }: {
     entry: WorkspaceRailEntry;
     // Deleting it lands the user on another workspace (#222); otherwise it is reset instead.
@@ -87,6 +111,9 @@ function RailButton({
     unread: number;
     onHover: (label: string, anchor: Anchor) => void;
     moves: RailItemMoves;
+    // Set when the item is a rail unit of its own, the box a drag drops around.
+    unitId?: string;
+    member?: RailMemberInfo;
 }) {
     const ref = useRef<HTMLButtonElement>(null);
     // Read live: the icon can change from the editor or from molten while the rail's list is not refreshed.
@@ -159,6 +186,12 @@ function RailButton({
         );
     };
     const onKeyDown = (e: React.KeyboardEvent) => {
+        const plainArrow = !e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey;
+        if (member != null && plainArrow && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+            e.preventDefault();
+            member.onArrow(e.key === "ArrowUp" ? -1 : 1);
+            return;
+        }
         const direction = railMoveKey(e);
         if (direction == null || !entry.saved) {
             return;
@@ -173,13 +206,14 @@ function RailButton({
     const dragging = moves.dragOffsetY != null;
     return (
         <div
+            data-rail-unit={unitId}
             className={cn("group relative shrink-0", dragging && "molten-rail-dragging z-10")}
             style={dragging ? { transform: `translateY(${moves.dragOffsetY}px)` } : undefined}
         >
             <button
                 ref={ref}
                 type="button"
-                aria-label={entry.name}
+                aria-label={member?.worst ? `${entry.name}, ${member.stateText}` : entry.name}
                 aria-current={entry.active ? "true" : undefined}
                 data-workspace-id={entry.id}
                 onClick={onClick}
@@ -190,6 +224,7 @@ function RailButton({
                 onMouseEnter={() =>
                     onHover(
                         (entry.saved ? entry.name : "Unsaved workspace: click to save it") +
+                            (member != null ? ` · ${member.stateText}` : "") +
                             (unread > 0 ? ` · ${unread} unread` : ""),
                         anchorOf()
                     )
@@ -198,6 +233,7 @@ function RailButton({
                 className={cn(
                     "molten-rail-item cursor-pointer transition-colors hover:bg-hover",
                     RailBadgeClass,
+                    member != null && "h-8 w-8 text-[15px]",
                     entry.active && "bg-hover",
                     !entry.active && entry.open && "outline outline-1 -outline-offset-1 outline-border"
                 )}
@@ -216,6 +252,7 @@ function RailButton({
                         aria-label={`${unread} unread`}
                     />
                 ) : null}
+                {member != null ? <WorstDot worst={member.worst} /> : null}
                 <AgentRailDot workspaceId={entry.id} />
             </button>
             {entry.saved ? (
@@ -254,16 +291,23 @@ export function WorkspaceRail() {
         .map((e) => e.id)
         .join(" ");
     const movableIds = useMemo(() => (movableKey ? movableKey.split(" ") : []), [movableKey]);
+    // The product groups (FR-MC-027), asked again when the rail's workspaces, their order or their links change.
+    const linksKey = useWorkspaceLinksKey(movableIds);
+    const groups = useRailGroups(linksKey);
+    const collapsed = useCollapsedProducts();
+    const units = makeRailUnits(entries, groups);
+    const productKeys = useMemo(() => productKeysOf(groups), [groups]);
     // The rail shows the move at once; the server's workspace:update confirms it, or the refresh undoes it.
     const applyMove = useCallback(
         (move: RailMove, refocus: boolean) => {
-            const order = applyRailMove(movableIds, move);
+            const order = applyGroupedMove(movableIds, productKeys, move);
             setSources((prev) => sortByOrder(prev, (s) => s.workspace?.oid, order));
             if (refocus) {
+                const selector = move.block
+                    ? `button[data-rail-product="${CSS.escape(productKeys.get(move.workspaceid) ?? "")}"]`
+                    : `button[data-workspace-id="${CSS.escape(move.workspaceid)}"]`;
                 requestAnimationFrame(() => {
-                    navRef.current
-                        ?.querySelector<HTMLElement>(`button[data-workspace-id="${CSS.escape(move.workspaceid)}"]`)
-                        ?.focus();
+                    navRef.current?.querySelector<HTMLElement>(selector)?.focus();
                 });
             }
             fireAndForget(async () => {
@@ -275,9 +319,34 @@ export function WorkspaceRail() {
                 }
             });
         },
-        [movableIds, refresh]
+        [movableIds, productKeys, refresh]
     );
-    const drag = useRailDrag(navRef, movableIds, (move) => applyMove(move, false));
+    // A rail unit drops among the units; a product's workspace among its siblings, while the product is expanded.
+    const scopeOf = (id: string): RailDragScope => {
+        const movableUnits = units.filter((u) => u.kind === "product" || u.entry.saved);
+        if (movableUnits.some((u) => u.id === id)) {
+            return {
+                ids: movableUnits.map((u) => u.id),
+                element: (nav, unitId) => nav.querySelector<HTMLElement>(`[data-rail-unit="${CSS.escape(unitId)}"]`),
+                moveFor: (slot) => unitSlotMove(units, id, slot),
+                bounded: false,
+            };
+        }
+        const product = units.find(
+            (u): u is RailProductUnit => u.kind === "product" && u.entries.some((e) => e.id === id)
+        );
+        if (product == null || collapsed.has(product.key)) {
+            return null;
+        }
+        const ids = product.entries.map((e) => e.id);
+        return {
+            ids,
+            element: (nav, wsId) => nav.querySelector<HTMLElement>(`button[data-workspace-id="${CSS.escape(wsId)}"]`),
+            moveFor: (slot) => slotMove(ids, id, slot),
+            bounded: true,
+        };
+    };
+    const drag = useRailDrag(navRef, scopeOf, (move) => applyMove(move, false));
     useEffect(() => {
         if (drag.view != null) {
             setTooltip(null);
@@ -285,34 +354,98 @@ export function WorkspaceRail() {
     }, [drag.view]);
     const notifications = useAtomValue(MoltentermNotifications.getInstance().entriesAtom);
     const unread = unreadByWorkspace(notifications);
+    const onHover = (label: string, anchor: Anchor) =>
+        setTooltip(label == null || drag.view != null ? null : { label, anchor });
+    const itemMoves = (id: string, moves: { up: RailMove; down: RailMove }): RailItemMoves => ({
+        up: moves.up,
+        down: moves.down,
+        dragOffsetY: drag.view?.id === id ? drag.view.offsetY : null,
+        onPointerDown: (e) => drag.onPointerDown(e, id),
+        takeSuppressedClick: () => drag.takeSuppressedClick(id),
+        onMove: applyMove,
+    });
+    const focusIn = (selector: string) => {
+        if (!selector) {
+            return;
+        }
+        navRef.current?.querySelector<HTMLElement>(selector)?.focus();
+    };
+    const renderUnit = (unit: RailUnit) => {
+        if (unit.kind === "workspace") {
+            const entry = unit.entry;
+            return (
+                <RailButton
+                    key={unit.id}
+                    entry={entry}
+                    unitId={entry.saved ? unit.id : undefined}
+                    closable={canCloseWorkspace(entries, entry.id)}
+                    unread={unread.get(entry.id) ?? 0}
+                    onHover={onHover}
+                    moves={itemMoves(entry.id, entry.saved ? unitMoves(units, unit.id) : { up: null, down: null })}
+                />
+            );
+        }
+        const isCollapsed = collapsed.has(unit.key);
+        const ids = unit.entries.map((e) => e.id);
+        return (
+            <RailProduct
+                key={unit.id}
+                unit={unit}
+                collapsed={isCollapsed}
+                unread={ids.reduce((sum, id) => sum + (unread.get(id) ?? 0), 0)}
+                moves={unitMoves(units, unit.id)}
+                dragOffsetY={drag.view?.id === unit.id ? drag.view.offsetY : null}
+                onToggle={() => setProductCollapsed(unit.key, !isCollapsed)}
+                onHover={onHover}
+                onMove={applyMove}
+                onPointerDown={(e) => drag.onPointerDown(e, unit.id)}
+                takeSuppressedClick={() => drag.takeSuppressedClick(unit.id)}
+            >
+                {unit.entries.map((entry, index) => {
+                    const state = memberOfWorkspace(unit.group, entry.id)?.state;
+                    return (
+                        <RailButton
+                            key={entry.id}
+                            entry={entry}
+                            closable={canCloseWorkspace(entries, entry.id)}
+                            unread={unread.get(entry.id) ?? 0}
+                            onHover={onHover}
+                            moves={itemMoves(entry.id, memberMoves(unit, entry.id))}
+                            member={{
+                                worst: state?.worst ?? "",
+                                stateText: memberStateText(state),
+                                onArrow: (direction) => {
+                                    const next = ids[index + direction];
+                                    focusIn(
+                                        next != null
+                                            ? `button[data-workspace-id="${CSS.escape(next)}"]`
+                                            : direction < 0
+                                              ? `button[data-rail-product="${CSS.escape(unit.key)}"]`
+                                              : null
+                                    );
+                                },
+                            }}
+                        />
+                    );
+                })}
+            </RailProduct>
+        );
+    };
+    const memberDragged =
+        drag.view != null && productKeys.has(drag.view.id) && !units.some((u) => u.id === drag.view.id);
     return (
         <nav
             ref={navRef}
             aria-label="Workspaces"
             className="molten-workspace-rail relative flex h-full w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border py-2"
         >
-            {entries.map((entry) => (
-                <RailButton
-                    key={entry.id}
-                    entry={entry}
-                    closable={canCloseWorkspace(entries, entry.id)}
-                    unread={unread.get(entry.id) ?? 0}
-                    onHover={(label, anchor) =>
-                        setTooltip(label == null || drag.view != null ? null : { label, anchor })
-                    }
-                    moves={{
-                        up: entry.saved ? neighbourMove(movableIds, entry.id, -1) : null,
-                        down: entry.saved ? neighbourMove(movableIds, entry.id, 1) : null,
-                        dragOffsetY: drag.view?.id === entry.id ? drag.view.offsetY : null,
-                        onPointerDown: (e) => drag.onPointerDown(e, entry.id),
-                        takeSuppressedClick: () => drag.takeSuppressedClick(entry.id),
-                        onMove: applyMove,
-                    }}
-                />
-            ))}
+            {units.map(renderUnit)}
             {drag.view?.lineY != null ? (
                 <span
-                    className="molten-rail-drop-line pointer-events-none absolute right-1 left-1 z-20 h-[2px] -translate-y-1/2 rounded bg-accent"
+                    className={cn(
+                        "molten-rail-drop-line pointer-events-none absolute right-1 z-20 h-[2px] -translate-y-1/2 rounded bg-accent",
+                        memberDragged ? "left-3" : "left-1"
+                    )}
                     style={{ top: drag.view.lineY }}
                     aria-hidden
                 />

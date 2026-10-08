@@ -4,18 +4,35 @@
 // Dragging a rail item to reorder the workspaces (FR-MC-031, DS-MC-025). A press is a click until the pointer moved
 // past the threshold; from then on the item follows the pointer, a line shows where it lands and the rail scrolls near
 // its edges. Only the item's own button starts a drag: the pencil is a sibling button (#354).
+// Product groups (FR-MC-027, DS-MC-018): what drags and where it may land is a scope. A rail unit (a workspace, or a
+// whole product as a block) drops among the other units; a product's workspace drops among its siblings only, and past
+// its product there is no drop target.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RailMove, slotMove } from "./workspace-order";
+import { RailMove } from "./workspace-order";
 import { autoScrollStep, dropLineY, dropSlot, passedDragThreshold, RailItemBox } from "./workspace-rail-drag";
 
 export type RailDragView = {
     id: string;
     // How far the item is drawn from its place, in px.
     offsetY: number;
-    // The drop line, in the rail's content coordinates; null when the item would land where it is.
+    // The drop line, in the rail's content coordinates; null when the item would land where it is, or nowhere.
     lineY: number;
 };
+
+export type RailDragScope = {
+    // What the dragged item drops among, itself included, in rail order.
+    ids: string[];
+    // The element that holds an item, whose box the drop slots are read from.
+    element: (nav: HTMLElement, id: string) => HTMLElement;
+    // The move for a slot among the others (0 = before all of them); null when it would not move.
+    moveFor: (slot: number) => RailMove;
+    // Past the first and the last item there is no drop target (a product's workspace stays in its product).
+    bounded: boolean;
+};
+
+// Past a bounded scope by more than this, the pointer is outside it.
+const BoundedScopeMarginPx = 6;
 
 type Session = {
     id: string;
@@ -27,14 +44,15 @@ type Session = {
     started: boolean;
     // Escape ends the drag, but the button is still pressed: its release must not switch workspace.
     cancelled: boolean;
+    // null when the pointer is outside a bounded scope.
     slot: number;
     frame: number;
 };
 
-function readBoxes(nav: HTMLElement, ids: string[]): RailItemBox[] {
+function readBoxes(nav: HTMLElement, scope: RailDragScope): RailItemBox[] {
     const boxes: RailItemBox[] = [];
-    for (const id of ids) {
-        const el = nav.querySelector<HTMLElement>(`button[data-workspace-id="${CSS.escape(id)}"]`);
+    for (const id of scope.ids) {
+        const el = scope.element(nav, id);
         if (el == null) {
             continue;
         }
@@ -44,16 +62,28 @@ function readBoxes(nav: HTMLElement, ids: string[]): RailItemBox[] {
     return boxes;
 }
 
+// The slot the pointer is over, or null outside a bounded scope.
+export function scopeSlot(boxes: RailItemBox[], bounded: boolean, id: string, y: number): number {
+    if (bounded && boxes.length > 0) {
+        const top = boxes[0].top - BoundedScopeMarginPx;
+        const bottom = boxes[boxes.length - 1].bottom + BoundedScopeMarginPx;
+        if (y < top || y > bottom) {
+            return null;
+        }
+    }
+    return dropSlot(boxes, id, y);
+}
+
 export function useRailDrag(
     navRef: React.RefObject<HTMLElement>,
-    movableIds: string[],
+    scopeOf: (id: string) => RailDragScope,
     onMove: (move: RailMove) => void
 ) {
     const [view, setView] = useState<RailDragView>(null);
     const sessionRef = useRef<Session>(null);
     const suppressedClickRef = useRef<string>(null);
-    const idsRef = useRef(movableIds);
-    idsRef.current = movableIds;
+    const scopeOfRef = useRef(scopeOf);
+    scopeOfRef.current = scopeOf;
     const onMoveRef = useRef(onMove);
     onMoveRef.current = onMove;
 
@@ -63,11 +93,14 @@ export function useRailDrag(
         if (session == null || !session.started || session.cancelled || nav == null) {
             return;
         }
-        const ids = idsRef.current;
-        const boxes = readBoxes(nav, ids);
-        session.slot = dropSlot(boxes, session.id, session.lastY);
+        const scope = scopeOfRef.current(session.id);
+        if (scope == null) {
+            return;
+        }
+        const boxes = readBoxes(nav, scope);
+        session.slot = scopeSlot(boxes, scope.bounded, session.id, session.lastY);
         const navRect = nav.getBoundingClientRect();
-        const lands = slotMove(ids, session.id, session.slot) != null;
+        const lands = session.slot != null && scope.moveFor(session.slot) != null;
         const lineViewportY = lands ? dropLineY(boxes, session.id, session.slot) : null;
         setView({
             id: session.id,
@@ -119,10 +152,10 @@ export function useRailDrag(
             }, 0);
         }
         setView(null);
-        if (!drop || !session.started || session.cancelled) {
+        if (!drop || !session.started || session.cancelled || session.slot == null) {
             return;
         }
-        const move = slotMove(idsRef.current, session.id, session.slot);
+        const move = scopeOfRef.current(session.id)?.moveFor(session.slot);
         if (move != null) {
             onMoveRef.current(move);
         }
@@ -141,7 +174,10 @@ export function useRailDrag(
 
     const onPointerDown = useCallback(
         (e: React.PointerEvent<HTMLElement>, id: string) => {
-            if (e.button !== 0 || e.pointerType === "touch" || !idsRef.current.includes(id) || navRef.current == null) {
+            if (e.button !== 0 || e.pointerType === "touch" || navRef.current == null) {
+                return;
+            }
+            if (!scopeOfRef.current(id)?.ids.includes(id)) {
                 return;
             }
             end(false);
@@ -154,7 +190,7 @@ export function useRailDrag(
                 startScroll: navRef.current.scrollTop,
                 started: false,
                 cancelled: false,
-                slot: 0,
+                slot: null,
                 frame: 0,
             };
             sessionRef.current = session;

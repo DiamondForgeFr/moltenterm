@@ -53,10 +53,16 @@ func moltenOrderWorkspaceList(ctx context.Context, wl waveobj.WorkspaceList) wav
 // MoveWorkspaceInRail applies a window's move and returns the new order. The whole order is written, so ids of deleted
 // workspaces leave it and workspaces never moved take their current place in it.
 func MoveWorkspaceInRail(ctx context.Context, req railorder.MoveRequest) ([]string, error) {
+	// Resolving the products reads each linked project's file: done before the lock and the transaction, so a slow disk
+	// never holds the database. A link changed meanwhile is caught by the next move.
+	products, err := railorder.ProductsOf(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("resolving the product groups: %w", err)
+	}
 	var order []string
 	var changed bool
 	var clientId string
-	err := withWorkspaceOrderLock(func() error {
+	err = withWorkspaceOrderLock(func() error {
 		return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
 			tctx := tx.Context()
 			wl, err := ListWorkspaces(tctx)
@@ -67,10 +73,7 @@ func MoveWorkspaceInRail(ctx context.Context, req railorder.MoveRequest) ([]stri
 			for _, entry := range wl {
 				current = append(current, entry.WorkspaceId)
 			}
-			if err := railorder.CheckMove(tctx, current, req); err != nil {
-				return err
-			}
-			order, changed, err = railorder.Move(current, req)
+			order, changed, err = railorder.MoveGrouped(current, products, req)
 			if err != nil {
 				return err
 			}
@@ -96,6 +99,7 @@ func MoveWorkspaceInRail(ctx context.Context, req railorder.MoveRequest) ([]stri
 		// The windows keep a copy of the client: it must not hold the old order.
 		SendWaveObjUpdate(waveobj.MakeORef(waveobj.OType_Client, clientId))
 		wps.Broker.Publish(wps.WaveEvent{Event: wps.Event_WorkspaceUpdate})
+		railorder.Moved()
 	}
 	return order, nil
 }

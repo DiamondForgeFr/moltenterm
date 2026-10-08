@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/railorder"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -96,14 +97,14 @@ type Groups struct {
 	refreshing   bool
 	refreshAgain bool
 	collector    *Collector
-	ci          *Ci
-	runs        *Runs
-	links       func(ctx context.Context) ([]molten.GroupLink, error)
-	read        func(dir string) molten.ProjectInfo
-	readDeps    func(dir string) (string, []molten.PipelineDependency)
-	run         Runner
-	now         func() time.Time
-	publish     func(GroupsAnswer)
+	ci           *Ci
+	runs         *Runs
+	links        func(ctx context.Context) ([]molten.GroupLink, error)
+	read         func(dir string) molten.ProjectInfo
+	readDeps     func(dir string) (string, []molten.PipelineDependency)
+	run          Runner
+	now          func() time.Time
+	publish      func(GroupsAnswer)
 	// Tells the stale dependencies in the notification center; nil in tests that do not look.
 	notify func(DependencyNotices) error
 	// The last published model, so a refresh that changed nothing of the groups is not told again.
@@ -125,22 +126,63 @@ func MakeGroups(collector *Collector, ci *Ci, runs *Runs, run Runner, links func
 		now: time.Now, publish: publish, notify: notify, deps: map[string]DependencyState{}}
 }
 
-// WorkspaceLinks reads the workspace → project links in the rail's order: Wave's workspace list keeps the database's
-// order, which is the order read here.
+// WorkspaceLinks reads the workspace → project links in the rail's order (FR-MC-031): the order the user set, stored in
+// the client meta, the other workspaces after them in the database's order, as Wave's ListWorkspaces sorts its list.
 func WorkspaceLinks(ctx context.Context) ([]molten.GroupLink, error) {
 	workspaces, err := wstore.DBGetAllObjsByType[*waveobj.Workspace](ctx, waveobj.OType_Workspace)
 	if err != nil {
 		return nil, err
 	}
-	links := []molten.GroupLink{}
+	var stored []string
+	if client, err := wstore.DBGetSingleton[*waveobj.Client](ctx); err == nil && client != nil {
+		stored = railorder.ReadOrder(client.Meta)
+	}
+	return linksInOrder(workspaces, stored), nil
+}
+
+func linksInOrder(workspaces []*waveobj.Workspace, stored []string) []molten.GroupLink {
+	byId := make(map[string]*waveobj.Workspace, len(workspaces))
+	listed := make([]string, 0, len(workspaces))
 	for _, ws := range workspaces {
+		byId[ws.OID] = ws
+		listed = append(listed, ws.OID)
+	}
+	links := []molten.GroupLink{}
+	for _, id := range railorder.ApplyOrder(listed, stored) {
+		ws := byId[id]
 		dir := ws.Meta.GetString(molten.ProjectMetaKey, "")
 		if dir == "" {
 			continue
 		}
 		links = append(links, molten.GroupLink{WorkspaceId: ws.OID, WorkspaceName: ws.Name, Dir: dir})
 	}
-	return links, nil
+	return links
+}
+
+// productsOf maps each workspace of a product (a group of two members or more, FR-MC-027) to the group's key; the rail
+// order's move rule reads it.
+func productsOf(groups []molten.ProjectGroup) map[string]string {
+	rtn := map[string]string{}
+	for _, group := range groups {
+		if len(group.Members) < 2 {
+			continue
+		}
+		for _, member := range group.Members {
+			for _, ws := range member.Workspaces {
+				rtn[ws.Id] = group.Key
+			}
+		}
+	}
+	return rtn
+}
+
+// ProductWorkspaces resolves the products now, from the links and the members' files, for the rail order's move rule.
+func ProductWorkspaces(ctx context.Context) (map[string]string, error) {
+	links, err := WorkspaceLinks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return productsOf(molten.ResolveGroups(links, molten.ReadProject)), nil
 }
 
 // trunkRemoteCi sums up GitHub's runs on the trunk: the runs of the trunk's newest run commit, red when one failed,

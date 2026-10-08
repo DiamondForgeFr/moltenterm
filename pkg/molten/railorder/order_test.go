@@ -44,11 +44,11 @@ func TestMove(t *testing.T) {
 		want    []string
 		changed bool
 	}{
-		{"before a neighbour above", MoveRequest{"d", "b", PlaceBefore}, []string{"a", "d", "b", "c"}, true},
-		{"after a neighbour below", MoveRequest{"a", "b", PlaceAfter}, []string{"b", "a", "c", "d"}, true},
-		{"to the top", MoveRequest{"c", "a", PlaceBefore}, []string{"c", "a", "b", "d"}, true},
-		{"to the bottom", MoveRequest{"a", "d", PlaceAfter}, []string{"b", "c", "d", "a"}, true},
-		{"already there", MoveRequest{"b", "c", PlaceBefore}, []string{"a", "b", "c", "d"}, false},
+		{"before a neighbour above", mv("d", "b", PlaceBefore), []string{"a", "d", "b", "c"}, true},
+		{"after a neighbour below", mv("a", "b", PlaceAfter), []string{"b", "a", "c", "d"}, true},
+		{"to the top", mv("c", "a", PlaceBefore), []string{"c", "a", "b", "d"}, true},
+		{"to the bottom", mv("a", "d", PlaceAfter), []string{"b", "c", "d", "a"}, true},
+		{"already there", mv("b", "c", PlaceBefore), []string{"a", "b", "c", "d"}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -69,11 +69,11 @@ func TestMove(t *testing.T) {
 func TestMoveRefuses(t *testing.T) {
 	order := []string{"a", "b"}
 	for _, req := range []MoveRequest{
-		{"a", "b", "middle"},
-		{"a", "a", PlaceBefore},
-		{"", "b", PlaceBefore},
-		{"unsaved", "b", PlaceBefore},
-		{"a", "gone", PlaceAfter},
+		mv("a", "b", "middle"),
+		mv("a", "a", PlaceBefore),
+		mv("", "b", PlaceBefore),
+		mv("unsaved", "b", PlaceBefore),
+		mv("a", "gone", PlaceAfter),
 	} {
 		if _, _, err := Move(order, req); err == nil {
 			t.Fatalf("Move(%+v) accepted", req)
@@ -101,25 +101,33 @@ func TestReadOrder(t *testing.T) {
 	}
 }
 
-func TestCheckMove(t *testing.T) {
-	defer SetMoveCheck(nil)
+func TestGrouping(t *testing.T) {
+	defer SetGrouping(nil, nil)
 	ctx := context.Background()
-	if err := CheckMove(ctx, nil, MoveRequest{}); err != nil {
-		t.Fatalf("no check set: %v", err)
+	if products, err := ProductsOf(ctx); err != nil || products != nil {
+		t.Fatalf("no grouping set: %v, %v", products, err)
 	}
-	refused := errors.New("outside its group")
-	SetMoveCheck(func(ctx context.Context, order []string, req MoveRequest) error {
-		if req.TargetId == "other" {
-			return refused
-		}
-		return nil
-	})
-	if err := CheckMove(ctx, nil, MoveRequest{"a", "other", PlaceBefore}); !errors.Is(err, refused) {
-		t.Fatalf("check not applied: %v", err)
+	Moved()
+	told := 0
+	SetGrouping(func(ctx context.Context) (map[string]string, error) {
+		return map[string]string{"a": "p"}, nil
+	}, func() { told++ })
+	if products, err := ProductsOf(ctx); err != nil || products["a"] != "p" {
+		t.Fatalf("grouping not applied: %v, %v", products, err)
 	}
-	if err := CheckMove(ctx, nil, MoveRequest{"a", "b", PlaceBefore}); err != nil {
-		t.Fatalf("check refused an allowed move: %v", err)
+	Moved()
+	if told != 1 {
+		t.Fatalf("moved told %d times", told)
 	}
+	failed := errors.New("unreadable")
+	SetGrouping(func(ctx context.Context) (map[string]string, error) { return nil, failed }, nil)
+	if _, err := ProductsOf(ctx); !errors.Is(err, failed) {
+		t.Fatalf("error not passed on: %v", err)
+	}
+}
+
+func mv(workspaceId string, targetId string, place string) MoveRequest {
+	return MoveRequest{WorkspaceId: workspaceId, TargetId: targetId, Place: place}
 }
 
 func TestIsWindowSource(t *testing.T) {

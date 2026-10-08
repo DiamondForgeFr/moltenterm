@@ -29,6 +29,8 @@ type MoveRequest struct {
 	WorkspaceId string `json:"workspaceid"`
 	TargetId    string `json:"targetid"`
 	Place       string `json:"place"`
+	// Moves the whole product the workspace belongs to (FR-MC-027): its workspaces travel together.
+	Block bool `json:"block,omitempty"`
 }
 
 // ReadOrder reads the stored order; a missing or unreadable value is no order. The meta comes back from the database
@@ -83,27 +85,145 @@ func ApplyOrder(listed []string, stored []string) []string {
 // Move returns the order with the workspace put before or after the target; changed is false when it already sits
 // there.
 func Move(order []string, req MoveRequest) (rtn []string, changed bool, err error) {
+	if err := checkRequest(order, req); err != nil {
+		return nil, false, err
+	}
+	rtn = moveOne(order, req)
+	return rtn, !slices.Equal(rtn, order), nil
+}
+
+func checkRequest(order []string, req MoveRequest) error {
 	if req.Place != PlaceBefore && req.Place != PlaceAfter {
-		return nil, false, fmt.Errorf("unknown place %q: before or after", req.Place)
+		return fmt.Errorf("unknown place %q: before or after", req.Place)
 	}
 	if req.WorkspaceId == "" || req.TargetId == "" {
-		return nil, false, fmt.Errorf("a move needs a workspace and a neighbour")
+		return fmt.Errorf("a move needs a workspace and a neighbour")
 	}
 	if req.WorkspaceId == req.TargetId {
-		return nil, false, fmt.Errorf("a workspace cannot move next to itself")
+		return fmt.Errorf("a workspace cannot move next to itself")
 	}
 	if !slices.Contains(order, req.WorkspaceId) {
-		return nil, false, fmt.Errorf("workspace %q is not in the rail (an unsaved workspace cannot move)", req.WorkspaceId)
+		return fmt.Errorf("workspace %q is not in the rail (an unsaved workspace cannot move)", req.WorkspaceId)
 	}
 	if !slices.Contains(order, req.TargetId) {
-		return nil, false, fmt.Errorf("workspace %q is not in the rail", req.TargetId)
+		return fmt.Errorf("workspace %q is not in the rail", req.TargetId)
 	}
-	rtn = slices.DeleteFunc(slices.Clone(order), func(id string) bool { return id == req.WorkspaceId })
+	return nil
+}
+
+func moveOne(order []string, req MoveRequest) []string {
+	rtn := slices.DeleteFunc(slices.Clone(order), func(id string) bool { return id == req.WorkspaceId })
 	at := slices.Index(rtn, req.TargetId)
 	if req.Place == PlaceAfter {
 		at++
 	}
-	rtn = slices.Insert(rtn, at, req.WorkspaceId)
+	return slices.Insert(rtn, at, req.WorkspaceId)
+}
+
+// Normalize gathers each product's workspaces where its first one sits, in their order, the way the rail draws them
+// (FR-MC-027). productOf maps a workspace id to its product's key; a workspace missing from it stands alone. The order
+// stored before a project joined a group can hold a product's workspaces apart: the rail still shows them together.
+func Normalize(order []string, productOf map[string]string) []string {
+	if len(productOf) == 0 {
+		return slices.Clone(order)
+	}
+	rtn := make([]string, 0, len(order))
+	gathered := map[string]bool{}
+	for _, id := range order {
+		key := productOf[id]
+		if key == "" {
+			rtn = append(rtn, id)
+			continue
+		}
+		if gathered[key] {
+			continue
+		}
+		gathered[key] = true
+		for _, other := range order {
+			if productOf[other] == key {
+				rtn = append(rtn, other)
+			}
+		}
+	}
+	return rtn
+}
+
+// productSpan returns where a product's workspaces start and end in a normalized order.
+func productSpan(order []string, productOf map[string]string, key string) (first int, last int) {
+	first, last = -1, -1
+	for i, id := range order {
+		if productOf[id] != key {
+			continue
+		}
+		if first < 0 {
+			first = i
+		}
+		last = i
+	}
+	return first, last
+}
+
+// checkEdge refuses a target inside another product: whatever lands next to a product lands before its first workspace
+// or after its last one, never between two of its members.
+func checkEdge(order []string, productOf map[string]string, req MoveRequest) error {
+	key := productOf[req.TargetId]
+	if key == "" {
+		return nil
+	}
+	first, last := productSpan(order, productOf, key)
+	at := slices.Index(order, req.TargetId)
+	if (req.Place == PlaceBefore && at == first) || (req.Place == PlaceAfter && at == last) {
+		return nil
+	}
+	return fmt.Errorf("the move would split the product %q: drop it before or after the product", key)
+}
+
+// MoveGrouped applies a move under the product rule of FR-MC-027 (DS-MC-024): a member of a product moves within its
+// product only, a product moves as a block (req.Block), and nothing lands between two members of another product. The
+// result is normalized, so a product's workspaces stay together in the stored order. Without products it is Move.
+func MoveGrouped(order []string, productOf map[string]string, req MoveRequest) (rtn []string, changed bool, err error) {
+	if err := checkRequest(order, req); err != nil {
+		return nil, false, err
+	}
+	normal := Normalize(order, productOf)
+	own := productOf[req.WorkspaceId]
+	target := productOf[req.TargetId]
+	switch {
+	case req.Block:
+		if own == "" {
+			return nil, false, fmt.Errorf("workspace %q is in no product: move it alone", req.WorkspaceId)
+		}
+		if target == own {
+			return nil, false, fmt.Errorf("a product cannot move next to one of its own members")
+		}
+		if err := checkEdge(normal, productOf, req); err != nil {
+			return nil, false, err
+		}
+		block := []string{}
+		rest := []string{}
+		for _, id := range normal {
+			if productOf[id] == own {
+				block = append(block, id)
+			} else {
+				rest = append(rest, id)
+			}
+		}
+		at := slices.Index(rest, req.TargetId)
+		if req.Place == PlaceAfter {
+			at++
+		}
+		rtn = slices.Insert(rest, at, block...)
+	case own != "":
+		if target != own {
+			return nil, false, fmt.Errorf("a member of the product %q moves within its product only", own)
+		}
+		rtn = moveOne(normal, req)
+	default:
+		if err := checkEdge(normal, productOf, req); err != nil {
+			return nil, false, err
+		}
+		rtn = moveOne(normal, req)
+	}
 	return rtn, !slices.Equal(rtn, order), nil
 }
 
