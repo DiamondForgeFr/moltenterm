@@ -27,8 +27,8 @@ export const WorstDotClasses: Record<string, string> = {
     amber: "bg-warning",
 };
 
-// The badge of a member's worst state (red over amber), top-left: the unread dot holds the top-right corner, the agent
-// state the bottom-right and the pencil the bottom-left.
+// The badge of a member's worst state (red over amber), top-left: the unread dot holds the top-right corner and the
+// agent state the bottom-right; the pencil buds out beside the icon (#365).
 export function WorstDot({ worst, className }: { worst: string; className?: string }) {
     const color = WorstDotClasses[worst];
     if (color == null) {
@@ -120,12 +120,7 @@ export function RailProduct({
     const onContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
         ContextMenuModel.getInstance().showContextMenu(
-            [
-                { label: collapsed ? "Expand" : "Collapse", click: onToggle },
-                { type: "separator" },
-                { label: "Move up", enabled: moves.up != null, click: () => onMove(moves.up, false) },
-                { label: "Move down", enabled: moves.down != null, click: () => onMove(moves.down, false) },
-            ],
+            [{ label: collapsed ? "Expand" : "Collapse", click: onToggle }],
             e
         );
     };

@@ -73,8 +73,179 @@
 }
 
 /* The pencil travels with the dragged item, but nothing can be done with it until the drop. */
-.molten-rail-dragging .molten-rail-edit {
+.molten-rail-dragging .molten-rail-bud {
     visibility: hidden;
+}
+
+/* The rail pencil buds out of its item's right edge (FR-SHELL-030, DS-SHELL-061, #365). Each item's button is the
+   anchor of its own pencil, which is fixed: the rail is 48 px wide and scrolls (overflow clips both ways), while the
+   bud lies past its right border, over the content. Anchoring keeps it on its item through the rail's scroll and
+   hides it once the item is scrolled out. */
+.molten-rail-budhost {
+    anchor-scope: --molten-rail-item;
+}
+
+.molten-rail-anchor {
+    anchor-name: --molten-rail-item;
+}
+
+/* While its pencil is out, the item stays lit, the pointer on the pencil or a keyboard focus included: the droplet is a
+   piece of it and joins its lit box. */
+.molten-rail-budhost:is(:hover, :has(:focus-visible)) > .molten-rail-anchor {
+    background-color: var(--color-hover);
+}
+
+.molten-rail-bud {
+    position: fixed;
+    position-anchor: --molten-rail-item;
+    position-visibility: anchors-visible;
+    left: anchor(right);
+    top: calc(anchor(center) - 12px);
+    width: 24px;
+    height: 24px;
+    z-index: 450;
+    pointer-events: none;
+    /* The tone of the hovered item (--color-hover over the rail), made opaque: the goo threshold needs an opaque fill,
+       and the bud must read as a piece of the item it leaves. */
+    --molten-rail-bud-fill: color-mix(in srgb, var(--mt-neutral-line) 10%, var(--color-background));
+}
+
+/* Only the shown badge takes the pointer: hidden, it would swallow clicks meant for the content under it. A keyboard
+   focus shows it, a mouse focus does not: the item keeps the focus after a click, and the badge would stay out. */
+.molten-rail-bud .molten-rail-edit {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 80ms ease-in;
+}
+
+.molten-rail-budhost:is(:hover, :has(:focus-visible)) > .molten-rail-bud .molten-rail-edit,
+.molten-rail-bud .molten-rail-edit[data-holding],
+.molten-rail-bud .molten-rail-edit[data-completing] {
+    opacity: 1;
+    pointer-events: auto;
+    transition: opacity 110ms ease-out 140ms;
+}
+
+/* The division, stopped just before the pinch-off: a stub swells out of the icon's edge, the drop leaves it, and the
+   goo filter (RailBudFilter) keeps them joined by a thin neck. The developer wants the pencil to stay a droplet of its
+   item, never a separate shape, so the settled state keeps the neck: the two discs touch and the blur rounds the
+   joint into a waist. The clip starts at the icon's edge, so nothing of the bud ever covers the icon; the goo layer
+   takes no pointer, the neck is decoration. Every step is a transition rather than a keyframe animation, so leaving
+   halfway reverses from where it is, back into the icon; the outgoing timings are set on the resting state. */
+.molten-rail-bud-clip {
+    position: absolute;
+    left: 0;
+    top: -4px;
+    width: 32px;
+    height: 32px;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.molten-rail-bud-goo {
+    position: absolute;
+    left: -10px;
+    top: 0;
+    width: 42px;
+    height: 32px;
+}
+
+.molten-rail-bud-tile,
+.molten-rail-bud-stub,
+.molten-rail-bud-drop {
+    position: absolute;
+    border-radius: 9999px;
+    background-color: var(--molten-rail-bud-fill);
+}
+
+/* The right part of the item's lit tile, in the goo too, so the tile itself stretches toward the neck with smooth
+   fillets instead of the neck sticking to a rigid square: tile, widening neck and badge read as one viscous shape.
+   It lies under the item (36 px tall, 4 px corners) and the clip keeps only what grows past its edge, so the icon,
+   its glyph and its dots stay crisp and uncovered. It fades with the item's own hover background. */
+.molten-rail-bud-tile {
+    left: -2px;
+    top: -2px;
+    width: 12px;
+    height: 36px;
+    border-radius: 0 4px 4px 0;
+    opacity: 0;
+    transition: opacity 150ms ease-in 60ms;
+}
+
+.molten-rail-budhost:is(:hover, :has(:focus-visible)) > .molten-rail-bud .molten-rail-bud-tile {
+    opacity: 1;
+    transition: opacity 150ms ease-out;
+}
+
+.molten-rail-bud-stub {
+    left: 4px;
+    top: 10px;
+    width: 12px;
+    height: 12px;
+    translate: 0 0;
+    scale: 0;
+    transition:
+        translate 100ms ease-out,
+        scale 90ms ease-in 120ms;
+}
+
+.molten-rail-bud-drop {
+    left: 14px;
+    top: 8px;
+    width: 16px;
+    height: 16px;
+    translate: -12px 0;
+    scale: 0;
+    transition:
+        translate 180ms ease-in,
+        scale 120ms ease-in 90ms;
+}
+
+.molten-rail-budhost:is(:hover, :has(:focus-visible)) > .molten-rail-bud .molten-rail-bud-stub {
+    translate: -2px 0;
+    scale: 1;
+    transition:
+        scale 90ms ease-out,
+        translate 140ms ease-out 80ms;
+}
+
+.molten-rail-budhost:is(:hover, :has(:focus-visible)) > .molten-rail-bud .molten-rail-bud-drop {
+    translate: 0 0;
+    scale: 1;
+    transition:
+        translate 220ms cubic-bezier(0.3, 0.7, 0.3, 1.05) 20ms,
+        scale 200ms ease-out 20ms;
+}
+
+/* Reduced motion: no division; the connected droplet is drawn settled and fades in and out with the badge. */
+.molten-rail-bud[data-reduced-motion] .molten-rail-bud-stub,
+.molten-rail-bud[data-reduced-motion] .molten-rail-bud-drop {
+    translate: none;
+    scale: none;
+    transition: none;
+}
+
+.molten-rail-bud[data-reduced-motion] .molten-rail-bud-tile {
+    opacity: 1;
+    transition: none;
+}
+
+.molten-rail-bud[data-reduced-motion] .molten-rail-bud-stub {
+    translate: -2px 0;
+}
+
+.molten-rail-bud[data-reduced-motion] .molten-rail-bud-goo {
+    opacity: 0;
+    transition: opacity 120ms linear;
+}
+
+.molten-rail-budhost:is(:hover, :has(:focus-visible)) > .molten-rail-bud[data-reduced-motion] .molten-rail-bud-goo {
+    opacity: 1;
+}
+
+.molten-rail-bud[data-reduced-motion] .molten-rail-edit,
+.molten-rail-budhost:is(:hover, :has(:focus-visible)) > .molten-rail-bud[data-reduced-motion] .molten-rail-edit {
+    transition: opacity 120ms linear;
 }
 
 /* The command palette's selected entry (FR-SHELL-013): a tint and an accent bar, so the keyboard selection is

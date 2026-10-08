@@ -4,7 +4,8 @@
 // The workspace rail (FR-SHELL-001, DS-SHELL-002): every workspace at a glance on the left, one click to switch, as
 // in Notulia. It replaces the switcher of the tab bar and reuses Wave's workspace calls; a workspace is edited in
 // MoltenTerm's sheet (FR-SHELL-030), from its context menu, its pencil or a double-click. The user orders it by drag
-// and drop, Move up / Move down and Alt+Shift+Up/Down (FR-MC-031); wavesrv keeps the order and sorts Wave's list by it.
+// and drop from anywhere on an item, as tabs, and Alt+Shift+Up/Down (FR-MC-031, #365); wavesrv keeps the order and
+// sorts Wave's list by it.
 // Workspaces whose projects form a product (FR-MC-027) are drawn under one collapsible product entry (rail-product.tsx).
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
@@ -45,7 +46,7 @@ import { moveWorkspace, RailMove, slotMove, sortByOrder } from "./workspace-orde
 import { readWorkspaceProject } from "./workspace-project";
 import { RailDragScope, useRailDrag } from "./workspace-rail-dnd";
 import { railMoveKey } from "./workspace-rail-drag";
-import { RailEditButton } from "./workspace-rail-edit";
+import { RailBudFilter, RailEditButton } from "./workspace-rail-edit";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
 import { askResetWorkspace, WorkspaceResetHost } from "./workspace-reset";
 import { canCloseWorkspace, LastWorkspaceReason } from "./workspace-reset-model";
@@ -63,6 +64,9 @@ export async function loadWorkspaceSources(): Promise<WorkspaceRailSource[]> {
 }
 
 type Anchor = { top: number; left: number };
+
+// The pencil's target spans 24 px right of the item's edge.
+const RailBudTooltipOffsetPx = 30;
 
 function RailTooltip({ label, anchor }: { label: string; anchor: Anchor }) {
     if (anchor == null) {
@@ -90,7 +94,8 @@ type RailItemMoves = {
 };
 
 // A workspace drawn inside a product (FR-MC-027-AC5): its own badge and state, arrows walking the product. Its box keeps
-// the full size: the pencil's 24 px target would cover most of a smaller one.
+// the full size: the pencil's 24 px target would cover most of a smaller one. Since #365 the pencil buds out beside the
+// icon, so a smaller box is possible again; it is left as it is.
 type RailMemberInfo = {
     worst: string;
     stateText: string;
@@ -127,7 +132,8 @@ function RailButton({
             : { icon: entry.icon, color: entry.color, image: "", logo: "" };
     const anchorOf = (): Anchor => {
         const rect = ref.current.getBoundingClientRect();
-        return { top: rect.top + rect.height / 2, left: rect.right + 8 };
+        // Past the pencil, which buds out right of a saved item (DS-SHELL-061).
+        return { top: rect.top + rect.height / 2, left: rect.right + (entry.saved ? RailBudTooltipOffsetPx : 8) };
     };
     const edit = (opener: HTMLElement) => {
         onHover(null, null);
@@ -173,9 +179,6 @@ function RailButton({
                 ...projectTab,
                 { label: "Edit workspace…", click: () => edit(ref.current) },
                 { type: "separator" },
-                { label: "Move up", enabled: moves.up != null, click: () => moves.onMove(moves.up, false) },
-                { label: "Move down", enabled: moves.down != null, click: () => moves.onMove(moves.down, false) },
-                { type: "separator" },
                 ...(closable ? [] : [{ label: "Reset workspace…", click: () => askResetWorkspace(entry.id) }]),
                 {
                     label: "Delete workspace",
@@ -210,7 +213,7 @@ function RailButton({
     return (
         <div
             data-rail-unit={unitId}
-            className={cn("group relative shrink-0", dragging && "molten-rail-dragging z-10")}
+            className={cn("molten-rail-budhost relative shrink-0", dragging && "molten-rail-dragging z-10")}
             style={dragging ? { transform: `translateY(${moves.dragOffsetY}px)` } : undefined}
         >
             <button
@@ -234,7 +237,7 @@ function RailButton({
                 }
                 onMouseLeave={() => onHover(null, null)}
                 className={cn(
-                    "molten-rail-item cursor-pointer transition-colors hover:bg-hover",
+                    "molten-rail-item molten-rail-anchor cursor-pointer transition-colors hover:bg-hover",
                     RailBadgeClass,
                     entry.active && "bg-hover",
                     !entry.active && entry.open && "outline outline-1 -outline-offset-1 outline-border"
@@ -263,7 +266,7 @@ function RailButton({
                     onEdit={(opener) => edit(opener)}
                     onHover={(opener) => {
                         const rect = opener.getBoundingClientRect();
-                        onHover(`Edit ${entry.name}`, { top: rect.top + rect.height / 2, left: rect.right + 8 });
+                        onHover(`Edit ${entry.name}`, { top: rect.top + rect.height / 2, left: rect.right + 6 });
                     }}
                     onLeave={() => onHover(null, null)}
                 />
@@ -472,6 +475,7 @@ export function WorkspaceRail() {
             </button>
             <RailTools onHover={(label, anchor) => setTooltip(label == null ? null : { label, anchor })} />
             <RailTooltip label={tooltip?.label} anchor={tooltip?.anchor} />
+            <RailBudFilter />
             <ProjectLinkDetector />
             <ProjectTabKeeper />
             <PaneFocusKeeper />
