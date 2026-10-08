@@ -462,9 +462,10 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
         input.picker != null
             ? pickerPanelEntries(input.widgets, input.workspaceId, input.picker, input.projectLinked)
             : panelEntries(input.widgets, input.workspaceId);
-    const actions = actionEntries(input.workspaces, input.projectLinked).map((e) =>
-        e.id === "action:shortcuts" && input.shortcutsHint ? { ...e, hint: input.shortcutsHint } : e
-    );
+    const actions = actionEntries(input.workspaces, input.projectLinked)
+        // The picker lists Sessions with the panels already.
+        .filter((e) => input.picker == null || e.id !== "action:sessions")
+        .map((e) => (e.id === "action:shortcuts" && input.shortcutsHint ? { ...e, hint: input.shortcutsHint } : e));
     const entries = [
         ...agentEntries(input.presets),
         ...panels,

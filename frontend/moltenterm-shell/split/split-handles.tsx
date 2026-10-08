@@ -36,25 +36,16 @@ export const SplitBudFilterId = "molten-split-bud-goo";
 type DragState = { edge: Edge; startX: number; startY: number; moved: boolean; pos: number; length: number };
 
 // The same metaball filter as the rail buds (workspace-rail-edit.tsx RailBudFilter), under its own id so the handles
-// do not depend on the rail being drawn.
-function SplitBudFilter() {
-    return (
-        <svg className="pointer-events-none absolute h-0 w-0" aria-hidden focusable="false">
-            <defs>
-                <filter
-                    id={SplitBudFilterId}
-                    x="-50%"
-                    y="-50%"
-                    width="200%"
-                    height="200%"
-                    colorInterpolationFilters="sRGB"
-                >
-                    <feGaussianBlur in="SourceGraphic" stdDeviation="2.4" result="blur" />
-                    <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 40 -19.5" />
-                </filter>
-            </defs>
-        </svg>
-    );
+// do not depend on the rail being drawn. Added once to the document: one per block would repeat its id.
+const SplitBudFilterSvg = `<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;pointer-events:none"><defs><filter id="${SplitBudFilterId}" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="2.4" result="blur"/><feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 40 -19.5"/></filter></defs></svg>`;
+
+function ensureSplitBudFilter() {
+    if (document.getElementById(SplitBudFilterId) != null) {
+        return;
+    }
+    const holder = document.createElement("div");
+    holder.innerHTML = SplitBudFilterSvg;
+    document.body.appendChild(holder.firstElementChild);
 }
 
 function Bud({
@@ -221,9 +212,15 @@ export function SplitEdgeHandles({
     }, [blocked]);
 
     useEffect(() => {
+        ensureSplitBudFilter();
+    }, []);
+
+    useEffect(() => {
         if (blocked) {
             setEdge(null);
             setDrag(null);
+            // The bud is gone without a pointerleave: it no longer holds the hover.
+            overBud.current = false;
         }
     }, [blocked]);
 
@@ -300,7 +297,6 @@ export function SplitEdgeHandles({
             onPointerUp={onDragUp}
             onPointerCancel={() => setDrag(null)}
         >
-            <SplitBudFilter />
             {webview && !blocked ? (
                 <>
                     {allowed("right") ? (
