@@ -23,9 +23,9 @@
     background-color: var(--molten-base);
     border-color: transparent;
     transition:
-        transform 120ms ease-out,
-        box-shadow 300ms ease,
-        background-color 300ms ease;
+        transform var(--mt-duration-fast) var(--mt-ease),
+        box-shadow var(--mt-duration-slow) var(--mt-ease),
+        background-color var(--mt-duration-slow) var(--mt-ease);
 }
 
 /* In Tailwind's components layer, so a caller's utilities (absolute, shadow-lg, cursor-*) still win: the wave only
@@ -77,7 +77,7 @@
     border-radius: inherit;
     pointer-events: none;
     opacity: 0;
-    transition: opacity 300ms ease;
+    transition: opacity var(--mt-duration-slow) var(--mt-ease);
 }
 
 /* Two blobs twice the button's width, nearly round, turning slowly at different speeds: their lower edges roll
@@ -135,14 +135,47 @@
     display: none;
 }
 
-/* Calm variants: no wave, a subtle surface tint on hover. Wave's grey, red and yellow tokens keep their colours. */
+/* Calm variants (DS-SHELL-078): no wave and no fill at rest. Secondary: no border, the raised surface on hover.
+   Ghost: text or icon only, muted, the main text colour on hover. Outline: only for the confirming button of a delete,
+   a tint on hover. Wave's grey, red and yellow tokens keep their colours on the outline and ghost variants. Wave's
+   grey solid button maps to secondary: the selectors repeat its classes to win over button.scss's
+   `.wave-button.solid.grey`. */
+.molten-btn-secondary,
 .molten-btn-outline,
 .molten-btn-ghost {
     cursor: pointer;
+    transition:
+        color var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease),
+        border-color var(--mt-duration-fast) var(--mt-ease);
 }
 
-.molten-btn-outline:hover,
-.molten-btn-ghost:hover {
+/* In the components layer, so a caller's text colour utility still wins; Wave's button needs the unlayered rule. */
+@layer components {
+    .molten-btn-secondary {
+        color: var(--mt-text-secondary);
+        background-color: transparent;
+        border-color: transparent;
+    }
+
+    .molten-btn-secondary:hover:not(:disabled) {
+        color: var(--mt-text-main);
+        background-color: var(--mt-surface-2);
+    }
+}
+
+.wave-button.molten-btn-secondary.solid {
+    color: var(--mt-text-secondary);
+    background-color: transparent;
+    border-color: transparent;
+}
+
+.wave-button.molten-btn-secondary.solid:hover:not(:disabled) {
+    color: var(--mt-text-main);
+    background-color: var(--mt-surface-2);
+}
+
+.molten-btn-outline:hover:not(:disabled) {
     background-color: var(--hover-bg-color);
 }
 
@@ -155,11 +188,14 @@
     border-color: color-mix(in srgb, var(--mt-accent) 70%, transparent);
 }
 
-.molten-btn-outline.molten-tone-accent:hover,
-.molten-btn-ghost.molten-tone-accent:hover {
+.molten-btn-outline.molten-tone-accent:hover {
     color: var(--color-accenthover);
     border-color: var(--mt-accent);
     background-color: color-mix(in srgb, var(--mt-accent) 10%, transparent);
+}
+
+.molten-btn-ghost.molten-tone-accent:hover {
+    color: var(--color-accenthover);
 }
 
 /* One focus ring for every button: a light tint of the accent, offset from the edge. Wave's was 1px green. */

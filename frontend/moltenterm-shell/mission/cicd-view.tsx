@@ -68,7 +68,7 @@ function LocalCiTab({ project, report }: { project: ActiveProject; report: Pipel
                 <LocalCiRunner dir={project.dir} projectName={projectName} />
             )}
             {report?.warnings?.length ? (
-                <div className="text-[11px] text-muted">
+                <div className="text-11 text-muted">
                     {report.warnings.map((w) => (
                         <div key={w}>warning: {w}</div>
                     ))}
@@ -91,10 +91,10 @@ function ProjectLink() {
         <button
             type="button"
             onClick={() => fireAndForget(showProject)}
-            className="flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary"
+            className="flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
             title="Open Project: Run CI on develop, Build local, Release, Clean branches and the release summary live there"
         >
-            <i className="fa fa-solid fa-diagram-project text-[10px]" />
+            <i className="fa fa-solid fa-diagram-project text-11" />
             Project
         </button>
     );
@@ -135,7 +135,7 @@ function CicdContent({
         <>
             <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
                 <ProjectLink />
-                <div role="tablist" className="flex items-center gap-0.5 rounded border border-border p-0.5">
+                <div role="tablist" className="flex items-center gap-0.5 rounded-4 border border-border p-0.5">
                     {Tabs.map((t) => (
                         <button
                             key={t.id}
@@ -144,11 +144,11 @@ function CicdContent({
                             aria-selected={tab === t.id}
                             onClick={() => setTab(t.id)}
                             className={cn(
-                                "flex cursor-pointer items-center gap-1.5 rounded px-2 py-0.5 text-xs transition-colors",
+                                "flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-0.5 text-12 transition-colors duration-120 ease-mt",
                                 tab === t.id ? "bg-hover text-primary" : "text-muted hover:text-primary"
                             )}
                         >
-                            <i className={cn("fa fa-solid text-[10px]", `fa-${t.icon}`)} />
+                            <i className={cn("fa fa-solid text-11", `fa-${t.icon}`)} />
                             {t.label}
                         </button>
                     ))}

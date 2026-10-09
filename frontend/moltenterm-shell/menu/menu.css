@@ -23,14 +23,14 @@
     overflow-y: auto;
     box-sizing: border-box;
     border: 1px solid var(--border-color, #555);
-    border-radius: 5px;
+    border-radius: var(--mt-radius-10);
     padding: 4px;
-    background: var(--modal-bg-color, #242424);
+    background: var(--mt-surface-3, #242424);
     color: var(--main-text-color, #eee);
-    font:
-        12px/1.35 "IBM Plex Sans",
-        sans-serif;
-    box-shadow: 0 6px 22px #0006;
+    font-family: var(--mt-ui-font, "IBM Plex Sans", sans-serif);
+    font-size: var(--mt-text-12);
+    line-height: 1.35;
+    box-shadow: var(--mt-shadow-e2, 0 6px 22px #0006);
     overscroll-behavior: contain;
     outline: none;
     z-index: 1;
@@ -40,10 +40,10 @@
     align-items: center;
     gap: 8px;
     width: 100%;
-    min-height: 29px;
-    padding: 5px 8px;
+    min-height: var(--mt-row-28);
+    padding: 4px 8px;
     border: 0;
-    border-radius: 3px;
+    border-radius: var(--mt-radius-6);
     background: transparent;
     color: inherit;
     text-align: left;
@@ -61,13 +61,13 @@
     cursor: default;
 }
 .molten-menu-item[data-destructive] {
-    color: #ff9a9a;
+    color: var(--mt-danger-text);
 }
 .molten-menu-icon {
-    width: 15px;
-    flex: 0 0 15px;
+    width: 16px;
+    flex: 0 0 16px;
     text-align: center;
-    font-size: 11px;
+    font-size: var(--mt-icon-14);
 }
 .molten-menu-label {
     display: flex;
@@ -76,17 +76,17 @@
     white-space: nowrap;
 }
 .molten-menu-sublabel {
-    font-size: 11px;
+    font-size: var(--mt-text-11);
     color: inherit;
 }
 .molten-menu-shortcut {
     margin-left: 20px;
     white-space: nowrap;
-    font-size: 11px;
+    font-size: var(--mt-text-11);
 }
 .molten-menu-chevron {
     width: 8px;
-    font-size: 18px;
+    font-size: var(--mt-icon-16);
     line-height: 12px;
 }
 .molten-menu-separator {
@@ -94,8 +94,8 @@
     border-top: 1px solid var(--border-color, #555);
 }
 .molten-menu-header {
-    padding: 5px 8px;
-    font-size: 10px;
+    padding: 4px 8px;
+    font-size: var(--mt-text-11);
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;

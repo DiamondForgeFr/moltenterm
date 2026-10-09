@@ -31,10 +31,10 @@ import {
 } from "./worktree-model";
 import { removeWorktree, resolveKeptWorktreeNotice, worktreePlan } from "./worktree-store";
 
-const AccentButton = "molten-btn cursor-pointer rounded px-3 py-1.5 text-xs";
+const AccentButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12";
 const PlainButton =
-    "cursor-pointer rounded border border-border px-3 py-1.5 text-xs text-secondary hover:bg-hover hover:text-primary";
-const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded px-3 py-1.5 text-xs";
+    "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
+const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded-6 px-3 py-1.5 text-12";
 
 function pathName(path: string): string {
     return (
@@ -174,7 +174,7 @@ function PlanFacts({ plan, view }: { plan: WorktreePlan; view: ClosePlanView }) 
             <PlanLine text={view.branchLine ? `Branch ${view.branchLine}` : "No branch"} />
             <PlanLine text={view.changesLine} warn={plan.changecount > 0} />
             {plan.changes.length > 0 ? (
-                <div className="max-h-24 overflow-auto rounded bg-black/20 px-2 py-1 font-mono text-[11px] text-muted">
+                <div className="max-h-24 overflow-auto rounded-4 bg-black/20 px-2 py-1 font-mono text-11 text-muted">
                     {plan.changes.map((c) => (
                         <div key={c} className="truncate">
                             {c}
@@ -419,11 +419,11 @@ function TabCloseRowView({
     const view = row.plan ? closePlanView(row.plan) : null;
     const name = pathName(row.path);
     return (
-        <div className="flex flex-col gap-2 rounded border border-border px-3 py-2" data-role="molten-worktree-row">
+        <div className="flex flex-col gap-2 rounded-4 border border-border px-3 py-2" data-role="molten-worktree-row">
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <div className="truncate font-semibold text-primary">{name}</div>
-                    <div className="truncate text-[11px] text-muted" title={row.path}>
+                    <div className="truncate text-11 text-muted" title={row.path}>
                         {row.path}
                     </div>
                 </div>

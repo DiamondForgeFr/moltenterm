@@ -134,7 +134,7 @@ describe("the pencil buds out to the right (#365, FR-SHELL-030-AC17 to AC19)", (
         expect(tile).toContain("height: var(--molten-rail-item-h);");
         expect(tile).toContain("top: calc(64px - var(--molten-rail-item-h) / 2);");
         expect(cssRule(css, ".molten-rail-budhost")).toContain("--molten-rail-item-h: 36px;");
-        expect(tile).toContain("border-radius: 0 4px 4px 0;");
+        expect(tile).toContain("border-radius: 0 var(--mt-radius-4) var(--mt-radius-4) 0;");
         expect(tile).toContain("opacity: 0;");
         const shown =
             ".molten-rail-budhost:is(:hover, :has(:focus-visible), [data-buds-out]) > .molten-rail-bud .molten-rail-bud-tile";
@@ -162,7 +162,7 @@ describe("the pencil buds out to the right (#365, FR-SHELL-030-AC17 to AC19)", (
         expect(settled).toContain("translate: none;");
         expect(settled).toContain("scale: none;");
         expect(cssRule(css, ".molten-rail-bud[data-reduced-motion] .molten-rail-bud-goo")).toContain(
-            "transition: opacity 120ms linear;"
+            "transition: opacity var(--mt-duration-fast) var(--mt-ease);"
         );
     });
 
@@ -200,7 +200,7 @@ describe("a simple click edits (#368, revision of FR-SHELL-030, 2026-10-08)", ()
         expect(html).not.toContain("hold-tint");
         expect(html).not.toContain("molten-hold");
         expect(html).toMatch(
-            /class="molten-rail-bud-disc[^"]*h-7 w-7[^"]*bg-\[var\(--molten-rail-bud-fill\)\][^"]*text-\[12px\]/
+            /class="molten-rail-bud-disc[^"]*h-7 w-7[^"]*bg-\[var\(--molten-rail-bud-fill\)\][^"]*text-12/
         );
         expect(html).toContain("fa-pencil");
     });

@@ -29,16 +29,15 @@ export type TreeMarker = {
     title: string;
 };
 
-// Two terminals on the same worktree show the same colour: it is drawn from the path.
+// Two terminals on the same worktree show the same colour: it is drawn from the path. No blue: the info tone is the
+// shell's only blue (FR-SHELL-044).
 const WorktreeColors = [
-    "text-sky-300 border-sky-400/50 bg-sky-400/10",
     "text-violet-300 border-violet-400/50 bg-violet-400/10",
     "text-emerald-300 border-emerald-400/50 bg-emerald-400/10",
     "text-pink-300 border-pink-400/50 bg-pink-400/10",
     "text-teal-300 border-teal-400/50 bg-teal-400/10",
     "text-lime-300 border-lime-400/50 bg-lime-400/10",
     "text-fuchsia-300 border-fuchsia-400/50 bg-fuchsia-400/10",
-    "text-cyan-300 border-cyan-400/50 bg-cyan-400/10",
 ];
 const MainTreeColor = "text-secondary border-border bg-transparent";
 const MissingColor = "text-warning border-warning/50 bg-warning/10";

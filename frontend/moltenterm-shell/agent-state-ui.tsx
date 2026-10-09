@@ -99,7 +99,7 @@ export function AgentHeaderLabel({ blockId, localName }: { blockId: string; loca
         <>
             <button
                 type="button"
-                className="flex min-w-0 shrink cursor-pointer items-center gap-1.5 rounded pl-1 pr-1 text-[12px] hover:bg-hover"
+                className="flex min-w-0 shrink cursor-pointer items-center gap-1.5 rounded-6 pl-1 pr-1 text-12 hover:bg-hover"
                 title={`${title}\nClick for the agent companion (${companionShortcutLabel()})`}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {

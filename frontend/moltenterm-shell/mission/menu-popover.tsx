@@ -80,7 +80,7 @@ export function MenuPopover({
                 style={floatingStyles}
                 {...getFloatingProps({ onPointerEnter, onPointerLeave })}
                 className={cn(
-                    "z-[9500] overflow-y-auto rounded border border-border bg-modalbg p-3 shadow-lg",
+                    "z-[9500] overflow-y-auto rounded-10 border border-border bg-surface-3 p-3 shadow-e2",
                     className
                 )}
                 data-testid="menu-popover"

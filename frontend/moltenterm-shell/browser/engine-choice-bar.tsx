@@ -120,27 +120,27 @@ export function EngineChoiceBar({ choices, tabId, list, onStay, onHandOff, onDis
             role="group"
             aria-label={`Where ${choice.site} opens`}
             onKeyDown={onKeyDown}
-            className="molten-browser-choice flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-border px-2 py-1.5 text-xs"
+            className="molten-browser-choice flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-border px-2 py-1.5 text-12"
         >
-            <i className="fa fa-solid fa-globe shrink-0 text-[11px] text-secondary" />
+            <i className="fa fa-solid fa-globe shrink-0 text-11 text-secondary" />
             <span className="min-w-[150px] flex-1 truncate text-secondary">
                 <span className="text-primary">{choice.site}</span> opened in MoltenTerm.
             </span>
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <Button ref={choices.primaryRef} className="!h-6 !px-2.5 !text-xs" onClick={() => onStay(choice)}>
+                <Button ref={choices.primaryRef} className="!h-6 !px-2.5 !text-12" onClick={() => onStay(choice)}>
                     Open with MoltenTerm
                 </Button>
-                <div className="flex h-6 items-center rounded border border-border text-secondary">
+                <div className="flex h-6 items-center rounded-4 border border-border text-secondary">
                     <button
                         type="button"
                         onClick={() => onHandOff(choice, first)}
                         title={`Open this page in ${first.name}, with your sessions and extensions`}
                         className={cn(
                             "flex h-full cursor-pointer items-center gap-1.5 px-2 hover:bg-hover hover:text-primary",
-                            others.length > 0 ? "rounded-l" : "rounded"
+                            others.length > 0 ? "rounded-l-4" : "rounded-4"
                         )}
                     >
-                        <i className={cn(browserIconClass(first.id), "text-[11px]")} />
+                        <i className={cn(browserIconClass(first.id), "text-11")} />
                         <span className="whitespace-nowrap">Open in {first.name}</span>
                     </button>
                     {others.length > 0 ? (
@@ -149,9 +149,9 @@ export function EngineChoiceBar({ choices, tabId, list, onStay, onHandOff, onDis
                             aria-label="Other browsers"
                             title="Other browsers"
                             onClick={showOthers}
-                            className="flex h-full cursor-pointer items-center rounded-r border-l border-border px-1.5 hover:bg-hover hover:text-primary"
+                            className="flex h-full cursor-pointer items-center rounded-r-6 border-l border-border px-1.5 hover:bg-hover hover:text-primary"
                         >
-                            <i className="fa fa-solid fa-chevron-down text-[9px]" />
+                            <i className="fa fa-solid fa-chevron-down text-11" />
                         </button>
                     ) : null}
                 </div>
@@ -169,9 +169,9 @@ export function EngineChoiceBar({ choices, tabId, list, onStay, onHandOff, onDis
                     aria-label="Dismiss"
                     title="Keep MoltenTerm for this page, and ask again next time"
                     onClick={onDismiss}
-                    className="cursor-pointer rounded px-1 text-secondary hover:bg-hover hover:text-primary"
+                    className="cursor-pointer rounded-6 px-1 text-secondary hover:bg-hover hover:text-primary"
                 >
-                    <i className="fa fa-solid fa-xmark text-[10px]" />
+                    <i className="fa fa-solid fa-xmark text-11" />
                 </button>
             </div>
         </div>

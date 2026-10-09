@@ -25,12 +25,12 @@
 .molten-hold-disc {
     --molten-hold-glyph: color-mix(in srgb, var(--mt-accent) 55%, white);
     transition:
-        background-color 120ms ease-out,
-        transform 120ms ease-out;
+        background-color var(--mt-duration-fast) var(--mt-ease),
+        transform var(--mt-duration-fast) var(--mt-ease);
 }
 
 .molten-hold-glyph {
-    transition: color 120ms ease-out;
+    transition: color var(--mt-duration-fast) var(--mt-ease);
 }
 
 .molten-hold-tint {
@@ -60,7 +60,7 @@
 }
 
 .molten-hold[data-completing] .molten-hold-tint {
-    animation: molten-hold-flash 120ms ease-out forwards;
+    animation: molten-hold-flash var(--mt-duration-fast) var(--mt-ease) forwards;
 }
 
 /* The focus ring sits outside the progress ring and follows its circle, not the button's box. */

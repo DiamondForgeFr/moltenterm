@@ -39,15 +39,15 @@ function stepperEntries(state: OnboardingState): StepperEntry[] {
 
 function Marker({ entry, current }: { entry: StepperEntry; current: boolean }) {
     if (entry.status === "done") {
-        return <i className="fa-solid fa-circle-check text-[15px] text-[var(--mt-state-done)]" aria-hidden />;
+        return <i className="fa-solid fa-circle-check text-icon-14 text-[var(--mt-state-done)]" aria-hidden />;
     }
     if (entry.status === "skipped") {
-        return <i className="fa-solid fa-circle-minus text-[15px] text-muted" aria-hidden />;
+        return <i className="fa-solid fa-circle-minus text-icon-14 text-muted" aria-hidden />;
     }
     return (
         <span
             className={cn(
-                "flex h-[15px] w-[15px] items-center justify-center rounded-full border text-[9px] font-semibold tabular-nums",
+                "flex h-[15px] w-[15px] items-center justify-center rounded-full border text-11 font-semibold tabular-nums",
                 current ? "border-accent text-accent ring-2 ring-accent/30" : "border-[var(--mt-text-muted)] text-muted"
             )}
             aria-hidden
@@ -95,7 +95,7 @@ export function OnboardingStepper({
                                     aria-label={`${entry.label}, ${statusText(entry)}`}
                                     aria-current={current ? "step" : undefined}
                                     className={cn(
-                                        "flex cursor-pointer items-center gap-1.5 rounded px-1.5 py-1 text-xs transition-colors hover:bg-hoverbg",
+                                        "flex cursor-pointer items-center gap-1.5 rounded-6 px-1.5 py-1 text-12 transition-colors duration-120 ease-mt hover:bg-hoverbg",
                                         current ? "bg-hover text-primary" : "text-secondary"
                                     )}
                                 >
@@ -110,7 +110,7 @@ export function OnboardingStepper({
                     );
                 })}
             </ol>
-            <span className="truncate text-xs text-muted @min-[540px]:hidden">{progressLabel(page)}</span>
+            <span className="truncate text-12 text-muted @min-[540px]:hidden">{progressLabel(page)}</span>
         </nav>
     );
 }

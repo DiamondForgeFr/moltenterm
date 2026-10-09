@@ -8,11 +8,11 @@ import type { FirstRunStepContext } from "./onboarding-steps";
 
 function PlaceholderStep({ lines }: { lines: string[] }) {
     return (
-        <div className="flex flex-col gap-3 text-[13px] leading-5 text-secondary">
+        <div className="flex flex-col gap-3 text-13 leading-5 text-secondary">
             {lines.map((line) => (
                 <p key={line}>{line}</p>
             ))}
-            <p className="rounded border border-border px-3 py-2 text-xs text-muted">
+            <p className="rounded-4 border border-border px-3 py-2 text-12 text-muted">
                 This step is not ready in this version yet. Skip it for now: Getting started brings you back to it
                 later.
             </p>

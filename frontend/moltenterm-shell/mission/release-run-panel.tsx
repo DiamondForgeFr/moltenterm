@@ -49,8 +49,9 @@ const ShortTitles: Record<ReleasePhase, string> = {
 };
 
 const PlainButton =
-    "cursor-pointer rounded border border-border px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
-const AccentButton = "molten-btn cursor-pointer rounded px-3 py-1 text-xs disabled:cursor-default disabled:opacity-50";
+    "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
+const AccentButton =
+    "molten-btn cursor-pointer rounded-6 px-3 py-1 text-12 disabled:cursor-default disabled:opacity-50";
 
 export type ReleasePanelActions = {
     run: (action: PhaseAction) => Promise<void>;
@@ -61,13 +62,13 @@ export type ReleasePanelActions = {
 function StatusIcon({ status }: { status: PhaseStatus }) {
     switch (status) {
         case "done":
-            return <i className="fa fa-solid fa-check text-[11px]" />;
+            return <i className="fa fa-solid fa-check text-11" />;
         case "running":
-            return <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-[11px]" />;
+            return <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />;
         case "waiting":
-            return <i className="fa fa-solid fa-hand text-[11px]" />;
+            return <i className="fa fa-solid fa-hand text-11" />;
         case "failed":
-            return <i className="fa fa-solid fa-xmark text-[11px]" />;
+            return <i className="fa fa-solid fa-xmark text-11" />;
     }
     return <span className="block h-1.5 w-1.5 rounded-full bg-current opacity-60" />;
 }
@@ -110,10 +111,10 @@ function Jobs({ jobs }: { jobs: ReleaseGhJob[] }) {
             {jobs.map((job) => {
                 const status = jobStatus(job);
                 return (
-                    <li key={job.name} className="flex items-center gap-2 text-xs">
+                    <li key={job.name} className="flex items-center gap-2 text-12">
                         <span
                             className={cn(
-                                "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[8px]",
+                                "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-11",
                                 NodeClasses[status]
                             )}
                         >
@@ -158,7 +159,7 @@ function ActionButton({
     return (
         <div className="mt-3 flex flex-col gap-2">
             {confirming && confirm ? (
-                <p className="rounded border border-warning/40 bg-warning/10 px-2 py-1.5 text-xs text-warning">
+                <p className="rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-12 text-warning">
                     {confirm}
                 </p>
             ) : null}
@@ -174,14 +175,12 @@ function ActionButton({
                     className={plain ? PlainButton : AccentButton}
                     onClick={() => (confirm && !confirming ? setConfirming(true) : go())}
                 >
-                    {busy ? (
-                        <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-[10px]" />
-                    ) : null}
+                    {busy ? <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-11" /> : null}
                     {confirming ? "Confirm" : action.label}
                     {plain ? null : <MoltenWave />}
                 </button>
             </div>
-            {error ? <p className="text-right text-xs text-error">{error}</p> : null}
+            {error ? <p className="text-right text-12 text-error">{error}</p> : null}
         </div>
     );
 }
@@ -213,15 +212,15 @@ function NotesEditor({
     const dirty = text != null && text !== saved;
     useEffect(() => onDirty(dirty), [dirty]);
     if (text == null) {
-        return error ? <p className="mt-3 text-xs text-error">{error}</p> : null;
+        return error ? <p className="mt-3 text-12 text-error">{error}</p> : null;
     }
     return (
         <div className="mt-3 flex flex-col gap-2">
-            <div className="text-[11px] text-muted">Public notes: what the release page says</div>
+            <div className="text-11 text-muted">Public notes: what the release page says</div>
             <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                className="min-h-48 rounded border border-border bg-transparent p-2 font-mono text-xs text-primary"
+                className="min-h-48 rounded-4 border border-border bg-transparent p-2 font-mono text-12 text-primary"
             />
             <div className="flex justify-end gap-2">
                 {rewrite ? (
@@ -267,7 +266,7 @@ function NotesEditor({
                     Save
                 </button>
             </div>
-            {error ? <p className="text-right text-xs text-error">{error}</p> : null}
+            {error ? <p className="text-right text-12 text-error">{error}</p> : null}
         </div>
     );
 }
@@ -291,23 +290,23 @@ function Detail({
     const tail = phase.log?.tail ?? [];
     return (
         <div
-            className="mt-4 rounded-lg border border-border bg-black/20 p-3"
+            className="mt-4 rounded-10 border border-border bg-black/20 p-3"
             data-testid={`release-run-detail-${phase.id}`}
         >
             <div className="flex items-baseline justify-between gap-2">
-                <h3 className="text-sm font-medium text-primary">{phase.title}</h3>
-                <span className="text-[11px] text-muted">{Says[phase.status]}</span>
+                <h3 className="text-13 leading-5 font-medium text-primary">{phase.title}</h3>
+                <span className="text-11 text-muted">{Says[phase.status]}</span>
             </div>
-            <p className="mt-1 text-xs text-secondary">{phase.expect}</p>
+            <p className="mt-1 text-12 text-secondary">{phase.expect}</p>
             {phase.cause ? (
-                <p className="mt-2 flex items-start gap-1.5 rounded border border-error/40 bg-error/10 px-2 py-1.5 text-xs text-error">
-                    <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-[11px]" />
+                <p className="mt-2 flex items-start gap-1.5 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-error">
+                    <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-11" />
                     {phase.cause}
                 </p>
             ) : null}
             {phase.id === "build" && jobs.length > 0 ? <Jobs jobs={jobs} /> : null}
             {phase.status !== "done" && tail.length > 0 ? (
-                <pre className="mt-3 max-h-32 overflow-auto rounded-md border border-border bg-black/30 px-2 py-1.5 font-mono text-[10.5px] leading-relaxed whitespace-pre-wrap text-secondary">
+                <pre className="mt-3 max-h-32 overflow-auto rounded-6 border border-border bg-black/30 px-2 py-1.5 font-mono text-11 leading-relaxed whitespace-pre-wrap text-secondary">
                     {tail.slice(-6).join("\n")}
                 </pre>
             ) : null}
@@ -324,17 +323,17 @@ function Detail({
                                 e.preventDefault();
                                 fireAndForget(() => openLink(link.url));
                             }}
-                            className="inline-flex cursor-pointer items-center gap-1 rounded border border-border px-2 py-1 text-[11px] text-secondary hover:bg-hover hover:text-primary"
+                            className="inline-flex cursor-pointer items-center gap-1 rounded-6 border border-border px-2 py-1 text-11 text-secondary hover:bg-hover hover:text-primary"
                         >
                             {link.label}
-                            <i className="fa fa-solid fa-arrow-up-right-from-square text-[9px]" />
+                            <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
                         </a>
                     ))}
                 </div>
             ) : null}
             {phase.action ? (
                 editing && notesDirty ? (
-                    <p className="mt-3 text-right text-xs text-muted">Save the notes before cutting.</p>
+                    <p className="mt-3 text-right text-12 text-muted">Save the notes before cutting.</p>
                 ) : (
                     <>
                         <ActionButton key={phase.action.label} action={phase.action} actions={actions} />
@@ -371,10 +370,10 @@ export function ReleaseRunPanel({
     const shown = run.phases.find((p) => p.id === (picked ?? run.current)) ?? run.phases[run.phases.length - 1];
     return (
         <section
-            className="rounded-lg border border-accent/40 bg-gradient-to-br from-accent/10 to-transparent p-4"
+            className="rounded-6 border border-accent/40 bg-gradient-to-br from-accent/10 to-transparent p-4"
             data-testid="release-run"
         >
-            <div className="mb-3 flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
+            <div className="mb-3 flex items-center gap-1.5 text-11 font-medium tracking-wide text-muted uppercase">
                 <i className="fa fa-solid fa-tower-broadcast text-accent" />
                 Release in flight
                 <span className="ml-auto rounded-full border border-border px-2 py-0.5 font-mono tracking-normal text-primary normal-case">
@@ -402,7 +401,7 @@ export function ReleaseRunPanel({
                             </button>
                             <span
                                 className={cn(
-                                    "text-[11px] whitespace-nowrap",
+                                    "text-11 whitespace-nowrap",
                                     p.id === run.current ? "text-primary" : "text-muted"
                                 )}
                             >
@@ -420,7 +419,7 @@ export function ReleaseRunPanel({
             </ol>
             <Detail run={run} phase={shown} jobs={jobs} actions={actions} />
             {onAbandon ? (
-                <div className="mt-3 flex items-center justify-end gap-2 text-[11px]">
+                <div className="mt-3 flex items-center justify-end gap-2 text-11">
                     {confirming ? (
                         <>
                             <span className="text-muted">Stop following {run.tag}? Nothing pushed is undone.</span>
@@ -429,7 +428,7 @@ export function ReleaseRunPanel({
                             </button>
                             <button
                                 type="button"
-                                className="cursor-pointer rounded border border-error/50 px-2 py-1 text-xs text-error hover:bg-error/10"
+                                className="cursor-pointer rounded-6 border border-error/50 px-2 py-1 text-12 text-error hover:bg-error/10"
                                 onClick={onAbandon}
                             >
                                 Abandon
@@ -438,7 +437,7 @@ export function ReleaseRunPanel({
                     ) : (
                         <button
                             type="button"
-                            className="cursor-pointer rounded px-2 py-1 text-muted hover:text-primary"
+                            className="cursor-pointer rounded-6 px-2 py-1 text-muted hover:text-primary"
                             onClick={() => setConfirming(true)}
                         >
                             Abandon this release
@@ -529,7 +528,7 @@ export function ReleaseRunSection({
     return (
         <>
             <ReleaseRunPanel run={run} jobs={facts?.jobs ?? []} actions={actions} onAbandon={abandon} />
-            {error ? <p className="text-xs text-error">{error}</p> : null}
+            {error ? <p className="text-12 text-error">{error}</p> : null}
             {pending != null ? (
                 <TrustPrompt
                     projectName={projectName}

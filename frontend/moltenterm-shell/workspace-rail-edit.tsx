@@ -270,7 +270,7 @@ export function RailBudChain({
                     )}
                     style={place(index)}
                 >
-                    <span className="molten-rail-bud-disc relative inline-flex h-7 w-7 items-center justify-center rounded-full bg-[var(--molten-rail-bud-fill)] text-[12px] text-secondary hover:text-primary">
+                    <span className="molten-rail-bud-disc relative inline-flex h-7 w-7 items-center justify-center rounded-full bg-[var(--molten-rail-bud-fill)] text-12 text-secondary hover:text-primary">
                         <i className={cn("fa fa-solid", RailBudGlyphs[bud.kind])} aria-hidden />
                     </span>
                 </button>

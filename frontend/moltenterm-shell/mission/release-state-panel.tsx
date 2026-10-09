@@ -23,7 +23,7 @@ export function daysSince(iso: string, now = Date.now()): string {
 
 function Bar({ bar, index }: { bar: ReleaseBar; index: number }) {
     return (
-        <div className="flex items-center gap-2.5 text-[13px]" data-testid={`release-bar-${bar.key}`}>
+        <div className="flex items-center gap-2.5 text-13" data-testid={`release-bar-${bar.key}`}>
             <span className="w-16 shrink-0 text-secondary">{bar.label}</span>
             <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-hover">
                 <div
@@ -31,7 +31,7 @@ function Bar({ bar, index }: { bar: ReleaseBar; index: number }) {
                     style={{ width: `${Math.round(bar.share * 100)}%`, animationDelay: `${index * 100}ms` }}
                 />
             </div>
-            <span className="w-6 shrink-0 text-right font-mono text-xs text-primary tabular-nums">{bar.count}</span>
+            <span className="w-6 shrink-0 text-right font-mono text-12 text-primary tabular-nums">{bar.count}</span>
         </div>
     );
 }
@@ -40,7 +40,7 @@ function Waiting({ rows }: { rows: number }) {
     return (
         <div className="flex flex-col gap-2" aria-busy="true">
             {Array.from({ length: rows }, (_, i) => (
-                <div key={i} className="h-5 w-full mt-step-blink rounded bg-hover" />
+                <div key={i} className="h-5 w-full mt-step-blink rounded-4 bg-hover" />
             ))}
         </div>
     );
@@ -57,7 +57,7 @@ export function NextPublicRelease({ view }: { view: NextReleaseView }) {
                 {view.bars.map((bar, i) => (
                     <Bar key={bar.key} bar={bar} index={i} />
                 ))}
-                <p className="text-[11px] text-muted">
+                <p className="text-11 text-muted">
                     <span className="font-mono text-secondary tabular-nums" data-testid="release-pending">
                         {view.total}
                     </span>{" "}
@@ -67,7 +67,7 @@ export function NextPublicRelease({ view }: { view: NextReleaseView }) {
             <div className="mt-auto" data-testid="release-milestone">
                 {milestone ? (
                     <div
-                        className="flex items-center gap-2 text-xs text-secondary"
+                        className="flex items-center gap-2 text-12 text-secondary"
                         title={`${milestone.closed} closed, ${milestone.open} open`}
                     >
                         <span className="max-w-[45%] shrink-0 truncate">Milestone {milestone.title}</span>
@@ -77,12 +77,12 @@ export function NextPublicRelease({ view }: { view: NextReleaseView }) {
                                 style={{ width: `${milestone.percent}%`, animationDelay: "300ms" }}
                             />
                         </div>
-                        <span className="shrink-0 font-mono text-[11px] whitespace-nowrap tabular-nums">
+                        <span className="shrink-0 font-mono text-11 whitespace-nowrap tabular-nums">
                             {milestone.percent} % · {milestone.open} open
                         </span>
                     </div>
                 ) : (
-                    <p className="text-[11px] text-muted">{view.milestoneNote}</p>
+                    <p className="text-11 text-muted">{view.milestoneNote}</p>
                 )}
             </div>
         </div>
@@ -92,11 +92,11 @@ export function NextPublicRelease({ view }: { view: NextReleaseView }) {
 function ReleaseTitle({ release }: { release: ReleaseView }) {
     return (
         <div className="flex min-w-0 items-baseline gap-2.5">
-            <span className="min-w-0 truncate text-2xl leading-tight font-semibold tracking-tight text-primary">
+            <span className="min-w-0 truncate text-20 leading-tight font-semibold tracking-tight text-primary">
                 {release.tag}
             </span>
             {release.date ? (
-                <span className="shrink-0 text-xs text-muted" title={formatWhen(release.date)}>
+                <span className="shrink-0 text-12 text-muted" title={formatWhen(release.date)}>
                     {daysSince(release.date)}
                 </span>
             ) : null}
@@ -111,29 +111,29 @@ export function ReleaseHistory({ view }: { view: ReleasesView }) {
     return (
         <div className="flex flex-col gap-3" data-testid="release-history">
             <div className="flex flex-col gap-1" data-testid="release-rc">
-                <span className="text-xs text-muted">Last release candidate</span>
+                <span className="text-12 text-muted">Last release candidate</span>
                 {view.rc ? (
                     <>
                         <ReleaseTitle release={view.rc} />
                         {view.rc.excerpt ? (
-                            <p className="line-clamp-3 text-[13px] leading-snug whitespace-pre-line text-secondary">
+                            <p className="line-clamp-3 text-13 leading-snug whitespace-pre-line text-secondary">
                                 {view.rc.excerpt}
                             </p>
                         ) : (
-                            <p className="text-xs text-muted">No notes found for this tag.</p>
+                            <p className="text-12 text-muted">No notes found for this tag.</p>
                         )}
                     </>
                 ) : (
-                    <p className="text-[13px] text-secondary">No release candidate yet.</p>
+                    <p className="text-13 text-secondary">No release candidate yet.</p>
                 )}
             </div>
             <div className="h-px bg-border" />
             <div className="flex flex-col gap-1" data-testid="release-public">
-                <span className="text-xs text-muted">Last public release</span>
+                <span className="text-12 text-muted">Last public release</span>
                 {view.public ? (
                     <ReleaseTitle release={view.public} />
                 ) : (
-                    <p className="text-[13px]">
+                    <p className="text-13">
                         <span className="font-semibold text-primary">None yet.</span>{" "}
                         <span className="text-secondary">{view.firstPublic}</span>
                     </p>

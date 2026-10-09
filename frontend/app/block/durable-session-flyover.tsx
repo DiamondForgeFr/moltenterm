@@ -326,13 +326,14 @@ function getIconProps(jobStatus: BlockJobStatusData, connStatus: ConnStatus, isC
         return { color, iconType };
     }
 
+    // MOLTENTERM-PATCH (#398): the header shield is neutral, the info tone being the shell's only blue
     const status = jobStatus?.status;
     if (status === "connected") {
-        color = "text-sky-500";
+        color = "text-secondary";
     } else if (status === "disconnected") {
-        color = "text-sky-300";
+        color = "text-muted";
     } else if (status === "init") {
-        color = "text-sky-300";
+        color = "text-muted";
     } else if (status === "done") {
         color = "text-muted";
     } else if (status == null) {

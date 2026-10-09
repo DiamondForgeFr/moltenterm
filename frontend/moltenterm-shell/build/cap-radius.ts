@@ -40,8 +40,12 @@ export function capRadiusValue(value: string): string {
         .join("");
 }
 
+// The radii of the design tokens v2 (FR-SHELL-044, tokens.css): 4, 6 and 10 px, read only by MoltenTerm code through
+// var(--mt-radius-*) or the rounded-4/6/10 utilities. Wave's own radii stay capped.
+const TokenRadiusPropRegex = /^--mt-radius-/;
+
 export function isRadiusProp(prop: string): boolean {
-    return RadiusPropRegex.test(prop.toLowerCase());
+    return RadiusPropRegex.test(prop.toLowerCase()) && !TokenRadiusPropRegex.test(prop.toLowerCase());
 }
 
 type PostcssDecl = { prop: string; value: string };

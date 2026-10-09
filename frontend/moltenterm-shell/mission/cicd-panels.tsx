@@ -40,7 +40,7 @@ const ToneIcons: Record<CheckState, string> = {
 };
 
 export function CheckIcon({ state }: { state: CheckState }) {
-    return <i className={cn("fa fa-solid text-[11px]", ToneIcons[state])} />;
+    return <i className={cn("fa fa-solid text-11", ToneIcons[state])} />;
 }
 
 function open(url: string) {
@@ -71,19 +71,19 @@ function localTime(d: Date): string {
 
 export function BlockHeader({ title, hint }: { title: string; hint?: string }) {
     return (
-        <h2 className="text-sm font-semibold">
+        <h2 className="text-13 leading-5 font-semibold">
             {title}
-            {hint ? <span className="ml-2 text-xs font-normal text-muted">{hint}</span> : null}
+            {hint ? <span className="ml-2 text-12 font-normal text-muted">{hint}</span> : null}
         </h2>
     );
 }
 
 export function Problem({ text }: { text: string }) {
-    return <div className="rounded border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">{text}</div>;
+    return <div className="rounded-4 border border-error/40 bg-error/10 px-3 py-2 text-12 text-error">{text}</div>;
 }
 
 export function Notice({ text }: { text: string }) {
-    return <div className="rounded border border-border bg-hover px-3 py-2 text-xs text-secondary">{text}</div>;
+    return <div className="rounded-4 border border-border bg-hover px-3 py-2 text-12 text-secondary">{text}</div>;
 }
 
 function Placeholder({ rows }: { rows: number }) {
@@ -91,8 +91,8 @@ function Placeholder({ rows }: { rows: number }) {
         <div className="flex flex-col gap-3 p-3" aria-busy="true">
             {Array.from({ length: rows }, (_, i) => (
                 <div key={i} className="flex flex-col gap-1.5">
-                    <div className="h-4 w-3/4 mt-step-blink rounded bg-hover" />
-                    <div className="h-3 w-1/2 mt-step-blink rounded bg-hover" />
+                    <div className="h-4 w-3/4 mt-step-blink rounded-4 bg-hover" />
+                    <div className="h-3 w-1/2 mt-step-blink rounded-4 bg-hover" />
                 </div>
             ))}
         </div>
@@ -105,10 +105,10 @@ function PullRequestsBlock({ github, trunk }: { github: MissionGithub; trunk: st
         <section className="flex flex-col gap-2">
             <BlockHeader title="Pull requests waiting" hint="hover: what it brings · merging happens on GitHub" />
             {github?.errors?.prs ? <Problem text={github.errors.prs} /> : null}
-            <div className="overflow-hidden rounded border border-border">
+            <div className="overflow-hidden rounded-4 border border-border">
                 {github == null ? <Placeholder rows={3} /> : null}
                 {github != null && (prs ?? []).length === 0 && !github.errors?.prs ? (
-                    <p className="p-3 text-sm text-muted">No open pull request.</p>
+                    <p className="p-3 text-13 leading-5 text-muted">No open pull request.</p>
                 ) : null}
                 {(prs ?? []).map((pr) => {
                     const merge = mergeStateLabel(pr.isDraft ? "DRAFT" : pr.mergeStateStatus, pr.baseRefName || trunk);
@@ -121,10 +121,10 @@ function PullRequestsBlock({ github, trunk }: { github: MissionGithub; trunk: st
                         >
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                    <div className="truncate text-sm font-medium">
+                                    <div className="truncate text-13 leading-5 font-medium">
                                         <span className="text-muted">#{pr.number}</span> {pr.title}
                                     </div>
-                                    <div className="truncate text-xs text-muted">
+                                    <div className="truncate text-12 text-muted">
                                         <code>{pr.headRefName}</code> → <code>{pr.baseRefName}</code> · updated{" "}
                                         {timeAgo(pr.updatedAt)}
                                     </div>
@@ -132,20 +132,20 @@ function PullRequestsBlock({ github, trunk }: { github: MissionGithub; trunk: st
                                 <button
                                     type="button"
                                     onClick={() => open(pr.url)}
-                                    className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded border border-border px-2 py-1 text-xs hover:bg-hover"
+                                    className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 hover:bg-hover"
                                 >
-                                    <i className="fa fa-solid fa-arrow-up-right-from-square text-[10px]" />
+                                    <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
                                     Open
                                 </button>
                             </div>
                             <div className="flex flex-wrap items-center gap-1.5">
-                                <span className={cn("rounded border px-2 py-0.5 text-xs", ToneClasses[merge.tone])}>
+                                <span className={cn("rounded-4 border px-2 py-0.5 text-12", ToneClasses[merge.tone])}>
                                     {merge.label}
                                 </span>
                                 {checks.map((c) => (
                                     <span
                                         key={c.name}
-                                        className="flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs"
+                                        className="flex items-center gap-1 rounded-4 border border-border px-1.5 py-0.5 text-12"
                                         title={c.local ? "local check" : "GitHub job"}
                                     >
                                         <CheckIcon state={c.state} />
@@ -167,10 +167,10 @@ function ScheduledBlock({ github }: { github: MissionGithub }) {
     return (
         <section className="flex flex-col gap-2">
             <BlockHeader title="Scheduled jobs" hint="local times · GitHub may start them hours late" />
-            <div className="overflow-hidden rounded border border-border">
+            <div className="overflow-hidden rounded-4 border border-border">
                 {github == null ? <Placeholder rows={2} /> : null}
                 {github != null && schedules.length === 0 ? (
-                    <p className="p-3 text-sm text-muted">No scheduled workflow.</p>
+                    <p className="p-3 text-13 leading-5 text-muted">No scheduled workflow.</p>
                 ) : null}
                 {schedules.map((wf) => {
                     const next = wf.crons
@@ -184,29 +184,29 @@ function ScheduledBlock({ github }: { github: MissionGithub }) {
                             className="flex flex-col gap-1 border-b border-border px-3 py-2 last:border-b-0"
                         >
                             <div className="flex items-center justify-between gap-2">
-                                <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                                    <i className="fa fa-solid fa-calendar-days text-[11px] text-muted" />
+                                <span className="flex min-w-0 items-center gap-2 text-13 leading-5 font-medium">
+                                    <i className="fa fa-solid fa-calendar-days text-11 text-muted" />
                                     <span className="truncate">{wf.name}</span>
-                                    <code className="text-[11px] font-normal text-muted">{wf.file}</code>
+                                    <code className="text-11 font-normal text-muted">{wf.file}</code>
                                 </span>
                                 {last ? (
                                     <button
                                         type="button"
                                         onClick={() => open(last.url)}
-                                        className="flex shrink-0 cursor-pointer items-center gap-1 text-xs text-muted hover:text-primary"
+                                        className="flex shrink-0 cursor-pointer items-center gap-1 text-12 text-muted hover:text-primary"
                                     >
                                         <CheckIcon state={runState(last.status, last.conclusion)} />
                                         last {timeAgo(last.createdAt)}
                                     </button>
                                 ) : null}
                             </div>
-                            <div className="text-xs text-muted">{wf.crons.map((c) => describeCron(c)).join(" · ")}</div>
+                            <div className="text-12 text-muted">{wf.crons.map((c) => describeCron(c)).join(" · ")}</div>
                             {next.length > 0 ? (
                                 <div className="flex flex-wrap gap-1.5">
                                     {next.map((d) => (
                                         <span
                                             key={d.toISOString()}
-                                            className="rounded border border-border px-1.5 py-0.5 text-[11px]"
+                                            className="rounded-4 border border-border px-1.5 py-0.5 text-11"
                                         >
                                             {localTime(d)}
                                         </span>
@@ -230,18 +230,18 @@ function RunRow({ run }: { run: WorkflowRun }) {
             className="grid w-full cursor-pointer grid-cols-[16px_1fr_auto] items-center gap-x-2 gap-y-0.5 border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-hover"
         >
             <CheckIcon state={state} />
-            <span className="truncate text-sm">
+            <span className="truncate text-13 leading-5">
                 <span className="font-medium">{run.workflowName}</span>
-                <span className="ml-2 rounded border border-border px-1 text-[11px] text-muted">
+                <span className="ml-2 rounded-4 border border-border px-1 text-11 text-muted">
                     {eventLabel(run.event)}
                 </span>
             </span>
-            <span className="text-xs text-muted">
+            <span className="text-12 text-muted">
                 {state === "pending"
                     ? "running"
                     : formatDuration(new Date(run.updatedAt).getTime() - new Date(run.createdAt).getTime())}
             </span>
-            <span className="col-start-2 col-end-4 truncate text-xs text-muted">
+            <span className="col-start-2 col-end-4 truncate text-12 text-muted">
                 <code>{run.headBranch}</code> · {timeAgo(run.createdAt)} · {run.displayTitle}
             </span>
         </button>
@@ -254,10 +254,10 @@ function RecentRunsBlock({ github }: { github: MissionGithub }) {
         <section className="flex flex-col gap-2">
             <BlockHeader title="Recent jobs" />
             {github?.errors?.runs ? <Problem text={github.errors.runs} /> : null}
-            <div className="overflow-hidden rounded border border-border">
+            <div className="overflow-hidden rounded-4 border border-border">
                 {github == null ? <Placeholder rows={4} /> : null}
                 {github != null && (runs ?? []).length === 0 && !github.errors?.runs ? (
-                    <p className="p-3 text-sm text-muted">No recent job.</p>
+                    <p className="p-3 text-13 leading-5 text-muted">No recent job.</p>
                 ) : null}
                 {(runs ?? []).map((run) => (
                     <RunRow key={run.databaseId} run={run} />
@@ -296,7 +296,7 @@ const KindIcons: Record<RegistryKind, string> = {
 };
 
 const RowButton =
-    "flex shrink-0 cursor-pointer items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[11px] text-secondary hover:bg-hover hover:text-primary";
+    "flex shrink-0 cursor-pointer items-center gap-1 rounded-6 border border-border px-1.5 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary";
 
 function RegistryLine({ row, repoUrl, github }: { row: RegistryRow; repoUrl: string; github: MissionGithub }) {
     const [notes, setNotes] = useState(false);
@@ -314,38 +314,43 @@ function RegistryLine({ row, repoUrl, github }: { row: RegistryRow; repoUrl: str
             data-kind={row.kind}
         >
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <i className={cn("fa fa-solid text-[11px]", KindIcons[row.kind])} />
-                <span className={cn("font-mono text-sm font-medium", row.kind === "planned" && "text-secondary")}>
+                <i className={cn("fa fa-solid text-11", KindIcons[row.kind])} />
+                <span
+                    className={cn(
+                        "font-mono text-13 leading-5 font-medium",
+                        row.kind === "planned" && "text-secondary"
+                    )}
+                >
                     {row.tag}
                 </span>
-                <span className="rounded border border-border px-1 text-[11px] text-muted">{KindLabels[row.kind]}</span>
+                <span className="rounded-4 border border-border px-1 text-11 text-muted">{KindLabels[row.kind]}</span>
                 {row.github?.latest ? (
-                    <span className="rounded bg-accent/20 px-1 text-[11px] text-primary">latest</span>
+                    <span className="rounded-4 bg-accent/20 px-1 text-11 text-primary">latest</span>
                 ) : null}
                 {row.github?.draft ? (
-                    <span className="rounded border border-warning/50 px-1 text-[11px] text-warning">draft</span>
+                    <span className="rounded-4 border border-warning/50 px-1 text-11 text-warning">draft</span>
                 ) : null}
                 {row.kind !== "planned" && !row.github && github?.state === "ok" ? (
-                    <span className="text-[11px] text-muted">tag only</span>
+                    <span className="text-11 text-muted">tag only</span>
                 ) : null}
                 {row.builds.map((b) => (
                     <span
                         key={b}
-                        className="flex items-center gap-1 rounded border border-border px-1 text-[11px] text-secondary"
+                        className="flex items-center gap-1 rounded-4 border border-border px-1 text-11 text-secondary"
                         title={`A local ${b} build was made from this tag's commit`}
                     >
-                        <i className="fa fa-solid fa-hammer text-[9px] text-muted" />
+                        <i className="fa fa-solid fa-hammer text-11 text-muted" />
                         {b} built
                     </span>
                 ))}
                 {row.milestone ? (
-                    <span className="text-[11px] text-muted" title={row.milestone.title}>
+                    <span className="text-11 text-muted" title={row.milestone.title}>
                         {total === 0 ? "milestone with no issue" : `${row.milestone.closed} of ${total} issues closed`}
                     </span>
                 ) : null}
                 <span className="ml-auto flex items-center gap-1.5">
                     {row.date ? (
-                        <span className="text-xs text-muted" title={formatWhen(row.date)}>
+                        <span className="text-12 text-muted" title={formatWhen(row.date)}>
                             {row.kind === "planned" ? `due ${timeAgo(row.date)}` : timeAgo(row.date)}
                         </span>
                     ) : null}
@@ -366,14 +371,14 @@ function RegistryLine({ row, repoUrl, github }: { row: RegistryRow; repoUrl: str
                             onClick={() => open(link)}
                             title={row.kind === "planned" ? "Open the milestone" : "Open the release page"}
                         >
-                            <i className="fa fa-solid fa-arrow-up-right-from-square text-[9px]" />
+                            <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
                             Open
                         </button>
                     ) : null}
                 </span>
             </div>
             {notes && row.notes ? (
-                <pre className="mt-2 max-h-64 overflow-auto rounded-md border border-border bg-black/30 px-2 py-1.5 font-sans text-xs leading-relaxed whitespace-pre-wrap text-secondary">
+                <pre className="mt-2 max-h-64 overflow-auto rounded-6 border border-border bg-black/30 px-2 py-1.5 font-sans text-12 leading-relaxed whitespace-pre-wrap text-secondary">
                     {row.notes}
                 </pre>
             ) : null}
@@ -402,7 +407,7 @@ export function CdTab({
                 {builds.length === 0 ? (
                     <Notice text="No local build declared: they appear here once the project's pipeline declares one." />
                 ) : (
-                    <div className="overflow-hidden rounded border border-border">
+                    <div className="overflow-hidden rounded-4 border border-border">
                         <RecentBuilds runs={runs} />
                     </div>
                 )}
@@ -413,8 +418,10 @@ export function CdTab({
                     hint="every version tag, and the versions planned in a milestone · newest first"
                 />
                 {githubStateMessage(github) ? <Notice text={githubStateMessage(github)} /> : null}
-                <div className="overflow-hidden rounded border border-border">
-                    {registry.length === 0 ? <p className="p-3 text-sm text-muted">No version tagged yet.</p> : null}
+                <div className="overflow-hidden rounded-4 border border-border">
+                    {registry.length === 0 ? (
+                        <p className="p-3 text-13 leading-5 text-muted">No version tagged yet.</p>
+                    ) : null}
                     {registry.map((row) => (
                         <RegistryLine key={`${row.kind}:${row.tag}`} row={row} repoUrl={repoUrl} github={github} />
                     ))}

@@ -156,12 +156,12 @@ describe("hold-to-close rendering", () => {
 
     it("eases the fill, or steps it under reduced motion", () => {
         const eased = renderToStaticMarkup(<HoldToCloseRing holding={true} durationMs={600} reducedMotion={false} />);
-        expect(eased).toContain("stroke-dashoffset 600ms ease-out");
+        expect(eased).toContain("stroke-dashoffset 600ms var(--mt-ease)");
         const stepped = renderToStaticMarkup(<HoldToCloseRing holding={true} durationMs={600} reducedMotion={true} />);
         expect(stepped).toContain("stroke-dashoffset 600ms steps(4, end)");
-        expect(stepped).not.toContain("ease-out");
+        expect(stepped).not.toContain("var(--mt-ease)");
         const idle = renderToStaticMarkup(<HoldToCloseRing holding={false} durationMs={600} reducedMotion={false} />);
-        expect(idle).toContain("stroke-dashoffset 160ms ease-out");
+        expect(idle).toContain("stroke-dashoffset 160ms var(--mt-ease)");
         const idleReduced = renderToStaticMarkup(
             <HoldToCloseRing holding={false} durationMs={600} reducedMotion={true} />
         );
@@ -173,7 +173,7 @@ describe("hold-to-close rendering", () => {
             renderToStaticMarkup(<HoldToCloseTint holding={holding} durationMs={600} reducedMotion={reducedMotion} />);
         expect(tint(true, false)).toContain("opacity:0.25;transition:opacity 600ms linear");
         expect(tint(true, true)).toContain("opacity 600ms steps(4, end)");
-        expect(tint(false, false)).toContain("opacity:0;transition:opacity 160ms ease-out");
+        expect(tint(false, false)).toContain("opacity:0;transition:opacity 160ms var(--mt-ease)");
         expect(tint(false, true)).toContain("transition:none");
     });
 

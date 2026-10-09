@@ -22,12 +22,12 @@ export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; 
         <div
             role="region"
             aria-label="Agent control"
-            className="molten-browser-agentbar flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-border px-2 py-1.5 text-xs"
+            className="molten-browser-agentbar flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-border px-2 py-1.5 text-12"
         >
             <i
                 aria-hidden="true"
                 className={cn(
-                    "fa fa-solid shrink-0 text-[11px]",
+                    "fa fa-solid shrink-0 text-11",
                     view.takenOver ? "fa-hand text-secondary" : "fa-robot text-accent"
                 )}
             />
@@ -38,7 +38,7 @@ export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; 
             {view.viewport ? (
                 <span
                     title="The agent emulates this viewport size; the page returns to the panel's size when its control ends"
-                    className="shrink-0 rounded border border-border px-1.5 py-px font-mono text-[11px] text-secondary"
+                    className="shrink-0 rounded-4 border border-border px-1.5 py-px font-mono text-11 text-secondary"
                 >
                     {view.viewport}
                 </span>
@@ -48,7 +48,7 @@ export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; 
                     b.primary ? (
                         <Button
                             key={b.action}
-                            className="!h-6 !px-2.5 !text-xs"
+                            className="!h-6 !px-2.5 !text-12"
                             onClick={() => agents.control(tabId, b.action)}
                         >
                             {b.label}
@@ -58,7 +58,7 @@ export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; 
                             key={b.action}
                             type="button"
                             onClick={() => agents.control(tabId, b.action)}
-                            className="h-6 cursor-pointer rounded border border-border px-2.5 text-primary hover:bg-hover focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent"
+                            className="h-6 cursor-pointer rounded-6 border border-border px-2.5 text-primary hover:bg-hover focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent"
                         >
                             {b.label}
                         </button>
@@ -95,13 +95,13 @@ export function AgentActionCueOverlay({ agents, tabId }: { agents: BrowserAgentM
         >
             {hasBox ? (
                 <div
-                    className="absolute rounded-sm border-2 border-accent"
+                    className="absolute rounded-4 border-2 border-accent"
                     style={{ left: cue.x, top: cue.y, width: cue.width, height: cue.height }}
                 />
             ) : null}
             {!hasBox && cue.x != null && cue.y != null ? (
                 <div
-                    className="absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-accent shadow"
+                    className="absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-accent shadow-e2"
                     style={{ left: cue.x, top: cue.y }}
                 />
             ) : null}

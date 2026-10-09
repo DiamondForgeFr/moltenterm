@@ -2,6 +2,8 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 @import "tailwindcss";
+/* MOLTENTERM-PATCH (#398): MoltenTerm's design tokens v2, as CSS variables and Tailwind utilities */
+@import "./moltenterm-shell/tokens.css";
 
 @source "../node_modules/streamdown/dist/index.js";
 

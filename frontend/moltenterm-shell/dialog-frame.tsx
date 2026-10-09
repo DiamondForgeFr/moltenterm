@@ -134,19 +134,19 @@ export function DialogFrame({
                 aria-label={title}
                 onKeyDown={trapFocus ? keepFocusInside : undefined}
                 className={cn(
-                    "flex max-h-[calc(100vh-64px)] max-w-[calc(100vw-32px)] flex-col rounded border border-border bg-modalbg shadow-xl",
+                    "flex max-h-[calc(100vh-64px)] max-w-[calc(100vw-32px)] flex-col rounded-10 border border-border bg-surface-3 shadow-e3",
                     widthClass ?? (wide ? "w-[600px]" : "w-[500px]")
                 )}
             >
                 <div className="border-b border-border px-4 py-3">
-                    <div className="text-sm font-semibold">{title}</div>
+                    <div className="text-13 leading-5 font-semibold">{title}</div>
                     {subtitle ? (
-                        <div className="mt-0.5 truncate text-xs text-muted" title={subtitle}>
+                        <div className="mt-0.5 truncate text-12 text-muted" title={subtitle}>
                             {subtitle}
                         </div>
                     ) : null}
                 </div>
-                <div className="flex min-h-0 flex-col gap-3 overflow-auto px-4 py-3 text-xs">{children}</div>
+                <div className="flex min-h-0 flex-col gap-3 overflow-auto px-4 py-3 text-12">{children}</div>
                 <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">{buttons}</div>
             </div>
         </div>,

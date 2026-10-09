@@ -39,12 +39,12 @@ const StatusIcons: Record<CiStatus, string> = {
 };
 
 const PlainButton =
-    "cursor-pointer rounded border border-border px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
+    "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
 
 function StatusIcon({ status }: { status: CiStatus }) {
     return (
         <i
-            className={cn("fa fa-solid w-3.5 shrink-0 text-center text-[12px]", StatusIcons[status])}
+            className={cn("fa fa-solid w-3.5 shrink-0 text-center text-12", StatusIcons[status])}
             aria-label={CiStatusLabels[status]}
             title={CiStatusLabels[status]}
         />
@@ -109,7 +109,7 @@ function LogPane({ text }: { text: string }) {
                 const el = e.currentTarget;
                 atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
             }}
-            className="max-h-[50vh] min-h-32 overflow-auto rounded bg-black/50 p-2 font-mono text-[11px] leading-snug whitespace-pre-wrap text-[#e5e7eb]"
+            className="max-h-[50vh] min-h-32 overflow-auto rounded-4 bg-black/50 p-2 font-mono text-11 leading-snug whitespace-pre-wrap text-[#e5e7eb]"
         >
             {text === ""
                 ? "(no output yet)"
@@ -146,7 +146,7 @@ function JobChip({
             type="button"
             onClick={onSelect}
             className={cn(
-                "flex cursor-pointer items-center gap-1.5 rounded border px-2 py-1 text-xs",
+                "flex cursor-pointer items-center gap-1.5 rounded-6 border px-2 py-1 text-12",
                 selected ? "border-accent text-primary" : "border-border text-secondary hover:bg-hover"
             )}
         >
@@ -167,10 +167,10 @@ function RunDetail({ dir, run, now }: { dir: string; run: CiRunRecord; now: numb
     return (
         <div className="flex min-w-0 flex-col gap-2">
             <div>
-                <div className="text-sm font-medium">
+                <div className="text-13 leading-5 font-medium">
                     {run.branch || "no branch"} @ {shortSha(run.sha)}
                 </div>
-                <div className="text-[11px] text-muted">
+                <div className="text-11 text-muted">
                     {formatRunDate(run.startedat)} · {formatCiDuration(ciRunDuration(run, now))} · tree{" "}
                     {shortSha(run.tree)} · {run.id}
                 </div>
@@ -181,7 +181,7 @@ function RunDetail({ dir, run, now }: { dir: string; run: CiRunRecord; now: numb
                     type="button"
                     onClick={() => setPicked(CiPrepareJob)}
                     className={cn(
-                        "cursor-pointer rounded border px-2 py-1 text-xs",
+                        "cursor-pointer rounded-6 border px-2 py-1 text-12",
                         job === CiPrepareJob ? "border-accent text-primary" : "border-border text-muted hover:bg-hover"
                     )}
                 >
@@ -226,10 +226,10 @@ function RunRow({
             <StatusIcon status={run.status} />
             <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm">{run.branch || "no branch"}</span>
-                    <span className="shrink-0 text-[11px] text-muted">{formatCiDuration(ciRunDuration(run, now))}</span>
+                    <span className="truncate text-13 leading-5">{run.branch || "no branch"}</span>
+                    <span className="shrink-0 text-11 text-muted">{formatCiDuration(ciRunDuration(run, now))}</span>
                 </div>
-                <div className="truncate text-[11px] text-muted">
+                <div className="truncate text-11 text-muted">
                     {shortSha(run.sha)} · {formatRunDate(run.startedat)} · {jobs}
                 </div>
             </div>
@@ -305,17 +305,17 @@ export function LocalCiRunner({ dir, projectName }: { dir: string; projectName: 
                     value={branch ?? ""}
                     onChange={(e) => setBranch(e.target.value)}
                     aria-label="Branch"
-                    className="max-w-[260px] cursor-pointer rounded border border-border bg-transparent px-1.5 py-1 text-xs text-secondary"
+                    className="max-w-[260px] cursor-pointer rounded-6 border border-border bg-transparent px-1.5 py-1 text-12 text-secondary"
                 >
                     {branches.length === 0 ? <option value="">HEAD</option> : null}
                     {branches.map((b) => (
-                        <option key={b.name} value={b.name} className="bg-modalbg">
+                        <option key={b.name} value={b.name} className="bg-surface-3">
                             {b.name}
                             {branchMark(branchCi(state, b.name).status)}
                         </option>
                     ))}
                 </select>
-                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-secondary">
+                <label className="flex cursor-pointer items-center gap-1.5 text-12 text-secondary">
                     <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
                     Run all again
                 </label>
@@ -323,11 +323,11 @@ export function LocalCiRunner({ dir, projectName }: { dir: string; projectName: 
                     type="button"
                     disabled={busy || running != null}
                     onClick={start}
-                    className="molten-btn cursor-pointer rounded px-3 py-1 text-xs disabled:cursor-default disabled:opacity-60"
+                    className="molten-btn cursor-pointer rounded-6 px-3 py-1 text-12 disabled:cursor-default disabled:opacity-60"
                 >
                     {running != null ? (
                         <>
-                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1 text-[10px]" />
+                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1 text-11" />
                             Running…
                         </>
                     ) : (
@@ -355,7 +355,7 @@ export function LocalCiRunner({ dir, projectName }: { dir: string; projectName: 
                 <Notice text="No run yet: start one above, or run molten ci run in a terminal of the project." />
             ) : (
                 <div className="grid min-w-0 gap-3 @2xl:grid-cols-[280px_minmax(0,1fr)]">
-                    <div className="max-h-[60vh] overflow-y-auto rounded border border-border">
+                    <div className="max-h-[60vh] overflow-y-auto rounded-4 border border-border">
                         {state.runs.map((r) => (
                             <RunRow
                                 key={r.id}

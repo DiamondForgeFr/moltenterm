@@ -22,7 +22,7 @@ import {
 } from "./worktree-model";
 import { dismissWorktree, linkWorktree, unlinkWorktree } from "./worktree-store";
 
-const ChipButton = "cursor-pointer rounded px-1 hover:bg-hover hover:text-primary";
+const ChipButton = "cursor-pointer rounded-6 px-1 hover:bg-hover hover:text-primary";
 
 function blockPaneMeta(meta: MetaType): PaneBlockMeta {
     return { view: meta?.view, connection: meta?.connection, "cmd:cwd": meta?.["cmd:cwd"] };
@@ -46,7 +46,7 @@ export function WorktreeChip({
     return (
         <span
             className={cn(
-                "inline-flex max-w-[14rem] min-w-[4.5rem] shrink-0 items-center gap-1 rounded border px-1.5 text-[11px] leading-[16px] whitespace-nowrap",
+                "inline-flex max-w-[14rem] min-w-[4.5rem] shrink-0 items-center gap-1 rounded-4 border px-1.5 text-11 leading-[16px] whitespace-nowrap",
                 marker.colorClass,
                 marker.kind === "worktree" && !marker.linked && "border-dashed",
                 onClick && "cursor-pointer",
@@ -56,7 +56,7 @@ export function WorktreeChip({
             data-tree={marker.kind}
             onClick={onClick}
         >
-            <i className={cn("fa fa-solid shrink-0 text-[9px]", `fa-${marker.icon}`)} />
+            <i className={cn("fa fa-solid shrink-0 text-11", `fa-${marker.icon}`)} />
             <span className="min-w-0 shrink-0 truncate">{marker.label}</span>
             {showBranch ? <span className="min-w-0 truncate opacity-80">· {marker.branch}</span> : null}
         </span>
@@ -103,7 +103,7 @@ export function WorktreeHeaderLabel({ blockId, hideBranch }: { blockId: string; 
             />
             {offer ? (
                 <span
-                    className="inline-flex shrink-0 items-center gap-1 rounded border border-accent/50 bg-accent/10 px-1.5 text-[11px] leading-[16px] text-secondary"
+                    className="inline-flex shrink-0 items-center gap-1 rounded-4 border border-accent/50 bg-accent/10 px-1.5 text-11 leading-[16px] text-secondary"
                     title={`This terminal is in the worktree ${offer}.\nLinked, the header shows it and closing the terminal offers to remove it.`}
                     data-role="molten-worktree-offer"
                 >
@@ -114,7 +114,7 @@ export function WorktreeHeaderLabel({ blockId, hideBranch }: { blockId: string; 
                         aria-label={`Link the worktree ${offerName} to this terminal`}
                         onClick={() => act(() => linkWorktree(blockId, offer))}
                     >
-                        <i className="fa fa-solid fa-link mr-1 text-[9px]" />
+                        <i className="fa fa-solid fa-link mr-1 text-11" />
                         Link
                     </button>
                     <button
@@ -125,7 +125,7 @@ export function WorktreeHeaderLabel({ blockId, hideBranch }: { blockId: string; 
                         aria-label="Not now"
                         onClick={() => act(() => dismissWorktree(blockId, readWorktreeDismissed(meta), offer))}
                     >
-                        <i className="fa fa-solid fa-xmark text-[9px]" />
+                        <i className="fa fa-solid fa-xmark text-11" />
                     </button>
                 </span>
             ) : null}

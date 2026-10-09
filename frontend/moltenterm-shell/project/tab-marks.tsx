@@ -15,7 +15,7 @@ export function MoltentermTabMarks({ tabId }: { tabId: string }) {
         <>
             {pinned ? (
                 <i
-                    className="fa fa-solid fa-thumbtack pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 rotate-45 text-[9px] text-muted"
+                    className="fa fa-solid fa-thumbtack pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 rotate-45 text-11 text-muted"
                     title="The Project tab: where the project stands. Closed, it comes back from the palette or the rail."
                     aria-label="Pinned Project tab"
                     data-testid="project-tab-pin"

@@ -63,7 +63,7 @@ export function RailConnectPopover({ navRef, revision }: { navRef: React.RefObje
             // The polite live region already says it (RailConnectModel).
             aria-hidden
             data-testid="rail-connect-hint"
-            className="molten-rail-connect-hint pointer-events-none fixed z-[9500] max-w-[28rem] -translate-y-1/2 rounded border border-border bg-modalbg px-2 py-1 text-xs text-primary shadow-lg"
+            className="molten-rail-connect-hint pointer-events-none fixed z-[9500] max-w-[28rem] -translate-y-1/2 rounded-10 border border-border bg-surface-3 px-2 py-1 text-12 text-primary shadow-e2"
             style={{ top: place.top, left: place.left }}
         >
             {text}

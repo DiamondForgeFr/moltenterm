@@ -38,14 +38,14 @@ const NoFocusedNode = atom(null) as Atom<{ data?: { blockId?: string } }>;
 // Badges keep a fixed colour per channel, apart from the workspace accent: a gold or dev build must be recognisable
 // in any workspace.
 const ChannelClasses: Record<StatusBarChannel, string> = {
-    dev: cn("border-sky-400/60", MoltentermDevChannelText),
+    dev: cn("border-line-strong bg-surface-2", MoltentermDevChannelText),
     local: "border-amber-500/60 text-amber-400",
     gold: "border-yellow-400/70 text-yellow-300",
     rc: "border-accent/60 text-accent",
     public: "border-border text-secondary",
 };
 
-const ItemButton = "flex min-w-0 cursor-pointer items-center gap-1 rounded px-1 hover:bg-hover hover:text-primary";
+const ItemButton = "flex min-w-0 cursor-pointer items-center gap-1 rounded-6 px-1 hover:bg-hover hover:text-primary";
 
 function FocusedBlockMeta({ blockId, onMeta }: { blockId: string; onMeta: (meta: PaneBlockMeta) => void }) {
     const [block] = useWaveObjectValue<Block>(makeORef("block", blockId));
@@ -71,9 +71,9 @@ function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: 
         <span className="flex min-w-0 items-center gap-2">
             <span className="flex min-w-0 items-center gap-1" title={pane.projectTitle}>
                 {pane.linked ? (
-                    <WorkspaceIcon source={linkedIconSource(ws, pane.projectLogo)} className="text-[11px]" />
+                    <WorkspaceIcon source={linkedIconSource(ws, pane.projectLogo)} className="text-11" />
                 ) : (
-                    <WorkspaceIcon source={folderIconSource(pane.projectLogo)} className="text-[11px]" />
+                    <WorkspaceIcon source={folderIconSource(pane.projectLogo)} className="text-11" />
                 )}
                 <span className="truncate text-primary">{pane.projectName}</span>
             </span>
@@ -85,7 +85,7 @@ function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: 
                     title={pane.branchTitle}
                     onClick={() => fireAndForget(openProjectOverview)}
                 >
-                    <i className="fa fa-solid fa-code-branch text-[10px]" />
+                    <i className="fa fa-solid fa-code-branch text-11" />
                     <span className="truncate">{pane.branch}</span>
                     {pane.ahead > 0 ? <span className="text-muted">↑{pane.ahead}</span> : null}
                     {pane.dirty ? <span className="text-warning">●</span> : null}
@@ -98,7 +98,7 @@ function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: 
                     title={`${pane.ci.label} on this code\nOpen CI/CD`}
                     onClick={() => openView(MoltentermCicdView)}
                 >
-                    <i className={cn("fa fa-solid text-[10px]", pane.ci.iconClass)} />
+                    <i className={cn("fa fa-solid text-11", pane.ci.iconClass)} />
                     {pane.ci.label}
                 </button>
             ) : null}
@@ -109,7 +109,7 @@ function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: 
                     title={`${pane.pr.draft ? "Draft pull request" : "Pull request"}: ${pane.pr.title}`}
                     onClick={() => fireAndForget(() => openLink(pane.pr.url))}
                 >
-                    <i className="fa fa-solid fa-code-pull-request text-[10px]" />#{pane.pr.number}
+                    <i className="fa fa-solid fa-code-pull-request text-11" />#{pane.pr.number}
                 </button>
             ) : null}
         </span>
@@ -141,7 +141,7 @@ export function StatusBar() {
     useWarmLinkedProject(readWorkspaceProject(ws).dir);
     const pane = folder ? makePaneView(folder, state, ws) : null;
     return (
-        <footer className="molten-status-bar flex h-[24px] shrink-0 items-center gap-3 border-t border-border px-3 text-xs text-secondary tabular-nums select-none">
+        <footer className="molten-status-bar flex h-[24px] shrink-0 items-center gap-3 border-t border-border px-3 text-12 text-secondary tabular-nums select-none">
             {blockId ? <FocusedBlockMeta key={blockId} blockId={blockId} onMeta={setMeta} /> : null}
             {pane ? <PaneSection pane={pane} ws={ws} tree={fromPane ? treeMarker(state, link) : null} /> : null}
             <span className="ml-auto flex shrink-0 items-center gap-3">
@@ -149,7 +149,7 @@ export function StatusBar() {
                 <GoldUpdateButton />
                 <span
                     title={view.tooltip}
-                    className={cn("rounded border px-1.5 leading-[16px]", ChannelClasses[view.channel])}
+                    className={cn("rounded-4 border px-1.5 leading-[16px]", ChannelClasses[view.channel])}
                 >
                     {view.badge}
                 </span>

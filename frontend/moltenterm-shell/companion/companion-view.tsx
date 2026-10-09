@@ -229,7 +229,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                     <button
                         type="button"
                         onClick={() => setHistory(true)}
-                        className="cursor-pointer rounded border border-border px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary"
+                        className="cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
                         data-testid="companion-history-open"
                     >
                         <i className="fa fa-solid fa-clock-rotate-left mr-1.5" />
@@ -263,8 +263,8 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
 function Centered({ title, detail, children }: { title: string; detail?: string; children?: React.ReactNode }) {
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-6 text-center">
-            <div className="text-sm font-medium text-primary">{title}</div>
-            {detail ? <div className="max-w-[360px] text-xs text-secondary">{detail}</div> : null}
+            <div className="text-13 leading-5 font-medium text-primary">{title}</div>
+            {detail ? <div className="max-w-[360px] text-12 text-secondary">{detail}</div> : null}
             {children}
         </div>
     );
@@ -326,7 +326,7 @@ function IntegrationNotice({ view, className }: { view: CompanionView; className
     }
     return (
         <div
-            className={cn("max-w-[360px] text-[11px] text-warning", className)}
+            className={cn("max-w-[360px] text-11 text-warning", className)}
             data-testid="companion-integration-problem"
         >
             {problem}
@@ -340,16 +340,19 @@ function PermissionCard({ pending, agentState }: { pending: CompanionToolCall[];
         return null;
     }
     return (
-        <div className="m-3 mb-0 rounded border border-warning/60 bg-warning/10 p-2" data-testid="companion-permission">
-            <div className="mb-1 text-xs font-medium text-warning">
+        <div
+            className="m-3 mb-0 rounded-4 border border-warning/60 bg-warning/10 p-2"
+            data-testid="companion-permission"
+        >
+            <div className="mb-1 text-12 font-medium text-warning">
                 Permission request · <span className="font-mono">{request.tool}</span>
             </div>
             {request.args ? (
-                <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] text-secondary">
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-11 text-secondary">
                     {formatArgs(request.args)}
                 </pre>
             ) : null}
-            <div className="mt-1 text-[11px] text-muted">Answer it in the terminal.</div>
+            <div className="mt-1 text-11 text-muted">Answer it in the terminal.</div>
         </div>
     );
 }
@@ -357,7 +360,7 @@ function PermissionCard({ pending, agentState }: { pending: CompanionToolCall[];
 function SectionTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
     return (
         <div className="flex items-center gap-2 px-3 pt-3 pb-1">
-            <div className="text-[11px] font-semibold tracking-wide text-muted uppercase">{children}</div>
+            <div className="text-11 font-semibold tracking-wide text-muted uppercase">{children}</div>
             <div className="ml-auto flex items-center gap-1">{right}</div>
         </div>
     );
@@ -382,7 +385,7 @@ function NavButton({
             disabled={disabled}
             onClick={onClick}
             className={cn(
-                "rounded px-1.5 py-0.5 text-xs text-secondary",
+                "rounded-4 px-1.5 py-0.5 text-12 text-secondary",
                 disabled ? "opacity-40" : "cursor-pointer hover:bg-hover hover:text-primary"
             )}
         >
@@ -439,7 +442,7 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
         return (
             <>
                 <SectionTitle>Answer</SectionTitle>
-                <div className="px-3 text-xs text-muted">No answer yet in this session.</div>
+                <div className="px-3 text-12 text-muted">No answer yet in this session.</div>
             </>
         );
     }
@@ -454,7 +457,7 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
                             disabled={pos <= 0}
                             onClick={() => go(-1)}
                         />
-                        <span className="text-[11px] text-muted tabular-nums" data-testid="companion-answer-pos">
+                        <span className="text-11 text-muted tabular-nums" data-testid="companion-answer-pos">
                             {pos + 1} / {answers.length}
                         </span>
                         <NavButton
@@ -467,7 +470,7 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
                             <button
                                 type="button"
                                 onClick={() => setPinned(null)}
-                                className="cursor-pointer rounded px-1.5 py-0.5 text-[11px] text-accent hover:bg-hover"
+                                className="cursor-pointer rounded-6 px-1.5 py-0.5 text-11 text-accent hover:bg-hover"
                             >
                                 Latest
                             </button>
@@ -481,9 +484,9 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
             >
                 {pinned == null ? "Latest answer" : "Earlier answer"}
             </SectionTitle>
-            {error ? <div className="px-3 text-xs text-error">{error}</div> : null}
+            {error ? <div className="px-3 text-12 text-error">{error}</div> : null}
             <div className="px-3" data-testid="companion-answer">
-                {shown ? <AnswerMarkdown markdown={markdown} /> : <div className="text-xs text-muted">Loading…</div>}
+                {shown ? <AnswerMarkdown markdown={markdown} /> : <div className="text-12 text-muted">Loading…</div>}
             </div>
         </>
     );
@@ -507,12 +510,12 @@ function TodoSection({ todos }: { todos: CompanionTodo[] }) {
     const { done, total } = todoCounts(todos);
     return (
         <>
-            <SectionTitle right={<span className="text-[11px] text-muted tabular-nums">{`${done} / ${total}`}</span>}>
+            <SectionTitle right={<span className="text-11 text-muted tabular-nums">{`${done} / ${total}`}</span>}>
                 Tasks
             </SectionTitle>
             <ul className="flex flex-col gap-1 px-3" data-testid="companion-todos">
                 {todos.map((t, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs">
+                    <li key={i} className="flex items-start gap-2 text-12">
                         <i className={cn("mt-0.5 fa-fw", TodoIcons[t.status] ?? TodoIcons.pending)} />
                         <span className={cn(t.status === "completed" ? "text-muted line-through" : "text-primary")}>
                             {t.text}
@@ -546,13 +549,13 @@ function FilesSection({
         return (
             <>
                 <SectionTitle>Files changed</SectionTitle>
-                <div className="px-3 pb-3 text-xs text-muted">No file changed in this session yet.</div>
+                <div className="px-3 pb-3 text-12 text-muted">No file changed in this session yet.</div>
             </>
         );
     }
     return (
         <>
-            <SectionTitle right={<span className="text-[11px] text-muted tabular-nums">{files.length}</span>}>
+            <SectionTitle right={<span className="text-11 text-muted tabular-nums">{files.length}</span>}>
                 Files changed
             </SectionTitle>
             <ul className="flex flex-col px-1 pb-3" data-testid="companion-files">
@@ -605,7 +608,7 @@ function FileRow({
         });
     return (
         <li className="flex flex-col">
-            <div className="group flex items-center gap-2 rounded px-2 py-1 hover:bg-hover">
+            <div className="group flex items-center gap-2 rounded-6 px-2 py-1 hover:bg-hover">
                 <button
                     type="button"
                     onClick={onToggle}
@@ -615,19 +618,19 @@ function FileRow({
                 >
                     <i
                         className={cn(
-                            "fa fa-solid fa-fw text-[10px] text-muted",
+                            "fa fa-solid fa-fw text-11 text-muted",
                             open ? "fa-chevron-down" : "fa-chevron-right"
                         )}
                     />
                     <span
-                        className={cn("w-3 shrink-0 font-mono text-[11px] font-semibold", kind.className)}
+                        className={cn("w-3 shrink-0 font-mono text-11 font-semibold", kind.className)}
                         title={kind.title}
                     >
                         {kind.text}
                     </span>
-                    <span className="truncate font-mono text-xs text-primary">{displayPath(file.path, folder)}</span>
+                    <span className="truncate font-mono text-12 text-primary">{displayPath(file.path, folder)}</span>
                 </button>
-                <span className="shrink-0 font-mono text-[11px] tabular-nums">
+                <span className="shrink-0 font-mono text-11 tabular-nums">
                     <span className="text-success">+{file.added}</span>{" "}
                     <span className="text-error">−{file.removed}</span>
                 </span>
@@ -635,7 +638,7 @@ function FileRow({
                     <button
                         type="button"
                         onClick={openAtChange}
-                        className="cursor-pointer rounded px-1 text-[11px] text-secondary hover:text-primary"
+                        className="cursor-pointer rounded-6 px-1 text-11 text-secondary hover:text-primary"
                         title="Open in the preview"
                         aria-label={`Open ${file.path} in the preview`}
                     >
@@ -672,22 +675,20 @@ function FileDiffView({ target, path, edits }: { target: string; path: string; e
         };
     }, [target, path, edits]);
     if (error) {
-        return <div className="px-3 text-xs text-error">{error}</div>;
+        return <div className="px-3 text-12 text-error">{error}</div>;
     }
     if (diff == null) {
-        return <div className="px-3 text-xs text-muted">Loading…</div>;
+        return <div className="px-3 text-12 text-muted">Loading…</div>;
     }
     const lines = diff.diff ? diff.diff.replace(/\n$/, "").split("\n") : [];
     return (
         <div
-            className="mx-2 mb-2 overflow-x-auto rounded border border-border bg-black/20"
+            className="mx-2 mb-2 overflow-x-auto rounded-4 border border-border bg-black/20"
             data-testid="companion-diff"
         >
-            {diff.truncated ? (
-                <div className="px-2 py-1 text-[11px] text-muted">Earlier edits are not kept.</div>
-            ) : null}
-            {lines.length === 0 ? <div className="px-2 py-1 text-[11px] text-muted">No diff recorded.</div> : null}
-            <pre className="m-0 py-1 font-mono text-[11px] leading-[1.45]">
+            {diff.truncated ? <div className="px-2 py-1 text-11 text-muted">Earlier edits are not kept.</div> : null}
+            {lines.length === 0 ? <div className="px-2 py-1 text-11 text-muted">No diff recorded.</div> : null}
+            <pre className="m-0 py-1 font-mono text-11 leading-[1.45]">
                 {lines.map((line, i) => (
                     <div key={i} className={cn("px-2 whitespace-pre", DiffLineClasses[diffLineKind(line)])}>
                         {line || " "}

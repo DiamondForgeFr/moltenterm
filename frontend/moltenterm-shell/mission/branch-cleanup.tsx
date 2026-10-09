@@ -28,7 +28,7 @@ const KeepReasons: Record<BranchKeepReason, string> = {
 };
 
 const PlainButton =
-    "cursor-pointer rounded border border-border px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary";
+    "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary";
 
 export function branchLabel(b: BranchPlan): string {
     return b.remote ? `origin/${b.name}` : b.name;
@@ -81,31 +81,31 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
         <div className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40" onPointerDown={onClose}>
             <div
                 onPointerDown={(e) => e.stopPropagation()}
-                className="flex max-h-[80vh] w-[620px] max-w-[calc(100vw-32px)] flex-col rounded border border-border bg-modalbg shadow-xl"
+                className="flex max-h-[80vh] w-[620px] max-w-[calc(100vw-32px)] flex-col rounded-10 border border-border bg-surface-3 shadow-e3"
                 data-testid="branch-cleanup"
             >
                 <div className="border-b border-border px-4 py-3">
-                    <div className="text-sm font-semibold">Clean branches</div>
-                    <div className="mt-0.5 text-xs text-muted">
+                    <div className="text-13 leading-5 font-semibold">Clean branches</div>
+                    <div className="mt-0.5 text-12 text-muted">
                         Branches whose code is already on {trunk} go, judged on content (rebase-merged pull requests
                         included). The main branches stay, and so does anything in doubt.
                     </div>
                 </div>
-                <div className="min-h-0 flex-1 overflow-auto px-4 py-3 text-xs">
+                <div className="min-h-0 flex-1 overflow-auto px-4 py-3 text-12">
                     {error ? (
-                        <div className="mb-2 rounded border border-error/40 bg-error/10 px-2 py-1.5 text-error">
+                        <div className="mb-2 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-error">
                             {error}
                         </div>
                     ) : null}
                     {plan == null && error == null ? (
                         <div className="flex items-center gap-2 text-muted">
-                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-[11px]" />
+                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
                             Comparing each branch with {trunk}…
                         </div>
                     ) : null}
                     {result ? (
                         <div className="flex flex-col gap-1">
-                            <p className="text-sm text-primary" data-testid="cleanup-result">
+                            <p className="text-13 leading-5 text-primary" data-testid="cleanup-result">
                                 {cleanResultLine(result)}
                             </p>
                             {(result.errors ?? []).map((e) => (
@@ -121,7 +121,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                                 {going.length === 0 ? <p className="text-muted">Nothing to clean.</p> : null}
                                 {going.map((b) => (
                                     <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
-                                        <i className="fa fa-solid fa-trash-can w-3.5 text-[11px] text-error" />
+                                        <i className="fa fa-solid fa-trash-can w-3.5 text-11 text-error" />
                                         <code>{branchLabel(b)}</code>
                                     </div>
                                 ))}
@@ -130,7 +130,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                                 <div className="mb-1.5 font-medium text-muted">Stay ({staying.length})</div>
                                 {staying.map((b) => (
                                     <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
-                                        <i className="fa fa-solid fa-code-branch w-3.5 text-[11px] text-muted" />
+                                        <i className="fa fa-solid fa-code-branch w-3.5 text-11 text-muted" />
                                         <code>{branchLabel(b)}</code>
                                         <span className="text-muted">— {KeepReasons[b.reason] ?? b.reason}</span>
                                     </div>
@@ -149,13 +149,13 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                             disabled={busy || going.length === 0}
                             onClick={clean}
                             className={cn(
-                                "flex cursor-pointer items-center gap-1.5 rounded border border-error/60 bg-error/15 px-3 py-1 text-xs text-error transition-colors hover:bg-error/25 disabled:cursor-default disabled:opacity-50"
+                                "flex cursor-pointer items-center gap-1.5 rounded-6 border border-error/60 bg-error/15 px-3 py-1 text-12 text-error transition-colors duration-120 ease-mt hover:bg-error/25 disabled:cursor-default disabled:opacity-50"
                             )}
                         >
                             {busy ? (
-                                <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-[10px]" />
+                                <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
                             ) : (
-                                <i className="fa fa-solid fa-trash-can text-[10px]" />
+                                <i className="fa fa-solid fa-trash-can text-11" />
                             )}
                             Delete {going.length} branch(es)
                         </button>
@@ -172,7 +172,7 @@ export function BranchCleanupButton({ dir, onCleaned }: { dir: string; onCleaned
     return (
         <>
             <button type="button" onClick={() => setOpen(true)} className={ActionSecondaryClass}>
-                <i className="fa fa-solid fa-broom text-[10px]" />
+                <i className="fa fa-solid fa-broom text-11" />
                 Clean branches
             </button>
             {open ? <BranchCleanupDialog dir={dir} onClose={() => setOpen(false)} onCleaned={onCleaned} /> : null}

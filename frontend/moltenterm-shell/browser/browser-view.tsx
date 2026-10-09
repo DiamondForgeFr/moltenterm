@@ -887,7 +887,7 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                         data-tabid={tab.id}
                         data-engine={tab.engine ?? EngineApp}
                         className={cn(
-                            "molten-browser-tab group relative flex h-7 min-w-[72px] flex-[0_1_200px] cursor-pointer items-center gap-1 rounded-t border border-b-0 px-2 text-xs",
+                            "molten-browser-tab group relative flex h-7 min-w-[72px] flex-[0_1_200px] cursor-pointer items-center gap-1 rounded-t-6 border border-b-0 px-2 text-12",
                             tab.id === state.activeId
                                 ? "border-border bg-hover text-primary"
                                 : "border-transparent text-secondary hover:bg-hover/50",
@@ -900,7 +900,7 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                         {tab.engine ? (
                             <i
                                 aria-label={`Opened in ${engineName(tab.engine, list)}`}
-                                className={cn(browserIconClass(tab.engine), "shrink-0 text-[11px] text-accent")}
+                                className={cn(browserIconClass(tab.engine), "shrink-0 text-11 text-accent")}
                             />
                         ) : (
                             <TabIcon load={loads[tab.id]} />
@@ -917,9 +917,9 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                                     e.stopPropagation();
                                     model.closeTab(tab.id);
                                 }}
-                                className="shrink-0 cursor-pointer rounded px-0.5 text-secondary opacity-60 hover:bg-hover hover:opacity-100"
+                                className="shrink-0 cursor-pointer rounded-6 px-0.5 text-secondary opacity-60 hover:bg-hover hover:opacity-100"
                             >
-                                <i className="fa fa-solid fa-xmark text-[10px]" />
+                                <i className="fa fa-solid fa-xmark text-11" />
                             </button>
                         ) : null}
                     </div>
@@ -930,9 +930,9 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                 aria-label="New tab"
                 title="New tab (Cmd+T)"
                 onClick={() => model.newTab()}
-                className="mb-0.5 ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary"
+                className="mb-0.5 ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
             >
-                <i className="fa fa-solid fa-plus text-xs" />
+                <i className="fa fa-solid fa-plus text-12" />
             </button>
             <div
                 ref={model.layoutNode.dragHandleRef}
@@ -958,7 +958,7 @@ function AgentTabMarker({ agentTabs, tabId }: { agentTabs: AgentTabs; tabId: str
                 role="img"
                 aria-label={asking.title}
                 title={asking.title}
-                className="fa fa-solid fa-circle-question shrink-0 text-[10px] text-[var(--mt-state-waiting)]"
+                className="fa fa-solid fa-circle-question shrink-0 text-11 text-[var(--mt-state-waiting)]"
             />
         );
     }
@@ -967,10 +967,7 @@ function AgentTabMarker({ agentTabs, tabId }: { agentTabs: AgentTabs; tabId: str
             role="img"
             aria-label={view.title}
             title={view.title}
-            className={cn(
-                "fa fa-solid fa-robot shrink-0 text-[10px]",
-                view.takenOver ? "text-secondary" : "text-accent"
-            )}
+            className={cn("fa fa-solid fa-robot shrink-0 text-11", view.takenOver ? "text-secondary" : "text-accent")}
         />
     );
 }
@@ -988,7 +985,7 @@ function TabIcon({ load }: { load: TabLoad }) {
         );
     }
     if (load?.favicon == null || broken === load.favicon) {
-        return <i className="fa fa-solid fa-globe w-3 shrink-0 text-center text-[10px] text-muted" />;
+        return <i className="fa fa-solid fa-globe w-3 shrink-0 text-center text-11 text-muted" />;
     }
     return (
         <img
@@ -1052,9 +1049,9 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
             title={title}
             onClick={run}
             disabled={!!active?.engine}
-            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary disabled:pointer-events-none disabled:opacity-40"
+            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary disabled:pointer-events-none disabled:opacity-40"
         >
-            <i className={`fa fa-solid fa-${icon} text-xs`} />
+            <i className={`fa fa-solid fa-${icon} text-12`} />
         </button>
     );
     return (
@@ -1102,7 +1099,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                     }
                     e.currentTarget.blur();
                 }}
-                className="h-6 min-w-0 flex-1 rounded border border-border bg-transparent px-2 text-xs text-primary outline-none focus:border-accent"
+                className="h-6 min-w-0 flex-1 rounded-4 border border-border bg-transparent px-2 text-12 text-primary outline-none focus:border-accent"
             />
             <EngineButton model={model} tab={active} />
             {loading ? (
@@ -1135,7 +1132,7 @@ function EngineButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab
     const always = routed.engine !== "" && routed.engine !== EngineApp;
     const label = tab.engine ? "Open in MoltenTerm" : `Open in ${chosen.name}`;
     return (
-        <div className="molten-browser-engine flex h-6 shrink-0 items-center rounded border border-border text-xs text-secondary">
+        <div className="molten-browser-engine flex h-6 shrink-0 items-center rounded-4 border border-border text-12 text-secondary">
             <button
                 type="button"
                 title={
@@ -1144,12 +1141,12 @@ function EngineButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab
                         : `Open this page in ${chosen.name}, with your sessions and extensions`
                 }
                 onClick={() => (tab.engine ? model.openHere(tab.id) : fireAndForget(() => model.handOffTab(tab.id)))}
-                className="flex h-full cursor-pointer items-center gap-1.5 rounded-l px-2 hover:bg-hover hover:text-primary"
+                className="flex h-full cursor-pointer items-center gap-1.5 rounded-l-6 px-2 hover:bg-hover hover:text-primary"
             >
                 <i
                     className={cn(
                         tab.engine ? "fa-solid fa-window-maximize" : browserIconClass(chosen.id),
-                        "text-[11px]",
+                        "text-11",
                         always && !tab.engine && "text-accent"
                     )}
                 />
@@ -1160,9 +1157,9 @@ function EngineButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab
                 aria-label="Browser options"
                 title={always ? `${routed.site} always opens in ${engineName(routed.engine, list)}` : "Browser options"}
                 onClick={(e) => model.showEngineMenu(e, tab)}
-                className="flex h-full cursor-pointer items-center rounded-r border-l border-border px-1.5 hover:bg-hover hover:text-primary"
+                className="flex h-full cursor-pointer items-center rounded-r-6 border-l border-border px-1.5 hover:bg-hover hover:text-primary"
             >
-                <i className="fa fa-solid fa-chevron-down text-[9px]" />
+                <i className="fa fa-solid fa-chevron-down text-11" />
             </button>
         </div>
     );
@@ -1176,10 +1173,10 @@ function AgentSiteButton({ model, tab }: { model: BrowserViewModel; tab: Browser
             aria-label="Agent site permission"
             title="Agent site permission"
             onClick={(e) => model.showAgentSiteMenu(e, tab)}
-            className="molten-browser-engine flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded border border-border px-1.5 text-xs text-secondary hover:bg-hover hover:text-primary"
+            className="molten-browser-engine flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-6 border border-border px-1.5 text-12 text-secondary hover:bg-hover hover:text-primary"
         >
-            <i className="fa fa-solid fa-robot text-[10px]" />
-            <i className="fa fa-solid fa-chevron-down text-[9px]" />
+            <i className="fa fa-solid fa-robot text-11" />
+            <i className="fa fa-solid fa-chevron-down text-11" />
         </button>
     );
 }
@@ -1192,7 +1189,7 @@ function BrowserNotice({ model }: { model: BrowserViewModel }) {
     return (
         <div
             role="status"
-            className="molten-browser-notice flex shrink-0 items-center gap-2 border-b border-border px-2 py-1 text-xs text-secondary"
+            className="molten-browser-notice flex shrink-0 items-center gap-2 border-b border-border px-2 py-1 text-12 text-secondary"
         >
             <i className="fa fa-solid fa-circle-info shrink-0 text-[var(--mt-state-waiting)]" />
             <span className="min-w-0 flex-1">{notice}</span>
@@ -1200,9 +1197,9 @@ function BrowserNotice({ model }: { model: BrowserViewModel }) {
                 type="button"
                 aria-label="Dismiss"
                 onClick={() => model.dismissNotice()}
-                className="shrink-0 cursor-pointer rounded px-1 text-secondary hover:bg-hover hover:text-primary"
+                className="shrink-0 cursor-pointer rounded-6 px-1 text-secondary hover:bg-hover hover:text-primary"
             >
-                <i className="fa fa-solid fa-xmark text-[10px]" />
+                <i className="fa fa-solid fa-xmark text-11" />
             </button>
         </div>
     );
@@ -1218,24 +1215,24 @@ function HandoffPage({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
     return (
         <div className="molten-browser-handoff absolute inset-0 flex items-center justify-center overflow-auto p-6">
             <div className="flex max-w-[460px] flex-col items-center gap-3 text-center">
-                <i className={cn(browserIconClass(tab.engine), "text-3xl text-accent")} />
-                <div className="text-sm text-primary">Opened in {name}</div>
-                {tab.title ? <div className="max-w-full truncate text-xs text-primary">{tab.title}</div> : null}
-                <div className="max-w-full truncate text-xs text-secondary" title={tab.url}>
+                <i className={cn(browserIconClass(tab.engine), "text-icon-20 text-accent")} />
+                <div className="text-13 leading-5 text-primary">Opened in {name}</div>
+                {tab.title ? <div className="max-w-full truncate text-12 text-primary">{tab.title}</div> : null}
+                <div className="max-w-full truncate text-12 text-secondary" title={tab.url}>
                     {tab.url}
                 </div>
-                <div className="text-xs text-muted">
+                <div className="text-12 text-muted">
                     {name} keeps your sessions, passwords and extensions for this page.
                     {always ? ` ${routed.site} always opens there.` : ""}
                 </div>
                 <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
-                    <Button className="!h-7 !px-3 !text-xs" onClick={() => model.bringForward(tab.id)}>
+                    <Button className="!h-7 !px-3 !text-12" onClick={() => model.bringForward(tab.id)}>
                         Bring {name} forward
                     </Button>
-                    <Button className="outlined grey !h-7 !px-3 !text-xs" onClick={() => model.reopenInBrowser(tab.id)}>
+                    <Button className="outlined grey !h-7 !px-3 !text-12" onClick={() => model.reopenInBrowser(tab.id)}>
                         Reopen the page
                     </Button>
-                    <Button className="ghost grey !h-7 !px-3 !text-xs" onClick={() => model.openHere(tab.id)}>
+                    <Button className="ghost grey !h-7 !px-3 !text-12" onClick={() => model.openHere(tab.id)}>
                         Open in MoltenTerm
                     </Button>
                 </div>

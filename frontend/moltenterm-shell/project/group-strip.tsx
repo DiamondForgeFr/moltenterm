@@ -44,9 +44,9 @@ function MemberHeader({ entry, onSwitch }: { entry: StripMember; onSwitch: (work
     if (entry.current) {
         return (
             <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-sm font-semibold text-primary">{name}</span>
+                <span className="truncate text-13 leading-5 font-semibold text-primary">{name}</span>
                 <span
-                    className="shrink-0 rounded border border-accent/50 px-1.5 py-px text-[10px] font-semibold tracking-wide text-accent uppercase"
+                    className="shrink-0 rounded-4 border border-accent/50 px-1.5 py-px text-11 font-semibold tracking-wide text-accent uppercase"
                     data-testid="group-strip-current"
                 >
                     This workspace
@@ -56,7 +56,7 @@ function MemberHeader({ entry, onSwitch }: { entry: StripMember; onSwitch: (work
     }
     const workspace = entry.member.workspaces?.[0];
     if (entry.target == null) {
-        return <span className="truncate text-sm font-semibold text-primary">{name}</span>;
+        return <span className="truncate text-13 leading-5 font-semibold text-primary">{name}</span>;
     }
     return (
         <button
@@ -66,8 +66,10 @@ function MemberHeader({ entry, onSwitch }: { entry: StripMember; onSwitch: (work
             title={`Switch to its workspace${workspace?.name ? ` (${workspace.name})` : ""}`}
             data-testid="group-strip-switch"
         >
-            <span className="truncate text-sm font-semibold text-primary group-hover/member:underline">{name}</span>
-            <i className="fa fa-solid fa-arrow-right shrink-0 text-[10px] text-muted group-hover/member:text-primary" />
+            <span className="truncate text-13 leading-5 font-semibold text-primary group-hover/member:underline">
+                {name}
+            </span>
+            <i className="fa fa-solid fa-arrow-right shrink-0 text-11 text-muted group-hover/member:text-primary" />
         </button>
     );
 }
@@ -83,23 +85,23 @@ function DependencyFlag({
 }) {
     return (
         <div
-            className="flex flex-col gap-1.5 rounded border border-warning/40 bg-warning/10 px-2.5 py-2 text-xs"
+            className="flex flex-col gap-1.5 rounded-4 border border-warning/40 bg-warning/10 px-2.5 py-2 text-12"
             data-testid="group-strip-stale"
         >
             <div className="flex items-center gap-2 font-semibold text-warning">
-                <i className="fa fa-solid fa-triangle-exclamation text-[10px]" />
+                <i className="fa fa-solid fa-triangle-exclamation text-11" />
                 <span className="min-w-0 truncate" title={dep.title}>
                     {dep.title}
                 </span>
             </div>
             {dep.paths.length > 0 ? (
-                <div className="font-mono text-[11px] break-all text-secondary">
+                <div className="font-mono text-11 break-all text-secondary">
                     {dep.paths.join(", ")}
                     {dep.morePaths > 0 ? <span className="text-muted"> +{dep.morePaths} more</span> : null}
                 </div>
             ) : null}
             {dep.commits.length > 0 ? (
-                <ul className="flex flex-col gap-0.5 text-[11px] text-secondary">
+                <ul className="flex flex-col gap-0.5 text-11 text-secondary">
                     {dep.commits.map((c) => (
                         <li key={c.sha} className="flex min-w-0 gap-1.5">
                             <span className="shrink-0 font-mono text-muted">{c.sha}</span>
@@ -121,7 +123,7 @@ function DependencyFlag({
                 </ul>
             ) : null}
             {dep.uncommitted.length > 0 ? (
-                <div className="text-[11px] text-secondary">
+                <div className="text-11 text-secondary">
                     Not committed: <span className="font-mono">{dep.uncommitted.join(", ")}</span>
                     {dep.moreUncommitted > 0 ? <span className="text-muted"> +{dep.moreUncommitted} more</span> : null}
                 </div>
@@ -130,7 +132,7 @@ function DependencyFlag({
                 <div className="flex flex-wrap items-center gap-2 pt-0.5">
                     <button
                         type="button"
-                        className="molten-btn flex cursor-pointer items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium disabled:cursor-default disabled:opacity-50"
+                        className="molten-btn flex cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-1 text-12 font-medium disabled:cursor-default disabled:opacity-50"
                         disabled={status?.running || dep.syncing}
                         onClick={() => onSync(dep.sync)}
                         title={`Run the declared sync command with ${dep.source}${dep.branch ? `'s ${dep.branch}` : ""}`}
@@ -139,16 +141,16 @@ function DependencyFlag({
                         {status?.running || dep.syncing ? (
                             <RunningDot className="text-current" />
                         ) : (
-                            <i className="fa fa-solid fa-rotate text-[10px]" />
+                            <i className="fa fa-solid fa-rotate text-11" />
                         )}
                         Sync
                         <MoltenWave />
                     </button>
                     {status?.error ? (
-                        <span className="text-[11px] text-error">{status.error}</span>
+                        <span className="text-11 text-error">{status.error}</span>
                     ) : dep.syncNote ? (
                         <span
-                            className={cn("text-[11px]", dep.syncing ? "text-muted" : "text-error")}
+                            className={cn("text-11", dep.syncing ? "text-muted" : "text-error")}
                             data-testid="group-strip-sync-note"
                         >
                             {dep.syncNote}
@@ -156,7 +158,7 @@ function DependencyFlag({
                     ) : null}
                 </div>
             ) : (
-                <div className="text-[11px] text-muted">No sync command is declared for this dependency.</div>
+                <div className="text-11 text-muted">No sync command is declared for this dependency.</div>
             )}
         </div>
     );
@@ -176,7 +178,7 @@ function MemberEntry({
     return (
         <li
             className={cn(
-                "flex w-[300px] min-w-[240px] shrink-0 flex-col gap-2 rounded-md border px-3 py-2.5",
+                "flex w-[300px] min-w-[240px] shrink-0 flex-col gap-2 rounded-6 border px-3 py-2.5",
                 entry.current
                     ? "border-accent/60 bg-[color-mix(in_srgb,var(--mt-accent)_6%,transparent)]"
                     : "border-border",
@@ -187,9 +189,9 @@ function MemberEntry({
             data-member={entry.member.name}
         >
             <MemberHeader entry={entry} onSwitch={onSwitch} />
-            {entry.note ? <div className={cn("text-[11px]", ToneText[entry.noteTone])}>{entry.note}</div> : null}
+            {entry.note ? <div className={cn("text-11", ToneText[entry.noteTone])}>{entry.note}</div> : null}
             {entry.facts.length > 0 ? (
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11px]">
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-11">
                     {entry.facts.map((fact) => (
                         <div key={fact.key} className="contents">
                             <dt className="text-muted">{fact.label}</dt>
@@ -213,7 +215,7 @@ function MemberEntry({
                 />
             ))}
             {entry.unresolved.length > 0 ? (
-                <div className="text-[11px] text-muted" title="These dependencies are never flagged">
+                <div className="text-11 text-muted" title="These dependencies are never flagged">
                     {entry.unresolved.join(" · ")}
                 </div>
             ) : null}
@@ -248,9 +250,9 @@ export function GroupStripView({
             data-testid="group-strip"
         >
             <div className="flex items-baseline gap-2">
-                <span className="text-[11px] font-semibold tracking-[0.14em] text-muted uppercase">Product</span>
-                <span className="text-[13px] font-semibold text-primary">{name}</span>
-                <span className="text-[11px] text-muted">{members.length} repositories</span>
+                <span className="text-11 font-semibold tracking-[0.14em] text-muted uppercase">Product</span>
+                <span className="text-13 font-semibold text-primary">{name}</span>
+                <span className="text-11 text-muted">{members.length} repositories</span>
             </div>
             <ul className="flex items-start gap-2 overflow-x-auto pb-0.5">
                 {members.map((entry) => (

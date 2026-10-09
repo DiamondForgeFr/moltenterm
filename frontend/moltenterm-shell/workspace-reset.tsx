@@ -16,8 +16,8 @@ import { MoltenWave } from "./molten-button";
 import { resetLossText } from "./workspace-reset-model";
 
 const PlainButton =
-    "cursor-pointer rounded border border-border px-3 py-1.5 text-xs text-secondary hover:bg-hover hover:text-primary";
-const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded px-3 py-1.5 text-xs";
+    "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
+const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded-6 px-3 py-1.5 text-12";
 
 type ResetRequest = { workspaceId: string; name: string; tabCount: number; paneCount: number };
 

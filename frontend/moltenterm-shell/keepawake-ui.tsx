@@ -69,12 +69,12 @@ function SessionRow({ session, now }: { session: KeepAwakeSession; now: number }
     const model = KeepAwakeModel.getInstance();
     const value = session.override?.policy ?? "";
     return (
-        <li className="flex flex-col gap-0.5 rounded px-2 py-1.5 hover:bg-hover">
+        <li className="flex flex-col gap-0.5 rounded-6 px-2 py-1.5 hover:bg-hover">
             <div className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate text-primary">{session.label}</span>
                 <select
                     aria-label={`Sleep policy of ${session.label}`}
-                    className="cursor-pointer rounded border border-border bg-transparent px-1 text-[11px] text-secondary"
+                    className="cursor-pointer rounded-6 border border-border bg-transparent px-1 text-11 text-secondary"
                     value={value}
                     onChange={(e) =>
                         fireAndForget(() => model.setOverride(session.blockid, e.target.value as "allow" | "letsleep"))
@@ -86,7 +86,7 @@ function SessionRow({ session, now }: { session: KeepAwakeSession; now: number }
                 </select>
             </div>
             {session.attempts.map((attempt) => (
-                <div key={attempt.id} className="flex items-center gap-2 text-[11px] text-muted">
+                <div key={attempt.id} className="flex items-center gap-2 text-11 text-muted">
                     <span className="min-w-0 flex-1 truncate font-mono" title={describeAttempt(attempt)}>
                         {describeAttempt(attempt)}
                         {attempt.parentname ? ` · from ${attempt.parentname}` : ""}
@@ -158,17 +158,17 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
             ref={panelRef}
             role="dialog"
             aria-label="Keep awake"
-            className="fixed z-[9600] flex max-h-[70vh] w-[360px] flex-col overflow-y-auto rounded border border-border bg-modalbg p-2 text-xs text-secondary shadow-lg"
+            className="fixed z-[9600] flex max-h-[70vh] w-[360px] flex-col overflow-y-auto rounded-10 border border-border bg-surface-3 p-2 text-12 text-secondary shadow-e2"
             style={{ bottom: window.innerHeight - rect.top + 6, right: Math.max(8, window.innerWidth - rect.right) }}
         >
-            <div className="px-2 pt-1 pb-1.5 text-[11px] font-semibold tracking-wide text-muted uppercase">
+            <div className="px-2 pt-1 pb-1.5 text-11 font-semibold tracking-wide text-muted uppercase">
                 When terminals ask to keep {computerName(platform)} awake
             </div>
             <div role="radiogroup" aria-label="Sleep policy" className="flex flex-col gap-0.5">
                 {choices.map((choice) => (
                     <label
                         key={choice.policy}
-                        className="flex cursor-pointer items-start gap-2 rounded px-2 py-1 hover:bg-hover"
+                        className="flex cursor-pointer items-start gap-2 rounded-6 px-2 py-1 hover:bg-hover"
                     >
                         <input
                             type="radio"
@@ -179,16 +179,16 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
                         />
                         <span className="flex flex-col">
                             <span className="text-primary">{choice.label}</span>
-                            <span className="text-[11px] text-muted">{choice.detail}</span>
+                            <span className="text-11 text-muted">{choice.detail}</span>
                         </span>
                     </label>
                 ))}
             </div>
             {policy === "" ? (
-                <div className="px-2 pt-1 text-[11px] text-muted">Not chosen yet: the first request will ask.</div>
+                <div className="px-2 pt-1 text-11 text-muted">Not chosen yet: the first request will ask.</div>
             ) : null}
             {state.policyholding ? (
-                <div className="px-2 pt-1 text-[11px] text-[var(--color-awake)]">
+                <div className="px-2 pt-1 text-11 text-[var(--color-awake)]">
                     Until work ends holds {computerName(platform)} awake
                     {state.policyworking || !state.policyendsat
                         ? " while work runs"
@@ -196,11 +196,11 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
                     .
                 </div>
             ) : null}
-            <div className="mt-2 border-t border-border px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wide text-muted uppercase">
+            <div className="mt-2 border-t border-border px-2 pt-2 pb-1 text-11 font-semibold tracking-wide text-muted uppercase">
                 Kept awake by you
             </div>
             {state.coffees.length === 0 ? (
-                <div className="px-2 pb-1 text-[11px] text-muted">
+                <div className="px-2 pb-1 text-11 text-muted">
                     No coffee on. The coffee bud of a workspace in the rail keeps {computerName(platform)} awake while
                     it works.
                 </div>
@@ -209,18 +209,18 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
                     {state.coffees.map((coffee) => (
                         <li
                             key={coffee.workspaceid}
-                            className="flex items-center gap-2 rounded px-2 py-1 hover:bg-hover"
+                            className="flex items-center gap-2 rounded-6 px-2 py-1 hover:bg-hover"
                         >
-                            <i className="fa fa-solid fa-mug-hot text-[10px] text-[var(--color-awake)]" aria-hidden />
+                            <i className="fa fa-solid fa-mug-hot text-11 text-[var(--color-awake)]" aria-hidden />
                             <span className="flex min-w-0 flex-1 flex-col">
                                 <span className="truncate text-primary">{coffee.workspacename || "Workspace"}</span>
-                                <span className="truncate text-[11px] text-muted">
+                                <span className="truncate text-11 text-muted">
                                     since {formatClock(coffee.since)} · {coffeeCondition(coffee, now)}
                                 </span>
                             </span>
                             <button
                                 type="button"
-                                className="shrink-0 cursor-pointer rounded border border-border px-1.5 text-[11px] text-secondary hover:bg-hover hover:text-primary"
+                                className="shrink-0 cursor-pointer rounded-6 border border-border px-1.5 text-11 text-secondary hover:bg-hover hover:text-primary"
                                 aria-label={`Stop keeping ${computerName(platform)} awake for ${coffee.workspacename || "this workspace"}`}
                                 onClick={() => fireAndForget(() => model.setCoffee(coffee.workspaceid, false))}
                             >
@@ -232,7 +232,7 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
             )}
             {sessions.length > 0 ? (
                 <>
-                    <div className="mt-2 border-t border-border px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wide text-muted uppercase">
+                    <div className="mt-2 border-t border-border px-2 pt-2 pb-1 text-11 font-semibold tracking-wide text-muted uppercase">
                         Terminals that asked
                     </div>
                     <ul className="flex flex-col">
@@ -240,12 +240,12 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
                             <SessionRow key={session.blockid} session={session} now={now} />
                         ))}
                     </ul>
-                    <div className="px-2 pt-1 text-[11px] text-muted">
+                    <div className="px-2 pt-1 text-11 text-muted">
                         A session's own choice applies to its next requests and ends with it.
                     </div>
                 </>
             ) : null}
-            <div className="mt-2 border-t border-border px-2 pt-2 text-[11px] text-muted">
+            <div className="mt-2 border-t border-border px-2 pt-2 text-11 text-muted">
                 MoltenTerm never keeps the display awake: it may sleep and the screen lock.
             </div>
         </div>,
@@ -280,11 +280,11 @@ export function KeepAwakeStatusItem() {
                 title={title}
                 onClick={() => setOpen(!open)}
                 className={cn(
-                    "flex cursor-pointer items-center gap-1 rounded px-1 hover:bg-hover hover:text-primary",
+                    "flex cursor-pointer items-center gap-1 rounded-6 px-1 hover:bg-hover hover:text-primary",
                     state.hold && "text-[var(--color-awake)]"
                 )}
             >
-                <i className={cn("fa fa-solid text-[10px]", state.hold ? "fa-mug-hot" : "fa-moon")} aria-hidden />
+                <i className={cn("fa fa-solid text-11", state.hold ? "fa-mug-hot" : "fa-moon")} aria-hidden />
                 {count > 0 ? <span>{count}</span> : null}
             </button>
             {open && buttonRef.current != null ? <KeepAwakePanel anchor={buttonRef.current} onClose={close} /> : null}

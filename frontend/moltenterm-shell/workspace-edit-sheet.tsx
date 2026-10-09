@@ -33,12 +33,12 @@ import { chooseMoltentermPath } from "./workspace-project-store";
 import { askResetWorkspace } from "./workspace-reset";
 import { canCloseWorkspace } from "./workspace-reset-model";
 
-const SectionHeadingClass = "mb-2 text-xs font-semibold tracking-wide text-secondary uppercase";
-const FieldLabelClass = "mb-1 text-xs text-secondary";
+const SectionHeadingClass = "mb-2 text-12 font-semibold tracking-wide text-secondary uppercase";
+const FieldLabelClass = "mb-1 text-12 text-secondary";
 const DangerButtonClass =
-    "shrink-0 cursor-pointer rounded border border-error px-3 py-1.5 text-xs text-primary transition-colors hover:bg-error/15";
+    "shrink-0 cursor-pointer rounded-6 border border-error px-3 py-1.5 text-12 text-primary transition-colors duration-120 ease-mt hover:bg-error/15";
 const SecondaryButtonClass =
-    "shrink-0 cursor-pointer rounded border border-border px-3 py-1.5 text-xs text-secondary transition-colors hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
+    "shrink-0 cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
 const NoDroppedFileText = "Drop an image file from your disk";
 const ImportFailedText = "The image could not be imported";
 const FocusRingClass =
@@ -215,12 +215,12 @@ function ImportImageSlot({
                 data-role="icon-drop"
                 data-over={over ? "true" : undefined}
                 className={cn(
-                    "rounded border border-dashed px-3 py-2 transition-colors motion-reduce:transition-none",
+                    "rounded-4 border border-dashed px-3 py-2 transition-colors duration-120 ease-mt motion-reduce:transition-none",
                     over ? "border-accent bg-accent/10" : "border-border"
                 )}
             >
                 <div className="flex flex-wrap items-center gap-2">
-                    <span className="min-w-0 flex-1 basis-48 text-xs text-secondary">
+                    <span className="min-w-0 flex-1 basis-48 text-12 text-secondary">
                         {over
                             ? "Drop to use this image"
                             : imported
@@ -247,7 +247,7 @@ function ImportImageSlot({
                         </button>
                     ) : null}
                 </div>
-                <div role="status" aria-live="polite" data-role="icon-import-result" className="min-h-4 text-xs">
+                <div role="status" aria-live="polite" data-role="icon-import-result" className="min-h-4 text-12">
                     {result ? (
                         <span className={result.ok ? "text-secondary" : "text-primary"}>
                             {result.ok ? null : (
@@ -287,7 +287,7 @@ function RailBadgePreview({
             >
                 <WorkspaceIcon source={source} />
             </div>
-            <div className="text-[11px] text-muted" aria-hidden>
+            <div className="text-11 text-muted" aria-hidden>
                 In the rail
             </div>
         </div>
@@ -383,11 +383,11 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                         aria-describedby={errorId}
                         onChange={(e) => onName(e.target.value)}
                         className={cn(
-                            "w-full min-w-0 rounded border bg-transparent px-2 py-1.5 text-sm text-primary outline-none focus:border-accent",
+                            "w-full min-w-0 rounded-4 border bg-transparent px-2 py-1.5 text-13 leading-5 text-primary outline-none focus:border-accent",
                             invalid ? "border-error focus:border-error" : "border-border"
                         )}
                     />
-                    <div id={errorId} aria-live="polite" className="mt-1 min-h-4 text-xs text-error">
+                    <div id={errorId} aria-live="polite" className="mt-1 min-h-4 text-12 text-error">
                         {invalid ? EmptyNameError : ""}
                     </div>
                 </div>
@@ -441,7 +441,7 @@ export function IconChoices({
                     tabIndex={tabIndex}
                     onClick={() => onSelect(icon)}
                     className={cn(
-                        "flex h-8 w-8 cursor-pointer items-center justify-center rounded border text-[15px] transition-colors motion-reduce:transition-none",
+                        "flex h-8 w-8 cursor-pointer items-center justify-center rounded-6 border text-icon-16 transition-colors duration-120 ease-mt motion-reduce:transition-none",
                         FocusRingClass,
                         checked
                             ? "border-accent bg-accent/10 text-primary"
@@ -480,7 +480,7 @@ export function ColourChoices({
                     tabIndex={tabIndex}
                     onClick={() => onSelect(color)}
                     className={cn(
-                        "m-0.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-[12px]",
+                        "m-0.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-12",
                         FocusRingClass,
                         checked && "ring-2 ring-primary ring-offset-2 ring-offset-modalbg"
                     )}
@@ -513,7 +513,7 @@ export function DangerSection({ ws, closable, onClose }: { ws: Workspace; closab
     return (
         <Section title="Danger zone">
             <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0 flex-1 basis-48 text-xs text-muted">{action.text}</div>
+                <div className="min-w-0 flex-1 basis-48 text-12 text-muted">{action.text}</div>
                 <button
                     type="button"
                     className={cn(DangerButtonClass, FocusRingClass)}
@@ -561,7 +561,7 @@ export function WorkspaceEditSheet({
             buttons={
                 <button
                     type="button"
-                    className="molten-btn cursor-pointer rounded px-4 py-1.5 text-xs"
+                    className="molten-btn cursor-pointer rounded-6 px-4 py-1.5 text-12"
                     onClick={onClose}
                 >
                     Done

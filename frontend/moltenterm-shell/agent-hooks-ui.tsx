@@ -15,10 +15,10 @@ import { DialogFrame, useEscape } from "./dialog-frame";
 import { MoltenWave } from "./molten-button";
 import { openFileInPreview } from "./term-copy/term-copy";
 
-const ChipButton = "cursor-pointer rounded px-1 hover:bg-hover hover:text-primary";
+const ChipButton = "cursor-pointer rounded-6 px-1 hover:bg-hover hover:text-primary";
 const PlainButton =
-    "cursor-pointer rounded border border-border px-3 py-1.5 text-xs text-secondary hover:bg-hover hover:text-primary";
-const CopyButton = "molten-btn cursor-pointer rounded px-3 py-1.5 text-xs";
+    "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
+const CopyButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12";
 const CopiedMs = 2000;
 
 export function AgentHookOfferChip({ blockId }: { blockId: string }) {
@@ -44,7 +44,7 @@ export function AgentHookOfferChip({ blockId }: { blockId: string }) {
     return (
         <>
             <span
-                className="inline-flex shrink-0 items-center gap-0.5 rounded border border-border px-1 text-[11px] leading-[16px] text-muted"
+                className="inline-flex shrink-0 items-center gap-0.5 rounded-4 border border-border px-1 text-11 leading-[16px] text-muted"
                 title={`${name} shows its states from its output only.\nIts hooks make them precise: ${offer.brings}.`}
                 onMouseDown={(e) => e.stopPropagation()}
                 data-role="molten-hook-offer"
@@ -58,7 +58,7 @@ export function AgentHookOfferChip({ blockId }: { blockId: string }) {
                         setOpen(true);
                     }}
                 >
-                    <i className="fa fa-solid fa-plug mr-1 text-[9px]" />
+                    <i className="fa fa-solid fa-plug mr-1 text-11" />
                     Set up hooks
                 </button>
                 <button
@@ -71,7 +71,7 @@ export function AgentHookOfferChip({ blockId }: { blockId: string }) {
                         dismiss();
                     }}
                 >
-                    <i className="fa fa-solid fa-xmark text-[9px]" />
+                    <i className="fa fa-solid fa-xmark text-11" />
                 </button>
             </span>
             {open ? (
@@ -145,7 +145,7 @@ function AgentHookOfferDialog({
                 Add this to <code className="font-mono text-primary">{offer.file}</code>, {offer.also}:
             </p>
             <pre
-                className="max-h-64 overflow-auto rounded border border-border bg-black/30 px-2 py-1.5 font-mono text-[10.5px] leading-relaxed whitespace-pre text-secondary select-text"
+                className="max-h-64 overflow-auto rounded-4 border border-border bg-black/30 px-2 py-1.5 font-mono text-11 leading-relaxed whitespace-pre text-secondary select-text"
                 data-language={offer.language}
             >
                 {offer.snippet}

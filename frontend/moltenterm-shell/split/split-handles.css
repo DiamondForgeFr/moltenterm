@@ -84,7 +84,7 @@
     width: 4px;
     height: 36px;
     opacity: 0;
-    transition: opacity 150ms ease-in 60ms;
+    transition: opacity var(--mt-duration-base) var(--mt-ease) 60ms;
 }
 
 .molten-split-bud[data-edge="down"] .molten-split-bud-tile {
@@ -93,7 +93,7 @@
     width: 36px;
     height: 4px;
     opacity: 0;
-    transition: opacity 150ms ease-in 60ms;
+    transition: opacity var(--mt-duration-base) var(--mt-ease) 60ms;
 }
 
 .molten-split-bud[data-edge="right"] .molten-split-bud-stub {
@@ -131,36 +131,36 @@
 .molten-split-bud-stub {
     scale: 0;
     transition:
-        translate 100ms ease-out,
-        scale 90ms ease-in 120ms;
+        translate var(--mt-duration-fast) var(--mt-ease),
+        scale var(--mt-duration-fast) var(--mt-ease) 120ms;
 }
 
 .molten-split-bud-drop {
     scale: 0;
     transition:
-        translate 180ms ease-in,
-        scale 120ms ease-in 90ms;
+        translate var(--mt-duration-base) var(--mt-ease),
+        scale var(--mt-duration-fast) var(--mt-ease) 90ms;
 }
 
 .molten-split-bud[data-shown] .molten-split-bud-tile {
     opacity: 1;
-    transition: opacity 150ms ease-out;
+    transition: opacity var(--mt-duration-base) var(--mt-ease);
 }
 
 .molten-split-bud[data-shown] .molten-split-bud-stub {
     translate: 0 0;
     scale: 1;
     transition:
-        scale 90ms ease-out,
-        translate 140ms ease-out 80ms;
+        scale var(--mt-duration-fast) var(--mt-ease),
+        translate var(--mt-duration-fast) var(--mt-ease) 80ms;
 }
 
 .molten-split-bud[data-shown] .molten-split-bud-drop {
     translate: 0 0;
     scale: 1;
     transition:
-        translate 220ms cubic-bezier(0.3, 0.7, 0.3, 1.05) 20ms,
-        scale 200ms ease-out 20ms;
+        translate var(--mt-duration-slow) var(--mt-ease) 20ms,
+        scale var(--mt-duration-base) var(--mt-ease) 20ms;
 }
 
 /* The target: 16 x 24 px over the drop, only while the bud is out. */
@@ -173,10 +173,10 @@
     border: 0;
     background: transparent;
     color: var(--color-primary);
-    font-size: 8px;
+    font-size: var(--mt-text-11);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 80ms ease-in;
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
 }
 
 .molten-split-bud[data-edge="right"] .molten-split-bud-hit {
@@ -196,7 +196,7 @@
 .molten-split-bud[data-shown] .molten-split-bud-hit {
     opacity: 1;
     pointer-events: auto;
-    transition: opacity 110ms ease-out 140ms;
+    transition: opacity var(--mt-duration-fast) var(--mt-ease) 140ms;
 }
 
 .molten-split-bud-hit:hover .molten-split-bud-glyph {
@@ -219,7 +219,7 @@
 
 .molten-split-bud[data-reduced-motion] .molten-split-bud-goo {
     opacity: 0;
-    transition: opacity 120ms linear;
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
 }
 
 .molten-split-bud[data-reduced-motion][data-shown] .molten-split-bud-goo {
@@ -228,5 +228,5 @@
 
 .molten-split-bud[data-reduced-motion] .molten-split-bud-hit,
 .molten-split-bud[data-reduced-motion][data-shown] .molten-split-bud-hit {
-    transition: opacity 120ms linear;
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
 }

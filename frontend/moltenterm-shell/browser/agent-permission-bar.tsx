@@ -39,9 +39,9 @@ export function AgentPermissionBar({ agents, tabId }: { agents: BrowserAgentMode
                 e.stopPropagation();
                 agents.answer(tabId, view.requestId, view.escape);
             }}
-            className="molten-browser-agentpermission flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-border px-2 py-1.5 text-xs"
+            className="molten-browser-agentpermission flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-border px-2 py-1.5 text-12"
         >
-            <i aria-hidden="true" className="fa fa-solid fa-robot shrink-0 text-[11px] text-accent" />
+            <i aria-hidden="true" className="fa fa-solid fa-robot shrink-0 text-11 text-accent" />
             <div aria-live="polite" className="flex min-w-[150px] flex-1 items-baseline gap-2 truncate">
                 <span className="truncate text-primary">{view.title}</span>
                 <span className="min-w-0 truncate text-secondary">{view.detail}</span>
@@ -49,7 +49,7 @@ export function AgentPermissionBar({ agents, tabId }: { agents: BrowserAgentMode
             <div className="flex shrink-0 items-center gap-2">
                 {view.buttons.map((b) =>
                     b.primary ? (
-                        <Button key={b.decision} className="!h-6 !px-2.5 !text-xs" onClick={() => click(b.decision)}>
+                        <Button key={b.decision} className="!h-6 !px-2.5 !text-12" onClick={() => click(b.decision)}>
                             {b.label}
                         </Button>
                     ) : (
@@ -57,7 +57,7 @@ export function AgentPermissionBar({ agents, tabId }: { agents: BrowserAgentMode
                             key={b.decision}
                             type="button"
                             onClick={() => click(b.decision)}
-                            className="h-6 cursor-pointer rounded border border-border px-2.5 text-primary hover:bg-hover focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent"
+                            className="h-6 cursor-pointer rounded-6 border border-border px-2.5 text-primary hover:bg-hover focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent"
                         >
                             {b.label}
                         </button>

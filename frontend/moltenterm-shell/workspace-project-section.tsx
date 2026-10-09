@@ -30,17 +30,17 @@ import {
 } from "./workspace-project-store";
 
 const LinkButtonClass =
-    "cursor-pointer rounded px-2 py-1 text-xs text-secondary transition-colors hover:bg-hover hover:text-primary";
+    "cursor-pointer rounded-6 px-2 py-1 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary";
 
 function ProjectStatusLine({ facts }: { facts: ProjectFacts }) {
     if (facts == null) {
         return null;
     }
     if (!facts.exists) {
-        return <div className="text-xs text-warning">The folder no longer exists: link the project again.</div>;
+        return <div className="text-12 text-warning">The folder no longer exists: link the project again.</div>;
     }
     return (
-        <div className="text-xs text-muted">
+        <div className="text-12 text-muted">
             {facts.hasPipeline ? "Pipeline ready" : "No pipeline yet"}
             {facts.harness ? ` · ${facts.harness}` : ""}
         </div>
@@ -58,16 +58,16 @@ function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; o
             role="group"
             aria-label="Replace the imported image"
             data-role="replace-image-confirm"
-            className="mt-2 flex flex-wrap items-center gap-2 rounded border border-border px-2 py-1.5"
+            className="mt-2 flex flex-wrap items-center gap-2 rounded-4 border border-border px-2 py-1.5"
         >
-            <span className="min-w-0 flex-1 basis-48 text-xs text-secondary">
+            <span className="min-w-0 flex-1 basis-48 text-12 text-secondary">
                 Replace the imported image with this logo? The image is deleted.
             </span>
             <button
                 ref={confirmRef}
                 type="button"
                 onClick={onConfirm}
-                className="molten-btn molten-btn-warning shrink-0 cursor-pointer rounded px-2 py-1 text-xs"
+                className="molten-btn molten-btn-warning shrink-0 cursor-pointer rounded-6 px-2 py-1 text-12"
             >
                 Replace
                 <MoltenWave />
@@ -108,7 +108,7 @@ function LogoChoices({ ws, logos, chosen, dir }: { ws: Workspace; logos: string[
     const choices = chosen && !logos.includes(chosen) ? [chosen, ...logos] : logos;
     return (
         <div className="mt-2">
-            <div className="mb-1 text-xs text-secondary">
+            <div className="mb-1 text-12 text-secondary">
                 {imported
                     ? "Project logo · the imported image shows instead"
                     : chosen
@@ -122,7 +122,7 @@ function LogoChoices({ ws, logos, chosen, dir }: { ws: Workspace; logos: string[
                     aria-pressed={!chosen}
                     onClick={() => choose(null)}
                     className={cn(
-                        "flex h-8 w-8 cursor-pointer items-center justify-center rounded border text-[15px] hover:bg-hover",
+                        "flex h-8 w-8 cursor-pointer items-center justify-center rounded-6 border text-icon-16 hover:bg-hover",
                         !chosen ? "border-accent" : "border-border"
                     )}
                 >
@@ -136,7 +136,7 @@ function LogoChoices({ ws, logos, chosen, dir }: { ws: Workspace; logos: string[
                         aria-pressed={logo === chosen}
                         onClick={() => choose(logo)}
                         className={cn(
-                            "flex h-8 w-8 cursor-pointer items-center justify-center rounded border text-[18px] hover:bg-hover",
+                            "flex h-8 w-8 cursor-pointer items-center justify-center rounded-6 border text-icon-16 hover:bg-hover",
                             logo === chosen ? "border-accent" : "border-border"
                         )}
                     >
@@ -173,10 +173,10 @@ export function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
         <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <div className="min-w-0 flex-1 basis-40">
-                    <div className={cn("truncate text-sm", folder ? "" : "text-muted")}>
+                    <div className={cn("truncate text-13 leading-5", folder ? "" : "text-muted")}>
                         {folder ? pathBaseName(folder) || folder : "Not set yet"}
                     </div>
-                    <div className="truncate text-xs text-muted" title={folder}>
+                    <div className="truncate text-12 text-muted" title={folder}>
                         {folder || "Set by the next folder your terminal goes to"}
                     </div>
                 </div>
@@ -194,7 +194,7 @@ export function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
                     </button>
                 ) : null}
             </div>
-            <div className="mt-1 text-xs text-muted">
+            <div className="mt-1 text-12 text-muted">
                 {outsideProject
                     ? "Outside the project: new panels start at its root."
                     : "New terminals, tabs and files start here."}
@@ -255,11 +255,11 @@ export function WorkspaceProjectBlock({ ws }: { ws: Workspace }) {
         <div className="molten-workspace-project min-w-0 text-left">
             {project.dir === "" ? (
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="min-w-0 text-xs text-muted">Mission Control shows the linked project.</span>
+                    <span className="min-w-0 text-12 text-muted">Mission Control shows the linked project.</span>
                     <button
                         type="button"
                         onClick={link}
-                        className="molten-btn shrink-0 cursor-pointer rounded px-2 py-1 text-xs"
+                        className="molten-btn shrink-0 cursor-pointer rounded-6 px-2 py-1 text-12"
                     >
                         Link a project…
                         <MoltenWave />
@@ -269,8 +269,8 @@ export function WorkspaceProjectBlock({ ws }: { ws: Workspace }) {
                 <>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <div className="min-w-0 flex-1 basis-40">
-                            <div className="truncate text-sm">{facts?.name ?? pathBaseName(project.dir)}</div>
-                            <div className="truncate text-xs text-muted" title={project.dir}>
+                            <div className="truncate text-13 leading-5">{facts?.name ?? pathBaseName(project.dir)}</div>
+                            <div className="truncate text-12 text-muted" title={project.dir}>
                                 {project.dir}
                             </div>
                         </div>
@@ -292,7 +292,7 @@ export function WorkspaceProjectBlock({ ws }: { ws: Workspace }) {
                 </>
             )}
             {error ? (
-                <div role="alert" className="mt-1 text-xs text-error">
+                <div role="alert" className="mt-1 text-12 text-error">
                     {error}
                 </div>
             ) : null}
