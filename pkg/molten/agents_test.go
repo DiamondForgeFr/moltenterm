@@ -429,6 +429,45 @@ func TestMorphGuideClaudeCodePart(t *testing.T) {
 	}
 }
 
+// #383: an agent that has the guide runs the project's local CI through Mission Control, for every agent, from the
+// one rule file.
+func TestPipelineGuideSaysToRunTheLocalCiThroughMolten(t *testing.T) {
+	rule, err := LocalCiRule()
+	if err != nil || rule == "" {
+		t.Fatalf("the rule: %q %v", rule, err)
+	}
+	for _, want := range []string{"molten ci run [branch] [--only <job,job>]", "molten ci status", "not by typing", "Fall back to the declared commands only when `molten` is not available"} {
+		if !strings.Contains(rule, want) {
+			t.Errorf("the rule lacks %q", want)
+		}
+	}
+	pipeline, err := FindGuide(PipelineGuideName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range AgentProfiles {
+		content, err := p.RenderGuide(pipeline, "1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(content, localCiRulePlaceholder) || !strings.Contains(content, rule) {
+			t.Errorf("%s: the molten-pipeline guide must hold the rule, expanded", p.Id)
+		}
+	}
+	dir := t.TempDir()
+	if err := WriteDocs(dir); err != nil {
+		t.Fatal(err)
+	}
+	written, _ := os.ReadFile(filepath.Join(dir, "molten-pipeline.md"))
+	if strings.Contains(string(written), localCiRulePlaceholder) || !strings.Contains(string(written), rule) {
+		t.Error("molten docs writes the molten-pipeline guide with the rule expanded")
+	}
+	format, _ := os.ReadFile(filepath.Join(dir, "pipeline-format.md"))
+	if !strings.Contains(string(format), "molten ci run") {
+		t.Error("pipeline-format.md must point to molten ci run")
+	}
+}
+
 func TestEmbeddedClaudeCodeExample(t *testing.T) {
 	part := "examples/test-band/agents/claude-code"
 	for _, name := range []string{"claude-code-parts.md", "examples/test-band/mod.json", "examples/test-band/main.js", part + "/.claude-plugin/plugin.json", part + "/hooks/hooks.json", part + "/hooks/register.tsx", part + "/types/index.d.ts"} {

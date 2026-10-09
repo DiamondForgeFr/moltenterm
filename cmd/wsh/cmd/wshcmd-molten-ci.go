@@ -6,6 +6,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -96,7 +97,46 @@ func moltenCiProjectDir() (string, error) {
 	if root == "" {
 		return "", fmt.Errorf("%s is not inside a git project", cwd)
 	}
-	return root, nil
+	if !molten.IsWorktreeCheckout(root) {
+		return root, nil
+	}
+	return moltenCiResolveDir(root, moltenCiLinkedDir()), nil
+}
+
+// The project's trust, verdicts and runs are kept per folder, and Mission Control shows the workspace's linked one:
+// from a linked git worktree the CI must target the main checkout (a branch is a ref of the whole repository, whatever
+// worktree has it checked out), unless the workspace is linked to the worktree itself. linked is that link, if known.
+func moltenCiResolveDir(root string, linked string) string {
+	if linked == root {
+		return root
+	}
+	info, err := molten.ResolveWorktree(root)
+	if err != nil {
+		return root
+	}
+	if linked != "" && moltenSameFolder(linked, info.Main) {
+		return linked
+	}
+	return info.Main
+}
+
+func moltenSameFolder(a string, b string) bool {
+	realA, errA := filepath.EvalSymlinks(a)
+	realB, errB := filepath.EvalSymlinks(b)
+	return errA == nil && errB == nil && realA == realB
+}
+
+// The folder this terminal's workspace is linked to; empty when unknown (not in a MoltenTerm terminal, not linked).
+func moltenCiLinkedDir() string {
+	oref, err := moltenProjectWorkspace()
+	if err != nil {
+		return ""
+	}
+	meta, err := moltenProjectGetMeta(oref)
+	if err != nil {
+		return ""
+	}
+	return moltenMetaString(meta, molten.ProjectMetaKey)
 }
 
 func moltenCiRequest(command string, data any, out any) error {

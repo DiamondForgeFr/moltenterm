@@ -1324,6 +1324,8 @@ var moltenBuiltinHelp = [][2]string{
 	{"task history", "the earlier versions of the task checkpoint"},
 	{"task restore <n>", "restore a version of the task checkpoint (the current one goes to the history)"},
 	{"task clear", "start a new task (the current checkpoint stays in the history)"},
+	{"ci run [branch] [--only <jobs>] [--force]", "run the project's local CI on a branch (default: the checked-out one) through Mission Control and wait for the verdict; exit 0 green, 1 red"},
+	{"ci status [rev]", "say whether the local CI is green on a revision (exit 0 green, 1 red, 2 not run yet)"},
 	{"bug search <words>", "find MoltenTerm issues about a bug, open and fixed, with what to do"},
 	{"bug report --title … --what …", "prepare a MoltenTerm bug report; --yes files it once you approved"},
 	{"bug comment <issue> --what …", "add your case to an existing MoltenTerm issue; --yes posts it"},

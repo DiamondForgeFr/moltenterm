@@ -26,6 +26,7 @@ const AgentGuideName = "morph"
 const PipelineGuideName = "molten-pipeline"
 const BugGuideName = "molten-bug"
 const agentRequestPlaceholder = "{{REQUEST}}"
+const localCiRulePlaceholder = "{{LOCAL_CI_RULE}}"
 const agentDescription = "Turn a plain-language request into a morph of MoltenTerm with the molten command"
 
 type AgentGuide struct {
@@ -248,7 +249,28 @@ func GuideSource() (string, error) {
 
 func guideSource(guide AgentGuide) (string, error) {
 	data, err := agentdocs.Files.ReadFile(guide.File)
-	return string(data), err
+	if err != nil {
+		return "", err
+	}
+	return expandGuideIncludes(string(data))
+}
+
+// LocalCiRule is the text telling an agent to run a project's local CI through `molten ci run`: one source for the
+// guides and for the briefing of a run.
+func LocalCiRule() (string, error) {
+	data, err := agentdocs.Files.ReadFile(agentdocs.LocalCiRuleFile)
+	return strings.TrimSpace(string(data)), err
+}
+
+func expandGuideIncludes(body string) (string, error) {
+	if !strings.Contains(body, localCiRulePlaceholder) {
+		return body, nil
+	}
+	rule, err := LocalCiRule()
+	if err != nil {
+		return "", err
+	}
+	return strings.ReplaceAll(body, localCiRulePlaceholder, rule), nil
 }
 
 // Path is where morph goes; GuidePath where any guide goes.
@@ -466,7 +488,11 @@ func WriteDocs(dir string) error {
 			return err
 		}
 		if path == agentdocs.GuideFile || path == agentdocs.PipelineGuideFile {
-			data = []byte(FilterAgentBlocks(strings.ReplaceAll(string(data), agentRequestPlaceholder, "(the user's request)"), GenericAgentId))
+			expanded, err := expandGuideIncludes(string(data))
+			if err != nil {
+				return err
+			}
+			data = []byte(FilterAgentBlocks(strings.ReplaceAll(expanded, agentRequestPlaceholder, "(the user's request)"), GenericAgentId))
 		}
 		return os.WriteFile(target, data, 0644)
 	})
