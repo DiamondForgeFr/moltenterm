@@ -20,5 +20,33 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git fetch *)",
+      "Bash(git fetch)",
+      "Bash(npx tsc --noEmit *)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(task check:ts)",
+      "Bash(task check:go)",
+      "Bash(npx vitest run *)",
+      "Bash(npx vitest run)",
+      "Bash(go test *)",
+      "Bash(node scripts/moltenterm-check-ledger.mjs)",
+      "Bash(.claude/skills/sf-workflow/workflow-cli.sh status *)",
+      "Bash(.claude/skills/sf-workflow/workflow-cli.sh next *)",
+      "Bash(.claude/skills/sf-workflow/workflow-cli.sh help)",
+      "Bash(sf status *)",
+      "Bash(sf agents list *)",
+      "Bash(gh project item-list *)",
+      "Bash(gh project view *)",
+      "Bash(gh project field-list *)",
+      "mcp__molten-browser__read_page",
+      "mcp__molten-browser__get_page_text",
+      "mcp__molten-browser__find",
+      "mcp__molten-browser__tabs_context",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "mcp__claude_ai_Notion__notion-search"
+    ]
   }
 }

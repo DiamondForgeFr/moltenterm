@@ -101,6 +101,15 @@ Moltenterm is a soft fork of Wave Terminal, so the toolchain and commands are Wa
 - `origin` is Moltenterm. `upstream` is Wave Terminal, fetch-only, without tags.
 - `gh` resolves a remote named `upstream` before `origin`. Pin the default repository once per clone with `gh repo set-default DiamondForgeFr/moltenterm`, otherwise ticket and PR commands target Wave's repository.
 
+## Agent shell
+
+Shell habits that keep agent sessions from stopping on a permission prompt. The first two rules are generic and temporary: they move into the harness instructions when DiamondForgeFr/SaasFoundryAI#947 ships.
+
+- Edit files with the native Edit and Write tools, never through `python3 - <<'EOF'` scripts or shell heredocs: Claude Code cannot analyse them and always asks.
+- Run commands from the repository root (the worktree root for a worktree agent) with relative paths; avoid `cd … && …` chains.
+- MoltenTerm: stop a test instance with `pkill -9 -f "<its --user-data-dir>"` (for example `pkill -9 -f "/tmp/mt393/"`), not with a `ps | grep | awk | xargs kill` pipeline: `pkill` names its targets up front.
+- The project's read-only validation commands are pre-approved in `.claude/settings.json` → `permissions.allow`. The harness entries in that list (`workflow-cli.sh`, `sf status`, `sf agents list`, `gh project`) go when #947 ships them through `sf update`.
+
 ## Codebase conventions (upstream Wave)
 
 Wave's own agent instructions stay in the repository and apply to its code. Where they disagree with the SaaSFoundryAI workflow above (tickets, branches, commits, output language), the workflow wins.
