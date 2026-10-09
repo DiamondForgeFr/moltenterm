@@ -163,16 +163,21 @@ export const TermSelectionToolbar = React.memo(function TermSelectionToolbar({
         ContextMenuModel.getInstance().showContextMenu(menu, e);
     };
     const buttonClass =
-        "cursor-pointer rounded px-1.5 py-0.5 text-secondary hover:bg-hoverbg hover:text-primary transition-colors";
+        "cursor-pointer rounded-6 px-1.5 py-0.5 text-secondary hover:bg-hoverbg hover:text-primary transition-colors duration-120 ease-mt";
 
     return (
         <div
-            className="molten-term-selbar xterm-hover absolute z-20 flex items-center gap-0.5 rounded border border-border bg-modalbg px-0.5 text-xs shadow-lg select-none"
+            className="molten-term-selbar xterm-hover absolute z-20 flex items-center gap-0.5 rounded-10 border border-border bg-surface-3 px-0.5 text-12 shadow-e2 select-none"
             style={{ left: bar.left, top: bar.top, height: BarHeightPx }}
             onMouseDown={keepSelection}
             onContextMenu={keepSelection}
         >
-            <button type="button" className={buttonClass} onClick={onCopy} title="Copy without the agent's padding and gutters">
+            <button
+                type="button"
+                className={buttonClass}
+                onClick={onCopy}
+                title="Copy without the agent's padding and gutters"
+            >
                 {copied ? "Copied" : "Copy clean"}
             </button>
             {bar.file != null && (

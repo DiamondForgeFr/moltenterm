@@ -166,10 +166,10 @@ const Moving = `.lm-frame[data-motion="full"]`;
 
 export const MotionStyles = `
 ${Intro} .lm-main, ${Intro} .lm-dev { stroke-dasharray: 1; animation: lm-draw ${IntroLineDraw}s cubic-bezier(.45,.05,.55,.95) both; }
-${Intro} .lm-rc { stroke-dasharray: 1; animation: lm-draw .45s ease-out var(--lm-d, 0s) both; }
-${Intro} .lm-br:not(.lm-br-guess) { stroke-dasharray: 1; animation: lm-draw .6s ease-out var(--lm-d, 0s) both; }
-${Intro} .lm-br-guess { animation: lm-fade .6s ease-out var(--lm-d, 0s) both; }
-${Intro} .lm-br-open { stroke-dasharray: 1; animation: lm-draw .7s ease-out var(--lm-d, 0s) both; }
+${Intro} .lm-rc { stroke-dasharray: 1; animation: lm-draw .45s var(--mt-ease) var(--lm-d, 0s) both; }
+${Intro} .lm-br:not(.lm-br-guess) { stroke-dasharray: 1; animation: lm-draw .6s var(--mt-ease) var(--lm-d, 0s) both; }
+${Intro} .lm-br-guess { animation: lm-fade .6s var(--mt-ease) var(--lm-d, 0s) both; }
+${Intro} .lm-br-open { stroke-dasharray: 1; animation: lm-draw .7s var(--mt-ease) var(--lm-d, 0s) both; }
 ${Intro} .lm-st, ${Intro} .lm-merge, ${Intro} .lm-fork, ${Intro} .lm-head, ${Intro} .lm-term {
     transform-box: fill-box; transform-origin: center; animation: lm-pop .35s cubic-bezier(.3,1.6,.5,1) var(--lm-d, 0s) both;
 }
@@ -284,7 +284,7 @@ function HiddenDetail({ branches }: { branches: readonly LineMapBranch[] }) {
             <div className="flex flex-col gap-0.5 border-t border-border pt-1.5">
                 {branches.slice(0, DayListed).map((b) => (
                     <div key={b.id} className="flex min-w-0 items-baseline gap-2">
-                        <span className="min-w-0 truncate font-mono text-[11px] text-primary">{b.name}</span>
+                        <span className="min-w-0 truncate font-mono text-11 text-primary">{b.name}</span>
                         <span className="ml-auto shrink-0 text-muted">
                             {b.count}
                             {b.countCapped ? "+" : ""} commit{b.count === 1 ? "" : "s"}
@@ -296,7 +296,7 @@ function HiddenDetail({ branches }: { branches: readonly LineMapBranch[] }) {
                     <span className="text-muted">and {branches.length - DayListed} more</span>
                 ) : null}
             </div>
-            <div className="pt-1 text-[11px] text-muted">Full size shows them on their own lanes.</div>
+            <div className="pt-1 text-11 text-muted">Full size shows them on their own lanes.</div>
         </>
     );
 }
@@ -319,7 +319,7 @@ function CommitLines({ commits }: { commits: readonly LineMapCommit[] }) {
         <div className="flex flex-col gap-0.5 border-t border-border pt-1.5">
             {commits.slice(0, CommitsListed).map((c) => (
                 <div key={c.sha} className="flex min-w-0 items-baseline gap-1.5">
-                    <code className="shrink-0 text-[10px] text-muted">{c.sha.slice(0, 7)}</code>
+                    <code className="shrink-0 text-11 text-muted">{c.sha.slice(0, 7)}</code>
                     <Subject subject={c.subject} />
                 </div>
             ))}
@@ -332,7 +332,7 @@ function CommitLines({ commits }: { commits: readonly LineMapCommit[] }) {
 
 function Hint({ url, what }: { url: string; what: string }) {
     return (
-        <div className="pt-1 text-[11px] text-muted">
+        <div className="pt-1 text-11 text-muted">
             {url ? `Click to open ${what} on GitHub.` : "Not on GitHub: the detail comes from git alone."}
         </div>
     );
@@ -354,7 +354,7 @@ function StationDetail({ s }: { s: LineMapStation }) {
             {s.source ? (
                 <div className="flex min-w-0 items-baseline gap-1.5 text-secondary">
                     <span className="shrink-0 text-muted">from develop</span>
-                    <code className="shrink-0 text-[10px] text-muted">{s.source.sha.slice(0, 7)}</code>
+                    <code className="shrink-0 text-11 text-muted">{s.source.sha.slice(0, 7)}</code>
                     <Subject subject={s.source.subject} />
                 </div>
             ) : null}
@@ -402,7 +402,7 @@ function BranchDetail({ b }: { b: GeometryBranch["branch"] }) {
             ) : null}
             {verdict ? (
                 <div className="flex items-center gap-1.5 text-secondary">
-                    <i className={cn("fa fa-solid text-[11px]", verdict.iconClass)} />
+                    <i className={cn("fa fa-solid text-11", verdict.iconClass)} />
                     Local CI: {verdict.label}
                 </div>
             ) : null}
@@ -424,7 +424,7 @@ function BuildDetail({ m, model }: { m: BuildMarker; model: LineMapModel }) {
                 </span>
             </div>
             <div className="flex min-w-0 items-baseline gap-1.5 text-secondary">
-                <code className="shrink-0 text-[10px] text-muted">{m.commit.slice(0, 7)}</code>
+                <code className="shrink-0 text-11 text-muted">{m.commit.slice(0, 7)}</code>
                 {m.subject ? (
                     <Subject subject={m.subject} />
                 ) : (
@@ -461,7 +461,7 @@ function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; 
             return (
                 <>
                     <div className="flex min-w-0 items-baseline gap-1.5 font-medium text-primary">
-                        <code className="shrink-0 text-[10px] text-muted">{item.commit.sha.slice(0, 7)}</code>
+                        <code className="shrink-0 text-11 text-muted">{item.commit.sha.slice(0, 7)}</code>
                         <Subject subject={item.commit.subject} />
                     </div>
                     <div className="text-secondary">
@@ -477,7 +477,7 @@ function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; 
                     <div className="font-semibold text-primary">{model.trunk} · now</div>
                     {model.head ? (
                         <div className="flex min-w-0 items-baseline gap-1.5 text-secondary">
-                            <code className="shrink-0 text-[10px] text-muted">{model.head.sha.slice(0, 7)}</code>
+                            <code className="shrink-0 text-11 text-muted">{model.head.sha.slice(0, 7)}</code>
                             <Subject subject={model.head.subject} />
                         </div>
                     ) : null}
@@ -507,7 +507,7 @@ function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; 
                     {model.earlier.length > EarlierListed ? (
                         <div className="text-muted">and {model.earlier.length - EarlierListed} more</div>
                     ) : null}
-                    <div className="pt-1 text-[11px] text-muted">A longer window shows them on the line.</div>
+                    <div className="pt-1 text-11 text-muted">A longer window shows them on the line.</div>
                 </>
             );
         case "terminus":
@@ -539,7 +539,7 @@ function WindowChoice({
     onChange: (days: number) => void;
 }) {
     return (
-        <div className="flex overflow-hidden rounded border border-border" role="group" aria-label="Time window">
+        <div className="flex overflow-hidden rounded-4 border border-border" role="group" aria-label="Time window">
             {choices.map((d) => (
                 <button
                     key={d}
@@ -547,7 +547,7 @@ function WindowChoice({
                     onClick={() => onChange(d)}
                     aria-pressed={d === days}
                     className={cn(
-                        "cursor-pointer px-1.5 py-0.5 text-[11px] tabular-nums transition-colors",
+                        "cursor-pointer px-1.5 py-0.5 text-11 tabular-nums transition-colors duration-120 ease-mt",
                         d === days ? "bg-hover text-primary" : "text-muted hover:bg-hover hover:text-secondary"
                     )}
                     title={`Show the last ${d} days`}
@@ -562,7 +562,7 @@ function WindowChoice({
 function Legend() {
     const item = "inline-flex items-center gap-1.5";
     return (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-11 text-muted">
             <span className={item}>
                 <span className="h-[5px] w-[18px] rounded-full bg-accent" />
                 develop
@@ -572,7 +572,7 @@ function Legend() {
                 main
             </span>
             <span className={item}>
-                <span className="h-2.5 w-[3px] rounded-sm bg-primary opacity-50" />
+                <span className="h-2.5 w-[3px] rounded-4 bg-primary opacity-50" />
                 landed on develop
             </span>
             <span className={item}>
@@ -624,11 +624,11 @@ export function ReplayButton({ reduced, onReplay }: { reduced: boolean; onReplay
         <button
             type="button"
             onClick={onReplay}
-            className="flex cursor-pointer items-center gap-1.5 rounded border border-border px-2 py-0.5 text-[11px] text-secondary transition-colors hover:bg-hover hover:text-primary"
+            className="flex cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-0.5 text-11 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary"
             title="Play the map's drawing again"
             data-testid="line-map-replay"
         >
-            <i className="fa fa-solid fa-rotate-left text-[9px]" />
+            <i className="fa fa-solid fa-rotate-left text-11" />
             Replay
         </button>
     );
@@ -815,7 +815,7 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, session, full = 
         >
             <style>{Styles + MotionStyles}</style>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                <span className="text-[11px] font-medium tracking-wide text-secondary uppercase">
+                <span className="text-11 font-medium tracking-wide text-secondary uppercase">
                     Line · last {days} days
                 </span>
                 <Legend />
@@ -826,10 +826,10 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, session, full = 
                     <button
                         type="button"
                         onClick={onFullSize}
-                        className="flex cursor-pointer items-center gap-1.5 rounded border border-border px-2 py-0.5 text-[11px] text-secondary transition-colors hover:bg-hover hover:text-primary"
+                        className="flex cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-0.5 text-11 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary"
                         title="Open the line map in its own block, over a wider window"
                     >
-                        <i className="fa fa-solid fa-up-right-and-down-left-from-center text-[9px]" />
+                        <i className="fa fa-solid fa-up-right-and-down-left-from-center text-11" />
                         Full size
                     </button>
                 ) : null}
@@ -837,7 +837,7 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, session, full = 
             <div
                 ref={box}
                 className={cn(
-                    "lm-frame min-h-[220px] overflow-x-auto overflow-y-hidden rounded border border-border",
+                    "lm-frame min-h-[220px] overflow-x-auto overflow-y-hidden rounded-4 border border-border",
                     full && "min-h-0 flex-1 overflow-y-auto"
                 )}
                 data-testid="line-map-scroll"
@@ -857,7 +857,7 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, session, full = 
                     placement="top-start"
                     onPointerEnter={keep}
                     onPointerLeave={hideSoon}
-                    className="flex w-80 flex-col gap-1 p-2.5 text-xs"
+                    className="flex w-80 flex-col gap-1 p-2.5 text-12"
                 >
                     <Detail item={hover.item} model={model} trunkCi={trunkCi} />
                 </MenuPopover>

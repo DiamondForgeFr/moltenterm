@@ -14,8 +14,8 @@ import { outdatedTitle, TermUpdateOutcome } from "./termupdate-model";
 import { TermUpdates } from "./termupdate-store";
 
 const PlainButton =
-    "cursor-pointer rounded border border-border px-3 py-1.5 text-xs text-secondary hover:bg-hover hover:text-primary";
-const PrimaryButton = "molten-btn cursor-pointer rounded px-3 py-1.5 text-xs";
+    "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
+const PrimaryButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12";
 
 type DialogState = { kind: "confirm" | "result"; outcome: TermUpdateOutcome };
 
@@ -67,7 +67,7 @@ export function TermUpdateChip({ blockId }: { blockId: string }) {
             {outdated != null ? (
                 <button
                     type="button"
-                    className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded border border-border px-1.5 text-[11px] leading-[16px] text-muted hover:bg-hover hover:text-primary disabled:opacity-60"
+                    className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-6 border border-border px-1.5 text-11 leading-[16px] text-muted hover:bg-hover hover:text-primary disabled:opacity-60"
                     title={outdatedTitle(outdated)}
                     aria-label="Update terminal"
                     disabled={pending}
@@ -79,7 +79,7 @@ export function TermUpdateChip({ blockId }: { blockId: string }) {
                     data-role="molten-termupdate-chip"
                 >
                     <i
-                        className={`fa fa-solid ${pending ? "fa-spinner fa-spin" : "fa-arrows-rotate"} text-[9px] text-warning`}
+                        className={`fa fa-solid ${pending ? "fa-spinner fa-spin" : "fa-arrows-rotate"} text-11 text-warning`}
                     />
                     Update terminal
                 </button>
@@ -168,7 +168,7 @@ function TermUpdateDialog({
                 {outcome.message}
             </p>
             {outcome.command && outcome.status !== "updated" ? (
-                <pre className="rounded border border-border bg-black/30 px-2 py-1.5 font-mono text-[11px] text-secondary select-text">
+                <pre className="rounded-4 border border-border bg-black/30 px-2 py-1.5 font-mono text-11 text-secondary select-text">
                     {outcome.command}
                 </pre>
             ) : null}

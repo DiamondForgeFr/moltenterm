@@ -4,7 +4,7 @@
 import base64 from "base64-js";
 import clsx, { type ClassValue } from "clsx";
 import { Atom, atom, Getter, SetStateAction, Setter, useAtomValue } from "jotai";
-import { twMerge } from "tailwind-merge";
+import { twMerge } from "../moltenterm-shell/tw-merge"; // MOLTENTERM-PATCH (#398): tailwind-merge knowing the design tokens
 import { debounce, throttle } from "throttle-debounce";
 const prevValueCache = new WeakMap<any, any>(); // stores a previous value for a deep equal comparison (used with the deepCompareReturnPrev function)
 

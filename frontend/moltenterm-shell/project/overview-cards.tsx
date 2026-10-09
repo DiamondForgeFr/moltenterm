@@ -108,18 +108,18 @@ function Dot({ tone, className }: { tone: CardTone; className?: string }) {
 
 function StatusLine({ line, testId }: { line: NowLine; testId: string }) {
     return (
-        <div className="flex min-w-0 items-center gap-2.5 text-[13px]" title={line.title} data-testid={testId}>
+        <div className="flex min-w-0 items-center gap-2.5 text-13" title={line.title} data-testid={testId}>
             <Dot tone={line.tone} />
             <span className="min-w-0 flex-1 truncate text-primary">{line.label}</span>
             {line.text ? (
-                <span className={cn("shrink-0 font-mono text-xs tabular-nums", ToneText[line.tone])}>{line.text}</span>
+                <span className={cn("shrink-0 font-mono text-12 tabular-nums", ToneText[line.tone])}>{line.text}</span>
             ) : null}
         </div>
     );
 }
 
 function SubHeading({ children }: { children: React.ReactNode }) {
-    return <span className="text-xs text-muted">{children}</span>;
+    return <span className="text-12 text-muted">{children}</span>;
 }
 
 export function NextReleaseCard({ snapshot }: ProjectCardProps) {
@@ -155,7 +155,7 @@ function AgentLine({ info }: { info: AgentStateInfo }) {
             type="button"
             onClick={goTo}
             title={`${agentStateTitle(info)}\nClick to go to its pane`}
-            className="-mx-1 flex min-w-0 cursor-pointer items-center gap-2.5 rounded px-1 py-0.5 text-left text-[13px] hover:bg-hover"
+            className="-mx-1 flex min-w-0 cursor-pointer items-center gap-2.5 rounded-6 px-1 py-0.5 text-left text-13 hover:bg-hover"
             data-testid="project-agent"
         >
             <span
@@ -169,7 +169,7 @@ function AgentLine({ info }: { info: AgentStateInfo }) {
             <span className="min-w-0 flex-1 truncate text-primary">{info.agentname || info.agent || "Agent"}</span>
             <span
                 className={cn(
-                    "max-w-[55%] shrink-0 truncate font-mono text-xs",
+                    "max-w-[55%] shrink-0 truncate font-mono text-12",
                     AgentStateText[info.state] ?? "text-muted"
                 )}
             >
@@ -185,7 +185,7 @@ function Agents({ workspaceId }: { workspaceId: string }) {
     const agents = useMemo(() => workspaceAgents(data.states, workspaceId), [data, workspaceId]);
     if (agents.length === 0) {
         return (
-            <p className="text-xs text-muted">
+            <p className="text-12 text-muted">
                 No coding agent in this workspace. Start one from the palette ({paletteShortcut()}).
             </p>
         );
@@ -196,7 +196,7 @@ function Agents({ workspaceId }: { workspaceId: string }) {
                 <AgentLine key={info.blockid} info={info} />
             ))}
             {agents.length > MaxAgentsShown ? (
-                <span className="pt-0.5 text-[11px] text-muted">and {agents.length - MaxAgentsShown} more</span>
+                <span className="pt-0.5 text-11 text-muted">and {agents.length - MaxAgentsShown} more</span>
             ) : null}
         </div>
     );
@@ -242,17 +242,13 @@ export function NowCard({
                 {ciLine ? <StatusLine line={ciLine} testId="project-now-ci" /> : null}
                 {showBuild ? null : <StatusLine line={lastBuildLine(lastBuild, now)} testId="project-now-build" />}
                 {work.map((item) => (
-                    <div
-                        key={item.id}
-                        className="flex min-w-0 items-center gap-2.5 text-[13px]"
-                        data-testid="project-work"
-                    >
+                    <div key={item.id} className="flex min-w-0 items-center gap-2.5 text-13" data-testid="project-work">
                         <Dot tone="running" />
                         <span className="min-w-0 flex-1 truncate text-primary">
                             {item.label}
                             {item.detail ? <span className="text-muted"> · {item.detail}</span> : null}
                         </span>
-                        <span className="shrink-0 font-mono text-xs text-[var(--mt-state-working)] tabular-nums">
+                        <span className="shrink-0 font-mono text-12 text-[var(--mt-state-working)] tabular-nums">
                             {clockElapsed(now - item.startedat)}
                         </span>
                     </div>
@@ -290,7 +286,7 @@ export function StepsCard({ project, projectName, pipeline, runs }: ProjectCardP
     const declared = (pipeline?.steps ?? []).some((s) => s.section === OverviewSection);
     if (!declared) {
         return (
-            <p className="text-xs text-muted">
+            <p className="text-12 text-muted">
                 {pipeline
                     ? `No project step for the overview: the pipeline declares none in its "${OverviewSection}" section.`
                     : "The project's own steps show here once the pipeline is connected."}

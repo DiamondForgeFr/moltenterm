@@ -81,7 +81,7 @@ export function SignInRefusalBar({ signIn, tabId, browserName, onContinue }: Sig
     return (
         <div
             role="alert"
-            className="molten-browser-signin flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-2 py-1.5 text-xs"
+            className="molten-browser-signin flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-2 py-1.5 text-12"
         >
             <i className="fa fa-solid fa-triangle-exclamation shrink-0 text-[var(--mt-state-waiting)]" />
             <span className="min-w-0 flex-1 text-primary">
@@ -94,11 +94,11 @@ export function SignInRefusalBar({ signIn, tabId, browserName, onContinue }: Sig
             </span>
             <div className="flex shrink-0 items-center gap-1.5">
                 {browserName ? (
-                    <Button className="!h-6 !px-2.5 !text-xs" onClick={() => onContinue(bar)}>
+                    <Button className="!h-6 !px-2.5 !text-12" onClick={() => onContinue(bar)}>
                         Continue in {browserName}
                     </Button>
                 ) : null}
-                <Button className="ghost grey !h-6 !px-2 !text-xs" onClick={() => signIn.dismiss(tabId)}>
+                <Button className="ghost grey !h-6 !px-2 !text-12" onClick={() => signIn.dismiss(tabId)}>
                     Dismiss
                 </Button>
             </div>

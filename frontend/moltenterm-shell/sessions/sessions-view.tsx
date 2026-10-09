@@ -47,9 +47,9 @@ const FolderMaxChars = 48;
 const NavKeys = new Set(["ArrowDown", "ArrowUp", "Home", "End", "PageDown", "PageUp"]);
 
 const RowButton =
-    "molten-btn-ghost molten-tone-accent cursor-pointer rounded px-2 py-0.5 text-[11px] whitespace-nowrap disabled:opacity-50";
+    "molten-btn-ghost molten-tone-accent cursor-pointer rounded-6 px-2 py-0.5 text-11 whitespace-nowrap disabled:opacity-50";
 const RowDangerButton =
-    "molten-btn-ghost cursor-pointer rounded px-2 py-0.5 text-[11px] whitespace-nowrap text-error disabled:opacity-50";
+    "molten-btn-ghost cursor-pointer rounded-6 px-2 py-0.5 text-11 whitespace-nowrap text-error disabled:opacity-50";
 
 const ConnDotClasses: Record<string, string> = {
     connected: "bg-success",
@@ -96,7 +96,7 @@ function ConnectionChip({ session }: { session: DurableSession }) {
     const showDot = !!session.connection || chip.state !== "connected";
     return (
         <span
-            className="inline-flex max-w-[12rem] shrink-0 items-center gap-1 rounded border border-border px-1.5 text-[11px] leading-[16px] text-secondary"
+            className="inline-flex max-w-[12rem] shrink-0 items-center gap-1 rounded-4 border border-border px-1.5 text-11 leading-[16px] text-secondary"
             title={chip.title}
         >
             {showDot ? (
@@ -115,12 +115,12 @@ function WorktreeMark({ session }: { session: DurableSession }) {
     return (
         <span
             className={cn(
-                "inline-flex max-w-[12rem] shrink-0 items-center gap-1 rounded border px-1.5 text-[11px] leading-[16px]",
+                "inline-flex max-w-[12rem] shrink-0 items-center gap-1 rounded-4 border px-1.5 text-11 leading-[16px]",
                 worktreeColor(wt.path)
             )}
             title={`Worktree ${wt.path}${wt.branch ? ` on ${wt.branch}` : ""}`}
         >
-            <i className={cn("fa fa-solid shrink-0 text-[9px]", `fa-${WorktreeIcon}`)} />
+            <i className={cn("fa fa-solid shrink-0 text-11", `fa-${WorktreeIcon}`)} />
             <span className="truncate">{wt.branch || wt.path.split("/").pop()}</span>
         </span>
     );
@@ -128,7 +128,7 @@ function WorktreeMark({ session }: { session: DurableSession }) {
 
 function SessionStateMark({ session }: { session: DurableSession }) {
     if (!session.agent) {
-        return <i className={cn(makeIconClass("terminal", true), "w-2 shrink-0 text-[10px] text-muted")} />;
+        return <i className={cn(makeIconClass("terminal", true), "w-2 shrink-0 text-11 text-muted")} />;
     }
     return (
         <AgentStateDot
@@ -187,27 +187,25 @@ function SessionRow({
             onClick={onSelect}
             onDoubleClick={() => session.canshow && onShow()}
             className={cn(
-                "group relative flex cursor-pointer items-stretch rounded transition-colors outline-none hover:bg-hover focus-visible:bg-hover",
+                "group relative flex cursor-pointer items-stretch rounded-6 transition-colors duration-120 ease-mt outline-none hover:bg-hover focus-visible:bg-hover",
                 selected && "bg-hover/60"
             )}
         >
             <span
-                className="w-[3px] shrink-0 rounded-l"
+                className="w-[3px] shrink-0 rounded-l-4"
                 style={{ background: session.workspacecolor || "var(--border-color)" }}
                 aria-hidden="true"
             />
             <div className="flex min-w-0 flex-1 flex-col gap-0.5 px-2.5 py-1.5">
                 <div className="flex min-w-0 items-center gap-2">
                     <SessionStateMark session={session} />
-                    <span className="max-w-[65%] min-w-0 shrink-0 truncate text-[13px] font-medium text-primary">
+                    <span className="max-w-[65%] min-w-0 shrink-0 truncate text-13 font-medium text-primary">
                         {sessionWhat(session)}
                     </span>
-                    {command ? (
-                        <span className="min-w-0 truncate font-mono text-[11px] text-muted">{command}</span>
-                    ) : null}
+                    {command ? <span className="min-w-0 truncate font-mono text-11 text-muted">{command}</span> : null}
                     <ConnectionChip session={session} />
                 </div>
-                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-11 text-muted">
                     {folder ? (
                         <span className="min-w-0 truncate" title={session.folder}>
                             {middleTruncate(folder, FolderMaxChars)}
@@ -219,7 +217,7 @@ function SessionRow({
                     {session.reason ? (
                         <span
                             className={cn(
-                                "rounded px-1 whitespace-nowrap",
+                                "rounded-4 px-1 whitespace-nowrap",
                                 session.reason === "ending" ? "bg-error/15 text-error" : "bg-warning/15 text-warning"
                             )}
                             title={reasonTitle(session.reason)}
@@ -234,11 +232,11 @@ function SessionRow({
             </div>
             <div
                 className={cn(
-                    "flex shrink-0 items-center gap-1 pr-2 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100",
+                    "flex shrink-0 items-center gap-1 pr-2 opacity-0 transition-opacity duration-120 ease-mt group-focus-within:opacity-100 group-hover:opacity-100",
                     busy && "opacity-100"
                 )}
             >
-                {busy ? <span className="text-[11px] text-muted">{busy}</span> : null}
+                {busy ? <span className="text-11 text-muted">{busy}</span> : null}
                 {canReconnect(session) ? (
                     <button
                         type="button"
@@ -290,17 +288,17 @@ function GroupHeader({ group, onCleanup }: { group: SessionGroup; onCleanup: () 
     return (
         <div className="flex items-center gap-2 px-3 pt-3 pb-1">
             {hidden ? (
-                <i className={cn(makeIconClass("link-slash", true), "text-[10px] text-warning")} />
+                <i className={cn(makeIconClass("link-slash", true), "text-11 text-warning")} />
             ) : (
                 <span
-                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-4"
                     style={{ background: group.color || "var(--border-color)" }}
                     aria-hidden="true"
                 />
             )}
-            <span className="text-[11px] font-semibold tracking-wide text-secondary uppercase">{group.title}</span>
-            {group.current ? <span className="text-[11px] text-muted">this workspace</span> : null}
-            <span className="text-[11px] text-muted">{group.sessions.length}</span>
+            <span className="text-11 font-semibold tracking-wide text-secondary uppercase">{group.title}</span>
+            {group.current ? <span className="text-11 text-muted">this workspace</span> : null}
+            <span className="text-11 text-muted">{group.sessions.length}</span>
             {hidden && endable > 0 ? (
                 <button type="button" className={cn(RowDangerButton, "ml-auto")} onClick={onCleanup}>
                     End all ({endable})…
@@ -313,9 +311,9 @@ function GroupHeader({ group, onCleanup }: { group: SessionGroup; onCleanup: () 
 function EmptyState() {
     return (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-            <i className={cn(makeIconClass("layer-group", true), "text-2xl text-muted")} />
-            <div className="text-sm text-secondary">No durable sessions running.</div>
-            <div className="max-w-[28rem] text-xs text-muted">
+            <i className={cn(makeIconClass("layer-group", true), "text-icon-20 text-muted")} />
+            <div className="text-13 leading-5 text-secondary">No durable sessions running.</div>
+            <div className="max-w-[28rem] text-12 text-muted">
                 Terminals are durable by default: they keep running when MoltenTerm quits, and they show up here.
             </div>
         </div>
@@ -522,12 +520,12 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     return (
         <div className="flex h-full w-full flex-col overflow-hidden" data-role="molten-sessions">
             <div className="flex items-center gap-3 border-b border-border px-3 py-2">
-                <span className="shrink-0 text-xs whitespace-nowrap text-secondary" aria-live="polite">
+                <span className="shrink-0 text-12 whitespace-nowrap text-secondary" aria-live="polite">
                     {data == null ? "Loading sessions…" : sessionsSummary(data)}
                 </span>
                 {notice ? (
                     <span
-                        className={cn("ml-auto min-w-0 truncate text-xs", notice.error ? "text-error" : "text-muted")}
+                        className={cn("ml-auto min-w-0 truncate text-12", notice.error ? "text-error" : "text-muted")}
                         role="status"
                         title={notice.text}
                     >

@@ -23,9 +23,9 @@ const Points: { icon: string; title: string; text: React.ReactNode }[] = [
         title: "Reshaped by your agent.",
         text: (
             <>
-                Ask it with <code className="font-mono text-[12px] text-primary">/morph</code> for a panel, a command or
-                a layout: it writes a mod, MoltenTerm loads it,{" "}
-                <code className="font-mono text-[12px] text-primary">molten undo</code> takes it back.
+                Ask it with <code className="font-mono text-12 text-primary">/morph</code> for a panel, a command or a
+                layout: it writes a mod, MoltenTerm loads it,{" "}
+                <code className="font-mono text-12 text-primary">molten undo</code> takes it back.
             </>
         ),
     },
@@ -59,18 +59,18 @@ export function OnboardingWelcome({
                     <Logo />
                 </div>
                 <div className="flex flex-col gap-1">
-                    <h1 className="text-[22px] leading-7 font-semibold text-primary">Welcome to MoltenTerm</h1>
-                    <p className="text-[14px] text-secondary">{MoltentermTagline}</p>
+                    <h1 className="text-20 leading-7 font-semibold text-primary">Welcome to MoltenTerm</h1>
+                    <p className="text-13 text-secondary">{MoltentermTagline}</p>
                 </div>
             </div>
             <ul className="flex flex-col gap-4">
                 {Points.map((point) => (
                     <li key={point.icon} className="flex gap-3">
                         <i
-                            className={cn("fa-solid fa-fw mt-[3px] text-[14px] text-accent", `fa-${point.icon}`)}
+                            className={cn("fa-solid fa-fw mt-[3px] text-icon-14 text-accent", `fa-${point.icon}`)}
                             aria-hidden
                         />
-                        <p className="text-[13px] leading-5 text-secondary">
+                        <p className="text-13 leading-5 text-secondary">
                             <span className="font-semibold text-primary">{point.title}</span> {point.text}
                         </p>
                     </li>
@@ -81,22 +81,22 @@ export function OnboardingWelcome({
                     type="button"
                     disabled={busy}
                     onClick={onStart}
-                    className={cn("molten-btn rounded px-4 py-2 text-[13px] font-semibold", busy && "opacity-60")}
+                    className={cn("molten-btn rounded-6 px-4 py-2 text-13 font-semibold", busy && "opacity-60")}
                 >
                     Set up MoltenTerm
                     <MoltenWave />
                 </button>
-                <span className="text-xs text-muted">3 short steps</span>
+                <span className="text-12 text-muted">3 short steps</span>
                 <button
                     type="button"
                     disabled={busy}
                     onClick={onSkip}
-                    className="molten-btn-ghost ml-auto cursor-pointer rounded px-3 py-2 text-[13px] text-secondary hover:text-primary"
+                    className="molten-btn-ghost ml-auto cursor-pointer rounded-6 px-3 py-2 text-13 text-secondary hover:text-primary"
                 >
                     Skip setup
                 </button>
             </div>
-            <footer className="flex flex-col gap-1 border-t border-border pt-4 text-xs text-muted">
+            <footer className="flex flex-col gap-1 border-t border-border pt-4 text-12 text-muted">
                 <p>Open source under the Apache License 2.0, built on Wave Terminal.</p>
                 <p className="flex gap-3">
                     <a href={MoltentermLicenseUrl} target="_blank" rel="noopener" className={linkClassName}>

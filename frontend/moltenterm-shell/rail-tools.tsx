@@ -67,7 +67,7 @@ function ToolButton({
             }}
             onMouseLeave={() => onHover(null, null)}
             className={cn(
-                "molten-rail-tool relative flex h-8 w-9 shrink-0 cursor-pointer items-center justify-center rounded text-[15px] text-secondary transition-colors hover:bg-hover hover:text-primary",
+                "molten-rail-tool relative flex h-8 w-9 shrink-0 cursor-pointer items-center justify-center rounded-6 text-icon-16 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary",
                 pressed && "bg-hover text-primary"
             )}
         >
@@ -110,7 +110,7 @@ function OverflowFlyout({
                 ref={refs.setFloating}
                 style={floatingStyles}
                 {...getFloatingProps()}
-                className="z-50 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-modalbg p-1 shadow-xl"
+                className="z-50 max-h-[60vh] overflow-y-auto rounded-10 border border-border bg-surface-3 p-1 shadow-e3"
             >
                 {widgets.map((widget, idx) => (
                     <button
@@ -121,7 +121,7 @@ function OverflowFlyout({
                             onClose();
                             openWidget(env, widget);
                         }}
-                        className="flex w-full cursor-pointer items-center gap-2.5 rounded px-2.5 py-1.5 text-left text-sm text-secondary transition-colors hover:bg-hoverbg hover:text-primary"
+                        className="flex w-full cursor-pointer items-center gap-2.5 rounded-6 px-2.5 py-1.5 text-left text-13 leading-5 text-secondary transition-colors duration-120 ease-mt hover:bg-hoverbg hover:text-primary"
                     >
                         <span className="flex w-5 justify-center">
                             <WidgetIcon widget={widget} />
@@ -154,7 +154,7 @@ function SessionsToolButton({ onHover }: { onHover: RailHover }) {
             {badge.count > 0 ? (
                 <span
                     className={cn(
-                        "absolute top-0.5 right-0.5 min-w-[14px] rounded-full px-[3px] text-center text-[9px] leading-[14px] font-semibold ring-2 ring-[var(--color-background)]",
+                        "absolute top-0.5 right-0.5 min-w-[14px] rounded-full px-[3px] text-center text-11 leading-[14px] font-semibold ring-2 ring-[var(--color-background)]",
                         BadgeToneClasses[badge.tone]
                     )}
                     aria-hidden="true"

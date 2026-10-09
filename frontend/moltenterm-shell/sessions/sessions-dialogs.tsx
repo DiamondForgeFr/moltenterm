@@ -16,9 +16,9 @@ import {
     sessionWhat,
 } from "./sessions-model";
 
-const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded px-3 py-1.5 text-xs";
+const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded-6 px-3 py-1.5 text-12";
 const PlainButton =
-    "cursor-pointer rounded border border-border px-3 py-1.5 text-xs text-secondary hover:bg-hover hover:text-primary";
+    "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
 
 function DialogButtons({
     confirm,

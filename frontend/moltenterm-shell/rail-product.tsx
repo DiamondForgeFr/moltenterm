@@ -46,10 +46,10 @@ export type RailLocalActions = {
 export function RailDropToGroup() {
     return (
         <span
-            className="pointer-events-none absolute inset-0 flex items-center justify-center rounded bg-[color-mix(in_srgb,var(--color-accent)_35%,transparent)]"
+            className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-4 bg-[color-mix(in_srgb,var(--color-accent)_35%,transparent)]"
             aria-hidden
         >
-            <i className="fa fa-solid fa-plus text-[13px] text-primary" />
+            <i className="fa fa-solid fa-plus text-icon-14 text-primary" />
         </span>
     );
 }
@@ -85,7 +85,7 @@ function RenameField({
     }, [placed]);
     return (
         <div
-            className="fixed z-[9500] -translate-y-1/2 rounded border border-border bg-modalbg p-1 shadow-lg"
+            className="fixed z-[9500] -translate-y-1/2 rounded-10 border border-border bg-surface-3 p-1 shadow-e2"
             style={{ top: place?.top ?? 0, left: place?.left ?? 0, visibility: place == null ? "hidden" : undefined }}
         >
             <input
@@ -105,7 +105,7 @@ function RenameField({
                     }
                 }}
                 onBlur={onCancel}
-                className="w-44 rounded border border-border bg-transparent px-2 py-1 text-xs text-primary outline-none focus:border-accent"
+                className="w-44 rounded-4 border border-border bg-transparent px-2 py-1 text-12 text-primary outline-none focus:border-accent"
             />
         </div>
     );
@@ -320,7 +320,7 @@ export function RailProduct({
                     onMouseLeave={() => onHover(null, null)}
                     data-connect-drop={connect?.dropping ? "" : undefined}
                     className={cn(
-                        "molten-rail-item molten-rail-product molten-rail-group cursor-pointer border border-border transition-colors hover:bg-hover",
+                        "molten-rail-item molten-rail-product molten-rail-group cursor-pointer border border-border transition-colors duration-120 ease-mt hover:bg-hover",
                         local != null && "molten-rail-anchor",
                         RailBadgeClass,
                         showActive && "bg-hover",
@@ -328,12 +328,15 @@ export function RailProduct({
                     )}
                 >
                     {showActive ? (
-                        <span className="absolute top-1.5 bottom-1.5 -left-1.5 w-[2px] rounded bg-accent" aria-hidden />
+                        <span
+                            className="absolute top-1.5 bottom-1.5 -left-1.5 w-[2px] rounded-4 bg-accent"
+                            aria-hidden
+                        />
                     ) : null}
                     <WorkspaceIcon source={iconSource} />
                     <i
                         className={cn(
-                            "fa fa-solid absolute bottom-0.5 left-0.5 text-[7px] text-secondary",
+                            "fa fa-solid absolute bottom-0.5 left-0.5 text-11 text-secondary",
                             collapsed ? "fa-chevron-right" : "fa-chevron-down"
                         )}
                         aria-hidden
@@ -377,7 +380,7 @@ export function RailProduct({
             </div>
             <div
                 className={cn(
-                    "molten-rail-members flex flex-col gap-1 rounded border border-border bg-modalbg p-1 shadow-lg transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none",
+                    "molten-rail-members flex flex-col gap-1 rounded-10 border border-border bg-surface-3 p-1 shadow-e2 transition-[opacity,scale] duration-180 ease-mt motion-reduce:transition-none",
                     collapsed ? "pointer-events-none scale-95 opacity-0" : "scale-100 opacity-100"
                 )}
                 inert={collapsed}

@@ -33,9 +33,9 @@ import {
 
 const NoFocusedNode = atom(null) as Atom<{ data?: { blockId?: string } }>;
 
-const AccentButton = "molten-btn cursor-pointer rounded px-3 py-1.5 text-xs";
+const AccentButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12";
 const PlainButton =
-    "cursor-pointer rounded border border-border px-3 py-1.5 text-xs text-secondary hover:bg-hover hover:text-primary";
+    "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
 
 // Reports the folder of a local terminal block as the shell moves (shell integration updates cmd:cwd).
 function TerminalFolder({ blockId, onFolder }: { blockId: string; onFolder: (cwd: string) => void }) {
@@ -127,19 +127,19 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
                 role="dialog"
                 aria-modal="true"
                 aria-label={offer.mode === "link" ? `Link this workspace to ${name}?` : `Use ${name}'s logo?`}
-                className="flex w-[460px] flex-col rounded border border-border bg-modalbg shadow-xl"
+                className="flex w-[460px] flex-col rounded-10 border border-border bg-surface-3 shadow-e3"
             >
                 <div className="border-b border-border px-4 py-3">
-                    <div className="text-sm font-semibold">
+                    <div className="text-13 leading-5 font-semibold">
                         {offer.mode === "link"
                             ? `Link this workspace to ${name}?`
                             : `Use ${name}'s logo for this workspace?`}
                     </div>
-                    <div className="mt-0.5 truncate text-xs text-muted" title={offer.dir}>
+                    <div className="mt-0.5 truncate text-12 text-muted" title={offer.dir}>
                         {offer.dir}
                     </div>
                 </div>
-                <div className="flex flex-col gap-3 px-4 py-3 text-xs">
+                <div className="flex flex-col gap-3 px-4 py-3 text-12">
                     {offer.mode === "link" ? (
                         <div className="text-secondary">
                             A terminal of this workspace is in this project. Linked, the workspace shows it in Mission
@@ -160,7 +160,7 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
                                         aria-pressed={chosen === c.logo}
                                         onClick={() => setChosen(c.logo)}
                                         className={cn(
-                                            "flex h-10 w-10 cursor-pointer items-center justify-center rounded border text-[18px] hover:bg-hover",
+                                            "flex h-10 w-10 cursor-pointer items-center justify-center rounded-6 border text-icon-20 hover:bg-hover",
                                             chosen === c.logo ? "border-accent ring-1 ring-accent" : "border-border"
                                         )}
                                     >

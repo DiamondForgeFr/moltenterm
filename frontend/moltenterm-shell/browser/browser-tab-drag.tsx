@@ -87,7 +87,7 @@ export function TabDropIndicator({ after }: { after: boolean }) {
             aria-hidden="true"
             data-dropindicator={after ? "after" : "before"}
             className={cn(
-                "pointer-events-none absolute inset-y-0 z-10 w-0.5 rounded bg-accent",
+                "pointer-events-none absolute inset-y-0 z-10 w-0.5 rounded-4 bg-accent",
                 after ? "right-0" : "left-0"
             )}
         />

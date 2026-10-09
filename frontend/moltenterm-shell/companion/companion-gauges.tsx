@@ -43,7 +43,7 @@ const ClockTickMs = 30000;
 const CopiedMs = 1500;
 
 const GhostButton =
-    "shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[11px] text-secondary hover:bg-hover hover:text-primary focus-visible:bg-hover focus-visible:text-primary";
+    "shrink-0 cursor-pointer rounded-6 px-1.5 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary focus-visible:bg-hover focus-visible:text-primary";
 
 function usageCall(command: string, data: any): Promise<CompanionUsageInfo> {
     return TabRpcClient.wshRpcCall(command, data, { route: CompanionRoute, timeout: RpcTimeoutMs });
@@ -261,7 +261,7 @@ export function PlanUsageBody({
     if (view.kind === "off") {
         return (
             <div
-                className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1 text-[11px] text-muted"
+                className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1 text-11 text-muted"
                 data-testid="companion-plan-usage"
                 data-state="off"
             >
@@ -276,7 +276,7 @@ export function PlanUsageBody({
     if (view.kind === "unavailable") {
         return (
             <div
-                className="shrink-0 border-b border-border px-3 py-1 text-[11px] text-muted"
+                className="shrink-0 border-b border-border px-3 py-1 text-11 text-muted"
                 data-testid="companion-plan-usage"
                 data-state="unavailable"
             >
@@ -317,7 +317,7 @@ export function PlanUsageBody({
                 ))}
             </ul>
             {view.credits ? (
-                <div className="mt-1.5 text-[11px] text-secondary" data-testid="companion-plan-usage-credits">
+                <div className="mt-1.5 text-11 text-secondary" data-testid="companion-plan-usage-credits">
                     {view.credits}
                 </div>
             ) : null}
@@ -329,7 +329,7 @@ export function PlanUsageBody({
 function ExperimentalSourceBadge() {
     return (
         <span
-            className="rounded border border-warning/50 px-1 text-[9.5px] font-medium tracking-wide text-warning"
+            className="rounded-4 border border-warning/50 px-1 text-11 font-medium tracking-wide text-warning"
             title="Read from an endpoint Anthropic does not document: it may change or stop working"
         >
             {ExperimentalLabel}
@@ -354,7 +354,7 @@ export function ExperimentalRow({
     if (view == null || view.kind === "none" || onSet == null) {
         return null;
     }
-    const frame = "mt-2 border-t border-border/60 pt-1.5 text-[11px]";
+    const frame = "mt-2 border-t border-border/60 pt-1.5 text-11";
     if (view.kind === "on") {
         return (
             <div className={frame} data-testid="companion-plan-usage-experimental" data-state="on">
@@ -387,11 +387,11 @@ export function ExperimentalRow({
                     <span className="text-secondary">Model limits and credits</span>
                     <ExperimentalSourceBadge />
                 </div>
-                <p className="mt-1 text-xs text-primary">{view.statement}</p>
+                <p className="mt-1 text-12 text-primary">{view.statement}</p>
                 <div className="mt-2 flex items-center gap-2">
                     <button
                         type="button"
-                        className="molten-btn cursor-pointer rounded px-3 py-1.5 text-xs"
+                        className="molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12"
                         onClick={() => {
                             setConfirming(false);
                             onSet(true);
@@ -424,7 +424,7 @@ export function ExperimentalRow({
 function ExperimentalBadge() {
     return (
         <span
-            className="rounded border border-warning/50 px-1 text-[9.5px] font-medium tracking-wide text-warning uppercase"
+            className="rounded-4 border border-warning/50 px-1 text-11 font-medium tracking-wide text-warning uppercase"
             title="Plan usage reads what the agent's own tools give; it may change with them"
         >
             Experimental
@@ -447,10 +447,10 @@ function GaugesHeader({
 }) {
     return (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <span className="text-[11px] font-semibold tracking-wide text-muted uppercase">Plan usage</span>
+            <span className="text-11 font-semibold tracking-wide text-muted uppercase">Plan usage</span>
             <ExperimentalBadge />
             <div className="ml-auto flex items-center gap-1">
-                {age ? <span className="text-[11px] text-muted">{age}</span> : null}
+                {age ? <span className="text-11 text-muted">{age}</span> : null}
                 <button
                     type="button"
                     className={GhostButton}
@@ -465,7 +465,7 @@ function GaugesHeader({
                     Hide
                 </button>
             </div>
-            {source ? <div className="w-full text-[10.5px] text-muted">From the {source}</div> : null}
+            {source ? <div className="w-full text-11 text-muted">From the {source}</div> : null}
         </div>
     );
 }
@@ -473,7 +473,7 @@ function GaugesHeader({
 function GaugeRowView({ row }: { row: GaugeRow }) {
     return (
         <li className="flex flex-col gap-1" data-testid="companion-gauge" data-window={row.id}>
-            <div className="flex items-baseline gap-2 text-xs">
+            <div className="flex items-baseline gap-2 text-12">
                 <span className="text-primary">{row.label}</span>
                 <span className={cn("ml-auto tabular-nums", PercentColours[row.level])}>{row.percent}</span>
             </div>
@@ -488,7 +488,7 @@ function GaugeRowView({ row }: { row: GaugeRow }) {
             >
                 <div className={cn("h-full rounded-full", BarColours[row.level])} style={{ width: `${row.bar}%` }} />
             </div>
-            {row.resets ? <div className="text-[11px] text-muted">{row.resets}</div> : null}
+            {row.resets ? <div className="text-11 text-muted">{row.resets}</div> : null}
         </li>
     );
 }
@@ -516,13 +516,13 @@ function StatusLineSetupCard({
         });
     return (
         <section
-            className="shrink-0 border-b border-border px-3 pt-2 pb-3 text-xs"
+            className="shrink-0 border-b border-border px-3 pt-2 pb-3 text-12"
             aria-label="Plan usage setup"
             data-testid="companion-plan-usage"
             data-state="setup"
         >
             <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold tracking-wide text-muted uppercase">Plan usage</span>
+                <span className="text-11 font-semibold tracking-wide text-muted uppercase">Plan usage</span>
                 <ExperimentalBadge />
             </div>
             <p className="mt-1.5 text-secondary">
@@ -535,7 +535,7 @@ function StatusLineSetupCard({
                 {setup.current ? " with:" : ":"}
             </p>
             <pre
-                className="mt-1 max-h-48 overflow-auto rounded border border-border bg-black/30 px-2 py-1.5 font-mono text-[10.5px] leading-relaxed break-all whitespace-pre-wrap text-secondary select-text"
+                className="mt-1 max-h-48 overflow-auto rounded-4 border border-border bg-black/30 px-2 py-1.5 font-mono text-11 leading-relaxed break-all whitespace-pre-wrap text-secondary select-text"
                 data-language={setup.language}
                 data-testid="companion-plan-usage-snippet"
             >
@@ -547,7 +547,11 @@ function StatusLineSetupCard({
             </p>
             {failed ? <p className="mt-1 text-muted">MoltenTerm could not check the setup; it tries again.</p> : null}
             <div className="mt-2 flex items-center gap-2">
-                <button type="button" className="molten-btn cursor-pointer rounded px-3 py-1.5 text-xs" onClick={copy}>
+                <button
+                    type="button"
+                    className="molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12"
+                    onClick={copy}
+                >
                     <i className={cn("fa fa-solid mr-1.5", copied ? "fa-check" : "fa-copy")} aria-hidden="true" />
                     {copied ? "Copied" : "Copy"}
                     <MoltenWave />

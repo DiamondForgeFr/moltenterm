@@ -1,0 +1,154 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* MoltenTerm design tokens v2 (FR-SHELL-044, DS-SHELL-077, DS-SHELL-078).
+
+   Imported by frontend/tailwindsetup.css right after Tailwind (MOLTENTERM-PATCH #398), so the @theme block below
+   turns each token into a Tailwind utility; plain CSS reads the --mt-* variables. MoltenTerm-owned CSS and TSX
+   (frontend/moltenterm-shell, frontend/moltenterm-onboarding) use only these: build/token-lint.test.ts fails on an
+   off-scale font size, weight, radius, icon size or transition duration. Wave's own surfaces keep their values (and
+   the 3 px radius cap of build/cap-radius.ts) until a MoltenTerm patch moves them onto the tokens.
+
+   Type        text-11 · text-12 (UI default) · text-13 (panel body) · text-15 · text-20 (section titles) · text-32
+               (onboarding and hero numbers); weights font-normal 400 · font-medium 500 · font-semibold 600 only.
+               Mono (font-mono) only for paths, code, hashes and shortcuts.
+   Spacing     Tailwind's 4 px grid (1 = 4 px: p-1, p-2, p-3, p-4, p-6, p-8); rows h-row 28 px (menus, lists) and
+               h-row-lg 32 px (inputs, tab bar items).
+   Icons       text-icon-14 (chrome, menus) · text-icon-16 (rail, headers) · text-icon-20 (empty states), Font Awesome.
+               An icon inline in a label takes the label's text size instead.
+   Radii       rounded-4 (chips, inputs, a pill's inner part) · rounded-6 (buttons, items, tabs, pills) · rounded-10
+               (popovers, menus, dialogs); rounded-full only for state dots and status pills.
+   Colour      bg-surface-1 (rail, panels) · bg-surface-2 (raised: cards, hover fills) · bg-surface-3 (overlays);
+               text-danger (danger text, never the error fill) · text-info / bg-info (the only blue);
+               .molten-glyph-tone with --mt-glyph-color set to a workspace's colour draws its glyph at a readable tone.
+   Lines       border-line (8 %, inside a surface) · border-line-strong (14 %, around overlays and controls); dashed
+               only for drop targets.
+   Elevation   shadow-e1 (raised) · shadow-e2 (popovers, menus) · shadow-e3 (dialogs), each with a 4 % top highlight.
+   Buttons     molten-btn + <MoltenWave /> for the one primary action of a surface; molten-btn-secondary (no border,
+               transparent, surface-2 on hover); molten-btn-ghost (text or icon only, muted, primary text on hover);
+               molten-btn-outline only for the confirming button of a delete; molten-btn-destructive. See
+               molten-button.css.
+   Motion      duration-120 (hover, press) · duration-180 (open, fold) · duration-240 (panels, toasts), always with
+               ease-mt; in CSS var(--mt-duration-fast|base|slow) and var(--mt-ease). Every token duration is 0 under
+               reduced motion. Loops (pulses, the heat glow) keep their own cycle, at most 1.6 s. */
+
+:root {
+    --mt-text-11: 11px;
+    --mt-text-12: 12px;
+    --mt-text-13: 13px;
+    --mt-text-15: 15px;
+    --mt-text-20: 20px;
+    --mt-text-32: 32px;
+
+    --mt-weight-regular: 400;
+    --mt-weight-medium: 500;
+    --mt-weight-semibold: 600;
+
+    --mt-space-4: 4px;
+    --mt-space-8: 8px;
+    --mt-space-12: 12px;
+    --mt-space-16: 16px;
+    --mt-space-24: 24px;
+    --mt-space-32: 32px;
+    --mt-row-28: 28px;
+    --mt-row-32: 32px;
+
+    --mt-icon-14: 14px;
+    --mt-icon-16: 16px;
+    --mt-icon-20: 20px;
+
+    --mt-radius-4: 4px;
+    --mt-radius-6: 6px;
+    --mt-radius-10: 10px;
+
+    /* Each surface keeps the `color-mix(in srgb, var(--mt-accent) N%, rgb(...))` recipe of the warm neutrals:
+       moltenterm-shell.test.ts holds text at 4.5:1 on each of them for every workspace colour. Surface 1 and 3 are
+       today's panel and modal backgrounds, so adopting them changes nothing; later stories retune them here. */
+    --mt-surface-1: color-mix(in srgb, var(--mt-accent) 4%, rgb(31, 31, 31));
+    --mt-surface-2: color-mix(in srgb, var(--mt-accent) 5%, rgb(36, 36, 36));
+    --mt-surface-3: color-mix(in srgb, var(--mt-accent) 5%, rgb(32, 32, 32));
+
+    /* Danger text is the error red lightened until it reads at 4.5:1 on every surface; the error colour itself
+       (--mt-state-error) stays for fills, edges and dots. The info tone is the only blue of the shell. */
+    --mt-danger-text: rgb(240, 128, 108);
+    --mt-info: rgb(122, 170, 220);
+
+    --mt-line-1: color-mix(in srgb, var(--mt-neutral-line) 8%, transparent);
+    --mt-line-2: color-mix(in srgb, var(--mt-neutral-line) 14%, transparent);
+
+    --mt-shadow-highlight: inset 0 1px 0 rgb(255 255 255 / 0.04);
+    --mt-shadow-e1: var(--mt-shadow-highlight), 0 1px 2px rgb(0 0 0 / 0.3);
+    --mt-shadow-e2: var(--mt-shadow-highlight), 0 6px 20px -4px rgb(0 0 0 / 0.5);
+    --mt-shadow-e3: var(--mt-shadow-highlight), 0 16px 40px -8px rgb(0 0 0 / 0.6);
+
+    --mt-duration-fast: 120ms;
+    --mt-duration-base: 180ms;
+    --mt-duration-slow: 240ms;
+    /* The heat glow fades in with the pulse it belongs to (NFR-SHELL-027 excepts pulses, at most 1.6 s a cycle). */
+    --mt-duration-glow: 1200ms;
+    --mt-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* NFR-SHELL-027: instant under the system preference and MoltenTerm's own setting (the app root's class). */
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --mt-duration-fast: 0ms;
+        --mt-duration-base: 0ms;
+        --mt-duration-slow: 0ms;
+        --mt-duration-glow: 0ms;
+    }
+}
+
+.prefers-reduced-motion {
+    --mt-duration-fast: 0ms;
+    --mt-duration-base: 0ms;
+    --mt-duration-slow: 0ms;
+    --mt-duration-glow: 0ms;
+}
+
+/* A workspace's glyph in its own colour, pulled towards the main text colour so it reads at 4.5:1 on every surface
+   whatever the colour (a dark blue included); the caller sets --mt-glyph-color. On a dark surface, mixing towards
+   the surface would lower the contrast, so the tone mixes towards the text. */
+.molten-glyph-tone {
+    --mt-glyph-tone: color-mix(in srgb, var(--mt-glyph-color, var(--mt-accent)) 50%, var(--mt-text-main));
+    color: var(--mt-glyph-tone);
+}
+
+@theme inline {
+    /* The line heights of the Tailwind sizes they mostly replace (text-xs, text-base, text-xl), so a migrated row
+       keeps its height; text-11, text-13 and text-32 inherit theirs, like the arbitrary sizes they replace (a former
+       text-sm took leading-5 with it). */
+    --text-11: var(--mt-text-11);
+    --text-12: var(--mt-text-12);
+    --text-12--line-height: 16px;
+    --text-13: var(--mt-text-13);
+    --text-15: var(--mt-text-15);
+    --text-15--line-height: 22px;
+    --text-20: var(--mt-text-20);
+    --text-20--line-height: 28px;
+    --text-32: var(--mt-text-32);
+    --text-icon-14: var(--mt-icon-14);
+    --text-icon-16: var(--mt-icon-16);
+    --text-icon-20: var(--mt-icon-20);
+
+    --spacing-row: var(--mt-row-28);
+    --spacing-row-lg: var(--mt-row-32);
+
+    --radius-4: var(--mt-radius-4);
+    --radius-6: var(--mt-radius-6);
+    --radius-10: var(--mt-radius-10);
+
+    --color-surface-1: var(--mt-surface-1);
+    --color-surface-2: var(--mt-surface-2);
+    --color-surface-3: var(--mt-surface-3);
+    --color-danger: var(--mt-danger-text);
+    --color-info: var(--mt-info);
+    --color-line: var(--mt-line-1);
+    --color-line-strong: var(--mt-line-2);
+
+    --shadow-e1: var(--mt-shadow-e1);
+    --shadow-e2: var(--mt-shadow-e2);
+    --shadow-e3: var(--mt-shadow-e3);
+
+    --ease-mt: var(--mt-ease);
+}

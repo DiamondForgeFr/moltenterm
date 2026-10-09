@@ -242,3 +242,95 @@ describe("running indicators (NFR-MC-004)", () => {
         );
     });
 });
+
+// Design tokens v2 (FR-SHELL-044, DS-SHELL-077): the colour and motion tokens of tokens.css.
+const tokensCss = readFileSync(new URL("./tokens.css", import.meta.url), "utf8");
+
+function tokenRecipe(name: string): Recipe {
+    const m = new RegExp(`${name}:\\s*color-mix\\(in srgb, var\\(--mt-accent\\) (\\d+)%, (rgb\\([^)]*\\))\\);`).exec(
+        tokensCss
+    );
+    return m == null ? null : { pct: Number(m[1]), base: m[2] };
+}
+
+function tokenColour(name: string): ReturnType<typeof parseColor> {
+    return parseColor(new RegExp(`${name}:\\s*(rgb\\([^)]*\\))`).exec(tokensCss)[1]);
+}
+
+describe("design tokens v2: colours (FR-SHELL-044 AC2, AC5)", () => {
+    const Surfaces = ["--mt-surface-1", "--mt-surface-2", "--mt-surface-3"];
+    const surface = (name: string, accent: string) => {
+        const recipe = tokenRecipe(name);
+        return mixColor(parseColor(accent), parseColor(recipe.base), recipe.pct);
+    };
+    const glyphPct = Number(
+        /--mt-glyph-tone: color-mix\(in srgb, var\(--mt-glyph-color, var\(--mt-accent\)\) (\d+)%, var\(--mt-text-main\)\)/.exec(
+            tokensCss
+        )?.[1]
+    );
+
+    it("reads every surface recipe and the glyph tone from tokens.css", () => {
+        for (const name of Surfaces) {
+            expect(tokenRecipe(name), name).not.toBeNull();
+        }
+        expect(glyphPct).toBeGreaterThan(0);
+    });
+
+    it("keeps surfaces 1 and 3 on today's panel and modal backgrounds", () => {
+        expect(tokenRecipe("--mt-surface-1")).toEqual(Recipes["--mt-neutral-bg"]);
+        expect(tokenRecipe("--mt-surface-3")).toEqual(Recipes["--mt-neutral-modal"]);
+    });
+
+    describe.each(WorkspaceColours)("on workspace colour %s", (accent) => {
+        it.each(Texts.flatMap((text) => Surfaces.map((s) => [text, s])))("%s reads at 4.5:1 on %s", (text, s) => {
+            expect(contrastRatio(resolve(text, accent), surface(s, accent))).toBeGreaterThanOrEqual(4.5);
+        });
+
+        it.each(Surfaces)("danger text and info read at 4.5:1 on %s", (s) => {
+            expect(contrastRatio(tokenColour("--mt-danger-text"), surface(s, accent))).toBeGreaterThanOrEqual(4.5);
+            expect(contrastRatio(tokenColour("--mt-info"), surface(s, accent))).toBeGreaterThanOrEqual(4.5);
+        });
+
+        it.each(Surfaces)("every workspace's glyph tone reads at 4.5:1 on %s", (s) => {
+            for (const glyph of WorkspaceColours) {
+                const tone = mixColor(parseColor(glyph), resolve("--mt-text-main", accent), glyphPct);
+                expect(contrastRatio(tone, surface(s, accent)), glyph).toBeGreaterThanOrEqual(4.5);
+            }
+        });
+    });
+
+    // The shell's only blue is the info tone; the menus' hard-coded pink became the danger text.
+    it("leaves no stray blue and no #ff9a9a in MoltenTerm-owned code", () => {
+        const frontend = fileURLToPath(new URL("..", import.meta.url));
+        for (const dir of ["moltenterm-shell", "moltenterm-onboarding"]) {
+            for (const file of readdirSync(join(frontend, dir), { recursive: true }) as string[]) {
+                if (!/\.(tsx?|css)$/.test(file) || /\.test\./.test(file)) {
+                    continue;
+                }
+                const src = readFileSync(join(frontend, dir, file), "utf8");
+                expect(src, `${dir}/${file}`).not.toMatch(
+                    /\b(?:text|bg|border|ring|fill|stroke|from|to)-(?:sky|blue|cyan|indigo)-\d/
+                );
+                expect(src.toLowerCase(), `${dir}/${file}`).not.toContain("#ff9a9a");
+            }
+        }
+    });
+});
+
+describe("design tokens v2: motion (FR-SHELL-044 AC4, NFR-SHELL-027)", () => {
+    it("has the three durations and one deceleration curve", () => {
+        expect(tokensCss).toContain("--mt-duration-fast: 120ms;");
+        expect(tokensCss).toContain("--mt-duration-base: 180ms;");
+        expect(tokensCss).toContain("--mt-duration-slow: 240ms;");
+        expect(tokensCss).toContain("--mt-ease: cubic-bezier(0.2, 0, 0, 1);");
+    });
+
+    it("makes every token duration instant under the system preference and MoltenTerm's setting", () => {
+        const media = /@media \(prefers-reduced-motion: reduce\) \{\s*:root \{([^}]*)\}/.exec(tokensCss)?.[1] ?? "";
+        const setting = /\n\.prefers-reduced-motion \{([^}]*)\}/.exec(tokensCss)?.[1] ?? "";
+        for (const name of ["fast", "base", "slow", "glow"]) {
+            expect(media).toContain(`--mt-duration-${name}: 0ms;`);
+            expect(setting).toContain(`--mt-duration-${name}: 0ms;`);
+        }
+    });
+});

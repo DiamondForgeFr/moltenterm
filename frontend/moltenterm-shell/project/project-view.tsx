@@ -89,10 +89,10 @@ function CardSlot({ card, props }: { card: ProjectCard<ProjectCardProps>; props:
     }
     return (
         <section
-            className="flex min-w-0 flex-col gap-3 overflow-visible rounded-md border border-border bg-panel px-4 py-3.5"
+            className="flex min-w-0 flex-col gap-3 overflow-visible rounded-6 border border-border bg-panel px-4 py-3.5"
             data-card={card.id}
         >
-            <h2 className="text-[11px] font-semibold tracking-[0.14em] text-muted uppercase">{card.title}</h2>
+            <h2 className="text-11 font-semibold tracking-[0.14em] text-muted uppercase">{card.title}</h2>
             <div className="flex min-h-0 flex-1 flex-col">
                 <CardBody card={card} props={props} />
             </div>
@@ -190,10 +190,10 @@ function ProjectContent({
                 <button
                     type="button"
                     onClick={() => fireAndForget(() => openMoltentermView(MoltentermCicdView))}
-                    className="flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary"
+                    className="flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
                     title="Open the CI/CD panel beside this view: history, detail and logs"
                 >
-                    <i className="fa fa-solid fa-list-check text-[10px]" />
+                    <i className="fa fa-solid fa-list-check text-11" />
                     CI/CD
                 </button>
             </MissionHeader>
@@ -222,7 +222,7 @@ function ProjectContent({
                                     clearError();
                                     setCiError(null);
                                 }}
-                                className="cursor-pointer text-xs text-muted hover:text-primary"
+                                className="cursor-pointer text-12 text-muted hover:text-primary"
                             >
                                 Dismiss
                             </button>

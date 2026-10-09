@@ -15,7 +15,7 @@ export function WorkspaceChip({ label, onGo }: { label: WorkspaceLabel; onGo: ()
             <span
                 aria-hidden
                 data-testid="workspace-badge"
-                className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] text-[10px]"
+                className="flex h-4 w-4 shrink-0 items-center justify-center rounded-4 text-11"
                 style={{
                     background: label.color
                         ? `color-mix(in srgb, ${label.color} 18%, transparent)`
@@ -27,7 +27,7 @@ export function WorkspaceChip({ label, onGo }: { label: WorkspaceLabel; onGo: ()
                 ) : (
                     <WorkspaceIcon
                         source={{ icon: label.icon, color: label.color, image: label.image, logo: label.logo }}
-                        className="text-[10px]"
+                        className="text-11"
                     />
                 )}
             </span>
@@ -60,7 +60,7 @@ export function WorkspaceChip({ label, onGo }: { label: WorkspaceLabel; onGo: ()
                 onGo();
             }}
             className={cn(
-                "-mx-1 flex min-w-0 max-w-[60%] cursor-pointer items-center gap-1 rounded px-1 text-secondary",
+                "-mx-1 flex min-w-0 max-w-[60%] cursor-pointer items-center gap-1 rounded-6 px-1 text-secondary",
                 "hover:bg-hover hover:text-primary"
             )}
         >

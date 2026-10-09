@@ -11,7 +11,7 @@ import { FirstRunSteps } from "./onboarding-steps";
 function StatusMark({ status }: { status: string }) {
     if (status === "done") {
         return (
-            <span className="flex items-center gap-1.5 text-xs text-secondary">
+            <span className="flex items-center gap-1.5 text-12 text-secondary">
                 <i className="fa-solid fa-circle-check text-[var(--mt-state-done)]" aria-hidden />
                 Done
             </span>
@@ -19,14 +19,14 @@ function StatusMark({ status }: { status: string }) {
     }
     if (status === "skipped") {
         return (
-            <span className="flex items-center gap-1.5 text-xs text-muted">
+            <span className="flex items-center gap-1.5 text-12 text-muted">
                 <i className="fa-solid fa-circle-minus" aria-hidden />
                 Skipped
             </span>
         );
     }
     return (
-        <span className="flex items-center gap-1.5 text-xs text-muted">
+        <span className="flex items-center gap-1.5 text-12 text-muted">
             <i className="fa-regular fa-circle" aria-hidden />
             Not done
         </span>
@@ -48,23 +48,23 @@ export function OnboardingSummary({
     return (
         <div className="mx-auto flex w-full max-w-[480px] flex-col gap-5">
             <div className="flex flex-col gap-1">
-                <h2 className="text-[18px] leading-6 font-semibold text-primary">
+                <h2 className="text-20 leading-6 font-semibold text-primary">
                     {allDone ? "You're set" : "Almost there"}
                 </h2>
-                <p className="text-[13px] leading-5 text-secondary">
+                <p className="text-13 leading-5 text-secondary">
                     {allDone
                         ? "MoltenTerm knows your agent, has taken a first shape and works in your project."
                         : "The steps you left wait for you. Getting started stays in the app menu and the command palette."}
                 </p>
             </div>
-            <ul className="flex flex-col divide-y divide-border rounded border border-border">
+            <ul className="flex flex-col divide-y divide-border rounded-4 border border-border">
                 {FirstRunSteps.map((step) => {
                     const status = stepStatus(state, step.id);
                     return (
                         <li key={step.id} className="flex items-center gap-3 px-3 py-2.5">
                             <div className="flex min-w-0 flex-1 flex-col">
-                                <span className="text-[13px] font-medium text-primary">{step.title}</span>
-                                <span className="truncate text-xs text-muted" title={step.summary}>
+                                <span className="text-13 font-medium text-primary">{step.title}</span>
+                                <span className="truncate text-12 text-muted" title={step.summary}>
                                     {step.summary}
                                 </span>
                             </div>
@@ -73,7 +73,7 @@ export function OnboardingSummary({
                                 <button
                                     type="button"
                                     onClick={() => onGo(stepPage(step.id))}
-                                    className="molten-btn-outline cursor-pointer rounded border border-border px-2 py-1 text-xs text-secondary"
+                                    className="molten-btn-secondary cursor-pointer rounded-6 px-2 py-1 text-12"
                                 >
                                     Open
                                 </button>
@@ -87,7 +87,7 @@ export function OnboardingSummary({
                     type="button"
                     disabled={busy}
                     onClick={onClose}
-                    className={cn("molten-btn rounded px-4 py-2 text-[13px] font-semibold", busy && "opacity-60")}
+                    className={cn("molten-btn rounded-6 px-4 py-2 text-13 font-semibold", busy && "opacity-60")}
                 >
                     Close
                     <MoltenWave />

@@ -175,14 +175,14 @@ export function ReleaseMenu({
     return (
         <div ref={setAnchor} className="relative">
             <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={ActionSecondaryClass}>
-                <i className="fa fa-solid fa-rocket text-[10px]" />
+                <i className="fa fa-solid fa-rocket text-11" />
                 Release
             </button>
             {open ? (
                 <MenuPopover anchor={anchor} onClose={() => setOpen(false)} className="flex w-80 flex-col gap-2">
                     {plan == null && error == null ? (
-                        <div className="flex items-center gap-2 py-2 text-xs text-muted">
-                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-[11px]" />
+                        <div className="flex items-center gap-2 py-2 text-12 text-muted">
+                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
                             Computing the numbers…
                         </div>
                     ) : null}
@@ -193,16 +193,16 @@ export function ReleaseMenu({
                                 disabled={!plan.rc || rcSteps.length === 0}
                                 onClick={() => setChoice("rc")}
                                 className={cn(
-                                    "w-full cursor-pointer rounded border px-3 py-2 text-left transition-colors disabled:cursor-default disabled:opacity-50",
+                                    "w-full cursor-pointer rounded-6 border px-3 py-2 text-left transition-colors duration-120 ease-mt disabled:cursor-default disabled:opacity-50",
                                     choice === "rc"
                                         ? "border-accent/60 bg-accent/10"
                                         : "border-border hover:border-secondary/40"
                                 )}
                             >
-                                <div className="text-sm font-medium text-primary">
+                                <div className="text-13 leading-5 font-medium text-primary">
                                     Release candidate {plan.rc ?? ""}
                                 </div>
-                                <div className="text-[11px] text-muted">
+                                <div className="text-11 text-muted">
                                     {rcSteps.length
                                         ? "Internal: offered to nobody, installable by hand."
                                         : "The pipeline declares no release.rc steps."}
@@ -213,14 +213,14 @@ export function ReleaseMenu({
                                 disabled={!plan.publicVersion || publicSteps.length === 0}
                                 onClick={() => setChoice("public")}
                                 className={cn(
-                                    "w-full cursor-pointer rounded border px-3 py-2 text-left transition-colors disabled:cursor-default disabled:opacity-50",
+                                    "w-full cursor-pointer rounded-6 border px-3 py-2 text-left transition-colors duration-120 ease-mt disabled:cursor-default disabled:opacity-50",
                                     choice === "public"
                                         ? "border-warning/60 bg-warning/10"
                                         : "border-border hover:border-secondary/40"
                                 )}
                             >
-                                <div className="text-sm font-medium text-primary">{publicTitle}</div>
-                                <div className="text-[11px] text-muted">
+                                <div className="text-13 leading-5 font-medium text-primary">{publicTitle}</div>
+                                <div className="text-11 text-muted">
                                     {publicSteps.length === 0
                                         ? "The pipeline declares no release.public steps."
                                         : plan.publicVersion
@@ -229,14 +229,14 @@ export function ReleaseMenu({
                                 </div>
                             </button>
                             {choice === "public" && plan.publicIsDecision ? (
-                                <label className="flex flex-col gap-1 text-[11px] text-muted">
+                                <label className="flex flex-col gap-1 text-11 text-muted">
                                     The first public release's number: a choice, not a calculation
                                     <input
                                         value={version}
                                         onChange={(e) => setVersion(e.target.value.trim())}
                                         aria-invalid={tag == null}
                                         className={cn(
-                                            "rounded border bg-transparent px-2 py-1 font-mono text-xs text-primary",
+                                            "rounded-4 border bg-transparent px-2 py-1 font-mono text-12 text-primary",
                                             tag == null ? "border-error/60" : "border-border"
                                         )}
                                     />
@@ -246,7 +246,7 @@ export function ReleaseMenu({
                                 <MilestoneNote warning={milestone.warning} error={milestone.error} />
                             ) : null}
                             {choice ? (
-                                <div className="rounded border border-border bg-hover/40 p-2 text-[11px] text-muted">
+                                <div className="rounded-4 border border-border bg-hover/40 p-2 text-11 text-muted">
                                     {releaseNote(steps)}
                                 </div>
                             ) : null}
@@ -254,17 +254,17 @@ export function ReleaseMenu({
                                 type="button"
                                 disabled={!tag || busy}
                                 onClick={launch}
-                                className="molten-btn cursor-pointer rounded px-3 py-1.5 text-xs disabled:cursor-default disabled:opacity-50"
+                                className="molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
                             >
                                 {busy ? (
-                                    <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-[10px]" />
+                                    <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-11" />
                                 ) : null}
                                 {tag ? `Start ${tag}` : "Choose a release"}
                                 <MoltenWave />
                             </button>
                         </>
                     ) : null}
-                    {error ? <div className="text-xs text-error">{error}</div> : null}
+                    {error ? <div className="text-12 text-error">{error}</div> : null}
                 </MenuPopover>
             ) : null}
             {untrusted != null ? (
@@ -282,18 +282,18 @@ export function ReleaseMenu({
 
 function MilestoneNote({ warning, error }: { warning: MilestoneWarning; error: string }) {
     if (error) {
-        return <div className="text-[11px] text-muted">The milestone could not be read: {error}</div>;
+        return <div className="text-11 text-muted">The milestone could not be read: {error}</div>;
     }
     return (
         <div
             className={cn(
-                "flex flex-col gap-1 rounded border p-2 text-[11px]",
+                "flex flex-col gap-1 rounded-4 border p-2 text-11",
                 warning.warn ? "border-warning/50 bg-warning/10 text-primary" : "border-border text-muted"
             )}
         >
             <div className="flex items-start gap-1.5">
                 {warning.warn ? (
-                    <i className="fa fa-solid fa-triangle-exclamation mt-[2px] text-[10px] text-warning" />
+                    <i className="fa fa-solid fa-triangle-exclamation mt-[2px] text-11 text-warning" />
                 ) : null}
                 <span>{warning.text}</span>
             </div>

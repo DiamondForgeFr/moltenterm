@@ -17,7 +17,7 @@ import { timeAgo } from "./time-format";
 export type PipelineSection = "timeline" | "cilocal" | "ciremote" | "cd";
 
 const PlainButton =
-    "cursor-pointer rounded border border-border px-2 py-1 text-xs text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
+    "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
 
 function LastLines({ run, full }: { run: RunRecord; full: boolean }) {
     const log = useRunLog(run);
@@ -28,7 +28,7 @@ function LastLines({ run, full }: { run: RunRecord; full: boolean }) {
     return (
         <pre
             className={cn(
-                "mt-2 overflow-auto rounded-md border border-border bg-black/30 px-2 py-1.5 font-mono text-[10.5px] leading-relaxed whitespace-pre-wrap text-secondary",
+                "mt-2 overflow-auto rounded-6 border border-border bg-black/30 px-2 py-1.5 font-mono text-11 leading-relaxed whitespace-pre-wrap text-secondary",
                 full ? "max-h-[50vh]" : "max-h-32"
             )}
         >
@@ -92,7 +92,7 @@ function StepRow({
             type="button"
             disabled={busy}
             onClick={onRun}
-            className="molten-btn cursor-pointer rounded px-2 py-1 text-xs disabled:cursor-default disabled:opacity-50"
+            className="molten-btn cursor-pointer rounded-6 px-2 py-1 text-12 disabled:cursor-default disabled:opacity-50"
         >
             Run
             <MoltenWave />
@@ -105,13 +105,13 @@ function StepRow({
                 data-testid={`adapter-step-${step.id}`}
             >
                 <div className="flex min-w-0 items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-[13px] text-primary" title={step.title}>
+                    <span className="min-w-0 flex-1 truncate text-13 text-primary" title={step.title}>
                         {step.title}
                     </span>
                     {last ? <RunStateBadge state={last.state} /> : null}
                 </div>
                 <div className="flex items-center gap-1.5">
-                    <span className="min-w-0 flex-1 truncate text-xs text-muted">{last ? when : "Not run yet"}</span>
+                    <span className="min-w-0 flex-1 truncate text-12 text-muted">{last ? when : "Not run yet"}</span>
                     {logButtons}
                     {runButton}
                 </div>
@@ -122,11 +122,11 @@ function StepRow({
     return (
         <div className="border-b border-border px-3 py-2 last:border-b-0" data-testid={`adapter-step-${step.id}`}>
             <div className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm text-primary">{step.title}</span>
+                <span className="min-w-0 flex-1 truncate text-13 leading-5 text-primary">{step.title}</span>
                 {last ? (
                     <>
                         <RunStateBadge state={last.state} />
-                        <span className="text-xs text-muted">{when}</span>
+                        <span className="text-12 text-muted">{when}</span>
                         {logButtons}
                     </>
                 ) : null}
@@ -163,7 +163,7 @@ export function AdapterSteps({
     return (
         <section className="flex flex-col gap-2">
             {bare ? null : <BlockHeader title="Project steps" hint="declared by the project's pipeline" />}
-            <div className={cn("overflow-hidden", !bare && "rounded border border-border")}>
+            <div className={cn("overflow-hidden", !bare && "rounded-4 border border-border")}>
                 {steps.map((step) => (
                     <StepRow
                         key={`${step.id}:${lastRun(runs, step.id)?.id ?? ""}`}
@@ -177,7 +177,7 @@ export function AdapterSteps({
                 ))}
             </div>
             {error ? (
-                <button type="button" onClick={clearError} className="cursor-pointer text-left text-xs text-error">
+                <button type="button" onClick={clearError} className="cursor-pointer text-left text-12 text-error">
                     {error}
                 </button>
             ) : null}

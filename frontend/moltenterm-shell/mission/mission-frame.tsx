@@ -63,18 +63,18 @@ function EmptyState({
     return (
         <div className="flex h-full w-full items-center justify-center p-6">
             <div className="flex max-w-md flex-col items-center gap-3 text-center">
-                <i className={cn("fa fa-solid text-3xl text-muted", `fa-${icon}`)} />
-                <div className="text-base font-semibold">{title}</div>
-                <div className="text-sm text-secondary">{text}</div>
+                <i className={cn("fa fa-solid text-icon-20 text-muted", `fa-${icon}`)} />
+                <div className="text-15 font-semibold">{title}</div>
+                <div className="text-13 leading-5 text-secondary">{text}</div>
                 {children}
             </div>
         </div>
     );
 }
 
-const AccentButton = "molten-btn cursor-pointer rounded px-3 py-1.5 text-sm";
+const AccentButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-13 leading-5";
 const PlainButton =
-    "cursor-pointer rounded border border-border px-2 py-1 text-xs text-secondary transition-colors hover:bg-hover hover:text-primary";
+    "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary";
 
 export function CopyButton({ text, label }: { text: string; label: string }) {
     const [copied, setCopied] = useState(false);
@@ -106,7 +106,7 @@ export function PipelineBanner({ dir, report }: { dir: string; report: PipelineR
     return (
         <div
             className={cn(
-                "flex items-start gap-3 rounded border px-3 py-2",
+                "flex items-start gap-3 rounded-4 border px-3 py-2",
                 invalid ? "border-warning/40 bg-warning/10" : "border-accent/40 bg-accent/10"
             )}
         >
@@ -116,12 +116,12 @@ export function PipelineBanner({ dir, report }: { dir: string; report: PipelineR
                     invalid ? "fa-triangle-exclamation text-warning" : "fa-wand-magic-sparkles text-accent"
                 )}
             />
-            <div className="min-w-0 flex-1 text-xs">
+            <div className="min-w-0 flex-1 text-12">
                 <div className="font-semibold text-primary">
                     {invalid ? "The pipeline has problems" : "Connect the pipeline"}
                 </div>
                 {invalid ? (
-                    <ul className="mt-1 flex flex-col gap-0.5 font-mono text-[11px] text-secondary">
+                    <ul className="mt-1 flex flex-col gap-0.5 font-mono text-11 text-secondary">
                         {report.errors.slice(0, 5).map((e) => (
                             <li key={e}>• {e}</li>
                         ))}
@@ -135,14 +135,14 @@ export function PipelineBanner({ dir, report }: { dir: string; report: PipelineR
                         and type the command below.
                     </div>
                 )}
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-11 text-muted">
                     {PipelineInvocations.map((i) => (
                         <span key={i.invocation}>
                             {i.agent}: <code className="text-secondary">{i.invocation}</code>
                         </span>
                     ))}
                 </div>
-                <div className="mt-1 text-[11px] text-muted">
+                <div className="mt-1 text-11 text-muted">
                     Command not found in your agent? Run <code>molten agent install &lt;agent&gt;</code> once.
                     {invalid ? " Check again with molten project validate." : ""}
                 </div>
@@ -179,14 +179,14 @@ export function MissionHeader({
     return (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-2">
             <div className="flex min-w-0 items-baseline gap-2">
-                <span className="truncate text-xs text-secondary" title={project.dir}>
+                <span className="truncate text-12 text-secondary" title={project.dir}>
                     {name}
                     {snapshot?.git ? ` · ${snapshot.git.trunk}` : ""}
                 </span>
             </div>
             <div className="ml-auto flex items-center gap-2">
                 {children}
-                <span className="text-[11px] text-muted">
+                <span className="text-11 text-muted">
                     {snapshot?.refreshing ? "refreshing…" : `updated ${formatAge(at, now)}`}
                 </span>
                 <button
@@ -194,13 +194,10 @@ export function MissionHeader({
                     aria-label="Refresh"
                     title="Refresh (fetches from the remote)"
                     onClick={onRefresh}
-                    className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-secondary hover:bg-hover hover:text-primary"
+                    className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
                 >
                     <i
-                        className={cn(
-                            "fa fa-solid fa-rotate text-[11px]",
-                            snapshot?.refreshing && "fa-spin mt-step-spin"
-                        )}
+                        className={cn("fa fa-solid fa-rotate text-11", snapshot?.refreshing && "fa-spin mt-step-spin")}
                     />
                 </button>
             </div>

@@ -34,7 +34,7 @@ export function UsageButton({ view, className }: { view: CompanionView; classNam
                 openUsagePage(view);
             }}
             className={cn(
-                "flex shrink-0 cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-secondary hover:bg-hover hover:text-primary focus-visible:bg-hover focus-visible:text-primary",
+                "flex shrink-0 cursor-pointer items-center gap-1 rounded-6 px-1.5 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary focus-visible:bg-hover focus-visible:text-primary",
                 className
             )}
             data-testid="companion-usage"

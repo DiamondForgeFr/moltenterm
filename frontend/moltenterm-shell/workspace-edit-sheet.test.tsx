@@ -69,7 +69,7 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
         expect(html).toMatch(/<label for="([^"]+)"[^>]*>Name<\/label><input id="\1"/);
         expect(html).toContain('value="Client A"');
         expect(html).toContain('aria-invalid="false"');
-        expect(html).toMatch(/data-role="rail-preview" class="[^"]*\bh-9 w-9\b[^"]*text-\[17px\]/);
+        expect(html).toMatch(/data-role="rail-preview" class="[^"]*\bh-9 w-9\b[^"]*text-icon-16/);
         expect(html).toContain('aria-label="Rail badge: Rocket, Blue"');
     });
 
@@ -131,7 +131,9 @@ describe("imported icon slot (FR-SHELL-031)", () => {
         );
         const plain = sheetWith({});
         expect(plain).toContain('aria-label="Rail badge: Rocket, Blue"');
-        expect(plain).toMatch(/<i class="[^"]*fa-rocket[^"]*" style="color:#429DFF" data-icon-kind="builtin"/);
+        expect(plain).toMatch(
+            /<i class="[^"]*fa-rocket[^"]*molten-glyph-tone[^"]*" style="--mt-glyph-color:#429DFF" data-icon-kind="builtin"/
+        );
     });
 
     it("ignores a meta value that is not a stored name", () => {

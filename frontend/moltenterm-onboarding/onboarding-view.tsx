@@ -136,7 +136,7 @@ export class OnboardingViewModel implements ViewModel {
 }
 
 function StepFailed({ error }: { error?: Error }) {
-    return <p className="text-[13px] text-error">This step could not be shown: {error?.message ?? "unknown error"}</p>;
+    return <p className="text-13 text-error">This step could not be shown: {error?.message ?? "unknown error"}</p>;
 }
 
 function StepPage({ model, step, state }: { model: OnboardingViewModel; step: FirstRunStep; state: OnboardingState }) {
@@ -145,9 +145,9 @@ function StepPage({ model, step, state }: { model: OnboardingViewModel; step: Fi
     return (
         <div className="mx-auto flex w-full max-w-[480px] flex-col gap-4">
             <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted">{progressLabel(`step:${step.id}`)}</span>
-                <h2 className="text-[18px] leading-6 font-semibold text-primary">{step.title}</h2>
-                <p className="text-[13px] leading-5 text-secondary">{step.summary}</p>
+                <span className="text-12 text-muted">{progressLabel(`step:${step.id}`)}</span>
+                <h2 className="text-20 leading-6 font-semibold text-primary">{step.title}</h2>
+                <p className="text-13 leading-5 text-secondary">{step.summary}</p>
             </div>
             <ErrorBoundary key={step.id} fallback={<StepFailed />}>
                 <Component ctx={ctx} />
@@ -163,7 +163,7 @@ function StepFooter({ model, step, busy }: { model: OnboardingViewModel; step: F
                 type="button"
                 disabled={busy}
                 onClick={() => model.leave()}
-                className="molten-btn-ghost cursor-pointer rounded px-2 py-1.5 text-xs text-muted hover:text-primary"
+                className="molten-btn-ghost cursor-pointer rounded-6 px-2 py-1.5 text-12 text-muted hover:text-primary"
             >
                 Leave setup
             </button>
@@ -171,7 +171,7 @@ function StepFooter({ model, step, busy }: { model: OnboardingViewModel; step: F
                 type="button"
                 disabled={busy}
                 onClick={() => model.run(() => model.moveOn(step.id, "skipped"))}
-                className="molten-btn-outline ml-auto cursor-pointer rounded border border-border px-3 py-1.5 text-xs text-secondary hover:text-primary"
+                className="molten-btn-secondary ml-auto cursor-pointer rounded-6 px-3 py-1.5 text-12"
             >
                 Skip this step
             </button>
@@ -218,7 +218,7 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
                     />
                 ) : null}
                 {error ? (
-                    <p className="mx-auto mt-4 w-full max-w-[480px] text-xs text-error" role="alert">
+                    <p className="mx-auto mt-4 w-full max-w-[480px] text-12 text-error" role="alert">
                         {error}
                     </p>
                 ) : null}

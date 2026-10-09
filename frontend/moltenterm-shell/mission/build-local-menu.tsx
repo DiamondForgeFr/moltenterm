@@ -108,13 +108,13 @@ export function BuildLocalMenu({
     return (
         <div ref={setAnchor} className="relative">
             <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={ActionSecondaryClass}>
-                <i className="fa fa-solid fa-hammer text-[10px]" />
+                <i className="fa fa-solid fa-hammer text-11" />
                 Build local
             </button>
             {open ? (
                 <MenuPopover anchor={anchor} onClose={() => setOpen(false)} className="flex w-80 flex-col gap-2">
                     {builds.length === 0 && !fetching ? (
-                        <div className="text-xs text-muted">The pipeline declares no build (builds).</div>
+                        <div className="text-12 text-muted">The pipeline declares no build (builds).</div>
                     ) : null}
                     {builds.map((build) => (
                         <div key={build.id} className="relative">
@@ -122,7 +122,7 @@ export function BuildLocalMenu({
                                 type="button"
                                 onClick={() => setChoice(build.id)}
                                 className={cn(
-                                    "w-full cursor-pointer rounded border px-3 py-2 text-left transition-colors",
+                                    "w-full cursor-pointer rounded-6 border px-3 py-2 text-left transition-colors duration-120 ease-mt",
                                     choice === build.id
                                         ? build.kind === "rc"
                                             ? "border-orange-500/60 bg-orange-500/10"
@@ -130,18 +130,16 @@ export function BuildLocalMenu({
                                         : "border-border hover:border-secondary/40"
                                 )}
                             >
-                                <div className="text-sm font-medium text-primary">
+                                <div className="text-13 leading-5 font-medium text-primary">
                                     {buildCardTitle(projectName, build)}
                                 </div>
                                 {build.description ? (
-                                    <div className="text-[11px] text-muted">{build.description}</div>
+                                    <div className="text-11 text-muted">{build.description}</div>
                                 ) : null}
                                 {build.verify === "ci" ? (
-                                    <div className="mt-0.5 text-[11px] text-muted">{ciLine(facts)}</div>
+                                    <div className="mt-0.5 text-11 text-muted">{ciLine(facts)}</div>
                                 ) : null}
-                                <div className="mt-0.5 pr-6 text-[11px] text-muted">
-                                    {lastBuildLine(build.last, now)}
-                                </div>
+                                <div className="mt-0.5 pr-6 text-11 text-muted">{lastBuildLine(build.last, now)}</div>
                             </button>
                             {build.last ? (
                                 <button
@@ -149,16 +147,16 @@ export function BuildLocalMenu({
                                     title="Show in Finder"
                                     aria-label={`Show ${buildCardTitle(projectName, build)} in Finder`}
                                     onClick={() => revealBuild(build)}
-                                    className="absolute right-1.5 bottom-1.5 cursor-pointer rounded p-1 text-muted transition-colors hover:bg-hover hover:text-primary"
+                                    className="absolute right-1.5 bottom-1.5 cursor-pointer rounded-6 p-1 text-muted transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary"
                                 >
-                                    <i className="fa fa-regular fa-folder-open text-[12px]" />
+                                    <i className="fa fa-regular fa-folder-open text-12" />
                                 </button>
                             ) : null}
                         </div>
                     ))}
-                    <div className="flex items-start gap-1.5 rounded border border-border bg-hover/40 p-2 text-[11px] text-muted">
+                    <div className="flex items-start gap-1.5 rounded-4 border border-border bg-hover/40 p-2 text-11 text-muted">
                         {fetching ? (
-                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mt-0.5 text-[10px]" />
+                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mt-0.5 text-11" />
                         ) : null}
                         <span>
                             Built from {facts?.trunk || "the trunk"} as it is on GitHub, in a separate worktree, then
@@ -169,20 +167,18 @@ export function BuildLocalMenu({
                         type="button"
                         disabled={!chosen || busy}
                         onClick={launch}
-                        className="molten-btn cursor-pointer rounded px-3 py-1.5 text-xs disabled:cursor-default disabled:opacity-50"
+                        className="molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
                     >
                         {busy ? (
-                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-[10px]" />
+                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-11" />
                         ) : null}
                         {chosen ? `Build ${chosen.title || chosen.id}` : "Choose a build"}
                         <MoltenWave />
                     </button>
                     {facts?.fetcherror ? (
-                        <div className="text-[11px] text-warning">
-                            Fetching failed: building the last fetched trunk.
-                        </div>
+                        <div className="text-11 text-warning">Fetching failed: building the last fetched trunk.</div>
                     ) : null}
-                    {error ? <div className="text-xs text-error">{error}</div> : null}
+                    {error ? <div className="text-12 text-error">{error}</div> : null}
                 </MenuPopover>
             ) : null}
         </div>

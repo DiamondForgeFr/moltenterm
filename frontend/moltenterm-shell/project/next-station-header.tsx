@@ -37,7 +37,7 @@ const ChipClass: Record<NextStationState, string> = {
 };
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
-    return <span className="text-[11px] font-semibold tracking-[0.14em] text-muted uppercase">{children}</span>;
+    return <span className="text-11 font-semibold tracking-[0.14em] text-muted uppercase">{children}</span>;
 }
 
 // The workspace's badge, as the rail shows it (FR-SHELL-031 AC8); the project's initial only when there is no
@@ -46,7 +46,7 @@ function ProjectBadge({ name, source }: { name: string; source: WorkspaceIconSou
     if (source.image || source.logo || source.icon) {
         return (
             <span
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] border border-border bg-hover text-[28px]"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-10 border border-border bg-hover text-icon-20"
                 aria-hidden
             >
                 <WorkspaceIcon source={source} />
@@ -55,7 +55,7 @@ function ProjectBadge({ name, source }: { name: string; source: WorkspaceIconSou
     }
     return (
         <span
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] bg-[var(--mt-accent)] text-[26px] leading-none font-bold text-[var(--mt-accent-fg)]"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-10 bg-[var(--mt-accent)] text-20 leading-none font-semibold text-[var(--mt-accent-fg)]"
             aria-hidden
         >
             {(name || "?").slice(0, 1).toUpperCase()}
@@ -126,7 +126,7 @@ function Ticker({ items, trunk }: { items: TickerItem[]; trunk: string }) {
             role="region"
             aria-label={`Changes waiting on ${trunk}`}
             className={cn(
-                "mt-ticker flex h-[30px] items-center border-t border-border bg-background/60 font-mono text-xs text-secondary",
+                "mt-ticker flex h-[30px] items-center border-t border-border bg-background/60 font-mono text-12 text-secondary",
                 overflows && "mt-ticker-moving"
             )}
             data-testid="next-station-ticker"
@@ -170,13 +170,13 @@ export function NextStationHeader({
                     <div className="flex min-w-0 flex-col gap-0.5" data-testid="next-station-version">
                         <Eyebrow>Next station</Eyebrow>
                         <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
-                            <span className="text-[40px] leading-none font-bold tracking-tight text-primary">
+                            <span className="text-32 leading-none font-semibold tracking-tight text-primary">
                                 {station?.tag ?? (station ? "Nothing yet" : "…")}
                             </span>
                             {station?.chip ? (
                                 <span
                                     className={cn(
-                                        "rounded border px-2 py-0.5 text-xs font-semibold",
+                                        "rounded-4 border px-2 py-0.5 text-12 font-semibold",
                                         ChipClass[station.state]
                                     )}
                                     data-testid="next-station-state"
@@ -185,19 +185,19 @@ export function NextStationHeader({
                                 </span>
                             ) : null}
                         </div>
-                        <span className="text-[13px] text-secondary">{station?.note ?? "Reading the history…"}</span>
+                        <span className="text-13 text-secondary">{station?.note ?? "Reading the history…"}</span>
                     </div>
                 </div>
                 <div className="hidden w-px self-stretch bg-border @min-[42rem]:block" aria-hidden />
                 <div className="flex min-w-0 flex-col gap-0.5" data-testid="next-station-waiting">
                     <Eyebrow>{counts?.title ?? `Waiting on ${trunk}`}</Eyebrow>
                     <div className="flex items-baseline gap-2.5">
-                        <span className="text-[40px] leading-none font-bold text-[var(--mt-accent)] tabular-nums">
+                        <span className="text-32 leading-none font-semibold text-[var(--mt-accent)] tabular-nums">
                             {counts?.total ?? "…"}
                         </span>
-                        <span className="text-sm text-secondary">{counts?.scope ?? ""}</span>
+                        <span className="text-13 leading-5 text-secondary">{counts?.scope ?? ""}</span>
                     </div>
-                    <span className="text-[13px] text-secondary" data-testid="next-station-counts">
+                    <span className="text-13 text-secondary" data-testid="next-station-counts">
                         {countsLine(counts)}
                     </span>
                 </div>
@@ -224,7 +224,7 @@ export function NextStationHeader({
                             onClick={() => runCi(target.branch)}
                             title={target.disabled ?? `Run the local CI on ${target.branch}, whatever is checked out`}
                         >
-                            <i className="fa fa-solid fa-play text-[10px]" />
+                            <i className="fa fa-solid fa-play text-11" />
                             Run CI on {target.branch || trunk}
                             <MoltenWave />
                         </button>
@@ -254,7 +254,7 @@ export function NextStationHeader({
                     ) : null}
                     <BranchCleanupButton dir={project.dir} onCleaned={refresh} />
                     {pipeline ? null : (
-                        <p className="basis-full text-[11px] text-muted @min-[64rem]:text-right">
+                        <p className="basis-full text-11 text-muted @min-[64rem]:text-right">
                             Build local and Release appear once the pipeline is connected.
                         </p>
                     )}

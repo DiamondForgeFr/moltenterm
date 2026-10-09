@@ -13,6 +13,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { Component, ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { DepSyncHost } from "./mission/dep-sync";
 import {
     attentionArrivals,
     AttentionCoalesceMs,
@@ -35,7 +36,6 @@ import {
     NotificationAction,
     visibleActions,
 } from "./notifications-model";
-import { DepSyncHost } from "./mission/dep-sync";
 import { MoltentermNotifications, registerNotificationGesture, startNotificationAutoRead } from "./notifications-store";
 import { showProjectTab } from "./project/project-tab";
 import { canStop, overallProgress, stopWork, useRunningWork, WorkItem } from "./running-work";
@@ -52,9 +52,9 @@ const KindIcons: Record<MoltentermNotification["kind"], string> = {
 const AgeTickMs = 30000;
 
 const MainActionClass =
-    "cursor-pointer rounded border border-border px-2 py-0.5 text-xs text-primary hover:bg-hover disabled:cursor-default disabled:opacity-50";
+    "cursor-pointer rounded-6 border border-border px-2 py-0.5 text-12 text-primary hover:bg-hover disabled:cursor-default disabled:opacity-50";
 const OtherActionClass =
-    "cursor-pointer rounded px-2 py-0.5 text-xs text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
+    "cursor-pointer rounded-6 px-2 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
 
 // Actions every window knows; features register their own (the gold update registers "update:review").
 function registerBuiltInGestures(): () => void {
@@ -130,16 +130,16 @@ function NotificationRow({
                                 e.stopPropagation();
                                 onArchive();
                             }}
-                            className="ml-auto shrink-0 cursor-pointer rounded px-1 text-muted opacity-0 group-hover:opacity-100 hover:bg-hover hover:text-primary focus-visible:opacity-100"
+                            className="ml-auto shrink-0 cursor-pointer rounded-6 px-1 text-muted opacity-0 group-hover:opacity-100 hover:bg-hover hover:text-primary focus-visible:opacity-100"
                         >
-                            <i className="fa fa-solid fa-box-archive text-[11px]" />
+                            <i className="fa fa-solid fa-box-archive text-11" />
                         </button>
                     ) : null}
                 </div>
                 {entry.message ? (
-                    <div className="mt-0.5 line-clamp-3 text-xs text-secondary">{entry.message}</div>
+                    <div className="mt-0.5 line-clamp-3 text-12 text-secondary">{entry.message}</div>
                 ) : null}
-                <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
+                <div className="mt-1 flex items-center gap-1.5 text-11 text-muted">
                     {label ? (
                         <>
                             <WorkspaceChip label={label} onGo={onOpen} />
@@ -162,7 +162,7 @@ function NotificationRow({
                                 e.stopPropagation();
                                 onSilence(subject);
                             }}
-                            className="ml-auto cursor-pointer rounded px-1 text-muted opacity-0 group-hover:opacity-100 hover:text-primary focus-visible:opacity-100"
+                            className="ml-auto cursor-pointer rounded-6 px-1 text-muted opacity-0 group-hover:opacity-100 hover:text-primary focus-visible:opacity-100"
                         >
                             Don't tell me again…
                         </button>
@@ -186,7 +186,7 @@ function NotificationRow({
                         ))}
                     </div>
                 ) : null}
-                {error ? <div className="mt-1 text-xs text-error">{error}</div> : null}
+                {error ? <div className="mt-1 text-12 text-error">{error}</div> : null}
             </div>
         </div>
     );
@@ -207,7 +207,7 @@ class RowBoundary extends Component<{ children: ReactNode }, { failed: boolean }
     render() {
         if (this.state.failed) {
             return (
-                <div className="border-b border-border px-3 py-2 text-xs text-muted">
+                <div className="border-b border-border px-3 py-2 text-12 text-muted">
                     This notification could not be shown.
                 </div>
             );
@@ -253,16 +253,16 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
     return (
         <div className="border-b border-border px-3 py-2" data-testid="running-work">
             <div className="flex items-center gap-2">
-                <i className="fa fa-solid fa-circle-notch fa-spin w-4 text-center text-[11px] text-accent" />
+                <i className="fa fa-solid fa-circle-notch fa-spin w-4 text-center text-11 text-accent" />
                 <span className="min-w-0 flex-1 truncate">{item.title}</span>
                 {measured ? (
-                    <span className="text-xs text-muted tabular-nums">{Math.round(item.progress * 100)}%</span>
+                    <span className="text-12 text-muted tabular-nums">{Math.round(item.progress * 100)}%</span>
                 ) : null}
                 {canStop(item) && !confirming ? (
                     <button
                         type="button"
                         onClick={() => setConfirming(true)}
-                        className="cursor-pointer rounded px-1.5 py-0.5 text-xs text-secondary hover:bg-hover hover:text-primary"
+                        className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
                     >
                         Stop
                     </button>
@@ -274,7 +274,7 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
                     style={measured ? { width: `${Math.round(item.progress * 100)}%` } : undefined}
                 />
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
+            <div className="mt-1 flex items-center gap-1.5 text-11 text-muted">
                 {label ? (
                     <>
                         <WorkspaceChip
@@ -295,12 +295,12 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
                 {elapsed ? <span className="shrink-0 tabular-nums">started {elapsed}</span> : null}
             </div>
             {confirming ? (
-                <div className="mt-1.5 flex items-center justify-end gap-2 text-xs">
+                <div className="mt-1.5 flex items-center justify-end gap-2 text-12">
                     <span className="mr-auto text-secondary">Stop {item.title}?</span>
                     <button
                         type="button"
                         onClick={() => setConfirming(false)}
-                        className="cursor-pointer rounded px-1.5 py-0.5 text-secondary hover:bg-hover hover:text-primary"
+                        className="cursor-pointer rounded-6 px-1.5 py-0.5 text-secondary hover:bg-hover hover:text-primary"
                     >
                         Keep it
                     </button>
@@ -316,13 +316,13 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
                                 }
                             })
                         }
-                        className="cursor-pointer rounded border border-error/50 px-1.5 py-0.5 text-error hover:bg-error/10"
+                        className="cursor-pointer rounded-6 border border-error/50 px-1.5 py-0.5 text-error hover:bg-error/10"
                     >
                         Stop
                     </button>
                 </div>
             ) : null}
-            {error ? <div className="mt-1 text-xs text-error">{error}</div> : null}
+            {error ? <div className="mt-1 text-12 text-error">{error}</div> : null}
         </div>
     );
 }
@@ -332,7 +332,7 @@ function SettingsView({ highlight }: { highlight: NotificationSubject }) {
     const prefs = useAtomValue(model.prefsAtom, { store: globalStore });
     return (
         <div className="flex flex-col gap-1 px-3 py-2" data-testid="notification-settings">
-            <div className="pb-1 text-xs text-secondary">
+            <div className="pb-1 text-12 text-secondary">
                 What each subject may tell. Errors are always told; a warning is at worst kept quietly.
             </div>
             {NotificationSubjects.map((subject) => {
@@ -341,7 +341,7 @@ function SettingsView({ highlight }: { highlight: NotificationSubject }) {
                     <div
                         key={subject.id}
                         className={cn(
-                            "flex items-center gap-2 rounded px-2 py-1.5",
+                            "flex items-center gap-2 rounded-4 px-2 py-1.5",
                             highlight === subject.id && "bg-accent/10 ring-1 ring-accent/40"
                         )}
                     >
@@ -349,7 +349,7 @@ function SettingsView({ highlight }: { highlight: NotificationSubject }) {
                         <div
                             role="radiogroup"
                             aria-label={subject.label}
-                            className="flex rounded border border-border p-0.5"
+                            className="flex rounded-4 border border-border p-0.5"
                         >
                             {(["notify", "quiet", "off"] as Delivery[]).map((delivery) => (
                                 <button
@@ -359,7 +359,7 @@ function SettingsView({ highlight }: { highlight: NotificationSubject }) {
                                     aria-checked={chosen === delivery}
                                     onClick={() => model.setDelivery(subject.id, delivery)}
                                     className={cn(
-                                        "cursor-pointer rounded px-2 py-0.5 text-xs",
+                                        "cursor-pointer rounded-6 px-2 py-0.5 text-12",
                                         chosen === delivery ? "bg-hover text-primary" : "text-muted hover:text-primary"
                                     )}
                                 >
@@ -370,7 +370,7 @@ function SettingsView({ highlight }: { highlight: NotificationSubject }) {
                     </div>
                 );
             })}
-            <div className="pt-1 text-[11px] text-muted">
+            <div className="pt-1 text-11 text-muted">
                 Quiet keeps the message here, already read: no badge, and the panel does not open for it. Off does not
                 keep it.
             </div>
@@ -608,12 +608,12 @@ export function NotificationCenter() {
                     }
                     close("user");
                 }}
-                className="relative flex h-7 w-7 cursor-pointer items-center justify-center rounded text-secondary transition-colors hover:bg-hover hover:text-primary"
+                className="relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-6 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary"
             >
                 {work.length > 0 ? <ProgressRing progress={progress} /> : null}
                 <i className="fa fa-regular fa-bell" />
                 {unread > 0 ? (
-                    <span className="molten-notification-count absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-[var(--mt-accent-fg)]">
+                    <span className="molten-notification-count absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-accent px-1 text-11 font-semibold text-[var(--mt-accent-fg)]">
                         {unread > 99 ? "99+" : unread}
                     </span>
                 ) : open > 0 ? (
@@ -631,7 +631,7 @@ export function NotificationCenter() {
                           onPointerEnter={touch}
                           data-testid="notification-panel"
                           data-auto={episode.auto && !episode.touched ? "true" : undefined}
-                          className="molten-notification-panel fixed z-[9500] flex max-h-[60vh] w-[380px] flex-col rounded border border-border bg-modalbg text-sm text-primary shadow-lg"
+                          className="molten-notification-panel fixed z-[9500] flex max-h-[60vh] w-[380px] flex-col rounded-10 border border-border bg-surface-3 text-13 leading-5 text-primary shadow-e2"
                       >
                           <div className="flex items-center gap-3 border-b border-border px-3 py-2">
                               <button
@@ -652,7 +652,7 @@ export function NotificationCenter() {
                                       type="button"
                                       onClick={() => setTab("archived")}
                                       className={cn(
-                                          "cursor-pointer text-xs",
+                                          "cursor-pointer text-12",
                                           tab === "archived"
                                               ? "font-semibold text-primary"
                                               : "text-muted hover:text-secondary"
@@ -667,7 +667,7 @@ export function NotificationCenter() {
                                       type="button"
                                       title="Deletes the archived notifications for good."
                                       onClick={() => model.clearArchive()}
-                                      className="cursor-pointer rounded px-1.5 py-0.5 text-xs text-secondary hover:bg-hover hover:text-primary"
+                                      className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
                                   >
                                       Clear
                                   </button>
@@ -675,7 +675,7 @@ export function NotificationCenter() {
                                   <button
                                       type="button"
                                       onClick={() => model.markAllRead()}
-                                      className="cursor-pointer rounded px-1.5 py-0.5 text-xs text-secondary hover:bg-hover hover:text-primary"
+                                      className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
                                   >
                                       Mark all as read
                                   </button>
@@ -689,7 +689,7 @@ export function NotificationCenter() {
                                       setTab(tab === "settings" ? "active" : "settings");
                                   }}
                                   className={cn(
-                                      "cursor-pointer rounded px-1 py-0.5 text-xs hover:bg-hover hover:text-primary",
+                                      "cursor-pointer rounded-6 px-1 py-0.5 text-12 hover:bg-hover hover:text-primary",
                                       tab === "settings" ? "text-primary" : "text-muted"
                                   )}
                               >
@@ -700,7 +700,7 @@ export function NotificationCenter() {
                               {tab === "settings" ? <SettingsView highlight={highlight} /> : null}
                               {showWork ? (
                                   <div className="border-b border-border">
-                                      <div className="px-3 pt-2 text-[11px] font-medium tracking-wide text-muted uppercase">
+                                      <div className="px-3 pt-2 text-11 font-medium tracking-wide text-muted uppercase">
                                           Running
                                       </div>
                                       {work.map((item) => (
@@ -756,7 +756,7 @@ export function NotificationCenter() {
                                     ))
                                   : null}
                               {tab !== "settings" && hidden > 0 ? (
-                                  <div className="px-3 py-2 text-center text-xs text-muted">+{hidden} more</div>
+                                  <div className="px-3 py-2 text-center text-12 text-muted">+{hidden} more</div>
                               ) : null}
                           </div>
                       </div>,

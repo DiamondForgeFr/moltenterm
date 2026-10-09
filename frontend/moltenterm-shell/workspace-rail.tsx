@@ -105,7 +105,7 @@ function RailTooltip({ label, anchor }: { label: string; anchor: Anchor }) {
     }
     return (
         <div
-            className="pointer-events-none fixed z-[9500] -translate-y-1/2 rounded border border-border bg-modalbg px-2 py-1 text-xs whitespace-pre text-primary shadow-lg"
+            className="pointer-events-none fixed z-[9500] -translate-y-1/2 rounded-10 border border-border bg-surface-3 px-2 py-1 text-12 whitespace-pre text-primary shadow-e2"
             style={{ top: anchor.top, left: anchor.left }}
         >
             {label}
@@ -348,7 +348,7 @@ function RailButton({
                 }
                 onMouseLeave={() => onHover(null, null)}
                 className={cn(
-                    "molten-rail-item molten-rail-anchor cursor-pointer transition-colors hover:bg-hover",
+                    "molten-rail-item molten-rail-anchor cursor-pointer transition-colors duration-120 ease-mt hover:bg-hover",
                     RailBadgeClass,
                     entry.active && "bg-hover",
                     !entry.active && entry.open && "outline outline-1 -outline-offset-1 outline-border",
@@ -357,7 +357,7 @@ function RailButton({
                 data-connect-drop={connect?.dropping ? "" : undefined}
             >
                 {entry.active ? (
-                    <span className="absolute top-1.5 bottom-1.5 -left-1.5 w-[2px] rounded bg-accent" aria-hidden />
+                    <span className="absolute top-1.5 bottom-1.5 -left-1.5 w-[2px] rounded-4 bg-accent" aria-hidden />
                 ) : null}
                 {entry.saved ? (
                     <WorkspaceIcon source={iconSource} />
@@ -718,14 +718,14 @@ export function WorkspaceRail() {
             {units.map(renderUnit)}
             {drag.view?.lineY != null ? (
                 <span
-                    className="molten-rail-drop-line pointer-events-none absolute right-1 left-1 z-20 h-[2px] -translate-y-1/2 rounded bg-accent"
+                    className="molten-rail-drop-line pointer-events-none absolute right-1 left-1 z-20 h-[2px] -translate-y-1/2 rounded-4 bg-accent"
                     style={{ top: drag.view.lineY }}
                     aria-hidden
                 />
             ) : null}
             {drag.view?.memberLine != null ? (
                 <span
-                    className="molten-rail-drop-line pointer-events-none fixed z-[470] h-[2px] -translate-y-1/2 rounded bg-accent"
+                    className="molten-rail-drop-line pointer-events-none fixed z-[470] h-[2px] -translate-y-1/2 rounded-4 bg-accent"
                     style={drag.view.memberLine}
                     aria-hidden
                 />
@@ -733,7 +733,7 @@ export function WorkspaceRail() {
             <button
                 type="button"
                 aria-label="Create workspace"
-                className="mt-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded text-secondary transition-colors hover:bg-hover hover:text-primary"
+                className="mt-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-6 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary"
                 onClick={() => getApi().createWorkspace()}
                 onMouseEnter={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();

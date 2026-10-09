@@ -31,8 +31,8 @@ import {
 const RpcTimeoutMs = 5000;
 const RefreshMs = 15000;
 const PlainButton =
-    "cursor-pointer rounded border border-border px-2 py-1 text-[11px] text-secondary hover:bg-hover hover:text-primary";
-const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded px-2 py-1 text-[11px]";
+    "cursor-pointer rounded-6 border border-border px-2 py-1 text-11 text-secondary hover:bg-hover hover:text-primary";
+const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded-6 px-2 py-1 text-11";
 
 function taskCall<T>(command: string, data: any): Promise<T> {
     return TabRpcClient.wshRpcCall(command, data, { route: TaskRoute, timeout: RpcTimeoutMs });
@@ -130,7 +130,7 @@ export function WorkspaceTaskSection({ target, companionId }: { target: string; 
         }
         return (
             <TaskFrame>
-                <div className="px-3 pb-3 text-xs text-muted">The workspace task is not available: {error}</div>
+                <div className="px-3 pb-3 text-12 text-muted">The workspace task is not available: {error}</div>
             </TaskFrame>
         );
     }
@@ -200,13 +200,13 @@ export function WorkspaceTaskCard({
         <TaskFrame
             right={
                 updated ? (
-                    <span className="text-[11px] text-muted" title={new Date(view.updated).toLocaleString()}>
+                    <span className="text-11 text-muted" title={new Date(view.updated).toLocaleString()}>
                         {`updated ${updated}`}
                     </span>
                 ) : null
             }
         >
-            <div className="flex flex-col gap-1.5 px-3 pb-3 text-xs" data-testid="companion-task">
+            <div className="flex flex-col gap-1.5 px-3 pb-3 text-12" data-testid="companion-task">
                 {summary.empty ? (
                     <div className="text-muted">
                         No task recorded yet: it fills in at the end of the agent&apos;s next turn.
@@ -220,7 +220,7 @@ export function WorkspaceTaskCard({
                         ) : (
                             <div className="text-muted">No goal yet.</div>
                         )}
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-secondary">
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-11 text-secondary">
                             {summary.ticket ? <span>{summary.ticket}</span> : null}
                             {summary.plan.total > 0 ? (
                                 <span className="tabular-nums">{`Plan ${summary.plan.done} / ${summary.plan.total}`}</span>
@@ -230,12 +230,12 @@ export function WorkspaceTaskCard({
                             ) : null}
                         </div>
                         {summary.next ? (
-                            <div className="text-[11px] text-secondary">
+                            <div className="text-11 text-secondary">
                                 <span className="text-muted">Next: </span>
                                 {summary.next}
                             </div>
                         ) : null}
-                        <div className="flex flex-wrap gap-x-3 text-[11px] text-muted">
+                        <div className="flex flex-wrap gap-x-3 text-11 text-muted">
                             {summary.by ? <span>{`by ${summary.by}`}</span> : null}
                             {summary.redactions > 0 ? (
                                 <span data-testid="companion-task-redactions">
@@ -250,7 +250,7 @@ export function WorkspaceTaskCard({
                     </>
                 )}
                 {confirming ? (
-                    <div className="mt-1 flex flex-col gap-1.5 rounded border border-border p-2">
+                    <div className="mt-1 flex flex-col gap-1.5 rounded-4 border border-border p-2">
                         <div className="text-secondary">
                             Start a new task? The current checkpoint stays in the history (molten task history).
                         </div>
@@ -281,7 +281,7 @@ export function WorkspaceTaskCard({
                         ) : null}
                     </div>
                 )}
-                {actionError ? <div className="text-[11px] text-error">{actionError}</div> : null}
+                {actionError ? <div className="text-11 text-error">{actionError}</div> : null}
             </div>
         </TaskFrame>
     );
@@ -291,7 +291,7 @@ function TaskFrame({ children, right }: { children: React.ReactNode; right?: Rea
     return (
         <>
             <div className="flex items-center gap-2 px-3 pt-3 pb-1">
-                <div className="text-[11px] font-semibold tracking-wide text-muted uppercase">Workspace task</div>
+                <div className="text-11 font-semibold tracking-wide text-muted uppercase">Workspace task</div>
                 <div className="ml-auto flex items-center gap-1">{right}</div>
             </div>
             {children}

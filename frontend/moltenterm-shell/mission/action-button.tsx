@@ -7,13 +7,13 @@
 import { cn } from "@/util/util";
 
 export const ActionPrimaryClass =
-    "molten-btn flex cursor-pointer items-center gap-2 rounded px-3 py-1.5 text-xs font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-50";
+    "molten-btn flex cursor-pointer items-center gap-2 rounded-6 px-3 py-1.5 text-12 font-medium whitespace-nowrap disabled:cursor-default disabled:opacity-50";
 
 export const ActionSecondaryClass =
-    "flex cursor-pointer items-center gap-2 rounded border border-border px-3 py-1.5 text-xs whitespace-nowrap text-secondary transition-colors hover:border-secondary/40 hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
+    "flex cursor-pointer items-center gap-2 rounded-6 border border-border px-3 py-1.5 text-12 whitespace-nowrap text-secondary transition-colors duration-120 ease-mt hover:border-secondary/40 hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
 
 export const ActionRunningClass =
-    "flex cursor-pointer items-center gap-2 rounded border border-accent/50 px-3 py-1.5 text-xs whitespace-nowrap text-primary transition-colors hover:bg-hover";
+    "flex cursor-pointer items-center gap-2 rounded-6 border border-accent/50 px-3 py-1.5 text-12 whitespace-nowrap text-primary transition-colors duration-120 ease-mt hover:bg-hover";
 
 // The pulsing dot of an action under way, in steps (mt-step-ping in moltenterm-shell.css); still under reduced motion
 // (the media query and MoltenTerm's setting).

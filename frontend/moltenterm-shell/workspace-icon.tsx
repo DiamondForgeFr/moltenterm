@@ -13,11 +13,11 @@ import { resolveWorkspaceIcon, WorkspaceIconSource } from "./workspace-icon-mode
 import { logoUrl } from "./workspace-project";
 
 // The rail item's box and glyph size, shared with the edit sheet's preview so it shows the badge at its real size.
-export const RailBadgeClass = "relative flex h-9 w-9 items-center justify-center rounded text-[17px]";
+export const RailBadgeClass = "relative flex h-9 w-9 items-center justify-center rounded-4 text-icon-16";
 
 // Images fill more of the badge than a glyph does, square and cropped to cover, never stretched (FR-SHELL-031 AC5):
 // 24 px with a 4 px radius in the 36 px rail badge, in proportion elsewhere.
-export const WorkspaceImageClass = "inline-block h-[1.4em] w-[1.4em] shrink-0 rounded-[0.24em] object-cover";
+export const WorkspaceImageClass = "inline-block h-[1.4em] w-[1.4em] shrink-0 rounded-4 object-cover";
 
 let dataDir: string = null;
 
@@ -60,10 +60,11 @@ export function WorkspaceIcon({ source, className }: { source: WorkspaceIconSour
             />
         );
     }
+    // The workspace's colour at its glyph tone (tokens.css), readable on every surface whatever the colour.
     return (
         <i
-            className={cn(makeIconClass(resolved.icon, false), className)}
-            style={{ color: resolved.color || undefined }}
+            className={cn(makeIconClass(resolved.icon, false), resolved.color && "molten-glyph-tone", className)}
+            style={resolved.color ? ({ "--mt-glyph-color": resolved.color } as React.CSSProperties) : undefined}
             data-icon-kind="builtin"
         />
     );

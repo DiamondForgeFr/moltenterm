@@ -238,31 +238,32 @@ function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteR
             onClick={(e) => onOpen(entry, e.altKey || e.metaKey)}
             title={entry.cli && !entry.keyPath ? `${entry.label} — ${entry.cli}` : entry.label}
             className={cn(
-                "flex cursor-pointer items-center gap-2.5 px-3.5 py-1.5 text-[13px]",
+                "flex cursor-pointer items-center gap-2.5 px-3.5 py-1.5 text-13",
                 selected ? "molten-palette-selected text-primary" : "text-secondary"
             )}
         >
             {entry.badge?.image || entry.badge?.logo ? (
                 <span className="flex w-4 shrink-0 items-center justify-center" data-role="palette-workspace-badge">
-                    <WorkspaceIcon source={entry.badge} className="text-[11px]" />
+                    <WorkspaceIcon source={entry.badge} className="text-11" />
                 </span>
             ) : (
                 <i
                     className={cn(
                         makeIconClass(entry.icon, true, { defaultIcon: "browser" }),
-                        "w-4 shrink-0 text-center"
+                        "w-4 shrink-0 text-center",
+                        entry.color && "molten-glyph-tone"
                     )}
-                    style={{ color: entry.color }}
+                    style={entry.color ? ({ "--mt-glyph-color": entry.color } as React.CSSProperties) : undefined}
                 />
             )}
             <span className="shrink-0 whitespace-nowrap">
                 <Highlighted text={entry.label} indices={indices} />
             </span>
-            {entry.detail && <span className="min-w-0 truncate text-xs text-muted">{entry.detail}</span>}
+            {entry.detail && <span className="min-w-0 truncate text-12 text-muted">{entry.detail}</span>}
             {aside && (
                 <span
                     className={cn(
-                        "ml-auto max-w-[45%] shrink-0 truncate pl-3 font-mono text-[11px]",
+                        "ml-auto max-w-[45%] shrink-0 truncate pl-3 font-mono text-11",
                         selected ? "text-secondary" : "text-muted"
                     )}
                 >
@@ -394,7 +395,7 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
     return (
         <div
             className={cn(
-                "flex w-full max-w-[560px] flex-col overflow-hidden rounded-md border border-border bg-modalbg shadow-2xl",
+                "flex w-full max-w-[560px] flex-col overflow-hidden rounded-10 border border-border bg-surface-3 shadow-e3",
                 host === "modal" ? "max-h-[60vh]" : "max-h-full"
             )}
             role="dialog"
@@ -410,17 +411,17 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                     placeholder="Open an agent, a panel, a folder…"
                     onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={onKeyDown}
-                    className="min-w-0 flex-1 bg-transparent text-sm text-primary outline-none placeholder:text-muted"
+                    className="min-w-0 flex-1 bg-transparent text-13 leading-5 text-primary outline-none placeholder:text-muted"
                     aria-label="Search the command palette"
                     aria-controls="molten-palette-list"
                 />
             </div>
             <div ref={listRef} id="molten-palette-list" role="listbox" className="min-h-0 flex-1 overflow-y-auto py-1">
-                {flat.length === 0 && <div className="px-3.5 py-3 text-xs text-muted">Nothing matches "{query}"</div>}
+                {flat.length === 0 && <div className="px-3.5 py-3 text-12 text-muted">Nothing matches "{query}"</div>}
                 {sections.map((section) => (
                     <div key={section.group}>
                         {/* Not uppercased: a title can hold a path, and paths are case-sensitive. */}
-                        <div className="truncate px-3.5 pt-2 pb-0.5 text-[11px] font-semibold tracking-wide text-muted">
+                        <div className="truncate px-3.5 pt-2 pb-0.5 text-11 font-semibold tracking-wide text-muted">
                             {section.title}
                         </div>
                         {section.entries.map((entry) => {
@@ -440,7 +441,7 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                     </div>
                 ))}
             </div>
-            <div className="flex flex-wrap gap-x-3.5 gap-y-1 border-t border-border px-3.5 py-2 text-[10.5px] text-muted">
+            <div className="flex flex-wrap gap-x-3.5 gap-y-1 border-t border-border px-3.5 py-2 text-11 text-muted">
                 <span>↑↓ choose</span>
                 <span>↵ {inPlace === "replace" ? "open here" : "open"}</span>
                 {blockId && picker == null && <span>⇥ open to the right</span>}

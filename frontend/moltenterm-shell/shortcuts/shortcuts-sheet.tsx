@@ -14,7 +14,7 @@ import { closeShortcutsSheet, ShortcutsSheetModalName } from "./shortcuts-keys";
 import { filterShortcuts } from "./shortcuts-search";
 
 const PlainButton =
-    "cursor-pointer rounded border border-border px-3 py-1.5 text-xs text-secondary hover:bg-hover hover:text-primary";
+    "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
 
 function Caps({ keys, mac }: { keys: string; mac: boolean }) {
     return (
@@ -22,7 +22,7 @@ function Caps({ keys, mac }: { keys: string; mac: boolean }) {
             {keyCaps(keys, mac).map((cap, i) => (
                 <kbd
                     key={i}
-                    className="min-w-[18px] rounded border border-border bg-hoverbg px-1 text-center font-mono text-[11px] leading-[18px] text-primary"
+                    className="min-w-[18px] rounded-4 border border-border bg-hoverbg px-1 text-center font-mono text-11 leading-[18px] text-primary"
                 >
                     {cap}
                 </kbd>
@@ -33,7 +33,7 @@ function Caps({ keys, mac }: { keys: string; mac: boolean }) {
 
 function ShortcutKeys({ shortcut, mac }: { shortcut: Shortcut; mac: boolean }) {
     return (
-        <span className="flex shrink-0 flex-wrap items-center justify-end gap-1 text-[11px] text-muted">
+        <span className="flex shrink-0 flex-wrap items-center justify-end gap-1 text-11 text-muted">
             <Caps keys={shortcut.keys} mac={mac} />
             {shortcut.then?.length ? (
                 <>
@@ -84,12 +84,12 @@ export function MoltentermShortcutsSheet() {
                 placeholder="Search shortcuts…"
                 aria-label="Search shortcuts"
                 onChange={(e) => setQuery(e.target.value)}
-                className="w-full rounded border border-border bg-transparent px-2.5 py-1.5 text-sm text-primary outline-none placeholder:text-muted focus:border-accent"
+                className="w-full rounded-4 border border-border bg-transparent px-2.5 py-1.5 text-13 leading-5 text-primary outline-none placeholder:text-muted focus:border-accent"
             />
             {sections.length === 0 ? <div className="py-2 text-muted">Nothing matches "{query}"</div> : null}
             {sections.map((section) => (
                 <section key={section.category} aria-label={section.category}>
-                    <h3 className="pb-1 text-[11px] font-semibold tracking-wide text-muted">{section.category}</h3>
+                    <h3 className="pb-1 text-11 font-semibold tracking-wide text-muted">{section.category}</h3>
                     <ul className="flex flex-col">
                         {section.shortcuts.map((s) => (
                             <li
@@ -97,7 +97,7 @@ export function MoltentermShortcutsSheet() {
                                 data-shortcut={s.id}
                                 className="flex items-center justify-between gap-3 border-b border-border/40 py-1 last:border-b-0"
                             >
-                                <span className="min-w-0 truncate text-[13px] text-secondary">{s.label}</span>
+                                <span className="min-w-0 truncate text-13 text-secondary">{s.label}</span>
                                 <ShortcutKeys shortcut={s} mac={mac} />
                             </li>
                         ))}

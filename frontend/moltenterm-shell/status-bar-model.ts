@@ -18,7 +18,7 @@ import {
 export type StatusBarChannel = BuildChannel;
 
 // The dev channel's text colour, shared by the status bar badge and the widget bar's dev icon.
-export const MoltentermDevChannelText = "text-sky-300";
+export const MoltentermDevChannelText = "text-secondary";
 
 export type StatusBarView = {
     channel: StatusBarChannel;

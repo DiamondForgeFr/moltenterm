@@ -32,7 +32,7 @@ describe("isRadiusProp", () => {
         "%s is a radius",
         (prop) => expect(isRadiusProp(prop)).toBe(true)
     );
-    it.each(["border-width", "--radiusless", "padding", "--color-accent"])("%s is not", (prop) =>
+    it.each(["border-width", "--radiusless", "padding", "--color-accent", "--mt-radius-6", "--mt-radius-10"])("%s is not", (prop) =>
         expect(isRadiusProp(prop)).toBe(false)
     );
 });
