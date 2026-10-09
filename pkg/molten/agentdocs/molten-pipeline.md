@@ -54,9 +54,16 @@ what is missing, and only after the user agreed.
 8. Make the agreed changes the way the harness asks (ticket, branch, commits, pull request when it says so).
 9. Write `.molten/project.json` last, then run `molten project validate`. Fix every error it names until it says
    the pipeline is valid. Do not run the declared commands to "test" them: Mission Control runs them, through the
-   user's trust prompt.
+   user's trust prompt (see "Running the local CI" below).
 10. Report: what you connected, what you created, what is still missing, and tell the user that Mission Control's
     Project tab and CI/CD panel now show the pipeline (CI/CD opens from the Project tab or the "+" button).
+
+## Running the local CI
+
+{{LOCAL_CI_RULE}}
+
+The first run of a pipeline (or of a changed one) asks the user to trust its commands: `molten ci run` then says so
+and exits; ask the user to start the CI once from Mission Control (CI/CD › CI local), then run it again.
 
 ## Rules
 

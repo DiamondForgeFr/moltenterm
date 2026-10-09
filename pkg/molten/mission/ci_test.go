@@ -209,6 +209,31 @@ func TestCiCancelAndPrepare(t *testing.T) {
 	}
 }
 
+// An agent works in a linked worktree on its own branch: the CI of that branch is started from the project's main
+// checkout by naming the branch, and tests the branch's code, not the code checked out in the project folder (#383).
+func TestCiRunsABranchCheckedOutInAnotherWorktree(t *testing.T) {
+	c, dir := makeCiFixture(t, `{"jobs":[{"name":"feature","run":"test -f b.txt"}]}`)
+	worktree := filepath.Join(t.TempDir(), "wt")
+	gitIn(t, dir, "worktree", "add", "-q", "-b", "feature/383-x", worktree)
+	os.WriteFile(filepath.Join(worktree, "b.txt"), []byte("b\n"), 0644)
+	gitIn(t, worktree, "add", "-A")
+	gitIn(t, worktree, "commit", "-q", "-m", "add b")
+
+	if status, err := c.Status(dir, "feature/383-x"); err != nil || status.Status != CiVerdictMissing {
+		t.Fatalf("status of the branch before the run: %+v %v", status, err)
+	}
+	rec := startCi(t, c, dir, CiRunRequest{Branch: "feature/383-x"})
+	if rec.Status != CiStateSuccess || rec.Branch != "feature/383-x" || rec.Sha != gitIn(t, worktree, "rev-parse", "HEAD") {
+		t.Fatalf("the run must test the branch, checked out elsewhere: %+v", rec)
+	}
+	if status, err := c.Status(dir, "feature/383-x"); err != nil || status.Status != CiStateSuccess {
+		t.Fatalf("status of the branch after the run: %+v %v", status, err)
+	}
+	if status, _ := c.Status(dir, "develop"); status.Status != CiVerdictMissing {
+		t.Fatalf("the project's own branch has not run: %+v", status)
+	}
+}
+
 func TestCiRunLeftRunningIsInterrupted(t *testing.T) {
 	c, dir := makeCiFixture(t, `{"jobs":[{"name":"a","run":"true"}]}`)
 	c.writeRecord(CiRunRecord{Id: "20260101-000000-aaaaaa", Dir: dir, Status: CiStateRunning, StartedAt: 1, Jobs: []CiJobRecord{{Name: "a", Status: CiStateRunning}}})

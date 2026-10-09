@@ -14,12 +14,15 @@ import "embed"
 // `molten agent session` for the agent companion (FR-SHELL-018).
 // worktrees.md tells how an agent links the worktree of its task to its terminal (FR-SHELL-016).
 // molten-bug.md is the guide for reporting a MoltenTerm bug (FR-MORPH-011).
+// local-ci-rule.md is the rule "run the local CI through `molten ci run`", written once: the molten-pipeline guide
+// includes it ({{LOCAL_CI_RULE}}), and the briefing a run appends for an agent (#180) takes it from here.
 // claude-code-parts.md and examples/test-band/ document the Claude Code part of a mod (FR-MORPH-010); `all:` keeps
 // the part's `.claude-plugin/` folder, which embed would skip as hidden.
 //
-//go:embed mod-format.md morph.md molten-pipeline.md molten-bug.md pipeline-format.md agent-states.md worktrees.md claude-code-parts.md all:examples
+//go:embed mod-format.md morph.md molten-pipeline.md molten-bug.md local-ci-rule.md pipeline-format.md agent-states.md worktrees.md claude-code-parts.md all:examples
 var Files embed.FS
 
 const GuideFile = "morph.md"
 const PipelineGuideFile = "molten-pipeline.md"
 const BugGuideFile = "molten-bug.md"
+const LocalCiRuleFile = "local-ci-rule.md"
