@@ -26,7 +26,7 @@ import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
 import { workspaceIconSource } from "./workspace-icon-model";
 import { RailMove } from "./workspace-order";
 import { railMoveKey } from "./workspace-rail-drag";
-import { budTooltipAnchor, RailBudChain, railLinkLabel } from "./workspace-rail-edit";
+import { budTooltipAnchor, RailBudChain, railBudReachPx, railLinkLabel } from "./workspace-rail-edit";
 
 // Connect mode on a rail item or a local product (FR-MC-032-AC2): the target, and whether a dragged workspace is over it.
 export type RailConnectState = { target: boolean; dropping: boolean };
@@ -212,7 +212,8 @@ export function RailProduct({
         const column = collapsed
             ? null
             : ref.current.closest("[data-rail-unit]")?.querySelector(".molten-rail-members");
-        const right = column?.getBoundingClientRect().right ?? rect.right;
+        const budsRight = local != null ? rect.right + railBudReachPx(1) : rect.right;
+        const right = Math.max(column?.getBoundingClientRect().right ?? 0, budsRight);
         return { top: rect.top + rect.height / 2, left: right + 8 };
     };
     const onClick = () => {

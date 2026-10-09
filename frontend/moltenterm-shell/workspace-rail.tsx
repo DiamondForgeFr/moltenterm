@@ -73,7 +73,7 @@ import {
     budTooltipAnchor,
     RailBudChain,
     RailBudFilter,
-    RailBudPitchPx,
+    railBudReachPx,
     RailBudSpec,
     railEditLabel,
     railLinkLabel,
@@ -96,8 +96,8 @@ export async function loadWorkspaceSources(): Promise<WorkspaceRailSource[]> {
 
 type Anchor = { top: number; left: number };
 
-// The first bud's target spans 24 px right of the item's edge, each later one 28 px more.
-const RailBudTooltipOffsetPx = 30;
+// The gap between the buds' reach and the item's tooltip.
+const RailBudTooltipGapPx = 6;
 
 function RailTooltip({ label, anchor }: { label: string; anchor: Anchor }) {
     if (anchor == null) {
@@ -181,7 +181,7 @@ function RailButton({
     const anchorOf = (): Anchor => {
         const rect = ref.current.getBoundingClientRect();
         // Past the buds, which bud out right of a saved item (DS-SHELL-061, DS-MC-029).
-        const offset = entry.saved ? RailBudTooltipOffsetPx + Math.max(0, buds.length - 1) * RailBudPitchPx : 8;
+        const offset = entry.saved ? railBudReachPx(buds.length) + RailBudTooltipGapPx : 8;
         return { top: rect.top + rect.height / 2, left: rect.right + offset };
     };
     const edit = (opener: HTMLElement) => {
