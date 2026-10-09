@@ -13,8 +13,6 @@ import { isLocalKey, localGroupName, localKey, LocalRailGroup } from "./rail-loc
 import { RailMove } from "./workspace-order";
 import { WorkspaceRailEntry } from "./workspace-rail-model";
 
-// The products the user collapsed, by group key, in the client meta: this machine only, never in a project.
-export const RailCollapsedMetaKey = "molten:railcollapsed";
 export const ProductUnitPrefix = "product:";
 
 export type RailWorkspaceUnit = { kind: "workspace"; id: string; entry: WorkspaceRailEntry };
@@ -404,19 +402,4 @@ export function productHoverText(unit: RailProductUnit, groups: ProjectGroup[] =
         lines.push(`${entry.name}: ${memberStateText(memberOfWorkspace(unit.group, entry.id)?.state)}`);
     }
     return lines.join("\n");
-}
-
-export function readCollapsed(value: unknown): string[] {
-    if (!Array.isArray(value)) {
-        return [];
-    }
-    return value.filter((key): key is string => typeof key === "string" && key !== "");
-}
-
-export function withCollapsed(value: unknown, key: string, collapsed: boolean): string[] {
-    const keys = readCollapsed(value).filter((k) => k !== key);
-    if (collapsed) {
-        keys.push(key);
-    }
-    return keys;
 }

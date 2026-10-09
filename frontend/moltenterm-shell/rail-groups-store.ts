@@ -1,21 +1,17 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// What the rail's product groups read (FR-MC-027): the groups from Mission Control's collector, and which products the
-// user collapsed, kept in the client meta (this machine, never in a project).
+// What the rail's product groups read (FR-MC-027): the groups from Mission Control's collector, and the local groups
+// kept in the client meta (this machine, never in a project).
 
 import { ClientModel } from "@/app/store/client-model";
-import { globalStore } from "@/app/store/jotaiStore";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
-import { RpcApi } from "@/app/store/wshclientapi";
-import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
-import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GroupsAnswer, MissionGroupsEvent, ProjectGroup } from "./mission/group-model";
 import { missionGroups } from "./mission/mission-client";
-import { RailCollapsedMetaKey, readCollapsed, withCollapsed } from "./rail-groups";
 import { LocalRailGroup, RailGroupsMetaKey, readLocalGroups } from "./rail-local-groups";
 import { ProjectMetaKey } from "./workspace-project";
 
@@ -24,51 +20,6 @@ const RailGroupsAttempts = 3;
 
 function clientAtom(): Atom<Client> {
     return ClientModel.getInstance().clientAtom ?? NoClient;
-}
-
-// The collapsed keys as the user last set them, until the client meta says the same: a toggle shows at once, and a
-// second toggle made before the first write came back builds on the first.
-const collapsedOverrideAtom = atom(null) as PrimitiveAtom<string[]>;
-
-export function setProductCollapsed(key: string, collapsed: boolean): void {
-    const clientId = ClientModel.getInstance().clientId;
-    if (clientId == null || !key) {
-        return;
-    }
-    const current =
-        globalStore.get(collapsedOverrideAtom) ?? globalStore.get(clientAtom())?.meta?.[RailCollapsedMetaKey];
-    const next = withCollapsed(current, key, collapsed);
-    globalStore.set(collapsedOverrideAtom, next);
-    fireAndForget(async () => {
-        try {
-            await RpcApi.SetMetaCommand(TabRpcClient, {
-                oref: makeORef("client", clientId),
-                meta: { [RailCollapsedMetaKey]: next } as MetaType,
-            });
-        } catch (e) {
-            console.log("remembering a collapsed product:", e?.message ?? e);
-            if (globalStore.get(collapsedOverrideAtom) === next) {
-                globalStore.set(collapsedOverrideAtom, null);
-            }
-        }
-    });
-}
-
-function sameKeys(a: string[], b: string[]): boolean {
-    return a.length === b.length && a.every((key) => b.includes(key));
-}
-
-export function useCollapsedProducts(): Set<string> {
-    const client = useAtomValue(clientAtom());
-    const override = useAtomValue(collapsedOverrideAtom);
-    const storedKey = readCollapsed(client?.meta?.[RailCollapsedMetaKey]).join("\n");
-    const stored = useMemo(() => (storedKey ? storedKey.split("\n") : []), [storedKey]);
-    useEffect(() => {
-        if (override != null && sameKeys(override, stored)) {
-            globalStore.set(collapsedOverrideAtom, null);
-        }
-    }, [override, stored]);
-    return useMemo(() => new Set(override ?? stored), [override, stored]);
 }
 
 // The local rail groups (FR-MC-032) as wavesrv stored them, read live from the client meta: every window sees a change
