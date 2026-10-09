@@ -158,7 +158,7 @@
 
 /* A product's members fan out of its icon as a column beside it, outside the rail's flow, so the rail keeps the
    product's height. Anchored to the icon like the buds, the column follows it through the rail's scroll; a local group's
-   link bud comes out first, 24 px wide, so its column starts past it. */
+   link bud comes out first, 24 px wide, so its column starts past it. Open, it stays above the neighbours' buds (450). */
 .molten-rail-unit {
     anchor-scope: --molten-rail-group;
 }
@@ -167,13 +167,19 @@
     anchor-name: --molten-rail-group;
 }
 
+/* anchor-name is one value, never merged across rules: a local group's icon is also .molten-rail-anchor (its link bud),
+   so it declares both names, or its column loses the anchor and falls back over the rail. */
+.molten-rail-group.molten-rail-anchor {
+    anchor-name: --molten-rail-item, --molten-rail-group;
+}
+
 .molten-rail-members {
     position: fixed;
     position-anchor: --molten-rail-group;
     position-visibility: anchors-visible;
     left: calc(anchor(right) + 8px);
     top: anchor(top);
-    z-index: 440;
+    z-index: 460;
     transform-origin: left top;
 }
 

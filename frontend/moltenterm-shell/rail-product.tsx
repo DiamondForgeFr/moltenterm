@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // A product in the workspace rail (FR-MC-027, DS-MC-018): one entry for a group of two members or more. Its icon is a
-// member's (rail-groups.ts); a click expands or collapses it. Collapsed, it carries the worst member state, its
+// member's (rail-groups.ts); a click opens or closes it like a folder, and a press elsewhere or Escape closes it.
+// Closed, it carries the worst member state, its
 // members' unread dot and most urgent agent state, and the active mark when one of them is active. Expanded, its
 // workspaces fan out as a column beside it, outside the rail's flow (.molten-rail-members); the rail renders them as
 // ordinary rail items.
@@ -192,6 +193,7 @@ export function RailProduct({
     children: React.ReactNode;
 }) {
     const ref = useRef<HTMLButtonElement>(null);
+    const rootRef = useRef<HTMLDivElement>(null);
     const iconEntry = productIconEntry(unit);
     const [iconWorkspace] = useWaveObjectValue<Workspace>(makeORef("workspace", iconEntry?.id));
     const iconSource =
@@ -205,7 +207,13 @@ export function RailProduct({
     const workspaceIds = unit.entries.map((e) => e.id);
     const anchorOf = (): RailAnchor => {
         const rect = ref.current.getBoundingClientRect();
-        return { top: rect.top + rect.height / 2, left: rect.right + 8 };
+        // Expanded, the members' column and the link bud sit right of the icon: the name goes past the column, never
+        // over them.
+        const column = collapsed
+            ? null
+            : ref.current.closest("[data-rail-unit]")?.querySelector(".molten-rail-members");
+        const right = column?.getBoundingClientRect().right ?? rect.right;
+        return { top: rect.top + rect.height / 2, left: right + 8 };
     };
     const onClick = () => {
         if (takeSuppressedClick()) {
@@ -251,6 +259,34 @@ export function RailProduct({
             first.focus();
         }
     };
+    // Open, the column floats over the content: a press outside the product, or Escape, closes it.
+    useEffect(() => {
+        if (collapsed) {
+            return;
+        }
+        const onPointerDown = (e: PointerEvent) => {
+            if (rootRef.current?.contains(e.target as Node)) {
+                return;
+            }
+            onToggle();
+        };
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== "Escape") {
+                return;
+            }
+            const focusInside = rootRef.current?.contains(document.activeElement);
+            onToggle();
+            if (focusInside) {
+                ref.current?.focus();
+            }
+        };
+        document.addEventListener("pointerdown", onPointerDown, true);
+        document.addEventListener("keydown", onKeyDown, true);
+        return () => {
+            document.removeEventListener("pointerdown", onPointerDown, true);
+            document.removeEventListener("keydown", onKeyDown, true);
+        };
+    }, [collapsed, onToggle]);
     const dragging = dragOffsetY != null;
     const hover =
         (collapsed ? productHoverText(unit, projectGroups) : name) +
@@ -258,6 +294,7 @@ export function RailProduct({
     const kindLabel = unit.local != null ? "group" : "product";
     return (
         <div
+            ref={rootRef}
             data-rail-unit={unit.id}
             data-rail-local={unit.local?.id}
             className={cn(

@@ -13,10 +13,8 @@ import {
     productIconEntry,
     productKeysOf,
     RailProductUnit,
-    readCollapsed,
     unitMoves,
     unitSlotMove,
-    withCollapsed,
 } from "./rail-groups";
 import { WorkspaceRailEntry } from "./workspace-rail-model";
 
@@ -181,14 +179,5 @@ describe("product icon and hover", () => {
         );
         expect(memberStateText({})).toBe("not read yet");
         expect(memberStateText({ missing: true })).toBe("folder missing");
-    });
-});
-
-describe("collapsed keys", () => {
-    it("adds and removes a key, ignoring junk", () => {
-        expect(readCollapsed("x")).toEqual([]);
-        expect(withCollapsed(["a", 3, ""], "b", true)).toEqual(["a", "b"]);
-        expect(withCollapsed(["a", "b"], "a", false)).toEqual(["b"]);
-        expect(withCollapsed(["a"], "a", true)).toEqual(["a"]);
     });
 });

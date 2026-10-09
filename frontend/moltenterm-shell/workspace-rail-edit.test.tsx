@@ -309,3 +309,25 @@ describe("the coffee bud ends the chain (#276, FR-SHELL-023-AC8 to AC10)", () =>
         );
     });
 });
+
+describe("a product's members fan out beside its icon (#381)", () => {
+    const css = source("./moltenterm-shell.css");
+
+    it("anchors the column to the group's icon, outside the rail's flow", () => {
+        const members = cssRule(css, ".molten-rail-members");
+        expect(members).toContain("position: fixed;");
+        expect(members).toContain("position-anchor: --molten-rail-group;");
+        expect(members).toContain("left: calc(anchor(right) + 8px);");
+        expect(members).toContain("top: anchor(top);");
+        expect(cssRule(css, ".molten-rail-unit")).toContain("anchor-scope: --molten-rail-group;");
+    });
+
+    it("gives a local group's icon both anchor names, or the column loses its anchor and covers the rail", () => {
+        expect(cssRule(css, ".molten-rail-group.molten-rail-anchor")).toContain(
+            "anchor-name: --molten-rail-item, --molten-rail-group;"
+        );
+        expect(cssRule(css, ".molten-rail-unit[data-rail-local] > .molten-rail-members")).toContain(
+            "left: calc(anchor(right) + 28px);"
+        );
+    });
+});

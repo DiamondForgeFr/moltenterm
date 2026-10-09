@@ -25,6 +25,8 @@ export type RailDragView = {
     joining: boolean;
     // The line is among the rail's units, out of the item's group.
     outer: boolean;
+    // The line among a product's members, in viewport coordinates: their column floats outside the rail (#381).
+    memberLine?: { top: number; left: number; width: number };
 };
 
 export type RailDragScope = {
@@ -155,13 +157,16 @@ export function useRailDrag(
         const navRect = nav.getBoundingClientRect();
         const lands = session.slot != null && used.moveFor(session.slot) != null;
         const lineViewportY = lands ? dropLineY(boxes, session.id, session.slot) : null;
+        const member =
+            lineViewportY != null && used.bounded ? used.element(nav, used.ids[0])?.getBoundingClientRect() : null;
         session.drawnOffset = offsetY;
         setView({
             id: session.id,
             offsetY,
-            lineY: lineViewportY == null ? null : lineViewportY - navRect.top + nav.scrollTop,
+            lineY: lineViewportY == null || member != null ? null : lineViewportY - navRect.top + nav.scrollTop,
             joining: false,
             outer: session.outer,
+            memberLine: member == null ? null : { top: lineViewportY, left: member.left, width: member.width },
         });
     }, [navRef]);
 

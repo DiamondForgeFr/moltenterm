@@ -44,13 +44,7 @@ import {
     unitSlotMove,
     workspaceMemberState,
 } from "./rail-groups";
-import {
-    setProductCollapsed,
-    useCollapsedProducts,
-    useRailGroups,
-    useStoredLocalGroups,
-    useWorkspaceLinksKey,
-} from "./rail-groups-store";
+import { useRailGroups, useStoredLocalGroups, useWorkspaceLinksKey } from "./rail-groups-store";
 import {
     cleanGroupName,
     effectiveLocalGroups,
@@ -416,7 +410,9 @@ export function WorkspaceRail() {
     // The product groups (FR-MC-027), asked again when the rail's workspaces, their order or their links change.
     const linksKey = useWorkspaceLinksKey(movableIds);
     const groups = useRailGroups(linksKey);
-    const collapsed = useCollapsedProducts();
+    // The one product whose column is out, like an open folder. Never remembered: an open column floats over the
+    // content.
+    const [openProduct, setOpenProduct] = useState<string>(null);
     const projectKeys = useMemo(() => productKeysOf(groups), [groups]);
     // The local groups (FR-MC-032), as the server would read them: a project product always wins.
     const storedLocal = useStoredLocalGroups();
@@ -552,7 +548,7 @@ export function WorkspaceRail() {
         const product = units.find(
             (u): u is RailProductUnit => u.kind === "product" && u.entries.some((e) => e.id === id)
         );
-        if (product == null || collapsed.has(product.key)) {
+        if (product == null || openProduct !== product.key) {
             return null;
         }
         const ids = product.entries.map((e) => e.id);
@@ -639,7 +635,7 @@ export function WorkspaceRail() {
                 />
             );
         }
-        const isCollapsed = collapsed.has(unit.key);
+        const isCollapsed = openProduct !== unit.key;
         const ids = unit.entries.map((e) => e.id);
         const local = unit.local;
         const localAnchor = local != null ? `[data-rail-local="${CSS.escape(local.id)}"]` : null;
@@ -651,7 +647,7 @@ export function WorkspaceRail() {
                 unread={ids.reduce((sum, id) => sum + (unread.get(id) ?? 0), 0)}
                 moves={unitMoves(units, unit.id)}
                 dragOffsetY={drag.view?.id === unit.id ? drag.view.offsetY : null}
-                onToggle={() => setProductCollapsed(unit.key, !isCollapsed)}
+                onToggle={() => setOpenProduct(isCollapsed ? unit.key : null)}
                 onHover={onHover}
                 onMove={applyMove}
                 onPointerDown={(e) => drag.onPointerDown(e, unit.id)}
@@ -713,11 +709,6 @@ export function WorkspaceRail() {
             </RailProduct>
         );
     };
-    const memberDragged =
-        drag.view != null &&
-        !drag.view.outer &&
-        productKeys.has(drag.view.id) &&
-        !units.some((u) => u.id === drag.view.id);
     return (
         <nav
             ref={navRef}
@@ -727,11 +718,15 @@ export function WorkspaceRail() {
             {units.map(renderUnit)}
             {drag.view?.lineY != null ? (
                 <span
-                    className={cn(
-                        "molten-rail-drop-line pointer-events-none absolute right-1 z-20 h-[2px] -translate-y-1/2 rounded bg-accent",
-                        memberDragged ? "left-3" : "left-1"
-                    )}
+                    className="molten-rail-drop-line pointer-events-none absolute right-1 left-1 z-20 h-[2px] -translate-y-1/2 rounded bg-accent"
                     style={{ top: drag.view.lineY }}
+                    aria-hidden
+                />
+            ) : null}
+            {drag.view?.memberLine != null ? (
+                <span
+                    className="molten-rail-drop-line pointer-events-none fixed z-[470] h-[2px] -translate-y-1/2 rounded bg-accent"
+                    style={drag.view.memberLine}
                     aria-hidden
                 />
             ) : null}
@@ -753,7 +748,7 @@ export function WorkspaceRail() {
             </button>
             <RailTools onHover={(label, anchor) => setTooltip(label == null ? null : { label, anchor })} />
             <RailTooltip label={tooltip?.label} anchor={tooltip?.anchor} />
-            <RailConnectPopover navRef={navRef} revision={`${movableKey}|${localGroups.length}|${collapsed.size}`} />
+            <RailConnectPopover navRef={navRef} revision={`${movableKey}|${localGroups.length}|${openProduct ?? ""}`} />
             <RailBudFilter />
             <ProjectLinkDetector />
             <ProjectTabKeeper />
