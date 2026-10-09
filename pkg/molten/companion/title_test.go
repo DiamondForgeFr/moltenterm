@@ -156,12 +156,13 @@ func TestCommandRecordIsNoTurn(t *testing.T) {
 func TestCodexTitleUnchanged(t *testing.T) {
 	cwd := t.TempDir()
 	root := t.TempDir()
-	dir := filepath.Join(root, "2026", "10", "07")
-	os.MkdirAll(dir, 0o700)
 	start := time.Now()
+	// Discover walks the day folders around since: a fixed date would fail once it falls out of that window.
+	dir := filepath.Join(root, start.Format("2006"), start.Format("01"), start.Format("02"))
+	os.MkdirAll(dir, 0o700)
 	meta, _ := json.Marshal(map[string]any{"type": "session_meta", "payload": map[string]any{"cwd": cwd, "id": "c1", "timestamp": start.UTC().Format(time.RFC3339Nano)}})
 	msg, _ := json.Marshal(map[string]any{"type": "event_msg", "payload": map[string]any{"type": "user_message", "message": "  corrige   le test\nde <b>gras</b> "}})
-	os.WriteFile(filepath.Join(dir, "rollout-2026-10-07T10-00-00-c1.jsonl"), []byte(string(meta)+"\n"+string(msg)+"\n"), 0o600)
+	os.WriteFile(filepath.Join(dir, "rollout-"+start.Format("2006-01-02T15-04-05")+"-c1.jsonl"), []byte(string(meta)+"\n"+string(msg)+"\n"), 0o600)
 	got := MakeCodexAdapter([]string{root}).Discover(cwd, start)
 	if len(got) != 1 || got[0].Prompt != "corrige le test de <b>gras</b>" || got[0].Command != "" {
 		t.Errorf("codex discover: %+v", got)
