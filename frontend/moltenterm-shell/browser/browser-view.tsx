@@ -71,7 +71,6 @@ import {
     isAgentTabId,
     makeTabId,
     MoltentermBrowserView,
-    moveTab,
     readBrowserState,
     readCloseRequests,
     readOpenRequests,
@@ -81,6 +80,7 @@ import {
 } from "./browser-model";
 import type { SignInBar } from "./browser-popup";
 import { noteBrowserPanelFocus } from "./browser-routing";
+import { dropOnTab, DropTarget, overTab, startTabDrag, tabDropIndex, TabDropIndicator } from "./browser-tab-drag";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
@@ -816,6 +816,7 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
 
 function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: BrowserState }) {
     const [dragId, setDragId] = useState<string>(null);
+    const [dropTarget, setDropTarget] = useState<DropTarget>(null);
     const list = useAtomValue(model.engines.listAtom);
     const loads = useAtomValue(model.loads.loadsAtom);
     const agentTabs = useAtomValue(model.agents.tabsAtom);
@@ -824,6 +825,11 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
         const active = scrollRef.current?.querySelector<HTMLElement>(`[data-tabid="${state.activeId}"]`);
         active?.scrollIntoView({ block: "nearest", inline: "nearest" });
     }, [state.activeId, state.tabs.length]);
+    const showDrop = dropTarget != null && tabDropIndex(state.tabs, dragId, dropTarget) != null;
+    const endDrag = () => {
+        setDragId(null);
+        setDropTarget(null);
+    };
     // Tabs shrink to their minimum width, then the strip scrolls; a vertical wheel scrolls it sideways too.
     const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
         if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
@@ -835,19 +841,37 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
             <div
                 ref={scrollRef}
                 onWheel={onWheel}
+                onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                        setDropTarget(null);
+                    }
+                }}
                 className="molten-browser-tabs flex min-w-0 shrink items-end gap-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none]"
             >
-                {state.tabs.map((tab, index) => (
+                {state.tabs.map((tab) => (
                     <div
                         key={tab.id}
                         draggable
-                        onDragStart={() => setDragId(tab.id)}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => {
-                            if (dragId != null) {
-                                model.setState(moveTab(model.state(), dragId, index));
+                        onDragStart={(e) => {
+                            startTabDrag(e, tab.id);
+                            setDragId(tab.id);
+                        }}
+                        onDragOver={(e) => {
+                            const target = overTab(e, dragId, tab.id);
+                            if (target == null) {
+                                return;
                             }
-                            setDragId(null);
+                            if (dropTarget?.overId !== target.overId || dropTarget.after !== target.after) {
+                                setDropTarget(target);
+                            }
+                        }}
+                        onDrop={(e) => {
+                            model.setState(dropOnTab(e, model.state(), dragId, overTab(e, dragId, tab.id)));
+                            endDrag();
+                        }}
+                        onDragEnd={(e) => {
+                            e.stopPropagation();
+                            endDrag();
                         }}
                         onClick={() => {
                             model.setState(activateTab(model.state(), tab.id));
@@ -863,12 +887,16 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                         data-tabid={tab.id}
                         data-engine={tab.engine ?? EngineApp}
                         className={cn(
-                            "molten-browser-tab group flex h-7 min-w-[72px] flex-[0_1_200px] cursor-pointer items-center gap-1 rounded-t border border-b-0 px-2 text-xs",
+                            "molten-browser-tab group relative flex h-7 min-w-[72px] flex-[0_1_200px] cursor-pointer items-center gap-1 rounded-t border border-b-0 px-2 text-xs",
                             tab.id === state.activeId
                                 ? "border-border bg-hover text-primary"
-                                : "border-transparent text-secondary hover:bg-hover/50"
+                                : "border-transparent text-secondary hover:bg-hover/50",
+                            tab.id === dragId && "opacity-50"
                         )}
                     >
+                        {showDrop && dropTarget.overId === tab.id ? (
+                            <TabDropIndicator after={dropTarget.after} />
+                        ) : null}
                         {tab.engine ? (
                             <i
                                 aria-label={`Opened in ${engineName(tab.engine, list)}`}
