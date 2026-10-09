@@ -69,7 +69,7 @@ import { RailTools } from "./rail-tools";
 import { PaneFocusKeeper } from "./sessions/pane-focus";
 import { handOverWorkspaceEdit, openWorkspaceEditor, recordSwitchClick, takeSwitchClick } from "./workspace-edit";
 import { WorkspaceEditHost } from "./workspace-edit-sheet";
-import { RailBadgeClass, RailMemberBadgeClass, WorkspaceIcon } from "./workspace-icon";
+import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
 import { workspaceIconSource } from "./workspace-icon-model";
 import { moveWorkspace, RailMove, slotMove, sortByOrder } from "./workspace-order";
 import { readWorkspaceProject } from "./workspace-project";
@@ -356,7 +356,6 @@ function RailButton({
                 className={cn(
                     "molten-rail-item molten-rail-anchor cursor-pointer transition-colors hover:bg-hover",
                     RailBadgeClass,
-                    member != null && RailMemberBadgeClass,
                     entry.active && "bg-hover",
                     !entry.active && entry.open && "outline outline-1 -outline-offset-1 outline-border",
                     connect?.target && "molten-rail-connect-target"

@@ -4,7 +4,8 @@
 // A product in the workspace rail (FR-MC-027, DS-MC-018): one entry for a group of two members or more. Its icon is a
 // member's (rail-groups.ts); a click expands or collapses it. Collapsed, it carries the worst member state, its
 // members' unread dot and most urgent agent state, and the active mark when one of them is active. Expanded, its
-// workspaces are drawn below it, indented along a thin guide; the rail renders them as ordinary rail items.
+// workspaces fan out as a column beside it, outside the rail's flow (.molten-rail-members); the rail renders them as
+// ordinary rail items.
 // A local group (FR-MC-032) is drawn the same way, named after its first member until renamed; it has the link bud,
 // Rename group… and Ungroup, and none of a project group's strip, dependencies or Sync.
 
@@ -251,13 +252,18 @@ export function RailProduct({
         }
     };
     const dragging = dragOffsetY != null;
-    const hover = productHoverText(unit, projectGroups) + (collapsed && unread > 0 ? `\n${unread} unread` : "");
+    const hover =
+        (collapsed ? productHoverText(unit, projectGroups) : name) +
+        (collapsed && unread > 0 ? `\n${unread} unread` : "");
     const kindLabel = unit.local != null ? "group" : "product";
     return (
         <div
             data-rail-unit={unit.id}
             data-rail-local={unit.local?.id}
-            className={cn("relative flex shrink-0 flex-col items-center", dragging && "molten-rail-dragging z-10")}
+            className={cn(
+                "molten-rail-unit relative flex shrink-0 flex-col items-center",
+                dragging && "molten-rail-dragging z-10"
+            )}
             style={dragging ? { transform: `translateY(${dragOffsetY}px)` } : undefined}
         >
             <div className="molten-rail-budhost relative shrink-0" data-buds-out={connect?.target ? "" : undefined}>
@@ -276,7 +282,7 @@ export function RailProduct({
                     onMouseLeave={() => onHover(null, null)}
                     data-connect-drop={connect?.dropping ? "" : undefined}
                     className={cn(
-                        "molten-rail-item molten-rail-product cursor-pointer transition-colors hover:bg-hover",
+                        "molten-rail-item molten-rail-product molten-rail-group cursor-pointer border border-border transition-colors hover:bg-hover",
                         local != null && "molten-rail-anchor",
                         RailBadgeClass,
                         showActive && "bg-hover",
@@ -333,21 +339,13 @@ export function RailProduct({
             </div>
             <div
                 className={cn(
-                    "molten-rail-members grid w-full transition-[grid-template-rows,opacity] duration-150 ease-out motion-reduce:transition-none",
-                    collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
+                    "molten-rail-members flex flex-col gap-1 rounded border border-border bg-modalbg p-1 shadow-lg transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none",
+                    collapsed ? "pointer-events-none scale-95 opacity-0" : "scale-100 opacity-100"
                 )}
                 inert={collapsed}
                 aria-hidden={collapsed ? true : undefined}
             >
-                <div
-                    className={cn(
-                        "relative flex min-h-0 flex-col items-center gap-1 pl-2",
-                        collapsed ? "overflow-hidden" : "pt-1"
-                    )}
-                >
-                    <span className="absolute top-1 bottom-1 left-[5px] w-px rounded bg-border" aria-hidden />
-                    {children}
-                </div>
+                {children}
             </div>
         </div>
     );

@@ -156,10 +156,29 @@
     --molten-rail-item-h: 36px;
 }
 
-/* A product's workspaces are drawn smaller than the product (#368, revision of FR-MC-027), so the product reads as
-   their parent; the buds keep their size. */
-.molten-rail-budhost[data-rail-member] {
-    --molten-rail-item-h: 32px;
+/* A product's members fan out of its icon as a column beside it, outside the rail's flow, so the rail keeps the
+   product's height. Anchored to the icon like the buds, the column follows it through the rail's scroll; a local group's
+   link bud comes out first, 24 px wide, so its column starts past it. */
+.molten-rail-unit {
+    anchor-scope: --molten-rail-group;
+}
+
+.molten-rail-group {
+    anchor-name: --molten-rail-group;
+}
+
+.molten-rail-members {
+    position: fixed;
+    position-anchor: --molten-rail-group;
+    position-visibility: anchors-visible;
+    left: calc(anchor(right) + 8px);
+    top: anchor(top);
+    z-index: 440;
+    transform-origin: left top;
+}
+
+.molten-rail-unit[data-rail-local] > .molten-rail-members {
+    left: calc(anchor(right) + 28px);
 }
 
 .molten-rail-anchor {
@@ -246,7 +265,7 @@
 
 /* The right part of the item's lit tile, in the goo too, so the tile itself stretches toward the neck with smooth
    fillets instead of the neck sticking to a rigid square: tile, widening neck and badge read as one viscous shape.
-   It lies under the item (36 px tall, 32 px for a product's member since #368, 4 px corners) and the clip keeps only
+   It lies under the item (36 px tall, 4 px corners) and the clip keeps only
    what grows past its edge, so the icon, its glyph and its dots stay crisp and uncovered. It fades with the item's own
    hover background. */
 .molten-rail-bud-tile {

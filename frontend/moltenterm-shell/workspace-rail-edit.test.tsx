@@ -119,7 +119,6 @@ describe("the pencil buds out to the right (#365, FR-SHELL-030-AC17 to AC19)", (
         expect(tile).toContain("height: var(--molten-rail-item-h);");
         expect(tile).toContain("top: calc(16px - var(--molten-rail-item-h) / 2);");
         expect(cssRule(css, ".molten-rail-budhost")).toContain("--molten-rail-item-h: 36px;");
-        expect(cssRule(css, ".molten-rail-budhost[data-rail-member]")).toContain("--molten-rail-item-h: 32px;");
         expect(tile).toContain("border-radius: 0 4px 4px 0;");
         expect(tile).toContain("opacity: 0;");
         const shown =
