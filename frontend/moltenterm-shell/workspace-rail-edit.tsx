@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { cn } from "@/util/util";
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useHoldSettings } from "./hold-to-confirm";
 
 // The SVG filter that joins the item's tile, the neck and the badge into one droplet (DS-SHELL-061); the rail draws it
@@ -64,8 +64,97 @@ export type RailBudSpec = {
     onActivate: (button: HTMLElement) => void;
 };
 
-// One bud's place along the chain, in px from the item's right edge.
-export const RailBudPitchPx = 28;
+// #390 (DS-MC-029 revision): the developer disliked the chain, a strip stretching out of the item. Each bud is now its own
+// 28 px droplet (a 30 px target, a 12 px glyph) fanned around the item's right side, like a radial menu: with three buds
+// the pencil buds from the item's top-right corner, the link straight right on a short stem, the coffee from the
+// bottom-right corner; two sit symmetric about the item's middle. The outer buds stay close to the item's corners rather
+// than on a circle, so they never sit beside a neighbouring item, where they would read as its own. Each droplet keeps
+// its own neck to the item: a stem along the ray from the item's centre, from just inside the item's edge to the drop.
+// Centres are in px from the middle of the item's right edge, chosen so that every target stays right of the edge (the
+// icon is never covered) and two targets never overlap.
+const RailBudCentres: [number, number][][] = [
+    [],
+    [[20, 0]],
+    [
+        [20, -17],
+        [20, 17],
+    ],
+    [
+        [18, -25],
+        [36, 0],
+        [18, 25],
+    ],
+];
+export const RailBudDropPx = 28;
+export const RailBudTargetPx = 30;
+// The rays start at the item's centre, half an item left of its right edge; a stem starts this far inside the edge, so
+// the goo joins it to the item's tile.
+const RailItemHalfPx = 18;
+const RailBudStemInsetPx = 4;
+// Half the height of the fan's fixed box (moltenterm-shell.css), centred on the item.
+const RailBudFrameHalfPx = 64;
+
+// A bud's centre (x, y), and its stem: from (stemX, stemY), stemLength px long at stemAngle degrees (clockwise).
+export type RailBudSlot = { x: number; y: number; stemX: number; stemY: number; stemLength: number; stemAngle: number };
+
+function round1(value: number): number {
+    return Math.round(value * 10) / 10;
+}
+
+// shift slides the whole fan down (or up, negative) when the item sits by the rail's top or bottom edge: each stem
+// still follows the ray from the item's centre to its bud, so the buds keep leaving the item.
+export function railBudSlots(count: number, shift = 0): RailBudSlot[] {
+    const centres = RailBudCentres[Math.min(Math.max(count, 0), RailBudCentres.length - 1)];
+    return centres.map(([x, baseY]) => {
+        const y = baseY + shift;
+        const ux = (x + RailItemHalfPx) / Math.hypot(x + RailItemHalfPx, y);
+        const uy = y / Math.hypot(x + RailItemHalfPx, y);
+        const edgeY = (y * RailItemHalfPx) / (x + RailItemHalfPx);
+        const stemX = -RailBudStemInsetPx * ux;
+        const stemY = edgeY - RailBudStemInsetPx * uy;
+        return {
+            x,
+            y,
+            stemX: round1(stemX),
+            stemY: round1(stemY),
+            stemLength: round1(Math.hypot(x - stemX, y - stemY)),
+            stemAngle: round1((Math.atan2(y - stemY, x - stemX) * 180) / Math.PI),
+        };
+    });
+}
+
+// How far right of the item's edge the buds reach: the item's own tooltip goes past it.
+export function railBudReachPx(count: number): number {
+    const slots = railBudSlots(count);
+    if (slots.length === 0) {
+        return 0;
+    }
+    return Math.max(...slots.map((slot) => slot.x)) + RailBudTargetPx / 2;
+}
+
+// How far the fan of an item centred at centreY must slide to stay between top and bottom, the rail's edges: at the
+// top, the bud above the item would otherwise go under the window's title bar (and macOS's window buttons).
+export function railBudShiftPx(count: number, centreY: number, top: number, bottom: number): number {
+    const slots = railBudSlots(count);
+    if (slots.length === 0) {
+        return 0;
+    }
+    const half = RailBudTargetPx / 2;
+    const above = centreY + Math.min(...slots.map((slot) => slot.y)) - half;
+    const below = centreY + Math.max(...slots.map((slot) => slot.y)) + half;
+    if (above < top) {
+        return Math.ceil(top - above);
+    }
+    if (below > bottom) {
+        return -Math.ceil(below - bottom);
+    }
+    return 0;
+}
+
+// How far above and below the item's middle the hover bridge runs: at least the item's own height.
+function railBudSpanPx(slots: RailBudSlot[]): number {
+    return Math.max(RailItemHalfPx, ...slots.map((slot) => Math.abs(slot.y)));
+}
 
 const RailBudGlyphs: Record<RailBudKind, string> = {
     edit: "fa-pencil",
@@ -76,7 +165,7 @@ const RailBudGlyphs: Record<RailBudKind, string> = {
 // The buds that are toggles: they say whether they are pressed.
 const RailToggleBuds: Set<RailBudKind> = new Set(["link", "coffee"]);
 
-// Where a bud's tooltip goes: past the whole chain, so it never covers the next bud.
+// Where a bud's tooltip goes: past the whole fan, so it never covers another bud.
 export function budTooltipAnchor(opener: HTMLElement): { top: number; left: number } {
     const rect = opener.getBoundingClientRect();
     const chain = opener.closest(".molten-rail-bud")?.getBoundingClientRect();
@@ -97,28 +186,73 @@ export function RailBudChain({
     onLeave: () => void;
 }) {
     const { reducedMotion } = useHoldSettings();
-    if (buds.length === 0) {
+    const ref = useRef<HTMLSpanElement>(null);
+    const [shift, setShift] = useState(0);
+    const count = buds.length;
+    // Measured as the buds come out (hover or focus of the item), when the item's place in the rail is known.
+    useEffect(() => {
+        const host = ref.current?.parentElement;
+        if (host == null) {
+            return;
+        }
+        const measure = () => {
+            const box = ref.current?.getBoundingClientRect();
+            if (box == null) {
+                return;
+            }
+            const rail = host.closest(".molten-workspace-rail")?.getBoundingClientRect();
+            const centreY = box.top + RailBudFrameHalfPx;
+            setShift(railBudShiftPx(count, centreY, rail?.top ?? 0, rail?.bottom ?? window.innerHeight));
+        };
+        host.addEventListener("pointerenter", measure);
+        host.addEventListener("focusin", measure);
+        return () => {
+            host.removeEventListener("pointerenter", measure);
+            host.removeEventListener("focusin", measure);
+        };
+    }, [count]);
+    if (count === 0) {
         return null;
     }
-    // The badges have no edge of their own: a ring would cut the necks that join them. The goo drop under each is the
-    // same disc, so the chain reads as one shape.
+    const slots = railBudSlots(count, shift);
+    const place = (index: number) => {
+        const slot = slots[index];
+        return {
+            "--i": index,
+            "--x": `${slot.x}px`,
+            "--y": `${slot.y}px`,
+            "--sx": `${slot.stemX}px`,
+            "--sy": `${slot.stemY}px`,
+            "--len": `${slot.stemLength}px`,
+            "--angle": `${slot.stemAngle}deg`,
+        } as React.CSSProperties;
+    };
+    // The badges have no edge of their own: a ring would cut the necks that join them to the item. The goo drop under
+    // each is the same disc, so each bud reads as one droplet with its neck.
     return (
         <span
+            ref={ref}
             className="molten-rail-bud"
             data-reduced-motion={reducedMotion ? "" : undefined}
-            style={{ "--molten-rail-buds": buds.length } as React.CSSProperties}
+            style={
+                {
+                    "--molten-rail-bud-reach": `${railBudReachPx(count)}px`,
+                    "--molten-rail-bud-span": `${railBudSpanPx(slots)}px`,
+                } as React.CSSProperties
+            }
         >
             <span className="molten-rail-bud-clip" aria-hidden>
                 <span className="molten-rail-bud-goo" style={{ filter: `url(#${RailBudFilterId})` }}>
                     <span className="molten-rail-bud-tile" />
                     {buds.map((bud, index) => (
                         <Fragment key={bud.kind}>
-                            <span className="molten-rail-bud-stub" style={{ "--i": index } as React.CSSProperties} />
-                            <span className="molten-rail-bud-drop" style={{ "--i": index } as React.CSSProperties} />
+                            <span className="molten-rail-bud-stem" style={place(index)} />
+                            <span className="molten-rail-bud-drop" style={place(index)} />
                         </Fragment>
                     ))}
                 </span>
             </span>
+            <span className="molten-rail-bud-bridge" aria-hidden />
             {buds.map((bud, index) => (
                 <button
                     key={bud.kind}
@@ -131,12 +265,12 @@ export function RailBudChain({
                     onMouseEnter={(e) => onHover(bud.tooltip ?? bud.label, e.currentTarget)}
                     onMouseLeave={onLeave}
                     className={cn(
-                        "molten-rail-budbtn absolute top-0 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full",
+                        "molten-rail-budbtn absolute flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-full",
                         `molten-rail-${bud.kind}`
                     )}
-                    style={{ left: index * RailBudPitchPx, "--i": index } as React.CSSProperties}
+                    style={place(index)}
                 >
-                    <span className="molten-rail-bud-disc relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-[var(--molten-rail-bud-fill)] text-[8px] text-secondary hover:text-primary">
+                    <span className="molten-rail-bud-disc relative inline-flex h-7 w-7 items-center justify-center rounded-full bg-[var(--molten-rail-bud-fill)] text-[12px] text-secondary hover:text-primary">
                         <i className={cn("fa fa-solid", RailBudGlyphs[bud.kind])} aria-hidden />
                     </span>
                 </button>
