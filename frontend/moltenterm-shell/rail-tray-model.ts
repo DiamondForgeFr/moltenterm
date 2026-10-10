@@ -177,6 +177,17 @@ export class RailTrayModel {
     }
 }
 
+// How far the rail must scroll for an item to lie wholly inside it, with a 4 px margin; 0 when it does.
+export function revealDelta(item: { top: number; bottom: number }, rail: { top: number; bottom: number }): number {
+    if (item.top < rail.top) {
+        return item.top - rail.top - 4;
+    }
+    if (item.bottom > rail.bottom) {
+        return item.bottom - rail.bottom + 4;
+    }
+    return 0;
+}
+
 // Where Left and Right go among the item (0) and its tray's buttons (1..count): the ends stay put.
 export function trayArrowIndex(index: number, key: string, count: number): number {
     if (key === "ArrowRight") {

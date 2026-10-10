@@ -140,9 +140,22 @@
     anchor-name: --molten-rail-item;
 }
 
+/* The item stays over its tray until the tray has folded, or the folding tray would veil the icon. */
+.molten-rail-host > .molten-rail-anchor {
+    z-index: 0;
+    transition:
+        background-color var(--mt-duration-fast) var(--mt-ease),
+        color var(--mt-duration-fast) var(--mt-ease),
+        z-index 0s linear var(--mt-duration-fast);
+}
+
 .molten-rail-host[data-tray-open] > .molten-rail-anchor {
     z-index: 451;
     background-color: transparent;
+    transition:
+        background-color var(--mt-duration-fast) var(--mt-ease),
+        color var(--mt-duration-fast) var(--mt-ease),
+        z-index 0s;
 }
 
 .molten-rail-tray {
@@ -203,7 +216,7 @@
     height: 32px;
     padding: 3px;
     box-sizing: border-box;
-    border: 1.5px solid color-mix(in srgb, var(--mt-group-color, var(--mt-neutral-line)) 60%, transparent);
+    border: 1.5px solid color-mix(in srgb, var(--mt-group-color, var(--mt-neutral-line)) 45%, transparent);
     border-radius: var(--mt-radius-6);
 }
 
