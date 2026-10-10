@@ -186,10 +186,16 @@ export function CleanupDialog({
     );
 }
 
-const ResultIcons: Record<BulkResultKind, { icon: string; className: string }> = {
-    done: { icon: "circle-check", className: "text-success" },
-    skipped: { icon: "circle-minus", className: "text-warning" },
-    failed: { icon: "circle-xmark", className: "text-error" },
+const ResultIcons: Record<BulkResultKind, string> = {
+    done: "circle-check",
+    skipped: "circle-minus",
+    failed: "circle-xmark",
+};
+
+const ResultTones: Record<BulkResultKind, string> = {
+    done: "text-success",
+    skipped: "text-warning",
+    failed: "text-error",
 };
 
 // The state of a row is told by its icon's shape and its label, never by colour alone (NFR-SHELL-026).
@@ -207,10 +213,9 @@ function ResultMark({ result, running }: { result: BulkResult; running: boolean 
             />
         );
     }
-    const mark = ResultIcons[result.kind];
     return (
         <i
-            className={cn(makeIconClass(mark.icon, true), "w-4 shrink-0", mark.className)}
+            className={cn(makeIconClass(ResultIcons[result.kind], true), "w-4 shrink-0", ResultTones[result.kind])}
             aria-label={BulkKindLabels[result.kind]}
             title={BulkKindLabels[result.kind]}
         />
