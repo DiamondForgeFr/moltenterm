@@ -263,19 +263,16 @@ export class PreviewModel implements ViewModel {
             }
             if (isCeView) {
                 const fileInfo = globalStore.get(this.loadableFileInfo);
+                // MOLTENTERM-PATCH (#406): states are the header's one Pill, not buttons that do nothing
                 if (fileInfo.state != "hasData") {
-                    viewTextChildren.push({
-                        elemtype: "textbutton",
-                        text: "Loading ...",
-                        className: clsx(`grey rounded-[4px] !py-[2px] !px-[10px] text-[11px] font-[500]`),
-                        onClick: () => {},
-                    });
+                    viewTextChildren.push({ elemtype: "pill", text: "Loading…", tone: "neutral" });
                 } else if (fileInfo.data.readonly) {
                     viewTextChildren.push({
-                        elemtype: "textbutton",
-                        text: "Read Only",
-                        className: clsx(`yellow rounded-[4px] !py-[2px] !px-[10px] text-[11px] font-[500]`),
-                        onClick: () => {},
+                        elemtype: "pill",
+                        text: "Read only",
+                        tone: "neutral",
+                        icon: "lock",
+                        title: "This file is read-only",
                     });
                 } else {
                     viewTextChildren.push({

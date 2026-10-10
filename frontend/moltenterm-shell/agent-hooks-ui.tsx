@@ -1,9 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The hook setup offer in the pane header (#221): a quiet chip next to the agent label, the same place and shape as
-// the worktree link offer, and a dialog with the snippet to add, where to add it, a copy button and the guide. Never
-// a notification: the offer must not ask for attention. MoltenTerm never writes the agent's configuration.
+// The hook setup offer (#221): a suggestion of the terminal's command panel (FR-SHELL-052,
+// header/header-proposals.ts), and a dialog with the snippet to add, where to add it, a copy button and the guide,
+// hosted by the pane header. Never a notification: the offer must not ask for attention. MoltenTerm never writes the
+// agent's configuration.
 
 import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
@@ -12,16 +13,16 @@ import { AgentHookOffer, hookOfferQueryKey } from "./agent-hooks-model";
 import { AgentHookOffers } from "./agent-hooks-store";
 import { AgentStates } from "./agent-state-store";
 import { DialogFrame, useEscape } from "./dialog-frame";
+import { useProposalRequest } from "./header/header-proposals";
 import { MoltenWave } from "./molten-button";
 import { openFileInPreview } from "./term-copy/term-copy";
 
-const ChipButton = "cursor-pointer rounded-6 px-1 hover:bg-hover hover:text-primary";
 const PlainButton =
     "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
 const CopyButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12";
 const CopiedMs = 2000;
 
-export function AgentHookOfferChip({ blockId }: { blockId: string }) {
+export function AgentHookOfferHost({ blockId }: { blockId: string }) {
     const offers = AgentHookOffers.getInstance();
     const info = useAtomValue(AgentStates.getInstance().blockAtom(blockId));
     const offer = useAtomValue(offers.visibleAtom(blockId));
@@ -33,57 +34,15 @@ export function AgentHookOfferChip({ blockId }: { blockId: string }) {
         }
         fireAndForget(() => offers.refresh(blockId));
     }, [blockId, queryKey]);
-    if (offer == null) {
+    useProposalRequest(blockId, "hooks", () => setOpen(offer != null));
+    if (offer == null || !open) {
         return null;
     }
-    const name = offer.agentname || offer.agent;
     const dismiss = () => {
         setOpen(false);
         fireAndForget(() => offers.dismiss(offer.agent));
     };
-    return (
-        <>
-            <span
-                className="inline-flex shrink-0 items-center gap-0.5 rounded-4 border border-border px-1 text-11 leading-[16px] text-muted"
-                title={`${name} shows its states from its output only.\nIts hooks make them precise: ${offer.brings}.`}
-                onMouseDown={(e) => e.stopPropagation()}
-                data-role="molten-hook-offer"
-            >
-                <button
-                    type="button"
-                    className={ChipButton}
-                    aria-label={`Set up ${name}'s hooks for precise states`}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setOpen(true);
-                    }}
-                >
-                    <i className="fa fa-solid fa-plug mr-1 text-11" />
-                    Set up hooks
-                </button>
-                <button
-                    type="button"
-                    className={ChipButton}
-                    title={`Don't offer again for ${name}`}
-                    aria-label={`Don't offer the hooks again for ${name}`}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        dismiss();
-                    }}
-                >
-                    <i className="fa fa-solid fa-xmark text-11" />
-                </button>
-            </span>
-            {open ? (
-                <AgentHookOfferDialog
-                    blockId={blockId}
-                    offer={offer}
-                    onClose={() => setOpen(false)}
-                    onDismiss={dismiss}
-                />
-            ) : null}
-        </>
-    );
+    return <AgentHookOfferDialog blockId={blockId} offer={offer} onClose={() => setOpen(false)} onDismiss={dismiss} />;
 }
 
 function AgentHookOfferDialog({

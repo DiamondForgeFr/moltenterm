@@ -9,13 +9,16 @@
 // - Auto-approve this terminal with #386: a toggle at This panel only, off by default, named by the header Pill;
 // - Agent integration (per agent, Everywhere) with #322 (FR-SHELL-040): it writes agent:integrateoff;
 // - Link to the workspace task once a terminal can be linked to its workspace's task checkpoint (FR-CONT).
-// Shipped: Durable session (the terminal's durability, moved out of Wave's Advanced menu) and Open the companion.
+// Shipped: Durable session (the terminal's durability, moved out of Wave's Advanced menu and, with FR-SHELL-052, out
+// of the header, whose pill only names it) and Open the companion. The terminal's proposals are suggestions
+// (proposals.ts).
 
 import { getBlockTermDurableAtom, globalStore } from "@/app/store/global";
 import { findCompanionBlock, toggleCompanion } from "../../companion/companion-open";
 import { formatShortcutById } from "../../shortcuts/format";
 import { CommandProvider, PanelContext, PanelItem, PanelSection } from "../panel-types";
 import { MoltenWidgetProviders } from "./molten-widgets";
+import { ProposalsProvider } from "./proposals";
 
 type DurableTermModel = { restartSessionWithDurability?: (durable: boolean) => Promise<void> };
 
@@ -86,4 +89,4 @@ export const MoltenProvider: CommandProvider = {
 };
 
 // Everything MoltenTerm's own providers add, registered together by the panel host.
-export const MoltenProviders: CommandProvider[] = [MoltenProvider, ...MoltenWidgetProviders];
+export const MoltenProviders: CommandProvider[] = [MoltenProvider, ProposalsProvider, ...MoltenWidgetProviders];

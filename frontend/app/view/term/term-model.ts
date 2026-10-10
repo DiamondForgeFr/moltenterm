@@ -207,18 +207,8 @@ export class TermViewModel implements ViewModel {
                     }
                 }
             }
-            const isMI = get(this.tabModel.isTermMultiInput);
-            if (isMI && this.isBasicTerm(get)) {
-                rtn.push({
-                    elemtype: "textbutton",
-                    text: "Multi Input ON",
-                    className: "yellow !py-[2px] !px-[10px] text-[11px] font-[500]",
-                    title: "Input will be sent to all connected terminals (click to disable)",
-                    onClick: () => {
-                        globalStore.set(this.tabModel.isTermMultiInput, false);
-                    },
-                });
-            }
+            // MOLTENTERM-PATCH (#406): multi input is a state of the header's one Pill, ranked with the agent's
+            // (frontend/moltenterm-shell/header/panel-header.tsx), no longer a label of its own
             return rtn;
         });
         this.manageConnection = jotai.atom((get) => {

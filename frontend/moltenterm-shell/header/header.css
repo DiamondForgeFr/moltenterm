@@ -1,0 +1,239 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The panel header (FR-SHELL-052, DS-SHELL-093): one hierarchy for every panel, the Pill and the working segment.
+   The row, title and icon sizes come from moltenterm-shell.css (--header-height, --header-font,
+   --header-icon-size); these rules only shape what MoltenTerm draws inside it. */
+
+/* The header anchors the working segment; the segment and the pill never move the title or the context
+   (NFR-SHELL-029): the segment is an overlay and the pill sits at the end of the row. */
+.block-frame-default-header {
+    position: relative;
+}
+
+/* The muted context after the title: 12/400, the connection only when remote, the branch once. */
+.molten-header-context {
+    display: flex;
+    min-width: 0;
+    flex-shrink: 2;
+    align-items: center;
+    gap: var(--mt-space-4);
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-regular);
+    color: var(--mt-text-muted);
+    white-space: nowrap;
+}
+
+.molten-header-context-part {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: var(--mt-space-4);
+    overflow: hidden;
+}
+
+.molten-header-context-part + .molten-header-context-part::before {
+    content: "·";
+    padding-right: var(--mt-space-4);
+}
+
+/* Wave's own header text (a path, a command, a URL) is context too. */
+.block-frame-default-header .block-frame-textelems-wrapper .block-frame-text {
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-regular);
+    color: var(--mt-text-muted);
+    opacity: 1;
+}
+
+.molten-header-title {
+    min-width: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--mt-text-main);
+}
+
+button.molten-header-title,
+button.molten-header-link {
+    border-radius: var(--mt-radius-4);
+    cursor: pointer;
+}
+
+button.molten-header-title:hover,
+button.molten-header-link:hover {
+    background: var(--color-hover);
+}
+
+button.molten-header-link:hover {
+    color: var(--mt-text-main);
+}
+
+/* The Pill: 20 px high, radius 6, 11/500, three tones (neutral, warning, danger), an optional 6 px dot and an optional
+   trailing action. State is never colour alone: the label always says it. */
+.molten-pill {
+    display: inline-flex;
+    height: 20px;
+    min-width: 0;
+    max-width: 100%;
+    flex-shrink: 1;
+    align-items: center;
+    gap: var(--mt-space-4);
+    padding: 0 var(--mt-space-8);
+    border-radius: var(--mt-radius-6);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-medium);
+    line-height: 20px;
+    white-space: nowrap;
+    background: var(--mt-surface-3);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--mt-text-secondary);
+}
+
+.molten-pill.is-warning {
+    background: color-mix(in srgb, var(--mt-state-waiting) 15%, transparent);
+    box-shadow: none;
+    color: var(--mt-state-waiting);
+}
+
+.molten-pill.is-danger {
+    background: color-mix(in srgb, var(--mt-state-error) 15%, transparent);
+    box-shadow: none;
+    color: var(--mt-danger-text);
+}
+
+button.molten-pill {
+    cursor: pointer;
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+button.molten-pill:hover {
+    background: color-mix(in srgb, var(--mt-neutral-line) 12%, var(--mt-surface-3));
+}
+
+button.molten-pill.is-warning:hover {
+    background: color-mix(in srgb, var(--mt-state-waiting) 24%, transparent);
+}
+
+button.molten-pill.is-danger:hover {
+    background: color-mix(in srgb, var(--mt-state-error) 24%, transparent);
+}
+
+.molten-pill-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.molten-pill-dot {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.molten-pill-icon {
+    flex-shrink: 0;
+    font-size: var(--mt-text-11);
+}
+
+.molten-pill-action {
+    display: inline-flex;
+    height: 16px;
+    flex-shrink: 0;
+    align-items: center;
+    margin-right: calc(var(--mt-space-4) * -1);
+    padding: 0 6px;
+    border-radius: var(--mt-radius-4);
+    font-weight: var(--mt-weight-semibold);
+    background: color-mix(in srgb, currentColor 18%, transparent);
+    color: inherit;
+    cursor: pointer;
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.molten-pill-action:hover {
+    background: color-mix(in srgb, currentColor 30%, transparent);
+}
+
+.molten-pill-action:focus-visible,
+button.molten-pill:focus-visible,
+button.molten-header-title:focus-visible,
+button.molten-header-link:focus-visible {
+    outline: 2px solid var(--mt-accent);
+    outline-offset: 1px;
+}
+
+/* The header's pill slot: at the end of the context, before the end buttons. */
+.molten-header-pill {
+    display: flex;
+    min-width: 0;
+    max-width: 50%;
+    flex-shrink: 1;
+    align-items: center;
+}
+
+/* While an agent works, a 2 px segment, a quarter of the width, travels along the header's bottom edge in one loop
+   cycle; under reduced motion (the system's or MoltenTerm's setting) it stands still at full width and 40 %. */
+.molten-header-working {
+    position: absolute;
+    right: 0;
+    bottom: -1px;
+    left: 0;
+    height: 2px;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.molten-header-working::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 25%;
+    background: var(--mt-state-working);
+    animation: mt-header-working var(--mt-duration-loop) linear infinite;
+}
+
+@keyframes mt-header-working {
+    from {
+        transform: translateX(-100%);
+    }
+    to {
+        transform: translateX(400%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .molten-header-working::before {
+        width: 100%;
+        opacity: 0.4;
+        animation: none;
+    }
+}
+
+.prefers-reduced-motion .molten-header-working::before {
+    width: 100%;
+    opacity: 0.4;
+    animation: none;
+}
+
+/* A proposal waits in the command panel (header/header-proposals.ts): a dot on the trigger, drawn over the icon so
+   the button keeps its size. */
+.molten-has-proposal {
+    position: relative;
+}
+
+.molten-has-proposal::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--mt-accent);
+    pointer-events: none;
+}

@@ -34,7 +34,7 @@
                molten-button.css.
    Motion      duration-120 (hover, press) · duration-180 (open, fold) · duration-240 (panels, toasts), always with
                ease-mt; in CSS var(--mt-duration-fast|base|slow) and var(--mt-ease). Every token duration is 0 under
-               reduced motion. Loops (pulses, the heat glow) keep their own cycle, at most 1.6 s. */
+               reduced motion. Loops (pulses, the heat glow) keep their own cycle, at most 1.6 s (var(--mt-duration-loop)). */
 
 :root {
     --mt-text-11: 11px;
@@ -93,6 +93,9 @@
     --mt-duration-slow: 240ms;
     /* The heat glow fades in with the pulse it belongs to (NFR-SHELL-027 excepts pulses, at most 1.6 s a cycle). */
     --mt-duration-glow: 1200ms;
+    /* The longest loop cycle (the working segment of a panel header, FR-SHELL-052): NFR-SHELL-027's 1.6 s. A loop has
+       no reduced-motion duration: it stops, its rule says how it stands still. */
+    --mt-duration-loop: 1600ms;
     --mt-ease: cubic-bezier(0.2, 0, 0, 1);
 }
 

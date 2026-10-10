@@ -216,7 +216,8 @@ declare global {
         | HeaderDiv
         | HeaderTextButton
         | ConnectionButton
-        | MenuButton;
+        | MenuButton
+        | HeaderPillElem; // MOLTENTERM-PATCH (#406)
 
     type IconButtonCommon = {
         icon: string | React.ReactNode;
@@ -275,6 +276,16 @@ declare global {
         onMouseOver?: (e: React.MouseEvent<any>) => void;
         onMouseOut?: (e: React.MouseEvent<any>) => void;
         onClick?: (e: React.MouseEvent<any>) => void;
+    };
+
+    // MOLTENTERM-PATCH (#406): a view's state in its header, drawn with MoltenTerm's one Pill (FR-SHELL-052)
+    type HeaderPillElem = {
+        elemtype: "pill";
+        text: string;
+        tone?: "neutral" | "warning" | "danger";
+        title?: string;
+        icon?: string;
+        onClick?: () => void;
     };
 
     type ConnectionButton = {
