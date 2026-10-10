@@ -56,11 +56,17 @@ export class ProjectViewModel implements ViewModel {
     }
 }
 
-function ProjectView() {
+function ProjectView({ blockId }: ViewComponentProps<ProjectViewModel>) {
     return (
         <MissionFrame title="The Project tab">
             {({ project, snapshot, refresh }) => (
-                <ProjectContent key={project.dir} project={project} snapshot={snapshot} refresh={refresh} />
+                <ProjectContent
+                    key={project.dir}
+                    blockId={blockId}
+                    project={project}
+                    snapshot={snapshot}
+                    refresh={refresh}
+                />
             )}
         </MissionFrame>
     );
@@ -101,10 +107,12 @@ function CardSlot({ card, props }: { card: ProjectCard<ProjectCardProps>; props:
 }
 
 function ProjectContent({
+    blockId,
     project,
     snapshot,
     refresh,
 }: {
+    blockId: string;
     project: ActiveProject;
     snapshot: MissionSnapshot;
     refresh: () => void;
@@ -182,6 +190,7 @@ function ProjectContent({
         runCi,
         showRuns,
         group,
+        blockId,
     };
     const problem = error ?? ciError;
     return (

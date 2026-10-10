@@ -478,6 +478,8 @@ export function scopeLabel(scope: PanelScopeId, kindLabel: string): string {
     switch (scope) {
         case "panel":
             return "This panel";
+        case "project":
+            return "This project";
         case "workspace":
             return "This workspace";
         case "kind":

@@ -124,6 +124,9 @@ type SettingsType struct {
 	CompanionUsageGauges []string `json:"companion:usagegauges,omitempty" jsonschema_description:"Coding agents (claude, codex) whose plan usage gauges the agent companion shows; empty shows none. Set from the companion's Show plan usage"`
 	// MOLTENTERM-PATCH (#262): Claude Code's experimental plan usage source, off unless confirmed in the companion (FR-SHELL-028).
 	CompanionUsageClaudeOAuth bool `json:"companion:usageclaudeoauth,omitempty" jsonschema_description:"Also read Claude Code's model limits and credits from Anthropic's undocumented usage endpoint, with Claude Code's own sign-in token (experimental). Set from the companion's confirmation"`
+	// MOLTENTERM-PATCH (#403): the All line maps and All CI/CD panels scopes of their command panel options (FR-SHELL-049).
+	LineMapAnimation *bool  `json:"linemap:animation,omitempty" jsonschema_description:"Whether the line map panels animate (the load sequence and the moving trains); reduced motion turns it off anyway"`
+	CicdRuns         string `json:"cicd:runs,omitempty" jsonschema:"enum=local,enum=remote,enum=cd" jsonschema_description:"Which runs a CI/CD panel shows: local CI, remote CI or CD (default remote)"`
 
 	EditorMinimapEnabled      bool    `json:"editor:minimapenabled,omitempty"`
 	EditorStickyScrollEnabled bool    `json:"editor:stickyscrollenabled,omitempty"`

@@ -6,12 +6,14 @@
 // (DS-MC-012); the header links back to it.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
+import { getOverrideConfigAtom } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
-import { atom } from "jotai";
-import { useState } from "react";
+import { atom, useAtomValue } from "jotai";
+import { useEffect, useState } from "react";
 import { focusMoltentermView } from "../open-view";
 import { MoltentermProjectView } from "../project/project-model";
 import { openProjectOverview } from "../project/project-tab";
+import { cicdRuns, CicdRunsKey } from "../widget-options";
 import { pathBaseName } from "../workspace-project";
 import { AdapterSteps } from "./adapter-steps";
 import { LocalCiRunner } from "./ci-local-panel";
@@ -100,8 +102,11 @@ function ProjectLink() {
     );
 }
 
-function CicdView() {
-    const [tab, setTab] = useState<TabId>("remote");
+function CicdView({ blockId }: ViewComponentProps<CicdViewModel>) {
+    // The runs the command panel chose (This panel, else All CI/CD panels) open the tab; a click on a tab stays local.
+    const runs = cicdRuns(useAtomValue(getOverrideConfigAtom(blockId, CicdRunsKey as keyof SettingsType)));
+    const [tab, setTab] = useState<TabId>(runs);
+    useEffect(() => setTab(runs), [runs]);
     return (
         <MissionFrame title="CI/CD">
             {({ project, snapshot, refresh }) => (

@@ -69,6 +69,10 @@ const (
 	ConfigKey_CompanionUsageGauges           = "companion:usagegauges"
 	ConfigKey_CompanionUsageClaudeOAuth      = "companion:usageclaudeoauth"
 
+	ConfigKey_LineMapAnimation               = "linemap:animation"
+
+	ConfigKey_CicdRuns                       = "cicd:runs"
+
 	ConfigKey_EditorMinimapEnabled           = "editor:minimapenabled"
 	ConfigKey_EditorStickyScrollEnabled      = "editor:stickyscrollenabled"
 	ConfigKey_EditorWordWrap                 = "editor:wordwrap"

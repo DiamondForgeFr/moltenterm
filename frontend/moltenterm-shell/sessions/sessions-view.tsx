@@ -7,12 +7,23 @@
 // End. The keyboard walks the rows (arrows, Home, End, Page keys), Enter shows, Delete ends, R reconnects.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
-import { atoms, createBlockSplitHorizontally, getApi } from "@/app/store/global";
+import { atoms, createBlockSplitHorizontally, getApi, getBlockMetaKeyAtom } from "@/app/store/global";
+import * as WOS from "@/app/store/wos";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AgentStateDot } from "../agent-state-ui";
 import { EmptyState } from "../empty-state";
+import {
+    filterSessions,
+    SessionsAgentMetaKey,
+    sessionsFiltered,
+    SessionsFolderMetaKey,
+    SessionsStateMetaKey,
+} from "../widget-options";
+import { effectiveWorkspaceFolder } from "../workspace-project";
 import { worktreeColor, WorktreeIcon } from "../worktree-model";
 import { showPane } from "./pane-focus";
 import { CleanupDialog, EndSessionDialog } from "./sessions-dialogs";
@@ -333,10 +344,38 @@ function SessionsEmpty({ blockId }: { blockId: string }) {
     );
 }
 
+// Filters set from the command panel (FR-SHELL-049) hide every running session: the list says so and clears them.
+function SessionsFilteredOut({ blockId }: { blockId: string }) {
+    const clear = () =>
+        fireAndForget(() =>
+            RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: WOS.makeORef("block", blockId),
+                meta: {
+                    [SessionsAgentMetaKey]: null,
+                    [SessionsFolderMetaKey]: null,
+                    [SessionsStateMetaKey]: null,
+                } as MetaType,
+            })
+        );
+    return (
+        <EmptyState
+            icon="filter"
+            title="No session matches the filters"
+            hint="The filters of this panel hide every running session."
+            primary={{ label: "Clear the filters", onClick: clear, testId: "sessions-clear-filters" }}
+            className="flex-1"
+            testId="sessions-filtered-out"
+        />
+    );
+}
+
 function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     const store = DurableSessions.getInstance();
     const data = useAtomValue(store.dataAtom);
     const workspace = useAtomValue(atoms.workspace);
+    const agentFilter = useAtomValue(getBlockMetaKeyAtom(blockId, SessionsAgentMetaKey as keyof MetaType));
+    const folderFilter = useAtomValue(getBlockMetaKeyAtom(blockId, SessionsFolderMetaKey as keyof MetaType));
+    const stateFilter = useAtomValue(getBlockMetaKeyAtom(blockId, SessionsStateMetaKey as keyof MetaType));
     const [now, setNow] = useState(Date.now());
     const [selected, setSelected] = useState<string>(null);
     const [dialog, setDialog] = useState<Dialog>(null);
@@ -353,11 +392,18 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
         return () => clearInterval(timer);
     }, []);
 
-    const sessions = data?.sessions ?? [];
-    const groups = useMemo(() => groupSessions(sessions, workspace?.oid), [data, workspace?.oid]);
+    const allSessions = data?.sessions ?? [];
+    const filters = { agent: agentFilter, folder: folderFilter, state: stateFilter };
+    const filtered = sessionsFiltered(filters);
+    const workspaceFolder = effectiveWorkspaceFolder(workspace);
+    const sessions = useMemo(
+        () => (filtered ? filterSessions(allSessions, filters, workspaceFolder) : allSessions),
+        [data, filtered, agentFilter, folderFilter, stateFilter, workspaceFolder]
+    );
+    const groups = useMemo(() => groupSessions(sessions, workspace?.oid), [sessions, workspace?.oid]);
     const order = useMemo(() => flattenGroups(groups), [groups]);
     const orderKey = order.join("\n");
-    const byId = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [data]);
+    const byId = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
 
     // A row that went away hands the focus to the one that took its place, if the list had it.
     useEffect(() => {
@@ -536,12 +582,17 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
             <div
                 className={cn(
                     "flex items-center gap-3 border-b border-border px-3 py-2",
-                    data != null && sessions.length === 0 && notice == null && "hidden"
+                    data != null && allSessions.length === 0 && notice == null && "hidden"
                 )}
             >
                 <span className="shrink-0 text-12 whitespace-nowrap text-secondary" aria-live="polite">
                     {data == null ? "Loading sessions…" : sessionsSummary(data)}
                 </span>
+                {filtered && allSessions.length > 0 ? (
+                    <span className="shrink-0 text-12 whitespace-nowrap text-muted" data-testid="sessions-filtered">
+                        {sessions.length} shown
+                    </span>
+                ) : null}
                 {notice ? (
                     <span
                         className={cn("ml-auto min-w-0 truncate text-12", notice.error ? "text-error" : "text-muted")}
@@ -552,8 +603,10 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                     </span>
                 ) : null}
             </div>
-            {data != null && sessions.length === 0 ? (
+            {data != null && allSessions.length === 0 ? (
                 <SessionsEmpty blockId={blockId} />
+            ) : data != null && sessions.length === 0 ? (
+                <SessionsFilteredOut blockId={blockId} />
             ) : (
                 <div
                     ref={listRef}

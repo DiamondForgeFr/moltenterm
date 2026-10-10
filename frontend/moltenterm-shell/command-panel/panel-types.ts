@@ -13,11 +13,12 @@ export type PanelSectionKind = "agent" | "molten" | "widget" | "developer";
 // search shows (Split right, Magnify…), kept after the others.
 export const PanelSectionOrder: PanelSectionKind[] = ["agent", "molten", "widget", "developer"];
 
-// Where an option's value lives: block meta (This panel), the workspace's meta, the settings of the panel kind (All
-// terminals) or the global settings (Everywhere).
-export type PanelScopeId = "panel" | "workspace" | "kind" | "global";
+// Where an option's value lives: block meta (This panel), what MoltenTerm remembers for the active project (This
+// project: a Mission Control view's choice), the workspace's meta, the settings of the panel kind (All terminals) or
+// the global settings (Everywhere).
+export type PanelScopeId = "panel" | "project" | "workspace" | "kind" | "global";
 
-export const PanelScopeOrder: PanelScopeId[] = ["panel", "workspace", "kind", "global"];
+export const PanelScopeOrder: PanelScopeId[] = ["panel", "project", "workspace", "kind", "global"];
 
 // One place an option can be set. get() returns undefined when nothing is set at this scope (or, for settings, when
 // the value equals the built-in default), so Reset shows only when there is something to clear.

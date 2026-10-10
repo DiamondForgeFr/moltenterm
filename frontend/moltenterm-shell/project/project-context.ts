@@ -31,6 +31,8 @@ export type ProjectCardProps = {
     showRuns: () => void;
     // The product group around the linked project (FR-MC-028); null when it is in none.
     group: ProjectGroup;
+    // The Project panel, whose command panel options (its branch filter) the cards follow (FR-SHELL-049).
+    blockId?: string;
 };
 
 export const ProjectCards = new ProjectCardRegistry<ProjectCardProps>();
