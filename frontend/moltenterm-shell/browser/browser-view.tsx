@@ -26,7 +26,10 @@ import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { openHeaderCommandPanel } from "../command-panel/block-menus";
+import { openCommandPanelFromTrigger } from "../command-panel/command-panel-store";
 import { guestEditMenu, guestMenuEvent } from "../menu/guest-menu";
+import { formatShortcutById } from "../shortcuts/format";
 import { splitMenuItems } from "../split/split-menu";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
@@ -505,26 +508,10 @@ export class BrowserViewModel implements ViewModel {
         setTimeout(() => refocusNode(this.blockId), 50);
     }
 
-    // The block header's menu, which the panel no longer shows.
+    // The browser draws its own header: a right-click on its empty part opens the command panel at the pointer, as a
+    // block header does (FR-SHELL-047); the browser's own sections come with FR-SHELL-051.
     showPanelMenu(e: React.MouseEvent): void {
-        e.preventDefault();
-        e.stopPropagation();
-        const magnified = globalStore.get(this.nodeModel.isMagnified);
-        ContextMenuModel.getInstance().showContextMenu(
-            [
-                ...splitMenuItems(this.blockId),
-                { type: "separator" },
-                {
-                    label: magnified ? "Un-Magnify Block" : "Magnify Block",
-                    click: () => this.nodeModel.toggleMagnify(),
-                },
-                { type: "separator" },
-                { label: "Copy BlockId", click: () => navigator.clipboard.writeText(this.blockId) },
-                { type: "separator" },
-                { label: "Close Block", click: () => uxCloseBlock(this.blockId) },
-            ],
-            e
-        );
+        openHeaderCommandPanel(e, this.blockId);
     }
 
     activeWebview(): WebviewTag {
@@ -1015,8 +1002,17 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
         title: "Close",
         click: () => uxCloseBlock(model.blockId),
     };
+    const commands: IconButtonDecl = {
+        elemtype: "iconbutton",
+        icon: "sliders",
+        title: `Commands and options (${formatShortcutById("command-panel")})`,
+        click: (e) => openCommandPanelFromTrigger(model.blockId, (e.target as Element)?.closest?.("button")),
+    };
     return (
         <div className="molten-browser-panel-buttons flex h-full shrink-0 items-center gap-1.5 px-2 text-secondary">
+            <span data-role="command-panel-trigger" className="flex">
+                <IconButton decl={commands} />
+            </span>
             {ephemeral ? (
                 <IconButton decl={addToLayout} />
             ) : (

@@ -1,0 +1,208 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The command panel (FR-SHELL-047, DS-SHELL-085): the top layer that catches a click outside, the popover's motion,
+   and the controls Tailwind has no utility for (switch, slider, swatch, segmented scope). Tokens only (tokens.css). */
+
+.molten-cmdpanel-layer {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+    z-index: 2147483646;
+    color: var(--main-text-color, #eee);
+    font-family: var(--mt-ui-font, "IBM Plex Sans", sans-serif);
+    -webkit-app-region: no-drag;
+}
+
+.molten-cmdpanel-layer::backdrop {
+    background: transparent;
+}
+
+.molten-cmdpanel {
+    animation: molten-cmdpanel-in var(--mt-duration-fast) var(--mt-ease);
+    transform-origin: top right;
+}
+
+@keyframes molten-cmdpanel-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px) scale(0.98);
+    }
+}
+
+.molten-cmdpanel-slide-in {
+    animation: molten-cmdpanel-slide-in var(--mt-duration-base) var(--mt-ease);
+}
+
+.molten-cmdpanel-slide-back {
+    animation: molten-cmdpanel-slide-back var(--mt-duration-base) var(--mt-ease);
+}
+
+@keyframes molten-cmdpanel-slide-in {
+    from {
+        opacity: 0;
+        transform: translateX(16px);
+    }
+}
+
+@keyframes molten-cmdpanel-slide-back {
+    from {
+        opacity: 0;
+        transform: translateX(-16px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .molten-cmdpanel,
+    .molten-cmdpanel-slide-in,
+    .molten-cmdpanel-slide-back {
+        animation: none;
+    }
+}
+
+.prefers-reduced-motion .molten-cmdpanel,
+.prefers-reduced-motion .molten-cmdpanel-slide-in,
+.prefers-reduced-motion .molten-cmdpanel-slide-back {
+    animation: none;
+}
+
+/* Small icon buttons inside a row: Reset, the stepper's minus and plus. */
+.molten-cmdpanel-mini {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--mt-radius-4);
+    color: var(--mt-text-muted, rgb(140, 145, 140));
+    font-size: var(--mt-text-11);
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.molten-cmdpanel-mini:hover:not(:disabled) {
+    background: var(--mt-surface-1);
+    color: var(--mt-text-main, #f7f7f7);
+}
+
+.molten-cmdpanel-mini:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.molten-cmdpanel-switch {
+    position: relative;
+    flex: 0 0 26px;
+    width: 26px;
+    height: 16px;
+    border-radius: 9999px;
+    background: var(--mt-line-2);
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.molten-cmdpanel-switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 9999px;
+    background: var(--mt-text-main, #f7f7f7);
+    transition: transform var(--mt-duration-fast) var(--mt-ease);
+}
+
+.molten-cmdpanel-switch.is-on {
+    background: var(--mt-accent);
+}
+
+.molten-cmdpanel-switch.is-on::after {
+    transform: translateX(10px);
+}
+
+.molten-cmdpanel-slider {
+    width: 88px;
+    height: 16px;
+    accent-color: var(--mt-accent);
+}
+
+.molten-cmdpanel-swatch {
+    display: inline-flex;
+    flex: 0 0 16px;
+    width: 16px;
+    height: 16px;
+    overflow: hidden;
+    border-radius: var(--mt-radius-4);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+}
+
+/* A theme reads by its background: the first colour fills the tile, the others are thin bars at its right. */
+.molten-cmdpanel-swatch > span:first-child {
+    flex: 1;
+}
+
+.molten-cmdpanel-swatch > span:not(:first-child) {
+    flex: 0 0 3px;
+}
+
+.molten-cmdpanel-segmented {
+    background: var(--mt-surface-1);
+    box-shadow: inset 0 0 0 1px var(--mt-line-1);
+}
+
+.molten-cmdpanel-segmented .is-active {
+    background: var(--mt-surface-3);
+    box-shadow: var(--mt-shadow-e1);
+}
+
+.molten-cmdpanel-back,
+.molten-cmdpanel-footer-btn {
+    transition:
+        background-color var(--mt-duration-fast) var(--mt-ease),
+        color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.molten-cmdpanel-back:hover,
+.molten-cmdpanel-footer-btn:hover {
+    background: var(--mt-surface-1);
+    color: var(--mt-text-main, #f7f7f7);
+}
+
+.molten-cmdpanel-footer-btn.is-destructive:hover {
+    color: var(--mt-danger-text);
+}
+
+.molten-cmdpanel button:focus-visible,
+.molten-cmdpanel input[type="range"]:focus-visible {
+    outline: 2px solid var(--mt-accent);
+    outline-offset: 1px;
+}
+
+.molten-cmdpanel-chip.is-warning {
+    background: color-mix(in srgb, var(--color-warning) 16%, transparent);
+    color: var(--color-warning);
+}
+
+.molten-cmdpanel-chip.is-accent {
+    background: color-mix(in srgb, var(--mt-accent) 14%, transparent);
+    color: var(--mt-text-main, #f7f7f7);
+}
+
+/* The scope of a changed option: a tint of the accent, so a changed value reads apart from the defaults. */
+.molten-cmdpanel-scope {
+    background: color-mix(in srgb, var(--mt-accent) 14%, transparent);
+    color: var(--mt-text-secondary, rgb(195, 200, 194));
+}
+
+.molten-cmdpanel-scope.is-quiet {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--mt-text-muted, rgb(140, 145, 140));
+}

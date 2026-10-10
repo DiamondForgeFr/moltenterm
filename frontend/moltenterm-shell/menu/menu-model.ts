@@ -1,6 +1,19 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
+import { isMacOS } from "@/util/platformutil";
+
+// An Electron accelerator ("Command+Shift+D") as the menus show it (⇧⌘D on macOS).
+export function shortcutLabel(accelerator: string): string {
+    if (!accelerator) return "";
+    if (!isMacOS()) return accelerator.replace(/Control/g, "Ctrl").replace(/Super/g, "Meta");
+    return accelerator
+        .replace(/Control\+/g, "⌃")
+        .replace(/(?:Option|Alt)\+/g, "⌥")
+        .replace(/Shift\+/g, "⇧")
+        .replace(/(?:Command|Cmd)\+/g, "⌘");
+}
+
 export const MenuRoleLabels: Record<string, string> = {
     undo: "Undo",
     redo: "Redo",

@@ -31,6 +31,7 @@ import { useEffect, useRef } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { openInBrowserPanel } from "../moltenterm-shell/browser/browser-routing"; // MOLTENTERM-PATCH (#132, #140)
+import { CommandPanelHost } from "../moltenterm-shell/command-panel/command-panel"; // MOLTENTERM-PATCH (#401)
 import { makeFirstClickGuard } from "../moltenterm-shell/first-click-guard"; // MOLTENTERM-PATCH (#334)
 import { MenuHost } from "../moltenterm-shell/menu/menu-host"; // MOLTENTERM-PATCH (#371)
 import { AppBackground } from "./app-bg";
@@ -55,6 +56,8 @@ const App = ({ onFirstRender }: { onFirstRender: () => void }) => {
             <WaveEnvContext.Provider value={waveEnvRef.current}>
                 <TabModelContext.Provider value={getTabModelByTabId(tabId)}>
                     <AppInner />
+                    {/* MOLTENTERM-PATCH (#401): the command panel's layer, under the menus' (FR-SHELL-047) */}
+                    <CommandPanelHost />
                     <MenuHost />
                 </TabModelContext.Provider>
             </WaveEnvContext.Provider>

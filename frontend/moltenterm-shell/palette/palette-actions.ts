@@ -18,6 +18,7 @@ import { fireAndForget } from "@/util/util";
 import { Atom } from "jotai";
 import { openFirstRun } from "../../moltenterm-onboarding/onboarding-open";
 import { handOffActivePage } from "../browser/browser-routing";
+import { openPanelFromPalette, runPanelPaletteEntry } from "../command-panel/command-panel-palette";
 import { openMoltentermView } from "../open-view";
 import { openProjectTab } from "../project/project-tab";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
@@ -145,6 +146,12 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             return;
         case "shortcuts":
             openShortcutsSheet();
+            return;
+        case "panelcommands":
+            openPanelFromPalette(target.blockId);
+            return;
+        case "panelcommand":
+            await runPanelPaletteEntry(target.blockId, run.entryId);
             return;
     }
 }

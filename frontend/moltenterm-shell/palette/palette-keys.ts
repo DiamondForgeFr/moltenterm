@@ -7,6 +7,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { modalsModel } from "@/app/store/modalmodel";
+import { registerCommandPanelKeys } from "../command-panel/command-panel-keys";
 import { registerCompanionKeys } from "../companion/companion-open";
 import { registerShortcutsKeys } from "../shortcuts/shortcuts-keys";
 
@@ -32,9 +33,11 @@ export function toggleCommandPalette(): boolean {
 }
 
 // Wave's key model calls this once for the shell's global keys: the palette's, the agent companion's (Cmd+Shift+J,
-// FR-SHELL-018) and the shortcuts sheet's (Cmd+/, FR-SHELL-042), so a new key costs no Wave edit.
+// FR-SHELL-018), the shortcuts sheet's (Cmd+/, FR-SHELL-042) and the command panel's (Cmd+., FR-SHELL-047), so a new
+// key costs no Wave edit.
 export function registerCommandPaletteKeys(keyMap: Map<string, (e: WaveKeyboardEvent) => boolean>) {
     keyMap.set(CommandPaletteKey, () => toggleCommandPalette());
     registerCompanionKeys(keyMap);
     registerShortcutsKeys(keyMap);
+    registerCommandPanelKeys(keyMap);
 }
