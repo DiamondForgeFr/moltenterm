@@ -308,8 +308,11 @@ function GitInitDialog({ dir, onCancel, onDone }: { dir: string; onCancel: () =>
     const [error, setError] = useState<string>(null);
     const cancelRef = useRef<HTMLButtonElement>(null);
     useEscape(!busy, onCancel);
+    // After the frame: the pane the click came from takes the focus back on mouseup, which would leave the dialog
+    // without it.
     useEffect(() => {
-        cancelRef.current?.focus();
+        const timer = setTimeout(() => cancelRef.current?.focus(), 0);
+        return () => clearTimeout(timer);
     }, []);
     const confirm = () =>
         fireAndForget(async () => {
