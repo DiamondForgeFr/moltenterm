@@ -8,6 +8,20 @@
 
 set -e
 
+# Every gh call targets the repository the project lives in: its `origin`
+# remote. gh otherwise follows its own default repository, which a conventional
+# `upstream` remote silently retargets — "Could not find issue #3", or a pull
+# request opened against the upstream project (#840). An explicit GH_REPO wins.
+if [[ -z "${GH_REPO:-}" ]]; then
+  _sf_origin=$(git remote get-url origin 2>/dev/null || true)
+  if [[ "$_sf_origin" =~ ^(git@|ssh://([^@/]+@)?)([^:/]+)[:/]([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)$ ]] \
+    || [[ "$_sf_origin" =~ ^https?://([^@/]+@)?()([^/]+)/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)$ ]]; then
+    _sf_host=${BASH_REMATCH[3]} _sf_owner=${BASH_REMATCH[4]} _sf_name=${BASH_REMATCH[5]%.git}
+    if [[ "$_sf_host" == github.com ]]; then export GH_REPO="$_sf_owner/$_sf_name"; else export GH_REPO="$_sf_host/$_sf_owner/$_sf_name"; fi
+  fi
+  unset _sf_origin _sf_host _sf_owner _sf_name
+fi
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -144,6 +158,9 @@ find_status_option_id() {
 # `gh repo view` calls within a single script invocation.
 _GH_REPO_CACHE=""
 get_repo_owner_name() {
+  if [ -z "$_GH_REPO_CACHE" ] && [[ "${GH_REPO:-}" =~ ([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$ ]]; then
+    _GH_REPO_CACHE=${BASH_REMATCH[1]}
+  fi
   if [ -z "$_GH_REPO_CACHE" ]; then
     _GH_REPO_CACHE=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null)
   fi
@@ -390,7 +407,7 @@ EOF
 cmd_create_subtask() {
   if [ "$#" -lt 2 ]; then
     echo -e "${RED}Error: Missing arguments${NC}"
-    echo "Usage: $0 create-subtask <parent-number> <title> [body] [--type <epic|story|task|issue>] [--bypass-srs <reason>]"
+    echo "Usage: $0 create-subtask <parent-number> <title> [body] [--type <epic|story|task|issue>] [--milestone <name>] [--bypass-srs <reason>]"
     exit 1
   fi
 
@@ -401,8 +418,21 @@ cmd_create_subtask() {
   local -a POSITIONAL=()
   local BYPASS_SRS_REASON=""
   local TICKET_TYPE="story"
+  local MILESTONE=""
   while [ $# -gt 0 ]; do
     case "$1" in
+      --milestone=*)
+        MILESTONE="${1#--milestone=}"
+        shift
+        ;;
+      --milestone)
+        if [ -z "${2:-}" ] || [[ "${2}" == --* ]]; then
+          echo -e "${RED}Error: --milestone requires a milestone name${NC}" >&2
+          exit 1
+        fi
+        MILESTONE=$2
+        shift 2
+        ;;
       --bypass-srs=*)
         BYPASS_SRS_REASON="${1#--bypass-srs=}"
         if [ -z "$BYPASS_SRS_REASON" ]; then
@@ -448,7 +478,7 @@ cmd_create_subtask() {
 
   if [ "${#POSITIONAL[@]}" -lt 2 ]; then
     echo -e "${RED}Error: Missing arguments${NC}"
-    echo "Usage: $0 create-subtask <parent-number> <title> [body] [--type <epic|story|task|issue>] [--bypass-srs <reason>]"
+    echo "Usage: $0 create-subtask <parent-number> <title> [body] [--type <epic|story|task|issue>] [--milestone <name>] [--bypass-srs <reason>]"
     exit 1
   fi
 
@@ -573,6 +603,23 @@ cmd_create_subtask() {
         echo -e "${YELLOW}  (issue type '${target_type}' not assigned — run 'ensure-issue-types' or assign manually)${NC}"
     fi
   fi
+
+  # A child joins its parent's milestone (#617): one created during release work used to
+  # be invisible to that release. --milestone picks another. The child already exists and
+  # is linked, so a failed assignment is reported with the command to rerun, not fatal.
+  local milestone_source="--milestone"
+  if [ -z "$MILESTONE" ]; then
+    MILESTONE=$(gh issue view "$PARENT_NUMBER" --json milestone --jq '.milestone.title // empty' 2>/dev/null) || MILESTONE=""
+    milestone_source="inherited from #${PARENT_NUMBER}"
+  fi
+  if [ -n "$MILESTONE" ]; then
+    if "$0" milestone assign "$CHILD_NUMBER" "$MILESTONE" >/dev/null 2>&1; then
+      echo -e "${GREEN}✓ #${CHILD_NUMBER} → milestone \"${MILESTONE}\" (${milestone_source})${NC}"
+    else
+      echo -e "${YELLOW}⚠ #${CHILD_NUMBER} is not on milestone \"${MILESTONE}\" (${milestone_source}). Assign it with:${NC}" >&2
+      echo "    $0 milestone assign ${CHILD_NUMBER} \"${MILESTONE}\"" >&2
+    fi
+  fi
 }
 
 
@@ -672,6 +719,178 @@ cmd_create_epic() {
 }
 
 # ───────────────────────────────────────────────────────────────────────────
+# Command: create-ticket — a top-level Story / Task / Issue, ready for the workflow
+#
+# create-subtask needs a parent and create-epic makes the grouper, so the first ticket
+# of a project, or any standalone one, had no guarded path: `gh issue create`, then the
+# board, the type and the labels by hand (#832). This verb leaves the ticket where every
+# later command expects it: on the board in Backlog, typed and labelled.
+# ───────────────────────────────────────────────────────────────────────────
+
+cmd_create_ticket() {
+  local usage="Usage: $0 create-ticket <story|task|issue> <title> [--body-file <file>] [--complexity <bug|low|medium|complex>] [--nature <user-facing|internal>] [--milestone <name>] [--bypass-srs <reason>]"
+  local -a POSITIONAL=()
+  local BODY_FILE="" COMPLEXITY="" NATURE="" MILESTONE="" BYPASS_SRS_REASON=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --body-file | --complexity | --nature | --milestone | --bypass-srs)
+        if [ -z "${2:-}" ] || [[ "${2}" == --* ]]; then
+          echo -e "${RED}Error: $1 requires a value${NC}" >&2
+          echo "$usage" >&2
+          exit 1
+        fi
+        case "$1" in
+          --body-file) BODY_FILE=$2 ;;
+          --complexity) COMPLEXITY=$2 ;;
+          --nature) NATURE=$2 ;;
+          --milestone) MILESTONE=$2 ;;
+          --bypass-srs) BYPASS_SRS_REASON=$2 ;;
+        esac
+        shift 2
+        ;;
+      --*)
+        echo -e "${RED}Error: unknown create-ticket option '$1'${NC}" >&2
+        echo "$usage" >&2
+        exit 1
+        ;;
+      *)
+        POSITIONAL+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if [ "${#POSITIONAL[@]}" -ne 2 ] || [ -z "${POSITIONAL[1]}" ]; then
+    echo "$usage" >&2
+    exit 1
+  fi
+  local TICKET_TYPE=${POSITIONAL[0]} TITLE=${POSITIONAL[1]}
+  # Everything is checked before the issue exists: a refused option must not leave a ticket behind
+  case "$TICKET_TYPE" in
+    story | task | issue) ;;
+    epic)
+      echo -e "${RED}Error: an Epic owns no PR and groups other tickets: use create-epic${NC}" >&2
+      exit 1
+      ;;
+    *)
+      echo -e "${RED}Error: the ticket type must be story, task or issue (got '${TICKET_TYPE}')${NC}" >&2
+      exit 1
+      ;;
+  esac
+  case "$COMPLEXITY" in
+    "" | bug | low | medium | complex) ;;
+    *)
+      echo -e "${RED}Error: --complexity must be one of: bug, low, medium, complex${NC}" >&2
+      exit 1
+      ;;
+  esac
+  case "$NATURE" in
+    "" | user-facing | internal) ;;
+    bundled-pr)
+      echo -e "${RED}Error: nature:bundled-pr belongs to the child of a delivery parent: use create-subtask${NC}" >&2
+      exit 1
+      ;;
+    *)
+      echo -e "${RED}Error: --nature must be user-facing or internal${NC}" >&2
+      exit 1
+      ;;
+  esac
+  if [ -n "$BODY_FILE" ] && [ ! -f "$BODY_FILE" ]; then
+    echo -e "${RED}Error: --body-file '${BODY_FILE}' does not exist${NC}" >&2
+    exit 1
+  fi
+
+  # Rule 8 — same contract as create-subtask and create-epic
+  if [ -f ".saasfoundry.json" ]; then
+    local srs_backend
+    srs_backend=$(jq -r '.tools.srs.backend // empty' .saasfoundry.json)
+    if [ -n "$srs_backend" ] && [ -z "$BYPASS_SRS_REASON" ]; then
+      echo -e "${RED}✗ Rule 8: this project has SRS enabled (tools.srs.backend=${srs_backend}).${NC}" >&2
+      echo "  Feature tickets are spawned from a drafted SRS version page via:" >&2
+      echo "    sf srs spawn --epic <feature-url> --version <version>" >&2
+      echo "" >&2
+      echo "  For a ticket that is genuinely off-spec (bootstrap, infra work, emergency fix, …):" >&2
+      echo "    $0 create-ticket ${TICKET_TYPE} \"${TITLE}\" --bypass-srs \"<reason>\"" >&2
+      exit 2
+    fi
+  fi
+
+  # The board configuration is read before creating anything, so a misconfigured
+  # projectUrl stops here instead of leaving an issue that no board command can reach
+  load_project_schema
+
+  echo -e "${YELLOW}Creating ${TICKET_TYPE}...${NC}"
+  if [ -n "$BYPASS_SRS_REASON" ]; then
+    printf '%b  (bypassing rule 8 — reason: %s)%b\n' "${BLUE}" "${BYPASS_SRS_REASON}" "${NC}"
+  fi
+
+  local ISSUE_URL TICKET_NUMBER CREATE_STATUS=0
+  if [ -n "$BODY_FILE" ]; then
+    ISSUE_URL=$(gh issue create --title "$TITLE" --body-file "$BODY_FILE") || CREATE_STATUS=$?
+  else
+    ISSUE_URL=$(gh issue create --title "$TITLE" --body "$(render_skeleton_body "$TICKET_TYPE" "$TITLE")") || CREATE_STATUS=$?
+  fi
+  if [ "$CREATE_STATUS" -ne 0 ] || [ -z "$ISSUE_URL" ]; then
+    echo -e "${RED}✗ Could not create the issue (gh exit ${CREATE_STATUS}). Nothing was created.${NC}" >&2
+    exit 1
+  fi
+  TICKET_NUMBER=$(echo "$ISSUE_URL" | grep -o '[0-9]*$')
+  if [ -z "$TICKET_NUMBER" ]; then
+    echo -e "${RED}✗ The issue was created but its number could not be read from: ${ISSUE_URL}${NC}" >&2
+    exit 1
+  fi
+  echo -e "${GREEN}✓ Ticket #${TICKET_NUMBER} created${NC}"
+  echo "Issue URL: $ISSUE_URL"
+
+  # Each step below is reported; the ticket exists whatever happens next, so a failed
+  # step names the command that finishes it rather than pretending nothing was done
+  local -a MISSING=()
+  "$0" add-to-project "$TICKET_NUMBER" || MISSING+=("$0 add-to-project ${TICKET_NUMBER}")
+
+  local declared_types
+  declared_types=$(jq -r '(.workflow.issueTypes // []) | length' .saasfoundry.json 2>/dev/null)
+  if [ "${declared_types:-0}" != "0" ]; then
+    "$0" assign-type "$TICKET_NUMBER" "sf-${TICKET_TYPE}" 2>/dev/null ||
+      echo -e "${YELLOW}  (issue type 'sf-${TICKET_TYPE}' not assigned — run 'ensure-issue-types' or assign manually)${NC}"
+  fi
+  if [ -n "$COMPLEXITY" ]; then
+    "$0" set-complexity "$TICKET_NUMBER" "$COMPLEXITY" || MISSING+=("$0 set-complexity ${TICKET_NUMBER} ${COMPLEXITY}")
+  fi
+  if [ -n "$NATURE" ]; then
+    if gh issue edit "$TICKET_NUMBER" --add-label "nature:${NATURE}" >/dev/null; then
+      echo -e "${GREEN}✓ Ticket #${TICKET_NUMBER} nature → ${NATURE}${NC}"
+    else
+      MISSING+=("gh issue edit ${TICKET_NUMBER} --add-label nature:${NATURE}")
+    fi
+  fi
+  if [ -n "$MILESTONE" ]; then
+    "$0" milestone assign "$TICKET_NUMBER" "$MILESTONE" || MISSING+=("$0 milestone assign ${TICKET_NUMBER} \"${MILESTONE}\"")
+  fi
+
+  if [ "${#MISSING[@]}" -gt 0 ]; then
+    echo -e "${RED}✗ Ticket #${TICKET_NUMBER} exists, but these steps failed — finish them with:${NC}" >&2
+    printf '    %s\n' "${MISSING[@]}" >&2
+    exit 1
+  fi
+}
+
+# ───────────────────────────────────────────────────────────────────────────
+# Command: comment — record a note on a ticket (body read from a file, or stdin with -)
+# ───────────────────────────────────────────────────────────────────────────
+
+cmd_comment() {
+  if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 comment <ticket-number> <body-file|->" >&2
+    exit 1
+  fi
+  gh issue comment "$1" --body-file "$2" >/dev/null || {
+    echo -e "${RED}Error: could not comment on #$1${NC}" >&2
+    exit 1
+  }
+  echo -e "${GREEN}✓ Comment recorded on #$1${NC}"
+}
+
+# ───────────────────────────────────────────────────────────────────────────
 # Command: status — read status from Projects V2 board
 # Flags:
 #   --json   Emit machine-parseable JSON: {"ticket","title","state","status","labels"}
@@ -745,6 +964,67 @@ cmd_status() {
 # Command: update-status — write status on Projects V2 board
 # ───────────────────────────────────────────────────────────────────────────
 
+# Put an issue on the board in its starting status (Backlog unless --status says otherwise).
+# An issue already there keeps its status, so a reused Story is never sent back to Backlog.
+# Spawned tickets reached the milestone and their Epic but never the board, and every later
+# `update-status` on them failed (#836).
+cmd_add_to_project() {
+  if [ "$#" -lt 1 ]; then
+    echo "Usage: $0 add-to-project <ticket-number> [--status <status-name>]" >&2
+    exit 1
+  fi
+  local ticket=$1
+  shift
+  local status_name="Backlog"
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --status)
+        status_name=${2:-}
+        if [ -z "$status_name" ]; then
+          echo "Error: --status requires a value" >&2
+          exit 1
+        fi
+        shift 2
+        ;;
+      *)
+        echo "Error: unknown add-to-project option '$1'" >&2
+        exit 1
+        ;;
+    esac
+  done
+  load_project_schema
+
+  if [ -n "$(get_project_item_id "$ticket")" ]; then
+    echo -e "${GREEN}✓ Ticket #${ticket} is already on project board ${PROJECT_NUMBER} (status kept)${NC}"
+    return 0
+  fi
+
+  # Checked before adding: an item added without its status would sit on the board unsorted
+  local option_id
+  option_id=$(find_status_option_id "$status_name")
+  if [ -z "$option_id" ]; then
+    echo -e "${RED}Error: Unknown status '${status_name}' on project board ${PROJECT_NUMBER}${NC}" >&2
+    echo "Available statuses:" >&2
+    echo "$STATUS_OPTIONS_JSON" | jq -r '.[].name' | sed 's/^/  - /' >&2
+    exit 1
+  fi
+
+  local url item_id
+  url=$(gh issue view "$ticket" --json url --jq .url) || exit 1
+  item_id=$(gh project item-add "$PROJECT_NUMBER" --owner "$PROJECT_OWNER" --url "$url" --format json --jq .id)
+  if [ -z "$item_id" ]; then
+    echo -e "${RED}Error: could not add #${ticket} to project board ${PROJECT_NUMBER}${NC}" >&2
+    exit 1
+  fi
+  gh project item-edit \
+    --id "$item_id" \
+    --project-id "$PROJECT_ID" \
+    --field-id "$STATUS_FIELD_ID" \
+    --single-select-option-id "$option_id" >/dev/null
+
+  echo -e "${GREEN}✓ Ticket #${ticket} added to project board ${PROJECT_NUMBER} → ${status_name}${NC}"
+}
+
 cmd_update_status() {
   if [ "$#" -lt 2 ]; then
     echo "Usage: $0 update-status <ticket-number> <status-name>" >&2
@@ -776,6 +1056,23 @@ cmd_update_status() {
     --single-select-option-id "$option_id" >/dev/null
 
   echo -e "${GREEN}✓ Ticket #${ticket} → ${status_name}${NC}"
+
+  # Done means closed (#920). Closing used to rest on the board's "Auto-close issue"
+  # automation, which a board may not have: a drafting ticket owns no PR, so nothing else
+  # would ever close it. Close it here when the board has not, and verify.
+  if [ "$(printf '%s' "$status_name" | tr '[:upper:]' '[:lower:]')" = "done" ]; then
+    local state
+    state=$(gh issue view "$ticket" --json state --jq .state 2>/dev/null) || state=""
+    if [ "$state" != "CLOSED" ]; then
+      gh issue close "$ticket" --reason completed >/dev/null 2>&1 || true
+      state=$(gh issue view "$ticket" --json state --jq .state 2>/dev/null) || state=""
+      if [ "$state" != "CLOSED" ]; then
+        echo -e "${RED}✗ #${ticket} is Done on the board but its issue is still open (state: ${state:-unknown}). Close it: gh issue close ${ticket} --reason completed${NC}" >&2
+        exit 1
+      fi
+      echo -e "${GREEN}✓ Issue #${ticket} closed${NC}"
+    fi
+  fi
 }
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -929,16 +1226,19 @@ cmd_list_incomplete_children() {
 # identity. The spawner performs the final exact match and ambiguity checks.
 cmd_inspect_srs_tickets() {
   if [ "$#" -lt 3 ]; then
-    echo "Usage: $0 inspect-srs-tickets <parent-ticket-number> --fr <FR-ID>=<page-url> [--fr ...]" >&2
+    echo "Usage: $0 inspect-srs-tickets <parent-ticket-number|--no-parent> --fr <FR-ID>=<page-url> [--fr ...]" >&2
     return 1
   fi
 
+  # --no-parent: the delivery parent does not exist yet (spawn creates the version Epic
+  # after this preflight), so only the repository search is inspected (#855)
   local parent=$1
+  if [ "$parent" = "--no-parent" ]; then parent=""; fi
   shift
   local requests='[]' spec fr_id fr_url identity normalized_url host
   while [ "$#" -gt 0 ]; do
     if [ "$1" != "--fr" ] || [ -z "${2:-}" ] || [[ "$2" != *=* ]]; then
-      echo "Usage: $0 inspect-srs-tickets <parent-ticket-number> --fr <FR-ID>=<page-url> [--fr ...]" >&2
+      echo "Usage: $0 inspect-srs-tickets <parent-ticket-number|--no-parent> --fr <FR-ID>=<page-url> [--fr ...]" >&2
       return 1
     fi
     spec=$2
@@ -970,11 +1270,15 @@ cmd_inspect_srs_tickets() {
     return 1
   fi
 
-  children_pages=$(gh api --paginate --slurp -H "Accept: application/vnd.github+json" \
-    "repos/${repo}/issues/${parent}/sub_issues?per_page=100" 2>/dev/null) || {
-      echo "Error: could not list child issues for #${parent}." >&2
-      return 1
-    }
+  if [ -z "$parent" ]; then
+    children_pages='[[]]'
+  else
+    children_pages=$(gh api --paginate --slurp -H "Accept: application/vnd.github+json" \
+      "repos/${repo}/issues/${parent}/sub_issues?per_page=100" 2>/dev/null) || {
+        echo "Error: could not list child issues for #${parent}." >&2
+        return 1
+      }
+  fi
   children=$(printf '%s' "$children_pages" | jq -ce '
     if type == "array" and all(.[]; type == "array") then [.[][] | .number]
     else error("Expected paginated sub-issue arrays") end
@@ -1011,7 +1315,7 @@ cmd_inspect_srs_tickets() {
   candidates=$(jq -cn --arg parent "$parent" --argjson native "$children" --argjson nativeIssues "$native_issues" --argjson searched "$searched" --argjson requested "$requests" '
     ($nativeIssues + $searched)
     | map(select(has("pull_request") | not))
-    | map(select(.number != ($parent | tonumber)))
+    | map(select($parent == "" or .number != ($parent | tonumber)))
     | map(. as $issue | select(($native | index($issue.number)) != null or (any($issue.labels[]?; (.name | startswith("srs:"))) | not)))
     | map(
         . as $issue
@@ -1045,7 +1349,7 @@ cmd_inspect_srs_tickets() {
     parent_url=$(printf '%s' "$issue" | jq -r '.parent_issue_url // ""')
     parent_number=""
     if [ -n "$parent_url" ]; then parent_number=${parent_url##*/}; fi
-    if [ -z "$parent_number" ] && printf '%s' "$children" | jq -e --argjson n "$number" 'index($n) != null' >/dev/null; then
+    if [ -z "$parent_number" ] && [ -n "$parent" ] && printf '%s' "$children" | jq -e --argjson n "$number" 'index($n) != null' >/dev/null; then
       parent_number=$parent
     fi
     srs_links=$(printf '%s' "$body" | jq -Rsc '[scan("https?://[^][()<>[:space:]]+") | sub("[.,;]+$"; "")] | unique') || return 1
@@ -1306,9 +1610,62 @@ verify_pr_head() {
   fi
 }
 
+# The project's local CI gate (#918). A project that verifies pull requests locally declares
+# the commit statuses its local CI publishes in `workflow.localCi.requiredStatuses`. An agent
+# once ran a narrower check, judged a one-file diff did not need more, and opened a PR that
+# waited forever for statuses nobody would publish. No diff is too small: a PR opened for
+# review, or marked ready, needs every declared status green on its exact head commit. A draft
+# is allowed — it is opened early and waits for them. `--skip-local-ci "<reason>"` is the
+# explicit escape hatch, recorded on the pull request.
+LOCAL_CI_SKIP_REASON=""
+
+local_ci_gate() {
+  local head=$1 required statuses name state
+  local -a failing=()
+  required=$(jq -r '.workflow.localCi.requiredStatuses // [] | .[]' .saasfoundry.json 2>/dev/null)
+  [[ -z "$required" ]] && return 0
+  if [[ -n "$LOCAL_CI_SKIP_REASON" ]]; then
+    echo -e "${YELLOW}⚠ Local CI gate skipped: ${LOCAL_CI_SKIP_REASON}${NC}" >&2
+    return 0
+  fi
+  statuses=$(gh api "repos/$(get_repo_owner_name)/commits/${head}/status" --jq '[.statuses[] | {context, state}]' 2>/dev/null) || {
+    echo -e "${RED}✗ Could not read the commit statuses of ${head:0:8}, so the local CI gate cannot be checked.${NC}" >&2
+    return 1
+  }
+  while IFS= read -r name; do
+    [[ -z "$name" ]] && continue
+    state=$(echo "$statuses" | jq -r --arg c "$name" 'map(select(.context == $c))[0].state // "missing"')
+    [[ "$state" == success ]] || failing+=("${name}: ${state}")
+  done <<<"$required"
+  if [[ ${#failing[@]} -gt 0 ]]; then
+    echo -e "${RED}✗ The project's local CI is not green on ${head:0:8}:${NC}" >&2
+    printf '    %s\n' "${failing[@]}" >&2
+    echo "  Run the local CI on this exact commit (no diff is too small), or pass --skip-local-ci \"<reason>\"." >&2
+    return 1
+  fi
+  echo -e "${GREEN}✓ Local CI green on ${head:0:8}: $(echo "$required" | paste -sd ',' - | sed 's/,/, /g')${NC}"
+}
+
+# `--skip-local-ci "<reason>"` and the remaining positional arguments, for create-pr and ready-pr.
+parse_local_ci_args() {
+  PR_ARGS=()
+  while [[ "$#" -gt 0 ]]; do
+    if [[ "$1" == "--skip-local-ci" ]]; then
+      [[ -n "${2:-}" && "${2:-}" != --* ]] || { echo "Error: --skip-local-ci requires a reason" >&2; return 1; }
+      LOCAL_CI_SKIP_REASON=$2
+      shift 2
+    else
+      PR_ARGS+=("$1")
+      shift
+    fi
+  done
+}
+
 cmd_create_pr() {
+  parse_local_ci_args "$@" || return 1
+  set -- ${PR_ARGS[@]+"${PR_ARGS[@]}"}
   if [[ "$#" -lt 1 || "$#" -gt 2 || ( "$#" -eq 2 && "$2" != "--draft" ) ]]; then
-    echo "Usage: $0 create-pr <ticket-number> [--draft]" >&2
+    echo "Usage: $0 create-pr <ticket-number> [--draft] [--skip-local-ci \"<reason>\"]" >&2
     return 1
   fi
   local TICKET_NUMBER=$1
@@ -1352,9 +1709,15 @@ cmd_create_pr() {
     return 0
   fi
 
+  # A PR opened for review needs the local CI verdict; a draft waits for it
+  if [[ ${#draft_args[@]} -eq 0 ]]; then
+    local_ci_gate "$LOCAL_HEAD" || { echo "  No pull request was created." >&2; return 1; }
+  fi
+
   local PR_CREATE_STATUS=0 PR_OUTPUT PR_URL PR_BODY
   PR_BODY="Resolves #${TICKET_NUMBER}"
   [[ "$PR_CONTEXT_KIND" == release ]] && PR_BODY="Closes #${TICKET_NUMBER}"
+  [[ -n "$LOCAL_CI_SKIP_REASON" && ${#draft_args[@]} -eq 0 ]] && PR_BODY+=$'\n\n'"Local CI gate skipped: ${LOCAL_CI_SKIP_REASON}"
   PR_OUTPUT=$(gh pr create --title "[#${TICKET_NUMBER}] $ISSUE_TITLE" \
     --body "$PR_BODY" --base "$PR_TARGET_BRANCH" "${draft_args[@]}" 2>&1) || PR_CREATE_STATUS=$?
   PR_URL=$(echo "$PR_OUTPUT" | grep -oE 'https://[^[:space:]]+/pull/[0-9]+' | head -n 1 || true)
@@ -1371,8 +1734,10 @@ cmd_create_pr() {
 cmd_set_pr_draft() {
   local desired_draft=$1 action=$2
   shift 2
+  parse_local_ci_args "$@" || return 1
+  set -- ${PR_ARGS[@]+"${PR_ARGS[@]}"}
   if [[ "$#" -ne 1 ]]; then
-    echo "Usage: $0 ${action}-pr <ticket-number>" >&2
+    echo "Usage: $0 ${action}-pr <ticket-number>$([[ "$action" == ready ]] && echo ' [--skip-local-ci "<reason>"]')" >&2
     return 1
   fi
   pr_branch_context "$1" true || return 1
@@ -1381,6 +1746,11 @@ cmd_set_pr_draft() {
   verify_pr_head || return 1
   local pr_number state_args=()
   pr_number=$(echo "$BRANCH_PRS" | jq -r '.[0].number')
+  # Marking ready asks for review: the local CI verdict must be on the head first (#918)
+  if [[ "$desired_draft" == false ]]; then
+    local_ci_gate "$LOCAL_HEAD" || { echo "  Pull request #${pr_number} stays a draft." >&2; return 1; }
+    [[ -n "$LOCAL_CI_SKIP_REASON" ]] && gh pr comment "$pr_number" --body "Local CI gate skipped: ${LOCAL_CI_SKIP_REASON}" >/dev/null
+  fi
   [[ "$desired_draft" == true ]] && state_args=(--undo)
   if [[ $(echo "$BRANCH_PRS" | jq -r '.[0].isDraft') != "$desired_draft" ]]; then
     gh pr ready "$pr_number" "${state_args[@]}" || { echo "Error: changing PR draft state failed." >&2; return 1; }
@@ -1850,14 +2220,31 @@ Progress:  \(.closed_issues)/\(.open_issues + .closed_issues) closed" +
       ;;
 
     assign)
-      local ticket=$1 name=$2
-      local number
+      local ticket=${1:-} name=${2:-}
+      # One bare issue number. A list used to reach the API as `issues/482 483 …`, which
+      # GitHub resolves to #482, and the success line echoed the whole list back (#562).
+      if ! [[ "$ticket" =~ ^[0-9]+$ ]]; then
+        if [[ "$name" =~ ^[0-9]+$ ]]; then
+          echo -e "${RED}milestone assign: arguments in the wrong order — expected <ticket> <milestone>, got \"${ticket}\" \"${name}\".${NC}" >&2
+        else
+          echo -e "${RED}milestone assign: <ticket> must be one issue number, got \"${ticket}\". Assign several tickets with one call each.${NC}" >&2
+        fi
+        echo "Usage: $0 milestone assign <ticket> <milestone>" >&2
+        exit 1
+      fi
+      [ -z "$name" ] && { echo "Usage: $0 milestone assign <ticket> <milestone>" >&2; exit 1; }
+      local number patched
       number=$(milestone_number_by_title "$repo" "$name")
       [ -z "$number" ] && milestone_not_found "$repo" "$name"
-      gh api "repos/${repo}/issues/${ticket}" -X PATCH -F "milestone=${number}" >/dev/null 2>&1 || {
+      patched=$(gh api "repos/${repo}/issues/${ticket}" -X PATCH -F "milestone=${number}" --jq '"\(.number) \(.milestone.number // "")"' 2>/dev/null) || {
         echo -e "${RED}Failed to assign #${ticket} to \"${name}\"${NC}" >&2
         exit 1
       }
+      # Report only what the API confirms: the issue it patched, now on that milestone.
+      if [ "$patched" != "${ticket} ${number}" ]; then
+        echo -e "${RED}Failed to assign #${ticket} to \"${name}\": GitHub answered \"${patched}\" instead of \"${ticket} ${number}\"${NC}" >&2
+        exit 1
+      fi
       echo -e "${GREEN}✓ #${ticket} → milestone \"${name}\"${NC}"
       ;;
 
@@ -2056,7 +2443,10 @@ ${MILESTONE_ACK_MARKER} released with ${open} open — ${acknowledge}" >/dev/nul
 case "$COMMAND" in
   create-subtask)     cmd_create_subtask "$@" ;;
   create-epic)        cmd_create_epic "$@" ;;
+  create-ticket)      cmd_create_ticket "$@" ;;
+  comment)            cmd_comment "$@" ;;
   update-status)      cmd_update_status "$@" ;;
+  add-to-project)     cmd_add_to_project "$@" ;;
   status)             cmd_status "$@" ;;
   set-complexity)     cmd_set_complexity "$@" ;;
   get-complexity)     cmd_get_complexity "$@" ;;
@@ -2082,11 +2472,15 @@ case "$COMMAND" in
     echo "Usage: $0 <command> [args...]"
     echo ""
     echo "Available commands:"
-    echo "  create-subtask <parent> <title> [body] [--type <epic|story|task|issue>]"
-    echo "  create-epic <title> [body]               Create a top-level Epic (no parent)"
+    echo "  create-ticket <story|task|issue> <title> [--body-file <f>] [--complexity <c>] [--nature <n>] [--milestone <m>]"
+    echo "                                           Create a top-level ticket on the board in Backlog, typed and labelled"
+    echo "  create-subtask <parent> <title> [body] [--type <epic|story|task|issue>] [--milestone <m>]"
     echo "                                           Create a sub-issue linked to parent (default type: story)"
+    echo "  create-epic <title> [body]               Create a top-level Epic (no parent)"
+    echo "  comment <ticket> <body-file|->           Record a note on the ticket"
     echo "  status <ticket>                          Read status from the project board"
     echo "  update-status <ticket> <status-name>     Write status on the project board"
+    echo "  add-to-project <ticket> [--status <s>]   Put an issue on the board (default Backlog; one already there keeps its status)"
     echo "  set-complexity <ticket> <level>          bug | low | medium | complex"
     echo "  get-complexity <ticket>                  Read current complexity label"
     echo "  get-labels <ticket>                      Print every label name (one per line)"
@@ -2109,7 +2503,7 @@ case "$COMMAND" in
     ;;
   *)
     echo -e "${RED}Error: Unknown command '${COMMAND}'${NC}"
-    echo "Available: create-subtask, status, update-status, set-complexity, get-complexity, get-labels, list-incomplete-children, inspect-srs-tickets, link-subtask, get-parent, get-issue-type, get-ticket, create-pr, ready-pr, draft-pr, list, cache-clear, ensure-issue-types, assign-type, delete-issue-type"
+    echo "Available: create-ticket, create-subtask, create-epic, comment, status, update-status, add-to-project, set-complexity, get-complexity, get-labels, list-incomplete-children, inspect-srs-tickets, link-subtask, get-parent, get-issue-type, get-ticket, create-pr, ready-pr, draft-pr, list, cache-clear, ensure-issue-types, assign-type, delete-issue-type, milestone"
     exit 1
     ;;
 esac

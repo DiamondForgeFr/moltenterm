@@ -37,7 +37,7 @@ Systematically address ALL unresolved review comments until PR is approved.
 
 4. **COMMIT & PUSH**:
    - Stage: `git add -A`
-   - Commit: `fix: address PR review comments`
+   - Commit: `fix(#<N>): address PR review comments`, in the project's commit format (`workflow.commitFormat` in `.saasfoundry.json`), with `<N>` the ticket of the PR branch (`feature/<N>-…`, `fix/<N>-…`). Without a configured format: `fix: address PR review comments`
    - Push: `git push`
    - NEVER include co-author tags
 

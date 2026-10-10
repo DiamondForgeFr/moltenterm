@@ -14,6 +14,7 @@ Usage: srs-cli.sh <action> [args...]
 Actions:
   help                              Print this message
   validate [manifest]               Smoke-test the configured backend via adapter.init()
+  validate --spec <path>            Check a DraftCandidate spec offline, as write does before any page
   browse --parent <id> [--manifest] List direct children of a parent page (JSON)
   draft --from notion-pages --ids <id1,id2,...> [--manifest]
                                     Fetch pages from the backend as RawContent (JSON).
@@ -88,6 +89,38 @@ candidate_roots() {
   done
 }
 
+# The real path of a file, following every symlink (bash 3.2 has no portable `readlink -f`).
+real_path() {
+  node -e 'process.stdout.write(require("fs").realpathSync(process.argv[1]))' "$1" 2>/dev/null
+}
+
+# A directory holding this CLI's package — `sf` on PATH may be Salesforce's CLI instead.
+is_cli_package() {
+  [[ -f "$1/package.json" ]] && grep -q '"name": *"saasfoundryai-cli"' "$1/package.json"
+}
+
+# Package roots of a global install (`npm i -g saasfoundryai-cli`, the README's path), without
+# running anything but node: the package behind `saasfoundryai` or `sf` on PATH
+# (<pkg>/bin/sf.js, through npm's symlink), then npm's global folder next to the node on
+# PATH, then under NPM_CONFIG_PREFIX. The upward walk alone never found a global install (#835).
+global_package_roots() {
+  local cmd target pkg node_path
+  for cmd in saasfoundryai sf; do
+    target="$(command -v "$cmd" 2>/dev/null)" || continue
+    target="$(real_path "$target")" || continue
+    pkg="$(dirname "$(dirname "$target")")"
+    if is_cli_package "$pkg"; then echo "$pkg"; fi
+  done
+  if node_path="$(command -v node 2>/dev/null)"; then
+    pkg="$(dirname "$(dirname "$node_path")")/lib/node_modules/saasfoundryai-cli"
+    if is_cli_package "$pkg"; then echo "$pkg"; fi
+  fi
+  if [[ -n "${NPM_CONFIG_PREFIX:-}" ]]; then
+    pkg="$NPM_CONFIG_PREFIX/lib/node_modules/saasfoundryai-cli"
+    if is_cli_package "$pkg"; then echo "$pkg"; fi
+  fi
+}
+
 # Resolve the entrypoint for an action across the three real layouts:
 #
 #   dist/srs/bin/<bin>.js                              this checkout, built
@@ -117,6 +150,12 @@ resolve_entrypoint() {
     fi
     dir=""
   done < <(candidate_roots)
+  while read -r dir; do
+    if [[ -n "$dir" && -f "$dir/dist/srs/bin/$bin.js" ]]; then
+      echo "node:$dir/dist/srs/bin/$bin.js"
+      return 0
+    fi
+  done < <(global_package_roots)
   return 1
 }
 
@@ -131,7 +170,8 @@ run_bin() {
     echo "    dist/srs/bin/$bin.js" >&2
     echo "    src/srs/bin/$bin.ts" >&2
     echo "    node_modules/saasfoundryai-cli/dist/srs/bin/$bin.js" >&2
-    echo "  In a project: install the CLI (npm i -D saasfoundryai-cli)." >&2
+    echo "  Then a global install: saasfoundryai or sf on PATH, <node prefix>/lib/node_modules/saasfoundryai-cli, \$NPM_CONFIG_PREFIX." >&2
+    echo "  In a project: install the CLI (npm i -D saasfoundryai-cli), or globally (npm i -g saasfoundryai-cli)." >&2
     echo "  In the SaaSFoundryAI checkout: run npm run build." >&2
     echo "  Or use the CLI directly: sf srs $bin" >&2
     exit 1
@@ -156,7 +196,7 @@ run_bin() {
   (cd "$target" && npx --no-install tsx "src/srs/bin/$bin.ts" "$@")
 }
 
-run_validate() { run_bin validate "${1:-.saasfoundry.json}"; }
+run_validate() { run_bin validate ${1+"$@"}; }
 
 run_browse() { run_bin browse-tree "$@"; }
 

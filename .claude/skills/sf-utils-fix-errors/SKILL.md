@@ -1,7 +1,7 @@
 ---
 name: fix-errors
 description: Fix all ESLint and TypeScript errors with parallel processing using snipper agents
-allowed-tools: Bash(pnpm :*), Bash(tsc :*), Bash(npm :*), Read, Task, Grep
+allowed-tools: Bash(npm :*), Bash(npx :*), Read, Task, Grep
 ---
 
 # Fix Errors
@@ -10,12 +10,13 @@ Fix all ESLint and TypeScript errors by breaking them into areas and processing 
 
 ## Workflow
 
-1. **DISCOVER COMMANDS**: Check `package.json` for exact script names
-   - Look for: `lint`, `typecheck`, `type-check`, `tsc`, `eslint`, `prettier`, `format`
+1. **DISCOVER COMMANDS**: `npm pkg get scripts` lists the exact script names of the package you are in
+   - Use the scripts it returns (`lint`, `typecheck`, `type-check`, `format`, …); never guess a name it does not list
+   - In an npm workspace, run them from the package that declares them, or with `npm run <script> -w <workspace>`
 
 2. **RUN DIAGNOSTICS**:
-   - Run `pnpm run lint` (or equivalent)
-   - Run `pnpm run typecheck` or `tsc --noEmit`
+   - Run `npm run <lint script>`
+   - Run `npm run <typecheck script>`, or `npx tsc --noEmit` when no such script exists
    - Capture all error output
 
 3. **ANALYZE ERRORS**:
@@ -39,7 +40,7 @@ Fix all ESLint and TypeScript errors by breaking them into areas and processing 
    - Report remaining errors
 
 7. **FORMAT CODE**: Apply Prettier (if available)
-   - Run `pnpm run format` or equivalent
+   - Run `npm run <format script>` when one exists
 
 ## Snipper Agent Instructions
 

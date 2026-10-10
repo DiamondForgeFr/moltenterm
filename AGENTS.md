@@ -15,6 +15,14 @@ need a verified merge before Done, except for a validated `nature:bundled-pr` ch
 commit ships in its non-Epic delivery parent's PR. An Epic has no PR: its first child entering
 In progress starts it, and it reaches Done only after every native child has board status Done.
 
+## File edits and shell calls
+
+Edit files with the agent's native file tools (read, edit, write), never with interpreter
+heredocs or scripts that rewrite files (`python3 - <<EOF`, `node -e`). Keep each shell call
+to one plain command, run from the project root. The harness's read-only commands
+(`workflow-cli.sh status|next|help`, `sf status`, `sf agents list`) are allowed in
+`.claude/settings.json`; commands that change a ticket, a board or a pull request still ask.
+
 ## Managed project capabilities
 
 Treat the capability block from `sf status --claude-friendly --no-network` as authoritative.
