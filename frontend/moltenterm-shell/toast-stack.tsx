@@ -93,7 +93,7 @@ function ToastItem({ toast }: { toast: Toast }) {
                 className={cn(
                     "fa fa-solid mt-px w-3.5 shrink-0 text-center text-icon-14",
                     `fa-${tone.icon}`,
-                    tone.iconClass
+                    tone.colorClass
                 )}
             />
             <span className="sr-only">{tone.label}: </span>

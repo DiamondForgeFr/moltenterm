@@ -108,7 +108,7 @@ function NotificationRow({
         >
             <i
                 aria-label={tone.label}
-                className={cn("fa fa-solid mt-0.5 w-4 text-center", `fa-${tone.icon}`, tone.iconClass)}
+                className={cn("fa fa-solid mt-0.5 w-4 text-center", `fa-${tone.icon}`, tone.colorClass)}
             />
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">

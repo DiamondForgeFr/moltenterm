@@ -15,14 +15,14 @@ export const ToastDismissMs = 6000;
 
 export type ToastTone = "done" | "waiting" | "error" | "info";
 
-export type ToastToneView = { tone: ToastTone; label: string; icon: string; iconClass: string };
+export type ToastToneView = { tone: ToastTone; label: string; colorClass: string; icon: string };
 
 // The tone is never told by colour alone: each has its own icon, and screen readers hear its label.
 export const ToastTones: Record<MoltentermNotificationKind, ToastToneView> = {
-    success: { tone: "done", label: "Done", icon: "circle-check", iconClass: "text-success" },
-    warning: { tone: "waiting", label: "Waiting", icon: "triangle-exclamation", iconClass: "text-warning" },
-    error: { tone: "error", label: "Error", icon: "circle-exclamation", iconClass: "text-error" },
-    info: { tone: "info", label: "Information", icon: "circle-info", iconClass: "text-secondary" },
+    success: { tone: "done", label: "Done", colorClass: "text-success", icon: "circle-check" },
+    warning: { tone: "waiting", label: "Waiting", colorClass: "text-warning", icon: "triangle-exclamation" },
+    error: { tone: "error", label: "Error", colorClass: "text-error", icon: "circle-exclamation" },
+    info: { tone: "info", label: "Information", colorClass: "text-secondary", icon: "circle-info" },
 };
 
 export function toneOf(kind: MoltentermNotificationKind): ToastToneView {
