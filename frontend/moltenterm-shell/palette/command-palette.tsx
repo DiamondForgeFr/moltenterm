@@ -328,12 +328,16 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
     const ownInputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const order = picker != null ? PickerGroupOrder : PaletteGroupOrder;
-    // The origin pane's command panel items join the list once something is typed (FR-SHELL-047).
-    const panelEntries = useMemo(
-        () => (host === "modal" && blockId ? panelPaletteEntries(blockId, formatShortcutById("command-panel")) : []),
-        [host, blockId]
-    );
+    // The origin pane's command panel items join the list once something is typed (FR-SHELL-047), built then and
+    // not on the palette's open path.
     const searching = query.trim() !== "";
+    const panelEntries = useMemo(
+        () =>
+            searching && host === "modal" && blockId
+                ? panelPaletteEntries(blockId, formatShortcutById("command-panel"))
+                : [],
+        [host, blockId, searching]
+    );
     const listed = useMemo(
         () => (searching && panelEntries.length > 0 ? [...entries, ...panelEntries] : entries),
         [entries, panelEntries, searching]

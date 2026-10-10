@@ -52,7 +52,7 @@ function findWaveItem(items: ContextMenuItem[], label: string): ContextMenuItem 
 function waveAction(
     items: ContextMenuItem[],
     waveLabel: string,
-    item: { id: string; label: string; icon?: string; keywords?: string[] }
+    item: { id: string; label: string; icon?: string; keywords?: string[]; destructive?: boolean }
 ): PanelItem {
     const found = findWaveItem(items, waveLabel);
     if (found?.click == null || found.visible === false) {
@@ -227,6 +227,7 @@ export function terminalSections(ctx: PanelContext): PanelSection[] {
                 id: "term:forcerestart",
                 label: "Force restart",
                 icon: "rotate-right",
+                destructive: true,
                 keywords: ["controller", "restart shell"],
             }),
             // The adapter files Debug Connection under its own developer items.

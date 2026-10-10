@@ -132,12 +132,30 @@ describe("command panel rows (FR-SHELL-047, TC-SHELL-101, TC-SHELL-103)", () => 
         ]);
     });
 
-    it("lets a search reach Developer items without Option", () => {
+    it("keeps Developer items behind Option in search too", () => {
         const { sections } = terminalSections();
-        expect(labels(buildRows({ sections, stack: [], query: "copy panel", alt: false }))).toEqual([
+        expect(buildRows({ sections, stack: [], query: "copy panel", alt: false })).toEqual([]);
+        expect(labels(buildRows({ sections, stack: [], query: "copy panel", alt: true }))).toEqual([
             "#Developer",
             "Copy panel id",
         ]);
+    });
+
+    it("never numbers a destructive row for Cmd+N", () => {
+        const rows = buildRows({
+            sections: [
+                {
+                    id: "w",
+                    kind: "widget",
+                    title: "W",
+                    items: [action("kill", "Kill", { destructive: true }), action("ok", "Fine")],
+                },
+            ],
+            stack: [],
+            query: "",
+            alt: false,
+        });
+        expect(labels([rows[nthSelectable(rows, 1)]])).toEqual(["Fine"]);
     });
 
     it("ignores loose subsequences but keeps initials and substrings", () => {
@@ -239,7 +257,7 @@ describe("command panel items as palette commands", () => {
         const names = flat.map((f) => f.label);
         expect(names).toContain("Theme: Dracula");
         expect(names).toContain("Open a file browser here");
-        expect(names).toContain("Copy panel id");
+        expect(names).not.toContain("Copy panel id");
         expect(names).toContain("Split right");
         expect(names).not.toContain("Advanced");
         expect(flat.find((f) => f.label === "Open a file browser here").breadcrumb).toBe("Terminal › Advanced");
