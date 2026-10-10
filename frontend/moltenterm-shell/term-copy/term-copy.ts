@@ -240,13 +240,17 @@ function installFileLinks(termWrap: TermWrap): IDisposable {
                 return group.startRow + first <= y && y <= group.startRow + last;
             });
             const place = blockPlace(termWrap.blockId);
-            const usable = refs.filter((ref) => ref.path.startsWith("/") || ref.path.startsWith("~") || !isBlank(place.cwd));
+            const usable = refs.filter(
+                (ref) => ref.path.startsWith("/") || ref.path.startsWith("~") || !isBlank(place.cwd)
+            );
             if (usable.length === 0) {
                 callback(undefined);
                 return;
             }
             fireAndForget(async () => {
-                const infos = await Promise.all(usable.map((ref) => fileStatCache.stat(place.conn, place.cwd, ref.path)));
+                const infos = await Promise.all(
+                    usable.map((ref) => fileStatCache.stat(place.conn, place.cwd, ref.path))
+                );
                 const links: ILink[] = [];
                 usable.forEach((ref, i) => {
                     if (infos[i] != null) {
@@ -330,7 +334,11 @@ export function otherTermBlocks(fromBlockId: string): { blockId: string; label: 
             continue;
         }
         const agent = globalStore.get(AgentStates.getInstance().blockAtom(blockId));
-        const folder = (block.meta["cmd:cwd"] ?? "").split("/").filter((s: string) => s !== "").pop() ?? "";
+        const folder =
+            (block.meta["cmd:cwd"] ?? "")
+                .split("/")
+                .filter((s: string) => s !== "")
+                .pop() ?? "";
         const name = agent?.agentname || agent?.agent || block.meta["frame:title"] || "Terminal";
         rtn.push({ blockId, label: folder ? `${name} · ${folder} (#${n})` : `${name} (#${n})` });
     }
@@ -360,6 +368,9 @@ export function sendTextToTerm(text: string, blockId: string): void {
     }
 }
 
+// The section of the links under the pointer in a terminal's menu (FR-SHELL-054).
+export const TermLinkSection = "Link";
+
 // The context menu's copy entries: Copy does what Cmd+C does; the other way is one entry away.
 export function termCopyMenuItems(termWrap: TermWrap): ContextMenuItem[] {
     if (!termWrap?.terminal?.hasSelection()) {
@@ -369,22 +380,24 @@ export function termCopyMenuItems(termWrap: TermWrap): ContextMenuItem[] {
     const plain = plainSelectionText(termWrap);
     const agent = termAgentId(termWrap) !== "";
     const items: ContextMenuItem[] = [
-        { label: "Copy", click: () => copyText(agent ? clean : plain) },
+        { label: "Copy", icon: "copy", click: () => copyText(agent ? clean : plain) },
         agent
-            ? { label: "Copy Plain", click: () => copyText(plain) }
-            : { label: "Copy Clean", click: () => copyText(clean) },
+            ? { label: "Copy plain", icon: "align-left", click: () => copyText(plain) }
+            : { label: "Copy clean", icon: "broom", click: () => copyText(clean) },
     ];
     const ref = parseFileRef(plain);
     const others = otherTermBlocks(termWrap.blockId);
     if (others.length > 0) {
         items.push({
-            label: "Send to Pane",
+            label: "Send to pane",
+            icon: "share",
             submenu: others.map((o) => ({ label: o.label, click: () => sendTextToTerm(clean, o.blockId) })),
         });
     }
     if (ref != null) {
         items.push({
-            label: "Open File",
+            label: "Open file",
+            icon: "file-lines",
             click: () =>
                 fireAndForget(async () => {
                     const target = await statSelectionFile(termWrap, ref);
@@ -404,7 +417,11 @@ export function termFileLinkMenuItems(termWrap: TermWrap): ContextMenuItem[] {
     }
     const name = link.path.split("/").pop() + (link.line ? `:${link.line}` : "");
     return [
-        { label: `Open ${name}`, click: () => fireAndForget(() => openFileInPreview(link, termWrap.blockId)) },
-        { type: "separator" },
+        {
+            label: `Open ${name}`,
+            icon: "file-lines",
+            section: TermLinkSection,
+            click: () => fireAndForget(() => openFileInPreview(link, termWrap.blockId)),
+        },
     ];
 }

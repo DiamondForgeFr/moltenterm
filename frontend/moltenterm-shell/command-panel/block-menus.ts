@@ -8,8 +8,9 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
 import { fireAndForget } from "@/util/util";
+import { DeveloperSection } from "../menu/menu-model";
 import { acceleratorById } from "../shortcuts/format";
-import { splitPanel } from "../split/split";
+import { PanelSection, splitMenuItems } from "../split/split-menu";
 import { openCommandPanel, openCommandPanelAtPoint } from "./command-panel-store";
 
 export const MoreLabel = "More…";
@@ -56,30 +57,37 @@ export function moreMenuItem(blockId: string): ContextMenuItem {
 
 type MagnifyNode = { isMagnified: any; toggleMagnify: () => void };
 
-// The body's short menu: the block actions and the way to everything else.
-export function blockBodyMenuItems(blockId: string, nodeModel: MagnifyNode): ContextMenuItem[] {
+function magnifyMenuItem(nodeModel: MagnifyNode, section: string): ContextMenuItem {
     const magnified = nodeModel?.isMagnified != null && globalStore.get(nodeModel.isMagnified) === true;
+    return {
+        label: magnified ? "Unmagnify" : "Magnify",
+        icon: magnified ? "compress" : "expand",
+        section,
+        accelerator: acceleratorById("magnify"),
+        click: () => nodeModel?.toggleMagnify(),
+    };
+}
+
+// Shown only while Option is held (FR-SHELL-054-AC2), like the command panel's Developer section.
+export function panelDeveloperItems(blockId: string): ContextMenuItem[] {
     return [
         {
-            label: "Split right",
-            icon: "table-columns",
-            accelerator: acceleratorById("split-right"),
-            click: () => fireAndForget(() => splitPanel(blockId, "right")),
+            label: "Copy panel id",
+            icon: "hashtag",
+            section: DeveloperSection,
+            click: () => fireAndForget(() => navigator.clipboard.writeText(blockId)),
         },
-        {
-            label: "Split down",
-            icon: "table-columns fa-rotate-270",
-            accelerator: acceleratorById("split-down"),
-            click: () => fireAndForget(() => splitPanel(blockId, "down")),
-        },
-        {
-            label: magnified ? "Unmagnify" : "Magnify",
-            icon: magnified ? "compress" : "expand",
-            accelerator: acceleratorById("magnify"),
-            click: () => nodeModel?.toggleMagnify(),
-        },
-        { type: "separator" },
-        moreMenuItem(blockId),
+    ];
+}
+
+// The body's short menu: the block actions and the way to everything else. The first group needs no heading; Close
+// goes last, on its own (FR-SHELL-054).
+export function blockBodyMenuItems(blockId: string, nodeModel: MagnifyNode): ContextMenuItem[] {
+    return [
+        ...splitMenuItems(blockId, ""),
+        magnifyMenuItem(nodeModel, ""),
+        { ...moreMenuItem(blockId), section: "" },
+        ...panelDeveloperItems(blockId),
         { type: "separator" },
         {
             label: "Close",
@@ -91,22 +99,13 @@ export function blockBodyMenuItems(blockId: string, nodeModel: MagnifyNode): Con
     ];
 }
 
-// A terminal's body menu keeps its own items (copy, paste, links) and ends with these instead of its settings.
-export function terminalBodyMenuTail(blockId: string): ContextMenuItem[] {
+// A terminal's body menu keeps its own items (copy, paste, links) and ends with its Panel section instead of its
+// settings.
+export function terminalBodyMenuTail(blockId: string, nodeModel: MagnifyNode): ContextMenuItem[] {
     return [
-        {
-            label: "Split right",
-            icon: "table-columns",
-            accelerator: acceleratorById("split-right"),
-            click: () => fireAndForget(() => splitPanel(blockId, "right")),
-        },
-        {
-            label: "Split down",
-            icon: "table-columns fa-rotate-270",
-            accelerator: acceleratorById("split-down"),
-            click: () => fireAndForget(() => splitPanel(blockId, "down")),
-        },
-        { type: "separator" },
-        moreMenuItem(blockId),
+        ...splitMenuItems(blockId, PanelSection),
+        magnifyMenuItem(nodeModel, PanelSection),
+        { ...moreMenuItem(blockId), section: PanelSection },
+        ...panelDeveloperItems(blockId),
     ];
 }

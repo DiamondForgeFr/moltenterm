@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { layoutMenuItems } from "./menu/menu-model";
 import {
     railGroupMenu,
     railNavIndex,
@@ -169,16 +170,20 @@ describe("More (FR-SHELL-045-AC2, DS-SHELL-081)", () => {
         onReset: vi.fn(),
         remove: { enabled: true, reason: "The only workspace: reset it instead", onDelete: vi.fn() },
     });
-    const labels = (items: ContextMenuItem[]) => items.map((i) => (i.type === "separator" ? "—" : i.label));
+    // As the MenuHost shows them (FR-SHELL-054): headings as "# Title".
+    const labels = (items: ContextMenuItem[]) =>
+        layoutMenuItems(items).map((i) =>
+            i.type === "separator" ? "—" : i.type === "header" ? `# ${i.label}` : i.label
+        );
 
-    it("lists Edit, the coffee, Group with…, the Project tab, then Reset… and Delete…, destructive last", () => {
+    it("lists Edit, the Project tab, the coffee, the Group section, then Reset… and Delete…, destructive last", () => {
         const items = railWorkspaceMenu(base());
         expect(labels(items)).toEqual([
             "Edit workspace…",
-            "—",
-            "Keep the Mac awake while it works",
-            "Group with…",
             "Open Project tab",
+            "Keep the Mac awake while it works",
+            "# Group",
+            "Group with…",
             "—",
             "Reset workspace…",
             "Delete workspace…",
@@ -213,7 +218,7 @@ describe("More (FR-SHELL-045-AC2, DS-SHELL-081)", () => {
         const local = { connecting: false, onGroupWith: vi.fn(), onRename: vi.fn(), onUngroup: vi.fn() };
         expect(labels(railGroupMenu({ collapsed: false, onToggle: vi.fn(), local }))).toEqual([
             "Collapse",
-            "—",
+            "# Group",
             "Add workspaces…",
             "Rename group…",
             "Ungroup",

@@ -1,22 +1,36 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
+// The icon column holds a glyph for every edit role (FR-SHELL-054); the role's label comes from MenuRoleLabels.
+const RoleIcons: Record<string, string> = {
+    undo: "rotate-left",
+    redo: "rotate-right",
+    cut: "scissors",
+    copy: "copy",
+    paste: "paste",
+    selectAll: "i-cursor",
+};
+
+function role(name: string): ContextMenuItem {
+    return { role: name, icon: RoleIcons[name] };
+}
+
 export function guestEditMenu(params: GuestContextMenu, saveImage: (token: string) => void): ContextMenuItem[] {
     const menu: ContextMenuItem[] = [];
     if (params.editable)
         menu.push(
-            { role: "undo" },
-            { role: "redo" },
+            role("undo"),
+            role("redo"),
             { type: "separator" },
-            { role: "cut" },
-            { role: "copy" },
-            { role: "paste" },
-            { role: "pasteAndMatchStyle" },
-            { role: "selectAll" }
+            role("cut"),
+            role("copy"),
+            role("paste"),
+            role("pasteAndMatchStyle"),
+            role("selectAll")
         );
-    else if (params.selectionText) menu.push({ role: "copy" });
+    else if (params.selectionText) menu.push(role("copy"));
     if (params.imageToken)
-        menu.push({ label: "Save Image", icon: "download", click: () => saveImage(params.imageToken) });
+        menu.push({ label: "Save image", icon: "download", click: () => saveImage(params.imageToken) });
     return menu;
 }
 export function guestMenuEvent(params: GuestContextMenu, webview: HTMLElement): React.MouseEvent {

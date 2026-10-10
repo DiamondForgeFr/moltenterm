@@ -110,7 +110,7 @@ function OverflowFlyout({
                 ref={refs.setFloating}
                 style={floatingStyles}
                 {...getFloatingProps()}
-                className="z-50 max-h-[60vh] overflow-y-auto rounded-10 border border-border bg-surface-3 p-1 shadow-e3"
+                className="z-50 max-h-[60vh] overflow-y-auto rounded-10 border border-border bg-surface-3 p-1 shadow-command"
             >
                 {widgets.map((widget, idx) => (
                     <button

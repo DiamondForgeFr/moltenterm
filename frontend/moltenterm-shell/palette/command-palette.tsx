@@ -467,7 +467,7 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
     const palette = (
         <div
             className={cn(
-                "flex w-full max-w-[560px] flex-col overflow-hidden rounded-10 border border-border bg-surface-3 shadow-e3",
+                "flex w-full max-w-[560px] flex-col overflow-hidden rounded-10 border border-border bg-surface-3 shadow-command",
                 host === "modal" ? "max-h-[60vh]" : "max-h-full",
                 inPopover && "h-full"
             )}

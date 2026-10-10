@@ -5,7 +5,7 @@ import { ContextMenuModel, ContextMenuSession } from "@/app/store/contextmenu";
 import { atoms, getApi, getBlockComponentModel, getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMenuGesture } from "./menu-gesture";
-import { captureMenuFocus, menuHasRoles, menuPoint, runMenuSelection } from "./menu-model";
+import { captureMenuFocus, menuHasRoles, menuOpenedByKeyboard, menuPoint, runMenuSelection } from "./menu-model";
 import { MenuSurface } from "./menu-surface";
 
 type PresentedMenu = {
@@ -13,12 +13,16 @@ type PresentedMenu = {
     point: { x: number; y: number };
     restore: () => void;
     target: string;
+    keyboard: boolean;
 };
 export function MenuHost() {
     const [menu, setMenu] = useState<PresentedMenu>(null);
+    const [developer, setDeveloper] = useState(false);
     const layerRef = useRef<HTMLDivElement>(null);
     const current = useRef<PresentedMenu>(null);
     const selecting = useRef(false);
+    // Set while the host dispatches the contextmenu event of Shift+F10 or the Menu key.
+    const fromKeys = useRef(false);
     const gesture = useMenuGesture(() => current.current?.session.cancel());
     const { draining, active: drain } = gesture;
     useLayoutEffect(() => {
@@ -51,8 +55,10 @@ export function MenuHost() {
                     point: menuPoint(session.event),
                     restore: captureMenuFocus(),
                     target: menuHasRoles(session.menu) ? getApi().captureContextMenuTarget?.(guestId) : null,
+                    keyboard: menuOpenedByKeyboard(session.event, fromKeys.current),
                 };
                 current.current = presented;
+                setDeveloper(!!session.event?.altKey);
                 setMenu(presented);
             },
             () => globalStore.get(getSettingsKeyAtom("app:nativecontextmenu")) === true
@@ -65,6 +71,7 @@ export function MenuHost() {
             gesture.reset();
         };
         const keydown = (event: KeyboardEvent) => {
+            if (event.key === "Alt") setDeveloper(true);
             if (current.current) {
                 // Keys dispatched outside the layer must not reach xterm or app shortcuts.
                 if (!layerRef.current.contains(event.target as Node)) {
@@ -84,22 +91,35 @@ export function MenuHost() {
             event.preventDefault();
             event.stopImmediatePropagation();
             const rect = target?.getBoundingClientRect();
-            target?.dispatchEvent(
-                new MouseEvent("contextmenu", {
-                    bubbles: true,
-                    cancelable: true,
-                    clientX: rect?.left ?? 8,
-                    clientY: rect?.bottom ?? 8,
-                })
-            );
+            fromKeys.current = true;
+            try {
+                target?.dispatchEvent(
+                    new MouseEvent("contextmenu", {
+                        bubbles: true,
+                        cancelable: true,
+                        clientX: rect?.left ?? 8,
+                        clientY: rect?.bottom ?? 8,
+                    })
+                );
+            } finally {
+                fromKeys.current = false;
+            }
         };
+        const keyup = (event: KeyboardEvent) => {
+            if (event.key === "Alt") setDeveloper(false);
+        };
+        const releaseAlt = () => setDeveloper(false);
         window.addEventListener("keydown", keydown, true);
+        window.addEventListener("keyup", keyup, true);
+        window.addEventListener("blur", releaseAlt);
         document.addEventListener("visibilitychange", cancel);
         window.addEventListener("blur", cancel);
         window.addEventListener("resize", cancel);
         const unsubscribe = globalStore.sub(atoms.workspaceId, cancel);
         return () => {
             window.removeEventListener("keydown", keydown, true);
+            window.removeEventListener("keyup", keyup, true);
+            window.removeEventListener("blur", releaseAlt);
             document.removeEventListener("visibilitychange", cancel);
             window.removeEventListener("blur", cancel);
             window.removeEventListener("resize", cancel);
@@ -141,6 +161,8 @@ export function MenuHost() {
                     onSelect={select}
                     onCancel={cancel}
                     portalRoot={layerRef.current}
+                    keyboard={menu.keyboard}
+                    developer={developer}
                 />
             )}
         </div>

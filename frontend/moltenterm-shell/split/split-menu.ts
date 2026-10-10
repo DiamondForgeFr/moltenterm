@@ -10,6 +10,11 @@ import { splitPanel } from "./split";
 
 export const SplitRightLabel = "Split right";
 export const SplitDownLabel = "Split down";
+// Distinct glyphs (FR-SHELL-054, DS-SHELL-095): the columns icon, and the same icon turned into rows (Font Awesome
+// Free has no rows glyph). Every menu, the command panel and the header's split buttons use these.
+export const SplitRightIcon = "table-columns";
+export const SplitDownIcon = "table-columns fa-rotate-270";
+export const PanelSection = "Panel";
 
 // A view's own menu items without its split items, for the block menu that already starts with them.
 export function withoutSplitItems(items: ContextMenuItem[]): ContextMenuItem[] {
@@ -23,17 +28,19 @@ export function withoutSplitItems(items: ContextMenuItem[]): ContextMenuItem[] {
     return kept;
 }
 
-export function splitMenuItems(blockId: string): ContextMenuItem[] {
+export function splitMenuItems(blockId: string, section = PanelSection): ContextMenuItem[] {
     return [
         {
             label: SplitRightLabel,
-            icon: "columns",
+            icon: SplitRightIcon,
+            section,
             accelerator: acceleratorById("split-right"),
             click: () => fireAndForget(() => splitPanel(blockId, "right")),
         },
         {
             label: SplitDownLabel,
-            icon: "table-columns",
+            icon: SplitDownIcon,
+            section,
             accelerator: acceleratorById("split-down"),
             click: () => fireAndForget(() => splitPanel(blockId, "down")),
         },

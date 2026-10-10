@@ -30,7 +30,7 @@
     font-family: var(--mt-ui-font, "IBM Plex Sans", sans-serif);
     font-size: var(--mt-text-12);
     line-height: 1.35;
-    box-shadow: var(--mt-shadow-e2, 0 6px 22px #0006);
+    box-shadow: var(--mt-shadow-command);
     overscroll-behavior: contain;
     outline: none;
     z-index: 1;
@@ -93,10 +93,18 @@
     margin: 4px 5px;
     border-top: 1px solid var(--border-color, #555);
 }
+/* A section heading (FR-SHELL-054, DS-SHELL-095) parts the sections in place of a separator: space above, no line.
+   It aligns with the labels, past the icon column (8 px padding, 16 px icon, 8 px gap). */
 .molten-menu-header {
-    padding: 4px 8px;
+    padding: 4px 8px 2px 32px;
     font-size: var(--mt-text-11);
-    font-weight: 600;
+    font-weight: 500;
+    line-height: 16px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
+    color: var(--color-muted, #8c918c);
+    user-select: none;
+}
+.molten-menu-header:not(:first-child) {
+    margin-top: 6px;
 }

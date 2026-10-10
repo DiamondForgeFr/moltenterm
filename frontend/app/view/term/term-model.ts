@@ -47,7 +47,8 @@ import {
     plainSelectionText,
     termCopyMenuItems,
     termFileLinkMenuItems,
-} from "../../../moltenterm-shell/term-copy/term-copy"; // MOLTENTERM-PATCH (#119)
+    TermLinkSection,
+} from "../../../moltenterm-shell/term-copy/term-copy"; // MOLTENTERM-PATCH (#119, #408)
 import { getBlockingCommand } from "./shellblocking";
 import { computeTheme, DefaultTermTheme, trimTerminalSelection } from "./termutil";
 import { TermWrap, WebGLSupported } from "./termwrap";
@@ -866,9 +867,18 @@ export class TermViewModel implements ViewModel {
                     },
                 });
             }
-
-            menu.push({ type: "separator" });
         }
+
+        // MOLTENTERM-PATCH (#408): sections instead of separators (FR-SHELL-054): Paste joins the copy items, the
+        // links under the pointer get the Link section, Magnify moved to the Panel section of the tail.
+        menu.push({
+            label: "Paste",
+            icon: "paste",
+            accelerator: acceleratorById("term-paste"),
+            click: () => {
+                getApi().nativePaste();
+            },
+        });
 
         // MOLTENTERM-PATCH (#119): open the file link under the mouse.
         menu.push(...termFileLinkMenuItems(this.termRef.current));
@@ -883,45 +893,25 @@ export class TermViewModel implements ViewModel {
             if (hoveredURL) {
                 menu.push({
                     label: hoveredURL.hostname ? "Open URL (" + hoveredURL.hostname + ")" : "Open URL",
+                    icon: "globe",
+                    section: TermLinkSection,
                     click: () => {
                         openInBrowserPanel(hoveredURL.toString()); // MOLTENTERM-PATCH (#132, #140)
                     },
                 });
                 menu.push({
-                    label: "Open URL in External Browser",
+                    label: "Open URL in external browser",
+                    icon: "arrow-up-right-from-square",
+                    section: TermLinkSection,
                     click: () => {
                         getApi().openExternal(hoveredURL.toString());
                     },
                 });
-                menu.push({ type: "separator" });
             }
         }
 
-        menu.push({
-            label: "Paste",
-            icon: "paste",
-            accelerator: acceleratorById("term-paste"),
-            click: () => {
-                getApi().nativePaste();
-            },
-        });
-
-        menu.push({ type: "separator" });
-
-        const magnified = globalStore.get(this.nodeModel.isMagnified);
-        menu.push({
-            label: magnified ? "Un-magnify" : "Magnify",
-            icon: "expand",
-            accelerator: acceleratorById("magnify"),
-            click: () => {
-                this.nodeModel.toggleMagnify();
-            },
-        });
-
-        menu.push({ type: "separator" });
-
         // MOLTENTERM-PATCH (#401): the settings moved to the command panel (FR-SHELL-047); More… ⌘. opens it here
-        menu.push(...terminalBodyMenuTail(this.blockId));
+        menu.push(...terminalBodyMenuTail(this.blockId, this.nodeModel));
 
         return menu;
     }
