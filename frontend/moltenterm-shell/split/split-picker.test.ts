@@ -97,7 +97,7 @@ describe("the split's picker (FR-SHELL-042-AC6, DS-SHELL-066)", () => {
         expect(labels).toContain("Mission Control");
         expect(labels).toContain("Line map");
         expect(labels[0]).toBe("Terminal");
-        expect(panels.find((e) => e.label === "Mission Control").detail).toMatch(/link a project/);
+        expect(panels.find((e) => e.label === "Mission Control").detail).toMatch(/no project linked/);
     });
 
     it("finds Mission Control by the words people type for it (FR-SHELL-046-AC5, DS-SHELL-084)", () => {
