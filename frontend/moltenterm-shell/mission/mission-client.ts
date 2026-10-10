@@ -54,8 +54,13 @@ export const MissionReleaseMilestoneCommand = "moltenmissionreleasemilestone";
 export const MissionBranchesPlanCommand = "moltenmissionbranchesplan";
 export const MissionBranchesCleanCommand = "moltenmissionbranchesclean";
 export const MissionGitInitCommand = "moltenmissiongitinit";
+// must match pkg/molten/mission/github_run.go
+export const MissionGithubRunLogCommand = "moltenmissionghrunlog";
+export const MissionGithubRunRerunCommand = "moltenmissionghrunrerun";
 
 const MissionRpcTimeoutMs = 15000;
+// gh reads a whole run's log from GitHub: longer than the cached snapshot (the backend stops at 45 s).
+const GithubRunTimeoutMs = 50000;
 // A request is cheap (the cached snapshot and the pipeline file); the collector itself refreshes at most once a minute.
 const MissionPollMs = 15000;
 
@@ -277,6 +282,26 @@ export type CiRunResult = { run?: CiRunRecord; untrusted?: UntrustedInfo };
 
 export function ciRun(dir: string, branch: string, force: boolean): Promise<CiRunResult> {
     return missionCall(MissionCiRunCommand, { dir, branch, force });
+}
+
+export type GithubRunLog = { text: string; failedonly?: boolean; truncated?: boolean };
+
+// A GitHub Actions run's log, read through gh: the failed steps when the run failed (FR-SHELL-057).
+export function githubRunLog(dir: string, runid: number, failed: boolean): Promise<GithubRunLog> {
+    return TabRpcClient.wshRpcCall(
+        MissionGithubRunLogCommand,
+        { dir, runid, failed },
+        { route: MissionRouteId, timeout: GithubRunTimeoutMs }
+    );
+}
+
+// Starts a GitHub Actions run again, its failed jobs only when asked; the window confirms first (FR-SHELL-057).
+export function githubRunRerun(dir: string, runid: number, failed: boolean): Promise<void> {
+    return TabRpcClient.wshRpcCall(
+        MissionGithubRunRerunCommand,
+        { dir, runid, failed },
+        { route: MissionRouteId, timeout: GithubRunTimeoutMs }
+    );
 }
 
 export function ciLog(dir: string, runid: string, job: string, from: number): Promise<LogChunk> {

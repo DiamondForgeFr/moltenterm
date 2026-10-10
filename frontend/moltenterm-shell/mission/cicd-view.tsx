@@ -11,6 +11,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 import { focusMoltentermView } from "../open-view";
+import { githubBase } from "../project/next-station-model";
 import { MoltentermProjectView } from "../project/project-model";
 import { openProjectOverview } from "../project/project-tab";
 import { cicdRuns, CicdRunsKey } from "../widget-options";
@@ -50,7 +51,7 @@ export class CicdViewModel implements ViewModel {
     }
 }
 
-function LocalCiTab({ project, report }: { project: ActiveProject; report: PipelineReport }) {
+function LocalCiTab({ project, report, github }: { project: ActiveProject; report: PipelineReport; github: string }) {
     const pipeline = report?.valid ? report.pipeline : null;
     const projectName = project.facts?.name ?? pathBaseName(project.dir);
     return (
@@ -67,7 +68,7 @@ function LocalCiTab({ project, report }: { project: ActiveProject; report: Pipel
                     <Notice text="The pipeline declares no CI job (ci.jobs)." />
                 </section>
             ) : (
-                <LocalCiRunner dir={project.dir} projectName={projectName} />
+                <LocalCiRunner dir={project.dir} projectName={projectName} github={github} />
             )}
             {report?.warnings?.length ? (
                 <div className="text-11 text-muted">
@@ -160,10 +161,23 @@ function CicdContent({
                 </div>
             </MissionHeader>
             <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-3">
-                {tab === "local" ? <LocalCiTab project={project} report={snapshot?.pipeline} /> : null}
+                {tab === "local" ? (
+                    <LocalCiTab
+                        project={project}
+                        report={snapshot?.pipeline}
+                        github={snapshot?.github?.url || githubBase(snapshot?.git?.remoteurl)}
+                    />
+                ) : null}
                 {tab === "local" ? steps("cilocal") : null}
                 {tab === "remote" ? steps("ciremote") : null}
-                {tab === "remote" ? <RemoteCiTab github={snapshot?.github} trunk={snapshot?.git?.trunk} /> : null}
+                {tab === "remote" ? (
+                    <RemoteCiTab
+                        github={snapshot?.github}
+                        trunk={snapshot?.git?.trunk}
+                        dir={project.dir}
+                        onRefresh={refresh}
+                    />
+                ) : null}
                 {tab === "cd" ? (
                     <CdTab git={snapshot?.git} github={snapshot?.github} pipeline={snapshot?.pipeline} runs={runs} />
                 ) : null}

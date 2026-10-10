@@ -8,6 +8,9 @@ import {
     FullPxPerDay,
     LabelGap,
     layoutLineMap,
+    lineMapVertical,
+    MaxRow,
+    MinRow,
     OverviewMaxLanes,
     OverviewMinWidth,
     spreadStations,
@@ -387,5 +390,71 @@ describe("cost", () => {
         expect(out.landed.marks.reduce((n, m) => n + m.commits.length, 0)).toBe(300);
         expect(out.stations.length).toBe(20);
         expect(median).toBeLessThan(100);
+    });
+});
+
+describe("fitted to the pane's height (FR-SHELL-057 AC1, DS-SHELL-099)", () => {
+    const busy = () =>
+        model({
+            branches: [
+                branch("feature/1-a", NOW - 15 * Day, NOW - 12 * Day),
+                branch("feature/2-b", NOW - 14 * Day, NOW - 11 * Day),
+                branch("fix/3-open", NOW - 2 * Day, null, "open"),
+            ],
+            stations: [
+                station("v1.0.0-1", NOW - 10 * Day, "rc", NOW - 11 * Day),
+                station("v1.0.0", NOW - 4 * Day, "public"),
+            ],
+        });
+
+    it("keeps rows between 16 and 28 px whatever the height", () => {
+        for (const height of [80, 120, 200, 320, 600, 1200]) {
+            const v = lineMapVertical({ height, single: false, slantRoom: 100, rows: 3 });
+            expect(v.row).toBeGreaterThanOrEqual(MinRow);
+            expect(v.row).toBeLessThanOrEqual(MaxRow);
+            expect(v.laneGap).toBe(v.row);
+        }
+        expect(lineMapVertical({ height: 80, single: false, slantRoom: 100, rows: 3 }).row).toBe(MinRow);
+        expect(lineMapVertical({ height: 1200, single: false, slantRoom: 100, rows: 3 }).row).toBe(MaxRow);
+    });
+
+    it("keeps the natural spacing without a height", () => {
+        const v = lineMapVertical({ single: false, slantRoom: 100, rows: 3 });
+        expect(v).toMatchObject({ mainY: 100, lineGap: 130, laneGap: 40, slanted: true, row: null });
+    });
+
+    it("lays both lines out in the visible height, from short panes up", () => {
+        for (const height of [80, 140, 260, 500]) {
+            const geo = layoutLineMap(busy(), { width: 900, full: true, left: 16, height });
+            expect(geo.devY + 8).toBeLessThanOrEqual(height);
+            expect(geo.mainY).toBeLessThan(geo.devY);
+            expect(geo.height).toBeGreaterThanOrEqual(height);
+            expect(geo.row).toBeGreaterThanOrEqual(MinRow);
+            expect(geo.row).toBeLessThanOrEqual(MaxRow);
+        }
+    });
+
+    it("fills a tall pane: the dates sit at its bottom", () => {
+        const geo = layoutLineMap(busy(), { width: 900, full: true, left: 16, height: 700 });
+        expect(geo.height).toBe(700);
+        expect(geo.tickBottom).toBe(678);
+        expect(geo.row).toBe(MaxRow);
+    });
+
+    it("writes the tags flat, one line above main, when slanted labels do not fit", () => {
+        const short = layoutLineMap(busy(), { width: 900, full: true, left: 16, height: 120 });
+        const labels = short.stations.filter((s) => s.label);
+        expect(labels.length).toBeGreaterThan(0);
+        expect(labels.every((s) => s.label.flat && s.label.date === "")).toBe(true);
+        expect(short.mainY).toBeLessThan(40);
+        const tall = layoutLineMap(busy(), { width: 900, full: true, left: 16, height: 600 });
+        expect(tall.stations.filter((s) => s.label).every((s) => !s.label.flat)).toBe(true);
+    });
+
+    it("starts the plot at the left the caller gives", () => {
+        const geo = layoutLineMap(busy(), { width: 900, full: true, left: 16, height: 300 });
+        expect(geo.left).toBe(16);
+        expect(geo.develop.x1).toBe(16);
+        expect(layoutLineMap(busy(), { width: 900 }).left).toBe(84);
     });
 });
