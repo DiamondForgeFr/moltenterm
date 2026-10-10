@@ -28,12 +28,15 @@ import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { openHeaderCommandPanel } from "../command-panel/block-menus";
 import { openCommandPanelFromTrigger } from "../command-panel/command-panel-store";
+import type { BrowserCommandState } from "../command-panel/providers/browser";
 import { guestEditMenu, guestMenuEvent } from "../menu/guest-menu";
 import { formatShortcutById } from "../shortcuts/format";
+import { splitPanel } from "../split/split";
 import { splitMenuItems } from "../split/split-menu";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import {
+    AgentControlAction,
     agentSiteDecision,
     AgentTabs,
     BrowserAgentModel,
@@ -57,6 +60,8 @@ import {
     siteEngine,
     siteOf,
 } from "./browser-engine";
+import { BrowserErrorModel, isPageFailure } from "./browser-error";
+import { BrowserErrorPage } from "./browser-error-page";
 import { BrowserLoadModel, reloadAction, runReload, TabLoad } from "./browser-loading";
 import {
     activateTab,
@@ -74,6 +79,7 @@ import {
     isAgentTabId,
     makeTabId,
     MoltentermBrowserView,
+    moveTab,
     readBrowserState,
     readCloseRequests,
     readOpenRequests,
@@ -84,6 +90,8 @@ import {
 import type { SignInBar } from "./browser-popup";
 import { noteBrowserPanelFocus } from "./browser-routing";
 import { dropOnTab, DropTarget, overTab, startTabDrag, tabDropIndex, TabDropIndicator } from "./browser-tab-drag";
+import { browserTabMenu } from "./browser-tab-menu";
+import "./browser.css";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
@@ -131,6 +139,8 @@ export class BrowserViewModel implements ViewModel {
     signIn = new BrowserSignInModel();
     // Load state and favicon per tab (#210).
     loads = new BrowserLoadModel();
+    // The page that failed to load per tab, drawn as MoltenTerm's error page (FR-SHELL-051).
+    errors = new BrowserErrorModel();
     // The first-link engine choice per tab (FR-BRW-006).
     choices = new BrowserChoiceModel();
     // The tabs agents drive, and their control bars (FR-BRW-008).
@@ -229,6 +239,7 @@ export class BrowserViewModel implements ViewModel {
         this.webviews.delete(id);
         this.signIn.forget(id);
         this.loads.forget(id);
+        this.errors.forget(id);
         this.choices.forget(id);
         const next = page === tab.url ? this.state() : updateTab(this.state(), id, { url: page, title: undefined });
         this.setState(setTabEngine(next, id, route.engine));
@@ -509,7 +520,7 @@ export class BrowserViewModel implements ViewModel {
     }
 
     // The browser draws its own header: a right-click on its empty part opens the command panel at the pointer, as a
-    // block header does (FR-SHELL-047); the browser's own sections come with FR-SHELL-051.
+    // block header does (FR-SHELL-047), with the Browser sections of FR-SHELL-051 (command-panel/providers/browser.ts).
     showPanelMenu(e: React.MouseEvent): void {
         openHeaderCommandPanel(e, this.blockId);
     }
@@ -522,6 +533,10 @@ export class BrowserViewModel implements ViewModel {
     // Shift+click or Cmd+Shift+R).
     reloadActive(ignoreCache: boolean): void {
         const id = this.state().activeId;
+        if (this.errors.error(id) != null && !this.loads.isLoading(id)) {
+            this.retryTab(id);
+            return;
+        }
         runReload(this.webviews.get(id), reloadAction(this.loads.isLoading(id), ignoreCache));
     }
 
@@ -619,8 +634,168 @@ export class BrowserViewModel implements ViewModel {
         this.webviews.delete(id);
         this.signIn.forget(id);
         this.loads.forget(id);
+        this.errors.forget(id);
         this.choices.forget(id);
         this.setState(closeTab(this.state(), id));
+    }
+
+    closeOtherTabs(id: string): void {
+        if (this.findTab(id) == null) {
+            return;
+        }
+        for (const tab of this.state().tabs.filter((t) => t.id !== id)) {
+            this.closeTab(tab.id);
+        }
+        this.setState(activateTab(this.state(), id));
+    }
+
+    // The copy opens right after its tab, as in a browser, and is shown.
+    duplicateTab(id: string): void {
+        const tab = this.findTab(id);
+        if (tab == null) {
+            return;
+        }
+        const shown = activateTab(this.state(), id);
+        const next = addTab(shown, tab.url, makeTabId, tab.engine ? { engine: tab.engine } : undefined);
+        const index = next.tabs.findIndex((t) => t.id === id);
+        this.setState(moveTab(next, next.activeId, index + 1));
+    }
+
+    copyTabLink(id: string): void {
+        const url = this.findTab(id)?.url;
+        if (url) {
+            fireAndForget(() => navigator.clipboard.writeText(url));
+        }
+    }
+
+    reloadTab(id: string): void {
+        if (this.errors.error(id) != null) {
+            this.retryTab(id);
+            return;
+        }
+        runReload(this.webviews.get(id), reloadAction(false, false));
+    }
+
+    // Retry loads the failed URL again: after a failure the webview holds Chromium's error document, whose reload
+    // would not go back to the page.
+    retryTab(id: string): void {
+        const error = this.errors.error(id);
+        const webview = this.webviews.get(id);
+        if (error == null || webview == null) {
+            return;
+        }
+        this.errors.noteRetry(id);
+        webview.loadURL(error.url).catch(() => {
+            // The failure itself arrives as did-fail-load and redraws the error page.
+        });
+    }
+
+    // "Start the dev server…" of a local page's error: a panel opens below this one on the picker, where Terminal
+    // starts a shell in the workspace folder.
+    startDevServer(): void {
+        fireAndForget(() => splitPanel(this.blockId, "down"));
+    }
+
+    showTabMenu(e: React.MouseEvent, tab: BrowserTab): void {
+        e.preventDefault();
+        const menu = browserTabMenu(this.state(), tab, {
+            reloadTab: (id) => this.reloadTab(id),
+            duplicateTab: (id) => this.duplicateTab(id),
+            copyTabLink: (id) => this.copyTabLink(id),
+            closeTab: (id) => this.closeTab(id),
+            closeOtherTabs: (id) => this.closeOtherTabs(id),
+        });
+        ContextMenuModel.getInstance().showContextMenu(menu, e);
+    }
+
+    showTab(id: string): void {
+        this.setState(activateTab(this.state(), id));
+    }
+
+    // A <webview> throws before its first dom-ready: the page has no zoom to show yet.
+    zoomPercent(): number {
+        try {
+            const factor = this.activeWebview()?.getZoomFactor();
+            return typeof factor === "number" && factor > 0 ? Math.round(factor * 100) : null;
+        } catch {
+            return null;
+        }
+    }
+
+    setZoom(percent: number): void {
+        try {
+            this.activeWebview()?.setZoomFactor(Math.max(0.3, Math.min(3, percent / 100)));
+        } catch (e) {
+            console.log("browser zoom failed", e);
+        }
+    }
+
+    // "Open externally" hands the page off to the installed browser (it becomes a handed-off entry). Without one the
+    // panel offers nothing: links reach the OS browser only through openLink (link-choice.ts, DS-BRW-006).
+    openExternally(id: string): void {
+        fireAndForget(() => this.handOffTab(id));
+    }
+
+    setEngine(id: string, engine: string): void {
+        const tab = this.findTab(id);
+        if (tab == null || (tab.engine || EngineApp) === engine) {
+            return;
+        }
+        if (tab.engine) {
+            this.openHere(id);
+        }
+        if (engine !== EngineApp) {
+            fireAndForget(() => this.handOffTab(id, engine));
+        }
+    }
+
+    forgetAgentSite(site: string): void {
+        fireAndForget(async () => {
+            try {
+                await setAgentSite(site, "");
+            } catch (err) {
+                this.showNotice(`The agents' decision could not be forgotten: ${err}`);
+            }
+        });
+    }
+
+    controlAgent(browserTabId: string, action: AgentControlAction): void {
+        this.agents.control(browserTabId, action);
+    }
+
+    openPageDevTools(): void {
+        try {
+            this.activeWebview()?.openDevTools();
+        } catch (e) {
+            console.log("browser devtools failed", e);
+        }
+    }
+
+    // What the command panel's Browser sections read (command-panel/providers/browser.ts).
+    commandState(): BrowserCommandState {
+        const state = this.state();
+        const tab = this.findTab(state.activeId);
+        if (tab == null) {
+            return null;
+        }
+        const agentTabs = this.agents.tabs();
+        const shownAgent = controlBarView(agentTabs[tab.id]) != null ? agentTabs[tab.id] : null;
+        const agentTab =
+            shownAgent ?? state.tabs.map((t) => agentTabs[t.id]).find((a) => controlBarView(a) != null) ?? null;
+        const sites = globalStore.get(getSettingsKeyAtom("browser:sites"));
+        const routed = siteEngine(sites, tab.url);
+        return {
+            tab,
+            tabCount: state.tabs.length,
+            zoom: tab.engine ? null : this.zoomPercent(),
+            list: globalStore.get(this.engines.listAtom),
+            site: siteOf(tab.url),
+            routed: { site: routed.site || siteOf(tab.url), engine: routed.engine },
+            agentDecision: agentSiteDecision(globalStore.get(getSettingsKeyAtom("browser:agentsites")), tab.url),
+            agentTab,
+            agentView: agentTab ? controlBarView(agentTab) : null,
+            agentTabShown: agentTab != null && agentTab === shownAgent,
+        };
     }
 
     giveFocus(): boolean {
@@ -696,7 +871,8 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
         }
         model.webviews.set(tab.id, webview);
         const onNavigate = (e: any) => {
-            if (e.isMainFrame === false) {
+            // Chromium's own error document must not replace the failed URL in the address bar (FR-SHELL-051).
+            if (e.isMainFrame === false || /^chrome-error:/i.test(e.url ?? "")) {
                 return;
             }
             model.setState(updateTab(model.state(), tab.id, { url: e.url }));
@@ -735,8 +911,24 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
             model.nodeModel.focusNode();
         };
         const onBlur = () => getApi().setWebviewFocus(null);
-        const onStartLoading = () => model.loads.noteStart(tab.id);
-        const onStopLoading = () => model.loads.noteStop(tab.id);
+        const onStartLoading = () => {
+            model.loads.noteStart(tab.id);
+            model.errors.noteStart(tab.id);
+        };
+        const onStopLoading = () => {
+            model.loads.noteStop(tab.id);
+            model.errors.noteStop(tab.id);
+        };
+        const onFailLoad = (e: any) => {
+            if (!isPageFailure(e)) {
+                return;
+            }
+            const url = e.validatedURL || webview.getURL();
+            model.errors.noteFailure(tab.id, { url, code: e.errorCode, description: e.errorDescription });
+            if (url && !/^chrome-error:/i.test(url)) {
+                model.setState(updateTab(model.state(), tab.id, { url }));
+            }
+        };
         const onFavicon = (e: any) => model.loads.noteFavicons(tab.id, e.favicons);
         // emain/preload.ts routes a page's new window by this attribute; the preload cannot call the element's methods.
         const onDomReady = () => {
@@ -761,10 +953,12 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
 
         webview.addEventListener("did-start-loading", onStartLoading);
         webview.addEventListener("did-stop-loading", onStopLoading);
+        webview.addEventListener("did-fail-load", onFailLoad);
         webview.addEventListener("page-favicon-updated", onFavicon);
         return () => {
             webview.removeEventListener("did-start-loading", onStartLoading);
             webview.removeEventListener("did-stop-loading", onStopLoading);
+            webview.removeEventListener("did-fail-load", onFailLoad);
             webview.removeEventListener("page-favicon-updated", onFavicon);
             document.removeEventListener("visibilitychange", onVisibility);
             removeContextMenu?.();
@@ -801,11 +995,14 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
     );
 }
 
+// The tab strip draws the app's tabs at 28 px (FR-SHELL-051, DS-SHELL-092, DS-SHELL-098): 14 px icon, a left 12/500
+// name, a quiet fill on the active tab, the close control on hover or focus only (browser.css).
 function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: BrowserState }) {
     const [dragId, setDragId] = useState<string>(null);
     const [dropTarget, setDropTarget] = useState<DropTarget>(null);
     const list = useAtomValue(model.engines.listAtom);
     const loads = useAtomValue(model.loads.loadsAtom);
+    const errors = useAtomValue(model.errors.errorsAtom);
     const agentTabs = useAtomValue(model.agents.tabsAtom);
     const scrollRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -824,7 +1021,7 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
         }
     };
     return (
-        <div className="flex h-8 shrink-0 items-end border-b border-border pl-1">
+        <div className="molten-browser-tabstrip flex h-8 shrink-0 items-center border-b border-border pl-1">
             <div
                 ref={scrollRef}
                 onWheel={onWheel}
@@ -833,7 +1030,7 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                         setDropTarget(null);
                     }
                 }}
-                className="molten-browser-tabs flex min-w-0 shrink items-end gap-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none]"
+                className="molten-browser-tabs flex h-full min-w-0 shrink items-center overflow-x-auto overflow-y-hidden [scrollbar-width:none]"
             >
                 {state.tabs.map((tab) => (
                     <div
@@ -870,43 +1067,47 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                                 model.closeTab(tab.id);
                             }
                         }}
+                        onContextMenu={(e) => {
+                            e.stopPropagation();
+                            model.showTabMenu(e, tab);
+                        }}
                         title={tab.engine ? `${tab.url}\nOpened in ${engineName(tab.engine, list)}` : tab.url}
                         data-tabid={tab.id}
                         data-engine={tab.engine ?? EngineApp}
                         className={cn(
-                            "molten-browser-tab group relative flex h-7 min-w-[72px] flex-[0_1_200px] cursor-pointer items-center gap-1 rounded-t-6 border border-b-0 px-2 text-12",
-                            tab.id === state.activeId
-                                ? "border-border bg-hover text-primary"
-                                : "border-transparent text-secondary hover:bg-hover/50",
-                            tab.id === dragId && "opacity-50"
+                            "molten-browser-tab group relative flex h-7 min-w-[72px] flex-[0_1_200px] cursor-pointer items-center",
+                            tab.id === state.activeId && "active",
+                            state.tabs.length > 1 && "closable",
+                            tab.id === dragId && "dragging opacity-50"
                         )}
                     >
                         {showDrop && dropTarget.overId === tab.id ? (
                             <TabDropIndicator after={dropTarget.after} />
                         ) : null}
-                        {tab.engine ? (
-                            <i
-                                aria-label={`Opened in ${engineName(tab.engine, list)}`}
-                                className={cn(browserIconClass(tab.engine), "shrink-0 text-11 text-accent")}
-                            />
-                        ) : (
-                            <TabIcon load={loads[tab.id]} />
-                        )}
-                        <span className={cn("min-w-0 flex-1 truncate", tab.engine && "text-secondary")}>
-                            {browserTabTitle(tab) || "New tab"}
-                        </span>
-                        <AgentTabMarker agentTabs={agentTabs} tabId={tab.id} />
+                        <div className="molten-browser-tab-inner">
+                            {tab.engine ? (
+                                <i
+                                    aria-label={`Opened in ${engineName(tab.engine, list)}`}
+                                    className={cn(browserIconClass(tab.engine), "molten-browser-tab-icon text-accent")}
+                                />
+                            ) : (
+                                <TabIcon load={loads[tab.id]} failed={errors[tab.id]?.error != null} />
+                            )}
+                            <span className="molten-browser-tab-name">{browserTabTitle(tab) || "New tab"}</span>
+                            <AgentTabMarker agentTabs={agentTabs} tabId={tab.id} />
+                        </div>
                         {state.tabs.length > 1 ? (
                             <button
                                 type="button"
                                 aria-label="Close tab"
+                                title="Close tab"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     model.closeTab(tab.id);
                                 }}
-                                className="shrink-0 cursor-pointer rounded-6 px-0.5 text-secondary opacity-60 hover:bg-hover hover:opacity-100"
+                                className="molten-browser-tab-close cursor-pointer"
                             >
-                                <i className="fa fa-solid fa-xmark text-11" />
+                                <i className="fa fa-solid fa-xmark" />
                             </button>
                         ) : null}
                     </div>
@@ -917,7 +1118,7 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                 aria-label="New tab"
                 title="New tab (Cmd+T)"
                 onClick={() => model.newTab()}
-                className="mb-0.5 ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
+                className="ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
             >
                 <i className="fa fa-solid fa-plus text-12" />
             </button>
@@ -959,20 +1160,30 @@ function AgentTabMarker({ agentTabs, tabId }: { agentTabs: AgentTabs; tabId: str
     );
 }
 
-// A tab's favicon, or a spinner in the working colour while its page loads.
-function TabIcon({ load }: { load: TabLoad }) {
+// A tab's favicon, or a spinner in the working colour while its page loads; a page that failed shows a warning.
+function TabIcon({ load, failed }: { load: TabLoad; failed: boolean }) {
     const [broken, setBroken] = useState<string>(null);
     if (load?.loading) {
         return (
-            <span
-                role="progressbar"
-                aria-label="Loading"
-                className="molten-browser-tab-spinner h-3 w-3 shrink-0 animate-spin rounded-full border-[1.5px] border-[var(--mt-state-working)] border-t-transparent motion-reduce:animate-none"
+            <span className="molten-browser-tab-icon flex items-center justify-center">
+                <span
+                    role="progressbar"
+                    aria-label="Loading"
+                    className="molten-browser-tab-spinner h-3 w-3 animate-spin rounded-full border-[1.5px] border-[var(--mt-state-working)] border-t-transparent motion-reduce:animate-none"
+                />
+            </span>
+        );
+    }
+    if (failed) {
+        return (
+            <i
+                aria-label="The page did not load"
+                className="fa fa-solid fa-triangle-exclamation molten-browser-tab-icon"
             />
         );
     }
     if (load?.favicon == null || broken === load.favicon) {
-        return <i className="fa fa-solid fa-globe w-3 shrink-0 text-center text-11 text-muted" />;
+        return <i className="fa fa-solid fa-globe molten-browser-tab-icon" />;
     }
     return (
         <img
@@ -980,11 +1191,13 @@ function TabIcon({ load }: { load: TabLoad }) {
             alt=""
             draggable={false}
             onError={() => setBroken(load.favicon)}
-            className="h-3 w-3 shrink-0 object-contain"
+            className="molten-browser-tab-icon object-contain"
         />
     );
 }
 
+// The header's end buttons (DS-SHELL-092): the command panel trigger, magnify and close, at full opacity
+// (browser.css), as every panel's header draws them.
 function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
     const node = model.layoutNode;
     const magnified = useAtomValue(model.nodeModel.isMagnified);
@@ -1009,7 +1222,7 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
         click: (e) => openCommandPanelFromTrigger(model.blockId, (e.target as Element)?.closest?.("button")),
     };
     return (
-        <div className="molten-browser-panel-buttons flex h-full shrink-0 items-center gap-1.5 px-2 text-secondary">
+        <div className="molten-browser-panel-buttons flex h-full shrink-0 items-center gap-0.5 px-1.5">
             <span data-role="command-panel-trigger" className="flex">
                 <IconButton decl={commands} />
             </span>
@@ -1237,6 +1450,23 @@ function HandoffPage({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
     );
 }
 
+// The shown tab's failed page, drawn over its webview (DS-SHELL-092); the failed URL stays in the address bar.
+function ActiveErrorPage({ model, tabId }: { model: BrowserViewModel; tabId: string }) {
+    const errors = useAtomValue(model.errors.errorsAtom);
+    const entry = errors[tabId];
+    if (entry?.error == null || model.findTab(tabId)?.engine) {
+        return null;
+    }
+    return (
+        <BrowserErrorPage
+            error={entry.error}
+            retrying={!!entry.retrying}
+            onRetry={() => model.retryTab(tabId)}
+            onStartDevServer={() => model.startDevServer()}
+        />
+    );
+}
+
 function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const state = useAtomValue(model.stateAtom);
     const block = useAtomValue(model.blockAtom);
@@ -1291,6 +1521,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                         <TabWebview key={tab.id} model={model} tab={tab} active={tab.id === state.activeId} />
                     )
                 )}
+                <ActiveErrorPage model={model} tabId={state.activeId} />
                 <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
             </div>
         </div>

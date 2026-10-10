@@ -15,6 +15,7 @@
 
 import { registerCommandProvider } from "../panel-registry";
 import { AgentProvider } from "./agent";
+import { BrowserProvider } from "./browser";
 import { DeveloperProvider } from "./developer";
 import { MoltenProviders } from "./molten";
 import { PreviewProvider } from "./preview";
@@ -31,6 +32,7 @@ export function registerBuiltinCommandProviders() {
     registerCommandProvider(AgentProvider);
     registerCommandProvider(TerminalProvider);
     registerCommandProvider(PreviewProvider);
+    registerCommandProvider(BrowserProvider);
     registerCommandProvider(WaveMenuProvider);
     registerCommandProvider(DeveloperProvider);
     MoltenProviders.forEach((p) => registerCommandProvider(p));
