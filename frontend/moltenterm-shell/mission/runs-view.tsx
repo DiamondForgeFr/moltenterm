@@ -9,6 +9,7 @@ import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ScrimClass } from "../dialog-frame";
 import { MoltenWave } from "../molten-button";
 import { pathParent } from "../workspace-project";
 import { buildCardTitle, BuildManifest, BuildPhaseDef, BuildPhaseStatus, buildRunView } from "./builds-model";
@@ -41,7 +42,10 @@ export function TrustPrompt({
     onCancel: () => void;
 }) {
     return createPortal(
-        <div className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40" onPointerDown={onCancel}>
+        <div
+            className={cn("fixed inset-0 z-[9600] flex items-center justify-center", ScrimClass)}
+            onPointerDown={onCancel}
+        >
             <div
                 onPointerDown={(e) => e.stopPropagation()}
                 className="flex max-h-[80vh] w-[560px] max-w-[calc(100vw-32px)] flex-col rounded-10 border border-border bg-surface-3 shadow-e3"
