@@ -585,6 +585,7 @@ func main() {
 	wcore.StartWorkspaceIconSweep() // MOLTENTERM-PATCH (#295): imported icons no workspace references
 	// MOLTENTERM-PATCH (#358): the windows move workspaces in the rail
 	wcore.StartWorkspaceOrderRoute()
+	wcore.StartPanelMoveRoute() // MOLTENTERM-PATCH (#414): a tab's panel dragged onto the tab shown
 	aiusechat.InitAIModeConfigWatcher()
 	maybeStartPprofServer()
 	go stdinReadWatch()

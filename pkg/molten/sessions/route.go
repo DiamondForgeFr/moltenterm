@@ -112,7 +112,7 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
 		defer cancel()
-		return l.actions.Show(ctx, req.Id, req.TabId)
+		return l.actions.ShowAt(ctx, req.Id, req.TabId, req.PanePlacement)
 	case molten.DurableSessionsEndCommand:
 		var req molten.DurableSessionRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

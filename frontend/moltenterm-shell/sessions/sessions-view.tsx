@@ -16,6 +16,7 @@ import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AgentStateDot } from "../agent-state-ui";
 import { EmptyState } from "../empty-state";
+import { sessionRowDragProps } from "../split/drop-zones";
 import {
     filterSessions,
     SessionsAgentMetaKey,
@@ -198,6 +199,7 @@ function SessionRow({
             }}
             onClick={onSelect}
             onDoubleClick={() => session.canshow && onShow()}
+            {...sessionRowDragProps(session, sessionWhat(session))}
             className={cn(
                 "group relative flex cursor-pointer items-stretch rounded-6 transition-colors duration-120 ease-mt outline-none hover:bg-hover focus-visible:bg-hover",
                 selected && "bg-hover/60"

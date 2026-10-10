@@ -115,6 +115,11 @@ export class DurableSessions {
         return this.call(DurableSessionsShowCommand, { id });
     }
 
+    // A session dropped on a panel (FR-SHELL-060): reattached beside it, on that side.
+    showBeside(id: string, targetBlockId: string, split: string): Promise<SessionLocation> {
+        return this.call(DurableSessionsShowCommand, { id, targetblockid: targetBlockId, split });
+    }
+
     end(id: string): Promise<SessionEndResult> {
         return this.call(DurableSessionsEndCommand, { id });
     }

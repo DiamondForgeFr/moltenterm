@@ -17,6 +17,29 @@ func TestShortSessionId(t *testing.T) {
 	}
 }
 
+func TestPanePlacementSplitAction(t *testing.T) {
+	cases := []struct {
+		place      PanePlacement
+		horizontal bool
+		position   string
+		ok         bool
+	}{
+		{PanePlacement{TargetBlockId: "b", Split: "right"}, true, "after", true},
+		{PanePlacement{TargetBlockId: "b", Split: "left"}, true, "before", true},
+		{PanePlacement{TargetBlockId: "b", Split: "down"}, false, "after", true},
+		{PanePlacement{TargetBlockId: "b", Split: "up"}, false, "before", true},
+		{PanePlacement{TargetBlockId: "b", Split: "center"}, false, "", false},
+		{PanePlacement{Split: "right"}, false, "", false},
+		{PanePlacement{}, false, "", false},
+	}
+	for _, c := range cases {
+		horizontal, position, ok := c.place.SplitAction()
+		if horizontal != c.horizontal || position != c.position || ok != c.ok {
+			t.Errorf("%+v: got %v %q %v", c.place, horizontal, position, ok)
+		}
+	}
+}
+
 func TestResolveSessionId(t *testing.T) {
 	ids := []string{"abcd1111-x", "abcd2222-y", "ef001234-z"}
 	cases := []struct {

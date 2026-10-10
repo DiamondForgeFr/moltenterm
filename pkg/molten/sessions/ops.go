@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"slices"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/filestore"
@@ -137,17 +138,26 @@ func (liveOps) AttachJob(ctx context.Context, jobId string, blockId string) erro
 	return jobcontroller.AttachJobToBlock(ctx, jobId, blockId)
 }
 
-func (liveOps) InsertPane(ctx context.Context, tabId string, blockId string) error {
-	err := wcore.QueueLayoutActionForTab(ctx, tabId, waveobj.LayoutActionData{
-		ActionType: wcore.LayoutActionDataType_Insert,
-		BlockId:    blockId,
-		Focused:    true,
-	})
+func (liveOps) InsertPane(ctx context.Context, tabId string, blockId string, place molten.PanePlacement) error {
+	tab, err := wstore.DBMustGet[*waveobj.Tab](ctx, tabId)
 	if err != nil {
 		return err
 	}
-	tab, err := wstore.DBMustGet[*waveobj.Tab](ctx, tabId)
-	if err != nil {
+	action := waveobj.LayoutActionData{
+		ActionType: wcore.LayoutActionDataType_Insert,
+		BlockId:    blockId,
+		Focused:    true,
+	}
+	// A panel that left the tab meanwhile: the pane goes where Wave puts a new block.
+	if horizontal, position, ok := place.SplitAction(); ok && slices.Contains(tab.BlockIds, place.TargetBlockId) {
+		action.ActionType = wcore.LayoutActionDataType_SplitVertical
+		if horizontal {
+			action.ActionType = wcore.LayoutActionDataType_SplitHorizontal
+		}
+		action.TargetBlockId = place.TargetBlockId
+		action.Position = position
+	}
+	if err := wcore.QueueLayoutActionForTab(ctx, tabId, action); err != nil {
 		return err
 	}
 	wcore.SendWaveObjUpdate(waveobj.MakeORef(waveobj.OType_Block, blockId))

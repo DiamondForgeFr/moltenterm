@@ -98,6 +98,33 @@ type DurableSessionRequest struct {
 	TabId string `json:"tabid,omitempty"`
 	// end: the terminal asking (`molten session end` from a terminal), which cannot end its own session.
 	CallerBlockId string `json:"callerblockid,omitempty"`
+	// show: where a session not in a pane opens, when it was dropped on a panel (drag to split, FR-SHELL-060).
+	PanePlacement
+}
+
+// PanePlacement puts a reattached pane beside a panel of the tab: Split is the side (right, down, left, up). Empty,
+// the pane goes where Wave puts a new block.
+type PanePlacement struct {
+	TargetBlockId string `json:"targetblockid,omitempty"`
+	Split         string `json:"split,omitempty"`
+}
+
+// SplitAction is the layout split for the placement's side: horizontal puts the panes side by side.
+func (p PanePlacement) SplitAction() (horizontal bool, position string, ok bool) {
+	if p.TargetBlockId == "" {
+		return false, "", false
+	}
+	switch p.Split {
+	case "right":
+		return true, "after", true
+	case "left":
+		return true, "before", true
+	case "down":
+		return false, "after", true
+	case "up":
+		return false, "before", true
+	}
+	return false, "", false
 }
 
 type DurableSessionsCleanupRequest struct {
