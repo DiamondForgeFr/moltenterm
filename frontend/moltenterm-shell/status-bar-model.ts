@@ -110,11 +110,11 @@ export function statusBarFolder(meta: PaneBlockMeta, ws: Workspace): StatusBarFo
 
 export type CiVerdictView = { status: string; label: string; iconClass: string };
 
+// No run on this code ("missing") says nothing worth the room: the segment shows once a run exists (FR-SHELL-055).
 const CiVerdictLabels: Record<string, string> = {
     success: "CI passed",
     failure: "CI failed",
     running: "CI running",
-    missing: "CI not run",
 };
 
 // The same marks as the CI/CD panel (ci-local-panel.tsx).
@@ -122,7 +122,6 @@ const CiVerdictIcons: Record<string, string> = {
     success: "fa-circle-check text-success",
     failure: "fa-circle-xmark text-error",
     running: "fa-circle-notch fa-spin mt-step-spin text-accent",
-    missing: "fa-circle-minus text-muted",
 };
 
 export function ciVerdictView(status: string): CiVerdictView {

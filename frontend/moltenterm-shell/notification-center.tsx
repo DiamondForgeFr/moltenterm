@@ -3,9 +3,9 @@
 
 // The notification center (FR-SHELL-002, FR-MC-010, FR-MC-019): a bell in the tab bar gathers what needs the user's
 // attention in every workspace, newest first. A notification opens where it comes from, carries up to two actions,
-// shows when its situation is resolved, and can be archived; the Archived tab keeps them until cleared. As in Notulia,
-// a warning or an error opens the panel by itself for a few seconds, each subject says only what the user chose, and
-// the work running in every project shows on top, with a progress ring on the bell.
+// shows when its situation is resolved, and can be archived; the Archived tab keeps them until cleared. What arrives
+// shows as a toast instead of opening the panel (FR-SHELL-055), each subject says only what the user chose, and the
+// work running in every project shows on top, with a progress ring on the bell.
 
 import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -13,11 +13,9 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { Component, ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { InlineCodeText } from "./inline-code";
 import { DepSyncHost } from "./mission/dep-sync";
 import {
-    attentionArrivals,
-    AttentionCoalesceMs,
-    attentionDuration,
     Delivery,
     DeliveryLabels,
     MaxRenderedRows,
@@ -25,29 +23,26 @@ import {
     NotificationSubjects,
     subjectOf,
 } from "./notification-rules";
+import { startNotificationToasts } from "./notification-toasts";
 import { workspaceLabel, WorkspaceLabel } from "./notification-workspace";
 import { WorkspaceChip } from "./notification-workspace-chip";
 import {
     activeEntries,
     archivedEntries,
     checkUnread,
+    displayActions,
     formatAge,
     MoltentermNotification,
     NotificationAction,
-    visibleActions,
 } from "./notifications-model";
 import { MoltentermNotifications, registerNotificationGesture, startNotificationAutoRead } from "./notifications-store";
 import { showProjectTab } from "./project/project-tab";
 import { canStop, overallProgress, stopWork, useRunningWork, WorkItem } from "./running-work";
+import { toneOf } from "./toast-model";
+import { ToastStack } from "./toast-stack";
+import { Toasts } from "./toast-store";
 import { pathParent } from "./workspace-project";
 import { loadWorkspaceSources } from "./workspace-rail";
-
-const KindIcons: Record<MoltentermNotification["kind"], string> = {
-    info: "circle-info",
-    success: "circle-check",
-    warning: "triangle-exclamation",
-    error: "circle-exclamation",
-};
 
 const AgeTickMs = 30000;
 
@@ -95,7 +90,8 @@ function NotificationRow({
 }) {
     const unread = checkUnread(entry);
     const resolved = entry.resolved != null;
-    const actions = visibleActions(entry);
+    const actions = displayActions(entry);
+    const tone = toneOf(entry.kind);
     const anyRunning = actions.some((a) => running[`${entry.id}:${a.id}`]);
     const hasOrigin = !!(entry.workspaceid || entry.tabid || entry.blockid);
     const subject = subjectOf(entry.source);
@@ -111,15 +107,14 @@ function NotificationRow({
             role={hasOrigin ? "button" : undefined}
         >
             <i
-                className={cn(
-                    "fa fa-solid mt-0.5 w-4 text-center",
-                    `fa-${KindIcons[entry.kind]}`,
-                    entry.kind === "error" ? "text-error" : entry.kind === "warning" ? "text-warning" : "text-accent"
-                )}
+                aria-label={tone.label}
+                className={cn("fa fa-solid mt-0.5 w-4 text-center", `fa-${tone.icon}`, tone.iconClass)}
             />
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                    <span className={cn("truncate", unread && "font-semibold")}>{entry.title}</span>
+                    <span className={cn("truncate", unread && "font-semibold")}>
+                        <InlineCodeText text={entry.title} />
+                    </span>
                     {unread ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" /> : null}
                     {!archived ? (
                         <button
@@ -137,7 +132,9 @@ function NotificationRow({
                     ) : null}
                 </div>
                 {entry.message ? (
-                    <div className="mt-0.5 line-clamp-3 text-12 text-secondary">{entry.message}</div>
+                    <div className="mt-0.5 line-clamp-3 text-12 text-secondary">
+                        <InlineCodeText text={entry.message} />
+                    </div>
                 ) : null}
                 <div className="mt-1 flex items-center gap-1.5 text-11 text-muted">
                     {label ? (
@@ -371,16 +368,11 @@ function SettingsView({ highlight }: { highlight: NotificationSubject }) {
                 );
             })}
             <div className="pt-1 text-11 text-muted">
-                Quiet keeps the message here, already read: no badge, and the panel does not open for it. Off does not
-                keep it.
+                Quiet keeps the message here, already read: no badge and no toast. Off does not keep it.
             </div>
         </div>
     );
 }
-
-// An appearance the panel made by itself (`auto`), showing only `only`; touched once the user reaches for it.
-type Episode = { auto: boolean; touched: boolean; only: string[] };
-const UserEpisode: Episode = { auto: false, touched: false, only: [] };
 
 export function NotificationCenter() {
     const model = MoltentermNotifications.getInstance();
@@ -391,7 +383,6 @@ export function NotificationCenter() {
     const errors = useAtomValue(model.errorsAtom, { store: globalStore });
     const work = useRunningWork();
     const [panelOpen, setPanelOpen] = useState(false);
-    const [episode, setEpisode] = useState<Episode>(UserEpisode);
     const [tab, setTab] = useState<"active" | "archived" | "settings">("active");
     const [highlight, setHighlight] = useState<NotificationSubject>(null);
     const [workspaces, setWorkspaces] = useState<Map<string, Workspace>>(new Map());
@@ -402,26 +393,10 @@ export function NotificationCenter() {
     const bellRef = useRef<HTMLButtonElement>(null);
     useEffect(() => startNotificationAutoRead(), []);
     useEffect(() => registerBuiltInGestures(), []);
+    useEffect(() => startNotificationToasts(), []);
     const [anchor, setAnchor] = useState<{ top: number; right: number }>(null);
     const archived = archivedEntries(entries);
     const active = activeEntries(entries);
-
-    // The timers and what the arrivals subscription reads belong to the appearance, not to a render of it.
-    const seen = useRef<Map<string, number>>(null);
-    const pending = useRef<string[]>([]);
-    const coalesce = useRef<ReturnType<typeof setTimeout>>(null);
-    const dismiss = useRef<ReturnType<typeof setTimeout>>(null);
-    const panelOpenRef = useRef(false);
-    const episodeRef = useRef<Episode>(UserEpisode);
-    panelOpenRef.current = panelOpen;
-    episodeRef.current = episode;
-
-    const clearTimer = (timer: React.RefObject<ReturnType<typeof setTimeout>>) => {
-        if (timer.current != null) {
-            clearTimeout(timer.current);
-            timer.current = null;
-        }
-    };
 
     const placePanel = () => {
         const rect = bellRef.current?.getBoundingClientRect();
@@ -430,88 +405,21 @@ export function NotificationCenter() {
         }
     };
 
-    // An appearance closing by itself leaves what it showed unread; a panel the user looked at is settled, as Notulia
-    // does: read, and the resolved ones archived.
-    const close = (reason: "user" | "auto") => {
-        clearTimer(dismiss);
-        clearTimer(coalesce);
-        pending.current = [];
+    // A panel the user looked at is settled, as Notulia does: read, and the resolved ones archived.
+    const close = () => {
         setPanelOpen(false);
         setTab("active");
         setHighlight(null);
-        setEpisode(UserEpisode);
-        if (reason === "user") {
-            model.settleSeen();
-        }
+        model.settleSeen();
     };
     const closeRef = useRef(close);
     closeRef.current = close;
 
     const openForUser = () => {
-        clearTimer(dismiss);
         placePanel();
-        setEpisode(UserEpisode);
+        Toasts.getInstance().clearNotificationToasts();
         setPanelOpen(true);
     };
-
-    const touch = () => {
-        if (!episodeRef.current.auto || episodeRef.current.touched) {
-            return;
-        }
-        clearTimer(dismiss);
-        setEpisode({ ...episodeRef.current, touched: true });
-    };
-
-    // Shows what piled up; a panel the user opened is never interrupted, the arrival is already in its list.
-    const showArrivals = () => {
-        const only = pending.current;
-        if (only.length === 0) {
-            return;
-        }
-        if (panelOpenRef.current && !episodeRef.current.auto) {
-            pending.current = [];
-            return;
-        }
-        placePanel();
-        const touched = episodeRef.current.auto && episodeRef.current.touched;
-        setEpisode({ auto: true, touched, only });
-        setTab("active");
-        setPanelOpen(true);
-        clearTimer(dismiss);
-        if (!touched) {
-            dismiss.current = setTimeout(() => closeRef.current("auto"), attentionDuration(only.length));
-        }
-    };
-
-    useEffect(() => {
-        if (seen.current == null) {
-            seen.current = new Map(entries.map((e) => [e.id, e.updated]));
-            return;
-        }
-        const arrivals = attentionArrivals(entries, seen.current);
-        seen.current = new Map(entries.map((e) => [e.id, e.updated]));
-        if (arrivals.length === 0 || document.visibilityState !== "visible") {
-            return;
-        }
-        pending.current = [...new Set([...pending.current, ...arrivals])];
-        if (panelOpenRef.current) {
-            showArrivals();
-            return;
-        }
-        clearTimer(coalesce);
-        coalesce.current = setTimeout(() => {
-            coalesce.current = null;
-            showArrivals();
-        }, AttentionCoalesceMs);
-    }, [entries]);
-
-    useEffect(
-        () => () => {
-            clearTimer(coalesce);
-            clearTimer(dismiss);
-        },
-        []
-    );
 
     useEffect(() => {
         if (tab === "archived" && archived.length === 0) {
@@ -546,12 +454,11 @@ export function NotificationCenter() {
             if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) {
                 return;
             }
-            // Working elsewhere while an untouched appearance shows does not count as reading it.
-            closeRef.current(episodeRef.current.auto && !episodeRef.current.touched ? "auto" : "user");
+            closeRef.current();
         };
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
-                closeRef.current("user");
+                closeRef.current();
             }
         };
         document.addEventListener("pointerdown", onPointerDown, true);
@@ -562,16 +469,11 @@ export function NotificationCenter() {
         };
     }, [panelOpen]);
 
-    const list =
-        tab === "archived"
-            ? archived
-            : episode.auto && episode.only.length > 0
-              ? active.filter((e) => episode.only.includes(e.id))
-              : active;
+    const list = tab === "archived" ? archived : active;
     const shown = list.slice(0, MaxRenderedRows);
     const hidden = list.length - shown.length;
     const progress = overallProgress(work);
-    const showWork = tab === "active" && !(episode.auto && episode.only.length > 0) && work.length > 0;
+    const showWork = tab === "active" && work.length > 0;
 
     const bellLabel = [
         unread > 0
@@ -600,13 +502,7 @@ export function NotificationCenter() {
                         openForUser();
                         return;
                     }
-                    // Reaching for the bell during an appearance shows the whole list rather than closing it.
-                    if (episode.auto) {
-                        clearTimer(dismiss);
-                        setEpisode({ auto: false, touched: true, only: [] });
-                        return;
-                    }
-                    close("user");
+                    close();
                 }}
                 className="relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-6 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary"
             >
@@ -621,25 +517,20 @@ export function NotificationCenter() {
                 ) : null}
             </button>
             <DepSyncHost />
+            {createPortal(<ToastStack onOpenCenter={openForUser} />, document.body)}
             {/* Portaled to the body: inside the tab bar the panel would sit under the blocks' stacking context. */}
             {panelOpen && anchor
                 ? createPortal(
                       <div
                           ref={panelRef}
                           style={{ top: anchor.top, right: anchor.right }}
-                          onPointerDown={touch}
-                          onPointerEnter={touch}
                           data-testid="notification-panel"
-                          data-auto={episode.auto && !episode.touched ? "true" : undefined}
                           className="molten-notification-panel fixed z-[9500] flex max-h-[60vh] w-[380px] flex-col rounded-10 border border-border bg-surface-3 text-13 leading-5 text-primary shadow-e2"
                       >
                           <div className="flex items-center gap-3 border-b border-border px-3 py-2">
                               <button
                                   type="button"
-                                  onClick={() => {
-                                      setTab("active");
-                                      setEpisode(UserEpisode);
-                                  }}
+                                  onClick={() => setTab("active")}
                                   className={cn(
                                       "cursor-pointer font-semibold",
                                       tab === "active" ? "text-primary" : "text-muted hover:text-secondary"

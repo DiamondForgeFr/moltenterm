@@ -36,9 +36,9 @@ import { WorktreeChip } from "./worktree-ui";
 const NoFocusedNode = atom(null) as Atom<{ data?: { blockId?: string } }>;
 
 // Badges keep a fixed colour per channel, apart from the workspace accent: a gold or dev build must be recognisable
-// in any workspace.
+// in any workspace. A dev build is the everyday case of whoever works on MoltenTerm: a neutral pill (FR-SHELL-055).
 const ChannelClasses: Record<StatusBarChannel, string> = {
-    dev: cn("border-line-strong bg-surface-2", MoltentermDevChannelText),
+    dev: cn("border-line-strong bg-surface-3", MoltentermDevChannelText),
     local: "border-amber-500/60 text-amber-400",
     gold: "border-yellow-400/70 text-yellow-300",
     rc: "border-accent/60 text-accent",
@@ -149,7 +149,11 @@ export function StatusBar() {
                 <GoldUpdateButton />
                 <span
                     title={view.tooltip}
-                    className={cn("rounded-4 border px-1.5 leading-[16px]", ChannelClasses[view.channel])}
+                    data-testid="build-badge"
+                    className={cn(
+                        "inline-flex h-5 items-center rounded-6 border px-2 text-11 font-medium",
+                        ChannelClasses[view.channel]
+                    )}
                 >
                     {view.badge}
                 </span>
