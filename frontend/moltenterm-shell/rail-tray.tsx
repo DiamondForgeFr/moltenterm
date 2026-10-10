@@ -7,10 +7,14 @@
 // item's own row only, so it never reaches the title bar, the tab bar or a panel header above or below the row.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
+import { globalStore } from "@/app/store/jotaiStore";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { escapeBelongsElsewhere } from "./rail-connect";
-import { RailTrayModel, trayArrowIndex } from "./rail-tray-model";
+import { RailTrayModel, revealDelta, trayArrowIndex } from "./rail-tray-model";
+
+// The rail's own scroll that brings a keyboard tray's item in: no reason to fold.
+const RevealScrollMs = 300;
 
 export type RailTrayAnchor = { top: number; left: number };
 
@@ -177,15 +181,45 @@ export function installRailTrayExits(nav: HTMLElement): () => void {
         }
         model.fold(open.key);
     };
+    // The rail scrolling under a resting pointer folds its tray; a keyboard tray follows its item, which the focus
+    // scrolled into view, and the rail's own reveal below is no scroll of the user's.
+    let revealedAt = 0;
+    const onScroll = () => {
+        if (model.getOpen()?.via !== "pointer" || Date.now() - revealedAt < RevealScrollMs) {
+            return;
+        }
+        model.closeAll();
+    };
+    // The tray covers its item's row only, and that row must lie inside the rail, never over the tab bar above it or
+    // the status bar below it. A keyboard tray scrolls its item in; under the pointer, a partly hidden item opens no
+    // tray (scrolling would slide another item under the resting pointer).
+    const unsubscribe = globalStore.sub(model.openAtom, () => {
+        const open = model.getOpen();
+        const item = open != null ? itemOf(hostOf(open.key)) : null;
+        if (item == null) {
+            return;
+        }
+        const delta = revealDelta(item.getBoundingClientRect(), nav.getBoundingClientRect());
+        if (delta === 0) {
+            return;
+        }
+        if (open.via === "pointer") {
+            model.fold(open.key);
+            return;
+        }
+        revealedAt = Date.now();
+        nav.scrollTop += delta;
+    });
     const closeAll = () => model.closeAll();
     document.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("pointerdown", onPointerDown, true);
-    nav.addEventListener("scroll", closeAll, { passive: true });
+    nav.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("blur", closeAll);
     return () => {
+        unsubscribe();
         document.removeEventListener("keydown", onKeyDown, true);
         document.removeEventListener("pointerdown", onPointerDown, true);
-        nav.removeEventListener("scroll", closeAll);
+        nav.removeEventListener("scroll", onScroll);
         window.removeEventListener("blur", closeAll);
         model.closeAll();
     };

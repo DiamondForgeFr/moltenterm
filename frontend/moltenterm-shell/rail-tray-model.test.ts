@@ -11,6 +11,7 @@ import {
     RailTrayWarmMs,
     railWorkspaceMenu,
     RailWorkspaceMenu,
+    revealDelta,
     trayArrowIndex,
 } from "./rail-tray-model";
 
@@ -142,6 +143,13 @@ describe("the rail's keyboard (FR-SHELL-045-AC5, DS-SHELL-081)", () => {
         expect(railNavIndex(0, "End", 4)).toBe(3);
         expect(railNavIndex(0, "ArrowRight", 4)).toBeNull();
         expect(railNavIndex(0, "ArrowDown", 0)).toBeNull();
+    });
+
+    it("tells how far the rail scrolls for an item to lie wholly inside it (FR-SHELL-045-AC1)", () => {
+        const rail = { top: 33, bottom: 476 };
+        expect(revealDelta({ top: 100, bottom: 136 }, rail)).toBe(0);
+        expect(revealDelta({ top: 469, bottom: 505 }, rail)).toBe(33);
+        expect(revealDelta({ top: 20, bottom: 56 }, rail)).toBe(-17);
     });
 
     it("keeps one tab stop: the item last focused, else the active one, else the first", () => {
