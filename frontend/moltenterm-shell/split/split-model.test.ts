@@ -9,7 +9,14 @@ import {
     MinPanelPx,
     nearEdge,
     panelKindRank,
+    pickerFitsInline,
+    PickerMinPx,
+    PickerMinRows,
+    pickerPopoverRect,
+    PickerPopoverWidthPx,
+    PickerRowPx,
     splitAxis,
+    splitHandleText,
     splitSizes,
     terminalBlockDefFrom,
 } from "./split-model";
@@ -94,5 +101,37 @@ describe("the picker's terminal (FR-SHELL-042-AC7)", () => {
         expect(panelKindRank("molten-browser")).toBeLessThan(panelKindRank("preview"));
         expect(panelKindRank("molten-sessions")).toBeLessThan(panelKindRank("sysinfo"));
         expect(panelKindRank("my-widget")).toBeGreaterThan(panelKindRank("processviewer"));
+        expect(panelKindRank("molten-linemap")).toBe(panelKindRank("molten-project") + 1);
+    });
+});
+
+describe("the edge handle's tooltip (FR-SHELL-046-AC2, DS-SHELL-083)", () => {
+    it("names the split, its keys and the drag", () => {
+        expect(splitHandleText("right", "⌘D")).toEqual({ label: "Split right", tip: "Split right ⌘D · drag to size" });
+        expect(splitHandleText("down", "⇧⌘D").tip).toBe("Split down ⇧⌘D · drag to size");
+        expect(splitHandleText("down", "").tip).toBe("Split down · drag to size");
+    });
+});
+
+describe("the picker's minimum height (FR-SHELL-046-AC6, DS-SHELL-084)", () => {
+    it("stays in the panel only with room for six rows", () => {
+        expect(PickerMinPx).toBeGreaterThanOrEqual(PickerMinRows * PickerRowPx);
+        expect(pickerFitsInline(PickerMinPx)).toBe(true);
+        expect(pickerFitsInline(PickerMinPx - 1)).toBe(false);
+    });
+
+    it("opens the popover on the new panel, inside the window", () => {
+        const win = { width: 1400, height: 900 };
+        expect(pickerPopoverRect({ left: 700, top: 300, width: 700 }, win)).toEqual({
+            left: 870,
+            top: 300,
+            width: PickerPopoverWidthPx,
+            height: PickerMinPx,
+        });
+        const low = pickerPopoverRect({ left: 1300, top: 860, width: 100 }, win);
+        expect(low.left + low.width).toBeLessThanOrEqual(win.width - 8);
+        expect(low.top + low.height).toBeLessThanOrEqual(win.height - 8);
+        const tiny = pickerPopoverRect({ left: 0, top: 0, width: 100 }, { width: 300, height: 200 });
+        expect(tiny).toEqual({ left: 8, top: 8, width: 284, height: 184 });
     });
 });

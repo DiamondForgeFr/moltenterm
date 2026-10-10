@@ -34,6 +34,9 @@ export const BranchCommitsRead = 150;
 const MergeCommitsRead = 150;
 export const TrunkCommitsRead = 300;
 
+// The line map full size's view type (line-map-view.tsx); here so pure code (the split's picker) can name it.
+export const MoltentermLineMapView = "molten-linemap";
+
 export const DefaultLineMapDays = 21;
 export const DefaultFullLineMapDays = 60;
 export const LineMapDayChoices = [7, 14, 21, 30, 60, 90];

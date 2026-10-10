@@ -6,6 +6,7 @@
 // the app.
 
 import { CompanionTargetMetaKey, MoltentermCompanionView } from "../companion/companion-model";
+import { MoltentermLineMapView } from "../mission/line-map-model";
 import { MoltentermProjectView } from "../project/project-model";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
 import { panelKindRank, terminalBlockDefFrom } from "../split/split-model";
@@ -317,9 +318,18 @@ export function shortcutsEntry(hint?: string): PaletteEntry {
     };
 }
 
-// The panel kinds a split's picker offers first (DS-SHELL-066), in a fixed order: the configured panels, with the
-// terminal and the file browser opened where the source panel is, then Mission Control's overview when the workspace
-// is linked to a project, the source terminal's companion, and Sessions.
+// The words people type for a panel kind that are not in its name (DS-SHELL-084): "git" or "branches" finds Mission
+// Control, "url" the browser.
+const PickerKeywords: Record<string, string[]> = {
+    [MoltentermProjectView]: ["mission", "dashboard", "branches", "git", "ci"],
+    "molten-browser": ["web", "page", "url"],
+    [MoltentermSessionsView]: ["history", "resume"],
+    [MoltentermCompanionView]: ["agent", "usage"],
+};
+
+// The panel kinds a split's picker offers first (DS-SHELL-066, DS-SHELL-084), in a fixed order: the configured
+// panels, with the terminal and the file browser opened where the source panel is, then Mission Control's overview
+// and its line map, the source terminal's companion, and Sessions.
 export function pickerPanelEntries(
     widgets: { [key: string]: WidgetConfigType },
     workspaceId: string,
@@ -346,17 +356,27 @@ export function pickerPanelEntries(
         }
         return entry;
     });
-    if (projectLinked) {
-        panels.push({
+    // Listed with or without a project: their frame offers to link one (mission-frame.tsx).
+    panels.push(
+        {
             id: "panel:missioncontrol",
             group: "panels",
             label: "Mission Control",
-            detail: "the project overview",
+            detail: projectLinked ? "the project overview" : "link a project to see where it stands",
             icon: "gauge",
-            keywords: ["project", "overview", "dashboard"],
+            keywords: ["project", "overview"],
             run: { kind: "widget", blockdef: { meta: { view: MoltentermProjectView } } },
-        });
-    }
+        },
+        {
+            id: "panel:linemap",
+            group: "panels",
+            label: "Line map",
+            detail: projectLinked ? "the project's branches as lines" : "the branches of a linked project",
+            icon: "train-subway",
+            keywords: ["commits", "graph", "metro"],
+            run: { kind: "widget", blockdef: { meta: { view: MoltentermLineMapView } } },
+        }
+    );
     if (sourceMeta.view === "term" && source?.blockId) {
         panels.push({
             id: "panel:companion",
@@ -387,7 +407,10 @@ export function pickerPanelEntries(
     return panels
         .map((entry, order) => ({ entry, order, rank: panelKindRank(viewOf(entry)) }))
         .sort((a, b) => a.rank - b.rank || a.order - b.order)
-        .map((r) => r.entry);
+        .map((r) => {
+            const extra = PickerKeywords[viewOf(r.entry)];
+            return extra == null ? r.entry : { ...r.entry, keywords: [...(r.entry.keywords ?? []), ...extra] };
+        });
 }
 
 // Each panel row of the picker shows how to reach it: the split's keys, the start of its name that selects it, Enter.

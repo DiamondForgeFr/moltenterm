@@ -1,9 +1,10 @@
 /* Copyright 2026, DiamondForge
    SPDX-License-Identifier: Apache-2.0 */
 
-/* Edge split handles (FR-SHELL-042, DS-SHELL-065): an overlay of the block frame that takes no pointer, except the
-   shown bud, the webview catchers and the whole overlay while a drag is in progress. Nothing here changes the size or
-   the place of anything in the panel (NFR-SHELL-023). */
+/* Edge split handles (FR-SHELL-042, FR-SHELL-046, DS-SHELL-065, DS-SHELL-083): an overlay of the block frame that
+   takes no pointer, except the shown handle, the webview catchers and the whole overlay while a drag is in progress.
+   It clips to the panel, so neither the handle nor its tooltip reaches the panel below or the layout's gutter, and
+   nothing here changes the size or the place of anything in the panel (NFR-SHELL-023, NFR-SHELL-029). */
 .molten-split-overlay {
     position: absolute;
     inset: 0;
@@ -11,9 +12,6 @@
     pointer-events: none;
     overflow: hidden;
     border-radius: var(--block-border-radius);
-    /* The bud is the rail bud's droplet (#365, DS-SHELL-061), tinted by the workspace accent so it reads over a
-       terminal or a page; the goo threshold needs an opaque fill. */
-    --molten-split-bud-fill: color-mix(in srgb, var(--mt-accent) 38%, var(--color-background));
 }
 
 .molten-split-overlay-dragging {
@@ -33,200 +31,207 @@
     pointer-events: auto;
 }
 
+/* The ghost of the new panel: dashed, as a drop target is (DS-SHELL-078), at 50 % on hover and at the drag's line
+   while dragging, where its leading edge turns solid to mark where the split lands. */
 .molten-split-preview {
     position: absolute;
+    top: 4px;
+    right: 4px;
+    bottom: 4px;
+    left: 4px;
     pointer-events: none;
-    background-color: color-mix(in srgb, var(--mt-accent) 10%, transparent);
+    border: 1px dashed color-mix(in srgb, var(--mt-accent) 70%, transparent);
+    border-radius: var(--mt-radius-6);
+    background-color: color-mix(in srgb, var(--mt-accent) 7%, transparent);
+    opacity: 0;
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
 }
 
-.molten-split-preview[data-edge="right"] {
-    box-shadow: inset 2px 0 0 var(--mt-accent);
+.molten-split-preview[data-shown] {
+    opacity: 1;
 }
 
-.molten-split-preview[data-edge="down"] {
-    box-shadow: inset 0 2px 0 var(--mt-accent);
+.molten-split-preview[data-dragging][data-edge="right"] {
+    border-left: 2px solid var(--mt-accent);
 }
 
-.molten-split-bud {
+.molten-split-preview[data-dragging][data-edge="down"] {
+    border-top: 2px solid var(--mt-accent);
+}
+
+.molten-split-preview[data-reduced-motion] {
+    transition: none;
+}
+
+/* One edge: the hairline along it and the handle in its middle. */
+.molten-split-edge {
     position: absolute;
-    width: 32px;
-    height: 32px;
     pointer-events: none;
 }
 
-.molten-split-bud[data-edge="right"] {
+.molten-split-edge[data-edge="right"] {
+    top: 0;
     right: 0;
-    top: calc(50% - 16px);
-}
-
-.molten-split-bud[data-edge="down"] {
     bottom: 0;
-    left: calc(50% - 16px);
+    width: 24px;
 }
 
-.molten-split-bud-goo {
-    position: absolute;
-    inset: -6px;
+.molten-split-edge[data-edge="down"] {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 24px;
 }
 
-.molten-split-bud-tile,
-.molten-split-bud-stub,
-.molten-split-bud-drop {
+.molten-split-hairline {
     position: absolute;
     border-radius: 9999px;
-    background-color: var(--molten-split-bud-fill);
-}
-
-/* Coordinates are in the goo layer, 6 px larger than the bud on every side. */
-.molten-split-bud[data-edge="right"] .molten-split-bud-tile {
-    right: 6px;
-    top: 4px;
-    width: 4px;
-    height: 36px;
+    background-color: color-mix(in srgb, var(--mt-accent) 55%, transparent);
     opacity: 0;
-    transition: opacity var(--mt-duration-base) var(--mt-ease) 60ms;
+    transition:
+        opacity var(--mt-duration-base) var(--mt-ease),
+        scale var(--mt-duration-base) var(--mt-ease);
 }
 
-.molten-split-bud[data-edge="down"] .molten-split-bud-tile {
-    bottom: 6px;
-    left: 4px;
-    width: 36px;
-    height: 4px;
-    opacity: 0;
-    transition: opacity var(--mt-duration-base) var(--mt-ease) 60ms;
-}
-
-.molten-split-bud[data-edge="right"] .molten-split-bud-stub {
-    right: 8px;
-    top: 16px;
-    width: 12px;
-    height: 12px;
-    translate: 4px 0;
-}
-
-.molten-split-bud[data-edge="down"] .molten-split-bud-stub {
+.molten-split-edge[data-edge="right"] .molten-split-hairline {
+    top: 8px;
     bottom: 8px;
-    left: 16px;
-    width: 12px;
-    height: 12px;
-    translate: 0 4px;
+    right: 0;
+    width: 2px;
+    scale: 1 0.6;
 }
 
-.molten-split-bud[data-edge="right"] .molten-split-bud-drop {
-    right: 18px;
-    top: 14px;
-    width: 16px;
-    height: 16px;
-    translate: 12px 0;
+.molten-split-edge[data-edge="down"] .molten-split-hairline {
+    left: 8px;
+    right: 8px;
+    bottom: 0;
+    height: 2px;
+    scale: 0.6 1;
 }
 
-.molten-split-bud[data-edge="down"] .molten-split-bud-drop {
-    bottom: 18px;
-    left: 14px;
-    width: 16px;
-    height: 16px;
-    translate: 0 12px;
-}
-
-.molten-split-bud-stub {
-    scale: 0;
-    transition:
-        translate var(--mt-duration-fast) var(--mt-ease),
-        scale var(--mt-duration-fast) var(--mt-ease) 120ms;
-}
-
-.molten-split-bud-drop {
-    scale: 0;
-    transition:
-        translate var(--mt-duration-base) var(--mt-ease),
-        scale var(--mt-duration-fast) var(--mt-ease) 90ms;
-}
-
-.molten-split-bud[data-shown] .molten-split-bud-tile {
+.molten-split-edge[data-shown] .molten-split-hairline {
     opacity: 1;
-    transition: opacity var(--mt-duration-base) var(--mt-ease);
+    scale: 1 1;
 }
 
-.molten-split-bud[data-shown] .molten-split-bud-stub {
-    translate: 0 0;
-    scale: 1;
-    transition:
-        scale var(--mt-duration-fast) var(--mt-ease),
-        translate var(--mt-duration-fast) var(--mt-ease) 80ms;
+.molten-split-edge[data-hover] .molten-split-hairline {
+    background-color: var(--mt-accent);
 }
 
-.molten-split-bud[data-shown] .molten-split-bud-drop {
-    translate: 0 0;
-    scale: 1;
-    transition:
-        translate var(--mt-duration-slow) var(--mt-ease) 20ms,
-        scale var(--mt-duration-base) var(--mt-ease) 20ms;
-}
-
-/* The target: 16 x 24 px over the drop, only while the bud is out. */
-.molten-split-bud-hit {
+/* The handle sits against the hairline, inside the panel: half of it past the edge would be clipped. */
+.molten-split-handle {
     position: absolute;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 20px;
+    height: 20px;
     padding: 0;
     border: 0;
-    background: transparent;
-    color: var(--color-primary);
+    border-radius: 9999px;
+    color: var(--mt-accent-fg);
+    background-color: var(--mt-accent);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.28),
+        var(--mt-shadow-e1),
+        0 2px 6px rgb(0 0 0 / 0.5);
+    opacity: 0;
+    scale: 0.7;
+    pointer-events: none;
+    transition:
+        opacity var(--mt-duration-fast) var(--mt-ease),
+        scale var(--mt-duration-fast) var(--mt-ease);
+}
+
+.molten-split-edge[data-edge="right"] .molten-split-handle {
+    right: 3px;
+    top: calc(50% - 10px);
+}
+
+.molten-split-edge[data-edge="down"] .molten-split-handle {
+    bottom: 3px;
+    left: calc(50% - 10px);
+}
+
+.molten-split-edge[data-shown] .molten-split-handle {
+    opacity: 1;
+    scale: 1;
+    pointer-events: auto;
+}
+
+.molten-split-edge[data-shown][data-hover] .molten-split-handle {
+    scale: 1.1;
+}
+
+.molten-split-handle:focus-visible {
+    outline: 2px solid var(--mt-accent);
+    outline-offset: 2px;
+}
+
+/* The tooltip: inside the panel, beside the handle (left of it on the right edge, above it on the bottom edge), after
+   400 ms of hover; it leaves at once. */
+.molten-split-tip {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-6);
+    background-color: var(--mt-surface-3);
+    box-shadow: var(--mt-shadow-e2);
+    color: var(--mt-text-main);
     font-size: var(--mt-text-11);
+    line-height: 16px;
+    white-space: nowrap;
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--mt-duration-fast) var(--mt-ease);
 }
 
-.molten-split-bud[data-edge="right"] .molten-split-bud-hit {
-    right: 12px;
-    top: 4px;
-    width: 16px;
-    height: 24px;
+.molten-split-edge[data-edge="right"] .molten-split-tip {
+    right: 32px;
+    top: 50%;
+    translate: 0 -50%;
 }
 
-.molten-split-bud[data-edge="down"] .molten-split-bud-hit {
-    bottom: 12px;
-    left: 4px;
-    width: 24px;
-    height: 16px;
+.molten-split-edge[data-edge="down"] .molten-split-tip {
+    bottom: 32px;
+    left: 50%;
+    translate: -50% 0;
 }
 
-.molten-split-bud[data-shown] .molten-split-bud-hit {
+.molten-split-edge[data-shown][data-hover]:not([data-dragging]) .molten-split-tip {
     opacity: 1;
-    pointer-events: auto;
-    transition: opacity var(--mt-duration-fast) var(--mt-ease) 140ms;
+    transition-delay: 400ms;
 }
 
-.molten-split-bud-hit:hover .molten-split-bud-glyph {
-    color: var(--mt-accent);
-    filter: brightness(1.6);
+.molten-split-tip-keys {
+    padding: 0 4px;
+    border-radius: var(--mt-radius-4);
+    background-color: var(--mt-surface-2);
+    color: var(--mt-text-main);
+    font-family: var(--termfontfamily, ui-monospace, monospace);
+    font-size: var(--mt-text-11);
 }
 
-/* Reduced motion: no division; the settled droplet fades in and out. */
-.molten-split-bud[data-reduced-motion] .molten-split-bud-stub,
-.molten-split-bud[data-reduced-motion] .molten-split-bud-drop {
-    translate: none;
+.molten-split-tip-rest {
+    color: var(--mt-text-secondary);
+}
+
+/* Reduced motion (FR-SHELL-046-AC7, NFR-SHELL-027): the hairline and the handle appear at their size, the hover does
+   not scale, and nothing fades. */
+.molten-split-edge[data-reduced-motion] .molten-split-hairline,
+.molten-split-edge[data-reduced-motion] .molten-split-handle,
+.molten-split-edge[data-reduced-motion][data-shown][data-hover] .molten-split-handle {
     scale: none;
     transition: none;
 }
 
-.molten-split-bud[data-reduced-motion] .molten-split-bud-tile {
-    opacity: 1;
+.molten-split-edge[data-reduced-motion] .molten-split-tip {
     transition: none;
 }
 
-.molten-split-bud[data-reduced-motion] .molten-split-bud-goo {
-    opacity: 0;
-    transition: opacity var(--mt-duration-fast) var(--mt-ease);
-}
-
-.molten-split-bud[data-reduced-motion][data-shown] .molten-split-bud-goo {
-    opacity: 1;
-}
-
-.molten-split-bud[data-reduced-motion] .molten-split-bud-hit,
-.molten-split-bud[data-reduced-motion][data-shown] .molten-split-bud-hit {
-    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+.molten-split-edge[data-reduced-motion][data-shown][data-hover]:not([data-dragging]) .molten-split-tip {
+    transition: opacity 0ms linear 400ms;
 }

@@ -79,6 +79,7 @@ export const PanelKindOrder = [
     "molten-browser",
     "preview",
     "molten-project",
+    "molten-linemap",
     "molten-cicd",
     "molten-companion",
     "molten-sessions",
@@ -89,6 +90,39 @@ export const PanelKindOrder = [
 export function panelKindRank(view: string): number {
     const i = PanelKindOrder.indexOf(view);
     return i === -1 ? PanelKindOrder.length : i;
+}
+
+// The picker of a new panel shows at least this many panel rows (FR-SHELL-046-AC6, DS-SHELL-084): its search, a
+// section title, the rows and its key hints. A panel with less room gets the picker as a popover instead.
+export const PickerMinRows = 6;
+export const PickerRowPx = 32;
+export const PickerChromePx = 44 + 8 + 26 + 34;
+export const PickerMinPx = PickerChromePx + PickerMinRows * PickerRowPx;
+export const PickerPopoverWidthPx = 360;
+const PopoverMarginPx = 8;
+
+export function pickerFitsInline(availablePx: number): boolean {
+    return availablePx >= PickerMinPx;
+}
+
+// The popover of a short panel's picker: 360 px wide, centred on the new panel from its top, kept inside the window;
+// a panel too low for the popover below its top gets it raised so its bottom stays on screen.
+export function pickerPopoverRect(
+    panel: { left: number; top: number; width: number },
+    win: { width: number; height: number }
+): { left: number; top: number; width: number; height: number } {
+    const width = Math.min(PickerPopoverWidthPx, win.width - 2 * PopoverMarginPx);
+    const height = Math.min(PickerMinPx, win.height - 2 * PopoverMarginPx);
+    const centred = panel.left + (panel.width - width) / 2;
+    const left = Math.min(Math.max(centred, PopoverMarginPx), win.width - PopoverMarginPx - width);
+    const top = Math.min(Math.max(panel.top, PopoverMarginPx), win.height - PopoverMarginPx - height);
+    return { left, top, width, height };
+}
+
+// The edge handle's name and tooltip (DS-SHELL-083): the keys come from the shortcut registry, so a rebinding shows.
+export function splitHandleText(edge: "right" | "down", keys: string): { label: string; tip: string } {
+    const label = edge === "right" ? "Split right" : "Split down";
+    return { label, tip: [keys ? `${label} ${keys}` : label, "drag to size"].join(" · ") };
 }
 
 // The edge handle shows only where a split would fit and nothing else claims the pointer (DS-SHELL-065).
