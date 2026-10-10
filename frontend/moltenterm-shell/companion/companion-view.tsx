@@ -13,7 +13,7 @@ import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
-import { atom, useAtomValue } from "jotai";
+import { atom, PrimitiveAtom, useAtom, useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useState } from "react";
 import { useBlockAgentState } from "../agent-state-ui";
 import { EmptyState, EmptyStateAction } from "../empty-state";
@@ -73,6 +73,9 @@ export class CompanionViewModel implements ViewModel {
     viewIcon = atom("book-open");
     viewName = atom("Companion");
     noPadding = atom(true);
+    // The folder's sessions to pick from, opened by Choose from the folder's sessions, the session bar or the command
+    // panel's Linked session (FR-SHELL-049).
+    historyAtom = atom(false) as PrimitiveAtom<boolean>;
     targetAtom = atom<string>((get) => {
         const block = get(getWaveObjectAtom<Block>(makeORef("block", this.blockId)));
         return (block?.meta?.[CompanionTargetMetaKey] as string) ?? null;
@@ -191,7 +194,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     const agentState = useBlockAgentState(target);
     const terminal = useAtomValueSafe(target ? getWaveObjectAtom<Block>(makeORef("block", target)) : null);
     const { view, error, viewId, setView } = useCompanion(target);
-    const [history, setHistory] = useState(false);
+    const [history, setHistory] = useAtom(model.historyAtom);
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const agent = companionAgent(fullConfig?.presets);
     const actions = useEmptyActions();
@@ -248,17 +251,21 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
             />
         );
     }
+    // The plan usage stays in view while the companion asks which session is the terminal's (v7 D4).
+    const usage = view?.usage != null && view.agent ? <PlanUsageSection target={target} agent={view.agent} /> : null;
     if (history) {
         return (
-            <SessionHistory
-                target={target}
-                viewId={viewId}
-                onPicked={(v) => {
-                    setView(v);
-                    setHistory(false);
-                }}
-                onClose={() => setHistory(false)}
-            />
+            <WithUsage usage={usage}>
+                <SessionHistory
+                    target={target}
+                    viewId={viewId}
+                    onPicked={(v) => {
+                        setView(v);
+                        setHistory(false);
+                    }}
+                    onClose={() => setHistory(false)}
+                />
+            </WithUsage>
         );
     }
     const message = statusMessage(view);
@@ -277,7 +284,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         );
     }
     if (message != null) {
-        return (
+        const empty = (
             <EmptyState
                 icon={StatusIcons[view?.status] ?? "book-open"}
                 title={message.title}
@@ -297,13 +304,14 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 <UsageButton view={view} />
             </EmptyState>
         );
+        return view?.status === "searching" ? <WithUsage usage={usage}>{empty}</WithUsage> : empty;
     }
     return (
         <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
             <SessionBar view={view} onHistory={() => setHistory(true)} />
             <GuessNotice session={session} onHistory={() => setHistory(true)} />
             <IntegrationNotice view={view} className="mx-3 mt-2" />
-            {view.usage != null && view.agent ? <PlanUsageSection target={target} agent={view.agent} /> : null}
+            {usage}
             <PermissionCard pending={view.pending} agentState={agentState?.state} />
             <AnswerSection key={view.session?.path} target={target} view={view} />
             <TodoSection todos={view.todos} />
@@ -315,6 +323,18 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 folder={folder}
             />
             <WorkspaceTaskSection target={target} companionId={model.blockId} />
+        </div>
+    );
+}
+
+function WithUsage({ usage, children }: { usage: React.ReactNode; children: React.ReactNode }) {
+    if (usage == null) {
+        return <>{children}</>;
+    }
+    return (
+        <div className="flex h-full min-h-0 w-full flex-col" data-testid="companion-with-usage">
+            {usage}
+            <div className="flex min-h-0 flex-1 flex-col">{children}</div>
         </div>
     );
 }

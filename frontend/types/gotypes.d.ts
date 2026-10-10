@@ -1431,6 +1431,8 @@ declare global {
         "agent:sessionroots"?: {[key: string]: string[]};
         "companion:usagegauges"?: string[];
         "companion:usageclaudeoauth"?: boolean;
+        "linemap:animation"?: boolean;
+        "cicd:runs"?: string;
         "editor:minimapenabled"?: boolean;
         "editor:stickyscrollenabled"?: boolean;
         "editor:wordwrap"?: boolean;

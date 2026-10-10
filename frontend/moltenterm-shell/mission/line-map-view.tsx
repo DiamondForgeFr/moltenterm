@@ -5,7 +5,8 @@
 // (60 days unless the user chose another) and with room per day, scrolling sideways when it runs past the pane.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
-import { atom } from "jotai";
+import { getOverrideConfigAtom } from "@/app/store/global";
+import { atom, useAtomValue } from "jotai";
 import { CiState } from "./ci-model";
 import { LineMap } from "./line-map";
 import { MoltentermLineMapView } from "./line-map-model";
@@ -41,25 +42,34 @@ export function ciRunningBranch(ci: CiState): string {
     return (ci.runs ?? []).find((r) => r.id === ci.running)?.branch || null;
 }
 
-function LineMapFullView() {
+function LineMapFullView({ blockId }: ViewComponentProps<LineMapViewModel>) {
     return (
         <MissionFrame title="The line map">
             {({ project, snapshot, refresh }) => (
-                <LineMapFullContent key={project.dir} project={project} snapshot={snapshot} refresh={refresh} />
+                <LineMapFullContent
+                    key={project.dir}
+                    blockId={blockId}
+                    project={project}
+                    snapshot={snapshot}
+                    refresh={refresh}
+                />
             )}
         </MissionFrame>
     );
 }
 
 function LineMapFullContent({
+    blockId,
     project,
     snapshot,
     refresh,
 }: {
+    blockId: string;
     project: ActiveProject;
     snapshot: MissionSnapshot;
     refresh: () => void;
 }) {
+    const animation = useAtomValue(getOverrideConfigAtom(blockId, "linemap:animation"));
     const { state: ci } = useCiState(project.dir);
     const { session } = useReleaseSession(project.dir);
     return (
@@ -73,6 +83,8 @@ function LineMapFullContent({
                     ciRunning={ciRunningBranch(ci)}
                     session={session}
                     full={true}
+                    blockId={blockId}
+                    animation={animation !== false}
                 />
             </div>
         </>

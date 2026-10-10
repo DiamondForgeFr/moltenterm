@@ -17,6 +17,7 @@ import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { checkWebUrl } from "../project/project-model";
 import { ciVerdictView } from "../status-bar-model";
+import { filterBranches } from "../widget-options";
 import { CiBranch } from "./ci-model";
 import { plainText } from "./github";
 import { BuildMarker } from "./line-map-builds";
@@ -670,6 +671,11 @@ export type LineMapProps = {
     session?: ReleaseSession;
     full?: boolean;
     onFullSize?: () => void;
+    // The panel whose command panel options apply (FR-SHELL-049): its window over the project's, its branch filter.
+    blockId?: string;
+    // Off draws the map as reduced motion does.
+    animation?: boolean;
+    branchFilter?: unknown;
 };
 
 // The same value as last render when its key did not change: every snapshot event decodes new objects, and the map
@@ -682,13 +688,24 @@ function useStable<T>(value: T, key: string): T {
     return last.current.value;
 }
 
-export function LineMap({ dir, snapshot, ciBranches, ciRunning, session, full = false, onFullSize }: LineMapProps) {
-    const [days, setDays] = useLineMapDays(dir, full);
+export function LineMap({
+    dir,
+    snapshot,
+    ciBranches,
+    ciRunning,
+    session,
+    full = false,
+    onFullSize,
+    blockId,
+    animation = true,
+    branchFilter,
+}: LineMapProps) {
+    const [days, setDays] = useLineMapDays(dir, full, blockId);
     const box = useRef<HTMLDivElement>(null);
     const width = useWidth(box);
     const [hover, setHover] = useState<{ item: MapItem; anchor: Element }>(null);
     const hideTimer = useRef<number>(null);
-    const reduced = useAtomValue(atoms.prefersReducedMotionAtom);
+    const reduced = useAtomValue(atoms.prefersReducedMotionAtom) || animation === false;
     const paused = usePaused(box);
     const [intro, dispatchIntro] = useReducer(
         (state: ReturnType<typeof initialIntro>, action: IntroAction) => introStep(state, action.event, action.reduced),
@@ -710,10 +727,13 @@ export function LineMap({ dir, snapshot, ciBranches, ciRunning, session, full = 
         fetched,
         (fetched ?? []).map((b) => `${b.id}:${b.manifest.commit}:${b.manifest.builtAt}`).join(",")
     );
-    const model = useMemo(
-        () => (git ? buildLineMap({ git, prs, ciBranches: ci, releases, session: release, builds, now, days }) : null),
-        [git, prs, releases, ci, release, builds, now, days]
-    );
+    const model = useMemo(() => {
+        if (!git) {
+            return null;
+        }
+        const built = buildLineMap({ git, prs, ciBranches: ci, releases, session: release, builds, now, days });
+        return { ...built, branches: filterBranches(built.branches, branchFilter) };
+    }, [git, prs, releases, ci, release, builds, now, days, branchFilter]);
     // A detail opened on a mark the new data no longer has would float detached, with old figures.
     useEffect(() => setHover(null), [model]);
     useEffect(

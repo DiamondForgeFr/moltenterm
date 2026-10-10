@@ -3,8 +3,9 @@
 
 // The Terminal section (DS-SHELL-086, DS-SHELL-090): term-model's settings menu rewritten as native options. Theme,
 // Font size, Cursor and Transparency carry This panel and All terminals scopes with a reset; the actions (Save session
-// as…, file browser, session durability, force restart) run Wave's own items, found by label, so their behaviour
-// stays Wave's; Bracketed paste, Debug connection and Force restart go to Developer.
+// as…, file browser, force restart) run Wave's own items, found by label, so their behaviour stays Wave's; Bracketed
+// paste, Debug connection and Force restart go to Developer. Session durability is in the MoltenTerm section
+// (molten.ts, DS-SHELL-089).
 
 import { atoms, globalStore } from "@/app/store/global";
 import { DefaultTermTheme } from "@/app/view/term/termutil";
@@ -182,18 +183,6 @@ export function terminalSections(ctx: PanelContext): PanelSection[] {
                 defaultValue: false,
                 scopes: [metaBinding<boolean>(blockId, "cmd:runonstart")],
             },
-            waveAction(waveItems, "Restart Session in Durable Mode", {
-                id: "term:durable-on",
-                label: "Restart as a durable session",
-                icon: "shield",
-                keywords: ["durability", "persist"],
-            }),
-            waveAction(waveItems, "Restart Session in Standard Mode", {
-                id: "term:durable-off",
-                label: "Restart as a standard session",
-                icon: "shield",
-                keywords: ["durability"],
-            }),
             waveAction(waveItems, "Close Toolbar", {
                 id: "term:closetoolbar",
                 label: "Close the toolbar",

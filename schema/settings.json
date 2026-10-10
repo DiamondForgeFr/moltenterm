@@ -151,6 +151,19 @@
           "type": "boolean",
           "description": "Also read Claude Code's model limits and credits from Anthropic's undocumented usage endpoint, with Claude Code's own sign-in token (experimental). Set from the companion's confirmation"
         },
+        "linemap:animation": {
+          "type": "boolean",
+          "description": "Whether the line map panels animate (the load sequence and the moving trains); reduced motion turns it off anyway"
+        },
+        "cicd:runs": {
+          "type": "string",
+          "enum": [
+            "local",
+            "remote",
+            "cd"
+          ],
+          "description": "Which runs a CI/CD panel shows: local CI, remote CI or CD (default remote)"
+        },
         "editor:minimapenabled": {
           "type": "boolean"
         },
