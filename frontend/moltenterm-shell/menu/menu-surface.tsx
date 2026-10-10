@@ -1,7 +1,6 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { isMacOS } from "@/util/platformutil";
 import {
     autoUpdate,
     flip,
@@ -24,7 +23,7 @@ import {
     useTypeahead,
 } from "@floating-ui/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { actionableMenuItem, menuItemRole, menuLabel, visibleMenuItems } from "./menu-model";
+import { actionableMenuItem, menuItemRole, menuLabel, shortcutLabel, visibleMenuItems } from "./menu-model";
 import "./menu.css";
 
 type MenuProps = {
@@ -37,15 +36,6 @@ type MenuProps = {
     onCancel: () => void;
     portalRoot?: HTMLElement;
 };
-function shortcutLabel(accelerator: string): string {
-    if (!accelerator) return "";
-    if (!isMacOS()) return accelerator.replace(/Control/g, "Ctrl").replace(/Super/g, "Meta");
-    return accelerator
-        .replace(/Control\+/g, "⌃")
-        .replace(/(?:Option|Alt)\+/g, "⌥")
-        .replace(/Shift\+/g, "⇧")
-        .replace(/(?:Command|Cmd)\+/g, "⌘");
-}
 function MenuBranch({ items, point, item, parentProps, parentRef, onSelect, onCancel, portalRoot }: MenuProps) {
     const parentId = useFloatingParentNodeId();
     const nested = parentId != null;

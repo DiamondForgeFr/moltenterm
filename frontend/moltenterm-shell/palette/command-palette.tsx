@@ -14,6 +14,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "re
 import { createPortal } from "react-dom";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
+import { panelPaletteEntries } from "../command-panel/command-panel-palette";
 import { formatShortcutById } from "../shortcuts/format";
 import { cancelSplit, consumeSplit, isPendingSplit, readSplitFrom } from "../split/split";
 import { pickerFitsInline, PickerMinPx, pickerPopoverRect, SplitFromMetaKey } from "../split/split-model";
@@ -327,7 +328,17 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
     const ownInputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const order = picker != null ? PickerGroupOrder : PaletteGroupOrder;
-    const sections = useMemo(() => filterPalette(entries, query, titles, order), [entries, query, titles, order]);
+    // The origin pane's command panel items join the list once something is typed (FR-SHELL-047).
+    const panelEntries = useMemo(
+        () => (host === "modal" && blockId ? panelPaletteEntries(blockId, formatShortcutById("command-panel")) : []),
+        [host, blockId]
+    );
+    const searching = query.trim() !== "";
+    const listed = useMemo(
+        () => (searching && panelEntries.length > 0 ? [...entries, ...panelEntries] : entries),
+        [entries, panelEntries, searching]
+    );
+    const sections = useMemo(() => filterPalette(listed, query, titles, order), [listed, query, titles, order]);
     const flat = useMemo(() => flattenSections(sections), [sections]);
     const input = inputRef ?? ownInputRef;
     const layoutModel = getLayoutModelForStaticTab();

@@ -243,6 +243,14 @@ export const Shortcuts: Shortcut[] = [
     // Palette and menus
     { id: "palette", label: "Command palette", category: "Palette and menus", scope: "global", keys: "Cmd:Shift:k" },
     {
+        id: "command-panel",
+        label: "The focused panel's commands",
+        category: "Palette and menus",
+        scope: "global",
+        keys: "Cmd:.",
+        keywords: ["settings", "gear", "options", "panel menu", "command panel"],
+    },
+    {
         id: "shortcuts",
         label: "Keyboard shortcuts",
         category: "Palette and menus",

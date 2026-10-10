@@ -39,6 +39,7 @@ import { boundNumber, fireAndForget, stringToBase64 } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
 import { openInBrowserPanel } from "../../../moltenterm-shell/browser/browser-routing"; // MOLTENTERM-PATCH (#132, #140)
+import { terminalBodyMenuTail } from "../../../moltenterm-shell/command-panel/block-menus"; // MOLTENTERM-PATCH (#401)
 import { acceleratorById } from "../../../moltenterm-shell/shortcuts/format";
 import { splitMenuItems } from "../../../moltenterm-shell/split/split-menu"; // MOLTENTERM-PATCH (#370)
 import {
@@ -919,8 +920,8 @@ export class TermViewModel implements ViewModel {
 
         menu.push({ type: "separator" });
 
-        const settingsItems = this.getSettingsMenuItems();
-        menu.push(...settingsItems);
+        // MOLTENTERM-PATCH (#401): the settings moved to the command panel (FR-SHELL-047); More… ⌘. opens it here
+        menu.push(...terminalBodyMenuTail(this.blockId));
 
         return menu;
     }

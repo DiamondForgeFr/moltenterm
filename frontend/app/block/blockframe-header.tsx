@@ -12,7 +12,6 @@ import { ConnectionButton } from "@/app/block/connectionbutton";
 import { DurableSessionFlyover } from "@/app/block/durable-session-flyover";
 import { getBlockBadgeAtom } from "@/app/store/badge";
 import { recordTEvent, refocusNode } from "@/app/store/global";
-import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
@@ -23,22 +22,19 @@ import { cn, makeIconClass } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
 import { AgentHeaderLabel, useBlockAgentState } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#109)
-import { acceleratorById, formatShortcutById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
+// MOLTENTERM-PATCH (#401): the command panel's trigger, the header right-click and the body's short menu
+import { blockBodyMenuItems, openHeaderCommandPanel } from "../../moltenterm-shell/command-panel/block-menus";
+import { openCommandPanelFromTrigger } from "../../moltenterm-shell/command-panel/command-panel-store";
+import { formatShortcutById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
 import { splitPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
+import { SplitDownLabel, SplitRightLabel } from "../../moltenterm-shell/split/split-menu"; // MOLTENTERM-PATCH (#370)
 import { TermUpdateChip } from "../../moltenterm-shell/termupdate/termupdate-ui"; // MOLTENTERM-PATCH (#366)
 import { WorktreeHeaderLabel } from "../../moltenterm-shell/worktree-ui"; // MOLTENTERM-PATCH (#114)
-// MOLTENTERM-PATCH (#370)
-import {
-    SplitDownLabel,
-    splitMenuItems,
-    SplitRightLabel,
-    withoutSplitItems,
-} from "../../moltenterm-shell/split/split-menu";
 import { BlockEnv } from "./blockenv";
 import { BlockFrameProps } from "./blocktypes";
 
-// MOLTENTERM-PATCH (#370): exported for the block body's menu (blockframe.tsx); every view's menu starts with Split
-// right / Split down (FR-SHELL-042), and a view's own split items are not repeated.
+// MOLTENTERM-PATCH (#370, #401): exported for the block body's menu (blockframe.tsx). The view's settings moved to
+// the command panel (FR-SHELL-047): the body keeps a short menu, Split right, Split down, Magnify, More… ⌘., Close.
 export function handleHeaderContextMenu(
     e: React.MouseEvent<HTMLDivElement>,
     blockId: string,
@@ -48,40 +44,7 @@ export function handleHeaderContextMenu(
 ) {
     e.preventDefault();
     e.stopPropagation();
-    const magnified = globalStore.get(nodeModel.isMagnified);
-    const menu: ContextMenuItem[] = [
-        ...splitMenuItems(blockId),
-        { type: "separator" },
-        {
-            label: magnified ? "Un-magnify" : "Magnify",
-            icon: "expand",
-            accelerator: acceleratorById("magnify"),
-            click: () => {
-                nodeModel.toggleMagnify();
-            },
-        },
-        { type: "separator" },
-        {
-            label: "Copy BlockId",
-            icon: "copy",
-            click: () => {
-                navigator.clipboard.writeText(blockId);
-            },
-        },
-    ];
-    const extraItems = withoutSplitItems(viewModel?.getSettingsMenuItems?.()); // MOLTENTERM-PATCH (#370)
-    if (extraItems && extraItems.length > 0) menu.push({ type: "separator" }, ...extraItems);
-    menu.push(
-        { type: "separator" },
-        {
-            label: "Close Block",
-            icon: "xmark",
-            destructive: true,
-            accelerator: acceleratorById("close-panel"),
-            click: () => uxCloseBlock(blockId),
-        }
-    );
-    blockEnv.showContextMenu(menu, e);
+    blockEnv.showContextMenu(blockBodyMenuItems(blockId, nodeModel), e);
 }
 
 type HeaderTextElemsProps = {
@@ -171,11 +134,16 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId }: HeaderEndI
         endIconsElem.push(<IconButton key="split-horizontal" decl={splitHorizontalDecl} />);
         endIconsElem.push(<IconButton key="split-vertical" decl={splitVerticalDecl} />);
     }
+    // MOLTENTERM-PATCH (#401): the gear becomes the command panel's trigger (FR-SHELL-047, DS-SHELL-085)
     const settingsDecl: IconButtonDecl = {
         elemtype: "iconbutton",
-        icon: "cog",
-        title: "Settings",
-        click: (e) => handleHeaderContextMenu(e, blockId, viewModel, nodeModel, blockEnv),
+        icon: "sliders",
+        title: `Commands and options (${formatShortcutById("command-panel")})`,
+        click: (e) =>
+            openCommandPanelFromTrigger(
+                blockId,
+                (e.target as Element)?.closest?.("button") ?? (e.currentTarget as Element)
+            ),
     };
     endIconsElem.push(<IconButton key="settings" decl={settingsDecl} className="block-frame-settings" />);
     if (ephemeral) {
@@ -261,7 +229,7 @@ const BlockFrame_Header = ({
             className={cn("block-frame-default-header", useTermHeader && "!pl-[2px]")}
             data-role="block-header"
             ref={dragHandleRef}
-            onContextMenu={(e) => handleHeaderContextMenu(e, nodeModel.blockId, viewModel, nodeModel, waveEnv)}
+            onContextMenu={(e) => openHeaderCommandPanel(e, nodeModel.blockId)} // MOLTENTERM-PATCH (#401)
         >
             {!useTermHeader && (
                 <>

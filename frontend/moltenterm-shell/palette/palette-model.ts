@@ -7,9 +7,10 @@
 
 import type { WorkspaceIconSource } from "../workspace-icon-model";
 
-export type PaletteGroupId = "agents" | "panels" | "folders" | "actions";
+// "panel": the focused panel's command panel items (FR-SHELL-047), listed only while a query is typed.
+export type PaletteGroupId = "agents" | "panels" | "folders" | "actions" | "panel";
 
-export const PaletteGroupOrder: PaletteGroupId[] = ["agents", "panels", "folders", "actions"];
+export const PaletteGroupOrder: PaletteGroupId[] = ["agents", "panels", "folders", "actions", "panel"];
 
 // The picker of a split panel puts the panel kinds first (FR-SHELL-042, DS-SHELL-066).
 export const PickerGroupOrder: PaletteGroupId[] = ["panels", "agents", "folders", "actions"];
@@ -38,7 +39,11 @@ export type PaletteRun =
     // Every terminal started before MoltenTerm's update, brought up to date (FR-SHELL-041).
     | { kind: "updateterminals" }
     // The shortcuts sheet (FR-SHELL-042, DS-SHELL-067).
-    | { kind: "shortcuts" };
+    | { kind: "shortcuts" }
+    // The command panel of the pane the palette was opened from, or one of its items (FR-SHELL-047: every action of
+    // the panel is also a palette command).
+    | { kind: "panelcommands" }
+    | { kind: "panelcommand"; entryId: string };
 
 // The entries that open something in the palette's pane; the others act elsewhere (a tab, a sheet, a workspace).
 export function fillsPanel(run: PaletteRun): boolean {
@@ -200,6 +205,7 @@ export const DefaultGroupTitles: Record<PaletteGroupId, string> = {
     panels: "Panels",
     folders: "Recent folders",
     actions: "Workspace",
+    panel: "This panel",
 };
 
 export function flattenSections(sections: PaletteSection[]): PaletteEntry[] {
