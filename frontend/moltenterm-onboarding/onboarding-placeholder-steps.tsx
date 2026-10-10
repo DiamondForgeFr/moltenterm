@@ -1,8 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Placeholder steps until #162 (agent), #163 (morph) and #165 (project) bring theirs: what the step will do, and the
-// host's "Skip this step" as the only way on.
+// Placeholder steps until #162 (agent), #163 (morph) and #165 (project) bring theirs: what the step is about, and the
+// footer's Next to move on (FR-SHELL-053: a step never calls itself unfinished). The agent step stays hidden until
+// #162 detects the agents (FirstRunStep.hidden).
 
 import type { FirstRunStepContext } from "./onboarding-steps";
 
@@ -12,10 +13,6 @@ function PlaceholderStep({ lines }: { lines: string[] }) {
             {lines.map((line) => (
                 <p key={line}>{line}</p>
             ))}
-            <p className="rounded-4 border border-border px-3 py-2 text-12 text-muted">
-                This step is not ready in this version yet. Skip it for now: Getting started brings you back to it
-                later.
-            </p>
         </div>
     );
 }
@@ -34,7 +31,7 @@ export function MorphPlaceholderStep(_props: { ctx: FirstRunStepContext }) {
     return (
         <PlaceholderStep
             lines={[
-                "You ask your agent for a first change with /morph. It writes a mod, MoltenTerm loads it, and molten undo takes it back.",
+                "Ask your agent for a first change with /morph in a terminal: it writes a mod, MoltenTerm loads it, and molten undo takes it back.",
             ]}
         />
     );
@@ -44,7 +41,7 @@ export function ProjectPlaceholderStep(_props: { ctx: FirstRunStepContext }) {
     return (
         <PlaceholderStep
             lines={[
-                "You link this workspace to your project folder, so terminals start there and the Project tab shows where it stands, then find the agent sessions you already have.",
+                "Link a workspace to your project folder from the Project tab or with molten project link: terminals start there, the Project tab shows where the project stands, and Sessions lists the agents still running.",
             ]}
         />
     );

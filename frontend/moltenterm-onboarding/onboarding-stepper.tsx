@@ -7,7 +7,7 @@
 import { cn } from "@/util/util";
 import { Fragment } from "react";
 import { FirstRunPage, OnboardingState, progressLabel, stepPage, stepStatus } from "./onboarding-state";
-import { FirstRunSteps } from "./onboarding-steps";
+import { ShownFirstRunSteps, ShownStepIds } from "./onboarding-steps";
 
 type StepperEntry = {
     page: FirstRunPage;
@@ -27,7 +27,7 @@ function stepperEntries(state: OnboardingState): StepperEntry[] {
     };
     return [
         welcome,
-        ...FirstRunSteps.map((step, index) => ({
+        ...ShownFirstRunSteps.map((step, index) => ({
             page: stepPage(step.id),
             label: step.label,
             tooltip: step.summary,
@@ -110,7 +110,7 @@ export function OnboardingStepper({
                     );
                 })}
             </ol>
-            <span className="truncate text-12 text-muted @min-[540px]:hidden">{progressLabel(page)}</span>
+            <span className="truncate text-12 text-muted @min-[540px]:hidden">{progressLabel(page, ShownStepIds)}</span>
         </nav>
     );
 }

@@ -8,6 +8,7 @@ import Logo from "@/app/asset/logo.svg";
 import { MoltentermRepoUrl, MoltentermTagline } from "@/util/moltenterm-identity";
 import { cn } from "@/util/util";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
+import { ShownFirstRunSteps } from "./onboarding-steps";
 
 export const MoltentermLicenseUrl = `${MoltentermRepoUrl}/blob/main/LICENSE`;
 export const MoltentermPrivacyUrl = `${MoltentermRepoUrl}/blob/main/PRIVACY.md`;
@@ -53,7 +54,7 @@ export function OnboardingWelcome({
     onSkip: () => void;
 }) {
     return (
-        <div className="mx-auto flex w-full max-w-[480px] flex-col gap-6">
+        <div className="mx-auto flex w-full max-w-[560px] flex-col gap-6">
             <div className="flex flex-col gap-3">
                 <div className="h-8 w-10 [&>svg]:h-full [&>svg]:w-full">
                     <Logo />
@@ -86,7 +87,9 @@ export function OnboardingWelcome({
                     Set up MoltenTerm
                     <MoltenWave />
                 </button>
-                <span className="text-12 text-muted">3 short steps</span>
+                <span className="text-12 text-muted">
+                    {ShownFirstRunSteps.length === 1 ? "1 short step" : `${ShownFirstRunSteps.length} short steps`}
+                </span>
                 <button
                     type="button"
                     disabled={busy}

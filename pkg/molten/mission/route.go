@@ -308,6 +308,17 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 	if command == WorktreePlanCommand || command == WorktreeRemoveCommand {
 		return l.handleWorktree(command, source, data)
 	}
+	if command == GitInitCommand {
+		// Creating a repository is the user's decision, confirmed in a window; an agent runs git init itself.
+		if !isWindowSource(source) {
+			return nil, fmt.Errorf("git can only be initialized here from a MoltenTerm window")
+		}
+		var req GitInitRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.collector.InitGit(req)
+	}
 	if strings.HasPrefix(command, "moltenmissionci") {
 		return l.handleCi(command, data)
 	}

@@ -7,6 +7,8 @@
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { CopyButton } from "@/app/element/copybutton";
 import { Markdown } from "@/app/element/markdown";
+import { ContextMenuModel } from "@/app/store/contextmenu";
+import { atoms } from "@/app/store/global";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -14,6 +16,8 @@ import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useState } from "react";
 import { useBlockAgentState } from "../agent-state-ui";
+import { EmptyState, EmptyStateAction } from "../empty-state";
+import { attachCompanion, companionAgent, startCompanionAgent, tabAttachCandidates } from "./companion-attach";
 import { PlanUsageSection } from "./companion-gauges";
 import {
     CompanionAnswer,
@@ -188,6 +192,9 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     const terminal = useAtomValueSafe(target ? getWaveObjectAtom<Block>(makeORef("block", target)) : null);
     const { view, error, viewId, setView } = useCompanion(target);
     const [history, setHistory] = useState(false);
+    const fullConfig = useAtomValue(atoms.fullConfigAtom);
+    const agent = companionAgent(fullConfig?.presets);
+    const actions = useEmptyActions();
     const folder = (terminal?.meta?.["cmd:cwd"] as string) ?? "";
     const session = view?.session;
     // The terminal's agent label names the session this companion shows, while it is open.
@@ -200,11 +207,46 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     useEffect(() => {
         setHistory(false);
     }, [target, view?.agent]);
+    const startAction: EmptyStateAction = {
+        label: `Start ${agent.name} here`,
+        busyLabel: "Starting…",
+        busy: actions.busy,
+        onClick: () => actions.run(`${agent.name} did not start.`, () => startCompanionAgent(model.blockId, target)),
+        testId: "companion-start-agent",
+    };
+    const attachAction: EmptyStateAction = {
+        label: "Attach to a terminal",
+        menu: true,
+        disabled: actions.busy,
+        onClick: (e) =>
+            showAttachMenu(e, target, (id) =>
+                actions.run("The companion could not attach.", () => attachCompanion(model.blockId, id))
+            ),
+        testId: "companion-attach",
+    };
     if (!target) {
-        return <Centered title="No terminal" detail="This companion is not attached to a terminal." />;
+        return (
+            <EmptyState
+                icon="link-slash"
+                title="No terminal"
+                hint={`Attach this companion to a terminal to follow its agent, or start ${agent.name} here.`}
+                primary={attachAction}
+                secondary={startAction}
+                alert={actions.alert}
+                details={actions.raw}
+                testId="companion-noterminal"
+            />
+        );
     }
     if (error && view == null) {
-        return <Centered title="The companion is not available" detail={error} />;
+        return (
+            <EmptyState
+                icon="triangle-exclamation"
+                title="The companion is not available"
+                hint="MoltenTerm could not reach it. It tries again every 15 seconds."
+                details={error}
+            />
+        );
     }
     if (history) {
         return (
@@ -220,23 +262,40 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         );
     }
     const message = statusMessage(view);
+    if (message != null && view?.status === "noagent") {
+        return (
+            <EmptyState
+                icon="terminal"
+                title={message.title}
+                hint={message.detail}
+                primary={startAction}
+                secondary={{ ...attachAction, label: "Attach to another terminal" }}
+                alert={actions.alert}
+                details={actions.raw}
+                testId="companion-noagent"
+            />
+        );
+    }
     if (message != null) {
         return (
-            <Centered title={message.title} detail={message.detail}>
+            <EmptyState
+                icon={StatusIcons[view?.status] ?? "book-open"}
+                title={message.title}
+                hint={message.detail}
+                secondary={
+                    view?.status === "searching"
+                        ? {
+                              label: "Choose from the folder's sessions",
+                              onClick: () => setHistory(true),
+                              testId: "companion-history-open",
+                          }
+                        : null
+                }
+                details={message.raw}
+            >
                 <IntegrationNotice view={view} />
                 <UsageButton view={view} />
-                {view?.status === "searching" ? (
-                    <button
-                        type="button"
-                        onClick={() => setHistory(true)}
-                        className="cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
-                        data-testid="companion-history-open"
-                    >
-                        <i className="fa fa-solid fa-clock-rotate-left mr-1.5" />
-                        Choose from the folder's sessions
-                    </button>
-                ) : null}
-            </Centered>
+            </EmptyState>
         );
     }
     return (
@@ -260,14 +319,65 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     );
 }
 
-function Centered({ title, detail, children }: { title: string; detail?: string; children?: React.ReactNode }) {
-    return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-6 text-center">
-            <div className="text-13 leading-5 font-medium text-primary">{title}</div>
-            {detail ? <div className="max-w-[360px] text-12 text-secondary">{detail}</div> : null}
-            {children}
-        </div>
-    );
+const StatusIcons: Record<string, string> = {
+    loading: "book-open",
+    unsupportedagent: "robot",
+    remote: "network-wired",
+    searching: "clock-rotate-left",
+    unsupportedformat: "file-circle-question",
+    error: "triangle-exclamation",
+};
+
+// One action at a time; a failure reads in plain words, its raw error under Details.
+function useEmptyActions(): {
+    busy: boolean;
+    alert: string;
+    raw: string;
+    run: (failure: string, fn: () => Promise<unknown>) => void;
+} {
+    const [busy, setBusy] = useState(false);
+    const [failed, setFailed] = useState<{ alert: string; raw: string }>(null);
+    const run = (failure: string, fn: () => Promise<unknown>) => {
+        if (busy) {
+            return;
+        }
+        setBusy(true);
+        setFailed(null);
+        fireAndForget(async () => {
+            try {
+                await fn();
+            } catch (e) {
+                setFailed({ alert: failure, raw: String(e?.message ?? e) });
+            } finally {
+                setBusy(false);
+            }
+        });
+    };
+    return { busy, alert: failed?.alert, raw: failed?.raw, run };
+}
+
+// Under the button, like the other menus opened from a button; Shift+F10 on it lands there too.
+function showAttachMenu(e: React.MouseEvent<HTMLButtonElement>, current: string, onPick: (blockId: string) => void) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const candidates = tabAttachCandidates(current);
+    const items: ContextMenuItem[] =
+        candidates.length === 0
+            ? [{ label: "No terminal in this tab", enabled: false }]
+            : candidates.map((c) => ({
+                  label: c.label,
+                  type: c.current ? "checkbox" : "normal",
+                  checked: c.current,
+                  enabled: !c.current,
+                  click: () => onPick(c.blockId),
+              }));
+    const event = {
+        clientX: rect.left,
+        clientY: rect.bottom + 4,
+        target: e.currentTarget,
+        stopPropagation: () => e.stopPropagation(),
+        preventDefault: () => e.preventDefault(),
+    } as unknown as React.MouseEvent;
+    ContextMenuModel.getInstance().showContextMenu(items, event);
 }
 
 // The folder's sessions since the agent started, this terminal's current one first (DS-SHELL-060): the former picker,

@@ -163,7 +163,8 @@ export function needsLatest(view: CompanionView): boolean {
 }
 
 // The message a companion without a session shows, or null when the session shows.
-export function statusMessage(view: CompanionView): { title: string; detail?: string } {
+// raw is the backend's own text, shown only under Details (FR-SHELL-053).
+export function statusMessage(view: CompanionView): { title: string; detail?: string; raw?: string } {
     const name = view?.agentname || "This agent";
     switch (view?.status) {
         case null:
@@ -176,7 +177,7 @@ export function statusMessage(view: CompanionView): { title: string; detail?: st
         case "noagent":
             return {
                 title: "No agent runs in this terminal",
-                detail: "Start Claude Code or Codex in the terminal: its session shows here.",
+                detail: "Start Claude Code here, or attach the companion to another terminal.",
             };
         case "unsupportedagent":
             return { title: `No companion for ${name}`, detail: "The companion reads Claude Code and Codex sessions." };
@@ -198,7 +199,11 @@ export function statusMessage(view: CompanionView): { title: string; detail?: st
                 detail: `${view.message || name} writes its transcript in a format this version of MoltenTerm does not read. The terminal is not affected.`,
             };
         case "error":
-            return { title: "The companion stopped", detail: view.message };
+            return {
+                title: "The companion stopped",
+                detail: "It could not read the agent's session. The terminal is not affected.",
+                raw: view.message,
+            };
     }
     return null;
 }

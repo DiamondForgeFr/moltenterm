@@ -7,11 +7,12 @@
 // End. The keyboard walks the rows (arrows, Home, End, Page keys), Enter shows, Delete ends, R reconnects.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
-import { atoms, getApi } from "@/app/store/global";
-import { cn, makeIconClass } from "@/util/util";
+import { atoms, createBlockSplitHorizontally, getApi } from "@/app/store/global";
+import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AgentStateDot } from "../agent-state-ui";
+import { EmptyState } from "../empty-state";
 import { worktreeColor, WorktreeIcon } from "../worktree-model";
 import { showPane } from "./pane-focus";
 import { CleanupDialog, EndSessionDialog } from "./sessions-dialogs";
@@ -308,15 +309,27 @@ function GroupHeader({ group, onCleanup }: { group: SessionGroup; onCleanup: () 
     );
 }
 
-function EmptyState() {
+// A terminal opens beside the Sessions pane, which stays where it is.
+function startTerminal(sessionsBlockId: string) {
+    fireAndForget(async () => {
+        await createBlockSplitHorizontally({ meta: { view: "term", controller: "shell" } }, sessionsBlockId, "before");
+    });
+}
+
+function SessionsEmpty({ blockId }: { blockId: string }) {
     return (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-            <i className={cn(makeIconClass("layer-group", true), "text-icon-20 text-muted")} />
-            <div className="text-13 leading-5 text-secondary">No durable sessions running.</div>
-            <div className="max-w-[28rem] text-12 text-muted">
-                Terminals are durable by default: they keep running when MoltenTerm quits, and they show up here.
-            </div>
-        </div>
+        <EmptyState
+            icon="layer-group"
+            title="No sessions running"
+            hint="Terminals keep running when MoltenTerm quits, and they show up here."
+            primary={{
+                label: "Start a terminal",
+                onClick: () => startTerminal(blockId),
+                testId: "sessions-start-terminal",
+            }}
+            className="flex-1"
+            testId="sessions-empty"
+        />
     );
 }
 
@@ -534,7 +547,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                 ) : null}
             </div>
             {data != null && sessions.length === 0 ? (
-                <EmptyState />
+                <SessionsEmpty blockId={blockId} />
             ) : (
                 <div
                     ref={listRef}

@@ -6,13 +6,18 @@
 // its age and a refresh button.
 
 import { atoms, createBlock } from "@/app/store/global";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { DialogFrame, useEscape } from "../dialog-frame";
+import { EmptyState, EmptyStateDetails } from "../empty-state";
 import { MoltenWave } from "../molten-button";
 import { pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { chooseMoltentermPath, linkWorkspaceProject, ProjectFacts, readProjectFacts } from "../workspace-project-store";
-import { useMissionSnapshot } from "./mission-client";
+import { FolderEntry, gitProblem, sortFolderEntries } from "./git-problem";
+import { missionGitInit, useMissionSnapshot } from "./mission-client";
 import { formatAge, MissionSnapshot, PipelineInvocations, PipelineReport, pipelineStage } from "./mission-model";
 
 export type ActiveProject = { workspace: Workspace; dir: string; facts: ProjectFacts };
@@ -49,30 +54,6 @@ function linkProject(workspace: Workspace) {
     });
 }
 
-function EmptyState({
-    icon,
-    title,
-    text,
-    children,
-}: {
-    icon: string;
-    title: string;
-    text: string;
-    children?: React.ReactNode;
-}) {
-    return (
-        <div className="flex h-full w-full items-center justify-center p-6">
-            <div className="flex max-w-md flex-col items-center gap-3 text-center">
-                <i className={cn("fa fa-solid text-icon-20 text-muted", `fa-${icon}`)} />
-                <div className="text-15 font-semibold">{title}</div>
-                <div className="text-13 leading-5 text-secondary">{text}</div>
-                {children}
-            </div>
-        </div>
-    );
-}
-
-const AccentButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-13 leading-5";
 const PlainButton =
     "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary";
 
@@ -223,13 +204,9 @@ export function MissionFrame({
             <EmptyState
                 icon="link"
                 title="Link this workspace to its project"
-                text={`${title} shows the project of the active workspace. Link a folder here, or run molten project link in a terminal of the project.`}
-            >
-                <button type="button" className={AccentButton} onClick={() => linkProject(project.workspace)}>
-                    Link a project…
-                    <MoltenWave />
-                </button>
-            </EmptyState>
+                hint={`${title} shows the project of the active workspace. Link a folder here, or run molten project link in a terminal of the project.`}
+                primary={{ label: "Link a project…", onClick: () => linkProject(project.workspace) }}
+            />
         );
     }
     if (snapshot?.missing || project.facts?.exists === false) {
@@ -237,30 +214,236 @@ export function MissionFrame({
             <EmptyState
                 icon="folder-open"
                 title="The project's folder is gone"
-                text={`${project.dir} no longer exists. Link the workspace to the project's new place.`}
-            >
-                <button type="button" className={AccentButton} onClick={() => linkProject(project.workspace)}>
-                    Link a project…
-                    <MoltenWave />
-                </button>
-            </EmptyState>
+                hint={`${project.dir} no longer exists. Link the workspace to the project's new place.`}
+                primary={{ label: "Link a project…", onClick: () => linkProject(project.workspace) }}
+            />
         );
     }
     if (error && snapshot == null) {
-        return <EmptyState icon="triangle-exclamation" title="Mission Control could not answer" text={error} />;
-    }
-    if (snapshot?.giterror && snapshot.git == null) {
         return (
             <EmptyState
-                icon="code-branch"
-                title="Not a git repository"
-                text={`Mission Control reads the project's history from git: ${snapshot.giterror}`}
+                icon="triangle-exclamation"
+                title="Mission Control could not answer"
+                hint="MoltenTerm could not read this project. Try again in a moment."
+                primary={{ label: "Try again", onClick: refresh }}
+                details={error}
             />
         );
+    }
+    if (snapshot?.giterror && snapshot.git == null) {
+        return <GitProblemState project={project} gitError={snapshot.giterror} refresh={refresh} />;
     }
     return (
         <div className="@container flex h-full w-full flex-col overflow-hidden tabular-nums">
             {children({ project, snapshot, refresh })}
         </div>
+    );
+}
+
+const FolderGlanceMax = 12;
+
+// The reduced project view of a folder without git history: what is in it, so the user recognises the folder.
+function FolderGlance({ dir }: { dir: string }) {
+    const [entries, setEntries] = useState<FolderEntry[]>(null);
+    useEffect(() => {
+        setEntries(null);
+        let cancelled = false;
+        fireAndForget(async () => {
+            let list: FolderEntry[] = [];
+            try {
+                const infos = await RpcApi.FileListCommand(TabRpcClient, { path: dir });
+                list = (infos ?? []).map((info) => ({ name: info.name, isDir: !!info.isdir }));
+            } catch {
+                list = [];
+            }
+            if (!cancelled) {
+                setEntries(sortFolderEntries(list));
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [dir]);
+    const shown = (entries ?? []).slice(0, FolderGlanceMax);
+    const more = (entries?.length ?? 0) - shown.length;
+    return (
+        <div
+            className="mt-4 w-full rounded-6 border border-line bg-surface-2 p-3 text-left"
+            data-testid="mission-folder-glance"
+        >
+            <div className="flex min-w-0 items-center gap-2">
+                <i className="fa fa-solid fa-folder text-icon-14 text-muted" aria-hidden />
+                <span className="truncate text-12 font-medium text-primary">{pathBaseName(dir)}</span>
+            </div>
+            <div className="mt-0.5 truncate font-mono text-11 text-muted" title={dir}>
+                {dir}
+            </div>
+            {entries == null ? null : entries.length === 0 ? (
+                <div className="mt-2 text-12 text-muted">This folder is empty.</div>
+            ) : (
+                <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1" aria-label="Files in the folder">
+                    {shown.map((e) => (
+                        <li key={e.name} className="flex min-w-0 items-center gap-1.5 text-12 text-secondary">
+                            <i
+                                className={cn(
+                                    "fa fa-solid fa-fw text-11 text-muted",
+                                    e.isDir ? "fa-folder" : "fa-file"
+                                )}
+                                aria-hidden
+                            />
+                            <span className="truncate" title={e.name}>
+                                {e.name}
+                            </span>
+                        </li>
+                    ))}
+                    {more > 0 ? <li className="text-12 text-muted">and {more} more</li> : null}
+                </ul>
+            )}
+        </div>
+    );
+}
+
+function GitInitDialog({ dir, onCancel, onDone }: { dir: string; onCancel: () => void; onDone: () => void }) {
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string>(null);
+    const cancelRef = useRef<HTMLButtonElement>(null);
+    useEscape(!busy, onCancel);
+    useEffect(() => {
+        cancelRef.current?.focus();
+    }, []);
+    const confirm = () =>
+        fireAndForget(async () => {
+            setBusy(true);
+            setError(null);
+            try {
+                await missionGitInit(dir);
+                onDone();
+            } catch (e) {
+                setError(String(e?.message ?? e));
+                setBusy(false);
+            }
+        });
+    return (
+        <DialogFrame
+            role="molten-git-init"
+            title="Initialize git here?"
+            subtitle={dir}
+            trapFocus
+            buttons={
+                <>
+                    <button
+                        ref={cancelRef}
+                        type="button"
+                        className="molten-btn-secondary h-row cursor-pointer rounded-6 px-3 text-12"
+                        onClick={onCancel}
+                        disabled={busy}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        className="molten-btn h-row cursor-pointer rounded-6 px-3 text-12 font-medium"
+                        onClick={confirm}
+                        disabled={busy}
+                        aria-busy={busy}
+                        data-testid="mission-git-init-confirm"
+                    >
+                        {busy ? "Initializing…" : "Initialize git"}
+                        <MoltenWave />
+                    </button>
+                </>
+            }
+        >
+            <p className="text-12 leading-[18px] text-secondary">
+                MoltenTerm runs git init in this folder. It adds an empty repository (a .git folder): your files stay as
+                they are, nothing is committed.
+            </p>
+            {error ? (
+                <>
+                    <p className="text-12 text-danger" role="alert">
+                        Git could not create the repository.
+                    </p>
+                    <EmptyStateDetails text={error} />
+                </>
+            ) : null}
+        </DialogFrame>
+    );
+}
+
+// A linked folder whose history git cannot read (FR-SHELL-053-AC2): the plain reason and its fix, git's own output
+// only under Details.
+function GitProblemState({
+    project,
+    gitError,
+    refresh,
+}: {
+    project: ActiveProject;
+    gitError: string;
+    refresh: () => void;
+}) {
+    const [confirming, setConfirming] = useState(false);
+    const [initialized, setInitialized] = useState(false);
+    useEffect(() => {
+        setInitialized(false);
+    }, [gitError]);
+    const problem = gitProblem(gitError);
+    if (problem === "notrepo") {
+        return (
+            <>
+                <EmptyState
+                    icon="code-branch"
+                    title="This folder is not a git repository"
+                    hint="Mission Control follows a project through its git history. Initialize git here or choose another folder."
+                    primary={{
+                        label: "Initialize git here",
+                        busy: initialized,
+                        busyLabel: "Reading the history…",
+                        onClick: () => setConfirming(true),
+                        testId: "mission-git-init",
+                    }}
+                    secondary={{
+                        label: "Choose another folder",
+                        onClick: () => linkProject(project.workspace),
+                        testId: "mission-choose-folder",
+                    }}
+                    details={gitError}
+                    testId="mission-not-git"
+                >
+                    <FolderGlance dir={project.dir} />
+                </EmptyState>
+                {confirming ? (
+                    <GitInitDialog
+                        dir={project.dir}
+                        onCancel={() => setConfirming(false)}
+                        onDone={() => {
+                            setConfirming(false);
+                            setInitialized(true);
+                            refresh();
+                        }}
+                    />
+                ) : null}
+            </>
+        );
+    }
+    if (problem === "nogit") {
+        return (
+            <EmptyState
+                icon="code-branch"
+                title="Git is not installed"
+                hint="Mission Control reads the project's history with git. Install git, then try again."
+                primary={{ label: "Try again", onClick: refresh }}
+                details={gitError}
+            />
+        );
+    }
+    return (
+        <EmptyState
+            icon="code-branch"
+            title="Git could not read this project"
+            hint="The history of this folder could not be read. Try again, or choose another folder."
+            primary={{ label: "Try again", onClick: refresh }}
+            secondary={{ label: "Choose another folder", onClick: () => linkProject(project.workspace) }}
+            details={gitError}
+        />
     );
 }
