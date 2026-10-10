@@ -42,3 +42,9 @@
     border-radius: 9999px;
     background-color: var(--mt-toast-edge);
 }
+
+/* The bell's unread count (#429): a small pill at the bell's top-right corner, cut out of the icon by a ring in the
+   tab bar's colour (the window background under the bar's 35 % black). */
+.molten-notification-count {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--main-bg-color) 65%, black);
+}

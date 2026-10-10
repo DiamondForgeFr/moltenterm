@@ -508,8 +508,16 @@ export function NotificationCenter() {
             >
                 {work.length > 0 ? <ProgressRing progress={progress} /> : null}
                 <i className="fa fa-regular fa-bell" />
+                {/* The count keeps the accent of the bell's other signals: amber for waiting agents would read as one
+                    more agent state next to the tabs' amber dots. */}
                 {unread > 0 ? (
-                    <span className="molten-notification-count absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-accent px-1 text-11 font-semibold text-[var(--mt-accent-fg)]">
+                    <span
+                        className={cn(
+                            "molten-notification-count pointer-events-none absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-11 leading-none font-semibold text-[var(--mt-accent-fg)] tabular-nums",
+                            // The wider "9+" pill sits further out so it only overlaps the bell's corner.
+                            unread > 9 ? "-top-1.5 -right-2" : "-top-1 -right-1.5"
+                        )}
+                    >
                         {badgeCount(unread)}
                     </span>
                 ) : open > 0 ? (
