@@ -36,6 +36,7 @@ import {
     isSelectableRow,
     moveRowSelection,
     nthSelectable,
+    numberedIndices,
     optionSelected,
     PanelKeyIntent,
     panelKeyIntent,
@@ -44,7 +45,6 @@ import {
     PanelWidthPx,
     resetItem,
     scopeLabel,
-    selectableIndices,
     setItemValue,
     stepNumber,
     validStack,
@@ -65,6 +65,7 @@ import { registerBuiltinCommandProviders } from "./providers";
 
 const ListId = "molten-cmdpanel-list";
 const NullAgentAtom = atom(null) as Atom<AgentStateInfo>;
+const NullStringAtom = atom(null) as Atom<string>;
 
 // An icon name with Font Awesome modifiers after it ("table-columns fa-rotate-270": Split down's glyph).
 function panelIconClass(icon: string): string {
@@ -73,8 +74,40 @@ function panelIconClass(icon: string): string {
     return base == null ? null : cn(base, ...mods);
 }
 
-function rowDomId(index: number): string {
-    return `molten-cmdpanel-row-${index}`;
+// Ids follow the item, not the position, so a screen reader announces the new selection after a keystroke.
+function rowDomId(row: PanelRow): string {
+    return row == null ? undefined : `molten-cmdpanel-${row.key.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+}
+
+// The value a scoped item shows: what the scope being edited holds, else what it inherits.
+function shownValue(item: PanelItem, chosen: PanelScopeId): unknown {
+    const binding = activeScope(item as any, chosen);
+    return binding != null ? valueAtScope(item as any, binding) : effectiveValue(item as any);
+}
+
+// The option's accessible name: its label and value, so a control inside the row is not read instead.
+function rowAccessibleName(row: PanelRow, scopes: Record<string, PanelScopeId>, kindLabel: string): string {
+    if (row.kind === "heading") {
+        return row.title;
+    }
+    if (row.kind === "option") {
+        return row.breadcrumb ? `${row.breadcrumb}: ${row.option.label}` : row.option.label;
+    }
+    const item = row.item;
+    const parts = [item.label];
+    if (item.type === "toggle") {
+        parts.push(shownValue(item, scopes[item.id]) ? "on" : "off");
+    } else if (item.type === "number") {
+        const v = Number(shownValue(item, scopes[item.id]));
+        parts.push(item.format ? item.format(v) : String(v));
+    } else if (item.type === "choice") {
+        parts.push(choiceValueLabel(item));
+    }
+    const binding = activeScope(item as any, scopes[item.id]);
+    if (binding != null && (item as any).scopes?.length) {
+        parts.push(scopeLabel(binding.scope, kindLabel));
+    }
+    return parts.filter((p) => p).join(", ");
 }
 
 type FooterAction = PanelAction & { refocus?: boolean };
@@ -166,16 +199,30 @@ function ItemIcon({ icon, swatch }: { icon?: string; swatch?: string[] }) {
     );
 }
 
-function ScopeBadge({ text, quiet }: { text: string; quiet?: boolean }) {
+// With several scopes, the badge is the scope switch of an option that has no sub-page (a number, a toggle): a click
+// moves the edit to the next scope.
+function ScopeBadge({ text, quiet, onNext }: { text: string; quiet?: boolean; onNext?: () => void }) {
+    const className = cn(
+        "molten-cmdpanel-scope shrink-0 rounded-4 px-1.5 text-11 leading-4 whitespace-nowrap",
+        quiet && "is-quiet"
+    );
+    if (onNext == null) {
+        return <span className={className}>{text}</span>;
+    }
     return (
-        <span
-            className={cn(
-                "molten-cmdpanel-scope shrink-0 rounded-4 px-1.5 text-11 leading-4 whitespace-nowrap",
-                quiet && "is-quiet"
-            )}
+        <button
+            type="button"
+            tabIndex={-1}
+            className={cn(className, "cursor-pointer")}
+            title={`${text}: click to change where this applies`}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+                e.stopPropagation();
+                onNext();
+            }}
         >
             {text}
-        </span>
+        </button>
     );
 }
 
@@ -213,16 +260,22 @@ type RowProps = {
     onActivate: (row: PanelRow) => void;
     onReset: (item: PanelItem) => void;
     onNumber: (item: PanelNumber, value: number) => void;
+    onScope: (item: PanelItem, scope: PanelScopeId) => void;
+    onStep: (item: PanelNumber, delta: number) => void;
+    // Values written but not yet back from the store (a stepper pressed fast, a slider dragged).
+    pending: Record<string, number>;
 };
 
 function NumberControl({
     item,
     value,
     onNumber,
+    onStep,
 }: {
     item: PanelNumber;
     value: number;
     onNumber: (item: PanelNumber, value: number) => void;
+    onStep: (item: PanelNumber, delta: number) => void;
 }) {
     const text = item.format ? item.format(value) : String(value);
     const stop = (e: React.SyntheticEvent) => e.stopPropagation();
@@ -255,7 +308,7 @@ function NumberControl({
                 aria-label={`Decrease ${item.label}`}
                 disabled={value <= item.min}
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => onNumber(item, stepNumber(item, value, -1))}
+                onClick={() => onStep(item, -1)}
             >
                 <i className="fa fa-solid fa-minus" />
             </button>
@@ -267,7 +320,7 @@ function NumberControl({
                 aria-label={`Increase ${item.label}`}
                 disabled={value >= item.max}
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => onNumber(item, stepNumber(item, value, 1))}
+                onClick={() => onStep(item, 1)}
             >
                 <i className="fa fa-solid fa-plus" />
             </button>
@@ -282,6 +335,9 @@ function RowAside({
     selected,
     onReset,
     onNumber,
+    onScope,
+    onStep,
+    pending,
 }: Omit<RowProps, "index" | "digit" | "onHover" | "onActivate">) {
     if (row.kind === "heading") {
         return null;
@@ -298,9 +354,19 @@ function RowAside({
     const scoped = binding != null && (item as any).scopes?.length > 0;
     const changed = scoped && canReset(item as any, chosen);
     // The selected row names its scope even at the default, so the keyboard user learns where an edit goes.
+    const bindings = (item as any).scopes as { scope: PanelScopeId }[];
+    const switchable = scoped && item.type !== "choice" && bindings.length > 1;
+    const nextScope = () => {
+        const at = bindings.findIndex((b) => b.scope === binding.scope);
+        onScope(item, bindings[(at + 1) % bindings.length].scope);
+    };
     const badge =
-        changed || (scoped && selected) ? (
-            <ScopeBadge text={scopeLabel(binding.scope, ctx.kindLabel)} quiet={!changed} />
+        changed || (scoped && (selected || chosen != null)) ? (
+            <ScopeBadge
+                text={scopeLabel(binding.scope, ctx.kindLabel)}
+                quiet={!changed}
+                onNext={switchable ? nextScope : undefined}
+            />
         ) : null;
     const reset = changed ? <ResetButton label={item.label} onReset={() => onReset(item)} /> : null;
     switch (item.type) {
@@ -315,12 +381,13 @@ function RowAside({
             );
         }
         case "number": {
-            const value = Number(binding != null ? valueAtScope(item, binding) : effectiveValue(item));
+            const value =
+                pending[item.id] ?? Number(binding != null ? valueAtScope(item, binding) : effectiveValue(item));
             return (
                 <>
                     {badge}
                     {reset}
-                    <NumberControl item={item} value={value} onNumber={onNumber} />
+                    <NumberControl item={item} value={value} onNumber={onNumber} onStep={onStep} />
                 </>
             );
         }
@@ -360,7 +427,7 @@ function PanelRowView(props: RowProps) {
     const checked = isOption
         ? optionSelected(row.choice, row.option, props.scopes[row.choice.id])
         : row.item.type === "toggle"
-          ? !!effectiveValue(row.item)
+          ? !!shownValue(row.item, props.scopes[row.item.id])
           : undefined;
     if (isInfo) {
         return (
@@ -372,8 +439,9 @@ function PanelRowView(props: RowProps) {
     const title = !isOption && row.item.disabledReason ? row.item.disabledReason : undefined;
     return (
         <div
-            id={rowDomId(index)}
+            id={rowDomId(row)}
             role="option"
+            aria-label={rowAccessibleName(row, props.scopes, props.ctx?.kindLabel)}
             aria-selected={selected}
             aria-disabled={disabled || undefined}
             aria-checked={checked}
@@ -483,7 +551,7 @@ function PageHeader({ page, ctx, scope, onBack, onScope, onReset }: PageHeaderPr
                                 role="radio"
                                 aria-checked={binding?.scope === b.scope}
                                 className={cn(
-                                    "h-5 cursor-pointer rounded-4 px-2 text-11",
+                                    "h-6 cursor-pointer rounded-4 px-2 text-11",
                                     binding?.scope === b.scope ? "is-active text-primary" : "text-secondary"
                                 )}
                                 onMouseDown={(e) => e.preventDefault()}
@@ -536,13 +604,16 @@ function CommandPanel({ open }: CommandPanelProps) {
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const agent = useAtomValue(blockId ? AgentStates.getInstance().blockAtom(blockId) : NullAgentAtom);
     const layoutModel = getLayoutModelForStaticTab();
-    const magnifiedNodeId = useAtomValue(layoutModel?.magnifiedNodeIdAtom ?? (atom(null) as Atom<string>));
+    const magnifiedNodeId = useAtomValue(layoutModel?.magnifiedNodeIdAtom ?? NullStringAtom);
     const [tick, setTick] = useState(0);
     const [query, setQuery] = useState(open.query ?? "");
     const [stack, setStack] = useState<string[]>([]);
     const [direction, setDirection] = useState<"in" | "back">("in");
     const [selected, setSelected] = useState(-1);
     const [scopes, setScopes] = useState<Record<string, PanelScopeId>>({});
+    const [pending, setPending] = useState<Record<string, number>>({});
+    // Mirrors pending for steps fired before React renders again (clicks in one task, key auto-repeat).
+    const pendingRef = useRef<Record<string, number>>({});
     const [lockedPlacement, setLockedPlacement] = useState<Placement>(null);
     const { alt, meta } = useModifierKeys();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -550,13 +621,30 @@ function CommandPanel({ open }: CommandPanelProps) {
     const listRef = useRef<HTMLDivElement>(null);
     const armed = useRef(open.source !== "header");
     const numberTimer = useRef<ReturnType<typeof setTimeout>>(null);
+    const numberPending = useRef<{ item: PanelNumber; value: number; chosen: PanelScopeId }>(null);
+    const lastNumberWrite = useRef(0);
+    const bumpTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
     // Writes are async: the panel reads its sources again when they land, and once more a moment later for the
     // items whose state Wave keeps outside the stores.
     const bump = useCallback(() => {
         setTick((t) => t + 1);
-        setTimeout(() => setTick((t) => t + 1), 180);
+        if (bumpTimer.current) {
+            clearTimeout(bumpTimer.current);
+        }
+        bumpTimer.current = setTimeout(() => setTick((t) => t + 1), 180);
     }, []);
+    useEffect(
+        () => () => {
+            if (bumpTimer.current) {
+                clearTimeout(bumpTimer.current);
+            }
+            if (numberTimer.current) {
+                clearTimeout(numberTimer.current);
+            }
+        },
+        []
+    );
 
     const ctx = useMemo(() => makePanelContext(blockId), [blockId, block, fullConfig, agent, tick]);
     const collected = useMemo(() => (ctx ? collectPanel(ctx) : { sections: [], suggestions: [] }), [ctx]);
@@ -581,15 +669,35 @@ function CommandPanel({ open }: CommandPanelProps) {
         const unsubscribe = globalStore.sub(atoms.workspaceId, () => model.close(false));
         return unsubscribe;
     }, []);
+    // The selection follows the item, not the position: when the panel reads its sources again and an item appears or
+    // goes, Enter still runs the item that was highlighted.
+    const selectedKey = useRef<string>(null);
     useEffect(() => {
-        setSelected(firstSelectable(rows));
-    }, [query, liveStack.join("/")]);
+        if (rows[selected] != null) {
+            selectedKey.current = rows[selected].key;
+        }
+    }, [selected]);
+    const pageKey = `${query}\u0000${liveStack.join("/")}`;
+    const lastPageKey = useRef(pageKey);
     useEffect(() => {
+        if (lastPageKey.current !== pageKey) {
+            lastPageKey.current = pageKey;
+            selectedKey.current = null;
+            setSelected(firstSelectable(rows));
+            return;
+        }
+        const kept = rows.findIndex((r) => r.key === selectedKey.current);
+        if (kept >= 0 && isSelectableRow(rows[kept])) {
+            if (kept !== selected) {
+                setSelected(kept);
+            }
+            return;
+        }
         if (selected >= 0 && rows[selected] != null && isSelectableRow(rows[selected])) {
             return;
         }
         setSelected(firstSelectable(rows));
-    }, [rows]);
+    }, [rows, pageKey]);
     useEffect(() => {
         listRef.current?.querySelector(`[data-index="${selected}"]`)?.scrollIntoView({ block: "nearest" });
     }, [selected]);
@@ -777,21 +885,60 @@ function CommandPanel({ open }: CommandPanelProps) {
         }
     };
 
-    const onNumber = (item: PanelNumber, value: number) => {
-        // A slider drags through many values: write at most every 60 ms, and the last one.
-        if (numberTimer.current) {
-            clearTimeout(numberTimer.current);
+    const writeNumber = (item: PanelNumber, value: number, chosen: PanelScopeId) => {
+        lastNumberWrite.current = Date.now();
+        fireAndForget(async () => {
+            await setItemValue(item, value, chosen);
+            bump();
+            // The store's copy arrives with the object update: keep showing the written value until then.
+            setTimeout(() => {
+                if (pendingRef.current[item.id] !== value) {
+                    return;
+                }
+                const rest = { ...pendingRef.current };
+                delete rest[item.id];
+                pendingRef.current = rest;
+                setPending(rest);
+            }, 400);
+        });
+    };
+
+    // The value the next step starts from: the one just written, else the store's.
+    const numberValue = (item: PanelNumber): number => {
+        if (pendingRef.current[item.id] != null) {
+            return pendingRef.current[item.id];
         }
-        numberTimer.current = setTimeout(
-            () => {
+        const binding = activeScope(item, scopes[item.id]);
+        return Number(binding != null ? valueAtScope(item, binding) : effectiveValue(item));
+    };
+
+    // A slider drags through many values: the panel writes at most every 60 ms while it moves, and always the last
+    // value (leading and trailing throttle).
+    const onNumber = (item: PanelNumber, value: number) => {
+        const chosen = scopes[item.id];
+        pendingRef.current = { ...pendingRef.current, [item.id]: value };
+        setPending(pendingRef.current);
+        const wait = item.control === "slider" ? 60 - (Date.now() - lastNumberWrite.current) : 0;
+        if (wait <= 0) {
+            if (numberTimer.current) {
+                clearTimeout(numberTimer.current);
                 numberTimer.current = null;
-                fireAndForget(async () => {
-                    await setItemValue(item, value, scopes[item.id]);
-                    bump();
-                });
-            },
-            item.control === "slider" ? 60 : 0
-        );
+            }
+            writeNumber(item, value, chosen);
+            return;
+        }
+        numberPending.current = { item, value, chosen };
+        if (numberTimer.current) {
+            return;
+        }
+        numberTimer.current = setTimeout(() => {
+            numberTimer.current = null;
+            const next = numberPending.current;
+            numberPending.current = null;
+            if (next != null) {
+                writeNumber(next.item, next.value, next.chosen);
+            }
+        }, wait);
     };
 
     const onReset = (item: PanelItem) => {
@@ -829,9 +976,7 @@ function CommandPanel({ open }: CommandPanelProps) {
             case "step":
                 if (row?.kind === "item" && row.item.type === "number") {
                     const item = row.item;
-                    const binding = activeScope(item, scopes[item.id]);
-                    const value = Number(binding != null ? valueAtScope(item, binding) : effectiveValue(item));
-                    onNumber(item, stepNumber(item, value, intent.delta));
+                    onNumber(item, stepNumber(item, numberValue(item), intent.delta));
                 }
                 return;
             case "clear-query":
@@ -845,7 +990,9 @@ function CommandPanel({ open }: CommandPanelProps) {
 
     const trapTab = (e: React.KeyboardEvent) => {
         const focusables = Array.from(
-            panelRef.current?.querySelectorAll<HTMLElement>("input, button:not([tabindex='-1']):not(:disabled)") ?? []
+            panelRef.current?.querySelectorAll<HTMLElement>(
+                "input:not([tabindex='-1']), button:not([tabindex='-1']):not(:disabled)"
+            ) ?? []
         );
         if (focusables.length === 0) {
             return;
@@ -873,6 +1020,18 @@ function CommandPanel({ open }: CommandPanelProps) {
             return;
         }
         const inInput = e.target === inputRef.current;
+        // Cmd+Backspace resets the selected option at the scope being edited (the keyboard's Reset).
+        const selectedRow = rows[selected];
+        if (
+            cmd &&
+            e.key === "Backspace" &&
+            selectedRow?.kind === "item" &&
+            canReset(selectedRow.item as any, scopes[selectedRow.item.id])
+        ) {
+            e.preventDefault();
+            onReset(selectedRow.item);
+            return;
+        }
         if (!inInput && (e.key === "Enter" || e.key === " ")) {
             // A focused footer or page button handles its own Enter and Space.
             return;
@@ -898,7 +1057,7 @@ function CommandPanel({ open }: CommandPanelProps) {
 
     const digits = new Map<number, number>();
     if (meta) {
-        selectableIndices(rows)
+        numberedIndices(rows)
             .slice(0, 9)
             .forEach((rowIndex, i) => digits.set(rowIndex, i + 1));
     }
@@ -968,7 +1127,7 @@ function CommandPanel({ open }: CommandPanelProps) {
                     aria-expanded="true"
                     aria-autocomplete="list"
                     aria-controls={ListId}
-                    aria-activedescendant={selected >= 0 ? rowDomId(selected) : undefined}
+                    aria-activedescendant={selected >= 0 ? rowDomId(rows[selected]) : undefined}
                     aria-label={`Search the commands of this ${panelName.toLowerCase()} panel`}
                 />
                 <span className="shrink-0 font-mono text-11 text-muted" aria-hidden>
@@ -990,64 +1149,74 @@ function CommandPanel({ open }: CommandPanelProps) {
             )}
             <div
                 ref={listRef}
-                id={ListId}
-                role="listbox"
-                aria-label={page != null ? page.label : `Commands for this ${panelName.toLowerCase()} panel`}
                 key={liveStack.join("/")}
                 className={cn(
                     "min-h-0 flex-1 overflow-y-auto py-1",
                     liveStack.length > 0 || direction === "back" ? `molten-cmdpanel-slide-${direction}` : null
                 )}
             >
-                {emptyText && <div className="px-3 py-2.5 text-12 text-muted">{emptyText}</div>}
-                {groups.map((group, gi) => (
-                    <div
-                        key={group.heading?.key ?? `g${gi}`}
-                        role="group"
-                        aria-labelledby={group.heading ? `${group.heading.key}-label` : undefined}
-                    >
-                        {group.heading?.kind === "heading" && (
-                            <div className="flex items-center px-3 pt-2 pb-1" role="presentation">
-                                <span
-                                    id={`${group.heading.key}-label`}
-                                    className="truncate text-11 font-medium tracking-wide text-muted uppercase"
-                                >
-                                    {group.heading.title}
-                                </span>
-                                {group.heading.state && (
-                                    <span
-                                        className={cn(
-                                            "ml-auto text-11",
-                                            group.heading.stateTone === "warning" ? "text-warning" : "text-muted"
-                                        )}
-                                    >
-                                        {group.heading.state}
-                                    </span>
-                                )}
-                            </div>
-                        )}
-                        {group.rows.map(({ row, index }) => (
-                            <PanelRowView
-                                key={row.key}
-                                row={row}
-                                index={index}
-                                selected={index === selected}
-                                ctx={ctx}
-                                scopes={page != null ? { ...scopes } : scopes}
-                                digit={digits.get(index) ?? 0}
-                                onHover={setSelected}
-                                onActivate={(r) => {
-                                    if (!armed.current) {
-                                        return;
-                                    }
-                                    activate(r);
-                                }}
-                                onReset={onReset}
-                                onNumber={onNumber}
-                            />
-                        ))}
+                {emptyText && (
+                    <div className="px-3 py-2.5 text-12 text-muted" role="status">
+                        {emptyText}
                     </div>
-                ))}
+                )}
+                <div
+                    id={ListId}
+                    role="listbox"
+                    aria-label={page != null ? page.label : `Commands for this ${panelName.toLowerCase()} panel`}
+                >
+                    {groups.map((group, gi) => (
+                        <div
+                            key={group.heading?.key ?? `g${gi}`}
+                            role="group"
+                            aria-labelledby={group.heading ? `${group.heading.key}-label` : undefined}
+                        >
+                            {group.heading?.kind === "heading" && (
+                                <div className="flex items-center px-3 pt-2 pb-1" role="presentation">
+                                    <span
+                                        id={`${group.heading.key}-label`}
+                                        className="truncate text-11 font-medium tracking-wide text-muted uppercase"
+                                    >
+                                        {group.heading.title}
+                                    </span>
+                                    {group.heading.state && (
+                                        <span
+                                            className={cn(
+                                                "ml-auto text-11",
+                                                group.heading.stateTone === "warning" ? "text-warning" : "text-muted"
+                                            )}
+                                        >
+                                            {group.heading.state}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                            {group.rows.map(({ row, index }) => (
+                                <PanelRowView
+                                    key={row.key}
+                                    row={row}
+                                    index={index}
+                                    selected={index === selected}
+                                    ctx={ctx}
+                                    scopes={scopes}
+                                    digit={digits.get(index) ?? 0}
+                                    onHover={setSelected}
+                                    onActivate={(r) => {
+                                        if (!armed.current) {
+                                            return;
+                                        }
+                                        activate(r);
+                                    }}
+                                    onReset={onReset}
+                                    onNumber={onNumber}
+                                    onScope={(item, scope) => setScopes((s) => ({ ...s, [item.id]: scope }))}
+                                    pending={pending}
+                                    onStep={(item, delta) => onNumber(item, stepNumber(item, numberValue(item), delta))}
+                                />
+                            ))}
+                        </div>
+                    ))}
+                </div>
                 {hasDeveloper && !alt && liveStack.length === 0 && query === "" && (
                     <div className="px-3 pt-1.5 pb-1 text-11 text-muted">
                         Hold {isMacOS() ? "⌥" : "Alt"} for Developer

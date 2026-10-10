@@ -25,7 +25,8 @@ export type OpenCommandPanel = {
 // The performance marks of NFR-SHELL-028 (the panel painted under 50 ms after its trigger).
 export const OpenMark = "mt-command-panel-open";
 export const PaintedMeasure = "mt-command-panel-painted";
-export const TriggerSelector = '[data-role="command-panel-trigger"]';
+// A block header's gear (Wave's IconButton takes no data attribute) or a view's own trigger (the browser).
+export const TriggerSelector = '[data-role="command-panel-trigger"], .block-frame-settings';
 
 function rectAnchor(el: Element): PanelAnchor {
     const r = el.getBoundingClientRect();

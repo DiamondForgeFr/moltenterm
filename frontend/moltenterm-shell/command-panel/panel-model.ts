@@ -111,9 +111,10 @@ function matchTexts(query: string, label: string, secondary: string[]): { score:
     return best;
 }
 
-export function visibleSections(sections: PanelSection[], alt: boolean, searching: boolean): PanelSection[] {
-    // Someone typing a Developer item's name means it; browsing keeps them behind Option.
-    return (sections ?? []).filter((s) => s.kind !== "developer" || alt || searching);
+// Developer items stay behind Option, in search too, so a click or an Enter cannot restart a controller by accident
+// (FR-SHELL-047 security rationale).
+export function visibleSections(sections: PanelSection[], alt: boolean): PanelSection[] {
+    return (sections ?? []).filter((s) => s.kind !== "developer" || alt);
 }
 
 // The item a stack of ids leads to (a choice or a page), or null when one of them is gone (the panel changed).
@@ -259,7 +260,7 @@ export function buildRows(input: PanelRowsInput): PanelRow[] {
         searchItems(query, (page as any).items ?? [], stack, "", hits);
         return sortedHits(hits);
     }
-    const sections = visibleSections(input.sections, input.alt, query !== "");
+    const sections = visibleSections(input.sections, input.alt);
     if (query === "") {
         for (const section of sections) {
             rows.push({
@@ -324,9 +325,18 @@ export function firstSelectable(rows: PanelRow[]): number {
 }
 
 // The row Cmd+N runs: the Nth selectable row from the top (FR-SHELL-047-AC3).
+// A destructive row is never numbered: it runs only by a deliberate Enter or click.
+export function isDestructiveRow(row: PanelRow): boolean {
+    return row?.kind === "item" && !!row.item.destructive;
+}
+
+export function numberedIndices(rows: PanelRow[]): number[] {
+    return selectableIndices(rows).filter((i) => !isDestructiveRow(rows[i]));
+}
+
 export function nthSelectable(rows: PanelRow[], n: number): number {
-    const selectable = selectableIndices(rows);
-    return n >= 1 && n <= selectable.length ? selectable[n - 1] : -1;
+    const numbered = numberedIndices(rows);
+    return n >= 1 && n <= numbered.length ? numbered[n - 1] : -1;
 }
 
 export type PanelKeyIntent =
@@ -578,7 +588,8 @@ export function flattenPanel(sections: PanelSection[], footer: PanelItem[] = [])
             }
         }
     };
-    for (const section of sections ?? []) {
+    // Developer items stay in the panel, behind Option.
+    for (const section of (sections ?? []).filter((s) => s.kind !== "developer")) {
         walk(section.items, [section.title]);
     }
     walk(footer, [FooterSectionTitle]);

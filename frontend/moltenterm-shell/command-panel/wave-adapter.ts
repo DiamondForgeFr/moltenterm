@@ -100,7 +100,12 @@ function convert(item: ContextMenuItem, prefix: string, ids: Ids, developer: Pan
                     ...base,
                     type: "toggle",
                     value: !!on.checked,
-                    set: (value: boolean) => (value ? on.run() : off.run()),
+                    set: (value: boolean) => {
+                        if (value === !!on.checked) {
+                            return;
+                        }
+                        return value ? on.run() : off.run();
+                    },
                 };
             }
             return { ...base, type: "choice", options };
@@ -135,8 +140,10 @@ function convert(item: ContextMenuItem, prefix: string, ids: Ids, developer: Pan
             ...base,
             type: "toggle",
             value: !!item.checked,
-            set: () => {
-                if (item.type === "radio" && item.checked) {
+            // Wave's click flips the state: asking for the state it already has does nothing (a double activation
+            // before the panel reads the new state must not flip it back).
+            set: (value: boolean) => {
+                if (value === !!item.checked) {
                     return;
                 }
                 item.click();
