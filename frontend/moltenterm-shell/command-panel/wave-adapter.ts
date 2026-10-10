@@ -104,7 +104,7 @@ function convert(item: ContextMenuItem, prefix: string, ids: Ids, developer: Pan
                         if (value === !!on.checked) {
                             return;
                         }
-                        return value ? on.run() : off.run();
+                        return (value ? on.run() : off.run()) as void | Promise<void>;
                     },
                 };
             }

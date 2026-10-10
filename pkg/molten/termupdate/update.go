@@ -65,6 +65,8 @@ type Env struct {
 	Replace func(ctx context.Context, blockId string, cwd string, notice string) error
 	// WatchPrompt returns a channel told of the block's next prompt marks, and its release.
 	WatchPrompt func(blockId string) (<-chan struct{}, func())
+	// InputState: what the terminal's input and output tell about its agent (moltenagentinput); nil: nothing known.
+	InputState func(blockId string) AgentInputState
 	// Current is the app's shell generation (shellutil.MoltenShellGeneration when 0).
 	Current int
 	Sleep   func(d time.Duration)
@@ -394,16 +396,13 @@ const (
 // Escape, which answers No to a question the agent may be asking (an agent without hooks looks idle while it asks),
 // clears an unsent draft, and types the exit command. Shared with FR-CONT-010.
 func (u *Updater) StopAgent(blockId string, adapter agentcontinuity.AgentAdapter, agent molten.AgentProcess, shellPid int32) string {
-	table, err := u.env.ReadTable()
-	if err != nil || !table.Same(agent.Pid, agent.StartMs) || !inForeground(table, shellPid, agent.Pid) {
+	exit := adapter.Exit()
+	sent, err := u.sendToForegroundAgent(blockId, agent, shellPid, []string{keyEscape, keyClearLine, exit.Command, "\r"})
+	if !sent {
 		return StopChanged
 	}
-	exit := adapter.Exit()
-	for _, step := range []string{keyEscape, keyClearLine, exit.Command, "\r"} {
-		if err := u.env.SendInput(blockId, []byte(step)); err != nil {
-			return StopStuck
-		}
-		u.env.Sleep(exitEnterDelay)
+	if err != nil {
+		return StopStuck
 	}
 	deadline := u.env.Now().Add(AgentExitTimeout)
 	for {

@@ -114,6 +114,7 @@ type genReport struct {
 // service is the running part: the publisher of the outdated terminals, the generation recorder and the updater.
 type service struct {
 	updater *Updater
+	inputs  *inputWatch
 	prompts *promptWatchers
 	reports chan genReport
 	poke    chan struct{}
@@ -143,6 +144,7 @@ func makeService() *service {
 		prompts: &promptWatchers{watchers: map[string][]chan struct{}{}},
 		reports: make(chan genReport, reportsQueueSize),
 		poke:    make(chan struct{}, 1),
+		inputs:  makeInputWatch(attention.AgentRun, attention.AgentStatesPrecise),
 	}
 	s.updater = MakeUpdater(Env{
 		LoadJob:     loadJob,
@@ -166,6 +168,7 @@ func makeService() *service {
 			return replace(ctx, blockId, cwd, notice)
 		},
 		WatchPrompt: s.prompts.watch,
+		InputState:  s.inputs.state,
 	})
 	return s
 }
@@ -358,6 +361,26 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		out := l.s.updater.Run(ctx, req)
 		l.s.trigger()
 		return out, nil
+	case AgentInputInfoCommand:
+		var req AgentInputRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		if req.BlockId == "" {
+			return nil, fmt.Errorf("no terminal given")
+		}
+		return l.s.updater.AgentInputInfo(req.BlockId), nil
+	case AgentInputCommand:
+		var req AgentInputRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		if req.BlockId == "" {
+			return nil, fmt.Errorf("no terminal given")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
+		defer cancel()
+		return l.s.updater.AgentInput(ctx, req), nil
 	}
 	return nil, fmt.Errorf("unknown terminal update command %q", command)
 }
@@ -367,6 +390,8 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 func Start() {
 	s := makeService()
 	attention.OnShellMark(s.observe)
+	attention.OnTerminalInput(s.inputs.input)
+	attention.OnTerminalOutput(s.inputs.output)
 	link := &routeLink{s: s, output: make(chan []byte, routeQueueSize)}
 	if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, Route); err != nil {
 		log.Printf("molten: terminal update route not started: %v\n", err)

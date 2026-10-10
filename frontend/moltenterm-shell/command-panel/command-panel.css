@@ -206,3 +206,53 @@
     box-shadow: inset 0 0 0 1px var(--mt-line-2);
     color: var(--mt-text-muted, rgb(140, 145, 140));
 }
+
+/* An agent command's refusal or confirmation (FR-SHELL-048): a tinted band in place of the suggestions. */
+.molten-cmdpanel-feedback {
+    background: var(--mt-surface-1);
+}
+
+.molten-cmdpanel-feedback.is-warning {
+    background: color-mix(in srgb, var(--color-warning) 9%, transparent);
+}
+
+.molten-cmdpanel-feedback.is-warning .molten-cmdpanel-feedback-text {
+    color: var(--mt-text-main, #f7f7f7);
+}
+
+.molten-cmdpanel-feedback.is-danger .molten-cmdpanel-feedback-text {
+    color: var(--mt-danger-text);
+}
+
+.molten-cmdpanel-feedback.is-muted .molten-cmdpanel-feedback-text {
+    color: var(--mt-text-secondary, rgb(195, 200, 194));
+}
+
+.molten-cmdpanel-feedback-primary,
+.molten-cmdpanel-feedback-secondary {
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.molten-cmdpanel-feedback-primary {
+    background: color-mix(in srgb, var(--mt-accent) 80%, transparent);
+    color: var(--mt-text-main, #f7f7f7);
+}
+
+.molten-cmdpanel-feedback-primary:hover {
+    background: var(--mt-accent);
+}
+
+.molten-cmdpanel-feedback-secondary {
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    color: var(--mt-text-secondary, rgb(195, 200, 194));
+}
+
+.molten-cmdpanel-feedback-secondary:hover {
+    background: var(--mt-surface-3);
+    color: var(--mt-text-main, #f7f7f7);
+}
+
+.molten-cmdpanel-chip-verb {
+    padding-left: var(--mt-space-4);
+    border-left: 1px solid currentColor;
+}
