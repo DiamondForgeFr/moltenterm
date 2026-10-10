@@ -112,12 +112,15 @@ func TestCodexGaugesFromTheFollowedSession(t *testing.T) {
 
 	written := time.Now()
 	appendFile(t, path, codexTokenCount(written, 12.5))
-	p := waitPublished(t, g, "b2", func(i UsageInfo) bool { return i.SourceName == "Codex session log" })
+	// A publication can name the session log before its windows are read: wait for the one that carries them.
+	p := waitPublished(t, g, "b2", func(i UsageInfo) bool {
+		return i.SourceName == "Codex session log" && i.Snapshot != nil && len(i.Snapshot.Windows) == 2
+	})
 	if took := time.Since(written); took > 2*time.Second {
 		t.Errorf("shown %v after Codex wrote it (FR-SHELL-029-AC1: 2 s)", took)
 	}
-	if p.Gauges != usage.GaugesEnabled || len(p.Snapshot.Windows) != 2 || p.Snapshot.Windows[0].UsedPercent != 12.5 || p.Snapshot.Windows[1].Label != "This week" {
-		t.Errorf("the session's windows: %+v", p.Snapshot)
+	if p.Gauges != usage.GaugesEnabled || p.Snapshot.Windows[0].UsedPercent != 12.5 || p.Snapshot.Windows[1].Label != "This week" {
+		t.Fatalf("the session's windows: %+v", p.Snapshot)
 	}
 	if p.Snapshot.ReadAt != written.UnixMilli() || p.Snapshot.Credits != nil {
 		t.Errorf("age from the record; no credits line without credits: %+v", p.Snapshot)
@@ -130,7 +133,9 @@ func TestCodexGaugesFromTheFollowedSession(t *testing.T) {
 	}
 
 	appendFile(t, path, codexTokenCount(time.Now(), 13))
-	waitPublished(t, g, "b2", func(i UsageInfo) bool { return i.Snapshot != nil && i.Snapshot.Windows[0].UsedPercent == 13 })
+	waitPublished(t, g, "b2", func(i UsageInfo) bool {
+		return i.Snapshot != nil && len(i.Snapshot.Windows) > 0 && i.Snapshot.Windows[0].UsedPercent == 13
+	})
 
 	if info, _ := m.SetUsageGauges("b2", false); info.Gauges != usage.GaugesOff {
 		t.Errorf("off: %+v", info)
