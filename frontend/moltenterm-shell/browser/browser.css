@@ -1,0 +1,137 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The browser panel's tab strip and header buttons (FR-SHELL-051, DS-SHELL-092). The tabs take the app's tab look
+   (tab-bar.css, DS-SHELL-098) at 28 px: a 14 px icon, a left-aligned 12/500 name, a quiet fill on the active tab and
+   the close control floating over the end of the tab on hover or focus only, the name fading under it. */
+
+.molten-browser-tab {
+    padding: 0 1px;
+    font-weight: var(--mt-weight-medium);
+}
+
+.molten-browser-tab-inner {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    padding: 0 10px;
+    box-sizing: border-box;
+    border-radius: var(--mt-radius-6);
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.molten-browser-tab-icon {
+    flex-shrink: 0;
+    width: var(--mt-icon-14);
+    height: var(--mt-icon-14);
+    font-size: var(--mt-icon-14);
+    line-height: 1;
+    text-align: center;
+    color: var(--mt-text-muted);
+}
+
+.molten-browser-tab-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-medium);
+    color: var(--mt-text-secondary);
+}
+
+.molten-browser-tab[data-engine]:not([data-engine="app"]) .molten-browser-tab-name {
+    color: var(--mt-text-muted);
+}
+
+.molten-browser-tab.active .molten-browser-tab-inner {
+    background: color-mix(in srgb, var(--mt-neutral-line) 12%, transparent);
+}
+
+.molten-browser-tab.active .molten-browser-tab-name {
+    color: var(--mt-text-main);
+}
+
+.molten-browser-tab.active .molten-browser-tab-icon.fa-globe {
+    color: color-mix(in srgb, var(--mt-accent) 70%, var(--mt-text-main));
+}
+
+.molten-browser-tab .fa-triangle-exclamation.molten-browser-tab-icon {
+    color: var(--mt-state-waiting);
+}
+
+body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-inner,
+.molten-browser-tab:focus-within .molten-browser-tab-inner {
+    background: var(--color-hover);
+}
+
+body:not(.nohover) .molten-browser-tab.active:hover .molten-browser-tab-inner,
+.molten-browser-tab.active:focus-within .molten-browser-tab-inner {
+    background: color-mix(in srgb, var(--mt-neutral-line) 14%, transparent);
+}
+
+body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-name {
+    color: var(--mt-text-main);
+}
+
+body:not(.nohover) .molten-browser-tab.closable:hover .molten-browser-tab-inner,
+.molten-browser-tab.closable:focus-within .molten-browser-tab-inner {
+    mask-image: linear-gradient(to right, black calc(100% - 26px), transparent calc(100% - 18px));
+}
+
+.molten-browser-tab-close {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    transform: translateY(-50%);
+    border-radius: var(--mt-radius-4);
+    font-size: var(--mt-text-11);
+    color: var(--mt-text-secondary);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+}
+
+body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-close,
+.molten-browser-tab:focus-within .molten-browser-tab-close {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.molten-browser-tab-close:hover,
+.molten-browser-tab-close:focus-visible {
+    color: var(--mt-text-main);
+    background: var(--color-hover);
+}
+
+/* The header's end buttons at full opacity (FR-SHELL-051 AC4): Wave's icon buttons sit at 70 % until hovered. */
+.molten-browser-panel-buttons .wave-iconbutton {
+    width: 24px;
+    height: 24px;
+    justify-content: center;
+    border-radius: var(--mt-radius-6);
+    font-size: var(--mt-text-12);
+    color: var(--mt-text-secondary);
+    opacity: 1;
+    transition:
+        background-color var(--mt-duration-fast) var(--mt-ease),
+        color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.molten-browser-panel-buttons .wave-iconbutton:not(.disabled):hover {
+    color: var(--mt-text-main);
+    background: var(--color-hover);
+}
+
+.molten-browser-panel-buttons .wave-iconbutton.disabled {
+    opacity: 0.45 !important;
+}
