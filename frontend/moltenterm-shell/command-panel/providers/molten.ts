@@ -31,7 +31,7 @@ export function durableSessionItem(ctx: PanelContext, durable: boolean): PanelIt
         type: "page",
         label: "Durable session",
         icon: "shield",
-        detail: durable ? "On" : "Off",
+        valueLabel: durable ? "On" : "Off",
         keywords: ["durability", "persist", "keep running"],
         items: [
             {

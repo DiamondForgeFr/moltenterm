@@ -155,7 +155,7 @@ describe("MoltenTerm section (FR-SHELL-049-AC1, DS-SHELL-089, TC-SHELL-107)", ()
         const c = ctx("term", ["terminal"]);
         const page = find(MoltenProvider.sections(c), "molten:durable");
         expect(page.type).toBe("page");
-        expect(page.detail).toBe("On");
+        expect(page.valueLabel).toBe("On");
         const restart = page.items.find((i: PanelItem) => i.type === "action");
         expect(restart.label).toBe("Restart as a standard session");
         expect(restart.destructive).toBe(true);
