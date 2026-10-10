@@ -3,14 +3,13 @@
 
 // The workspace rail (FR-SHELL-001, DS-SHELL-002): every workspace at a glance on the left, one click to switch, as
 // in Notulia. It replaces the switcher of the tab bar and reuses Wave's workspace calls; a workspace is edited in
-// MoltenTerm's sheet (FR-SHELL-030), from its context menu, its pencil or a double-click. The user orders it by drag
-// and drop from anywhere on an item, as tabs, and Alt+Shift+Up/Down (FR-MC-031, #365); wavesrv keeps the order and
-// sorts Wave's list by it.
+// MoltenTerm's sheet (FR-SHELL-030), from its hover tray's Edit (FR-SHELL-045, rail-tray.tsx), its menu or a
+// double-click. The user orders it by drag and drop from anywhere on an item, as tabs, and Alt+Shift+Up/Down
+// (FR-MC-031, #365); wavesrv keeps the order and sorts Wave's list by it.
 // Workspaces whose projects form a product (FR-MC-027) are drawn under one collapsible product entry (rail-product.tsx).
-// The user groups any saved workspaces from an item's link bud, its menu or `molten rail group` (FR-MC-032): a local
-// group is drawn as a product too; connect mode (rail-connect.ts) makes the dragged workspaces join it.
+// The user groups any saved workspaces from More › Group with…, or `molten rail group` (FR-MC-032): a local group is
+// drawn as a product too; in connect mode (rail-connect.ts) a click on a workspace, or a drag onto the target, joins it.
 
-import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { WorkspaceService } from "@/app/store/services";
@@ -19,8 +18,10 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { agentStateTitle } from "./agent-state-model";
+import { AgentStates } from "./agent-state-store";
 import { AgentRailDot } from "./agent-state-ui";
-import { coffeeCondition, coffeeSupported, coffeeTooltip, railCoffeeLabel } from "./keepawake-model";
+import { coffeeCondition, coffeeSupported, coffeeTooltip, computerName, railCoffeeLabel } from "./keepawake-model";
 import { KeepAwakeModel } from "./keepawake-store";
 import { RailCoffeeDrop, usePlatform } from "./keepawake-ui";
 import { unreadByWorkspace } from "./notifications-model";
@@ -28,7 +29,7 @@ import { MoltentermNotifications } from "./notifications-store";
 import { ProjectLinkDetector } from "./project-link-modal";
 import { openProjectTab, ProjectTabKeeper } from "./project/project-tab";
 import { installConnectExits, RailConnectModel, RailConnectTarget, sameConnectTarget } from "./rail-connect";
-import { RailConnectPopover } from "./rail-connect-ui";
+import { RailConnectBanner } from "./rail-connect-ui";
 import {
     applyGroupedMove,
     leaveSlotMove,
@@ -48,10 +49,9 @@ import { useRailGroups, useStoredLocalGroups, useWorkspaceLinksKey } from "./rai
 import {
     cleanGroupName,
     effectiveLocalGroups,
-    GroupWithChoice,
-    groupWithChoices,
     joinRailGroup,
     leaveRailGroup,
+    localGroupName,
     localGroupOf,
     MaxGroupNameLength,
     projectGroupRefusal,
@@ -60,6 +60,15 @@ import {
 } from "./rail-local-groups";
 import { RailConnectState, RailDropToGroup, RailProduct, WorstDot } from "./rail-product";
 import { RailTools } from "./rail-tools";
+import { installRailTrayExits, RailTray, RailTrayPrimary, showRailMenu, useRailTrayHost } from "./rail-tray";
+import {
+    railEditLabel,
+    railMoreLabel,
+    railNavIndex,
+    railTabStop,
+    RailTrayModel,
+    railWorkspaceMenu,
+} from "./rail-tray-model";
 import { PaneFocusKeeper } from "./sessions/pane-focus";
 import { handOverWorkspaceEdit, openWorkspaceEditor, recordSwitchClick, takeSwitchClick } from "./workspace-edit";
 import { WorkspaceEditHost } from "./workspace-edit-sheet";
@@ -69,15 +78,6 @@ import { moveWorkspace, RailMove, slotMove, sortByOrder } from "./workspace-orde
 import { readWorkspaceProject } from "./workspace-project";
 import { RailDragScope, useRailDrag } from "./workspace-rail-dnd";
 import { railMoveKey } from "./workspace-rail-drag";
-import {
-    budTooltipAnchor,
-    RailBudChain,
-    RailBudFilter,
-    railBudReachPx,
-    RailBudSpec,
-    railEditLabel,
-    railLinkLabel,
-} from "./workspace-rail-edit";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
 import { askResetWorkspace, WorkspaceResetHost } from "./workspace-reset";
 import { canCloseWorkspace, LastWorkspaceReason } from "./workspace-reset-model";
@@ -95,9 +95,6 @@ export async function loadWorkspaceSources(): Promise<WorkspaceRailSource[]> {
 }
 
 type Anchor = { top: number; left: number };
-
-// The gap between the buds' reach and the item's tooltip.
-const RailBudTooltipGapPx = 6;
 
 function RailTooltip({ label, anchor }: { label: string; anchor: Anchor }) {
     if (anchor == null) {
@@ -118,34 +115,35 @@ type RailItemMoves = {
     down: RailMove;
     // How far a drag draws the item from its place; null when it is not dragged.
     dragOffsetY: number;
-    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => void;
+    onPointerDown: (e: React.PointerEvent<HTMLElement>) => void;
     // True for the click that ends a drag of this item.
     takeSuppressedClick: () => boolean;
     onMove: (move: RailMove, refocus: boolean) => void;
 };
 
-// What a saved workspace outside any project product offers for local groups (FR-MC-032): the link bud, connect mode's
-// state, Group with ▸ and Remove from group.
+// What a saved workspace outside any project product offers for local groups (FR-MC-032): Group with… and connect
+// mode's state, and Remove from group.
 type RailItemGrouping = {
-    onLink: () => void;
-    linkPressed: boolean;
+    // Starts connect mode on the workspace, or on its local group; a second time ends it.
+    onGroupWith: () => void;
+    connecting: boolean;
     connect: RailConnectState;
-    // Read when the menu opens: the rail renders on every drag frame.
-    groupWith: () => GroupWithChoice[];
-    onGroupWith: (choice: GroupWithChoice) => void;
     // Set for a member of a local group.
     onRemoveFromGroup?: () => void;
 };
 
-// A workspace drawn inside a product (FR-MC-027-AC5): its own badge and state, arrows walking the product. Until #365 its
-// box kept the full size, since the pencil's 24 px target would have covered most of a smaller one; with the buds out
-// beside the icon, it is drawn at 32 px (#368, revision of FR-MC-027), the product entry staying at 36 px.
+// A workspace drawn inside an expanded group (FR-MC-027-AC5, DS-SHELL-082): its own badge, state and tray, at 32 px.
 type RailMemberInfo = {
     worst: string;
     stateText: string;
-    // True when it moved the focus.
-    onArrow: (direction: -1 | 1) => boolean;
 };
+
+// The rail's roving tab stop (DS-SHELL-081): one item is in the tab order, the arrows move between them.
+export type RailNavProps = { key: string; tabIndex: number; onFocused: () => void };
+
+// The rail item's box, and a group member's (DS-SHELL-082).
+const RailItemPx = 36;
+const RailMemberPx = 32;
 
 function RailButton({
     entry,
@@ -156,6 +154,8 @@ function RailButton({
     unitId,
     member,
     grouping,
+    nav,
+    connectClick,
 }: {
     entry: WorkspaceRailEntry;
     // Deleting it lands the user on another workspace (#222); otherwise it is reset instead.
@@ -167,34 +167,48 @@ function RailButton({
     unitId?: string;
     member?: RailMemberInfo;
     grouping?: RailItemGrouping;
+    nav: RailNavProps;
+    // In connect mode, a click on a workspace groups it with the target; true when the click was taken.
+    connectClick: (workspaceId: string) => boolean;
 }) {
     const ref = useRef<HTMLButtonElement>(null);
     // Read live: the icon can change from the editor or from molten while the rail's list is not refreshed.
     const [workspace] = useWaveObjectValue<Workspace>(makeORef("workspace", entry.id));
     const coffee = useAtomValue(KeepAwakeModel.getInstance().coffeeAtom(entry.id));
+    const agent = useAtomValue(AgentStates.getInstance().workspaceAtom(entry.id));
+    const { isOpen, hostProps } = useRailTrayHost(entry.id, entry.saved);
     const platform = usePlatform();
     const projectDir = readWorkspaceProject(workspace).dir;
     const iconSource =
         workspace != null
             ? workspaceIconSource(workspace)
             : { icon: entry.icon, color: entry.color, image: "", logo: "" };
-    const anchorOf = (): Anchor => {
-        const rect = ref.current.getBoundingClientRect();
-        // Past the buds, which bud out right of a saved item (DS-SHELL-061, DS-MC-029).
-        const offset = entry.saved ? railBudReachPx(buds.length) + RailBudTooltipGapPx : 8;
-        return { top: rect.top + rect.height / 2, left: rect.right + offset };
-    };
-    const edit = (opener: HTMLElement) => {
+    // The item itself is the opener: the tray's buttons are hidden once the sheet is open.
+    const edit = () => {
         onHover(null, null);
-        openWorkspaceEditor(entry.id, opener);
+        RailTrayModel.getInstance().closeAll();
+        openWorkspaceEditor(entry.id, ref.current);
+    };
+    const setCoffee = (on: boolean) => {
+        onHover(null, null);
+        fireAndForget(async () => {
+            try {
+                await KeepAwakeModel.getInstance().setCoffee(entry.id, on);
+            } catch (err) {
+                console.log("keep-awake coffee:", err);
+            }
+        });
     };
     const onClick = (e: React.MouseEvent) => {
         if (moves.takeSuppressedClick()) {
             return;
         }
+        if (connectClick(entry.id)) {
+            return;
+        }
         if (!entry.saved && entry.active) {
             // Saving gives the workspace a default name and icon; the user then names it in the sheet.
-            edit(ref.current);
+            edit();
             return;
         }
         if (!entry.active) {
@@ -204,7 +218,7 @@ function RailButton({
         }
         // A double-click, or the second click of one that started on this item in the tab view the window just left.
         if (e.detail >= 2 || takeSwitchClick(entry.id)) {
-            edit(ref.current);
+            edit();
         }
     };
     const onDoubleClick = () => {
@@ -213,61 +227,42 @@ function RailButton({
             handOverWorkspaceEdit(entry.id);
         }
     };
+    const menuItems = (): ContextMenuItem[] =>
+        railWorkspaceMenu({
+            onEdit: edit,
+            coffee: coffeeSupported(platform)
+                ? {
+                      label: `Keep ${computerName(platform)} awake while it works`,
+                      on: coffee != null,
+                      onToggle: () => setCoffee(coffee == null),
+                  }
+                : undefined,
+            group:
+                grouping != null
+                    ? {
+                          connecting: grouping.connecting,
+                          onGroupWith: grouping.onGroupWith,
+                          onRemove: grouping.onRemoveFromGroup,
+                      }
+                    : undefined,
+            // The Project tab of the workspace this window shows, made again if the user closed it (FR-SHELL-015).
+            onProjectTab: entry.active && projectDir ? () => fireAndForget(openProjectTab) : undefined,
+            onReset: () => askResetWorkspace(entry.id),
+            remove: {
+                enabled: closable,
+                reason: LastWorkspaceReason,
+                onDelete: () => getApi().deleteWorkspace(entry.id),
+            },
+        });
     const onContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
         if (!entry.saved) {
             return;
         }
-        // The Project tab of the workspace this window shows, made again if the user closed it (FR-SHELL-015).
-        const projectTab: ContextMenuItem[] =
-            entry.active && projectDir
-                ? [{ label: "Open the Project tab", click: () => fireAndForget(openProjectTab) }]
-                : [];
-        const groupItems: ContextMenuItem[] = [];
-        const choices = grouping?.groupWith() ?? [];
-        if (choices.length > 0) {
-            groupItems.push({
-                label: "Group with",
-                icon: "layer-group",
-                type: "submenu",
-                submenu: choices.map((choice) => ({
-                    label: choice.label,
-                    click: () => grouping.onGroupWith(choice),
-                })),
-            });
-        }
-        if (grouping?.onRemoveFromGroup != null) {
-            groupItems.push({ label: "Remove from group", icon: "unlink", click: grouping.onRemoveFromGroup });
-        }
-        ContextMenuModel.getInstance().showContextMenu(
-            [
-                ...projectTab,
-                { label: "Edit workspace…", icon: "pen", click: () => edit(ref.current) },
-                ...(groupItems.length > 0 ? [{ type: "separator" } as ContextMenuItem, ...groupItems] : []),
-                { type: "separator" },
-                ...(closable
-                    ? []
-                    : [{ label: "Reset workspace…", icon: "rotate-left", click: () => askResetWorkspace(entry.id) }]),
-                {
-                    label: "Delete workspace",
-                    icon: "trash",
-                    destructive: true,
-                    enabled: closable,
-                    sublabel: closable ? undefined : LastWorkspaceReason,
-                    click: () => getApi().deleteWorkspace(entry.id),
-                },
-            ],
-            e
-        );
+        onHover(null, null);
+        showRailMenu(entry.id, menuItems(), e);
     };
     const onKeyDown = (e: React.KeyboardEvent) => {
-        const plainArrow = !e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey;
-        if (member != null && plainArrow && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
-            if (member.onArrow(e.key === "ArrowUp" ? -1 : 1)) {
-                e.preventDefault();
-            }
-            return;
-        }
         const direction = railMoveKey(e);
         if (direction == null || !entry.saved) {
             return;
@@ -280,85 +275,71 @@ function RailButton({
         }
     };
     const dragging = moves.dragOffsetY != null;
-    const buds: RailBudSpec[] = [];
-    if (entry.saved) {
-        buds.push({ kind: "edit", label: railEditLabel(entry.name), onActivate: (opener) => edit(opener) });
-    }
-    if (entry.saved && grouping != null) {
-        buds.push({
-            kind: "link",
-            label: railLinkLabel(entry.name),
-            pressed: grouping.linkPressed,
-            onActivate: () => {
-                onHover(null, null);
-                grouping.onLink();
-            },
-        });
-    }
-    // The coffee (FR-SHELL-023-AC8, DS-SHELL-062): the chain's last bud, on saved items, where MoltenTerm can keep the
-    // computer awake.
-    if (entry.saved && coffeeSupported(platform)) {
-        buds.push({
-            kind: "coffee",
-            label: railCoffeeLabel(entry.name, coffee != null, platform),
-            tooltip: coffee != null ? coffeeTooltip(coffee, entry.name, platform, Date.now()) : undefined,
-            pressed: coffee != null,
-            onActivate: () => {
-                onHover(null, null);
-                fireAndForget(async () => {
-                    try {
-                        await KeepAwakeModel.getInstance().setCoffee(entry.id, coffee == null);
-                    } catch (err) {
-                        console.log("keep-awake coffee:", err);
-                    }
-                });
-            },
-        });
-    }
     const connect = grouping?.connect;
     const coffeeText = coffee != null ? ` · kept awake ${coffeeCondition(coffee, Date.now())}` : "";
     const stateText = (member?.stateText ? ` · ${member.stateText}` : "") + coffeeText;
+    const size = member != null ? RailMemberPx : RailItemPx;
+    const primary: RailTrayPrimary =
+        coffee != null
+            ? {
+                  kind: "coffee",
+                  label: railCoffeeLabel(entry.name, true, platform),
+                  tooltip: coffeeTooltip(coffee, entry.name, platform, Date.now()),
+                  pressed: true,
+                  onActivate: () => setCoffee(false),
+              }
+            : { kind: "edit", label: railEditLabel(entry.name), onActivate: edit };
+    const dot =
+        unread > 0
+            ? { className: "bg-primary", label: `${unread} unread` }
+            : agent?.state === "waiting"
+              ? { className: "bg-[var(--mt-state-waiting)]", label: agentStateTitle(agent) }
+              : undefined;
     return (
         <div
+            {...hostProps}
             data-rail-unit={unitId}
             data-rail-member={member != null ? "" : undefined}
             data-rail-host={entry.id}
-            data-buds-out={connect?.target ? "" : undefined}
-            className={cn("molten-rail-budhost relative shrink-0", dragging && "molten-rail-dragging z-10")}
+            onContextMenu={onContextMenu}
+            className={cn("molten-rail-host relative shrink-0", dragging && "molten-rail-dragging z-10")}
             style={dragging ? { transform: `translateY(${moves.dragOffsetY}px)` } : undefined}
         >
             <button
                 ref={ref}
                 type="button"
-                aria-label={member?.worst && member.stateText ? `${entry.name}, ${member.stateText}` : entry.name}
+                tabIndex={nav.tabIndex}
+                aria-label={`${entry.saved ? entry.name : "Unsaved workspace"}${stateText}${unread > 0 ? `, ${unread} unread` : ""}`}
                 aria-current={entry.active ? "true" : undefined}
                 data-workspace-id={entry.id}
+                data-rail-nav={nav.key}
                 onClick={onClick}
                 onDoubleClick={onDoubleClick}
-                onContextMenu={onContextMenu}
                 onKeyDown={onKeyDown}
+                onFocus={nav.onFocused}
                 onPointerDown={moves.onPointerDown}
-                onMouseEnter={() =>
-                    onHover(
-                        (entry.saved ? entry.name : "Unsaved workspace: click to save it") +
-                            stateText +
-                            (unread > 0 ? ` · ${unread} unread` : ""),
-                        anchorOf()
-                    )
-                }
+                onMouseEnter={(e) => {
+                    if (entry.saved) {
+                        return;
+                    }
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    onHover("Unsaved workspace: click to save it", {
+                        top: rect.top + rect.height / 2,
+                        left: rect.right + 8,
+                    });
+                }}
                 onMouseLeave={() => onHover(null, null)}
                 className={cn(
                     "molten-rail-item molten-rail-anchor cursor-pointer transition-colors duration-120 ease-mt hover:bg-hover",
                     RailBadgeClass,
+                    member != null && "h-8 w-8 text-icon-14",
                     entry.active && "bg-hover",
                     !entry.active && entry.open && "outline outline-1 -outline-offset-1 outline-border",
                     connect?.target && "molten-rail-connect-target"
                 )}
                 data-connect-drop={connect?.dropping ? "" : undefined}
             >
-                {entry.active ? (
-                    <span className="absolute top-1.5 bottom-1.5 -left-1.5 w-[2px] rounded-4 bg-accent" aria-hidden />
-                ) : null}
+                {entry.active ? <span className="molten-rail-active-bar" aria-hidden /> : null}
                 {entry.saved ? (
                     <WorkspaceIcon source={iconSource} />
                 ) : (
@@ -367,7 +348,7 @@ function RailButton({
                 {unread > 0 ? (
                     <span
                         className="molten-rail-dot absolute top-1 right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-[var(--color-background)]"
-                        aria-label={`${unread} unread`}
+                        aria-hidden
                     />
                 ) : null}
                 {member != null ? <WorstDot worst={member.worst} /> : null}
@@ -375,11 +356,22 @@ function RailButton({
                 {entry.saved ? <RailCoffeeDrop workspaceId={entry.id} /> : null}
                 {connect?.dropping ? <RailDropToGroup /> : null}
             </button>
-            <RailBudChain
-                buds={buds}
-                onHover={(label, opener) => onHover(label, budTooltipAnchor(opener))}
-                onLeave={() => onHover(null, null)}
-            />
+            {entry.saved ? (
+                <RailTray
+                    open={isOpen}
+                    name={entry.name}
+                    lead={size}
+                    dot={dot}
+                    primary={primary}
+                    moreLabel={railMoreLabel(entry.name)}
+                    onMore={(button) => {
+                        onHover(null, null);
+                        showRailMenu(entry.id, menuItems(), null, button);
+                    }}
+                    nameProps={{ onClick, onDoubleClick, onPointerDown: moves.onPointerDown }}
+                    onTooltip={onHover}
+                />
+            ) : null}
         </div>
     );
 }
@@ -390,6 +382,8 @@ export function WorkspaceRail() {
     const [tooltip, setTooltip] = useState<{ label: string; anchor: Anchor }>(null);
     // The local group whose name is being edited (Rename group…).
     const [renaming, setRenaming] = useState<string>(null);
+    // The rail item that last held the focus: the rail's tab stop (DS-SHELL-081).
+    const [lastNav, setLastNav] = useState<string>(null);
 
     const refresh = useCallback(() => {
         fireAndForget(async () => setSources(await loadWorkspaceSources()));
@@ -399,9 +393,12 @@ export function WorkspaceRail() {
         return waveEventSubscribeSingle({ eventType: "workspace:update", handler: refresh });
     }, [refresh]);
     useEffect(refresh, [active?.oid, active?.name, active?.icon, active?.color, refresh]);
+    // A workspace switch folds the tray (FR-SHELL-045-AC4).
+    useEffect(() => RailTrayModel.getInstance().closeAll(), [active?.oid]);
 
     const entries = makeWorkspaceRailEntries(sources, active);
     const navRef = useRef<HTMLElement>(null);
+    useEffect(() => installRailTrayExits(navRef.current), []);
     const movableKey = entries
         .filter((e) => e.saved)
         .map((e) => e.id)
@@ -410,8 +407,7 @@ export function WorkspaceRail() {
     // The product groups (FR-MC-027), asked again when the rail's workspaces, their order or their links change.
     const linksKey = useWorkspaceLinksKey(movableIds);
     const groups = useRailGroups(linksKey);
-    // The one product whose column is out, like an open folder. Never remembered: an open column floats over the
-    // content.
+    // The one product expanded in the rail, like an open folder; its members follow it inline (DS-SHELL-082).
     const [openProduct, setOpenProduct] = useState<string>(null);
     const projectKeys = useMemo(() => productKeysOf(groups), [groups]);
     // The local groups (FR-MC-032), as the server would read them: a project product always wins.
@@ -449,7 +445,7 @@ export function WorkspaceRail() {
         [movableIds, productKeys, refresh]
     );
 
-    // Connect mode (FR-MC-032-AC2 to AC4): one target per window.
+    // Connect mode (FR-MC-032-AC2 to AC4, DS-SHELL-081): one target per window, started from More › Group with….
     const connectModel = RailConnectModel.getInstance();
     const connectTarget = useAtomValue(connectModel.targetAtom);
     useEffect(() => installConnectExits(connectModel), [connectModel]);
@@ -492,27 +488,36 @@ export function WorkspaceRail() {
     };
     const targetIdOf = (target: RailConnectTarget) => target.id;
     const isTarget = (target: RailConnectTarget) => sameConnectTarget(connectTarget, target);
-    // The box a dragged workspace joins the target over, when it may (no product, not the target nor one of its
-    // members, a saved workspace).
+    const groupNameOf = (groupId: string) => {
+        const group = localGroups.find((g) => g.id === groupId);
+        return group == null ? null : localGroupName(group, nameOf);
+    };
+    const connectName =
+        connectTarget == null
+            ? null
+            : connectTarget.kind === "group"
+              ? groupNameOf(connectTarget.id)
+              : nameOf(connectTarget.id);
+    // A workspace that may join the target: saved, outside the products, neither the target nor one of its members.
+    const mayJoin = (workspaceId: string): boolean => {
+        const target = connectModel.getTarget();
+        if (target == null || !movableIds.includes(workspaceId)) {
+            return false;
+        }
+        if (target.kind === "workspace") {
+            return target.id !== workspaceId;
+        }
+        return !localGroups.find((g) => g.id === target.id)?.members.includes(workspaceId);
+    };
+    // The box a dragged workspace joins the target over, when it may.
     const joinZone = (draggedId: string): HTMLElement => {
         const target = connectModel.getTarget();
         const nav = navRef.current;
-        if (
-            target == null ||
-            nav == null ||
-            draggedId.startsWith(ProductUnitPrefix) ||
-            !movableIds.includes(draggedId)
-        ) {
+        if (target == null || nav == null || draggedId.startsWith(ProductUnitPrefix) || !mayJoin(draggedId)) {
             return null;
         }
         if (target.kind === "workspace") {
-            if (target.id === draggedId) {
-                return null;
-            }
             return nav.querySelector<HTMLElement>(`button[data-workspace-id="${CSS.escape(target.id)}"]`);
-        }
-        if (localGroups.find((g) => g.id === target.id)?.members.includes(draggedId)) {
-            return null;
         }
         return nav.querySelector<HTMLElement>(`[data-rail-local="${CSS.escape(target.id)}"]`);
     };
@@ -530,6 +535,19 @@ export function WorkspaceRail() {
             return;
         }
         runGroupCommand(() => joinRailGroup({ workspaceid: draggedId, targetid: targetIdOf(target) }), anchor);
+    };
+    // A click on a workspace in connect mode groups it with the target (DS-SHELL-081); a click on the target, one of
+    // its members or an unsaved workspace ends connect mode and does its normal job.
+    const connectClick = (workspaceId: string): boolean => {
+        if (connectModel.getTarget() == null) {
+            return false;
+        }
+        if (projectKeys.has(workspaceId) || mayJoin(workspaceId)) {
+            onJoin(workspaceId);
+            return true;
+        }
+        connectModel.end();
+        return false;
     };
 
     // A rail unit drops among the units; a product's workspace among its siblings, while the product is expanded. A
@@ -565,7 +583,10 @@ export function WorkspaceRail() {
         scopeOf,
         (move) => applyMove(move, false),
         { zone: joinZone, onJoin },
-        (dragging) => connectModel.setDragging(dragging)
+        (dragging) => {
+            connectModel.setDragging(dragging);
+            RailTrayModel.getInstance().setDragging(dragging);
+        }
     );
     useEffect(() => {
         if (drag.view != null) {
@@ -584,20 +605,12 @@ export function WorkspaceRail() {
         takeSuppressedClick: () => drag.takeSuppressedClick(id),
         onMove: applyMove,
     });
-    const focusIn = (selector: string): boolean => {
-        const target = selector ? navRef.current?.querySelector<HTMLElement>(selector) : null;
-        if (target == null) {
-            return false;
-        }
-        target.focus();
-        return true;
-    };
     const joining = drag.view?.joining ?? false;
     const connectState = (target: RailConnectTarget): RailConnectState => {
         const on = isTarget(target);
         return { target: on, dropping: on && joining };
     };
-    // A saved workspace outside the project products: the link bud and the group menus (FR-MC-032-AC1, AC10).
+    // A saved workspace outside the project products: Group with… and Remove from group (FR-MC-032-AC1, AC10).
     const itemGrouping = (entry: WorkspaceRailEntry): RailItemGrouping => {
         if (!entry.saved || projectKeys.has(entry.id)) {
             return undefined;
@@ -607,17 +620,61 @@ export function WorkspaceRail() {
             own != null ? { kind: "group", id: own.id } : { kind: "workspace", id: entry.id };
         const anchor = hostSelector(entry.id);
         return {
-            onLink: () => connectModel.toggle(target),
-            linkPressed: isTarget(target),
+            onGroupWith: () => connectModel.toggle(target, own != null ? groupNameOf(own.id) : entry.name),
+            connecting: isTarget(target),
             connect: own != null ? { target: false, dropping: false } : connectState(target),
-            groupWith: () => groupWithChoices(entry.id, movableIds, projectKeys, localGroups, nameOf),
-            onGroupWith: (choice) =>
-                runGroupCommand(() => joinRailGroup({ workspaceid: entry.id, targetid: choice.id }), anchor),
             onRemoveFromGroup:
                 own != null
                     ? () => runGroupCommand(() => leaveRailGroup({ workspaceid: entry.id }), anchor)
                     : undefined,
         };
+    };
+    // The roving tab stop (DS-SHELL-081): the rail's items in order, an expanded group's members after it.
+    const navKeys: string[] = [];
+    let activeNav: string = null;
+    for (const unit of units) {
+        navKeys.push(unit.id);
+        if (unit.kind === "workspace") {
+            if (unit.entry.active) {
+                activeNav = unit.id;
+            }
+            continue;
+        }
+        const expanded = openProduct === unit.key;
+        for (const entry of unit.entries) {
+            if (expanded) {
+                navKeys.push(entry.id);
+            }
+            if (entry.active) {
+                activeNav = expanded ? entry.id : unit.id;
+            }
+        }
+    }
+    const tabStop = railTabStop(navKeys, lastNav, activeNav);
+    const navOf = (key: string): RailNavProps => ({
+        key,
+        tabIndex: key === tabStop ? 0 : -1,
+        onFocused: () => setLastNav(key),
+    });
+    // Up and Down walk the rail's items, Home and End go to its ends; from a tray's button, from its item.
+    const onNavKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+        if (e.altKey || e.shiftKey || e.ctrlKey || e.metaKey) {
+            return;
+        }
+        const target = e.target as HTMLElement;
+        const from =
+            target.closest("[data-rail-tray-host]")?.querySelector<HTMLElement>("[data-rail-nav]") ??
+            target.closest<HTMLElement>("[data-rail-nav]");
+        if (from == null) {
+            return;
+        }
+        const items = Array.from(navRef.current?.querySelectorAll<HTMLElement>("[data-rail-nav]") ?? []);
+        const next = railNavIndex(items.indexOf(from), e.key, items.length);
+        if (next == null) {
+            return;
+        }
+        e.preventDefault();
+        items[next]?.focus();
     };
     const renderUnit = (unit: RailUnit) => {
         if (unit.kind === "workspace") {
@@ -632,6 +689,8 @@ export function WorkspaceRail() {
                     onHover={onHover}
                     moves={itemMoves(entry.id, entry.saved ? unitMoves(units, unit.id) : { up: null, down: null })}
                     grouping={itemGrouping(entry)}
+                    nav={navOf(unit.id)}
+                    connectClick={connectClick}
                 />
             );
         }
@@ -652,13 +711,14 @@ export function WorkspaceRail() {
                 onMove={applyMove}
                 onPointerDown={(e) => drag.onPointerDown(e, unit.id)}
                 takeSuppressedClick={() => drag.takeSuppressedClick(unit.id)}
-                projectGroups={groups}
                 connect={local != null ? connectState({ kind: "group", id: local.id }) : undefined}
+                nav={navOf(unit.id)}
                 local={
                     local == null
                         ? undefined
                         : {
-                              onLink: () => connectModel.toggle({ kind: "group", id: local.id }),
+                              onGroupWith: () =>
+                                  connectModel.toggle({ kind: "group", id: local.id }, groupNameOf(local.id)),
                               renaming: renaming === local.id,
                               onRenameStart: () => setRenaming(local.id),
                               onRenameCancel: () => setRenaming(null),
@@ -678,34 +738,28 @@ export function WorkspaceRail() {
                           }
                 }
             >
-                {unit.entries.map((entry, index) => {
-                    const state = workspaceMemberState(groups, entry.id);
-                    return (
-                        <RailButton
-                            key={entry.id}
-                            entry={entry}
-                            closable={canCloseWorkspace(entries, entry.id)}
-                            unread={unread.get(entry.id) ?? 0}
-                            onHover={onHover}
-                            moves={itemMoves(entry.id, memberMoves(unit, entry.id))}
-                            grouping={local != null ? itemGrouping(entry) : undefined}
-                            member={{
-                                worst: state?.worst ?? "",
-                                stateText: local != null && state == null ? "" : memberStateText(state),
-                                onArrow: (direction) => {
-                                    const next = ids[index + direction];
-                                    return focusIn(
-                                        next != null
-                                            ? `button[data-workspace-id="${CSS.escape(next)}"]`
-                                            : direction < 0
-                                              ? `button[data-rail-product="${CSS.escape(unit.key)}"]`
-                                              : null
-                                    );
-                                },
-                            }}
-                        />
-                    );
-                })}
+                {isCollapsed
+                    ? null
+                    : unit.entries.map((entry) => {
+                          const state = workspaceMemberState(groups, entry.id);
+                          return (
+                              <RailButton
+                                  key={entry.id}
+                                  entry={entry}
+                                  closable={canCloseWorkspace(entries, entry.id)}
+                                  unread={unread.get(entry.id) ?? 0}
+                                  onHover={onHover}
+                                  moves={itemMoves(entry.id, memberMoves(unit, entry.id))}
+                                  grouping={local != null ? itemGrouping(entry) : undefined}
+                                  member={{
+                                      worst: state?.worst ?? "",
+                                      stateText: local != null && state == null ? "" : memberStateText(state),
+                                  }}
+                                  nav={navOf(entry.id)}
+                                  connectClick={connectClick}
+                              />
+                          );
+                      })}
             </RailProduct>
         );
     };
@@ -713,6 +767,7 @@ export function WorkspaceRail() {
         <nav
             ref={navRef}
             aria-label="Workspaces"
+            onKeyDown={onNavKeyDown}
             className="molten-workspace-rail relative flex h-full w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border py-2"
         >
             {units.map(renderUnit)}
@@ -748,8 +803,7 @@ export function WorkspaceRail() {
             </button>
             <RailTools onHover={(label, anchor) => setTooltip(label == null ? null : { label, anchor })} />
             <RailTooltip label={tooltip?.label} anchor={tooltip?.anchor} />
-            <RailConnectPopover navRef={navRef} revision={`${movableKey}|${localGroups.length}|${openProduct ?? ""}`} />
-            <RailBudFilter />
+            <RailConnectBanner navRef={navRef} name={connectName} />
             <ProjectLinkDetector />
             <ProjectTabKeeper />
             <PaneFocusKeeper />

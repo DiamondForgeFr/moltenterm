@@ -1,16 +1,16 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// A product in the workspace rail (FR-MC-027, DS-MC-018): one entry for a group of two members or more. Its icon is a
-// member's (rail-groups.ts); a click opens or closes it like a folder, and a press elsewhere or Escape closes it.
-// Closed, it carries the worst member state, its
-// members' unread dot and most urgent agent state, and the active mark when one of them is active. Expanded, its
-// workspaces fan out as a column beside it, outside the rail's flow (.molten-rail-members); the rail renders them as
-// ordinary rail items.
-// A local group (FR-MC-032) is drawn the same way, named after its first member until renamed; it has the link bud,
-// Rename group… and Ungroup, and none of a project group's strip, dependencies or Sync.
+// A product in the workspace rail (FR-MC-027, DS-MC-018): one entry for a group of two members or more. A click opens
+// or closes it like a folder. Closed, it carries the worst member state, its members' unread dot and most urgent agent
+// state, and the active mark when one of them is active.
+// #399 (FR-SHELL-045, DS-SHELL-082): its tile shows its first four members' icons in a 2x2 grid framed in the group's
+// colour, where #381 showed one member's icon with a corner chevron; expanded, its workspaces follow it inline in the
+// rail, indented along a guide in the group's colour, instead of a column floating over the content. Hovering it shows
+// its tray with the name and the member count.
+// A local group (FR-MC-032) is drawn the same way, named after its first member until renamed; its More holds Add
+// workspaces…, Rename group… and Ungroup, and none of a project group's strip, dependencies or Sync.
 
-import { ContextMenuModel } from "@/app/store/contextmenu";
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { cn } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
@@ -19,21 +19,21 @@ import { mostUrgentAgentState } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
 import { AgentStateDot } from "./agent-state-ui";
 import { ProductCoffeeDrop } from "./keepawake-ui";
-import { ProjectGroup } from "./mission/group-model";
-import { productHoverText, productIconEntry, RailProductUnit, UnitMoves, worstLabel } from "./rail-groups";
-
+import { productGridEntries, productIconEntry, RailProductUnit, UnitMoves, worstLabel } from "./rail-groups";
+import { RailTray, showRailMenu, useRailTrayHost } from "./rail-tray";
+import { railGroupMenu, railMoreLabel } from "./rail-tray-model";
 import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
 import { workspaceIconSource } from "./workspace-icon-model";
 import { RailMove } from "./workspace-order";
 import { railMoveKey } from "./workspace-rail-drag";
-import { budTooltipAnchor, RailBudChain, railBudReachPx, railLinkLabel } from "./workspace-rail-edit";
+import { WorkspaceRailEntry } from "./workspace-rail-model";
 
 // Connect mode on a rail item or a local product (FR-MC-032-AC2): the target, and whether a dragged workspace is over it.
 export type RailConnectState = { target: boolean; dropping: boolean };
 
 // What a local product adds (FR-MC-032-AC6, AC7).
 export type RailLocalActions = {
-    onLink: () => void;
+    onGroupWith: () => void;
     renaming: boolean;
     onRenameStart: () => void;
     // The field's value; the rail trims it and an empty one gives back the default name.
@@ -46,7 +46,7 @@ export type RailLocalActions = {
 export function RailDropToGroup() {
     return (
         <span
-            className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-4 bg-[color-mix(in_srgb,var(--color-accent)_35%,transparent)]"
+            className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-6 bg-[color-mix(in_srgb,var(--color-accent)_35%,transparent)]"
             aria-hidden
         >
             <i className="fa fa-solid fa-plus text-icon-14 text-primary" />
@@ -118,8 +118,8 @@ export const WorstDotClasses: Record<string, string> = {
     amber: "bg-warning",
 };
 
-// The badge of a member's worst state (red over amber), top-left: the unread dot holds the top-right corner and the
-// agent state the bottom-right; the pencil buds out beside the icon (#365).
+// The badge of a member's worst state (red over amber), top-left: the unread dot holds the top-right corner, the agent
+// state the bottom-right and the coffee the bottom-left.
 export function WorstDot({ worst, className }: { worst: string; className?: string }) {
     const color = WorstDotClasses[worst];
     if (color == null) {
@@ -157,6 +157,27 @@ function ProductAgentDot({ workspaceIds }: { workspaceIds: string[] }) {
     );
 }
 
+// One member's icon in the group tile's grid, read live like a rail item's.
+function RailGroupCell({ entry }: { entry: WorkspaceRailEntry }) {
+    const [workspace] = useWaveObjectValue<Workspace>(makeORef("workspace", entry.id));
+    const source =
+        workspace != null
+            ? workspaceIconSource(workspace)
+            : { icon: entry.icon, color: entry.color, image: "", logo: "" };
+    return (
+        <span className="molten-rail-group-cell flex items-center justify-center">
+            <WorkspaceIcon source={source} className="h-3 w-3 text-11" />
+        </span>
+    );
+}
+
+// The group's colour: its icon member's, as the rail drew the group before (FR-MC-027-AC7).
+function useGroupColor(unit: RailProductUnit): string {
+    const iconEntry = productIconEntry(unit);
+    const [workspace] = useWaveObjectValue<Workspace>(makeORef("workspace", iconEntry?.id));
+    return workspace?.color || iconEntry?.color || "";
+}
+
 export function RailProduct({
     unit,
     collapsed,
@@ -168,9 +189,9 @@ export function RailProduct({
     onMove,
     onPointerDown,
     takeSuppressedClick,
-    projectGroups,
     connect,
     local,
+    nav,
     children,
 }: {
     unit: RailProductUnit;
@@ -183,39 +204,23 @@ export function RailProduct({
     onToggle: () => void;
     onHover: (label: string, anchor: RailAnchor) => void;
     onMove: (move: RailMove, refocus: boolean) => void;
-    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => void;
+    onPointerDown: (e: React.PointerEvent<HTMLElement>) => void;
     takeSuppressedClick: () => boolean;
-    // Mission Control's groups, for a local product's member states.
-    projectGroups?: ProjectGroup[];
     connect?: RailConnectState;
     local?: RailLocalActions;
-    // Its workspaces, as rail items.
+    nav: { key: string; tabIndex: number; onFocused: () => void };
+    // Its workspaces, as rail items; the rail passes them only while it is expanded.
     children: React.ReactNode;
 }) {
     const ref = useRef<HTMLButtonElement>(null);
-    const rootRef = useRef<HTMLDivElement>(null);
-    const iconEntry = productIconEntry(unit);
-    const [iconWorkspace] = useWaveObjectValue<Workspace>(makeORef("workspace", iconEntry?.id));
-    const iconSource =
-        iconWorkspace != null
-            ? workspaceIconSource(iconWorkspace)
-            : { icon: iconEntry?.icon, color: iconEntry?.color, image: "", logo: "" };
+    const color = useGroupColor(unit);
+    const { isOpen, hostProps } = useRailTrayHost(unit.id, true);
     const name = unit.group?.name || unit.key;
     const worst = unit.group?.worst ?? "";
     const memberActive = unit.entries.some((e) => e.active);
     const showActive = collapsed && memberActive;
     const workspaceIds = unit.entries.map((e) => e.id);
-    const anchorOf = (): RailAnchor => {
-        const rect = ref.current.getBoundingClientRect();
-        // Expanded, the members' column and the link bud sit right of the icon: the name goes past the column, never
-        // over them.
-        const column = collapsed
-            ? null
-            : ref.current.closest("[data-rail-unit]")?.querySelector(".molten-rail-members");
-        const budsRight = local != null ? rect.right + railBudReachPx(1) : rect.right;
-        const right = Math.max(column?.getBoundingClientRect().right ?? 0, budsRight);
-        return { top: rect.top + rect.height / 2, left: right + 8 };
-    };
+    const kindLabel = unit.local != null ? "group" : "product";
     const onClick = () => {
         if (takeSuppressedClick()) {
             return;
@@ -223,152 +228,110 @@ export function RailProduct({
         onHover(null, null);
         onToggle();
     };
+    const menuItems = () =>
+        railGroupMenu({
+            collapsed,
+            onToggle,
+            local:
+                local == null
+                    ? undefined
+                    : {
+                          connecting: !!connect?.target,
+                          onGroupWith: local.onGroupWith,
+                          onRename: local.onRenameStart,
+                          onUngroup: local.onUngroup,
+                      },
+        });
     const onContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
-        const localItems: ContextMenuItem[] =
-            local == null
-                ? []
-                : [
-                      { type: "separator" },
-                      { label: "Rename group…", icon: "pen", click: local.onRenameStart },
-                      { label: "Ungroup", icon: "layer-group", click: local.onUngroup },
-                  ];
-        ContextMenuModel.getInstance().showContextMenu(
-            [{ label: collapsed ? "Expand" : "Collapse", click: onToggle }, ...localItems],
-            e
-        );
+        if ((e.target as Element).closest?.("[data-rail-member]") != null) {
+            return;
+        }
+        onHover(null, null);
+        showRailMenu(unit.id, menuItems(), e);
     };
     const onKeyDown = (e: React.KeyboardEvent) => {
         const direction = railMoveKey(e);
-        if (direction != null) {
-            e.preventDefault();
-            e.stopPropagation();
-            const move = direction < 0 ? moves.up : moves.down;
-            if (move != null) {
-                onMove(move, true);
-            }
+        if (direction == null) {
             return;
         }
-        if (e.key !== "ArrowDown" || collapsed || e.altKey || e.shiftKey || e.ctrlKey || e.metaKey) {
-            return;
-        }
-        const first = ref.current
-            ?.closest("[data-rail-unit]")
-            ?.querySelector<HTMLElement>(`button[data-workspace-id="${CSS.escape(workspaceIds[0])}"]`);
-        if (first != null) {
-            e.preventDefault();
-            first.focus();
+        e.preventDefault();
+        e.stopPropagation();
+        const move = direction < 0 ? moves.up : moves.down;
+        if (move != null) {
+            onMove(move, true);
         }
     };
-    // Open, the column floats over the content: a press outside the product, or Escape, closes it.
-    useEffect(() => {
-        if (collapsed) {
-            return;
-        }
-        const onPointerDown = (e: PointerEvent) => {
-            if (rootRef.current?.contains(e.target as Node)) {
-                return;
-            }
-            onToggle();
-        };
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== "Escape") {
-                return;
-            }
-            const focusInside = rootRef.current?.contains(document.activeElement);
-            onToggle();
-            if (focusInside) {
-                ref.current?.focus();
-            }
-        };
-        document.addEventListener("pointerdown", onPointerDown, true);
-        document.addEventListener("keydown", onKeyDown, true);
-        return () => {
-            document.removeEventListener("pointerdown", onPointerDown, true);
-            document.removeEventListener("keydown", onKeyDown, true);
-        };
-    }, [collapsed, onToggle]);
     const dragging = dragOffsetY != null;
-    const hover =
-        (collapsed ? productHoverText(unit, projectGroups) : name) +
-        (collapsed && unread > 0 ? `\n${unread} unread` : "");
-    const kindLabel = unit.local != null ? "group" : "product";
+    const cells = productGridEntries(unit);
+    const count = `${unit.entries.length}`;
     return (
         <div
-            ref={rootRef}
             data-rail-unit={unit.id}
             data-rail-local={unit.local?.id}
             className={cn(
-                "molten-rail-unit relative flex shrink-0 flex-col items-center",
+                "molten-rail-unit relative flex shrink-0 flex-col items-center gap-1",
                 dragging && "molten-rail-dragging z-10"
             )}
-            style={dragging ? { transform: `translateY(${dragOffsetY}px)` } : undefined}
+            style={
+                {
+                    ...(dragging ? { transform: `translateY(${dragOffsetY}px)` } : {}),
+                    "--mt-group-color": color || undefined,
+                } as React.CSSProperties
+            }
         >
-            <div className="molten-rail-budhost relative shrink-0" data-buds-out={connect?.target ? "" : undefined}>
+            <div {...hostProps} className="molten-rail-host relative shrink-0" onContextMenu={onContextMenu}>
                 <button
                     ref={ref}
                     type="button"
-                    aria-label={`${name}, ${kindLabel} of ${unit.entries.length} workspaces`}
+                    tabIndex={nav.tabIndex}
+                    aria-label={`${name}, ${kindLabel} of ${unit.entries.length} workspaces${unread > 0 ? `, ${unread} unread` : ""}`}
                     aria-expanded={!collapsed}
                     aria-current={showActive ? "true" : undefined}
                     data-rail-product={unit.key}
+                    data-rail-nav={nav.key}
                     onClick={onClick}
-                    onContextMenu={onContextMenu}
                     onKeyDown={onKeyDown}
+                    onFocus={nav.onFocused}
                     onPointerDown={onPointerDown}
-                    onMouseEnter={() => onHover(hover, anchorOf())}
-                    onMouseLeave={() => onHover(null, null)}
                     data-connect-drop={connect?.dropping ? "" : undefined}
                     className={cn(
-                        "molten-rail-item molten-rail-product molten-rail-group cursor-pointer border border-border transition-colors duration-120 ease-mt hover:bg-hover",
-                        local != null && "molten-rail-anchor",
+                        "molten-rail-item molten-rail-anchor molten-rail-group cursor-pointer transition-colors duration-120 ease-mt hover:bg-hover",
                         RailBadgeClass,
                         showActive && "bg-hover",
                         connect?.target && "molten-rail-connect-target"
                     )}
                 >
-                    {showActive ? (
-                        <span
-                            className="absolute top-1.5 bottom-1.5 -left-1.5 w-[2px] rounded-4 bg-accent"
-                            aria-hidden
-                        />
-                    ) : null}
-                    <WorkspaceIcon source={iconSource} />
-                    <i
-                        className={cn(
-                            "fa fa-solid absolute bottom-0.5 left-0.5 text-11 text-secondary",
-                            collapsed ? "fa-chevron-right" : "fa-chevron-down"
-                        )}
-                        aria-hidden
-                    />
+                    {showActive ? <span className="molten-rail-active-bar" aria-hidden /> : null}
+                    <span className="molten-rail-group-grid" aria-hidden>
+                        {cells.map((entry) => (
+                            <RailGroupCell key={entry.id} entry={entry} />
+                        ))}
+                    </span>
                     {collapsed ? <WorstDot worst={worst} className="h-2.5 w-2.5" /> : null}
                     {collapsed && unread > 0 ? (
                         <span
                             className="molten-rail-dot absolute top-1 right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-[var(--color-background)]"
-                            aria-label={`${unread} unread`}
+                            aria-hidden
                         />
                     ) : null}
                     {collapsed ? <ProductAgentDot workspaceIds={workspaceIds} /> : null}
                     {collapsed ? <ProductCoffeeDrop workspaceIds={workspaceIds} /> : null}
                     {connect?.dropping ? <RailDropToGroup /> : null}
                 </button>
-                {local != null ? (
-                    <RailBudChain
-                        buds={[
-                            {
-                                kind: "link",
-                                label: railLinkLabel(name),
-                                pressed: connect?.target,
-                                onActivate: () => {
-                                    onHover(null, null);
-                                    local.onLink();
-                                },
-                            },
-                        ]}
-                        onHover={(label, opener) => onHover(label, budTooltipAnchor(opener))}
-                        onLeave={() => onHover(null, null)}
-                    />
-                ) : null}
+                <RailTray
+                    open={isOpen}
+                    name={name}
+                    detail={count}
+                    lead={36}
+                    moreLabel={railMoreLabel(name)}
+                    onMore={(button) => {
+                        onHover(null, null);
+                        showRailMenu(unit.id, menuItems(), null, button);
+                    }}
+                    nameProps={{ onClick, onPointerDown }}
+                    onTooltip={onHover}
+                />
                 {local?.renaming ? (
                     <RenameField
                         anchor={ref}
@@ -378,16 +341,11 @@ export function RailProduct({
                     />
                 ) : null}
             </div>
-            <div
-                className={cn(
-                    "molten-rail-members flex flex-col gap-1 rounded-10 border border-border bg-surface-3 p-1 shadow-e2 transition-[opacity,scale] duration-180 ease-mt motion-reduce:transition-none",
-                    collapsed ? "pointer-events-none scale-95 opacity-0" : "scale-100 opacity-100"
-                )}
-                inert={collapsed}
-                aria-hidden={collapsed ? true : undefined}
-            >
-                {children}
-            </div>
+            {collapsed ? null : (
+                <div className="molten-rail-members" role="group" aria-label={`Workspaces of ${name}`}>
+                    {children}
+                </div>
+            )}
         </div>
     );
 }

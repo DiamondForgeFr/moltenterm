@@ -8,7 +8,7 @@ import {
     connectTargetSelector,
     escapeBelongsElsewhere,
     installConnectExits,
-    RailConnectHint,
+    railConnectHint,
     RailConnectMessageMs,
     RailConnectModel,
     sameConnectTarget,
@@ -44,7 +44,7 @@ afterEach(() => {
 });
 
 describe("connect mode (FR-MC-032-AC2, AC4)", () => {
-    it("is entered by the link bud and left by a second click; one target per window", () => {
+    it("is entered by Group with… and left by Stop grouping; one target per window", () => {
         const model = RailConnectModel.getInstance();
         model.toggle({ kind: "workspace", id: "b" });
         expect(model.getTarget()).toEqual({ kind: "workspace", id: "b" });
@@ -52,7 +52,7 @@ describe("connect mode (FR-MC-032-AC2, AC4)", () => {
         expect(model.getTarget()).toEqual({ kind: "group", id: "g" });
         model.toggle({ kind: "group", id: "g" });
         expect(model.getTarget()).toBeNull();
-        expect(RailConnectHint).toBe("Drag workspaces here to group them · Esc to finish");
+        expect(railConnectHint("Notulia")).toBe("Click a workspace to group it with Notulia. Esc to cancel.");
     });
 
     it("compares and finds its target", () => {
@@ -63,17 +63,19 @@ describe("connect mode (FR-MC-032-AC2, AC4)", () => {
         expect(connectTargetSelector({ kind: "group", id: "g" })).toBe('[data-rail-local="g"]');
     });
 
-    it("tells a press on the target and its buds, on another rail item, and elsewhere apart", () => {
+    it("tells a press on the target, another workspace, a group, a menu and elsewhere apart", () => {
         const target = { kind: "workspace" as const, id: "b" };
-        expect(connectPressPlace(element(['[data-rail-host="b"]']), target)).toBe("target");
-        expect(connectPressPlace(element(["button[data-workspace-id], button[data-rail-product]"]), target)).toBe(
+        expect(connectPressPlace(element(['[data-rail-host="b"]', "[data-rail-host]"]), target)).toBe("target");
+        expect(connectPressPlace(element(["[data-rail-host]"]), target)).toBe("workspace");
+        expect(connectPressPlace(element(["button[data-rail-product], [data-rail-tray-host]"]), target)).toBe(
             "rail-item"
         );
+        expect(connectPressPlace(element([".molten-menu-layer"]), target)).toBe("menu");
         expect(connectPressPlace(element([]), target)).toBe("outside");
         expect(connectPressPlace(null, target)).toBe("outside");
     });
 
-    it("ends on Escape (swallowed), a press outside (not swallowed) or a click on another item, not on a drag", () => {
+    it("ends on Escape (swallowed), a press outside (not swallowed) or a click on a group, not on a drag", () => {
         const doc = fakeDocument();
         vi.stubGlobal("document", doc);
         const model = RailConnectModel.getInstance();
@@ -98,18 +100,28 @@ describe("connect mode (FR-MC-032-AC2, AC4)", () => {
         expect(press.stopPropagation).not.toHaveBeenCalled();
 
         model.toggle(target);
-        const onItem = { target: element(["button[data-workspace-id], button[data-rail-product]"]) };
-        doc.listeners.get("pointerdown")(onItem as unknown as Event);
+        const onGroup = { target: element(["button[data-rail-product], [data-rail-tray-host]"]) };
+        doc.listeners.get("pointerdown")(onGroup as unknown as Event);
         expect(model.getTarget()).toEqual(target);
         model.setDragging(true);
         model.setDragging(false);
-        doc.listeners.get("click")(onItem as unknown as Event);
+        doc.listeners.get("click")(onGroup as unknown as Event);
         expect(model.getTarget()).toEqual(target);
         model.dragEndedAt = 0;
-        doc.listeners.get("click")(onItem as unknown as Event);
+        doc.listeners.get("click")(onGroup as unknown as Event);
         expect(model.getTarget()).toBeNull();
 
+        // A click on another workspace is the rail's to handle: it joins it to the target.
         model.toggle(target);
+        const onWorkspace = { target: element(["[data-rail-host]"]) };
+        doc.listeners.get("pointerdown")(onWorkspace as unknown as Event);
+        doc.listeners.get("click")(onWorkspace as unknown as Event);
+        expect(model.getTarget()).toEqual(target);
+
+        // More's menu holds Stop grouping.
+        doc.listeners.get("pointerdown")({ target: element([".molten-menu-layer"]) } as unknown as Event);
+        expect(model.getTarget()).toEqual(target);
+
         doc.listeners.get("pointerdown")({ target: element(['[data-rail-host="b"]']) } as unknown as Event);
         expect(model.getTarget()).toEqual(target);
 

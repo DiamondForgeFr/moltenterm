@@ -1,17 +1,21 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Connect mode (FR-MC-032-AC2 to AC4, DS-MC-029): the link bud puts a workspace, or its local group, in connect mode;
-// workspaces dragged onto it join it. One target per window, never stored. It ends on Escape, on a press outside the
-// target and its buds (the press still does its normal job), on a second click of the link bud, or when the target
-// is gone. A press on another rail item may start the drag that brings a workspace in: that one ends connect mode only
-// when it turns out to be a click.
+// Connect mode (FR-MC-032-AC2 to AC4, DS-MC-029): More › Group with… puts a workspace, or its local group, in connect
+// mode; a workspace clicked (DS-SHELL-081, #399) or dragged onto the target joins it. One target per window, never
+// stored. It ends on Escape, on a press outside the rail's workspaces (the press still does its normal job), on a
+// click on a group, on Stop grouping, or when the target is gone. A press on another rail item may start the drag that
+// brings a workspace in: a click on a group ends connect mode only when it turns out to be a click.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
 import { announceHoldHint } from "./hold-to-confirm";
 
-export const RailConnectHint = "Drag workspaces here to group them · Esc to finish";
+// The banner under the tab bar (DS-SHELL-081); the name is the target's, a workspace's or a group's.
+export function railConnectHint(name: string): string {
+    return `Click a workspace to group it with ${name || "this workspace"}. Esc to cancel.`;
+}
+
 export const RailConnectMessageMs = 4000;
 const RailConnectDragClickMs = 300;
 
@@ -63,14 +67,14 @@ export class RailConnectModel {
         return globalStore.get(this.targetAtom);
     }
 
-    // The link bud: a click enters connect mode on its item, a second one leaves it.
-    toggle(target: RailConnectTarget) {
+    // Group with…: enters connect mode on its item, Stop grouping leaves it.
+    toggle(target: RailConnectTarget, name?: string) {
         if (sameConnectTarget(this.getTarget(), target)) {
             this.end();
             return;
         }
         globalStore.set(this.targetAtom, target);
-        announceHoldHint(RailConnectHint);
+        announceHoldHint(railConnectHint(name));
     }
 
     end() {
@@ -100,9 +104,9 @@ export class RailConnectModel {
     }
 }
 
-// Where a press lands, for the exits: inside the target (and its buds), on another rail item (a click or the start of
-// a drag), or elsewhere.
-export type ConnectPressPlace = "target" | "rail-item" | "outside";
+// Where a press lands, for the exits: inside the target (its item and its tray), on another workspace of the rail
+// (its click joins it), on a group of the rail (a click or the start of a drag), in a menu, or elsewhere.
+export type ConnectPressPlace = "target" | "workspace" | "rail-item" | "menu" | "outside";
 
 export function connectPressPlace(element: Element, target: RailConnectTarget): ConnectPressPlace {
     const selector = connectTargetSelector(target);
@@ -112,8 +116,14 @@ export function connectPressPlace(element: Element, target: RailConnectTarget): 
     if (element.closest(selector) != null) {
         return "target";
     }
-    if (element.closest("button[data-workspace-id], button[data-rail-product]") != null) {
+    if (element.closest("[data-rail-host]") != null) {
+        return "workspace";
+    }
+    if (element.closest("button[data-rail-product], [data-rail-tray-host]") != null) {
         return "rail-item";
+    }
+    if (element.closest(".molten-menu-layer") != null) {
+        return "menu";
     }
     return "outside";
 }

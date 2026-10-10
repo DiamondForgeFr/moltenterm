@@ -1,60 +1,42 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The popover of connect mode (FR-MC-032-AC2, DS-MC-029): the hint beside the target, past its buds; a refused join or
-// a failed group command shows its message in the same place for a few seconds.
+// The banner of connect mode (FR-MC-032-AC2, DS-SHELL-081): under the tab bar, centred over the content, it says what
+// a click does and how to leave; a refused join or a failed group command shows its message in its place for a few
+// seconds. #368 drew a hint beside the target, over the panel header next to the rail (#399).
 
 import { useAtomValue } from "jotai";
 import { useLayoutEffect, useState } from "react";
-import { connectTargetSelector, RailConnectHint, RailConnectModel } from "./rail-connect";
+import { RailConnectModel, railConnectHint } from "./rail-connect";
 
 type Place = { top: number; left: number };
 
-// Right of the element's bud chain when it is out, else right of the element.
-function placeBeside(element: Element): Place {
-    if (element == null) {
+// Below the rail's top edge, which is the tab bar's bottom, and centred over what lies right of the rail.
+function bannerPlace(nav: HTMLElement): Place {
+    const rect = nav?.getBoundingClientRect();
+    if (rect == null) {
         return null;
     }
-    const bud = element.querySelector(".molten-rail-bud");
-    const item =
-        element.querySelector(".molten-rail-anchor, button[data-workspace-id], button[data-rail-product]") ?? element;
-    const itemRect = item.getBoundingClientRect();
-    const budRect = bud?.getBoundingClientRect();
-    const right = budRect != null && budRect.width > 0 ? Math.max(budRect.right, itemRect.right) : itemRect.right;
-    return { top: itemRect.top + itemRect.height / 2, left: right + 8 };
+    return { top: rect.top + 8, left: rect.right + (window.innerWidth - rect.right) / 2 };
 }
 
-export function RailConnectPopover({ navRef, revision }: { navRef: React.RefObject<HTMLElement>; revision: string }) {
+export function RailConnectBanner({ navRef, name }: { navRef: React.RefObject<HTMLElement>; name: string }) {
     const model = RailConnectModel.getInstance();
     const target = useAtomValue(model.targetAtom);
     const message = useAtomValue(model.messageAtom);
     const [place, setPlace] = useState<Place>(null);
-    const [tick, setTick] = useState(0);
-    const selector = message?.anchor ?? connectTargetSelector(target);
-    const text = message?.text ?? (target != null ? RailConnectHint : null);
+    const text = message?.text ?? (target != null ? railConnectHint(name) : null);
+    const shown = text != null;
     useLayoutEffect(() => {
-        if (selector == null || text == null) {
+        if (!shown) {
             setPlace(null);
             return;
         }
-        setPlace(placeBeside(document.querySelector(selector)));
-    }, [selector, text, revision, tick]);
-    useLayoutEffect(() => {
-        if (selector == null) {
-            return;
-        }
-        const nav = navRef.current;
-        const bump = () => setTick((t) => t + 1);
-        nav?.addEventListener("scroll", bump, { passive: true });
-        window.addEventListener("resize", bump);
-        // The chain's buds slide out after the click: place the popover again once they settled.
-        const settle = setTimeout(bump, 320);
-        return () => {
-            nav?.removeEventListener("scroll", bump);
-            window.removeEventListener("resize", bump);
-            clearTimeout(settle);
-        };
-    }, [navRef, selector]);
+        const update = () => setPlace(bannerPlace(navRef.current));
+        update();
+        window.addEventListener("resize", update);
+        return () => window.removeEventListener("resize", update);
+    }, [navRef, shown]);
     if (place == null || text == null) {
         return null;
     }
@@ -63,10 +45,27 @@ export function RailConnectPopover({ navRef, revision }: { navRef: React.RefObje
             // The polite live region already says it (RailConnectModel).
             aria-hidden
             data-testid="rail-connect-hint"
-            className="molten-rail-connect-hint pointer-events-none fixed z-[9500] max-w-[28rem] -translate-y-1/2 rounded-10 border border-border bg-surface-3 px-2 py-1 text-12 text-primary shadow-e2"
+            className="molten-rail-connect-banner pointer-events-none fixed z-[9500] flex max-w-[32rem] -translate-x-1/2 items-center gap-2 rounded-10 border border-line-strong bg-surface-3 py-1.5 pr-1.5 pl-3 text-12 text-primary shadow-e2"
             style={{ top: place.top, left: place.left }}
         >
-            {text}
+            <i
+                className={
+                    message != null
+                        ? "fa fa-solid fa-circle-info text-icon-14 text-muted"
+                        : "fa fa-solid fa-link text-icon-14 text-accent"
+                }
+                aria-hidden
+            />
+            <span className="min-w-0">{text}</span>
+            {target != null ? (
+                <button
+                    type="button"
+                    className="molten-btn-ghost pointer-events-auto cursor-pointer rounded-6 px-2 py-0.5 text-12"
+                    onClick={() => model.end()}
+                >
+                    Cancel
+                </button>
+            ) : null}
         </div>
     );
 }

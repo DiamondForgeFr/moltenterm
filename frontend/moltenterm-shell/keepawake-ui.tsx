@@ -47,7 +47,7 @@ export function useNow(active: boolean): number {
     return now;
 }
 
-// The small droplet a rail item keeps out while its coffee is on (DS-SHELL-062); the full bud replaces it on hover.
+// The crema dot a folded rail item keeps while its coffee is on (DS-SHELL-062, DS-SHELL-081); its tray shows the mug.
 export function RailCoffeeDrop({ workspaceId }: { workspaceId: string }) {
     const coffee = useAtomValue(KeepAwakeModel.getInstance().coffeeAtom(workspaceId));
     if (coffee == null) {
@@ -56,7 +56,7 @@ export function RailCoffeeDrop({ workspaceId }: { workspaceId: string }) {
     return <span className="molten-rail-coffee-drop" aria-hidden />;
 }
 
-// A collapsed product shows the droplet when one of its workspaces has its coffee on.
+// A collapsed product shows the dot when one of its workspaces has its coffee on.
 export function ProductCoffeeDrop({ workspaceIds }: { workspaceIds: string[] }) {
     const on = useAtomValue(KeepAwakeModel.getInstance().anyCoffeeAtom(workspaceIds));
     if (!on) {
@@ -201,8 +201,8 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
             </div>
             {state.coffees.length === 0 ? (
                 <div className="px-2 pb-1 text-11 text-muted">
-                    No coffee on. The coffee bud of a workspace in the rail keeps {computerName(platform)} awake while
-                    it works.
+                    No coffee on. A workspace's More menu in the rail keeps {computerName(platform)} awake while it
+                    works.
                 </div>
             ) : (
                 <ul className="flex flex-col">
