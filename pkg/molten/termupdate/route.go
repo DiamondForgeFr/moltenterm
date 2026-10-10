@@ -381,6 +381,19 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 		defer cancel()
 		return l.s.updater.AgentInput(ctx, req), nil
+	case AgentRestartCommand:
+		var req AgentRestartRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		if req.BlockId == "" {
+			return nil, fmt.Errorf("no terminal given")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
+		defer cancel()
+		out := l.s.updater.RestartAgent(ctx, req)
+		l.s.trigger()
+		return out, nil
 	}
 	return nil, fmt.Errorf("unknown terminal update command %q", command)
 }

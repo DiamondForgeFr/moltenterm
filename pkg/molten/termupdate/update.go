@@ -50,6 +50,27 @@ var shellHelperPrefixes = []string{"gitstatusd"}
 // TerminalUpdatedNotice is the line written in the pane before the new shell starts.
 const TerminalUpdatedNotice = "MoltenTerm: terminal updated to the current shell environment"
 
+const msgNotLocal = "Only a local terminal's shell can be updated."
+
+// restartTexts words an agent restart for the action that asked for it: Update terminal, or the Sessions view's
+// Restart with current settings (restart.go).
+type restartTexts struct {
+	notice string
+	// again: how to retry, as a sentence start and inside a sentence.
+	again      string
+	againLower string
+	done       string
+	doneStatus string
+}
+
+var updateTexts = restartTexts{
+	notice:     TerminalUpdatedNotice,
+	again:      "Update the terminal",
+	againLower: "update the terminal",
+	done:       "Terminal updated.",
+	doneStatus: StatusUpdated,
+}
+
 // Env is what the update needs from wavesrv; tests replace it.
 type Env struct {
 	// LoadJob reads a terminal's block and its shell job.
@@ -128,7 +149,7 @@ func (u *Updater) inspect(ctx context.Context, blockId string) (shellState, *Out
 	}
 	isCommand := block != nil && block.Meta.GetString(waveobj.MetaKey_Cmd, "") != ""
 	if !IsLocalShellJob(job, isCommand) {
-		return shellState{}, &Outcome{Status: StatusUnavailable, Message: "Only a local terminal's shell can be updated."}
+		return shellState{}, &Outcome{Status: StatusUnavailable, Message: msgNotLocal}
 	}
 	table, err := u.env.ReadTable()
 	if err != nil || table == nil {
@@ -244,7 +265,16 @@ func (u *Updater) Run(ctx context.Context, req Request) Outcome {
 		return Outcome{Status: StatusUpToDate, Message: "This terminal is already up to date."}
 	}
 	if st.adapter != nil {
-		return u.restartAgent(ctx, req, st)
+		if !req.Confirmed {
+			name := st.adapter.Name()
+			return Outcome{
+				Status:    StatusNeedConfirm,
+				Agent:     st.agent.Agent,
+				AgentName: name,
+				Message:   fmt.Sprintf("Restart %s with MoltenTerm's integration? The conversation resumes.", name),
+			}
+		}
+		return u.restartAgent(ctx, req.BlockId, st, updateTexts)
 	}
 	if st.busy != "" {
 		return *busyOutcome(st.busy)
@@ -286,16 +316,13 @@ func ResumeCommand(adapter agentcontinuity.AgentAdapter, agent string, session c
 	return strings.Join(append([]string{adapter.Executable()}, args...), " "), guessed
 }
 
-func (u *Updater) restartAgent(ctx context.Context, req Request, st shellState) Outcome {
+// restartAgent ends an idle agent with its own exit command and starts it again on its session in a fresh shell of
+// the same pane. extraArgs go after the resume arguments (a permission mode, already checked by the caller).
+func (u *Updater) restartAgent(ctx context.Context, blockId string, st shellState, texts restartTexts, extraArgs ...string) Outcome {
 	agent := st.agent.Agent
 	name := st.adapter.Name()
 	base := Outcome{Agent: agent, AgentName: name}
-	if !req.Confirmed {
-		base.Status = StatusNeedConfirm
-		base.Message = fmt.Sprintf("Restart %s with MoltenTerm's integration? The conversation resumes.", name)
-		return base
-	}
-	if busy := u.agentBusy(req.BlockId, agent, name); busy != nil {
+	if busy := u.agentBusy(blockId, agent, name); busy != nil {
 		return *busy
 	}
 	cwd := u.env.Cwd(st.agent.Pid)
@@ -303,21 +330,24 @@ func (u *Updater) restartAgent(ctx context.Context, req Request, st shellState) 
 		cwd = u.env.Cwd(st.shell.Pid)
 	}
 	cwd = logicalCwd(cwd, st.block)
-	session := u.env.FindSession(req.BlockId, agent, resumeSessionWait)
+	session := u.env.FindSession(blockId, agent, resumeSessionWait)
 	command, guessed := ResumeCommand(st.adapter, agent, session)
-	switch u.StopAgent(req.BlockId, st.adapter, st.agent, st.shell.Pid) {
+	if len(extraArgs) > 0 {
+		command += " " + strings.Join(extraArgs, " ")
+	}
+	switch u.StopAgent(blockId, st.adapter, st.agent, st.shell.Pid) {
 	case StopChanged:
 		base.Status = StatusBusy
-		base.Message = fmt.Sprintf("%s is no longer the program in the foreground: nothing was typed. Update the terminal again.", name)
+		base.Message = fmt.Sprintf("%s is no longer the program in the foreground: nothing was typed. %s again.", name, texts.again)
 		return base
 	case StopStuck:
 		base.Status = StatusAgentStuck
-		base.Message = fmt.Sprintf("%s did not exit within %d s and is still running. Exit it yourself, then update the terminal.", name, int(AgentExitTimeout/time.Second))
+		base.Message = fmt.Sprintf("%s did not exit within %d s and is still running. Exit it yourself, then %s.", name, int(AgentExitTimeout/time.Second), texts.againLower)
 		return base
 	}
 	// The agent is gone: anything that holds the terminal now (a program it left in the foreground, a background job)
 	// keeps the shell.
-	after, out := u.inspect(ctx, req.BlockId)
+	after, out := u.inspect(ctx, blockId)
 	if out != nil {
 		base.Status = StatusFailed
 		base.Message = fmt.Sprintf("%s exited, but the terminal cannot be updated: %s Start it again with: %s", name, out.Message, command)
@@ -332,10 +362,10 @@ func (u *Updater) restartAgent(ctx context.Context, req Request, st shellState) 
 		base.Status = StatusBusy
 		base.Program = program
 		base.Command = command
-		base.Message = fmt.Sprintf("%s exited, but %s now runs in the terminal, so its shell was kept. Finish it, update the terminal, then start %s with: %s", name, program, name, command)
+		base.Message = fmt.Sprintf("%s exited, but %s now runs in the terminal, so its shell was kept. Finish it, %s, then start %s with: %s", name, program, texts.againLower, name, command)
 		return base
 	}
-	prompts, release := u.env.WatchPrompt(req.BlockId)
+	prompts, release := u.env.WatchPrompt(blockId)
 	defer release()
 	// The old shell shows its prompt again once the agent exits: that mark is not the new shell's first prompt.
 	u.env.Sleep(oldPromptSettle)
@@ -343,8 +373,8 @@ func (u *Updater) restartAgent(ctx context.Context, req Request, st shellState) 
 	case <-prompts:
 	default:
 	}
-	notice := fmt.Sprintf("%s; %s starts again on its session", TerminalUpdatedNotice, name)
-	if err := u.env.Replace(ctx, req.BlockId, cwd, notice); err != nil {
+	notice := fmt.Sprintf("%s; %s starts again on its session", texts.notice, name)
+	if err := u.env.Replace(ctx, blockId, cwd, notice); err != nil {
 		base.Status = StatusFailed
 		base.Message = fmt.Sprintf("%s exited but the new shell did not start: %v. Start it again with: %s", name, err, command)
 		base.Command = command
@@ -359,27 +389,27 @@ func (u *Updater) restartAgent(ctx context.Context, req Request, st shellState) 
 		// Without a prompt, something else may read the terminal (a question of the user's startup files): type nothing.
 		base.Status = StatusFailed
 		base.Command = command
-		base.Message = fmt.Sprintf("The terminal is updated, but its new shell did not show a prompt, so %s was not started. Start it with: %s", name, command)
+		base.Message = fmt.Sprintf("The new shell did not show a prompt, so %s was not started. Start it with: %s", name, command)
 		return base
 	case <-ctx.Done():
 		base.Status = StatusFailed
 		base.Command = command
-		base.Message = fmt.Sprintf("The terminal is updated, but %s was not started. Start it with: %s", name, command)
+		base.Message = fmt.Sprintf("The new shell started, but %s was not. Start it with: %s", name, command)
 		return base
 	}
-	if err := u.env.SendInput(req.BlockId, []byte(command+"\r")); err != nil {
+	if err := u.env.SendInput(blockId, []byte(command+"\r")); err != nil {
 		base.Status = StatusFailed
-		base.Message = fmt.Sprintf("The terminal is updated but %s could not be started: %v. Start it with: %s", name, err, command)
+		base.Message = fmt.Sprintf("The new shell started but %s could not be: %v. Start it with: %s", name, err, command)
 		base.Command = command
 		return base
 	}
-	base.Status = StatusUpdated
+	base.Status = texts.doneStatus
 	base.Command = command
 	base.Guessed = guessed
 	if guessed {
-		base.Message = fmt.Sprintf("Terminal updated. MoltenTerm could not tell which %s session ran here, so %s reopens its most recent one in this folder (%s).", name, name, command)
+		base.Message = fmt.Sprintf("%s MoltenTerm could not tell which %s session ran here, so %s reopens its most recent one in this folder (%s).", texts.done, name, name, command)
 	} else {
-		base.Message = fmt.Sprintf("Terminal updated; %s resumes its session (%s).", name, command)
+		base.Message = fmt.Sprintf("%s %s resumes its session (%s).", texts.done, name, command)
 	}
 	return base
 }
