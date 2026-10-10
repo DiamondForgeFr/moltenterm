@@ -5,6 +5,7 @@ package termupdate
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -116,6 +117,19 @@ func TestRestartSeesAnotherAgent(t *testing.T) {
 	out := MakeUpdater(currentShellEnv(f)).RestartAgent(context.Background(), AgentRestartRequest{BlockId: "b1", Agent: "claude"})
 	if out.Status != StatusBusy || out.Program != "Codex" || len(f.input) != 0 {
 		t.Fatalf("another agent: %+v", out)
+	}
+}
+
+// A pane not opened since MoltenTerm started has no controller to type into: said so, nothing replaced.
+func TestRestartWhenTheTerminalTakesNoInput(t *testing.T) {
+	f := agentTerm()
+	env := currentShellEnv(f)
+	env.SendInput = func(blockId string, data []byte) error {
+		return fmt.Errorf("no controller found for block %s", blockId)
+	}
+	out := MakeUpdater(env).RestartAgent(context.Background(), AgentRestartRequest{BlockId: "b1"})
+	if out.Status != StatusFailed || !strings.Contains(out.Message, "could not type in this terminal") || len(f.replaced) != 0 {
+		t.Fatalf("no input: %+v replaced %v", out, f.replaced)
 	}
 }
 

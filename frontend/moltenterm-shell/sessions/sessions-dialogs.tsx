@@ -24,11 +24,13 @@ import {
     RestartModes,
 } from "./sessions-bulk";
 import {
+    agentCell,
     cleanupConfirmText,
     displayFolder,
     DurableSession,
     endConfirmText,
     reasonLabel,
+    sessionName,
     sessionWhat,
 } from "./sessions-model";
 
@@ -352,8 +354,9 @@ export function BulkDialog({
                                     <ResultMark result={result} running={pending === s.id} />
                                 )}
                                 <span className={cn("shrink-0 font-medium", item.skip ? "text-muted" : "text-primary")}>
-                                    {sessionWhat(s)}
+                                    {sessionName(s, home)}
                                 </span>
+                                <span className="shrink-0 text-secondary">{agentCell(s).label}</span>
                                 {folder ? (
                                     <span
                                         className="min-w-0 truncate font-mono text-11 text-secondary"

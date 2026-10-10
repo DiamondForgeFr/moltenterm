@@ -288,8 +288,12 @@ export function sessionWhat(s: DurableSession): string {
 // "zsh at prompt" on every row.
 const AtPromptSuffix = " at prompt";
 
+// wavesrv names only the shell when its integration has said nothing yet (a shell started without its rc files).
+const BareShell = /^(zsh|bash|fish|sh|dash|ksh|tcsh|nu|pwsh|powershell|cmd|shell)$/;
+
 export function atPrompt(s: DurableSession): boolean {
-    return !s.agent && (s.command ?? "").endsWith(AtPromptSuffix);
+    const cmd = s.command ?? "";
+    return !s.agent && (cmd.endsWith(AtPromptSuffix) || BareShell.test(cmd));
 }
 
 // The program running when it is neither the agent nor the shell at its prompt ("npm run dev").

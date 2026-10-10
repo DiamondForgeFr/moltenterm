@@ -233,7 +233,7 @@ func (u *Updater) Check(ctx context.Context, req Request) Outcome {
 	}
 	if st.adapter != nil {
 		name := st.adapter.Name()
-		if busy := u.agentBusy(req.BlockId, st.agent.Agent, name); busy != nil {
+		if busy := u.agentBusy(req.BlockId, st.agent.Agent, name, updateTexts.againLower); busy != nil {
 			return *busy
 		}
 		return Outcome{
@@ -287,16 +287,16 @@ func (u *Updater) Run(ctx context.Context, req Request) Outcome {
 }
 
 // agentBusy: an agent in a turn or waiting for an answer is never typed into (NFR-CONT-004).
-func (u *Updater) agentBusy(blockId string, agent string, name string) *Outcome {
+func (u *Updater) agentBusy(blockId string, agent string, name string, againLower string) *Outcome {
 	run, ok := u.env.AgentRun(blockId)
 	if !ok || !run.Running || (run.State != molten.AgentStateWorking && run.State != molten.AgentStateWaiting) {
 		return nil
 	}
 	rtn := &Outcome{Status: StatusAgentBusy, Agent: agent, AgentName: name}
 	if run.State == molten.AgentStateWaiting {
-		rtn.Message = fmt.Sprintf("%s is waiting for your answer: answer it, then update the terminal.", name)
+		rtn.Message = fmt.Sprintf("%s is waiting for your answer: answer it, then %s.", name, againLower)
 	} else {
-		rtn.Message = fmt.Sprintf("%s is working: update the terminal once its turn ends.", name)
+		rtn.Message = fmt.Sprintf("%s is working: %s once its turn ends.", name, againLower)
 	}
 	return rtn
 }
@@ -322,7 +322,7 @@ func (u *Updater) restartAgent(ctx context.Context, blockId string, st shellStat
 	agent := st.agent.Agent
 	name := st.adapter.Name()
 	base := Outcome{Agent: agent, AgentName: name}
-	if busy := u.agentBusy(blockId, agent, name); busy != nil {
+	if busy := u.agentBusy(blockId, agent, name, texts.againLower); busy != nil {
 		return *busy
 	}
 	cwd := u.env.Cwd(st.agent.Pid)
@@ -343,6 +343,10 @@ func (u *Updater) restartAgent(ctx context.Context, blockId string, st shellStat
 	case StopStuck:
 		base.Status = StatusAgentStuck
 		base.Message = fmt.Sprintf("%s did not exit within %d s and is still running. Exit it yourself, then %s.", name, int(AgentExitTimeout/time.Second), texts.againLower)
+		return base
+	case StopNoInput:
+		base.Status = StatusFailed
+		base.Message = fmt.Sprintf("MoltenTerm could not type in this terminal, so %s kept running. Show its pane once, then %s.", name, texts.againLower)
 		return base
 	}
 	// The agent is gone: anything that holds the terminal now (a program it left in the foreground, a background job)
@@ -419,6 +423,9 @@ const (
 	StopExited  = "exited"
 	StopChanged = "changed"
 	StopStuck   = "stuck"
+	// StopNoInput: the terminal took no input (its pane was not opened since MoltenTerm started, so no controller
+	// runs for it): the agent was never asked to exit.
+	StopNoInput = "noinput"
 )
 
 // StopAgent asks an idle agent to exit with its own commands and waits for its process to end; it never signals it.
@@ -432,7 +439,7 @@ func (u *Updater) StopAgent(blockId string, adapter agentcontinuity.AgentAdapter
 		return StopChanged
 	}
 	if err != nil {
-		return StopStuck
+		return StopNoInput
 	}
 	deadline := u.env.Now().Add(AgentExitTimeout)
 	for {
