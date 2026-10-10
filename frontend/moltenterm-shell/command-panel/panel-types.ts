@@ -44,11 +44,37 @@ type PanelItemBase = {
     destructive?: boolean;
 };
 
+// What an action that waits for its result tells the panel (FR-SHELL-048): nothing or "close" closes it and gives
+// the focus back to the panel; "dismiss" only takes the feedback away; a feedback keeps it open and shows why, with
+// what to do next.
+export type PanelActionResult = void | "close" | "dismiss" | PanelFeedback;
+
+export type PanelFeedbackAction = {
+    id: string;
+    label: string;
+    primary?: boolean;
+    destructive?: boolean;
+    run: () => PanelActionResult | Promise<PanelActionResult>;
+};
+
+// A message shown in the panel in place of the suggestions: a refusal ("Claude Code is working") or a confirmation
+// ("An unsent message will be cleared", tone warning, role alertdialog).
+export type PanelFeedback = {
+    id: string;
+    message: string;
+    tone?: "warning" | "danger" | "muted";
+    // alertdialog: a question the user answers with one of the actions; alert: an explanation.
+    role?: "alert" | "alertdialog";
+    actions?: PanelFeedbackAction[];
+};
+
 export type PanelAction = PanelItemBase & {
     type: "action";
-    run: () => void | Promise<void>;
+    run: () => void | Promise<void> | PanelActionResult | Promise<PanelActionResult>;
     // The panel stays open after the action (a copy, a reload of the list).
     keepOpen?: boolean;
+    // The panel stays open while the action runs and acts on its result (an agent command typed by wavesrv).
+    awaitResult?: boolean;
 };
 
 // A value set in one or more scopes. Without scopes the option is a plain value with a setter (Wave's items).
@@ -71,13 +97,15 @@ export type PanelChoiceOption = {
     swatch?: string[];
     // Wave's items carry their own state and click.
     checked?: boolean;
-    run?: () => void | Promise<void>;
+    run?: () => void | Promise<void> | PanelActionResult | Promise<PanelActionResult>;
     disabled?: boolean;
 };
 
 export type PanelChoice = PanelValueItem<unknown> & {
     type: "choice";
     options: PanelChoiceOption[];
+    // The options' run() answers a PanelActionResult the panel acts on, as an action's with awaitResult.
+    awaitResult?: boolean;
 };
 
 export type PanelPage = PanelItemBase & {
@@ -114,6 +142,8 @@ export type PanelSuggestion = {
     label: string;
     icon?: string;
     tone?: "warning" | "accent";
+    // The verb after the label ("Go"), when the label is a statement (a waiting agent's question).
+    action?: string;
     run: () => void | Promise<void>;
 };
 

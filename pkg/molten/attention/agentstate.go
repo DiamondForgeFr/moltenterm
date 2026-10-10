@@ -558,6 +558,7 @@ func publishAgentState(info molten.AgentStateInfo) {
 // TerminalInput is called with what the user sends to a terminal (blockcontroller.SendInput).
 func TerminalInput(blockId string, data []byte) {
 	defaultAgentStates.input(blockId, data)
+	defaultTermObservers.notify(true, blockId, data)
 }
 
 // TerminalResize is called when a terminal is resized (blockcontroller.SendInput): the redraw that follows is, like

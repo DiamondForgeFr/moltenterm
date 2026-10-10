@@ -57,6 +57,8 @@ export class CommandPanelModel {
     private static instance: CommandPanelModel = null;
 
     openAtom = atom(null) as PrimitiveAtom<OpenCommandPanel>;
+    // Bumped when a provider's own source changes (an agent's mode read from wavesrv): the open panel collects again.
+    sourcesAtom = atom(0) as PrimitiveAtom<number>;
     token = 0;
 
     private constructor() {}
@@ -103,6 +105,10 @@ export class CommandPanelModel {
         if (refocus) {
             refocusNode(current.blockId);
         }
+    }
+
+    sourcesChanged() {
+        globalStore.set(this.sourcesAtom, globalStore.get(this.sourcesAtom) + 1);
     }
 
     toggle(blockId: string, anchor: PanelAnchor, source: CommandPanelSource) {

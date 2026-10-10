@@ -260,6 +260,7 @@ func makeDefaultAttentionWatcher() *attentionWatcher {
 // notification is written from its own goroutine.
 func ScanTerminalOutput(blockId string, data []byte) {
 	defaultAttentionWatcher.handle(blockId, data)
+	defaultTermObservers.notify(false, blockId, data)
 }
 
 func makeNotificationId(now time.Time) string {

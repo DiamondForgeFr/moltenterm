@@ -53,9 +53,12 @@ import {
 import { collectPanel } from "./panel-registry";
 import {
     PanelAction,
+    PanelActionResult,
     PanelChoice,
     PanelChoiceOption,
     PanelContext,
+    PanelFeedback,
+    PanelFeedbackAction,
     PanelItem,
     PanelNumber,
     PanelScopeId,
@@ -264,6 +267,8 @@ type RowProps = {
     onStep: (item: PanelNumber, delta: number) => void;
     // Values written but not yet back from the store (a stepper pressed fast, a slider dragged).
     pending: Record<string, number>;
+    // The awaited item or option running now (an agent command being typed).
+    running?: string;
 };
 
 function NumberControl({
@@ -464,7 +469,9 @@ function PanelRowView(props: RowProps) {
                 {row.breadcrumb && <span className="ml-1.5 text-11 text-muted">{row.breadcrumb}</span>}
                 {detail && !row.breadcrumb && <span className="ml-1.5 text-11 text-muted">{detail}</span>}
             </span>
-            {digit > 0 ? (
+            {props.running != null && props.running === (isOption ? row.option.id : row.item.id) ? (
+                <i className="fa fa-solid fa-circle-notch fa-spin shrink-0 text-11 text-muted" aria-label="Sending" />
+            ) : digit > 0 ? (
                 <span className="shrink-0 font-mono text-11 text-secondary">⌘{digit}</span>
             ) : (
                 <RowAside {...props} />
@@ -484,15 +491,71 @@ function Suggestions({ items, onRun }: { items: PanelSuggestion[]; onRun: (s: Pa
                     key={s.id}
                     type="button"
                     className={cn(
-                        "molten-cmdpanel-chip flex h-6 cursor-pointer items-center gap-1.5 rounded-6 px-2 text-11 font-medium",
+                        "molten-cmdpanel-chip flex h-6 max-w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-6 px-2 text-11 font-medium",
                         s.tone === "warning" ? "is-warning" : "is-accent"
                     )}
+                    title={s.action ? `${s.label} (${s.action})` : undefined}
+                    aria-label={s.action ? `${s.label}. ${s.action}` : undefined}
                     onClick={() => onRun(s)}
                 >
-                    {s.icon && <i className={panelIconClass(s.icon)} aria-hidden />}
-                    {s.label}
+                    {s.icon && <i className={cn(panelIconClass(s.icon), "shrink-0")} aria-hidden />}
+                    <span className="min-w-0 truncate">{s.label}</span>
+                    {s.action && <span className="molten-cmdpanel-chip-verb shrink-0 font-semibold">{s.action}</span>}
                 </button>
             ))}
+        </div>
+    );
+}
+
+type FeedbackProps = {
+    feedback: PanelFeedback;
+    running: string;
+    onAction: (action: PanelFeedbackAction) => void;
+};
+
+// A refusal or a confirmation in place of the suggestions (FR-SHELL-048): it says why nothing was typed and offers
+// what fits. A confirmation takes the focus on its first action (Cancel), so Enter never clears a draft by accident.
+function Feedback({ feedback, running, onAction }: FeedbackProps) {
+    const firstRef = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        if (feedback.role === "alertdialog") {
+            firstRef.current?.focus({ preventScroll: true });
+        }
+    }, [feedback.id, feedback.role]);
+    const messageId = `molten-cmdpanel-feedback-${feedback.id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+    return (
+        <div
+            className={cn("molten-cmdpanel-feedback border-b border-line px-3 py-2", `is-${feedback.tone ?? "muted"}`)}
+            role={feedback.role ?? "status"}
+            aria-live={feedback.role === "alertdialog" ? undefined : "polite"}
+            aria-describedby={feedback.role === "alertdialog" ? messageId : undefined}
+            aria-label={feedback.role === "alertdialog" ? "Confirm" : undefined}
+        >
+            <div id={messageId} className="molten-cmdpanel-feedback-text text-12 leading-5">
+                {feedback.message}
+            </div>
+            {feedback.actions?.length > 0 && (
+                <div className="mt-1.5 flex justify-end gap-1.5">
+                    {feedback.actions.map((action, i) => (
+                        <button
+                            key={action.id}
+                            ref={i === 0 ? firstRef : undefined}
+                            type="button"
+                            disabled={running != null}
+                            className={cn(
+                                "h-6 cursor-pointer rounded-6 px-2 text-11 font-medium",
+                                action.primary
+                                    ? "molten-cmdpanel-feedback-primary"
+                                    : "molten-cmdpanel-feedback-secondary"
+                            )}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => onAction(action)}
+                        >
+                            {running === action.id ? "…" : action.label}
+                        </button>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -612,6 +675,11 @@ function CommandPanel({ open }: CommandPanelProps) {
     const [selected, setSelected] = useState(-1);
     const [scopes, setScopes] = useState<Record<string, PanelScopeId>>({});
     const [pending, setPending] = useState<Record<string, number>>({});
+    const [feedback, setFeedback] = useState<PanelFeedback>(null);
+    // The item or feedback action waiting for its result: the panel stays open and runs nothing else meanwhile.
+    const [running, setRunning] = useState<string>(null);
+    const runningRef = useRef<string>(null);
+    const sources = useAtomValue(model.sourcesAtom);
     // Mirrors pending for steps fired before React renders again (clicks in one task, key auto-repeat).
     const pendingRef = useRef<Record<string, number>>({});
     const [lockedPlacement, setLockedPlacement] = useState<Placement>(null);
@@ -646,7 +714,7 @@ function CommandPanel({ open }: CommandPanelProps) {
         []
     );
 
-    const ctx = useMemo(() => makePanelContext(blockId), [blockId, block, fullConfig, agent, tick]);
+    const ctx = useMemo(() => makePanelContext(blockId), [blockId, block, fullConfig, agent, tick, sources]);
     const collected = useMemo(() => (ctx ? collectPanel(ctx) : { sections: [], suggestions: [] }), [ctx]);
     const node = layoutModel?.getNodeByBlockId(blockId);
     const magnified = node != null && magnifiedNodeId === node.id;
@@ -810,8 +878,49 @@ function CommandPanel({ open }: CommandPanelProps) {
 
     const closePanel = (refocus = true) => model.close(refocus);
 
+    // What an awaited action answered: close, take the feedback away, or show it.
+    const applyResult = (result: PanelActionResult, closeOnNothing: boolean) => {
+        if (result === "close" || (result == null && closeOnNothing)) {
+            closePanel();
+            return;
+        }
+        if (result === "dismiss") {
+            setFeedback(null);
+            return;
+        }
+        if (result != null && typeof result === "object") {
+            setFeedback(result);
+            return;
+        }
+        bump();
+    };
+
+    const runAwaited = (key: string, run: () => unknown, closeOnNothing: boolean) => {
+        if (runningRef.current != null) {
+            return;
+        }
+        runningRef.current = key;
+        setRunning(key);
+        fireAndForget(async () => {
+            try {
+                const result = (await run()) as PanelActionResult;
+                applyResult(result, closeOnNothing);
+            } finally {
+                runningRef.current = null;
+                setRunning(null);
+            }
+        });
+    };
+
+    const runFeedbackAction = (action: PanelFeedbackAction) => runAwaited(action.id, action.run, true);
+
     const runAction = (item: PanelAction) => {
         if (item.disabled) {
+            return;
+        }
+        if (item.awaitResult) {
+            setFeedback(null);
+            runAwaited(item.id, item.run, true);
             return;
         }
         if (item.keepOpen) {
@@ -829,6 +938,11 @@ function CommandPanel({ open }: CommandPanelProps) {
         if (option.disabled) {
             return;
         }
+        if (option.run != null && choice.awaitResult) {
+            setFeedback(null);
+            runAwaited(option.id, option.run, false);
+            return;
+        }
         fireAndForget(async () => {
             if (option.run != null) {
                 await option.run();
@@ -840,6 +954,7 @@ function CommandPanel({ open }: CommandPanelProps) {
     };
 
     const openPage = (path: string[], item: PanelItem) => {
+        setFeedback(null);
         setDirection("in");
         setStack([...path, item.id]);
         setQuery("");
@@ -849,6 +964,7 @@ function CommandPanel({ open }: CommandPanelProps) {
         if (liveStack.length === 0) {
             return;
         }
+        setFeedback(null);
         setDirection("back");
         setStack(liveStack.slice(0, -1));
         setQuery("");
@@ -983,6 +1099,12 @@ function CommandPanel({ open }: CommandPanelProps) {
                 setQuery("");
                 return;
             case "close":
+                // A refusal or a confirmation goes first: Escape on "An unsent message will be cleared" is Cancel.
+                if (feedback != null) {
+                    setFeedback(null);
+                    inputRef.current?.focus({ preventScroll: true });
+                    return;
+                }
                 closePanel();
                 return;
         }
@@ -1121,7 +1243,10 @@ function CommandPanel({ open }: CommandPanelProps) {
                     spellCheck={false}
                     autoComplete="off"
                     placeholder={page != null ? `Search ${page.label.toLowerCase()}…` : "Search commands…"}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => {
+                        setQuery(e.target.value);
+                        setFeedback(null);
+                    }}
                     className="min-w-0 flex-1 bg-transparent text-12 leading-5 text-primary outline-none placeholder:text-muted"
                     role="combobox"
                     aria-expanded="true"
@@ -1134,7 +1259,8 @@ function CommandPanel({ open }: CommandPanelProps) {
                     {formatShortcutById("command-panel")}
                 </span>
             </div>
-            {liveStack.length === 0 && query === "" && (
+            {feedback != null && <Feedback feedback={feedback} running={running} onAction={runFeedbackAction} />}
+            {feedback == null && liveStack.length === 0 && query === "" && (
                 <Suggestions items={collected.suggestions} onRun={runSuggestion} />
             )}
             {page != null && (
@@ -1211,6 +1337,7 @@ function CommandPanel({ open }: CommandPanelProps) {
                                     onNumber={onNumber}
                                     onScope={(item, scope) => setScopes((s) => ({ ...s, [item.id]: scope }))}
                                     pending={pending}
+                                    running={running}
                                     onStep={(item, delta) => onNumber(item, stepNumber(item, numberValue(item), delta))}
                                 />
                             ))}
