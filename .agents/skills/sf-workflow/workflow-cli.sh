@@ -2,6 +2,20 @@
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Every gh call targets the repository the project lives in: its `origin`
+# remote. gh otherwise follows its own default repository, which a conventional
+# `upstream` remote silently retargets — "Could not find issue #3", or a pull
+# request opened against the upstream project (#840). An explicit GH_REPO wins.
+if [[ -z "${GH_REPO:-}" ]]; then
+  _sf_origin=$(git remote get-url origin 2>/dev/null || true)
+  if [[ "$_sf_origin" =~ ^(git@|ssh://([^@/]+@)?)([^:/]+)[:/]([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)$ ]] \
+    || [[ "$_sf_origin" =~ ^https?://([^@/]+@)?()([^/]+)/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)$ ]]; then
+    _sf_host=${BASH_REMATCH[3]} _sf_owner=${BASH_REMATCH[4]} _sf_name=${BASH_REMATCH[5]%.git}
+    if [[ "$_sf_host" == github.com ]]; then export GH_REPO="$_sf_owner/$_sf_name"; else export GH_REPO="$_sf_host/$_sf_owner/$_sf_name"; fi
+  fi
+  unset _sf_origin _sf_host _sf_owner _sf_name
+fi
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -299,10 +313,19 @@ check_complexity_guard() {
   [[ "${SF_WORKFLOW_BYPASS_COMPLEXITY_GUARD:-}" == "1" ]] && return 0
   is_backlog_target "$target" && return 0   # moving back to Backlog is always allowed
 
-  local level
-  level=$(get_ticket_complexity_label "$ticket") || return 0   # fail-open on fetch error
+  local raw level
+  raw=$(route_to_tool "$WORKFLOW_TOOL" get-labels "$ticket" 2>/dev/null) || return 0   # fail-open on fetch error
+  level=$(echo "$raw" | grep -E '^complexity: ' | head -n1 | sed 's/^complexity: //')
 
   if [[ -z "$level" ]]; then
+    # An SRS drafting ticket follows its own lifecycle, and its srs:* label is
+    # the profile that lifecycle declares; a code-path level would be arbitrary (#851).
+    if echo "$raw" | grep -qE '^srs:(drafting|update|new)$'; then return 0; fi
+    # An Epic is an aggregate with a derived status: the workflow never asks for
+    # its complexity, so the guard does not either (#839).
+    local issue_type
+    if issue_type=$(get_ticket_issue_type "$ticket" 2>/dev/null) && [[ "$issue_type" == "sf-epic" ]]; then return 0; fi
+
     echo -e "${RED}✗ Ticket #${ticket} has no complexity label — cannot transition to '${target}'.${NC}" >&2
     echo "" >&2
     echo "  Every ticket must be tagged with one of: bug | low | medium | complex" >&2
@@ -524,6 +547,16 @@ check_bundled_pr_parent_guard() {
   return 0
 }
 
+# Whether .saasfoundry.json declares a board status, case-insensitively. A manifest
+# that lists no statuses uses the default Team set, which has every status.
+manifest_declares_status() {
+  local name=$1 count
+  [[ -f .saasfoundry.json ]] || return 0
+  count=$(jq -r '(.workflow.statuses // []) | length' .saasfoundry.json 2>/dev/null) || return 0
+  [[ "$count" == "0" ]] && return 0
+  jq -e --arg s "$name" '[.workflow.statuses[].name | ascii_downcase] | index($s | ascii_downcase) != null' .saasfoundry.json >/dev/null 2>&1
+}
+
 rollup_parent_status() {
   # The child transition already succeeded. A rollup failure is reported, never
   # undone locally; GitHub remains the authoritative source and a later child
@@ -546,10 +579,13 @@ rollup_parent_status() {
     }
     case "$(echo "$parent_status" | tr '[:upper:]' '[:lower:]' | awk '{$1=$1;print}')" in
       backlog)
-        route_to_tool "$WORKFLOW_TOOL" update-status "$parent" "Ready" || {
-          echo "Warning: could not roll parent Epic #${parent} from Backlog to Ready." >&2; return 0;
-        }
-        echo "Derived rollup: Epic #${parent} → Ready (child #${child} entered In progress)."
+        # Walk the statuses this board declares: the Solo preset has no Ready (#838).
+        if manifest_declares_status "Ready"; then
+          route_to_tool "$WORKFLOW_TOOL" update-status "$parent" "Ready" || {
+            echo "Warning: could not roll parent Epic #${parent} from Backlog to Ready." >&2; return 0;
+          }
+          echo "Derived rollup: Epic #${parent} → Ready (child #${child} entered In progress)."
+        fi
         route_to_tool "$WORKFLOW_TOOL" update-status "$parent" "In progress" || {
           echo "Warning: could not roll parent Epic #${parent} to In progress." >&2; return 0;
         }
@@ -686,6 +722,32 @@ get_merged_pr_for_ticket() {
   get_pr_for_ticket "$1" merged
 }
 
+# The message `bootstrap` commits with. The PR-merged guard recognises the first ticket of
+# an empty repository by it, on the repository's single root commit (#833).
+bootstrap_commit_message() {
+  echo "chore(#$1): bootstrap the repository"
+}
+
+# The single root commit of the main branch (origin's when it exists), or nothing.
+repository_root_commit() {
+  local main_branch ref roots
+  main_branch=$(jq -r '.mainBranch // "main"' .saasfoundry.json 2>/dev/null)
+  ref="origin/${main_branch}"
+  git rev-parse --verify -q "$ref" >/dev/null 2>&1 || ref="$main_branch"
+  roots=$(git rev-list --max-parents=0 "$ref" 2>/dev/null) || return 1
+  [[ -n "$roots" && "$(printf '%s\n' "$roots" | wc -l | tr -d ' ')" == "1" ]] || return 1
+  echo "$roots"
+}
+
+# The ticket the repository's root commit was bootstrapped for. No branch or PR can exist
+# before a first commit, so that one ticket closes on the commit itself; it cannot be
+# claimed afterwards without rewriting the history of the main branch.
+is_bootstrap_ticket() {
+  local root
+  root=$(repository_root_commit) || return 1
+  [[ "$(git log -1 --format=%s "$root" 2>/dev/null)" == "$(bootstrap_commit_message "$1")" ]]
+}
+
 check_pr_merged_guard() {
   # Returns 0 if the caller may proceed, 1 if blocked (message printed).
   local ticket=$1
@@ -715,6 +777,8 @@ check_pr_merged_guard() {
   # An aggregate Epic has no delivery branch or PR of its own.
   [[ "$issue_type" == "sf-epic" ]] && return 0
 
+  is_bootstrap_ticket "$ticket" && return 0
+
   local pr_number
   pr_number=$(get_open_pr_for_ticket "$ticket") || {
     echo "Error: unable to verify open PR state; no status transition was made." >&2
@@ -743,6 +807,7 @@ check_pr_merged_guard() {
     echo -e "${RED}✗ Ticket #${ticket} has no verified merged PR into its configured working or release branch — cannot transition to 'Done'.${NC}" >&2
     echo "  Open and merge the ticket PR before marking the ticket Done." >&2
     echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_PR_MERGED_GUARD=1" >&2
+    report_unusable_delivery_patterns
     return 1
   fi
   if [[ "$merged_pr" == *$'\t'* ]]; then
@@ -850,6 +915,19 @@ check_pr_merged_guard() {
 }
 
 # ───────────────────────────────────────────────────────────────────────────
+# A delivery branch is matched through workflow.branchNaming, and a pattern without
+# exactly one ticket placeholder is discarded. Manifests from before #480 said
+# feature/{name}: every guard then failed with no hint at the cause (#864).
+report_unusable_delivery_patterns() {
+  [[ -f .saasfoundry.json ]] || return 0
+  local usable
+  usable=$(jq -r '[(.workflow.branchNaming.feature // "feature/{N}-{description}"), (.workflow.branchNaming.fix // "fix/{N}-{description}")]
+    | map(select(type == "string" and ([scan("\\{(?:N|ticket|number|issue-number)\\}")] | length) == 1)) | length' .saasfoundry.json 2>/dev/null) || return 0
+  [[ "$usable" == "0" ]] || return 0
+  echo "  No branch can match: workflow.branchNaming.feature and .fix in .saasfoundry.json carry no ticket placeholder ({N})." >&2
+  echo "  Run sf update to apply manifest migration 004, or set them to feature/{N}-{description} and fix/{N}-{description}." >&2
+}
+
 # PR-state guard — Human Testing requires draft; In Review requires ready.
 # Unknown, malformed or ambiguous remote state fails closed. Aggregate Epics
 # are rejected earlier by check_epic_derived_status_guard and never reach this
@@ -913,6 +991,7 @@ check_pr_existence_guard() {
     echo "  Open a draft with workflow-cli.sh create-pr ${ticket} --draft for Human Testing." >&2
     echo "  After approval, use workflow-cli.sh ready-pr ${ticket} before In Review." >&2
     echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_PR_EXISTENCE_GUARD=1" >&2
+    report_unusable_delivery_patterns
     return 1
   fi
   if [[ "$count" -ne 1 ]] || ! echo "$matches" | jq -e '.[0].isDraft | type == "boolean"' >/dev/null; then
@@ -992,6 +1071,168 @@ show_next_status() {
 # GitHub's live native issue references confirm ordinary delivery branches. Release
 # PRs target a non-default branch, so GitHub does not populate that field for them;
 # an exact `Closes #N` directive in the live PR body is their guarded association.
+# The first condition a pull request event failed, in words a developer can act
+# on. The validation below answers only yes or no; a body line such as
+# `Resolves #7 — summary` was refused with no hint that it must read exactly
+# `Resolves #7` (#846).
+explain_pr_event_rejection() {
+  local repo=$1 number=$2 event_path=$3
+  jq -r --arg repo "$repo" --argjson n "$number" --slurpfile manifest .saasfoundry.json '
+    ($manifest[0].workflow.workingBranch // "develop") as $working
+    | ($manifest[0].workflow.prTargetBranch // $working) as $target
+    | ($manifest[0].workflow.releaseBranch // $manifest[0].mainBranch // "master") as $release
+    | .pull_request as $pr
+    | ([$pr.body // "" | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$")] | length) as $resolves
+    | ([$pr.body // "" | scan("(?im)^\\s*closes\\s+#([1-9][0-9]*)\\s*$")] | length) as $closes
+    | if ((.action // "") | IN("ready_for_review", "opened", "reopened") | not) then
+        "event action \"\(.action)\" is not opened, reopened or ready_for_review"
+      elif .number != $n or .repository.full_name != $repo then "the event belongs to another pull request or repository"
+      elif ($pr.state // "") != "open" then "pull request #\($n) is not open"
+      elif $pr.draft != false then "pull request #\($n) is a draft"
+      elif $pr.head.repo.full_name != $repo or $pr.base.repo.full_name != $repo then "pull request #\($n) comes from another repository"
+      elif ($pr.base.ref | IN($target, $release, $working) | not) then
+        "pull request #\($n) targets \"\($pr.base.ref)\", which is neither the PR target \"\($target)\" nor the release branch \"\($release)\""
+      elif $pr.base.ref == $release and $closes != 1 then
+        "a release pull request body must contain exactly one line that reads `Closes #<ticket>` (found \($closes))"
+      elif $pr.base.ref != .repository.default_branch and $pr.base.ref == $target and $resolves != 1 then
+        "pull request #\($n) targets \"\($pr.base.ref)\", not the default branch, so GitHub links no ticket: its body must contain exactly one line that reads `Resolves #<ticket>` and nothing else (found \($resolves)); a line such as `Resolves #7 — summary` does not count"
+      else "the event could not be validated (malformed or stale payload)" end
+  ' "$event_path" 2>/dev/null || echo "the event payload could not be read"
+}
+
+# Publish an AI Testing step where the developer already looks: the ticket's
+# pull request. A commit status on the PR head ("AI testing / <step>") links to
+# one progress comment that keeps a row per step. Hours of AI Testing used to
+# show nothing outside the chat, and a status without a link led nowhere (#883).
+AI_STATUS_MARKER='<!-- sf-ai-testing-progress -->'
+ai_status() {
+  if [[ "$#" -ne 4 || ! "$1" =~ ^[1-9][0-9]*$ || ! "$3" =~ ^(pending|success|failure)$ || -z "$2" ]]; then
+    echo "Usage: workflow-cli.sh ai-status <ticket> <step> <pending|success|failure> \"<description>\"" >&2
+    return 2
+  fi
+  local ticket=$1 step=${2//|//} state=$3 description=${4//|//} repo pr head icon row comment comment_id comment_url body_file
+  step=${step//$'\n'/ } description=${description//$'\n'/ }
+  load_config
+  [[ "$WORKFLOW_TOOL" == github-projects ]] || { echo "Error: ai-status requires github-projects." >&2; return 2; }
+  if [[ "${GH_REPO:-}" =~ ([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$ ]]; then repo=${BASH_REMATCH[1]}; else repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) || repo=""; fi
+  [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "Error: unable to resolve the repository." >&2; return 2; }
+  pr=$(get_open_pr_for_ticket "$ticket") || { echo "Error: unable to look up the pull request of ticket #${ticket}." >&2; return 2; }
+  [[ -n "$pr" ]] || { echo "Error: ticket #${ticket} has no open pull request — open one first: workflow-cli.sh create-pr ${ticket} --draft" >&2; return 2; }
+  head=$(gh pr view "$pr" --json headRefOid --jq .headRefOid 2>/dev/null) || head=""
+  [[ "$head" =~ ^[0-9a-f]{40}$ ]] || { echo "Error: unable to read the head commit of pull request #${pr}." >&2; return 2; }
+  case "$state" in pending) icon='⏳' ;; success) icon='✅' ;; failure) icon='❌' ;; esac
+  row="| ${step} | ${icon} ${description} |"
+  comment=$(gh api "repos/${repo}/issues/${pr}/comments" --paginate --jq "[.[] | select(.body | contains(\"${AI_STATUS_MARKER}\"))] | last // empty | {id, html_url, body}" 2>/dev/null) || comment=""
+  body_file=$(mktemp)
+  if [[ -z "$comment" ]]; then
+    printf '%s\n## AI Testing — live progress\n\n| Step | State |\n| --- | --- |\n%s\n' "$AI_STATUS_MARKER" "$row" > "$body_file"
+    comment=$(gh api -X POST "repos/${repo}/issues/${pr}/comments" -F "body=@${body_file}" --jq '{id, html_url}' 2>/dev/null) || comment=""
+  else
+    printf '%s' "$comment" | jq -r .body | awk -v step="| ${step} |" -v row="$row" '
+      index($0, step) == 1 { print row; done = 1; next }
+      { print }
+      END { if (!done) print row }
+    ' > "$body_file"
+    comment_id=$(printf '%s' "$comment" | jq -r .id)
+    comment=$(gh api -X PATCH "repos/${repo}/issues/comments/${comment_id}" -F "body=@${body_file}" --jq '{id, html_url}' 2>/dev/null) || comment=""
+  fi
+  rm -f "$body_file"
+  comment_url=$(printf '%s' "$comment" | jq -r '.html_url // empty' 2>/dev/null)
+  [[ -n "$comment_url" ]] || { echo "Error: unable to write the progress comment on pull request #${pr}." >&2; return 2; }
+  gh api -X POST "repos/${repo}/statuses/${head}" -f state="$state" -f context="AI testing / ${step}" -f description="${description:0:140}" -f target_url="$comment_url" >/dev/null 2>&1 || {
+    echo "Error: unable to publish the commit status on pull request #${pr}." >&2; return 2;
+  }
+  echo "AI testing / ${step}: ${state} — ${description} (PR #${pr})"
+}
+
+# A pull request merged into the configured PR target moves its delivery ticket
+# to Done through the same guarded update-status — which also closes the issue
+# and rolls an Epic up. The Solo In Review banner promised "your merge triggers
+# Done" and nothing listened: a PR to the working branch rather than the default
+# one does not even close its issue on GitHub's side (#845).
+sync_pr_merge() {
+  local pr_number=$1 repo=$2 event_path=$3 event live ticket status labels
+  event=$(jq -ce --arg repo "$repo" --argjson n "$pr_number" --slurpfile manifest .saasfoundry.json '
+    ($manifest[0].workflow.workingBranch // "develop") as $working
+    | ($manifest[0].workflow.prTargetBranch // $working) as $target
+    | select(.action == "closed" and .number == $n and .repository.full_name == $repo)
+    | .pull_request
+    | select(.number == $n and .merged == true
+      and .base.repo.full_name == $repo and .head.repo.full_name == $repo and .base.ref == $target
+      and (.head.ref | type) == "string" and ((.merge_commit_sha // "") | test("^[0-9a-f]{40}$")))
+    | {number, head: .head.ref, base: .base.ref, mergeSha: .merge_commit_sha}
+  ' "$event_path" 2>/dev/null) || {
+    echo "Pull request #${pr_number} was not merged into the configured PR target; nothing to synchronize."
+    return 0
+  }
+  live=$(gh pr view "$pr_number" --repo "$repo" --json number,state,headRefName,baseRefName,isCrossRepository,mergeCommit,body,closingIssuesReferences 2>/dev/null) || {
+    echo "Error: unable to fetch live PR metadata; no ticket changed." >&2; return 2;
+  }
+  if ! echo "$live" | jq -e --argjson e "$event" '
+    .number == $e.number and .state == "MERGED" and .isCrossRepository == false
+    and .headRefName == $e.head and .baseRefName == $e.base and .mergeCommit.oid == $e.mergeSha
+    and (.body | type) == "string" and (.closingIssuesReferences | type) == "array"
+  ' >/dev/null 2>&1; then
+    echo "Error: the live pull request does not confirm this merge; no ticket changed." >&2
+    return 2
+  fi
+  ticket=$(echo "$live" | jq -er --slurpfile manifest .saasfoundry.json '
+    def literal:
+      explode | map(. as $c | if [92,46,94,36,124,63,42,43,40,41,91,93,123,125] | index($c)
+        then [92,$c] else [$c] end) | flatten | implode;
+    def pattern_piece: split("\u0000") | map(literal) | join(".+");
+    def ticket_pattern:
+      select(type == "string")
+      | select(([scan("\\{(?:N|ticket|number|issue-number)\\}")] | length) == 1)
+      | select(([scan("\\{(?:description|name)\\}")] | length) <= 1)
+      | gsub("\\{(?:N|ticket|number|issue-number)\\}"; "\u0001")
+      | gsub("\\{(?:description|name)\\}"; "\u0000")
+      | split("\u0001")
+      | "^" + (.[0] | pattern_piece) + "(?<ticket>[1-9][0-9]*)" + (.[1] | pattern_piece) + "$";
+    . as $live
+    | [$manifest[0].workflow.branchNaming.feature // "feature/{N}-{description}",
+       $manifest[0].workflow.branchNaming.fix // "fix/{N}-{description}"]
+    | map(ticket_pattern)
+    | [.[] as $pattern | $live.headRefName | try capture($pattern).ticket catch empty]
+    | unique
+    | if length == 1 then .[0] else error("No single delivery ticket") end
+  ' 2>/dev/null) || {
+    echo "Error: the merged branch does not identify exactly one ticket under the configured branch naming; no ticket changed." >&2
+    report_unusable_delivery_patterns
+    return 2
+  }
+  if ! echo "$live" | jq -e --arg t "$ticket" '
+    [.body | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$") | .[0]] == [$t]
+    or any(.closingIssuesReferences[]; (.number | tostring) == $t)
+  ' >/dev/null 2>&1; then
+    echo "Error: the merged pull request has no verified closing association to ticket #${ticket}; no ticket changed." >&2
+    return 2
+  fi
+  local GH_REPO="$repo"
+  export GH_REPO
+  labels=$(route_to_tool "$WORKFLOW_TOOL" get-labels "$ticket") || {
+    echo "Error: unable to verify ticket labels; no ticket changed." >&2; return 2;
+  }
+  if echo "$labels" | grep -Eq '^srs:|^nature:bundled-pr$'; then
+    echo "Ticket #${ticket} does not follow the code delivery lifecycle; nothing to synchronize."
+    return 0
+  fi
+  status=$(get_current_status "$ticket") || return 2
+  case "$(status_slug "$status")" in
+    done) echo "Ticket #${ticket} is already Done; nothing to synchronize."; return 0 ;;
+    in-review) ;;
+    *)
+      echo "Ticket #${ticket} is ${status:-without a status}, not In Review: a merge does not skip review. Take it through the workflow, then to Done."
+      return 0
+      ;;
+  esac
+  (
+    unset SF_WORKFLOW_BYPASS_NATURE_GUARD SF_WORKFLOW_BYPASS_PR_EXISTENCE_GUARD SF_WORKFLOW_BYPASS_PR_MERGED_GUARD SF_WORKFLOW_BYPASS_COMPLEXITY_GUARD SF_WORKFLOW_BYPASS_SRS_GUARD
+    export GH_REPO="$repo"
+    bash "$SKILL_DIR/workflow-cli.sh" update-status "$ticket" "Done"
+  )
+}
+
 sync_pr_review() {
   if [[ "$#" -ne 1 || ! "$1" =~ ^[1-9][0-9]*$ ]]; then
     echo "Usage: workflow-cli.sh sync-pr-review <pr-number>" >&2
@@ -999,11 +1240,15 @@ sync_pr_review() {
   fi
   local pr_number=$1 repo=${GITHUB_REPOSITORY:-} event_path=${GITHUB_EVENT_PATH:-}
   if [[ ! "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ || ! -f "$event_path" ]]; then
-    echo "Error: sync-pr-review requires GITHUB_REPOSITORY and a ready_for_review GITHUB_EVENT_PATH." >&2
+    echo "Error: sync-pr-review requires GITHUB_REPOSITORY and a pull request GITHUB_EVENT_PATH." >&2
     return 2
   fi
   load_config
   [[ "$WORKFLOW_TOOL" == github-projects ]] || { echo "Error: review synchronization requires github-projects." >&2; return 2; }
+  if [[ "$(jq -r '.action // empty' "$event_path" 2>/dev/null)" == closed ]]; then
+    sync_pr_merge "$pr_number" "$repo" "$event_path"
+    return $?
+  fi
   local event live
   event=$(jq -ce --arg repo "$repo" --argjson n "$pr_number" --slurpfile manifest .saasfoundry.json '
     def literal:
@@ -1018,7 +1263,8 @@ sync_pr_review() {
     | ($manifest[0].workflow.prTargetBranch // $working_branch) as $target_branch
     | ($manifest[0].workflow.releaseBranch // $manifest[0].mainBranch // "master") as $release_branch
     | ($manifest[0].workflow.branchNaming.release // "rc-{version}" | release_pattern) as $release_pattern
-    | select(.action == "ready_for_review" and .number == $n and .repository.full_name == $repo
+    # A PR opened (or reopened) ready for review never emits ready_for_review (#876).
+    | select((.action == "ready_for_review" or .action == "opened" or .action == "reopened") and .number == $n and .repository.full_name == $repo
       and (.repository.default_branch | type) == "string" and (.repository.default_branch | length) > 0)
     | .repository.default_branch as $default_branch
     | .pull_request
@@ -1049,7 +1295,7 @@ sync_pr_review() {
           | if length == 1 then .[0] else error("Invalid non-default delivery ticket association") end)
        else null end)}
   ' "$event_path" 2>/dev/null) || {
-    echo "Error: event is malformed, stale, cross-repository or not ready_for_review; no ticket changed." >&2
+    echo "Error: $(explain_pr_event_rejection "$repo" "$pr_number" "$event_path"); no ticket changed." >&2
     return 2
   }
   live=$(gh pr view "$pr_number" --repo "$repo" --json number,url,title,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,headRepository,headRepositoryOwner,isCrossRepository,body,closingIssuesReferences 2>/dev/null) || {
@@ -1187,6 +1433,10 @@ case "$COMMAND" in
     sync_pr_review "$@"
     exit $?
     ;;
+  ai-status)
+    ai_status "$@"
+    exit $?
+    ;;
   # Workflow status commands
   status)
     TICKET=$1
@@ -1304,6 +1554,85 @@ case "$COMMAND" in
     ;;
 
   # Tool delegation commands - route to appropriate tool CLI
+  bootstrap)
+    # #833 — the first ticket of an empty repository has no base branch to branch from
+    # nor to open a pull request against. This commits the setup as the root commit of the
+    # main branch, creates the working branch from it, records why on the ticket and
+    # closes it: the PR-merged guard accepts that one ticket (is_bootstrap_ticket), and
+    # every later ticket keeps every guard. Re-running after a failed push resumes.
+    load_config
+    TICKET=${1:-}
+    if [[ ! "$TICKET" =~ ^[0-9]+$ ]] || [[ $# -ne 1 ]]; then
+      echo "Usage: workflow-cli.sh bootstrap <ticket>" >&2
+      exit 1
+    fi
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      echo -e "${RED}✗ Not a git repository — run 'git init' first.${NC}" >&2
+      exit 2
+    fi
+    MAIN_BRANCH=$(jq -r '.mainBranch // "main"' .saasfoundry.json)
+    MESSAGE=$(bootstrap_commit_message "$TICKET")
+    if ! git remote | grep -qx origin; then
+      echo -e "${RED}✗ No 'origin' remote: the main and working branches must reach GitHub for the workflow to work.${NC}" >&2
+      echo "  Add it, then re-run: git remote add origin <url>" >&2
+      exit 2
+    fi
+
+    if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+      ROOT=$(git rev-list --max-parents=0 HEAD 2>/dev/null)
+      if [[ "$(printf '%s\n' "$ROOT" | wc -l | tr -d ' ')" != "1" || "$(git log -1 --format=%s "$ROOT")" != "$MESSAGE" ]]; then
+        echo -e "${RED}✗ This repository already has commits: bootstrap only starts an empty repository.${NC}" >&2
+        echo "  Ticket #${TICKET} follows the normal workflow: branch from ${WORKING_BRANCH} and open a pull request." >&2
+        exit 2
+      fi
+      echo -e "${BLUE}Resuming the bootstrap of #${TICKET} (root commit $(git rev-parse --short "$ROOT")).${NC}"
+    else
+      CURRENT=$(git symbolic-ref --short -q HEAD)
+      if [[ "$CURRENT" != "$MAIN_BRANCH" ]]; then
+        echo -e "${RED}✗ The repository is on '${CURRENT}', the manifest's main branch is '${MAIN_BRANCH}'.${NC}" >&2
+        echo "  Switch the empty repository to it, then re-run: git symbolic-ref HEAD refs/heads/${MAIN_BRANCH}" >&2
+        exit 2
+      fi
+      # Guarded like any start of work: the ticket needs its complexity label
+      "$0" update-status "$TICKET" "In progress" || exit $?
+      git add -A
+      if git diff --cached --quiet; then
+        echo -e "${RED}✗ Nothing to commit: install the harness (or add the project files) first.${NC}" >&2
+        exit 2
+      fi
+      echo -e "${YELLOW}Committing $(git diff --cached --name-only | wc -l | tr -d ' ') file(s) on ${MAIN_BRANCH}:${NC}"
+      git diff --cached --name-only | sed 's/^/  /'
+      if ! git commit -q -m "$MESSAGE"; then
+        echo -e "${RED}✗ The commit failed (see git's message above); nothing was pushed. Fix it, then re-run: workflow-cli.sh bootstrap ${TICKET}${NC}" >&2
+        exit 1
+      fi
+    fi
+
+    if ! git push -u origin "$MAIN_BRANCH"; then
+      echo -e "${RED}✗ Could not push ${MAIN_BRANCH}. Fix access, then re-run: workflow-cli.sh bootstrap ${TICKET}${NC}" >&2
+      exit 1
+    fi
+    if [[ "$WORKING_BRANCH" != "$MAIN_BRANCH" ]]; then
+      if ! git rev-parse --verify -q "refs/heads/${WORKING_BRANCH}" >/dev/null 2>&1 && ! git branch "$WORKING_BRANCH" "$MAIN_BRANCH"; then
+        echo -e "${RED}✗ Could not create ${WORKING_BRANCH} from ${MAIN_BRANCH}.${NC}" >&2
+        exit 1
+      fi
+      if ! git push -u origin "$WORKING_BRANCH"; then
+        echo -e "${RED}✗ Could not push ${WORKING_BRANCH}. Fix access, then re-run: workflow-cli.sh bootstrap ${TICKET}${NC}" >&2
+        exit 1
+      fi
+      echo -e "${GREEN}✓ Working branch ${WORKING_BRANCH} created from ${MAIN_BRANCH}${NC}"
+    fi
+
+    ROOT=$(git rev-list --max-parents=0 HEAD)
+    printf '%s\n' \
+      "Bootstrapped with \`workflow-cli.sh bootstrap ${TICKET}\`: root commit ${ROOT} on \`${MAIN_BRANCH}\`, working branch \`${WORKING_BRANCH}\` created from it." \
+      "" \
+      "No branch or pull request can exist before a repository's first commit, so this ticket closes on that commit. The PR-merged guard accepts it because the repository's single root commit names it; every later ticket needs a merged pull request." |
+      route_to_tool "$WORKFLOW_TOOL" comment "$TICKET" -
+    "$0" update-status "$TICKET" "Done" || exit $?
+    ;;
+
   update-status)
     load_config
     TICKET=$1
@@ -1469,7 +1798,7 @@ case "$COMMAND" in
     route_to_tool "$WORKFLOW_TOOL" "$COMMAND" "$@"
     ;;
 
-  create-subtask|create-epic|list|get-labels|inspect-srs-tickets|link-subtask)
+  create-ticket|create-subtask|create-epic|list|get-labels|inspect-srs-tickets|link-subtask|add-to-project)
     load_config
     route_to_tool "$WORKFLOW_TOOL" "$COMMAND" "$@"
     ;;
@@ -1485,7 +1814,8 @@ case "$COMMAND" in
     if [[ -z "$TICKET" || -z "$PHASE" ]]; then
       echo "Usage: workflow-cli.sh transition-drafting <ticket> <phase> [phase options]" >&2
       echo "Phases: ai-draft | human-review | spawning | done" >&2
-      echo "Spawning: --epic <feature-url-or-id> [--version <title-url-or-id>] [--milestone <name>] --reconciliation-plan <path> [--dry-run]" >&2
+      echo "AI draft: no option prints the procedure; --spec <file> writes it; --from notion-pages|codebase drafts from existing material" >&2
+      echo "Spawning: --epic <feature-url-or-id> [--version <title-url-or-id>] [--milestone <name>] --reconciliation-plan <path> [--ticket <existing-epic>] [--dry-run]" >&2
       exit 1
     fi
 
@@ -1521,15 +1851,72 @@ case "$COMMAND" in
         ;;
     esac
 
-    SRS_CLI=".claude/skills/sf-srs/scripts/srs-cli.sh"
+    # The project's SRS wrapper, else the one installed next to this skill (a project that
+    # only carries .agents/). The wrapper resolves the CLI itself, a global install included.
+    SRS_CLI=""
+    for SRS_CANDIDATE in ".claude/skills/sf-srs/scripts/srs-cli.sh" "$SKILL_DIR/../sf-srs/scripts/srs-cli.sh"; do
+      if [[ -x "$SRS_CANDIDATE" ]]; then
+        SRS_CLI="$SRS_CANDIDATE"
+        break
+      fi
+    done
+    require_srs_cli() {
+      if [[ -z "$SRS_CLI" ]]; then
+        echo -e "${RED}✗ Expected an executable sf-srs wrapper (.claude/skills/sf-srs/scripts/srs-cli.sh, or next to this skill). Run the SRS skill install first.${NC}" >&2
+        exit 2
+      fi
+    }
     case "$PHASE" in
       ai-draft)
         echo -e "${BLUE}→ AI drafting phase for #${TICKET} (label: ${SRS_LABEL})${NC}"
-        if [[ ! -x "$SRS_CLI" ]]; then
-          echo -e "${RED}✗ Expected ${SRS_CLI} to be executable. Run the SRS skill install first.${NC}" >&2
+        # No drafter takes a ticket: the agent drafts the DraftCandidate[] from the ticket and
+        # the conversation, then this phase writes it (#849). `draft --ticket` failed everywhere.
+        if [[ "${#DRAFTING_ARGS[@]}" -eq 0 ]]; then
+          echo "  Draft the specification from ticket #${TICKET} and the conversation — no CLI drafts it for you:"
+          echo "    1. Write a DraftCandidate[] JSON file: one epic candidate for the feature (with its id), one per"
+          echo "       version (parentId = the feature id), and one fr candidate per FR (parentEpicId = its version id)."
+          echo "       Reference: .claude/skills/sf-srs/templates/examples/example-three-levels.spec.json"
+          echo "    2. Check it offline:  ${SRS_CLI:-srs-cli.sh} validate --spec <file>"
+          echo "    3. Write it:          workflow-cli.sh transition-drafting ${TICKET} ai-draft --spec <file>"
+          echo "  To start from existing material instead:"
+          echo "    workflow-cli.sh transition-drafting ${TICKET} ai-draft --from notion-pages --ids <id,...>"
+          echo "    workflow-cli.sh transition-drafting ${TICKET} ai-draft --from codebase [--path <dir>]"
+          print_status_banner "drafting:ai-draft"
+          exit 0
+        fi
+        DRAFT_ACTION=()
+        DRAFT_INDEX=0
+        while [[ "$DRAFT_INDEX" -lt "${#DRAFTING_ARGS[@]}" ]]; do
+          DRAFT_ARG="${DRAFTING_ARGS[$DRAFT_INDEX]}"
+          case "$DRAFT_ARG" in
+            --spec)
+              DRAFT_SPEC="${DRAFTING_ARGS[$((DRAFT_INDEX + 1))]:-}"
+              if [[ -z "$DRAFT_SPEC" || "$DRAFT_SPEC" == --* ]]; then
+                echo -e "${RED}✗ --spec requires a path.${NC}" >&2
+                exit 2
+              fi
+              if [[ ! -f "$DRAFT_SPEC" ]]; then
+                echo -e "${RED}✗ Spec file not found: ${DRAFT_SPEC}${NC}" >&2
+                exit 2
+              fi
+              DRAFT_ACTION=(write)
+              ;;
+            --from)
+              [[ "${#DRAFT_ACTION[@]}" -eq 0 ]] && DRAFT_ACTION=(draft)
+              ;;
+            --ticket)
+              echo -e "${RED}✗ No drafter takes a ticket: draft the spec from #${TICKET}, then pass --spec <file>.${NC}" >&2
+              exit 2
+              ;;
+          esac
+          DRAFT_INDEX=$((DRAFT_INDEX + 1))
+        done
+        if [[ "${#DRAFT_ACTION[@]}" -eq 0 ]]; then
+          echo -e "${RED}✗ ai-draft takes --spec <file> (write a drafted spec) or --from notion-pages|codebase (draft from existing material).${NC}" >&2
           exit 2
         fi
-        "$SRS_CLI" draft --ticket "$TICKET" || exit $?
+        require_srs_cli
+        "$SRS_CLI" "${DRAFT_ACTION[@]}" "${DRAFTING_ARGS[@]}" || exit $?
         print_status_banner "drafting:ai-draft"
         ;;
       human-review)
@@ -1541,10 +1928,7 @@ case "$COMMAND" in
         ;;
       spawning)
         echo -e "${BLUE}→ Spawning phase for #${TICKET}${NC}"
-        if [[ ! -x "$SRS_CLI" ]]; then
-          echo -e "${RED}✗ Expected ${SRS_CLI} to be executable. Run the SRS skill install first.${NC}" >&2
-          exit 2
-        fi
+        require_srs_cli
         SPAWN_ARGS=()
         SPAWN_EPIC_SEEN=0
         SPAWN_PLAN_SEEN=0
@@ -1552,11 +1936,15 @@ case "$COMMAND" in
         while [[ "$SPAWN_INDEX" -lt "${#DRAFTING_ARGS[@]}" ]]; do
           SPAWN_ARG="${DRAFTING_ARGS[$SPAWN_INDEX]}"
           case "$SPAWN_ARG" in
-            --epic|--version|--milestone|--reconciliation-plan|--manifest|--bypass-reason)
+            --epic|--version|--milestone|--complexity|--reconciliation-plan|--manifest|--bypass-reason|--ticket)
               SPAWN_VALUE_INDEX=$((SPAWN_INDEX + 1))
               SPAWN_VALUE="${DRAFTING_ARGS[$SPAWN_VALUE_INDEX]:-}"
               if [[ -z "$SPAWN_VALUE" || "$SPAWN_VALUE" == --* ]]; then
                 echo -e "${RED}✗ ${SPAWN_ARG} requires a value.${NC}" >&2
+                exit 2
+              fi
+              if [[ "$SPAWN_ARG" == "--ticket" && "$SPAWN_VALUE" == "$TICKET" ]]; then
+                echo -e "${RED}✗ #${TICKET} is the drafting ticket, not a delivery parent: --ticket names an existing version Epic.${NC}" >&2
                 exit 2
               fi
               if [[ "$SPAWN_ARG" == "--epic" ]]; then
@@ -1580,10 +1968,6 @@ case "$COMMAND" in
               SPAWN_ARGS+=("$SPAWN_ARG")
               SPAWN_INDEX=$((SPAWN_INDEX + 1))
               ;;
-            --ticket)
-              echo -e "${RED}✗ transition-drafting owns --ticket; do not override #${TICKET}.${NC}" >&2
-              exit 2
-              ;;
             *)
               echo -e "${RED}✗ Unknown spawning option '${SPAWN_ARG}'.${NC}" >&2
               exit 2
@@ -1595,7 +1979,10 @@ case "$COMMAND" in
           echo "  Usage: workflow-cli.sh transition-drafting ${TICKET} spawning --epic <feature-url-or-id> [--version <title-url-or-id>] [--milestone <name>] --reconciliation-plan <path> [--dry-run]" >&2
           exit 2
         fi
-        "$SRS_CLI" spawn --ticket "$TICKET" "${SPAWN_ARGS[@]}" || exit $?
+        # The version Epic owns the Stories — spawn creates it, or adopts the one a previous run
+        # created. The drafting ticket is only referenced: hanging the Stories under it put them
+        # under a Task that `done` closes right away (#855).
+        "$SRS_CLI" spawn --drafting-ticket "$TICKET" "${SPAWN_ARGS[@]}" || exit $?
         print_status_banner "drafting:spawning"
         ;;
       done)
@@ -1633,16 +2020,25 @@ case "$COMMAND" in
     echo "SRS drafting lifecycle (for tickets tagged srs:drafting|srs:update|srs:new):"
     echo "  transition-drafting <ticket> <phase> [phase options]"
     echo "    phase: ai-draft | human-review | spawning | done"
-    echo "    spawning: --epic <feature> [--version <version>] [--milestone <name>] --reconciliation-plan <path> [--dry-run]"
-    echo "    Dispatches to .claude/skills/sf-srs/scripts/srs-cli.sh for draft/spawn."
+    echo "    ai-draft: [--spec <file> | --from notion-pages --ids <ids> | --from codebase [--path <dir>]]"
+    echo "      no option prints the drafting procedure; --spec writes a drafted DraftCandidate[] file"
+    echo "    spawning: --epic <feature> [--version <version>] [--milestone <name>] [--complexity <level>] --reconciliation-plan <path> [--ticket <existing-epic>] [--dry-run]"
+    echo "      the version Epic owns the Stories (created, or adopted on a re-run); the drafting ticket is only referenced"
+    echo "    Dispatches to the sf-srs wrapper (srs-cli.sh) for write/draft/spawn."
     echo ""
     echo "Tool commands (delegated to tool-specific CLI):"
+    echo "  bootstrap <ticket>           Empty repository only: commit the setup on the main branch, create the"
+    echo "                               working branch, and close the ticket on that root commit"
+    echo "  create-ticket <story|task|issue> <title> [--body-file <f>] [--complexity <c>] [--nature <n>] [--milestone <m>]"
+    echo "                               Create a top-level ticket on the board in Backlog, typed and labelled"
     echo "  create-subtask ...           Create a sub-issue/task"
     echo "  create-epic <title> [body]   Create a top-level Epic (no parent)"
     echo "  update-status ...            Update ticket status (SRS-label guarded)"
     echo "  create-pr <ticket> [--draft]  Create pull request"
     echo "  ready-pr <ticket>            Mark pull request ready for review"
     echo "  sync-pr-review <pr>          Sync a verified GitHub ready event to In review"
+    echo "  ai-status <ticket> <step> <pending|success|failure> \"<description>\""
+    echo "                               Publish an AI Testing step on the ticket's pull request"
     echo "  draft-pr <ticket>            Return pull request to draft"
     echo "  list ...                     List tickets"
     echo "  get-labels <ticket>          List every label on a ticket"
@@ -1652,7 +2048,7 @@ case "$COMMAND" in
   *)
     echo -e "${RED}Error: Unknown command '${COMMAND}'${NC}"
     echo ""
-    echo "Available commands: status, next, validate, help, detect-complexity, retag, prepare, test, create-subtask, update-status, create-pr, ready-pr, draft-pr, sync-pr-review, list, get-labels, inspect-srs-tickets, link-subtask, transition-drafting"
+    echo "Available commands: status, next, validate, help, detect-complexity, retag, prepare, test, bootstrap, create-ticket, create-subtask, create-epic, add-to-project, update-status, create-pr, ready-pr, draft-pr, sync-pr-review, ai-status, list, get-labels, inspect-srs-tickets, link-subtask, transition-drafting"
     echo "Run 'workflow-cli.sh help' for usage details"
     exit 1
     ;;

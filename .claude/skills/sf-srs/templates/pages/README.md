@@ -34,13 +34,23 @@ type PageBlock =
 
 Produced by `renderEpicPage(spec)` in this order (five-category shape):
 
+0. `Business Value` and `Scope` (H2 + paragraph each), only when the spec states them; then `Versions` (H2 + list), when the batch declares versions under the feature
 1. `Traceability` (H2) + plain-text code block (ASCII tree `UR → FR → { DS, TC, NFR }`) + explanatory paragraph
 2. `Requirement Types` (H2) + definitions table `Prefix | Type | Description | Example` with one row per UR/FR/DS/TC/NFR
-3. `User Requirements (UR)` (H2) + table `ID | Requirement | Priority | Related FR`, with group-header rows when items carry a `group`
-4. `Functional Requirements (FR)` (H2) + table `ID | Requirement | Priority | Related UR | Related DS`, grouped
-5. `Design Specifications (DS)` (H2) + table `ID | Specification | Related FR`, grouped
+3. `User Requirements (UR)` (H2) + table `ID | Requirement | Priority | Related FR`, with group-header rows when items carry a `group`; Related FR lists the FRs whose `urRefs` name the UR
+4. `Functional Requirements (FR)` (H2) + table `ID | Requirement | Priority | Related UR | Related DS`, grouped. On a feature whose FRs live in its versions, the table lists them with a `Version`
+   column (`ID | Requirement | Version | Priority | Related UR | Related DS`) — `versionFrs`, derived by `write-srs` from the batch, never authored
+5. `Design Specifications (DS)` (H2) + table `ID | Specification | Description | Related FR`, grouped; Related FR joins the DS's own `frRefs` and the FRs whose `dsRefs` name it
 6. `Test Cases (TC)` (H2) + table `ID | Title | Steps | Expected Result | Related FR`
 7. `Non-Functional Requirements (NFR)` (H2) + table `ID | Requirement | Target | Priority | Related FR`, grouped
+
+The UR / DS / TC / NFR items a version or its FR candidates carry (`urs`, `dsItems`, `tcItems`, `nfrItems`) join these tables with a `Version` column inserted third, as the FR table does:
+`versionItems`, derived by `write-srs` from the batch, never authored.
+
+A version page (`parentId` set) opens with the same `Business Value` / `Scope` sections when stated, then `What changed in this version` and its FR table.
+
+These links are computed when `write-srs` writes the page. A page written earlier is not re-rendered. When a batch adds a version to a feature written earlier (its `parentId` is the feature page's URL
+or id), the feature gains the version in its `Versions` list, and the new rows in its tables, in place. A table that predates the `Version` column receives the rows without it.
 
 Empty sections emit a placeholder paragraph (e.g. `No user requirements yet.`) instead of the table. Missing optional fields render as the em-dash cell `—`. Group headers appear as a single-cell row
 carrying the group id followed by empty cells matching the table arity.

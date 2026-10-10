@@ -138,15 +138,15 @@ emit_rules() {
     }
   },
   "patch_shape": {
-    "kind": "add-ur | add-fr | add-ds | add-tc",
-    "pageId": "<epic page id for add-ur / add-fr, FR page id for add-ds / add-tc>",
-    "item": "UrItem | FrSpec | DsItem | TcItem — same shapes as src/builders/srs/types.ts",
+    "kind": "add-ur | add-fr | add-ds | add-tc | add-nfr",
+    "pageId": "<version page id for add-ur / add-fr / add-nfr, FR page id for add-ds / add-tc>",
+    "item": "UrItem | FrSpec | DsItem | TcItem | NfrItem — same shapes as src/builders/srs/types.ts; an FrSpec may carry `change`, the line its version's change list gains",
     "note": "optional free-text annotation appended as a paragraph"
   },
   "scope_limits_v1": {
-    "add_only": "Modifying an existing item (e.g. tightening FR-012) is out of scope — SrsAdapter.updatePage is append-only on Notion. A follow-up SUB will extend the adapter with replace/delete semantics.",
-    "append_placement": "add-ur / add-ds / add-tc append new blocks to the END of the target page under an 'Added …' heading2. The canonical section (User Requirements / Design / Test Cases) is NOT updated in-place. Reviewers fold the appended block back during the next human SRS review.",
-    "add_fr": "Creates a brand-new child page under the Epic via adapter.createFrPage. The Epic page's 'Traceability' table is NOT refreshed (same append-only limitation) — the new FR is still discoverable as a child page."
+    "add_only": "Modifying an existing item (e.g. tightening FR-012) is out of scope: the adapter can only add. Tracked in #945 (update-fr).",
+    "append_placement": "add-ur / add-ds / add-tc / add-nfr go to their table on the feature page, with the version of the target page (#917). Only when the page is not part of the SRS or the table is missing are they appended under an 'Added …' heading; the result's `placed` says which, and `notPlaced` says why.",
+    "add_fr": "Creates the FR page under the target version, then adds its row to the version's FR table, a line to its 'What changed in this version' (the FrSpec's `change`, or 'Adds <id> — <title>'), and its rows to the feature's tables."
   },
   "dogfood_checklist": "After any change to the rules, run a short manual session: drop 5 utterances (one per signal row + one trivial control) and confirm the hook fires exactly on the four signals and skips the trivial one."
 }

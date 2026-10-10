@@ -59,16 +59,16 @@ Each lower-level requirement traces back to a higher-level requirement, ensuring
 
 ## Design Specifications (DS)
 
-| ID               | Specification                    | Related FR                            |
-| ---------------- | -------------------------------- | ------------------------------------- |
-| **Data model**   |                                  |                                       |
-| DS-AUTH-001      | Data model — User                | FR-AUTH-001, FR-AUTH-002              |
-| DS-AUTH-002      | Data model — UserToken           | FR-AUTH-001, FR-AUTH-002, FR-AUTH-003 |
-| **API contract** |                                  |                                       |
-| DS-AUTH-004      | API contract — POST /auth/signin | FR-AUTH-001, FR-AUTH-003              |
-| DS-AUTH-005      | API contract — POST /auth/signup | FR-AUTH-002                           |
-| **UI form**      |                                  |                                       |
-| DS-AUTH-006      | UI form — SignInPage             | FR-AUTH-001                           |
+| ID               | Specification                    | Description                                                 | Related FR                            |
+| ---------------- | -------------------------------- | ----------------------------------------------------------- | ------------------------------------- |
+| **Data model**   |                                  |                                                             |                                       |
+| DS-AUTH-001      | Data model — User                | Email unique and case-insensitive, password hashed (bcrypt) | FR-AUTH-001, FR-AUTH-002              |
+| DS-AUTH-002      | Data model — UserToken           | Refresh and validation tokens, one row per issued token     | FR-AUTH-001, FR-AUTH-002, FR-AUTH-003 |
+| **API contract** |                                  |                                                             |                                       |
+| DS-AUTH-004      | API contract — POST /auth/signin | Sets httpOnly access and refresh cookies on success         | FR-AUTH-001, FR-AUTH-003              |
+| DS-AUTH-005      | API contract — POST /auth/signup | Creates the user unvalidated and sends the validation mail  | FR-AUTH-002                           |
+| **UI form**      |                                  |                                                             |                                       |
+| DS-AUTH-006      | UI form — SignInPage             | Email and password fields, generic error on failure         | FR-AUTH-001                           |
 
 ## Test Cases (TC)
 

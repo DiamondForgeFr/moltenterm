@@ -1,15 +1,18 @@
 {
-  "_comment": "feature -> version -> FR in one write-srs run. The order matters: a page can only reference a logical id declared before it in the batch.",
+  "_comment": "feature -> version -> FR in one write-srs run. The order matters: a page can only reference a logical id declared before it in the batch. A version's items (nfrItems) and an FR candidate's items (urs, dsItems, tcItems) are listed in the feature's tables with the version (#900). To add a version to a feature written earlier, set the version's parentId to that feature page's URL or id (#899).",
   "candidates": [
     {
       "kind": "epic",
       "confidence": "high",
-      "source": { "kind": "notion-pages" },
+      "source": {
+        "kind": "notion-pages"
+      },
       "epic": {
         "id": "FEAT-LIVE",
         "title": "Réunion live : transcript & notes",
         "parentPageId": "<srs-root-page-id>",
         "businessValue": "A participant follows a meeting without taking notes by hand, and leaves with a usable record of it.",
+        "scope": "Live transcript and AI notes during a meeting, and the record kept afterwards. Scheduling and recording consent stay out of scope.",
         "urs": [],
         "frs": []
       }
@@ -18,7 +21,9 @@
       "_comment": "A version. `parentId` is what makes it one — position decides the level, never the title. Call it MVP, V1 or 'v2 — Titre'; the tooling reads where it sits.",
       "kind": "epic",
       "confidence": "high",
-      "source": { "kind": "notion-pages" },
+      "source": {
+        "kind": "notion-pages"
+      },
       "epic": {
         "id": "LIVE-V2",
         "parentId": "FEAT-LIVE",
@@ -29,8 +34,25 @@
         },
         "urs": [],
         "frs": [
-          { "id": "FR-LIVE-007", "title": "Topic-aware AI note taking", "priority": "P1" },
-          { "id": "FR-LIVE-008", "title": "Per-topic consolidation", "priority": "P2" }
+          {
+            "id": "FR-LIVE-007",
+            "title": "Topic-aware AI note taking",
+            "priority": "P1"
+          },
+          {
+            "id": "FR-LIVE-008",
+            "title": "Per-topic consolidation",
+            "priority": "P2"
+          }
+        ],
+        "nfrItems": [
+          {
+            "id": "NFR-LIVE-003",
+            "title": "Topic notes stay readable during the meeting",
+            "target": "Notes refresh ≤ 2 s after a topic change (p95)",
+            "priority": "P2",
+            "frRefs": ["FR-LIVE-007"]
+          }
         ]
       }
     },
@@ -38,7 +60,9 @@
       "_comment": "FRs attach to the VERSION, never to the feature. An FR pointing at FEAT-LIVE here is refused: Epic = feature + version.",
       "kind": "fr",
       "confidence": "high",
-      "source": { "kind": "notion-pages" },
+      "source": {
+        "kind": "notion-pages"
+      },
       "fr": {
         "parentEpicId": "LIVE-V2",
         "fr": {
@@ -46,8 +70,35 @@
           "title": "Topic-aware AI note taking",
           "description": "Live notes are grouped under the topic being discussed rather than appended in order of arrival.",
           "priority": "P1",
-          "acceptanceCriteria": ["A topic change creates a new group.", "A note arriving after a topic change lands under the new topic."]
-        }
+          "complexity": "medium",
+          "acceptanceCriteria": ["A topic change creates a new group.", "A note arriving after a topic change lands under the new topic."],
+          "urRefs": ["UR-LIVE-004"],
+          "dsRefs": ["DS-LIVE-002"]
+        },
+        "urs": [
+          {
+            "id": "UR-LIVE-004",
+            "narrative": "The participant sees the notes grouped by the topic being discussed",
+            "priority": "P1"
+          }
+        ],
+        "dsItems": [
+          {
+            "id": "DS-LIVE-002",
+            "title": "Topic segmentation of the transcript",
+            "description": "The transcript is cut into topic segments as it streams; notes attach to the open segment.",
+            "frRefs": ["FR-LIVE-007"]
+          }
+        ],
+        "tcItems": [
+          {
+            "id": "TC-LIVE-005",
+            "title": "Notes follow the topic",
+            "steps": ["Start a meeting", "Change topic twice"],
+            "expectedResult": "Three topic groups of notes, in order",
+            "frRefs": ["FR-LIVE-007"]
+          }
+        ]
       }
     }
   ]

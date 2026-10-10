@@ -1,3 +1,10 @@
+---
+name: sf-tool-github-projects
+description: >-
+  GitHub Projects V2 adapter of the workflow: create tickets, subtasks and epics, put tickets on the board, move statuses, set complexity, issue types and milestones, open and track pull requests,
+  through github-projects-cli.sh. Triggers on "github project", "create ticket", "create subtask", "update ticket status", "github issue", "project board", "set complexity".
+---
+
 # GitHub Projects Tool
 
 Integration with GitHub Projects V2 for ticket management, status transitions, and complexity labeling.
@@ -33,28 +40,34 @@ conversation. A French-speaking session still files English tickets unless the p
 
 All via `.claude/skills/sf-tool-github-projects/github-projects-cli.sh <cmd> [args]`.
 
-| Command                                  | Purpose                                                                                           |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `create-subtask <parent> <title> [body]` | Create a GitHub sub-issue linked to parent via GraphQL `addSubIssue`                              |
-| `status <ticket>`                        | Read status from Projects V2 board                                                                |
-| `update-status <ticket> <status-name>`   | Write status on Projects V2 board (`gh project item-edit`)                                        |
-| `set-complexity <ticket> <level>`        | Set label `complexity: <bug\|low\|medium\|complex>` (removes any existing complexity label first) |
-| `get-complexity <ticket>`                | Read current complexity label                                                                     |
-| `get-labels <ticket>`                    | Print every label name, one per line (used by `sf-workflow` SRS guard)                            |
-| `list-incomplete-children <parent>`      | List native children whose configured project Status is not exactly `Done`                        |
-| `get-parent <child>`                     | Read a ticket's native parent issue                                                               |
-| `get-issue-type <ticket>`                | Read the native organization issue type                                                           |
-| `get-ticket <ticket>`                    | Print title + body (used by `detect-complexity.sh`)                                               |
-| `create-pr <ticket> [--draft]`           | Push branch + open/reuse PR against `workingBranch`; preserve existing draft state                |
-| `list [status]`                          | List project items, optionally filtered by status                                                 |
-| `ensure-issue-types [--dry-run]`         | Idempotently create org-level issue types from `workflow.issueTypes` in `.saasfoundry.json`       |
-| `assign-type <issue> <type>`             | Attach a native GitHub Issue Type chip (sf-epic/sf-story/sf-task/sf-issue) to the issue           |
-| `delete-issue-type <type>`               | Remove an issue type from the org (cleanup of legacy types like Bug/Feature)                      |
+| Command                                                                                                            | Purpose                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create-ticket <story\|task\|issue> <title> [--body-file <f>] [--complexity <c>] [--nature <n>] [--milestone <m>]` | Create a top-level ticket on the board in Backlog, with its issue type and labels; `--bypass-srs <reason>` on SRS projects                    |
+| `create-epic <title> [body]`                                                                                       | Create a top-level Epic (no parent)                                                                                                           |
+| `create-subtask <parent> <title> [body] [--milestone <m>]`                                                         | Create a GitHub sub-issue linked to parent via GraphQL `addSubIssue`; it joins the parent's milestone unless `--milestone` names another      |
+| `status <ticket>`                                                                                                  | Read status from Projects V2 board                                                                                                            |
+| `update-status <ticket> <status-name>`                                                                             | Write status on Projects V2 board (`gh project item-edit`); on `Done`, also close the issue when the board has not, and fail if it stays open |
+| `add-to-project <ticket> [--status <s>]`                                                                           | Put an issue on the board (default Backlog; one already there keeps its status)                                                               |
+| `set-complexity <ticket> <level>`                                                                                  | Set label `complexity: <bug\|low\|medium\|complex>` (removes any existing complexity label first)                                             |
+| `get-complexity <ticket>`                                                                                          | Read current complexity label                                                                                                                 |
+| `get-labels <ticket>`                                                                                              | Print every label name, one per line (used by `sf-workflow` SRS guard)                                                                        |
+| `list-incomplete-children <parent>`                                                                                | List native children whose configured project Status is not exactly `Done`                                                                    |
+| `get-parent <child>`                                                                                               | Read a ticket's native parent issue                                                                                                           |
+| `get-issue-type <ticket>`                                                                                          | Read the native organization issue type                                                                                                       |
+| `get-ticket <ticket>`                                                                                              | Print title + body (used by `detect-complexity.sh`)                                                                                           |
+| `create-pr <ticket> [--draft]`                                                                                     | Push branch + open/reuse PR against `workingBranch`; preserve existing draft state                                                            |
+| `list [status]`                                                                                                    | List project items, optionally filtered by status                                                                                             |
+| `ensure-issue-types [--dry-run]`                                                                                   | Idempotently create org-level issue types from `workflow.issueTypes` in `.saasfoundry.json`                                                   |
+| `assign-type <issue> <type>`                                                                                       | Attach a native GitHub Issue Type chip (sf-epic/sf-story/sf-task/sf-issue) to the issue                                                       |
+| `delete-issue-type <type>`                                                                                         | Remove an issue type from the org (cleanup of legacy types like Bug/Feature)                                                                  |
 
 Status names are case-insensitive — the CLI matches against the options defined on the board.
 
-`ready-pr <ticket>` verifies the pushed branch and promotes its existing draft PR; retries are idempotent. Use it only after developer validation when Human Testing applies. `draft-pr <ticket>`
-explicitly returns a ready PR to draft for further human testing, with the same branch/head checks.
+`ready-pr <ticket>` verifies the pushed branch and promotes its existing draft PR; retries are idempotent. Run it yourself only on a route without Human Testing (`nature:internal`, Solo), at the end
+of AI Testing; after Human Testing, the developer marks the PR ready, never you. `draft-pr <ticket>` explicitly returns a ready PR to draft for further human testing, with the same branch/head checks.
+
+A project that declares `workflow.localCi.requiredStatuses` in `.saasfoundry.json` gates review on its local CI: `create-pr` without `--draft` and `ready-pr` refuse a head commit on which any declared
+status is missing or not green, and say which. A draft still opens early. `--skip-local-ci "<reason>"` bypasses the gate explicitly and records the reason on the pull request.
 
 ## How the orchestration skill uses this CLI
 
@@ -151,7 +164,8 @@ $CLI assign-type 42 Story
 $CLI delete-issue-type Bug
 ```
 
-`create-subtask` automatically calls `assign-type` for the matching native type after creation (best-effort — subtask creation never fails because of a type-assignment hiccup).
+`create-subtask` automatically calls `assign-type` for the matching native type after creation (best-effort — subtask creation never fails because of a type-assignment hiccup). It also puts the child
+on its parent's milestone, or on the one `--milestone` names, and prints which; a failed assignment is a warning with the command to rerun.
 
 **Permissions** — `ensure-issue-types`, `assign-type`, and `delete-issue-type` write to org-level config and require the `admin:org` scope on the `gh` token. Refresh once with:
 
@@ -172,6 +186,7 @@ Without that scope the CLI still works for read paths and prints an actionable m
 
 **`Could not load project <N> for owner <X>`** Check `.saasfoundry.json` → `workflow.projectUrl` matches a real project. Run `gh project list --owner <owner>` to see what you have access to.
 
-**`Ticket #N is not on project board`** The issue exists but hasn't been added to the project. Add it via the board UI or `gh project item-add`.
+**`Ticket #N is not on project board`** The issue exists but hasn't been added to the project. Add it with `github-projects-cli.sh add-to-project <N>` (Backlog; an issue already on the board keeps its
+status) or via the board UI. `sf srs spawn` adds the tickets it creates.
 
 **`Unknown status '<name>'`** Status must exactly match an option on the board (case is ignored). The CLI prints the available options on error.

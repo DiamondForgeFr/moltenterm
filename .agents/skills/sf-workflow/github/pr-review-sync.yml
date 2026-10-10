@@ -2,7 +2,9 @@ name: Sync PR review status
 
 on:
   pull_request_target:
-    types: [ready_for_review]
+    # A pull request opened ready for review never emits ready_for_review (#876);
+    # a merge into the PR target moves the ticket to Done (#845).
+    types: [opened, reopened, ready_for_review, closed]
 
 permissions:
   contents: read
@@ -13,14 +15,14 @@ concurrency:
 
 jobs:
   sync-review:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'closed' && github.event.pull_request.merged == true || github.event.action != 'closed' && github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       # workflow_sha is the trusted commit that supplied this default-branch
       # workflow. github.sha would instead point at the PR base (master for an
       # RC) and could load a stale lifecycle CLI.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.workflow_sha }}
           persist-credentials: false
