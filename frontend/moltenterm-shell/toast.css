@@ -1,0 +1,44 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The toast stack (FR-SHELL-055, DS-SHELL-097). A toast rises into place in the panels' 240 ms; the duration token is
+   0 under reduced motion, so it simply appears (NFR-SHELL-027). */
+.molten-toast {
+    animation: molten-toast-in var(--mt-duration-slow) var(--mt-ease);
+}
+
+@keyframes molten-toast-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+}
+
+/* The tone's edge: a short bar inside the left border, beside the tone's icon, so the kind reads at a glance without
+   tinting the whole toast. Information keeps the plain border. */
+.molten-toast[data-tone="done"],
+.molten-toast[data-tone="waiting"],
+.molten-toast[data-tone="error"] {
+    --mt-toast-edge: var(--mt-state-done);
+}
+
+.molten-toast[data-tone="waiting"] {
+    --mt-toast-edge: var(--mt-state-waiting);
+}
+
+.molten-toast[data-tone="error"] {
+    --mt-toast-edge: var(--mt-state-error);
+}
+
+.molten-toast[data-tone="done"]::before,
+.molten-toast[data-tone="waiting"]::before,
+.molten-toast[data-tone="error"]::before {
+    content: "";
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    left: -1px;
+    width: 2px;
+    border-radius: 9999px;
+    background-color: var(--mt-toast-edge);
+}

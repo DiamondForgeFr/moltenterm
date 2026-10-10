@@ -145,11 +145,13 @@ function AgentLine({ info }: { info: AgentStateInfo }) {
     const paneState = usePaneStatus(folder, null);
     const branch = folder ? makePaneView(folder, paneState, null).branch : "";
     const goTo = () =>
-        MoltentermNotifications.getInstance().goTo({
-            workspaceid: info.workspaceid,
-            tabid: info.tabid,
-            blockid: info.blockid,
-        });
+        fireAndForget(() =>
+            MoltentermNotifications.getInstance().goTo({
+                workspaceid: info.workspaceid,
+                tabid: info.tabid,
+                blockid: info.blockid,
+            })
+        );
     return (
         <button
             type="button"

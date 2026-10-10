@@ -145,6 +145,37 @@ export function visibleActions(entry: MoltentermNotification): NotificationActio
     return actions.filter((a) => a.lasting);
 }
 
+export const GoToTerminalActionId = "goto-terminal";
+export const GoToTerminalLabel = "Go to the terminal";
+
+// An agent waiting for an answer, or stopped on an error, is answered in its terminal (FR-SHELL-055): its notification
+// offers the way there first, whichever agent raised it and whatever wavesrv stored with it.
+export function checkGoToTerminal(entry: MoltentermNotification): boolean {
+    return (
+        entry.source === "agent" &&
+        !!entry.blockid &&
+        (entry.kind === "warning" || entry.kind === "error") &&
+        entry.resolved == null &&
+        entry.archived == null
+    );
+}
+
+export function displayActions(entry: MoltentermNotification): NotificationAction[] {
+    const actions = visibleActions(entry);
+    if (!checkGoToTerminal(entry) || actions.some((a) => a.kind === "open" && a.blockid === entry.blockid)) {
+        return actions;
+    }
+    const goTo: NotificationAction = {
+        id: GoToTerminalActionId,
+        label: GoToTerminalLabel,
+        kind: "open",
+        workspaceid: entry.workspaceid,
+        tabid: entry.tabid,
+        blockid: entry.blockid,
+    };
+    return [goTo, ...actions].slice(0, MaxActions);
+}
+
 export type WorkspaceTabs = { oid: string; tabids?: string[] };
 
 // Where a notification raised by a view belongs (#80). Since #68 the views of a workspace left stay alive while the

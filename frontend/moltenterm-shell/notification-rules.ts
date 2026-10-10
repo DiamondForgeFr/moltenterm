@@ -1,10 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The notification center's arbitration (FR-MC-019), as Notulia's notificationAttention.ts and notificationPrefs.ts:
-// what may open the panel and for how long, and what each subject may say. Pure, so the rules can be read and tested
-// apart from the timers and the store that apply them. Mirrored in pkg/molten/notifications.go for what wavesrv
-// publishes.
+// The notification center's arbitration (FR-MC-019, FR-SHELL-055), after Notulia's notificationPrefs.ts: what toasts
+// and for how long, and what each subject may say. Pure, so the rules can be read and tested apart from the timers
+// and the store that apply them. Mirrored in pkg/molten/notifications.go for what wavesrv publishes.
 
 import {
     MoltentermNotification,
@@ -12,40 +11,19 @@ import {
     MoltentermNotificationSource,
 } from "./notifications-model";
 
-// Only what asks for a decision interrupts: information opening the panel would stop meaning anything.
-export function deservesAttention(kind: MoltentermNotificationKind): boolean {
-    return kind === "warning" || kind === "error";
-}
+// Each arrival shows as a toast (FR-SHELL-055, DS-SHELL-097, toast-model.ts) instead of opening the panel. Messages
+// published back to back are looked at together, so a stack of them shows at once.
+export const ToastCoalesceMs = 250;
 
-// Long enough to read one short message; each extra one adds reading time; past the ceiling it would be a modal
-// nobody asked for, and the bell keeps the messages anyway.
-export const AttentionBaseMs = 2000;
-export const AttentionPerExtraMs = 700;
-export const AttentionMaxMs = 5000;
-// Messages published back to back make one appearance.
-export const AttentionCoalesceMs = 250;
-
-export function attentionDuration(count: number): number {
-    const n = Math.max(1, count);
-    return Math.min(AttentionMaxMs, AttentionBaseMs + (n - 1) * AttentionPerExtraMs);
-}
-
-// What arrived since the last look, worth an appearance: new or changed, unread, still in the list, a warning or an
-// error. `seen` maps an id to the `updated` time already looked at.
-export function attentionArrivals(entries: MoltentermNotification[], seen: Map<string, number>): string[] {
+// What arrived since the last look, worth a toast: new or changed, unread, still in the list. A quiet subject's
+// message is stored read, so it never toasts. `seen` maps an id to the `updated` time already looked at.
+export function toastArrivals(entries: MoltentermNotification[], seen: Map<string, number>): string[] {
     return entries
-        .filter(
-            (e) =>
-                !e.read &&
-                e.archived == null &&
-                e.resolved == null &&
-                deservesAttention(e.kind) &&
-                seen.get(e.id) !== e.updated
-        )
+        .filter((e) => !e.read && e.archived == null && e.resolved == null && seen.get(e.id) !== e.updated)
         .map((e) => e.id);
 }
 
-// How a message is said: in the center with the badge and the appearance; kept already read; or not stored at all.
+// How a message is said: in the center with the badge and a toast; kept already read; or not stored at all.
 export type Delivery = "notify" | "quiet" | "off";
 
 export type NotificationSubject = "agents" | "builds" | "ci" | "releases" | "updates" | "mods" | "dependencies";

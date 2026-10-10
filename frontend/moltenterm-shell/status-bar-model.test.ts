@@ -193,6 +193,14 @@ describe("makePaneView", () => {
     it("hides the verdict of a project without local CI", () => {
         expect(makePaneView("/r", { dir: "/r", root: "/r", branch: "main", sha: "1" }, workspace({})).ci).toBeNull();
     });
+
+    it("says nothing of CI until a run exists on this code (FR-SHELL-055 AC5)", () => {
+        const state = { dir: "/r", root: "/r", branch: "main", sha: "1", ci: "missing" };
+        expect(makePaneView("/r", state, workspace({})).ci).toBeNull();
+        expect(makePaneView("/r", { ...state, ci: "running" }, workspace({})).ci).toMatchObject({
+            label: "CI running",
+        });
+    });
 });
 
 describe("keepPaneState", () => {

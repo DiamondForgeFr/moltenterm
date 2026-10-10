@@ -45,6 +45,7 @@ import {
 import { openMoltentermView } from "./open-view";
 import { checkProjectRoute, checkProjectSource } from "./project/project-model";
 import { showProjectTab } from "./project/project-tab";
+import { FocusBlockMetaKey } from "./sessions/sessions-model";
 
 // What a named action reports: resolve closes the notification's situation.
 export type NotificationGestureResult = { ok: boolean; resolve?: boolean; error?: string };
@@ -169,14 +170,21 @@ export class MoltentermNotifications {
         this.write(clearArchiveUpdate(this.entries()));
     }
 
-    // Goes to a place: its workspace, then its tab, then its block.
-    goTo(location: Location): void {
+    // Goes to a place: its workspace, then its tab, then its block. A block in another tab is focused by the renderer
+    // of that tab, through the request it reads in the tab's meta (sessions/pane-focus.ts).
+    async goTo(location: Location): Promise<void> {
         const workspace = globalStore.get(atoms.workspace);
-        if (location.workspaceid && location.workspaceid !== workspace?.oid) {
+        const otherWorkspace = !!location.workspaceid && location.workspaceid !== workspace?.oid;
+        const tabId = otherWorkspace
+            ? null
+            : notificationTabToActivate(location, workspace, globalStore.get(activeTabIdAtom));
+        if ((otherWorkspace || tabId != null) && location.blockid && location.tabid) {
+            await requestBlockFocus(location.tabid, location.blockid);
+        }
+        if (otherWorkspace) {
             getApi().switchWorkspace(location.workspaceid);
             return;
         }
-        const tabId = notificationTabToActivate(location, workspace, globalStore.get(activeTabIdAtom));
         if (tabId != null) {
             getApi().setActiveTab(tabId);
             return;
@@ -197,7 +205,7 @@ export class MoltentermNotifications {
         if (checkProjectSource(entry) && (await showProjectTabSafely(entry.workspaceid))) {
             return;
         }
-        this.goTo(entry);
+        await this.goTo(entry);
     }
 
     private setRunning(key: string, running: boolean): void {
@@ -238,7 +246,7 @@ export class MoltentermNotifications {
                 await openMoltentermView(action.view);
                 return;
             }
-            this.goTo(action);
+            await this.goTo(action);
             return;
         }
         const gesture = gestures.get(action.gesture);
@@ -261,6 +269,17 @@ export class MoltentermNotifications {
         } finally {
             this.setRunning(runKey, false);
         }
+    }
+}
+
+async function requestBlockFocus(tabId: string, blockId: string): Promise<void> {
+    try {
+        await RpcApi.SetMetaCommand(TabRpcClient, {
+            oref: makeORef("tab", tabId),
+            meta: { [FocusBlockMetaKey]: { blockid: blockId, ts: Date.now() } } as MetaType,
+        });
+    } catch (e) {
+        console.log("focus request:", e?.message ?? e);
     }
 }
 

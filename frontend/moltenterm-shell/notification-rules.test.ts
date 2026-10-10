@@ -2,15 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import {
-    attentionArrivals,
-    attentionDuration,
-    deliveryFor,
-    deliveryOf,
-    deservesAttention,
-    parsePrefs,
-    subjectOf,
-} from "./notification-rules";
+import { deliveryFor, deliveryOf, parsePrefs, subjectOf, toastArrivals } from "./notification-rules";
 import { MoltentermNotification } from "./notifications-model";
 import { overallProgress, WorkItem } from "./running-work";
 
@@ -18,19 +10,8 @@ function entry(id: string, extra: Partial<MoltentermNotification> = {}): Moltent
     return { id, source: "build", title: id, kind: "warning", time: 1, updated: 1, read: false, ...extra };
 }
 
-describe("notification attention (FR-MC-019)", () => {
-    it("opens only for what asks for a decision, for 2 to 5 seconds", () => {
-        expect(deservesAttention("error")).toBe(true);
-        expect(deservesAttention("warning")).toBe(true);
-        expect(deservesAttention("info")).toBe(false);
-        expect(deservesAttention("success")).toBe(false);
-        expect(attentionDuration(0)).toBe(2000);
-        expect(attentionDuration(1)).toBe(2000);
-        expect(attentionDuration(3)).toBe(3400);
-        expect(attentionDuration(20)).toBe(5000);
-    });
-
-    it("names the new or changed warnings and errors that are still unread", () => {
+describe("notification toasts (FR-SHELL-055)", () => {
+    it("names the new or changed notifications that are still unread, whatever their kind", () => {
         const seen = new Map([
             ["old", 1],
             ["changed", 1],
@@ -40,11 +21,12 @@ describe("notification attention (FR-MC-019)", () => {
             entry("changed", { updated: 2 }),
             entry("new"),
             entry("info", { kind: "info" }),
+            entry("done", { kind: "success" }),
             entry("read", { read: true }),
             entry("archived", { archived: 3 }),
             entry("resolved", { resolved: 3 }),
         ];
-        expect(attentionArrivals(entries, seen)).toEqual(["changed", "new"]);
+        expect(toastArrivals(entries, seen)).toEqual(["changed", "new", "info", "done"]);
     });
 });
 
