@@ -243,7 +243,8 @@ export function MoltenHeaderLead({
     const blockId = state.blockId;
     return (
         <>
-            <div className="block-frame-default-header-iconview">
+            {/* In a narrow panel the context gives way first, then the pill: the title keeps its room. */}
+            <div className="block-frame-default-header-iconview !max-w-[45%] !shrink-0 !overflow-hidden">
                 {icon}
                 {!state.title ? null : state.agentTitle && !state.preview ? (
                     <button

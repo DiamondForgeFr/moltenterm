@@ -15,7 +15,8 @@
 .molten-header-context {
     display: flex;
     min-width: 0;
-    flex-shrink: 2;
+    flex-shrink: 4;
+    overflow: hidden;
     align-items: center;
     gap: var(--mt-space-4);
     font-size: var(--mt-text-12);
@@ -37,8 +38,13 @@
     padding-right: var(--mt-space-4);
 }
 
-/* Wave's own header text (a path, a command, a URL) is context too. */
-.block-frame-default-header .block-frame-textelems-wrapper .block-frame-text {
+/* Wave's own header text (a path, a command, a URL) is context too. The selector matches block.scss's nesting so it
+   wins over Wave's 11 px at 70 %. */
+.block.block-frame-default
+    .block-frame-default-inner
+    .block-frame-default-header
+    .block-frame-textelems-wrapper
+    .block-frame-text {
     font-size: var(--mt-text-12);
     font-weight: var(--mt-weight-regular);
     color: var(--mt-text-muted);
