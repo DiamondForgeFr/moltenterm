@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The top tab bar's geometry (FR-SHELL-056, DS-SHELL-098). Wave gives every tab one width; MoltenTerm sizes each tab
-// to its content between 96 and 200 px and draws the pinned Project tab as a 32 px icon. When the strip is too short,
-// the widest tabs give way first (down to 96 px), so short names never get cut before long ones; only then does the
-// strip scroll. Kept apart from tabbar.tsx so the maths can be tested without the app.
+// to its content between 64 and 200 px and draws the pinned Project tab as a 32 px icon. A short name's tab hugs it
+// (DS-SHELL-098's 96 px floor left holes after "~" or "e2e"). When the strip is too short, the widest tabs give way
+// first, down to 96 px, so short names never get cut before long ones and no name is cut below a readable width;
+// only then does the strip scroll. Kept apart from tabbar.tsx so the maths can be tested without the app.
 
-export const TabMinWidth = 96;
+export const TabMinWidth = 64;
+export const TabShrinkMinWidth = 96;
 export const TabMaxWidth = 200;
 export const PinnedTabWidth = 32;
 
@@ -28,7 +30,8 @@ export function tabOffsets(widths: number[]): number[] {
     return offsets;
 }
 
-// The largest cap at which the capped widths fit in `space`, never below the minimum.
+// The largest cap at which the capped widths fit in `space`, never below the shrink floor (tabs already narrower
+// than the cap keep their width).
 function fittingCap(widths: number[], space: number): number {
     const sorted = [...widths].sort((a, b) => a - b);
     let rest = space;
@@ -36,7 +39,7 @@ function fittingCap(widths: number[], space: number): number {
         const remaining = sorted.length - i;
         const cap = Math.floor(rest / remaining);
         if (cap < sorted[i]) {
-            return Math.max(TabMinWidth, cap);
+            return Math.max(TabShrinkMinWidth, cap);
         }
         rest -= sorted[i];
     }

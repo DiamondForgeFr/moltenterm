@@ -11,22 +11,30 @@ import {
     TabMaxWidth,
     TabMinWidth,
     tabOffsets,
+    TabShrinkMinWidth,
 } from "./tab-layout";
 
 describe("tab widths (FR-SHELL-056 AC1, DS-SHELL-098)", () => {
-    it("follows the content between 96 and 200 px", () => {
+    it("follows the content between 64 and 200 px", () => {
+        expect(TabMinWidth).toBe(64);
         expect(clampTabWidth(40)).toBe(TabMinWidth);
+        expect(clampTabWidth(70.2)).toBe(71);
         expect(clampTabWidth(131.2)).toBe(132);
         expect(clampTabWidth(480)).toBe(TabMaxWidth);
         expect(clampTabWidth(NaN)).toBe(TabMinWidth);
     });
 
     it("lays tabs side by side at their own widths with room to spare", () => {
-        const layout = layoutTabs([{ natural: 60 }, { natural: 150 }, { natural: 400 }], 1000);
-        expect(layout.widths).toEqual([96, 150, 200]);
-        expect(layout.offsets).toEqual([0, 96, 246]);
-        expect(layout.total).toBe(446);
+        const layout = layoutTabs([{ natural: 50 }, { natural: 70 }, { natural: 150 }, { natural: 400 }], 1000);
+        expect(layout.widths).toEqual([64, 70, 150, 200]);
+        expect(layout.offsets).toEqual([0, 64, 134, 284]);
+        expect(layout.total).toBe(484);
         expect(layout.scrollable).toBe(false);
+    });
+
+    it("keeps short tabs at their own width while the long ones shrink", () => {
+        const layout = layoutTabs([{ natural: 70 }, { natural: 200 }, { natural: 200 }], 330);
+        expect(layout.widths).toEqual([70, 130, 130]);
     });
 
     it("draws the pinned Project tab at 32 px whatever its content", () => {
@@ -47,12 +55,10 @@ describe("tab widths (FR-SHELL-056 AC1, DS-SHELL-098)", () => {
         expect(layout.widths).toEqual([32, 150, 150]);
     });
 
-    it("never goes under 96 px and scrolls instead", () => {
-        const layout = layoutTabs(
-            Array.from({ length: 10 }, () => ({ natural: 180 })),
-            500
-        );
-        expect(new Set(layout.widths)).toEqual(new Set([TabMinWidth]));
+    it("never shrinks a name under 96 px and scrolls instead", () => {
+        const layout = layoutTabs([{ natural: 70 }, ...Array.from({ length: 10 }, () => ({ natural: 180 }))], 500);
+        expect(layout.widths[0]).toBe(70);
+        expect(new Set(layout.widths.slice(1))).toEqual(new Set([TabShrinkMinWidth]));
         expect(layout.scrollable).toBe(true);
     });
 });
