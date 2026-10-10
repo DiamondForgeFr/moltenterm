@@ -24,6 +24,7 @@ function ToastItem({ toast }: { toast: Toast }) {
     const tone = toneOf(toast.kind);
     const [running, setRunning] = useState<string>(null);
     const [held, setHeld] = useState(false);
+    const [thumbFailed, setThumbFailed] = useState(false);
     const remaining = useRef(ToastDismissMs);
     const started = useRef(0);
 
@@ -88,14 +89,25 @@ function ToastItem({ toast }: { toast: Toast }) {
                 }
             }}
         >
-            <i
-                aria-hidden
-                className={cn(
-                    "fa fa-solid mt-px w-3.5 shrink-0 text-center text-icon-14",
-                    `fa-${tone.icon}`,
-                    tone.colorClass
-                )}
-            />
+            {toast.thumbnail && !thumbFailed ? (
+                <img
+                    src={toast.thumbnail}
+                    alt=""
+                    draggable={false}
+                    data-role="toast-thumbnail"
+                    onError={() => setThumbFailed(true)}
+                    className="h-8 w-8 shrink-0 rounded-6 object-cover"
+                />
+            ) : (
+                <i
+                    aria-hidden
+                    className={cn(
+                        "fa fa-solid mt-px w-3.5 shrink-0 text-center text-icon-14",
+                        `fa-${tone.icon}`,
+                        tone.colorClass
+                    )}
+                />
+            )}
             <span className="sr-only">{tone.label}: </span>
             <div className="min-w-0 flex-1">
                 {toast.onOpen ? (

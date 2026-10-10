@@ -188,10 +188,16 @@ export function keepAwakeSessions(state: KeepAwakeState): KeepAwakeSession[] {
 
 export type SleepPolicyChoice = { policy: SleepPolicy; label: string; detail: string };
 
+// The popover's one sentence (DS-SHELL-101): the segmented control of the policies completes it.
+export function sleepPolicySentence(platform: string): string {
+    return `Keep ${platform === "darwin" ? "this Mac" : "this computer"} awake when a terminal asks`;
+}
+
+// The labels answer that sentence; each detail is its segment's tooltip.
 export function sleepPolicyChoices(platform: string): SleepPolicyChoice[] {
     const it = computerName(platform);
     return [
-        { policy: "allow", label: "Allow", detail: "Terminals' blocks go through." },
+        { policy: "allow", label: "Always", detail: "Terminals' blocks go through." },
         {
             policy: "untilworkends",
             label: "Until work ends",
@@ -202,7 +208,7 @@ export function sleepPolicyChoices(platform: string): SleepPolicyChoice[] {
         },
         {
             policy: "letsleep",
-            label: "Let it sleep",
+            label: "Never",
             detail: `Terminals' blocks are stopped; ${it} sleeps as planned and the work goes on after wake.`,
         },
     ];

@@ -19,7 +19,11 @@ vi.mock("./workspace-edit", () => ({
     pickUpWorkspaceEdit: () => false,
 }));
 vi.mock("./workspace-reset", () => ({ askResetWorkspace: () => {} }));
-vi.mock("./workspace-project-store", () => ({ chooseMoltentermPath: async () => null }));
+vi.mock("./workspace-project-store", () => ({
+    chooseMoltentermPath: async () => null,
+    findProjectLogos: async () => [],
+    setWorkspaceLogo: async () => {},
+}));
 vi.mock("./workspace-project-section", () => ({
     WorkspaceProjectBlock: () => <div data-stub="project">Link a project…</div>,
     WorkspaceFolderLine: () => <div data-stub="folder">Change…</div>,
@@ -27,16 +31,16 @@ vi.mock("./workspace-project-section", () => ({
 // The real frame portals into document.body; the sheet's content is what is checked here.
 vi.mock("./dialog-frame", () => ({
     useEscape: () => {},
-    DialogFrame: ({ role, title, subtitle, widthClass, children, buttons }: any) => (
+    DialogFrame: ({ role, title, subtitle, subtitleClass, widthClass, children, buttons }: any) => (
         <div role="dialog" aria-label={title} data-role={role} data-width={widthClass}>
-            <div data-subtitle="1">{subtitle}</div>
+            <div data-subtitle={subtitleClass}>{subtitle}</div>
             {children}
             {buttons}
         </div>
     ),
 }));
 
-import { ColourChoices, IconChoices, WorkspaceEditSheet } from "./workspace-edit-sheet";
+import { ColourChoices, IconChoices, ImagePane, initialIconMode, WorkspaceEditSheet } from "./workspace-edit-sheet";
 
 const ws = { oid: "w1", name: "Client A", icon: "rocket", color: "#429DFF", meta: {} } as any as Workspace;
 
@@ -46,12 +50,16 @@ function sheet(closable: boolean) {
 }
 
 describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
-    it("is one MoltenTerm dialog named Edit workspace, with the workspace's name under its title", () => {
+    it("is one MoltenTerm dialog titled Workspace, with its folder in mono 11 under the title (DS-SHELL-101)", () => {
         const html = sheet(true);
         expect(html).toContain('role="dialog"');
-        expect(html).toContain('aria-label="Edit workspace"');
+        expect(html).toContain('aria-label="Workspace"');
         expect(html).toContain('data-role="workspace-edit"');
-        expect(html).toContain('<div data-subtitle="1">Client A</div>');
+        expect(html).toContain('<div data-subtitle="font-mono text-11"></div>');
+        current.ws = { ...ws, meta: { "molten:folder": "/Users/me/code/client-a" } } as any as Workspace;
+        expect(renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />)).toContain(
+            '<div data-subtitle="font-mono text-11">/Users/me/code/client-a</div>'
+        );
         expect(html).toContain('data-width="w-[560px]"');
         expect(html).not.toContain("workspace-editor");
     });
@@ -91,7 +99,7 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
     });
 });
 
-describe("imported icon slot (FR-SHELL-031)", () => {
+describe("one Icon field, Symbol or Image (FR-SHELL-059-AC1, FR-SHELL-031)", () => {
     const Stored = "w1-0123456789ab.png";
 
     function sheetWith(meta: Record<string, any>) {
@@ -99,18 +107,71 @@ describe("imported icon slot (FR-SHELL-031)", () => {
         return renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />);
     }
 
-    it("offers Import image… in a labelled drop target, under the colours, with an announced result line", () => {
+    function pane(meta: Record<string, any>, logos: string[]) {
+        return renderToStaticMarkup(
+            <ImagePane
+                ws={{ ...ws, meta } as any as Workspace}
+                logos={logos}
+                over={false}
+                busy={false}
+                result={null}
+                dropHandlers={{}}
+                onPick={() => {}}
+                onLogo={() => {}}
+            />
+        );
+    }
+
+    it("shows a single Icon field with a Symbol / Image segmented control, then the colours", () => {
         const html = sheetWith({});
-        expect(html.indexOf(">Colour<")).toBeLessThan(html.indexOf('data-role="icon-drop"'));
-        expect(html).toMatch(/role="group" aria-labelledby="([^"]+)"><div id="\1"[^>]*>Image<\/div>/);
-        expect(html).toMatch(/data-role="icon-drop" class="[^"]*border-dashed/);
-        expect(html).toContain("PNG, JPG, WebP, SVG or ICO, up to 1 MB. Pick one or drop it here.");
-        expect(html).toMatch(/<button type="button" class="[^"]*cursor-pointer[^"]*">Import image…<\/button>/);
-        expect(html).toMatch(/role="status" aria-live="polite" data-role="icon-import-result"/);
-        expect(html).not.toContain("Use built-in icon");
+        expect(html.match(/data-role="icon-field"/g)).toHaveLength(1);
+        expect(html).toMatch(
+            /role="group" aria-labelledby="([^"]+)" data-role="icon-field"><div[^>]*><div id="\1"[^>]*>Icon<\/div>/
+        );
+        const segments = [
+            ...html.matchAll(/role="radio" aria-checked="(true|false)" tabindex="-?\d"[^>]*>(Symbol|Image)</g),
+        ];
+        expect(segments.map((m) => [m[2], m[1]])).toEqual([
+            ["Symbol", "true"],
+            ["Image", "false"],
+        ]);
+        expect(html.indexOf('data-role="icon-field"')).toBeLessThan(html.indexOf(">Colour<"));
+        expect(html).not.toContain("Import image…");
+        expect(html).not.toContain("Other image…");
+        expect(html).not.toContain('data-action="use-symbol"');
     });
 
-    it("shows the imported image in the preview, square and cropped, and offers Use built-in icon", () => {
+    it("opens on Image while an image shows in the rail", () => {
+        expect(initialIconMode({ ...ws, meta: {} } as any)).toBe("symbol");
+        expect(initialIconMode({ ...ws, meta: { "molten:projectlogo": "/p/logo.svg" } } as any)).toBe("image");
+        expect(initialIconMode({ ...ws, meta: { "molten:workspaceicon": Stored } } as any)).toBe("image");
+        expect(initialIconMode({ ...ws, meta: { "molten:workspaceicon": "/etc/passwd" } } as any)).toBe("symbol");
+        expect(sheetWith({ "molten:projectlogo": "/p/logo.svg" })).toContain('data-role="image-pane"');
+    });
+
+    it("lists the project's images first, then the imported image, then the import tile", () => {
+        const html = pane({ "molten:workspaceicon": Stored }, ["/p/icon.png", "/p/logo.svg"]);
+        const order = [...html.matchAll(/data-image-kind="(project|imported)"|data-action="(import-image)"/g)].map(
+            (m) => m[1] ?? m[2]
+        );
+        expect(order).toEqual(["project", "project", "imported", "import-image"]);
+        expect(html).toContain('aria-label="Project image icon.png"');
+        expect(html).toContain('aria-label="Replace the imported image…"');
+        expect(html).toMatch(/role="status" aria-live="polite" data-role="icon-import-result"/);
+    });
+
+    it("marks the project image in use, and keeps a chosen one listed even when no longer found", () => {
+        const html = pane({ "molten:projectlogo": "/elsewhere/brand.png" }, ["/p/icon.png"]);
+        const pressed = [...html.matchAll(/aria-pressed="(true|false)" aria-label="Project image ([^"]+)"/g)];
+        expect(pressed.map((m) => [m[2], m[1]])).toEqual([
+            ["brand.png", "true"],
+            ["icon.png", "false"],
+        ]);
+        expect(html).toContain('aria-label="Import an image…"');
+        expect(html).not.toContain('data-image-kind="imported"');
+    });
+
+    it("shows the imported image in the preview, square and cropped", () => {
         const html = sheetWith({ "molten:workspaceicon": Stored, "molten:projectlogo": "/p/logo.svg" });
         expect(html).toContain('aria-label="Rail badge: Rocket, Blue, imported image"');
         const src = encodeURIComponent(`/data/workspace-icons/${Stored}`);
@@ -120,9 +181,6 @@ describe("imported icon slot (FR-SHELL-031)", () => {
             )
         );
         expect(html).toMatch(/data-icon-kind="imported" decoding="async" class="[^"]*object-cover/);
-        expect(html).toContain("Replace image…");
-        expect(html).toMatch(/data-action="use-builtin-icon"[^>]*>Use built-in icon</);
-        expect(html).toContain("Shown in place of the icon and colour, which stay set.");
     });
 
     it("previews the project logo when no image was imported, and the glyph otherwise", () => {
@@ -148,7 +206,9 @@ describe("icon and colour choices are named radio groups (NFR-SHELL-014)", () =>
         const html = renderToStaticMarkup(
             <IconChoices icons={["rocket", "star", "mug-hot"]} selected="star" color="#429DFF" onSelect={() => {}} />
         );
-        expect(html).toMatch(/<div id="([^"]+)"[^>]*>Icon<\/div><div role="radiogroup" aria-labelledby="\1"/);
+        expect(html).toMatch(
+            /<div id="([^"]+)" class="sr-only">Symbol<\/div><div role="radiogroup" aria-labelledby="\1"/
+        );
         const radios = [
             ...html.matchAll(/role="radio" aria-checked="(true|false)" aria-label="([^"]+)"[^>]*tabindex="(-?\d)"/g),
         ];

@@ -62,6 +62,7 @@ export function DialogFrame({
     role,
     title,
     subtitle,
+    subtitleClass,
     wide,
     widthClass,
     trapFocus,
@@ -72,6 +73,8 @@ export function DialogFrame({
     role: string;
     title: string;
     subtitle?: string;
+    // Replaces the subtitle's text style (a path is mono 11).
+    subtitleClass?: string;
     wide?: boolean;
     // Replaces the width that `wide` picks.
     widthClass?: string;
@@ -141,7 +144,7 @@ export function DialogFrame({
                 <div className="border-b border-border px-4 py-3">
                     <div className="text-13 leading-5 font-semibold">{title}</div>
                     {subtitle ? (
-                        <div className="mt-0.5 truncate text-12 text-muted" title={subtitle}>
+                        <div className={cn("mt-0.5 truncate text-muted", subtitleClass ?? "text-12")} title={subtitle}>
                             {subtitle}
                         </div>
                     ) : null}
