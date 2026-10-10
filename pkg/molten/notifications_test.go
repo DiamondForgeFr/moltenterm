@@ -155,15 +155,37 @@ func sortedStrings(s []string) []string {
 	return s
 }
 
+// The user's report on #409: every subject off but MoltenTerm updates, and agents' waiting and done still filled
+// the center.
+func TestNotificationOffKeepsNothingOfAnAgent(t *testing.T) {
+	now := time.UnixMilli(1000)
+	meta := waveobj.MetaMapType{NotificationPrefsMetaKey: map[string]any{
+		"agents": "off", "builds": "off", "ci": "off", "releases": "off", "mods": "off", "dependencies": "off", "updates": "notify",
+	}}
+	for _, kind := range []string{"warning", "success", "info", ""} {
+		input := NotificationInput{Source: "agent", Kind: kind, Title: "Codex is waiting for you", BlockId: "b"}
+		if update := NotificationPublishUpdate(meta, input, now, "a"); update != nil {
+			t.Fatalf("agents are off, a %q is kept: %v", kind, update)
+		}
+	}
+	fail := NotificationPublishUpdate(meta, NotificationInput{Source: "agent", Kind: "error", Title: "Codex stopped"}, now, "e")
+	if v, _ := fail["molten:notif:e"].(map[string]any); v == nil || v["read"] != false {
+		t.Fatalf("a genuine error is still told: %v", fail)
+	}
+	update := NotificationPublishUpdate(meta, NotificationInput{Source: "moltenterm", Title: "Gold ready"}, now, "u")
+	if v, _ := update["molten:notif:u"].(map[string]any); v == nil || v["read"] != false {
+		t.Fatalf("updates notify: %v", update)
+	}
+}
+
 func TestNotificationDeliveryFollowsTheSubjectsChoice(t *testing.T) {
 	now := time.UnixMilli(1000)
 	meta := waveobj.MetaMapType{NotificationPrefsMetaKey: map[string]any{"builds": "off", "agents": "quiet"}}
 	if update := NotificationPublishUpdate(meta, NotificationInput{Source: "build", Title: "built"}, now, "a"); update != nil {
 		t.Fatalf("builds are off: %v", update)
 	}
-	warn := NotificationPublishUpdate(meta, NotificationInput{Source: "build", Kind: "warning", Title: "slow"}, now, "b")
-	if v, _ := warn["molten:notif:b"].(map[string]any); v == nil || v["read"] != true {
-		t.Fatalf("a warning is never dropped, at most quiet: %v", warn)
+	if warn := NotificationPublishUpdate(meta, NotificationInput{Source: "build", Kind: "warning", Title: "slow"}, now, "b"); warn != nil {
+		t.Fatalf("off keeps no warning either (#409): %v", warn)
 	}
 	fail := NotificationPublishUpdate(meta, NotificationInput{Source: "build", Kind: "error", Title: "stopped"}, now, "c")
 	if v, _ := fail["molten:notif:c"].(map[string]any); v == nil || v["read"] != false {
@@ -172,6 +194,10 @@ func TestNotificationDeliveryFollowsTheSubjectsChoice(t *testing.T) {
 	agent := NotificationPublishUpdate(meta, NotificationInput{Source: "agent", Title: "done"}, now, "d")
 	if v, _ := agent["molten:notif:d"].(map[string]any); v == nil || v["read"] != true {
 		t.Fatalf("agents are quiet: kept, already read: %v", agent)
+	}
+	quietWarn := NotificationPublishUpdate(meta, NotificationInput{Source: "agent", Kind: "warning", Title: "waiting"}, now, "f")
+	if v, _ := quietWarn["molten:notif:f"].(map[string]any); v == nil || v["read"] != true {
+		t.Fatalf("a quiet subject keeps its warning, already read: %v", quietWarn)
 	}
 	other := NotificationPublishUpdate(meta, NotificationInput{Source: "ci", Title: "green"}, now, "e")
 	if v, _ := other["molten:notif:e"].(map[string]any); v == nil || v["read"] != false {

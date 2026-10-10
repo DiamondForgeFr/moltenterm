@@ -9,6 +9,24 @@ import (
 	"time"
 )
 
+// A terminal's signal that the agent finished is a done, never a waiting warning nor an error (#409).
+func TestAttentionKind(t *testing.T) {
+	cases := []struct {
+		signal AttentionSignal
+		want   string
+	}{
+		{AttentionSignal{Title: "Claude Code", Message: "Task completed"}, "success"},
+		{AttentionSignal{Title: "Codex: turn finished"}, "success"},
+		{AttentionSignal{Title: "Claude Code", Message: "Claude needs your permission to use Bash"}, "warning"},
+		{AttentionSignal{Title: BellTitle, Message: "Bell"}, "warning"},
+	}
+	for _, c := range cases {
+		if got := attentionKind(c.signal); got != c.want {
+			t.Errorf("attentionKind(%+v) = %q, want %q", c.signal, got, c.want)
+		}
+	}
+}
+
 func TestParseAttentionOsc(t *testing.T) {
 	cases := []struct {
 		payload string

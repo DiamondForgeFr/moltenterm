@@ -593,7 +593,7 @@ export function WorkspaceRail() {
             setTooltip(null);
         }
     }, [drag.view]);
-    const notifications = useAtomValue(MoltentermNotifications.getInstance().entriesAtom);
+    const notifications = useAtomValue(MoltentermNotifications.getInstance().shownEntriesAtom);
     const unread = unreadByWorkspace(notifications);
     const onHover = (label: string, anchor: Anchor) =>
         setTooltip(label == null || drag.view != null ? null : { label, anchor });

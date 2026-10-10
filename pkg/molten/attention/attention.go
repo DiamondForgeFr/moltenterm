@@ -268,7 +268,16 @@ func makeNotificationId(now time.Time) string {
 }
 
 func recordAttention(blockId string, signal AttentionSignal) {
-	recordAgentNotice(blockId, signal, "warning")
+	recordAgentNotice(blockId, signal, attentionKind(signal))
+}
+
+// attentionKind is the kind of a terminal's own signal: one saying the agent finished is a done, as the agent state
+// reads it, not a question waiting for the user (#409).
+func attentionKind(signal AttentionSignal) string {
+	if molten.AttentionAgentState(signal.Title, signal.Message) == molten.AgentStateDone {
+		return "success"
+	}
+	return "warning"
 }
 
 func recordAgentNotice(blockId string, signal AttentionSignal, kind string) {

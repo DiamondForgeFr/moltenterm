@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 import { InlineCodeText } from "./inline-code";
 import { DepSyncHost } from "./mission/dep-sync";
 import {
+    badgeCount,
     Delivery,
     DeliveryLabels,
     MaxRenderedRows,
@@ -329,9 +330,7 @@ function SettingsView({ highlight }: { highlight: NotificationSubject }) {
     const prefs = useAtomValue(model.prefsAtom, { store: globalStore });
     return (
         <div className="flex flex-col gap-1 px-3 py-2" data-testid="notification-settings">
-            <div className="pb-1 text-12 text-secondary">
-                What each subject may tell. Errors are always told; a warning is at worst kept quietly.
-            </div>
+            <div className="pb-1 text-12 text-secondary">What each subject may tell. Errors are always told.</div>
             {NotificationSubjects.map((subject) => {
                 const chosen = prefs[subject.id] ?? "notify";
                 return (
@@ -377,6 +376,7 @@ function SettingsView({ highlight }: { highlight: NotificationSubject }) {
 export function NotificationCenter() {
     const model = MoltentermNotifications.getInstance();
     const entries = useAtomValue(model.entriesAtom, { store: globalStore });
+    const listed = useAtomValue(model.shownEntriesAtom, { store: globalStore });
     const unread = useAtomValue(model.unreadCountAtom, { store: globalStore });
     const open = useAtomValue(model.openCountAtom, { store: globalStore });
     const running = useAtomValue(model.runningAtom, { store: globalStore });
@@ -396,7 +396,7 @@ export function NotificationCenter() {
     useEffect(() => startNotificationToasts(), []);
     const [anchor, setAnchor] = useState<{ top: number; right: number }>(null);
     const archived = archivedEntries(entries);
-    const active = activeEntries(entries);
+    const active = activeEntries(listed);
 
     const placePanel = () => {
         const rect = bellRef.current?.getBoundingClientRect();
@@ -510,7 +510,7 @@ export function NotificationCenter() {
                 <i className="fa fa-regular fa-bell" />
                 {unread > 0 ? (
                     <span className="molten-notification-count absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-accent px-1 text-11 font-semibold text-[var(--mt-accent-fg)]">
-                        {unread > 99 ? "99+" : unread}
+                        {badgeCount(unread)}
                     </span>
                 ) : open > 0 ? (
                     <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-accent" />
