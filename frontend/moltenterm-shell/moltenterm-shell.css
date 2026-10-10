@@ -72,320 +72,171 @@
     background-color: var(--mt-neutral-modal);
 }
 
-/* The pencil travels with the dragged item, but nothing can be done with it until the drop. */
-.molten-rail-dragging .molten-rail-bud {
+/* The tray travels with the dragged item, but nothing can be done with it until the drop. */
+.molten-rail-dragging .molten-rail-tray {
     visibility: hidden;
 }
 
-/* Connect mode (FR-MC-032, DS-MC-029): the target is ringed in the accent with a soft glow, its link bud stays out and
-   filled; a workspace dragged over it turns the ring thicker and shows a +, where a release joins it. */
+/* The active item's bar (DS-SHELL-082): the one place the pure workspace colour is drawn in the rail; the glyphs use
+   their tone (.molten-glyph-tone). */
+.molten-rail-active-bar {
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    left: -6px;
+    width: 3px;
+    border-radius: 0 var(--mt-radius-4) var(--mt-radius-4) 0;
+    background-color: var(--mt-accent);
+    pointer-events: none;
+}
+
+/* Connect mode (FR-MC-032, DS-SHELL-081): the target is ringed with a static dashed accent line, a ring the agent
+   states never use (#368's glow pulsed like "working"); a workspace dragged over it turns the ring solid and shows a
+   +, where a release joins it. */
 .molten-rail-connect-target {
-    box-shadow:
-        0 0 0 2px var(--color-accent),
-        0 0 10px 1px color-mix(in srgb, var(--color-accent) 45%, transparent);
-    animation: molten-rail-connect-glow 1600ms ease-in-out infinite alternate;
+    outline: 1.5px dashed var(--color-accent);
+    outline-offset: 2px;
 }
 
 .molten-rail-connect-target[data-connect-drop] {
-    box-shadow:
-        0 0 0 3px var(--color-accent),
-        0 0 14px 2px color-mix(in srgb, var(--color-accent) 60%, transparent);
-    animation: none;
+    outline: 2px solid var(--color-accent);
 }
 
-@keyframes molten-rail-connect-glow {
-    from {
-        box-shadow:
-            0 0 0 2px var(--color-accent),
-            0 0 6px 0 color-mix(in srgb, var(--color-accent) 30%, transparent);
-    }
-    to {
-        box-shadow:
-            0 0 0 2px var(--color-accent),
-            0 0 12px 2px color-mix(in srgb, var(--color-accent) 55%, transparent);
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .molten-rail-connect-target {
-        animation: none;
-    }
-}
-
-.molten-rail-link[aria-pressed="true"] .molten-rail-bud-disc {
-    background-color: var(--color-accent);
-    color: var(--mt-accent-fg);
-}
-
-/* The coffee (FR-SHELL-023, DS-SHELL-062, #276): while on, its bud is filled in the awake colour, a state of
-   MoltenTerm rather than a place, so not the workspace accent. Out of hover a small droplet of the same colour stays
-   at the item's right edge (and on a collapsed product holding the workspace); the full bud takes its place when the
-   chain buds out. */
-.molten-rail-coffee[aria-pressed="true"] .molten-rail-bud-disc {
-    background-color: var(--color-awake);
-    color: var(--color-awake-fg);
-}
-
+/* The coffee (FR-SHELL-023, DS-SHELL-062, DS-SHELL-081): while on, a 6 px crema dot holds the folded item's
+   bottom-left corner (and a folded group holding the workspace's); the tray shows the mug in Edit's place. A state of
+   MoltenTerm rather than a place, so not the workspace accent. */
 .molten-rail-coffee-drop {
     position: absolute;
-    top: 50%;
-    right: -4px;
-    width: 8px;
-    height: 8px;
+    bottom: 3px;
+    left: 3px;
+    width: 6px;
+    height: 6px;
     border-radius: 9999px;
-    translate: 0 -50%;
     background-color: var(--color-awake);
-    box-shadow: 0 0 6px 0 color-mix(in srgb, var(--color-awake) 55%, transparent);
+    box-shadow: 0 0 0 2px var(--color-background);
     pointer-events: none;
     transition: opacity var(--mt-duration-fast) var(--mt-ease);
 }
 
-.molten-rail-budhost:is(:hover, :has(:focus-visible), [data-buds-out]) .molten-rail-coffee-drop {
+.molten-rail-host[data-tray-open] .molten-rail-coffee-drop {
     opacity: 0;
 }
 
-/* The rail pencil buds out of its item's right edge (FR-SHELL-030, DS-SHELL-061, #365). Each item's button is the
-   anchor of its own pencil, which is fixed: the rail is 48 px wide and scrolls (overflow clips both ways), while the
-   bud lies past its right border, over the content. Anchoring keeps it on its item through the rail's scroll and
-   hides it once the item is scrolled out.
-   #368 (DS-MC-029): the pencil is the first bud of a chain (pencil, link, coffee), each later bud 28 px further right;
-   --molten-rail-buds is the chain's length and --i a bud's place in it. data-buds-out keeps the chain out while its
-   item is the connect target.
-   #390: the chain became a fan of separate droplets (RailBudChain); --x/--y place a bud's centre from the middle of
-   the item's right edge, --sx/--sy the start of its stem, --len and --angle the stem. The fixed box is 128 px tall,
-   centred on the item, room for the fan once slid away from the rail's top or bottom edge. */
-.molten-rail-budhost {
+.molten-rail-tray-button.molten-rail-tray-coffee {
+    color: var(--color-awake);
+}
+
+/* The hover tray (FR-SHELL-045, DS-SHELL-080): the item extends into it, the item's own button staying on top of its
+   first 36 px with the icon in place. Each item's host scopes its anchor, so the tray follows its own item through
+   the rail's scroll; it is fixed because the rail is 48 px wide and scrolls (overflow clips both ways), and it covers
+   the item's row only, never the title bar or the tab bar above the rail. Hidden, it takes no pointer and no focus.
+   It opens from under the icon to the right (180 ms) and folds back (120 ms); the token durations are 0 under reduced
+   motion. The clip leaves room for the shadow. */
+.molten-rail-host {
     anchor-scope: --molten-rail-item;
-    --molten-rail-item-h: 36px;
-}
-
-/* A product's members fan out of its icon as a column beside it, outside the rail's flow, so the rail keeps the
-   product's height. Anchored to the icon like the buds, the column follows it through the rail's scroll; a local group's
-   link bud comes out first, reaching 34 px past the icon since #390, so its column starts past it. Open, it stays above
-   the neighbours' buds (450). */
-.molten-rail-unit {
-    anchor-scope: --molten-rail-group;
-}
-
-.molten-rail-group {
-    anchor-name: --molten-rail-group;
-}
-
-/* anchor-name is one value, never merged across rules: a local group's icon is also .molten-rail-anchor (its link bud),
-   so it declares both names, or its column loses the anchor and falls back over the rail. */
-.molten-rail-group.molten-rail-anchor {
-    anchor-name: --molten-rail-item, --molten-rail-group;
-}
-
-.molten-rail-members {
-    position: fixed;
-    position-anchor: --molten-rail-group;
-    position-visibility: anchors-visible;
-    left: calc(anchor(right) + 8px);
-    top: anchor(top);
-    z-index: 460;
-    transform-origin: left top;
-}
-
-.molten-rail-unit[data-rail-local] > .molten-rail-members {
-    left: calc(anchor(right) + 38px);
 }
 
 .molten-rail-anchor {
     anchor-name: --molten-rail-item;
 }
 
-/* While its pencil is out, the item stays lit, the pointer on the pencil or a keyboard focus included: the droplet is a
-   piece of it and joins its lit box. */
-.molten-rail-budhost:is(:hover, :has(:focus-visible), [data-buds-out]) > .molten-rail-anchor {
-    background-color: var(--color-hover);
+.molten-rail-host[data-tray-open] > .molten-rail-anchor {
+    z-index: 451;
+    background-color: transparent;
 }
 
-.molten-rail-bud {
+.molten-rail-tray {
     position: fixed;
     position-anchor: --molten-rail-item;
     position-visibility: anchors-visible;
-    left: anchor(right);
-    top: calc(anchor(center) - 64px);
-    width: var(--molten-rail-bud-reach);
-    height: 128px;
+    left: anchor(left);
+    top: anchor(top);
+    bottom: anchor(bottom);
     z-index: 450;
-    pointer-events: none;
-    /* The tone of the hovered item (--color-hover over the rail), made opaque: the goo threshold needs an opaque fill,
-       and the bud must read as a piece of the item it leaves. */
-    --molten-rail-bud-fill: color-mix(in srgb, var(--mt-neutral-line) 10%, var(--color-background));
-}
-
-/* Only the shown badge takes the pointer: hidden, it would swallow clicks meant for the content under it. A keyboard
-   focus shows it, a mouse focus does not: the item keeps the focus after a click, and the badge would stay out. */
-.molten-rail-bud .molten-rail-budbtn {
-    left: calc(var(--x) - 15px);
-    top: calc(64px + var(--y) - 15px);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    box-sizing: border-box;
+    width: max-content;
+    min-width: calc(var(--molten-rail-tray-lead) + 112px);
+    max-width: calc(var(--molten-rail-tray-lead) + 176px);
+    padding: 0 6px 0 var(--molten-rail-tray-lead);
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-6);
+    background-color: var(--mt-surface-3);
+    box-shadow: var(--mt-shadow-e2);
     opacity: 0;
+    visibility: hidden;
     pointer-events: none;
-    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+    clip-path: inset(-24px calc(100% - var(--molten-rail-tray-lead)) -24px -24px);
+    transition:
+        opacity var(--mt-duration-fast) var(--mt-ease),
+        clip-path var(--mt-duration-fast) var(--mt-ease),
+        visibility 0s linear var(--mt-duration-fast);
 }
 
-.molten-rail-budhost:is(:hover, :has(:focus-visible), [data-buds-out]) > .molten-rail-bud .molten-rail-budbtn {
+.molten-rail-tray[data-open] {
     opacity: 1;
+    visibility: visible;
     pointer-events: auto;
-    transition: opacity var(--mt-duration-fast) var(--mt-ease) calc(140ms + 70ms * var(--i, 0));
+    clip-path: inset(-24px -24px -24px -24px);
+    transition:
+        opacity var(--mt-duration-base) var(--mt-ease),
+        clip-path var(--mt-duration-base) var(--mt-ease),
+        visibility 0s;
 }
 
-/* The area between the item's edge and the buds' centres keeps the hover while the pointer travels from the item to a
-   bud, or from one bud to the next, across the gaps where no round target lies. It takes the pointer only while the
-   buds are out. */
-.molten-rail-bud-bridge {
+.molten-rail-tray-button:focus-visible,
+.molten-rail-item:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
+}
+
+/* A group's tile (DS-SHELL-082): its first four members' icons in a 2x2 grid, framed in the group's colour (its icon
+   member's, --mt-group-color). */
+.molten-rail-group-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 1px;
+    width: 32px;
+    height: 32px;
+    padding: 3px;
+    box-sizing: border-box;
+    border: 1.5px solid color-mix(in srgb, var(--mt-group-color, var(--mt-neutral-line)) 60%, transparent);
+    border-radius: var(--mt-radius-6);
+}
+
+/* Expanded, a group's workspaces follow it in the rail's flow, indented along a 2 px guide in the group's colour, so
+   nothing floats over the content (#381's column covered the panel next to the rail). */
+.molten-rail-members {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding-left: 8px;
+}
+
+.molten-rail-members::before {
+    content: "";
     position: absolute;
-    left: 0;
-    top: calc(64px - var(--molten-rail-bud-span));
-    width: calc(var(--molten-rail-bud-reach) - 15px);
-    height: calc(2 * var(--molten-rail-bud-span));
-    pointer-events: none;
-}
-
-.molten-rail-budhost:is(:hover, :has(:focus-visible), [data-buds-out]) > .molten-rail-bud .molten-rail-bud-bridge {
-    pointer-events: auto;
-}
-
-/* The division, stopped just before the pinch-off: a stub swells out of the icon's edge, the drop leaves it, and the
-   goo filter (RailBudFilter) keeps them joined by a thin neck. The developer wants the pencil to stay a droplet of its
-   item, never a separate shape, so the settled state keeps the neck: the two discs touch and the blur rounds the
-   joint into a waist. The clip starts at the icon's edge, so nothing of the bud ever covers the icon; the goo layer
-   takes no pointer, the neck is decoration. Every step is a transition rather than a keyframe animation, so leaving
-   halfway reverses from where it is, back into the icon; the outgoing timings are set on the resting state. A later
-   bud divides from the one before it the same way, a beat later.
-   #390: each bud divides from the item on its own, along the ray to its place in the fan. */
-.molten-rail-bud-clip {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: calc(var(--molten-rail-bud-reach) + 4px);
-    height: 128px;
-    overflow: hidden;
-    pointer-events: none;
-}
-
-.molten-rail-bud-goo {
-    position: absolute;
-    left: -12px;
-    top: 0;
-    width: calc(var(--molten-rail-bud-reach) + 16px);
-    height: 128px;
-}
-
-.molten-rail-bud-tile,
-.molten-rail-bud-stem,
-.molten-rail-bud-drop {
-    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: 1px;
+    width: 2px;
     border-radius: 9999px;
-    background-color: var(--molten-rail-bud-fill);
+    background-color: color-mix(in srgb, var(--mt-group-color, var(--mt-neutral-line)) 55%, transparent);
 }
 
-/* The right part of the item's lit tile, in the goo too, so the tile itself stretches toward the neck with smooth
-   fillets instead of the neck sticking to a rigid square: tile, widening neck and badge read as one viscous shape.
-   It lies under the item (36 px tall, 4 px corners) and the clip keeps only
-   what grows past its edge, so the icon, its glyph and its dots stay crisp and uncovered. It fades with the item's own
-   hover background. */
-.molten-rail-bud-tile {
-    left: 0;
-    top: calc(64px - var(--molten-rail-item-h) / 2);
-    width: 12px;
-    height: var(--molten-rail-item-h);
-    border-radius: 0 var(--mt-radius-4) var(--mt-radius-4) 0;
-    opacity: 0;
-    transition: opacity var(--mt-duration-base) var(--mt-ease) 60ms;
+/* The banner of connect mode and the messages of the rail's groups (DS-SHELL-081), under the tab bar. */
+.molten-rail-connect-banner {
+    animation: molten-rail-connect-banner-in var(--mt-duration-base) var(--mt-ease);
 }
 
-.molten-rail-budhost:is(:hover, :has(:focus-visible), [data-buds-out]) > .molten-rail-bud .molten-rail-bud-tile {
-    opacity: 1;
-    transition: opacity var(--mt-duration-base) var(--mt-ease);
-}
-
-/* Each stem leaves the item where the ray to its bud crosses the item's edge (from --sx/--sy, --len long, turned by
-   --angle) and grows along it with the drop; the blur pinches it into a waist where it leaves the tile. */
-.molten-rail-bud-stem {
-    left: calc(12px + var(--sx));
-    top: calc(64px + var(--sy) - 5px);
-    width: var(--len);
-    height: 10px;
-    transform-origin: 0 50%;
-    rotate: var(--angle);
-    scale: 0 1;
-    transition: scale var(--mt-duration-base) var(--mt-ease) 40ms;
-}
-
-/* The drop (28 px, centred on --x/--y) leaves from the start of its stem. */
-.molten-rail-bud-drop {
-    left: calc(12px + var(--x) - 14px);
-    top: calc(64px + var(--y) - 14px);
-    width: 28px;
-    height: 28px;
-    translate: calc(var(--sx) - var(--x)) calc(var(--sy) - var(--y));
-    scale: 0;
-    transition:
-        translate var(--mt-duration-base) var(--mt-ease),
-        scale var(--mt-duration-fast) var(--mt-ease) 90ms;
-}
-
-.molten-rail-budhost:is(:hover, :has(:focus-visible), [data-buds-out]) > .molten-rail-bud .molten-rail-bud-stem {
-    scale: 1 1;
-    transition: scale var(--mt-duration-base) var(--mt-ease) calc(20ms + 70ms * var(--i, 0));
-}
-
-.molten-rail-budhost:is(:hover, :has(:focus-visible), [data-buds-out]) > .molten-rail-bud .molten-rail-bud-drop {
-    translate: 0 0;
-    scale: 1;
-    transition:
-        translate var(--mt-duration-slow) var(--mt-ease) calc(20ms + 70ms * var(--i, 0)),
-        scale var(--mt-duration-base) var(--mt-ease) calc(20ms + 70ms * var(--i, 0));
-}
-
-/* Reduced motion: no division; the connected droplet is drawn settled and fades in and out with the badge. */
-.molten-rail-bud[data-reduced-motion] .molten-rail-bud-stem,
-.molten-rail-bud[data-reduced-motion] .molten-rail-bud-drop {
-    translate: none;
-    scale: none;
-    transition: none;
-}
-
-.molten-rail-bud[data-reduced-motion] .molten-rail-bud-tile {
-    opacity: 1;
-    transition: none;
-}
-
-.molten-rail-bud[data-reduced-motion] .molten-rail-bud-goo {
-    opacity: 0;
-    transition: opacity var(--mt-duration-fast) var(--mt-ease);
-}
-
-.molten-rail-budhost:is(:hover, :has(:focus-visible), [data-buds-out])
-    > .molten-rail-bud[data-reduced-motion]
-    .molten-rail-bud-goo {
-    opacity: 1;
-}
-
-.molten-rail-bud[data-reduced-motion] .molten-rail-budbtn,
-.molten-rail-budhost:is(:hover, :has(:focus-visible), [data-buds-out])
-    > .molten-rail-bud[data-reduced-motion]
-    .molten-rail-budbtn {
-    transition: opacity var(--mt-duration-fast) var(--mt-ease);
-}
-
-/* The hint of connect mode and the messages of the rail's groups, beside the item they concern. */
-.molten-rail-connect-hint {
-    animation: molten-rail-connect-hint-in var(--mt-duration-fast) var(--mt-ease);
-}
-
-@keyframes molten-rail-connect-hint-in {
+@keyframes molten-rail-connect-banner-in {
     from {
         opacity: 0;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .molten-rail-connect-hint {
-        animation: none;
     }
 }
 

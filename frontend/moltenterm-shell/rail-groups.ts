@@ -339,6 +339,14 @@ export function productIconEntry(unit: RailProductUnit): WorkspaceRailEntry {
     return unit.entries[0];
 }
 
+// The members a folded group's tile shows in its 2x2 grid (DS-SHELL-082): the one whose icon stood for the product
+// first, then the others in rail order.
+export function productGridEntries(unit: RailProductUnit, max = 4): WorkspaceRailEntry[] {
+    const first = productIconEntry(unit);
+    const rest = unit.entries.filter((e) => e !== first);
+    return (first != null ? [first, ...rest] : rest).slice(0, max);
+}
+
 // What a member's state says on hover, from the collector's summary (DS-MC-017).
 export function memberStateText(state: GroupMemberState): string {
     if (state == null) {

@@ -13,7 +13,7 @@ import { resolveWorkspaceIcon, WorkspaceIconSource } from "./workspace-icon-mode
 import { logoUrl } from "./workspace-project";
 
 // The rail item's box and glyph size, shared with the edit sheet's preview so it shows the badge at its real size.
-export const RailBadgeClass = "relative flex h-9 w-9 items-center justify-center rounded-4 text-icon-16";
+export const RailBadgeClass = "relative flex h-9 w-9 items-center justify-center rounded-6 text-icon-16";
 
 // Images fill more of the badge than a glyph does, square and cropped to cover, never stretched (FR-SHELL-031 AC5):
 // 24 px with a 4 px radius in the 36 px rail badge, in proportion elsewhere.
