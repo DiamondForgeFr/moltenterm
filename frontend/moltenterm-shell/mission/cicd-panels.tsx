@@ -7,7 +7,9 @@
 
 import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { checkIconState, CiIcon, CiIconLabels, githubRunIconState } from "./ci-icon";
+import { ActionRowClass, RerunConfirm, RowAction, RowActions } from "./ci-row-actions";
 import {
     CheckState,
     describeCron,
@@ -20,6 +22,7 @@ import {
     summarizeChecks,
     WorkflowRun,
 } from "./github";
+import { githubRunLog, githubRunRerun } from "./mission-client";
 import { githubStateMessage, MissionGit, MissionGithub, PipelineReport, RunRecord } from "./mission-model";
 import { RecentBuilds } from "./runs-view";
 import { RegistryKind, RegistryRow, tagRegistry } from "./tag-registry";
@@ -32,15 +35,8 @@ const ToneClasses: Record<CheckState, string> = {
     neutral: "border-border bg-hover text-muted",
 };
 
-const ToneIcons: Record<CheckState, string> = {
-    success: "fa-circle-check text-success",
-    failure: "fa-circle-xmark text-error",
-    pending: "fa-circle-notch fa-spin mt-step-spin text-warning",
-    neutral: "fa-circle-minus text-muted",
-};
-
 export function CheckIcon({ state }: { state: CheckState }) {
-    return <i className={cn("fa fa-solid text-11", ToneIcons[state])} />;
+    return <CiIcon state={checkIconState(state)} />;
 }
 
 function open(url: string) {
@@ -221,38 +217,155 @@ function ScheduledBlock({ github }: { github: MissionGithub }) {
     );
 }
 
-function RunRow({ run }: { run: WorkflowRun }) {
-    const state = runState(run.status, run.conclusion);
+type RunLogView = { text: string; error: string; failedonly?: boolean; truncated?: boolean };
+
+export function RunLogBlock({ log }: { log: RunLogView }) {
+    if (log == null) {
+        return <div className="h-16 mt-step-blink rounded-4 bg-hover" aria-busy="true" />;
+    }
+    if (log.error) {
+        return <Problem text={log.error} />;
+    }
     return (
-        <button
-            type="button"
-            onClick={() => open(run.url)}
-            className="grid w-full cursor-pointer grid-cols-[16px_1fr_auto] items-center gap-x-2 gap-y-0.5 border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-hover"
-        >
-            <CheckIcon state={state} />
-            <span className="truncate text-13 leading-5">
-                <span className="font-medium">{run.workflowName}</span>
-                <span className="ml-2 rounded-4 border border-border px-1 text-11 text-muted">
-                    {eventLabel(run.event)}
-                </span>
-            </span>
-            <span className="text-12 text-muted">
-                {state === "pending"
-                    ? "running"
-                    : formatDuration(new Date(run.updatedAt).getTime() - new Date(run.createdAt).getTime())}
-            </span>
-            <span className="col-start-2 col-end-4 truncate text-12 text-muted">
-                <code>{run.headBranch}</code> · {timeAgo(run.createdAt)} · {run.displayTitle}
-            </span>
-        </button>
+        <>
+            <div className="pb-1 text-11 text-muted">
+                {log.failedonly ? "The failed steps" : "The whole log"}
+                {log.truncated ? ", its end" : ""}
+            </div>
+            <pre
+                tabIndex={0}
+                aria-label="Log"
+                className="max-h-64 overflow-auto rounded-4 bg-black/50 p-2 font-mono text-11 leading-snug whitespace-pre-wrap text-[#e5e7eb]"
+            >
+                {log.text === "" ? "(no output)" : log.text}
+            </pre>
+        </>
     );
 }
 
-function RecentRunsBlock({ github }: { github: MissionGithub }) {
+// A GitHub run's row (FR-SHELL-057): its state as a shape, then Logs (read in the row through gh), Rerun (after a
+// question; the failed jobs of a red run) and GitHub, on hover and focus.
+function RunRow({ run, dir, onRefresh }: { run: WorkflowRun; dir: string; onRefresh: () => void }) {
+    const icon = githubRunIconState(run.status, run.conclusion);
+    const active = icon === "running" || icon === "queued";
+    const failed = icon === "failure";
+    const [logOpen, setLogOpen] = useState(false);
+    const [log, setLog] = useState<RunLogView>(null);
+    const [confirming, setConfirming] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string>(null);
+    const rerunRef = useRef<HTMLButtonElement>(null);
+    const toggleLog = () => {
+        const next = !logOpen;
+        setLogOpen(next);
+        if (!next || log != null) {
+            return;
+        }
+        fireAndForget(async () => {
+            try {
+                const read = await githubRunLog(dir, run.databaseId, failed);
+                setLog({
+                    text: read?.text ?? "",
+                    error: null,
+                    failedonly: read?.failedonly,
+                    truncated: read?.truncated,
+                });
+            } catch (e) {
+                setLog({ text: "", error: String(e?.message ?? e) });
+            }
+        });
+    };
+    const closeConfirm = () => {
+        setConfirming(false);
+        setError(null);
+        rerunRef.current?.focus();
+    };
+    const rerun = () =>
+        fireAndForget(async () => {
+            setBusy(true);
+            setError(null);
+            try {
+                await githubRunRerun(dir, run.databaseId, failed);
+                setConfirming(false);
+                setLog(null);
+                setLogOpen(false);
+                onRefresh();
+            } catch (e) {
+                setError(String(e?.message ?? e));
+            } finally {
+                setBusy(false);
+            }
+        });
+    return (
+        <div className={ActionRowClass} data-testid="ci-remote-row" data-state={icon}>
+            <div className="flex items-center gap-2 px-3 py-2">
+                <CiIcon state={icon} />
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate text-13 leading-5">
+                            <span className="font-medium">{run.workflowName}</span>
+                            <span className="ml-2 rounded-4 border border-border px-1 text-11 text-muted">
+                                {eventLabel(run.event)}
+                            </span>
+                        </span>
+                        <span className="shrink-0 text-12 text-muted">
+                            {active
+                                ? CiIconLabels[icon]
+                                : formatDuration(new Date(run.updatedAt).getTime() - new Date(run.createdAt).getTime())}
+                        </span>
+                    </div>
+                    <div className="truncate text-12 text-muted">
+                        <code>{run.headBranch}</code> · {timeAgo(run.createdAt)} · {run.displayTitle}
+                    </div>
+                </div>
+                <RowActions label={`${run.workflowName} on ${run.headBranch}`}>
+                    <RowAction
+                        icon="fa-solid fa-file-lines"
+                        label={logOpen ? "Hide the log" : "Logs"}
+                        expanded={logOpen}
+                        onClick={toggleLog}
+                        testId="ci-row-logs"
+                    />
+                    <RowAction
+                        buttonRef={rerunRef}
+                        icon="fa-solid fa-rotate-right"
+                        label={active ? "Rerun (once the run ends)" : failed ? "Rerun the failed jobs" : "Rerun"}
+                        disabled={active}
+                        onClick={() => setConfirming(true)}
+                        testId="ci-row-rerun"
+                    />
+                    <RowAction
+                        icon="fa-brands fa-github"
+                        label="Open on GitHub"
+                        onClick={() => open(run.url)}
+                        testId="ci-row-github"
+                    />
+                </RowActions>
+            </div>
+            {confirming ? (
+                <RerunConfirm
+                    question={`Run ${failed ? "the failed jobs of " : ""}${run.workflowName} on ${run.headBranch} again on GitHub?`}
+                    confirmLabel={failed ? "Rerun failed jobs" : "Rerun"}
+                    busy={busy}
+                    error={error}
+                    onConfirm={rerun}
+                    onCancel={closeConfirm}
+                />
+            ) : null}
+            {logOpen ? (
+                <div className="px-3 pb-2" data-testid="ci-remote-log">
+                    <RunLogBlock log={log} />
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+function RecentRunsBlock({ github, dir, onRefresh }: { github: MissionGithub; dir: string; onRefresh: () => void }) {
     const runs = github?.runs;
     return (
         <section className="flex flex-col gap-2">
-            <BlockHeader title="Recent jobs" />
+            <BlockHeader title="Recent jobs" hint="hover a job for its log, a rerun or GitHub" />
             {github?.errors?.runs ? <Problem text={github.errors.runs} /> : null}
             <div className="overflow-hidden rounded-4 border border-border">
                 {github == null ? <Placeholder rows={4} /> : null}
@@ -260,14 +373,24 @@ function RecentRunsBlock({ github }: { github: MissionGithub }) {
                     <p className="p-3 text-13 leading-5 text-muted">No recent job.</p>
                 ) : null}
                 {(runs ?? []).map((run) => (
-                    <RunRow key={run.databaseId} run={run} />
+                    <RunRow key={run.databaseId} run={run} dir={dir} onRefresh={onRefresh} />
                 ))}
             </div>
         </section>
     );
 }
 
-export function RemoteCiTab({ github, trunk }: { github: MissionGithub; trunk: string }) {
+export function RemoteCiTab({
+    github,
+    trunk,
+    dir,
+    onRefresh,
+}: {
+    github: MissionGithub;
+    trunk: string;
+    dir: string;
+    onRefresh: () => void;
+}) {
     const stateMessage = githubStateMessage(github);
     if (stateMessage) {
         return <Notice text={stateMessage} />;
@@ -277,7 +400,7 @@ export function RemoteCiTab({ github, trunk }: { github: MissionGithub; trunk: s
             <PullRequestsBlock github={github} trunk={trunk} />
             <div className="grid gap-5 @3xl:grid-cols-2">
                 <ScheduledBlock github={github} />
-                <RecentRunsBlock github={github} />
+                <RecentRunsBlock github={github} dir={dir} onRefresh={onRefresh} />
             </div>
         </div>
     );

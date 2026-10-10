@@ -58,6 +58,16 @@ import { formatDay, formatWhen, timeAgo } from "./time-format";
 import { readableSubject } from "./versions";
 
 const HideDelay = 160;
+const LegendReopenGuard = 250;
+// The line names' column: at most 120 px (DS-SHELL-099); 12 px semibold sans runs about 7.2 px a character.
+const LabelColumnMax = 120;
+const LabelColumnMin = 48;
+const LabelChar = 7.2;
+const LabelColumnPad = 20;
+// The plot's room left of the window, now that the names have their own column.
+const PlotLeft = 16;
+// The overview's frame, before the map is laid out and at least once it is.
+const OverviewHeight = 220;
 // Every continuous motion moves in steps, by opacity or by an HTML transform. Measured in the app: a smooth animation,
 // even a composited opacity one, makes Chromium draw a frame at every display refresh (15 to 20% of a core for one
 // blinking dot), and a dashoffset or SVG transform animation restyles and repaints the whole SVG every frame. A stepped
@@ -99,7 +109,6 @@ const Styles = `
 .lm-tick { stroke: var(--color-border); stroke-width: 1; }
 .lm-ticktxt { font-size: 11px; fill: var(--color-muted); }
 .lm-ticktxt-now { fill: var(--color-secondary); }
-.lm-line-name { font-family: var(--font-sans); font-weight: 700; font-size: 14px; letter-spacing: .03em; }
 .lm-main { fill: none; stroke: var(--color-primary); stroke-opacity: .38; stroke-width: 4; stroke-linecap: round; }
 .lm-dev { fill: none; stroke: var(--color-accent); stroke-width: 6; stroke-linecap: round; }
 .lm-future { fill: none; stroke: var(--color-primary); stroke-opacity: .35; stroke-width: 3; stroke-dasharray: 4 7; }
@@ -561,9 +570,9 @@ function WindowChoice({
 }
 
 function Legend() {
-    const item = "inline-flex items-center gap-1.5";
+    const item = "inline-flex items-center gap-2";
     return (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-11 text-muted">
+        <div className="flex flex-col gap-1.5 text-12 text-secondary" data-testid="line-map-legend">
             <span className={item}>
                 <span className="h-[5px] w-[18px] rounded-full bg-accent" />
                 develop
@@ -600,20 +609,114 @@ function Legend() {
     );
 }
 
-function useWidth(ref: React.RefObject<HTMLDivElement>): number {
-    const [width, setWidth] = useState(0);
+// The legend behind a ghost button (FR-SHELL-057 AC2): a popover under it, closed by Escape, a click outside or the
+// button again, the focus staying on the button.
+function LegendButton() {
+    const [open, setOpen] = useState(false);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const closedAt = useRef(0);
+    const close = () => {
+        closedAt.current = Date.now();
+        setOpen(false);
+        buttonRef.current?.focus({ preventScroll: true });
+    };
+    return (
+        <>
+            <button
+                ref={buttonRef}
+                type="button"
+                onClick={() => {
+                    // A press on the button while open is also a press outside the popover, which closed it already.
+                    if (!open && Date.now() - closedAt.current < LegendReopenGuard) {
+                        return;
+                    }
+                    setOpen(!open);
+                }}
+                aria-expanded={open}
+                aria-haspopup="dialog"
+                className="molten-btn-ghost flex h-6 cursor-pointer items-center gap-1.5 rounded-6 px-2 text-11 text-secondary hover:bg-hover hover:text-primary"
+                title="What the marks mean"
+                data-testid="line-map-legend-button"
+            >
+                <i className="fa fa-solid fa-circle-info text-11" aria-hidden />
+                Legend
+            </button>
+            {open && buttonRef.current ? (
+                <MenuPopover
+                    anchor={buttonRef.current}
+                    onClose={close}
+                    placement="bottom-end"
+                    role="dialog"
+                    ariaLabel="Line map legend"
+                    className="w-56 p-3"
+                >
+                    <Legend />
+                </MenuPopover>
+            ) : null}
+        </>
+    );
+}
+
+// The line names in a column of their own (FR-SHELL-057 AC1, DS-SHELL-099): it stays at the left edge while the plot
+// scrolls under it, at most 120 px with the names truncated.
+function lineNames(model: LineMapModel, geo: LineMapGeometry): { name: string; y: number; trunk: boolean }[] {
+    const names = [{ name: model.trunk, y: geo.devY, trunk: true }];
+    if (!geo.single && model.release) {
+        names.unshift({ name: model.release, y: geo.mainY, trunk: false });
+    }
+    return names;
+}
+
+export function labelColumnWidth(names: readonly string[]): number {
+    const longest = Math.max(0, ...names.map((n) => (n ?? "").length));
+    return Math.round(Math.min(LabelColumnMax, Math.max(LabelColumnMin, longest * LabelChar + LabelColumnPad)));
+}
+
+function LineLabels({ model, geo, width }: { model: LineMapModel; geo: LineMapGeometry; width: number }) {
+    return (
+        <div
+            className="sticky left-0 z-[1] shrink-0 border-r border-line bg-background"
+            style={{ width, height: geo.height }}
+            data-testid="line-map-labels"
+        >
+            {lineNames(model, geo).map((l) => (
+                <span
+                    key={l.name}
+                    className={cn(
+                        "absolute right-2 left-2 truncate text-12 leading-4 font-semibold",
+                        l.trunk ? "text-accent" : "text-secondary"
+                    )}
+                    style={{ top: l.y - 8 }}
+                    title={l.name}
+                    data-testid={`line-map-label-${l.trunk ? "trunk" : "release"}`}
+                >
+                    {l.name}
+                </span>
+            ))}
+        </div>
+    );
+}
+
+// The frame's inner size, scrollbars left out: the map fits its width and, full size, its height.
+function useInnerSize(ref: React.RefObject<HTMLDivElement>): { width: number; height: number } {
+    const [size, setSize] = useState({ width: 0, height: 0 });
     useLayoutEffect(() => {
         const el = ref.current;
         if (!el) {
             return;
         }
-        const measure = () => setWidth(el.clientWidth);
+        const measure = () =>
+            setSize((current) =>
+                current.width === el.clientWidth && current.height === el.clientHeight
+                    ? current
+                    : { width: el.clientWidth, height: el.clientHeight }
+            );
         measure();
         const observer = new ResizeObserver(measure);
         observer.observe(el);
         return () => observer.disconnect();
     }, [ref]);
-    return width;
+    return size;
 }
 
 // Hidden under reduced motion: there is no sequence to replay (AC6).
@@ -702,7 +805,7 @@ export function LineMap({
 }: LineMapProps) {
     const [days, setDays] = useLineMapDays(dir, full, blockId);
     const box = useRef<HTMLDivElement>(null);
-    const width = useWidth(box);
+    const inner = useInnerSize(box);
     const [hover, setHover] = useState<{ item: MapItem; anchor: Element }>(null);
     const hideTimer = useRef<number>(null);
     const reduced = useAtomValue(atoms.prefersReducedMotionAtom) || animation === false;
@@ -744,9 +847,20 @@ export function LineMap({
         },
         []
     );
+    const labelWidth = model
+        ? labelColumnWidth(
+              model.release && model.release !== model.trunk ? [model.trunk, model.release] : [model.trunk]
+          )
+        : 0;
+    const plotWidth = inner.width - labelWidth;
+    // Full size, the map fits the pane's height (rows of 16 to 28 px); in the overview it keeps its natural height.
+    const fitHeight = full ? inner.height : undefined;
     const geo = useMemo(
-        () => (model && width > 0 ? layoutLineMap(model, { width, full }) : null),
-        [model, width, full]
+        () =>
+            model && plotWidth > 0
+                ? layoutLineMap(model, { width: plotWidth, full, left: PlotLeft, height: fitHeight })
+                : null,
+        [model, plotWidth, full, fitHeight]
     );
     const trunkCi = (ciBranches ?? []).find((b) => b.name === git?.trunk)?.verdict;
     useEffect(() => {
@@ -834,11 +948,11 @@ export function LineMap({
             data-testid="line-map"
         >
             <style>{Styles + MotionStyles}</style>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <span className="text-11 font-medium tracking-wide text-secondary uppercase">
                     Line · last {days} days
                 </span>
-                <Legend />
+                <LegendButton />
                 <span className="flex-1" />
                 <WindowChoice days={days} choices={choices} onChange={setDays} />
                 <ReplayButton reduced={reduced} onReplay={() => dispatchIntro({ event: "replay", reduced })} />
@@ -857,17 +971,25 @@ export function LineMap({
             <div
                 ref={box}
                 className={cn(
-                    "lm-frame min-h-[220px] overflow-x-auto overflow-y-hidden rounded-4 border border-border",
+                    "lm-frame overflow-x-auto overflow-y-hidden rounded-4 border border-border",
                     full && "min-h-0 flex-1 overflow-y-auto"
                 )}
+                style={full ? undefined : { minHeight: OverviewHeight }}
                 data-testid="line-map-scroll"
                 {...motionAttrs({ reduced, paused, intro: intro.phase })}
                 onAnimationEnd={onAnimationEnd}
             >
                 {geo && model ? (
-                    <MapSvg key={intro.run} geo={geo} model={model} ciRunning={ciRunning} hit={hit} />
+                    <div className="flex w-max min-w-full">
+                        <LineLabels model={model} geo={geo} width={labelWidth} />
+                        <MapSvg key={intro.run} geo={geo} model={model} ciRunning={ciRunning} hit={hit} />
+                    </div>
                 ) : (
-                    <div className="h-[220px] w-full mt-step-blink bg-hover/40" aria-busy="true" />
+                    <div
+                        className={cn("w-full mt-step-blink bg-hover/40", full && "h-full")}
+                        style={full ? undefined : { height: OverviewHeight }}
+                        aria-busy="true"
+                    />
                 )}
             </div>
             {hover && model ? (
@@ -901,7 +1023,17 @@ function StationMark({ g, hit, geo }: { g: GeometryStation; hit: HitProps; geo: 
                 r={g.r}
                 style={delayStyle(introDelay(geo, "station", g.x))}
             />
-            {g.label ? (
+            {g.label?.flat ? (
+                <text
+                    className={cn("lm-stlabel", s.latest && "lm-stlabel-latest")}
+                    x={g.label.x}
+                    y={g.label.y}
+                    textAnchor="middle"
+                    style={delayStyle(introDelay(geo, "label", g.x))}
+                >
+                    {g.label.name}
+                </text>
+            ) : g.label ? (
                 <text
                     className={cn("lm-stlabel", s.latest && "lm-stlabel-latest")}
                     transform={`translate(${g.label.x} ${g.label.y}) rotate(-55)`}
@@ -1046,15 +1178,6 @@ export const MapSvg = memo(function MapSvg({
                     </g>
                 ))}
 
-                {geo.single ? null : (
-                    <text className="lm-line-name" x={10} y={geo.mainY + 5} fill="var(--color-secondary)">
-                        {(model.release ?? "").slice(0, 9)}
-                    </text>
-                )}
-                <text className="lm-line-name" x={10} y={geo.devY + 5} fill="var(--color-accent)">
-                    {model.trunk.slice(0, 9)}
-                </text>
-
                 {geo.single ? null : <path className="lm-main" d={main} pathLength={1} />}
                 <g className="lm-wrap" style={delayStyle(IntroRoute)}>
                     {geo.future ? <path className="lm-future" d={geo.future} /> : null}
@@ -1179,7 +1302,11 @@ export const MapSvg = memo(function MapSvg({
                             <circle className="lm-earlier" cx={geo.earlier.x} cy={geo.earlier.y} r={6} />
                             <text
                                 className="lm-stdate"
-                                transform={`translate(${geo.earlier.label.x} ${geo.earlier.label.y}) rotate(-55)`}
+                                transform={
+                                    geo.earlier.label.flat
+                                        ? `translate(${geo.earlier.label.x} ${geo.earlier.label.y})`
+                                        : `translate(${geo.earlier.label.x} ${geo.earlier.label.y}) rotate(-55)`
+                                }
                             >
                                 {geo.earlier.label.text}
                             </text>

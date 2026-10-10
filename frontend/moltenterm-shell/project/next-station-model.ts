@@ -129,7 +129,7 @@ export function countsLine(counts: WaitingCounts): string {
     ].join(" · ");
 }
 
-function githubBase(remote: string): string {
+export function githubBase(remote: string): string {
     const url = (remote ?? "").replace(/\.git$/, "").replace(/\/+$/, "");
     return /^https:\/\/github\.com\/[^/]+\/[^/]+$/.test(url) ? url : "";
 }
@@ -168,10 +168,4 @@ export function runCiTarget(git: MissionGit, pipeline: PipelineDef, ci: CiState)
         disabled = `A CI run is already on its way${running?.branch ? ` on ${running.branch}` : ""}.`;
     }
     return { branch, running: onTrunk, disabled };
-}
-
-// The ticker's length in seconds: a steady reading speed, whatever the number of changes.
-export function tickerDuration(items: readonly TickerItem[]): number {
-    const chars = (items ?? []).reduce((sum, i) => sum + (i.ticket?.length ?? 0) + i.text.length + 6, 0);
-    return Math.max(20, Math.round(chars / 7));
 }

@@ -265,6 +265,21 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
 
+func (l *routeLink) handleGithubRun(command string, source string, data any) (any, error) {
+	var req GithubRunRequest
+	if err := utilfn.ReUnmarshal(&req, data); err != nil {
+		return nil, err
+	}
+	if command == GithubRunLogCommand {
+		return l.collector.ReadGithubRunLog(req)
+	}
+	// Starting jobs on GitHub is the user's decision, confirmed in a window; an agent runs gh itself.
+	if !isWindowSource(source) {
+		return nil, fmt.Errorf("a GitHub run can only be started again from a MoltenTerm window")
+	}
+	return nil, l.collector.RerunGithubRun(req)
+}
+
 func (l *routeLink) handle(command string, source string, data any) (any, error) {
 	if command == PaneCommand {
 		var req PaneRequest
@@ -318,6 +333,9 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 			return nil, err
 		}
 		return l.collector.InitGit(req)
+	}
+	if command == GithubRunLogCommand || command == GithubRunRerunCommand {
+		return l.handleGithubRun(command, source, data)
 	}
 	if strings.HasPrefix(command, "moltenmissionci") {
 		return l.handleCi(command, data)

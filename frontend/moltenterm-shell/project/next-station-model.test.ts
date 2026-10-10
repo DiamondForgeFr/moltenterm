@@ -7,7 +7,7 @@ import { terminusText } from "../mission/line-map-geometry";
 import { buildLineMap } from "../mission/line-map-model";
 import { MissionGit, PipelineDef } from "../mission/mission-model";
 import { ReleaseSession } from "../mission/release-model";
-import { countsLine, nextStation, runCiTarget, tickerDuration, tickerItems, waitingCounts } from "./next-station-model";
+import { countsLine, githubBase, nextStation, runCiTarget, tickerItems, waitingCounts } from "./next-station-model";
 
 const Now = new Date("2026-10-05T12:00:00Z").getTime();
 
@@ -188,13 +188,14 @@ describe("ticker", () => {
         expect(tickerItems(null)).toEqual([]);
         expect(tickerItems(git(), 2)).toHaveLength(2);
     });
+});
 
-    it("scrolls at a steady speed", () => {
-        expect(tickerDuration([])).toBe(20);
-        const long = tickerItems(
-            git({ ahead: commits(...Array.from({ length: 40 }, (_, i) => `feat(#${i}): ${"x".repeat(60)}`)) })
-        );
-        expect(tickerDuration(long)).toBeGreaterThan(300);
+describe("githubBase", () => {
+    it("keeps a GitHub web address only", () => {
+        expect(githubBase("https://github.com/acme/app.git")).toBe("https://github.com/acme/app");
+        expect(githubBase("https://github.com/acme/app/")).toBe("https://github.com/acme/app");
+        expect(githubBase("https://gitlab.com/acme/app")).toBe("");
+        expect(githubBase(null)).toBe("");
     });
 });
 

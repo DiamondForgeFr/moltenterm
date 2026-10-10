@@ -12,8 +12,8 @@ import { formatDay } from "./time-format";
 
 const Day = 86_400_000;
 
-// Room left of the window for the line names.
-const Left = 84;
+// Room left of the window for the line names, when the plot draws them itself.
+const DefaultLeft = 84;
 // main sits this far above develop; lanes start below develop and follow each other.
 const LineGap = 130;
 const FirstLaneGap = 80;
@@ -49,11 +49,77 @@ export const FullPxPerDay = 28;
 export const OverviewMaxLanes = 5;
 export const FullMaxLanes = 12;
 
+// Fitted to a height (FR-SHELL-057, DS-SHELL-099): one row (a lane, the room under the last one) between 16 and 28 px;
+// main sits two rows and a bit above develop, the first lane two rows under it; the dates take the bottom.
+export const MinRow = 16;
+export const MaxRow = 28;
+const FittedLineExtra = 4;
+const FittedBottom = 30;
+// Above main when the slanted labels do not fit: one flat line of tag names.
+const FlatLabelRoom = 26;
+// With no main line, the builds' pills stand above develop and need this much.
+const FlatSingleRoom = 36;
+
 export type LineMapGeometryOptions = {
     // The width the pane gives; the map keeps its minimum and scrolls beyond.
     width: number;
     full?: boolean;
+    // The room left of the window. The component draws the line names in a column of its own, outside the plot, so it
+    // passes a small one; without it, the plot keeps room for names drawn inside it.
+    left?: number;
+    // The height the pane gives: rows shrink between MaxRow and MinRow to fit it, and the plot fills it. Without it the
+    // map keeps its natural spacing (the overview, which scrolls with its page).
+    height?: number;
 };
+
+export type LineMapVertical = {
+    mainY: number;
+    lineGap: number;
+    firstLaneGap: number;
+    laneGap: number;
+    // Station labels slanted (tag and date) or flat (tag only, one line above main).
+    slanted: boolean;
+    // A merged branch's label under its lane.
+    mergedDy: number;
+    // The row pitch when fitted to a height; null for the natural spacing.
+    row: number;
+};
+
+// How the map stands vertically: natural, or fitted to the pane's height with rows between MinRow and MaxRow.
+export function lineMapVertical(o: {
+    height?: number;
+    single: boolean;
+    slantRoom: number;
+    rows: number;
+}): LineMapVertical {
+    if (!(o.height > 0)) {
+        return {
+            mainY: o.slantRoom,
+            lineGap: LineGap,
+            firstLaneGap: FirstLaneGap,
+            laneGap: LaneGap,
+            slanted: true,
+            mergedDy: 18,
+            row: null,
+        };
+    }
+    // Rows: two and a bit between main and develop, two to the first lane, one per further lane, one under the last.
+    const units = (o.single ? 0 : 2) + (o.rows > 0 ? o.rows + 1 : 0) + 1;
+    const fixed = FittedBottom + (o.single ? 0 : FittedLineExtra);
+    const slantedRow = (o.height - o.slantRoom - fixed) / units;
+    const slanted = slantedRow >= MinRow;
+    const top = slanted ? o.slantRoom : o.single ? FlatSingleRoom : FlatLabelRoom;
+    const row = Math.round(Math.min(MaxRow, Math.max(MinRow, (o.height - top - fixed) / units)));
+    return {
+        mainY: Math.round(top),
+        lineGap: 2 * row + FittedLineExtra,
+        firstLaneGap: 2 * row,
+        laneGap: row,
+        slanted,
+        mergedDy: Math.min(18, Math.round(row * 0.75)),
+        row,
+    };
+}
 
 export type Point = { x: number; y: number };
 
@@ -76,7 +142,7 @@ export type GeometryStation = {
     x: number;
     y: number;
     r: number;
-    label: { x: number; y: number; name: string; date: string };
+    label: { x: number; y: number; name: string; date: string; flat?: boolean };
     connector: string;
     source: Point;
 };
@@ -149,6 +215,8 @@ export type LineMapGeometry = {
     width: number;
     height: number;
     left: number;
+    // The row pitch when fitted to a height, null at the natural spacing.
+    row: number;
     nowX: number;
     mainY: number;
     devY: number;
@@ -168,7 +236,7 @@ export type LineMapGeometry = {
     hidden: { branches: LineMapBranch[]; text: string; x: number; y: number };
     stations: GeometryStation[];
     builds: GeometryBuild[];
-    earlier: { x: number; y: number; count: number; label: { x: number; y: number; text: string } };
+    earlier: { x: number; y: number; count: number; label: { x: number; y: number; text: string; flat?: boolean } };
     // The work that landed on develop: one tick per commit, or one mark per day when the commits would crowd.
     landed: { mode: "commits" | "days"; marks: LandedMark[] };
     // The part of the window before the history read: shaded, with its date.
@@ -232,7 +300,10 @@ export function spreadStations(
 
 // Which stations keep a label: public releases first, then the latest tag, then the most recent, as long as no label
 // lands closer than the label gap to one already kept. The others show their detail on hover.
-export function chooseLabels(stations: readonly { x: number; kind: string; latest: boolean; at: number }[]): boolean[] {
+export function chooseLabels(
+    stations: readonly { x: number; kind: string; latest: boolean; at: number }[],
+    gap: number = LabelGap
+): boolean[] {
     const order = stations
         .map((s, i) => ({ s, i }))
         .sort(
@@ -244,7 +315,7 @@ export function chooseLabels(stations: readonly { x: number; kind: string; lates
     const kept: number[] = [];
     const rtn = stations.map(() => false);
     for (const { s, i } of order) {
-        if (kept.every((x) => Math.abs(x - s.x) >= LabelGap)) {
+        if (kept.every((x) => Math.abs(x - s.x) >= gap)) {
             kept.push(s.x);
             rtn[i] = true;
         }
@@ -377,42 +448,42 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
         10 +
         Math.max(title.length * SansBold20, sub.length * Sans12, status.length * Sans11) +
         20;
-    const minWidth = o.full ? Left + model.days * FullPxPerDay + right : OverviewMinWidth;
+    const left = o.left ?? DefaultLeft;
+    const minWidth = o.full ? left + model.days * FullPxPerDay + right : OverviewMinWidth;
     const width = Math.round(Math.max(o.width || 0, minWidth));
     const nowX = Math.round(width - right);
     const span = Math.max(1, model.now - model.start);
     const xOf = (t: number) =>
-        Left + ((Math.min(Math.max(t, model.start), model.now) - model.start) / span) * (nowX - Left);
+        left + ((Math.min(Math.max(t, model.start), model.now) - model.start) / span) * (nowX - left);
     const maxLanes = o.full ? FullMaxLanes : OverviewMaxLanes;
 
     // Stations and their labels decide how much room main needs above it.
     const earlierCount = model.earlier.length;
-    const minStationX = Left + (earlierCount ? StationGap : 0);
+    const minStationX = left + (earlierCount ? StationGap : 0);
     const xs = spreadStations(
         model.stations.map((s) => xOf(s.at)),
         minStationX,
         nowX
     );
     const placed = model.stations.map((s, i) => ({ s, x: xs[i] }));
-    const labelled = chooseLabels(placed.map(({ s, x }) => ({ x, kind: s.kind, latest: s.latest, at: s.at })));
+    const candidates = placed.map(({ s, x }) => ({ x, kind: s.kind, latest: s.latest, at: s.at }));
+    const slantedLabels = chooseLabels(candidates);
     const labelTexts = placed.map(({ s }) => ({ name: truncate(s.name, MaxStationLabel), date: formatDay(s.at) }));
     const earlierText = earlierCount ? `${earlierCount} earlier` : "";
     const tallest = Math.max(
         40,
-        ...labelTexts.filter((_, i) => labelled[i]).map((t) => labelHeight(t.name, t.date)),
+        ...labelTexts.filter((_, i) => slantedLabels[i]).map((t) => labelHeight(t.name, t.date)),
         earlierCount ? labelHeight(earlierText, "") : 0
     );
-    const mainY = Math.round(Math.min(150, tallest + 24));
-    const devY = single ? mainY : mainY + LineGap;
 
     // Branches, in lanes under develop.
     const drafts = model.branches.map((b) => {
         const open = b.state === "open";
         const clipped = b.fork < model.start;
         let x2 = open ? nowX : xOf(b.merge);
-        let x1 = clipped ? Left : xOf(b.fork);
+        let x1 = clipped ? left : xOf(b.fork);
         if (x2 - x1 < MinBranchWidth) {
-            x1 = Math.max(Left, x2 - MinBranchWidth);
+            x1 = Math.max(left, x2 - MinBranchWidth);
             x2 = Math.max(x2, x1 + MinBranchWidth);
         }
         const labelStart = open ? nowX + 12 : x1 + Curve + 4;
@@ -426,7 +497,21 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
         drafts.map((d) => ({ start: d.x1, end: d.end, labelStart: d.labelStart })),
         maxLanes
     );
-    const laneY = (k: number) => devY + FirstLaneGap + k * LaneGap;
+    const drawnLanes = lanes.filter((k) => k >= 0);
+    const rowCount =
+        (drawnLanes.length ? Math.max(...drawnLanes) + 1 : 0) + (drafts.some((d, i) => d.open && lanes[i] < 0) ? 1 : 0);
+    const v = lineMapVertical({
+        height: o.height,
+        single,
+        slantRoom: Math.round(Math.min(150, tallest + 24)),
+        rows: rowCount,
+    });
+    const mainY = v.mainY;
+    const devY = single ? mainY : mainY + v.lineGap;
+    // Flat labels hold one line each, so they keep apart by the widest tag name.
+    const flatGap = Math.max(LabelGap, ...labelTexts.map((t) => t.name.length * Char11 + 10));
+    const labelled = v.slanted ? slantedLabels : chooseLabels(candidates, flatGap);
+    const laneY = (k: number) => devY + v.firstLaneGap + k * v.laneGap;
     const branches: GeometryBranch[] = [];
     const hidden: LineMapBranch[] = [];
     drafts.forEach((d, i) => {
@@ -444,7 +529,9 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
             x1: d.x1,
             x2: d.x2,
             clipped: d.clipped,
-            label: d.open ? { x: d.labelStart, y: y + 4, text: d.text } : { x: d.labelStart, y: y + 18, text: d.text },
+            label: d.open
+                ? { x: d.labelStart, y: y + 4, text: d.text }
+                : { x: d.labelStart, y: y + v.mergedDy, text: d.text },
             merge: d.open ? null : { x: d.x2, y: devY },
             tip: d.open ? { x: d.x2, y } : null,
         });
@@ -453,30 +540,43 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
     const hiddenOpen = hidden.filter((b) => b.state === "open");
     // The open branches past the cap are counted on the row under the last lane, beside the open tips at now.
     const hiddenY = laneY(laneCount);
-    const builds = layoutBuilds(model.builds ?? [], { xOf, left: Left, mainY, devY, single });
+    const builds = layoutBuilds(model.builds ?? [], { xOf, left: left, mainY, devY, single });
     const underDevelop = builds.filter((b) => b.y > devY).map((b) => b.y + b.h);
+    const lastRowY = hiddenOpen.length ? hiddenY : laneCount ? laneY(laneCount - 1) : devY;
     const lowest = Math.max(
-        hiddenOpen.length ? hiddenY + 12 : laneCount ? laneY(laneCount - 1) + 26 : devY + 30,
+        v.row != null
+            ? lastRowY + v.row
+            : hiddenOpen.length
+              ? hiddenY + 12
+              : laneCount
+                ? laneY(laneCount - 1) + 26
+                : devY + 30,
         ...underDevelop
     );
-    const tickBottom = Math.round(lowest + 8);
-    const height = tickBottom + 22;
+    // Fitted to a height, the plot fills it: the dates sit at the pane's bottom.
+    const height = Math.max(Math.round(lowest + 8) + 22, v.row != null ? Math.floor(o.height) : 0);
+    const tickBottom = height - 22;
 
     const stations: GeometryStation[] = placed.map(({ s, x }, i) => {
         const r = s.kind === "public" ? 9 : 6;
         const sourceX = s.source ? xOf(s.source.at) : x;
+        const label = !labelled[i]
+            ? null
+            : v.slanted
+              ? { x: x + 3, y: mainY - r - 8, ...labelTexts[i] }
+              : { x, y: mainY - r - 6, name: labelTexts[i].name, date: "", flat: true };
         return {
             station: s,
             x,
             y: mainY,
             r,
-            label: labelled[i] ? { x: x + 3, y: mainY - r - 8, ...labelTexts[i] } : null,
+            label,
             connector: single ? null : connectorPath(sourceX, x, devY, mainY),
             source: single ? null : { x: sourceX, y: devY },
         };
     });
 
-    const pxPerDay = (nowX - Left) / Math.max(1, model.days);
+    const pxPerDay = (nowX - left) / Math.max(1, model.days);
     const step = tickStep(pxPerDay);
     const ticks: LineMapGeometry["ticks"] = [{ x: nowX, label: "now", now: true }];
     for (let k = 1; model.now - k * step * Day >= model.start - 60_000; k++) {
@@ -493,7 +593,8 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
     return {
         width,
         height,
-        left: Left,
+        left: left,
+        row: v.row,
         nowX,
         mainY,
         devY,
@@ -501,8 +602,8 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
         ticks,
         tickTop: Math.max(8, mainY - 40),
         tickBottom,
-        main: { x1: Left, x2: nowX, y: mainY },
-        develop: { x1: Left, x2: nowX, y: devY },
+        main: { x1: left, x2: nowX, y: mainY },
+        develop: { x1: left, x2: nowX, y: devY },
         future: single ? null : `M ${nowX} ${mainY} L ${termX - TerminusRadius} ${mainY}`,
         route,
         branches,
@@ -520,16 +621,18 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
         builds,
         earlier: earlierCount
             ? {
-                  x: Left,
+                  x: left,
                   y: mainY,
                   count: earlierCount,
-                  label: { x: Left + 3, y: mainY - 14, text: earlierText },
+                  label: v.slanted
+                      ? { x: left + 3, y: mainY - 14, text: earlierText }
+                      : { x: Math.max(2, left - 6), y: mainY - 10, text: earlierText, flat: true },
               }
             : null,
-        landed: landedMarks(model.commits, xOf, pxPerDay, nowX - Left, devY),
+        landed: landedMarks(model.commits, xOf, pxPerDay, nowX - left, devY),
         unread:
             model.historyFrom != null
-                ? { x1: Left, x2: xOf(model.historyFrom), label: `history read from ${formatDay(model.historyFrom)}` }
+                ? { x1: left, x2: xOf(model.historyFrom), label: `history read from ${formatDay(model.historyFrom)}` }
                 : null,
         head: { x: nowX, y: devY },
         terminus: {

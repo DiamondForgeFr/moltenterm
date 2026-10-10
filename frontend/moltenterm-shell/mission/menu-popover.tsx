@@ -37,6 +37,8 @@ export function MenuPopover({
     placement = "bottom-start",
     onPointerEnter,
     onPointerLeave,
+    role,
+    ariaLabel,
 }: {
     anchor: Element;
     onClose: () => void;
@@ -45,6 +47,8 @@ export function MenuPopover({
     placement?: Placement;
     onPointerEnter?: () => void;
     onPointerLeave?: () => void;
+    role?: string;
+    ariaLabel?: string;
 }) {
     const boundary = paneOf(anchor);
     const { refs, floatingStyles, context } = useFloating({
@@ -83,6 +87,8 @@ export function MenuPopover({
                     "z-[9500] overflow-y-auto rounded-10 border border-border bg-surface-3 p-3 shadow-e2",
                     className
                 )}
+                role={role}
+                aria-label={ariaLabel}
                 data-testid="menu-popover"
             >
                 {children}

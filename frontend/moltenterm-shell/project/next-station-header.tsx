@@ -3,11 +3,11 @@
 
 // The Project overview's header band (FR-MC-021), a passenger information screen: the next station and its state,
 // what waits on the trunk, Mission Control's only copy of the actions (Run CI on develop, Build local, Release, Clean
-// branches), and a ticker of the pending changes. What it shows comes from next-station-model.ts.
+// branches), and a fixed list of the latest pending changes. What it shows comes from next-station-model.ts.
 
 import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
-import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import { ActionPrimaryClass, RunningDot } from "../mission/action-button";
 import { BranchCleanupButton } from "../mission/branch-cleanup";
 import { BuildLocalMenu } from "../mission/build-local-menu";
@@ -21,12 +21,13 @@ import {
     nextStation,
     NextStationState,
     runCiTarget,
-    tickerDuration,
     TickerItem,
     tickerItems,
     waitingCounts,
 } from "./next-station-model";
 import { ProjectCardProps } from "./project-context";
+
+const LatestShown = 3;
 
 // Only a decision asks for something: it gets the warning tone, the other states stay calm.
 const ChipClass: Record<NextStationState, string> = {
@@ -63,79 +64,56 @@ function ProjectBadge({ name, source }: { name: string; source: WorkspaceIconSou
     );
 }
 
-function TickerList({ items, copy }: { items: TickerItem[]; copy?: boolean }) {
-    return (
-        <ul className={cn("flex shrink-0 gap-12 pr-12", copy && "mt-ticker-copy")} aria-hidden={copy || undefined}>
-            {items.map((item) => (
-                <li key={item.key} className="whitespace-nowrap">
-                    {item.url ? (
-                        <a
-                            href={item.url}
-                            tabIndex={-1}
-                            onClick={(e) => {
-                                e.preventDefault();
-                                fireAndForget(() => openLink(item.url));
-                            }}
-                            className="cursor-pointer hover:text-primary"
-                            title={`Open #${item.ticket} on GitHub`}
-                        >
-                            <TickerText item={item} />
-                        </a>
-                    ) : (
-                        <TickerText item={item} />
-                    )}
-                </li>
-            ))}
-        </ul>
-    );
-}
-
-function TickerText({ item }: { item: TickerItem }) {
+function ChangeText({ item }: { item: TickerItem }) {
     return (
         <>
-            {item.ticket ? <span className="mr-2 text-[var(--mt-accent)]">#{item.ticket}</span> : null}
+            {item.ticket ? <span className="mr-1.5 text-[var(--mt-accent)]">#{item.ticket}</span> : null}
             {item.text}
         </>
     );
 }
 
-// CSS-only marquee (NFR-MC-004): it scrolls only when the changes overflow the band, pauses on hover, turns static
-// and scrollable on keyboard focus, and is static under reduced motion (moltenterm-shell.css).
-function Ticker({ items, trunk }: { items: TickerItem[]; trunk: string }) {
-    const frameRef = useRef<HTMLDivElement>(null);
-    const listRef = useRef<HTMLDivElement>(null);
-    const [overflows, setOverflows] = useState(false);
-    useEffect(() => {
-        const frame = frameRef.current;
-        const list = listRef.current;
-        if (frame == null || list == null) {
-            return;
-        }
-        const measure = () => setOverflows(list.firstElementChild?.scrollWidth > frame.clientWidth);
-        measure();
-        const observer = new ResizeObserver(measure);
-        observer.observe(frame);
-        observer.observe(list);
-        return () => observer.disconnect();
-    }, [items]);
-    const style = { "--mt-ticker-duration": `${tickerDuration(items)}s` } as CSSProperties;
+// The latest changes waiting on the trunk, newest first, as a fixed list (FR-SHELL-057, DS-SHELL-099): nothing moves
+// by itself; the Waiting count above says how many there are in all.
+function LatestChanges({ items, trunk }: { items: TickerItem[]; trunk: string }) {
+    const shown = items.slice(0, LatestShown);
+    const more = items.length - shown.length;
     return (
-        <div
-            ref={frameRef}
-            tabIndex={0}
-            role="region"
-            aria-label={`Changes waiting on ${trunk}`}
-            className={cn(
-                "mt-ticker flex h-[30px] items-center border-t border-border bg-background/60 font-mono text-12 text-secondary",
-                overflows && "mt-ticker-moving"
-            )}
-            data-testid="next-station-ticker"
+        <section
+            aria-label={`Latest changes waiting on ${trunk}`}
+            className="flex flex-col gap-1 border-t border-border bg-background/60 px-4 py-2 @min-[42rem]:px-6"
+            data-testid="next-station-latest"
         >
-            <div ref={listRef} className="mt-ticker-track flex px-6" style={style}>
-                <TickerList items={items} />
-                {overflows ? <TickerList items={items} copy /> : null}
-            </div>
-        </div>
+            <Eyebrow>Latest on {trunk}</Eyebrow>
+            <ul className="flex min-w-0 flex-col text-12 text-secondary">
+                {shown.map((item) => (
+                    <li key={item.key} className="flex h-6 min-w-0 items-center">
+                        {item.url ? (
+                            <a
+                                href={item.url}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    fireAndForget(() => openLink(item.url));
+                                }}
+                                className="min-w-0 cursor-pointer truncate rounded-4 hover:text-primary"
+                                title={`Open #${item.ticket} on GitHub`}
+                            >
+                                <ChangeText item={item} />
+                            </a>
+                        ) : (
+                            <span className="min-w-0 truncate" title={item.text}>
+                                <ChangeText item={item} />
+                            </span>
+                        )}
+                    </li>
+                ))}
+            </ul>
+            {more > 0 ? (
+                <span className="text-11 text-muted">
+                    and {more} more change{more === 1 ? "" : "s"}
+                </span>
+            ) : null}
+        </section>
     );
 }
 
@@ -260,7 +238,7 @@ export function NextStationHeader({
                     )}
                 </div>
             </div>
-            {items.length > 0 ? <Ticker items={items} trunk={trunk} /> : null}
+            {items.length > 0 ? <LatestChanges items={items} trunk={trunk} /> : null}
         </div>
     );
 }
