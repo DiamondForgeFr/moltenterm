@@ -99,7 +99,7 @@ function NotificationRow({
         <div
             className={cn(
                 "group flex w-full items-start gap-2 border-b border-border px-3 py-2 text-left",
-                unread && "bg-accent/7",
+                unread && "bg-line",
                 resolved && "opacity-60",
                 hasOrigin && "cursor-pointer hover:bg-hover"
             )}
