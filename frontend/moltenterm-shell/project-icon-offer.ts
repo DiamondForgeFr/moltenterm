@@ -29,8 +29,9 @@ export function iconOfferToastId(workspaceId: string): string {
     return IconOfferToastPrefix + workspaceId;
 }
 
-// The toast to show, or null when the project has no image. The answer is remembered for the project (#77); a toast
-// that leaves by itself, unanswered, comes back in a later session.
+// The toast to show, or null when the project has no image. It waits for an answer, like every toast that asks for a
+// gesture (DS-SHELL-097); the answer, the toast's × included, is remembered for the project (#77). One pushed out of
+// the stack by newer toasts, unanswered, comes back in a later session.
 export function makeIconOffer(input: IconOfferInput): ToastInput {
     const logo = input.logos?.[0];
     if (!logo) {
@@ -48,6 +49,7 @@ export function makeIconOffer(input: IconOfferInput): ToastInput {
     return {
         id,
         kind: "info",
+        stays: true,
         title: `Use ${name}'s logo?`,
         message: input.workspaceName ? `As the icon of ${input.workspaceName}` : "As this workspace's icon",
         thumbnail: input.thumbnailUrl(logo),

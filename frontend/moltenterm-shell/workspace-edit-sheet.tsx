@@ -41,6 +41,8 @@ const DangerButtonClass =
     "shrink-0 cursor-pointer rounded-6 border border-error px-3 py-1.5 text-12 text-primary transition-colors duration-120 ease-mt hover:bg-error/15";
 const SecondaryButtonClass =
     "shrink-0 cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
+const GhostButtonClass =
+    "shrink-0 cursor-pointer rounded-6 px-2 py-0.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
 const NoDroppedFileText = "Drop an image file from your disk";
 const ImportFailedText = "The image could not be imported";
 const FocusRingClass =
@@ -538,7 +540,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                                         disabled={busy}
                                         onClick={useSymbol}
                                         data-action="use-symbol"
-                                        className={cn(SecondaryButtonClass, FocusRingClass, "py-1")}
+                                        className={cn(GhostButtonClass, FocusRingClass)}
                                     >
                                         Use the symbol
                                     </button>

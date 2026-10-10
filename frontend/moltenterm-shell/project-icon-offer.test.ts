@@ -51,7 +51,7 @@ describe("project icon offer (FR-SHELL-059-AC2)", () => {
         const id = await offerProjectIcon(ws, "/p");
         expect(id).toBe(iconOfferToastId("w1"));
         const [toast] = Toasts.getInstance().stack();
-        expect(toast).toMatchObject({ title: "Use Demo's logo?", message: "As the icon of Client A", stays: false });
+        expect(toast).toMatchObject({ title: "Use Demo's logo?", message: "As the icon of Client A", stays: true });
         expect(toast.thumbnail).toBe("http://localhost/wave/stream-local-file?path=%2Fp%2Ficon.png");
         expect(toast.actions.map((a) => a.label)).toEqual(["Use this icon", "Dismiss"]);
     });
@@ -72,10 +72,10 @@ describe("project icon offer (FR-SHELL-059-AC2)", () => {
         expect(store.markOffered).toHaveBeenCalledWith("w1", "/p");
     });
 
-    it("remembers a closed offer, but lets an unanswered one come back later", async () => {
+    it("remembers a closed offer, but lets one pushed out unanswered come back later", async () => {
         store.logos = ["/p/icon.png"];
         const id = await offerProjectIcon(ws, "/p");
-        Toasts.getInstance().dismiss(id, "timeout");
+        Toasts.getInstance().dismiss(id, "collapsed");
         expect(store.markOffered).not.toHaveBeenCalled();
         await offerProjectIcon(ws, "/p");
         Toasts.getInstance().dismiss(id, "user");
