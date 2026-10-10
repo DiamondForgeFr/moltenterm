@@ -442,13 +442,20 @@ describe("fitted to the pane's height (FR-SHELL-057 AC1, DS-SHELL-099)", () => {
     });
 
     it("writes the tags flat, one line above main, when slanted labels do not fit", () => {
-        const short = layoutLineMap(busy(), { width: 900, full: true, left: 16, height: 120 });
+        const short = layoutLineMap(busy(), { width: 900, full: true, left: 16, height: 200 });
         const labels = short.stations.filter((s) => s.label);
         expect(labels.length).toBeGreaterThan(0);
         expect(labels.every((s) => s.label.flat && s.label.date === "")).toBe(true);
         expect(short.mainY).toBeLessThan(40);
         const tall = layoutLineMap(busy(), { width: 900, full: true, left: 16, height: 600 });
         expect(tall.stations.filter((s) => s.label).every((s) => !s.label.flat)).toBe(true);
+    });
+
+    it("keeps both lines in a 200 px panel's frame by leaving the tags to the hover", () => {
+        const geo = layoutLineMap(busy(), { width: 900, full: true, left: 16, height: 70 });
+        expect(geo.stations.every((s) => s.label == null)).toBe(true);
+        expect(geo.devY + 8).toBeLessThanOrEqual(70);
+        expect(geo.row).toBe(MinRow);
     });
 
     it("starts the plot at the left the caller gives", () => {
