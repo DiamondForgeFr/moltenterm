@@ -6,34 +6,115 @@
     "SettingsType": {
       "properties": {
         "app:nativecontextmenu": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Use the system's context menus instead of MoltenTerm's.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "App",
+            "label": "System context menus",
+            "description": "Use the system's context menus instead of MoltenTerm's.",
+            "control": "toggle",
+            "order": 65
+          }
         },
         "app:*": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 89
+          }
         },
         "app:globalhotkey": {
-          "type": "string"
+          "type": "string",
+          "description": "A system-wide shortcut that brings MoltenTerm to the front.",
+          "x-moltenterm": {
+            "section": "keyboard",
+            "group": "Keys",
+            "label": "Global shortcut",
+            "description": "A system-wide shortcut that brings MoltenTerm to the front.",
+            "control": "text",
+            "order": 58
+          }
         },
         "app:dismissarchitecturewarning": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 105
+          }
         },
         "app:defaultnewblock": {
-          "type": "string"
+          "type": "string",
+          "description": "The view a new tab starts with, such as term.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "App",
+            "label": "New tab content",
+            "description": "The view a new tab starts with, such as term.",
+            "control": "text",
+            "order": 66
+          }
         },
         "app:showoverlayblocknums": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Show each panel's number while its shortcut keys are held.",
+          "x-moltenterm": {
+            "section": "keyboard",
+            "group": "Keys",
+            "label": "Panel numbers",
+            "description": "Show each panel's number while its shortcut keys are held.",
+            "control": "toggle",
+            "default": true,
+            "order": 64
+          }
         },
         "app:ctrlvpaste": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Ctrl+V pastes in terminals instead of reaching the program.",
+          "x-moltenterm": {
+            "section": "keyboard",
+            "group": "Keys",
+            "label": "Ctrl+V pastes",
+            "description": "Ctrl+V pastes in terminals instead of reaching the program.",
+            "control": "toggle",
+            "order": 61
+          }
         },
         "app:confirmquit": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Ask before quitting MoltenTerm.",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Quitting and closing",
+            "label": "Confirm before quitting",
+            "description": "Ask before quitting MoltenTerm.",
+            "control": "toggle",
+            "order": 0
+          }
         },
         "app:disablectrlshiftarrows": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Ctrl+Shift+arrows reach the program instead of moving between panels.",
+          "x-moltenterm": {
+            "section": "keyboard",
+            "group": "Keys",
+            "label": "No Ctrl+Shift+arrow navigation",
+            "description": "Ctrl+Shift+arrows reach the program instead of moving between panels.",
+            "control": "toggle",
+            "order": 62
+          }
         },
         "app:disablectrlshiftdisplay": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Holding Ctrl+Shift does not show the panels' numbers.",
+          "x-moltenterm": {
+            "section": "keyboard",
+            "group": "Keys",
+            "label": "No panel numbers on Ctrl+Shift",
+            "description": "Holding Ctrl+Shift does not show the panels' numbers.",
+            "control": "toggle",
+            "order": 63
+          }
         },
         "app:focusfollowscursor": {
           "type": "string",
@@ -41,94 +122,396 @@
             "off",
             "on",
             "term"
-          ]
+          ],
+          "description": "Focus the panel under the pointer without a click.",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Panels",
+            "label": "Focus follows the pointer",
+            "description": "Focus the panel under the pointer without a click.",
+            "control": "select",
+            "options": [
+              {
+                "value": "off",
+                "label": "Off"
+              },
+              {
+                "value": "on",
+                "label": "On"
+              },
+              {
+                "value": "term",
+                "label": "Terminals only"
+              }
+            ],
+            "order": 8
+          }
         },
         "app:tabbar": {
           "type": "string",
           "enum": [
             "top",
             "left"
-          ]
+          ],
+          "description": "Where the tab bar sits.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "App",
+            "label": "Tab bar position",
+            "description": "Where the tab bar sits.",
+            "control": "select",
+            "options": [
+              {
+                "value": "top",
+                "label": "Top"
+              },
+              {
+                "value": "left",
+                "label": "Left"
+              }
+            ],
+            "order": 67
+          }
         },
         "app:tilelauncher": {
           "type": "boolean",
-          "description": "Show the tile launcher in an empty pane instead of the command palette"
+          "description": "Show the tile launcher in an empty pane instead of the command palette",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Panels",
+            "label": "Tile launcher in empty panes",
+            "description": "An empty pane shows the tile launcher instead of the command palette.",
+            "control": "toggle",
+            "order": 7
+          }
         },
         "feature:waveappbuilder": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Show the Apps tool in the rail outside development builds.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "App",
+            "label": "App builder",
+            "description": "Show the Apps tool in the rail outside development builds.",
+            "control": "toggle",
+            "order": 68
+          }
         },
         "term:*": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 90
+          }
         },
         "term:fontsize": {
-          "type": "number"
+          "type": "number",
+          "description": "The text size of terminals.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Look",
+            "label": "Font size",
+            "description": "The text size of terminals.",
+            "control": "number",
+            "range": {
+              "min": 6,
+              "max": 32,
+              "step": 1
+            },
+            "unit": "px",
+            "default": 12,
+            "order": 28
+          }
         },
         "term:fontfamily": {
-          "type": "string"
+          "type": "string",
+          "description": "A monospace font installed on this computer, such as Hack.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Look",
+            "label": "Font",
+            "description": "A monospace font installed on this computer, such as Hack.",
+            "control": "text",
+            "default": "Hack",
+            "order": 29
+          }
         },
         "term:theme": {
-          "type": "string"
+          "type": "string",
+          "description": "The colours of every terminal without a theme of its own.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Look",
+            "label": "Theme",
+            "description": "The colours of every terminal without a theme of its own.",
+            "control": "select",
+            "optionsfrom": "termthemes",
+            "default": "default-dark",
+            "order": 27
+          }
         },
         "term:disablewebgl": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Draw terminals without WebGL, slower but safer on some GPUs.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Terminal",
+            "label": "No WebGL in terminals",
+            "description": "Draw terminals without WebGL, slower but safer on some GPUs.",
+            "control": "toggle",
+            "order": 79
+          }
         },
         "term:localshellpath": {
-          "type": "string"
+          "type": "string",
+          "description": "The shell local terminals start, such as /bin/zsh; empty uses your login shell.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Shell",
+            "label": "Shell",
+            "description": "The shell local terminals start, such as /bin/zsh; empty uses your login shell.",
+            "control": "path",
+            "order": 41
+          }
         },
         "term:localshellopts": {
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "description": "The arguments passed to the local shell.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Shell",
+            "label": "Shell arguments",
+            "description": "The arguments passed to the local shell.",
+            "control": "json",
+            "order": 42
+          }
         },
         "term:gitbashpath": {
-          "type": "string"
+          "type": "string",
+          "description": "Where Git Bash is installed.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Shell",
+            "label": "Git Bash",
+            "description": "Where Git Bash is installed.",
+            "control": "path",
+            "platform": "windows",
+            "order": 43
+          }
         },
         "term:scrollback": {
-          "type": "integer"
+          "type": "integer",
+          "description": "How many lines of output a terminal keeps.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Behaviour",
+            "label": "Scrollback",
+            "description": "How many lines of output a terminal keeps.",
+            "control": "number",
+            "range": {
+              "min": 0,
+              "max": 50000,
+              "step": 500
+            },
+            "unit": "lines",
+            "default": 2000,
+            "order": 33
+          }
         },
         "term:copyonselect": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Selecting text copies it.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Behaviour",
+            "label": "Copy on select",
+            "description": "Selecting text copies it.",
+            "control": "toggle",
+            "order": 34
+          }
         },
         "term:transparency": {
-          "type": "number"
+          "type": "number",
+          "description": "How much of the window's background shows through a terminal.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Look",
+            "label": "Transparency",
+            "description": "How much of the window's background shows through a terminal.",
+            "control": "slider",
+            "range": {
+              "min": 0,
+              "max": 1,
+              "step": 0.05
+            },
+            "default": 0.5,
+            "order": 32
+          }
         },
         "term:allowbracketedpaste": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Programs can tell pasted text from typed text.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Behaviour",
+            "label": "Bracketed paste",
+            "description": "Programs can tell pasted text from typed text.",
+            "control": "toggle",
+            "default": true,
+            "order": 36
+          }
         },
         "term:shiftenternewline": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Shift+Enter sends a new line instead of Enter.",
+          "x-moltenterm": {
+            "section": "keyboard",
+            "group": "Keys",
+            "label": "Shift+Enter inserts a line",
+            "description": "Shift+Enter sends a new line instead of Enter.",
+            "control": "toggle",
+            "order": 60
+          }
         },
         "term:macoptionismeta": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "The Option key sends Meta to terminal programs instead of typing symbols.",
+          "x-moltenterm": {
+            "section": "keyboard",
+            "group": "Keys",
+            "label": "Option is Meta",
+            "description": "The Option key sends Meta to terminal programs instead of typing symbols.",
+            "control": "toggle",
+            "platform": "darwin",
+            "order": 59
+          }
         },
         "term:cursor": {
-          "type": "string"
+          "type": "string",
+          "description": "The shape of the terminal cursor.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Look",
+            "label": "Cursor",
+            "description": "The shape of the terminal cursor.",
+            "control": "select",
+            "options": [
+              {
+                "value": "block",
+                "label": "Block"
+              },
+              {
+                "value": "bar",
+                "label": "Bar"
+              },
+              {
+                "value": "underline",
+                "label": "Underline"
+              }
+            ],
+            "order": 30
+          }
         },
         "term:cursorblink": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "The cursor blinks.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Look",
+            "label": "Blinking cursor",
+            "description": "The cursor blinks.",
+            "control": "toggle",
+            "order": 31
+          }
         },
         "term:bellsound": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Play a sound when a program rings the bell.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Behaviour",
+            "label": "Bell sound",
+            "description": "Play a sound when a program rings the bell.",
+            "control": "toggle",
+            "order": 38
+          }
         },
         "term:bellindicator": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Mark the tab when a program rings the bell.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Behaviour",
+            "label": "Bell indicator",
+            "description": "Mark the tab when a program rings the bell.",
+            "control": "toggle",
+            "order": 39
+          }
         },
         "term:osc52": {
           "type": "string",
           "enum": [
             "focus",
             "always"
-          ]
+          ],
+          "description": "When programs in a terminal may write to the clipboard (OSC 52).",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Behaviour",
+            "label": "Clipboard access",
+            "description": "When programs in a terminal may write to the clipboard (OSC 52).",
+            "control": "select",
+            "options": [
+              {
+                "value": "always",
+                "label": "Always"
+              },
+              {
+                "value": "focus",
+                "label": "When the terminal is focused"
+              }
+            ],
+            "order": 37
+          }
         },
         "term:durable": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "New terminals keep running when MoltenTerm quits or updates.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Behaviour",
+            "label": "Durable sessions",
+            "description": "New terminals keep running when MoltenTerm quits or updates.",
+            "control": "toggle",
+            "order": 40
+          }
         },
         "term:showsplitbuttons": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Show split buttons in terminal headers.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Terminal",
+            "label": "Split buttons in headers",
+            "description": "Show split buttons in terminal headers.",
+            "control": "toggle",
+            "order": 80
+          }
         },
         "term:trimtrailingwhitespace": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Copying drops the spaces at the end of each line.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Behaviour",
+            "label": "Trim copied lines",
+            "description": "Copying drops the spaces at the end of each line.",
+            "control": "toggle",
+            "order": 35
+          }
         },
         "agent:sessionroots": {
           "additionalProperties": {
@@ -138,22 +521,65 @@
             "type": "array"
           },
           "type": "object",
-          "description": "Extra configuration folders per coding agent (claude: like CLAUDE_CONFIG_DIR, codex: like CODEX_HOME) whose sessions the agent companion reads"
+          "description": "Extra configuration folders per coding agent (claude: like CLAUDE_CONFIG_DIR, codex: like CODEX_HOME) whose sessions the agent companion reads",
+          "x-moltenterm": {
+            "section": "agents",
+            "group": "Companion",
+            "label": "More session folders",
+            "description": "Extra configuration folders per agent whose sessions the companion reads.",
+            "control": "json",
+            "order": 48
+          }
         },
         "companion:usagegauges": {
           "items": {
             "type": "string"
           },
           "type": "array",
-          "description": "Coding agents (claude, codex) whose plan usage gauges the agent companion shows; empty shows none. Set from the companion's Show plan usage"
+          "description": "Coding agents (claude, codex) whose plan usage gauges the agent companion shows; empty shows none. Set from the companion's Show plan usage",
+          "x-moltenterm": {
+            "section": "agents",
+            "group": "Companion",
+            "label": "Plan usage",
+            "description": "The agents whose plan usage the companion shows.",
+            "control": "multi",
+            "options": [
+              {
+                "value": "claude",
+                "label": "Claude Code"
+              },
+              {
+                "value": "codex",
+                "label": "Codex"
+              }
+            ],
+            "order": 47
+          }
         },
         "companion:usageclaudeoauth": {
           "type": "boolean",
-          "description": "Also read Claude Code's model limits and credits from Anthropic's undocumented usage endpoint, with Claude Code's own sign-in token (experimental). Set from the companion's confirmation"
+          "description": "Also read Claude Code's model limits and credits from Anthropic's undocumented usage endpoint, with Claude Code's own sign-in token (experimental). Set from the companion's confirmation",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Agents",
+            "label": "Claude Code limits (experimental)",
+            "description": "Read Claude Code's limits from Anthropic's undocumented endpoint with its own sign-in.",
+            "control": "toggle",
+            "order": 81
+          }
         },
         "linemap:animation": {
           "type": "boolean",
-          "description": "Whether the line map panels animate (the load sequence and the moving trains); reduced motion turns it off anyway"
+          "description": "Whether the line map panels animate (the load sequence and the moving trains); reduced motion turns it off anyway",
+          "x-moltenterm": {
+            "section": "mission",
+            "group": "Line map",
+            "label": "Animate the line map",
+            "description": "Play the load sequence and the moving trains; reduced motion turns it off.",
+            "control": "toggle",
+            "default": true,
+            "order": 56
+          }
         },
         "cicd:runs": {
           "type": "string",
@@ -162,104 +588,412 @@
             "remote",
             "cd"
           ],
-          "description": "Which runs a CI/CD panel shows: local CI, remote CI or CD (default remote)"
+          "description": "Which runs a CI/CD panel shows: local CI, remote CI or CD (default remote)",
+          "x-moltenterm": {
+            "section": "mission",
+            "group": "CI/CD",
+            "label": "Runs shown",
+            "description": "Which runs a CI/CD panel shows first.",
+            "control": "select",
+            "options": [
+              {
+                "value": "local",
+                "label": "Local CI"
+              },
+              {
+                "value": "remote",
+                "label": "Remote CI"
+              },
+              {
+                "value": "cd",
+                "label": "CD"
+              }
+            ],
+            "default": "remote",
+            "order": 57
+          }
         },
         "editor:minimapenabled": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Show the code overview on the editor's right edge.",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Files and editor",
+            "label": "Minimap",
+            "description": "Show the code overview on the editor's right edge.",
+            "control": "toggle",
+            "order": 13
+          }
         },
         "editor:stickyscrollenabled": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Keep the enclosing scopes at the top of the editor while scrolling.",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Files and editor",
+            "label": "Sticky scroll",
+            "description": "Keep the enclosing scopes at the top of the editor while scrolling.",
+            "control": "toggle",
+            "order": 14
+          }
         },
         "editor:wordwrap": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "The editor wraps lines wider than the panel.",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Files and editor",
+            "label": "Wrap long lines",
+            "description": "The editor wraps lines wider than the panel.",
+            "control": "toggle",
+            "order": 12
+          }
         },
         "editor:fontsize": {
-          "type": "number"
+          "type": "number",
+          "description": "The text size of file views and the editor.",
+          "x-moltenterm": {
+            "section": "appearance",
+            "group": "Text",
+            "label": "Editor text size",
+            "description": "The text size of file views and the editor.",
+            "control": "number",
+            "range": {
+              "min": 6,
+              "max": 64,
+              "step": 1
+            },
+            "unit": "px",
+            "default": 12,
+            "order": 24
+          }
         },
         "editor:inlinediff": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Show diffs in one column instead of side by side.",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Files and editor",
+            "label": "Inline diffs",
+            "description": "Show diffs in one column instead of side by side.",
+            "control": "toggle",
+            "order": 15
+          }
         },
         "web:*": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 91
+          }
         },
         "web:openlinksinternally": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Links clicked in a terminal or a page open in a browser panel.",
+          "x-moltenterm": {
+            "section": "browser",
+            "group": "Opening pages",
+            "label": "Open links in MoltenTerm",
+            "description": "Links clicked in a terminal or a page open in a browser panel.",
+            "control": "toggle",
+            "order": 51
+          }
         },
         "web:defaulturl": {
-          "type": "string"
+          "type": "string",
+          "description": "The page a new browser panel opens.",
+          "x-moltenterm": {
+            "section": "browser",
+            "group": "Browser panel",
+            "label": "Home page",
+            "description": "The page a new browser panel opens.",
+            "control": "text",
+            "order": 53
+          }
         },
         "web:defaultsearch": {
-          "type": "string"
+          "type": "string",
+          "description": "The search URL, with {query} where the words go.",
+          "x-moltenterm": {
+            "section": "browser",
+            "group": "Browser panel",
+            "label": "Search engine",
+            "description": "The search URL, with {query} where the words go.",
+            "control": "text",
+            "order": 54
+          }
         },
         "browser:installed": {
           "type": "string",
-          "description": "The installed Chromium browser pages are handed off to: brave, chrome, edge, arc, vivaldi, opera, chromium, or the path of its app bundle (macOS) or desktop entry (Linux); empty uses the first one found"
+          "description": "The installed Chromium browser pages are handed off to: brave, chrome, edge, arc, vivaldi, opera, chromium, or the path of its app bundle (macOS) or desktop entry (Linux); empty uses the first one found",
+          "x-moltenterm": {
+            "section": "browser",
+            "group": "Opening pages",
+            "label": "Installed browser",
+            "description": "The Chromium browser pages are handed off to.",
+            "control": "select",
+            "options": [
+              {
+                "value": "chrome",
+                "label": "Chrome"
+              },
+              {
+                "value": "brave",
+                "label": "Brave"
+              },
+              {
+                "value": "edge",
+                "label": "Edge"
+              },
+              {
+                "value": "arc",
+                "label": "Arc"
+              },
+              {
+                "value": "vivaldi",
+                "label": "Vivaldi"
+              },
+              {
+                "value": "opera",
+                "label": "Opera"
+              },
+              {
+                "value": "chromium",
+                "label": "Chromium"
+              }
+            ],
+            "unsetlabel": "First one found",
+            "order": 50
+          }
         },
         "browser:default": {
           "type": "string",
-          "description": "Where web pages open by default: app (MoltenTerm's browser panel) installed (the installed browser) or a browser id"
+          "description": "Where web pages open by default: app (MoltenTerm's browser panel) installed (the installed browser) or a browser id",
+          "x-moltenterm": {
+            "section": "browser",
+            "group": "Opening pages",
+            "label": "Open web pages in",
+            "description": "Where links and web pages open by default.",
+            "control": "select",
+            "options": [
+              {
+                "value": "app",
+                "label": "MoltenTerm's browser"
+              },
+              {
+                "value": "installed",
+                "label": "The installed browser"
+              }
+            ],
+            "unsetlabel": "Ask for each site",
+            "order": 49
+          }
         },
         "browser:sites": {
           "additionalProperties": {
             "type": "string"
           },
           "type": "object",
-          "description": "Per-site engine, host (subdomains included) to app, installed or a browser id"
+          "description": "Per-site engine, host (subdomains included) to app, installed or a browser id",
+          "x-moltenterm": {
+            "section": "browser",
+            "group": "Opening pages",
+            "label": "Per-site browser",
+            "description": "Sites that always open in MoltenTerm's browser or the installed one.",
+            "control": "json",
+            "order": 52
+          }
         },
         "browser:agentsites": {
           "additionalProperties": {
             "type": "string"
           },
           "type": "object",
-          "description": "Sites agents may use in the browser panel: a site (registrable domain, or host:port for localhost and IP addresses) to allow or block; set from the panel's permission bar, Block wins"
+          "description": "Sites agents may use in the browser panel: a site (registrable domain, or host:port for localhost and IP addresses) to allow or block; set from the panel's permission bar, Block wins",
+          "x-moltenterm": {
+            "section": "browser",
+            "group": "Agents",
+            "label": "Agent site permissions",
+            "description": "Sites agents may use or are blocked from in the browser panel.",
+            "control": "json",
+            "order": 55
+          }
         },
         "autoupdate:*": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 92
+          }
         },
         "autoupdate:enabled": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 99
+          }
         },
         "autoupdate:intervalms": {
-          "type": "number"
+          "type": "number",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 100
+          }
         },
         "autoupdate:installonquit": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 101
+          }
         },
         "autoupdate:channel": {
-          "type": "string"
+          "type": "string",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 102
+          }
         },
         "markdown:fontsize": {
-          "type": "number"
+          "type": "number",
+          "description": "The body text size of rendered Markdown.",
+          "x-moltenterm": {
+            "section": "appearance",
+            "group": "Text",
+            "label": "Markdown text size",
+            "description": "The body text size of rendered Markdown.",
+            "control": "number",
+            "range": {
+              "min": 6,
+              "max": 64,
+              "step": 1
+            },
+            "unit": "px",
+            "order": 25
+          }
         },
         "markdown:fixedfontsize": {
-          "type": "number"
+          "type": "number",
+          "description": "The text size of code in rendered Markdown.",
+          "x-moltenterm": {
+            "section": "appearance",
+            "group": "Text",
+            "label": "Markdown code size",
+            "description": "The text size of code in rendered Markdown.",
+            "control": "number",
+            "range": {
+              "min": 6,
+              "max": 64,
+              "step": 1
+            },
+            "unit": "px",
+            "order": 26
+          }
         },
         "preview:showhiddenfiles": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "File views list dotfiles.",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Files and editor",
+            "label": "Show hidden files",
+            "description": "File views list dotfiles.",
+            "control": "toggle",
+            "default": true,
+            "order": 10
+          }
         },
         "preview:defaultsort": {
           "type": "string",
           "enum": [
             "name",
             "modtime"
-          ]
+          ],
+          "description": "The order of a file view's list.",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Files and editor",
+            "label": "Sort files by",
+            "description": "The order of a file view's list.",
+            "control": "select",
+            "options": [
+              {
+                "value": "name",
+                "label": "Name"
+              },
+              {
+                "value": "modtime",
+                "label": "Last modified"
+              }
+            ],
+            "order": 11
+          }
         },
         "tab:preset": {
-          "type": "string"
+          "type": "string",
+          "description": "The preset new tabs start from.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "App",
+            "label": "Tab preset",
+            "description": "The preset new tabs start from.",
+            "control": "text",
+            "order": 69
+          }
         },
         "tab:confirmclose": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Ask before closing a tab.",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Quitting and closing",
+            "label": "Confirm before closing a tab",
+            "description": "Ask before closing a tab.",
+            "control": "toggle",
+            "order": 2
+          }
         },
         "tab:background": {
-          "type": "string"
+          "type": "string",
+          "description": "The background new tabs get, from backgrounds.json.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "App",
+            "label": "Tab background",
+            "description": "The background new tabs get, from backgrounds.json.",
+            "control": "text",
+            "order": 70
+          }
         },
         "tab:holdtoclose": {
           "type": "boolean",
-          "description": "Closing a tab with its close button takes a press-and-hold; false closes it on a single click"
+          "description": "Closing a tab with its close button takes a press-and-hold; false closes it on a single click",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Quitting and closing",
+            "label": "Hold to close a tab",
+            "description": "A tab's close button closes it after a press-and-hold, not a single click.",
+            "control": "toggle",
+            "order": 3
+          }
         },
         "tab:holdtoclosems": {
           "type": "integer",
-          "description": "How long a tab's close button is held before it closes the tab, in milliseconds (200 to 2000)"
+          "description": "How long a tab's close button is held before it closes the tab, in milliseconds (200 to 2000)",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Quitting and closing",
+            "label": "Hold duration",
+            "description": "How long the close button is held before the tab closes.",
+            "control": "number",
+            "range": {
+              "min": 200,
+              "max": 2000,
+              "step": 50
+            },
+            "unit": "ms",
+            "order": 4
+          }
         },
         "power:sleeppolicy": {
           "type": "string",
@@ -268,118 +1002,491 @@
             "untilworkends",
             "letsleep"
           ],
-          "description": "Whether terminals may keep the computer awake (caffeinate, systemd-inhibit). allow: their blocks go through. untilworkends: MoltenTerm keeps the computer awake itself while work runs (an agent working, its subagents included; a foreground command that is not an idle shell; a Mission Control run) and releases it 2 minutes after the last work stops; an agent waiting for input is not work. letsleep: their blocks are stopped and the computer sleeps as planned. Unset: the first block asks. The display may always sleep."
+          "description": "Whether terminals may keep the computer awake (caffeinate, systemd-inhibit). allow: their blocks go through. untilworkends: MoltenTerm keeps the computer awake itself while work runs (an agent working, its subagents included; a foreground command that is not an idle shell; a Mission Control run) and releases it 2 minutes after the last work stops; an agent waiting for input is not work. letsleep: their blocks are stopped and the computer sleeps as planned. Unset: the first block asks. The display may always sleep.",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Power",
+            "label": "Keep the computer awake",
+            "description": "Whether terminals may keep the computer awake (caffeinate, systemd-inhibit).",
+            "control": "select",
+            "options": [
+              {
+                "value": "allow",
+                "label": "When a terminal asks"
+              },
+              {
+                "value": "untilworkends",
+                "label": "Until work ends"
+              },
+              {
+                "value": "letsleep",
+                "label": "Never"
+              }
+            ],
+            "unsetlabel": "Ask the first time",
+            "order": 9
+          }
         },
         "widget:*": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 93
+          }
         },
         "widget:showhelp": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 104
+          }
         },
         "window:*": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 94
+          }
         },
         "window:fullscreenonlaunch": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Open windows in full screen.",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Startup",
+            "label": "Full screen at launch",
+            "description": "Open windows in full screen.",
+            "control": "toggle",
+            "order": 6
+          }
         },
         "window:transparent": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Let the desktop show through the window's background.",
+          "x-moltenterm": {
+            "section": "appearance",
+            "group": "Window",
+            "label": "Transparent window",
+            "description": "Let the desktop show through the window's background.",
+            "control": "toggle",
+            "order": 18
+          }
         },
         "window:blur": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Blur the desktop behind a transparent window.",
+          "x-moltenterm": {
+            "section": "appearance",
+            "group": "Window",
+            "label": "Blur behind the window",
+            "description": "Blur the desktop behind a transparent window.",
+            "control": "toggle",
+            "order": 19
+          }
         },
         "window:opacity": {
-          "type": "number"
+          "type": "number",
+          "description": "How opaque a transparent or blurred window is.",
+          "x-moltenterm": {
+            "section": "appearance",
+            "group": "Window",
+            "label": "Window opacity",
+            "description": "How opaque a transparent or blurred window is.",
+            "control": "slider",
+            "range": {
+              "min": 0,
+              "max": 1,
+              "step": 0.05
+            },
+            "default": 0.8,
+            "order": 20
+          }
         },
         "window:bgcolor": {
-          "type": "string"
+          "type": "string",
+          "description": "A CSS colour behind the panels, such as #1f1f1f.",
+          "x-moltenterm": {
+            "section": "appearance",
+            "group": "Window",
+            "label": "Window background",
+            "description": "A CSS colour behind the panels, such as #1f1f1f.",
+            "control": "text",
+            "order": 21
+          }
         },
         "window:reducedmotion": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Turn off animations, as the system's reduced motion setting does.",
+          "x-moltenterm": {
+            "section": "appearance",
+            "group": "Window",
+            "label": "Reduce motion",
+            "description": "Turn off animations, as the system's reduced motion setting does.",
+            "control": "toggle",
+            "order": 16
+          }
         },
         "window:tilegapsize": {
-          "type": "integer"
+          "type": "integer",
+          "description": "The space between the panels of a tab.",
+          "x-moltenterm": {
+            "section": "appearance",
+            "group": "Window",
+            "label": "Gap between panels",
+            "description": "The space between the panels of a tab.",
+            "control": "number",
+            "range": {
+              "min": 0,
+              "max": 20,
+              "step": 1
+            },
+            "unit": "px",
+            "order": 17
+          }
         },
         "window:showmenubar": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Show the menu bar in the window.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Window",
+            "label": "Menu bar",
+            "description": "Show the menu bar in the window.",
+            "control": "toggle",
+            "platform": "linux,windows",
+            "order": 72
+          }
         },
         "window:nativetitlebar": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Use the system's title bar.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Window",
+            "label": "Native title bar",
+            "description": "Use the system's title bar.",
+            "control": "toggle",
+            "platform": "linux,windows",
+            "order": 71
+          }
         },
         "window:disablehardwareacceleration": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Draw without the GPU; takes effect at the next launch.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Window",
+            "label": "No hardware acceleration",
+            "description": "Draw without the GPU; takes effect at the next launch.",
+            "control": "toggle",
+            "order": 74
+          }
         },
         "window:maxtabcachesize": {
-          "type": "integer"
+          "type": "integer",
+          "description": "How many tabs stay loaded in the background.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Window",
+            "label": "Tabs kept in memory",
+            "description": "How many tabs stay loaded in the background.",
+            "control": "number",
+            "range": {
+              "min": 1,
+              "max": 50,
+              "step": 1
+            },
+            "order": 75
+          }
         },
         "window:magnifiedblockopacity": {
-          "type": "number"
+          "type": "number",
+          "description": "How much the panels behind a magnified panel fade.",
+          "x-moltenterm": {
+            "section": "appearance",
+            "group": "Magnified panel",
+            "label": "Backdrop opacity",
+            "description": "How much the panels behind a magnified panel fade.",
+            "control": "slider",
+            "range": {
+              "min": 0,
+              "max": 1,
+              "step": 0.05
+            },
+            "order": 23
+          }
         },
         "window:magnifiedblocksize": {
-          "type": "number"
+          "type": "number",
+          "description": "How much of the tab a magnified panel covers.",
+          "x-moltenterm": {
+            "section": "appearance",
+            "group": "Magnified panel",
+            "label": "Magnified size",
+            "description": "How much of the tab a magnified panel covers.",
+            "control": "slider",
+            "range": {
+              "min": 0.5,
+              "max": 1,
+              "step": 0.05
+            },
+            "order": 22
+          }
         },
         "window:magnifiedblockblurprimarypx": {
-          "type": "integer"
+          "type": "integer",
+          "description": "The blur behind a magnified panel.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Window",
+            "label": "Magnified backdrop blur",
+            "description": "The blur behind a magnified panel.",
+            "control": "number",
+            "range": {
+              "min": 0,
+              "max": 40,
+              "step": 1
+            },
+            "unit": "px",
+            "order": 76
+          }
         },
         "window:magnifiedblockblursecondarypx": {
-          "type": "integer"
+          "type": "integer",
+          "description": "The blur behind the other layers of a magnified panel.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Window",
+            "label": "Secondary backdrop blur",
+            "description": "The blur behind the other layers of a magnified panel.",
+            "control": "number",
+            "range": {
+              "min": 0,
+              "max": 40,
+              "step": 1
+            },
+            "unit": "px",
+            "order": 77
+          }
         },
         "window:confirmclose": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Ask before closing a window that holds several tabs.",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Quitting and closing",
+            "label": "Confirm before closing a window",
+            "description": "Ask before closing a window that holds several tabs.",
+            "control": "toggle",
+            "order": 1
+          }
         },
         "window:savelastwindow": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Closing the last window keeps it, so it opens again at the next launch.",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Startup",
+            "label": "Reopen the last window",
+            "description": "Closing the last window keeps it, so it opens again at the next launch.",
+            "control": "toggle",
+            "order": 5
+          }
         },
         "window:dimensions": {
-          "type": "string"
+          "type": "string",
+          "description": "The size of new windows, such as 1400x900.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Window",
+            "label": "New window size",
+            "description": "The size of new windows, such as 1400x900.",
+            "control": "text",
+            "order": 78
+          }
         },
         "window:zoom": {
-          "type": "number"
+          "type": "number",
+          "description": "The zoom of the window's content; ⌘+ and ⌘- change it.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Window",
+            "label": "Zoom",
+            "description": "The zoom of the window's content; ⌘+ and ⌘- change it.",
+            "control": "number",
+            "range": {
+              "min": 0.4,
+              "max": 2.6,
+              "step": 0.1
+            },
+            "default": 1,
+            "order": 73
+          }
         },
         "telemetry:*": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 95
+          }
         },
         "telemetry:enabled": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 103
+          }
         },
         "conn:*": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 96
+          }
         },
         "conn:askbeforewshinstall": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Ask before installing the helper on a new host.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Connections",
+            "label": "Ask before installing it",
+            "description": "Ask before installing the helper on a new host.",
+            "control": "toggle",
+            "order": 45
+          }
         },
         "conn:wshenabled": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Install MoltenTerm's helper on SSH hosts, for file views and folder tracking.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Connections",
+            "label": "Shell integration on remotes",
+            "description": "Install MoltenTerm's helper on SSH hosts, for file views and folder tracking.",
+            "control": "toggle",
+            "order": 44
+          }
         },
         "conn:localhostdisplayname": {
-          "type": "string"
+          "type": "string",
+          "description": "How the local connection is named in headers and menus.",
+          "x-moltenterm": {
+            "section": "terminal",
+            "group": "Connections",
+            "label": "Name of this computer",
+            "description": "How the local connection is named in headers and menus.",
+            "control": "text",
+            "order": 46
+          }
         },
         "debug:*": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 97
+          }
         },
         "debug:pprofport": {
-          "type": "integer"
+          "type": "integer",
+          "description": "Serve Go's pprof on this port.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Debugging",
+            "label": "Profiler port",
+            "description": "Serve Go's pprof on this port.",
+            "control": "number",
+            "range": {
+              "min": 0,
+              "max": 65535,
+              "step": 1
+            },
+            "order": 82
+          }
         },
         "debug:pprofmemprofilerate": {
-          "type": "integer"
+          "type": "integer",
+          "description": "Go's memory profile sampling rate.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Debugging",
+            "label": "Memory profile rate",
+            "description": "Go's memory profile sampling rate.",
+            "control": "number",
+            "range": {
+              "min": 0,
+              "max": 1048576,
+              "step": 1
+            },
+            "order": 83
+          }
         },
         "debug:webglstatus": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Show whether each terminal draws with WebGL.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Debugging",
+            "label": "WebGL status",
+            "description": "Show whether each terminal draws with WebGL.",
+            "control": "toggle",
+            "order": 84
+          }
         },
         "tsunami:*": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 98
+          }
         },
         "tsunami:scaffoldpath": {
-          "type": "string"
+          "type": "string",
+          "description": "Where the app builder's scaffold lives.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "App builder",
+            "label": "Scaffold path",
+            "description": "Where the app builder's scaffold lives.",
+            "control": "path",
+            "order": 85
+          }
         },
         "tsunami:sdkreplacepath": {
-          "type": "string"
+          "type": "string",
+          "description": "A local SDK used in place of the published one.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "App builder",
+            "label": "SDK replace path",
+            "description": "A local SDK used in place of the published one.",
+            "control": "path",
+            "order": 86
+          }
         },
         "tsunami:sdkversion": {
-          "type": "string"
+          "type": "string",
+          "description": "The SDK version apps build against.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "App builder",
+            "label": "SDK version",
+            "description": "The SDK version apps build against.",
+            "control": "text",
+            "order": 87
+          }
         },
         "tsunami:gopath": {
-          "type": "string"
+          "type": "string",
+          "description": "The Go binary apps build with.",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "App builder",
+            "label": "Go binary",
+            "description": "The Go binary apps build with.",
+            "control": "path",
+            "order": 88
+          }
         }
       },
       "additionalProperties": false,

@@ -53,6 +53,41 @@ function ShortcutKeys({ shortcut, mac }: { shortcut: Shortcut; mac: boolean }) {
     );
 }
 
+// The shortcuts by category; the settings screen's Keyboard section shows them in place (DS-SHELL-091).
+export function ShortcutSections({
+    sections,
+    mac,
+    headingClass,
+}: {
+    sections: ReturnType<typeof filterShortcuts>;
+    mac: boolean;
+    headingClass?: string;
+}) {
+    return (
+        <>
+            {sections.map((section) => (
+                <section key={section.category} aria-label={section.category}>
+                    <h3 className={headingClass ?? "pb-1 text-11 font-semibold tracking-wide text-muted"}>
+                        {section.category}
+                    </h3>
+                    <ul className="flex flex-col">
+                        {section.shortcuts.map((s) => (
+                            <li
+                                key={s.id}
+                                data-shortcut={s.id}
+                                className="flex items-center justify-between gap-3 border-b border-border/40 py-1 last:border-b-0"
+                            >
+                                <span className="min-w-0 truncate text-13 text-secondary">{s.label}</span>
+                                <ShortcutKeys shortcut={s} mac={mac} />
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            ))}
+        </>
+    );
+}
+
 export function MoltentermShortcutsSheet() {
     const [query, setQuery] = useState("");
     const mac = isMacOS();
@@ -87,23 +122,7 @@ export function MoltentermShortcutsSheet() {
                 className="w-full rounded-4 border border-border bg-transparent px-2.5 py-1.5 text-13 leading-5 text-primary outline-none placeholder:text-muted focus:border-accent"
             />
             {sections.length === 0 ? <div className="py-2 text-muted">Nothing matches "{query}"</div> : null}
-            {sections.map((section) => (
-                <section key={section.category} aria-label={section.category}>
-                    <h3 className="pb-1 text-11 font-semibold tracking-wide text-muted">{section.category}</h3>
-                    <ul className="flex flex-col">
-                        {section.shortcuts.map((s) => (
-                            <li
-                                key={s.id}
-                                data-shortcut={s.id}
-                                className="flex items-center justify-between gap-3 border-b border-border/40 py-1 last:border-b-0"
-                            >
-                                <span className="min-w-0 truncate text-13 text-secondary">{s.label}</span>
-                                <ShortcutKeys shortcut={s} mac={mac} />
-                            </li>
-                        ))}
-                    </ul>
-                </section>
-            ))}
+            <ShortcutSections sections={sections} mac={mac} />
         </DialogFrame>
     );
 }

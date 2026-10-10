@@ -235,7 +235,7 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
             ) : null}
             {showApps ? (
                 <ToolButton
-                    label="Local WaveApps"
+                    label="Apps"
                     onHover={onHover}
                     onClick={() => toggle("apps")}
                     buttonRef={anchorRef("apps")}

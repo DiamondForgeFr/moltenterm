@@ -161,6 +161,8 @@ tasks:
         sources:
             - "cmd/generateschema/*.go"
             - "pkg/wconfig/*.go"
+            # MOLTENTERM-PATCH (#404): the settings screen's metadata is written into the schema.
+            - "pkg/molten/settingsmeta/*.go"
         generates:
             - "dist/schema/**/*"
         cmds:

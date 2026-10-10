@@ -7,13 +7,13 @@ import type { TabModel } from "@/app/store/tab-model";
 import { makeORef } from "@/app/store/wos";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { SecretsContent } from "@/app/view/waveconfig/secretscontent";
-import { WaveConfigView } from "@/app/view/waveconfig/waveconfig";
 import type { WaveConfigEnv } from "@/app/view/waveconfig/waveconfigenv";
 import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
 import { base64ToString, stringToBase64 } from "@/util/util";
 import { atom, type Atom, type PrimitiveAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
 import * as React from "react";
+import { MoltentermSettingsView } from "../../../moltenterm-shell/settings/settings-view"; // MOLTENTERM-PATCH (#404)
 
 type ValidationResult = { success: true } | { error: string };
 type ConfigValidator = (parsed: any) => ValidationResult;
@@ -59,7 +59,7 @@ function validateWaveAiJson(parsed: any): ValidationResult {
 function makeConfigFiles(isWindows: boolean): ConfigFile[] {
     return [
         {
-            name: "General",
+            name: "Settings", // MOLTENTERM-PATCH (#404): Wave named it General
             path: "settings.json",
             language: "json",
             docsUrl: "https://docs.waveterm.dev/config",
@@ -74,7 +74,7 @@ function makeConfigFiles(isWindows: boolean): ConfigFile[] {
             hasJsonView: true,
         },
         {
-            name: "Sidebar Widgets",
+            name: "Rail widgets", // MOLTENTERM-PATCH (#404): the rail replaces Wave's sidebar
             path: "widgets.json",
             language: "json",
             docsUrl: "https://docs.waveterm.dev/customwidgets",
@@ -91,7 +91,7 @@ function makeConfigFiles(isWindows: boolean): ConfigFile[] {
             // visualComponent: WaveAIVisualContent,
         },
         {
-            name: "Tab Backgrounds",
+            name: "Tab backgrounds", // MOLTENTERM-PATCH (#404): sentence case
             path: "backgrounds.json",
             language: "json",
             docsUrl: "https://docs.waveterm.dev/tab-backgrounds",
@@ -130,8 +130,8 @@ export class WaveConfigViewModel implements ViewModel {
     blockId: string;
     viewType = "waveconfig";
     viewIcon = atom("gear");
-    viewName = atom("Wave Config");
-    viewComponent = WaveConfigView;
+    viewName = atom("Settings"); // MOLTENTERM-PATCH (#404): no screen is titled Wave Config
+    viewComponent = MoltentermSettingsView; // MOLTENTERM-PATCH (#404): the settings screen, Wave's editor under Advanced
     noPadding = atom(true);
     nodeModel: BlockNodeModel;
     tabModel: TabModel;
@@ -236,9 +236,7 @@ export class WaveConfigViewModel implements ViewModel {
                     null;
             }
 
-            if (!fileToLoad) {
-                fileToLoad = configFiles[0];
-            }
+            // MOLTENTERM-PATCH (#404): without a file the settings screen shows; a JSON file opens from Advanced.
 
             if (fileToLoad) {
                 this.loadFile(fileToLoad);
