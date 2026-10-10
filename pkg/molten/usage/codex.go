@@ -425,7 +425,10 @@ func (cu *CodexUsage) runState() (int64, int64) {
 func (cu *CodexUsage) record(snap *UsageSnapshot, err error, generation int64, now time.Time) {
 	cu.lock.Lock()
 	defer cu.lock.Unlock()
-	cu.completed++
+	// A run started before a Clear or Reset recorded no value a waiting read could answer with: it runs its own.
+	if cu.generation == generation {
+		cu.completed++
+	}
 	if err != nil {
 		cu.failures++
 		backoff := codexAutoInterval << min(cu.failures-1, 4)
