@@ -120,15 +120,15 @@ describe("toast store", () => {
 
 describe("notification kinds (FR-SHELL-055 AC2)", () => {
     it("maps done to green, waiting to amber, error to red and information to neutral", () => {
-        expect(toneOf("success")).toMatchObject({ tone: "done", iconClass: "text-success" });
-        expect(toneOf("warning")).toMatchObject({ tone: "waiting", iconClass: "text-warning" });
-        expect(toneOf("error")).toMatchObject({ tone: "error", iconClass: "text-error" });
-        expect(toneOf("info")).toMatchObject({ tone: "info", iconClass: "text-secondary" });
+        expect(toneOf("success")).toMatchObject({ tone: "done", colorClass: "text-success" });
+        expect(toneOf("warning")).toMatchObject({ tone: "waiting", colorClass: "text-warning" });
+        expect(toneOf("error")).toMatchObject({ tone: "error", colorClass: "text-error" });
+        expect(toneOf("info")).toMatchObject({ tone: "info", colorClass: "text-secondary" });
     });
 
     it("never paints success in the accent (orange)", () => {
         for (const kind of ["success", "warning", "error", "info"] as const) {
-            expect(toneOf(kind).iconClass).not.toMatch(/accent/);
+            expect(toneOf(kind).colorClass).not.toMatch(/accent/);
         }
     });
 
