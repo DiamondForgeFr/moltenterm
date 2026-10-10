@@ -131,11 +131,11 @@ describe("Browser provider (FR-SHELL-051 AC1, DS-SHELL-090)", () => {
         expect(calls).toEqual(["reload false", "copy t1", "duplicate t1", "closeothers t1"]);
     });
 
-    it("keeps Close tab and Close other tabs visible but disabled on the last tab", () => {
+    it("leaves Close tab and Close other tabs out on the last tab (the footer closes the panel)", () => {
         const { target } = makeTarget(makeState({ tabCount: 1 }));
         const sections = browserSections(makeCtx(target));
-        expect(item(sections, "browser:closetab").disabled).toBe(true);
-        expect(item(sections, "browser:closeothers").disabled).toBe(true);
+        expect(item(sections, "browser:closetab")).toBeUndefined();
+        expect(item(sections, "browser:closeothers")).toBeUndefined();
     });
 
     it("hands off to the installed browser and offers the site choice and the engine with several browsers", () => {
@@ -180,7 +180,7 @@ describe("Browser provider (FR-SHELL-051 AC1, DS-SHELL-090)", () => {
         const panel = collectPanel(makeCtx(target), [BrowserProvider]);
         expect(panel.sections[0]).toMatchObject({ id: "agent:browser-control", kind: "agent", title: "Agent control" });
         expect(panel.sections[0].items.map((i) => i.label)).toEqual([
-            "Claude Code is controlling this tab",
+            "Claude Code is controlling another tab",
             "Show the agent's tab",
             "Take over",
             "Stop the agent",

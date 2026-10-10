@@ -54,7 +54,7 @@ describe("error page (FR-SHELL-051 AC2)", () => {
     it("tells a refused local port in plain words and offers to start the dev server", () => {
         const v = view("http://localhost:59999/", -102, "ERR_CONNECTION_REFUSED");
         expect(v.title).toBe("Can't reach localhost:59999");
-        expect(v.hint).toBe("Nothing is answering on port 59999.");
+        expect(v.hint).toBe("No server is running there yet.");
         expect(v.local).toBe(true);
     });
 

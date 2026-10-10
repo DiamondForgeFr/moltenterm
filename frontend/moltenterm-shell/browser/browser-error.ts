@@ -75,19 +75,19 @@ export function isLocalHost(host: string): boolean {
     return h === "localhost" || h.endsWith(".localhost") || h === "::1" || h === "0.0.0.0" || /^127\./.test(h);
 }
 
-function plainHint(errorClass: LoadErrorClass, local: boolean, port: string): string {
+function plainHint(errorClass: LoadErrorClass, local: boolean): string {
     switch (errorClass) {
         case "dns":
             return "The address could not be found. Check it for typos.";
         case "refused":
             if (local) {
-                return port ? `Nothing is answering on port ${port}.` : "Nothing is answering on this machine.";
+                return "No server is running there yet.";
             }
             return "The server refused the connection.";
         case "timeout":
             return "The server took too long to answer.";
         case "tls":
-            return "The site's security certificate can't be trusted, so the page was not opened.";
+            return "Its security certificate can't be trusted.";
         case "offline":
             return "You seem to be offline. Check your connection.";
         default:
@@ -105,7 +105,7 @@ export function errorPageView(error: LoadError): ErrorPageView {
         errorClass,
         host,
         title: `Can't reach ${host}`,
-        hint: plainHint(errorClass, local, u?.port ?? ""),
+        hint: plainHint(errorClass, local),
         local,
         details: code,
     };
