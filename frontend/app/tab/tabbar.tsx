@@ -12,18 +12,20 @@ import { useAtomValue } from "jotai";
 import { OverlayScrollbars } from "overlayscrollbars";
 import { createRef, memo, useCallback, useEffect, useRef, useState } from "react";
 import { debounce } from "throttle-debounce";
+import { NotificationCenter } from "../../moltenterm-shell/notification-center"; // MOLTENTERM-PATCH (#45)
+import { MoltentermNotificationCenter, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44, #45)
+import { checkTabDragReleased } from "../../moltenterm-shell/tab-drag"; // MOLTENTERM-PATCH (#81)
+import { layoutTabs, moveTabId, tabDropIndex, tabOffsets } from "../../moltenterm-shell/tab-layout"; // MOLTENTERM-PATCH (#410)
+import { measureTab } from "../../moltenterm-shell/tab-measure"; // MOLTENTERM-PATCH (#410)
+import { closeTabAskingWorktrees } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#134)
 import { Tab } from "./tab";
 import "./tabbar.scss";
 import { TabBarEnv } from "./tabbarenv";
 import { UpdateStatusBanner } from "./updatebanner";
 import { WorkspaceSwitcher } from "./workspaceswitcher";
-import { MoltentermNotificationCenter, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44, #45)
-import { NotificationCenter } from "../../moltenterm-shell/notification-center"; // MOLTENTERM-PATCH (#45)
-import { checkTabDragReleased } from "../../moltenterm-shell/tab-drag"; // MOLTENTERM-PATCH (#81)
-import { closeTabAskingWorktrees } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#134)
 
 const TabDefaultWidth = 130;
-const TabMinWidth = 100;
+// MOLTENTERM-PATCH (#410): Wave's TabMinWidth is replaced by the bounds of frontend/moltenterm-shell/tab-layout.ts
 const MacOSTrafficLightsWidth = 74;
 const MacOSTahoeTrafficLightsWidth = 80;
 
@@ -129,6 +131,12 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
     const waveAIButtonRef = useRef<HTMLDivElement>(null);
     const appMenuButtonRef = useRef<HTMLDivElement>(null);
     const tabWidthRef = useRef<number>(TabDefaultWidth);
+    // MOLTENTERM-PATCH (#410): each tab's own width (FR-SHELL-056) and the strip's total
+    const tabWidthsRef = useRef<Record<string, number>>({});
+    const tabsTotalWidthRef = useRef<number>(0);
+    const tabDragActiveRef = useRef<boolean>(false);
+    const relayoutTabsRef = useRef<() => void>(null);
+    const revealedRef = useRef<string>("");
     const scrollableRef = useRef<boolean>(false);
     const prevAllLoadedRef = useRef<boolean>(false);
     const activeTabId = useAtomValue(env.atoms.staticTabId);
@@ -160,22 +168,15 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
         }
     }, [workspace, tabIds]);
 
+    // MOLTENTERM-PATCH (#410): widths and offsets come from the layout, not from the boxes, which may be mid-transition
+    const widthOfTab = (tabId: string): number => tabWidthsRef.current[tabId] ?? tabWidthRef.current;
+    const offsetsOfTabs = (ids: string[]): number[] => tabOffsets(ids.map(widthOfTab));
+
     const saveTabsPosition = useCallback(() => {
         const tabs = tabRefs.current;
         if (tabs === null) return;
-
-        const newStartPositions: number[] = [];
-        let cumulativeLeft = 0; // Start from the left edge
-
-        tabRefs.current.forEach((ref) => {
-            if (ref.current) {
-                newStartPositions.push(cumulativeLeft);
-                cumulativeLeft += ref.current.getBoundingClientRect().width; // Add each tab's actual width to the cumulative position
-            }
-        });
-
-        setDragStartPositions(newStartPositions);
-    }, []);
+        setDragStartPositions(offsetsOfTabs(tabIds));
+    }, [tabIds]);
 
     const setSizeAndPosition = (animate?: boolean) => {
         const tabBar = tabBarRef.current;
@@ -205,18 +206,15 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
             waveAIButtonWidth;
         const spaceForTabs = tabbarWrapperWidth - nonTabElementsWidth;
 
-        const numberOfTabs = tabIds.length;
+        // MOLTENTERM-PATCH (#410): each tab takes its content's width (96 to 200 px, the Project tab 32 px); the widest
+        // give way first when the strip is short, then it scrolls
+        const layout = layoutTabs(
+            tabRefs.current.map((ref) => measureTab(ref.current)),
+            spaceForTabs
+        );
+        const newScrollable = layout.scrollable;
+        const widths: Record<string, number> = {};
 
-        // Compute the ideal width per tab by dividing the available space by the number of tabs
-        let idealTabWidth = spaceForTabs / numberOfTabs;
-
-        // Apply min/max constraints
-        idealTabWidth = Math.max(TabMinWidth, Math.min(idealTabWidth, TabDefaultWidth));
-
-        // Determine if the tab bar needs to be scrollable
-        const newScrollable = idealTabWidth * numberOfTabs > spaceForTabs;
-
-        // Apply the calculated width and position to all tabs
         tabRefs.current.forEach((ref, index) => {
             if (ref.current) {
                 if (animate) {
@@ -224,16 +222,27 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
                 } else {
                     ref.current.classList.remove("animate");
                 }
-                ref.current.style.width = `${idealTabWidth}px`;
-                ref.current.style.transform = `translate3d(${index * idealTabWidth}px,0,0)`;
+                // A tab shown for the first time takes its width at once instead of growing from Wave's default.
+                const firstShow = ref.current.style.opacity !== "1";
+                if (firstShow) {
+                    ref.current.style.transition = "none";
+                }
+                ref.current.style.width = `${layout.widths[index]}px`;
+                ref.current.style.transform = `translate3d(${layout.offsets[index]}px,0,0)`;
                 ref.current.style.opacity = "1";
+                if (firstShow) {
+                    void ref.current.offsetWidth;
+                    ref.current.style.transition = "";
+                }
+                widths[tabIds[index]] = layout.widths[index];
             }
         });
-
-        // Update the state with the new tab width if it has changed
-        if (idealTabWidth !== tabWidthRef.current) {
-            tabWidthRef.current = idealTabWidth;
+        tabWidthsRef.current = widths;
+        tabsTotalWidthRef.current = layout.total;
+        if (tabsWrapperRef.current != null && !noTabs) {
+            tabsWrapperRef.current.style.width = `${layout.total}px`;
         }
+        tabWidthRef.current = layout.widths.length > 0 ? Math.max(...layout.widths) : TabDefaultWidth;
 
         // Update the state with the new scrollable state if it has changed
         if (newScrollable !== scrollableRef.current) {
@@ -243,6 +252,26 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
         // Initialize/destroy overlay scrollbars
         if (newScrollable) {
             osInstanceRef.current = OverlayScrollbars(tabBarRef.current, { ...(OSOptions as any) });
+            // MOLTENTERM-PATCH (#410): each tab's page draws its own strip; its active tab is scrolled into view, once
+            // per tab count, so a later relayout never takes the strip away from where the user scrolled it
+            const activeIndex = tabIds.indexOf(activeTabId);
+            const viewport = osInstanceRef.current.elements()?.viewport;
+            const revealKey = `${activeTabId}:${tabIds.length}`;
+            if (
+                activeIndex >= 0 &&
+                viewport != null &&
+                !tabDragActiveRef.current &&
+                revealedRef.current !== revealKey
+            ) {
+                revealedRef.current = revealKey;
+                const left = layout.offsets[activeIndex];
+                const right = left + layout.widths[activeIndex];
+                if (left < viewport.scrollLeft) {
+                    viewport.scrollLeft = left;
+                } else if (right > viewport.scrollLeft + viewport.clientWidth) {
+                    viewport.scrollLeft = right - viewport.clientWidth;
+                }
+            }
         } else {
             if (osInstanceRef.current) {
                 osInstanceRef.current.destroy();
@@ -287,16 +316,42 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
                 prevAllLoadedRef.current = true;
             }
         }
-    }, [
-        tabIds,
-        tabsLoaded,
-        newTabId,
-        saveTabsPosition,
-        hideAiButton,
-        appUpdateStatus,
-        zoomFactor,
-        showMenuBar,
-    ]);
+    }, [tabIds, tabsLoaded, newTabId, saveTabsPosition, hideAiButton, appUpdateStatus, zoomFactor, showMenuBar]);
+
+    // MOLTENTERM-PATCH (#410): a tab's width follows its content, so a rename, a new agent mark or a badge (any change
+    // of the tabs' DOM besides attributes) lays the strip out again, easing to the new widths; never during a drag
+    relayoutTabsRef.current = () => {
+        const allLoaded = tabIds.length > 0 && tabIds.every((id) => tabsLoaded[id]);
+        if (!allLoaded || tabDragActiveRef.current) {
+            return;
+        }
+        setSizeAndPosition(true);
+        saveTabsPosition();
+    };
+    useEffect(() => {
+        const wrapper = tabsWrapperRef.current;
+        if (wrapper == null) {
+            return;
+        }
+        let frame = 0;
+        const schedule = () => {
+            if (frame !== 0) {
+                return;
+            }
+            frame = requestAnimationFrame(() => {
+                frame = 0;
+                relayoutTabsRef.current?.();
+            });
+        };
+        const observer = new MutationObserver(schedule);
+        observer.observe(wrapper, { childList: true, subtree: true, characterData: true });
+        document.fonts?.addEventListener?.("loadingdone", schedule);
+        return () => {
+            observer.disconnect();
+            cancelAnimationFrame(frame);
+            document.fonts?.removeEventListener?.("loadingdone", schedule);
+        };
+    }, []);
 
     const getDragDirection = (currentX: number) => {
         let dragDirection: string;
@@ -312,28 +367,12 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
         return dragDirection;
     };
 
-    const getNewTabIndex = (currentX: number, tabIndex: number, dragDirection: string) => {
-        let newTabIndex = tabIndex;
-        const tabWidth = tabWidthRef.current;
-        if (dragDirection === "+") {
-            // Dragging to the right
-            for (let i = tabIndex + 1; i < tabIds.length; i++) {
-                const otherTabStart = dragStartPositions[i];
-                if (currentX + tabWidth > otherTabStart + tabWidth / 2) {
-                    newTabIndex = i;
-                }
-            }
-        } else {
-            // Dragging to the left
-            for (let i = tabIndex - 1; i >= 0; i--) {
-                const otherTabEnd = dragStartPositions[i] + tabWidth;
-                if (currentX < otherTabEnd - tabWidth / 2) {
-                    newTabIndex = i;
-                }
-            }
-        }
-        return newTabIndex;
-    };
+    // MOLTENTERM-PATCH (#410): tabs of different widths swap when the dragged tab's centre crosses a neighbour's; the
+    // pinned Project tab stays first
+    const pinnedTabCount = (): number =>
+        tabRefs.current.filter((ref) => ref.current?.dataset.moltenPinned === "true").length;
+    const getNewTabIndex = (currentX: number, tabIndex: number, _dragDirection: string) =>
+        tabDropIndex(tabIds.map(widthOfTab), tabIndex, currentX, pinnedTabCount());
 
     const handleMouseMove = (event: MouseEvent) => {
         // MOLTENTERM-PATCH (#81): a release the document never saw ends the drag at the next move
@@ -356,7 +395,7 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
         const incrementDecrement = tabBarRectLeftOffset * 0.05;
         const dragDirection = getDragDirection(currentX);
         const scrollable = scrollableRef.current;
-        const tabWidth = tabWidthRef.current;
+        const tabWidth = widthOfTab(tabId); // MOLTENTERM-PATCH (#410)
 
         // Scroll the tab bar if the dragged tab overflows the container bounds
         if (scrollable) {
@@ -392,8 +431,7 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
 
         // Constrain movement within the container bounds
         if (tabBarRef.current) {
-            const numberOfTabs = tabIds.length;
-            const totalDefaultTabWidth = numberOfTabs * TabDefaultWidth;
+            const totalDefaultTabWidth = tabsTotalWidthRef.current; // MOLTENTERM-PATCH (#410): the tabs' own widths
             if (totalDefaultTabWidth < tabBarRectWidth) {
                 // Set to the total default tab width if there's vacant space
                 tabBarRectWidth = totalDefaultTabWidth;
@@ -402,7 +440,7 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
                 tabBarRectWidth = tabsWrapperRef.current.scrollWidth;
             }
 
-            const minLeft = 0;
+            const minLeft = offsetsOfTabs(tabIds)[pinnedTabCount()] ?? 0; // MOLTENTERM-PATCH (#410): after the pinned tab
             const maxRight = tabBarRectWidth - tabWidth;
 
             // Adjust currentX to stay within bounds
@@ -416,26 +454,18 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
         const newTabIndex = getNewTabIndex(currentX, tabIndex, dragDirection);
 
         if (newTabIndex !== tabIndex) {
-            // Remove the dragged tab if not already done
-            if (!draggingRemovedRef.current) {
-                tabIds.splice(tabIndex, 1);
-                draggingRemovedRef.current = true;
-            }
-
-            // Find current index of the dragged tab in tempTabs
-            const currentIndexOfDraggingTab = tabIds.indexOf(tabId);
-
-            // Move the dragged tab to its new position
-            if (currentIndexOfDraggingTab !== -1) {
-                tabIds.splice(currentIndexOfDraggingTab, 1);
-            }
-            tabIds.splice(newTabIndex, 0, tabId);
+            // MOLTENTERM-PATCH (#410): the order changes in place (Wave mutates this array during a drag), then every
+            // other tab moves to its offset in the new order
+            const reordered = moveTabId(tabIds, tabIndex, newTabIndex);
+            tabIds.splice(0, tabIds.length, ...reordered);
+            draggingRemovedRef.current = true;
+            const offsets = offsetsOfTabs(tabIds);
 
             // Update visual positions of the tabs
             tabIds.forEach((localTabId, index) => {
                 const ref = tabRefs.current.find((ref) => ref.current.dataset.tabId === localTabId);
                 if (ref.current && localTabId !== tabId) {
-                    ref.current.style.transform = `translate3d(${index * tabWidth}px,0,0)`;
+                    ref.current.style.transform = `translate3d(${offsets[index]}px,0,0)`;
                     ref.current.classList.add("animate");
                 }
             });
@@ -464,8 +494,7 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
 
         // Update the final position of the dragged tab
         const draggingTab = tabIds[tabIndex];
-        const tabWidth = tabWidthRef.current;
-        const finalLeftPosition = tabIndex * tabWidth;
+        const finalLeftPosition = offsetsOfTabs(tabIds)[tabIndex] ?? 0; // MOLTENTERM-PATCH (#410)
         const ref = tabRefs.current.find((ref) => ref.current.dataset.tabId === draggingTab);
         if (ref.current) {
             ref.current.classList.add("animate");
@@ -487,14 +516,23 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
         document.removeEventListener("mouseup", handleMouseUp);
         document.removeEventListener("mousemove", handleMouseMove);
         draggingRemovedRef.current = false;
+        tabDragActiveRef.current = false; // MOLTENTERM-PATCH (#410)
     };
 
     const handleDragStart = useCallback(
         (event: React.MouseEvent<HTMLDivElement, MouseEvent>, tabId: string, ref: React.RefObject<HTMLDivElement>) => {
             if (event.button !== 0) return;
 
+            // MOLTENTERM-PATCH (#410): the pinned Project tab activates on press (DS-SHELL-098) and does not move
+            if (ref.current?.dataset.moltenPinned === "true") {
+                draggingTabDataRef.current.dragged = false;
+                env.electron.setActiveTab(tabId);
+                return;
+            }
+
             const tabIndex = tabIds.indexOf(tabId);
-            const tabStartX = dragStartPositions[tabIndex]; // Starting X position of the tab
+            // MOLTENTERM-PATCH (#410): from the current order, which a previous drag changed in place without a render
+            const tabStartX = offsetsOfTabs(tabIds)[tabIndex] ?? dragStartPositions[tabIndex]; // Starting X position of the tab
 
             console.log("handleDragStart", tabId, tabIndex, tabStartX);
             if (ref.current) {
@@ -509,6 +547,9 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
                     dragged: false,
                 };
 
+                // MOLTENTERM-PATCH (#410): the pressed tab follows the pointer without easing; no relayout meanwhile
+                ref.current.classList.remove("animate");
+                tabDragActiveRef.current = true;
                 document.addEventListener("mousemove", handleMouseMove);
                 document.addEventListener("mouseup", handleMouseUp);
             }
@@ -517,6 +558,13 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
     );
 
     const handleSelectTab = (tabId: string) => {
+        // MOLTENTERM-PATCH (#410): the pinned Project tab was already activated by its press
+        const pinned = tabRefs.current.some(
+            (ref) => ref.current?.dataset.tabId === tabId && ref.current.dataset.moltenPinned === "true"
+        );
+        if (pinned) {
+            return;
+        }
         if (!draggingTabDataRef.current.dragged) {
             env.electron.setActiveTab(tabId);
         }
@@ -526,7 +574,7 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
         debounce(30, () => {
             if (scrollableRef.current) {
                 const { viewport } = osInstanceRef.current.elements();
-                viewport.scrollLeft = tabIds.length * tabWidthRef.current;
+                viewport.scrollLeft = viewport.scrollWidth; // MOLTENTERM-PATCH (#410): tabs have their own widths
             }
         }),
         [tabIds]
@@ -579,15 +627,14 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
         env.electron.showWorkspaceAppMenu(workspace.oid);
     }
 
-    const tabsWrapperWidth = tabIds.length * tabWidthRef.current;
+    // MOLTENTERM-PATCH (#410): the sum of the tabs' own widths, kept up to date by setSizeAndPosition
+    const tabsWrapperWidth = tabsTotalWidthRef.current || tabIds.length * tabWidthRef.current;
     const showAppMenuButton = env.isWindows() || (!env.isMacOS() && !showMenuBar);
 
     // Calculate window drag left width based on platform and state
     let windowDragLeftWidth = 10;
     if (env.isMacOS() && !isFullScreen) {
-        const trafficLightsWidth = isMacOSTahoeOrLater()
-            ? MacOSTahoeTrafficLightsWidth
-            : MacOSTrafficLightsWidth;
+        const trafficLightsWidth = isMacOSTahoeOrLater() ? MacOSTahoeTrafficLightsWidth : MacOSTrafficLightsWidth;
         if (zoomFactor > 0) {
             windowDragLeftWidth = trafficLightsWidth / zoomFactor;
         } else {

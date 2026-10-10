@@ -13,7 +13,8 @@ import clsx from "clsx";
 import { useAtomValue } from "jotai";
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { HoldToCloseButton } from "../../moltenterm-shell/hold-to-close"; // MOLTENTERM-PATCH (#255)
-import { MoltentermTabMarks } from "../../moltenterm-shell/project/tab-marks"; // MOLTENTERM-PATCH (#109, #113)
+import "../../moltenterm-shell/tab-bar.css"; // MOLTENTERM-PATCH (#410)
+import { TabAgentMark, TabIcon, useTabIdentity } from "../../moltenterm-shell/tab-identity-ui"; // MOLTENTERM-PATCH (#410)
 import { useTabTreesTooltip } from "../../moltenterm-shell/worktree-ui"; // MOLTENTERM-PATCH (#114)
 import { makeORef } from "../store/wos";
 import "./tab.scss";
@@ -46,6 +47,8 @@ interface TabVProps {
     badges?: Badge[] | null;
     flagColor?: string | null;
     agentDot?: React.ReactNode; // MOLTENTERM-PATCH (#109)
+    icon?: string; // MOLTENTERM-PATCH (#410)
+    pinned?: boolean; // MOLTENTERM-PATCH (#410): the Project tab, drawn as its icon alone
     treesTitle?: string; // MOLTENTERM-PATCH (#114)
     onTreesHover?: () => void; // MOLTENTERM-PATCH (#114)
     onClick: () => void;
@@ -69,6 +72,8 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
         badges,
         flagColor,
         agentDot,
+        icon,
+        pinned,
         treesTitle,
         onTreesHover,
         onClick,
@@ -78,8 +83,8 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
         onRename,
         renameRef,
     } = props;
-    const MaxTabNameLength = 14;
-    const truncateTabName = (name: string) => [...(name ?? "")].slice(0, MaxTabNameLength).join("");
+    // MOLTENTERM-PATCH (#410): the name is shown whole and ellipsized by the tab's width, not cut at 14 characters
+    const truncateTabName = (name: string) => name ?? "";
     const displayName = truncateTabName(tabName);
     const [originalName, setOriginalName] = useState(displayName);
     const [isEditable, setIsEditable] = useState(false);
@@ -131,6 +136,14 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
         },
         [startRename]
     );
+
+    // MOLTENTERM-PATCH (#410): the pinned Project tab has no name to edit (its double-click lands on the icon)
+    const handleDoubleClick: React.MouseEventHandler<HTMLDivElement> = (event) => {
+        if (!pinned) {
+            return;
+        }
+        event.stopPropagation();
+    };
 
     // Expose startRename to external callers (e.g. context menu in TabInner)
     if (renameRef != null) {
@@ -212,40 +225,55 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
                 active,
                 dragging: isDragging,
                 "new-tab": isNew,
+                "molten-tab": true, // MOLTENTERM-PATCH (#410): frontend/moltenterm-shell/tab-bar.css
+                "molten-tab-pinned": pinned, // MOLTENTERM-PATCH (#410)
             })}
             onMouseDown={handleMouseDown}
             onClick={onClick}
+            onDoubleClick={handleDoubleClick} // MOLTENTERM-PATCH (#410)
             onAuxClick={handleAuxClick} // MOLTENTERM-PATCH (#255)
             onContextMenu={onContextMenu}
             data-tab-id={tabId}
-            // MOLTENTERM-PATCH (#114): the tooltip lists the trees of the tab's terminals
-            title={treesTitle || undefined}
+            data-molten-pinned={pinned ? "true" : undefined} // MOLTENTERM-PATCH (#410): read by the tab bar's layout
+            // MOLTENTERM-PATCH (#114, #410): the tooltip lists the trees of the tab's terminals; the Project tab says what it is
+            title={(pinned ? displayName : treesTitle) || undefined}
+            aria-label={pinned ? displayName : undefined}
             onMouseEnter={onTreesHover}
         >
             {showDivider && <div className="tab-divider" />}
             <div className="tab-inner">
-                <div
-                    ref={editableRef}
-                    className={clsx("name", { focused: isEditable })}
-                    contentEditable={isEditable}
-                    onDoubleClick={handleRenameTab}
-                    onBlur={handleBlur}
-                    onKeyDown={handleKeyDown}
-                    suppressContentEditableWarning={true}
-                >
-                    {displayName}
+                {/* MOLTENTERM-PATCH (#410): the view's or the agent's icon, then the name, the agent mark and the badges */}
+                <TabIcon icon={icon} />
+                <div className="molten-tab-body">
+                    <div
+                        ref={editableRef}
+                        className={clsx("name", { focused: isEditable })}
+                        contentEditable={isEditable}
+                        onDoubleClick={handleRenameTab}
+                        onBlur={handleBlur}
+                        onKeyDown={handleKeyDown}
+                        suppressContentEditableWarning={true}
+                    >
+                        {displayName}
+                    </div>
+                    {/* MOLTENTERM-PATCH (#109): the most urgent state of the tab's coding agents */}
+                    {agentDot}
+                    <TabBadges
+                        badges={badges}
+                        flagColor={flagColor}
+                        className="static w-auto translate-y-0" // MOLTENTERM-PATCH (#410): in the row, after the name
+                    />
                 </div>
-                {/* MOLTENTERM-PATCH (#109): the most urgent state of the tab's coding agents */}
-                {agentDot}
-                <TabBadges badges={badges} flagColor={flagColor} />
                 {/* MOLTENTERM-PATCH (#255, #271): the close button closes after a press-and-hold (FR-SHELL-025) */}
-                <HoldToCloseButton
-                    as={Button}
-                    className="ghost grey close"
-                    onClose={onClose}
-                    onMouseDown={handleMouseDownOnClose}
-                    plainTitle="Close Tab"
-                />
+                {!pinned && (
+                    <HoldToCloseButton
+                        as={Button}
+                        className="ghost grey close"
+                        onClose={onClose}
+                        onMouseDown={handleMouseDownOnClose}
+                        plainTitle="Close Tab"
+                    />
+                )}
             </div>
         </div>
     );
@@ -272,6 +300,7 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
     const [tabData, _] = env.wos.useWaveObjectValue<Tab>(makeORef("tab", id));
     const badges = useAtomValue(getTabBadgeAtom(id, env));
     const trees = useTabTreesTooltip(id); // MOLTENTERM-PATCH (#114)
+    const identity = useTabIdentity(id, tabData?.name ?? ""); // MOLTENTERM-PATCH (#410)
 
     const rawFlagColor = tabData?.meta?.["tab:flagcolor"];
     let flagColor: string | null = null;
@@ -330,7 +359,7 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
         <TabV
             ref={ref}
             tabId={id}
-            tabName={tabData?.name ?? ""}
+            tabName={identity.name} // MOLTENTERM-PATCH (#410): the first panel's title in place of T<n>
             active={active}
             showDivider={showDivider}
             isDragging={isDragging}
@@ -338,7 +367,9 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
             isNew={isNew}
             badges={badges}
             flagColor={flagColor}
-            agentDot={<MoltentermTabMarks tabId={id} />} // MOLTENTERM-PATCH (#109, #113): agent dot and Project tab pin
+            agentDot={<TabAgentMark info={identity.agent} />} // MOLTENTERM-PATCH (#109, #410): shaped per state
+            icon={identity.icon} // MOLTENTERM-PATCH (#410)
+            pinned={identity.pinned} // MOLTENTERM-PATCH (#113, #410)
             treesTitle={trees.title}
             onTreesHover={trees.onMouseEnter}
             onClick={handleTabClick}
