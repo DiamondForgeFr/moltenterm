@@ -39,12 +39,10 @@ describe("browser tab menu (FR-SHELL-051 AC3, DS-SHELL-092)", () => {
         expect(calls).toEqual(["reload t2", "duplicate t2", "copy t2", "close t2", "closeothers t2"]);
     });
 
-    it("disables Close and Close others on the only tab", () => {
+    it("leaves Close and Close others out on the only tab", () => {
         const { a } = actions();
         const only: BrowserState = { tabs: [state.tabs[0]], activeId: "t1" };
-        const menu = browserTabMenu(only, only.tabs[0], a);
-        expect(menu.find((i) => i.label === "Close").enabled).toBe(false);
-        expect(menu.find((i) => i.label === "Close others").enabled).toBe(false);
+        expect(labels(browserTabMenu(only, only.tabs[0], a))).toEqual(["Reload", "Duplicate", "Copy link"]);
     });
 
     it("leaves Reload out for a page handed off to the installed browser", () => {

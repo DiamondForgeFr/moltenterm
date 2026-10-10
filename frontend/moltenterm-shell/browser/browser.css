@@ -132,6 +132,12 @@ body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-close,
     background: var(--color-hover);
 }
 
+/* Wave fills the magnify arrows only inside its block header; here they follow the button's colour. */
+.molten-browser-panel-buttons .block-frame-magnify svg #arrow1,
+.molten-browser-panel-buttons .block-frame-magnify svg #arrow2 {
+    fill: currentColor;
+}
+
 .molten-browser-panel-buttons .wave-iconbutton.disabled {
     opacity: 0.45 !important;
 }

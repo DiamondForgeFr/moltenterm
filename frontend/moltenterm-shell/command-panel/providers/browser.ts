@@ -145,8 +145,7 @@ function pageItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[]
 
 function tabItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] {
     const tab = s.tab;
-    const others = s.tabCount > 1;
-    return [
+    const items: PanelItem[] = [
         {
             id: "browser:newtab",
             type: "action",
@@ -162,14 +161,18 @@ function tabItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] 
             icon: "clone",
             run: () => t.duplicateTab(tab.id),
         },
+    ];
+    // The last tab closes with its panel, which the footer's Close already offers.
+    if (s.tabCount <= 1) {
+        return items;
+    }
+    items.push(
         {
             id: "browser:closetab",
             type: "action",
             label: "Close tab",
             icon: "xmark",
             shortcut: "⌘W",
-            disabled: !others,
-            disabledReason: "The last tab closes with the panel",
             run: () => t.closeTab(tab.id),
         },
         {
@@ -177,11 +180,10 @@ function tabItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] 
             type: "action",
             label: "Close other tabs",
             icon: "xmark",
-            disabled: !others,
-            disabledReason: "This is the only tab",
             run: () => t.closeOtherTabs(tab.id),
-        },
-    ];
+        }
+    );
+    return items;
 }
 
 function siteItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] {
@@ -249,7 +251,12 @@ function linkItems(s: BrowserCommandState): PanelItem[] {
 function agentItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] {
     const tab = s.agentTab;
     const view = s.agentView;
-    const items: PanelItem[] = [{ id: "browser:agent:status", type: "info", label: view.title, detail: view.detail }];
+    // The control bar speaks of the tab it sits on; here the driven tab may be another one.
+    const title =
+        s.agentTabShown || view.takenOver
+            ? view.title
+            : `${tab.agentname?.trim() || "An agent"} is controlling another tab`;
+    const items: PanelItem[] = [{ id: "browser:agent:status", type: "info", label: title, detail: view.detail }];
     if (!s.agentTabShown) {
         items.push({
             id: "browser:agent:show",

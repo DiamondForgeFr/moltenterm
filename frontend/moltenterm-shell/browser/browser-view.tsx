@@ -880,6 +880,8 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
             // In-page navigations (anchors, history.pushState on load) do not count as moving on.
             if (e.type === "did-navigate") {
                 model.choices.noteNavigation(tab.id);
+                // A page without a favicon would keep the previous site's.
+                model.loads.update(tab.id, { favicon: undefined });
             }
         };
         // A popup this tab opened was refused by its sign-in provider (emain/moltenterm-popups.ts closed it).
@@ -926,7 +928,8 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
             const url = e.validatedURL || webview.getURL();
             model.errors.noteFailure(tab.id, { url, code: e.errorCode, description: e.errorDescription });
             if (url && !/^chrome-error:/i.test(url)) {
-                model.setState(updateTab(model.state(), tab.id, { url }));
+                // The previous page's title would name the tab otherwise: the host stands in for it.
+                model.setState(updateTab(model.state(), tab.id, { url, title: undefined }));
             }
         };
         const onFavicon = (e: any) => model.loads.noteFavicons(tab.id, e.favicons);
