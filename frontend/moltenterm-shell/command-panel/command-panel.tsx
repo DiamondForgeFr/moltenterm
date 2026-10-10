@@ -1362,7 +1362,7 @@ function CommandPanel({ open }: CommandPanelProps) {
                         key={item.id}
                         type="button"
                         className={cn(
-                            "molten-cmdpanel-footer-btn flex h-7 cursor-pointer items-center gap-1.5 rounded-6 px-2 text-12 text-secondary",
+                            "molten-cmdpanel-footer-btn flex h-7 cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-12 whitespace-nowrap text-secondary",
                             item.destructive && "is-destructive ml-auto"
                         )}
                         title={item.shortcut ? `${item.label} (${item.shortcut})` : item.label}

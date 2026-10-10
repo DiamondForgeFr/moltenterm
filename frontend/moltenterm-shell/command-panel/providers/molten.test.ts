@@ -212,7 +212,7 @@ describe("MoltenTerm widget options (FR-SHELL-049-AC4..AC6, DS-SHELL-090, TC-SHE
         state.settings["companion:usagegauges"] = ["claude", "codex"];
         const c = ctx("molten-companion", [], { meta: { "molten:companion:block": "t1" } as MetaType });
         const source = find(companionSections(c), "companion:usagesource");
-        expect(source.options.map((o: any) => o.label)).toEqual(["Status line", "Status line and usage endpoint"]);
+        expect(source.options.map((o: any) => o.label)).toEqual(["Status line", "Plus usage endpoint"]);
         expect(effectiveValue(source)).toBe(false);
         await setItemValue(source, true);
         expect(state.rpc.at(-1)).toEqual({
