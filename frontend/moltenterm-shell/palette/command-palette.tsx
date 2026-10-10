@@ -10,12 +10,13 @@ import * as WOS from "@/app/store/wos";
 import { getLayoutModelForStaticTab, LayoutNode } from "@/layout/index";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
 import { formatShortcutById } from "../shortcuts/format";
 import { cancelSplit, consumeSplit, isPendingSplit, readSplitFrom } from "../split/split";
-import { SplitFromMetaKey } from "../split/split-model";
+import { pickerFitsInline, PickerMinPx, pickerPopoverRect, SplitFromMetaKey } from "../split/split-model";
 import { TermUpdates } from "../termupdate/termupdate-store";
 import { WorkspaceIcon } from "../workspace-icon";
 import { workspaceIconSource } from "../workspace-icon-model";
@@ -225,6 +226,50 @@ type PaletteRowProps = {
     onOpen: (entry: PaletteEntry, right: boolean) => void;
 };
 
+type PopoverRect = { left: number; top: number; width: number; height: number };
+
+// A split's picker keeps at least six rows (FR-SHELL-046-AC6, DS-SHELL-084): inline while the new panel has the room,
+// else a popover anchored to the panel, above the layout. The anchor is a hidden element left in the pane, so the
+// pane's own free height is measured even while the palette is in the popover.
+function usePickerPopover(enabled: boolean, anchorRef: React.RefObject<HTMLElement>): PopoverRect {
+    const [rect, setRect] = useState<PopoverRect>(null);
+    useLayoutEffect(() => {
+        const container = anchorRef.current?.parentElement;
+        if (!enabled || container == null) {
+            setRect(null);
+            return;
+        }
+        const measure = () => {
+            const style = getComputedStyle(container);
+            const free = container.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+            if (pickerFitsInline(free)) {
+                setRect(null);
+                return;
+            }
+            const panel = (container.closest("[data-blockid]") ?? container).getBoundingClientRect();
+            const next = pickerPopoverRect(panel, { width: window.innerWidth, height: window.innerHeight });
+            setRect((prev) =>
+                prev != null &&
+                prev.left === next.left &&
+                prev.top === next.top &&
+                prev.width === next.width &&
+                prev.height === next.height
+                    ? prev
+                    : next
+            );
+        };
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(container);
+        window.addEventListener("resize", measure);
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("resize", measure);
+        };
+    }, [enabled, anchorRef]);
+    return rect;
+}
+
 function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteRowProps) {
     const indices = query ? (matchEntry(query, entry)?.indices ?? []) : [];
     const aside = [entry.keyPath ?? entry.cli ?? entry.hint, entry.shortcut].filter((s) => s).join("  ·  ");
@@ -291,6 +336,18 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
     const queryRef = useRef(query);
     queryRef.current = query;
     const pickerWasFocused = useRef(false);
+    const anchorRef = useRef<HTMLSpanElement>(null);
+    const pickerInPane = host === "pane" && picker != null;
+    const popover = usePickerPopover(pickerInPane, anchorRef);
+    const inPopover = popover != null;
+
+    // Moving between the pane and the popover mounts the palette again: the search keeps its focus.
+    useEffect(() => {
+        if (!pickerInPane || focusedBlockId !== blockId) {
+            return;
+        }
+        input.current?.focus();
+    }, [inPopover]);
 
     useEffect(() => {
         setSelected(Math.max(bestMatchIndex(sections, query), 0));
@@ -392,14 +449,17 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
     };
 
     let index = 0;
-    return (
+    const palette = (
         <div
             className={cn(
                 "flex w-full max-w-[560px] flex-col overflow-hidden rounded-10 border border-border bg-surface-3 shadow-e3",
-                host === "modal" ? "max-h-[60vh]" : "max-h-full"
+                host === "modal" ? "max-h-[60vh]" : "max-h-full",
+                inPopover && "h-full"
             )}
+            style={pickerInPane && !inPopover ? { minHeight: PickerMinPx } : undefined}
             role="dialog"
             aria-label="Command palette"
+            data-role={pickerInPane ? (inPopover ? "split-picker-popover" : "split-picker") : undefined}
         >
             <div className="flex items-center gap-2 border-b border-border px-3.5 py-2.5">
                 <span className="font-mono text-accent">❯</span>
@@ -448,5 +508,24 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                 <span>esc {host === "modal" ? "close" : picker != null ? "cancel the split" : "clear"}</span>
             </div>
         </div>
+    );
+    if (!pickerInPane) {
+        return palette;
+    }
+    return (
+        <>
+            <span ref={anchorRef} className="hidden" aria-hidden />
+            {inPopover
+                ? createPortal(
+                      <div
+                          className="fixed z-[600] flex"
+                          style={{ left: popover.left, top: popover.top, width: popover.width, height: popover.height }}
+                      >
+                          {palette}
+                      </div>,
+                      document.body
+                  )
+                : palette}
+        </>
     );
 }

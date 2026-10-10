@@ -8,11 +8,12 @@ import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { atom } from "jotai";
 import { CiState } from "./ci-model";
 import { LineMap } from "./line-map";
+import { MoltentermLineMapView } from "./line-map-model";
 import { useCiState, useReleaseSession } from "./mission-client";
 import { ActiveProject, MissionFrame, MissionHeader } from "./mission-frame";
 import { MissionSnapshot } from "./mission-model";
 
-export const MoltentermLineMapView = "molten-linemap";
+export { MoltentermLineMapView };
 
 export class LineMapViewModel implements ViewModel {
     viewType = MoltentermLineMapView;

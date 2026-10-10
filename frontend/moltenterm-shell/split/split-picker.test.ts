@@ -56,6 +56,7 @@ describe("the split's picker (FR-SHELL-042-AC6, DS-SHELL-066)", () => {
             "Browser",
             "Files",
             "Mission Control",
+            "Line map",
             "CI/CD",
             "Companion",
             "Sessions",
@@ -86,14 +87,42 @@ describe("the split's picker (FR-SHELL-042-AC6, DS-SHELL-066)", () => {
         expect(companion.shortcut).toBe("⇧⌘J");
     });
 
-    it("offers no companion for a source that is not a terminal, and Mission Control only with a project", () => {
-        const labels = pickerPanelEntries(DefaultWidgets, "ws", {
+    it("offers no companion for a source that is not a terminal, and Mission Control with or without a project", () => {
+        const panels = pickerPanelEntries(DefaultWidgets, "ws", {
             ...TermSource,
             meta: { view: "molten-browser" },
-        }).map((e) => e.label);
+        });
+        const labels = panels.map((e) => e.label);
         expect(labels).not.toContain("Companion");
-        expect(labels).not.toContain("Mission Control");
+        expect(labels).toContain("Mission Control");
+        expect(labels).toContain("Line map");
         expect(labels[0]).toBe("Terminal");
+        expect(panels.find((e) => e.label === "Mission Control").detail).toMatch(/link a project/);
+    });
+
+    it("finds Mission Control by the words people type for it (FR-SHELL-046-AC5, DS-SHELL-084)", () => {
+        for (const linked of [true, false]) {
+            const entries = pickerEntries(TermSource, linked);
+            for (const word of ["mission", "dashboard", "branches", "git"]) {
+                const sections = filterPalette(entries, word, {}, PickerGroupOrder);
+                const labels = flattenSections(sections).map((e) => e.label);
+                expect(labels, `${word} (linked: ${linked})`).toContain("Mission Control");
+            }
+        }
+        const pick = (word: string) => {
+            const sections = filterPalette(pickerEntries(TermSource), word, {}, PickerGroupOrder);
+            return flattenSections(sections)[bestMatchIndex(sections, word)].label;
+        };
+        expect(pick("mission")).toBe("Mission Control");
+        expect(pick("url")).toBe("Browser");
+        expect(pick("resume")).toBe("Sessions");
+        expect(pick("usage")).toBe("Companion");
+        expect(pick("line")).toBe("Line map");
+    });
+
+    it("opens the line map full size from the picker", () => {
+        const lineMap = pickerPanelEntries(DefaultWidgets, "ws", TermSource, true).find((e) => e.label === "Line map");
+        expect(lineMap.run).toEqual({ kind: "widget", blockdef: { meta: { view: "molten-linemap" } } });
     });
 
     it("shows on each panel the keys that reach it, and they do", () => {
