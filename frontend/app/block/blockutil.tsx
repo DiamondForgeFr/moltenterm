@@ -2,11 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button } from "@/app/element/button";
-import {
-    MetaKeyAtomFnType,
-    WaveEnv,
-    WaveEnvSubset,
-} from "@/app/waveenv/waveenv";
+import { MetaKeyAtomFnType, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import { IconButton, ToggleIconButton } from "@/element/iconbutton";
 import { MagnifyIcon } from "@/element/magnify";
 import { MenuButton } from "@/element/menubutton";
@@ -14,6 +10,7 @@ import * as util from "@/util/util";
 import clsx from "clsx";
 import * as jotai from "jotai";
 import * as React from "react";
+import { Pill } from "../../moltenterm-shell/header/pill"; // MOLTENTERM-PATCH (#406)
 
 export type TabBackgroundEnv = WaveEnvSubset<{
     getTabMetaKeyAtom: MetaKeyAtomFnType<"bg:activebordercolor" | "bg:bordercolor" | "tab:background">;
@@ -258,6 +255,18 @@ export const HeaderTextElem = React.memo(({ elem, preview }: { elem: HeaderElem;
         );
     } else if (elem.elemtype == "menubutton") {
         return <MenuButton className="block-frame-menubutton" {...(elem as MenuButtonProps)} />;
+    } else if (elem.elemtype == "pill") {
+        // MOLTENTERM-PATCH (#406): a view's state (Read only) is the header's one Pill (FR-SHELL-052)
+        return (
+            <Pill
+                label={elem.text}
+                tone={elem.tone ?? "neutral"}
+                title={elem.title}
+                icon={elem.icon}
+                onClick={elem.onClick}
+                className="shrink-0"
+            />
+        );
     }
     return null;
 });

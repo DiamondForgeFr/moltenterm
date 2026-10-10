@@ -332,7 +332,11 @@
        back to it. */
     --mt-ui-font: "IBM Plex Sans", "Inter", sans-serif;
     --base-font: normal 14px / normal var(--mt-ui-font);
-    --header-font: 600 var(--mt-text-11) / normal var(--mt-ui-font);
+    /* Panel headers (FR-SHELL-052, DS-SHELL-093): a 28 px row, the title at 12/600, the view icon at 16 px. */
+    --header-font: 600 var(--mt-text-12) / normal var(--mt-ui-font);
+    --header-height: var(--mt-row-28);
+    --header-icon-size: var(--mt-icon-16);
+    --header-icon-width: var(--mt-icon-16);
     --font-sans: var(--mt-ui-font);
 }
 

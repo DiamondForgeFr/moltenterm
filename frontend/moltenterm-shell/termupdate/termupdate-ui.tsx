@@ -1,16 +1,18 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The outdated terminal's chip in the pane header (FR-SHELL-041, DS-SHELL-076): quiet, next to the agent label, the
-// shape of the hook offer (#221). A click checks first: an idle shell is updated at once; an agent asks once; a busy
-// terminal says what to finish first. The result shows in the same dialog only when there is something to say.
+// The outdated terminal's update (FR-SHELL-041, DS-SHELL-076). Update terminal is a suggestion of the command panel
+// (FR-SHELL-052, header/header-proposals.ts); the header hosts its dialog. Choosing it checks first: an idle shell is
+// updated at once; an agent asks once; a busy terminal says what to finish first. The result shows in the same dialog
+// only when there is something to say.
 
 import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
+import { useProposalRequest } from "../header/header-proposals";
 import { MoltenWave } from "../molten-button";
-import { outdatedTitle, TermUpdateOutcome } from "./termupdate-model";
+import { TermUpdateOutcome } from "./termupdate-model";
 import { TermUpdates } from "./termupdate-store";
 
 const PlainButton =
@@ -19,13 +21,10 @@ const PrimaryButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12";
 
 type DialogState = { kind: "confirm" | "result"; outcome: TermUpdateOutcome };
 
-export function TermUpdateChip({ blockId }: { blockId: string }) {
+export function TermUpdateHost({ blockId }: { blockId: string }) {
     const outdated = useAtomValue(TermUpdates.getInstance().blockAtom(blockId));
     const [pending, setPending] = useState(false);
     const [dialog, setDialog] = useState<DialogState>(null);
-    if (outdated == null && dialog == null) {
-        return null;
-    }
     const store = TermUpdates.getInstance();
     const finish = (outcome: TermUpdateOutcome) => {
         if ((outcome.status === "updated" && !outcome.guessed) || outcome.status === "uptodate") {
@@ -62,37 +61,21 @@ export function TermUpdateChip({ blockId }: { blockId: string }) {
             }
             setDialog({ kind: outcome.status === "needconfirm" ? "confirm" : "result", outcome });
         });
+    useProposalRequest(blockId, "termupdate", () => {
+        if (outdated != null && !pending) {
+            start();
+        }
+    });
+    if (dialog == null) {
+        return null;
+    }
     return (
-        <>
-            {outdated != null ? (
-                <button
-                    type="button"
-                    className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-6 border border-border px-1.5 text-11 leading-[16px] text-muted hover:bg-hover hover:text-primary disabled:opacity-60"
-                    title={outdatedTitle(outdated)}
-                    aria-label="Update terminal"
-                    disabled={pending}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        start();
-                    }}
-                    data-role="molten-termupdate-chip"
-                >
-                    <i
-                        className={`fa fa-solid ${pending ? "fa-spinner fa-spin" : "fa-arrows-rotate"} text-11 text-warning`}
-                    />
-                    Update terminal
-                </button>
-            ) : null}
-            {dialog != null ? (
-                <TermUpdateDialog
-                    state={dialog}
-                    pending={pending}
-                    onConfirm={() => run(true)}
-                    onClose={() => setDialog(null)}
-                />
-            ) : null}
-        </>
+        <TermUpdateDialog
+            state={dialog}
+            pending={pending}
+            onConfirm={() => run(true)}
+            onClose={() => setDialog(null)}
+        />
     );
 }
 

@@ -8,8 +8,6 @@ import {
     OptMagnifyButton,
     renderHeaderElements,
 } from "@/app/block/blockutil";
-import { ConnectionButton } from "@/app/block/connectionbutton";
-import { DurableSessionFlyover } from "@/app/block/durable-session-flyover";
 import { getBlockBadgeAtom } from "@/app/store/badge";
 import { recordTEvent, refocusNode } from "@/app/store/global";
 import { uxCloseBlock } from "@/app/store/keymodel";
@@ -21,15 +19,21 @@ import * as util from "@/util/util";
 import { cn, makeIconClass } from "@/util/util";
 import * as jotai from "jotai";
 import * as React from "react";
-import { AgentHeaderLabel, useBlockAgentState } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#109)
 // MOLTENTERM-PATCH (#401): the command panel's trigger, the header right-click and the body's short menu
 import { blockBodyMenuItems, openHeaderCommandPanel } from "../../moltenterm-shell/command-panel/block-menus";
 import { openCommandPanelFromTrigger } from "../../moltenterm-shell/command-panel/command-panel-store";
+// MOLTENTERM-PATCH (#406): the header's lead (icon, title, muted context), its one Pill and the working segment
+import {
+    MoltenHeaderLead,
+    MoltenHeaderPill,
+    MoltenHeaderWorking,
+    useHeaderHasProposal,
+    useMoltenHeader,
+    withoutHeaderPills,
+} from "../../moltenterm-shell/header/panel-header";
 import { formatShortcutById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
 import { splitPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { SplitDownLabel, SplitRightLabel } from "../../moltenterm-shell/split/split-menu"; // MOLTENTERM-PATCH (#370)
-import { TermUpdateChip } from "../../moltenterm-shell/termupdate/termupdate-ui"; // MOLTENTERM-PATCH (#366)
-import { WorktreeHeaderLabel } from "../../moltenterm-shell/worktree-ui"; // MOLTENTERM-PATCH (#114)
 import { BlockEnv } from "./blockenv";
 import { BlockFrameProps } from "./blocktypes";
 
@@ -52,9 +56,11 @@ type HeaderTextElemsProps = {
     blockId: string;
     preview: boolean;
     error?: Error;
+    // MOLTENTERM-PATCH (#406): at most one pill per header, the most urgent state's
+    hidePills?: boolean;
 };
 
-const HeaderTextElems = React.memo(({ viewModel, blockId, preview, error }: HeaderTextElemsProps) => {
+const HeaderTextElems = React.memo(({ viewModel, blockId, preview, error, hidePills }: HeaderTextElemsProps) => {
     const waveEnv = useWaveEnv<BlockEnv>();
     const frameTextAtom = waveEnv.getBlockMetaKeyAtom(blockId, "frame:text");
     const frameText = jotai.useAtomValue(frameTextAtom);
@@ -71,7 +77,10 @@ const HeaderTextElems = React.memo(({ viewModel, blockId, preview, error }: Head
             );
         }
     } else if (Array.isArray(headerTextUnion)) {
-        headerTextElems.push(...renderHeaderElements(headerTextUnion, preview));
+        // MOLTENTERM-PATCH (#406)
+        headerTextElems.push(
+            ...renderHeaderElements(hidePills ? withoutHeaderPills(headerTextUnion) : headerTextUnion, preview)
+        );
     }
     if (error != null) {
         const copyHeaderErr = () => {
@@ -95,9 +104,10 @@ type HeaderEndIconsProps = {
     viewModel: ViewModel;
     nodeModel: NodeModel;
     blockId: string;
+    termHeader?: boolean; // MOLTENTERM-PATCH (#406)
 };
 
-const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId }: HeaderEndIconsProps) => {
+const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }: HeaderEndIconsProps) => {
     const blockEnv = useWaveEnv<BlockEnv>();
     const endIconButtons = util.useAtomValueSafe(viewModel?.endIconButtons);
     const magnified = jotai.useAtomValue(nodeModel.isMagnified);
@@ -105,6 +115,8 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId }: HeaderEndI
     const numLeafs = jotai.useAtomValue(nodeModel.numLeafs);
     const magnifyDisabled = numLeafs <= 1;
     const showSplitButtons = jotai.useAtomValue(blockEnv.getSettingsKeyAtom("term:showsplitbuttons"));
+    // MOLTENTERM-PATCH (#406): a terminal's proposals wait in the command panel; its trigger carries a dot meanwhile
+    const hasProposal = useHeaderHasProposal(blockId, termHeader);
 
     const endIconsElem: React.ReactElement[] = [];
 
@@ -138,14 +150,20 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId }: HeaderEndI
     const settingsDecl: IconButtonDecl = {
         elemtype: "iconbutton",
         icon: "sliders",
-        title: `Commands and options (${formatShortcutById("command-panel")})`,
+        title: `${hasProposal ? "Suggestions, commands" : "Commands"} and options (${formatShortcutById("command-panel")})`,
         click: (e) =>
             openCommandPanelFromTrigger(
                 blockId,
                 (e.target as Element)?.closest?.("button") ?? (e.currentTarget as Element)
             ),
     };
-    endIconsElem.push(<IconButton key="settings" decl={settingsDecl} className="block-frame-settings" />);
+    endIconsElem.push(
+        <IconButton
+            key="settings"
+            decl={settingsDecl}
+            className={cn("block-frame-settings", hasProposal && "molten-has-proposal")} // MOLTENTERM-PATCH (#406)
+        />
+    );
     if (ephemeral) {
         const addToLayoutDecl: IconButtonDecl = {
             elemtype: "iconbutton",
@@ -199,20 +217,30 @@ const BlockFrame_Header = ({
     let viewIconUnion = util.useAtomValueSafe(viewModel?.viewIcon) ?? blockViewToIcon(metaView);
     const preIconButton = util.useAtomValueSafe(viewModel?.preIconButton);
     const useTermHeader = util.useAtomValueSafe(viewModel?.useTermHeader);
-    const termConfigedDurable = util.useAtomValueSafe(viewModel?.termConfigedDurable);
-    const hideViewName = util.useAtomValueSafe(viewModel?.hideViewName);
     const badge = jotai.useAtomValue(getBlockBadgeAtom(useTermHeader ? nodeModel.blockId : null));
     const magnified = jotai.useAtomValue(nodeModel.isMagnified);
     const prevMagifiedState = React.useRef(magnified);
     const manageConnection = util.useAtomValueSafe(viewModel?.manageConnection);
     const iconColor = jotai.useAtomValue(waveEnv.getBlockMetaKeyAtom(nodeModel.blockId, "icon:color"));
     const dragHandleRef = preview ? null : nodeModel.dragHandleRef;
-    const isTerminalBlock = metaView === "term";
-    // MOLTENTERM-PATCH (#109): a terminal running a coding agent shows the agent, its project and branch, and its state
-    const agentState = useBlockAgentState(isTerminalBlock && !preview ? nodeModel.blockId : null);
     const localHostName = jotai.useAtomValue(waveEnv.getLocalHostDisplayNameAtom());
     viewName = metaFrameTitle ?? viewName;
     viewIconUnion = metaFrameIcon ?? viewIconUnion;
+    // MOLTENTERM-PATCH (#406): every header is [16 px icon] Title, muted context, at most one Pill (FR-SHELL-052).
+    // A terminal's title is its agent, the connection shows only when remote and the durability moved into the
+    // command panel; every panel has a title, so a view's hideViewName no longer hides it.
+    const headerState = useMoltenHeader({
+        blockId: nodeModel.blockId,
+        viewModel,
+        preview,
+        termHeader: !!useTermHeader,
+        manageConnection: !!manageConnection,
+        connection: metaConnection,
+        frameTitle: metaFrameTitle,
+        viewName: viewName || blockViewToName(metaView),
+        localHostName,
+        changeConnModalAtom,
+    });
 
     React.useEffect(() => {
         if (magnified && !preview && !prevMagifiedState.current) {
@@ -223,61 +251,52 @@ const BlockFrame_Header = ({
     }, [magnified]);
 
     const viewIconElem = getViewIconElem(viewIconUnion, iconColor);
+    const viewIconName =
+        typeof viewIconUnion === "string"
+            ? viewIconUnion
+            : typeof viewIconUnion?.icon === "string"
+              ? viewIconUnion.icon
+              : null;
 
     return (
         <div
-            className={cn("block-frame-default-header", useTermHeader && "!pl-[2px]")}
+            className="block-frame-default-header"
             data-role="block-header"
             ref={dragHandleRef}
             onContextMenu={(e) => openHeaderCommandPanel(e, nodeModel.blockId)} // MOLTENTERM-PATCH (#401)
         >
-            {!useTermHeader && (
-                <>
-                    {preIconButton && <IconButton decl={preIconButton} className="block-frame-preicon-button" />}
-                    <div className="block-frame-default-header-iconview">
-                        {viewIconElem}
-                        {viewName && !hideViewName && <div className="block-frame-view-type">{viewName}</div>}
-                    </div>
-                </>
-            )}
-            {manageConnection && (
-                <ConnectionButton
-                    ref={connBtnRef}
-                    key="connbutton"
-                    connection={metaConnection}
-                    changeConnModalAtom={changeConnModalAtom}
-                    isTerminalBlock={isTerminalBlock}
-                    hideLocalName={agentState != null}
-                />
-            )}
-            {agentState != null && (
-                <AgentHeaderLabel
-                    blockId={nodeModel.blockId}
-                    localName={util.isLocalConnName(metaConnection) ? localHostName : null}
-                />
-            )}
-            {/* MOLTENTERM-PATCH (#114): the terminal's tree (main tree or worktree) and the worktree link offer */}
-            {isTerminalBlock && !preview && (
-                <WorktreeHeaderLabel blockId={nodeModel.blockId} hideBranch={agentState != null} />
-            )}
-            {/* MOLTENTERM-PATCH (#366): a terminal started before MoltenTerm's update offers to update itself */}
-            {isTerminalBlock && !preview && <TermUpdateChip blockId={nodeModel.blockId} />}
-            {useTermHeader && termConfigedDurable != null && (
-                <DurableSessionFlyover
-                    key="durable-status"
-                    blockId={nodeModel.blockId}
-                    viewModel={viewModel}
-                    placement="bottom"
-                    divClassName="iconbutton disabled text-[13px] ml-[-4px]"
-                />
-            )}
+            <MoltenHeaderLead
+                state={headerState}
+                iconElem={viewIconElem}
+                iconName={viewIconName}
+                iconColor={iconColor}
+                manageConnection={!!manageConnection}
+                localHostName={localHostName}
+                connBtnRef={connBtnRef}
+                preIcon={
+                    preIconButton ? <IconButton decl={preIconButton} className="block-frame-preicon-button" /> : null
+                }
+            />
             {useTermHeader && badge && (
                 <div className="pointer-events-none flex items-center px-1" style={{ color: badge.color || "#fbbf24" }}>
                     <i className={makeIconClass(badge.icon, true, { defaultIcon: "circle-small" })} />
                 </div>
             )}
-            <HeaderTextElems viewModel={viewModel} blockId={nodeModel.blockId} preview={preview} error={error} />
-            <HeaderEndIcons viewModel={viewModel} nodeModel={nodeModel} blockId={nodeModel.blockId} />
+            <HeaderTextElems
+                viewModel={viewModel}
+                blockId={nodeModel.blockId}
+                preview={preview}
+                error={error}
+                hidePills={headerState.pill != null}
+            />
+            <MoltenHeaderPill state={headerState} viewModel={viewModel} />
+            <HeaderEndIcons
+                viewModel={viewModel}
+                nodeModel={nodeModel}
+                blockId={nodeModel.blockId}
+                termHeader={!!useTermHeader && !preview}
+            />
+            <MoltenHeaderWorking state={headerState} />
         </div>
     );
 };
