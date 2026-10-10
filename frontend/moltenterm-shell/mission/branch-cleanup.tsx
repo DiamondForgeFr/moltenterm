@@ -8,6 +8,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { ScrimClass } from "../dialog-frame";
 import { ActionSecondaryClass } from "./action-button";
 import {
     branchesClean,
@@ -78,7 +79,10 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
             }
         });
     return createPortal(
-        <div className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40" onPointerDown={onClose}>
+        <div
+            className={cn("fixed inset-0 z-[9600] flex items-center justify-center", ScrimClass)}
+            onPointerDown={onClose}
+        >
             <div
                 onPointerDown={(e) => e.stopPropagation()}
                 className="flex max-h-[80vh] w-[620px] max-w-[calc(100vw-32px)] flex-col rounded-10 border border-border bg-surface-3 shadow-e3"
