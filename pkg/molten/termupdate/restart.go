@@ -42,7 +42,7 @@ type AgentRestartRequest struct {
 var restartTextsCurrent = restartTexts{
 	notice:     "MoltenTerm: restarting with the current settings",
 	again:      "Restart it",
-	againLower: "restart it",
+	againLower: "restart it with the current settings",
 	done:       "Restarted.",
 	doneStatus: StatusRestarted,
 }

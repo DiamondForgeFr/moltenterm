@@ -84,7 +84,8 @@ const NavKeys = new Set(["ArrowDown", "ArrowUp", "Home", "End", "PageDown", "Pag
 
 // DS-SHELL-100: select, name, actions, folder, agent, last active. Rows are subgrids of the table, so the actions
 // column is as wide as the widest row's actions and every column lines up.
-const TableColumns = "grid grid-cols-[28px_minmax(96px,1fr)_auto_minmax(0,1.5fr)_minmax(88px,auto)_minmax(56px,auto)]";
+const TableColumns =
+    "grid grid-cols-[28px_minmax(96px,max-content)_auto_minmax(0,1fr)_minmax(88px,auto)_minmax(56px,auto)]";
 const RowGrid = "col-span-full grid grid-cols-subgrid items-center";
 
 const RowButton =
@@ -316,7 +317,7 @@ function SessionRow({
             </div>
             <div role="cell" className="flex min-w-0 items-center gap-1.5 pr-1">
                 <span
-                    className="min-w-0 shrink truncate text-12 font-medium text-primary"
+                    className="max-w-[16rem] min-w-0 shrink truncate text-12 font-medium text-primary"
                     title={session.tabname || name}
                 >
                     {name}

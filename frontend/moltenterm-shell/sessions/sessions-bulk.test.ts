@@ -83,6 +83,11 @@ describe("sessions table columns", () => {
         expect(sessionName({ ...shell, tabname: "API server" }, Home)).toBe("API server");
         expect(sessionName({ ...shell, folder: Home }, Home)).toBe("Home");
         expect(sessionName({ ...shell, folder: undefined }, Home)).toBe("Terminal");
+        // A shell whose integration said nothing yet is named by wavesrv with the shell alone.
+        const bare = session("b", { command: "zsh" });
+        expect(atPrompt(bare)).toBe(true);
+        expect(sessionName(bare, Home)).toBe("Terminal");
+        expect(agentCell(bare).kind).toBe("shell");
     });
 
     it("shows a running command and an agent in the agent column", () => {
