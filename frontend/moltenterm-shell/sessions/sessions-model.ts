@@ -283,6 +283,68 @@ export function sessionWhat(s: DurableSession): string {
     return s.agentname || s.agent || s.command || "this session";
 }
 
+// The Sessions table (FR-SHELL-058, DS-SHELL-100): a row is named by its place (the tab when it has a name of its
+// own, else the folder), and its folder and agent get their own columns, so a shell at its prompt no longer reads
+// "zsh at prompt" on every row.
+const AtPromptSuffix = " at prompt";
+
+export function atPrompt(s: DurableSession): boolean {
+    return !s.agent && (s.command ?? "").endsWith(AtPromptSuffix);
+}
+
+// The program running when it is neither the agent nor the shell at its prompt ("npm run dev").
+export function runningCommand(s: DurableSession): string {
+    if (!s.command || atPrompt(s)) {
+        return "";
+    }
+    if (s.agent && (s.command === s.agentname || s.command === s.agent)) {
+        return "";
+    }
+    return s.command;
+}
+
+function baseName(path: string): string {
+    const parts = path.split(/[/\\]+/).filter((p) => !!p);
+    return parts[parts.length - 1] ?? "";
+}
+
+const GenericTabName = /^(t|tab|terminal|shell|zsh|bash|fish|sh|new tab)\s*\d*$/i;
+
+export function sessionName(s: DurableSession, home: string): string {
+    const tab = (s.tabname ?? "").trim();
+    if (tab && !GenericTabName.test(tab)) {
+        return tab;
+    }
+    const folder = displayFolder(s, home);
+    if (folder === "~") {
+        return "Home";
+    }
+    return baseName(folder) || runningCommand(s) || "Terminal";
+}
+
+export type AgentCell = { label: string; kind: "agent" | "command" | "shell" };
+
+export function agentCell(s: DurableSession): AgentCell {
+    if (s.agent) {
+        return { label: s.agentname || s.agent, kind: "agent" };
+    }
+    const cmd = runningCommand(s);
+    if (cmd) {
+        return { label: cmd, kind: "command" };
+    }
+    return { label: "Shell", kind: "shell" };
+}
+
+// Last active: the last output, else the start.
+export function lastActive(s: DurableSession, nowMs: number): string {
+    const at = s.lastoutputat || s.startedat;
+    const age = formatAge(at, nowMs);
+    if (!age) {
+        return "";
+    }
+    return age === "now" ? "now" : `${age} ago`;
+}
+
 export type ConnChip = { label: string; state: SessionConnState; title: string };
 
 export function connChip(s: DurableSession): ConnChip {

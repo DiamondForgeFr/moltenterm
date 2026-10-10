@@ -10,6 +10,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
+import { AgentRestartCommand, AgentRestartOutcome, AgentRestartRequest, AgentRestartRoute } from "./sessions-bulk";
 import {
     applySessions,
     DurableSessionsCleanupCommand,
@@ -33,6 +34,8 @@ const SnapshotMaxTries = 10;
 const ActionTimeoutMs = 20000;
 // Reconnecting may wait on Wave's prompts (a password, a host key).
 const ReconnectTimeoutMs = 95000;
+// wavesrv gives a restart a minute: the agent's exit, the new shell's prompt.
+const RestartTimeoutMs = 70000;
 
 export class DurableSessions {
     private static instance: DurableSessions = null;
@@ -130,5 +133,13 @@ export class DurableSessions {
 
     reconnect(id: string): Promise<void> {
         return this.call(DurableSessionsReconnectCommand, { id }, ReconnectTimeoutMs);
+    }
+
+    // Restart with current settings (#389): Update terminal's agent path, on the terminal update route.
+    restartAgent(req: AgentRestartRequest): Promise<AgentRestartOutcome> {
+        return TabRpcClient.wshRpcCall(AgentRestartCommand, req, {
+            route: AgentRestartRoute,
+            timeout: RestartTimeoutMs,
+        });
     }
 }
