@@ -571,38 +571,55 @@ function WindowChoice({
 
 function Legend() {
     const item = "inline-flex items-center gap-2";
+    const swatch = "flex w-[18px] shrink-0 justify-center";
     return (
         <div className="flex flex-col gap-1.5 text-12 text-secondary" data-testid="line-map-legend">
             <span className={item}>
-                <span className="h-[5px] w-[18px] rounded-full bg-accent" />
+                <span className={swatch}>
+                    <span className="h-[5px] w-[18px] rounded-full bg-accent" />
+                </span>
                 develop
             </span>
             <span className={item}>
-                <span className="h-1 w-[18px] rounded-full bg-primary opacity-40" />
+                <span className={swatch}>
+                    <span className="h-1 w-[18px] rounded-full bg-primary opacity-40" />
+                </span>
                 main
             </span>
             <span className={item}>
-                <span className="h-2.5 w-[3px] rounded-4 bg-primary opacity-50" />
+                <span className={swatch}>
+                    <span className="h-2.5 w-[3px] rounded-4 bg-primary opacity-50" />
+                </span>
                 landed on develop
             </span>
             <span className={item}>
-                <span className="h-[3px] w-[18px] rounded-full bg-muted" />
+                <span className={swatch}>
+                    <span className="h-[3px] w-[18px] rounded-full bg-muted" />
+                </span>
                 merged branch
             </span>
             <span className={item}>
-                <span className="h-[3px] w-[18px] rounded-full bg-accent-200" />
+                <span className={swatch}>
+                    <span className="h-[3px] w-[18px] rounded-full bg-accent-200" />
+                </span>
                 branch in progress
             </span>
             <span className={item}>
-                <span className="h-2.5 w-2.5 rounded-full border-2 border-primary" />
+                <span className={swatch}>
+                    <span className="h-2.5 w-2.5 rounded-full border-2 border-primary" />
+                </span>
                 release candidate
             </span>
             <span className={item}>
-                <span className="h-3.5 w-3.5 rounded-full border-[3px] border-accent" />
+                <span className={swatch}>
+                    <span className="h-3.5 w-3.5 rounded-full border-[3px] border-accent" />
+                </span>
                 public release
             </span>
             <span className={item}>
-                <span className="h-2.5 w-[18px] rounded-full border border-success/60 bg-success/20" />
+                <span className={swatch}>
+                    <span className="h-2.5 w-[18px] rounded-full border border-success/60 bg-success/20" />
+                </span>
                 local build
             </span>
         </div>
@@ -672,10 +689,11 @@ export function labelColumnWidth(names: readonly string[]): number {
     return Math.round(Math.min(LabelColumnMax, Math.max(LabelColumnMin, longest * LabelChar + LabelColumnPad)));
 }
 
+// Opaque, so the plot passes under it: the panel's fill is half black over the app's background, which it matches.
 function LineLabels({ model, geo, width }: { model: LineMapModel; geo: LineMapGeometry; width: number }) {
     return (
         <div
-            className="sticky left-0 z-[1] shrink-0 border-r border-line bg-background"
+            className="sticky left-0 z-[1] shrink-0 border-r border-line bg-[color-mix(in_srgb,var(--color-background)_50%,black)]"
             style={{ width, height: geo.height }}
             data-testid="line-map-labels"
         >
@@ -943,7 +961,7 @@ export function LineMap({
     const choices = full ? FullLineMapDayChoices : LineMapDayChoices;
     return (
         <section
-            className={cn("flex min-w-0 flex-col gap-2", full && "h-full")}
+            className={cn("flex min-w-0 flex-col", full ? "h-full gap-1.5" : "gap-2")}
             aria-label="Line map"
             data-testid="line-map"
         >

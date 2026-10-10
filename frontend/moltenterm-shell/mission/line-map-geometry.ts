@@ -59,6 +59,8 @@ const FittedBottom = 30;
 const FlatLabelRoom = 26;
 // With no main line, the builds' pills stand above develop and need this much.
 const FlatSingleRoom = 36;
+// Above main with no tag written: room for the station rings and the terminus's title.
+const TightTop = 20;
 
 export type LineMapGeometryOptions = {
     // The width the pane gives; the map keeps its minimum and scrolls beyond.
@@ -79,6 +81,8 @@ export type LineMapVertical = {
     laneGap: number;
     // Station labels slanted (tag and date) or flat (tag only, one line above main).
     slanted: boolean;
+    // False in the shortest panes: no tag is written, the stations keep their detail on hover.
+    stationLabels: boolean;
     // A merged branch's label under its lane.
     mergedDy: number;
     // The row pitch when fitted to a height; null for the natural spacing.
@@ -99,6 +103,7 @@ export function lineMapVertical(o: {
             firstLaneGap: FirstLaneGap,
             laneGap: LaneGap,
             slanted: true,
+            stationLabels: true,
             mergedDy: 18,
             row: null,
         };
@@ -106,16 +111,20 @@ export function lineMapVertical(o: {
     // Rows: two and a bit between main and develop, two to the first lane, one per further lane, one under the last.
     const units = (o.single ? 0 : 2) + (o.rows > 0 ? o.rows + 1 : 0) + 1;
     const fixed = FittedBottom + (o.single ? 0 : FittedLineExtra);
-    const slantedRow = (o.height - o.slantRoom - fixed) / units;
-    const slanted = slantedRow >= MinRow;
-    const top = slanted ? o.slantRoom : o.single ? FlatSingleRoom : FlatLabelRoom;
-    const row = Math.round(Math.min(MaxRow, Math.max(MinRow, (o.height - top - fixed) / units)));
+    const rowFor = (top: number) => (o.height - top - fixed) / units;
+    const slanted = rowFor(o.slantRoom) >= MinRow;
+    const flatTop = o.single ? FlatSingleRoom : FlatLabelRoom;
+    // Shorter still, the tags give their line up: main and develop stay in view, a station shows its tag on hover.
+    const stationLabels = slanted || rowFor(flatTop) >= MinRow || o.single;
+    const top = slanted ? o.slantRoom : stationLabels ? flatTop : TightTop;
+    const row = Math.floor(Math.min(MaxRow, Math.max(MinRow, rowFor(top))));
     return {
         mainY: Math.round(top),
         lineGap: 2 * row + FittedLineExtra,
         firstLaneGap: 2 * row,
         laneGap: row,
         slanted,
+        stationLabels,
         mergedDy: Math.min(18, Math.round(row * 0.75)),
         row,
     };
@@ -510,7 +519,11 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
     const devY = single ? mainY : mainY + v.lineGap;
     // Flat labels hold one line each, so they keep apart by the widest tag name.
     const flatGap = Math.max(LabelGap, ...labelTexts.map((t) => t.name.length * Char11 + 10));
-    const labelled = v.slanted ? slantedLabels : chooseLabels(candidates, flatGap);
+    const labelled = !v.stationLabels
+        ? candidates.map(() => false)
+        : v.slanted
+          ? slantedLabels
+          : chooseLabels(candidates, flatGap);
     const laneY = (k: number) => devY + v.firstLaneGap + k * v.laneGap;
     const branches: GeometryBranch[] = [];
     const hidden: LineMapBranch[] = [];

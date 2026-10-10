@@ -75,9 +75,10 @@ function ChangeText({ item }: { item: TickerItem }) {
 
 // The latest changes waiting on the trunk, newest first, as a fixed list (FR-SHELL-057, DS-SHELL-099): nothing moves
 // by itself; the Waiting count above says how many there are in all.
-function LatestChanges({ items, trunk }: { items: TickerItem[]; trunk: string }) {
+function LatestChanges({ items, trunk, total }: { items: TickerItem[]; trunk: string; total: number }) {
     const shown = items.slice(0, LatestShown);
-    const more = items.length - shown.length;
+    // The items stop at the ticker cap; the Waiting count above holds them all.
+    const more = Math.max(total ?? 0, items.length) - shown.length;
     return (
         <section
             aria-label={`Latest changes waiting on ${trunk}`}
@@ -238,7 +239,7 @@ export function NextStationHeader({
                     )}
                 </div>
             </div>
-            {items.length > 0 ? <LatestChanges items={items} trunk={trunk} /> : null}
+            {items.length > 0 ? <LatestChanges items={items} trunk={trunk} total={counts?.total} /> : null}
         </div>
     );
 }
