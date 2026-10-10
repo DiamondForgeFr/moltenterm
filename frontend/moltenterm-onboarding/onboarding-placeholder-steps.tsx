@@ -31,7 +31,7 @@ export function MorphPlaceholderStep(_props: { ctx: FirstRunStepContext }) {
     return (
         <PlaceholderStep
             lines={[
-                "Ask your agent for a first change with /morph in a terminal: it writes a mod, MoltenTerm loads it, and molten undo takes it back.",
+                "In your agent's terminal, type /morph and the change you want: the agent writes a mod, MoltenTerm loads it, and molten undo takes it back.",
             ]}
         />
     );
