@@ -1,0 +1,217 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The top tab bar's tabs (FR-SHELL-056, DS-SHELL-098), over Wave's frontend/app/tab/tab.scss: tabs sized to their
+   content by tab-layout.ts, a 14 px icon and a left-aligned 12/500 name, no dividers, the close control only on hover
+   or focus, floating over the end of the tab (the name fades under it) so nothing moves when it shows. */
+
+.tab.molten-tab {
+    padding: 0 2px;
+    font-weight: var(--mt-weight-medium);
+    transition: width var(--mt-duration-base) var(--mt-ease);
+}
+
+.tab.molten-tab .tab-divider {
+    display: none;
+}
+
+.tab.molten-tab .tab-inner {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 0 10px;
+    box-sizing: border-box;
+    overflow: hidden;
+    border-radius: var(--mt-radius-6);
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.tab.molten-tab .molten-tab-icon {
+    flex-shrink: 0;
+    width: var(--mt-icon-14);
+    font-size: var(--mt-icon-14);
+    line-height: 1;
+    text-align: center;
+    color: var(--mt-text-muted);
+    transition: color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.tab.molten-tab .molten-tab-body {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+}
+
+.tab.molten-tab .molten-tab-body > :not(.name) {
+    flex-shrink: 0;
+}
+
+.tab.molten-tab .name {
+    position: static;
+    transform: none;
+    flex: 0 1 auto;
+    min-width: 0;
+    width: auto;
+    text-align: left;
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-medium);
+    text-shadow: none;
+    color: var(--mt-text-secondary);
+}
+
+.tab.molten-tab .name.focused {
+    flex: 1 1 auto;
+    padding: 1px 4px;
+    border-radius: var(--mt-radius-4);
+    text-overflow: clip;
+}
+
+.tab.molten-tab.active .tab-inner {
+    background: color-mix(in srgb, var(--mt-neutral-line) 12%, transparent);
+}
+
+.tab.molten-tab.active .name {
+    color: var(--mt-text-main);
+    font-weight: var(--mt-weight-medium);
+}
+
+.tab.molten-tab.active .molten-tab-icon {
+    color: color-mix(in srgb, var(--mt-accent) 70%, var(--mt-text-main));
+}
+
+.tab.molten-tab .close.molten-hold-close {
+    right: 5px;
+}
+
+/* Hover, drag and keyboard focus: a quieter fill than the active tab; the name fades out where the close control
+   floats. */
+body:not(.nohover) .tab.molten-tab:hover .tab-inner,
+body:not(.nohover) .tab.molten-tab.dragging .tab-inner,
+.tab.molten-tab:focus-within .tab-inner {
+    background: var(--color-hover);
+}
+
+body:not(.nohover) .tab.molten-tab:hover .name,
+body:not(.nohover) .tab.molten-tab:hover .molten-tab-icon,
+.tab.molten-tab:focus-within .name {
+    color: var(--mt-text-main);
+}
+
+body:not(.nohover) .tab.molten-tab:hover .molten-tab-body,
+body:not(.nohover) .tab.molten-tab.dragging .molten-tab-body,
+.tab.molten-tab:focus-within .molten-tab-body {
+    mask-image: linear-gradient(to right, black calc(100% - 17px), transparent calc(100% - 12px));
+}
+
+body:not(.nohover) .tab.molten-tab.active:hover .tab-inner,
+.tab.molten-tab.active:focus-within .tab-inner {
+    background: color-mix(in srgb, var(--mt-neutral-line) 14%, transparent);
+}
+
+.tab.molten-tab:focus-within .close.molten-hold-close {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Wave grows a new tab from two thirds of a shared width and holds that width afterwards; a tab of its own width
+   only fades in. */
+.tab.molten-tab.new-tab {
+    animation: molten-tab-in var(--mt-duration-base) var(--mt-ease);
+}
+
+@keyframes molten-tab-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.tab.molten-tab.animate {
+    transition:
+        width var(--mt-duration-base) var(--mt-ease),
+        transform var(--mt-duration-base) var(--mt-ease);
+}
+
+/* The pinned Project tab: its icon alone, centred, without name, pin or close. */
+.tab.molten-tab.molten-tab-pinned .tab-inner {
+    justify-content: center;
+    padding: 0;
+}
+
+.tab.molten-tab.molten-tab-pinned .molten-tab-body,
+.tab.molten-tab.molten-tab-pinned .close {
+    display: none;
+}
+
+/* The agent mark (8 px): shape first, colour second. */
+.molten-tab-dot {
+    position: relative;
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    box-sizing: border-box;
+}
+
+.molten-tab-dot[data-state="working"] {
+    border: 2px solid var(--mt-state-working);
+}
+
+.molten-tab-dot[data-state="working"]::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 9999px;
+    border: 1.5px solid var(--mt-state-working);
+    animation: molten-tab-dot-pulse 1.2s var(--mt-ease) infinite;
+}
+
+.molten-tab-dot[data-state="waiting"] {
+    background: var(--mt-state-waiting);
+}
+
+.molten-tab-dot[data-state="error"] {
+    width: 7px;
+    height: 7px;
+    margin: 0 0.5px;
+    border-radius: 0;
+    transform: rotate(45deg);
+    background: var(--mt-state-error);
+}
+
+.molten-tab-dot[data-state="done"] {
+    width: 6px;
+    height: 6px;
+    margin: 0 1px;
+    background: var(--mt-state-done);
+}
+
+@keyframes molten-tab-dot-pulse {
+    from {
+        transform: scale(1);
+        opacity: 0.9;
+    }
+    to {
+        transform: scale(2.2);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .molten-tab-dot[data-state="working"]::after {
+        display: none;
+        animation: none;
+    }
+}
+
+.prefers-reduced-motion .molten-tab-dot[data-state="working"]::after {
+    display: none;
+    animation: none;
+}
