@@ -142,7 +142,7 @@ function footerItems(blockId: string, magnified: boolean): FooterAction[] {
         {
             id: "footer:magnify",
             type: "action",
-            label: magnified ? "Un-magnify" : "Magnify",
+            label: magnified ? "Unmagnify" : "Magnify",
             icon: magnified ? "compress" : "expand",
             shortcut: formatShortcutById("magnify"),
             keywords: ["zoom", "maximize"],
@@ -408,7 +408,14 @@ function RowAside({
             );
         }
         case "page":
-            return <i className="fa fa-solid fa-chevron-right shrink-0 text-11 text-muted" aria-hidden />;
+            return (
+                <>
+                    {item.valueLabel && (
+                        <span className="max-w-[40%] min-w-0 truncate text-12 text-secondary">{item.valueLabel}</span>
+                    )}
+                    <i className="fa fa-solid fa-chevron-right shrink-0 text-11 text-muted" aria-hidden />
+                </>
+            );
         default:
             return item.shortcut ? (
                 <span className="shrink-0 font-mono text-11 text-muted">{item.shortcut}</span>

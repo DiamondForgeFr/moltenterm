@@ -111,6 +111,8 @@ export type PanelChoice = PanelValueItem<unknown> & {
 
 export type PanelPage = PanelItemBase & {
     type: "page";
+    // A state shown on the right before the chevron, as a choice shows its value (Durable session: On).
+    valueLabel?: string;
     items: PanelItem[];
 };
 

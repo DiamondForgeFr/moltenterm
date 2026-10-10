@@ -17,7 +17,22 @@ export function openUsagePage(view: CompanionView, open: (url: string) => Promis
     return true;
 }
 
-export function UsageButton({ view, className }: { view: CompanionView; className?: string }) {
+const BarClass =
+    "flex shrink-0 cursor-pointer items-center gap-1 rounded-6 px-1.5 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary focus-visible:bg-hover focus-visible:text-primary";
+// Under an empty state, among its actions: a calm bordered button that names the page it opens.
+const ButtonClass =
+    "molten-btn-secondary mt-1 inline-flex h-row cursor-pointer items-center gap-1.5 rounded-6 border border-line px-3 text-12";
+
+export function UsageButton({
+    view,
+    className,
+    variant = "bar",
+}: {
+    view: CompanionView;
+    className?: string;
+    // The session bar's compact "Usage", or a button that says what it opens.
+    variant?: "bar" | "button";
+}) {
     const action = usageAction(view);
     if (action == null) {
         return null;
@@ -33,14 +48,11 @@ export function UsageButton({ view, className }: { view: CompanionView; classNam
                 e.stopPropagation();
                 openUsagePage(view);
             }}
-            className={cn(
-                "flex shrink-0 cursor-pointer items-center gap-1 rounded-6 px-1.5 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary focus-visible:bg-hover focus-visible:text-primary",
-                className
-            )}
+            className={cn(variant === "button" ? ButtonClass : BarClass, className)}
             data-testid="companion-usage"
         >
             <i className="fa fa-solid fa-gauge" aria-hidden="true" />
-            <span>Usage</span>
+            <span>{variant === "button" ? action.title : "Usage"}</span>
         </button>
     );
 }

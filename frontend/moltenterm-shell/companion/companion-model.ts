@@ -191,7 +191,7 @@ export function statusMessage(view: CompanionView): { title: string; detail?: st
                 title: `Waiting for the ${name} session`,
                 detail:
                     view.message ||
-                    "It shows once the agent writes its first message. A SessionStart hook links it at once (see `molten docs`, agent-states.md).",
+                    "It shows once the agent writes its first message, or at once with a SessionStart hook (molten docs, agent-states.md).",
             };
         case "unsupportedformat":
             return {

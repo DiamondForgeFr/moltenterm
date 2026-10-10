@@ -73,7 +73,7 @@ export function blockBodyMenuItems(blockId: string, nodeModel: MagnifyNode): Con
             click: () => fireAndForget(() => splitPanel(blockId, "down")),
         },
         {
-            label: magnified ? "Un-magnify" : "Magnify",
+            label: magnified ? "Unmagnify" : "Magnify",
             icon: magnified ? "compress" : "expand",
             accelerator: acceleratorById("magnify"),
             click: () => nodeModel?.toggleMagnify(),

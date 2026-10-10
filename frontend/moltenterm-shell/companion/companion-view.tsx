@@ -284,6 +284,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         );
     }
     if (message != null) {
+        const withUsage = view?.status === "searching" && usage != null;
         const empty = (
             <EmptyState
                 icon={StatusIcons[view?.status] ?? "book-open"}
@@ -301,10 +302,11 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 details={message.raw}
             >
                 <IntegrationNotice view={view} />
-                <UsageButton view={view} />
+                {/* The plan usage section above already stands for usage while it shows. */}
+                {withUsage ? null : <UsageButton view={view} variant="button" />}
             </EmptyState>
         );
-        return view?.status === "searching" ? <WithUsage usage={usage}>{empty}</WithUsage> : empty;
+        return withUsage ? <WithUsage usage={usage}>{empty}</WithUsage> : empty;
     }
     return (
         <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
