@@ -514,8 +514,9 @@ export function NotificationCenter() {
                     <span
                         className={cn(
                             "molten-notification-count pointer-events-none absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-11 leading-none font-semibold text-[var(--mt-accent-fg)] tabular-nums",
-                            // The wider "9+" pill sits further out so it only overlaps the bell's corner.
-                            unread > 9 ? "-top-1.5 -right-2" : "-top-1 -right-1.5"
+                            // The wider "9+" pill sits further right so it only overlaps the bell's corner; higher,
+                            // the window's top edge would cut its ring.
+                            unread > 9 ? "-top-1 -right-2.5" : "-top-1 -right-1.5"
                         )}
                     >
                         {badgeCount(unread)}
