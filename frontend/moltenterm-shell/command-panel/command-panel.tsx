@@ -886,6 +886,8 @@ function CommandPanel({ open }: CommandPanelProps) {
         }
         if (result === "dismiss") {
             setFeedback(null);
+            // The button that had the focus goes with the feedback: the search takes it back.
+            inputRef.current?.focus({ preventScroll: true });
             return;
         }
         if (result != null && typeof result === "object") {
@@ -1259,7 +1261,6 @@ function CommandPanel({ open }: CommandPanelProps) {
                     {formatShortcutById("command-panel")}
                 </span>
             </div>
-            {feedback != null && <Feedback feedback={feedback} running={running} onAction={runFeedbackAction} />}
             {feedback == null && liveStack.length === 0 && query === "" && (
                 <Suggestions items={collected.suggestions} onRun={runSuggestion} />
             )}
@@ -1273,6 +1274,7 @@ function CommandPanel({ open }: CommandPanelProps) {
                     onReset={() => onReset(page)}
                 />
             )}
+            {feedback != null && <Feedback feedback={feedback} running={running} onAction={runFeedbackAction} />}
             <div
                 ref={listRef}
                 key={liveStack.join("/")}

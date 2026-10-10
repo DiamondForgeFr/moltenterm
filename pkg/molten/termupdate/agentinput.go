@@ -270,7 +270,7 @@ func (u *Updater) stepMode(req AgentInputRequest, st shellState, cmd agentcontin
 	case target != "" && prev == target:
 		rtn.Message = fmt.Sprintf("%s is now in %s mode.", name, modeLabel(target))
 	case prev == "":
-		rtn.Message = fmt.Sprintf("Pressed Shift+Tab in %s; MoltenTerm cannot see its mode.", name)
+		rtn.Message = fmt.Sprintf("Sent Shift+Tab once. MoltenTerm cannot see %s's mode, so each click moves one mode on.", name)
 	case target != "":
 		rtn.Message = fmt.Sprintf("%s shows %s mode: %s was not reached.", name, modeLabel(prev), modeLabel(target))
 	default:
