@@ -532,7 +532,13 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
 
     return (
         <div className="flex h-full w-full flex-col overflow-hidden" data-role="molten-sessions">
-            <div className="flex items-center gap-3 border-b border-border px-3 py-2">
+            {/* With nothing listed the empty state says it: the summary row only stays for a notice. */}
+            <div
+                className={cn(
+                    "flex items-center gap-3 border-b border-border px-3 py-2",
+                    data != null && sessions.length === 0 && notice == null && "hidden"
+                )}
+            >
                 <span className="shrink-0 text-12 whitespace-nowrap text-secondary" aria-live="polite">
                     {data == null ? "Loading sessions…" : sessionsSummary(data)}
                 </span>

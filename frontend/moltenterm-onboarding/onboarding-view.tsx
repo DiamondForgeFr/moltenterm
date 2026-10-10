@@ -148,7 +148,8 @@ function StepPage({ model, step, state }: { model: OnboardingViewModel; step: Fi
             <div className="flex flex-col gap-1">
                 <span className="text-12 text-muted">{progressLabel(`step:${step.id}`, ShownStepIds)}</span>
                 <h2 className="text-20 leading-6 font-semibold text-primary">{step.title}</h2>
-                <p className="text-13 leading-5 text-secondary">{step.summary}</p>
+                {/* A placeholder's own text already says what the step is about. */}
+                {step.placeholder ? null : <p className="text-13 leading-5 text-secondary">{step.summary}</p>}
             </div>
             <ErrorBoundary key={step.id} fallback={<StepFailed />}>
                 <Component ctx={ctx} />
