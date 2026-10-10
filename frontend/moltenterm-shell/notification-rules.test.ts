@@ -2,8 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { deliveryFor, deliveryOf, parsePrefs, subjectOf, toastArrivals } from "./notification-rules";
-import { MoltentermNotification } from "./notifications-model";
+import {
+    badgeCount,
+    deliveryFor,
+    deliveryOf,
+    parsePrefs,
+    shownEntries,
+    subjectOf,
+    toastArrivals,
+} from "./notification-rules";
+import { MoltentermNotification, unreadCount } from "./notifications-model";
 import { overallProgress, WorkItem } from "./running-work";
 
 function entry(id: string, extra: Partial<MoltentermNotification> = {}): MoltentermNotification {
@@ -40,9 +48,48 @@ describe("notification preferences (FR-MC-019)", () => {
         expect(subjectOf("unknown")).toBeNull();
     });
 
-    it("always tells errors, keeps warnings at worst, and lets information follow the choice", () => {
+    it("keeps nothing of an agent once agents are off, errors aside (#409)", () => {
+        const prefs = parsePrefs({
+            agents: "off",
+            builds: "off",
+            ci: "off",
+            releases: "off",
+            mods: "off",
+            dependencies: "off",
+            updates: "notify",
+        });
+        for (const kind of ["warning", "success", "info", undefined] as const) {
+            expect(deliveryOf({ source: "agent", kind }, prefs)).toBe("off");
+        }
+        expect(deliveryOf({ source: "agent", kind: "error" }, prefs)).toBe("notify");
+        expect(deliveryOf({ source: "moltenterm", kind: "info" }, prefs)).toBe("notify");
+    });
+
+    it("lists and counts nothing of a subject turned off, errors aside, and no quiet item (#429)", () => {
+        const prefs = parsePrefs({ agents: "off", ci: "quiet" });
+        const entries = [
+            entry("waiting", { source: "agent", kind: "warning" }),
+            entry("done", { source: "agent", kind: "success" }),
+            entry("failed", { source: "agent", kind: "error" }),
+            entry("quiet", { source: "ci", kind: "info", read: true }),
+            entry("update", { source: "moltenterm", kind: "info" }),
+        ];
+        const shown = shownEntries(entries, prefs);
+        expect(shown.map((e) => e.id)).toEqual(["failed", "quiet", "update"]);
+        expect(unreadCount(shown)).toBe(2);
+    });
+
+    it("caps the bell's count at 9+", () => {
+        expect(badgeCount(0)).toBe("");
+        expect(badgeCount(1)).toBe("1");
+        expect(badgeCount(9)).toBe("9");
+        expect(badgeCount(10)).toBe("9+");
+        expect(badgeCount(250)).toBe("9+");
+    });
+
+    it("always tells errors and lets everything else follow the choice", () => {
         expect(deliveryFor("error", "off")).toBe("notify");
-        expect(deliveryFor("warning", "off")).toBe("quiet");
+        expect(deliveryFor("warning", "off")).toBe("off");
         expect(deliveryFor("warning", "quiet")).toBe("quiet");
         expect(deliveryFor("info", "off")).toBe("off");
         expect(deliveryFor("success", "quiet")).toBe("quiet");

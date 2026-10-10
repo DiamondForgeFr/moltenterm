@@ -225,8 +225,9 @@ var NotificationSubjects = map[string]string{
 	"deps":       "dependencies",
 }
 
-// NotificationDelivery is how a message is said, from the user's choice for its subject: an error is always told, a
-// warning at worst kept quietly (read), information follows the choice.
+// NotificationDelivery is how a message is said, from the user's choice for its subject: an error is always told,
+// anything else follows the choice. Off keeps nothing, warnings included (#409): an agent waiting is a warning, and
+// keeping those quietly filled the center of a user who had turned agents off.
 func NotificationDelivery(meta waveobj.MetaMapType, input NotificationInput) string {
 	subject, ok := NotificationSubjects[input.Source]
 	if !ok || input.Kind == "error" {
@@ -234,10 +235,7 @@ func NotificationDelivery(meta waveobj.MetaMapType, input NotificationInput) str
 	}
 	prefs, _ := meta[NotificationPrefsMetaKey].(map[string]any)
 	chosen, _ := prefs[subject].(string)
-	switch {
-	case chosen == NotificationDeliverOff && input.Kind == "warning":
-		return NotificationDeliverQuiet
-	case chosen == NotificationDeliverQuiet || chosen == NotificationDeliverOff:
+	if chosen == NotificationDeliverQuiet || chosen == NotificationDeliverOff {
 		return chosen
 	}
 	return NotificationDeliverNotify

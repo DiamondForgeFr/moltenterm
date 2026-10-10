@@ -54,14 +54,12 @@ export function subjectOf(source: string): NotificationSubject {
     return NotificationSubjects.find((s) => (s.sources as string[]).includes(source))?.id ?? null;
 }
 
-// A failure is always told: it loses work or waits for a gesture. A warning is never dropped, at most kept quietly.
-// Information follows the choice.
+// A failure is always told: it loses work or waits for a gesture. Anything else follows the choice: Off keeps nothing,
+// warnings included (#409), since an agent waiting is a warning and keeping those quietly filled the center of a user
+// who had turned agents off.
 export function deliveryFor(kind: MoltentermNotificationKind, chosen: Delivery): Delivery {
     if (kind === "error") {
         return "notify";
-    }
-    if (kind === "warning" && chosen === "off") {
-        return "quiet";
     }
     return chosen ?? "notify";
 }
@@ -90,6 +88,20 @@ export function deliveryOf(
         return "notify";
     }
     return deliveryFor(input.kind ?? "info", prefs[subject] ?? "notify");
+}
+
+// What the center lists and counts: a subject turned off shows nothing, not even what it said before it was turned
+// off (#409); errors stay, since they are always told.
+export function shownEntries(entries: MoltentermNotification[], prefs: NotificationPrefs): MoltentermNotification[] {
+    return entries.filter((e) => deliveryOf(e, prefs) !== "off");
+}
+
+// The bell's count, kept to one or two characters.
+export function badgeCount(count: number): string {
+    if (count <= 0) {
+        return "";
+    }
+    return count > 9 ? "9+" : String(count);
 }
 
 // The panel draws at most this many rows, then says how many more there are.

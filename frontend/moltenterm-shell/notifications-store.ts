@@ -21,6 +21,7 @@ import {
     NotificationPrefsMetaKey,
     NotificationSubject,
     parsePrefs,
+    shownEntries,
 } from "./notification-rules";
 import {
     archiveResolvedUpdate,
@@ -77,6 +78,8 @@ export class MoltentermNotifications {
     private static instance: MoltentermNotifications = null;
 
     entriesAtom: Atom<MoltentermNotification[]>;
+    // What the center lists and counts: without the subjects turned off (shownEntries).
+    shownEntriesAtom: Atom<MoltentermNotification[]>;
     unreadCountAtom: Atom<number>;
     openCountAtom: Atom<number>;
     // What each subject may say (FR-MC-019), shared by every window and wavesrv through the client meta.
@@ -90,12 +93,13 @@ export class MoltentermNotifications {
             const clientAtom = ClientModel.getInstance().clientAtom;
             return parseNotifications(clientAtom == null ? null : get(clientAtom)?.meta);
         });
-        this.unreadCountAtom = atom((get) => unreadCount(get(this.entriesAtom)));
-        this.openCountAtom = atom((get) => openCount(get(this.entriesAtom)));
         this.prefsAtom = atom((get) => {
             const clientAtom = ClientModel.getInstance().clientAtom;
             return parsePrefs((clientAtom == null ? null : get(clientAtom)?.meta)?.[NotificationPrefsMetaKey]);
         });
+        this.shownEntriesAtom = atom((get) => shownEntries(get(this.entriesAtom), get(this.prefsAtom)));
+        this.unreadCountAtom = atom((get) => unreadCount(get(this.shownEntriesAtom)));
+        this.openCountAtom = atom((get) => openCount(get(this.shownEntriesAtom)));
     }
 
     setDelivery(subject: NotificationSubject, delivery: Delivery): void {
