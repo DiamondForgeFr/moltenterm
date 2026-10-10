@@ -69,7 +69,7 @@ describe("one pill, the most urgent (DS-SHELL-093)", () => {
         const missing = missingWorktreePill({ kind: "missing", title: "gone", icon: "x" } as TreeMarker);
         const multi = multiInputPill(true);
         const remote = remotePill("me@host", false, { ...healthy, status: "error", connected: false });
-        const durable = durablePill(true, "connected");
+        const durable = durablePill(true, "disconnected");
         const all = [durable, remote, multi, missing, error, waiting];
         expect(pickHeaderPill(all).kind).toBe("waiting");
         expect(pickHeaderPill(all.slice(0, 5)).kind).toBe("error");
@@ -86,7 +86,7 @@ describe("one pill, the most urgent (DS-SHELL-093)", () => {
             agentErrorPill(agent("error")),
             multiInputPill(true),
             remotePill("me@host", false, { ...healthy, status: "connecting", connected: false }),
-            durablePill(true, null),
+            durablePill(true, "done"),
         ];
         for (const pill of pills) {
             expect(["neutral", "warning", "danger"]).toContain(pill.tone);
@@ -122,12 +122,18 @@ describe("connection (FR-SHELL-052-AC2)", () => {
 });
 
 describe("durability (moved into the command panel)", () => {
-    it("only names a durable session, neutral", () => {
-        expect(durablePill(false, "connected")).toBeNull();
-        expect(durablePill(null, null)).toBeNull();
+    it("takes no pill for an attached durable session, the default of a local terminal", () => {
+        expect(durablePill(true, "connected")).toBeNull();
+        expect(durablePill(true, null)).toBeNull();
+        expect(durablePill(false, "disconnected")).toBeNull();
+    });
+
+    it("names a detached, starting or ended session, neutral", () => {
         const pill = durablePill(true, "disconnected");
-        expect(pill).toMatchObject({ kind: "durable", tone: "neutral", label: "Durable" });
+        expect(pill).toMatchObject({ kind: "durable", tone: "neutral", label: "Detached" });
         expect(pill.title).toContain("detached");
+        expect(durablePill(true, "init").label).toBe("Starting");
+        expect(durablePill(true, "done").label).toBe("Session ended");
     });
 });
 

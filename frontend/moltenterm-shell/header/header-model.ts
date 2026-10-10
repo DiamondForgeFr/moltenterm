@@ -152,23 +152,25 @@ export function remotePill(connection: string, isLocal: boolean, status: RemoteC
     return null;
 }
 
-const DurableTitles: Record<string, string> = {
-    connected: "Durable session, attached: it keeps running when MoltenTerm quits or updates.",
-    disconnected: "Durable session, detached: the shell keeps running.",
-    init: "Durable session, starting.",
-    done: "Durable session, ended.",
+const DurableStates: Record<string, { label: string; title: string }> = {
+    disconnected: { label: "Detached", title: "Durable session, detached: the shell keeps running." },
+    init: { label: "Starting", title: "Durable session, starting." },
+    done: { label: "Session ended", title: "Durable session, ended." },
 };
 
-// The durability itself is set in the command panel's MoltenTerm section; the header only names it.
+// The durability itself is set in the command panel's MoltenTerm section. Local terminals are durable by default
+// (#72), so an attached durable session is the normal case and takes no pill; the pill only names a session that is
+// detached, starting or ended.
 export function durablePill(configured: boolean, jobStatus: string): HeaderPillSpec {
-    if (configured !== true) {
+    const state = DurableStates[jobStatus];
+    if (configured !== true || state == null) {
         return null;
     }
     return {
         kind: "durable",
         tone: "neutral",
-        label: "Durable",
-        title: `${DurableTitles[jobStatus] ?? "Durable session, not started yet."}\nClick for the session's options.`,
+        label: state.label,
+        title: `${state.title}\nClick for the session's options.`,
         icon: "shield",
     };
 }
