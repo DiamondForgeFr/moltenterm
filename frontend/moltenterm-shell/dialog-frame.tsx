@@ -8,6 +8,10 @@ import { cn } from "@/util/util";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
+// The overlay rule (FR-SHELL-054, DS-SHELL-096): every modal dims the app with this scrim (tokens.css) and no surface
+// draws its own; command surfaces (palette, command panel, menus, popovers) have none, only shadow-command.
+export const ScrimClass = "molten-scrim";
+
 // enabled may be a function, read at the key press, for a state the component does not render from.
 export function useEscape(enabled: boolean | (() => boolean), onEscape: () => void) {
     useEffect(() => {
@@ -116,7 +120,7 @@ export function DialogFrame({
     }, [trapFocus]);
     return createPortal(
         <div
-            className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40"
+            className={cn("fixed inset-0 z-[9600] flex items-center justify-center", ScrimClass)}
             data-role={role}
             onMouseDown={(e) => {
                 backdropPressed.current = e.target === e.currentTarget;

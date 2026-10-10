@@ -9,6 +9,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ScrimClass } from "../dialog-frame";
 import { readableSubject } from "../mission/versions";
 import { MoltenWave } from "../molten-button";
 import { groupNotes, restartWarning, TerminalSummary, updateLabel } from "./update-model";
@@ -59,7 +60,10 @@ function UpdateDialog() {
     const groups = groupNotes(offer.notes);
     const close = () => globalStore.set(model.dialogOpenAtom, false);
     return createPortal(
-        <div className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40" onPointerDown={close}>
+        <div
+            className={cn("fixed inset-0 z-[9600] flex items-center justify-center", ScrimClass)}
+            onPointerDown={close}
+        >
             <div
                 ref={panelRef}
                 onPointerDown={(e) => e.stopPropagation()}

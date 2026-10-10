@@ -100,7 +100,7 @@ describe("the tray stays inside its item's row (FR-SHELL-045-AC1, NFR-SHELL-029)
         expect(tray).toContain("bottom: anchor(bottom);");
         expect(tray).toContain("min-width: calc(var(--molten-rail-tray-lead) + 112px);");
         expect(tray).toContain("border-radius: var(--mt-radius-6);");
-        expect(tray).toContain("box-shadow: var(--mt-shadow-e2);");
+        expect(tray).toContain("box-shadow: var(--mt-shadow-command);");
         expect(tray).toContain("border: 1px solid var(--mt-line-2);");
         expect(tray).toContain("pointer-events: none;");
         expect(tray).toContain("visibility: hidden;");

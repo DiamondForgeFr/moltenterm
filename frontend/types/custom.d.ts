@@ -176,10 +176,11 @@ declare global {
         accelerator?: string; // MOLTENTERM-PATCH (#370): shown only, the key model handles the keys
     };
 
-    // MOLTENTERM-PATCH (#371): optional presentation metadata.
+    // MOLTENTERM-PATCH (#371, #408): optional presentation metadata; the menu host renders a heading per section.
     type ContextMenuItem = {
         icon?: string;
         destructive?: boolean;
+        section?: string;
         label?: string;
         type?: "separator" | "normal" | "submenu" | "checkbox" | "radio" | "header";
         role?: string; // electron role (optional)

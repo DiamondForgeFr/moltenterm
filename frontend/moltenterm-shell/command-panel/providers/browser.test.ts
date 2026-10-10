@@ -138,6 +138,11 @@ describe("Browser provider (FR-SHELL-051 AC1, DS-SHELL-090)", () => {
         expect(item(sections, "browser:closeothers")).toBeUndefined();
     });
 
+    it("leaves Copy link out on a tab without an address, like the tab's menu (FR-SHELL-054)", () => {
+        const { target } = makeTarget(makeState({ tab: { id: "t1", url: "" } }));
+        expect(item(browserSections(makeCtx(target)), "browser:copylink")).toBeUndefined();
+    });
+
     it("hands off to the installed browser and offers the site choice and the engine with several browsers", () => {
         const brave = { id: "brave", name: "Brave", path: "/b" };
         const chrome = { id: "chrome", name: "Chrome", path: "/c" };

@@ -23,7 +23,11 @@
                .molten-glyph-tone with --mt-glyph-color set to a workspace's colour draws its glyph at a readable tone.
    Lines       border-line (8 %, inside a surface) · border-line-strong (14 %, around overlays and controls); dashed
                only for drop targets.
-   Elevation   shadow-e1 (raised) · shadow-e2 (popovers, menus) · shadow-e3 (dialogs), each with a 4 % top highlight.
+   Elevation   shadow-e1 (raised) · shadow-e2 (small floating hints and toasts) · shadow-e3 (dialogs) · shadow-command
+               (command surfaces: palette, command panel, menus, popovers), each with a 4 % top highlight.
+   Overlays    (FR-SHELL-054, DS-SHELL-096) a modal, which blocks the app until answered, dims it with the scrim of
+               dialog-frame.tsx (ScrimClass: black at 45 % with a 4 px blur); a command surface has no scrim, only
+               shadow-command.
    Buttons     molten-btn + <MoltenWave /> for the one primary action of a surface; molten-btn-secondary (no border,
                transparent, surface-2 on hover); molten-btn-ghost (text or icon only, muted, primary text on hover);
                molten-btn-outline only for the confirming button of a delete; molten-btn-destructive. See
@@ -80,6 +84,9 @@
     --mt-shadow-e1: var(--mt-shadow-highlight), 0 1px 2px rgb(0 0 0 / 0.3);
     --mt-shadow-e2: var(--mt-shadow-highlight), 0 6px 20px -4px rgb(0 0 0 / 0.5);
     --mt-shadow-e3: var(--mt-shadow-highlight), 0 16px 40px -8px rgb(0 0 0 / 0.6);
+    --mt-shadow-command: var(--mt-shadow-highlight), 0 16px 40px rgb(0 0 0 / 0.5);
+    --mt-scrim: rgb(0 0 0 / 0.45);
+    --mt-scrim-blur: 4px;
 
     --mt-duration-fast: 120ms;
     --mt-duration-base: 180ms;
@@ -87,6 +94,13 @@
     /* The heat glow fades in with the pulse it belongs to (NFR-SHELL-027 excepts pulses, at most 1.6 s a cycle). */
     --mt-duration-glow: 1200ms;
     --mt-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* The one scrim of a modal (DS-SHELL-096): dialog-frame.tsx exports it as ScrimClass, Wave's modal backdrop reads the
+   same tokens. */
+.molten-scrim {
+    background: var(--mt-scrim);
+    backdrop-filter: blur(var(--mt-scrim-blur));
 }
 
 /* NFR-SHELL-027: instant under the system preference and MoltenTerm's own setting (the app root's class). */
@@ -149,6 +163,7 @@
     --shadow-e1: var(--mt-shadow-e1);
     --shadow-e2: var(--mt-shadow-e2);
     --shadow-e3: var(--mt-shadow-e3);
+    --shadow-command: var(--mt-shadow-command);
 
     --ease-mt: var(--mt-ease);
 }

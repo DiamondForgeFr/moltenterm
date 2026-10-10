@@ -534,7 +534,7 @@ export function NotificationCenter() {
                           ref={panelRef}
                           style={{ top: anchor.top, right: anchor.right }}
                           data-testid="notification-panel"
-                          className="molten-notification-panel fixed z-[9500] flex max-h-[60vh] w-[380px] flex-col rounded-10 border border-border bg-surface-3 text-13 leading-5 text-primary shadow-e2"
+                          className="molten-notification-panel fixed z-[9500] flex max-h-[60vh] w-[380px] flex-col rounded-10 border border-border bg-surface-3 text-13 leading-5 text-primary shadow-command"
                       >
                           <div className="flex items-center gap-3 border-b border-border px-3 py-2">
                               <button

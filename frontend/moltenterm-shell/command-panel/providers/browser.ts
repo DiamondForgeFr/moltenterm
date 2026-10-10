@@ -95,16 +95,18 @@ function pageItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[]
             });
         }
     }
-    items.push({
-        id: "browser:copylink",
-        type: "action",
-        label: "Copy link",
-        icon: "link",
-        keywords: ["url", "address"],
-        disabled: !tab.url,
-        keepOpen: true,
-        run: () => t.copyTabLink(tab.id),
-    });
+    // Unavailable actions are absent, not disabled (FR-SHELL-049), here and in the tab's menu (FR-SHELL-054).
+    if (tab.url) {
+        items.push({
+            id: "browser:copylink",
+            type: "action",
+            label: "Copy link",
+            icon: "link",
+            keywords: ["url", "address"],
+            keepOpen: true,
+            run: () => t.copyTabLink(tab.id),
+        });
+    }
     if (handedOff) {
         items.push({
             id: "browser:openhere",

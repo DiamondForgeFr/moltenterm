@@ -10,10 +10,11 @@
 import { atoms, getApi } from "@/app/store/global";
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { getLayoutModelForStaticTab } from "@/layout/index";
-import { fireAndForget } from "@/util/util";
+import { cn, fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { ScrimClass } from "./dialog-frame";
 import { MoltenWave } from "./molten-button";
 import { hasDefaultName, nextProjectOffer, ProjectOffer, readDismissed, withDismissed } from "./project-detect";
 import { offerProjectIcon } from "./project-icon-offer";
@@ -92,7 +93,7 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
     const decline = () =>
         run(() => dismissProject(ws.oid, withDismissed(readDismissed(ws.meta as Record<string, any>), offer.dir)));
     return createPortal(
-        <div className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40">
+        <div className={cn("fixed inset-0 z-[9600] flex items-center justify-center", ScrimClass)}>
             <div
                 role="dialog"
                 aria-modal="true"

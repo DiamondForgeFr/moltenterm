@@ -45,6 +45,20 @@ describe("browser tab menu (FR-SHELL-051 AC3, DS-SHELL-092)", () => {
         expect(labels(browserTabMenu(only, only.tabs[0], a))).toEqual(["Reload", "Duplicate", "Copy link"]);
     });
 
+    it("hides Copy link on a tab without an address and gives every row the command panel's icon", () => {
+        const { a } = actions();
+        const blank: BrowserState = { tabs: [{ id: "t1", url: "" }, state.tabs[1]], activeId: "t1" };
+        const menu = browserTabMenu(blank, blank.tabs[0], a);
+        expect(labels(menu)).toEqual(["Reload", "Duplicate", "---", "Close", "Close others"]);
+        expect(menu.every((i) => i.type === "separator" || i.enabled !== false)).toBe(true);
+        expect(menu.filter((i) => i.type !== "separator").map((i) => i.icon)).toEqual([
+            "rotate-right",
+            "clone",
+            "xmark",
+            "xmark",
+        ]);
+    });
+
     it("leaves Reload out for a page handed off to the installed browser", () => {
         const { a } = actions();
         const menu = browserTabMenu(state, { id: "t3", url: "https://x.dev", engine: "brave" }, a);

@@ -324,6 +324,18 @@ export function firstSelectable(rows: PanelRow[]): number {
     return selectable.length > 0 ? selectable[0] : -1;
 }
 
+// Where a page opens its selection: a choice's sub-page on its current value, as native pickers do (#402 review),
+// any other page on its first selectable row.
+export function openingSelection(rows: PanelRow[], scopes: Record<string, PanelScopeId>): number {
+    const current = rows.findIndex(
+        (row) =>
+            row.kind === "option" &&
+            isSelectableRow(row) &&
+            optionSelected(row.choice, row.option, scopes?.[row.choice.id])
+    );
+    return current >= 0 ? current : firstSelectable(rows);
+}
+
 // The row Cmd+N runs: the Nth selectable row from the top (FR-SHELL-047-AC3).
 // A destructive row is never numbered: it runs only by a deliberate Enter or click.
 export function isDestructiveRow(row: PanelRow): boolean {

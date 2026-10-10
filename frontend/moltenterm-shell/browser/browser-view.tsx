@@ -391,44 +391,52 @@ export class BrowserViewModel implements ViewModel {
         const site = routed.site || siteOf(tab.url);
         const menu: ContextMenuItem[] = tab.engine
             ? [
-                  { label: `Bring ${name} Forward`, click: () => this.bringForward(tab.id) },
-                  { label: `Reopen in ${name}`, click: () => this.reopenInBrowser(tab.id) },
-                  { label: "Open in MoltenTerm", click: () => this.openHere(tab.id) },
+                  { label: `Bring ${name} forward`, icon: "eye", click: () => this.bringForward(tab.id) },
+                  { label: `Reopen in ${name}`, icon: "rotate-right", click: () => this.reopenInBrowser(tab.id) },
+                  { label: "Open in MoltenTerm", icon: "window-maximize", click: () => this.openHere(tab.id) },
               ]
-            : [{ label: `Open in ${name}`, click: () => fireAndForget(() => this.handOffTab(tab.id)) }];
+            : [
+                  {
+                      label: `Open in ${name}`,
+                      icon: "arrow-up-right-from-square",
+                      click: () => fireAndForget(() => this.handOffTab(tab.id)),
+                  },
+              ];
+        // The site's choices under its name (FR-SHELL-054): the heading says which site they are about.
         if (site != null) {
             const always = routed.engine !== "" && routed.engine !== EngineApp;
-            menu.push(
-                { type: "separator" },
-                {
-                    label: `Always Open ${site} in ${always ? engineName(routed.engine, list) : chosen.name}`,
-                    type: "checkbox",
-                    checked: always,
-                    click: () => {
-                        this.toggleSiteChoice(tab.url);
-                        if (!always && !tab.engine) {
-                            fireAndForget(() => this.handOffTab(tab.id));
-                        }
-                    },
-                }
-            );
+            menu.push({
+                label: `Always open in ${always ? engineName(routed.engine, list) : chosen.name}`,
+                type: "checkbox",
+                checked: always,
+                icon: "thumbtack",
+                section: site,
+                click: () => {
+                    this.toggleSiteChoice(tab.url);
+                    if (!always && !tab.engine) {
+                        fireAndForget(() => this.handOffTab(tab.id));
+                    }
+                },
+            });
         }
         menu.push(...this.agentSiteMenu(tab));
         ContextMenuModel.getInstance().showContextMenu(menu, e);
     }
 
     // The agents' decision for the page's site (FR-BRW-009 AC3), with Forget: the next agent action there asks again.
+    // The decision is the row's sublabel, under the site's heading: a menu has no inert rows (FR-SHELL-054).
     agentSiteMenu(tab: BrowserTab): ContextMenuItem[] {
         const decided = agentSiteDecision(globalStore.get(getSettingsKeyAtom("browser:agentsites")), tab?.url);
         if (decided == null) {
             return [];
         }
-        const verb = decided.decision === "block" ? "Blocked" : "Allowed";
+        const verb = decided.decision === "block" ? "blocked" : "allowed";
         return [
-            { type: "separator" },
-            { label: `Agents: ${verb} on ${decided.site}`, enabled: false },
             {
-                label: `Forget the Agents' Decision for ${decided.site}`,
+                label: "Forget the agents' decision",
+                sublabel: `Agents are ${verb} here`,
+                icon: "robot",
+                section: decided.site,
                 click: () =>
                     fireAndForget(async () => {
                         try {
@@ -442,7 +450,7 @@ export class BrowserViewModel implements ViewModel {
     }
 
     showAgentSiteMenu(e: React.MouseEvent, tab: BrowserTab): void {
-        const menu = this.agentSiteMenu(tab).filter((item) => item.type !== "separator");
+        const menu = this.agentSiteMenu(tab);
         if (menu.length === 0) {
             return;
         }
@@ -451,17 +459,22 @@ export class BrowserViewModel implements ViewModel {
 
     showLinkMenu(url: string, event?: React.MouseEvent): void {
         const chosen = this.engines.chosen();
-        const menu: ContextMenuItem[] = [{ label: "Open Link in New Tab", click: () => this.newTab(url) }];
+        const menu: ContextMenuItem[] = [
+            { label: "Open link in new tab", icon: "plus", click: () => this.newTab(url) },
+        ];
         if (chosen != null && siteOf(url) != null) {
             menu.push({
-                label: `Open Link in ${chosen.name}`,
+                label: `Open link in ${chosen.name}`,
+                icon: "arrow-up-right-from-square",
                 click: () => fireAndForget(() => this.handOffLink(url)),
             });
         }
-        menu.push(
-            { type: "separator" },
-            { label: "Copy Link Address", click: () => fireAndForget(() => navigator.clipboard.writeText(url)) }
-        );
+        menu.push({
+            label: "Copy link address",
+            icon: "link",
+            click: () => fireAndForget(() => navigator.clipboard.writeText(url)),
+        });
+        menu.push(...splitMenuItems(this.blockId));
         // The webview's event carries no React event: the menu opens at the pointer anyway.
         ContextMenuModel.getInstance().showContextMenu(
             menu,

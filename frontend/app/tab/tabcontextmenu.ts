@@ -4,6 +4,7 @@
 import { getOrefMetaKeyAtom, globalStore, recordTEvent } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
+import { DeveloperSection } from "../../moltenterm-shell/menu/menu-model"; // MOLTENTERM-PATCH (#408)
 import { acceleratorById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
 import { makeORef } from "../store/wos";
 import type { TabEnv } from "./tab";
@@ -18,7 +19,8 @@ const FlagColors: { label: string; value: string }[] = [
     { label: "Yellow", value: "#FFE900" },
 ];
 
-export function buildTabBarContextMenu(env: TabEnv): ContextMenuItem[] {
+// MOLTENTERM-PATCH (#408): sections, icons and sentence case (FR-SHELL-054); Copy tab id moved to Developer.
+export function buildTabBarContextMenu(env: TabEnv, section?: string): ContextMenuItem[] {
     const currentTabBar = globalStore.get(env.getSettingsKeyAtom("app:tabbar")) ?? "top";
     const tabBarSubmenu: ContextMenuItem[] = [
         {
@@ -34,7 +36,7 @@ export function buildTabBarContextMenu(env: TabEnv): ContextMenuItem[] {
             click: () => fireAndForget(() => env.rpc.SetConfigCommand(TabRpcClient, { "app:tabbar": "left" })),
         },
     ];
-    return [{ label: "Tab Bar Position", type: "submenu", submenu: tabBarSubmenu }];
+    return [{ label: "Tab bar position", type: "submenu", submenu: tabBarSubmenu, icon: "border-top-left", section }];
 }
 
 export function buildTabContextMenu(
@@ -44,20 +46,18 @@ export function buildTabContextMenu(
     env: TabEnv
 ): ContextMenuItem[] {
     const menu: ContextMenuItem[] = [];
-    menu.push(
-        {
-            label: "Rename Tab",
-            icon: "pen",
-            accelerator: acceleratorById("rename-tab"),
-            click: () => renameRef.current?.(),
-        },
-        {
-            label: "Copy TabId",
-            icon: "copy",
-            click: () => fireAndForget(() => navigator.clipboard.writeText(id)),
-        },
-        { type: "separator" }
-    );
+    menu.push({
+        label: "Rename tab",
+        icon: "pen",
+        accelerator: acceleratorById("rename-tab"),
+        click: () => renameRef.current?.(),
+    });
+    const developer: ContextMenuItem = {
+        label: "Copy tab id",
+        icon: "hashtag",
+        section: DeveloperSection,
+        click: () => fireAndForget(() => navigator.clipboard.writeText(id)),
+    };
     const tabORef = makeORef("tab", id);
     const currentFlagColor = globalStore.get(getOrefMetaKeyAtom(tabORef, "tab:flagcolor")) ?? null;
     const flagSubmenu: ContextMenuItem[] = [
@@ -80,8 +80,7 @@ export function buildTabContextMenu(
                 ),
         })),
     ];
-    menu.push({ label: "Flag Tab", type: "submenu", submenu: flagSubmenu, icon: "flag" });
-    menu.push({ type: "separator" });
+    menu.push({ label: "Flag tab", type: "submenu", submenu: flagSubmenu, icon: "flag" });
     const fullConfig = globalStore.get(env.atoms.fullConfigAtom);
     const backgrounds = fullConfig?.backgrounds ?? {};
     const bgKeys = Object.keys(backgrounds).filter((k) => backgrounds[k] != null);
@@ -121,11 +120,10 @@ export function buildTabContextMenu(
             });
         }
         menu.push({ label: "Backgrounds", type: "submenu", submenu, icon: "image" });
-        menu.push({ type: "separator" });
     }
-    menu.push(...buildTabBarContextMenu(env), { type: "separator" });
+    menu.push(...buildTabBarContextMenu(env, "Tab bar"), developer, { type: "separator" });
     menu.push({
-        label: "Close Tab",
+        label: "Close tab",
         icon: "xmark",
         destructive: true,
         accelerator: acceleratorById("close-tab"),

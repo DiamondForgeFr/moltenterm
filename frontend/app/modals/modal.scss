@@ -12,13 +12,15 @@
     align-items: center;
     z-index: var(--zindex-modal-wrapper);
 
+    // MOLTENTERM-PATCH (#408): the one modal scrim of MoltenTerm (DS-SHELL-096, tokens.css), over the whole window.
     .modal-backdrop {
         position: fixed;
-        top: 36px;
+        top: 0;
         left: 0;
         right: 0;
         bottom: 0;
-        background-color: rgba(21, 23, 21, 0.7);
+        background-color: var(--mt-scrim);
+        backdrop-filter: blur(var(--mt-scrim-blur));
         z-index: var(--zindex-modal-backdrop);
     }
 }

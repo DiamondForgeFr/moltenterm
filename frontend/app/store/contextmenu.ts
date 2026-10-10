@@ -1,7 +1,9 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 // MOLTENTERM-PATCH (#371): renderer presentation with correlated, exactly-once sessions.
+// MOLTENTERM-PATCH (#408): native menus get the host's sections and Developer gate (FR-SHELL-054).
 
+import { layoutMenuTree } from "../../moltenterm-shell/menu/menu-model";
 import { atoms, getApi, globalStore } from "./global";
 
 export type ShowContextMenuOpts = {
@@ -124,7 +126,7 @@ class ContextMenuModel {
             this.presenter(session);
             return;
         }
-        const items = this._convertAndRegisterMenu(menu);
+        const items = this._convertAndRegisterMenu(layoutMenuTree(menu, { developer: !!(ev as any)?.altKey }));
         const oid = globalStore.get(atoms.workspaceId) ?? globalStore.get(atoms.builderId);
         this.nativeTarget = getApi().captureContextMenuTarget?.((ev as any).contextMenuGuestId);
         getApi().showContextMenu(oid, items, token, this.nativeTarget);

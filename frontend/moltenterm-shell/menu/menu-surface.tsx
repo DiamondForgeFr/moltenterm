@@ -23,7 +23,7 @@ import {
     useTypeahead,
 } from "@floating-ui/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { actionableMenuItem, menuItemRole, menuLabel, shortcutLabel, visibleMenuItems } from "./menu-model";
+import { actionableMenuItem, layoutMenuItems, menuItemRole, menuLabel, shortcutLabel } from "./menu-model";
 import "./menu.css";
 
 type MenuProps = {
@@ -35,17 +35,31 @@ type MenuProps = {
     onSelect: (item: ContextMenuItem) => void;
     onCancel: () => void;
     portalRoot?: HTMLElement;
+    // Opened from the keyboard: the first row is focused; from the pointer, no row is active until it moves.
+    keyboard?: boolean;
+    // Option held: the Developer section shows.
+    developer?: boolean;
 };
-function MenuBranch({ items, point, item, parentProps, parentRef, onSelect, onCancel, portalRoot }: MenuProps) {
+function MenuBranch({
+    items,
+    point,
+    item,
+    parentProps,
+    parentRef,
+    onSelect,
+    onCancel,
+    portalRoot,
+    keyboard,
+    developer,
+}: MenuProps) {
     const parentId = useFloatingParentNodeId();
     const nested = parentId != null;
     const tree = useFloatingTree();
     const nodeId = useFloatingNodeId();
     const [open, setOpen] = useState(!nested);
-    const [activeIndex, setActiveIndex] = useState<number>(() => {
-        const index = visibleMenuItems(items).findIndex(actionableMenuItem);
-        return index < 0 ? null : index;
-    });
+    const [activeIndex, setActiveIndex] = useState<number>(null);
+    // A submenu opened with → or Enter focuses its first row; one opened by hovering its parent row does not.
+    const keyOpened = useRef(false);
     useEffect(() => {
         const closeSibling = (event: { parentId: string; nodeId: string }) => {
             if (event.parentId === parentId && event.nodeId !== nodeId) setOpen(false);
@@ -58,7 +72,27 @@ function MenuBranch({ items, point, item, parentProps, parentRef, onSelect, onCa
     }, [tree, parentId, nodeId, nested, open]);
     const listRef = useRef<Array<HTMLElement>>([]);
     const labelsRef = useRef<Array<string>>([]);
-    const visible = useMemo(() => visibleMenuItems(items), [items]);
+    const visible = useMemo(() => layoutMenuItems(items, { developer }), [items, developer]);
+    const visibleRef = useRef(visible);
+    visibleRef.current = visible;
+    // Keyed by content, not position: the Developer rows appearing must not hand one row's state to another.
+    const keys = useMemo(() => {
+        const seen = new Map<string, number>();
+        return visible.map((entry) => {
+            const base = `${entry.type ?? "normal"}:${menuLabel(entry)}`;
+            const count = seen.get(base) ?? 0;
+            seen.set(base, count + 1);
+            return `${base}:${count}`;
+        });
+    }, [visible]);
+    const lastKeys = useRef(keys);
+    useLayoutEffect(() => {
+        const previous = lastKeys.current;
+        lastKeys.current = keys;
+        if (previous === keys || activeIndex == null) return;
+        const moved = keys.indexOf(previous[activeIndex]);
+        setActiveIndex(moved < 0 ? null : moved);
+    }, [keys]);
     labelsRef.current = visible.map((entry) => (actionableMenuItem(entry) ? menuLabel(entry) : null));
     const { refs, floatingStyles, context, isPositioned } = useFloating({
         nodeId,
@@ -98,22 +132,17 @@ function MenuBranch({ items, point, item, parentProps, parentRef, onSelect, onCa
             }),
         });
     }, [point, refs]);
-    const mountPanel = useCallback(
-        (element: HTMLDivElement) => {
-            refs.setFloating(element);
-            if (!element) return;
-            const index = visible.findIndex(actionableMenuItem);
-            setActiveIndex(index < 0 ? null : index);
-        },
-        [refs, visible]
-    );
+    const mountPanel = useCallback((element: HTMLDivElement) => refs.setFloating(element), [refs]);
+    // Only when the menu opens: Option showing the Developer rows must not move the active row back to the top.
     useLayoutEffect(() => {
         if (!open || !isPositioned) return;
-        const index = visible.findIndex(actionableMenuItem);
-        setActiveIndex(index < 0 ? null : index);
-        const target = listRef.current[index] ?? refs.floating.current;
+        const fromKeys = nested ? keyOpened.current : keyboard;
+        const first = visibleRef.current.findIndex(actionableMenuItem);
+        const index = fromKeys && first >= 0 ? first : null;
+        setActiveIndex(index);
+        const target = (index != null ? listRef.current[index] : null) ?? refs.floating.current;
         target?.focus({ preventScroll: true });
-    }, [open, isPositioned, visible, refs]);
+    }, [open, isPositioned, refs]);
     const hover = useHover(context, {
         enabled: nested && item?.enabled !== false,
         delay: { open: 150 },
@@ -149,7 +178,21 @@ function MenuBranch({ items, point, item, parentProps, parentRef, onSelect, onCa
         <FloatingNode id={nodeId}>
             {nested && (
                 <button
-                    {...getReferenceProps(parentProps)}
+                    {...getReferenceProps({
+                        ...parentProps,
+                        onKeyDown(event: React.KeyboardEvent) {
+                            if (["ArrowRight", "Enter", " "].includes(event.key)) keyOpened.current = true;
+                            parentProps?.onKeyDown?.(event);
+                        },
+                        onPointerEnter(event: React.PointerEvent) {
+                            keyOpened.current = false;
+                            parentProps?.onPointerEnter?.(event);
+                        },
+                        onMouseDown(event: React.MouseEvent) {
+                            keyOpened.current = false;
+                            parentProps?.onMouseDown?.(event);
+                        },
+                    })}
                     ref={(element) => {
                         refs.setReference(element);
                         parentRef?.(element);
@@ -191,10 +234,10 @@ function MenuBranch({ items, point, item, parentProps, parentRef, onSelect, onCa
                         >
                             {visible.map((entry, index) => {
                                 if (entry.type === "separator")
-                                    return <div key={index} className="molten-menu-separator" role="separator" />;
+                                    return <div key={keys[index]} className="molten-menu-separator" role="separator" />;
                                 if (entry.type === "header")
                                     return (
-                                        <div key={index} className="molten-menu-header" role="presentation">
+                                        <div key={keys[index]} className="molten-menu-header" role="presentation">
                                             {menuLabel(entry)}
                                         </div>
                                     );
@@ -205,10 +248,10 @@ function MenuBranch({ items, point, item, parentProps, parentRef, onSelect, onCa
                                 const ref = (element: HTMLElement) => {
                                     listRef.current[index] = element;
                                 };
-                                if (visibleMenuItems(entry.submenu ?? []).length)
+                                if (layoutMenuItems(entry.submenu, { developer }).length)
                                     return (
                                         <MenuBranch
-                                            key={index}
+                                            key={keys[index]}
                                             items={entry.submenu}
                                             item={entry}
                                             parentProps={props}
@@ -216,12 +259,13 @@ function MenuBranch({ items, point, item, parentProps, parentRef, onSelect, onCa
                                             onSelect={onSelect}
                                             onCancel={onCancel}
                                             portalRoot={portalRoot}
+                                            developer={developer}
                                         />
                                     );
                                 return (
                                     <button
                                         {...props}
-                                        key={index}
+                                        key={keys[index]}
                                         ref={ref}
                                         type="button"
                                         className="molten-menu-item cursor-pointer"

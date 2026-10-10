@@ -21,6 +21,7 @@ import { AgentStates } from "../agent-state-store";
 import { highlightRuns } from "../palette/palette-model";
 import { formatShortcutById } from "../shortcuts/format";
 import { splitPanel } from "../split/split";
+import { SplitDownIcon, SplitRightIcon } from "../split/split-menu";
 import { trackContextMenuPoint } from "./block-menus";
 import { CommandPanelModel, OpenCommandPanel, OpenMark, PaintedMeasure } from "./command-panel-store";
 import "./command-panel.css";
@@ -37,6 +38,7 @@ import {
     moveRowSelection,
     nthSelectable,
     numberedIndices,
+    openingSelection,
     optionSelected,
     PanelKeyIntent,
     panelKeyIntent,
@@ -123,7 +125,7 @@ function footerItems(blockId: string, magnified: boolean): FooterAction[] {
             id: "footer:split-right",
             type: "action",
             label: "Split right",
-            icon: "table-columns",
+            icon: SplitRightIcon,
             shortcut: formatShortcutById("split-right"),
             keywords: ["new panel", "add panel"],
             refocus: false,
@@ -133,7 +135,7 @@ function footerItems(blockId: string, magnified: boolean): FooterAction[] {
             id: "footer:split-down",
             type: "action",
             label: "Split down",
-            icon: "table-columns fa-rotate-270",
+            icon: SplitDownIcon,
             shortcut: formatShortcutById("split-down"),
             keywords: ["new panel", "add panel"],
             refocus: false,
@@ -758,7 +760,7 @@ function CommandPanel({ open }: CommandPanelProps) {
         if (lastPageKey.current !== pageKey) {
             lastPageKey.current = pageKey;
             selectedKey.current = null;
-            setSelected(firstSelectable(rows));
+            setSelected(query === "" && liveStack.length > 0 ? openingSelection(rows, scopes) : firstSelectable(rows));
             return;
         }
         const kept = rows.findIndex((r) => r.key === selectedKey.current);
@@ -1226,7 +1228,7 @@ function CommandPanel({ open }: CommandPanelProps) {
             aria-label={`Commands for this ${panelName.toLowerCase()} panel`}
             data-role="command-panel"
             data-blockid-for={blockId}
-            className="molten-cmdpanel flex flex-col overflow-hidden rounded-10 border border-line-strong bg-surface-2 shadow-e3"
+            className="molten-cmdpanel flex flex-col overflow-hidden rounded-10 border border-line-strong bg-surface-2 shadow-command"
             style={{
                 ...floatingStyles,
                 width: PanelWidthPx,

@@ -11,6 +11,7 @@ import {
     flattenPanel,
     moveRowSelection,
     nthSelectable,
+    openingSelection,
     panelKeyIntent,
     panelMatch,
     PanelRow,
@@ -114,6 +115,20 @@ describe("command panel rows (FR-SHELL-047, TC-SHELL-101, TC-SHELL-103)", () => 
         const rows = buildRows({ sections, stack: ["theme"], query: "", alt: false });
         expect(labels(rows)).toEqual(["Default Dark", "Dracula", "Monokai"]);
         expect(rows.every((r) => r.kind === "option")).toBe(true);
+    });
+
+    it("opens a choice's sub-page with the current value selected, not the first row (#402 review)", () => {
+        const { sections, s } = terminalSections();
+        s.data["meta:theme"] = "monokai";
+        const rows = buildRows({ sections, stack: ["theme"], query: "", alt: false });
+        expect(openingSelection(rows, {})).toBe(2);
+        s.data["settings:theme"] = "dracula";
+        expect(openingSelection(rows, { theme: "kind" })).toBe(1);
+        delete s.data["meta:theme"];
+        delete s.data["settings:theme"];
+        expect(openingSelection(rows, {})).toBe(0);
+        const root = buildRows({ sections, stack: [], query: "", alt: false });
+        expect(openingSelection(root, {})).toBe(firstSelectable(root));
     });
 
     it("searches across sections and sub-pages, footer included", () => {

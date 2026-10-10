@@ -30,7 +30,7 @@ export function MoltentermCommandPaletteModal() {
     };
     return (
         <div
-            className="fixed inset-0 z-[9000] flex items-start justify-center bg-black/40 px-4 pt-[14vh]"
+            className="fixed inset-0 z-[9000] flex items-start justify-center px-4 pt-[14vh]"
             onMouseDown={(e) => {
                 if (e.target === e.currentTarget) {
                     e.preventDefault();

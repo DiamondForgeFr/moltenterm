@@ -250,13 +250,19 @@ export type RailWorkspaceMenu = {
     remove: { enabled: boolean; reason?: string; onDelete: () => void };
 };
 
-// More (DS-SHELL-081): Edit first, reachable while the coffee's mug holds its place in the tray; then the coffee, the
-// grouping, the Project tab, and the destructive pair last.
+// The MenuHost draws the Group heading and the separator before the destructive pair (FR-SHELL-054).
+export const RailGroupSection = "Group";
+
+// More (DS-SHELL-081): Edit first, reachable while the coffee's mug holds its place in the tray; then the Project tab
+// and the coffee, the Group section, and the destructive pair last. The last workspace's Delete stays, disabled with
+// its reason (#222): the reason is the answer to "why can't I delete it".
 export function railWorkspaceMenu(menu: RailWorkspaceMenu): ContextMenuItem[] {
     const items: ContextMenuItem[] = [{ label: "Edit workspace…", icon: "pen", click: menu.onEdit }];
-    const middle: ContextMenuItem[] = [];
+    if (menu.onProjectTab != null) {
+        items.push({ label: "Open Project tab", icon: "folder-open", click: menu.onProjectTab });
+    }
     if (menu.coffee != null) {
-        middle.push({
+        items.push({
             label: menu.coffee.label,
             type: "checkbox",
             checked: menu.coffee.on,
@@ -265,20 +271,20 @@ export function railWorkspaceMenu(menu: RailWorkspaceMenu): ContextMenuItem[] {
         });
     }
     if (menu.group != null) {
-        middle.push({
+        items.push({
             label: menu.group.connecting ? "Stop grouping" : "Group with…",
             icon: "link",
+            section: RailGroupSection,
             click: menu.group.onGroupWith,
         });
         if (menu.group.onRemove != null) {
-            middle.push({ label: "Remove from group", icon: "link-slash", click: menu.group.onRemove });
+            items.push({
+                label: "Remove from group",
+                icon: "link-slash",
+                section: RailGroupSection,
+                click: menu.group.onRemove,
+            });
         }
-    }
-    if (menu.onProjectTab != null) {
-        middle.push({ label: "Open Project tab", icon: "folder-open", click: menu.onProjectTab });
-    }
-    if (middle.length > 0) {
-        items.push({ type: "separator" }, ...middle);
     }
     items.push(
         { type: "separator" },
@@ -303,19 +309,25 @@ export type RailGroupMenu = {
 };
 
 export function railGroupMenu(menu: RailGroupMenu): ContextMenuItem[] {
-    const items: ContextMenuItem[] = [{ label: menu.collapsed ? "Expand" : "Collapse", click: menu.onToggle }];
+    const items: ContextMenuItem[] = [
+        {
+            label: menu.collapsed ? "Expand" : "Collapse",
+            icon: menu.collapsed ? "chevron-down" : "chevron-up",
+            click: menu.onToggle,
+        },
+    ];
     if (menu.local == null) {
         return items;
     }
     items.push(
-        { type: "separator" },
         {
             label: menu.local.connecting ? "Stop grouping" : "Add workspaces…",
             icon: "link",
+            section: RailGroupSection,
             click: menu.local.onGroupWith,
         },
-        { label: "Rename group…", icon: "pen", click: menu.local.onRename },
-        { label: "Ungroup", icon: "layer-group", click: menu.local.onUngroup }
+        { label: "Rename group…", icon: "pen", section: RailGroupSection, click: menu.local.onRename },
+        { label: "Ungroup", icon: "layer-group", section: RailGroupSection, click: menu.local.onUngroup }
     );
     return items;
 }
