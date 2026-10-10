@@ -29,9 +29,9 @@ export function cicdRuns(value: unknown): CicdRuns {
 // Project: the branches its line map draws.
 export const ProjectBranchesMetaKey = "project:branches";
 export const ProjectBranchesChoices = [
-    { value: "all", label: "All branches" },
-    { value: "open", label: "Open branches" },
-    { value: "merged", label: "Merged branches" },
+    { value: "all", label: "All" },
+    { value: "open", label: "Open" },
+    { value: "merged", label: "Merged" },
 ] as const;
 export type ProjectBranches = (typeof ProjectBranchesChoices)[number]["value"];
 export const ProjectBranchesDefault: ProjectBranches = "all";
@@ -61,7 +61,7 @@ export const SessionsAgentChoices = [
     { value: "shells", label: "Shells only" },
 ] as const;
 export const SessionsFolderChoices = [
-    { value: "all", label: "Any folder" },
+    { value: "all", label: "Any" },
     { value: "workspace", label: "This workspace's folder" },
 ] as const;
 export const SessionsStateChoices = [

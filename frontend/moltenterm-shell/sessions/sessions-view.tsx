@@ -588,7 +588,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                 <span className="shrink-0 text-12 whitespace-nowrap text-secondary" aria-live="polite">
                     {data == null ? "Loading sessions…" : sessionsSummary(data)}
                 </span>
-                {filtered && allSessions.length > 0 ? (
+                {filtered && sessions.length > 0 ? (
                     <span className="shrink-0 text-12 whitespace-nowrap text-muted" data-testid="sessions-filtered">
                         {sessions.length} shown
                     </span>

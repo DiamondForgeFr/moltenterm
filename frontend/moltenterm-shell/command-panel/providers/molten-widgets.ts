@@ -116,9 +116,10 @@ export function companionSections(ctx: PanelContext): PanelSection[] {
                     },
                     {
                         id: "usagesource:endpoint",
-                        label: "Status line and usage endpoint",
+                        label: "Plus usage endpoint",
                         value: true,
-                        detail: "experimental, with Claude Code's sign-in token",
+                        // Picking it is the consent the companion's confirmation asks for: the row says what it uses.
+                        detail: "experimental, Claude Code's token",
                     },
                 ],
                 scopes: [
@@ -298,7 +299,7 @@ export function sessionsSections(ctx: PanelContext): PanelSection[] {
             items: [
                 filter("sessions:agent", "Agent", "robot", SessionsAgentMetaKey, SessionsAgentChoices),
                 filter("sessions:folder", "Folder", "folder", SessionsFolderMetaKey, SessionsFolderChoices),
-                filter("sessions:state", "State", "circle-half-stroke", SessionsStateMetaKey, SessionsStateChoices),
+                filter("sessions:state", "State", "circle-dot", SessionsStateMetaKey, SessionsStateChoices),
             ],
         },
     ];

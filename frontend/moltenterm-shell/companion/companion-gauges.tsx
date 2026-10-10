@@ -5,10 +5,12 @@
 // shows each limit window of the agent's plan with its bar and reset. wavesrv reads the source and publishes the
 // gauges when they change; the section never polls the source. A failure is one muted line.
 
+import { getSettingsKeyAtom } from "@/app/store/global";
 import { makeORef } from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
+import { useAtomValue } from "jotai";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { MoltenWave } from "../molten-button";
 import {
@@ -119,6 +121,19 @@ function usePlanUsage(target: string, agent: string, now: number) {
             unsubscribe();
         };
     }, [target, agent]);
+    // wavesrv publishes a change of the gauges to the agent's other companions only: one made elsewhere (the command
+    // panel, the settings file) reaches this one through the settings, and the section reads again.
+    const gaugesSetting = JSON.stringify(useAtomValue(getSettingsKeyAtom("companion:usagegauges")) ?? []);
+    const sourceSetting = useAtomValue(getSettingsKeyAtom("companion:usageclaudeoauth")) === true;
+    const settingsSeen = useRef(`${gaugesSetting}:${sourceSetting}`);
+    useEffect(() => {
+        const key = `${gaugesSetting}:${sourceSetting}`;
+        if (key === settingsSeen.current || !target || !agent) {
+            return;
+        }
+        settingsSeen.current = key;
+        call(CompanionUsageCommand, visibleRead());
+    }, [gaugesSetting, sourceSetting, target, agent]);
     const settingUp = info?.setup != null && info.gauges !== "off";
     useEffect(() => {
         if (!settingUp) {
