@@ -142,6 +142,30 @@ func TestAgentInputNamesTheForegroundProgram(t *testing.T) {
 	}
 }
 
+func TestAgentInputSeesAnEditorInTheAgentsGroup(t *testing.T) {
+	f := claudeInputTerm()
+	// Claude Code's Ctrl+G editor, or a !vim, runs in the agent's own process group.
+	f.procs = append(f.procs, proctree.Proc{Pid: 300, Ppid: 200, Pgid: 200, Tpgid: 200, Name: "vim", StartMs: 5000})
+	out := ask(f, AgentInputRequest{Action: agentcontinuity.ActionClear})
+	if out.Reason != InputReasonNotForeground || out.Program != "vim" || len(f.input) != 0 {
+		t.Fatalf("got %+v, typed %q", out, f.input)
+	}
+	agent := molten.AgentProcess{Agent: "claude", Pid: 200, StartMs: 4000}
+	if got := MakeUpdater(f.env()).StopAgent("b1", agentcontinuity.Find("claude"), agent, 100); got != StopChanged || len(f.input) != 0 {
+		t.Fatalf("StopAgent typed into vim: %q %q", got, f.input)
+	}
+}
+
+func TestAgentInputIgnoresTheAgentsHelpers(t *testing.T) {
+	f := claudeInputTerm()
+	f.procs = append(f.procs,
+		proctree.Proc{Pid: 300, Ppid: 200, Pgid: 200, Tpgid: 200, Name: "node", StartMs: 5000},
+		proctree.Proc{Pid: 301, Ppid: 200, Pgid: 200, Tpgid: 200, Name: "uvx", StartMs: 5000})
+	if out := ask(f, AgentInputRequest{Action: agentcontinuity.ActionStatus}); out.Result != InputSent {
+		t.Fatalf("an MCP server is no reason to refuse: %+v", out)
+	}
+}
+
 func TestAgentInputConfirmedDraftIsCleared(t *testing.T) {
 	f := claudeInputTerm()
 	f.state.Draft = true

@@ -6,6 +6,7 @@ package termupdate
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -54,6 +55,13 @@ const (
 	// How long the agent has to draw its new mode after Shift+Tab.
 	modeSettle = 1500 * time.Millisecond
 )
+
+// Full-screen programs an agent starts in its own process group (its editor on Ctrl+G, a !vim or !less): the agent is
+// still in the foreground group, but these read the keys. Nothing is typed while one runs under the agent.
+var terminalPrograms = []string{
+	"vi", "vim", "nvim", "view", "nano", "pico", "emacs", "micro", "hx", "helix", "kak", "joe", "mg",
+	"less", "more", "most", "man", "top", "htop", "btop", "watch", "ssh", "mosh", "tmux", "screen", "fzf", "tig", "lazygit",
+}
 
 var knownModes = []string{ModeDefault, ModeAcceptEdits, ModePlan, ModeBypassPermissions, ModeAuto}
 
@@ -168,6 +176,14 @@ func (u *Updater) AgentInput(ctx context.Context, req AgentInputRequest) AgentIn
 	if !ok {
 		return base(refused(InputReasonUnknownAction, fmt.Sprintf("%s has no command %q in MoltenTerm: nothing was typed.", name, req.Action)))
 	}
+	if blocker := u.foregroundBlocker(st.agent, st.shell.Pid); blocker != "" {
+		r := refused(InputReasonNotForeground, fmt.Sprintf("%s is in the foreground of this terminal, not %s: nothing was typed.", blocker, name))
+		if blocker == name {
+			r.Message = fmt.Sprintf("%s is no longer the program in the foreground: nothing was typed.", name)
+		}
+		r.Program = blocker
+		return base(r)
+	}
 	if run, ok := u.env.AgentRun(req.BlockId); ok && run.Running {
 		switch {
 		case run.State == molten.AgentStateWaiting:
@@ -281,12 +297,30 @@ func modeLabel(mode string) string {
 	return strings.TrimSpace(mode)
 }
 
+// foregroundBlocker names what keeps the agent from reading the keys now: a full-screen program it started, or, when
+// its process ended or left the foreground, the agent's own name; "" when the agent reads them.
+func (u *Updater) foregroundBlocker(agent molten.AgentProcess, shellPid int32) string {
+	name := molten.AgentDisplayName(agent.Agent)
+	if name == "" {
+		name = "the agent"
+	}
+	table, err := u.env.ReadTable()
+	if err != nil || table == nil || !table.Same(agent.Pid, agent.StartMs) || !inForeground(table, shellPid, agent.Pid) {
+		return name
+	}
+	for _, p := range table.Descendants(agent.Pid) {
+		if slices.Contains(terminalPrograms, filepath.Base(p.Name)) {
+			return filepath.Base(p.Name)
+		}
+	}
+	return ""
+}
+
 // sendToForegroundAgent types steps into the terminal only while the agent process is still the shell's foreground
 // program; false: it is not, and nothing was typed. Shared by StopAgent and moltenagentinput, so both keep the same
 // guarantee. Claude Code takes text followed at once by Enter for a paste: each step goes on its own.
 func (u *Updater) sendToForegroundAgent(blockId string, agent molten.AgentProcess, shellPid int32, steps []string) (bool, error) {
-	table, err := u.env.ReadTable()
-	if err != nil || !table.Same(agent.Pid, agent.StartMs) || !inForeground(table, shellPid, agent.Pid) {
+	if u.foregroundBlocker(agent, shellPid) != "" {
 		return false, nil
 	}
 	for _, step := range steps {
