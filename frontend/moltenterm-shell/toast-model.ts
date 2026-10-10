@@ -40,6 +40,8 @@ export type ToastInput = {
     kind?: MoltentermNotificationKind;
     title: string;
     message?: string;
+    // An image URL shown at 32 px in place of the tone's icon (the project icon offer, DS-SHELL-101).
+    thumbnail?: string;
     actions?: ToastAction[];
     // Stays until dismissed; by default only waiting and error toasts do.
     stays?: boolean;

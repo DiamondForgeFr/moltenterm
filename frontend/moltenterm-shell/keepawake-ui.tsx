@@ -21,9 +21,13 @@ import {
     keepAwakeCount,
     KeepAwakeSession,
     keepAwakeSessions,
+    KeepAwakeState,
+    SleepPolicy,
     sleepPolicyChoices,
+    sleepPolicySentence,
 } from "./keepawake-model";
 import { KeepAwakeModel } from "./keepawake-store";
+import { SegmentedControl } from "./segmented-control";
 
 const TickMs = 1000;
 
@@ -151,65 +155,27 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
     }, [anchor, onClose]);
     const rect = anchor.getBoundingClientRect();
     const sessions = keepAwakeSessions(state);
-    const choices = sleepPolicyChoices(platform);
-    const policy = policySetting ?? "";
     return createPortal(
         <div
             ref={panelRef}
             role="dialog"
             aria-label="Keep awake"
-            className="fixed z-[9600] flex max-h-[70vh] w-[360px] flex-col overflow-y-auto rounded-10 border border-border bg-surface-3 p-2 text-12 text-secondary shadow-e2"
+            data-testid="keepawake-panel"
+            className="fixed z-[9600] flex max-h-[70vh] w-[320px] flex-col overflow-y-auto rounded-10 border border-border bg-surface-3 p-3 text-12 text-secondary shadow-e2"
             style={{ bottom: window.innerHeight - rect.top + 6, right: Math.max(8, window.innerWidth - rect.right) }}
         >
-            <div className="px-2 pt-1 pb-1.5 text-11 font-semibold tracking-wide text-muted uppercase">
-                When terminals ask to keep {computerName(platform)} awake
-            </div>
-            <div role="radiogroup" aria-label="Sleep policy" className="flex flex-col gap-0.5">
-                {choices.map((choice) => (
-                    <label
-                        key={choice.policy}
-                        className="flex cursor-pointer items-start gap-2 rounded-6 px-2 py-1 hover:bg-hover"
-                    >
-                        <input
-                            type="radio"
-                            name="molten-sleep-policy"
-                            className="mt-0.5 cursor-pointer accent-[var(--color-accent)]"
-                            checked={policy === choice.policy}
-                            onChange={() => fireAndForget(() => model.setPolicy(choice.policy))}
-                        />
-                        <span className="flex flex-col">
-                            <span className="text-primary">{choice.label}</span>
-                            <span className="text-11 text-muted">{choice.detail}</span>
-                        </span>
-                    </label>
-                ))}
-            </div>
-            {policy === "" ? (
-                <div className="px-2 pt-1 text-11 text-muted">Not chosen yet: the first request will ask.</div>
-            ) : null}
-            {state.policyholding ? (
-                <div className="px-2 pt-1 text-11 text-[var(--color-awake)]">
-                    Until work ends holds {computerName(platform)} awake
-                    {state.policyworking || !state.policyendsat
-                        ? " while work runs"
-                        : `, ending in ${formatCountdown(state.policyendsat, now)}`}
-                    .
-                </div>
-            ) : null}
-            <div className="mt-2 border-t border-border px-2 pt-2 pb-1 text-11 font-semibold tracking-wide text-muted uppercase">
-                Kept awake by you
-            </div>
-            {state.coffees.length === 0 ? (
-                <div className="px-2 pb-1 text-11 text-muted">
-                    No coffee on. A workspace's More menu in the rail keeps {computerName(platform)} awake while it
-                    works.
-                </div>
-            ) : (
-                <ul className="flex flex-col">
+            <SleepPolicyControl
+                platform={platform}
+                policy={policySetting ?? ""}
+                holding={holdingLine(state, platform, now)}
+                onSelect={(policy) => fireAndForget(() => model.setPolicy(policy))}
+            />
+            {state.coffees.length > 0 ? (
+                <ul aria-label="Kept awake by you" className="-mx-1 mt-2 flex flex-col border-t border-border pt-2">
                     {state.coffees.map((coffee) => (
                         <li
                             key={coffee.workspaceid}
-                            className="flex items-center gap-2 rounded-6 px-2 py-1 hover:bg-hover"
+                            className="flex items-center gap-2 rounded-6 px-1 py-1 hover:bg-hover"
                         >
                             <i className="fa fa-solid fa-mug-hot text-11 text-[var(--color-awake)]" aria-hidden />
                             <span className="flex min-w-0 flex-1 flex-col">
@@ -229,27 +195,56 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
                         </li>
                     ))}
                 </ul>
-            )}
-            {sessions.length > 0 ? (
-                <>
-                    <div className="mt-2 border-t border-border px-2 pt-2 pb-1 text-11 font-semibold tracking-wide text-muted uppercase">
-                        Terminals that asked
-                    </div>
-                    <ul className="flex flex-col">
-                        {sessions.map((session) => (
-                            <SessionRow key={session.blockid} session={session} now={now} />
-                        ))}
-                    </ul>
-                    <div className="px-2 pt-1 text-11 text-muted">
-                        A session's own choice applies to its next requests and ends with it.
-                    </div>
-                </>
             ) : null}
-            <div className="mt-2 border-t border-border px-2 pt-2 text-11 text-muted">
-                MoltenTerm never keeps the display awake: it may sleep and the screen lock.
-            </div>
+            {sessions.length > 0 ? (
+                <ul aria-label="Terminals that asked" className="-mx-1 mt-2 flex flex-col border-t border-border pt-2">
+                    {sessions.map((session) => (
+                        <SessionRow key={session.blockid} session={session} now={now} />
+                    ))}
+                </ul>
+            ) : null}
         </div>,
         document.body
+    );
+}
+
+// What the policy holds right now, in a few words; "" while it holds nothing.
+function holdingLine(state: KeepAwakeState, platform: string, now: number): string {
+    if (!state.policyholding) {
+        return "";
+    }
+    if (state.policyworking || !state.policyendsat) {
+        return `Holding ${computerName(platform)} awake while work runs`;
+    }
+    return `Holding ${computerName(platform)} awake, ending in ${formatCountdown(state.policyendsat, now)}`;
+}
+
+// The popover's head (DS-SHELL-101): one sentence and the policies as a segmented control, the current one filled;
+// each segment's tooltip says what it does. Nothing is filled until the first request asks.
+export function SleepPolicyControl({
+    platform,
+    policy,
+    holding,
+    onSelect,
+}: {
+    platform: string;
+    policy: string;
+    holding?: string;
+    onSelect: (policy: SleepPolicy) => void;
+}) {
+    const segments = sleepPolicyChoices(platform).map((c) => ({ value: c.policy, label: c.label, title: c.detail }));
+    return (
+        <div className="flex flex-col gap-2">
+            <div className="text-12 text-primary">{sleepPolicySentence(platform)}</div>
+            <SegmentedControl
+                label={sleepPolicySentence(platform)}
+                segments={segments}
+                selected={policy as SleepPolicy}
+                onSelect={onSelect}
+                className="self-start"
+            />
+            {holding ? <div className="text-11 text-[var(--color-awake)]">{holding}</div> : null}
+        </div>
     );
 }
 

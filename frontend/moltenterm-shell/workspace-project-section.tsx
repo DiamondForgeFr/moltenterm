@@ -2,15 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The Project and Folder sections of the workspace edit sheet (FR-SHELL-030, DS-SHELL-036): the linked folder, or a
-// "Link a project" action, and the offer to show the project's logo as the workspace icon (FR-MC-001); the folder the
-// workspace works in (FR-SHELL-009). The sheet gives each its heading.
+// "Link a project" action; the folder the workspace works in (FR-SHELL-009). The project's images are offered by the
+// sheet's Icon field (DS-SHELL-101). The sheet gives each its heading.
 
-import { WorkspaceService } from "@/app/store/services";
 import { cn, fireAndForget } from "@/util/util";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { MoltenWave } from "./molten-button";
-import { WorkspaceIcon } from "./workspace-icon";
-import { hasImportedIcon } from "./workspace-icon-model";
 import {
     checkPathInside,
     effectiveWorkspaceFolder,
@@ -20,12 +17,10 @@ import {
 } from "./workspace-project";
 import {
     chooseMoltentermPath,
-    findProjectLogos,
     linkWorkspaceProject,
     ProjectFacts,
     readProjectFacts,
     setWorkspaceFolder,
-    setWorkspaceLogo,
     unlinkWorkspaceProject,
 } from "./workspace-project-store";
 
@@ -43,111 +38,6 @@ function ProjectStatusLine({ facts }: { facts: ProjectFacts }) {
         <div className="text-12 text-muted">
             {facts.hasPipeline ? "Pipeline ready" : "No pipeline yet"}
             {facts.harness ? ` · ${facts.harness}` : ""}
-        </div>
-    );
-}
-
-// Asked before a project logo replaces the imported image (FR-SHELL-031 AC7): the image would be deleted.
-function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
-    const confirmRef = useRef<HTMLButtonElement>(null);
-    useEffect(() => {
-        confirmRef.current?.focus();
-    }, []);
-    return (
-        <div
-            role="group"
-            aria-label="Replace the imported image"
-            data-role="replace-image-confirm"
-            className="mt-2 flex flex-wrap items-center gap-2 rounded-4 border border-border px-2 py-1.5"
-        >
-            <span className="min-w-0 flex-1 basis-48 text-12 text-secondary">
-                Replace the imported image with this logo? The image is deleted.
-            </span>
-            <button
-                ref={confirmRef}
-                type="button"
-                onClick={onConfirm}
-                className="molten-btn molten-btn-warning shrink-0 cursor-pointer rounded-6 px-2 py-1 text-12"
-            >
-                Replace
-                <MoltenWave />
-            </button>
-            <button type="button" onClick={onCancel} className={LinkButtonClass}>
-                Cancel
-            </button>
-        </div>
-    );
-}
-
-function LogoChoices({ ws, logos, chosen, dir }: { ws: Workspace; logos: string[]; chosen: string; dir: string }) {
-    const imported = hasImportedIcon(ws);
-    const [pending, setPending] = useState<string>(null);
-    const choose = (logo: string) => {
-        if (logo && imported) {
-            setPending(logo);
-            return;
-        }
-        fireAndForget(() => setWorkspaceLogo(ws.oid, logo || null));
-    };
-    // The image goes first: if removing it fails, the logo is not set under an image that still wins.
-    const confirmReplace = () => {
-        const logo = pending;
-        setPending(null);
-        fireAndForget(async () => {
-            await WorkspaceService.RemoveWorkspaceIcon(ws.oid);
-            await setWorkspaceLogo(ws.oid, logo);
-        });
-    };
-    const pickOther = () =>
-        fireAndForget(async () => {
-            const file = await chooseMoltentermPath({ kind: "image", title: "Workspace icon", defaultPath: dir });
-            if (file) {
-                choose(file);
-            }
-        });
-    const choices = chosen && !logos.includes(chosen) ? [chosen, ...logos] : logos;
-    return (
-        <div className="mt-2">
-            <div className="mb-1 text-12 text-secondary">
-                {imported
-                    ? "Project logo · the imported image shows instead"
-                    : chosen
-                      ? "Workspace icon"
-                      : "Use an image of the project as the workspace icon?"}
-            </div>
-            <div className="flex flex-wrap items-center gap-1">
-                <button
-                    type="button"
-                    title="Keep the workspace's icon"
-                    aria-pressed={!chosen}
-                    onClick={() => choose(null)}
-                    className={cn(
-                        "flex h-8 w-8 cursor-pointer items-center justify-center rounded-6 border text-icon-16 hover:bg-hover",
-                        !chosen ? "border-accent" : "border-border"
-                    )}
-                >
-                    <WorkspaceIcon source={{ icon: ws.icon, color: ws.color, image: "", logo: "" }} />
-                </button>
-                {choices.map((logo) => (
-                    <button
-                        key={logo}
-                        type="button"
-                        title={logo}
-                        aria-pressed={logo === chosen}
-                        onClick={() => choose(logo)}
-                        className={cn(
-                            "flex h-8 w-8 cursor-pointer items-center justify-center rounded-6 border text-icon-16 hover:bg-hover",
-                            logo === chosen ? "border-accent" : "border-border"
-                        )}
-                    >
-                        <WorkspaceIcon source={{ icon: ws.icon, color: ws.color, image: "", logo }} />
-                    </button>
-                ))}
-                <button type="button" onClick={pickOther} className={LinkButtonClass}>
-                    Other image…
-                </button>
-            </div>
-            {pending ? <ReplaceImageConfirm onConfirm={confirmReplace} onCancel={() => setPending(null)} /> : null}
         </div>
     );
 }
@@ -206,24 +96,18 @@ export function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
 export function WorkspaceProjectBlock({ ws }: { ws: Workspace }) {
     const project = readWorkspaceProject(ws);
     const [facts, setFacts] = useState<ProjectFacts>(null);
-    const [logos, setLogos] = useState<string[]>([]);
     const [error, setError] = useState<string>(null);
 
     useEffect(() => {
         setFacts(null);
-        setLogos([]);
         if (project.dir === "") {
             return;
         }
         let cancelled = false;
         fireAndForget(async () => {
-            const [nextFacts, nextLogos] = await Promise.all([
-                readProjectFacts(project.dir),
-                findProjectLogos(project.dir),
-            ]);
+            const nextFacts = await readProjectFacts(project.dir);
             if (!cancelled) {
                 setFacts(nextFacts);
-                setLogos(nextLogos);
             }
         });
         return () => {
@@ -286,9 +170,6 @@ export function WorkspaceProjectBlock({ ws }: { ws: Workspace }) {
                         </button>
                     </div>
                     <ProjectStatusLine facts={facts} />
-                    {facts?.exists ? (
-                        <LogoChoices ws={ws} logos={logos} chosen={project.logo} dir={project.dir} />
-                    ) : null}
                 </>
             )}
             {error ? (

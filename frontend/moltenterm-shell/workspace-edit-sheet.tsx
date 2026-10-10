@@ -1,9 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The workspace edit sheet (FR-SHELL-030, DS-SHELL-036): Identity, Project, Folder and Danger zone, in that order. A
-// change is saved as soon as it is made, as in Wave's editor; Done, Escape and a press outside close it, and the focus
-// goes back to what opened it.
+// The workspace edit sheet (FR-SHELL-030, DS-SHELL-036, DS-SHELL-101): titled Workspace with its folder under the
+// title; Identity (one Icon field, Symbol or Image, then the colour), Project, Folder and Danger zone, in that order.
+// A change is saved as soon as it is made, as in Wave's editor; Done, Escape and a press outside close it, and the
+// focus goes back to what opened it.
 
 import { atoms, getApi } from "@/app/store/global";
 import { WorkspaceService } from "@/app/store/services";
@@ -14,6 +15,7 @@ import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { accentForeground, parseColor } from "./accent";
 import { DialogFrame, useEscape } from "./dialog-frame";
 import { MoltenWave } from "./molten-button";
+import { Segment, SegmentedControl } from "./segmented-control";
 import { listenWorkspaceMenu, pickUpWorkspaceEdit, WorkspaceEditModel } from "./workspace-edit";
 import {
     checkWorkspaceName,
@@ -27,9 +29,9 @@ import {
 } from "./workspace-edit-model";
 import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
 import { hasImportedIcon, iconKindLabel, workspaceIconSource } from "./workspace-icon-model";
-import { pathBaseName } from "./workspace-project";
+import { effectiveWorkspaceFolder, pathBaseName, readWorkspaceProject } from "./workspace-project";
 import { WorkspaceFolderLine, WorkspaceProjectBlock } from "./workspace-project-section";
-import { chooseMoltentermPath } from "./workspace-project-store";
+import { chooseMoltentermPath, findProjectLogos, setWorkspaceLogo } from "./workspace-project-store";
 import { askResetWorkspace } from "./workspace-reset";
 import { canCloseWorkspace } from "./workspace-reset-model";
 
@@ -63,12 +65,15 @@ function Section({ title, first, children }: { title: string; first?: boolean; c
 // A radio group with one tab stop; the arrows move the choice and apply it (WAI-ARIA radio group, NFR-SHELL-014).
 function RadioGrid({
     label,
+    hideLabel,
     options,
     selected,
     onSelect,
     renderOption,
 }: {
     label: string;
+    // Named for screen readers only, where the field above already names it on screen.
+    hideLabel?: boolean;
     options: string[];
     selected: string;
     onSelect: (value: string) => void;
@@ -90,7 +95,7 @@ function RadioGrid({
     };
     return (
         <div className="min-w-0">
-            <div id={labelId} className={FieldLabelClass}>
+            <div id={labelId} className={hideLabel ? "sr-only" : FieldLabelClass}>
                 {label}
             </div>
             <div
@@ -184,79 +189,136 @@ function useIconDrop(onPath: (path: string) => void, onRefused: (text: string) =
     return { over, handlers };
 }
 
-// Import image… and the drop target, under the colours (FR-SHELL-031): wavesrv checks and copies the file; the result
-// is one line, announced. With an image set, Use built-in icon removes it and its stored copy.
-function ImportImageSlot({
+// Asked before a project image replaces the imported one (FR-SHELL-031 AC7): the imported copy would be deleted.
+function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+    const confirmRef = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        confirmRef.current?.focus();
+    }, []);
+    return (
+        <div
+            role="group"
+            aria-label="Replace the imported image"
+            data-role="replace-image-confirm"
+            className="flex flex-wrap items-center gap-2 rounded-4 border border-border px-2 py-1.5"
+        >
+            <span className="min-w-0 flex-1 basis-48 text-12 text-secondary">
+                Replace the imported image? Its copy is deleted.
+            </span>
+            <button
+                ref={confirmRef}
+                type="button"
+                onClick={onConfirm}
+                className="molten-btn molten-btn-warning shrink-0 cursor-pointer rounded-6 px-2 py-1 text-12"
+            >
+                Replace
+                <MoltenWave />
+            </button>
+            <button type="button" onClick={onCancel} className={cn(SecondaryButtonClass, FocusRingClass)}>
+                Cancel
+            </button>
+        </div>
+    );
+}
+
+const ImageTileClass =
+    "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-6 border text-icon-20 transition-colors duration-120 ease-mt motion-reduce:transition-none";
+
+// The Image side of the Icon field (DS-SHELL-101): the project's images first, then the imported one, then the tile
+// that imports another (a pick or a drop; wavesrv checks and copies the file, FR-SHELL-031). The result is one line,
+// announced.
+export function ImagePane({
     ws,
+    logos,
     over,
     busy,
     result,
     dropHandlers,
     onPick,
-    onRemove,
+    onLogo,
 }: {
     ws: Workspace;
+    logos: string[];
     over: boolean;
     busy: boolean;
     result: ImportResult;
     dropHandlers: React.HTMLAttributes<HTMLDivElement>;
     onPick: () => void;
-    onRemove: () => void;
+    onLogo: (logo: string) => void;
 }) {
-    const labelId = useId();
     const imported = hasImportedIcon(ws);
+    const source = workspaceIconSource(ws);
+    const current = imported ? "" : source.logo;
+    const projectImages = current && !logos.includes(current) ? [current, ...logos] : logos;
     return (
-        <div className="min-w-0" role="group" aria-labelledby={labelId}>
-            <div id={labelId} className={FieldLabelClass}>
-                Image
-            </div>
+        <div className="flex min-w-0 flex-col gap-1.5" data-role="image-pane">
             <div
                 {...dropHandlers}
                 data-role="icon-drop"
                 data-over={over ? "true" : undefined}
                 className={cn(
-                    "rounded-4 border border-dashed px-3 py-2 transition-colors duration-120 ease-mt motion-reduce:transition-none",
-                    over ? "border-accent bg-accent/10" : "border-border"
+                    "-m-1 flex flex-wrap items-center gap-1.5 rounded-6 p-1 transition-colors duration-120 ease-mt motion-reduce:transition-none",
+                    over && "bg-accent/10 outline outline-1 outline-accent outline-dashed"
                 )}
             >
-                <div className="flex flex-wrap items-center gap-2">
-                    <span className="min-w-0 flex-1 basis-48 text-12 text-secondary">
-                        {over
-                            ? "Drop to use this image"
-                            : imported
-                              ? "Shown in place of the icon and colour, which stay set."
-                              : "PNG, JPG, WebP, SVG or ICO, up to 1 MB. Pick one or drop it here."}
-                    </span>
+                {projectImages.map((logo) => (
                     <button
+                        key={logo}
                         type="button"
-                        disabled={busy}
-                        onClick={onPick}
-                        className={cn(SecondaryButtonClass, FocusRingClass)}
+                        aria-pressed={logo === current}
+                        aria-label={`Project image ${pathBaseName(logo)}`}
+                        title={logo}
+                        data-image-kind="project"
+                        onClick={() => onLogo(logo)}
+                        className={cn(
+                            ImageTileClass,
+                            FocusRingClass,
+                            logo === current ? "border-accent bg-accent/10" : "border-border hover:bg-hover"
+                        )}
                     >
-                        {busy ? "Importing…" : imported ? "Replace image…" : "Import image…"}
+                        <WorkspaceIcon source={{ icon: ws.icon, color: ws.color, image: "", logo }} />
                     </button>
-                    {imported ? (
-                        <button
-                            type="button"
-                            disabled={busy}
-                            onClick={onRemove}
-                            data-action="use-builtin-icon"
-                            className={cn(SecondaryButtonClass, FocusRingClass)}
-                        >
-                            Use built-in icon
-                        </button>
-                    ) : null}
-                </div>
-                <div role="status" aria-live="polite" data-role="icon-import-result" className="min-h-4 text-12">
-                    {result ? (
-                        <span className={result.ok ? "text-secondary" : "text-primary"}>
-                            {result.ok ? null : (
-                                <i className="fa fa-solid fa-circle-exclamation mr-1 text-error" aria-hidden />
-                            )}
-                            {result.text}
-                        </span>
-                    ) : null}
-                </div>
+                ))}
+                {imported ? (
+                    <span
+                        role="img"
+                        aria-label="Imported image, in use"
+                        title="Imported image"
+                        data-image-kind="imported"
+                        className={cn(ImageTileClass, "cursor-default border-accent bg-accent/10")}
+                    >
+                        <WorkspaceIcon source={{ ...source, logo: "" }} />
+                    </span>
+                ) : null}
+                <button
+                    type="button"
+                    disabled={busy}
+                    onClick={onPick}
+                    aria-label={imported ? "Replace the imported image…" : "Import an image…"}
+                    title={imported ? "Replace the imported image…" : "Import an image…"}
+                    data-action="import-image"
+                    className={cn(
+                        ImageTileClass,
+                        FocusRingClass,
+                        "border-dashed border-border text-icon-14 text-muted hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60"
+                    )}
+                >
+                    <i className={cn("fa fa-solid", busy ? "fa-spinner fa-spin" : "fa-plus")} aria-hidden />
+                </button>
+            </div>
+            <div role="status" aria-live="polite" data-role="icon-import-result" className="min-h-4 text-12">
+                {result ? (
+                    <span className={result.ok ? "text-secondary" : "text-primary"}>
+                        {result.ok ? null : (
+                            <i className="fa fa-solid fa-circle-exclamation mr-1 text-error" aria-hidden />
+                        )}
+                        {result.text}
+                    </span>
+                ) : (
+                    <span className="text-muted">
+                        {over ? "Drop to use this image" : "Or drop a PNG, JPG, WebP, SVG or ICO (1 MB) here"}
+                    </span>
+                )}
             </div>
         </div>
     );
@@ -294,11 +356,28 @@ function RailBadgePreview({
     );
 }
 
+type IconMode = "symbol" | "image";
+
+const IconModes: Segment<IconMode>[] = [
+    { value: "symbol", label: "Symbol" },
+    { value: "image", label: "Image" },
+];
+
+// The side the Icon field opens on: Image while an image shows in the rail.
+export function initialIconMode(ws: Workspace): IconMode {
+    return hasImportedIcon(ws) || workspaceIconSource(ws).logo !== "" ? "image" : "symbol";
+}
+
 function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObject<HTMLInputElement> }) {
     const nameId = useId();
     const errorId = useId();
+    const iconLabelId = useId();
     const [draft, setDraft] = useState<string>(null);
     const [choices, setChoices] = useState<{ icons: string[]; colors: string[] }>({ icons: [], colors: [] });
+    const [mode, setMode] = useState<IconMode>(() => initialIconMode(ws));
+    const [logos, setLogos] = useState<string[]>([]);
+    const [pendingLogo, setPendingLogo] = useState<string>(null);
+    const projectDir = readWorkspaceProject(ws).dir;
     useEffect(() => {
         let live = true;
         fireAndForget(async () => {
@@ -311,6 +390,22 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
             live = false;
         };
     }, []);
+    useEffect(() => {
+        setLogos([]);
+        if (projectDir === "") {
+            return;
+        }
+        let live = true;
+        fireAndForget(async () => {
+            const found = await findProjectLogos(projectDir);
+            if (live) {
+                setLogos(found ?? []);
+            }
+        });
+        return () => {
+            live = false;
+        };
+    }, [projectDir]);
     const name = draft ?? ws.name ?? "";
     const invalid = checkWorkspaceName(name) == null;
     const save = (next: { name?: string; icon?: string; color?: string }) => {
@@ -344,11 +439,13 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
             }
         });
     };
-    const importPath = (path: string) =>
+    const importPath = (path: string) => {
+        setMode("image");
         runIconChange(async () => {
             const refusal = await WorkspaceService.ImportWorkspaceIcon(ws.oid, path);
             return refusal ? { ok: false, text: refusal } : { ok: true, text: `Imported ${pathBaseName(path)}` };
         });
+    };
     const pick = () =>
         fireAndForget(async () => {
             const path = await chooseMoltentermPath({ kind: "workspaceicon", title: "Workspace icon" });
@@ -356,15 +453,41 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                 importPath(path);
             }
         });
-    const removeImage = () =>
+    const source = workspaceIconSource(ws);
+    const imported = hasImportedIcon(ws);
+    const showsImage = imported || source.logo !== "";
+    // Back to the symbol: the imported copy is deleted and the project image let go; both can be chosen again.
+    const useSymbol = () =>
+        runIconChange(async () => {
+            if (imported) {
+                await WorkspaceService.RemoveWorkspaceIcon(ws.oid);
+            }
+            if (source.logo) {
+                await setWorkspaceLogo(ws.oid, null);
+            }
+            return { ok: true, text: "Back to the symbol" };
+        });
+    const chooseLogo = (logo: string) => {
+        if (imported) {
+            setPendingLogo(logo);
+            return;
+        }
+        fireAndForget(() => setWorkspaceLogo(ws.oid, logo));
+    };
+    // The image goes first: if removing it fails, the logo is not set under an image that still wins.
+    const confirmLogo = () => {
+        const logo = pendingLogo;
+        setPendingLogo(null);
         runIconChange(async () => {
             await WorkspaceService.RemoveWorkspaceIcon(ws.oid);
-            return {
-                ok: true,
-                text: workspaceIconSource(ws).logo ? "Back to the project logo" : "Back to the built-in icon",
-            };
+            await setWorkspaceLogo(ws.oid, logo);
+            return { ok: true, text: `Using ${pathBaseName(logo)}` };
         });
-    const drop = useIconDrop(importPath, (text) => setResult({ ok: false, text }));
+    };
+    const drop = useIconDrop(importPath, (text) => {
+        setMode("image");
+        setResult({ ok: false, text });
+    });
     return (
         <Section title="Identity" first>
             <div className="flex min-w-0 items-start gap-3">
@@ -392,23 +515,59 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                     </div>
                 </div>
             </div>
-            <div className="mt-2 flex min-w-0 flex-col gap-3">
-                <IconChoices
-                    icons={choices.icons}
-                    selected={ws.icon}
-                    color={ws.color}
-                    onSelect={(icon) => save({ icon })}
-                />
+            <div className="mt-1 flex min-w-0 flex-col gap-3">
+                <div className="min-w-0" role="group" aria-labelledby={iconLabelId} data-role="icon-field">
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                        <div id={iconLabelId} className="text-12 text-secondary">
+                            Icon
+                        </div>
+                        <SegmentedControl<IconMode>
+                            label="Icon kind"
+                            segments={IconModes}
+                            selected={mode}
+                            onSelect={(next) => setMode(next)}
+                        />
+                    </div>
+                    {mode === "symbol" ? (
+                        <div className="flex min-w-0 flex-col gap-1.5">
+                            {showsImage ? (
+                                <div className="flex flex-wrap items-center gap-2 text-12 text-muted">
+                                    <span className="min-w-0 flex-1">The rail shows an image instead.</span>
+                                    <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={useSymbol}
+                                        data-action="use-symbol"
+                                        className={cn(SecondaryButtonClass, FocusRingClass, "py-1")}
+                                    >
+                                        Use the symbol
+                                    </button>
+                                </div>
+                            ) : null}
+                            <IconChoices
+                                icons={choices.icons}
+                                selected={ws.icon}
+                                color={ws.color}
+                                onSelect={(icon) => save({ icon })}
+                            />
+                        </div>
+                    ) : (
+                        <ImagePane
+                            ws={ws}
+                            logos={logos}
+                            over={drop.over}
+                            busy={busy}
+                            result={result}
+                            dropHandlers={drop.handlers}
+                            onPick={pick}
+                            onLogo={chooseLogo}
+                        />
+                    )}
+                    {pendingLogo ? (
+                        <ReplaceImageConfirm onConfirm={confirmLogo} onCancel={() => setPendingLogo(null)} />
+                    ) : null}
+                </div>
                 <ColourChoices colors={choices.colors} selected={ws.color} onSelect={(color) => save({ color })} />
-                <ImportImageSlot
-                    ws={ws}
-                    over={drop.over}
-                    busy={busy}
-                    result={result}
-                    dropHandlers={drop.handlers}
-                    onPick={pick}
-                    onRemove={removeImage}
-                />
             </div>
         </Section>
     );
@@ -427,7 +586,8 @@ export function IconChoices({
 }) {
     return (
         <RadioGrid
-            label="Icon"
+            label="Symbol"
+            hideLabel
             options={icons}
             selected={selected}
             onSelect={onSelect}
@@ -553,8 +713,9 @@ export function WorkspaceEditSheet({
     return (
         <DialogFrame
             role="workspace-edit"
-            title="Edit workspace"
-            subtitle={ws.name}
+            title="Workspace"
+            subtitle={effectiveWorkspaceFolder(ws) || undefined}
+            subtitleClass="font-mono text-11"
             widthClass="w-[560px]"
             trapFocus
             onBackdrop={onClose}

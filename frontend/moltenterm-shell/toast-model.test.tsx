@@ -149,6 +149,17 @@ describe("notification kinds (FR-SHELL-055 AC2)", () => {
         expect(toasts).not.toMatch(/(bg|text|border)-accent/);
     });
 
+    it("shows a 32 px thumbnail in place of the tone's icon when the toast carries one (DS-SHELL-101)", () => {
+        Toasts.resetInstance();
+        showToast({ title: "Use Demo's logo?", thumbnail: "http://localhost/logo.png" });
+        const html = renderToStaticMarkup(<ToastStack onOpenCenter={() => {}} />);
+        expect(html).toMatch(
+            /<img src="http:\/\/localhost\/logo.png" alt=""[^>]*data-role="toast-thumbnail"[^>]*h-8 w-8/
+        );
+        expect(html).not.toContain("fa-circle-info");
+        expect(html).toContain('<span class="sr-only">Information: </span>');
+    });
+
     it("tells each tone by its icon and its label, not by colour alone", () => {
         const icons = new Set(["success", "warning", "error", "info"].map((k) => toneOf(k as any).icon));
         expect(icons.size).toBe(4);

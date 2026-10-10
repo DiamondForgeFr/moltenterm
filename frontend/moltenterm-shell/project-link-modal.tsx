@@ -2,33 +2,31 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Linking a project from the terminal (#77): when the focused terminal of a workspace without a project goes into a
-// project's folder, a modal offers to link it, to use one of its images as the workspace icon and to name the
-// workspace after it; a workspace linked without choosing its icon (molten project link) gets the icon part. Only
-// the visible window offers: the views MoltenTerm keeps for other workspaces stay quiet.
+// project's folder, a modal offers to link it and to name the workspace after it. A linked workspace that still shows
+// its own icon then gets the project icon offer, a toast with the image's thumbnail and only when the project has one
+// (FR-SHELL-059, project-icon-offer.ts). Only the visible window offers: the views MoltenTerm keeps for other
+// workspaces stay quiet.
 
 import { atoms, getApi } from "@/app/store/global";
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { getLayoutModelForStaticTab } from "@/layout/index";
-import { cn, fireAndForget } from "@/util/util";
+import { fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { MoltenWave } from "./molten-button";
 import { hasDefaultName, nextProjectOffer, ProjectOffer, readDismissed, withDismissed } from "./project-detect";
-import { WorkspaceIcon } from "./workspace-icon";
+import { offerProjectIcon } from "./project-icon-offer";
+import { WorkspaceEditModel } from "./workspace-edit";
 import { hasImportedIcon } from "./workspace-icon-model";
 import { nextWorkspaceFolder, pathBaseName, readWorkspaceFolder, readWorkspaceProject } from "./workspace-project";
 import {
-    chooseMoltentermPath,
     dismissProject,
     findOfferedProject,
-    findProjectLogos,
     linkWorkspaceProject,
-    markLogoOffered,
     readProjectFacts,
     renameWorkspace,
     setWorkspaceFolder,
-    setWorkspaceLogo,
 } from "./workspace-project-store";
 
 const NoFocusedNode = atom(null) as Atom<{ data?: { blockId?: string } }>;
@@ -52,20 +50,13 @@ function TerminalFolder({ blockId, onFolder }: { blockId: string; onFolder: (cwd
 
 function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Workspace; onClose: () => void }) {
     const [name, setName] = useState(pathBaseName(offer.dir));
-    const [logos, setLogos] = useState<string[]>([]);
-    const [chosen, setChosen] = useState<string>("");
-    const [rename, setRename] = useState(offer.mode === "link" && hasDefaultName(ws.name));
+    const [rename, setRename] = useState(hasDefaultName(ws.name));
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
-    // An imported image wins over the project's logo (FR-SHELL-031 AC7): linking never swaps it without asking, so the
-    // icon choice is left to the edit sheet, which asks first.
-    const keepsImage = hasImportedIcon(ws);
     useEffect(() => {
         fireAndForget(async () => {
-            const [facts, found] = await Promise.all([readProjectFacts(offer.dir), findProjectLogos(offer.dir)]);
+            const facts = await readProjectFacts(offer.dir);
             setName(facts.name);
-            setLogos(found);
-            setChosen(keepsImage ? "" : (found[0] ?? ""));
         });
     }, [offer.dir]);
     useEffect(() => {
@@ -92,104 +83,46 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
         });
     const accept = () =>
         run(async () => {
-            if (offer.mode === "link") {
-                await linkWorkspaceProject(ws, offer.dir);
-            }
-            if (chosen && !keepsImage) {
-                await setWorkspaceLogo(ws.oid, chosen);
-            }
-            await markLogoOffered(ws.oid, offer.dir);
+            await linkWorkspaceProject(ws, offer.dir);
             if (rename && name) {
                 await renameWorkspace(ws, name);
             }
         });
-    // "Not now" is remembered: for this folder in this workspace, or the icon offer for this project.
+    // "Not now" is remembered for this folder in this workspace.
     const decline = () =>
-        run(async () => {
-            if (offer.mode === "link") {
-                await dismissProject(ws.oid, withDismissed(readDismissed(ws.meta as Record<string, any>), offer.dir));
-                return;
-            }
-            await markLogoOffered(ws.oid, offer.dir);
-        });
-    const pickOther = () =>
-        fireAndForget(async () => {
-            const file = await chooseMoltentermPath({ kind: "image", title: "Workspace icon", defaultPath: offer.dir });
-            if (file) {
-                setLogos((current) => (current.includes(file) ? current : [file, ...current]));
-                setChosen(file);
-            }
-        });
-    const choices = [{ logo: "", title: "Keep the workspace's icon" }, ...logos.map((logo) => ({ logo, title: logo }))];
+        run(() => dismissProject(ws.oid, withDismissed(readDismissed(ws.meta as Record<string, any>), offer.dir)));
     return createPortal(
         <div className="fixed inset-0 z-[9600] flex items-center justify-center bg-black/40">
             <div
                 role="dialog"
                 aria-modal="true"
-                aria-label={offer.mode === "link" ? `Link this workspace to ${name}?` : `Use ${name}'s logo?`}
+                aria-label={`Link this workspace to ${name}?`}
                 className="flex w-[460px] flex-col rounded-10 border border-border bg-surface-3 shadow-e3"
             >
                 <div className="border-b border-border px-4 py-3">
-                    <div className="text-13 leading-5 font-semibold">
-                        {offer.mode === "link"
-                            ? `Link this workspace to ${name}?`
-                            : `Use ${name}'s logo for this workspace?`}
-                    </div>
+                    <div className="text-13 leading-5 font-semibold">{`Link this workspace to ${name}?`}</div>
                     <div className="mt-0.5 truncate text-12 text-muted" title={offer.dir}>
                         {offer.dir}
                     </div>
                 </div>
                 <div className="flex flex-col gap-3 px-4 py-3 text-12">
-                    {offer.mode === "link" ? (
-                        <div className="text-secondary">
-                            A terminal of this workspace is in this project. Linked, the workspace shows it in Mission
-                            Control (Project, CI/CD).
-                        </div>
-                    ) : null}
-                    {keepsImage ? (
-                        <div className="text-secondary">The workspace keeps its imported icon.</div>
-                    ) : (
-                        <div>
-                            <div className="mb-1.5 text-secondary">Workspace icon</div>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                                {choices.map((c) => (
-                                    <button
-                                        key={c.logo || "keep"}
-                                        type="button"
-                                        title={c.title}
-                                        aria-pressed={chosen === c.logo}
-                                        onClick={() => setChosen(c.logo)}
-                                        className={cn(
-                                            "flex h-10 w-10 cursor-pointer items-center justify-center rounded-6 border text-icon-20 hover:bg-hover",
-                                            chosen === c.logo ? "border-accent ring-1 ring-accent" : "border-border"
-                                        )}
-                                    >
-                                        <WorkspaceIcon
-                                            source={{ icon: ws.icon, color: ws.color, image: "", logo: c.logo }}
-                                        />
-                                    </button>
-                                ))}
-                                <button type="button" onClick={pickOther} className={PlainButton}>
-                                    Other image…
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                    {offer.mode === "link" ? (
-                        <label className="flex cursor-pointer items-center gap-2 text-secondary">
-                            <input type="checkbox" checked={rename} onChange={(e) => setRename(e.target.checked)} />
-                            Name the workspace “{name}”
-                            {ws.name ? <span className="text-muted">(now “{ws.name}”)</span> : null}
-                        </label>
-                    ) : null}
+                    <div className="text-secondary">
+                        A terminal of this workspace is in this project. Linked, the workspace shows it in Mission
+                        Control (Project, CI/CD).
+                    </div>
+                    <label className="flex cursor-pointer items-center gap-2 text-secondary">
+                        <input type="checkbox" checked={rename} onChange={(e) => setRename(e.target.checked)} />
+                        Name the workspace “{name}”
+                        {ws.name ? <span className="text-muted">(now “{ws.name}”)</span> : null}
+                    </label>
                     {error ? <div className="text-error">{error}</div> : null}
                 </div>
                 <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
                     <button type="button" disabled={busy} onClick={decline} className={PlainButton}>
-                        {offer.mode === "link" ? "Not now" : "Keep the icon"}
+                        Not now
                     </button>
                     <button type="button" disabled={busy} onClick={accept} className={AccentButton}>
-                        {offer.mode === "link" ? "Link the project" : "Use this icon"}
+                        Link the project
                         <MoltenWave />
                     </button>
                 </div>
@@ -204,13 +137,16 @@ export function ProjectLinkDetector() {
     const staticTabId = useAtomValue(atoms.staticTabId);
     // Waits for Wave's own modals (the welcome tour, About…) to close.
     const waveModalOpen = useAtomValue(atoms.modalOpen);
+    // The edit sheet lists the project's images itself: the icon offer waits until it closes.
+    const editing = useAtomValue(WorkspaceEditModel.getInstance().requestAtom) != null;
     const focusedAtom = useMemo(() => getLayoutModelForStaticTab()?.focusedNode ?? NoFocusedNode, []);
     const focused = useAtomValue(focusedAtom);
     const blockId = focused?.data?.blockId;
     const [terminalProject, setTerminalProject] = useState("");
     const [terminalFolder, setTerminalFolder] = useState("");
     const [shown, setShown] = useState<ProjectOffer>(null);
-    // Offers answered in this session: the workspace's meta takes a moment to reflect the answer.
+    // Offers made in this session: the workspace's meta takes a moment to reflect the answer, and an icon offer that
+    // left unanswered waits for a later session.
     const [answered, setAnswered] = useState<string[]>([]);
     const onFolder = useMemo(
         () => (cwd: string) => {
@@ -243,8 +179,16 @@ export function ProjectLinkDetector() {
         ) {
             return;
         }
-        setShown(offer);
-    }, [offerKey, shown, answered, waveModalOpen]);
+        if (offer.mode === "link") {
+            setShown(offer);
+            return;
+        }
+        if (editing) {
+            return;
+        }
+        setAnswered((keys) => [...keys, offerKey]);
+        fireAndForget(() => offerProjectIcon(ws, offer.dir));
+    }, [offerKey, shown, answered, waveModalOpen, editing]);
     // The workspace works where its terminal goes (FR-SHELL-009). Only when the terminal moves, so a Reset holds until
     // the next move; only from the view in front, on one of the workspace's own tabs (#80).
     useEffect(() => {
