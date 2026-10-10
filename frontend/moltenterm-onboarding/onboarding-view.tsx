@@ -15,6 +15,7 @@ import { getActiveTabModel } from "@/app/store/tab-model";
 import * as WOS from "@/app/store/wos";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useMemo } from "react";
+import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { onboardingUpdate, OnboardingUpdate, setPanelPage } from "./onboarding-client";
 import { openBesidePanel } from "./onboarding-open";
 import {
@@ -32,7 +33,7 @@ import {
     reopenPage,
 } from "./onboarding-state";
 import { OnboardingStepper } from "./onboarding-stepper";
-import { findFirstRunStep, FirstRunStep, FirstRunStepContext } from "./onboarding-steps";
+import { findFirstRunStep, FirstRunStep, FirstRunStepContext, ShownStepIds } from "./onboarding-steps";
 import { OnboardingSummary } from "./onboarding-summary";
 import { OnboardingWelcome } from "./onboarding-welcome";
 
@@ -86,7 +87,7 @@ export class OnboardingViewModel implements ViewModel {
     start(): Promise<void> {
         return this.run(async () => {
             const state = await this.update({ kind: "welcome" });
-            await setPanelPage(this.blockId, reopenPage(state));
+            await setPanelPage(this.blockId, reopenPage(state, ShownStepIds));
         });
     }
 
@@ -117,7 +118,7 @@ export class OnboardingViewModel implements ViewModel {
     // Records the step, then moves to the next step not done after it (skipping always moves forward).
     async moveOn(stepId: FirstRunStepId, status: "done" | "skipped"): Promise<void> {
         const next = await this.update({ kind: "step", step: stepId, status });
-        await setPanelPage(this.blockId, pageAfter(next, stepId));
+        await setPanelPage(this.blockId, pageAfter(next, stepId, ShownStepIds));
     }
 
     stepContext(step: FirstRunStep, state: OnboardingState): FirstRunStepContext {
@@ -143,9 +144,9 @@ function StepPage({ model, step, state }: { model: OnboardingViewModel; step: Fi
     const ctx = useMemo(() => model.stepContext(step, state), [model, step, state]);
     const Component = step.component;
     return (
-        <div className="mx-auto flex w-full max-w-[480px] flex-col gap-4">
+        <div className="mx-auto flex w-full max-w-[560px] flex-col gap-4">
             <div className="flex flex-col gap-1">
-                <span className="text-12 text-muted">{progressLabel(`step:${step.id}`)}</span>
+                <span className="text-12 text-muted">{progressLabel(`step:${step.id}`, ShownStepIds)}</span>
                 <h2 className="text-20 leading-6 font-semibold text-primary">{step.title}</h2>
                 <p className="text-13 leading-5 text-secondary">{step.summary}</p>
             </div>
@@ -167,14 +168,27 @@ function StepFooter({ model, step, busy }: { model: OnboardingViewModel; step: F
             >
                 Leave setup
             </button>
-            <button
-                type="button"
-                disabled={busy}
-                onClick={() => model.run(() => model.moveOn(step.id, "skipped"))}
-                className="molten-btn-secondary ml-auto cursor-pointer rounded-6 px-3 py-1.5 text-12"
-            >
-                Skip this step
-            </button>
+            {step.placeholder ? (
+                <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => model.run(() => model.moveOn(step.id, "skipped"))}
+                    className="molten-btn ml-auto cursor-pointer rounded-6 px-4 py-1.5 text-12 font-medium"
+                    data-testid="first-run-next"
+                >
+                    Next
+                    <MoltenWave />
+                </button>
+            ) : (
+                <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => model.run(() => model.moveOn(step.id, "skipped"))}
+                    className="molten-btn-secondary ml-auto cursor-pointer rounded-6 px-3 py-1.5 text-12"
+                >
+                    Skip this step
+                </button>
+            )}
         </div>
     );
 }
@@ -191,7 +205,7 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
         () => readOnboardingState({ [OnboardingMetaKey]: JSON.parse(recordKey) } as MetaType),
         [recordKey]
     );
-    const page = panelPage(state, block?.meta?.[OnboardingPageMetaKey]);
+    const page = panelPage(state, block?.meta?.[OnboardingPageMetaKey], ShownStepIds);
     const stepId = pageStep(page);
     const step = stepId == null ? null : findFirstRunStep(stepId);
     return (
@@ -218,7 +232,7 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
                     />
                 ) : null}
                 {error ? (
-                    <p className="mx-auto mt-4 w-full max-w-[480px] text-12 text-error" role="alert">
+                    <p className="mx-auto mt-4 w-full max-w-[560px] text-12 text-error" role="alert">
                         {error}
                     </p>
                 ) : null}

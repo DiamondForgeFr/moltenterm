@@ -37,6 +37,12 @@ export type FirstRunStep = {
     // one line, shown in the stepper's tooltip and on the summary page
     summary: string;
     component: React.FC<{ ctx: FirstRunStepContext }>;
+    // Until its story ships (#162): a step that cannot do its job is left out, never shown as "not ready"
+    // (FR-SHELL-053-AC4).
+    hidden?: boolean;
+    // A step whose component has no primary action of its own yet: the footer's Next moves on (recorded as skipped,
+    // so Getting started brings it back once it does something).
+    placeholder?: boolean;
 };
 
 // Ordered as FirstRunStepIds.
@@ -47,6 +53,8 @@ export const FirstRunSteps: FirstRunStep[] = [
         label: "Your agent",
         summary: "The coding agents MoltenTerm finds on this machine, and the one you work with.",
         component: AgentPlaceholderStep,
+        hidden: true,
+        placeholder: true,
     },
     {
         id: "morph",
@@ -54,6 +62,7 @@ export const FirstRunSteps: FirstRunStep[] = [
         label: "First morph",
         summary: "Ask your agent to reshape MoltenTerm, and see the change land.",
         component: MorphPlaceholderStep,
+        placeholder: true,
     },
     {
         id: "project",
@@ -61,9 +70,18 @@ export const FirstRunSteps: FirstRunStep[] = [
         label: "Your project",
         summary: "Link a workspace to your project folder and find your agent sessions.",
         component: ProjectPlaceholderStep,
+        placeholder: true,
     },
 ];
 
+export function visibleSteps(steps: FirstRunStep[] = FirstRunSteps): FirstRunStep[] {
+    return steps.filter((step) => !step.hidden);
+}
+
+// The steps the panel walks through, in order: the ids the page selectors of onboarding-state.ts take.
+export const ShownFirstRunSteps: FirstRunStep[] = visibleSteps();
+export const ShownStepIds: FirstRunStepId[] = ShownFirstRunSteps.map((step) => step.id);
+
 export function findFirstRunStep(id: FirstRunStepId): FirstRunStep {
-    return FirstRunSteps.find((step) => step.id === id) ?? null;
+    return ShownFirstRunSteps.find((step) => step.id === id) ?? null;
 }

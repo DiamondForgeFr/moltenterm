@@ -53,10 +53,20 @@ export const MissionReleaseNotesSaveCommand = "moltenmissionreleasenotessave";
 export const MissionReleaseMilestoneCommand = "moltenmissionreleasemilestone";
 export const MissionBranchesPlanCommand = "moltenmissionbranchesplan";
 export const MissionBranchesCleanCommand = "moltenmissionbranchesclean";
+export const MissionGitInitCommand = "moltenmissiongitinit";
 
 const MissionRpcTimeoutMs = 15000;
 // A request is cheap (the cached snapshot and the pipeline file); the collector itself refreshes at most once a minute.
 const MissionPollMs = 15000;
+
+// git init in a linked folder that is not inside a repository (FR-SHELL-053); answers with the refreshed snapshot.
+export function missionGitInit(dir: string): Promise<MissionSnapshot> {
+    return TabRpcClient.wshRpcCall(
+        MissionGitInitCommand,
+        { dir },
+        { route: MissionRouteId, timeout: MissionRpcTimeoutMs }
+    );
+}
 
 export function missionGet(dir: string, maxAgeSec?: number): Promise<MissionSnapshot> {
     return TabRpcClient.wshRpcCall(

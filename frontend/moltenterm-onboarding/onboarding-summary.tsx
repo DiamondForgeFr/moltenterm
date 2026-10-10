@@ -6,7 +6,7 @@
 import { cn } from "@/util/util";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { FirstRunPage, OnboardingState, stepPage, stepStatus } from "./onboarding-state";
-import { FirstRunSteps } from "./onboarding-steps";
+import { ShownFirstRunSteps } from "./onboarding-steps";
 
 function StatusMark({ status }: { status: string }) {
     if (status === "done") {
@@ -44,9 +44,9 @@ export function OnboardingSummary({
     onGo: (page: FirstRunPage) => void;
     onClose: () => void;
 }) {
-    const allDone = FirstRunSteps.every((step) => stepStatus(state, step.id) === "done");
+    const allDone = ShownFirstRunSteps.every((step) => stepStatus(state, step.id) === "done");
     return (
-        <div className="mx-auto flex w-full max-w-[480px] flex-col gap-5">
+        <div className="mx-auto flex w-full max-w-[560px] flex-col gap-5">
             <div className="flex flex-col gap-1">
                 <h2 className="text-20 leading-6 font-semibold text-primary">
                     {allDone ? "You're set" : "Almost there"}
@@ -58,7 +58,7 @@ export function OnboardingSummary({
                 </p>
             </div>
             <ul className="flex flex-col divide-y divide-border rounded-4 border border-border">
-                {FirstRunSteps.map((step) => {
+                {ShownFirstRunSteps.map((step) => {
                     const status = stepStatus(state, step.id);
                     return (
                         <li key={step.id} className="flex items-center gap-3 px-3 py-2.5">
