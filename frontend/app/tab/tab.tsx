@@ -218,6 +218,17 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
         onDragStart(event);
     };
 
+    // MOLTENTERM-PATCH (#410): an ellipsized name shows in full on hover (above the trees of the tab's terminals)
+    const handleMouseEnter = () => {
+        onTreesHover?.();
+        const nameEl = editableRef.current;
+        if (nameEl == null || isEditable) {
+            return;
+        }
+        const truncated = nameEl.scrollWidth > nameEl.clientWidth;
+        nameEl.title = truncated ? [displayName, treesTitle].filter((s) => !!s).join("\n") : "";
+    };
+
     return (
         <div
             ref={tabRef}
@@ -238,7 +249,7 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
             // MOLTENTERM-PATCH (#114, #410): the tooltip lists the trees of the tab's terminals; the Project tab says what it is
             title={(pinned ? displayName : treesTitle) || undefined}
             aria-label={pinned ? displayName : undefined}
-            onMouseEnter={onTreesHover}
+            onMouseEnter={handleMouseEnter} // MOLTENTERM-PATCH (#114, #410)
         >
             {showDivider && <div className="tab-divider" />}
             <div className="tab-inner">
