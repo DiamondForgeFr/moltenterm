@@ -1,0 +1,77 @@
+/* Copyright 2026, DiamondForge
+   SPDX-License-Identifier: Apache-2.0 */
+
+/* Drag to split (FR-SHELL-060, DS-SHELL-102): a fixed layer over the app, drawn over the panel under the pointer. It
+   takes no pointer (except the file drop catcher, laid over the zone only while a react-dnd file drag is in it), and
+   nothing in it changes the size or the place of anything in the panels (NFR-SHELL-029). */
+.molten-drop-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    pointer-events: none;
+}
+
+/* The panel the drop goes to: a quiet ring, so the centre (where nothing drops) still tells which panel it is. */
+.molten-drop-panel {
+    position: absolute;
+    border-radius: var(--block-border-radius, var(--mt-radius-6));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-accent) 35%, transparent);
+}
+
+/* The ghost of the new panel, as the split handle's (DS-SHELL-083): dashed accent, a light fill, on the zone's half. */
+.molten-drop-ghost {
+    position: absolute;
+    border: 1px dashed color-mix(in srgb, var(--mt-accent) 70%, transparent);
+    border-radius: var(--mt-radius-6);
+    background-color: color-mix(in srgb, var(--mt-accent) 7%, transparent);
+    transition:
+        left var(--mt-duration-fast) var(--mt-ease),
+        top var(--mt-duration-fast) var(--mt-ease),
+        width var(--mt-duration-fast) var(--mt-ease),
+        height var(--mt-duration-fast) var(--mt-ease);
+}
+
+/* The side where the split lands: its inner edge solid, as the handle's drag line. */
+.molten-drop-ghost[data-zone="right"] {
+    border-left: 2px solid var(--mt-accent);
+}
+
+.molten-drop-ghost[data-zone="left"] {
+    border-right: 2px solid var(--mt-accent);
+}
+
+.molten-drop-ghost[data-zone="down"] {
+    border-top: 2px solid var(--mt-accent);
+}
+
+.molten-drop-ghost[data-zone="up"] {
+    border-bottom: 2px solid var(--mt-accent);
+}
+
+.molten-drop-catcher {
+    position: absolute;
+    pointer-events: auto;
+}
+
+/* The tab being dragged follows the pointer as a small chip (a native drag has its own image). */
+.molten-drop-chip {
+    position: absolute;
+    max-width: 200px;
+    padding: 2px var(--mt-space-8);
+    overflow: hidden;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-6);
+    background: var(--mt-surface-2);
+    box-shadow: var(--mt-shadow-e2);
+    color: var(--mt-text-main);
+    font-size: var(--mt-text-12);
+    line-height: 20px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* While a panel drag runs, the pointer events over a browser panel stay with the page (a webview is another process
+   and would swallow them). */
+.molten-panel-dragging webview {
+    pointer-events: none !important;
+}

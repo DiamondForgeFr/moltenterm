@@ -27,8 +27,8 @@ type Ops interface {
 	AttachJob(ctx context.Context, jobId string, blockId string) error
 	// DeletePane removes a pane made for a reattach that failed.
 	DeletePane(ctx context.Context, blockId string) error
-	// InsertPane puts the block in the tab's layout, focused.
-	InsertPane(ctx context.Context, tabId string, blockId string) error
+	// InsertPane puts the block in the tab's layout, focused: beside the placement's panel when there is one.
+	InsertPane(ctx context.Context, tabId string, blockId string, place molten.PanePlacement) error
 	WorkspaceOfTab(ctx context.Context, tabId string) (string, error)
 	ActiveTab(ctx context.Context, workspaceId string) (string, error)
 	SetActiveTab(ctx context.Context, workspaceId string, tabId string) error
@@ -147,6 +147,12 @@ func (a *Actions) Cleanup(ctx context.Context, ids []string) (molten.DurableSess
 // another workspace (the window then switches to it), and the tab's renderer focuses the pane. One no pane shows is
 // reattached into a new pane of tabId, with its history.
 func (a *Actions) Show(ctx context.Context, id string, tabId string) (molten.SessionLocation, error) {
+	return a.ShowAt(ctx, id, tabId, molten.PanePlacement{})
+}
+
+// ShowAt is Show with the place of a reattached pane (a session dropped on a panel, FR-SHELL-060). A session already
+// in a pane is shown where it is.
+func (a *Actions) ShowAt(ctx context.Context, id string, tabId string, place molten.PanePlacement) (molten.SessionLocation, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	s, err := a.find(id)
@@ -159,7 +165,7 @@ func (a *Actions) Show(ctx context.Context, id string, tabId string) (molten.Ses
 	if s.Shown {
 		return a.showShown(ctx, s, tabId)
 	}
-	return a.reattach(ctx, s, tabId)
+	return a.reattach(ctx, s, tabId, place)
 }
 
 func reasonText(reason string) string {
@@ -194,7 +200,7 @@ func (a *Actions) showShown(ctx context.Context, s molten.DurableSession, caller
 	return loc, nil
 }
 
-func (a *Actions) reattach(ctx context.Context, s molten.DurableSession, tabId string) (molten.SessionLocation, error) {
+func (a *Actions) reattach(ctx context.Context, s molten.DurableSession, tabId string, place molten.PanePlacement) (molten.SessionLocation, error) {
 	if tabId == "" {
 		return molten.SessionLocation{}, fmt.Errorf("no tab to open the session in")
 	}
@@ -212,7 +218,7 @@ func (a *Actions) reattach(ctx context.Context, s molten.DurableSession, tabId s
 	if err != nil {
 		return molten.SessionLocation{}, err
 	}
-	if err := a.fillPane(ctx, s.Id, tabId, blockId); err != nil {
+	if err := a.fillPane(ctx, s.Id, tabId, blockId, place); err != nil {
 		// A pane never laid out would stay in the tab, invisible.
 		if delErr := a.ops.DeletePane(ctx, blockId); delErr != nil {
 			log.Printf("molten: pane %s of a failed reattach not removed: %v\n", blockId, delErr)
@@ -222,14 +228,14 @@ func (a *Actions) reattach(ctx context.Context, s molten.DurableSession, tabId s
 	return molten.SessionLocation{WorkspaceId: wsId, TabId: tabId, BlockId: blockId, Created: true}, nil
 }
 
-func (a *Actions) fillPane(ctx context.Context, jobId string, tabId string, blockId string) error {
+func (a *Actions) fillPane(ctx context.Context, jobId string, tabId string, blockId string, place molten.PanePlacement) error {
 	if err := a.ops.CopyHistory(ctx, jobId, blockId); err != nil {
 		return err
 	}
 	if err := a.ops.AttachJob(ctx, jobId, blockId); err != nil {
 		return err
 	}
-	return a.ops.InsertPane(ctx, tabId, blockId)
+	return a.ops.InsertPane(ctx, tabId, blockId, place)
 }
 
 // Reconnect connects the session's host (Wave's usual prompts apply), then the job.

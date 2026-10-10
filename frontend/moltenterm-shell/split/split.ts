@@ -61,10 +61,27 @@ export async function splitPanel(
         termsize: { rows: 25, cols: 80 },
     });
     // Read after the await: the layout may have changed while the block was created.
-    const source = layoutModel.getNodeByBlockId(sourceBlockId);
-    if (source == null) {
+    if (layoutModel.getNodeByBlockId(sourceBlockId) == null) {
         fireAndForget(() => ObjectService.DeleteBlock(newBlockId));
         return null;
+    }
+    pendingSplits.set(newBlockId, sourceBlockId);
+    insertBlockBeside(sourceBlockId, direction, newBlockId, fraction);
+    return newBlockId;
+}
+
+// Lays an existing block out beside a panel of the shown tab, focused, taking its share of the panel's size (a drop
+// on a panel, FR-SHELL-060, and the split above). Returns false when the panel is not in the layout.
+export function insertBlockBeside(
+    targetBlockId: string,
+    direction: SplitDirection,
+    newBlockId: string,
+    fraction = HalfSplit
+): boolean {
+    const layoutModel = getLayoutModelForStaticTab();
+    const source = layoutModel?.getNodeByBlockId(targetBlockId);
+    if (source == null || !newBlockId) {
+        return false;
     }
     // A magnified panel hides the others: the new panel would open out of sight.
     if (layoutModel.magnifiedNodeId != null) {
@@ -80,14 +97,13 @@ export async function splitPanel(
         position,
         focused: true,
     } as LayoutTreeSplitHorizontalAction | LayoutTreeSplitVerticalAction;
-    pendingSplits.set(newBlockId, sourceBlockId);
     // Both actions before the layout is drawn: no 50/50 frame before the dragged size.
     layoutModel.treeReducer(splitAction, false);
     layoutModel.treeReducer({
         type: LayoutTreeActionType.ResizeNode,
         resizeOperations: [{ nodeId: source.id, size: sizes.source }],
     } as LayoutTreeResizeNodeAction);
-    return newBlockId;
+    return true;
 }
 
 // The focused panel, for the keys (Cmd+D, Cmd+Shift+D, the Ctrl+Shift+S chord).

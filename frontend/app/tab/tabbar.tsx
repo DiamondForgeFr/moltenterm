@@ -14,6 +14,7 @@ import { createRef, memo, useCallback, useEffect, useRef, useState } from "react
 import { debounce } from "throttle-debounce";
 import { NotificationCenter } from "../../moltenterm-shell/notification-center"; // MOLTENTERM-PATCH (#45)
 import { MoltentermNotificationCenter, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags"; // MOLTENTERM-PATCH (#44, #45)
+import { finishTabPanelDrag, trackTabPanelDrag } from "../../moltenterm-shell/split/drop-zones"; // MOLTENTERM-PATCH (#414)
 import { checkTabDragReleased } from "../../moltenterm-shell/tab-drag"; // MOLTENTERM-PATCH (#81)
 import { layoutTabs, moveTabId, tabDropIndex, tabOffsets } from "../../moltenterm-shell/tab-layout"; // MOLTENTERM-PATCH (#410)
 import { measureTab } from "../../moltenterm-shell/tab-measure"; // MOLTENTERM-PATCH (#410)
@@ -374,10 +375,29 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
     const getNewTabIndex = (currentX: number, tabIndex: number, _dragDirection: string) =>
         tabDropIndex(tabIds.map(widthOfTab), tabIndex, currentX, pinnedTabCount());
 
+    // MOLTENTERM-PATCH (#414): a tab dragged onto the panels goes back to its slot, the others to theirs
+    const returnDraggedTabToSlot = () => {
+        const data = draggingTabDataRef.current;
+        tabIds.splice(0, tabIds.length, ...moveTabId(tabIds, data.tabIndex, data.tabStartIndex));
+        data.tabIndex = data.tabStartIndex;
+        const offsets = offsetsOfTabs(tabIds);
+        tabIds.forEach((localTabId, index) => {
+            const tabRef = tabRefs.current.find((r) => r.current?.dataset.tabId === localTabId);
+            if (tabRef?.current) {
+                tabRef.current.style.transform = `translate3d(${offsets[index]}px,0,0)`;
+            }
+        });
+    };
+
     const handleMouseMove = (event: MouseEvent) => {
         // MOLTENTERM-PATCH (#81): a release the document never saw ends the drag at the next move
         if (checkTabDragReleased(event)) {
             handleMouseUp(event);
+            return;
+        }
+        // MOLTENTERM-PATCH (#414): below the strip, the tab is dragged onto a panel (drag to split, FR-SHELL-060)
+        if (trackTabPanelDrag(event, draggingTabDataRef.current.tabId, tabBarRef.current, returnDraggedTabToSlot)) {
+            draggingTabDataRef.current.dragged = true;
             return;
         }
         const { tabId, ref, tabStartX } = draggingTabDataRef.current;
@@ -490,6 +510,9 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
     );
 
     const handleMouseUp = (_event: MouseEvent) => {
+        // MOLTENTERM-PATCH (#414): the drop on a panel, if the tab was dragged out of the strip; the tab order is then
+        // not written (the dragged tab may be closed meanwhile, emptied by the drop)
+        const handedOver = finishTabPanelDrag(_event);
         const { tabIndex, dragged } = draggingTabDataRef.current;
 
         // Update the final position of the dragged tab
@@ -501,7 +524,7 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
             ref.current.style.transform = `translate3d(${finalLeftPosition}px,0,0)`;
         }
 
-        if (dragged) {
+        if (dragged && !handedOver) {
             setUpdatedTabsDebounced(tabIds);
         } else {
             // Reset styles

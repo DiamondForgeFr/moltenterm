@@ -65,7 +65,11 @@ func (f *fakeOps) DeletePane(ctx context.Context, blockId string) error {
 	return nil
 }
 
-func (f *fakeOps) InsertPane(ctx context.Context, tabId string, blockId string) error {
+func (f *fakeOps) InsertPane(ctx context.Context, tabId string, blockId string, place molten.PanePlacement) error {
+	if place.TargetBlockId != "" {
+		f.rec("insert %s %s %s of %s", tabId, blockId, place.Split, place.TargetBlockId)
+		return nil
+	}
 	f.rec("insert %s %s", tabId, blockId)
 	return nil
 }
@@ -228,6 +232,17 @@ func TestShowReattachOrder(t *testing.T) {
 	}
 	if got := ops.trace(); got != "detach panegone; create tabA cwd= conn=me@box; copy panegone newblock; attach panegone newblock; insert tabA newblock" {
 		t.Fatalf("a stale link is dropped first: %s", got)
+	}
+}
+
+func TestShowAtPlacesTheReattachedPane(t *testing.T) {
+	a, _, ops := makeTestActions(detachedS)
+	place := molten.PanePlacement{TargetBlockId: "blockT", Split: "down"}
+	if _, err := a.ShowAt(context.Background(), "detached", "tabA", place); err != nil {
+		t.Fatal(err)
+	}
+	if got := ops.trace(); got != "create tabA cwd=/home/me/app conn=; copy detached newblock; attach detached newblock; insert tabA newblock down of blockT" {
+		t.Fatalf("a dropped session opens beside its panel: %s", got)
 	}
 }
 

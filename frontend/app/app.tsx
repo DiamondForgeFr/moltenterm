@@ -34,6 +34,7 @@ import { openInBrowserPanel } from "../moltenterm-shell/browser/browser-routing"
 import { CommandPanelHost } from "../moltenterm-shell/command-panel/command-panel"; // MOLTENTERM-PATCH (#401)
 import { makeFirstClickGuard } from "../moltenterm-shell/first-click-guard"; // MOLTENTERM-PATCH (#334)
 import { MenuHost } from "../moltenterm-shell/menu/menu-host"; // MOLTENTERM-PATCH (#371)
+import { PanelDropZones } from "../moltenterm-shell/split/drop-zones-overlay"; // MOLTENTERM-PATCH (#414)
 import { AppBackground } from "./app-bg";
 import { CenteredDiv } from "./element/quickelems";
 
@@ -407,6 +408,8 @@ const AppInner = () => {
             <BadgeAutoClearing />
             <DndProvider backend={HTML5Backend}>
                 <Workspace />
+                {/* MOLTENTERM-PATCH (#414): drag to split, the drop zones over the panels (FR-SHELL-060) */}
+                <PanelDropZones />
             </DndProvider>
         </div>
     );

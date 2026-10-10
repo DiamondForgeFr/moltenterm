@@ -567,6 +567,21 @@ export class LayoutModel {
                 await this.cleanupOrphanedBlocks();
                 break;
             }
+            // MOLTENTERM-PATCH (#414): a panel dragged into another tab leaves this layout; its block lives on there
+            case "molten:detach": {
+                const leaf = this.getNodeByBlockId(action.blockid);
+                if (leaf == null) {
+                    break;
+                }
+                if (leaf.id === this.magnifiedNodeId) {
+                    this.magnifyNodeToggle(leaf.id);
+                }
+                this.treeReducer(
+                    { type: LayoutTreeActionType.DeleteNode, nodeId: leaf.id } as LayoutTreeDeleteNodeAction,
+                    false
+                );
+                break;
+            }
             default:
                 console.warn("unsupported layout action", action);
                 break;
@@ -823,9 +838,8 @@ export class LayoutModel {
             return resizeAction?.resizeOperations.find((op) => op.nodeId === node.id)?.size ?? node.size;
         }
 
-        const additionalProps: LayoutNodeAdditionalProps = node.id in additionalPropsMap
-            ? additionalPropsMap[node.id]
-            : { treeKey: "0" };
+        const additionalProps: LayoutNodeAdditionalProps =
+            node.id in additionalPropsMap ? additionalPropsMap[node.id] : { treeKey: "0" };
 
         const nodeRect: Dimensions = node.id === this.treeState.rootNode.id ? boundingRect : additionalProps.rect;
         const nodeIsRow = node.flexDirection === FlexDirection.Row;
