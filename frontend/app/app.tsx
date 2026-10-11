@@ -35,6 +35,7 @@ import { CommandPanelHost } from "../moltenterm-shell/command-panel/command-pane
 import { makeFirstClickGuard } from "../moltenterm-shell/first-click-guard"; // MOLTENTERM-PATCH (#334)
 import { MenuHost } from "../moltenterm-shell/menu/menu-host"; // MOLTENTERM-PATCH (#371)
 import { PanelDropZones } from "../moltenterm-shell/split/drop-zones-overlay"; // MOLTENTERM-PATCH (#414)
+import { TabViewGuard } from "../moltenterm-shell/tab-view-guard"; // MOLTENTERM-PATCH (#447)
 import { AppBackground } from "./app-bg";
 import { CenteredDiv } from "./element/quickelems";
 
@@ -405,12 +406,15 @@ const AppInner = () => {
             <AppKeyHandlers />
             <AppFocusHandler />
             <AppSettingsUpdater />
-            <BadgeAutoClearing />
-            <DndProvider backend={HTML5Backend}>
-                <Workspace />
-                {/* MOLTENTERM-PATCH (#414): drag to split, the drop zones over the panels (FR-SHELL-060) */}
-                <PanelDropZones />
-            </DndProvider>
+            {/* MOLTENTERM-PATCH (#447): a missing workspace or tab, or a render error, shows the pending state */}
+            <TabViewGuard>
+                <BadgeAutoClearing />
+                <DndProvider backend={HTML5Backend}>
+                    <Workspace />
+                    {/* MOLTENTERM-PATCH (#414): drag to split, the drop zones over the panels (FR-SHELL-060) */}
+                    <PanelDropZones />
+                </DndProvider>
+            </TabViewGuard>
         </div>
     );
 };

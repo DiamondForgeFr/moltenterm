@@ -7,7 +7,6 @@
 // footer. The rules live in panel-model.ts; this file renders and wires the keys.
 
 import { atoms } from "@/app/store/global";
-import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
 import * as WOS from "@/app/store/wos";
 import { getLayoutModelForStaticTab } from "@/layout/index";
@@ -19,6 +18,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { highlightRuns } from "../palette/palette-model";
+import { subscribeWindowWorkspaceChange } from "../tab-workspace";
 import { formatShortcutById } from "../shortcuts/format";
 import { splitPanel } from "../split/split";
 import { SplitDownIcon, SplitRightIcon } from "../split/split-menu";
@@ -743,7 +743,7 @@ function CommandPanel({ open }: CommandPanelProps) {
         }
     }, [block]);
     useEffect(() => {
-        const unsubscribe = globalStore.sub(atoms.workspaceId, () => model.close(false));
+        const unsubscribe = subscribeWindowWorkspaceChange(() => model.close(false));
         return unsubscribe;
     }, []);
     // The selection follows the item, not the position: when the panel reads its sources again and an item appears or

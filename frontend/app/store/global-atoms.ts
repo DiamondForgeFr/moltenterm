@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { atom, Atom, PrimitiveAtom } from "jotai";
+import { makeTabWorkspaceIdAtom } from "../../moltenterm-shell/tab-workspace"; // MOLTENTERM-PATCH (#447)
 import { globalStore } from "./jotaiStore";
 import { setWaveWindowType } from "./windowtype";
 import * as WOS from "./wos";
@@ -43,10 +44,12 @@ function initGlobalAtoms(initOpts: GlobalInitOptions) {
         console.log("failed to initialize zoomFactorAtom", e);
     }
 
-    const workspaceIdAtom: Atom<string> = atom((get) => {
+    // MOLTENTERM-PATCH (#447): the view's workspace is its tab's, not the window's current one (hidden views, #68)
+    const windowWorkspaceIdAtom: Atom<string> = atom((get) => {
         const windowData = WOS.getObjectValue<WaveWindow>(WOS.makeORef("window", get(windowIdAtom)), get);
         return windowData?.workspaceid ?? null;
     });
+    const workspaceIdAtom: Atom<string> = makeTabWorkspaceIdAtom(windowWorkspaceIdAtom);
     const workspaceAtom: Atom<Workspace> = atom((get) => {
         const workspaceId = get(workspaceIdAtom);
         if (workspaceId == null) {
