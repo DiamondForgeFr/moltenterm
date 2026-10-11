@@ -18,9 +18,10 @@
 //   (moltenterm:hiddentabviewsmb) stay cached; past that the least recently used are destroyed. Terminals run in
 //   wavesrv, so an evicted workspace is rebuilt from the hot spare with its terminals reattached (as after #199's
 //   wake eviction). Never evicted: a view on screen, the hot spare (not cached), a view being shown or used in the
-//   last second, a view an agent drives a browser tab in (#301) or whose workspace has a working agent (pinned,
-//   counted within the budget). A view holding a browser page (#375) goes after the other hidden views: its page is
-//   reloaded at its URL when the workspace is shown again.
+//   last second, a view an agent drives a browser tab in (#301), whose workspace has a working agent, or whose
+//   renderer holds unsaved work, asked just before (#476) (pinned, counted within the budget). A view holding a
+//   browser page (#375) goes after the other hidden views: its page is reloaded at its URL when the workspace is
+//   shown again.
 
 export const TabViewBudgetSetting = "moltenterm:tabviewbudget";
 export const HiddenTabViewsSetting = "moltenterm:hiddentabviews";
@@ -226,6 +227,9 @@ export type TabViewBudgetDeps<V extends BudgetTabView> = {
     isHotSpare(view: V): boolean;
     isPinned(view: V): boolean;
     keepsPage(view: V): boolean;
+    // Asked of each view about to be destroyed: work that lives only in its renderer (an edited file not saved,
+    // frontend/moltenterm-shell/unsaved-work.ts) pins it. A view that cannot answer counts as holding some.
+    hasUnsavedWork(view: V): Promise<boolean>;
     // Resident memory of each view's renderer, in MB; views missing from it count as 0.
     memoryMb(views: V[]): Map<V, number>;
     evict(view: V): void;
@@ -233,8 +237,12 @@ export type TabViewBudgetDeps<V extends BudgetTabView> = {
     now(): number;
 };
 
+function isEvictable(view: BudgetTabView): boolean {
+    return !view.isDestroyed && !view.isActiveTab && !isShowingTabView(view);
+}
+
 // Returns the number of views destroyed.
-export function enforceTabViewBudget<V extends BudgetTabView>(deps: TabViewBudgetDeps<V>): number {
+export async function enforceTabViewBudget<V extends BudgetTabView>(deps: TabViewBudgetDeps<V>): Promise<number> {
     const cfg = state.config;
     if (!cfg.enabled) {
         return 0;
@@ -248,7 +256,7 @@ export function enforceTabViewBudget<V extends BudgetTabView>(deps: TabViewBudge
     }
     const memory = deps.memoryMb(views.filter((v) => !v.isActiveTab));
     const now = deps.now();
-    const candidates: BudgetCandidate<V>[] = views.map((view) => ({
+    let candidates: BudgetCandidate<V>[] = views.map((view) => ({
         view,
         lastUsedTs: lastUsedAt(view),
         onScreen: view.isActiveTab,
@@ -258,18 +266,60 @@ export function enforceTabViewBudget<V extends BudgetTabView>(deps: TabViewBudge
         memoryMb: memory.get(view) ?? 0,
     }));
     let evicted = 0;
-    for (const view of chooseTabViewsToEvict(candidates, cfg)) {
-        if (view.isDestroyed || view.isActiveTab || isShowingTabView(view)) {
+    // One victim at a time: a view found holding unsaved work is pinned and the choice is made again, so the next
+    // least recently used goes instead.
+    for (;;) {
+        const victim = chooseTabViewsToEvict(candidates, cfg)[0];
+        if (victim == null) {
+            return evicted;
+        }
+        const candidate = candidates.find((c) => c.view === victim);
+        if (!isEvictable(victim)) {
+            candidate.busy = true;
+            continue;
+        }
+        if (await deps.hasUnsavedWork(victim)) {
+            deps.log("[#476] tab view budget: keeping a hidden view that holds unsaved work", victim.waveTabId);
+            candidate.pinned = true;
+            continue;
+        }
+        if (!isEvictable(victim)) {
+            candidate.busy = true;
             continue;
         }
         deps.log(
             `[#454] tab view budget: destroying the least recently used hidden view (${hiddenCount} hidden, budget ${cfg.maxHidden} views / ${cfg.maxHiddenMb} MB)`,
-            view.waveTabId
+            victim.waveTabId
         );
-        deps.evict(view);
+        deps.evict(victim);
+        candidates = candidates.filter((c) => c !== candidate);
         evicted++;
     }
-    return evicted;
+}
+
+// One enforcement at a time; one asked while another runs runs once after it.
+export function makeSerialBudgetRunner(run: () => Promise<number>): () => Promise<number> {
+    let running: Promise<number> = null;
+    let again = false;
+    const start = (): Promise<number> => {
+        running = run()
+            .catch((): number => 0)
+            .finally(() => {
+                running = null;
+                if (again) {
+                    again = false;
+                    start();
+                }
+            });
+        return running;
+    };
+    return () => {
+        if (running != null) {
+            again = true;
+            return running;
+        }
+        return start();
+    };
 }
 
 export function resetTabViewBudgetForTests() {

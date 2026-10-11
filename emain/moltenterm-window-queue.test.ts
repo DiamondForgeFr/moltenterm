@@ -143,6 +143,11 @@ class FakeWebContents {
     getOSProcessId() {
         return 0;
     }
+    // The renderer's answer to the budget's unsaved-work probe (#454).
+    unsavedWork = false;
+    executeJavaScript(): Promise<unknown> {
+        return Promise.resolve(this.unsavedWork);
+    }
     // Chromium backgrounds a view's renderer while its throttling is allowed and it is not shown (#450).
     throttling = true;
     setBackgroundThrottling(allowed: boolean) {
@@ -1266,5 +1271,29 @@ describe("hidden tab view budget (#454, FR-PERF-008)", () => {
         expect(live.length).toBe(6);
         expect(live.every((v) => v.visible !== false)).toBe(true);
         expect(liveTabViews()).toContain(starter.activetabid);
+    });
+});
+
+describe("hidden tab view budget never loses unsaved work (#454)", () => {
+    it("keeps a hidden view whose renderer holds unsaved edits, and shows it again with them", async () => {
+        const starter = await setup();
+        const starterView: any = h.allViews.find((v: any) => v.waveTabId === starter.activetabid);
+        starterView.webContents.unsavedWork = true;
+        const others: FakeWs[] = [];
+        for (let i = 0; i < 5; i++) {
+            await warmSpare();
+            others.push(await addVisitedWorkspace());
+        }
+        expect(starterView.webContents.destroyed).toBe(false);
+        expect(liveTabViews()).toContain(starter.activetabid);
+        // the pinned view counts within the budget: two other hidden views stay
+        expect(liveTabViews()).not.toContain(others[1].activetabid);
+        expect(liveTabViews()).toContain(others[2].activetabid);
+        const t0 = Date.now();
+        ipc("switch-workspace", starter.oid);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(h.onScreen()).toBe(starter.activetabid);
+        expect(h.allViews.find((v: any) => v.waveTabId === starter.activetabid)).toBe(starterView);
+        expect(screenSince(t0).find((e) => e[1] === starter.activetabid)[0]).toBeLessThan(150);
     });
 });

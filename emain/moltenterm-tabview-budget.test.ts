@@ -11,6 +11,7 @@ import {
     endShowingTabView,
     enforceTabViewBudget,
     hideParkedTabView,
+    makeSerialBudgetRunner,
     noteTabViewBudgetSettings,
     noteTabViewLeftScreenForBudget,
     noteTabViewWorkspace,
@@ -29,6 +30,7 @@ type FakeView = BudgetTabView & {
     pinned?: boolean;
     page?: boolean;
     mem?: number;
+    unsaved?: boolean;
 };
 
 const Now = 1_000_000;
@@ -59,6 +61,7 @@ function makeDeps(views: FakeView[], spare: FakeView = null) {
         isHotSpare: (v) => v === spare,
         isPinned: (v) => !!v.pinned,
         keepsPage: (v) => !!v.page,
+        hasUnsavedWork: async (v) => !!v.unsaved,
         memoryMb: (vs) => new Map(vs.map((v) => [v, v.mem ?? 50])),
         evict: (v) => {
             evicted.push(v.waveTabId);
@@ -75,7 +78,7 @@ beforeEach(() => {
 });
 
 describe("tab view budget settings (#454)", () => {
-    it("defaults to on, 3 hidden views", () => {
+    it("defaults to on, 3 hidden views", async () => {
         expect(readTabViewBudgetConfig(null)).toEqual({
             enabled: true,
             maxHidden: DefaultHiddenTabViews,
@@ -84,7 +87,7 @@ describe("tab view budget settings (#454)", () => {
         expect(DefaultHiddenTabViews).toBe(3);
     });
 
-    it("keeps the count within 1 to 10 and ignores invalid values", () => {
+    it("keeps the count within 1 to 10 and ignores invalid values", async () => {
         expect(readTabViewBudgetConfig({ "moltenterm:hiddentabviews": 0 }).maxHidden).toBe(1);
         expect(readTabViewBudgetConfig({ "moltenterm:hiddentabviews": 50 }).maxHidden).toBe(10);
         expect(readTabViewBudgetConfig({ "moltenterm:hiddentabviews": 4.4 }).maxHidden).toBe(4);
@@ -92,14 +95,14 @@ describe("tab view budget settings (#454)", () => {
         expect(readTabViewBudgetConfig({ "moltenterm:hiddentabviewsmb": 10 }).maxHiddenMb).toBe(200);
     });
 
-    it("is turned off only by false", () => {
+    it("is turned off only by false", async () => {
         expect(readTabViewBudgetConfig({ "moltenterm:tabviewbudget": false }).enabled).toBe(false);
         expect(readTabViewBudgetConfig({ "moltenterm:tabviewbudget": true }).enabled).toBe(true);
     });
 });
 
 describe("real hiding (#454)", () => {
-    it("hides a parked view once, and reveals it once", () => {
+    it("hides a parked view once, and reveals it once", async () => {
         const v = makeView("a", Now);
         expect(hideParkedTabView(v)).toBe(true);
         expect(hideParkedTabView(v)).toBe(false);
@@ -108,7 +111,7 @@ describe("real hiding (#454)", () => {
         expect(v.calls).toEqual([false, true]);
     });
 
-    it("never hides a view being shown", () => {
+    it("never hides a view being shown", async () => {
         const v = makeView("a", Now);
         beginShowingTabView(v);
         expect(hideParkedTabView(v)).toBe(false);
@@ -116,7 +119,7 @@ describe("real hiding (#454)", () => {
         expect(hideParkedTabView(v)).toBe(true);
     });
 
-    it("leaves views shown when the flag is off (previous behaviour), but still reveals a hidden one", () => {
+    it("leaves views shown when the flag is off (previous behaviour), but still reveals a hidden one", async () => {
         const v = makeView("a", Now);
         hideParkedTabView(v);
         noteTabViewBudgetSettings({ "moltenterm:tabviewbudget": false });
@@ -126,7 +129,7 @@ describe("real hiding (#454)", () => {
         expect(revealTabView(v)).toBe(true);
     });
 
-    it("does nothing to a destroyed view", () => {
+    it("does nothing to a destroyed view", async () => {
         const v = makeView("a", Now, { isDestroyed: true });
         expect(hideParkedTabView(v)).toBe(false);
         v.visible = false;
@@ -148,21 +151,21 @@ describe("choosing the views to evict (#454)", () => {
         ...extra,
     });
 
-    it("evicts nothing within the budget", () => {
+    it("evicts nothing within the budget", async () => {
         expect(chooseTabViewsToEvict([cand("a", 1), cand("b", 2), cand("c", 3)], cfg)).toEqual([]);
     });
 
-    it("evicts the least recently used past the budget", () => {
+    it("evicts the least recently used past the budget", async () => {
         const c = [cand("a", 5), cand("b", 1), cand("c", 3), cand("d", 4), cand("e", 2)];
         expect(chooseTabViewsToEvict(c, cfg)).toEqual(["b", "e"]);
     });
 
-    it("never counts or evicts the views on screen", () => {
+    it("never counts or evicts the views on screen", async () => {
         const c = [cand("on", 0, { onScreen: true }), cand("a", 1), cand("b", 2), cand("c", 3)];
         expect(chooseTabViewsToEvict(c, cfg)).toEqual([]);
     });
 
-    it("counts pinned and busy views within the budget but never evicts them", () => {
+    it("counts pinned and busy views within the budget but never evicts them", async () => {
         const c = [cand("p", 0, { pinned: true }), cand("busy", 1, { busy: true }), cand("a", 2), cand("b", 3)];
         expect(chooseTabViewsToEvict(c, cfg)).toEqual(["a"]);
         const allPinned = [cand("p1", 0, { pinned: true }), cand("p2", 1, { pinned: true })];
@@ -171,17 +174,17 @@ describe("choosing the views to evict (#454)", () => {
         ).toEqual([]);
     });
 
-    it("evicts views keeping a browser page after the others", () => {
+    it("evicts views keeping a browser page after the others", async () => {
         const c = [cand("page", 0, { keepsPage: true }), cand("a", 1), cand("b", 2), cand("c", 3), cand("d", 4)];
         expect(chooseTabViewsToEvict(c, cfg)).toEqual(["a", "b"]);
     });
 
-    it("evicts past the memory budget even within the count", () => {
+    it("evicts past the memory budget even within the count", async () => {
         const c = [cand("a", 1, { memoryMb: 300 }), cand("b", 2, { memoryMb: 300 })];
         expect(chooseTabViewsToEvict(c, { ...cfg, maxHiddenMb: 400 })).toEqual(["a"]);
     });
 
-    it("evicts nothing when the budget is off", () => {
+    it("evicts nothing when the budget is off", async () => {
         const c = [cand("a", 1), cand("b", 2), cand("c", 3), cand("d", 4), cand("e", 5)];
         expect(chooseTabViewsToEvict(c, { ...cfg, enabled: false })).toEqual([]);
     });
@@ -194,14 +197,14 @@ describe("enforcing the budget (#454)", () => {
         return { active, hidden, all: [active, ...hidden] };
     }
 
-    it("destroys the least recently used hidden views down to 3", () => {
+    it("destroys the least recently used hidden views down to 3", async () => {
         const { all } = sixWorkspaces();
         const { deps, evicted } = makeDeps(all);
-        expect(enforceTabViewBudget(deps)).toBe(2);
+        expect(await enforceTabViewBudget(deps)).toBe(2);
         expect(evicted).toEqual(["h1", "h2"]);
     });
 
-    it("never destroys the view on screen, the spare, a view being shown, a recent or a loading view", () => {
+    it("never destroys the view on screen, the spare, a view being shown, a recent or a loading view", async () => {
         const active = makeView("active", 0, { isActiveTab: true });
         const spare = makeView("spare", 0);
         const showing = makeView("showing", 0);
@@ -210,35 +213,35 @@ describe("enforcing the budget (#454)", () => {
         const old = [makeView("o1", 1), makeView("o2", 2)];
         beginShowingTabView(showing);
         const { deps, evicted } = makeDeps([active, spare, showing, recent, loading, ...old], spare);
-        enforceTabViewBudget(deps);
+        await enforceTabViewBudget(deps);
         expect(evicted).toEqual(["o1", "o2"]);
     });
 
-    it("keeps a view pinned for a working agent", () => {
+    it("keeps a view pinned for a working agent", async () => {
         const { all, hidden } = sixWorkspaces();
         hidden[0].pinned = true;
         const { deps, evicted } = makeDeps(all);
-        enforceTabViewBudget(deps);
+        await enforceTabViewBudget(deps);
         expect(evicted).toEqual(["h2", "h3"]);
     });
 
-    it("destroys nothing when the flag is off (previous behaviour)", () => {
+    it("destroys nothing when the flag is off (previous behaviour)", async () => {
         noteTabViewBudgetSettings({ "moltenterm:tabviewbudget": false });
         const { all } = sixWorkspaces();
         const { deps, evicted } = makeDeps(all);
-        expect(enforceTabViewBudget(deps)).toBe(0);
+        expect(await enforceTabViewBudget(deps)).toBe(0);
         expect(evicted).toEqual([]);
     });
 
-    it("follows a smaller budget from the settings", () => {
+    it("follows a smaller budget from the settings", async () => {
         noteTabViewBudgetSettings({ "moltenterm:hiddentabviews": 1 });
         const { all } = sixWorkspaces();
         const { deps, evicted } = makeDeps(all);
-        enforceTabViewBudget(deps);
+        await enforceTabViewBudget(deps);
         expect(evicted).toEqual(["h1", "h2", "h3", "h4"]);
     });
 
-    it("counts a view as used until it left the screen", () => {
+    it("counts a view as used until it left the screen", async () => {
         const { all, hidden } = sixWorkspaces();
         const realNow = Date.now;
         Date.now = () => Now - 50000;
@@ -248,11 +251,48 @@ describe("enforcing the budget (#454)", () => {
             Date.now = realNow;
         }
         const { deps, evicted } = makeDeps(all);
-        enforceTabViewBudget(deps);
+        await enforceTabViewBudget(deps);
         expect(evicted).toEqual(["h2", "h3"]);
     });
 
-    it("remembers the workspace a view was shown for", () => {
+    it("keeps a view holding unsaved work and evicts the next least recently used instead", async () => {
+        const { all, hidden } = sixWorkspaces();
+        hidden[0].unsaved = true;
+        const { deps, evicted } = makeDeps(all);
+        expect(await enforceTabViewBudget(deps)).toBe(2);
+        expect(evicted).toEqual(["h2", "h3"]);
+        expect(hidden[0].isDestroyed).toBe(false);
+    });
+
+    it("keeps every view that holds unsaved work, even past the budget", async () => {
+        const { all, hidden } = sixWorkspaces();
+        hidden.forEach((v) => (v.unsaved = true));
+        const { deps, evicted } = makeDeps(all);
+        expect(await enforceTabViewBudget(deps)).toBe(0);
+        expect(evicted).toEqual([]);
+    });
+
+    it("runs one enforcement at a time, and once more when asked meanwhile", async () => {
+        let runs = 0;
+        let release: () => void = null;
+        const run = makeSerialBudgetRunner(async () => {
+            runs++;
+            await new Promise<void>((r) => (release = r));
+            return 0;
+        });
+        run();
+        run();
+        run();
+        expect(runs).toBe(1);
+        release();
+        await new Promise((r) => setTimeout(r, 0));
+        expect(runs).toBe(2);
+        release();
+        await new Promise((r) => setTimeout(r, 0));
+        expect(runs).toBe(2);
+    });
+
+    it("remembers the workspace a view was shown for", async () => {
         const v = makeView("a", Now);
         noteTabViewWorkspace(v, "ws1");
         expect(tabViewWorkspace(v)).toBe("ws1");

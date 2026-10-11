@@ -26,12 +26,17 @@ import { ElectronWshClient } from "./emain-wsh";
 import { hostsBrowserPage, hostsControlledTab } from "./moltenterm-browseragent";
 import {
     enforceTabViewBudget,
+    makeSerialBudgetRunner,
     noteTabViewBudgetSettings,
     TabViewBudgetDeps,
     tabViewWorkspace,
 } from "./moltenterm-tabview-budget";
 
 const SnapshotTimeoutMs = 5000;
+const UnsavedWorkProbeTimeoutMs = 1500;
+// must match UnsavedWorkProbeName in frontend/moltenterm-shell/unsaved-work.ts; a renderer without the probe (still
+// loading) answers false only when it has no blocks to hold anything
+const UnsavedWorkProbeScript = `typeof globalThis.moltentermHasUnsavedWork === "function" ? globalThis.moltentermHasUnsavedWork() : false`;
 const SnapshotRetryMs = 2000;
 const SnapshotMaxTries = 10;
 
@@ -122,16 +127,41 @@ function rendererMemoryMb(views: WaveTabView[]): Map<WaveTabView, number> {
 
 // Returns the function a window calls once an action has run: destroys the hidden views past the budget, in every
 // window, through the window's removeTabView (the one removal path, which logs "destroy tab").
-export function makeHiddenTabViewBudget(windows: () => BudgetWindow[]): () => number {
+export function makeHiddenTabViewBudget(windows: () => BudgetWindow[]): () => void {
     const deps = makeBudgetDeps(windows);
-    return () => {
+    const run = makeSerialBudgetRunner(async () => {
         try {
-            return enforceTabViewBudget<WaveTabView>(deps);
+            return await enforceTabViewBudget<WaveTabView>(deps);
         } catch (e) {
             console.log("[#454] tab view budget check failed", e);
             return 0;
         }
+    });
+    return () => {
+        fireAndForget(run);
     };
+}
+
+// Asks the view's renderer (frontend/moltenterm-shell/unsaved-work.ts). No answer in time keeps the view: losing an
+// edit is worse than a view kept a little longer. A crashed renderer holds nothing.
+async function viewHasUnsavedWork(view: WaveTabView): Promise<boolean> {
+    const wc = view.webContents;
+    if (wc.isDestroyed() || wc.isCrashed()) {
+        return false;
+    }
+    let timer: ReturnType<typeof setTimeout> = null;
+    const timeout = new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(true), UnsavedWorkProbeTimeoutMs);
+    });
+    try {
+        const answer = wc
+            .executeJavaScript(UnsavedWorkProbeScript)
+            .then((v) => v !== false)
+            .catch(() => true);
+        return await Promise.race([answer, timeout]);
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 function makeBudgetDeps(windows: () => BudgetWindow[]): TabViewBudgetDeps<WaveTabView> {
@@ -156,6 +186,7 @@ function makeBudgetDeps(windows: () => BudgetWindow[]): TabViewBudgetDeps<WaveTa
             const wcId = liveContentsId(view);
             return wcId != null && hostsBrowserPage(wcId);
         },
+        hasUnsavedWork: viewHasUnsavedWork,
         memoryMb: rendererMemoryMb,
         evict: (view) => {
             for (const win of windows()) {
