@@ -320,11 +320,13 @@ export function clearTabCache(): WaveTabView[] {
 }
 
 // returns [tabview, initialized]
-// MOLTENTERM-PATCH (#449): deadline is the window action's single readiness deadline (ms since epoch)
+// MOLTENTERM-PATCH (#449): deadline is the window action's single readiness deadline (ms since epoch); when
+// `cancelled` resolves first (the action was superseded), the view taken goes back as the hot spare and null is returned
 export async function getOrCreateWebViewForTab(
     waveWindowId: string,
     tabId: string,
-    deadline: number
+    deadline: number,
+    cancelled: Promise<void> = null
 ): Promise<[WaveTabView, boolean]> {
     let tabView = getWaveTabView(tabId);
     if (tabView) {
@@ -336,8 +338,14 @@ export async function getOrCreateWebViewForTab(
         () => getSpareTab(fullConfig),
         () => new WaveTabView(fullConfig),
         (msg) => console.log("[#283]", msg),
-        deadline // MOLTENTERM-PATCH (#449)
+        deadline, // MOLTENTERM-PATCH (#449)
+        cancelled // MOLTENTERM-PATCH (#449)
     );
+    // MOLTENTERM-PATCH (#449)
+    if (acquired.cancelled) {
+        returnSpareTab(acquired.view);
+        return null;
+    }
     tabView = acquired.view;
     tabView.waveWindowId = waveWindowId;
     tabView.lastUsedTs = Date.now();
@@ -417,6 +425,17 @@ export function discardHotSpareTab() {
     const spare = HotSpareTab;
     HotSpareTab = null;
     spare.destroy();
+}
+
+// MOLTENTERM-PATCH (#449): a view taken for a superseded switch was never given a tab; it becomes the spare again
+// (rapid clicks then cost no new renderer), unless another spare was made meanwhile
+function returnSpareTab(tabView: WaveTabView) {
+    if (HotSpareTab == null && !tabView.isDestroyed) {
+        console.log("returnSpareTab: unused view kept as the hot spare");
+        HotSpareTab = tabView;
+        return;
+    }
+    tabView.destroy();
 }
 
 export function getSpareTab(fullConfig: FullConfigType): WaveTabView {

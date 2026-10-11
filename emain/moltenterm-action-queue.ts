@@ -42,6 +42,8 @@ export type ActionRun = {
     check(): void;
     // Settles like `p`, or rejects with SupersededError as soon as a newer action takes over.
     race<T>(p: Promise<T>): Promise<T>;
+    // Resolves when a newer action takes over (never rejects), for work that must stop by itself.
+    whenSuperseded: Promise<void>;
 };
 
 // Whether `newer` takes over `older`: a workspace switch is overtaken by any newer switch and by the delete of the
@@ -153,6 +155,7 @@ export class WindowActionQueue<E extends QueuedAction> {
             deadline,
             remainingMs: () => Math.max(0, deadline - Date.now()),
             isSuperseded: isStale,
+            whenSuperseded,
             check: () => {
                 if (isStale()) {
                     throw new SupersededError();

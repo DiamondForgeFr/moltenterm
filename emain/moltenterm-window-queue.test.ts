@@ -684,6 +684,26 @@ describe("window action queue: interleavings", () => {
         expect(queueLength()).toBe(0);
     });
 
+    it("quick clicks while the spare is still booting reuse it instead of booting a renderer per click", async () => {
+        await setup();
+        const targets = [1, 2, 3].map((i) => h.backend.addWorkspace(`W${i}`));
+        h.tabviewModule.discardHotSpareTab();
+        h.tabviewModule.ensureHotSpareTab({ settings: {} });
+        const viewsBefore = h.allViews.length;
+        const clicks = [0, 1, 2, 0, 1, 2, 1];
+        for (const i of clicks) {
+            ipc("switch-workspace", targets[i].oid);
+            await vi.advanceTimersByTimeAsync(30);
+        }
+        await vi.advanceTimersByTimeAsync(5000);
+        const last = targets[clicks[clicks.length - 1]];
+        expect(win.workspaceId).toBe(last.oid);
+        expect(h.onScreen()).toBe(last.activetabid);
+        // The spare taken by each superseded switch went back as the spare: one view for the target, one new spare.
+        expect(h.allViews.length - viewsBefore).toBeLessThanOrEqual(2);
+        expect(liveTabViews().filter((t) => targets.some((w) => w.activetabid === t))).toEqual([last.activetabid]);
+    });
+
     it("coming back to the workspace on screen cancels a switch under way", async () => {
         const starter = await setup();
         const a = h.backend.addWorkspace("A");
