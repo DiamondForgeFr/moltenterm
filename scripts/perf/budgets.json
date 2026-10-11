@@ -319,6 +319,24 @@
             "budget": null,
             "gate": "info",
             "noiseFloor": 30
+        },
+        "working.cpu3Pct": {
+            "nfr": "Working indicators (#473)",
+            "title": "CPU with 3 agents working on the focused tab (whole tree, % of a core)",
+            "scenario": "working",
+            "unit": "%",
+            "budget": 3,
+            "gate": "local",
+            "noiseFloor": 0.5
+        },
+        "working.cpu10Pct": {
+            "nfr": "Working indicators (#473)",
+            "title": "CPU with 10 agents working on the focused tab (budget: 1.5 x the 3-agent budget)",
+            "scenario": "working",
+            "unit": "%",
+            "budget": 4.5,
+            "gate": "local",
+            "noiseFloor": 0.5
         }
     }
 }
