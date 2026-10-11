@@ -580,8 +580,8 @@ func Start() {
 	})
 	var panes *Panes
 	ci := MakeCi(CiDir(dataDir), trust, ExecRunner, func(rec CiRunRecord) {
-		if rec.Status != CiStateRunning && panes != nil {
-			// Before the event: the status bars ask again on it and must not get the verdict known before the run.
+		if panes != nil {
+			// Before the event: the status bars ask again on it, and a run that starts shows as running.
 			panes.CiChanged(rec.Dir)
 		}
 		publishCiRun(rec)
