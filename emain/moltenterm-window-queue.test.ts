@@ -140,6 +140,9 @@ class FakeWebContents {
     isCrashed() {
         return false;
     }
+    getOSProcessId() {
+        return 0;
+    }
     // Chromium backgrounds a view's renderer while its throttling is allowed and it is not shown (#450).
     throttling = true;
     setBackgroundThrottling(allowed: boolean) {
@@ -170,6 +173,15 @@ class FakeWebContentsView {
         return { ...this.bounds };
     }
     setBackgroundColor() {}
+    // A hidden view is not painted, wherever it is (#454).
+    visible = true;
+    setVisible(v: boolean) {
+        this.visible = v;
+        h.recordScreen();
+    }
+    getVisible() {
+        return this.visible;
+    }
 }
 
 class FakeBaseWindow {
@@ -279,7 +291,7 @@ const h = {
             return "";
         }
         return win.contentView.children
-            .filter((c) => c.bounds.x === 0 && c.bounds.y === 0 && c.bounds.width > 0)
+            .filter((c) => c.bounds.x === 0 && c.bounds.y === 0 && c.bounds.width > 0 && c.visible !== false)
             .map((c) => (c.moltenPendingView ? "(pending)" : c.waveTabId))
             .join(",");
     },
@@ -442,6 +454,7 @@ async function setup(opts: { isDev?: boolean; settings?: Record<string, unknown>
     h.silentRender = false;
     h.settings = opts.settings ?? {};
     vi.doMock("electron", () => ({
+        app: { getAppMetrics: (): any[] => [] },
         BaseWindow: FakeBaseWindow,
         WebContentsView: FakeWebContentsView,
         dialog: {
@@ -1193,5 +1206,65 @@ describe("window action queue: never stuck", () => {
         ipc("switch-workspace", third.oid);
         await vi.advanceTimersByTimeAsync(2000);
         expect(h.onScreen()).toBe(third.activetabid);
+    });
+});
+
+describe("hidden tab view budget (#454, FR-PERF-008)", () => {
+    async function visitSixWorkspaces() {
+        const starter = await setup();
+        const others: FakeWs[] = [];
+        for (let i = 0; i < 5; i++) {
+            await warmSpare();
+            others.push(await addVisitedWorkspace());
+        }
+        return { starter, others };
+    }
+
+    function liveViews(): any[] {
+        return h.allViews.filter((v: any) => !v.webContents.destroyed && v.waveTabId != null);
+    }
+
+    it("keeps at most 3 hidden views, really hidden, and rebuilds an evicted workspace within 1 s", async () => {
+        const { starter, others } = await visitSixWorkspaces();
+        const onScreen = h.onScreen();
+        expect(onScreen).toBe(others[4].activetabid);
+        const hidden = liveViews().filter((v) => v.waveTabId !== onScreen);
+        expect(hidden.map((v) => v.waveTabId).sort()).toEqual(
+            [others[1].activetabid, others[2].activetabid, others[3].activetabid].sort()
+        );
+        expect(hidden.every((v) => v.visible === false)).toBe(true);
+        expect(liveTabViews()).not.toContain(starter.activetabid);
+        await warmSpare();
+        const t0 = Date.now();
+        ipc("switch-workspace", starter.oid);
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(h.onScreen()).toBe(starter.activetabid);
+        expect(screenSince(t0).find((e) => e[1] === starter.activetabid)[0]).toBeLessThan(1000);
+        expect(h.rendererErrors).toEqual([]);
+    });
+
+    it("shows a cached hidden view again, visible and on screen", async () => {
+        const { others } = await visitSixWorkspaces();
+        const t0 = Date.now();
+        ipc("switch-workspace", others[2].oid);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(h.onScreen()).toBe(others[2].activetabid);
+        const view = liveViews().find((v) => v.waveTabId === others[2].activetabid);
+        expect(view.visible).toBe(true);
+        expect(screenSince(t0).find((e) => e[1] === others[2].activetabid)[0]).toBeLessThan(150);
+    });
+
+    it("restores the previous behaviour with moltenterm:tabviewbudget false", async () => {
+        const starter = await setup();
+        const budget = await import("./moltenterm-tabview-budget");
+        budget.noteTabViewBudgetSettings({ "moltenterm:tabviewbudget": false });
+        for (let i = 0; i < 5; i++) {
+            await warmSpare();
+            await addVisitedWorkspace();
+        }
+        const live = liveViews();
+        expect(live.length).toBe(6);
+        expect(live.every((v) => v.visible !== false)).toBe(true);
+        expect(liveTabViews()).toContain(starter.activetabid);
     });
 });

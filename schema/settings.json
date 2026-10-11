@@ -21,7 +21,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 90
+            "order": 93
           }
         },
         "app:globalhotkey": {
@@ -40,7 +40,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 106
+            "order": 109
           }
         },
         "app:defaultnewblock": {
@@ -201,7 +201,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 91
+            "order": 94
           }
         },
         "term:fontsize": {
@@ -259,7 +259,7 @@
             "label": "No WebGL in terminals",
             "description": "Draw terminals without WebGL, slower but safer on some GPUs.",
             "control": "toggle",
-            "order": 80
+            "order": 83
           }
         },
         "term:localshellpath": {
@@ -498,7 +498,7 @@
             "label": "Split buttons in headers",
             "description": "Show split buttons in terminal headers.",
             "control": "toggle",
-            "order": 81
+            "order": 84
           }
         },
         "term:trimtrailingwhitespace": {
@@ -565,7 +565,7 @@
             "label": "Claude Code limits (experimental)",
             "description": "Read Claude Code's limits from Anthropic's undocumented endpoint with its own sign-in.",
             "control": "toggle",
-            "order": 82
+            "order": 85
           }
         },
         "linemap:animation": {
@@ -684,7 +684,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 92
+            "order": 95
           }
         },
         "web:openlinksinternally": {
@@ -823,35 +823,35 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 93
+            "order": 96
           }
         },
         "autoupdate:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 100
+            "order": 103
           }
         },
         "autoupdate:intervalms": {
           "type": "number",
           "x-moltenterm": {
             "hidden": true,
-            "order": 101
+            "order": 104
           }
         },
         "autoupdate:installonquit": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 102
+            "order": 105
           }
         },
         "autoupdate:channel": {
           "type": "string",
           "x-moltenterm": {
             "hidden": true,
-            "order": 103
+            "order": 106
           }
         },
         "markdown:fontsize": {
@@ -1040,25 +1040,79 @@
             "order": 76
           }
         },
+        "moltenterm:tabviewbudget": {
+          "type": "boolean",
+          "description": "Tab views of the workspaces not on screen are really hidden and at most moltenterm:hiddentabviews of them stay loaded (least recently used destroyed first, a workspace with a working agent kept); false restores the previous behaviour (up to window:maxtabcachesize views kept off-screen and shown)",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Window",
+            "label": "Limit hidden workspaces",
+            "description": "Workspaces not on screen are hidden and only the most recent stay loaded; others reload when shown.",
+            "control": "toggle",
+            "default": true,
+            "order": 77
+          }
+        },
+        "moltenterm:hiddentabviews": {
+          "type": "integer",
+          "maximum": 10,
+          "minimum": 1,
+          "description": "How many hidden tab views stay loaded so that switching back to them is instant (1 to 10, default 3)",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Window",
+            "label": "Hidden workspaces kept loaded",
+            "description": "How many workspaces not on screen stay loaded, so that coming back to them is instant.",
+            "control": "number",
+            "range": {
+              "min": 1,
+              "max": 10,
+              "step": 1
+            },
+            "default": 3,
+            "order": 78
+          }
+        },
+        "moltenterm:hiddentabviewsmb": {
+          "type": "integer",
+          "maximum": 8000,
+          "minimum": 200,
+          "description": "Memory the hidden tab views may use together, in MB, before the least recently used is destroyed (200 to 8000, default 1200)",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Window",
+            "label": "Memory for hidden workspaces",
+            "description": "Past this, the least recently used hidden workspace is unloaded.",
+            "control": "number",
+            "range": {
+              "min": 200,
+              "max": 8000,
+              "step": 100
+            },
+            "unit": "MB",
+            "default": 1200,
+            "order": 79
+          }
+        },
         "widget:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 94
+            "order": 97
           }
         },
         "widget:showhelp": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 105
+            "order": 108
           }
         },
         "window:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 95
+            "order": 98
           }
         },
         "window:fullscreenonlaunch": {
@@ -1261,7 +1315,7 @@
               "step": 1
             },
             "unit": "px",
-            "order": 77
+            "order": 80
           }
         },
         "window:magnifiedblockblursecondarypx": {
@@ -1279,7 +1333,7 @@
               "step": 1
             },
             "unit": "px",
-            "order": 78
+            "order": 81
           }
         },
         "window:confirmclose": {
@@ -1315,7 +1369,7 @@
             "label": "New window size",
             "description": "The size of new windows, such as 1400x900.",
             "control": "text",
-            "order": 79
+            "order": 82
           }
         },
         "window:zoom": {
@@ -1340,21 +1394,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 96
+            "order": 99
           }
         },
         "telemetry:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 104
+            "order": 107
           }
         },
         "conn:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 97
+            "order": 100
           }
         },
         "conn:askbeforewshinstall": {
@@ -1397,7 +1451,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 98
+            "order": 101
           }
         },
         "debug:pprofport": {
@@ -1414,7 +1468,7 @@
               "max": 65535,
               "step": 1
             },
-            "order": 83
+            "order": 86
           }
         },
         "debug:pprofmemprofilerate": {
@@ -1431,7 +1485,7 @@
               "max": 1048576,
               "step": 1
             },
-            "order": 84
+            "order": 87
           }
         },
         "debug:webglstatus": {
@@ -1443,14 +1497,14 @@
             "label": "WebGL status",
             "description": "Show whether each terminal draws with WebGL.",
             "control": "toggle",
-            "order": 85
+            "order": 88
           }
         },
         "tsunami:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 99
+            "order": 102
           }
         },
         "tsunami:scaffoldpath": {
@@ -1462,7 +1516,7 @@
             "label": "Scaffold path",
             "description": "Where the app builder's scaffold lives.",
             "control": "path",
-            "order": 86
+            "order": 89
           }
         },
         "tsunami:sdkreplacepath": {
@@ -1474,7 +1528,7 @@
             "label": "SDK replace path",
             "description": "A local SDK used in place of the published one.",
             "control": "path",
-            "order": 87
+            "order": 90
           }
         },
         "tsunami:sdkversion": {
@@ -1486,7 +1540,7 @@
             "label": "SDK version",
             "description": "The SDK version apps build against.",
             "control": "text",
-            "order": 88
+            "order": 91
           }
         },
         "tsunami:gopath": {
@@ -1498,7 +1552,7 @@
             "label": "Go binary",
             "description": "The Go binary apps build with.",
             "control": "path",
-            "order": 89
+            "order": 92
           }
         }
       },

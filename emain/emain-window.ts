@@ -30,6 +30,15 @@ import { ElectronWshClient } from "./emain-wsh";
 import { ActionRun, isSuperseded, readinessDeadlineMs, WindowActionQueue } from "./moltenterm-action-queue"; // MOLTENTERM-PATCH (#449)
 import { awaitViewInitialized } from "./moltenterm-spare-ready"; // MOLTENTERM-PATCH (#283)
 import {
+    beginShowingTabView,
+    endShowingTabView,
+    hideParkedTabView,
+    noteTabViewLeftScreenForBudget,
+    noteTabViewWorkspace,
+    revealTabView,
+} from "./moltenterm-tabview-budget"; // MOLTENTERM-PATCH (#454)
+import { makeHiddenTabViewBudget } from "./moltenterm-tabview-budget-live"; // MOLTENTERM-PATCH (#454)
+import {
     beginTabViewWork,
     endTabViewWork,
     raiseTabViewPriority,
@@ -149,6 +158,11 @@ export function sweepDeletedTabViews(reason: string) {
         }
     });
 }
+
+// MOLTENTERM-PATCH (#454): destroys the hidden views past the budget, least recently used first
+const enforceHiddenTabViewBudget = makeHiddenTabViewBudget(() =>
+    Array.from(waveWindowMap.values()).filter((ww) => !ww.isDestroyed())
+);
 
 // on blur we do not set this to null (but on destroy we do), so this tracks the *last* focused window
 // e.g. it persists when the app itself is not focused
@@ -595,6 +609,7 @@ export class WaveBrowserWindow extends BaseWindow {
             oldActiveView.isActiveTab = false;
         }
         noteTabViewLeftScreen(oldActiveView); // MOLTENTERM-PATCH (#223)
+        noteTabViewLeftScreenForBudget(oldActiveView); // MOLTENTERM-PATCH (#454)
         this.activeTabView = tabView;
     }
 
@@ -607,9 +622,11 @@ export class WaveBrowserWindow extends BaseWindow {
         run: ActionRun
     ) {
         raiseTabViewPriority(tabView);
+        beginShowingTabView(tabView); // MOLTENTERM-PATCH (#454)
         try {
             await this.setTabViewIntoWindow(tabView, tabInitialized, primaryStartupTab, waitReady, run);
         } finally {
+            endShowingTabView(tabView); // MOLTENTERM-PATCH (#454)
             restoreTabViewPriority(tabView);
         }
     }
@@ -659,6 +676,8 @@ export class WaveBrowserWindow extends BaseWindow {
             this.finalizePositioning();
         } else {
             console.log("reusing an existing tab, calling wave-init", tabView.waveTabId);
+            // MOLTENTERM-PATCH (#454): a view hidden off-screen is shown again before its reinit
+            revealTabView(tabView);
             const reinitDone = waitReady ? nextWaveReady(tabView) : null; // MOLTENTERM-PATCH (#68)
             tabView.webContents.send("wave-init", tabView.savedInitOpts); // reinit
             if (reinitDone != null) {
@@ -695,6 +714,7 @@ export class WaveBrowserWindow extends BaseWindow {
                 continue;
             }
             tabView?.positionTabOffScreen(curBounds);
+            hideParkedTabView(tabView); // MOLTENTERM-PATCH (#454)
         }
     }
 
@@ -747,6 +767,7 @@ export class WaveBrowserWindow extends BaseWindow {
             if (this.actionQueue.length <= 1) {
                 this.viewPending.settle();
             }
+            enforceHiddenTabViewBudget(); // MOLTENTERM-PATCH (#454)
         }
     }
 
@@ -890,6 +911,7 @@ export class WaveBrowserWindow extends BaseWindow {
         const startupPending = this.activeTabView == null ? await this.beginStartupPending(tabId) : null;
         try {
             const [tabView, tabInitialized] = await getOrCreateWebViewForTab(this.waveWindowId, tabId, run.deadline);
+            noteTabViewWorkspace(tabView, this.workspaceId); // MOLTENTERM-PATCH (#454)
             const primaryStartupTabFlag = entry.op === "switchtab" ? (entry.primaryStartupTab ?? false) : false;
             await this.showTabView(tabView, tabInitialized, primaryStartupTabFlag, false, run); // MOLTENTERM-PATCH (#450)
         } catch (e) {
@@ -949,6 +971,7 @@ export class WaveBrowserWindow extends BaseWindow {
         );
         try {
             const [tabView, tabInitialized] = await this.acquireTabView(tabId, run);
+            noteTabViewWorkspace(tabView, workspaceId); // MOLTENTERM-PATCH (#454)
             await this.showTabView(tabView, tabInitialized, false, true, run); // MOLTENTERM-PATCH (#450)
         } catch (e) {
             if (!isSuperseded(e)) {

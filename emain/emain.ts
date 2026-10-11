@@ -59,6 +59,7 @@ import { getLaunchSettings } from "./launchsettings";
 import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-PATCH (#276)
 import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
 import { initMoltentermTabActivity } from "./moltenterm-tab-activity"; // MOLTENTERM-PATCH (#455)
+import { initMoltentermTabViewBudget } from "./moltenterm-tabview-budget-live"; // MOLTENTERM-PATCH (#454)
 import { configureAutoUpdater, updater } from "./updater";
 
 const electronApp = electron.app;
@@ -419,6 +420,7 @@ async function appMain() {
     if (fullConfig?.settings?.["app:confirmquit"] != null) {
         confirmQuit = fullConfig.settings["app:confirmquit"];
     }
+    initMoltentermTabViewBudget(fullConfig); // MOLTENTERM-PATCH (#454): hidden tab view budget and real hiding
     ensureHotSpareTab(fullConfig);
     await relaunchBrowserWindows();
     setTimeout(runActiveTimer, 5000); // start active timer, wait 5s just to be safe

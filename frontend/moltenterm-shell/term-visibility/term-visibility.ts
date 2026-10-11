@@ -65,3 +65,24 @@ export function decideWebglLossRecovery(
     losses.push(now);
     return { action: losses.length > maxLosses ? "dom" : "recreate", losses };
 }
+
+// A terminal in a hidden tab view gives its WebGL buffers back (#454, FR-PERF-008): Chromium keeps a hidden view's
+// last frame, and with it the GPU memory of its tiles, but a terminal's WebGL drawing buffers (about 20 MB each at
+// full window size on a Retina display) are only needed to draw. After this long hidden, the terminal drops its WebGL
+// renderer (xterm's DOM renderer stands in, drawing nothing while hidden) and gets a new one as it is shown, before
+// its first frame, then is repainted in full as above. A fresh WebGL renderer made while hidden would allocate its
+// buffers at once, so it is not made until then. The delay keeps quick switches back and forth from rebuilding
+// renderers.
+export const HiddenWebglReleaseMs = 10 * 1000;
+
+export type HiddenWebglInput = {
+    budgetEnabled: boolean;
+    hidden: boolean;
+    hasWebgl: boolean;
+    disposed: boolean;
+};
+
+// The setting moltenterm:tabviewbudget set to false restores the previous behaviour.
+export function shouldReleaseHiddenWebgl(input: HiddenWebglInput): boolean {
+    return input.budgetEnabled && input.hidden && input.hasWebgl && !input.disposed;
+}

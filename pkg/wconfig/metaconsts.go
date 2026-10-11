@@ -110,6 +110,9 @@ const (
 	ConfigKey_PowerSleepPolicy               = "power:sleeppolicy"
 
 	ConfigKey_MoltentermTabViewPriority      = "moltenterm:tabviewpriority"
+	ConfigKey_MoltentermTabViewBudget        = "moltenterm:tabviewbudget"
+	ConfigKey_MoltentermHiddenTabViews       = "moltenterm:hiddentabviews"
+	ConfigKey_MoltentermHiddenTabViewsMb     = "moltenterm:hiddentabviewsmb"
 
 	ConfigKey_WidgetClear                    = "widget:*"
 	ConfigKey_WidgetShowHelp                 = "widget:showhelp"

@@ -34,8 +34,10 @@ import { ControllerSizeSync } from "../../../moltenterm-shell/term-visibility/te
 import {
     decideResize,
     decideWebglLossRecovery,
+    HiddenWebglReleaseMs,
+    shouldReleaseHiddenWebgl,
     ShowRepaintFollowUpMs,
-} from "../../../moltenterm-shell/term-visibility/term-visibility"; // MOLTENTERM-PATCH (#290)
+} from "../../../moltenterm-shell/term-visibility/term-visibility"; // MOLTENTERM-PATCH (#290, #454)
 import {
     handleOsc16162Command,
     handleOsc52Command,
@@ -105,6 +107,8 @@ export class TermWrap {
     webglEnabledAtom: jotai.PrimitiveAtom<boolean>;
     webglLossTimes: number[] = []; // MOLTENTERM-PATCH (#290)
     isDisposed: boolean = false; // MOLTENTERM-PATCH (#290)
+    hiddenWebglTimer: ReturnType<typeof setTimeout> = null; // MOLTENTERM-PATCH (#454)
+    webglReleasedWhileHidden: boolean = false; // MOLTENTERM-PATCH (#454)
     controllerSizeSync: ControllerSizeSync; // MOLTENTERM-PATCH (#451)
     pasteActive: boolean = false;
     lastUpdated: number;
@@ -468,6 +472,7 @@ export class TermWrap {
 
     dispose() {
         this.isDisposed = true; // MOLTENTERM-PATCH (#290)
+        clearTimeout(this.hiddenWebglTimer); // MOLTENTERM-PATCH (#454)
         this.promptMarkers.forEach((marker) => {
             try {
                 marker.dispose();
@@ -633,12 +638,50 @@ export class TermWrap {
 
     // MOLTENTERM-PATCH (#290)
     handleVisibilityChange() {
+        this.scheduleHiddenWebglRelease(); // MOLTENTERM-PATCH (#454)
         if (document.visibilityState !== "visible" || this.isDisposed) {
             return;
         }
+        this.restoreWebglAfterHidden(); // MOLTENTERM-PATCH (#454)
         this.handleResize();
         window.requestAnimationFrame(() => this.repaintAll());
         setTimeout(() => this.repaintAll(), ShowRepaintFollowUpMs);
+    }
+
+    // MOLTENTERM-PATCH (#454): a terminal hidden for a while gives its WebGL buffers back (see term-visibility.ts): it
+    // uses xterm's DOM renderer while hidden, and gets WebGL back as it is shown, before its first frame
+    scheduleHiddenWebglRelease() {
+        clearTimeout(this.hiddenWebglTimer);
+        this.hiddenWebglTimer = null;
+        if (document.visibilityState === "visible" || this.isDisposed) {
+            return;
+        }
+        this.hiddenWebglTimer = setTimeout(() => {
+            this.hiddenWebglTimer = null;
+            const release = shouldReleaseHiddenWebgl({
+                budgetEnabled: globalStore.get(getSettingsKeyAtom("moltenterm:tabviewbudget")) !== false,
+                hidden: document.visibilityState !== "visible",
+                hasWebgl: this.webglAddon != null,
+                disposed: this.isDisposed,
+            });
+            if (!release) {
+                return;
+            }
+            this.setTermRenderer("dom");
+            this.webglReleasedWhileHidden = true;
+        }, HiddenWebglReleaseMs);
+    }
+
+    // MOLTENTERM-PATCH (#454)
+    restoreWebglAfterHidden() {
+        if (!this.webglReleasedWhileHidden) {
+            return;
+        }
+        this.webglReleasedWhileHidden = false;
+        this.setTermRenderer("webgl");
+        if (this.terminal.rows > 0) {
+            this.terminal.refresh(0, this.terminal.rows - 1);
+        }
     }
 
     // MOLTENTERM-PATCH (#290): a terminal that sat hidden can keep a stale or half-drawn frame (the compositor or the GPU
