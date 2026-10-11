@@ -6,93 +6,35 @@ package molten
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthook"
 )
 
 // Claude Code's status line relay (FR-SHELL-027, DS-SHELL-031): Claude Code runs the user's status line command with
 // its session's JSON on stdin, whose documented rate_limits object gives the plan's 5-hour and 7-day windows
 // (https://code.claude.com/docs/en/statusline). `molten agent statusline -- <command>` runs that command unchanged and
 // hands only those windows to the pane's companion. MoltenTerm shows the settings to paste and never writes them.
+// The relay's types and its reading of the input live in pkg/molten/agenthook, which the small molten program links
+// without the rest of MoltenTerm (FR-PERF-012).
 
 const (
 	// What the snippet runs; a statusLine command that runs it is set up.
 	agentStatusLineRelay = "molten agent statusline"
 	// The relay reads at most this much of the status line input; the chained command still gets all of it.
-	StatusLineMaxInput = 256 * 1024
+	StatusLineMaxInput = agenthook.StatusLineMaxInput
 )
 
-// StatusLineWindow is one rate limit window as Claude Code gives it: percent used (0 to 100, or more behind a
-// spend limit) and its reset in Unix seconds, 0 when absent.
-type StatusLineWindow struct {
-	UsedPercent float64 `json:"usedpercent"`
-	ResetsAt    int64   `json:"resetsat,omitempty"`
-}
+type StatusLineWindow = agenthook.StatusLineWindow
+type AgentStatusLineRequest = agenthook.AgentStatusLineRequest
+type AgentStatusLineResponse = agenthook.AgentStatusLineResponse
 
-// AgentStatusLineRequest is what the relay sends: the rate limit windows of one status line run, nothing else.
-type AgentStatusLineRequest struct {
-	BlockId string `json:"blockid"`
-	// RateLimits: the input had a rate_limits object (a Pro or Max plan, or a gateway spend limit), readable or not.
-	RateLimits bool              `json:"ratelimits,omitempty"`
-	FiveHour   *StatusLineWindow `json:"fivehour,omitempty"`
-	SevenDay   *StatusLineWindow `json:"sevenday,omitempty"`
-	SpendLimit *StatusLineWindow `json:"spendlimit,omitempty"`
-}
-
-// HasWindows tells whether any window was read.
-func (r AgentStatusLineRequest) HasWindows() bool {
-	return r.FiveHour != nil || r.SevenDay != nil || r.SpendLimit != nil
-}
-
-type statusLineRawWindow struct {
-	UsedPercentage *float64 `json:"used_percentage"`
-	ResetsAt       *float64 `json:"resets_at"`
-}
-
-// ParseStatusLineInput keeps the rate limit windows of Claude Code's status line input. An input that is not a JSON
-// object is an unknown format; a window whose fields are missing or mistyped is left out.
+// ParseStatusLineInput keeps the rate limit windows of Claude Code's status line input (agenthook.ParseStatusLineInput).
 func ParseStatusLineInput(data []byte) (AgentStatusLineRequest, error) {
-	var rtn AgentStatusLineRequest
-	var top map[string]json.RawMessage
-	if err := json.Unmarshal(data, &top); err != nil || top == nil {
-		return rtn, fmt.Errorf("the status line input is not a JSON object")
-	}
-	raw, ok := top["rate_limits"]
-	if !ok || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-		return rtn, nil
-	}
-	rtn.RateLimits = true
-	var limits map[string]json.RawMessage
-	if json.Unmarshal(raw, &limits) != nil {
-		return rtn, nil
-	}
-	rtn.FiveHour = parseStatusLineWindow(limits["five_hour"])
-	rtn.SevenDay = parseStatusLineWindow(limits["seven_day"])
-	rtn.SpendLimit = parseStatusLineWindow(limits["spend_limit"])
-	return rtn, nil
-}
-
-func parseStatusLineWindow(raw json.RawMessage) *StatusLineWindow {
-	if len(raw) == 0 {
-		return nil
-	}
-	var w statusLineRawWindow
-	if json.Unmarshal(raw, &w) != nil || w.UsedPercentage == nil {
-		return nil
-	}
-	pct := *w.UsedPercentage
-	if math.IsNaN(pct) || math.IsInf(pct, 0) {
-		return nil
-	}
-	rtn := &StatusLineWindow{UsedPercent: pct}
-	if w.ResetsAt != nil && *w.ResetsAt > 0 && !math.IsInf(*w.ResetsAt, 0) {
-		rtn.ResetsAt = int64(*w.ResetsAt)
-	}
-	return rtn
+	return agenthook.ParseStatusLineInput(data)
 }
 
 // StatusLineSetup is what the companion shows to set the relay up, or that it is set up.

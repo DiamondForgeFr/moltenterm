@@ -20,6 +20,7 @@ func TestInstallMoltenCommand(t *testing.T) {
 		t.Skip("Windows gets a copy; covered by utilfn.AtomicRenameCopy")
 	}
 	binDir := t.TempDir()
+	setMoltenProgramPath(t, "")
 	wshPath := filepath.Join(binDir, "wsh")
 	if err := os.WriteFile(wshPath, []byte("#!/bin/sh\n"), 0755); err != nil {
 		t.Fatal(err)
@@ -45,6 +46,57 @@ func TestInstallMoltenCommand(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(binDir, AgentBinDirName, "claude")); err != nil {
 			t.Fatalf("install %d: agents/claude does not resolve: %v", i, err)
 		}
+	}
+}
+
+func setMoltenProgramPath(t *testing.T, path string) {
+	prev := MoltenProgramPath
+	MoltenProgramPath = func() string { return path }
+	t.Cleanup(func() { MoltenProgramPath = prev })
+}
+
+// FR-PERF-012: where the small molten program is built, molten is a copy of it (it hands wsh, next to it, every
+// command but the hooks'); molten-open and the launchers stay links to wsh. Without it, molten is a link again.
+func TestInstallMoltenProgram(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows keeps molten as wsh")
+	}
+	binDir := t.TempDir()
+	wshPath := filepath.Join(binDir, "wsh")
+	if err := os.WriteFile(wshPath, []byte("#!/bin/sh\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	program := filepath.Join(t.TempDir(), "molten-1.0.0-"+runtime.GOOS+".arm64")
+	if err := os.WriteFile(program, []byte("molten program"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	setMoltenProgramPath(t, "")
+	if err := InstallMoltenCommand(binDir, wshPath); err != nil {
+		t.Fatal(err)
+	}
+	moltenPath := filepath.Join(binDir, "molten")
+	for i := 0; i < 2; i++ {
+		setMoltenProgramPath(t, program)
+		if err := InstallMoltenCommand(binDir, wshPath); err != nil {
+			t.Fatalf("install %d: %v", i, err)
+		}
+		info, err := os.Lstat(moltenPath)
+		if err != nil || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm() != 0755 {
+			t.Fatalf("install %d: molten is %v (%v), want an executable copy", i, info, err)
+		}
+		if data, _ := os.ReadFile(moltenPath); string(data) != "molten program" {
+			t.Fatalf("install %d: molten holds %q", i, data)
+		}
+		if target, err := os.Readlink(filepath.Join(binDir, "molten-open")); err != nil || target != "wsh" {
+			t.Fatalf("install %d: molten-open links to %q (%v)", i, target, err)
+		}
+	}
+	setMoltenProgramPath(t, "")
+	if err := InstallMoltenCommand(binDir, wshPath); err != nil {
+		t.Fatal(err)
+	}
+	if target, err := os.Readlink(moltenPath); err != nil || target != "wsh" {
+		t.Fatalf("without the program molten links to wsh again: %q (%v)", target, err)
 	}
 }
 

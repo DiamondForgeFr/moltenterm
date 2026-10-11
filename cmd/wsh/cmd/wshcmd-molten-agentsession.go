@@ -30,8 +30,8 @@ var moltenAgentSessionCmd = &cobra.Command{
 		"--stdin the path is the transcript_path field of the hook's JSON input. See agent-states.md in the folder " +
 		"`molten docs` prints.",
 	Args:    cobra.MaximumNArgs(1),
-	RunE:    moltenWrap(moltenAgentSessionRun),
-	PreRunE: preRunSetupRpcClient,
+	RunE:    moltenHookWrap(moltenAgentSessionRun),
+	PreRunE: preRunSetupHookRpcClient,
 }
 
 func init() {

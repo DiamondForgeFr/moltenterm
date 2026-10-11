@@ -46,12 +46,13 @@ else
 fi
 
 task build:backend
-# electron-builder ships all of dist/bin: wsh binaries left by builds of other versions must not ride along (#184).
+# electron-builder ships all of dist/bin: wsh and molten binaries left by builds of other versions must not ride along
+# (#184, #458).
 VERSION=$(node version.cjs)
-for f in dist/bin/wsh-*; do
+for f in dist/bin/wsh-* dist/bin/molten-*; do
     [ -e "$f" ] || continue
     case "$f" in
-        dist/bin/wsh-"$VERSION"-*) ;;
+        dist/bin/wsh-"$VERSION"-* | dist/bin/molten-"$VERSION"-*) ;;
         *) rm -f "$f" ;;
     esac
 done

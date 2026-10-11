@@ -279,13 +279,15 @@ tasks:
                 as: GOARCH
         internal: true
 
+    # MOLTENTERM-PATCH (#458): also builds the small molten program (cmd/molten) that local terminals on macOS and Linux
+    # run as `molten`, so the agents' hooks do not start wsh (FR-PERF-012).
     build:wsh:
         desc: Build the wsh component for all possible targets.
         cmds:
-            - cmd: rm -f dist/bin/wsh*
+            - cmd: rm -f dist/bin/wsh* dist/bin/molten-*
               platforms: [darwin, linux]
               ignore_error: true
-            - cmd: powershell -NoProfile -NonInteractive -Command "Remove-Item -Force -ErrorAction SilentlyContinue -Path dist/bin/wsh*"
+            - cmd: powershell -NoProfile -NonInteractive -Command "Remove-Item -Force -ErrorAction SilentlyContinue -Path dist/bin/wsh*,dist/bin/molten-*"
               platforms: [windows]
               ignore_error: true
             - task: build:wsh:parallel
@@ -294,10 +296,12 @@ tasks:
             - generate
         sources:
             - "cmd/wsh/**/*.go"
+            - "cmd/molten/**/*.go"
             - "pkg/**/*.go"
             - package.json
         generates:
             - "dist/bin/wsh*"
+            - "dist/bin/molten-*"
 
     build:wsh:parallel:
         deps:
@@ -333,6 +337,36 @@ tasks:
               vars:
                   GOOS: windows
                   GOARCH: arm64
+            # MOLTENTERM-PATCH (#458): the molten program, for the platforms of local terminals other than Windows.
+            - task: build:molten:internal
+              vars:
+                  GOOS: darwin
+                  GOARCH: arm64
+            - task: build:molten:internal
+              vars:
+                  GOOS: darwin
+                  GOARCH: amd64
+            - task: build:molten:internal
+              vars:
+                  GOOS: linux
+                  GOARCH: arm64
+            - task: build:molten:internal
+              vars:
+                  GOOS: linux
+                  GOARCH: amd64
+        internal: true
+
+    # MOLTENTERM-PATCH (#458): the molten program (FR-PERF-012), named like wsh: molten-<version>-<os>.<arch>.
+    build:molten:internal:
+        vars:
+            NORMALIZEDARCH:
+                sh: echo {{if eq .GOARCH "amd64"}}x64{{else}}{{.GOARCH}}{{end}}
+        requires:
+            vars:
+                - GOOS
+                - GOARCH
+                - VERSION
+        cmd: (CGO_ENABLED=0 GOOS={{.GOOS}} GOARCH={{.GOARCH}} go build -ldflags="-s -w" -o dist/bin/molten-{{.VERSION}}-{{.GOOS}}.{{.NORMALIZEDARCH}} ./cmd/molten)
         internal: true
 
     build:wsh:internal:

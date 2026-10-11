@@ -154,7 +154,7 @@ func reportMoltenAgentNotify(args moltenNotifyArgs, getenv func(string) string) 
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		if setupRpcClient(nil, jwt) != nil {
+		if setupHookRpcClient(jwt) != nil {
 			return
 		}
 		blockId := RpcContext.BlockId

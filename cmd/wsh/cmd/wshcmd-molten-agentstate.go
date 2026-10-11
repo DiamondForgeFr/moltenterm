@@ -4,18 +4,20 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/wavetermdev/waveterm/pkg/molten"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthook"
+	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
 // Coding agents' hooks report their state to the pane they run in (FR-SHELL-011): `molten agent state waiting` from
 // Claude Code's Notification hook, `done` from its Stop hook, and so on (pkg/molten/agentdocs/agent-states.md).
+// The small molten program (cmd/molten) runs this command itself and hands wsh only the forms it does not read the
+// same way (help, mistakes); both send with pkg/molten/agenthook (FR-PERF-012).
 
 const moltenAgentStateTimeoutMs = 5000
 const moltenAgentStateMaxStdin = 64 * 1024
@@ -31,8 +33,8 @@ var moltenAgentStateCmd = &cobra.Command{
 		"and waiting or done raise a notification. Meant for the agents' hooks: see agent-states.md in the folder " +
 		"`molten docs` prints. A trailing payload (Codex's notify argument) is ignored.",
 	Args:    cobra.RangeArgs(1, 2),
-	RunE:    moltenWrap(moltenAgentStateRun),
-	PreRunE: preRunSetupRpcClient,
+	RunE:    moltenHookWrap(moltenAgentStateRun),
+	PreRunE: preRunCheckJwt,
 }
 
 func init() {
@@ -44,17 +46,7 @@ func init() {
 
 // moltenHookMessage reads the "message" field of a hook's JSON input (Claude Code's Notification hook).
 func moltenHookMessage(r io.Reader) string {
-	data, err := io.ReadAll(io.LimitReader(r, moltenAgentStateMaxStdin))
-	if err != nil {
-		return ""
-	}
-	var input struct {
-		Message string `json:"message"`
-	}
-	if json.Unmarshal(data, &input) != nil {
-		return ""
-	}
-	return input.Message
+	return agenthook.HookMessage(r)
 }
 
 func moltenAgentStateRun(cmd *cobra.Command, args []string) error {
@@ -65,9 +57,10 @@ func moltenAgentStateRun(cmd *cobra.Command, args []string) error {
 	if moltenAgentStateAgent != "" && !molten.ValidAgentId(moltenAgentStateAgent) {
 		return fmt.Errorf("invalid agent name %q (lowercase letters, digits and dashes)", moltenAgentStateAgent)
 	}
-	blockId := RpcContext.BlockId
-	if blockId == "" {
-		blockId = os.Getenv("WAVETERM_BLOCKID")
+	token := os.Getenv(wshutil.WaveJwtTokenVarName)
+	blockId := os.Getenv("WAVETERM_BLOCKID")
+	if claims, err := agenthook.ParseTokenClaims(token); err == nil && claims.BlockId != "" {
+		blockId = claims.BlockId
 	}
 	if blockId == "" {
 		return fmt.Errorf("not in a MoltenTerm terminal")
@@ -76,7 +69,6 @@ func moltenAgentStateRun(cmd *cobra.Command, args []string) error {
 	if moltenAgentStateStdin && message == "" {
 		message = moltenHookMessage(os.Stdin)
 	}
-	req := molten.AgentStateRequest{BlockId: blockId, State: state, Agent: moltenAgentStateAgent, Message: message}
-	_, err := RpcClient.SendRpcRequest(molten.AgentStateSetCommand, req, &wshrpc.RpcOpts{Route: molten.AgentStatesRoute, Timeout: moltenAgentStateTimeoutMs})
-	return err
+	req := agenthook.AgentStateRequest{BlockId: blockId, State: state, Agent: moltenAgentStateAgent, Message: message}
+	return agenthook.SendAgentState(token, req)
 }
