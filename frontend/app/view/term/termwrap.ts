@@ -30,6 +30,7 @@ import debug from "debug";
 import * as jotai from "jotai";
 import { debounce } from "throttle-debounce";
 import { defaultSelectionText, installTermCopy } from "../../../moltenterm-shell/term-copy/term-copy"; // MOLTENTERM-PATCH (#119)
+import { ControllerSizeSync } from "../../../moltenterm-shell/term-visibility/term-controller-sync"; // MOLTENTERM-PATCH (#451)
 import {
     decideResize,
     decideWebglLossRecovery,
@@ -104,6 +105,7 @@ export class TermWrap {
     webglEnabledAtom: jotai.PrimitiveAtom<boolean>;
     webglLossTimes: number[] = []; // MOLTENTERM-PATCH (#290)
     isDisposed: boolean = false; // MOLTENTERM-PATCH (#290)
+    controllerSizeSync: ControllerSizeSync; // MOLTENTERM-PATCH (#451)
     pasteActive: boolean = false;
     lastUpdated: number;
     promptMarkers: TermTypes.IMarker[] = [];
@@ -145,6 +147,12 @@ export class TermWrap {
         this.ptyOffset = 0;
         this.dataBytesProcessed = 0;
         this.hasResized = false;
+        // MOLTENTERM-PATCH (#451): the size reaches the controller only once the first resync created it
+        this.controllerSizeSync = new ControllerSizeSync(
+            () => this.resyncController("initial resize"),
+            (termSize) => RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, termsize: termSize }),
+            (e) => console.log("error sending terminal size", this.blockId, e)
+        );
         this.lastUpdated = Date.now();
         this.promptMarkers = [];
         this.shellIntegrationStatusAtom = jotai.atom(null) as jotai.PrimitiveAtom<ShellIntegrationStatus | null>;
@@ -605,20 +613,21 @@ export class TermWrap {
         if (decision === "apply") {
             this.fitAddon.fit();
         }
+        let termSize: TermSize = null;
         if (oldRows !== this.terminal.rows || oldCols !== this.terminal.cols) {
-            const termSize: TermSize = { rows: this.terminal.rows, cols: this.terminal.cols };
+            termSize = { rows: this.terminal.rows, cols: this.terminal.cols };
             console.log(
                 "[termwrap] resize",
                 `${oldRows}x${oldCols}`,
                 "->",
                 `${this.terminal.rows}x${this.terminal.cols}`
             );
-            RpcApi.ControllerInputCommand(TabRpcClient, { blockid: this.blockId, termsize: termSize });
         }
         dlog("resize", `${this.terminal.rows}x${this.terminal.cols}`, `${oldRows}x${oldCols}`, this.hasResized);
-        if (!this.hasResized) {
+        // MOLTENTERM-PATCH (#451): resync before sending the size (term-controller-sync.ts)
+        if (termSize != null || !this.hasResized) {
             this.hasResized = true;
-            this.resyncController("initial resize");
+            fireAndForget(() => this.controllerSizeSync.sync(termSize));
         }
     }
 

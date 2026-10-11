@@ -276,12 +276,14 @@ func ResyncController(ctx context.Context, tabId string, blockId string, rtOpts 
 		}
 
 		// Start controller
-		err = controller.Start(ctx, blockData.Meta, rtOpts, force)
+		// MOLTENTERM-PATCH (#451): a durable shell whose session ended starts a new one at its first resync of the run
+		err = startBlockController(ctx, controller, blockData, rtOpts, force, shouldUseDurableShellController)
 		if err != nil {
 			return fmt.Errorf("error starting controller: %w", err)
 		}
 	}
 
+	markResynced(blockId) // MOLTENTERM-PATCH (#451)
 	return nil
 }
 
