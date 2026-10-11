@@ -18,7 +18,7 @@ import { finishTabPanelDrag, trackTabPanelDrag } from "../../moltenterm-shell/sp
 import { checkTabDragReleased } from "../../moltenterm-shell/tab-drag"; // MOLTENTERM-PATCH (#81)
 import { layoutTabs, moveTabId, tabDropIndex, tabOffsets } from "../../moltenterm-shell/tab-layout"; // MOLTENTERM-PATCH (#410)
 import { measureTab } from "../../moltenterm-shell/tab-measure"; // MOLTENTERM-PATCH (#410)
-import { closeTabAskingWorktrees } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#134)
+import { closeTabAskingFirst } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#134, #489)
 import { Tab } from "./tab";
 import "./tabbar.scss";
 import { TabBarEnv } from "./tabbarenv";
@@ -621,8 +621,9 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
 
     const handleCloseTab = (event: React.MouseEvent<HTMLButtonElement, MouseEvent> | null, tabId: string) => {
         event?.stopPropagation();
-        // MOLTENTERM-PATCH (#134): a tab holding terminals linked to worktrees asks once for all of them
-        closeTabAskingWorktrees(env.electron.closeTab, workspace.oid, tabId, confirmClose)
+        // MOLTENTERM-PATCH (#134, #489): a tab holding terminals linked to worktrees, or in which something runs, asks
+        // once for all of them
+        closeTabAskingFirst(env.electron.closeTab, workspace.oid, tabId, confirmClose)
             .then((didClose) => {
                 if (didClose) {
                     tabsWrapperRef.current?.style.setProperty("--tabs-wrapper-transition", "width 0.3s ease");
