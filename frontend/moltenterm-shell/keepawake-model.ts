@@ -23,6 +23,8 @@ export type KeepAwakeCoffee = {
     since: number;
     working: boolean;
     endsat?: number;
+    // What works in the workspace now, the most telling first ("Claude Code: background work"), while working.
+    reasons?: string[];
 };
 
 // must match Attempt in pkg/molten/keepawake/keepawake.go
@@ -58,6 +60,7 @@ export type KeepAwakeState = {
     policyholding?: boolean;
     policyworking?: boolean;
     policyendsat?: number;
+    policyreasons?: string[];
     coffees: KeepAwakeCoffee[];
     attempts: KeepAwakeAttempt[];
     overrides: KeepAwakeOverride[];
@@ -122,13 +125,36 @@ export function coffeeCondition(coffee: KeepAwakeCoffee, now: number): string {
     return `ending in ${formatCountdown(coffee.endsat, now)}`;
 }
 
+// Why the computer is kept awake, in one line: the reasons wavesrv sent, joined (#493).
+export function reasonsText(reasons: string[]): string {
+    return (reasons ?? []).filter((r) => r).join(", ");
+}
+
+// What keeps a coffee on now; "" in its grace.
+export function coffeeReason(coffee: KeepAwakeCoffee): string {
+    return coffee.working ? reasonsText(coffee.reasons) : "";
+}
+
 // The coffee bud's tooltip while on (DS-SHELL-062), and the one line the rail item adds.
 export function coffeeTooltip(coffee: KeepAwakeCoffee, name: string, platform: string, now: number): string {
     const base = `Keeping ${computerName(platform)} awake until the work in ${name} ends`;
     if (coffee.working || !coffee.endsat) {
-        return base;
+        const why = coffeeReason(coffee);
+        return why ? `${base}\nNow: ${why}` : base;
     }
     return `${base}\nNothing runs there now: ending in ${formatCountdown(coffee.endsat, now)}`;
+}
+
+// What the policy holds right now, in a few words; "" while it holds nothing.
+export function policyHoldingLine(state: KeepAwakeState, platform: string, now: number): string {
+    if (!state.policyholding) {
+        return "";
+    }
+    if (state.policyworking || !state.policyendsat) {
+        const why = state.policyworking ? reasonsText(state.policyreasons) : "";
+        return `Holding ${computerName(platform)} awake while work runs${why ? ` (${why})` : ""}`;
+    }
+    return `Holding ${computerName(platform)} awake, ending in ${formatCountdown(state.policyendsat, now)}`;
 }
 
 export function attemptAlive(attempt: KeepAwakeAttempt): boolean {
@@ -202,9 +228,9 @@ export function sleepPolicyChoices(platform: string): SleepPolicyChoice[] {
             policy: "untilworkends",
             label: "Until work ends",
             detail:
-                `MoltenTerm keeps ${it} awake while work runs (an agent working, its subagents included; a foreground ` +
-                "command that is not an idle shell; a Mission Control run), and 2 minutes more. An agent waiting " +
-                "for input is not work.",
+                `MoltenTerm keeps ${it} awake while work runs (an agent working, or still busy with background ` +
+                "subagents or commands after its turn; a foreground command that is not an idle shell; a Mission " +
+                "Control run), and 2 minutes more. An agent waiting for input with nothing running is not work.",
         },
         {
             policy: "letsleep",

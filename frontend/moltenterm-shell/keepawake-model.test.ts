@@ -7,6 +7,7 @@ import {
     cleanSleepPolicy,
     coffeeCondition,
     coffeeOf,
+    coffeeReason,
     coffeeSupported,
     coffeeTooltip,
     EmptyKeepAwakeState,
@@ -15,7 +16,9 @@ import {
     keepAwakeCount,
     keepAwakeSessions,
     KeepAwakeState,
+    policyHoldingLine,
     railCoffeeLabel,
+    reasonsText,
     sleepPolicyChoices,
 } from "./keepawake-model";
 
@@ -57,6 +60,39 @@ describe("keep-awake model", () => {
         expect(formatCountdown(65_500, 0)).toBe("1:06");
         expect(coffeeTooltip(working, "A", "darwin", 0)).toBe("Keeping the Mac awake until the work in A ends");
         expect(coffeeTooltip(grace, "A", "darwin", 60_000)).toContain("ending in 1:00");
+    });
+
+    it("says why the computer is kept awake (#493)", () => {
+        const background = {
+            workspaceid: "a",
+            since: 0,
+            working: true,
+            reasons: ["Claude Code: background work", "Command: go test ./..."],
+        };
+        expect(coffeeReason(background)).toBe("Claude Code: background work, Command: go test ./...");
+        expect(coffeeTooltip(background, "A", "darwin", 0)).toBe(
+            "Keeping the Mac awake until the work in A ends\nNow: Claude Code: background work, Command: go test ./..."
+        );
+        // In its grace nothing runs: no reason, even a stale one.
+        const grace = { ...background, working: false, endsat: 120_000 };
+        expect(coffeeReason(grace)).toBe("");
+        expect(coffeeTooltip(grace, "A", "darwin", 0)).not.toContain("Now:");
+        expect(reasonsText(undefined)).toBe("");
+        const holding = state({
+            policyholding: true,
+            policyworking: true,
+            policyreasons: ["Claude Code: background work"],
+        });
+        expect(policyHoldingLine(holding, "darwin", 0)).toBe(
+            "Holding the Mac awake while work runs (Claude Code: background work)"
+        );
+        expect(policyHoldingLine(state({ policyholding: true, policyworking: true }), "linux", 0)).toBe(
+            "Holding the computer awake while work runs"
+        );
+        expect(policyHoldingLine(state({ policyholding: true, policyendsat: 60_000 }), "darwin", 0)).toBe(
+            "Holding the Mac awake, ending in 1:00"
+        );
+        expect(policyHoldingLine(state({}), "darwin", 0)).toBe("");
     });
 
     it("finds a workspace's coffee", () => {
@@ -104,7 +140,8 @@ describe("keep-awake model", () => {
     it("spells out the work rule next to Until work ends (FR-SHELL-023-AC1)", () => {
         const choices = sleepPolicyChoices("darwin");
         expect(choices.map((c) => c.policy)).toEqual(["allow", "untilworkends", "letsleep"]);
-        expect(choices[1].detail).toContain("waiting for input is not work");
+        expect(choices[1].detail).toContain("still busy with background subagents or commands after its turn");
+        expect(choices[1].detail).toContain("waiting for input with nothing running is not work");
         expect(cleanSleepPolicy("letsleep")).toBe("letsleep");
         expect(cleanSleepPolicy("never")).toBeNull();
     });

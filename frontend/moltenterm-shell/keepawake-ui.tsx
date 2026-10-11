@@ -14,14 +14,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
     coffeeCondition,
+    coffeeReason,
     coffeeSupported,
     computerName,
     describeAttempt,
-    formatCountdown,
     keepAwakeCount,
     KeepAwakeSession,
     keepAwakeSessions,
-    KeepAwakeState,
+    policyHoldingLine,
     SleepPolicy,
     sleepPolicyChoices,
     sleepPolicySentence,
@@ -167,7 +167,7 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
             <SleepPolicyControl
                 platform={platform}
                 policy={policySetting ?? ""}
-                holding={holdingLine(state, platform, now)}
+                holding={policyHoldingLine(state, platform, now)}
                 onSelect={(policy) => fireAndForget(() => model.setPolicy(policy))}
             />
             {state.coffees.length > 0 ? (
@@ -183,6 +183,11 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
                                 <span className="truncate text-11 text-muted">
                                     since {formatClock(coffee.since)} · {coffeeCondition(coffee, now)}
                                 </span>
+                                {coffeeReason(coffee) ? (
+                                    <span className="truncate text-11 text-secondary" title={coffeeReason(coffee)}>
+                                        {coffeeReason(coffee)}
+                                    </span>
+                                ) : null}
                             </span>
                             <button
                                 type="button"
@@ -206,17 +211,6 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
         </div>,
         document.body
     );
-}
-
-// What the policy holds right now, in a few words; "" while it holds nothing.
-function holdingLine(state: KeepAwakeState, platform: string, now: number): string {
-    if (!state.policyholding) {
-        return "";
-    }
-    if (state.policyworking || !state.policyendsat) {
-        return `Holding ${computerName(platform)} awake while work runs`;
-    }
-    return `Holding ${computerName(platform)} awake, ending in ${formatCountdown(state.policyendsat, now)}`;
 }
 
 // The popover's head (DS-SHELL-101): one sentence and the policies as a segmented control, the current one filled;
