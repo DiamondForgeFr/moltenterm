@@ -483,6 +483,8 @@ describe("tab view host: a new tab inside a workspace (#461, comment item 2)", (
         h.tabviewModule.ensureHotSpareTab({ settings: h.settings });
         const starterView = win.activeTabView;
         ipc("create-tab");
+        await vi.advanceTimersByTimeAsync(200);
+        expect(pendingStates(starterView)).toEqual([]);
         await vi.advanceTimersByTimeAsync(100);
         const created = h.workspaces.get(starter.oid).activetabid;
         expect(pendingStates(starterView)).toEqual([{ phase: "loading", workspaceName: "Starter" }]);
@@ -506,7 +508,7 @@ describe("tab view host: a new tab inside a workspace (#461, comment item 2)", (
         expect(h.hostModule.invalidTabViewTransitions()).toBe(0);
     });
 
-    it("clears the pending state of a new tab as soon as the tab is on screen", async () => {
+    it("shows no pending state for a new tab that renders within the grace", async () => {
         await setup();
         await warmSpare();
         const starterView = win.activeTabView;
@@ -514,10 +516,7 @@ describe("tab view host: a new tab inside a workspace (#461, comment item 2)", (
         ipc("create-tab");
         await vi.advanceTimersByTimeAsync(1000);
         const created = h.workspaces.get(starter.oid).activetabid;
-        const states = pendingStates(starterView);
-        expect(states.at(-1)).toBeNull();
-        expect(states.every((s) => s == null || s.phase === "loading")).toBe(true);
-        // the warm spare renders in 80 ms here, after the 60 ms grace: shown under 100 ms, cleared with the swap
+        expect(pendingStates(starterView)).toEqual([]);
         expect(screenSince(t0).find((e) => e[1] === created)[0]).toBeLessThan(150);
     });
 

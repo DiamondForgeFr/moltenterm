@@ -189,9 +189,10 @@ export function getWaveTabView(waveTabId: string): WaveTabView | undefined {
     return rtn;
 }
 
-// Whether the tab has a live view, without counting it as used.
-export function hasTabView(tabId: string): boolean {
-    return registry.viewForTab(tabId) != null;
+// Whether the window has a live view for the tab, without counting it as used.
+export function hasTabView(tabId: string, waveWindowId: string): boolean {
+    const view = registry.viewForTab(tabId);
+    return view != null && registry.windowOf(view) === waveWindowId;
 }
 
 // Every live view given to a tab, in a window or still being acquired.
@@ -267,12 +268,12 @@ export async function acquireViewForTab(
     cancelled: Promise<void>
 ): Promise<AcquiredTabView> {
     let cached = getWaveTabView(tabId);
-    // A view kept by another window (its workspace now opens here) is not this window's to show: the other window
-    // closes it and this one builds its own (#68 keeps the views of a workspace left, not only its active tab's).
+    // A view kept by another window (its workspace now opens here) is not this window's to show: this window builds
+    // its own, and the other one's goes with the budget, which knows which views hold work (#68 keeps every view of a
+    // workspace left, not only its active tab's).
     const owner = registry.windowOf(cached);
-    if (cached != null && hostEnabled && owner !== waveWindowId && !registry.isActive(cached)) {
-        console.log("[#461] tab view kept by another window, closing it", tabId, owner);
-        destroyTabView(cached, "its tab opened in another window");
+    if (cached != null && hostEnabled && owner !== waveWindowId) {
+        console.log("[#461] tab view kept by another window, building one for this window", tabId, owner);
         cached = null;
     }
     if (cached != null) {
@@ -490,7 +491,8 @@ async function setTabViewIntoWindow(
             // A view that never initialized is dropped, so the next switch builds a new one (#283); so is a view whose
             // action was superseded, or whose tab no longer exists (#449).
             console.log("[#283] initializing a new tab failed, dropping its view", tabView.waveTabId, e);
-            if (win.activeTabView == tabView) {
+            // this call made it the active view (Wave's flow), and destroying it may have emptied the slot already
+            if (win.activeTabView == tabView || (!waitReady && win.activeTabView == null)) {
                 restoreActiveTabView(win, oldActiveView);
             }
             if (!isSuperseded(e) && registry.stateOf(tabView) === "loading") {
@@ -637,8 +639,9 @@ async function onReadinessDeadline(
         if (!win.isDestroyed() && !win.isVisible()) {
             win.show();
         }
-        if (win.activeTabView?.webContents && !win.activeTabView.webContents.isDevToolsOpened()) {
-            win.activeTabView.webContents.openDevTools();
+        // the view that missed its deadline, which is not the active one when it loads off-screen
+        if (!tabView.webContents.isDestroyed() && !tabView.webContents.isDevToolsOpened()) {
+            tabView.webContents.openDevTools();
         }
     }
     if (stage === "init") {
@@ -768,6 +771,9 @@ function keepPendingPageOnTop(win: WaveBrowserWindow) {
 
 // The pending state's Reload and Dismiss (frontend/moltenterm-shell/view-pending.tsx).
 ipcMain.on(ViewPendingActionChannel, (event, action: string) => {
+    if (action !== "reload" && action !== "dismiss") {
+        return;
+    }
     const ww = getWaveWindowByWebContentsId(event.sender.id);
     console.log("[#450] pending state action", action, ww?.waveWindowId);
     if (ww == null) {
