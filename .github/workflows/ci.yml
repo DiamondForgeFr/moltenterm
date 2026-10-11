@@ -103,6 +103,77 @@ jobs:
             - name: Build
               run: task build:backend
 
+    perf:
+        # The machine-independent subset of the performance harness (scripts/perf/README.md, FR-PERF-006): bundle size,
+        # JS evaluated by a tab view, a start-up smoke test and leaked tab views, against scripts/perf/budgets.json and
+        # the stored baseline. Times are reported, not gated: CI runners are too noisy for them.
+        name: Perf budgets
+        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+        runs-on: ubuntu-latest
+        timeout-minutes: 40
+        permissions:
+            contents: read
+            pull-requests: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+              with:
+                  go-version-file: go.mod
+                  cache-dependency-path: go.sum
+            - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+              with:
+                  version: 3.x
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+            - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+              with:
+                  version: 0.16.0
+            # The app runs here, so Electron's native dependencies are installed (no WAVETERM_SKIP_APP_DEPS).
+            - run: npm ci --no-audit --no-fund
+            - name: Build the app
+              env:
+                  NODE_OPTIONS: --max-old-space-size=4096
+              run: |
+                  task build:backend
+                  npm run build:prod
+            - name: Run the CI perf profile
+              id: perf
+              run: |
+                  if xvfb-run -a --server-args="-screen 0 1600x1000x24" node scripts/perf/perf.mjs run --profile ci --gate ci --out perf-report; then
+                      echo "failed=0" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "failed=1" >> "$GITHUB_OUTPUT"
+                  fi
+                  if [ -f perf-report/report.md ]; then cat perf-report/report.md >> "$GITHUB_STEP_SUMMARY"; fi
+            - name: Post the report on the pull request
+              if: always() && github.event_name == 'pull_request'
+              # A pull request from a fork gets a read-only token: the report stays in the job summary.
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PR: ${{ github.event.pull_request.number }}
+                  REPO: ${{ github.repository }}
+              run: |
+                  [ -f perf-report/report.md ] || exit 0
+                  marker="<!-- moltenterm-perf-report -->"
+                  { echo "$marker"; head -c 60000 perf-report/report.md; } > perf-comment.md
+                  id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | tail -1)
+                  if [ -n "$id" ]; then
+                      gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@perf-comment.md > /dev/null
+                  else
+                      gh api -X POST "repos/$REPO/issues/$PR/comments" -F body=@perf-comment.md > /dev/null
+                  fi
+            - name: Budget verdict
+              if: steps.perf.outputs.failed != '0'
+              run: |
+                  echo "::error::A performance budget was exceeded or a perf scenario failed; see the report in the job summary"
+                  exit 1
+
     gate:
         # No `needs`: a job that waits on others gets its check only when they finish, so after a pull request is
         # marked ready the "Required gate" success of its draft's run on the same commit would satisfy a ruleset until
@@ -122,7 +193,7 @@ jobs:
               run: |
                   heavy=success
                   if [ "$DRAFT" = "true" ]; then heavy=skipped; fi
-                  want="{\"Quick checks\": \"success\", \"Frontend\": \"$heavy\", \"Backend\": \"$heavy\"}"
+                  want="{\"Quick checks\": \"success\", \"Frontend\": \"$heavy\", \"Backend\": \"$heavy\", \"Perf budgets\": \"$heavy\"}"
                   verdict="wait"
                   while [ "$verdict" = "wait" ]; do
                       sleep 10
@@ -134,7 +205,7 @@ jobs:
                             else "wait" end')
                   done
                   echo "$jobs" | jq -r '.[] | select(.name != "Required gate") | "\(.name): \(.conclusion // .status)"'
-                  echo "Frontend and Backend expected: $heavy"
+                  echo "Frontend, Backend and Perf budgets expected: $heavy"
                   if [ "$verdict" = fail ]; then
                       echo "::error::The validation did not complete"
                       exit 1

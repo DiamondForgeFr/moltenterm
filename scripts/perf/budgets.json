@@ -1,0 +1,278 @@
+{
+    "$comment": "Performance budgets (FR-PERF-006, NFR-PERF-001..007). The one place budgets live: changing a budget, a tolerance or the baseline needs a reason in the pull request. gate: ci = machine-independent, gated in CI and locally; local = gated only against a baseline taken on the same machine (task perf -- --gate local); info = reported only. Values lower is better. Units: MB = 10^6 bytes for bundle and JS, MiB for memory.",
+    "version": 1,
+    "baseline": "baselines/75f1354a.json",
+    "defaults": { "tolerancePct": 10, "noisePct": 10 },
+    "metrics": {
+        "bundle.initialJsMB": {
+            "nfr": "NFR-PERF-003",
+            "title": "JS loaded up front by index.html (entry + modulepreloads)",
+            "unit": "MB",
+            "budget": 8,
+            "gate": "ci",
+            "tolerancePct": 2
+        },
+        "startup.jsEvaluatedMB": {
+            "nfr": "NFR-PERF-003",
+            "title": "JS evaluated by the starter tab view",
+            "unit": "MB",
+            "budget": 8,
+            "gate": "ci",
+            "tolerancePct": 5
+        },
+        "startup.failedLaunches": {
+            "nfr": "NFR-PERF-003",
+            "title": "Launches that did not reach wave-ready",
+            "unit": "",
+            "budget": 0,
+            "gate": "ci",
+            "tolerancePct": 0
+        },
+        "startup.waveReadyWarmMs": {
+            "nfr": "NFR-PERF-003",
+            "title": "Launch to first tab ready, warm (median)",
+            "unit": "ms",
+            "budget": 1500,
+            "gate": "local",
+            "noiseFloor": 100
+        },
+        "startup.tabviewInitWarmMs": {
+            "nfr": "NFR-PERF-003",
+            "title": "Tab view init, warm (median)",
+            "unit": "ms",
+            "budget": 600,
+            "gate": "local",
+            "noiseFloor": 100
+        },
+        "startup.waveReadyColdMs": {
+            "nfr": "NFR-PERF-003",
+            "title": "Launch to first tab ready, fresh data (median)",
+            "unit": "ms",
+            "budget": null,
+            "gate": "info",
+            "noiseFloor": 100
+        },
+        "startup.tabviewInitColdMs": {
+            "nfr": "NFR-PERF-003",
+            "title": "Tab view init, fresh data (median)",
+            "unit": "ms",
+            "budget": null,
+            "gate": "info",
+            "noiseFloor": 100
+        },
+        "idle.cpu1wsVisiblePct": {
+            "nfr": "NFR-PERF-001",
+            "title": "Idle CPU, 1 workspace, visible (whole tree, % of a core)",
+            "unit": "%",
+            "budget": 2,
+            "gate": "local",
+            "noiseFloor": 0.5
+        },
+        "idle.cpu1wsMinimisedPct": {
+            "nfr": "NFR-PERF-001",
+            "title": "Idle CPU, 1 workspace, minimised",
+            "unit": "%",
+            "budget": 1,
+            "gate": "local",
+            "noiseFloor": 0.5
+        },
+        "idle.cpu3wsVisiblePct": {
+            "nfr": "NFR-PERF-001",
+            "title": "Idle CPU, 3 workspaces, visible",
+            "unit": "%",
+            "budget": null,
+            "gate": "info",
+            "noiseFloor": 0.5
+        },
+        "idle.cpu3wsMinimisedPct": {
+            "nfr": "NFR-PERF-001",
+            "title": "Idle CPU, 3 workspaces, minimised",
+            "unit": "%",
+            "budget": 1,
+            "gate": "local",
+            "noiseFloor": 0.5
+        },
+        "idle.cpu6wsVisiblePct": {
+            "nfr": "NFR-PERF-001",
+            "title": "Idle CPU, 6 workspaces visited, visible",
+            "unit": "%",
+            "budget": 3,
+            "gate": "local",
+            "noiseFloor": 0.5
+        },
+        "idle.cpu6wsMinimisedPct": {
+            "nfr": "NFR-PERF-001",
+            "title": "Idle CPU, 6 workspaces visited, minimised",
+            "unit": "%",
+            "budget": 1,
+            "gate": "local",
+            "noiseFloor": 0.5
+        },
+        "mem.total6wsMB": {
+            "nfr": "NFR-PERF-002",
+            "title": "Memory, 6 workspaces visited (macOS footprint)",
+            "unit": "MiB",
+            "budget": 900,
+            "gate": "local",
+            "noiseFloor": 40
+        },
+        "mem.hiddenViewMB": {
+            "nfr": "NFR-PERF-002",
+            "title": "Memory per hidden tab view (median)",
+            "unit": "MiB",
+            "budget": 60,
+            "gate": "local",
+            "noiseFloor": 8
+        },
+        "mem.gpu6wsMB": {
+            "nfr": "NFR-PERF-002",
+            "title": "GPU process memory, 6 workspaces",
+            "unit": "MiB",
+            "budget": 400,
+            "gate": "local",
+            "noiseFloor": 40
+        },
+        "mem.total1wsMB": {
+            "nfr": "NFR-PERF-002",
+            "title": "Memory, 1 workspace",
+            "unit": "MiB",
+            "budget": null,
+            "gate": "info",
+            "noiseFloor": 40
+        },
+        "ws.createP95Ms": {
+            "nfr": "NFR-PERF-004",
+            "title": "Create workspace to new tab on screen (p95)",
+            "unit": "ms",
+            "budget": 150,
+            "gate": "local",
+            "noiseFloor": 25
+        },
+        "ws.switchNewP95Ms": {
+            "nfr": "NFR-PERF-004",
+            "title": "Switch to a never-visited workspace, warm spare (p95)",
+            "unit": "ms",
+            "budget": 150,
+            "gate": "local",
+            "noiseFloor": 25
+        },
+        "ws.switchVisitedP95Ms": {
+            "nfr": "NFR-PERF-004",
+            "title": "Switch to a visited workspace (p95)",
+            "unit": "ms",
+            "budget": 150,
+            "gate": "local",
+            "noiseFloor": 25
+        },
+        "ws.deleteP95Ms": {
+            "nfr": "NFR-PERF-004",
+            "title": "Delete a workspace (p95)",
+            "unit": "ms",
+            "budget": 150,
+            "gate": "local",
+            "noiseFloor": 25
+        },
+        "ws.raceBlockedMs": {
+            "nfr": "NFR-PERF-004",
+            "title": "Action queue blocked by a delete right after a create",
+            "unit": "ms",
+            "budget": null,
+            "gate": "info",
+            "noiseFloor": 100
+        },
+        "load.firstTabMs": {
+            "nfr": "NFR-PERF-005",
+            "title": "First tab ready with N busy processes (capped at the scenario timeout)",
+            "unit": "ms",
+            "budget": 10000,
+            "gate": "local",
+            "noiseFloor": 1000
+        },
+        "load.blankWindow": {
+            "nfr": "NFR-PERF-005",
+            "title": "Window without a tab view after the load timeout (1 = blank)",
+            "unit": "",
+            "budget": 0,
+            "gate": "local",
+            "tolerancePct": 0
+        },
+        "leak.viewsAfterDeletes": {
+            "nfr": "NFR-PERF-006",
+            "title": "Tab views left after deleting 4 workspaces",
+            "unit": "",
+            "budget": 0,
+            "gate": "ci",
+            "tolerancePct": 0
+        },
+        "leak.viewsPerLoop": {
+            "nfr": "NFR-PERF-006",
+            "title": "Tab views left per create/delete loop",
+            "unit": "",
+            "budget": 0,
+            "gate": "ci",
+            "tolerancePct": 0
+        },
+        "leak.memGrowthPerLoopMB": {
+            "nfr": "NFR-PERF-006",
+            "title": "Memory growth per create/delete loop",
+            "unit": "MiB",
+            "budget": 2,
+            "gate": "local",
+            "noiseFloor": 2
+        },
+        "bundle.jsMB": {
+            "nfr": "NFR-PERF-007",
+            "title": "Renderer bundle JavaScript, raw",
+            "unit": "MB",
+            "budget": null,
+            "gate": "ci",
+            "tolerancePct": 5
+        },
+        "bundle.jsGzipMB": {
+            "nfr": "NFR-PERF-007",
+            "title": "Renderer bundle JavaScript, gzip",
+            "unit": "MB",
+            "budget": null,
+            "gate": "info"
+        },
+        "bundle.cssMB": {
+            "nfr": "NFR-PERF-007",
+            "title": "Renderer bundle CSS, raw",
+            "unit": "MB",
+            "budget": null,
+            "gate": "info"
+        },
+        "renderer.taskMsPerS": {
+            "nfr": "Renderer (diagnostic)",
+            "title": "Visible tab main-thread task time while idle",
+            "unit": "ms/s",
+            "budget": null,
+            "gate": "info",
+            "noiseFloor": 5
+        },
+        "renderer.timerFiresPerS": {
+            "nfr": "Renderer (diagnostic)",
+            "title": "Visible tab timer fires while idle",
+            "unit": "/s",
+            "budget": null,
+            "gate": "info",
+            "noiseFloor": 1
+        },
+        "mods.cpuDeltaPct": {
+            "nfr": "Mods (diagnostic)",
+            "title": "Idle CPU, built-in mods on minus off",
+            "unit": "%",
+            "budget": null,
+            "gate": "info",
+            "noiseFloor": 1
+        },
+        "mods.memDeltaMB": {
+            "nfr": "Mods (diagnostic)",
+            "title": "Memory, built-in mods on minus off",
+            "unit": "MiB",
+            "budget": null,
+            "gate": "info",
+            "noiseFloor": 30
+        }
+    }
+}

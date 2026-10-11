@@ -470,6 +470,41 @@ tasks:
         deps:
             - npm:install
 
+    # MOLTENTERM-PATCH (#452): performance harness targets; extra arguments go to perf.mjs (scripts/perf/README.md).
+    perf:
+        desc: Build the app and run the full performance harness in isolated directories (about 15 minutes).
+        cmds:
+            - task: perf:build
+            - node scripts/perf/perf.mjs run --profile full {{.CLI_ARGS}}
+
+    perf:quick:
+        desc: Build the app and run every perf scenario with fewer samples (about 5 minutes).
+        cmds:
+            - task: perf:build
+            - node scripts/perf/perf.mjs run --profile quick {{.CLI_ARGS}}
+
+    perf:ci:
+        desc: Build the app and run the CI perf subset (bundle, JS evaluated, start-up, leaks), gated like CI.
+        cmds:
+            - task: perf:build
+            - node scripts/perf/perf.mjs run --profile ci --gate ci {{.CLI_ARGS}}
+
+    perf:bundle:
+        desc: Build the frontend and check the bundle budgets only.
+        cmds:
+            - npm run build:prod
+            - node scripts/perf/perf.mjs run --profile ci --scenarios bundle --gate ci {{.CLI_ARGS}}
+        deps:
+            - npm:install
+
+    perf:build:
+        internal: true
+        cmds:
+            - task: build:backend
+            - npm run build:prod
+        deps:
+            - npm:install
+
     init:
         desc: Initialize the project for development.
         cmds:
