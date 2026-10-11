@@ -160,7 +160,14 @@ describe("bulk eligibility", () => {
         expect(busyNote("restart", claude("a", { agentstate: "waiting" }))).toMatch(/waiting for you/);
         const interrupt = BulkCommands.find((c) => c.id === "interrupt");
         expect(busyNote("send", claude("a", { agentstate: "working" }), interrupt)).toBe("");
-        expect(busyNote("end", claude("a", { agentstate: "working" }))).toBe("");
+    });
+
+    it("says what ending each session stops (FR-SHELL-061)", () => {
+        expect(busyNote("end", claude("a", { agentstate: "working" }))).toBe("working: its current task stops");
+        expect(busyNote("end", claude("a", { agentstate: "waiting" }))).toBe("waiting for you: what it asked is lost");
+        expect(busyNote("end", claude("a", { agentstate: "idle" }))).toBe("");
+        expect(busyNote("end", session("b", { command: "npm run dev" }))).toBe("running npm run dev");
+        expect(busyNote("end", session("c", { command: "zsh at prompt" }))).toBe("");
     });
 
     it("counts the sessions the confirmation reaches", () => {
