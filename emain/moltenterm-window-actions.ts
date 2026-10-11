@@ -102,14 +102,23 @@ async function beginStartupPending(win: WaveBrowserWindow, tabId: string): Promi
     return beginWindowPending(win, ws?.name, onReload, startedAt, win.isVisible() ? 0 : StartupPendingGraceMs);
 }
 
+// A warm new tab renders in 100 to 200 ms: the window keeps its current tab until then, and a pending state flashing
+// over it for that time would be noise. Only a slower tab shows it.
+export const TabPendingGraceMs = 250;
+
+function workspaceName(win: WaveBrowserWindow): Promise<string> {
+    return WorkspaceService.GetWorkspace(win.workspaceId)
+        .then((ws) => ws?.name)
+        .catch((): string => null);
+}
+
 // A tab of the workspace on screen whose view is not loaded yet (a new tab, a reset, a closed tab's successor, a tab
 // whose view was evicted) renders off-screen while the window keeps showing its current tab, as a workspace switch does
 // (#68), and the current view draws the pending state over its panels if it is slow (#461, the plain background Wave's
 // flow showed between loading and first render).
-async function beginTabPending(win: WaveBrowserWindow, tabId: string, startedAt: number): Promise<number> {
-    const ws = await WorkspaceService.GetWorkspace(win.workspaceId).catch((): Workspace => null);
+function beginTabPending(win: WaveBrowserWindow, tabId: string, name: string, startedAt: number): number {
     const onReload = () => fireAndForget(() => win.setActiveTab(tabId, true));
-    return beginWindowPending(win, ws?.name, onReload, startedAt);
+    return beginWindowPending(win, name, onReload, startedAt, TabPendingGraceMs);
 }
 
 // A new tab that did not open leaves the window on the tab it shows: the backend's active tab follows, so the tab bar
@@ -189,10 +198,21 @@ async function runAction(win: WaveBrowserWindow, entry: WindowAction, run: Actio
     }
     const startupPending = win.activeTabView == null ? await beginStartupPending(win, tabId) : null;
     const showWhenReady =
-        startupPending == null && isTabViewHostEnabled() && !hasTabView(tabId) && windowShowsLiveView(win);
-    const tabPending = showWhenReady ? await beginTabPending(win, tabId, startedAt) : null;
+        startupPending == null &&
+        isTabViewHostEnabled() &&
+        !hasTabView(tabId, win.waveWindowId) &&
+        windowShowsLiveView(win);
+    // The workspace's name (for the pending state) is read while the view is acquired, so the tab never waits on it.
+    const pendingName = showWhenReady ? workspaceName(win) : null;
+    const acquiring = getOrCreateWebViewForTab(win.waveWindowId, tabId, run.deadline);
+    let tabPending: number = null;
+    if (showWhenReady) {
+        // a failed acquisition is handled below, once the name is in
+        acquiring.catch((): void => null);
+        tabPending = beginTabPending(win, tabId, await pendingName, startedAt);
+    }
     try {
-        const [tabView, tabInitialized] = await getOrCreateWebViewForTab(win.waveWindowId, tabId, run.deadline);
+        const [tabView, tabInitialized] = await acquiring;
         noteTabViewWorkspace(tabView, win.workspaceId);
         const primaryStartupTabFlag = entry.op === "switchtab" ? (entry.primaryStartupTab ?? false) : false;
         const waitReady = showWhenReady && !tabInitialized;
@@ -202,12 +222,18 @@ async function runAction(win: WaveBrowserWindow, entry: WindowAction, run: Actio
             windowViewPending(win).setPhase(startupPending, "failed");
         }
         if (tabPending != null) {
-            if (e instanceof ReadinessError) {
+            // the tab shown still exists after a new tab or a tab switch; a closed or reset one does not
+            if (entry.op === "createtab" || entry.op === "switchtab") {
                 await rollBackActiveTab(win, tabId);
+            }
+            if (e instanceof ReadinessError) {
                 windowViewPending(win).setPhase(tabPending, "failed");
             } else {
                 windowViewPending(win).end(tabPending);
             }
+        }
+        if (entry.op === "closetab" || entry.op === "resetworkspace") {
+            sweepDeletedTabViews(entry.op === "closetab" ? "tab closed" : "workspace reset");
         }
         throw e;
     }

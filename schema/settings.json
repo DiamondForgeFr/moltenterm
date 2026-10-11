@@ -1096,7 +1096,7 @@
         },
         "moltenterm:tabviewhost": {
           "type": "boolean",
-          "description": "A new tab renders off-screen and replaces the tab on screen once ready, with a pending state if it is slow; a tab view that does not render is only rebuilt while its window is focused and in use; dev builds stop on an invalid tab view transition. false restores the previous behaviour (a new tab shown at once while it loads, the paint check whatever the window's state, invalid transitions only logged)",
+          "description": "A new tab renders off-screen and replaces the tab on screen once ready, with a pending state if it is slow; a tab view that does not render is only rebuilt while its window is focused and in use; dev builds stop on an invalid tab view transition. tab views are only evicted while hidden, never shown once destroyed, and never shared by two windows. false restores the previous behaviour (a new tab shown at once while it loads, the paint check whatever the window's state, the previous evictions and reuse, invalid transitions only logged)",
           "x-moltenterm": {
             "section": "advanced",
             "group": "Window",

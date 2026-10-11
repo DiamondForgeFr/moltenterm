@@ -15,6 +15,7 @@ export const DeferredPaintCheckRetryMs = 10 * 1000;
 
 type WindowShowingTabViews = {
     readonly activeTabView: WaveTabView;
+    readonly actionQueue: { readonly length: number };
     isDestroyed(): boolean;
     isFocused(): boolean;
     isMinimized(): boolean;
@@ -25,11 +26,18 @@ type WindowShowingTabViews = {
 };
 
 const leftScreenAt = new WeakMap<WaveTabView, number>();
+// One deferred check per view: showing it again, or it leaving the screen, cancels the one waiting.
+const deferredChecks = new WeakMap<WaveTabView, () => void>();
+
+function cancelDeferredPaintCheck(tabView: WaveTabView) {
+    deferredChecks.get(tabView)?.();
+}
 
 export function noteTabViewLeftScreen(tabView: WaveTabView) {
     if (tabView == null) {
         return;
     }
+    cancelDeferredPaintCheck(tabView);
     leftScreenAt.set(tabView, Date.now());
 }
 
@@ -43,10 +51,12 @@ export function noteTabViewNeedsRepaint(tabView: WaveTabView) {
 }
 
 // Whether the window can show frames at all, so that a view without frames is the view's fault (#461): visible, not
-// minimised, focused (a focused window is not covered by another one) and in use.
+// minimised, focused (a focused window is not covered by another one) and in use. And idle: while an action runs, the
+// view on screen may be the one it is about to replace, and a rebuild would race it.
 export function windowCanShowFrames(win: WindowShowingTabViews, systemIdleSec: number): boolean {
     return (
         !win.isDestroyed() &&
+        win.actionQueue.length === 0 &&
         win.isVisible() &&
         !win.isMinimized() &&
         win.isFocused() &&
@@ -57,6 +67,7 @@ export function windowCanShowFrames(win: WindowShowingTabViews, systemIdleSec: n
 // See moltenterm-tabview-health.ts (#223). Runs once a reused view is on screen (the tab view host calls it as the view
 // becomes shown again), so a healthy switch is not delayed.
 export function checkReusedTabViewPainted(win: WindowShowingTabViews, tabView: WaveTabView) {
+    cancelDeferredPaintCheck(tabView);
     const leftAt = leftScreenAt.get(tabView);
     leftScreenAt.delete(tabView);
     runPaintCheck(win, tabView, leftAt == null ? 0 : Date.now() - leftAt, false);
@@ -100,10 +111,14 @@ function runPaintCheck(win: WindowShowingTabViews, tabView: WaveTabView, hiddenF
 // Runs the check again at the window's next focus, or when a periodic look finds the window able to show frames, as
 // long as the view stays shown.
 function deferPaintCheck(win: WindowShowingTabViews, tabView: WaveTabView, isLive: () => boolean) {
+    cancelDeferredPaintCheck(tabView);
     let timer: ReturnType<typeof setTimeout> = null;
     const stop = () => {
         clearTimeout(timer);
         win.removeListener("focus", onFocus);
+        if (deferredChecks.get(tabView) === stop) {
+            deferredChecks.delete(tabView);
+        }
     };
     const retry = () => {
         stop();
@@ -123,6 +138,7 @@ function deferPaintCheck(win: WindowShowingTabViews, tabView: WaveTabView, isLiv
         }
         timer = setTimeout(look, DeferredPaintCheckRetryMs);
     };
+    deferredChecks.set(tabView, stop);
     win.once("focus", onFocus);
     timer = setTimeout(look, DeferredPaintCheckRetryMs);
 }

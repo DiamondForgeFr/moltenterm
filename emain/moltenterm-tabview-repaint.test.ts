@@ -48,6 +48,7 @@ function makeWindow(view: any, opts: { focused?: boolean; minimized?: boolean; v
     win.minimized = opts.minimized ?? false;
     win.visible = opts.visible ?? true;
     win.isDestroyed = () => false;
+    win.actionQueue = { length: 0 };
     win.isFocused = () => win.focused;
     win.isMinimized = () => win.minimized;
     win.isVisible = () => win.visible;
@@ -80,6 +81,9 @@ describe("windowCanShowFrames", () => {
         expect(windowCanShowFrames(win, 0)).toBe(false);
         win.minimized = false;
         win.visible = false;
+        expect(windowCanShowFrames(win, 0)).toBe(false);
+        win.visible = true;
+        win.actionQueue = { length: 1 };
         expect(windowCanShowFrames(win, 0)).toBe(false);
     });
 });
@@ -170,5 +174,23 @@ describe("checkReusedTabViewPainted (#223, #461)", () => {
         await vi.advanceTimersByTimeAsync(2000);
         expect(view.cycles).toBe(1);
         expect(env.destroyed).toHaveLength(1);
+    });
+
+    it("keeps one deferred check per view when the view is shown again meanwhile", async () => {
+        const view = makeView();
+        const win = makeWindow(view, { focused: false });
+        checkReusedTabViewPainted(win, view);
+        await vi.advanceTimersByTimeAsync(2000);
+        checkReusedTabViewPainted(win, view);
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(win.listenerCount("focus")).toBe(1);
+        win.focused = true;
+        view.probe = Rendering;
+        win.emit("focus");
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(view.webContents.executeJavaScript).toHaveBeenCalledTimes(3);
+        expect(win.listenerCount("focus")).toBe(0);
+        await vi.advanceTimersByTimeAsync(3 * DeferredPaintCheckRetryMs);
+        expect(view.webContents.executeJavaScript).toHaveBeenCalledTimes(3);
     });
 });
