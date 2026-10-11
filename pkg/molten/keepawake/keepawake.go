@@ -70,6 +70,8 @@ type Coffee struct {
 	// Working: work runs in the workspace now; otherwise the coffee is in its grace and ends at EndsAt.
 	Working bool  `json:"working"`
 	EndsAt  int64 `json:"endsat,omitempty"`
+	// Reasons: what works in the workspace now, the most telling first ("Claude Code: background work"), while Working.
+	Reasons []string `json:"reasons,omitempty"`
 }
 
 // Attempt is one block attempt a shim reported, while its process lives.
@@ -107,6 +109,8 @@ type State struct {
 	PolicyHolding bool  `json:"policyholding,omitempty"`
 	PolicyWorking bool  `json:"policyworking,omitempty"`
 	PolicyEndsAt  int64 `json:"policyendsat,omitempty"`
+	// PolicyReasons: what works on this computer now, while PolicyWorking.
+	PolicyReasons []string `json:"policyreasons,omitempty"`
 	// Coffees, oldest first.
 	Coffees   []Coffee   `json:"coffees"`
 	Attempts  []Attempt  `json:"attempts"`

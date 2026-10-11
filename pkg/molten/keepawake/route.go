@@ -274,6 +274,7 @@ func makeService(hooks Hooks) *service {
 		ShellRunning:      hooks.ShellRunning,
 		Locate:            s.locateBlock,
 		MissionWorkspaces: hooks.MissionWorkspaces,
+		BusyTrees:         makeBusyTracker(sampleTrees, time.Now).Busy,
 	}
 	s.keeper = MakeKeeper(Env{
 		Now:          time.Now,

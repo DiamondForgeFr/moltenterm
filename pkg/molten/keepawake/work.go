@@ -5,21 +5,40 @@ package keepawake
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 )
 
-// What counts as work (DS-SHELL-025, DS-SHELL-062): an agent in the working state (its subagents run inside its
-// process, so it stays working until they finish), a foreground command that is not an idle shell, a block's own
-// command while it runs, and a Mission Control run (build, release, sync, local CI) of the workspace's linked project.
-// An agent waiting for input, done or idle is not work, and neither is a shell at its prompt. In a terminal whose agent
-// is known, the agent's state decides: the agent's own process is the foreground command and would count forever.
+// What counts as work (DS-SHELL-025, DS-SHELL-062): an agent in the working state, an agent in any other state whose
+// process tree is busy (busy.go), a foreground command that is not an idle shell, a block's own command while it runs,
+// and a Mission Control run (build, release, sync, local CI) of the workspace's linked project. An agent's turn can end
+// while work it started goes on: background subagents and background commands run in processes of their own, and the
+// agent reports done meanwhile (#493). Its process tree tells: it stays busy while that work runs. An agent waiting
+// for input, done or idle with a quiet tree is not work, and neither is a shell at its prompt. In a terminal whose
+// agent is known, the agent decides: the agent's own process is the foreground command and would count forever.
 // A remote terminal, and a local one whose foreground command is an SSH client, count only through a known agent
 // state: what runs on the other side is not seen (developer's decision, 2026-10-08). The Until work ends policy counts
 // local terminals only (its rule is about this computer's sessions); a coffee counts its workspace's remote agents too.
+
+// The reasons, by the order the list shows them.
+const (
+	reasonAgentWorking = iota
+	reasonAgentBackground
+	reasonCommand
+	reasonMission
+)
+
+const (
+	// A workspace's reasons shown at most; the last one kept says how many more there are.
+	maxReasons      = 4
+	maxReasonCmdLen = 60
+	missionReason   = "Mission Control run"
+)
 
 // BlockInfo is where a terminal block is and how it runs.
 type BlockInfo struct {
@@ -43,6 +62,8 @@ type WorkSources struct {
 	Locate       func(ctx context.Context, blockId string) (BlockInfo, bool)
 	// MissionWorkspaces: the workspaces linked to a project with a Mission Control run going.
 	MissionWorkspaces func(ctx context.Context) []string
+	// BusyTrees: which of these agents' process trees are busy (busy.go). Nil: background work is not seen.
+	BusyTrees func(roots []TreeRoot) map[string]bool
 }
 
 // Work is what runs now.
@@ -51,6 +72,58 @@ type Work struct {
 	Workspaces map[string]bool
 	// Local: work by the Until work ends rule, in any workspace.
 	Local bool
+	// Reasons: what the work is, per workspace and for Local, the most telling first (the status bar list says why
+	// the computer is kept awake).
+	Reasons      map[string][]string
+	LocalReasons []string
+}
+
+type reason struct {
+	rank int
+	text string
+}
+
+func agentReason(agent string, rank int) reason {
+	if rank == reasonAgentBackground {
+		return reason{rank: rank, text: molten.AgentDisplayName(agent) + ": background work"}
+	}
+	return reason{rank: rank, text: molten.AgentDisplayName(agent) + ": working"}
+}
+
+func commandReason(cmdline string) reason {
+	cmd := strings.Join(strings.Fields(cmdline), " ")
+	if cmd == "" {
+		return reason{rank: reasonCommand, text: "A command"}
+	}
+	if len([]rune(cmd)) > maxReasonCmdLen {
+		cmd = string([]rune(cmd)[:maxReasonCmdLen-1]) + "…"
+	}
+	return reason{rank: reasonCommand, text: "Command: " + cmd}
+}
+
+// sortReasons orders reasons by rank then text, without repeats, and keeps maxReasons of them; the last one kept
+// says how many are left out.
+func sortReasons(list []reason) []string {
+	if len(list) == 0 {
+		return nil
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].rank != list[j].rank {
+			return list[i].rank < list[j].rank
+		}
+		return list[i].text < list[j].text
+	})
+	var rtn []string
+	for _, r := range list {
+		if len(rtn) > 0 && rtn[len(rtn)-1] == r.text {
+			continue
+		}
+		rtn = append(rtn, r.text)
+	}
+	if len(rtn) > maxReasons {
+		rtn = append(rtn[:maxReasons-1], fmt.Sprintf("%d more", len(rtn)-maxReasons+1))
+	}
+	return rtn
 }
 
 // sshClients are the programs whose foreground session runs on another machine.
@@ -116,9 +189,21 @@ func ComputeWork(ctx context.Context, src WorkSources) Work {
 			cmdBlocks[id] = true
 		}
 	}
+	// Only the trees of agents that are not working are sampled: a working agent is work already. Asking with no root
+	// lets the tracker forget the trees it followed.
+	var roots []TreeRoot
+	for id, run := range agents {
+		if run.State != molten.AgentStateWorking && run.Pid > 0 {
+			roots = append(roots, TreeRoot{BlockId: id, Pid: run.Pid, StartMs: run.PidStartMs})
+		}
+	}
+	var busy map[string]bool
+	if src.BusyTrees != nil {
+		busy = src.BusyTrees(roots)
+	}
 	candidates := map[string]bool{}
 	for id, run := range agents {
-		if run.State == molten.AgentStateWorking {
+		if run.State == molten.AgentStateWorking || busy[id] {
 			candidates[id] = true
 		}
 	}
@@ -128,6 +213,8 @@ func ComputeWork(ctx context.Context, src WorkSources) Work {
 	for id := range cmdBlocks {
 		candidates[id] = true
 	}
+	reasons := map[string][]reason{}
+	var localReasons []reason
 	for blockId := range candidates {
 		if src.Locate == nil {
 			break
@@ -136,40 +223,61 @@ func ComputeWork(ctx context.Context, src WorkSources) Work {
 		if !ok || info.WorkspaceId == "" {
 			continue
 		}
-		if !blockWorks(blockId, info, agents, commands, cmdBlocks) {
+		why, works := blockWork(blockId, info, agents, commands, cmdBlocks, busy)
+		if !works {
 			continue
 		}
 		work.Workspaces[info.WorkspaceId] = true
+		reasons[info.WorkspaceId] = append(reasons[info.WorkspaceId], why)
 		if !info.Remote {
 			work.Local = true
+			localReasons = append(localReasons, why)
 		}
 	}
 	if src.MissionWorkspaces != nil {
 		for _, wsId := range src.MissionWorkspaces(ctx) {
+			mission := reason{rank: reasonMission, text: missionReason}
 			if wsId != "" {
 				work.Workspaces[wsId] = true
+				reasons[wsId] = append(reasons[wsId], mission)
 			}
 			// A run with no linked workspace still runs on this computer.
 			work.Local = true
+			localReasons = append(localReasons, mission)
 		}
 	}
+	if len(reasons) > 0 {
+		work.Reasons = make(map[string][]string, len(reasons))
+		for wsId, list := range reasons {
+			work.Reasons[wsId] = sortReasons(list)
+		}
+	}
+	work.LocalReasons = sortReasons(localReasons)
 	return work
 }
 
-func blockWorks(blockId string, info BlockInfo, agents map[string]molten.AgentRunInfo, commands map[string]string, cmdBlocks map[string]bool) bool {
+// blockWork tells whether a terminal works now, and what its work is.
+func blockWork(blockId string, info BlockInfo, agents map[string]molten.AgentRunInfo, commands map[string]string, cmdBlocks map[string]bool, busy map[string]bool) (reason, bool) {
 	if run, ok := agents[blockId]; ok {
-		return run.State == molten.AgentStateWorking
+		if run.State == molten.AgentStateWorking {
+			return agentReason(run.Agent, reasonAgentWorking), true
+		}
+		// Only a local agent's process is known (procwatch): a remote one counts through its state alone.
+		if busy[blockId] {
+			return agentReason(run.Agent, reasonAgentBackground), true
+		}
+		return reason{}, false
 	}
 	if info.Remote {
-		return false
+		return reason{}, false
 	}
 	if cmdline, ok := commands[blockId]; ok {
-		return !IsSshCommand(cmdline)
+		return commandReason(cmdline), !IsSshCommand(cmdline)
 	}
 	if cmdBlocks[blockId] {
-		return !IsSshCommand(info.Cmd)
+		return commandReason(info.Cmd), !IsSshCommand(info.Cmd)
 	}
-	return false
+	return reason{}, false
 }
 
 // commandTracker follows the shell integration's marks: a command runs from its start mark until its end mark or the

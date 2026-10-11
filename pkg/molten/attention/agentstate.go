@@ -133,9 +133,10 @@ type agentRecord struct {
 	tabId   string
 	wsId    string
 	// source: what made the record (the command line, a hook, the process tree); pid: the agent's process when the
-	// process tree found it.
-	source string
-	pid    int32
+	// process tree found it, and its start time (pidStart, Unix milliseconds) to tell a reused pid apart.
+	source   string
+	pid      int32
+	pidStart int64
 	// fromActivity: the working state came from the pane's output activity (agentactivity.go), which also ends it.
 	fromActivity bool
 }
@@ -340,7 +341,7 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		rec.started = a.now().UnixMilli()
 		rec.located = false
 		rec.source = sourceHook
-		rec.pid = 0
+		rec.pid, rec.pidStart = 0, 0
 		a.markDirtyLocked(req.BlockId)
 	}
 	if !req.TurnEnd {
@@ -412,7 +413,7 @@ func (a *agentStates) processAgent(blockId string, found molten.AgentProcess, ok
 		// The same agent in a new process, with no command seen in between, is a new run (a block command restarted).
 		newProcess := rec.source == sourceProcess && rec.pid != 0 && rec.pid != found.Pid
 		if (rec.agent == found.Agent && !newProcess) || rec.source == sourceHook {
-			rec.pid = found.Pid
+			rec.pid, rec.pidStart = found.Pid, found.StartMs
 			return
 		}
 	}
@@ -421,7 +422,7 @@ func (a *agentStates) processAgent(blockId string, found molten.AgentProcess, ok
 	if started <= 0 || started > now {
 		started = now
 	}
-	a.records[blockId] = &agentRecord{agent: found.Agent, state: molten.AgentStateIdle, since: now, started: started, running: true, source: sourceProcess, pid: found.Pid}
+	a.records[blockId] = &agentRecord{agent: found.Agent, state: molten.AgentStateIdle, since: now, started: started, running: true, source: sourceProcess, pid: found.Pid, pidStart: found.StartMs}
 	a.markDirtyLocked(blockId)
 }
 
@@ -648,7 +649,7 @@ func (a *agentStates) runOf(blockId string) (molten.AgentRunInfo, bool) {
 	if rec == nil {
 		return molten.AgentRunInfo{}, false
 	}
-	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since}, true
+	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart}, true
 }
 
 func (a *agentStates) allRuns() []molten.AgentRunInfo {
@@ -656,7 +657,7 @@ func (a *agentStates) allRuns() []molten.AgentRunInfo {
 	defer a.lock.Unlock()
 	rtn := make([]molten.AgentRunInfo, 0, len(a.records))
 	for blockId, rec := range a.records {
-		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since})
+		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart})
 	}
 	return rtn
 }

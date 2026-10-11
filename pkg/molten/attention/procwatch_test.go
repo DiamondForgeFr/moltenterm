@@ -109,6 +109,10 @@ func TestProcWatchRestoresAgents(t *testing.T) {
 	if !ok || run.Agent != "claude" || state != molten.AgentStateIdle || run.Started != agentStart || !run.Running {
 		t.Fatalf("restored agent: %+v %q %v", run, state, ok)
 	}
+	if run.Pid != 200 || run.PidStartMs != agentStart {
+		// The keep-awake reads this process's tree for background work (#493).
+		t.Errorf("the agent's process: pid %d started %d", run.Pid, run.PidStartMs)
+	}
 	if _, _, ok := h.record("b2"); ok {
 		t.Error("a shell at its prompt runs no agent")
 	}
@@ -245,8 +249,8 @@ func TestProcWatchSourcesPriority(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.advance(procFastPeriod)
-	if run, _, _ := h.record("b1"); run.Agent != "my-agent" {
-		t.Errorf("a hook's agent is kept, got %q", run.Agent)
+	if run, _, _ := h.record("b1"); run.Agent != "my-agent" || run.Pid != 200 {
+		t.Errorf("a hook's agent is kept, with the process found: %q, pid %d", run.Agent, run.Pid)
 	}
 
 	h2 := makeProcHarness()
