@@ -220,7 +220,13 @@ button.molten-header-link:focus-visible {
     }
 }
 
-.prefers-reduced-motion .molten-header-working::before,
+.prefers-reduced-motion .molten-header-working::before {
+    width: 100%;
+    opacity: 0.4;
+    animation: none;
+}
+
+/* The view is not the active one (tab activity model, FR-PERF-009-AC4): the segment stands as under reduced motion. */
 :root[data-mt-motion="still"] .molten-header-working::before {
     width: 100%;
     opacity: 0.4;

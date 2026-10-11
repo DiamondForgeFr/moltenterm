@@ -6,7 +6,7 @@ import { readFileSync } from "fs";
 import { atom, createStore, PrimitiveAtom } from "jotai";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { followActivityGated, makeOnScreenAtom, TabActivity, whileShown } from "./tab-activity";
+import { followActivityGated, makeOnScreenAtom, sameItems, TabActivity, whileShown } from "./tab-activity";
 import { WindowActivity } from "./tab-activity-model";
 
 type FakeApi = {
@@ -174,6 +174,12 @@ describe("gated values (sysinfo chart, AC3)", () => {
         expect(seen.length).toBe(before);
         api.push(Focused);
         expect(seen[seen.length - 1]).toBe(30);
+    });
+
+    it("treats a rebuilt list of the same metrics as unchanged", () => {
+        expect(sameItems(["cpu"], ["cpu"])).toBe(true);
+        expect(sameItems(["cpu"], ["cpu", "mem"])).toBe(false);
+        expect(sameItems(null, ["cpu"])).toBe(false);
     });
 
     it("stops when disposed", () => {
