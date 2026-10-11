@@ -11,6 +11,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect } from "react";
 import { NotificationGestureResult, registerNotificationGesture } from "../notifications-store";
+import { always, TabActivity } from "../tab-activity";
 import { pathBaseName } from "../workspace-project";
 import {
     DepSyncGesture,
@@ -134,12 +135,12 @@ export function waitForRunEnd(dir: string, runId: string): Promise<RunRecord> {
         let done = false;
         let missing = 0;
         let last: RunRecord = null;
-        let timer: ReturnType<typeof setInterval> = null;
+        let stopPoll: () => void = null;
         let unsubscribe: () => void = null;
         const startedAt = Date.now();
         const settle = (run: RunRecord) => {
             done = true;
-            clearInterval(timer);
+            stopPoll?.();
             unsubscribe?.();
             resolve(run);
         };
@@ -190,7 +191,8 @@ export function waitForRunEnd(dir: string, runId: string): Promise<RunRecord> {
                 // The next poll asks again.
             }
         };
-        timer = setInterval(() => void poll(), RunEndPollMs);
+        // A gesture waits on it, hidden or not: the run's end must be seen.
+        stopPoll = TabActivity.getInstance().every(always(RunEndPollMs), () => void poll(), "dep-sync-run-end");
         void poll();
     });
 }

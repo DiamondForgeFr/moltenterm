@@ -17,6 +17,7 @@ import { atom, PrimitiveAtom, useAtom, useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useState } from "react";
 import { useBlockAgentState } from "../agent-state-ui";
 import { EmptyState, EmptyStateAction } from "../empty-state";
+import { always, TabActivity } from "../tab-activity";
 import { attachCompanion, companionAgent, startCompanionAgent, tabAttachCandidates } from "./companion-attach";
 import { PlanUsageSection } from "./companion-gauges";
 import {
@@ -146,10 +147,11 @@ function useCompanion(target: string): {
                 }
             });
         open();
-        const timer = setInterval(open, LeaseRenewMs);
+        // The lease must not lapse while the view is hidden: wavesrv would drop the follower.
+        const stopRenew = TabActivity.getInstance().every(always(LeaseRenewMs), open, "companion-lease");
         return () => {
             cancelled = true;
-            clearInterval(timer);
+            stopRenew();
             unsubscribe();
             fireAndForget(async () => {
                 try {

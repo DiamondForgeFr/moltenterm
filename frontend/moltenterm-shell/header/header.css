@@ -220,7 +220,8 @@ button.molten-header-link:focus-visible {
     }
 }
 
-.prefers-reduced-motion .molten-header-working::before {
+.prefers-reduced-motion .molten-header-working::before,
+:root[data-mt-motion="still"] .molten-header-working::before {
     width: 100%;
     opacity: 0.4;
     animation: none;

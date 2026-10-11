@@ -10,6 +10,7 @@ import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useState } from "react";
 import { MoltenWave } from "../molten-button";
+import { TabActivity, whileShown } from "../tab-activity";
 import {
     missionTrust,
     releaseEnd,
@@ -103,8 +104,7 @@ function Jobs({ jobs }: { jobs: ReleaseGhJob[] }) {
         if (!running) {
             return;
         }
-        const timer = setInterval(() => setNow(Date.now()), 1000);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(whileShown(1000), () => setNow(Date.now()), "clock");
     }, [running]);
     return (
         <ul className="mt-3 flex flex-col gap-1">

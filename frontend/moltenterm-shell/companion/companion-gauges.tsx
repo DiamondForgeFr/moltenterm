@@ -13,6 +13,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { MoltenWave } from "../molten-button";
+import { TabActivity, whileShown } from "../tab-activity";
 import {
     CompanionUsageInfo,
     ExperimentalExplanation,
@@ -59,8 +60,7 @@ function visibleRead(): { fetch: boolean } {
 function useNow(intervalMs: number): number {
     const [now, setNow] = useState(() => Date.now());
     useEffect(() => {
-        const timer = setInterval(() => setNow(Date.now()), intervalMs);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(whileShown(intervalMs), () => setNow(Date.now()), "clock");
     }, [intervalMs]);
     return now;
 }
@@ -139,8 +139,11 @@ function usePlanUsage(target: string, agent: string, now: number) {
         if (!settingUp) {
             return;
         }
-        const timer = setInterval(() => call(CompanionUsageCommand, visibleRead()), SetupRecheckMs);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(
+            whileShown(SetupRecheckMs),
+            () => call(CompanionUsageCommand, visibleRead()),
+            "companion-usage-setup"
+        );
     }, [settingUp, target]);
     // A source wavesrv does not push (the experimental endpoint) is asked again only while the window shows
     // (NFR-SHELL-013); wavesrv keeps the call limits, this only asks. That also covers stale values.
@@ -172,8 +175,7 @@ function usePlanUsage(target: string, agent: string, now: number) {
                 call(CompanionUsageCommand, { fetch: true });
             }
         };
-        const timer = setInterval(askIfVisible, refreshMs);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(whileShown(refreshMs), askIfVisible, "companion-usage");
     }, [refreshMs, target]);
     // wavesrv reads automatically only for a window that shows: it is told when this one hides or shows, and asks
     // once on show (its own call limits keep that from being a burst).

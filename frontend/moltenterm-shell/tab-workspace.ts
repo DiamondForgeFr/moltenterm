@@ -26,6 +26,11 @@ export function pinTabWorkspace(workspaceId: string) {
     globalStore.set(TabWorkspaceIdAtom, workspaceId);
 }
 
+// The workspace the window shows now, null before the global atoms exist (tab activity: is this view on screen).
+export function getWindowWorkspaceIdAtom(): Atom<string> {
+    return windowWorkspaceIdAtom;
+}
+
 // For what must close when the window leaves this view's workspace (menus, the command panel).
 export function subscribeWindowWorkspaceChange(onChange: () => void): () => void {
     if (windowWorkspaceIdAtom == null) {

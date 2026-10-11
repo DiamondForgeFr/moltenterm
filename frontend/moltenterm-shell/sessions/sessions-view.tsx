@@ -20,6 +20,7 @@ import { AgentStateDot } from "../agent-state-ui";
 import { AgentInputs } from "../command-panel/agent-input-store";
 import { EmptyState } from "../empty-state";
 import { sessionRowDragProps } from "../split/drop-zones";
+import { TabActivity, whileShown } from "../tab-activity";
 import { showToast } from "../toast-store";
 import {
     filterSessions,
@@ -600,8 +601,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     const home = getHomeDir();
 
     useEffect(() => {
-        const timer = setInterval(() => setNow(Date.now()), AgeRefreshMs);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(whileShown(AgeRefreshMs), () => setNow(Date.now()), "clock");
     }, []);
 
     const allSessions = data?.sessions ?? [];

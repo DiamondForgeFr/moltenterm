@@ -40,6 +40,7 @@ import "./moltenterm-shell/molten-button.css"; // MOLTENTERM-PATCH (#145): molte
 import { startMoltentermAccent } from "./moltenterm-shell/accent"; // MOLTENTERM-PATCH (#47)
 import { reconnectWSIfClosed } from "./moltenterm-shell/ws-health"; // MOLTENTERM-PATCH (#223)
 import { pinTabWorkspace } from "./moltenterm-shell/tab-workspace"; // MOLTENTERM-PATCH (#447)
+import { TabActivity } from "./moltenterm-shell/tab-activity"; // MOLTENTERM-PATCH (#455)
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -123,6 +124,7 @@ async function reinitWave() {
     const initialTab = await WOS.reloadWaveObject<Tab>(WOS.makeORef("tab", savedInitOpts.tabId));
     await WOS.reloadWaveObject<LayoutState>(WOS.makeORef("layout", initialTab.layoutstate));
     reloadAllWorkspaceTabs(ws);
+    TabActivity.getInstance().refreshWindow(); // MOLTENTERM-PATCH (#455)
     document.title = `${MoltentermWindowTitle} - ${initialTab.name}`; // TODO update with tab name change (MOLTENTERM-PATCH #4)
     getApi().setWindowInitStatus("wave-ready");
     globalStore.set(atoms.reinitVersion, globalStore.get(atoms.reinitVersion) + 1);
@@ -192,6 +194,7 @@ async function initWave(initOpts: WaveInitOpts) {
         ]);
         loadAllWorkspaceTabs(ws);
         pinTabWorkspace(waveWindow.workspaceid); // MOLTENTERM-PATCH (#447): the view keeps its tab's workspace
+        TabActivity.getInstance().start(); // MOLTENTERM-PATCH (#455): periodic work follows the view's activity
         WOS.wpsSubscribeToObject(WOS.makeORef("workspace", waveWindow.workspaceid));
         document.title = `${MoltentermWindowTitle} - ${initialTab.name}`; // TODO update with tab name change (MOLTENTERM-PATCH #4)
     } catch (e) {

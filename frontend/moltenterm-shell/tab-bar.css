@@ -211,7 +211,8 @@ body:not(.nohover) .tab.molten-tab.active:hover .tab-inner,
     }
 }
 
-.prefers-reduced-motion .molten-tab-dot[data-state="working"]::after {
+.prefers-reduced-motion .molten-tab-dot[data-state="working"]::after,
+:root[data-mt-motion="still"] .molten-tab-dot[data-state="working"]::after {
     display: none;
     animation: none;
 }

@@ -28,6 +28,7 @@ import {
 } from "./keepawake-model";
 import { KeepAwakeModel } from "./keepawake-store";
 import { SegmentedControl } from "./segmented-control";
+import { TabActivity, whileShown } from "./tab-activity";
 
 const TickMs = 1000;
 
@@ -45,8 +46,7 @@ export function useNow(active: boolean): number {
             return;
         }
         setNow(Date.now());
-        const timer = setInterval(() => setNow(Date.now()), TickMs);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(whileShown(TickMs), () => setNow(Date.now()), "clock");
     }, [active]);
     return now;
 }

@@ -94,5 +94,29 @@ export default [
         },
     },
 
+    // MOLTENTERM-PATCH (#455): every periodic job of MoltenTerm's frontend goes through the tab activity model, which
+    // pauses or slows it when the view is not on screen (FR-PERF-009, frontend/moltenterm-shell/tab-activity.ts)
+    {
+        files: [
+            "frontend/moltenterm-shell/**/*.{ts,tsx}",
+            "frontend/molten/**/*.{ts,tsx}",
+            "frontend/moltenterm-onboarding/**/*.{ts,tsx}",
+        ],
+        ignores: ["frontend/moltenterm-shell/tab-activity-model.ts", "**/*.test.{ts,tsx}"],
+        rules: {
+            "no-restricted-syntax": [
+                "error",
+                {
+                    selector: "CallExpression[callee.name='setInterval']",
+                    message: "Use TabActivity.getInstance().every() (moltenterm-shell/tab-activity.ts), not setInterval.",
+                },
+                {
+                    selector: "CallExpression[callee.property.name='setInterval']",
+                    message: "Use TabActivity.getInstance().every() (moltenterm-shell/tab-activity.ts), not setInterval.",
+                },
+            ],
+        },
+    },
+
     eslintConfigPrettier,
 ];

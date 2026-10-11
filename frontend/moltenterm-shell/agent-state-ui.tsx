@@ -20,7 +20,7 @@ export function AgentStateDot({ info, className }: { info: AgentStateInfo; class
             className={cn(
                 "inline-block h-2 w-2 shrink-0 rounded-full",
                 AgentStateDotClasses[info.state] ?? AgentStateDotClasses.idle,
-                info.state === "working" && "animate-pulse",
+                info.state === "working" && "mt-working-motion animate-pulse",
                 className
             )}
             role="img"

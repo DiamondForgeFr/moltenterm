@@ -39,6 +39,7 @@ import {
 import { MoltentermNotifications, registerNotificationGesture, startNotificationAutoRead } from "./notifications-store";
 import { showProjectTab } from "./project/project-tab";
 import { canStop, overallProgress, stopWork, useRunningWork, WorkItem } from "./running-work";
+import { TabActivity, whileShown } from "./tab-activity";
 import { toneOf } from "./toast-model";
 import { ToastStack } from "./toast-stack";
 import { Toasts } from "./toast-store";
@@ -225,7 +226,7 @@ function ProgressRing({ progress }: { progress: number }) {
             viewBox="0 0 30 30"
             className={cn(
                 "pointer-events-none absolute inset-0 h-full w-full -rotate-90",
-                progress == null && "animate-spin"
+                progress == null && "mt-working-motion animate-spin"
             )}
         >
             <circle cx="15" cy="15" r={radius} fill="none" stroke="currentColor" strokeOpacity={0.15} strokeWidth={2} />
@@ -251,7 +252,7 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
     return (
         <div className="border-b border-border px-3 py-2" data-testid="running-work">
             <div className="flex items-center gap-2">
-                <i className="fa fa-solid fa-circle-notch fa-spin w-4 text-center text-11 text-accent" />
+                <i className="mt-working-motion fa fa-solid fa-circle-notch fa-spin w-4 text-center text-11 text-accent" />
                 <span className="min-w-0 flex-1 truncate">{item.title}</span>
                 {measured ? (
                     <span className="text-12 text-muted tabular-nums">{Math.round(item.progress * 100)}%</span>
@@ -268,7 +269,10 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
             </div>
             <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-hover">
                 <div
-                    className={cn("h-full rounded-full bg-accent", !measured && "w-1/3 animate-pulse")}
+                    className={cn(
+                        "h-full rounded-full bg-accent",
+                        !measured && "mt-working-motion w-1/3 animate-pulse"
+                    )}
                     style={measured ? { width: `${Math.round(item.progress * 100)}%` } : undefined}
                 />
             </div>
@@ -433,8 +437,7 @@ export function NotificationCenter() {
             return;
         }
         setNow(Date.now());
-        const timer = setInterval(() => setNow(Date.now()), AgeTickMs);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(whileShown(AgeTickMs), () => setNow(Date.now()), "clock");
     }, [tracking]);
 
     useEffect(() => {

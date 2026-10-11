@@ -8,6 +8,7 @@ import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MoltenWave } from "../molten-button";
+import { TabActivity, whileShown } from "../tab-activity";
 import { LocalCiIcon } from "./ci-icon";
 import {
     branchCi,
@@ -70,10 +71,10 @@ function useCiLog(dir: string, run: CiRunRecord, job: string, running: boolean):
                 cancelled = true;
             };
         }
-        const timer = setInterval(read, LogPollMs);
+        const stop = TabActivity.getInstance().every(whileShown(LogPollMs), read, "ci-log");
         return () => {
             cancelled = true;
-            clearInterval(timer);
+            stop();
         };
     }, [dir, run?.id, job, running]);
     return text;
@@ -319,8 +320,7 @@ export function LocalCiRunner({ dir, projectName, github }: { dir: string; proje
         if (!running) {
             return;
         }
-        const timer = setInterval(() => setNow(Date.now()), 1000);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(whileShown(1000), () => setNow(Date.now()), "clock");
     }, [running?.id]);
     useEffect(() => {
         if (branch == null && state?.current) {

@@ -16,6 +16,7 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { MoltenWave } from "../molten-button";
+import { TabActivity, whileShown } from "../tab-activity";
 import { relativeTime } from "./companion-model";
 import {
     newerTask,
@@ -114,8 +115,7 @@ function useWorkspaceTask(target: string): { view: TaskView; error: string; setV
         if (!target) {
             return;
         }
-        const timer = setInterval(() => setReload((n) => n + 1), RefreshMs);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(whileShown(RefreshMs), () => setReload((n) => n + 1), "companion-task");
     }, [target]);
     return { view, error, setView };
 }

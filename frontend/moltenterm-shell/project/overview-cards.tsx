@@ -22,6 +22,7 @@ import { releaseState, treeRules } from "../mission/versions";
 import { MoltentermNotifications } from "../notifications-store";
 import { usePaneStatus } from "../pane-status";
 import { blockFolder, makePaneView } from "../status-bar-model";
+import { TabActivity, whileShown } from "../tab-activity";
 import {
     CardTone,
     clockElapsed,
@@ -82,12 +83,7 @@ function useNow(active: boolean): number {
             return;
         }
         setNow(Date.now());
-        const timer = setInterval(() => {
-            if (document.visibilityState === "visible") {
-                setNow(Date.now());
-            }
-        }, 1000);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(whileShown(1000), () => setNow(Date.now()), "clock");
     }, [active]);
     return now;
 }

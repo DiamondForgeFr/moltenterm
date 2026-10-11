@@ -105,6 +105,11 @@ contextBridge.exposeInMainWorld("api", {
     onMoltentermViewPending: (callback: (state: any) => void) =>
         ipcRenderer.on("moltenterm-view-pending", (_event, state) => callback(state)),
     moltentermViewPendingAction: (action: string) => ipcRenderer.send("moltenterm-view-pending-action", action),
+    // MOLTENTERM-PATCH (#455): the window's focus, minimised and shown state for the tab activity model
+    // (emain/moltenterm-tab-activity.ts)
+    moltentermGetWindowActivity: () => ipcRenderer.sendSync("moltenterm-window-activity-get"),
+    onMoltentermWindowActivity: (callback) =>
+        ipcRenderer.on("moltenterm-window-activity", (_event, activity) => callback(activity)),
 });
 
 // Custom event for "new-window"

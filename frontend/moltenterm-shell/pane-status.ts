@@ -14,12 +14,15 @@ import { Atom } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MissionCiEvent, missionGet, MissionRouteId, MissionUpdateEvent } from "./mission/mission-client";
 import { keepPaneState, PaneState } from "./status-bar-model";
+import { TabActivity, whileShown } from "./tab-activity";
 
 // must match PaneCommand in pkg/molten/mission/pane.go
 export const MissionPaneCommand = "moltenmissionpane";
 
 const PaneRpcTimeoutMs = 15000;
 const PanePollMs = 3000;
+// The window shows but the user works in another app: git run there still shows, a little later.
+const PaneUnfocusedPollMs = 10000;
 const PromptWatchRetryMs = 1000;
 const PromptWatchMaxTries = 30;
 // The linked project's collector stays warm so its pull requests are known without a Mission Control panel open.
@@ -133,21 +136,12 @@ export function usePaneStatus(folder: string, blockId: string, worktree?: string
             return;
         }
         ask(true);
-        const timer = setInterval(() => {
-            if (document.visibilityState === "visible") {
-                ask(false);
-            }
-        }, PanePollMs);
-        const onVisible = () => {
-            if (document.visibilityState === "visible") {
-                ask(true);
-            }
-        };
-        document.addEventListener("visibilitychange", onVisible);
-        return () => {
-            clearInterval(timer);
-            document.removeEventListener("visibilitychange", onVisible);
-        };
+        // Coming back after a pause, the bar asks for a fresh probe: git may have run meanwhile.
+        return TabActivity.getInstance().every(
+            whileShown(PanePollMs, PaneUnfocusedPollMs),
+            (reason) => ask(reason === "resume"),
+            "pane-status"
+        );
     }, [folder, ask]);
     useEffect(() => {
         if (!blockId) {
@@ -188,12 +182,9 @@ export function useWarmLinkedProject(dir: string) {
             return;
         }
         const warm = () => {
-            if (document.visibilityState === "visible") {
-                missionGet(dir).catch(() => {});
-            }
+            missionGet(dir).catch(() => {});
         };
         warm();
-        const timer = setInterval(warm, LinkedProjectPollMs);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(whileShown(LinkedProjectPollMs), warm, "linked-project");
     }, [dir]);
 }
