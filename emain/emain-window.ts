@@ -18,7 +18,13 @@ import {
 } from "./emain-activity";
 import { log } from "./emain-log";
 import { getElectronAppBasePath, isDev, unamePlatform } from "./emain-platform";
-import { getOrCreateWebViewForTab, getWaveTabViewByWebContentsId, WaveTabView } from "./emain-tabview";
+import {
+    getCachedTabViews,
+    getOrCreateWebViewForTab,
+    getWaveTabViewByWebContentsId,
+    isHotSpareTab,
+    WaveTabView,
+} from "./emain-tabview"; // MOLTENTERM-PATCH (#448)
 import { delay, ensureBoundsAreVisible, waveKeyToElectronKey } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
 import { ActionRun, isSuperseded, readinessDeadlineMs, WindowActionQueue } from "./moltenterm-action-queue"; // MOLTENTERM-PATCH (#449)
@@ -30,6 +36,7 @@ import {
     restoreTabViewPriority,
 } from "./moltenterm-tabview-priority"; // MOLTENTERM-PATCH (#450)
 import { checkReusedTabViewPainted, noteTabViewLeftScreen } from "./moltenterm-tabview-repaint"; // MOLTENTERM-PATCH (#223)
+import { makeTabViewSweeper } from "./moltenterm-tabview-sweep"; // MOLTENTERM-PATCH (#448)
 import {
     loadPendingPage,
     makePendingPage,
@@ -120,6 +127,28 @@ export function calculateWindowBounds(
 }
 
 export const waveWindowMap = new Map<string, WaveBrowserWindow>(); // waveWindowId -> WaveBrowserWindow
+
+// MOLTENTERM-PATCH (#448): destroys, in every window, the views of tabs that no longer exist
+const sweepTabViews = makeTabViewSweeper<WaveTabView>({
+    cachedViews: () => getCachedTabViews(),
+    windows: () => Array.from(waveWindowMap.values()).filter((ww) => !ww.isDestroyed()),
+    isHotSpare: (view) => isHotSpareTab(view),
+    existingTabIds: async (tabIds) => {
+        const tabs = await ObjectService.GetObjects(tabIds.map((id) => "tab:" + id));
+        return new Set((tabs ?? []).filter((tab) => tab != null).map((tab) => tab.oid));
+    },
+    log: (msg, ...args) => console.log(msg, ...args),
+});
+
+// MOLTENTERM-PATCH (#448)
+export function sweepDeletedTabViews(reason: string) {
+    fireAndForget(async () => {
+        const destroyed = await sweepTabViews(reason);
+        if (destroyed > 0) {
+            console.log(`[#448] ${destroyed} tab view(s) of deleted tabs destroyed (${reason})`);
+        }
+    });
+}
 
 // on blur we do not set this to null (but on destroy we do), so this tracks the *last* focused window
 // e.g. it persists when the app itself is not focused
@@ -875,6 +904,10 @@ export class WaveBrowserWindow extends BaseWindow {
         for (const closeId of tabViewsToClose) {
             this.removeTabView(closeId, false); // MOLTENTERM-PATCH (#68)
         }
+        // MOLTENTERM-PATCH (#448): the closed tab's view, wherever it is cached, once its successor is on screen
+        if (entry.op === "closetab") {
+            sweepDeletedTabViews("tab closed");
+        }
     }
 
     // MOLTENTERM-PATCH (#68, #449): the new view is shown only once it has rendered, and workspaceId follows the screen:
@@ -936,6 +969,11 @@ export class WaveBrowserWindow extends BaseWindow {
         for (const closeId of leftWss.flatMap((ws) => tabViewsToCloseOnLeave(ws))) {
             this.removeTabView(closeId, false); // MOLTENTERM-PATCH (#68)
         }
+        // MOLTENTERM-PATCH (#448): a workspace left that no longer exists (deleted while on screen) leaves views of
+        // deleted tabs that tabViewsToCloseOnLeave cannot name
+        if (leftWss.some((ws) => ws == null)) {
+            sweepDeletedTabViews("left a deleted workspace");
+        }
     }
 
     // MOLTENTERM-PATCH (#449): a view still being acquired when its switch is superseded stops waiting at once and goes
@@ -979,7 +1017,17 @@ export class WaveBrowserWindow extends BaseWindow {
     // MOLTENTERM-PATCH (#449): the delete runs in the queue, after any switch to the workspace has stopped and dropped its
     // view, so no renderer initializes a tab being deleted. When the window was only switching to it, it stays on the
     // workspace it shows.
+    // MOLTENTERM-PATCH (#448): then the views of its tabs are destroyed in every window, once this window shows another
+    // workspace (the view on screen is never destroyed)
     private async runDeleteWorkspace(workspaceId: string, run: ActionRun) {
+        try {
+            await this.applyDeleteWorkspace(workspaceId, run);
+        } finally {
+            sweepDeletedTabViews("workspace deleted");
+        }
+    }
+
+    private async applyDeleteWorkspace(workspaceId: string, run: ActionRun) {
         const onThisWindow = this.workspaceId == workspaceId || this.backendWorkspaceId == workspaceId;
         const newWorkspaceId = await WorkspaceService.DeleteWorkspace(workspaceId);
         console.log("delete-workspace done", workspaceId, this.waveWindowId);
@@ -1231,6 +1279,7 @@ ipcMain.on("delete-workspace", (event, workspaceId) => {
         if (owner == null) {
             await WorkspaceService.DeleteWorkspace(workspaceId);
             console.log("delete-workspace done", workspaceId);
+            sweepDeletedTabViews("workspace deleted"); // MOLTENTERM-PATCH (#448)
             return;
         }
         await owner.queueDeleteWorkspace(workspaceId);

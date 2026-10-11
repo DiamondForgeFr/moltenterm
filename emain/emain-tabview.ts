@@ -170,7 +170,7 @@ export class WaveTabView extends WebContentsView {
         }
         this.webContents.on("destroyed", () => {
             wcIdToWaveTabMap.delete(wcId);
-            removeWaveTabView(this.waveTabId);
+            removeWaveTabView(this.waveTabId, this); // MOLTENTERM-PATCH (#448)
             this.isDestroyed = true;
         });
         this.setBackgroundColor(computeBgColor(fullConfig));
@@ -230,7 +230,7 @@ export class WaveTabView extends WebContentsView {
 
     destroy() {
         console.log("destroy tab", this.waveTabId);
-        removeWaveTabView(this.waveTabId);
+        removeWaveTabView(this.waveTabId, this); // MOLTENTERM-PATCH (#448)
         if (!this.isDestroyed) {
             this.webContents?.close();
         }
@@ -403,11 +403,22 @@ export function setWaveTabView(waveTabId: string, wcv: WaveTabView): void {
     checkAndEvictCache();
 }
 
-function removeWaveTabView(waveTabId: string): void {
-    if (waveTabId == null) {
+// MOLTENTERM-PATCH (#448): a view only removes its own entry; the cache may already hold another view for its tab
+function removeWaveTabView(waveTabId: string, wcv: WaveTabView): void {
+    if (waveTabId == null || wcvCache.get(waveTabId) !== wcv) {
         return;
     }
     wcvCache.delete(waveTabId);
+}
+
+// MOLTENTERM-PATCH (#448): for the sweep of deleted tabs' views (emain/moltenterm-tabview-sweep.ts)
+export function getCachedTabViews(): WaveTabView[] {
+    return Array.from(wcvCache.values());
+}
+
+// MOLTENTERM-PATCH (#448)
+export function isHotSpareTab(tabView: WaveTabView): boolean {
+    return tabView != null && tabView === HotSpareTab;
 }
 
 let HotSpareTab: WaveTabView = null;
