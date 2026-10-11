@@ -1461,6 +1461,7 @@ declare global {
         "tab:holdtoclose"?: boolean;
         "tab:holdtoclosems"?: number;
         "power:sleeppolicy"?: string;
+        "moltenterm:tabviewpriority"?: boolean;
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;
         "window:*"?: boolean;
