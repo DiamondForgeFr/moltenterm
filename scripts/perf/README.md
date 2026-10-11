@@ -16,16 +16,17 @@ budgets in `budgets.json` and with a stored baseline (FR-PERF-006, NFR-PERF-001 
 Arguments after `--` go to `perf.mjs run`, for example `task perf -- --scenarios startup,session --out /tmp/before`.
 Without building first: `node scripts/perf/perf.mjs run --profile full`.
 
-| Option             | Meaning                                                                                                 |
-| ------------------ | ------------------------------------------------------------------------------------------------------- |
-| `--profile`        | `full` (default), `quick` or `ci`                                                                       |
-| `--scenarios a,b`  | Subset of `bundle`, `startup`, `session`, `leaks`, `load`, `mods`                                       |
-| `--out dir`        | Report folder (default `dist/perf/<timestamp>-<profile>/`): `report.json`, `report.md`, trace           |
-| `--gate ci\|local` | Exit 1 when a gated metric fails (or a scenario fails); without it the run only reports                 |
-| `--baseline file`  | Compare with another report instead of the stored baseline (a "before" run, for instance)               |
-| `--tmp dir`        | Where the throwaway roots are created (default `/tmp`; keep it short, wavesrv's socket path is limited) |
-| `--keep`           | Keep the roots (logs, data) after the run for debugging; processes are still stopped                    |
-| `--id name`        | Report id (default: the short commit)                                                                   |
+| Option             | Meaning                                                                                                    |
+| ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `--profile`        | `full` (default), `quick` or `ci`                                                                          |
+| `--scenarios a,b`  | Subset of `bundle`, `startup`, `session`, `leaks`, `load`, `mods`                                          |
+| `--out dir`        | Report folder (default `dist/perf/<timestamp>-<profile>/`): `report.json`, `report.md`, trace              |
+| `--gate ci\|local` | Exit 1 when a gated metric fails (or a scenario fails); without it the run only reports                    |
+| `--baseline file`  | Compare with another report instead of the stored baseline (a "before" run, for instance)                  |
+| `--tmp dir`        | Where the throwaway roots are created (default `/tmp`; keep it short, wavesrv's socket path is limited)    |
+| `--keep`           | Keep the roots (logs, data) after the run for debugging; processes are still stopped                       |
+| `--id name`        | Report id (default: the short commit)                                                                      |
+| `--app checkout`   | Measure the build of another checkout (built, with its `node_modules`), e.g. a worktree of the base commit |
 
 Other commands:
 
@@ -42,11 +43,15 @@ up), free ports for `--remote-debugging-port` and the main process `--inspect`, 
 `MOLTENTERM_SKIP_ONBOARDING=1`. The root holds a marker file naming it; the harness refuses to launch on or delete a
 directory without its marker, so it never touches the user's data, the dev instance (`moltenterm-dev`) or a gold.
 
-It stops only what it started: the Electron pid it spawned, the process tree captured under it (a pid is killed only
-while it still runs the same command) and processes whose command line holds its own root (durable shells, `wsh`
-job managers). The busy `yes` processes of the load scenario are its own children. All of this runs in `finally`
-blocks, on exit, on Ctrl-C/SIGTERM/SIGHUP and on a crash, then the root is deleted. A failing scenario is recorded in
-the report and the next one still runs.
+It stops only what it started: the Electron pid it spawned (only while that child has not exited, so a reused pid is
+never hit), the process tree captured under it (a pid is killed only while it still runs the same command), and the
+processes that run a binary from its root or carry its data directory in their environment (the detached `wsh` job
+managers) with their descendants (durable shells). A process that only mentions the root in its arguments, such as a
+`tail -f` of its log, is left alone. The busy processes of the load scenario are its own children and exit by
+themselves if the harness dies. All of this runs in `finally` blocks, on exit, on Ctrl-C/SIGTERM/SIGHUP and on a
+crash, then the root is deleted. If the harness itself is killed outright, the next run finds the roots whose marker
+names a harness that no longer runs, stops their processes and removes them. A failing scenario is recorded in the
+report and the next one still runs.
 
 ## Scenarios
 
@@ -83,8 +88,10 @@ default), a noise floor, and a gate:
 A gated metric fails when it regresses from the baseline by more than its tolerance (and its noise floor), or when it
 exceeds its budget, unless the baseline was already over the budget and it did not regress: a target not met yet is
 grandfathered until the story that meets it stores a new baseline, and from then on the budget holds. A metric whose
-samples disagree (split-half medians more than 10 % and more than the floor apart) is flagged **noisy** and never fails
-the gate; rerun it. Changing a budget, a tolerance or the baseline needs a reason in the pull request.
+samples disagree (the split-half statistics more than 10 % and more than the floor apart) is flagged **noisy**: it then
+fails only when its regression also exceeds twice that gap, and a rerun is in order. A gated metric that the baseline
+has but that a scenario which ran did not produce fails as "missing", and so does a run whose scenarios failed.
+Changing a budget, a tolerance or the baseline needs a reason in the pull request.
 
 The first baseline, `baselines/75f1354a.json`, is a full run of origin/develop 75f1354a (the audit's commit) on an
 Apple M1 Max, 64 GB, while other workloads were running (load average 5 to 8): idle CPU is flagged noisy in it. A
@@ -102,7 +109,9 @@ not start. Times appear in the report but are not gated there.
 
 Every FR-PERF story attaches a before and an after report (NFR-PERF-007):
 
-1. On the base commit: `task perf -- --out /tmp/perf-before --id before`.
+1. Build the base commit in a worktree (`git worktree add /tmp/base origin/develop`, then `npm ci`,
+   `task build:backend` and `npm run build:prod` there) and measure it with the branch's harness:
+   `node scripts/perf/perf.mjs run --app /tmp/base --out /tmp/perf-before --id before`.
 2. On the branch: `task perf -- --out /tmp/perf-after --id after --baseline /tmp/perf-before/report.json`.
 3. Paste both `report.md` (or the after report, which shows the delta from before) in the pull request.
 4. When the story meets a target or moves a metric for good, store the after run as the new baseline

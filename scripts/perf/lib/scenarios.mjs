@@ -8,7 +8,6 @@
 
 import path from "node:path";
 import { analyzeBundle } from "./bundle.mjs";
-import { visiblePage } from "./cdp.mjs";
 import { BusyLoad, Instance } from "./instance.mjs";
 import { memory, sampleCpu } from "./procs.mjs";
 import { idleMetrics, jsEvaluated, trace } from "./renderer.mjs";
@@ -137,7 +136,7 @@ async function idleCondition(ctx, inst, driver, label, { withRenderer = false } 
       ctx.details.memory[label] = snaps.at(-1);
       ctx.meta.memoryMethod = snaps.at(-1).method;
       if (withRenderer) {
-        const page = await visiblePage(inst.port, driver.main);
+        const page = await driver.page();
         try {
           ctx.details.renderer = {
             metrics: await idleMetrics(page, 10),
@@ -172,7 +171,7 @@ async function launchAndMeasure(ctx, inst, kind, { js = true } = {}) {
     try {
       await driver.attach();
       await sleep(3000);
-      const page = await visiblePage(inst.port, driver.main);
+      const page = await driver.page(15000);
       try {
         const js = await jsEvaluated(page);
         run.jsEvaluatedMB = js.mb;
@@ -213,7 +212,7 @@ export async function runStartup(ctx) {
   }
   const runs = ctx.details.startup.runs;
   const ok = (k) => runs.filter((r) => r.kind === k && !r.timedOut);
-  ctx.metrics["startup.failedLaunches"] = single(runs.filter((r) => r.timedOut || r.error).length);
+  ctx.metrics["startup.failedLaunches"] = single(runs.filter((r) => r.timedOut).length);
   ctx.metrics["startup.jsEvaluatedMB"] = summarize(runs.map((r) => r.jsEvaluatedMB).filter((x) => x != null));
   ctx.metrics["startup.waveReadyColdMs"] = summarize(ok("cold").map((r) => r.waveReady));
   ctx.metrics["startup.tabviewInitColdMs"] = summarize(ok("cold").map((r) => r.firstTabviewInitMs));
@@ -308,19 +307,52 @@ export async function runSession(ctx) {
   }
 }
 
-function leakedViews(inv, workspaces) {
-  const live = new Set(workspaces.flatMap((w) => w.tabs));
+// Tab views whose tab is one of `tabs` (tabs of deleted workspaces) and that are still alive.
+function leakedViews(inv, tabs) {
   const tabViews = inv.filter((w) => w.isTabView);
   return {
     tabViews: tabViews.length,
     spares: tabViews.filter((w) => w.tabId == null).length,
     unresponsive: tabViews.filter((w) => typeof w.tabId === "string" && w.tabId.startsWith("__")).length,
-    leaked: tabViews.filter((w) => w.tabId && !w.tabId.startsWith("__") && !live.has(w.tabId)).length,
+    leaked: tabViews.filter((w) => tabs.has(w.tabId)).length,
     webviews: inv.filter((w) => w.type === "webview").length,
   };
 }
 
-// NFR-PERF-006: views left after deleting workspaces, and over create/delete loops.
+// Reads the views until two reads a second apart agree, so a destroy still in flight is not counted as a leak.
+async function stableLeakedViews(driver, tabs, timeoutMs = 10000) {
+  const end = Date.now() + timeoutMs;
+  let prev = leakedViews(await driver.inventory(), tabs);
+  while (Date.now() < end) {
+    await sleep(1000);
+    const cur = leakedViews(await driver.inventory(), tabs);
+    if (cur.leaked === prev.leaked && cur.tabViews === prev.tabViews) {
+      return cur;
+    }
+    prev = cur;
+  }
+  return prev;
+}
+
+async function createOrThrow(ctx, driver) {
+  const r = await driver.create();
+  opSamples(ctx).create.push(r.ms);
+  if (r.ms == null || !r.workspace) {
+    throw new Error("a created workspace never reached the screen: the leak counts would be wrong");
+  }
+  return r;
+}
+
+async function removeOrThrow(ctx, driver, ws) {
+  const r = await driver.remove(ws);
+  opSamples(ctx).delete.push(r.ms);
+  if (r.ms == null) {
+    throw new Error(`workspace ${ws} was not deleted within 30 s`);
+  }
+}
+
+// NFR-PERF-006: views left after deleting workspaces, and over create/delete loops. Views are counted by the tabs
+// of the workspaces this scenario deleted.
 export async function runLeaks(ctx) {
   const p = ctx.profile;
   const inst = ctx.track(Instance.create(ctx.repoRoot, ctx.tmpBase));
@@ -337,21 +369,20 @@ export async function runLeaks(ctx) {
     await sleep(3000);
     const first = await driver.currentWorkspace();
     const created = [];
+    const deletedTabs = new Set();
     for (let i = 0; i < p.deletes; i++) {
-      const r = await driver.create();
-      opSamples(ctx).create.push(r.ms);
-      created.push(r.workspace);
+      const r = await createOrThrow(ctx, driver);
+      created.push(r);
       await driver.waitSpare(r.t0);
     }
     await driver.switchTo(first);
     await sleep(1000);
-    for (const ws of created) {
-      opSamples(ctx).delete.push((await driver.remove(ws)).ms);
+    for (const r of created) {
+      await removeOrThrow(ctx, driver, r.workspace);
+      deletedTabs.add(r.tab);
       await sleep(500);
     }
-    await sleep(3000);
-    leaks.afterDeletes = leakedViews(await driver.inventory(), await driver.listWorkspaces());
-    leaks.afterDeletes.deleted = created.length;
+    leaks.afterDeletes = { deleted: created.length, ...(await stableLeakedViews(driver, deletedTabs)) };
     ctx.metrics["leak.viewsAfterDeletes"] = single(leaks.afterDeletes.leaked);
     log(`leaks after ${created.length} deletes: ${JSON.stringify(leaks.afterDeletes)}`);
 
@@ -361,27 +392,22 @@ export async function runLeaks(ctx) {
     ctx.meta.memoryMethod ??= before.method;
     const memBefore = before.totalMB;
     const loops = Math.max(p.loops, GatedLoops);
+    const loopTabs = new Set();
     for (let i = 0; i < loops; i++) {
-      const r = await driver.create();
-      opSamples(ctx).create.push(r.ms);
+      const r = await createOrThrow(ctx, driver);
       await driver.waitSpare(r.t0);
-      if (r.workspace) {
-        opSamples(ctx).delete.push((await driver.remove(r.workspace)).ms);
-      }
+      await removeOrThrow(ctx, driver, r.workspace);
+      loopTabs.add(r.tab);
       await sleep(500);
       if (i + 1 === GatedLoops) {
-        await sleep(2000);
-        leaks.gatedLoops = {
-          loops: GatedLoops,
-          ...leakedViews(await driver.inventory(), await driver.listWorkspaces()),
-        };
+        leaks.gatedLoops = { loops: GatedLoops, ...(await stableLeakedViews(driver, new Set(loopTabs))) };
       }
     }
     await sleep(3000);
-    const after = leakedViews(await driver.inventory(), await driver.listWorkspaces());
+    const after = leakedViews(await driver.inventory(), new Set([...deletedTabs, ...loopTabs]));
     const memAfter = memory(inst.pid).totalMB;
     leaks.loops = { loops, ...after, memBeforeMB: memBefore, memAfterMB: memAfter };
-    ctx.metrics["leak.viewsAfterLoops"] = single(leaks.gatedLoops.leaked - leaks.afterDeletes.leaked);
+    ctx.metrics["leak.viewsAfterLoops"] = single(leaks.gatedLoops.leaked);
     if (loops === MemLoops) {
       ctx.metrics["leak.memGrowthPerLoopMB"] = single(round((memAfter - memBefore) / loops, 1));
     }

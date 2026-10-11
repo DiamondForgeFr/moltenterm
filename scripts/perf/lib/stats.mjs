@@ -32,29 +32,43 @@ export function round(value, digits = 2) {
 }
 
 // Split-half spread: the samples are dealt alternately into two halves, as if they came from two interleaved runs,
-// and the gap between the halves' medians is returned as a percentage of the overall median. It is how a single run
-// predicts whether a second run of the same build would land within the noise threshold (FR-PERF-006-AC3).
-export function splitHalfSpreadPct(values) {
+// and the gap between the halves' statistic (median, or p95 for a p95 metric) is returned, absolute and as a percentage
+// of the statistic over all samples. It is how a single run predicts whether a second run of the same build would land
+// within the noise threshold (FR-PERF-006-AC3).
+function statOf(values, stat) {
+  return stat === "p95" ? quantile(values, 0.95) : median(values);
+}
+
+export function splitHalfGap(values, stat = "median") {
   const xs = values.filter((v) => Number.isFinite(v));
   if (xs.length < 4) {
     return null;
   }
-  const a = xs.filter((_, i) => i % 2 === 0);
-  const b = xs.filter((_, i) => i % 2 === 1);
-  const m = median(xs);
-  const gap = Math.abs(median(a) - median(b));
+  return Math.abs(
+    statOf(
+      xs.filter((_, i) => i % 2 === 0),
+      stat
+    ) -
+      statOf(
+        xs.filter((_, i) => i % 2 === 1),
+        stat
+      )
+  );
+}
+
+export function splitHalfSpreadPct(values, stat = "median") {
+  const gap = splitHalfGap(values, stat);
+  if (gap == null) {
+    return null;
+  }
+  const m = statOf(
+    values.filter((v) => Number.isFinite(v)),
+    stat
+  );
   if (m === 0) {
     return gap === 0 ? 0 : 100;
   }
   return (100 * gap) / Math.abs(m);
-}
-
-export function splitHalfGap(values) {
-  const xs = values.filter((v) => Number.isFinite(v));
-  if (xs.length < 4) {
-    return null;
-  }
-  return Math.abs(median(xs.filter((_, i) => i % 2 === 0)) - median(xs.filter((_, i) => i % 2 === 1)));
 }
 
 // A metric from several samples. `stat` picks the reported value: "median" (default) or "p95".
@@ -69,8 +83,8 @@ export function summarize(values, stat = "median") {
     p95: round(quantile(xs, 0.95), 2),
     min: xs.length ? round(Math.min(...xs), 2) : null,
     max: xs.length ? round(Math.max(...xs), 2) : null,
-    spreadPct: round(splitHalfSpreadPct(xs), 1),
-    spreadAbs: round(splitHalfGap(xs), 2),
+    spreadPct: round(splitHalfSpreadPct(xs, stat), 1),
+    spreadAbs: round(splitHalfGap(xs, stat), 2),
     samples: xs.map((x) => round(x, 2)),
   };
 }

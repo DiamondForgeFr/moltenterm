@@ -7,7 +7,9 @@
 // - it fails when it regresses from the stored baseline by more than its tolerance (and by more than its noise floor);
 // - it fails when it exceeds its budget, unless the baseline was already over the budget and it did not regress
 //   (a target not met yet is grandfathered until the story that meets it stores a new baseline);
-// - a metric flagged noisy never fails the gate: it is reported for a rerun instead.
+// - a metric flagged noisy fails only when its regression also exceeds twice its split-half gap, so noise cannot
+//   hide a large regression;
+// - a gated metric that the baseline has but a scenario that ran did not produce fails ("missing").
 // Scope "ci" covers the machine-independent metrics only (gate "ci"); scope "local" adds the measured ones
 // (gate "local"), which are only meaningful against a baseline taken on the same machine. Gate "info" is never gated.
 
@@ -32,7 +34,7 @@ export function isNoisy(metric, c) {
   return metric.spreadPct > c.noisePct && (metric.spreadAbs ?? Infinity) > c.noiseFloor;
 }
 
-export function evaluateMetric(id, metric, baselineMetric, budgets, scope) {
+export function evaluateMetric(id, metric, baselineMetric, budgets, scope, report = null) {
   const c = cfg(budgets, id);
   const value = metric?.value;
   const base = baselineMetric?.value;
@@ -53,7 +55,13 @@ export function evaluateMetric(id, metric, baselineMetric, budgets, scope) {
     fails: false,
   };
   if (value == null) {
-    row.status = metric?.error ? "error" : "not measured";
+    const ran = (report?.meta?.scenarios ?? []).includes(c.scenario);
+    if (ran && base != null && (Scopes[scope] ?? []).includes(row.gate)) {
+      row.status = "missing";
+      row.fails = true;
+    } else {
+      row.status = "not measured";
+    }
     return row;
   }
   if (base != null) {
@@ -64,6 +72,7 @@ export function evaluateMetric(id, metric, baselineMetric, budgets, scope) {
   const overBudget = row.budget != null && value > row.budget;
   const allowance = base == null ? 0 : Math.max((Math.abs(base) * c.tolerancePct) / 100, c.noiseFloor);
   const regressed = base != null && value > base + allowance;
+  const beyondNoise = base != null && value > base + Math.max(allowance, 2 * (metric.spreadAbs ?? 0));
   const grandfathered = overBudget && base != null && base > row.budget && !regressed;
   if (regressed) {
     row.status = "regressed";
@@ -75,7 +84,7 @@ export function evaluateMetric(id, metric, baselineMetric, budgets, scope) {
     row.status = "ok";
   }
   const inScope = (Scopes[scope] ?? []).includes(row.gate);
-  row.fails = inScope && !row.noisy && (regressed || (overBudget && !grandfathered));
+  row.fails = inScope && (row.noisy ? beyondNoise : regressed || (overBudget && !grandfathered));
   if (row.noisy) {
     row.status += ", noisy";
   }
@@ -84,7 +93,7 @@ export function evaluateMetric(id, metric, baselineMetric, budgets, scope) {
 
 export function evaluate(report, budgets, baseline, scope = "local") {
   const ids = Object.keys(budgets.metrics);
-  const rows = ids.map((id) => evaluateMetric(id, report.metrics[id], baseline?.metrics?.[id], budgets, scope));
+  const rows = ids.map((id) => evaluateMetric(id, report.metrics[id], baseline?.metrics?.[id], budgets, scope, report));
   const measured = rows.filter((r) => r.value != null);
   return {
     scope,
@@ -93,7 +102,8 @@ export function evaluate(report, budgets, baseline, scope = "local") {
     failures: rows.filter((r) => r.fails).map((r) => r.id),
     noisy: rows.filter((r) => r.noisy).map((r) => r.id),
     measured: measured.length,
-    pass: rows.every((r) => !r.fails),
+    errors: report.errors ?? [],
+    pass: rows.every((r) => !r.fails) && !(report.errors ?? []).length,
   };
 }
 
@@ -162,7 +172,8 @@ export function renderMarkdown(report, evaluation) {
       `${m.machine.memGB} GB · load average ${m.machine.loadAvg} · Electron ${m.electron ?? "?"} · memory: ${m.memoryMethod ?? "?"}`
   );
   out.push("");
-  const verdict = evaluation.pass ? "PASS" : `FAIL (${evaluation.failures.join(", ")})`;
+  const reasons = [...evaluation.failures, ...(evaluation.errors ?? []).map((e) => `scenario ${e.scenario} failed`)];
+  const verdict = evaluation.pass ? "PASS" : `FAIL (${reasons.join(", ")})`;
   out.push(
     `**Gate (${evaluation.scope} scope): ${verdict}** · baseline \`${evaluation.baselineId ?? "none"}\` · ` +
       `${evaluation.measured} metrics measured${evaluation.noisy.length ? ` · noisy: ${evaluation.noisy.join(", ")}` : ""}`

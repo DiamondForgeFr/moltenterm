@@ -158,11 +158,15 @@ export class Instance {
     delete env.ELECTRON_RENDERER_URL;
     const out = fs.openSync(path.join(this.root, `electron-${++this.launches}.out`), "a");
     this.startMs = Date.now();
-    this.child = spawn(this.electronBinary(), args, { cwd: this.repoRoot, env, stdio: ["ignore", out, out] });
+    const child = spawn(this.electronBinary(), args, { cwd: this.repoRoot, env, stdio: ["ignore", out, out] });
     fs.closeSync(out);
-    this.pid = this.child.pid;
-    this.child.on("exit", () => {
-      this.child = null;
+    this.child = child;
+    this.pid = child.pid;
+    child.on("exit", () => {
+      // A late exit of a previous launch must not clear the current one.
+      if (this.child === child) {
+        this.child = null;
+      }
     });
     return this.pid;
   }
@@ -202,8 +206,13 @@ export class Instance {
     return null;
   }
 
+  // The saved pid is ours only while the child we spawned has not exited: after that it may be reused.
+  mainAlive() {
+    return this.pid != null && this.child != null && this.child.exitCode == null && this.child.signalCode == null;
+  }
+
   captureTree() {
-    if (this.pid == null) {
+    if (!this.mainAlive()) {
       return;
     }
     const known = new Map(this.tree.map((p) => [p.pid, p]));
@@ -214,7 +223,10 @@ export class Instance {
   }
 
   // Processes that belong to this instance: the captured tree (only while each pid still runs the same command, so
-  // a reused pid is never hit) and anything whose command line holds this root.
+  // a reused pid is never hit), the tree under the live main process, and the processes that run a binary from this
+  // root or carry its data directory in their environment (the detached wsh job managers), with their descendants
+  // (durable shells). A process that merely mentions the root in its arguments (`tail -f <root>/data/waveapp.log`)
+  // is never one of them.
   ownProcesses() {
     const all = psAll();
     const byPid = new Map(all.map((p) => [p.pid, p]));
@@ -225,15 +237,16 @@ export class Instance {
         mine.set(p.pid, cur);
       }
     }
-    if (this.pid != null) {
+    if (this.mainAlive()) {
       for (const p of descendants(all, this.pid)) {
         mine.set(p.pid, p);
       }
     }
-    const aliases = [this.root, this.root.replace(/^\/private\//, "/")];
     for (const p of all) {
-      if (aliases.some((a) => p.cmd.includes(a)) && p.pid !== process.pid) {
-        mine.set(p.pid, p);
+      if (p.pid !== process.pid && !mine.has(p.pid) && this.isRootProcess(p)) {
+        for (const d of descendants(all, p.pid)) {
+          mine.set(d.pid, d);
+        }
       }
     }
     mine.delete(process.pid);
@@ -241,16 +254,34 @@ export class Instance {
     return [...mine.values()].filter((p) => !p.zombie);
   }
 
+  rootAliases() {
+    return [this.root, this.root.replace(/^\/private\//, "/")].map((a) => `${a}/`);
+  }
+
+  isRootProcess(p) {
+    const aliases = this.rootAliases();
+    if (!aliases.some((a) => p.cmd.includes(a))) {
+      return false;
+    }
+    if (aliases.some((a) => p.cmd.startsWith(a))) {
+      return true;
+    }
+    const env = processEnv(p.pid, p.cmd);
+    return env != null && hasToken(env, new Set(aliases.map((a) => `MOLTENTERM_DATA_HOME=${a}data`)));
+  }
+
   async stop() {
     if (this.pid == null) {
+      this.killLeftovers();
       return;
     }
     this.captureTree();
-    const main = this.pid;
-    try {
-      process.kill(main, "SIGTERM");
-    } catch {
-      // already gone
+    if (this.mainAlive()) {
+      try {
+        process.kill(this.pid, "SIGTERM");
+      } catch {
+        // already gone
+      }
     }
     const end = Date.now() + 10000;
     while (this.child && Date.now() < end) {
@@ -323,6 +354,111 @@ export class Instance {
   }
 }
 
+// The environment of a process, as text: `ps -E` on macOS, /proc on Linux. Null when it cannot be read.
+function processEnv(pid, cmd) {
+  try {
+    if (process.platform === "linux") {
+      return fs.readFileSync(`/proc/${pid}/environ`, "utf8");
+    }
+    const out = spawnSync("ps", ["-E", "-ww", "-o", "command=", "-p", String(pid)], { encoding: "utf8" }).stdout;
+    return out == null ? null : envPart(out.trim(), cmd);
+  } catch {
+    return null;
+  }
+}
+
+// macOS `ps -E` appends the environment to the command line; only what follows the command is the environment, so
+// a command that merely mentions a variable in its arguments is not mistaken for one that has it.
+function envPart(withEnv, cmd) {
+  if (cmd == null || !withEnv.startsWith(cmd)) {
+    return "";
+  }
+  return withEnv.slice(cmd.length);
+}
+
+function hasToken(env, tokens) {
+  return env.split(/[\s\0]+/).some((t) => tokens.has(t));
+}
+
+// Roots left by a harness that was killed outright (SIGKILL, crash): their marker names a harness pid that no
+// longer runs. Their processes are stopped and the roots removed before a new run starts.
+export function sweepStaleRoots(repoRoot, tmpBase) {
+  let names = [];
+  try {
+    names = fs.readdirSync(tmpBase).filter((n) => n.startsWith("mtperf-"));
+  } catch {
+    return 0;
+  }
+  let swept = 0;
+  for (const name of names) {
+    const root = path.join(tmpBase, name);
+    let marker;
+    try {
+      marker = JSON.parse(fs.readFileSync(path.join(root, MarkerName), "utf8"));
+      assertOwnedRoot(root);
+    } catch {
+      continue;
+    }
+    if (marker.harnessPid === process.pid || pidRuns(marker.harnessPid)) {
+      continue;
+    }
+    const inst = new Instance(repoRoot, fs.realpathSync(root));
+    // The Electron main process has no root in its command line, only in its environment.
+    for (const pid of pidsWithDataHome(inst.rootAliases().map((a) => `${a}data`))) {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        // already gone
+      }
+    }
+    inst.killLeftovers();
+    inst.removeRoot(false);
+    swept++;
+  }
+  return swept;
+}
+
+function pidsWithDataHome(dataDirs) {
+  const tokens = new Set(dataDirs.map((d) => `MOLTENTERM_DATA_HOME=${d}`));
+  const pids = [];
+  if (process.platform === "linux") {
+    for (const name of fs.readdirSync("/proc").filter((n) => /^\d+$/.test(n))) {
+      try {
+        if (hasToken(fs.readFileSync(`/proc/${name}/environ`, "utf8"), tokens)) {
+          pids.push(Number(name));
+        }
+      } catch {
+        // not ours to read
+      }
+    }
+  } else {
+    const list = (args) =>
+      new Map(
+        (spawnSync("ps", args, { encoding: "utf8", maxBuffer: 1 << 28 }).stdout ?? "")
+          .split("\n")
+          .map((l) => l.trim().match(/^(\d+)\s+(.*)$/))
+          .filter(Boolean)
+          .map((m) => [Number(m[1]), m[2]])
+      );
+    const plain = list(["-A", "-ww", "-o", "pid=,command="]);
+    for (const [pid, withEnv] of list(["-A", "-E", "-ww", "-o", "pid=,command="])) {
+      if (hasToken(envPart(withEnv, plain.get(pid)), tokens)) {
+        pids.push(pid);
+      }
+    }
+  }
+  return pids.filter((pid) => pid !== process.pid);
+}
+
+function pidRuns(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === "EPERM";
+  }
+}
+
 export async function disposeAll(opts) {
   for (const inst of [...Live]) {
     try {
@@ -345,7 +481,12 @@ export function installCleanupHandlers(onSignal) {
     return;
   }
   handlersInstalled = true;
+  let cleaning = false;
   const syncCleanup = () => {
+    if (cleaning) {
+      return;
+    }
+    cleaning = true;
     for (const load of [...LiveLoads]) {
       load.stop();
     }
@@ -355,11 +496,18 @@ export function installCleanupHandlers(onSignal) {
     onSignal?.();
   };
   process.on("exit", syncCleanup);
-  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  for (const [sig, num] of [
+    ["SIGINT", 2],
+    ["SIGTERM", 15],
+    ["SIGHUP", 1],
+  ]) {
     process.on(sig, () => {
+      if (cleaning) {
+        return;
+      }
       console.error(`perf: ${sig}, cleaning up`);
       syncCleanup();
-      process.exit(130);
+      process.exit(128 + num);
     });
   }
   process.on("uncaughtException", (e) => {
@@ -369,14 +517,18 @@ export function installCleanupHandlers(onSignal) {
   });
 }
 
-// Busy processes for the load scenario. Only the children spawned here are ever killed.
+// Busy processes for the load scenario. Only the children spawned here are ever killed, and each one exits by
+// itself if the harness dies without stopping it (its parent pid changes).
+const BusyScript =
+  "const p = process.ppid; let i = 0; for (;;) { if (++i % 50000000 === 0 && process.ppid !== p) process.exit(0); }";
+
 export class BusyLoad {
   children = [];
 
   start(n) {
     LiveLoads.add(this);
     for (let i = 0; i < n; i++) {
-      this.children.push(spawn("yes", [], { stdio: ["ignore", "ignore", "ignore"] }));
+      this.children.push(spawn(process.execPath, ["-e", BusyScript], { stdio: ["ignore", "ignore", "ignore"] }));
     }
     return this.children.length;
   }
