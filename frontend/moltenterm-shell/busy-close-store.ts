@@ -52,12 +52,18 @@ export function closingTerminalOf(block: Block): ClosingTerminal {
     return { blockId: block.oid, meta: block.meta, tabId: tabIdOf(block) };
 }
 
+let cachedHomeDir: string = null;
+
+// A synchronous IPC to Electron's main process: read once, never on the path of every close.
 function homeDir(): string {
-    try {
-        return getApi()?.getHomeDir?.() ?? "";
-    } catch {
-        return "";
+    if (cachedHomeDir == null) {
+        try {
+            cachedHomeDir = getApi()?.getHomeDir?.() ?? "";
+        } catch {
+            cachedHomeDir = "";
+        }
     }
+    return cachedHomeDir;
 }
 
 // The name the tab shows (FR-SHELL-056): the user's, else its first panel's title.
@@ -135,20 +141,26 @@ export async function readRunning(terminals: ClosingTerminal[], workspace?: stri
         return [];
     }
     const workspaceName = workspace ?? currentWorkspaceName();
-    const tabIds = [...new Set(list.map((t) => t.tabId).filter((id) => !!id))];
+    const fallback = () => list.map((t) => baseSource(t, workspaceName, ""));
+    const sources = await withTimeout(
+        Promise.all(list.map((t) => readSource(t, workspaceName, ""))),
+        ReadTimeoutMs,
+        fallback
+    );
+    const running = runningOf(sources);
+    if (running.length === 0) {
+        return running;
+    }
+    // Tab names only matter once something runs: an idle close does not wait for them.
+    const tabOf = new Map(list.map((t) => [t.blockId, t.tabId]));
+    const tabIds = [...new Set(running.map((r) => tabOf.get(r.blockId)).filter((id) => !!id))];
     const tabNames = new Map<string, string>();
     await withTimeout(
         Promise.all(tabIds.map(async (id) => tabNames.set(id, await readTabName(id)))),
         ReadTimeoutMs,
         () => null
     );
-    const fallback = () => list.map((t) => baseSource(t, workspaceName, tabNames.get(t.tabId) ?? ""));
-    const sources = await withTimeout(
-        Promise.all(list.map((t) => readSource(t, workspaceName, tabNames.get(t.tabId) ?? ""))),
-        ReadTimeoutMs,
-        fallback
-    );
-    return runningOf(sources);
+    return running.map((r) => ({ ...r, tab: tabNames.get(tabOf.get(r.blockId)) ?? "" }));
 }
 
 // Every terminal of a workspace, in tab order (the reset of the last workspace closes all of them).
