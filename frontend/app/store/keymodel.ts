@@ -25,7 +25,7 @@ import * as keyutil from "@/util/keyutil";
 import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
 import { splitFocusedPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
-import { closeTabAskingWorktrees, interceptWorktreeClose } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#114, #134)
+import { closeTabAskingFirst, interceptTerminalClose } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#114, #134, #489)
 import { isWindows } from "@/util/platformutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
@@ -134,8 +134,9 @@ function simpleCloseStaticTab() {
     const workspaceId = globalStore.get(atoms.workspaceId);
     const tabId = globalStore.get(atoms.staticTabId);
     const confirmClose = globalStore.get(getSettingsKeyAtom("tab:confirmclose")) ?? false;
-    // MOLTENTERM-PATCH (#134): a tab holding terminals linked to worktrees asks once for all of them
-    closeTabAskingWorktrees(getApi().closeTab, workspaceId, tabId, confirmClose)
+    // MOLTENTERM-PATCH (#134, #489): a tab holding terminals linked to worktrees, or in which something runs, asks once
+    // for all of them
+    closeTabAskingFirst(getApi().closeTab, workspaceId, tabId, confirmClose)
         .then((didClose) => {
             if (didClose) {
                 deleteLayoutModelForTab(tabId);
@@ -147,8 +148,9 @@ function simpleCloseStaticTab() {
 }
 
 function uxCloseBlock(blockId: string) {
-    // MOLTENTERM-PATCH (#114): a terminal linked to a worktree asks first (remove, keep or cancel), then closes here again
-    if (interceptWorktreeClose(blockId, () => uxCloseBlock(blockId))) {
+    // MOLTENTERM-PATCH (#114, #489): a terminal linked to a worktree asks first (remove, keep or cancel), one in which
+    // something runs asks too (close anyway or cancel), then closes here again
+    if (interceptTerminalClose(blockId, () => uxCloseBlock(blockId))) {
         return;
     }
     const workspaceLayoutModel = WorkspaceLayoutModel.getInstance();
@@ -191,9 +193,9 @@ function genericClose() {
         WorkspaceLayoutModel.getInstance().setAIPanelVisible(false);
         return;
     }
-    // MOLTENTERM-PATCH (#114): as uxCloseBlock, for the focused terminal, before anything replaces or closes it
+    // MOLTENTERM-PATCH (#114, #489): as uxCloseBlock, for the focused terminal, before anything replaces or closes it
     const closingBlockId = getFocusedBlockId();
-    if (interceptWorktreeClose(closingBlockId, () => uxCloseBlock(closingBlockId))) {
+    if (interceptTerminalClose(closingBlockId, () => uxCloseBlock(closingBlockId))) {
         return;
     }
 
@@ -624,14 +626,15 @@ function registerGlobalKeys() {
         if (blockId == null) {
             return true;
         }
-        // MOLTENTERM-PATCH (#134): replacing a terminal linked to a worktree asks as closing it does
+        // MOLTENTERM-PATCH (#134, #489): replacing a terminal linked to a worktree, or in which something runs, asks as
+        // closing it does
         const replaceLinked = () => {
-            if (interceptWorktreeClose(blockId, replaceLinked)) {
+            if (interceptTerminalClose(blockId, replaceLinked, "replace")) {
                 return;
             }
             replaceBlock(blockId, { meta: { view: "launcher" } }, true);
         };
-        if (interceptWorktreeClose(blockId, replaceLinked)) {
+        if (interceptTerminalClose(blockId, replaceLinked, "replace")) {
             return true;
         }
         replaceBlock(

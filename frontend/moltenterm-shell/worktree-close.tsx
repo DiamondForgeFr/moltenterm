@@ -1,10 +1,12 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Closing what a worktree is linked to (FR-SHELL-016, #114, #134): every close of a terminal linked to a worktree
-// shows its plan first (remove, keep or cancel); closing a whole tab shows one grouped dialog, one row per worktree,
-// Keep selected; a terminal that went without a window asking (cmd:closeonexit) left a notification whose action opens
-// the same dialog without the terminal. wavesrv re-reads every plan before removing anything.
+// The close guard of the window's terminals. Closing what a worktree is linked to (FR-SHELL-016, #114, #134): every
+// close of a terminal linked to a worktree shows its plan first (remove, keep or cancel); closing a whole tab shows one
+// grouped dialog, one row per worktree, Keep selected; a terminal that went without a window asking (cmd:closeonexit)
+// left a notification whose action opens the same dialog without the terminal. wavesrv re-reads every plan before
+// removing anything. Closing what runs (FR-SHELL-061, #489): the same closes read what they would stop first, and ask
+// in one dialog, the worktree dialog when a worktree is linked too (busy-close.tsx).
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { getWaveObjectAtom, loadAndPinWaveObject, makeORef } from "@/app/store/wos";
@@ -12,6 +14,16 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
+import { BusyCloseHost, DangerButton as BusyDangerButton, RunningList } from "./busy-close";
+import { BusyCloseAction, RunningItem } from "./busy-close-model";
+import {
+    askBusyClose,
+    busyCloseEnabled,
+    busyDialogOpen,
+    closingTerminalOf,
+    isTerminalMeta,
+    readRunning,
+} from "./busy-close-store";
 import { DialogFrame, useEscape } from "./dialog-frame";
 import { MoltenWave } from "./molten-button";
 import { registerNotificationGesture } from "./notifications-store";
@@ -34,7 +46,8 @@ import { removeWorktree, resolveKeptWorktreeNotice, worktreePlan } from "./workt
 const AccentButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12";
 const PlainButton =
     "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
-const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded-6 px-3 py-1.5 text-12";
+const DangerButton = BusyDangerButton;
+const RunningHeading = "Closing stops:";
 
 function pathName(path: string): string {
     return (
@@ -46,13 +59,26 @@ function pathName(path: string): string {
 }
 
 // Closing a terminal linked to a worktree: the close is held until the dialog answers. Without a terminal
-// (standalone), the dialog reviews a worktree a notification names.
-type CloseRequest = { blockId: string; path: string; close: () => void; standalone?: boolean };
+// (standalone), the dialog reviews a worktree a notification names. running: what the close would stop.
+type CloseRequest = {
+    blockId: string;
+    path: string;
+    close: () => void;
+    standalone?: boolean;
+    running?: RunningItem[];
+    action?: BusyCloseAction;
+};
 
 // A tab close waits on its grouped dialog: "cancel" keeps the tab, "asked" closes it (the dialog was the
 // confirmation), "nothing" closes it as if no worktree were linked (every worktree was already gone).
 type TabCloseAnswer = "cancel" | "asked" | "nothing";
-type TabCloseRequest = { tabId: string; rows: TabCloseRow[]; blockIds: string[]; answer: (a: TabCloseAnswer) => void };
+type TabCloseRequest = {
+    tabId: string;
+    rows: TabCloseRow[];
+    blockIds: string[];
+    running?: RunningItem[];
+    answer: (a: TabCloseAnswer) => void;
+};
 
 const CloseRequestAtom = atom(null) as PrimitiveAtom<CloseRequest>;
 const NoBlockAtom = atom(null) as PrimitiveAtom<Block>;
@@ -79,8 +105,13 @@ function answeredRecently(blockId: string): boolean {
     return at != null && Date.now() - at <= AnsweredCloseWindowMs;
 }
 
+// Closes whose terminals are being read: pressing the same close again meanwhile does nothing more.
+const PendingCloses = new Set<string>();
+
 function dialogOpen(): boolean {
-    return globalStore.get(CloseRequestAtom) != null || globalStore.get(TabCloseRequestAtom) != null;
+    return (
+        globalStore.get(CloseRequestAtom) != null || globalStore.get(TabCloseRequestAtom) != null || busyDialogOpen()
+    );
 }
 
 // The block is still in this window's layout, tiled or ephemeral.
@@ -95,10 +126,42 @@ function blockInLayout(blockId: string): boolean {
     return globalStore.get(layoutModel.ephemeralNode)?.data?.blockId === blockId;
 }
 
-// Every close of a single terminal comes here first (Cmd+W, the header's close and menu, Ctrl+Shift+X, an ephemeral
-// pane's backdrop). true: the close is held (the dialog shows, or another worktree dialog is open); close runs once it
-// is answered and must come back here, where the answer lets it through.
-export function interceptWorktreeClose(blockId: string, close: () => void): boolean {
+// The close itself, once nothing is left to ask. The terminal may have gone meanwhile (its shell exited, another
+// window closed it): closing it again would close whatever else is left in the tab.
+function closeApproved(blockId: string, close: () => void): void {
+    if (!blockInLayout(blockId)) {
+        return;
+    }
+    ApprovedCloses.add(blockId);
+    close();
+}
+
+// One dialog for what runs, then the close (FR-SHELL-061); nothing running closes at once.
+async function closeAskingRunning(
+    blockId: string,
+    close: () => void,
+    action: BusyCloseAction,
+    running: RunningItem[]
+): Promise<void> {
+    if (running == null || running.length === 0) {
+        closeApproved(blockId, close);
+        return;
+    }
+    if (dialogOpen()) {
+        return;
+    }
+    if (!(await askBusyClose({ action, running, blockId }))) {
+        return;
+    }
+    markAnswered(blockId);
+    closeApproved(blockId, close);
+}
+
+// Every close of a single terminal comes here first (Cmd+W, the header's close and menu, the command panel's Close,
+// Ctrl+Shift+X, an ephemeral pane's backdrop). false: nothing to ask, the caller closes now. true: the close is held
+// (what runs is being read, a dialog shows, or another close dialog is open); close runs once it is answered and must
+// come back here, where the answer lets it through.
+export function interceptTerminalClose(blockId: string, close: () => void, action: BusyCloseAction = "pane"): boolean {
     if (!blockId) {
         return false;
     }
@@ -107,21 +170,40 @@ export function interceptWorktreeClose(blockId: string, close: () => void): bool
     }
     const block = globalStore.get(getWaveObjectAtom<Block>(makeORef("block", blockId)));
     const link = closingWorktreeLink(block?.meta);
-    if (!link) {
+    const check = isTerminalMeta(block?.meta) && busyCloseEnabled();
+    if (!link && !check) {
         return false;
     }
-    if (dialogOpen()) {
+    if (dialogOpen() || PendingCloses.has(blockId)) {
         return true;
     }
-    globalStore.set(CloseRequestAtom, { blockId, path: link, close });
+    PendingCloses.add(blockId);
+    fireAndForget(async () => {
+        let running: RunningItem[] = [];
+        try {
+            running = check ? await readRunning([closingTerminalOf(block)]) : [];
+        } finally {
+            PendingCloses.delete(blockId);
+        }
+        if (!link) {
+            await closeAskingRunning(blockId, close, action, running);
+            return;
+        }
+        if (dialogOpen()) {
+            return;
+        }
+        globalStore.set(CloseRequestAtom, { blockId, path: link, close, running, action });
+    });
     return true;
 }
 
 type CloseTabFn = (workspaceId: string, tabId: string, confirmClose: boolean) => Promise<boolean>;
 
-// Every close of a whole tab comes here (the tab's ×, its menu, Cmd+Shift+W, the last terminal's close), in place of
-// Electron's closeTab: a tab holding terminals linked to worktrees asks once for all of them.
-export async function closeTabAskingWorktrees(
+// Every close of a whole tab comes here (the tab's × and its hold, its menu, middle-click, Cmd+Shift+W, the vertical
+// tab bar, the last terminal's close), in place of Electron's closeTab: one read of what its terminals run and of the
+// worktrees they are linked to, then one dialog at most. A dialog answered for it is the confirmation, so Electron's own
+// (tab:confirmclose) does not follow.
+export async function closeTabAskingFirst(
     closeTab: CloseTabFn,
     workspaceId: string,
     tabId: string,
@@ -137,28 +219,48 @@ export async function closeTabAskingWorktrees(
             (tab?.blockids ?? []).map((id) => loadAndPinWaveObject<Block>(makeORef("block", id)))
         );
     } catch (e) {
-        console.log("worktrees of the tab being closed", e);
+        console.log("terminals of the tab being closed", e);
     }
     const present = blocks.filter((b) => b != null);
     const worktrees = tabWorktrees(present, answeredRecently);
-    if (worktrees.length === 0) {
-        return closeTab(workspaceId, tabId, confirmClose);
+    const running = busyCloseEnabled()
+        ? await readRunning(present.filter((b) => !answeredRecently(b.oid)).map(closingTerminalOf))
+        : [];
+    // The close of its last terminal was answered a moment ago: that answer was the confirmation.
+    const ownConfirm = present.some((b) => answeredRecently(b.oid)) ? false : confirmClose;
+    if (worktrees.length === 0 && running.length === 0) {
+        return closeTab(workspaceId, tabId, ownConfirm);
     }
     if (dialogOpen()) {
         return false;
+    }
+    const tabName = running.find((r) => !!r.tab)?.tab;
+    if (worktrees.length === 0) {
+        if (!(await askBusyClose({ action: "tab", running, tabId, tabName }))) {
+            return false;
+        }
+        return closeTab(workspaceId, tabId, false);
     }
     const answer = await new Promise<TabCloseAnswer>((resolve) => {
         globalStore.set(TabCloseRequestAtom, {
             tabId,
             rows: makeTabCloseRows(worktrees),
             blockIds: present.map((b) => b.oid),
+            running,
             answer: resolve,
         });
     });
     if (answer === "cancel") {
         return false;
     }
-    return closeTab(workspaceId, tabId, answer === "nothing" ? confirmClose : false);
+    // Every worktree was already gone, so the dialog never asked: what runs still has to.
+    if (answer === "nothing" && running.length > 0) {
+        if (!(await askBusyClose({ action: "tab", running, tabId, tabName }))) {
+            return false;
+        }
+        return closeTab(workspaceId, tabId, false);
+    }
+    return closeTab(workspaceId, tabId, answer === "nothing" ? ownConfirm : false);
 }
 
 function PlanLine({ text, warn }: { text: string; warn?: boolean }) {
@@ -237,6 +339,8 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
         request.blockId ? getWaveObjectAtom<Block>(makeORef("block", request.blockId)) : NoBlockAtom
     );
     const standalone = !!request.standalone;
+    const running = request.running ?? [];
+    const busy = running.length > 0;
     const finish = (closeTerminal: boolean) => {
         onDone();
         if (standalone) {
@@ -244,12 +348,7 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
         }
         if (closeTerminal) {
             markAnswered(request.blockId);
-        }
-        // The terminal may have gone meanwhile (its shell exited, another window closed it): closing it again would
-        // close whatever else is left in the tab.
-        if (closeTerminal && blockInLayout(request.blockId)) {
-            ApprovedCloses.add(request.blockId);
-            request.close();
+            closeApproved(request.blockId, request.close);
         }
     };
     useEffect(() => {
@@ -268,6 +367,14 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                 // Removed outside MoltenTerm: nothing to decide.
                 if (next.missing) {
                     resolveKeptWorktreeNotice(request.path, next.real);
+                    // Nothing to decide for the worktree, but what runs in the terminal still asks.
+                    if (!standalone && busy) {
+                        onDone();
+                        fireAndForget(() =>
+                            closeAskingRunning(request.blockId, request.close, request.action ?? "pane", running)
+                        );
+                        return;
+                    }
                     if (!standalone) {
                         finish(true);
                         return;
@@ -351,17 +458,25 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                         <button
                             type="button"
                             disabled={step === "working"}
+                            autoFocus={busy}
                             className={PlainButton}
                             onClick={() => finish(false)}
                         >
                             Cancel
                         </button>
                     )}
+                    {/* While something runs, both answers stop it: Cancel takes the focus and they read as destructive. */}
                     <button
                         type="button"
                         disabled={step === "working"}
-                        autoFocus={standalone || view?.defaultChoice !== "remove"}
-                        className={!standalone && view?.defaultChoice === "remove" ? PlainButton : AccentButton}
+                        autoFocus={!busy && (standalone || view?.defaultChoice !== "remove")}
+                        className={
+                            busy
+                                ? DangerButton
+                                : !standalone && view?.defaultChoice === "remove"
+                                  ? PlainButton
+                                  : AccentButton
+                        }
                         onClick={() => finish(true)}
                     >
                         Keep the worktree
@@ -371,8 +486,14 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
                         <button
                             type="button"
                             disabled={step === "working"}
-                            autoFocus={!standalone && view.defaultChoice === "remove"}
-                            className={!standalone && view.defaultChoice === "remove" ? AccentButton : PlainButton}
+                            autoFocus={!busy && !standalone && view.defaultChoice === "remove"}
+                            className={
+                                busy
+                                    ? DangerButton
+                                    : !standalone && view.defaultChoice === "remove"
+                                      ? AccentButton
+                                      : PlainButton
+                            }
                             onClick={onRemove}
                         >
                             {step === "working" ? "Removing…" : "Remove the worktree"}
@@ -388,6 +509,7 @@ function WorktreeCloseDialog({ request, onDone }: { request: CloseRequest; onDon
             {standalone && step === "plan" ? (
                 <div className="text-muted">Its terminal is closed; the worktree is still on disk.</div>
             ) : null}
+            {step === "plan" || step === "working" ? <RunningList items={running} heading={RunningHeading} /> : null}
             {plan == null && error == null && notice == null ? (
                 <div className="text-muted">Reading the worktree…</div>
             ) : null}
@@ -480,6 +602,8 @@ function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; onDone:
     const [rows, setRows] = useState<TabCloseRow[]>(request.rows);
     const [step, setStep] = useState<TabDialogStep>("plan");
     const tab = useAtomValue(getWaveObjectAtom<Tab>(makeORef("tab", request.tabId)));
+    const running = request.running ?? [];
+    const busy = running.length > 0;
     const answer = (a: TabCloseAnswer) => {
         onDone();
         request.answer(a);
@@ -583,6 +707,7 @@ function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; onDone:
             <>
                 <button
                     type="button"
+                    autoFocus={busy}
                     disabled={step === "working"}
                     className={PlainButton}
                     onClick={() => answer("cancel")}
@@ -591,9 +716,9 @@ function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; onDone:
                 </button>
                 <button
                     type="button"
-                    autoFocus
+                    autoFocus={!busy}
                     disabled={step === "working" || loading}
-                    className={remove.length > 0 ? DangerButton : AccentButton}
+                    className={remove.length > 0 || busy ? DangerButton : AccentButton}
                     onClick={onClose}
                 >
                     {step === "working" ? "Removing…" : closeLabel}
@@ -609,6 +734,7 @@ function TabCloseDialog({ request, onDone }: { request: TabCloseRequest; onDone:
             wide
             buttons={buttons}
         >
+            {step === "confirm" ? null : <RunningList items={running} heading={RunningHeading} />}
             {step === "confirm"
                 ? atRisk.map((row) => (
                       <div key={row.path} className="flex flex-col gap-1" data-role="molten-worktree-confirm">
@@ -645,6 +771,7 @@ async function reviewKeptWorktree(args: Record<string, any>) {
     return { ok: true };
 }
 
+// The close dialogs of this window: the worktree ones and the one for what runs (only one is ever open).
 export function WorktreeCloseHost() {
     const request = useAtomValue(CloseRequestAtom);
     const tabRequest = useAtomValue(TabCloseRequestAtom);
@@ -659,7 +786,7 @@ export function WorktreeCloseHost() {
         );
     }
     if (request == null) {
-        return null;
+        return <BusyCloseHost />;
     }
     return (
         <WorktreeCloseDialog
