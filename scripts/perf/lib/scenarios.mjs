@@ -19,6 +19,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Create/delete loops after which the leaked views are counted (leak.viewsAfterLoops), the same in every profile.
 const GatedLoops = 5;
+// Memory growth per loop is only comparable over the same number of loops; the CI profile runs fewer and only
+// reports it in the details.
+const MemLoops = 20;
 
 export const Profiles = {
   full: {
@@ -47,7 +50,7 @@ export const Profiles = {
     minimisedSettleS: 5,
     switchRounds: 1,
     deletes: 4,
-    loops: 5,
+    loops: 20,
     loadProcs: 8,
     loadTimeoutS: 20,
     modsSettleS: 10,
@@ -354,7 +357,9 @@ export async function runLeaks(ctx) {
 
     // The view count is read after a fixed number of loops in every profile, so CI and local runs compare with
     // the same baseline: the tab cache evicts old views, so the count per loop depends on the number of loops.
-    const memBefore = memory(inst.pid).totalMB;
+    const before = memory(inst.pid);
+    ctx.meta.memoryMethod ??= before.method;
+    const memBefore = before.totalMB;
     const loops = Math.max(p.loops, GatedLoops);
     for (let i = 0; i < loops; i++) {
       const r = await driver.create();
@@ -377,7 +382,9 @@ export async function runLeaks(ctx) {
     const memAfter = memory(inst.pid).totalMB;
     leaks.loops = { loops, ...after, memBeforeMB: memBefore, memAfterMB: memAfter };
     ctx.metrics["leak.viewsAfterLoops"] = single(leaks.gatedLoops.leaked - leaks.afterDeletes.leaked);
-    ctx.metrics["leak.memGrowthPerLoopMB"] = single(round((memAfter - memBefore) / loops, 1));
+    if (loops === MemLoops) {
+      ctx.metrics["leak.memGrowthPerLoopMB"] = single(round((memAfter - memBefore) / loops, 1));
+    }
     log(`leaks after ${loops} loops: ${JSON.stringify(leaks.loops)}`);
   } finally {
     driver.detach();
