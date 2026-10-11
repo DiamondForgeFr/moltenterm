@@ -23,6 +23,7 @@ import { MoltentermNotifications } from "../notifications-store";
 import { usePaneStatus } from "../pane-status";
 import { blockFolder, makePaneView } from "../status-bar-model";
 import { TabActivity, whileShown } from "../tab-activity";
+import { useWorkingBeat } from "../working-beat";
 import {
     CardTone,
     clockElapsed,
@@ -135,6 +136,7 @@ export function ReleasesCard({ snapshot }: ProjectCardProps) {
 }
 
 function AgentLine({ info }: { info: AgentStateInfo }) {
+    useWorkingBeat(info.state === "working");
     const [block] = useWaveObjectValue<Block>(makeORef("block", info.blockid));
     const meta = block?.meta;
     const folder = blockFolder({ view: meta?.view, connection: meta?.connection, "cmd:cwd": meta?.["cmd:cwd"] });
@@ -160,7 +162,7 @@ function AgentLine({ info }: { info: AgentStateInfo }) {
                 className={cn(
                     "inline-block h-2 w-2 shrink-0 rounded-full",
                     AgentStateDotClasses[info.state] ?? AgentStateDotClasses.idle,
-                    info.state === "working" && "mt-step-blink"
+                    info.state === "working" && "mt-beat-blink"
                 )}
                 aria-hidden
             />

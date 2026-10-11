@@ -24,6 +24,7 @@ import { usePaneStatus } from "../pane-status";
 import { formatShortcutById } from "../shortcuts/format";
 import { blockFolder, makePaneView } from "../status-bar-model";
 import { TermUpdateHost } from "../termupdate/termupdate-ui";
+import { useWorkingBeat } from "../working-beat";
 import { readWorktreeDismissed, readWorktreeLink, TreeMarker, treeMarker, worktreeOffer } from "../worktree-model";
 import { unlinkWorktree } from "../worktree-store";
 import {
@@ -354,7 +355,9 @@ export function MoltenHeaderPill({ state, viewModel }: { state: MoltenHeaderStat
 }
 
 export function MoltenHeaderWorking({ state }: { state: MoltenHeaderState }) {
-    if (!state.working || state.preview) {
+    const shown = state.working && !state.preview;
+    useWorkingBeat(shown);
+    if (!shown) {
         return null;
     }
     return <span className="molten-header-working" aria-hidden data-role="molten-header-working" />;

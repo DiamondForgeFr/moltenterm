@@ -180,8 +180,10 @@ button.molten-header-link:focus-visible {
     align-items: center;
 }
 
-/* While an agent works, a 2 px segment, a quarter of the width, travels along the header's bottom edge in one loop
-   cycle; under reduced motion (the system's or MoltenTerm's setting) it stands still at full width and 40 %. */
+/* While an agent works, a static 2 px track at 40 % runs along the header's bottom edge, and a bright quarter segment
+   hops along it one quarter per working beat (#473, working-beat.ts): in steps, on the clock all the working
+   indicators share, instead of a smooth glide of its own that drew a frame at every display refresh. Without the beat
+   (the view not active, reduced motion: the system's or MoltenTerm's setting) only the track shows. */
 .molten-header-working {
     position: absolute;
     right: 0;
@@ -195,42 +197,36 @@ button.molten-header-link:focus-visible {
 .molten-header-working::before {
     content: "";
     position: absolute;
+    inset: 0;
+    background: var(--mt-state-working);
+    opacity: 0.4;
+}
+
+.molten-header-working::after {
+    content: "";
+    position: absolute;
     top: 0;
     bottom: 0;
     left: 0;
     width: 25%;
     background: var(--mt-state-working);
-    animation: mt-header-working var(--mt-duration-loop) linear infinite;
+    display: none;
 }
 
-@keyframes mt-header-working {
-    from {
-        transform: translateX(-100%);
-    }
-    to {
-        transform: translateX(400%);
-    }
+:root[data-mt-motion="live"][data-mt-beat] .molten-header-working::after {
+    display: block;
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .molten-header-working::before {
-        width: 100%;
-        opacity: 0.4;
-        animation: none;
-    }
+:root[data-mt-motion="live"][data-mt-beat="1"] .molten-header-working::after {
+    transform: translateX(100%);
 }
 
-.prefers-reduced-motion .molten-header-working::before {
-    width: 100%;
-    opacity: 0.4;
-    animation: none;
+:root[data-mt-motion="live"][data-mt-beat="2"] .molten-header-working::after {
+    transform: translateX(200%);
 }
 
-/* The view is not the active one (tab activity model, FR-PERF-009-AC4): the segment stands as under reduced motion. */
-:root[data-mt-motion="still"] .molten-header-working::before {
-    width: 100%;
-    opacity: 0.4;
-    animation: none;
+:root[data-mt-motion="live"][data-mt-beat="3"] .molten-header-working::after {
+    transform: translateX(300%);
 }
 
 /* A proposal waits in the command panel (header/header-proposals.ts): a dot on the trigger, drawn over the icon so

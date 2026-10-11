@@ -100,11 +100,12 @@ export function agentStateLabel(state: string): string {
     return StateLabels[state] ?? state ?? "";
 }
 
-// The dot's colour per state, as class strings (the theme's tokens).
+// The dot's colour per state, as class strings (the theme's tokens). Working is a ring, like the tab's mark, so it
+// stays apart from waiting's filled amber dot when it stands still (#473: the dot no longer pulses on its own).
 export const AgentStateDotClasses: Record<string, string> = {
     waiting: "bg-warning",
     error: "bg-error",
-    working: "bg-[var(--mt-state-working)]",
+    working: "border-2 border-[var(--mt-state-working)]",
     done: "bg-success",
     idle: "bg-secondary",
 };
