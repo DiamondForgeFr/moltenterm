@@ -27,6 +27,7 @@ const h = {
     ipc: new Map<string, (...args: any[]) => any>(),
     settings: {} as Record<string, unknown>,
     silentBoot: false,
+    silentRender: false,
     tabviewModule: null as any,
     hostModule: null as any,
     onScreen(): string {
@@ -99,7 +100,7 @@ class FakeWebContents {
             return;
         }
         setTimeout(() => {
-            if (this.destroyed) {
+            if (this.destroyed || h.silentRender) {
                 return;
             }
             const tv = h.tabviewModule.getWaveTabViewByWebContentsId(this.id);
@@ -301,6 +302,7 @@ async function setup(settings: Record<string, unknown> = {}) {
     h.ipc = new Map();
     h.settings = settings;
     h.silentBoot = false;
+    h.silentRender = false;
     vi.doMock("electron", () => ({
         app: { getAppMetrics: (): any[] => [] },
         BaseWindow: FakeBaseWindow,
@@ -534,5 +536,23 @@ describe("tab view host: a new tab inside a workspace (#461, comment item 2)", (
         expect(h.onScreen()).toBe(starterTab);
         expect(screenSince(t0).every((e) => e[1] === second || e[1] === starterTab)).toBe(true);
         expect(states()[second]).toBeUndefined();
+    });
+
+    it("never lets the wake refresh destroy the view its window is bringing on screen", async () => {
+        await setup();
+        await warmSpare();
+        h.silentRender = true;
+        ipc("create-tab");
+        await vi.advanceTimersByTimeAsync(1500);
+        const created = h.workspaces.get(starter.oid).activetabid;
+        expect(states()[created]).toBe("loading");
+        const kept = h.tabviewModule.clearTabCache();
+        expect(kept.map((v: any) => v.waveTabId)).toContain(created);
+        const view = h.allViews.find((v: any) => v.waveTabId === created);
+        expect(view.webContents.destroyed).toBe(false);
+        view.waveReadyResolve();
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(h.onScreen()).toBe(created);
+        expect(h.hostModule.invalidTabViewTransitions()).toBe(0);
     });
 });
