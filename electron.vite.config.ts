@@ -9,6 +9,7 @@ import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { makeMoltentermBuildInfo } from "./frontend/moltenterm-shell/build/build-info"; // MOLTENTERM-PATCH (#55)
 import { moltentermCapRadius } from "./frontend/moltenterm-shell/build/cap-radius"; // MOLTENTERM-PATCH (#48)
+import { moltentermEntryGuard } from "./frontend/moltenterm-shell/build/entry-guard"; // MOLTENTERM-PATCH (#453)
 
 // from our electron build
 const CHROME = "chrome140";
@@ -137,20 +138,9 @@ export default defineConfig({
                 input: {
                     index: "index.html",
                 },
-                output: {
-                    manualChunks(id) {
-                        const p = id.replace(/\\/g, "/");
-                        if (p.includes("node_modules/monaco") || p.includes("node_modules/@monaco")) return "monaco";
-                        if (p.includes("node_modules/mermaid") || p.includes("node_modules/@mermaid")) return "mermaid";
-                        if (p.includes("node_modules/katex") || p.includes("node_modules/@katex")) return "katex";
-                        if (p.includes("node_modules/shiki") || p.includes("node_modules/@shiki")) {
-                            return "shiki";
-                        }
-                        if (p.includes("node_modules/cytoscape") || p.includes("node_modules/@cytoscape"))
-                            return "cytoscape";
-                        return undefined;
-                    },
-                },
+                // MOLTENTERM-PATCH (#453): no manualChunks. Merging monaco, shiki, mermaid, cytoscape and katex into
+                // named chunks made the entry import (and index.html modulepreload) about 30 MB that every tab view
+                // evaluated; left to Rollup they stay on-demand chunks behind the views' dynamic imports.
             },
         },
         optimizeDeps: {
@@ -191,6 +181,7 @@ export default defineConfig({
             }),
             react({}),
             tailwindcss(),
+            moltentermEntryGuard(), // MOLTENTERM-PATCH (#453): fails the build when the entry pulls a heavy library
         ],
     },
 });

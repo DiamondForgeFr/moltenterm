@@ -1,8 +1,8 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { WaveStreamdown } from "@/app/element/streamdown";
 import { memo, useEffect, useRef, useState } from "react";
+import { WaveStreamdown } from "../../moltenterm-shell/lazy/streamdown-lazy"; // MOLTENTERM-PATCH (#453): shiki/katex/mermaid on demand
 
 interface ChatConfig {
     userPrompt: string;
