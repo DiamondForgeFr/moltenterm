@@ -120,6 +120,19 @@ func TestPumpOutputRespectsMaxBytesAndWindow(t *testing.T) {
 	rec := &flushRecorder{}
 	done := runPump(r, 30*time.Millisecond, 1000, rec)
 	r.ch <- outputChunk{data: []byte("x")} // flushed at once (quiet)
+	// The quiet path also drains reads already queued, so the burst must wait for that first flush or a late-scheduled
+	// pump merges "x" into it.
+	deadline := time.Now().Add(time.Second)
+	for {
+		flushes, _ := rec.snapshot()
+		if len(flushes) >= 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the first read was not flushed within 1s")
+		}
+		time.Sleep(time.Millisecond)
+	}
 	for i := 0; i < 5; i++ {
 		r.ch <- outputChunk{data: bytes.Repeat([]byte("y"), 400)}
 	}
