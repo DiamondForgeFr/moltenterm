@@ -104,6 +104,13 @@ export function invalidTabViewTransitions(): number {
     return registry.invalidCount;
 }
 
+// From the main process's DevTools or the harness: globalThis.moltenTabViewHost.snapshot().
+(globalThis as any).moltenTabViewHost = {
+    snapshot: tabViewHostSnapshot,
+    invalidTransitions: invalidTabViewTransitions,
+    enabled: () => hostEnabled,
+};
+
 function makeTabView(fullConfig: FullConfigType): WaveTabView {
     const view = new WaveTabView(fullConfig);
     registry.add(view);
@@ -179,6 +186,11 @@ export function getWaveTabView(waveTabId: string): WaveTabView | undefined {
     }
     rtn.lastUsedTs = Date.now();
     return rtn;
+}
+
+// Whether the tab has a live view, without counting it as used.
+export function hasTabView(tabId: string): boolean {
+    return registry.viewForTab(tabId) != null;
 }
 
 // Every live view given to a tab, in a window or still being acquired.
@@ -668,6 +680,11 @@ function pendingLiveView(win: WaveBrowserWindow): WaveTabView {
         return null;
     }
     return view;
+}
+
+// The window shows a rendered view, which can keep showing while another one loads and draw the pending state.
+export function windowShowsLiveView(win: WaveBrowserWindow): boolean {
+    return pendingLiveView(win) != null;
 }
 
 function fullBounds(win: WaveBrowserWindow) {
