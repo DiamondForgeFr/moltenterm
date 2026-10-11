@@ -282,4 +282,8 @@ type AgentRunInfo struct {
 	State   string
 	// StateSince: when the agent entered State, in Unix milliseconds.
 	StateSince int64
+	// Pid: the agent's process, when the process tree found it in a local terminal (0 otherwise); PidStartMs tells a
+	// reused pid apart. The keep-awake reads its tree's CPU to see background work (#493).
+	Pid        int32
+	PidStartMs int64
 }

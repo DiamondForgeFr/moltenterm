@@ -47,6 +47,7 @@ type coffeeRec struct {
 	working bool
 	// graceStart: when the workspace's last work stopped (zero while it works).
 	graceStart time.Time
+	reasons    []string
 }
 
 // Keeper holds the state. Every change is published whole, so a window that missed an event catches up on the next.
@@ -59,6 +60,7 @@ type Keeper struct {
 	policyHolding    bool
 	policyWorking    bool
 	policyGraceStart time.Time
+	policyReasons    []string
 	attempts         []Attempt
 	overrides        map[string]*Override
 	// asked: the ask-once notification went out in this run.
@@ -387,8 +389,10 @@ func (k *Keeper) apply(policy string, work Work, checks map[string]coffeeCheck, 
 		if work.Workspaces[id] {
 			rec.working = true
 			rec.graceStart = time.Time{}
+			rec.reasons = work.Reasons[id]
 			continue
 		}
+		rec.reasons = nil
 		if rec.working || rec.graceStart.IsZero() {
 			rec.working = false
 			rec.graceStart = now
@@ -399,10 +403,12 @@ func (k *Keeper) apply(policy string, work Work, checks map[string]coffeeCheck, 
 		}
 	}
 	k.policy = policy
+	k.policyReasons = nil
 	if policy != PolicyUntilWorkEnds {
 		k.policyHolding, k.policyWorking, k.policyGraceStart = false, false, time.Time{}
 	} else if work.Local {
 		k.policyHolding, k.policyWorking, k.policyGraceStart = true, true, time.Time{}
+		k.policyReasons = work.LocalReasons
 	} else if k.policyHolding {
 		if k.policyWorking || k.policyGraceStart.IsZero() {
 			k.policyWorking = false
@@ -468,8 +474,14 @@ func (k *Keeper) buildLocked() State {
 	if k.policyHolding && !k.policyWorking && !k.policyGraceStart.IsZero() {
 		state.PolicyEndsAt = k.policyGraceStart.Add(GracePeriod).UnixMilli()
 	}
+	if state.PolicyWorking {
+		state.PolicyReasons = append([]string(nil), k.policyReasons...)
+	}
 	for id, rec := range k.coffees {
 		c := Coffee{WorkspaceId: id, WorkspaceName: rec.name, Since: rec.since, Working: rec.working}
+		if rec.working {
+			c.Reasons = append([]string(nil), rec.reasons...)
+		}
 		if !rec.working && !rec.graceStart.IsZero() {
 			c.EndsAt = rec.graceStart.Add(GracePeriod).UnixMilli()
 		}
