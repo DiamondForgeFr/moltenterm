@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Resetting the last workspace (#222): the rail and the workspace editor offer it in place of a delete that would
-// leave the window without a workspace. The dialog names what is lost; Electron then resets the workspace in the window
-// that shows it (emain/emain-window.ts, "reset-workspace").
+// leave the window without a workspace. The dialog names what is lost, what runs in its terminals included
+// (FR-SHELL-061, #489: then Cancel is focused); Electron then resets the workspace in the window that shows it
+// (emain/emain-window.ts, "reset-workspace").
 
 import { getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -11,6 +12,9 @@ import { ObjectService, WorkspaceService } from "@/app/store/services";
 import { makeORef } from "@/app/store/wos";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { RunningList } from "./busy-close";
+import { RunningItem } from "./busy-close-model";
+import { busyCloseEnabled, readWorkspaceRunning } from "./busy-close-store";
 import { DialogFrame, useEscape } from "./dialog-frame";
 import { MoltenWave } from "./molten-button";
 import { resetLossText } from "./workspace-reset-model";
@@ -19,7 +23,13 @@ const PlainButton =
     "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
 const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded-6 px-3 py-1.5 text-12";
 
-type ResetRequest = { workspaceId: string; name: string; tabCount: number; paneCount: number };
+type ResetRequest = {
+    workspaceId: string;
+    name: string;
+    tabCount: number;
+    paneCount: number;
+    running: RunningItem[];
+};
 
 const ResetRequestAtom = atom(null) as PrimitiveAtom<ResetRequest>;
 
@@ -44,11 +54,14 @@ export function askResetWorkspace(workspaceId: string): void {
         } catch (e) {
             console.log("panes of the workspace to reset", e);
         }
+        const name = ws.name || "Unsaved workspace";
+        const running = busyCloseEnabled() ? await readWorkspaceRunning(workspaceId, name) : [];
         globalStore.set(ResetRequestAtom, {
             workspaceId,
-            name: ws.name || "Unsaved workspace",
+            name,
             tabCount: tabIds.length,
             paneCount,
+            running,
         });
     });
 }
@@ -64,6 +77,7 @@ export function WorkspaceResetHost() {
         globalStore.set(ResetRequestAtom, null);
         getApi().resetWorkspace(request.workspaceId);
     };
+    const busy = request.running.length > 0;
     return (
         <DialogFrame
             role="workspace-reset"
@@ -71,10 +85,10 @@ export function WorkspaceResetHost() {
             subtitle="It is your only workspace, so it is reset rather than deleted."
             buttons={
                 <>
-                    <button type="button" className={PlainButton} onClick={cancel}>
+                    <button type="button" className={PlainButton} onClick={cancel} autoFocus={busy}>
                         Cancel
                     </button>
-                    <button type="button" className={DangerButton} onClick={reset} autoFocus>
+                    <button type="button" className={DangerButton} onClick={reset} autoFocus={!busy}>
                         Reset workspace
                         <MoltenWave />
                     </button>
@@ -82,6 +96,7 @@ export function WorkspaceResetHost() {
             }
         >
             <p>{resetLossText(request.tabCount, request.paneCount)}</p>
+            <RunningList items={request.running} heading="Resetting stops:" />
             <p className="text-secondary">
                 The workspace starts again with one new tab. Its name, icon, colour and project link are kept.
             </p>

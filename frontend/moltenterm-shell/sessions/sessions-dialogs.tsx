@@ -29,6 +29,7 @@ import {
     displayFolder,
     DurableSession,
     endConfirmText,
+    endRunningNote,
     reasonLabel,
     sessionName,
     sessionWhat,
@@ -166,17 +167,22 @@ export function CleanupDialog({
             <ul className="flex flex-col gap-1.5" aria-label="Sessions to end">
                 {sessions.map((s) => {
                     const folder = displayFolder(s, home);
+                    // The row already names the command a session without an agent runs.
+                    const note = s.agent ? endRunningNote(s) : "";
                     return (
-                        <li key={s.id} className="flex min-w-0 items-baseline gap-2">
-                            <span className="shrink-0 font-medium text-primary">{sessionWhat(s)}</span>
-                            {folder ? (
-                                <span className="min-w-0 truncate text-secondary" title={s.folder}>
-                                    {folder}
+                        <li key={s.id} className="flex min-w-0 flex-col gap-0.5">
+                            <div className="flex min-w-0 items-baseline gap-2">
+                                <span className="shrink-0 font-medium text-primary">{sessionWhat(s)}</span>
+                                {folder ? (
+                                    <span className="min-w-0 truncate text-secondary" title={s.folder}>
+                                        {folder}
+                                    </span>
+                                ) : null}
+                                <span className="ml-auto shrink-0 text-muted">
+                                    {s.connection || "local"} · {reasonLabel(s.reason)}
                                 </span>
-                            ) : null}
-                            <span className="ml-auto shrink-0 text-muted">
-                                {s.connection || "local"} · {reasonLabel(s.reason)}
-                            </span>
+                            </div>
+                            {note ? <div className="text-muted">{note}</div> : null}
                         </li>
                     );
                 })}

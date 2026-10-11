@@ -15,7 +15,7 @@ import {
     InterruptAction,
     permissionModeLabel,
 } from "../command-panel/agent-commands";
-import { DurableSession, SessionEndResult } from "./sessions-model";
+import { DurableSession, endRunningNote, SessionEndResult } from "./sessions-model";
 
 // must match pkg/molten/termupdate/restart.go
 export const AgentRestartRoute = "molten:termupdate";
@@ -129,7 +129,11 @@ export function bulkItems(action: BulkAction, list: DurableSession[], command?: 
 
 // The note a row shows before the run: an agent busy now is skipped unless its turn ends first.
 export function busyNote(action: BulkAction, s: DurableSession, command?: BulkCommand): string {
-    if (action === "end" || !s.agent) {
+    // Ending reaches every session: the note says what it stops (FR-SHELL-061).
+    if (action === "end") {
+        return endRunningNote(s);
+    }
+    if (!s.agent) {
         return "";
     }
     const interrupt = action === "send" && command?.id === InterruptAction;
