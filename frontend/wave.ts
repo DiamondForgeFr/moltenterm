@@ -41,6 +41,7 @@ import { startMoltentermAccent } from "./moltenterm-shell/accent"; // MOLTENTERM
 import { reconnectWSIfClosed } from "./moltenterm-shell/ws-health"; // MOLTENTERM-PATCH (#223)
 import { pinTabWorkspace } from "./moltenterm-shell/tab-workspace"; // MOLTENTERM-PATCH (#447)
 import { TabActivity } from "./moltenterm-shell/tab-activity"; // MOLTENTERM-PATCH (#455)
+import { installUnsavedWorkProbe } from "./moltenterm-shell/unsaved-work"; // MOLTENTERM-PATCH (#476)
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -195,6 +196,7 @@ async function initWave(initOpts: WaveInitOpts) {
         loadAllWorkspaceTabs(ws);
         pinTabWorkspace(waveWindow.workspaceid); // MOLTENTERM-PATCH (#447): the view keeps its tab's workspace
         TabActivity.getInstance().start(); // MOLTENTERM-PATCH (#455): periodic work follows the view's activity
+        installUnsavedWorkProbe(); // MOLTENTERM-PATCH (#476): the tab view budget never destroys unsaved edits
         WOS.wpsSubscribeToObject(WOS.makeORef("workspace", waveWindow.workspaceid));
         document.title = `${MoltentermWindowTitle} - ${initialTab.name}`; // TODO update with tab name change (MOLTENTERM-PATCH #4)
     } catch (e) {
