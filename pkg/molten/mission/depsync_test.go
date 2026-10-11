@@ -267,6 +267,35 @@ func TestDepSyncLifecycle(t *testing.T) {
 	}
 }
 
+// The run event of an ended sync is what the user acts on: a sync started right after it must not be refused (#485).
+func TestDepSyncReleasesBeforeItReadsAsEnded(t *testing.T) {
+	f := makeDepSyncFixture(t)
+	f.trust(t)
+	freeAtEnd := make(chan bool, 1)
+	f.runs.publish = func(rec RunRecord) {
+		if rec.Kind != RunKindSync || rec.State == RunStateRunning {
+			return
+		}
+		free := f.groups.claimSync(f.site, "probe")
+		if free {
+			f.groups.releaseSync(f.site, "probe")
+		}
+		freeAtEnd <- free
+	}
+	res, err := f.groups.Sync(DepSyncRequest{Dir: f.site})
+	if err != nil || res.Run == nil {
+		t.Fatalf("%+v %v", res, err)
+	}
+	select {
+	case free := <-freeAtEnd:
+		if !free {
+			t.Fatal("the dependent is still held when the sync reads as ended")
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("the sync did not end")
+	}
+}
+
 // A sync that ignores SIGTERM is killed once the time limit passed, and reads as a failure; a cancel ends one too.
 func TestDepSyncStops(t *testing.T) {
 	savedTimeout, savedGrace := depSyncTimeout, depSyncKillGrace

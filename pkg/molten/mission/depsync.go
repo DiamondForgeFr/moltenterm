@@ -745,8 +745,6 @@ func (g *Groups) syncOutcome(s depSync) (string, []string, error) {
 // endSync writes a sync's final record; the run event refreshes the dependent's snapshot through the collector, and
 // the groups follow it.
 func (g *Groups) endSync(rec RunRecord, state string, exit *int, outcome string, changed []string) {
-	// The next sync may start as soon as this one reads as ended.
-	defer g.releaseSync(rec.Dir, rec.Id)
 	defer g.runs.setPreparing(rec.Id, false)
 	rec.Preparing = false
 	rec.State = state
@@ -757,6 +755,10 @@ func (g *Groups) endSync(rec RunRecord, state string, exit *int, outcome string,
 	if data, err := os.Stat(g.runs.logFile(rec.Dir, rec.Id)); err == nil {
 		rec.LogSize = data.Size()
 	}
+	// The next sync may start as soon as this one reads as ended.
+	// Released before the record is written, not after: a reader of the record or of its run event that starts the
+	// next sync at once would otherwise be told one is already running (#485).
+	g.releaseSync(rec.Dir, rec.Id)
 	g.runs.writeRecord(rec)
 	if g.runs.publish != nil {
 		g.runs.publish(rec)
