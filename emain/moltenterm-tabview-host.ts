@@ -51,7 +51,8 @@ import {
 import { MoltentermReinitTimeoutMs, nextWaveReady, withTimeout } from "./moltenterm-workspace-switch";
 
 // false restores the previous behaviour where the host changed it, for one release: a new tab is shown at once while it
-// loads (Wave's flow), the paint check judges whatever the window's state, and invalid transitions are only logged.
+// loads (Wave's flow), the paint check judges whatever the window's state, the cache evictions take any view that is not
+// active, a view kept by another window is reused as it is, and invalid transitions are only logged.
 export const TabViewHostSetting = "moltenterm:tabviewhost";
 
 // Wave's default, changed by window:maxtabcachesize; #454's budget normally keeps far fewer.
