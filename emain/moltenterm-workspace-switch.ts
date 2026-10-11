@@ -11,8 +11,8 @@ import { getWaveTabView } from "./emain-tabview";
 
 // A reused view reinitialises in tens of milliseconds; past this, it is shown anyway.
 export const MoltentermReinitTimeoutMs = 400;
-// A new view boots a whole renderer; past this, it is shown anyway rather than leaving the user on the old workspace.
-export const MoltentermFirstRenderTimeoutMs = 5000;
+// A new view boots a whole renderer: it waits until the action's readiness deadline (#449,
+// emain/moltenterm-action-queue.ts), then is shown anyway rather than leaving the user on the old workspace.
 
 export function withTimeout(promise: Promise<void>, ms: number): Promise<void> {
     let timer: ReturnType<typeof setTimeout> = null;

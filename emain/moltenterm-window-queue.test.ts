@@ -20,7 +20,7 @@ class FakeBackend {
     windows = new Map<string, { oid: string; workspaceid: string }>();
     next = 1;
     calls: string[] = [];
-    switchReturnsNull = false;
+    faults = new Map<string, "throw" | "null">();
 
     newId(prefix: string) {
         return `${prefix}${this.next++}`;
@@ -222,10 +222,14 @@ const h = {
     ipc: new Map<string, (...args: any[]) => any>(),
     dialogs: [] as string[],
     isDev: false,
+    // Renderers created while set never report "ready"; renderers never report "wave-ready" while set.
+    silentBoot: false,
+    silentRender: false,
     tabviewModule: null as any,
     scheduleBoot(wc: FakeWebContents) {
+        const silent = h.silentBoot;
         setTimeout(() => {
-            if (wc.destroyed) {
+            if (wc.destroyed || silent) {
                 return;
             }
             const tv = h.tabviewModule.getWaveTabViewByWebContentsId(wc.id);
@@ -248,7 +252,7 @@ const h = {
                 return;
             }
             setTimeout(() => {
-                if (wc.destroyed) {
+                if (wc.destroyed || h.silentRender) {
                     return;
                 }
                 h.tabviewModule.getWaveTabViewByWebContentsId(wc.id)?.waveReadyResolve();
@@ -265,12 +269,16 @@ const h = {
             .map((c) => c.waveTabId)
             .join(",");
     },
+    // Read once the current task has run, as a compositor would: a view moved on and off screen within one task is
+    // never painted.
     recordScreen() {
-        const on = h.onScreen();
-        const last = h.screen[h.screen.length - 1];
-        if (last == null || last[1] !== on) {
-            h.screen.push([Date.now(), on]);
-        }
+        queueMicrotask(() => {
+            const on = h.onScreen();
+            const last = h.screen[h.screen.length - 1];
+            if (last == null || last[1] !== on) {
+                h.screen.push([Date.now(), on]);
+            }
+        });
     },
 };
 
@@ -356,9 +364,6 @@ function makeServices() {
             backendCall(() => {
                 b().calls.push(`SwitchWorkspace ${wsId}`);
                 const ws = b().getWs(wsId);
-                if (b().switchReturnsNull) {
-                    return null;
-                }
                 const win = b().windows.get(winId);
                 const cur = win.workspaceid;
                 if (cur === wsId) {
@@ -379,7 +384,30 @@ function makeServices() {
         GetClientData: () => backendCall(() => ({ oid: "client-1" })),
         FocusWindow: () => backendCall(() => null),
     };
-    return { WorkspaceService, WindowService, ClientService, ObjectService: {} };
+    const ObjectService = {
+        GetObject: (oref: string) =>
+            backendCall(() => (b().tabs.has(oref.replace(/^tab:/, "")) ? { oid: oref } : null)),
+    };
+    // A fault set on a method applies to its next call only: it throws, or answers null.
+    for (const svc of [WorkspaceService, WindowService, ObjectService] as Record<string, any>[]) {
+        for (const name of Object.keys(svc)) {
+            const real = svc[name];
+            svc[name] = (...args: any[]) => {
+                const fault = b().faults.get(name);
+                if (fault == null) {
+                    return real(...args);
+                }
+                b().faults.delete(name);
+                return backendCall(() => {
+                    if (fault === "throw") {
+                        throw new Error(`injected failure of ${name}`);
+                    }
+                    return null;
+                });
+            };
+        }
+    }
+    return { WorkspaceService, WindowService, ClientService, ObjectService };
 }
 
 let win: any;
@@ -396,6 +424,8 @@ async function setup(opts: { isDev?: boolean } = {}) {
     h.ipc = new Map();
     h.dialogs = [];
     h.isDev = opts.isDev ?? false;
+    h.silentBoot = false;
+    h.silentRender = false;
     vi.doMock("electron", () => ({
         BaseWindow: FakeBaseWindow,
         WebContentsView: FakeWebContentsView,
@@ -412,7 +442,10 @@ async function setup(opts: { isDev?: boolean } = {}) {
         },
         screen: {
             getAllDisplays: () => [{ workArea: { x: 0, y: 0, width: 2000, height: 1200 } }],
-            getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 2000, height: 1200 }, workAreaSize: { width: 2000, height: 1200 } }),
+            getPrimaryDisplay: () => ({
+                workArea: { x: 0, y: 0, width: 2000, height: 1200 },
+                workAreaSize: { width: 2000, height: 1200 },
+            }),
         },
         shell: { openExternal: () => {} },
     }));
@@ -466,11 +499,20 @@ async function setup(opts: { isDev?: boolean } = {}) {
     mod = await import("./emain-window");
     const ws = h.backend.addWorkspace("Starter");
     h.backend.windows.set("win-1", { oid: "win-1", workspaceid: ws.oid });
-    const waveWindow = { oid: "win-1", workspaceid: ws.oid, pos: { x: 0, y: 0 }, winsize: { width: 1200, height: 800 } };
-    const created = mod.createBrowserWindow(waveWindow, { settings: {} }, {
-        unamePlatform: "darwin",
-        isPrimaryStartupWindow: true,
-    });
+    const waveWindow = {
+        oid: "win-1",
+        workspaceid: ws.oid,
+        pos: { x: 0, y: 0 },
+        winsize: { width: 1200, height: 800 },
+    };
+    const created = mod.createBrowserWindow(
+        waveWindow,
+        { settings: {} },
+        {
+            unamePlatform: "darwin",
+            isPrimaryStartupWindow: true,
+        }
+    );
     await vi.advanceTimersByTimeAsync(2000);
     win = await created;
     expect(h.onScreen()).toBe(ws.activetabid);
@@ -568,9 +610,17 @@ describe("window action queue: single operations", () => {
     });
 });
 
+function queueLength(): number {
+    return win.actionQueue.length;
+}
+
+function backendWindowWs(): string {
+    return h.backend.windows.get("win-1")?.workspaceid;
+}
+
 describe("window action queue: interleavings", () => {
-    it("create then delete within 10 ms", async () => {
-        const starter = await setup();
+    it.each([false, true])("create then delete within 10 ms (dev %s)", async (isDev) => {
+        const starter = await setup({ isDev });
         await warmSpare();
         const t0 = Date.now();
         ipc("create-workspace");
@@ -579,20 +629,23 @@ describe("window action queue: interleavings", () => {
         const createdTab = h.backend.workspaces.get(created).activetabid;
         await vi.advanceTimersByTimeAsync(8);
         ipc("delete-workspace", created);
-        await vi.advanceTimersByTimeAsync(8000);
-        const screen = screenSince(t0);
-        // Before #449: the new tab's renderer fails on the deleted tab, the queue waits 5 s, the dead view is shown,
-        // then the window goes back to the starter workspace and the dead view is kept off-screen.
-        expect(h.rendererErrors).toHaveLength(1);
-        expect(screen.some((e) => e[1] === createdTab)).toBe(true);
-        const back = screen.find((e) => e[0] > 0 && e[1] === starter.activetabid);
-        expect(back[0]).toBeGreaterThanOrEqual(5000);
+        await vi.advanceTimersByTimeAsync(290);
+        // Before #449: the new tab's renderer failed on the deleted tab ('reading layoutstate'), the queue waited 5 s,
+        // the dead view was shown, then the window went back to the starter workspace and leaked the dead view.
+        expect(queueLength()).toBe(0);
+        expect(h.backend.workspaces.has(created)).toBe(false);
         expect(win.workspaceId).toBe(starter.oid);
+        expect(backendWindowWs()).toBe(starter.oid);
         expect(h.onScreen()).toBe(starter.activetabid);
-        expect(win.allLoadedTabViews.has(createdTab)).toBe(true);
+        await vi.advanceTimersByTimeAsync(8000);
+        expect(h.rendererErrors).toEqual([]);
+        expect(screenSince(t0).every((e) => e[1] === starter.activetabid)).toBe(true);
+        expect(win.allLoadedTabViews.has(createdTab)).toBe(false);
+        expect(liveTabViews()).not.toContain(createdTab);
+        expect(h.onScreen()).toBe(starter.activetabid);
     });
 
-    it("two switches within 10 ms land on the last one", async () => {
+    it("two switches within 10 ms land on the last one, the first is never shown", async () => {
         const starter = await setup();
         const a = h.backend.addWorkspace("A");
         const b = h.backend.addWorkspace("B");
@@ -604,10 +657,61 @@ describe("window action queue: interleavings", () => {
         await vi.advanceTimersByTimeAsync(5000);
         expect(win.workspaceId).toBe(b.oid);
         expect(h.onScreen()).toBe(b.activetabid);
-        expect(h.backend.windows.get("win-1").workspaceid).toBe(b.oid);
-        // Before #449: the first switch runs to the end, so its view is shown before the second one.
-        expect(screenSince(t0).some((e) => e[1] === a.activetabid)).toBe(true);
-        expect(starter).toBeTruthy();
+        expect(backendWindowWs()).toBe(b.oid);
+        // Before #449: the first switch ran to the end, so its view was shown before the second one.
+        expect(screenSince(t0).some((e) => e[1] === a.activetabid)).toBe(false);
+        expect(liveTabViews()).not.toContain(a.activetabid);
+        expect(win.allLoadedTabViews.has(starter.activetabid)).toBe(true);
+    });
+
+    it("seven quick clicks across workspaces land on the last one and show nothing else", async () => {
+        const starter = await setup();
+        const targets = [1, 2, 3].map((i) => h.backend.addWorkspace(`W${i}`));
+        await warmSpare();
+        const t0 = Date.now();
+        const clicks = [0, 1, 2, 0, 1, 2, 1];
+        for (const i of clicks) {
+            ipc("switch-workspace", targets[i].oid);
+            await vi.advanceTimersByTimeAsync(3);
+        }
+        await vi.advanceTimersByTimeAsync(10000);
+        const last = targets[clicks[clicks.length - 1]];
+        expect(win.workspaceId).toBe(last.oid);
+        expect(backendWindowWs()).toBe(last.oid);
+        expect(h.onScreen()).toBe(last.activetabid);
+        const shown = new Set(screenSince(t0).map((e) => e[1]));
+        expect([...shown].filter((t) => t !== "" && t !== starter.activetabid)).toEqual([last.activetabid]);
+        expect(queueLength()).toBe(0);
+    });
+
+    it("coming back to the workspace on screen cancels a switch under way", async () => {
+        const starter = await setup();
+        const a = h.backend.addWorkspace("A");
+        await warmSpare();
+        const t0 = Date.now();
+        ipc("switch-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(10);
+        ipc("switch-workspace", starter.oid);
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(win.workspaceId).toBe(starter.oid);
+        expect(backendWindowWs()).toBe(starter.oid);
+        expect(h.onScreen()).toBe(starter.activetabid);
+        expect(screenSince(t0).every((e) => e[1] === starter.activetabid)).toBe(true);
+        expect(liveTabViews()).not.toContain(a.activetabid);
+    });
+
+    it("workspaceId changes only once the new view is on screen", async () => {
+        const starter = await setup();
+        const a = h.backend.addWorkspace("A");
+        await warmSpare();
+        ipc("switch-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(30);
+        expect(backendWindowWs()).toBe(a.oid);
+        expect(win.workspaceId).toBe(starter.oid);
+        expect(h.onScreen()).toBe(starter.activetabid);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(h.onScreen()).toBe(a.activetabid);
+        expect(win.workspaceId).toBe(a.oid);
     });
 
     it("delete of the current workspace while a switch to it is pending", async () => {
@@ -621,27 +725,200 @@ describe("window action queue: interleavings", () => {
         expect(h.backend.workspaces.has(other.oid)).toBe(true);
         expect(win.workspaceId).toBe(other.oid);
         expect(h.onScreen()).toBe(other.activetabid);
+        expect(backendWindowWs()).toBe(other.oid);
+    });
+
+    it("a delete drops a pending switch to the workspace it deletes", async () => {
+        const starter = await setup();
+        const a = h.backend.addWorkspace("A");
+        const b = h.backend.addWorkspace("B");
+        await warmSpare();
+        const t0 = Date.now();
+        h.silentBoot = true;
+        ipc("switch-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(5);
+        h.silentBoot = false;
+        ipc("switch-workspace", b.oid);
+        await vi.advanceTimersByTimeAsync(5);
+        ipc("delete-workspace", b.oid);
+        await vi.advanceTimersByTimeAsync(12000);
+        expect(h.backend.workspaces.has(b.oid)).toBe(false);
+        expect(screenSince(t0).some((e) => e[1] === b.activetabid)).toBe(false);
+        expect(h.rendererErrors).toEqual([]);
+        expect(win.workspaceId).toBe(starter.oid);
+        expect(queueLength()).toBe(0);
+    });
+});
+
+describe("window action queue: one readiness deadline", () => {
+    it.each([
+        [false, 10000],
+        [true, 5000],
+    ])("gives up on a view that never initializes at the deadline (dev %s, %i ms)", async (isDev, deadlineMs) => {
+        const starter = await setup({ isDev });
+        await warmSpare();
+        const a = h.backend.addWorkspace("A");
+        h.silentBoot = true;
+        h.tabviewModule.discardHotSpareTab();
+        h.tabviewModule.ensureHotSpareTab({ settings: {} });
+        const t0 = Date.now();
+        ipc("switch-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(deadlineMs - 100);
+        expect(queueLength()).toBe(1);
+        await vi.advanceTimersByTimeAsync(200);
+        // Before #449: 5 s for the spare, then 15 s for the fresh view (35 s and more with the init wait).
+        expect(queueLength()).toBe(0);
+        expect(Date.now() - t0).toBeLessThanOrEqual(deadlineMs + 100);
+        expect(win.workspaceId).toBe(starter.oid);
+        expect(backendWindowWs()).toBe(starter.oid);
+        expect(h.onScreen()).toBe(starter.activetabid);
+        expect(win.allLoadedTabViews.has(a.activetabid)).toBe(false);
+        expect(liveTabViews()).not.toContain(a.activetabid);
+        h.silentBoot = false;
+        h.tabviewModule.discardHotSpareTab();
+        await warmSpare();
+        ipc("switch-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(h.onScreen()).toBe(a.activetabid);
+    });
+
+    it("shows a view that initialized but did not report ready by the deadline (#68)", async () => {
+        await setup();
+        await warmSpare();
+        const a = h.backend.addWorkspace("A");
+        h.silentRender = true;
+        const t0 = Date.now();
+        ipc("switch-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(9900);
+        expect(h.onScreen()).not.toBe(a.activetabid);
+        await vi.advanceTimersByTimeAsync(200);
+        expect(h.onScreen()).toBe(a.activetabid);
+        expect(win.workspaceId).toBe(a.oid);
+        expect(screenSince(t0).find((e) => e[1] === a.activetabid)[0]).toBeLessThanOrEqual(10050);
+    });
+
+    it("drops a view whose tab was deleted meanwhile instead of showing it", async () => {
+        const starter = await setup();
+        await warmSpare();
+        const a = h.backend.addWorkspace("A");
+        h.silentRender = true;
+        ipc("switch-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(500);
+        h.backend.tabs.delete(a.activetabid);
+        await vi.advanceTimersByTimeAsync(10000);
+        expect(h.onScreen()).toBe(starter.activetabid);
+        expect(win.workspaceId).toBe(starter.oid);
+        expect(backendWindowWs()).toBe(starter.oid);
+        expect(liveTabViews()).not.toContain(a.activetabid);
     });
 });
 
 describe("window action queue: never stuck", () => {
-    it("a switch the backend answers with nothing does not block the next action", async () => {
+    type Step = { name: string; method: string; fault: "throw" | "null"; act: () => Promise<void> };
+    const steps: Step[] = [
+        { name: "createtab", method: "CreateTab", fault: "throw", act: async () => ipc("create-tab") },
+        { name: "createtab", method: "CreateTab", fault: "null", act: async () => ipc("create-tab") },
+        {
+            name: "switchtab",
+            method: "SetActiveTab",
+            fault: "throw",
+            act: async () => {
+                const ws = h.backend.workspaces.get(win.workspaceId);
+                const tabId = h.backend.newId("tab-");
+                h.backend.tabs.add(tabId);
+                ws.tabids.push(tabId);
+                ipc("set-active-tab", tabId);
+            },
+        },
+        {
+            name: "closetab",
+            method: "CloseTab",
+            fault: "null",
+            act: async () => h.ipc.get("close-tab")(senderEvent(), win.workspaceId, win.activeTabView.waveTabId, false),
+        },
+        {
+            name: "closetab",
+            method: "CloseTab",
+            fault: "throw",
+            act: async () => h.ipc.get("close-tab")(senderEvent(), win.workspaceId, win.activeTabView.waveTabId, false),
+        },
+        {
+            name: "switchworkspace",
+            method: "SwitchWorkspace",
+            fault: "null",
+            act: async () => ipc("switch-workspace", h.backend.addWorkspace("X").oid),
+        },
+        {
+            name: "switchworkspace",
+            method: "SwitchWorkspace",
+            fault: "throw",
+            act: async () => ipc("switch-workspace", h.backend.addWorkspace("X").oid),
+        },
+        {
+            name: "deleteworkspace",
+            method: "GetWorkspace",
+            fault: "throw",
+            act: async () => win.queueDeleteWorkspace(win.workspaceId),
+        },
+        {
+            name: "deleteworkspace",
+            method: "DeleteWorkspace",
+            fault: "throw",
+            act: async () => win.queueDeleteWorkspace(h.backend.addWorkspace("X").oid),
+        },
+        {
+            name: "deleteworkspace",
+            method: "DeleteWorkspace",
+            fault: "null",
+            act: async () => win.queueDeleteWorkspace(win.workspaceId),
+        },
+        {
+            name: "resetworkspace",
+            method: "ResetWorkspace",
+            fault: "throw",
+            act: async () => win.queueResetWorkspace(),
+        },
+        { name: "resetworkspace", method: "GetWorkspace", fault: "throw", act: async () => win.queueResetWorkspace() },
+    ];
+
+    it.each(steps)("$name with $method answering $fault: the next action still runs", async (step) => {
+        await setup();
+        await warmSpare();
+        const next = h.backend.addWorkspace("Next");
+        h.backend.faults.set(step.method, step.fault);
+        // The failing action is running when the next one is queued, then runs alone.
+        const failing = step.act();
+        await vi.advanceTimersByTimeAsync(0);
+        ipc("switch-workspace", next.oid);
+        await vi.advanceTimersByTimeAsync(3000);
+        await failing;
+        expect(queueLength()).toBe(0);
+        if (!win.isDestroyed()) {
+            ipc("switch-workspace", next.oid);
+            await vi.advanceTimersByTimeAsync(3000);
+            expect(win.workspaceId).toBe(next.oid);
+            expect(h.onScreen()).toBe(next.activetabid);
+        }
+    });
+
+    it("a switch the backend answers with nothing does not block the action queued behind it", async () => {
         const starter = await setup();
         const other = await addVisitedWorkspace();
         await warmSpare();
-        h.backend.switchReturnsNull = true;
+        h.backend.faults.set("SwitchWorkspace", "null");
         ipc("switch-workspace", starter.oid);
-        await vi.advanceTimersByTimeAsync(0);
-        const third = h.backend.addWorkspace("Third");
-        ipc("switch-workspace", third.oid);
-        await vi.advanceTimersByTimeAsync(5);
-        h.backend.switchReturnsNull = false;
-        await vi.advanceTimersByTimeAsync(2000);
-        // Before #449: the `return` inside processActionQueue leaves the second switch in the queue forever, and
-        // every later action is queued behind it.
-        expect(win.workspaceId).toBe(other.oid);
+        await vi.advanceTimersByTimeAsync(3);
         ipc("create-tab");
         await vi.advanceTimersByTimeAsync(2000);
-        expect(h.onScreen()).toBe(other.activetabid);
+        // Before #449: the `return` inside processActionQueue left the next action in the queue for good, and every
+        // later action queued behind it.
+        expect(queueLength()).toBe(0);
+        expect(win.workspaceId).toBe(other.oid);
+        expect(h.backend.workspaces.get(other.oid).tabids).toHaveLength(2);
+        expect(h.onScreen()).toBe(h.backend.workspaces.get(other.oid).activetabid);
+        const third = h.backend.addWorkspace("Third");
+        ipc("switch-workspace", third.oid);
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(h.onScreen()).toBe(third.activetabid);
     });
 });

@@ -74,7 +74,8 @@ describe("acquireReadyView", () => {
         const rtn = await acquireReadyView(
             () => spare,
             makeFresh,
-            () => {}
+            () => {},
+            Date.now() + 10000
         );
         expect(rtn).toEqual({ view: spare, ready: true });
         expect(makeFresh).not.toHaveBeenCalled();
@@ -88,8 +89,7 @@ describe("acquireReadyView", () => {
             () => spare,
             () => fresh,
             log,
-            5000,
-            15000
+            Date.now() + 10000
         );
         await vi.advanceTimersByTimeAsync(5000);
         fresh.resolve();
@@ -107,17 +107,53 @@ describe("acquireReadyView", () => {
             () => spare,
             () => fresh,
             () => {},
-            5000,
-            15000
+            Date.now() + 10000
         ).then((r) => {
             settled = true;
             return r;
         });
-        await vi.advanceTimersByTimeAsync(5000 + 15000);
+        await vi.advanceTimersByTimeAsync(10000);
         const rtn = await result;
         expect(settled).toBe(true);
         expect(rtn.ready).toBe(false);
         expect(rtn.view).toBe(fresh);
+    });
+});
+
+describe("acquireReadyView under a single deadline (#449)", () => {
+    it("gives the spare at most half of the time left, and the fresh view the rest", async () => {
+        const spare = makeView();
+        const fresh = makeView();
+        let settledAt = 0;
+        const start = Date.now();
+        const result = acquireReadyView(
+            () => spare,
+            () => fresh,
+            () => {},
+            start + 5000
+        ).then((r) => {
+            settledAt = Date.now() - start;
+            return r;
+        });
+        await vi.advanceTimersByTimeAsync(2500);
+        expect(spare.destroyed).toBe(1);
+        await vi.advanceTimersByTimeAsync(2500);
+        const rtn = await result;
+        expect(rtn).toEqual({ view: fresh, ready: false });
+        expect(settledAt).toBe(5000);
+    });
+
+    it("never waits past a deadline that has already passed", async () => {
+        const spare = makeView();
+        const fresh = makeView();
+        const result = acquireReadyView(
+            () => spare,
+            () => fresh,
+            () => {},
+            Date.now() - 1
+        );
+        await vi.advanceTimersByTimeAsync(1);
+        await expect(result).resolves.toEqual({ view: fresh, ready: false });
     });
 });
 
