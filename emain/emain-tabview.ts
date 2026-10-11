@@ -20,11 +20,8 @@ import {
     shNavHandler,
 } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
-import { hostsBrowserPage, hostsControlledTab } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#301, #375)
 import { attachWebviewWindowOpen } from "./moltenterm-popups"; // MOLTENTERM-PATCH (#207)
-import { acquireReadyView } from "./moltenterm-spare-ready"; // MOLTENTERM-PATCH (#283)
-import { revealTabView } from "./moltenterm-tabview-budget"; // MOLTENTERM-PATCH (#454)
-import { noteTabViewPrioritySetting, raiseSparePriority, raiseTabViewPriority } from "./moltenterm-tabview-priority"; // MOLTENTERM-PATCH (#450)
+import { acquireViewForTab, noteTabViewDestroyed, noteTabViewDestroying } from "./moltenterm-tabview-host"; // MOLTENTERM-PATCH (#461)
 
 function handleWindowsMenuAccelerators(
     waveEvent: WaveKeyboardEvent,
@@ -171,7 +168,7 @@ export class WaveTabView extends WebContentsView {
         }
         this.webContents.on("destroyed", () => {
             wcIdToWaveTabMap.delete(wcId);
-            removeWaveTabView(this.waveTabId, this); // MOLTENTERM-PATCH (#448)
+            noteTabViewDestroyed(this); // MOLTENTERM-PATCH (#448, #461): the tab view host forgets it
             this.isDestroyed = true;
         });
         this.setBackgroundColor(computeBgColor(fullConfig));
@@ -203,7 +200,6 @@ export class WaveTabView extends WebContentsView {
     }
 
     positionTabOnScreen(winBounds: Rectangle) {
-        revealTabView(this); // MOLTENTERM-PATCH (#454): a view parked off-screen is hidden (moltenterm-tabview-budget.ts)
         const curBounds = this.getBounds();
         if (
             curBounds.width == winBounds.width &&
@@ -232,7 +228,7 @@ export class WaveTabView extends WebContentsView {
 
     destroy() {
         console.log("destroy tab", this.waveTabId);
-        removeWaveTabView(this.waveTabId, this); // MOLTENTERM-PATCH (#448)
+        noteTabViewDestroying(this); // MOLTENTERM-PATCH (#448, #461): it leaves the cache, its window and its window's screen
         if (!this.isDestroyed) {
             this.webContents?.close();
         }
@@ -240,122 +236,35 @@ export class WaveTabView extends WebContentsView {
     }
 }
 
-let MaxCacheSize = 10;
-const wcvCache = new Map<string, WaveTabView>();
-
-export function setMaxTabCacheSize(size: number) {
-    console.log("setMaxTabCacheSize", size);
-    MaxCacheSize = size;
-}
-
-export function getWaveTabView(waveTabId: string): WaveTabView | undefined {
-    const rtn = wcvCache.get(waveTabId);
-    if (rtn) {
-        rtn.lastUsedTs = Date.now();
-    }
-    return rtn;
-}
-
-function tryEvictEntry(waveTabId: string): boolean {
-    const tabView = wcvCache.get(waveTabId);
-    if (!tabView) {
-        return false;
-    }
-    if (tabView.isActiveTab) {
-        return false;
-    }
-    // MOLTENTERM-PATCH (#301): a tab view holding a browser tab an agent drives stays, so its page keeps running and can
-    // be read and captured while the tab is hidden (FR-BRW-009, emain/moltenterm-browseragent.ts)
-    if (!tabView.webContents.isDestroyed() && hostsControlledTab(tabView.webContents.id)) {
-        return false;
-    }
-    // MOLTENTERM-PATCH (#375): so does one showing a browser panel with a loaded page, driven or not: its page (a
-    // sign-in, a form) survives the wake refresh and the cache eviction
-    if (!tabView.webContents.isDestroyed() && hostsBrowserPage(tabView.webContents.id)) {
-        return false;
-    }
-    const lastUsedDiff = Date.now() - tabView.lastUsedTs;
-    if (lastUsedDiff < 1000) {
-        return false;
-    }
-    const ww = getWaveWindowById(tabView.waveWindowId);
-    if (!ww) {
-        // this shouldn't happen, but if it does, just destroy the tabview
-        console.log("[error] WaveWindow not found for WaveTabView", tabView.waveTabId);
-        tabView.destroy();
-        return true;
-    } else {
-        // will trigger a destroy on the tabview
-        ww.removeTabView(tabView.waveTabId, false);
-        return true;
-    }
-}
-
-function checkAndEvictCache(): void {
-    if (wcvCache.size <= MaxCacheSize) {
-        return;
-    }
-    const sorted = Array.from(wcvCache.values()).sort((a, b) => {
-        // Prioritize entries which are active
-        if (a.isActiveTab && !b.isActiveTab) {
-            return -1;
-        }
-        // Otherwise, sort by lastUsedTs
-        return a.lastUsedTs - b.lastUsedTs;
-    });
-    // MOLTENTERM-PATCH (#375): views tryEvictEntry keeps do not use up the evictions, the next oldest go instead
-    for (let i = 0; i < sorted.length && wcvCache.size > MaxCacheSize; i++) {
-        tryEvictEntry(sorted[i].waveTabId);
-    }
-}
-
-// MOLTENTERM-PATCH (#375): returns the views it had to keep, for the wake refresh to repaint them when shown
-export function clearTabCache(): WaveTabView[] {
-    const kept: WaveTabView[] = [];
-    const wcVals = Array.from(wcvCache.values());
-    for (let i = 0; i < wcVals.length; i++) {
-        const tabView = wcVals[i];
-        if (!tryEvictEntry(tabView.waveTabId) && wcvCache.get(tabView.waveTabId) === tabView) {
-            kept.push(tabView);
-        }
-    }
-    return kept;
-}
+// MOLTENTERM-PATCH (#461): the tab view cache, its evictions and the hot spare are the tab view host's, with every
+// view's state (emain/moltenterm-tabview-host.ts)
+export {
+    clearTabCache,
+    discardHotSpareTab,
+    ensureHotSpareTab,
+    getSpareTab,
+    getWaveTabView,
+    setMaxTabCacheSize,
+} from "./moltenterm-tabview-host";
 
 // returns [tabview, initialized]
-// MOLTENTERM-PATCH (#449): deadline is the window action's single readiness deadline (ms since epoch); when
-// `cancelled` resolves first (the action was superseded), the view taken goes back as the hot spare and null is returned
+// MOLTENTERM-PATCH (#449, #461): the host hands out the tab's view, or a spare it gives to the tab, by the action's
+// readiness deadline; null when `cancelled` resolves first (the action was superseded)
 export async function getOrCreateWebViewForTab(
     waveWindowId: string,
     tabId: string,
     deadline: number,
     cancelled: Promise<void> = null
 ): Promise<[WaveTabView, boolean]> {
-    let tabView = getWaveTabView(tabId);
-    if (tabView) {
-        return [tabView, true];
-    }
-    const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
-    noteTabViewPrioritySetting(fullConfig); // MOLTENTERM-PATCH (#450)
-    // MOLTENTERM-PATCH (#283): a spare that stays silent is replaced instead of awaited forever
-    // MOLTENTERM-PATCH (#450): the view taken for the tab loads at the foreground priority
-    const acquired = await acquireReadyView(
-        () => withRaisedPriority(getSpareTab(fullConfig)),
-        () => withRaisedPriority(new WaveTabView(fullConfig)),
-        (msg) => console.log("[#283]", msg),
-        deadline, // MOLTENTERM-PATCH (#449)
-        cancelled // MOLTENTERM-PATCH (#449)
-    );
-    // MOLTENTERM-PATCH (#449)
-    if (acquired.cancelled) {
-        returnSpareTab(acquired.view);
+    const acquired = await acquireViewForTab(waveWindowId, tabId, deadline, cancelled);
+    if (acquired == null) {
         return null;
     }
-    tabView = acquired.view;
-    tabView.waveWindowId = waveWindowId;
-    tabView.lastUsedTs = Date.now();
-    setWaveTabView(tabId, tabView);
-    tabView.waveTabId = tabId;
+    if (acquired.initialized) {
+        return [acquired.view, true];
+    }
+    const tabView = acquired.view;
+    const fullConfig = acquired.fullConfig;
     tabView.webContents.on("will-navigate", shNavHandler);
     tabView.webContents.on("will-frame-navigate", shFrameNavHandler);
     // MOLTENTERM-PATCH (#207): sign-in popups open as real child windows; other new windows still become panel tabs
@@ -395,83 +304,4 @@ export async function getOrCreateWebViewForTab(
     });
     configureAuthKeyRequestInjection(tabView.webContents.session);
     return [tabView, false];
-}
-
-export function setWaveTabView(waveTabId: string, wcv: WaveTabView): void {
-    if (waveTabId == null) {
-        return;
-    }
-    wcvCache.set(waveTabId, wcv);
-    checkAndEvictCache();
-}
-
-// MOLTENTERM-PATCH (#448): a view only removes its own entry; the cache may already hold another view for its tab
-function removeWaveTabView(waveTabId: string, wcv: WaveTabView): void {
-    if (waveTabId == null || wcvCache.get(waveTabId) !== wcv) {
-        return;
-    }
-    wcvCache.delete(waveTabId);
-}
-
-// MOLTENTERM-PATCH (#448): for the sweep of deleted tabs' views (emain/moltenterm-tabview-sweep.ts)
-export function getCachedTabViews(): WaveTabView[] {
-    return Array.from(wcvCache.values());
-}
-
-// MOLTENTERM-PATCH (#448)
-export function isHotSpareTab(tabView: WaveTabView): boolean {
-    return tabView != null && tabView === HotSpareTab;
-}
-
-let HotSpareTab: WaveTabView = null;
-
-export function ensureHotSpareTab(fullConfig: FullConfigType) {
-    console.log("ensureHotSpareTab");
-    if (HotSpareTab == null) {
-        HotSpareTab = new WaveTabView(fullConfig);
-        // MOLTENTERM-PATCH (#450): the spare loads at the foreground priority, once no view is being shown
-        noteTabViewPrioritySetting(fullConfig);
-        raiseSparePriority(() => HotSpareTab);
-    }
-}
-
-// MOLTENTERM-PATCH (#450)
-function withRaisedPriority(tabView: WaveTabView): WaveTabView {
-    raiseTabViewPriority(tabView);
-    return tabView;
-}
-
-// MOLTENTERM-PATCH (#199): the spare is a hidden view too, stale after a long sleep; the next ensureHotSpareTab makes
-// a new one
-export function discardHotSpareTab() {
-    if (HotSpareTab == null) {
-        return;
-    }
-    const spare = HotSpareTab;
-    HotSpareTab = null;
-    spare.destroy();
-}
-
-// MOLTENTERM-PATCH (#449): a view taken for a superseded switch was never given a tab; it becomes the spare again
-// (rapid clicks then cost no new renderer), unless another spare was made meanwhile
-function returnSpareTab(tabView: WaveTabView) {
-    if (HotSpareTab == null && !tabView.isDestroyed) {
-        console.log("returnSpareTab: unused view kept as the hot spare");
-        HotSpareTab = tabView;
-        return;
-    }
-    tabView.destroy();
-}
-
-export function getSpareTab(fullConfig: FullConfigType): WaveTabView {
-    setTimeout(() => ensureHotSpareTab(fullConfig), 500);
-    if (HotSpareTab != null) {
-        const rtn = HotSpareTab;
-        HotSpareTab = null;
-        console.log("getSpareTab: returning hotspare");
-        return rtn;
-    } else {
-        console.log("getSpareTab: creating new tab");
-        return new WaveTabView(fullConfig);
-    }
 }

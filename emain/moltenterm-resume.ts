@@ -1,8 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { clearTabCache, discardHotSpareTab } from "./emain-tabview";
 import { getAllWaveWindows } from "./emain-window";
+import { clearTabCache, discardHotSpareTab } from "./moltenterm-tabview-host";
 import { noteTabViewNeedsRepaint } from "./moltenterm-tabview-repaint";
 
 // After a long sleep, the tab views Electron keeps hidden in the cache are no longer repainted: showing one again
