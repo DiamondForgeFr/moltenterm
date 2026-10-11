@@ -21,7 +21,7 @@ import {
     applyAgentStates,
     EmptyAgentStates,
 } from "../frontend/moltenterm-shell/agent-state-model";
-import { getCachedTabViews, isHotSpareTab, WaveTabView } from "./emain-tabview";
+import type { WaveTabView } from "./emain-tabview";
 import { ElectronWshClient } from "./emain-wsh";
 import { hostsBrowserPage, hostsControlledTab } from "./moltenterm-browseragent";
 import {
@@ -31,6 +31,7 @@ import {
     TabViewBudgetDeps,
     tabViewWorkspace,
 } from "./moltenterm-tabview-budget";
+import { getCachedTabViews, isHotSpareTab } from "./moltenterm-tabview-host";
 import {
     hostedPagesHaveUnsavedWork,
     initMoltentermWebviewLifecycle,

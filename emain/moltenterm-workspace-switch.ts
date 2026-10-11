@@ -7,7 +7,7 @@
 // same cache) and shows the next view only once it is ready, so only the content changes.
 
 import type { WaveTabView } from "./emain-tabview";
-import { getWaveTabView } from "./emain-tabview";
+import { getWaveTabView } from "./moltenterm-tabview-host";
 
 // A reused view reinitialises in tens of milliseconds; past this, it is shown anyway.
 export const MoltentermReinitTimeoutMs = 400;

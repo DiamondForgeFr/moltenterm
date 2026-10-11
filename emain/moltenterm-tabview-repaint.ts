@@ -6,7 +6,7 @@ import type { WaveTabView } from "./emain-tabview";
 import { ensureTabViewPainted, ShownViewProbe, ShownViewProbeScript } from "./moltenterm-tabview-health";
 
 type WindowShowingTabViews = {
-    activeTabView: WaveTabView;
+    readonly activeTabView: WaveTabView;
     isDestroyed(): boolean;
     removeTabView(tabId: string, force: boolean): void;
     setActiveTab(tabId: string, setInBackend: boolean): Promise<void>;
@@ -52,12 +52,10 @@ export function checkReusedTabViewPainted(win: WindowShowingTabViews, tabView: W
     });
 }
 
-// Durable terminals run outside the views, so a fresh view reattaches them as after #199's eviction.
+// Durable terminals run outside the views, so a fresh view reattaches them as after #199's eviction. Removing the
+// shown view leaves the window without an active view (the tab view host), so the tab is loaded again from the spare.
 async function rebuildActiveTabView(win: WindowShowingTabViews, tabView: WaveTabView) {
     const tabId = tabView.waveTabId;
     win.removeTabView(tabId, true);
-    if (win.activeTabView === tabView) {
-        win.activeTabView = null;
-    }
     await win.setActiveTab(tabId, false);
 }
