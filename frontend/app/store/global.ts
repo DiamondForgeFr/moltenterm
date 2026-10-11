@@ -37,7 +37,7 @@ import { modalsModel } from "./modalmodel";
 import { ClientService, ObjectService } from "./services";
 import { isPreviewWindow } from "./windowtype";
 import * as WOS from "./wos";
-import { getFileSubject, waveEventSubscribeSingle } from "./wps";
+import { waveEventSubscribeSingle } from "./wps"; // MOLTENTERM-PATCH (#456)
 
 let globalPrimaryTabStartup: boolean = false;
 
@@ -83,16 +83,7 @@ function initGlobalWaveEventSubs(initOpts: WaveInitOpts) {
         },
         scope: initOpts.windowId,
     });
-    waveEventSubscribeSingle({
-        eventType: "blockfile",
-        handler: (event) => {
-            // console.log("blockfile event update", event);
-            const fileSubject = getFileSubject(event.data.zoneid, event.data.filename);
-            if (fileSubject != null) {
-                fileSubject.next(event.data);
-            }
-        },
-    });
+    // MOLTENTERM-PATCH (#456): blockfile events are subscribed per block by getFileSubject (wps.ts), not for all scopes
     waveEventSubscribeSingle({
         eventType: "waveai:ratelimit",
         handler: (event) => {
