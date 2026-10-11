@@ -9,13 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
+	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 )
 
 // Detection (FR-CONT-006 AC2, AC5, AC6): the agent's program on the login PATH, launchers skipped, and
@@ -242,7 +242,7 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 
 // RunVersionProbe runs `<path> --version` with no input; on timeout its whole process group is killed.
 func RunVersionProbe(ctx context.Context, path string, env []string) (string, error) {
-	cmd := exec.CommandContext(ctx, path, versionFlag)
+	cmd := spawns.Command(ctx, path, versionFlag)
 	if env != nil {
 		cmd.Env = env
 	}

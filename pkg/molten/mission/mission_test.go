@@ -255,7 +255,7 @@ func TestStartRefreshThrottlesGithub(t *testing.T) {
 	now := time.Now()
 	c.now = func() time.Time { return now }
 	state := &projectState{snap: Snapshot{GitAt: now.Add(-5 * time.Second).UnixMilli(), GithubAt: now.Add(-30 * time.Second).UnixMilli()}}
-	plan, start := c.startRefreshLocked(state, 0, true)
+	plan, start := c.startRefreshLocked(state, refreshAsk{forced: true})
 	if !start || !plan.git || plan.github {
 		t.Fatalf("forced within a minute of the last GitHub read: %+v", plan)
 	}

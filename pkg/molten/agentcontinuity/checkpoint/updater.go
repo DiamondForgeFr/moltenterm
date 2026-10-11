@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
+	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
@@ -95,6 +95,10 @@ type Updater struct {
 	afterFunc   func(d time.Duration, fn func()) func() bool
 	delay       time.Duration
 	interval    time.Duration
+	// pollEvery is the poll of the running agents' transcripts. It sleeps while no agent runs and no pane is followed,
+	// until wake: an agent state changed, a trigger (FR-PERF-011).
+	pollEvery time.Duration
+	wake      chan struct{}
 }
 
 func MakeUpdater(store *Store) *Updater {
@@ -112,9 +116,38 @@ func MakeUpdater(store *Store) *Updater {
 		afterFunc: func(d time.Duration, fn func()) func() bool {
 			return time.AfterFunc(d, fn).Stop
 		},
-		delay:    TriggerDelay,
-		interval: WorkspaceInterval,
+		delay:     TriggerDelay,
+		interval:  WorkspaceInterval,
+		pollEvery: PollInterval,
+		wake:      make(chan struct{}, 1),
 	}
+}
+
+// Wake tells the poll that an agent may have started: it polls again if it was asleep.
+func (u *Updater) Wake() {
+	select {
+	case u.wake <- struct{}{}:
+	default:
+	}
+}
+
+// busy tells whether the poll has anything to look at: a running agent, or panes and workspaces still followed.
+func (u *Updater) busy() bool {
+	u.lock.Lock()
+	following := len(u.blocks) > 0 || len(u.workspaces) > 0
+	u.lock.Unlock()
+	if following {
+		return true
+	}
+	if u.runs == nil {
+		return false
+	}
+	for _, run := range u.runs() {
+		if run.Running {
+			return true
+		}
+	}
+	return false
 }
 
 func (u *Updater) block(blockId string) *blockState {
@@ -136,6 +169,7 @@ func (u *Updater) TurnEnded(blockId string, agent string) {
 
 // Trigger schedules the update of the block's workspace.
 func (u *Updater) Trigger(blockId string) {
+	defer u.Wake()
 	wsId, err := u.blockWorkspace(blockId)
 	if err != nil || wsId == "" {
 		return
@@ -465,19 +499,33 @@ func (u *Updater) ForgetBlock(blockId string) {
 	}
 }
 
-// Run polls until stop is closed.
+// Run polls until stop is closed: every pollEvery while busy, and idle it waits for Wake. A wake never postpones a
+// poll already due (agent states change often while an agent works).
 func (u *Updater) Run(stop <-chan struct{}) {
 	defer func() {
 		panichandler.PanicHandler("molten:checkpoint:poll", recover())
 	}()
-	ticker := time.NewTicker(PollInterval)
-	defer ticker.Stop()
+	var timer *time.Timer
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
 	for {
+		if timer == nil && u.busy() {
+			timer = time.NewTimer(u.pollEvery)
+		}
+		var tick <-chan time.Time
+		if timer != nil {
+			tick = timer.C
+		}
 		select {
 		case <-stop:
 			return
-		case <-ticker.C:
+		case <-tick:
+			timer = nil
 			u.Tick()
+		case <-u.wake:
 		}
 	}
 }
@@ -516,7 +564,7 @@ func ReadGitState(folder string) GitState {
 }
 
 func runGit(ctx context.Context, dir string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"--no-optional-locks"}, args...)...)
+	cmd := spawns.Command(ctx, "git", append([]string{"--no-optional-locks"}, args...)...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
 	out, err := cmd.Output()

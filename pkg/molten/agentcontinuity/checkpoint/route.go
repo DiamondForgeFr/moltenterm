@@ -275,6 +275,11 @@ func start() {
 		}
 	})
 	wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{Event: wps.Event_BlockClose, AllScopes: true}, nil)
+	// The poll sleeps while no agent runs (FR-PERF-011): an agent state wakes it.
+	rpcClient.EventListener.On(molten.AgentStateEvent, func(event *wps.WaveEvent) {
+		u.Wake()
+	})
+	wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{Event: molten.AgentStateEvent, AllScopes: true}, nil)
 }
 
 func sweepLoop(store *Store) {

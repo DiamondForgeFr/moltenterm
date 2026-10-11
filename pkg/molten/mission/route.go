@@ -12,6 +12,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
@@ -281,6 +282,9 @@ func (l *routeLink) handleGithubRun(command string, source string, data any) (an
 }
 
 func (l *routeLink) handle(command string, source string, data any) (any, error) {
+	if command == SpawnsCommand {
+		return spawns.Snapshot(), nil
+	}
 	if command == PaneCommand {
 		var req PaneRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -353,6 +357,9 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 	}
 	switch command {
 	case GetCommand:
+		if req.Passive {
+			return l.collector.Warm(req.Dir)
+		}
 		return l.collector.Get(req.Dir, maxAge, false)
 	case RefreshCommand:
 		return l.collector.Get(req.Dir, 0, true)

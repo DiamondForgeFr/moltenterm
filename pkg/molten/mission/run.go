@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 )
 
@@ -92,7 +93,7 @@ func ExecRunner(ctx context.Context, dir string, name string, args ...string) ([
 	}
 	// The program is resolved before the command is built: exec.Command looks the bare name up in the process's own
 	// PATH and keeps that failure in cmd.Err, which setting cmd.Path afterwards does not clear.
-	cmd := exec.CommandContext(ctx, program, args...)
+	cmd := spawns.Command(ctx, program, args...)
 	cmd.Dir = dir
 	cmd.Env = append(commandEnv(), runEnvOf(ctx)...)
 	var stdout, stderr limitedBuffer
