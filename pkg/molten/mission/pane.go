@@ -6,6 +6,7 @@ package mission
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -126,6 +127,8 @@ type paneProject struct {
 type paneCiKey struct {
 	project string
 	sha     string
+	// The pipeline file's modification time: a changed pipeline (jobs added) asks the CI again.
+	pipeline int64
 }
 
 type Panes struct {
@@ -138,7 +141,7 @@ type Panes struct {
 	sleep     func(time.Duration)
 	trees     map[string]*paneTree
 	projects  map[string]*paneProject
-	// The local CI's verdict by project and commit: it changes only when a CI run ends (CiChanged).
+	// The local CI's verdict by project, commit and pipeline: it changes when a CI run ends (CiChanged).
 	ciVerdicts map[paneCiKey]string
 }
 
@@ -194,11 +197,19 @@ func (p *Panes) storeCi(key paneCiKey, verdict string) {
 	p.ciVerdicts[key] = verdict
 }
 
+func pipelineModTime(project string) int64 {
+	info, err := os.Stat(filepath.Join(project, molten.ProjectPipelineFile))
+	if err != nil {
+		return 0
+	}
+	return info.ModTime().UnixNano()
+}
+
 func (p *Panes) ciVerdict(project string, sha string) string {
 	if p.ci == nil || sha == "" {
 		return ""
 	}
-	key := paneCiKey{project: project, sha: sha}
+	key := paneCiKey{project: project, sha: sha, pipeline: pipelineModTime(project)}
 	if verdict, ok := p.cachedCi(key); ok {
 		return verdict
 	}

@@ -115,7 +115,10 @@ type tree struct {
 }
 
 type Watcher struct {
-	lock     sync.Mutex
+	lock sync.Mutex
+	// Sequences come from one counter: a tree dropped then watched again never gets back a value a reader kept, so
+	// what changed while it was not watched is not missed.
+	lastSeq  uint64
 	fsw      *fsnotify.Watcher
 	failed   bool
 	closed   bool
@@ -200,7 +203,8 @@ func (w *Watcher) Track(root string) (uint64, bool) {
 	for len(w.trees) >= MaxTrees {
 		w.dropOldestLocked()
 	}
-	t := &tree{root: root, dirs: dirs, usedAt: now}
+	w.lastSeq++
+	t := &tree{root: root, dirs: dirs, seq: w.lastSeq, usedAt: now}
 	if !w.watchLocked(t, dirs.GitDir, false) {
 		w.unwatchLocked(t)
 		return 0, false
@@ -373,7 +377,8 @@ func (w *Watcher) changedLocked(root string) {
 	if t == nil {
 		return
 	}
-	t.seq++
+	w.lastSeq++
+	t.seq = w.lastSeq
 	w.pending[root] = true
 	if w.timer != nil {
 		w.timer.Stop()

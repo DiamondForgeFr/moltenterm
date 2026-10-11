@@ -236,3 +236,25 @@ func TestWatcherBoundedAndIdleDrop(t *testing.T) {
 		t.Fatalf("watched folders not released: %d", dirs)
 	}
 }
+
+func TestWatcherSequenceNeverComesBack(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "r")
+	os.MkdirAll(filepath.Join(root, ".git"), 0755)
+	w := MakeWatcher(20 * time.Millisecond)
+	defer w.Close()
+	now := time.Now()
+	w.now = func() time.Time { return now }
+	first, ok := w.Track(root)
+	if !ok {
+		t.Fatal("not watched")
+	}
+	// Dropped while idle, then asked again: what changed meanwhile was not seen, so the reader must probe.
+	now = now.Add(IdleDrop + time.Second)
+	other := filepath.Join(t.TempDir(), "o")
+	os.MkdirAll(filepath.Join(other, ".git"), 0755)
+	w.Track(other)
+	again, _ := w.Track(root)
+	if again == first {
+		t.Fatalf("a tree watched again got back its old sequence %d", first)
+	}
+}
