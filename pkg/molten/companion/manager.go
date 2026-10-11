@@ -67,6 +67,10 @@ const (
 	largeRecordBytes = 1024 * 1024
 )
 
+// Without a running agent to follow (none, an ended one, a remote or unsupported one), the companion waits for its agent
+// state to change (Poke), and looks again this often for what raises no event (FR-PERF-011).
+const idleTickInterval = 2 * time.Second
+
 var largeRecordMarkers = [][]byte{[]byte(`"structuredPatch"`), []byte(`"bashEditDiff"`), []byte(`"FileChange"`), []byte(`"patch_apply_begin"`)}
 var resultIdRegex = regexp.MustCompile(`"(?:tool_use_id|call_id)"\s*:\s*"([^"]{1,200})"`)
 
@@ -163,6 +167,7 @@ type Manager struct {
 	settings      func() *wconfig.SettingsType
 	now           func() time.Time
 	tick          time.Duration
+	idleTick      time.Duration
 }
 
 func MakeManager() *Manager {
@@ -179,6 +184,14 @@ func MakeManager() *Manager {
 		adapterFor:     AdapterFor,
 		now:            time.Now,
 		tick:           tickInterval,
+		idleTick:       idleTickInterval,
+	}
+}
+
+// Poke makes the block's companion look again now (its agent state changed).
+func (m *Manager) Poke(blockId string) {
+	if w := m.watcher(blockId); w != nil {
+		w.poke()
 	}
 }
 
@@ -775,8 +788,8 @@ func (w *watcher) loop() {
 		panichandler.PanicHandler("molten:companion", recover())
 	}()
 	defer w.closeFollower()
-	ticker := time.NewTicker(w.m.tick)
-	defer ticker.Stop()
+	timer := time.NewTimer(w.m.tick)
+	defer timer.Stop()
 	for {
 		if w.m.leaseExpired(w) {
 			return
@@ -787,13 +800,31 @@ func (w *watcher) loop() {
 		if more {
 			continue
 		}
+		wait := w.m.tick
+		if w.idle() {
+			wait = w.m.idleTick
+		}
+		timer.Reset(wait)
 		select {
 		case <-w.stop:
 			return
 		case <-w.wake:
-		case <-ticker.C:
+			// Go 1.23 timers: a stopped timer delivers no stale tick, Reset needs no drain.
+			timer.Stop()
+		case <-timer.C:
 		}
 	}
+}
+
+// idle tells a companion with no running agent's session to follow: nothing is appended until a state changes.
+func (w *watcher) idle() bool {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	switch w.status {
+	case StatusNoAgent, StatusUnsupportedAgent, StatusRemote, StatusError:
+		return true
+	}
+	return w.ended
 }
 
 func (w *watcher) closeFollower() {

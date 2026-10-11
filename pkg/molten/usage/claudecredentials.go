@@ -19,6 +19,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 )
 
 // Where Claude Code keeps its sign-in (DS-SHELL-032), as Claude Code itself names it: on macOS a Keychain generic
@@ -127,7 +129,7 @@ func readKeychainCredentials(ctx context.Context, place claudeCredentialPlace) (
 	ctx, cancel := context.WithTimeout(ctx, keychainTimeout)
 	defer cancel()
 	out := &limitedBuffer{max: maxCredentialsBytes}
-	cmd := exec.CommandContext(ctx, claudeKeychainTool, "find-generic-password", "-a", place.account, "-s", place.service, "-w")
+	cmd := spawns.Command(ctx, claudeKeychainTool, "find-generic-password", "-a", place.account, "-s", place.service, "-w")
 	cmd.Stdin = nil
 	cmd.Stdout = out
 	cmd.Stderr = io.Discard

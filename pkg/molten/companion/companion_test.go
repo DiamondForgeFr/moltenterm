@@ -346,6 +346,7 @@ type fakeEnv struct {
 func makeTestManager(env *fakeEnv, root string) *Manager {
 	m := MakeManager()
 	m.tick = 10 * time.Millisecond
+	m.idleTick = 10 * time.Millisecond
 	m.runOf = func(blockId string) (molten.AgentRunInfo, bool) {
 		env.lock.Lock()
 		defer env.lock.Unlock()

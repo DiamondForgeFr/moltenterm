@@ -12,6 +12,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/gitwatch"
+	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 )
 
 // Worktree per terminal (FR-SHELL-016, DS-SHELL-016): a terminal can be linked to the git worktree its task runs in.
@@ -76,6 +79,14 @@ func ResolveWorktree(dir string) (WorktreeInfo, error) {
 	if !IsWorktreeCheckout(root) {
 		return WorktreeInfo{}, fmt.Errorf("%s is the main tree of its repository, not a linked worktree", root)
 	}
+	// The .git and commondir files say what rev-parse would: the sessions list resolves folders without a process
+	// (FR-PERF-011); git answers when they cannot be read.
+	if dirs, err := gitwatch.ReadDirs(root); err == nil {
+		if !dirs.Linked() {
+			return WorktreeInfo{}, fmt.Errorf("%s is not a linked worktree (a submodule?)", root)
+		}
+		return WorktreeInfo{Path: root, Main: MainCheckoutOf(dirs.CommonDir), Branch: gitwatch.HeadBranch(dirs.GitDir)}, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), worktreeGitTimeout)
 	defer cancel()
 	out, err := runGit(ctx, root, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
@@ -92,7 +103,7 @@ func ResolveWorktree(dir string) (WorktreeInfo, error) {
 }
 
 func runGit(ctx context.Context, dir string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"--no-optional-locks"}, args...)...)
+	cmd := spawns.Command(ctx, "git", append([]string{"--no-optional-locks"}, args...)...)
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {

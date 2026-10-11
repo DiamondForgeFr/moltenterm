@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/gitwatch"
+	"github.com/wavetermdev/waveterm/pkg/wps"
 )
 
 // The status bar's view of the focused pane (FR-SHELL-010, DS-SHELL-010): the branch, ahead count and dirty flag of
@@ -20,13 +22,20 @@ import (
 
 const (
 	PaneCommand = "moltenmissionpane"
+	// must match MissionPaneEvent in frontend/moltenterm-shell/pane-status.ts
+	PaneEvent = "molten:mission:pane"
 	// NFR: git is probed at most once a second per tree, however many windows ask.
 	paneMinInterval   = time.Second
 	paneProbeTimeout  = 10 * time.Second
 	paneProjectMaxAge = 30 * time.Second
 	paneMaxTrees      = 64
+	paneMaxProjects   = 256
+	paneMaxCi         = 256
 	// The worktree a terminal is linked to but not in (FR-SHELL-016) only needs its branch: an older probe will do.
 	paneLinkedMaxAge = 10 * time.Second
+	// A watched tree (FR-PERF-011) is probed again when git changed it, on a fresh request (a prompt back, a cd), and
+	// after this long for files edited outside a terminal (an editor's save, an agent's edit), which no git file shows.
+	paneWatchedMaxAge = time.Minute
 )
 
 type PaneRequest struct {
@@ -94,6 +103,18 @@ type paneTree struct {
 	// Read once per tree, when git answered: a tree does not turn from main tree to worktree under the same path.
 	project  string
 	worktree bool
+	// The watch's change sequence when the last probe started; watched is false for a tree probed without a watch.
+	seq     uint64
+	watched bool
+	// The commits no remote has (a branch without upstream), with the HEAD and the sequence they were counted at.
+	unpushed paneUnpushed
+}
+
+type paneUnpushed struct {
+	count int
+	sha   string
+	seq   uint64
+	known bool
 }
 
 type paneProject struct {
@@ -102,27 +123,100 @@ type paneProject struct {
 	readAt time.Time
 }
 
+type paneCiKey struct {
+	project string
+	sha     string
+}
+
 type Panes struct {
 	lock      sync.Mutex
 	run       Runner
 	ci        *Ci
 	collector *Collector
+	watch     *gitwatch.Watcher
 	now       func() time.Time
 	sleep     func(time.Duration)
 	trees     map[string]*paneTree
 	projects  map[string]*paneProject
+	// The local CI's verdict by project and commit: it changes only when a CI run ends (CiChanged).
+	ciVerdicts map[paneCiKey]string
 }
 
 func MakePanes(run Runner, ci *Ci, collector *Collector) *Panes {
 	return &Panes{
-		run:       run,
-		ci:        ci,
-		collector: collector,
-		now:       time.Now,
-		sleep:     time.Sleep,
-		trees:     map[string]*paneTree{},
-		projects:  map[string]*paneProject{},
+		run:        run,
+		ci:         ci,
+		collector:  collector,
+		now:        time.Now,
+		sleep:      time.Sleep,
+		trees:      map[string]*paneTree{},
+		projects:   map[string]*paneProject{},
+		ciVerdicts: map[paneCiKey]string{},
 	}
+}
+
+// UseWatcher makes the panes answer from their last probe until the watch sees git change the tree (FR-PERF-011).
+func (p *Panes) UseWatcher(watch *gitwatch.Watcher) {
+	p.watch = watch
+}
+
+func (p *Panes) track(root string) (uint64, bool) {
+	if p.watch == nil {
+		return 0, false
+	}
+	return p.watch.Track(root)
+}
+
+// CiChanged forgets the verdicts known for a project: one of its CI runs ended.
+func (p *Panes) CiChanged(project string) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	for key := range p.ciVerdicts {
+		if key.project == project {
+			delete(p.ciVerdicts, key)
+		}
+	}
+}
+
+func (p *Panes) cachedCi(key paneCiKey) (string, bool) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	verdict, ok := p.ciVerdicts[key]
+	return verdict, ok
+}
+
+func (p *Panes) storeCi(key paneCiKey, verdict string) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	if len(p.ciVerdicts) >= paneMaxCi {
+		p.ciVerdicts = map[paneCiKey]string{}
+	}
+	p.ciVerdicts[key] = verdict
+}
+
+func (p *Panes) ciVerdict(project string, sha string) string {
+	if p.ci == nil || sha == "" {
+		return ""
+	}
+	key := paneCiKey{project: project, sha: sha}
+	if verdict, ok := p.cachedCi(key); ok {
+		return verdict
+	}
+	verdict := ""
+	if v, err := p.ci.Status(project, sha); err == nil {
+		verdict = v.Status
+	}
+	p.storeCi(key, verdict)
+	return verdict
+}
+
+// publishPaneChanged tells the status bars that git changed a tree: they ask again at once (FR-PERF-011-AC2).
+func publishPaneChanged(root string) {
+	wps.Broker.Publish(wps.WaveEvent{
+		Event:  PaneEvent,
+		Scopes: []string{root},
+		Data:   map[string]string{"root": root},
+	})
 }
 
 func (p *Panes) treeFor(root string) *paneTree {
@@ -168,12 +262,22 @@ type paneTreeRead struct {
 	age       time.Duration
 	startedAt time.Time
 	kind      paneTreeKind
+	seq       uint64
+	watched   bool
+	unpushed  paneUnpushed
 }
 
 func (p *Panes) readTree(tree *paneTree) paneTreeRead {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	read := paneTreeRead{state: tree.state, startedAt: tree.startedAt, kind: paneTreeKind{project: tree.project, worktree: tree.worktree}}
+	read := paneTreeRead{
+		state:     tree.state,
+		startedAt: tree.startedAt,
+		kind:      paneTreeKind{project: tree.project, worktree: tree.worktree},
+		seq:       tree.seq,
+		watched:   tree.watched,
+		unpushed:  tree.unpushed,
+	}
 	if tree.probedAt.IsZero() {
 		read.age = time.Duration(1<<63 - 1)
 		return read
@@ -182,16 +286,18 @@ func (p *Panes) readTree(tree *paneTree) paneTreeRead {
 	return read
 }
 
-func (p *Panes) writeTree(tree *paneTree, state PaneState, startedAt time.Time, kindKnown bool) {
+func (p *Panes) writeTree(tree *paneTree, probe paneProbe, startedAt time.Time, seq uint64, watched bool) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	tree.state = state
-	if kindKnown {
-		tree.project = state.Project
-		tree.worktree = state.Worktree
+	tree.state = probe.state
+	if probe.kindKnown {
+		tree.project = probe.state.Project
+		tree.worktree = probe.state.Worktree
 	}
 	tree.startedAt = startedAt
 	tree.probedAt = p.now()
+	tree.seq, tree.watched = seq, watched
+	tree.unpushed = probe.unpushed
 }
 
 func (p *Panes) projectInfo(dir string) (string, string) {
@@ -217,7 +323,21 @@ func (p *Panes) cachedProject(dir string) *paneProject {
 func (p *Panes) storeProject(dir string, info *paneProject) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
+	if _, known := p.projects[dir]; !known && len(p.projects) >= paneMaxProjects {
+		p.evictOldestProjectLocked()
+	}
 	p.projects[dir] = info
+}
+
+func (p *Panes) evictOldestProjectLocked() {
+	var oldest string
+	var oldestAt time.Time
+	for dir, info := range p.projects {
+		if oldest == "" || info.readAt.Before(oldestAt) {
+			oldest, oldestAt = dir, info.readAt
+		}
+	}
+	delete(p.projects, oldest)
 }
 
 // Get answers for the tree holding dir, probing git when the last probe is older than a second.
@@ -227,6 +347,7 @@ func (p *Panes) Get(req PaneRequest) (PaneState, error) {
 	}
 	state := p.getTree(filepath.Clean(req.Dir), req.Fresh, paneMinInterval)
 	state.Dir = req.Dir
+	p.addAnswerTime(&state)
 	if req.Worktree != "" && filepath.IsAbs(req.Worktree) {
 		// The first tree's lock is released by now: two terminals linked crosswise wait for no one.
 		state.Linked = p.linked(filepath.Clean(req.Worktree), state)
@@ -234,7 +355,31 @@ func (p *Panes) Get(req PaneRequest) (PaneState, error) {
 	return state, nil
 }
 
-// getTree answers from a probe younger than maxAge; fresh asks for a probe started after the request, and requests
+// addAnswerTime adds what changes without git touching the tree, read on every answer: the local CI's verdict on the
+// HEAD and the pull request the collector knows for the branch (both cached: no git for them).
+func (p *Panes) addAnswerTime(state *PaneState) {
+	if state.Root == "" || state.GitError != "" {
+		return
+	}
+	state.Ci = p.ciVerdict(state.Project, state.Sha)
+	state.Pr = nil
+	if p.collector != nil && state.Branch != "" {
+		if snap, ok := p.collector.Cached(state.Project); ok && snap.Github != nil {
+			state.Pr = matchPullRequest(snap.Github.Prs, state.Branch)
+		}
+	}
+}
+
+// upToDate tells whether the last probe still answers a plain request: without a watch, while it is younger than
+// maxAge; with one, while git changed nothing in the tree and it is younger than paneWatchedMaxAge.
+func upToDate(read paneTreeRead, seq uint64, watched bool, maxAge time.Duration) bool {
+	if watched && read.watched {
+		return read.seq == seq && read.age < paneWatchedMaxAge
+	}
+	return read.age < maxAge
+}
+
+// getTree answers from a probe still up to date; fresh asks for a probe started after the request, and requests
 // waiting together share one.
 func (p *Panes) getTree(dir string, fresh bool, maxAge time.Duration) PaneState {
 	root := molten.FindGitRoot(dir)
@@ -250,16 +395,19 @@ func (p *Panes) getTree(dir string, fresh bool, maxAge time.Duration) PaneState 
 	if fresh && !read.startedAt.IsZero() && !read.startedAt.Before(asked) {
 		return read.state
 	}
-	if !fresh && read.age < maxAge {
+	seq, watched := p.track(root)
+	if !fresh && upToDate(read, seq, watched, maxAge) {
 		return read.state
 	}
 	if read.age < paneMinInterval {
 		p.sleep(paneMinInterval - read.age)
+		// git may have changed the tree meanwhile: the probe answers for the sequence it starts at.
+		seq, watched = p.track(root)
 	}
 	startedAt := p.now()
-	state, kindKnown := p.probe(root, read.kind)
-	p.writeTree(tree, state, startedAt, kindKnown)
-	return state
+	probe := p.probe(root, read, seq, watched)
+	p.writeTree(tree, probe, startedAt, seq, watched)
+	return probe.state
 }
 
 // linked describes the worktree a terminal is linked to: the tree just read when the terminal is in it, the cached
@@ -297,11 +445,18 @@ func (p *Panes) mainCheckout(ctx context.Context, root string) (paneTreeKind, bo
 	if !molten.IsWorktreeCheckout(root) {
 		return paneTreeKind{project: root}, true
 	}
-	out, err := p.git(ctx, root, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
-	if err != nil {
-		return paneTreeKind{project: root}, false
+	// The .git file and the worktree's commondir file say what rev-parse would, without a process (FR-PERF-011).
+	var common string
+	var linked bool
+	if dirs, err := gitwatch.ReadDirs(root); err == nil {
+		common, linked = dirs.CommonDir, dirs.Linked()
+	} else {
+		out, err := p.git(ctx, root, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
+		if err != nil {
+			return paneTreeKind{project: root}, false
+		}
+		_, common, linked = molten.ParseGitDirs(out)
 	}
-	_, common, linked := molten.ParseGitDirs(out)
 	if !linked || filepath.Base(common) != ".git" {
 		return paneTreeKind{project: root, worktree: linked}, true
 	}
@@ -356,11 +511,19 @@ func parsePaneStatus(out string) paneGitStatus {
 	return st
 }
 
-func (p *Panes) probe(root string, kind paneTreeKind) (PaneState, bool) {
+type paneProbe struct {
+	state     PaneState
+	kindKnown bool
+	unpushed  paneUnpushed
+}
+
+// probe runs git status. The commits no remote has are counted again only when the HEAD or the refs moved since they
+// were, for a watched tree; on every probe otherwise.
+func (p *Panes) probe(root string, read paneTreeRead, seq uint64, watched bool) paneProbe {
 	ctx, cancel := context.WithTimeout(context.Background(), paneProbeTimeout)
 	defer cancel()
 	state := PaneState{Root: root, At: p.now().UnixMilli()}
-	kindKnown := true
+	kind, kindKnown := read.kind, true
 	if kind.project == "" {
 		kind, kindKnown = p.mainCheckout(ctx, root)
 	}
@@ -371,25 +534,22 @@ func (p *Panes) probe(root string, kind paneTreeKind) (PaneState, bool) {
 	out, err := p.git(ctx, root, "status", "--porcelain=v2", "--branch", "--untracked-files=normal")
 	if err != nil {
 		state.GitError = err.Error()
-		return state, kindKnown
+		return paneProbe{state: state, kindKnown: kindKnown}
 	}
 	st := parsePaneStatus(out)
 	state.Sha, state.Branch, state.Detached = st.sha, st.branch, st.detached
 	state.Upstream, state.Ahead, state.Behind, state.Dirty = st.upstream, st.ahead, st.behind, st.dirty
+	var unpushed paneUnpushed
 	if state.Sha != "" && state.Upstream == "" {
-		state.Ahead = p.unpushed(ctx, root)
-	}
-	if p.ci != nil && state.Sha != "" {
-		if verdict, err := p.ci.Status(project, state.Sha); err == nil {
-			state.Ci = verdict.Status
+		last := read.unpushed
+		if watched && last.known && last.sha == state.Sha && last.seq == seq {
+			unpushed = last
+		} else {
+			unpushed = paneUnpushed{count: p.unpushed(ctx, root), sha: state.Sha, seq: seq, known: watched}
 		}
+		state.Ahead = unpushed.count
 	}
-	if p.collector != nil && state.Branch != "" {
-		if snap, ok := p.collector.Cached(project); ok && snap.Github != nil {
-			state.Pr = matchPullRequest(snap.Github.Prs, state.Branch)
-		}
-	}
-	return state, kindKnown
+	return paneProbe{state: state, kindKnown: kindKnown, unpushed: unpushed}
 }
 
 // Without an upstream, the commits no remote has; nothing when the repository has no remote at all.

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 )
 
@@ -70,6 +71,7 @@ func runCodexAppServer(ctx context.Context, exe string, env []string) (map[strin
 	ctx, cancel := context.WithTimeout(ctx, codexAppServerTimeout)
 	defer cancel()
 	cmd := exec.Command(exe, "app-server")
+	spawns.Count(exe)
 	cmd.Env = env
 	if home, err := os.UserHomeDir(); err == nil {
 		cmd.Dir = home

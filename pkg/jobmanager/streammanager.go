@@ -73,6 +73,9 @@ type StreamManager struct {
 	lastActivity time.Time
 	probe        bool
 	now          func() time.Time
+	// MOLTENTERM-PATCH (#457): the stall check sleeps while nothing is unacknowledged or buffered (an idle terminal);
+	// stallWake starts it again when something is buffered, sent, connected or closed.
+	stallWake chan struct{}
 }
 
 func MakeStreamManager() *StreamManager {
@@ -81,11 +84,12 @@ func MakeStreamManager() *StreamManager {
 
 func MakeStreamManagerWithSizes(cwndSize, cirbufSize int) *StreamManager {
 	sm := &StreamManager{
-		buf:      MakeCirBuf(cirbufSize, true),
-		eofPos:   -1,
-		cwndSize: cwndSize,
-		rwndSize: cwndSize,
-		now:      time.Now,
+		buf:       MakeCirBuf(cirbufSize, true),
+		eofPos:    -1,
+		cwndSize:  cwndSize,
+		rwndSize:  cwndSize,
+		now:       time.Now,
+		stallWake: make(chan struct{}, 1),
 	}
 	sm.drainCond = sync.NewCond(&sm.lock)
 	go sm.senderLoop()
@@ -153,6 +157,7 @@ func (sm *StreamManager) ClientConnected(streamId string, dataSender DataSender,
 	}
 	sm.buf.SetEffectiveWindow(true, effectiveWindow)
 	sm.drainCond.Signal()
+	sm.wakeStall()
 
 	startSeq := headPos
 	if clientSeq > startSeq {
@@ -217,6 +222,7 @@ func (sm *StreamManager) RecvAck(ackPk wshrpc.CommandStreamAckData) {
 	if ackPk.Fin {
 		sm.terminalEventAcked = true
 		sm.drainCond.Signal()
+		sm.wakeStall()
 		return
 	}
 
@@ -296,6 +302,7 @@ func (sm *StreamManager) Close() {
 	defer sm.lock.Unlock()
 	sm.closed = true
 	sm.drainCond.Signal()
+	sm.wakeStall()
 }
 
 // readLoop is the main read goroutine
@@ -337,6 +344,7 @@ func (sm *StreamManager) handleReadData(data []byte) {
 			sm.lock.Lock()
 			sm.drainCond.Signal()
 			sm.lock.Unlock()
+			sm.wakeStall()
 		}
 
 		if waitCh != nil {
@@ -353,6 +361,7 @@ func (sm *StreamManager) handleEOF() {
 	sm.eofPos = sm.buf.TotalSize()
 	sm.terminalEvent = &streamTerminalEvent{isEof: true}
 	sm.drainCond.Signal()
+	sm.wakeStall()
 }
 
 func (sm *StreamManager) handleError(err error) {
@@ -363,6 +372,7 @@ func (sm *StreamManager) handleError(err error) {
 	sm.eofPos = sm.buf.TotalSize()
 	sm.terminalEvent = &streamTerminalEvent{err: err.Error()}
 	sm.drainCond.Signal()
+	sm.wakeStall()
 }
 
 func (sm *StreamManager) senderLoop() {
@@ -466,33 +476,48 @@ func (sm *StreamManager) prepareTerminalPacket() *wshrpc.CommandStreamData {
 }
 
 // MOLTENTERM-PATCH (#308)
+// MOLTENTERM-PATCH (#457): every StallCheckEvery while something is in flight, asleep until stallWake otherwise. A
+// wake is followed by a full period too: the bytes just buffered are sent meanwhile, which restarts lastActivity;
+// checked at once they would look stalled since the last ACK.
 func (sm *StreamManager) stallLoop() {
-	ticker := time.NewTicker(StallCheckEvery)
-	defer ticker.Stop()
-	for range ticker.C {
-		if sm.checkStall() {
+	for {
+		done, busy := sm.checkStall()
+		if done {
 			return
 		}
+		if !busy {
+			<-sm.stallWake
+		}
+		time.Sleep(StallCheckEvery)
 	}
 }
 
-// checkStall resends what has gone unacknowledged for StallTimeout. It returns true once the stream is over.
-func (sm *StreamManager) checkStall() bool {
+// MOLTENTERM-PATCH (#457)
+func (sm *StreamManager) wakeStall() {
+	select {
+	case sm.stallWake <- struct{}{}:
+	default:
+	}
+}
+
+// checkStall resends what has gone unacknowledged for StallTimeout. done is true once the stream is over; busy tells
+// that bytes or the terminal event are in flight, so the check must run again.
+func (sm *StreamManager) checkStall() (done bool, busy bool) {
 	sm.lock.Lock()
 	defer sm.lock.Unlock()
 
 	if sm.closed || sm.terminalEventAcked {
-		return true
+		return true, false
 	}
 	if !sm.connected {
-		return false
+		return false, false
 	}
 	terminalPending := sm.terminalEvent != nil && sm.terminalEventSent
 	if sm.sentNotAcked == 0 && sm.buf.Size() == 0 && !terminalPending {
-		return false
+		return false, false
 	}
 	if sm.now().Sub(sm.lastActivity) < StallTimeout {
-		return false
+		return false, true
 	}
 	log.Printf("streammanager: no ACK for %s, resending from seq=%d (sentNotAcked=%d buffered=%d rwnd=%d terminalPending=%t)",
 		StallTimeout, sm.buf.HeadPos(), sm.sentNotAcked, sm.buf.Size(), sm.rwndSize, terminalPending)
@@ -503,5 +528,5 @@ func (sm *StreamManager) checkStall() bool {
 		sm.terminalEventSent = false
 	}
 	sm.drainCond.Signal()
-	return false
+	return false, true
 }

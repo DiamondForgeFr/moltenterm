@@ -6,13 +6,13 @@ package molten
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
 )
 
@@ -33,7 +33,7 @@ func LoginPath() string {
 		ctx, cancel := context.WithTimeout(context.Background(), loginPathTimeout)
 		defer cancel()
 		shell := shellutil.DetectLocalShellPath()
-		cmd := exec.CommandContext(ctx, shell, "-l", "-i", "-c", "printf '\\n"+loginPathMarker+"%s\\n' \"$PATH\"")
+		cmd := spawns.Command(ctx, shell, "-l", "-i", "-c", "printf '\\n"+loginPathMarker+"%s\\n' \"$PATH\"")
 		cmd.Stdin = nil
 		out, err := cmd.Output()
 		if err != nil && len(out) == 0 {

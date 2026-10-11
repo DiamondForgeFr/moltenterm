@@ -24,6 +24,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/browseragent"
 	"github.com/wavetermdev/waveterm/pkg/molten/browsers"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
+	"github.com/wavetermdev/waveterm/pkg/molten/gitwatch"
 	"github.com/wavetermdev/waveterm/pkg/molten/railorder"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -71,6 +72,20 @@ const (
 	minForcedInterval       = 10 * time.Second
 	// NFR-MC-003: GitHub is read at most once a minute per project, however many panels ask.
 	minGithubInterval = time.Minute
+	// FR-PERF-011: the projects known at once (a status bar asks about every folder a terminal visits); past it, the
+	// ones whose folder is gone, then the least recently asked, are forgotten (their cache file stays on disk).
+	maxProjects = 64
+	// A Mission Control view asks every 15 s while shown: a project asked by one this recently is re-read as soon as git
+	// changes its repository.
+	activeWindow = 45 * time.Second
+	// A watched repository is read again without a change only to fetch (and for its tags, which are not watched).
+	watchedGitMaxAge = fetchEvery
+	// What keeps a linked project's pull requests known to the status bar without a Mission Control view (a passive
+	// request): GitHub at most this often, git only after a change, never a fetch.
+	passiveGithubInterval = 10 * time.Minute
+	passiveGitMaxAge      = fetchEvery
+	// The programs wavesrv started for its own work since it started (FR-PERF-011), read by the performance harness.
+	SpawnsCommand = "moltenmissionspawns"
 )
 
 type Snapshot struct {
@@ -89,6 +104,8 @@ type Snapshot struct {
 type GetRequest struct {
 	Dir       string `json:"dir"`
 	MaxAgeSec int    `json:"maxagesec,omitempty"`
+	// Passive: the status bar keeping a linked project warm, not a Mission Control view (FR-PERF-011).
+	Passive bool `json:"passive,omitempty"`
 }
 
 type projectState struct {
@@ -99,6 +116,12 @@ type projectState struct {
 	forcedAt   time.Time
 	// Invalidated while a refresh ran: that refresh may have read the repository before the change, so another follows.
 	again bool
+	// When anyone (usedAt) or a Mission Control view (activeAt) last asked.
+	usedAt   time.Time
+	activeAt time.Time
+	// The repository watch's sequence the snapshot's git part was read at (gitWatched: read under a watch).
+	gitSeq     uint64
+	gitWatched bool
 }
 
 type Collector struct {
@@ -108,6 +131,8 @@ type Collector struct {
 	publish  func(Snapshot)
 	now      func() time.Time
 	projects map[string]*projectState
+	watch    *gitwatch.Watcher
+	exists   func(dir string) bool
 }
 
 func MakeCollector(cacheDir string, run Runner, publish func(Snapshot)) *Collector {
@@ -117,7 +142,32 @@ func MakeCollector(cacheDir string, run Runner, publish func(Snapshot)) *Collect
 		publish:  publish,
 		now:      time.Now,
 		projects: map[string]*projectState{},
+		exists:   dirExists,
 	}
+}
+
+func dirExists(dir string) bool {
+	info, err := os.Stat(dir)
+	return err == nil && info.IsDir()
+}
+
+// UseWatcher re-reads a project's git when its repository changes instead of on a timer (FR-PERF-011).
+func (c *Collector) UseWatcher(watch *gitwatch.Watcher) {
+	c.watch = watch
+}
+
+func (c *Collector) track(dir string) (uint64, bool) {
+	if c.watch == nil {
+		return 0, false
+	}
+	return c.watch.Track(dir)
+}
+
+// Size is the number of projects held in memory (tests, diagnostics).
+func (c *Collector) Size() int {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return len(c.projects)
 }
 
 func CacheDir(dataDir string) string {
@@ -175,9 +225,13 @@ func checkDir(dir string) error {
 func (c *Collector) stateLocked(dir string) *projectState {
 	state := c.projects[dir]
 	if state == nil {
+		if len(c.projects) >= maxProjects {
+			c.evictLocked()
+		}
 		state = &projectState{}
 		c.projects[dir] = state
 	}
+	state.usedAt = c.now()
 	if !state.loaded {
 		state.snap = c.loadCache(dir)
 		state.loaded = true
@@ -185,32 +239,84 @@ func (c *Collector) stateLocked(dir string) *projectState {
 	return state
 }
 
+// evictLocked makes room for one project: the projects whose folder is gone first, else the least recently asked one.
+// A project being refreshed stays (its refresh writes it back).
+func (c *Collector) evictLocked() {
+	var oldest string
+	var oldestAt time.Time
+	for dir, state := range c.projects {
+		if state.refreshing {
+			continue
+		}
+		if !c.exists(dir) {
+			delete(c.projects, dir)
+			continue
+		}
+		if oldest == "" || state.usedAt.Before(oldestAt) {
+			oldest, oldestAt = dir, state.usedAt
+		}
+	}
+	if len(c.projects) >= maxProjects && oldest != "" {
+		delete(c.projects, oldest)
+	}
+}
+
 type refreshPlan struct {
 	git    bool
 	fetch  bool
 	github bool
+	// The watch's sequence when the plan was made: the git read answers for it.
+	seq     uint64
+	watched bool
+}
+
+type refreshAsk struct {
+	maxAge  time.Duration
+	forced  bool
+	passive bool
+	seq     uint64
+	watched bool
 }
 
 // startRefreshLocked decides what to read again and marks the project as refreshing; the caller runs it outside the
 // lock. A refresh already running is never doubled.
-func (c *Collector) startRefreshLocked(state *projectState, maxAge time.Duration, forced bool) (refreshPlan, bool) {
+func (c *Collector) startRefreshLocked(state *projectState, ask refreshAsk) (refreshPlan, bool) {
 	now := c.now()
 	if state.refreshing {
 		return refreshPlan{}, false
 	}
+	forced := ask.forced && !ask.passive
 	if forced && now.Sub(state.forcedAt) < minForcedInterval {
 		forced = false
 	}
 	gitAge := now.Sub(time.UnixMilli(state.snap.GitAt))
 	githubAge := now.Sub(time.UnixMilli(state.snap.GithubAt))
+	// Under a watch, git is read again when the repository changed; without one, when the last read is too old.
+	watched := ask.watched && state.gitWatched && state.snap.GitAt != 0
+	changed := watched && ask.seq != state.gitSeq
+	gitMaxAge := ask.maxAge
+	switch {
+	case ask.passive && watched:
+		// The status bar needs no history: under a watch, only a change is worth a read.
+		gitMaxAge = time.Duration(1<<63 - 1)
+	case ask.passive:
+		gitMaxAge = passiveGitMaxAge
+	case watched:
+		gitMaxAge = max(ask.maxAge, watchedGitMaxAge)
+	}
 	plan := refreshPlan{
-		git:    forced || gitAge >= maxAge,
-		github: githubAge >= minGithubInterval && (forced || githubAge >= maxAge),
+		git:     forced || changed || gitAge >= gitMaxAge,
+		github:  githubAge >= minGithubInterval && (forced || githubAge >= ask.maxAge),
+		seq:     ask.seq,
+		watched: ask.watched,
+	}
+	if ask.passive {
+		plan.github = githubAge >= passiveGithubInterval
 	}
 	if !plan.git && !plan.github {
 		return plan, false
 	}
-	plan.fetch = plan.git && (forced || now.Sub(state.fetchedAt) >= fetchEvery)
+	plan.fetch = !ask.passive && plan.git && (forced || now.Sub(state.fetchedAt) >= fetchEvery)
 	if forced {
 		state.forcedAt = now
 	}
@@ -224,27 +330,46 @@ func (c *Collector) snapshotLocked(state *projectState) Snapshot {
 	return snap
 }
 
-func (c *Collector) prepareGet(dir string, maxAge time.Duration, forced bool) (Snapshot, refreshPlan, bool) {
+func (c *Collector) prepareGet(dir string, ask refreshAsk) (Snapshot, refreshPlan, bool) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	state := c.stateLocked(dir)
-	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+	if !c.exists(dir) {
 		state.snap.Missing = true
-		return c.snapshotLocked(state), refreshPlan{}, false
+		snap := c.snapshotLocked(state)
+		if !state.refreshing {
+			// A folder that is gone holds no memory; its cached answer is read again from disk if it comes back.
+			delete(c.projects, dir)
+		}
+		return snap, refreshPlan{}, false
 	}
 	state.snap.Missing = false
-	plan, start := c.startRefreshLocked(state, maxAge, forced)
+	if !ask.passive {
+		state.activeAt = c.now()
+	}
+	plan, start := c.startRefreshLocked(state, ask)
 	return c.snapshotLocked(state), plan, start
 }
 
 // Get answers at once with what is known (cached data first, NFR-MC-002) and starts a refresh when it is older than
-// maxAge; the refreshed snapshot comes as an event.
+// maxAge (or, for a watched repository, when git changed it); the refreshed snapshot comes as an event.
 func (c *Collector) Get(dir string, maxAge time.Duration, forced bool) (Snapshot, error) {
+	return c.get(dir, refreshAsk{maxAge: maxAge, forced: forced})
+}
+
+// Warm answers like Get for a status bar that keeps a linked project's pull requests known without a Mission Control
+// view (FR-PERF-011): git is read again only after a change, GitHub every passiveGithubInterval, nothing is fetched.
+func (c *Collector) Warm(dir string) (Snapshot, error) {
+	return c.get(dir, refreshAsk{maxAge: DefaultMaxAgeSec * time.Second, passive: true})
+}
+
+func (c *Collector) get(dir string, ask refreshAsk) (Snapshot, error) {
 	if err := checkDir(dir); err != nil {
 		return Snapshot{}, err
 	}
 	dir = filepath.Clean(dir)
-	snap, plan, start := c.prepareGet(dir, maxAge, forced)
+	ask.seq, ask.watched = c.track(dir)
+	snap, plan, start := c.prepareGet(dir, ask)
 	if start {
 		go c.refresh(dir, plan)
 	}
@@ -261,6 +386,7 @@ func (c *Collector) Cached(dir string) (Snapshot, bool) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if state := c.projects[dir]; state != nil && state.loaded {
+		state.usedAt = c.now()
 		return c.snapshotLocked(state), true
 	}
 	if c.cacheDir == "" {
@@ -280,12 +406,13 @@ func (c *Collector) Invalidate(dir string) {
 		return
 	}
 	dir = filepath.Clean(dir)
-	if plan, start := c.prepareInvalidate(dir); start {
+	seq, watched := c.track(dir)
+	if plan, start := c.prepareInvalidate(dir, seq, watched); start {
 		go c.refresh(dir, plan)
 	}
 }
 
-func (c *Collector) prepareInvalidate(dir string) (refreshPlan, bool) {
+func (c *Collector) prepareInvalidate(dir string, seq uint64, watched bool) (refreshPlan, bool) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	state := c.stateLocked(dir)
@@ -295,11 +422,35 @@ func (c *Collector) prepareInvalidate(dir string) (refreshPlan, bool) {
 		state.again = true
 		return refreshPlan{}, false
 	}
-	return c.startRefreshLocked(state, DefaultMaxAgeSec*time.Second, false)
+	return c.startRefreshLocked(state, refreshAsk{maxAge: DefaultMaxAgeSec * time.Second, seq: seq, watched: watched})
+}
+
+// RepoChanged is the repository watch's listener: git changed a project's repository (a commit, a checkout). A project a
+// Mission Control view looks at is read again now, without a fetch (FR-PERF-011-AC2); the others on their next request.
+func (c *Collector) RepoChanged(root string) {
+	seq, watched := c.track(root)
+	if plan, start := c.prepareChanged(root, seq, watched); start {
+		go c.refresh(root, plan)
+	}
+}
+
+func (c *Collector) prepareChanged(dir string, seq uint64, watched bool) (refreshPlan, bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	state := c.projects[dir]
+	if state == nil || !state.loaded || c.now().Sub(state.activeAt) >= activeWindow {
+		return refreshPlan{}, false
+	}
+	if state.refreshing {
+		state.again = true
+		return refreshPlan{}, false
+	}
+	return c.startRefreshLocked(state, refreshAsk{maxAge: DefaultMaxAgeSec * time.Second, seq: seq, watched: watched})
 }
 
 // takeAgain reports an invalidation that came during the refresh that just ended, and starts the next one.
 func (c *Collector) takeAgain(dir string) (refreshPlan, bool) {
+	seq, watched := c.track(dir)
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	state := c.stateLocked(dir)
@@ -308,7 +459,7 @@ func (c *Collector) takeAgain(dir string) (refreshPlan, bool) {
 	}
 	state.again = false
 	state.snap.GitAt = 0
-	return c.startRefreshLocked(state, DefaultMaxAgeSec*time.Second, false)
+	return c.startRefreshLocked(state, refreshAsk{maxAge: DefaultMaxAgeSec * time.Second, seq: seq, watched: watched})
 }
 
 func (c *Collector) refresh(dir string, plan refreshPlan) {
@@ -348,6 +499,7 @@ func (c *Collector) applyRefresh(dir string, plan refreshPlan, gitSnap *GitSnaps
 	state := c.stateLocked(dir)
 	now := c.now()
 	if plan.git {
+		state.gitSeq, state.gitWatched = plan.seq, plan.watched
 		state.snap.GitAt = now.UnixMilli()
 		if gitErr != nil {
 			state.snap.GitError = gitErr.Error()
@@ -426,7 +578,12 @@ func Start() {
 			collector.Invalidate(rec.Dir)
 		}
 	})
+	var panes *Panes
 	ci := MakeCi(CiDir(dataDir), trust, ExecRunner, func(rec CiRunRecord) {
+		if rec.Status != CiStateRunning && panes != nil {
+			// Before the event: the status bars ask again on it and must not get the verdict known before the run.
+			panes.CiChanged(rec.Dir)
+		}
 		publishCiRun(rec)
 		if rec.Status != CiStateRunning {
 			go groups.Refreshed()
@@ -434,7 +591,15 @@ func Start() {
 	})
 	runs.UseCi(ci)
 	runs.UseNotifier(publishBuildNotice)
-	panes := MakePanes(ExecRunner, ci, collector)
+	// The status bars and the collector read git again when the watch sees it change a repository (FR-PERF-011).
+	watch := gitwatch.Default()
+	collector.UseWatcher(watch)
+	panes = MakePanes(ExecRunner, ci, collector)
+	panes.UseWatcher(watch)
+	watch.OnChange(func(root string) {
+		publishPaneChanged(root)
+		collector.RepoChanged(root)
+	})
 	groups = MakeGroups(collector, ci, runs, ExecRunner, WorkspaceLinks, publishGroups, notifyDependencies)
 	groups.UseSync(MakeDepAcks(DepAcksDir(dataDir)), DepSyncTreesDir(dataDir))
 	// The rail keeps a product's workspaces together (FR-MC-027), and a move changes the member order the groups show.

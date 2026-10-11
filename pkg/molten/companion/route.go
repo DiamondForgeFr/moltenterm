@@ -268,4 +268,12 @@ func Start() {
 		handleBlockClose(m, event)
 	})
 	wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{Event: wps.Event_BlockClose, AllScopes: true}, nil)
+	// A companion without a running agent waits for its block's agent state (FR-PERF-011).
+	rpcClient.EventListener.On(molten.AgentStateEvent, func(event *wps.WaveEvent) {
+		var info molten.AgentStateInfo
+		if utilfn.ReUnmarshal(&info, event.Data) == nil && info.BlockId != "" {
+			m.Poke(info.BlockId)
+		}
+	})
+	wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{Event: molten.AgentStateEvent, AllScopes: true}, nil)
 }
