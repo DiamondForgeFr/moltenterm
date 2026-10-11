@@ -523,6 +523,12 @@ async function setup(opts: { isDev?: boolean; settings?: Record<string, unknown>
         hostsBrowserPage: () => false,
         hostsControlledTab: () => false,
     }));
+    // The fake tab views host no browser page (#459).
+    vi.doMock("./moltenterm-webview-lifecycle", () => ({
+        hostedPagesHaveUnsavedWork: async () => false,
+        initMoltentermWebviewLifecycle: () => {},
+        noteWebviewLifecycleSettings: () => {},
+    }));
     vi.doMock("./moltenterm-popups", () => ({ attachWebviewWindowOpen: () => {} }));
     vi.doMock("./moltenterm-tabview-repaint", () => ({
         checkReusedTabViewPainted: () => {},

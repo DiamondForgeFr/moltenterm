@@ -94,6 +94,22 @@ const heldButtons = new Map<number, { x: number; y: number; button: string }>();
 const DownloadAllowanceMs = 30000;
 let reportTakeover: TakeoverReport = () => {};
 let askDownload: DownloadAsk = async () => false;
+// Told when a tab comes under an agent's control (emain/moltenterm-webview-lifecycle.ts thaws a frozen page).
+const controlListeners: ((webContentsId: number) => void)[] = [];
+
+export function onBrowserAgentControl(listener: (webContentsId: number) => void): void {
+    controlListeners.push(listener);
+}
+
+// Whether a webview's page is under an agent's control (FR-BRW-008): hidden, it is neither frozen nor discarded.
+export function isAgentControlledContents(webContentsId: number): boolean {
+    for (const key of controlled) {
+        if (registry.get(key)?.webContentsId === webContentsId) {
+            return true;
+        }
+    }
+    return false;
+}
 
 function fromWavesrv(token: unknown): boolean {
     if (typeof token !== "string" || !/^[0-9a-f]{64}$/.test(token)) {
@@ -266,6 +282,9 @@ function applyControl(key: string): void {
     }
     if (controlled.has(key)) {
         startWatching(reg, wc);
+        for (const listener of controlListeners) {
+            listener(wc.id);
+        }
         return;
     }
     stopWatching(wc);

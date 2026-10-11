@@ -178,6 +178,10 @@ type SettingsType struct {
 	MoltentermHiddenTabViews   int   `json:"moltenterm:hiddentabviews,omitempty" jsonschema:"minimum=1,maximum=10" jsonschema_description:"How many hidden tab views stay loaded so that switching back to them is instant (1 to 10, default 3)"`
 	MoltentermHiddenTabViewsMb int   `json:"moltenterm:hiddentabviewsmb,omitempty" jsonschema:"minimum=200,maximum=8000" jsonschema_description:"Memory the hidden tab views may use together, in MB, before the least recently used is destroyed (200 to 8000, default 1200)"`
 
+	// MOLTENTERM-PATCH (#459): hidden browser pages frozen and discarded (FR-PERF-013, emain/moltenterm-webview-lifecycle.ts).
+	MoltentermHiddenPageFreeze     *bool    `json:"moltenterm:hiddenpagefreeze,omitempty" jsonschema_description:"A browser panel page not on screen is frozen after a few seconds (no timers, frames or network callbacks) and resumes when shown; pages an agent drives, that play audio or whose DevTools are open keep running. false turns freezing off"`
+	MoltentermHiddenPageDiscardMin *float64 `json:"moltenterm:hiddenpagediscardmin,omitempty" jsonschema:"minimum=0,maximum=1440" jsonschema_description:"Minutes a browser panel page stays loaded while not on screen; past that it is unloaded and reloads at its URL and scroll position when shown (default 10, 0 never). Pages an agent drives, that play audio or hold unsaved input are kept"`
+
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`
 
