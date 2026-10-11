@@ -23,6 +23,7 @@ import { ElectronWshClient } from "./emain-wsh";
 import { hostsBrowserPage, hostsControlledTab } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#301, #375)
 import { attachWebviewWindowOpen } from "./moltenterm-popups"; // MOLTENTERM-PATCH (#207)
 import { acquireReadyView } from "./moltenterm-spare-ready"; // MOLTENTERM-PATCH (#283)
+import { noteTabViewPrioritySetting, raiseSparePriority, raiseTabViewPriority } from "./moltenterm-tabview-priority"; // MOLTENTERM-PATCH (#450)
 
 function handleWindowsMenuAccelerators(
     waveEvent: WaveKeyboardEvent,
@@ -333,10 +334,12 @@ export async function getOrCreateWebViewForTab(
         return [tabView, true];
     }
     const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+    noteTabViewPrioritySetting(fullConfig); // MOLTENTERM-PATCH (#450)
     // MOLTENTERM-PATCH (#283): a spare that stays silent is replaced instead of awaited forever
+    // MOLTENTERM-PATCH (#450): the view taken for the tab loads at the foreground priority
     const acquired = await acquireReadyView(
-        () => getSpareTab(fullConfig),
-        () => new WaveTabView(fullConfig),
+        () => withRaisedPriority(getSpareTab(fullConfig)),
+        () => withRaisedPriority(new WaveTabView(fullConfig)),
         (msg) => console.log("[#283]", msg),
         deadline, // MOLTENTERM-PATCH (#449)
         cancelled // MOLTENTERM-PATCH (#449)
@@ -413,7 +416,16 @@ export function ensureHotSpareTab(fullConfig: FullConfigType) {
     console.log("ensureHotSpareTab");
     if (HotSpareTab == null) {
         HotSpareTab = new WaveTabView(fullConfig);
+        // MOLTENTERM-PATCH (#450): the spare loads at the foreground priority, once no view is being shown
+        noteTabViewPrioritySetting(fullConfig);
+        raiseSparePriority(() => HotSpareTab);
     }
+}
+
+// MOLTENTERM-PATCH (#450)
+function withRaisedPriority(tabView: WaveTabView): WaveTabView {
+    raiseTabViewPriority(tabView);
+    return tabView;
 }
 
 // MOLTENTERM-PATCH (#199): the spare is a hidden view too, stale after a long sleep; the next ensureHotSpareTab makes

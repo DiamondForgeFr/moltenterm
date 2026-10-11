@@ -21,7 +21,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 89
+            "order": 90
           }
         },
         "app:globalhotkey": {
@@ -40,7 +40,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 105
+            "order": 106
           }
         },
         "app:defaultnewblock": {
@@ -201,7 +201,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 90
+            "order": 91
           }
         },
         "term:fontsize": {
@@ -259,7 +259,7 @@
             "label": "No WebGL in terminals",
             "description": "Draw terminals without WebGL, slower but safer on some GPUs.",
             "control": "toggle",
-            "order": 79
+            "order": 80
           }
         },
         "term:localshellpath": {
@@ -498,7 +498,7 @@
             "label": "Split buttons in headers",
             "description": "Show split buttons in terminal headers.",
             "control": "toggle",
-            "order": 80
+            "order": 81
           }
         },
         "term:trimtrailingwhitespace": {
@@ -565,7 +565,7 @@
             "label": "Claude Code limits (experimental)",
             "description": "Read Claude Code's limits from Anthropic's undocumented endpoint with its own sign-in.",
             "control": "toggle",
-            "order": 81
+            "order": 82
           }
         },
         "linemap:animation": {
@@ -684,7 +684,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 91
+            "order": 92
           }
         },
         "web:openlinksinternally": {
@@ -823,35 +823,35 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 92
+            "order": 93
           }
         },
         "autoupdate:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 99
+            "order": 100
           }
         },
         "autoupdate:intervalms": {
           "type": "number",
           "x-moltenterm": {
             "hidden": true,
-            "order": 100
+            "order": 101
           }
         },
         "autoupdate:installonquit": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 101
+            "order": 102
           }
         },
         "autoupdate:channel": {
           "type": "string",
           "x-moltenterm": {
             "hidden": true,
-            "order": 102
+            "order": 103
           }
         },
         "markdown:fontsize": {
@@ -1027,25 +1027,38 @@
             "order": 9
           }
         },
+        "moltenterm:tabviewpriority": {
+          "type": "boolean",
+          "description": "Tab views being opened and the hot spare load at the same scheduling priority as the view on screen, so a busy machine cannot starve them; false restores the previous behaviour (Chromium backgrounds them)",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Window",
+            "label": "Load tabs at full priority",
+            "description": "Workspaces being opened load at the priority of the one on screen, so a busy machine cannot starve them.",
+            "control": "toggle",
+            "default": true,
+            "order": 76
+          }
+        },
         "widget:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 93
+            "order": 94
           }
         },
         "widget:showhelp": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 104
+            "order": 105
           }
         },
         "window:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 94
+            "order": 95
           }
         },
         "window:fullscreenonlaunch": {
@@ -1248,7 +1261,7 @@
               "step": 1
             },
             "unit": "px",
-            "order": 76
+            "order": 77
           }
         },
         "window:magnifiedblockblursecondarypx": {
@@ -1266,7 +1279,7 @@
               "step": 1
             },
             "unit": "px",
-            "order": 77
+            "order": 78
           }
         },
         "window:confirmclose": {
@@ -1302,7 +1315,7 @@
             "label": "New window size",
             "description": "The size of new windows, such as 1400x900.",
             "control": "text",
-            "order": 78
+            "order": 79
           }
         },
         "window:zoom": {
@@ -1327,21 +1340,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 95
+            "order": 96
           }
         },
         "telemetry:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 103
+            "order": 104
           }
         },
         "conn:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 96
+            "order": 97
           }
         },
         "conn:askbeforewshinstall": {
@@ -1384,7 +1397,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 97
+            "order": 98
           }
         },
         "debug:pprofport": {
@@ -1401,7 +1414,7 @@
               "max": 65535,
               "step": 1
             },
-            "order": 82
+            "order": 83
           }
         },
         "debug:pprofmemprofilerate": {
@@ -1418,7 +1431,7 @@
               "max": 1048576,
               "step": 1
             },
-            "order": 83
+            "order": 84
           }
         },
         "debug:webglstatus": {
@@ -1430,14 +1443,14 @@
             "label": "WebGL status",
             "description": "Show whether each terminal draws with WebGL.",
             "control": "toggle",
-            "order": 84
+            "order": 85
           }
         },
         "tsunami:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 98
+            "order": 99
           }
         },
         "tsunami:scaffoldpath": {
@@ -1449,7 +1462,7 @@
             "label": "Scaffold path",
             "description": "Where the app builder's scaffold lives.",
             "control": "path",
-            "order": 85
+            "order": 86
           }
         },
         "tsunami:sdkreplacepath": {
@@ -1461,7 +1474,7 @@
             "label": "SDK replace path",
             "description": "A local SDK used in place of the published one.",
             "control": "path",
-            "order": 86
+            "order": 87
           }
         },
         "tsunami:sdkversion": {
@@ -1473,7 +1486,7 @@
             "label": "SDK version",
             "description": "The SDK version apps build against.",
             "control": "text",
-            "order": 87
+            "order": 88
           }
         },
         "tsunami:gopath": {
@@ -1485,7 +1498,7 @@
             "label": "Go binary",
             "description": "The Go binary apps build with.",
             "control": "path",
-            "order": 88
+            "order": 89
           }
         }
       },
