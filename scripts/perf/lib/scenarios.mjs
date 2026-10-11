@@ -39,6 +39,8 @@ export const Profiles = {
     loadTimeoutS: 30,
     modsSettleS: 30,
     workingSettleS: 30,
+    modsMany: 10,
+    modsWorkspaces: 6,
     traceS: 5,
   },
   quick: {
@@ -56,6 +58,8 @@ export const Profiles = {
     loadTimeoutS: 20,
     modsSettleS: 10,
     workingSettleS: 10,
+    modsMany: 10,
+    modsWorkspaces: 6,
     traceS: 3,
   },
   // The subset that is stable on CI runners: machine-independent numbers (bundle, JS evaluated, leaked views) and
@@ -514,6 +518,72 @@ export async function runMods(ctx) {
   ctx.details.mods = res;
   ctx.metrics["mods.cpuDeltaPct"] = single(round(res.on.cpuPct - res.off.cpuPct, 2));
   ctx.metrics["mods.memDeltaMB"] = single(round(res.on.memMB - res.off.memMB, 1));
+  if (p.modsMany) {
+    await runManyMods(ctx, res);
+  }
+}
+
+// A small mod as /morph makes them: one command and a timer that keeps a counter (FR-PERF-014-AC1).
+function writePerfMod(inst, id) {
+  inst.writeConfig(`mods/${id}/mod.json`, {
+    id,
+    name: id,
+    version: "1.0.0",
+    apiVersion: 1,
+    main: "main.js",
+    capabilities: ["commands"],
+  });
+  inst.writeConfig(
+    `mods/${id}/main.js`,
+    `export function activate(api) {\n  let n = 0;\n  api.commands.register(${JSON.stringify(id)}, () => String(n));\n  setInterval(() => { n++; }, 1000);\n}\n`
+  );
+}
+
+// No mod at all against p.modsMany user mods, each with p.modsWorkspaces workspaces visited: what mods add when they
+// run in every tab view (FR-PERF-014-AC1: at most 0.5 % CPU and 50 MB).
+async function runManyMods(ctx, res) {
+  const p = ctx.profile;
+  for (const state of ["none", "many"]) {
+    const inst = ctx.track(Instance.create(ctx.repoRoot, ctx.tmpBase));
+    const driver = new Driver(inst);
+    try {
+      const ids = [];
+      if (state === "many") {
+        for (let i = 1; i <= p.modsMany; i++) {
+          const id = `perf-mod-${i}`;
+          writePerfMod(inst, id);
+          ids.push(id);
+        }
+      }
+      inst.writeConfig("molten/mods.json", { enabled: ids, disabled: ["copy-box"] });
+      inst.writeData("molten/trust.json", {
+        trusted: Object.fromEntries(ids.map((id) => [id, { name: id, trustedat: new Date().toISOString() }])),
+      });
+      await inst.launch();
+      const t = await inst.waitReady();
+      await driver.attach();
+      for (let i = 1; i < p.modsWorkspaces; i++) {
+        const r = await driver.create();
+        log(`mods ${state}: workspace ${i + 1} ${r.ms} ms`);
+      }
+      await driver.stopPoll();
+      await sleep(p.modsSettleS * 1000);
+      const cpu = await sampleCpu(inst.pid, { samples: p.samples, intervalS: p.intervalS });
+      res[state] = {
+        mods: ids.length,
+        workspaces: p.modsWorkspaces,
+        tabviewInitMs: t.firstTabviewInitMs,
+        cpuPct: cpu.total.value,
+        memMB: memory(inst.pid).totalMB,
+      };
+      log(`mods ${state}: ${JSON.stringify(res[state])}`);
+    } finally {
+      driver.detach();
+      await ctx.dispose(inst);
+    }
+  }
+  ctx.metrics["mods.manyCpuDeltaPct"] = single(round(res.many.cpuPct - res.none.cpuPct, 2));
+  ctx.metrics["mods.manyMemDeltaMB"] = single(round(res.many.memMB - res.none.memMB, 1));
 }
 
 // The focused tab's panels replaced by `count` terminals, each set to the agent state "working" as an agent's hook
