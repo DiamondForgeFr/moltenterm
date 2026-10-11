@@ -41,6 +41,7 @@ import {
     SettingsSectionId,
     SettingsSections,
 } from "./settings-catalog";
+import { ModsSection } from "./settings-mods";
 
 export type SettingsFile = { path: string; name: string; description?: string };
 
@@ -736,6 +737,7 @@ export function SettingsScreen({ blockId, files, onOpenFile }: SettingsScreenPro
                                 </section>
                             ))}
                             {section === "keyboard" ? <KeyboardShortcuts /> : null}
+                            {section === "mods" ? <ModsSection /> : null}
                         </>
                     )}
                 </div>

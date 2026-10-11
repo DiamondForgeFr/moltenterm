@@ -70,8 +70,23 @@ type MoltenModStatus struct {
 	Error    string   `json:"error,omitempty"`
 	Commands []string `json:"commands"`
 	Builtin  bool     `json:"builtin,omitempty"`
+	// Keeps its timers running while its tab view is hidden (FR-PERF-014).
+	Background bool            `json:"background,omitempty"`
+	Usage      *MoltenModUsage `json:"usage,omitempty"`
 	// Filled by molten from the files, not by the tab: the agent parts the mod carries (FR-MORPH-010).
 	Agents map[string]MoltenPartStatus `json:"agents,omitempty"`
+}
+
+// What a mod costs in the tab that answered, against its budget (FR-PERF-014); must match MoltenModUsage in
+// frontend/molten/molten-budget.ts.
+type MoltenModUsage struct {
+	ActivateMs float64  `json:"activatems"`
+	ScriptMs   float64  `json:"scriptms"`
+	CpuPct     float64  `json:"cpupct"`
+	Timers     int      `json:"timers"`
+	HeapMB     *float64 `json:"heapmb"`
+	Over       bool     `json:"over"`
+	Reason     string   `json:"reason,omitempty"`
 }
 
 type MoltenCommandInfo struct {
@@ -496,6 +511,18 @@ func formatMoltenPartLine(id string, status MoltenPartStatus) string {
 	return line + "\n"
 }
 
+// Idle CPU of a running mod in the tab that answered; "-" for a mod that does not run there.
+func formatMoltenModCpu(usage *MoltenModUsage) string {
+	if usage == nil {
+		return "-"
+	}
+	text := strconv.FormatFloat(usage.CpuPct, 'f', 1, 64) + "%"
+	if usage.Over {
+		text += " (over budget)"
+	}
+	return text
+}
+
 func formatMoltenModList(list *MoltenModList) string {
 	var sb strings.Builder
 	if list.SafeMode {
@@ -506,7 +533,7 @@ func formatMoltenModList(list *MoltenModList) string {
 		return sb.String()
 	}
 	tw := tabwriter.NewWriter(&sb, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(tw, "ID\tSTATE\tVERSION\tCOMMANDS\tERROR\n")
+	fmt.Fprintf(tw, "ID\tSTATE\tVERSION\tCOMMANDS\tCPU\tERROR\n")
 	for _, mod := range list.Mods {
 		version := mod.Version
 		if version == "" {
@@ -524,9 +551,14 @@ func formatMoltenModList(list *MoltenModList) string {
 		if mod.Builtin {
 			id += " (built-in)"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", id, mod.State, version, commands, errText)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", id, mod.State, version, commands, formatMoltenModCpu(mod.Usage), errText)
 	}
 	tw.Flush()
+	for _, mod := range list.Mods {
+		if mod.Usage != nil && mod.Usage.Over {
+			fmt.Fprintf(&sb, "\nover budget: %s: %s (molten mod disable %s)\n", mod.Id, mod.Usage.Reason, mod.Id)
+		}
+	}
 	// After the table, so the part lines do not break its columns.
 	header := false
 	for _, mod := range list.Mods {

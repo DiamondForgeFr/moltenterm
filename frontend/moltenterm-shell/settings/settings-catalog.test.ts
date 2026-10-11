@@ -61,13 +61,14 @@ describe("settings catalog (FR-SHELL-050)", () => {
             "Browser",
             "Mission Control",
             "Keyboard",
+            "Mods",
             "Advanced",
         ]);
     });
 
     it("gives each section but Advanced and Keyboard its own settings", () => {
         const all = [...WorkspaceSettings, ...catalog()];
-        for (const s of SettingsSections) {
+        for (const s of SettingsSections.filter((s) => s.id !== "mods")) {
             expect(sectionEntries(all, s.id).length, s.id).toBeGreaterThan(0);
         }
     });
