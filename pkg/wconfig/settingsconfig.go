@@ -173,6 +173,11 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#450): tab views about to be shown and the hot spare load at the foreground priority (FR-PERF-004, emain/moltenterm-tabview-priority.ts).
 	MoltentermTabViewPriority *bool `json:"moltenterm:tabviewpriority,omitempty" jsonschema_description:"Tab views being opened and the hot spare load at the same scheduling priority as the view on screen, so a busy machine cannot starve them; false restores the previous behaviour (Chromium backgrounds them)"`
 
+	// MOLTENTERM-PATCH (#454): hidden tab view budget and real hiding (FR-PERF-008, emain/moltenterm-tabview-budget.ts).
+	MoltentermTabViewBudget    *bool `json:"moltenterm:tabviewbudget,omitempty" jsonschema_description:"Tab views of the workspaces not on screen are really hidden and at most moltenterm:hiddentabviews of them stay loaded (least recently used destroyed first, a workspace with a working agent kept); false restores the previous behaviour (up to window:maxtabcachesize views kept off-screen and shown)"`
+	MoltentermHiddenTabViews   int   `json:"moltenterm:hiddentabviews,omitempty" jsonschema:"minimum=1,maximum=10" jsonschema_description:"How many hidden tab views stay loaded so that switching back to them is instant (1 to 10, default 3)"`
+	MoltentermHiddenTabViewsMb int   `json:"moltenterm:hiddentabviewsmb,omitempty" jsonschema:"minimum=200,maximum=8000" jsonschema_description:"Memory the hidden tab views may use together, in MB, before the least recently used is destroyed (200 to 8000, default 1200)"`
+
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`
 

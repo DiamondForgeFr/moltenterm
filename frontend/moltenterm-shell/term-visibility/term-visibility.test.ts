@@ -6,6 +6,7 @@ import {
     decideResize,
     decideWebglLossRecovery,
     ResizeInput,
+    shouldReleaseHiddenWebgl,
     WebglLossWindowMs,
     WebglMaxLossesInWindow,
 } from "./term-visibility";
@@ -90,5 +91,20 @@ describe("decideWebglLossRecovery", () => {
 
     it("copes with a missing history", () => {
         expect(decideWebglLossRecovery(undefined, 5).action).toBe("recreate");
+    });
+});
+
+describe("shouldReleaseHiddenWebgl (#454)", () => {
+    const base = { budgetEnabled: true, hidden: true, hasWebgl: true, disposed: false };
+
+    it("releases the WebGL renderer of a hidden terminal", () => {
+        expect(shouldReleaseHiddenWebgl(base)).toBe(true);
+    });
+
+    it("keeps it when shown, without WebGL, disposed, or with the budget turned off", () => {
+        expect(shouldReleaseHiddenWebgl({ ...base, hidden: false })).toBe(false);
+        expect(shouldReleaseHiddenWebgl({ ...base, hasWebgl: false })).toBe(false);
+        expect(shouldReleaseHiddenWebgl({ ...base, disposed: true })).toBe(false);
+        expect(shouldReleaseHiddenWebgl({ ...base, budgetEnabled: false })).toBe(false);
     });
 });

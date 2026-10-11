@@ -23,6 +23,7 @@ import { ElectronWshClient } from "./emain-wsh";
 import { hostsBrowserPage, hostsControlledTab } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#301, #375)
 import { attachWebviewWindowOpen } from "./moltenterm-popups"; // MOLTENTERM-PATCH (#207)
 import { acquireReadyView } from "./moltenterm-spare-ready"; // MOLTENTERM-PATCH (#283)
+import { revealTabView } from "./moltenterm-tabview-budget"; // MOLTENTERM-PATCH (#454)
 import { noteTabViewPrioritySetting, raiseSparePriority, raiseTabViewPriority } from "./moltenterm-tabview-priority"; // MOLTENTERM-PATCH (#450)
 
 function handleWindowsMenuAccelerators(
@@ -202,6 +203,7 @@ export class WaveTabView extends WebContentsView {
     }
 
     positionTabOnScreen(winBounds: Rectangle) {
+        revealTabView(this); // MOLTENTERM-PATCH (#454): a view parked off-screen is hidden (moltenterm-tabview-budget.ts)
         const curBounds = this.getBounds();
         if (
             curBounds.width == winBounds.width &&
