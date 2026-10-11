@@ -113,6 +113,7 @@ const (
 	ConfigKey_MoltentermTabViewBudget        = "moltenterm:tabviewbudget"
 	ConfigKey_MoltentermHiddenTabViews       = "moltenterm:hiddentabviews"
 	ConfigKey_MoltentermHiddenTabViewsMb     = "moltenterm:hiddentabviewsmb"
+	ConfigKey_MoltentermTabViewHost          = "moltenterm:tabviewhost"
 	ConfigKey_MoltentermHiddenPageFreeze     = "moltenterm:hiddenpagefreeze"
 	ConfigKey_MoltentermHiddenPageDiscardMin = "moltenterm:hiddenpagediscardmin"
 	ConfigKey_MoltentermConfirmBusyClose     = "moltenterm:confirmbusyclose"

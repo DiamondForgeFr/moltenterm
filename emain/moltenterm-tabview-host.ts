@@ -50,6 +50,10 @@ import {
 } from "./moltenterm-view-pending";
 import { MoltentermReinitTimeoutMs, nextWaveReady, withTimeout } from "./moltenterm-workspace-switch";
 
+// false restores the previous behaviour where the host changed it, for one release: a new tab is shown at once while it
+// loads (Wave's flow), the paint check judges whatever the window's state, and invalid transitions are only logged.
+export const TabViewHostSetting = "moltenterm:tabviewhost";
+
 // Wave's default, changed by window:maxtabcachesize; #454's budget normally keeps far fewer.
 const DefaultMaxCacheSize = 10;
 // A view taken this recently is in the middle of a switch (Wave's tryEvictEntry).
@@ -64,10 +68,12 @@ export class ReadinessError extends Error {
     }
 }
 
+let hostEnabled = true;
+
 // Strict in dev builds (the unpackaged app, the harness) and in the unit tests, so every characterization test also
 // checks that no invalid transition happens.
 const registry = new TabViewRegistry<WaveTabView>({
-    strict: () => isDev || process.env.VITEST === "true",
+    strict: () => hostEnabled && (isDev || process.env.VITEST === "true"),
     log: (msg) => console.log(msg),
     now: () => Date.now(),
 });
@@ -76,6 +82,18 @@ let maxCacheSize = DefaultMaxCacheSize;
 let hotSpare: WaveTabView = null;
 let cachedClientId: string = null;
 const destroyReasons = new WeakMap<WaveTabView, string>();
+
+export function noteTabViewHostSettings(settings: Record<string, unknown>) {
+    const next = settings?.[TabViewHostSetting] !== false;
+    if (next !== hostEnabled) {
+        console.log("[#461] tab view host", next ? "on" : "off (previous behaviour)");
+    }
+    hostEnabled = next;
+}
+
+export function isTabViewHostEnabled(): boolean {
+    return hostEnabled;
+}
 
 // For DevTools and the harness: the state of every view.
 export function tabViewHostSnapshot(): TabViewSnapshotEntry[] {
@@ -237,6 +255,7 @@ export async function acquireViewForTab(
     }
     const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
     noteTabViewPrioritySetting(fullConfig);
+    noteTabViewHostSettings(fullConfig?.settings as Record<string, unknown>);
     const acquired = await acquireReadyView(
         () => withRaisedPriority(getSpareTab(fullConfig)),
         () => withRaisedPriority(makeTabView(fullConfig)),

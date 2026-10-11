@@ -31,7 +31,7 @@ import {
     TabViewBudgetDeps,
     tabViewWorkspace,
 } from "./moltenterm-tabview-budget";
-import { getCachedTabViews, isHotSpareTab } from "./moltenterm-tabview-host";
+import { getCachedTabViews, isHotSpareTab, noteTabViewHostSettings } from "./moltenterm-tabview-host";
 import {
     hostedPagesHaveUnsavedWork,
     initMoltentermWebviewLifecycle,
@@ -88,6 +88,8 @@ function loadAgentSnapshot(tries: number) {
 // Subscribes first, so nothing published while the snapshot travels is lost (versions order the two).
 export function initMoltentermTabViewBudget(fullConfig: FullConfigType) {
     noteTabViewBudgetSettings(fullConfig?.settings as Record<string, unknown>);
+    // The tab view host's flag (#461) follows the same settings events.
+    noteTabViewHostSettings(fullConfig?.settings as Record<string, unknown>);
     // The browser pages' lifecycle (#459) follows the same settings events.
     initMoltentermWebviewLifecycle(fullConfig?.settings as Record<string, unknown>);
     if (started) {
@@ -100,6 +102,7 @@ export function initMoltentermTabViewBudget(fullConfig: FullConfigType) {
             const settings = (event?.data as { fullconfig?: FullConfigType })?.fullconfig?.settings;
             if (settings != null) {
                 noteTabViewBudgetSettings(settings as Record<string, unknown>);
+                noteTabViewHostSettings(settings as Record<string, unknown>);
                 noteWebviewLifecycleSettings(settings as Record<string, unknown>);
             }
         },
