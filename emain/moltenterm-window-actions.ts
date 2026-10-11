@@ -17,9 +17,12 @@ import {
     acquireWindowTabView,
     beginWindowPending,
     enforceHiddenTabViewBudget,
+    hasTabView,
+    isTabViewHostEnabled,
     ReadinessError,
     showTabViewInWindow,
     sweepDeletedTabViews,
+    windowShowsLiveView,
     windowViewPending,
 } from "./moltenterm-tabview-host";
 import { beginTabViewWork, endTabViewWork } from "./moltenterm-tabview-priority";
@@ -99,6 +102,31 @@ async function beginStartupPending(win: WaveBrowserWindow, tabId: string): Promi
     return beginWindowPending(win, ws?.name, onReload, startedAt, win.isVisible() ? 0 : StartupPendingGraceMs);
 }
 
+// A tab of the workspace on screen whose view is not loaded yet (a new tab, a reset, a closed tab's successor, a tab
+// whose view was evicted) renders off-screen while the window keeps showing its current tab, as a workspace switch does
+// (#68), and the current view draws the pending state over its panels if it is slow (#461, the plain background Wave's
+// flow showed between loading and first render).
+async function beginTabPending(win: WaveBrowserWindow, tabId: string, startedAt: number): Promise<number> {
+    const ws = await WorkspaceService.GetWorkspace(win.workspaceId).catch((): Workspace => null);
+    const onReload = () => fireAndForget(() => win.setActiveTab(tabId, true));
+    return beginWindowPending(win, ws?.name, onReload, startedAt);
+}
+
+// A new tab that did not open leaves the window on the tab it shows: the backend's active tab follows, so the tab bar
+// and a later click agree with the screen.
+async function rollBackActiveTab(win: WaveBrowserWindow, failedTabId: string) {
+    const shownTabId = win.activeTabView?.waveTabId;
+    if (shownTabId == null || shownTabId == failedTabId) {
+        return;
+    }
+    try {
+        await WorkspaceService.SetActiveTab(win.workspaceId, shownTabId);
+        console.log("[#461] new tab did not open, backend back on the tab shown", shownTabId, win.waveWindowId);
+    } catch (e) {
+        console.log("[#461] new tab did not open, could not take the backend back to", shownTabId, e);
+    }
+}
+
 function removeTabViewLater(win: WaveBrowserWindow, tabId: string, delayMs: number) {
     setTimeout(() => {
         win.removeTabView(tabId, false);
@@ -107,6 +135,7 @@ function removeTabViewLater(win: WaveBrowserWindow, tabId: string, delayMs: numb
 
 // One action of the queue; a return or a throw anywhere here only ends this action (#449).
 async function runAction(win: WaveBrowserWindow, entry: WindowAction, run: ActionRun) {
+    const startedAt = Date.now();
     let tabId: string = null;
     let tabViewsToClose: string[] = [];
     // have to use "===" here to get the typechecker to work :/
@@ -159,19 +188,34 @@ async function runAction(win: WaveBrowserWindow, entry: WindowAction, run: Actio
         return;
     }
     const startupPending = win.activeTabView == null ? await beginStartupPending(win, tabId) : null;
+    const showWhenReady =
+        startupPending == null && isTabViewHostEnabled() && !hasTabView(tabId) && windowShowsLiveView(win);
+    const tabPending = showWhenReady ? await beginTabPending(win, tabId, startedAt) : null;
     try {
         const [tabView, tabInitialized] = await getOrCreateWebViewForTab(win.waveWindowId, tabId, run.deadline);
         noteTabViewWorkspace(tabView, win.workspaceId);
         const primaryStartupTabFlag = entry.op === "switchtab" ? (entry.primaryStartupTab ?? false) : false;
-        await showTabViewInWindow(win, tabView, tabInitialized, primaryStartupTabFlag, false, run);
+        const waitReady = showWhenReady && !tabInitialized;
+        await showTabViewInWindow(win, tabView, tabInitialized, primaryStartupTabFlag, waitReady, run);
     } catch (e) {
         if (startupPending != null && e instanceof ReadinessError) {
             windowViewPending(win).setPhase(startupPending, "failed");
+        }
+        if (tabPending != null) {
+            if (e instanceof ReadinessError) {
+                await rollBackActiveTab(win, tabId);
+                windowViewPending(win).setPhase(tabPending, "failed");
+            } else {
+                windowViewPending(win).end(tabPending);
+            }
         }
         throw e;
     }
     if (startupPending != null) {
         windowViewPending(win).end(startupPending);
+    }
+    if (tabPending != null) {
+        windowViewPending(win).end(tabPending);
     }
     for (const closeId of tabViewsToClose) {
         win.removeTabView(closeId, false);
