@@ -5,11 +5,10 @@
 // renderer forever (#283). A hot spare that never reports ready used to leave the window blank until a relaunch, and a
 // slow first view blocked every click queued behind it. Readiness is read from the view's state first (an event that
 // already fired is not lost), a view that stays silent is dropped for a fresh one, and a view that is still silent
-// after that is given up on so the queue moves on.
+// after that is given up on so the queue moves on. Both share the action's single readiness deadline (#449): the spare
+// gets at most half of what is left, the fresh view the rest.
 
 export const MoltentermSpareReadyTimeoutMs = 5000;
-export const MoltentermFreshReadyTimeoutMs = 15000;
-export const MoltentermWaveReadyTimeoutMs = 15000;
 
 export type ReadyTrackedView = {
     isInitialized: boolean;
@@ -39,24 +38,24 @@ export async function awaitViewInitialized(view: ReadyTrackedView, ms: number): 
 }
 
 // Takes a spare, waits for it, replaces it by a fresh view when it stays silent. Returns the view and whether it is
-// ready; the caller decides what a view that is still not ready means.
+// ready by the deadline (ms since epoch); the caller decides what a view that is still not ready means.
 export async function acquireReadyView<T extends ReadyTrackedView>(
     takeSpare: () => T,
     makeFresh: () => T,
     log: ReadyLog,
-    spareMs = MoltentermSpareReadyTimeoutMs,
-    freshMs = MoltentermFreshReadyTimeoutMs
+    deadline: number,
+    spareMs = MoltentermSpareReadyTimeoutMs
 ): Promise<{ view: T; ready: boolean }> {
     const spare = takeSpare();
     const startSpare = Date.now();
-    if (await awaitViewInitialized(spare, spareMs)) {
+    if (await awaitViewInitialized(spare, Math.min(spareMs, Math.max(0, deadline - startSpare) / 2))) {
         return { view: spare, ready: true };
     }
     log(`spare tab view not ready after ${Date.now() - startSpare}ms, dropping it for a fresh view`);
     spare.destroy();
     const fresh = makeFresh();
     const startFresh = Date.now();
-    const ready = await awaitViewInitialized(fresh, freshMs);
+    const ready = await awaitViewInitialized(fresh, Math.max(0, deadline - startFresh));
     if (!ready) {
         log(`fresh tab view not ready after ${Date.now() - startFresh}ms`);
     }

@@ -21,15 +21,10 @@ import { getElectronAppBasePath, isDev, unamePlatform } from "./emain-platform";
 import { getOrCreateWebViewForTab, getWaveTabViewByWebContentsId, WaveTabView } from "./emain-tabview";
 import { delay, ensureBoundsAreVisible, waveKeyToElectronKey } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
-import {
-    awaitViewInitialized,
-    isDuplicateSwitch,
-    MoltentermFreshReadyTimeoutMs,
-    MoltentermWaveReadyTimeoutMs,
-} from "./moltenterm-spare-ready"; // MOLTENTERM-PATCH (#283)
+import { ActionRun, isSuperseded, readinessDeadlineMs, WindowActionQueue } from "./moltenterm-action-queue"; // MOLTENTERM-PATCH (#449)
+import { awaitViewInitialized } from "./moltenterm-spare-ready"; // MOLTENTERM-PATCH (#283)
 import { checkReusedTabViewPainted, noteTabViewLeftScreen } from "./moltenterm-tabview-repaint"; // MOLTENTERM-PATCH (#223)
 import {
-    MoltentermFirstRenderTimeoutMs,
     MoltentermReinitTimeoutMs,
     nextWaveReady,
     releaseTabViewFromOtherWindow,
@@ -37,8 +32,6 @@ import {
     withTimeout,
 } from "./moltenterm-workspace-switch"; // MOLTENTERM-PATCH (#68)
 import { updater } from "./updater";
-
-const DevInitTimeoutMs = 5000;
 
 export type WindowOpts = {
     unamePlatform: NodeJS.Platform;
@@ -156,6 +149,10 @@ type WindowActionQueueEntry =
       }
     | {
           op: "resetworkspace"; // MOLTENTERM-PATCH (#222)
+      }
+    | {
+          op: "deleteworkspace"; // MOLTENTERM-PATCH (#449)
+          workspaceId: string;
       };
 
 function isNonEmptyUnsavedWorkspace(workspace: Workspace): boolean {
@@ -169,7 +166,10 @@ export class WaveBrowserWindow extends BaseWindow {
     activeTabView: WaveTabView;
     private canClose: boolean;
     private deleteAllowed: boolean;
-    private actionQueue: WindowActionQueueEntry[];
+    // MOLTENTERM-PATCH (#449): workspaceId is the workspace on screen; the backend's window can be ahead of it while a
+    // switch is running or after one was superseded
+    private actionQueue: WindowActionQueue<WindowActionQueueEntry>;
+    private backendWorkspaceId: string;
 
     constructor(waveWindow: WaveWindow, fullConfig: FullConfigType, opts: WindowOpts) {
         const settings = fullConfig?.settings;
@@ -242,9 +242,16 @@ export class WaveBrowserWindow extends BaseWindow {
                 this.setFullScreen(true);
             });
         }
-        this.actionQueue = [];
+        // MOLTENTERM-PATCH (#449)
+        this.actionQueue = new WindowActionQueue<WindowActionQueueEntry>(
+            (entry, run) => this.runAction(entry, run),
+            () => this.isDestroyed(),
+            () => readinessDeadlineMs(isDev),
+            (msg, ...args) => console.log(msg, ...args)
+        );
         this.waveWindowId = waveWindow.oid;
         this.workspaceId = waveWindow.workspaceid;
+        this.backendWorkspaceId = waveWindow.workspaceid; // MOLTENTERM-PATCH (#449)
         this.allLoadedTabViews = new Map<string, WaveTabView>();
         const winBoundsPoller = setInterval(() => {
             if (this.isDestroyed()) {
@@ -387,7 +394,8 @@ export class WaveBrowserWindow extends BaseWindow {
 
     async switchWorkspace(workspaceId: string) {
         console.log("switchWorkspace", workspaceId, this.waveWindowId);
-        if (workspaceId == this.workspaceId) {
+        // MOLTENTERM-PATCH (#449): coming back to the workspace on screen while a switch is under way cancels that switch
+        if (workspaceId == this.workspaceId && !this.actionQueue.hasWorkspaceChange()) {
             console.log("switchWorkspace already on this workspace", this.waveWindowId);
             return;
         }
@@ -420,16 +428,15 @@ export class WaveBrowserWindow extends BaseWindow {
         await this._queueActionInternal({ op: "switchtab", tabId, setInBackend, primaryStartupTab });
     }
 
-    private async initializeTab(tabView: WaveTabView, primaryStartupTab: boolean, offScreen = false) {
-        const clientId = await getClientId();
+    // MOLTENTERM-PATCH (#449): every wait shares the action's single readiness deadline and stops as soon as a newer
+    // action takes over (was 15 s for the init, then 5 s or 15 s for wave-ready, plus the dev 5 s timers)
+    private async initializeTab(tabView: WaveTabView, primaryStartupTab: boolean, offScreen: boolean, run: ActionRun) {
+        const clientId = await run.race(getClientId());
         // MOLTENTERM-PATCH (#283): the queue never waits indefinitely on one view's init
-        const viewReady = await this.awaitWithDevTimeout(
-            awaitViewInitialized(tabView, MoltentermFreshReadyTimeoutMs),
-            "initPromise",
-            tabView.waveTabId
-        );
+        const viewReady = await run.race(awaitViewInitialized(tabView, run.remainingMs()));
         if (!viewReady) {
-            throw new Error(`tab view ${tabView.waveTabId} not initialized after ${MoltentermFreshReadyTimeoutMs}ms`);
+            await this.onReadinessDeadline(tabView, "init");
+            throw new Error(`tab view ${tabView.waveTabId} not initialized by the readiness deadline`);
         }
         const winBounds = this.getContentBounds();
         tabView.setBounds({ x: 0, y: 0, width: winBounds.width, height: winBounds.height });
@@ -457,68 +464,80 @@ export class WaveBrowserWindow extends BaseWindow {
             primaryStartupTab ? "(primary startup)" : ""
         );
         tabView.webContents.send("wave-init", initOpts);
-        // MOLTENTERM-PATCH (#68): never leave the window on the previous workspace when a renderer does not answer
-        const waveReady = offScreen
-            ? withTimeout(tabView.waveReadyPromise, MoltentermFirstRenderTimeoutMs)
-            : withTimeout(tabView.waveReadyPromise, MoltentermWaveReadyTimeoutMs); // MOLTENTERM-PATCH (#283)
-        await this.awaitWithDevTimeout(waveReady, "waveReadyPromise", tabView.waveTabId);
+        // MOLTENTERM-PATCH (#68, #449): never leave the window on the previous workspace when a renderer does not answer
+        await run.race(withTimeout(tabView.waveReadyPromise, run.remainingMs()));
+        if (!tabView.isWaveReady && !(await this.onReadinessDeadline(tabView, "wave-ready"))) {
+            throw new Error(`tab view ${tabView.waveTabId} not ready by the readiness deadline`);
+        }
         console.log("wave-ready init time", Date.now() - startTime + "ms");
     }
 
-    private async awaitWithDevTimeout<T>(promise: Promise<T>, name: string, tabId: string): Promise<T> {
-        if (!isDev) {
-            return promise;
+    // MOLTENTERM-PATCH (#449): the one place a missed readiness deadline is decided; FR-PERF-004 (#450) puts its retry
+    // and pending state here. Returns whether the view is shown anyway: a renderer that initialized is (#68), unless its
+    // tab no longer exists (deleted meanwhile, its renderer failed on it); one that never initialized is dropped (#283).
+    private async onReadinessDeadline(tabView: WaveTabView, stage: "init" | "wave-ready"): Promise<boolean> {
+        console.log(`[#449] readiness deadline passed (${stage}) for tab ${tabView.waveTabId}`);
+        if (isDev) {
+            console.log("[dev] showing window for devtools");
+            if (!this.isDestroyed() && !this.isVisible()) {
+                this.show();
+            }
+            if (this.activeTabView?.webContents && !this.activeTabView.webContents.isDevToolsOpened()) {
+                this.activeTabView.webContents.openDevTools();
+            }
         }
-        let timeoutHandle: ReturnType<typeof setTimeout> = null;
-        const timeoutPromise = new Promise<never>((_, reject) => {
-            timeoutHandle = setTimeout(() => {
-                console.log(
-                    `[dev] ${name} timed out after ${DevInitTimeoutMs}ms for tab ${tabId}, showing window for devtools`
-                );
-                if (!this.isDestroyed() && !this.isVisible()) {
-                    this.show();
-                }
-                if (this.activeTabView?.webContents && !this.activeTabView.webContents.isDevToolsOpened()) {
-                    this.activeTabView.webContents.openDevTools();
-                }
-                reject(new Error(`[dev] ${name} timed out after ${DevInitTimeoutMs}ms`));
-            }, DevInitTimeoutMs);
-        });
-        try {
-            return await Promise.race([promise, timeoutPromise]);
-        } finally {
-            clearTimeout(timeoutHandle);
+        if (stage === "init") {
+            return false;
         }
+        const tab = await ObjectService.GetObject("tab:" + tabView.waveTabId).catch((): WaveObj => null);
+        if (tab == null) {
+            console.log("[#449] its tab no longer exists, dropping the view", tabView.waveTabId);
+            return false;
+        }
+        return true;
     }
 
-    // MOLTENTERM-PATCH (#68): waitReady shows the view only once it has rendered (workspace switch)
-    private async setTabViewIntoWindow(
-        tabView: WaveTabView,
-        tabInitialized: boolean,
-        primaryStartupTab = false,
-        waitReady = false
-    ) {
-        if (this.activeTabView == tabView) {
-            return;
-        }
-        const oldActiveView = this.activeTabView;
+    // MOLTENTERM-PATCH (#449): makes a view the active one; a switch does it only once the view is ready
+    private activateTabView(tabView: WaveTabView, oldActiveView: WaveTabView) {
         tabView.isActiveTab = true;
         if (oldActiveView != null) {
             oldActiveView.isActiveTab = false;
         }
         noteTabViewLeftScreen(oldActiveView); // MOLTENTERM-PATCH (#223)
         this.activeTabView = tabView;
+    }
+
+    // MOLTENTERM-PATCH (#68): waitReady shows the view only once it has rendered (workspace switch)
+    // MOLTENTERM-PATCH (#449): with waitReady the view becomes active only then, so neither a resize nor a superseded
+    // switch brings it on screen early
+    private async setTabViewIntoWindow(
+        tabView: WaveTabView,
+        tabInitialized: boolean,
+        primaryStartupTab: boolean,
+        waitReady: boolean,
+        run: ActionRun
+    ) {
+        if (this.activeTabView == tabView) {
+            return;
+        }
+        const oldActiveView = this.activeTabView;
+        if (!waitReady) {
+            this.activateTabView(tabView, oldActiveView);
+        }
         this.allLoadedTabViews.set(tabView.waveTabId, tabView);
         if (!tabInitialized) {
             console.log("initializing a new tab", primaryStartupTab ? "(primary startup)" : "");
             try {
-                await this.initializeTab(tabView, primaryStartupTab, waitReady);
+                await this.initializeTab(tabView, primaryStartupTab, waitReady, run);
             } catch (e) {
                 // MOLTENTERM-PATCH (#283): a view that never initialized is dropped, so the next switch builds a new one
+                // MOLTENTERM-PATCH (#449): so is a view whose action was superseded, or whose tab no longer exists
                 console.log("[#283] initializing a new tab failed, dropping its view", tabView.waveTabId, e);
-                this.activeTabView = oldActiveView;
-                if (oldActiveView != null) {
-                    oldActiveView.isActiveTab = true;
+                if (this.activeTabView == tabView) {
+                    this.activeTabView = oldActiveView;
+                    if (oldActiveView != null) {
+                        oldActiveView.isActiveTab = true;
+                    }
                 }
                 this.allLoadedTabViews.delete(tabView.waveTabId);
                 if (!this.isDestroyed()) {
@@ -527,13 +546,18 @@ export class WaveBrowserWindow extends BaseWindow {
                 tabView.destroy();
                 throw e;
             }
+            if (waitReady) {
+                this.activateTabView(tabView, oldActiveView);
+            }
             this.finalizePositioning();
         } else {
             console.log("reusing an existing tab, calling wave-init", tabView.waveTabId);
             const reinitDone = waitReady ? nextWaveReady(tabView) : null; // MOLTENTERM-PATCH (#68)
             tabView.webContents.send("wave-init", tabView.savedInitOpts); // reinit
             if (reinitDone != null) {
-                await withTimeout(reinitDone, MoltentermReinitTimeoutMs); // MOLTENTERM-PATCH (#68)
+                // MOLTENTERM-PATCH (#68, #449): a superseded switch leaves the reused view off-screen, in the cache
+                await run.race(withTimeout(reinitDone, Math.min(MoltentermReinitTimeoutMs, run.remainingMs())));
+                this.activateTabView(tabView, oldActiveView);
             }
             this.finalizePositioning();
             checkReusedTabViewPainted(this, tabView); // MOLTENTERM-PATCH (#223): a long-hidden view can come back black
@@ -580,21 +604,23 @@ export class WaveBrowserWindow extends BaseWindow {
         await this._queueActionInternal({ op: "resetworkspace" });
     }
 
+    // MOLTENTERM-PATCH (#449): a delete goes through the queue, so it cannot race a switch to the same workspace
+    async queueDeleteWorkspace(workspaceId: string) {
+        await this._queueActionInternal({ op: "deleteworkspace", workspaceId });
+    }
+
+    // MOLTENTERM-PATCH (#449): the window shows the workspace, is switching to it, or its backend window is on it
+    isOnWorkspace(workspaceId: string): boolean {
+        return (
+            this.workspaceId == workspaceId ||
+            this.backendWorkspaceId == workspaceId ||
+            this.actionQueue.targetsWorkspace(workspaceId)
+        );
+    }
+
+    // MOLTENTERM-PATCH (#283, #449): coalescing, superseding and the drain live in emain/moltenterm-action-queue.ts
     private async _queueActionInternal(entry: WindowActionQueueEntry) {
-        // MOLTENTERM-PATCH (#283)
-        if (entry.op === "switchworkspace" && isDuplicateSwitch(this.actionQueue, entry.workspaceId)) {
-            console.log("[#283] switchworkspace already pending, coalesced", entry.workspaceId);
-            return;
-        }
-        if (this.actionQueue.length >= 2) {
-            this.actionQueue[1] = entry;
-            return;
-        }
-        const wasEmpty = this.actionQueue.length === 0;
-        this.actionQueue.push(entry);
-        if (wasEmpty) {
-            await this.processActionQueue();
-        }
+        await this.actionQueue.enqueue(entry);
     }
 
     private removeTabViewLater(tabId: string, delayMs: number) {
@@ -607,92 +633,171 @@ export class WaveBrowserWindow extends BaseWindow {
     // processActionQueue will replace [1] if it is already set
     // we don't mess with [0] because it is "in process"
     // we replace [1] because there is no point to run an action that is going to be overwritten
-    private async processActionQueue() {
-        while (this.actionQueue.length > 0) {
-            try {
-                if (this.isDestroyed()) {
-                    break;
-                }
-                const entry = this.actionQueue[0];
-                let tabId: string = null;
-                let tabViewsToClose: string[] = []; // MOLTENTERM-PATCH (#68)
-                // have to use "===" here to get the typechecker to work :/
-                switch (entry.op) {
-                    case "createtab":
-                        tabId = await WorkspaceService.CreateTab(this.workspaceId, null, true);
-                        break;
-                    case "switchtab":
-                        tabId = entry.tabId;
-                        if (this.activeTabView?.waveTabId == tabId) {
-                            continue;
-                        }
-                        if (entry.setInBackend) {
-                            await WorkspaceService.SetActiveTab(this.workspaceId, tabId);
-                        }
-                        break;
-                    case "closetab": {
-                        tabId = entry.tabId;
-                        const rtn = await WorkspaceService.CloseTab(this.workspaceId, tabId, true);
-                        if (rtn == null) {
-                            console.log(
-                                "[error] closeTab: no return value",
-                                tabId,
-                                this.workspaceId,
-                                this.waveWindowId
-                            );
-                            return;
-                        }
-                        this.removeTabViewLater(tabId, 1000);
-                        if (rtn.closewindow) {
-                            this.close();
-                            return;
-                        }
-                        if (!rtn.newactivetabid) {
-                            return;
-                        }
-                        tabId = rtn.newactivetabid;
-                        break;
-                    }
-                    case "switchworkspace": {
-                        // MOLTENTERM-PATCH (#68): read before the switch, which deletes an unsaved workspace
-                        const leftWs = await WorkspaceService.GetWorkspace(this.workspaceId);
-                        const newWs = await WindowService.SwitchWorkspace(this.waveWindowId, entry.workspaceId);
-                        if (!newWs) {
-                            return;
-                        }
-                        console.log("processActionQueue switchworkspace newWs", newWs);
-                        // MOLTENTERM-PATCH (#68): the views of the workspace left are kept (off-screen, in the tab
-                        // cache) instead of destroyed, so switching back is as instant as switching tabs
-                        this.workspaceId = entry.workspaceId;
-                        tabId = newWs.activetabid;
-                        releaseTabViewFromOtherWindow(tabId, this.waveWindowId, getWaveWindowById);
-                        tabViewsToClose = tabViewsToCloseOnLeave(leftWs);
-                        break;
-                    }
-                    case "resetworkspace": {
-                        // MOLTENTERM-PATCH (#222): the old tabs' views close once the new tab is on screen
-                        const resetWs = await WorkspaceService.GetWorkspace(this.workspaceId);
-                        tabId = await WorkspaceService.ResetWorkspace(this.workspaceId);
-                        tabViewsToClose = resetWs?.tabids ?? [];
-                        break;
-                    }
-                }
-                if (tabId == null) {
+    // MOLTENTERM-PATCH (#449): one action of the queue; a return or a throw anywhere here only ends this action
+    private async runAction(entry: WindowActionQueueEntry, run: ActionRun) {
+        let tabId: string = null;
+        let tabViewsToClose: string[] = []; // MOLTENTERM-PATCH (#68)
+        // have to use "===" here to get the typechecker to work :/
+        switch (entry.op) {
+            case "createtab":
+                tabId = await WorkspaceService.CreateTab(this.workspaceId, null, true);
+                break;
+            case "switchtab":
+                tabId = entry.tabId;
+                if (this.activeTabView?.waveTabId == tabId) {
                     return;
                 }
-                const [tabView, tabInitialized] = await getOrCreateWebViewForTab(this.waveWindowId, tabId);
-                const primaryStartupTabFlag = entry.op === "switchtab" ? (entry.primaryStartupTab ?? false) : false;
-                const waitReady = entry.op === "switchworkspace"; // MOLTENTERM-PATCH (#68)
-                await this.setTabViewIntoWindow(tabView, tabInitialized, primaryStartupTabFlag, waitReady);
-                for (const closeId of tabViewsToClose) {
-                    this.removeTabView(closeId, false); // MOLTENTERM-PATCH (#68)
+                if (entry.setInBackend) {
+                    await WorkspaceService.SetActiveTab(this.workspaceId, tabId);
                 }
-            } catch (e) {
-                console.log("error caught in processActionQueue", e);
-            } finally {
-                this.actionQueue.shift();
+                break;
+            case "closetab": {
+                tabId = entry.tabId;
+                const rtn = await WorkspaceService.CloseTab(this.workspaceId, tabId, true);
+                if (rtn == null) {
+                    console.log("[error] closeTab: no return value", tabId, this.workspaceId, this.waveWindowId);
+                    return;
+                }
+                this.removeTabViewLater(tabId, 1000);
+                if (rtn.closewindow) {
+                    this.close();
+                    return;
+                }
+                if (!rtn.newactivetabid) {
+                    return;
+                }
+                tabId = rtn.newactivetabid;
+                break;
+            }
+            case "switchworkspace":
+                await this.runSwitchWorkspace(entry.workspaceId, run);
+                return;
+            case "deleteworkspace":
+                await this.runDeleteWorkspace(entry.workspaceId, run);
+                return;
+            case "resetworkspace": {
+                // MOLTENTERM-PATCH (#222): the old tabs' views close once the new tab is on screen
+                const resetWs = await WorkspaceService.GetWorkspace(this.workspaceId);
+                tabId = await WorkspaceService.ResetWorkspace(this.workspaceId);
+                tabViewsToClose = resetWs?.tabids ?? [];
+                break;
             }
         }
+        if (tabId == null) {
+            return;
+        }
+        const [tabView, tabInitialized] = await getOrCreateWebViewForTab(this.waveWindowId, tabId, run.deadline);
+        const primaryStartupTabFlag = entry.op === "switchtab" ? (entry.primaryStartupTab ?? false) : false;
+        await this.setTabViewIntoWindow(tabView, tabInitialized, primaryStartupTabFlag, false, run);
+        for (const closeId of tabViewsToClose) {
+            this.removeTabView(closeId, false); // MOLTENTERM-PATCH (#68)
+        }
+    }
+
+    // MOLTENTERM-PATCH (#68, #449): the new view is shown only once it has rendered, and workspaceId follows the screen:
+    // it changes only once that view is on screen. A switch that fails takes the backend back to the workspace on
+    // screen; a superseded one leaves the backend to the action that superseded it.
+    private async runSwitchWorkspace(workspaceId: string, run: ActionRun) {
+        // MOLTENTERM-PATCH (#68): read before the switch, which deletes an unsaved workspace
+        const leftIds = [this.workspaceId, this.backendWorkspaceId].filter(
+            (id, idx, all) => id != null && id != workspaceId && all.indexOf(id) == idx
+        );
+        const leftWss = await Promise.all(
+            leftIds.map((id) => WorkspaceService.GetWorkspace(id).catch((): Workspace => null))
+        );
+        run.check();
+        let newWs = await WindowService.SwitchWorkspace(this.waveWindowId, workspaceId);
+        if (newWs != null) {
+            this.backendWorkspaceId = workspaceId;
+        } else if (this.backendWorkspaceId == workspaceId && this.workspaceId != workspaceId) {
+            // The backend is already there: an earlier switch to it was superseded, or could not be rolled back.
+            newWs = await WorkspaceService.GetWorkspace(workspaceId);
+        }
+        if (!newWs) {
+            return;
+        }
+        run.check();
+        console.log("processActionQueue switchworkspace newWs", newWs);
+        const tabId = newWs.activetabid;
+        if (tabId == null) {
+            this.workspaceId = workspaceId;
+            return;
+        }
+        releaseTabViewFromOtherWindow(tabId, this.waveWindowId, getWaveWindowById);
+        try {
+            const [tabView, tabInitialized] = await this.acquireTabView(tabId, run);
+            await this.setTabViewIntoWindow(tabView, tabInitialized, false, true, run);
+        } catch (e) {
+            if (!isSuperseded(e)) {
+                await this.rollBackBackendWorkspace(workspaceId);
+            }
+            throw e;
+        }
+        // MOLTENTERM-PATCH (#68): the views of the workspace left are kept (off-screen, in the tab
+        // cache) instead of destroyed, so switching back is as instant as switching tabs
+        this.workspaceId = workspaceId;
+        for (const closeId of leftWss.flatMap((ws) => tabViewsToCloseOnLeave(ws))) {
+            this.removeTabView(closeId, false); // MOLTENTERM-PATCH (#68)
+        }
+    }
+
+    // MOLTENTERM-PATCH (#449): a view still being acquired when its switch is superseded is destroyed once it arrives,
+    // instead of staying in the tab cache without a window that shows it
+    private async acquireTabView(tabId: string, run: ActionRun): Promise<[WaveTabView, boolean]> {
+        const acquiring = getOrCreateWebViewForTab(this.waveWindowId, tabId, run.deadline);
+        try {
+            return await run.race(acquiring);
+        } catch (e) {
+            fireAndForget(async () => {
+                const [tabView, tabInitialized] = await acquiring;
+                if (!tabInitialized && this.allLoadedTabViews.get(tabId) !== tabView) {
+                    tabView.destroy();
+                }
+            });
+            throw e;
+        }
+    }
+
+    // MOLTENTERM-PATCH (#449)
+    private async rollBackBackendWorkspace(failedWorkspaceId: string) {
+        if (this.workspaceId == failedWorkspaceId || this.backendWorkspaceId != failedWorkspaceId) {
+            return;
+        }
+        try {
+            const ws = await WindowService.SwitchWorkspace(this.waveWindowId, this.workspaceId);
+            if (ws != null) {
+                this.backendWorkspaceId = this.workspaceId;
+            }
+            console.log("[#449] switch failed, backend back on", this.workspaceId, this.waveWindowId);
+        } catch (e) {
+            console.log("[#449] switch failed, could not take the backend back to", this.workspaceId, e);
+        }
+    }
+
+    // MOLTENTERM-PATCH (#449): the delete runs in the queue, after any switch to the workspace has stopped and dropped its
+    // view, so no renderer initializes a tab being deleted. When the window was only switching to it, it stays on the
+    // workspace it shows.
+    private async runDeleteWorkspace(workspaceId: string, run: ActionRun) {
+        const onThisWindow = this.workspaceId == workspaceId || this.backendWorkspaceId == workspaceId;
+        const newWorkspaceId = await WorkspaceService.DeleteWorkspace(workspaceId);
+        console.log("delete-workspace done", workspaceId, this.waveWindowId);
+        if (!onThisWindow) {
+            return;
+        }
+        if (this.backendWorkspaceId == workspaceId) {
+            this.backendWorkspaceId = null;
+        }
+        if (!newWorkspaceId) {
+            console.log("delete-workspace closing window", workspaceId, this.waveWindowId);
+            this.destroy();
+            return;
+        }
+        if (run.isSuperseded()) {
+            return;
+        }
+        const stay = this.workspaceId != workspaceId && (await WorkspaceService.GetWorkspace(this.workspaceId)) != null;
+        run.check();
+        await this.runSwitchWorkspace(stay ? this.workspaceId : newWorkspaceId, run);
     }
 
     private async mainResizeHandler(_: any) {
@@ -907,16 +1012,15 @@ ipcMain.on("delete-workspace", (event, workspaceId) => {
             return;
         }
 
-        const newWorkspaceId = await WorkspaceService.DeleteWorkspace(workspaceId);
-        console.log("delete-workspace done", workspaceId, ww?.waveWindowId);
-        if (ww?.workspaceId == workspaceId) {
-            if (newWorkspaceId) {
-                await ww.switchWorkspace(newWorkspaceId);
-            } else {
-                console.log("delete-workspace closing window", workspaceId, ww?.waveWindowId);
-                ww.destroy();
-            }
+        // MOLTENTERM-PATCH (#449): applied by the action queue of the window that shows the workspace or is switching to
+        // it (runDeleteWorkspace), so it cannot race that switch
+        const owner = getAllWaveWindows().find((w) => w.isOnWorkspace(workspaceId)) ?? ww;
+        if (owner == null) {
+            await WorkspaceService.DeleteWorkspace(workspaceId);
+            console.log("delete-workspace done", workspaceId);
+            return;
         }
+        await owner.queueDeleteWorkspace(workspaceId);
     });
 });
 

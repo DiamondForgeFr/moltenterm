@@ -320,7 +320,12 @@ export function clearTabCache(): WaveTabView[] {
 }
 
 // returns [tabview, initialized]
-export async function getOrCreateWebViewForTab(waveWindowId: string, tabId: string): Promise<[WaveTabView, boolean]> {
+// MOLTENTERM-PATCH (#449): deadline is the window action's single readiness deadline (ms since epoch)
+export async function getOrCreateWebViewForTab(
+    waveWindowId: string,
+    tabId: string,
+    deadline: number
+): Promise<[WaveTabView, boolean]> {
     let tabView = getWaveTabView(tabId);
     if (tabView) {
         return [tabView, true];
@@ -330,7 +335,8 @@ export async function getOrCreateWebViewForTab(waveWindowId: string, tabId: stri
     const acquired = await acquireReadyView(
         () => getSpareTab(fullConfig),
         () => new WaveTabView(fullConfig),
-        (msg) => console.log("[#283]", msg)
+        (msg) => console.log("[#283]", msg),
+        deadline // MOLTENTERM-PATCH (#449)
     );
     tabView = acquired.view;
     tabView.waveWindowId = waveWindowId;
