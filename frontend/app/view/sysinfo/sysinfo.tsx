@@ -16,7 +16,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { MetaKeyAtomFnType, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
-import { SysinfoUnfocusedRedrawMs, useActivityGatedValue } from "../../../moltenterm-shell/tab-activity"; // MOLTENTERM-PATCH (#455)
+import { sameItems, SysinfoUnfocusedRedrawMs, useActivityGatedValue } from "../../../moltenterm-shell/tab-activity"; // MOLTENTERM-PATCH (#455)
 
 export type SysinfoEnv = WaveEnvSubset<{
     rpc: {
@@ -530,7 +530,8 @@ const SysinfoViewInner = React.memo(({ model }: SysinfoViewProps) => {
     // this panel are focused, every 5 s otherwise, and not while hidden (FR-PERF-009-AC3)
     const panelFocused = jotai.useAtomValue(model.panelFocusedAtom);
     const plotData = useActivityGatedValue(model.dataAtom, panelFocused, SysinfoUnfocusedRedrawMs);
-    const yvals = jotai.useAtomValue(model.metrics);
+    // model.metrics is a new array at every sample: read live, it redrew every chart each second anyway
+    const yvals = useActivityGatedValue(model.metrics, panelFocused, SysinfoUnfocusedRedrawMs, sameItems);
     const plotMeta = jotai.useAtomValue(model.plotMetaAtom);
     const osRef = React.useRef<OverlayScrollbarsComponentRef>(null);
     const targetLen = jotai.useAtomValue(model.numPoints) + 1;

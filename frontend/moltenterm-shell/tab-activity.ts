@@ -208,10 +208,30 @@ export function followActivityGated<T>(
     };
 }
 
-export function useActivityGatedValue<T>(source: Atom<T>, live: boolean, slowMs: number): T {
+export function sameItems<T>(a: readonly T[], b: readonly T[]): boolean {
+    if (a === b) {
+        return true;
+    }
+    if (a == null || b == null || a.length !== b.length) {
+        return false;
+    }
+    return a.every((item, i) => item === b[i]);
+}
+
+// same: a value equal to the one shown keeps the previous one, so a source that rebuilds an equal value (a new array
+// of the same names) causes no render.
+export function useActivityGatedValue<T>(
+    source: Atom<T>,
+    live: boolean,
+    slowMs: number,
+    same: (a: T, b: T) => boolean = Object.is
+): T {
     const [value, setValue] = useState<T>(() => globalStore.get(source));
     useEffect(
-        () => followActivityGated(TabActivity.getInstance(), source, live, slowMs, setValue),
+        () =>
+            followActivityGated(TabActivity.getInstance(), source, live, slowMs, (next) =>
+                setValue((previous) => (same(previous, next) ? previous : next))
+            ),
         [source, live, slowMs]
     );
     return value;
