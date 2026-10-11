@@ -64,7 +64,8 @@ restart. You build the change as a mod with the `molten` command; you never edit
 7. Enable it: `molten mod enable <id>`. MoltenTerm asks the user to trust the mod; wait for the answer. If the user
    declines, stop and say so.
 8. Try it: run its commands (`molten <command> …`) and `molten mod list` to check that it is `active` with no error.
-   Saving a file of the mod reloads it within a second.
+   Saving a file of the mod reloads it within a second. Every tab runs the mod, so keep its idle work small: its CPU
+   column must stay under the budget (`mod-format.md`, Cost and budget).
 <!-- only:claude-code -->
    The Claude Code part does **not** load in this session: tell the user that it loads in their next Claude Code
    session started in a MoltenTerm terminal (`/exit`, then `claude --continue` keeps the conversation), and that

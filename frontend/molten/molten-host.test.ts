@@ -186,7 +186,9 @@ describe("MoltenHost", () => {
             })
         );
         expect(modState(host, "a").state).toBe("active");
-        expect(modState(host, "b").error).toBe('activate: command "x" is already registered by mod "a"');
+        expect(modState(host, "b").error).toBe(
+            'activate: command "x" is already registered by mod "a"; mod "b" cannot register it'
+        );
         expect(host.commands.get("x").modId).toBe("a");
     });
 
@@ -499,7 +501,8 @@ describe("MoltenHost", () => {
             path: "builtin:inside",
             commands: ["inside-cmd"],
         });
-        expect(importModule).toHaveBeenCalledWith("// built in", "inside/main.js");
+        // Behind the one-line prologue that gives the mod its own timers (molten-timers.ts).
+        expect(importModule).toHaveBeenCalledWith(expect.stringMatching(/;\/\/ built in$/), "inside/main.js");
 
         const read = env.readTextFile;
         env.readTextFile = async (path: string) =>

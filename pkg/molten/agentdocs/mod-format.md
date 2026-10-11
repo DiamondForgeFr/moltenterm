@@ -80,7 +80,7 @@ that already runs with the user's rights, such as a hostile agent, from writing 
 | `description`  | no       | One sentence shown to the user                                                                |
 | `apiVersion`   | yes      | `1`. Any other value is refused, with a message naming the supported versions                 |
 | `main`         | yes      | Path of the module inside the folder, ending in `.js` or `.mjs`; no `.` or `..` segment       |
-| `capabilities` | no       | List of strings declaring what the mod uses, shown when the user is asked to trust it (#21)   |
+| `capabilities` | no       | List of strings declaring what the mod uses, shown when the user is asked to trust it (#21); `background` keeps its timers running in hidden tabs (see Cost and budget) |
 | `agents`       | no       | The mod's Claude Code part: `{"claude-code": {"folder", "targetVersion"}}`; see `claude-code-parts.md` |
 
 A mod may also carry a **Claude Code part**, a Claude Code plugin folder that runs inside the Claude Code sessions
@@ -124,6 +124,27 @@ export function activate(api) {
 
 Every `register` and `show` returns a function that undoes it. MoltenTerm calls them all, in reverse order, when the
 mod stops.
+
+Two mods cannot register the same command name. Built-in mods load first, then the others in id order, and a mod
+loaded later never takes a name from a running one: the first keeps the command, and the second gets an error naming
+both mods (a notification, and `molten mod list`). Rename the command in one of them.
+
+## Cost and budget
+
+Every MoltenTerm tab runs its own copy of each mod, so a mod's idle work is paid once per open tab. To keep that small:
+
+- A tab loads the mods' code when it is first shown (or when a `molten` command run in it needs them), not before.
+- While a tab is hidden or minimised, the mod's timers are held: `setTimeout` and `setInterval` called from the mod's
+  module (MoltenTerm gives each mod its own) wait, and a timer that came due runs once when the tab shows again.
+  A mod that must keep working in hidden tabs declares the `background` capability in `mod.json`.
+- The module may also export `suspend()` and `resume()`, called when its tab is hidden and shown again, to pause work
+  that is not a timer (an animation, a watcher).
+
+MoltenTerm measures each mod: the time of `activate`, the time of everything it runs (commands, box actions, timer
+callbacks), its idle CPU over the last 30 seconds, its timers, and the memory its activation took. The budget is
+**2 % of one core while idle** and **20 MB**. A mod above it gets a warning notification and is marked over budget,
+with its numbers, in Settings > Mods and in `molten mod list` (CPU column). It keeps running: turn it off with
+`molten mod disable <id>`, or make it do less while idle.
 
 ## Built-in mods
 

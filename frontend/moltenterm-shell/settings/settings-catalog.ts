@@ -19,6 +19,7 @@ export type SettingsSectionId =
     | "browser"
     | "mission"
     | "keyboard"
+    | "mods"
     | "advanced";
 
 export type SettingsControl = "toggle" | "select" | "number" | "slider" | "text" | "path" | "multi" | "json";
@@ -34,6 +35,8 @@ export const SettingsSections: SettingsSection[] = [
     { id: "browser", title: "Browser", icon: "globe" },
     { id: "mission", title: "Mission Control", icon: "diagram-project" },
     { id: "keyboard", title: "Keyboard", icon: "keyboard" },
+    // The mods this tab view runs and what each costs (FR-PERF-014); no settings.json key maps here.
+    { id: "mods", title: "Mods", icon: "puzzle-piece" },
     { id: "advanced", title: "Advanced", icon: "code" },
 ];
 

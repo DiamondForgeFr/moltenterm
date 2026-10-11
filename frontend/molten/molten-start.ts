@@ -5,12 +5,16 @@
 // through its only Moltenterm patch for the host.
 
 import { getApi } from "@/app/store/global";
+import { globalStore } from "@/app/store/jotaiStore";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MoltentermSafeModeVarName } from "@/util/moltenterm-safemode";
 import { base64ToString, fireAndForget } from "@/util/util";
 import { addMoltentermNotification } from "../moltenterm-shell/notifications-store";
+import { TabActivity, whileShown } from "../moltenterm-shell/tab-activity";
+import { isShowing } from "../moltenterm-shell/tab-activity-model";
+import { MoltenBudgetCheckMs, modIdForScript } from "./molten-budget";
 import { MoltenBuiltinMods } from "./molten-builtins";
 import { MoltenDirEntry, MoltenHost, MoltenHostEnv, MoltenRunRequest } from "./molten-host";
 import { MoltenManifestFileName, parseMoltenManifest } from "./molten-manifest";
@@ -46,11 +50,15 @@ async function readTextFile(path: string): Promise<string> {
     return file.data64 ? base64ToString(file.data64) : "";
 }
 
+// The blob URL each mod was imported from → the mod id, to attribute long animation frames to mods (FR-PERF-014).
+const BlobOwners = new Map<string, string>();
+
 // A blob URL loads the same way from the dev server's http origin and the packaged file:// origin; the mod must be
 // a single file, as relative imports cannot resolve from a blob.
 async function importModule(source: string, sourceName: string): Promise<any> {
     const blob = new Blob([`${source}\n//# sourceURL=molten-mod://${sourceName}\n`], { type: "text/javascript" });
     const url = URL.createObjectURL(blob);
+    BlobOwners.set(url, sourceName.split("/")[0]);
     try {
         return await import(/* @vite-ignore */ url);
     } finally {
@@ -69,7 +77,53 @@ function makeMoltenHostEnv(): MoltenHostEnv {
         importModule,
         writeClipboard: (text: string) => navigator.clipboard.writeText(text),
         builtins: MoltenBuiltinMods,
+        heapUsedMB: () => {
+            const used = (performance as any).memory?.usedJSHeapSize;
+            return typeof used === "number" ? used / (1024 * 1024) : null;
+        },
     };
+}
+
+// Script time of long animation frames, attributed to the mod whose module the script comes from: what a mod runs
+// outside the host's own calls (its own window timers, event listeners). Chromium only; silently absent elsewhere.
+function observeModLongFrames(host: MoltenHost): void {
+    if (typeof PerformanceObserver === "undefined") {
+        return;
+    }
+    if (!(PerformanceObserver.supportedEntryTypes ?? []).includes("long-animation-frame")) {
+        return;
+    }
+    try {
+        const observer = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries() as any[]) {
+                for (const script of entry.scripts ?? []) {
+                    const modId = modIdForScript(script.sourceURL, BlobOwners);
+                    if (modId == null) {
+                        continue;
+                    }
+                    host.recordLongFrameScript(modId, script.duration, script.startTime + script.duration);
+                }
+            }
+        });
+        observer.observe({ type: "long-animation-frame", buffered: false });
+    } catch (e) {
+        console.log("[molten] long animation frames are not observable", e);
+    }
+}
+
+// A request from molten must not outwait its RPC timeout (MoltenRpcTimeoutMs, 5 s) because a mod is slow to activate.
+const ListWaitMs = 3000;
+
+async function waitLoadedAtMost(host: MoltenHost, ms: number): Promise<void> {
+    let timer: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, ms);
+    });
+    try {
+        await Promise.race([host.whenLoaded(), timeout]);
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 export function startMoltenHost(): void {
@@ -79,7 +133,10 @@ export function startMoltenHost(): void {
     }
     const env = makeMoltenHostEnv();
     const client = TabRpcClient as any;
-    client[`handle_${MoltenModListRpcCommand}`] = () => host.listMods();
+    client[`handle_${MoltenModListRpcCommand}`] = async () => {
+        await waitLoadedAtMost(host, ListWaitMs);
+        return host.listMods();
+    };
     client[`handle_${MoltenRunRpcCommand}`] = (_rh: unknown, req: MoltenRunRequest) => host.runCommand(req);
     client[`handle_${MoltenModValidateRpcCommand}`] = async (_rh: unknown, req: { ids?: string[] }) => {
         let ids = req?.ids ?? [];
@@ -136,5 +193,11 @@ export function startMoltenHost(): void {
     };
     const safeMode = getApi().getEnv(MoltentermSafeModeVarName) === "1";
     mountMoltenNotifications(host, safeMode);
+    // Mod code loads once the view shows and its timers are held while it does not (FR-PERF-014).
+    const activity = TabActivity.getInstance();
+    host.showing = isShowing(activity.state());
+    globalStore.sub(activity.stateAtom, () => host.setShowing(isShowing(activity.state())));
+    activity.every(whileShown(MoltenBudgetCheckMs), () => host.checkBudgets(), "molten-budget");
+    observeModLongFrames(host);
     fireAndForget(() => host.start(env, { safeMode }));
 }

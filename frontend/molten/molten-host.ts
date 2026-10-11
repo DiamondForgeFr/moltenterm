@@ -4,6 +4,10 @@
 // The mod host (FR-MORPH-001, DS-MORPH-002). Each tab renderer runs its own host: it reads `<config>/mods/`, loads
 // every mod through MoltenApi and keeps the workspace running when a mod fails. It touches the app only through
 // MoltenHostEnv, so tests can drive it without Electron or wavesrv.
+//
+// A mod's cost is paid once per tab view that runs it (FR-PERF-014, DS-PERF-012): a view loads mod code only once it
+// shows, or when a molten request needs it; the hot spare never starts the host; a hidden view holds its mods' timers.
+// Each mod is measured against its budget (molten-budget.ts).
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
@@ -17,10 +21,16 @@ import {
     MoltenNotificationKind,
     MoltenNotificationOptions,
 } from "./molten-api";
+import { MoltenModMeter, MoltenModUsage, sameUsage } from "./molten-budget";
 import { MoltenManifestFileName, MoltenSupportedApiVersions, parseMoltenManifest } from "./molten-manifest";
+import { declaresTimerName, MoltenModTimers, MoltenTimerApi, MoltenTimerClock, timerPrologue } from "./molten-timers";
 
 export const MoltenActivateTimeoutMs = 10000;
 export const MoltenNotificationTimeoutMs = 8000;
+// A mod that declares it keeps working while its tab view is hidden (FR-PERF-014): its timers are never held.
+export const MoltenBackgroundCapability = "background";
+// Where a mod's module finds its timers while it is imported (molten-timers.ts).
+export const MoltenTimerRegistryName = "__moltenModTimers";
 
 export type MoltenDirEntry = { name: string; isDir: boolean };
 
@@ -45,9 +55,22 @@ export type MoltenHostEnv = {
     importModule(source: string, sourceName: string): Promise<any>;
     writeClipboard(text: string): Promise<void>;
     builtins?: MoltenBuiltinMod[];
+    // The clock of the budget and of the mods' timers; performance.now and the window's timers by default.
+    clock?: MoltenTimerClock;
+    // The renderer's JS heap in MB, or null when it does not tell (best-effort memory of a mod's activation).
+    heapUsedMB?: () => number;
 };
 
-export type MoltenModState = "disabled" | "untrusted" | "safemode" | "loading" | "active" | "failed" | "refused";
+// pending: enabled, its code waits for the tab view to show (FR-PERF-014).
+export type MoltenModState =
+    | "disabled"
+    | "untrusted"
+    | "safemode"
+    | "pending"
+    | "loading"
+    | "active"
+    | "failed"
+    | "refused";
 
 export type MoltenModStatus = {
     id: string;
@@ -58,6 +81,9 @@ export type MoltenModStatus = {
     error?: string;
     commands: string[];
     builtin?: boolean;
+    // Keeps its timers running while the tab view is hidden (it declares the "background" capability).
+    background?: boolean;
+    usage?: MoltenModUsage;
 };
 
 export type MoltenCommandInfo = {
@@ -125,7 +151,46 @@ type ModRuntime = {
     status: MoltenModStatus;
     disposers: MoltenDisposer[];
     stopped: boolean;
+    meter?: MoltenModMeter;
+    timers?: MoltenModTimers;
+    // The mod's module, for its optional suspend() and resume() exports.
+    module?: any;
+    overNotified?: boolean;
+    // Set when the mod tried a command name another mod holds, even if its activate caught the error.
+    conflict?: MoltenCommandConflictError;
 };
+
+// A command name another mod holds: the error names both mods (FR-PERF-014-AC3).
+export class MoltenCommandConflictError extends Error {
+    command: string;
+    holder: string;
+    claimant: string;
+
+    constructor(command: string, holder: string, claimant: string) {
+        super(`command "${command}" is already registered by mod "${holder}"; mod "${claimant}" cannot register it`);
+        this.command = command;
+        this.holder = holder;
+        this.claimant = claimant;
+    }
+}
+
+let timerTokenSeq = 1;
+
+function timerRegistry(): Map<string, MoltenTimerApi> {
+    const g = globalThis as any;
+    g[MoltenTimerRegistryName] ??= new Map<string, MoltenTimerApi>();
+    return g[MoltenTimerRegistryName];
+}
+
+const DefaultClock: MoltenTimerClock = {
+    now: () => globalThis.performance?.now?.() ?? Date.now(),
+    setTimeout: (fn, ms) => globalThis.setTimeout(fn, ms),
+    clearTimeout: (handle) => globalThis.clearTimeout(handle),
+};
+
+function conflictTitle(e: MoltenCommandConflictError): string {
+    return `Mods "${e.holder}" and "${e.claimant}" both register "${e.command}"`;
+}
 
 function errorMessage(e: unknown): string {
     if (e instanceof Error) {
@@ -169,6 +234,10 @@ export class MoltenHost {
     pendingReloadIds = new Set<string>();
     pendingReloadAll = false;
     scheduledReload: Promise<void> = null;
+    // Whether this tab view shows (TabActivity, FR-PERF-014). A view that does not show loads no mod code: the loads
+    // wait in the pending requests above until it shows, or until a molten request needs the mods. Running mods keep
+    // their state while it is hidden, but their timers are held.
+    showing = true;
 
     private constructor() {}
 
@@ -194,11 +263,16 @@ export class MoltenHost {
             await this.enqueue(() => this.listForSafeMode());
             return;
         }
-        await this.enqueue(() => this.syncMods(null));
+        this.pendingReloadAll = true;
+        if (!this.showing) {
+            await this.enqueue(() => this.listPending());
+            return;
+        }
+        await this.schedulePending();
     }
 
     // Applies a change announced by `molten` (enable, disable, remove), or by the watcher of #19. With ids, only those
-    // mods are stopped and loaded again; with null, every mod is.
+    // mods are stopped and loaded again; with null, every mod is. A view that does not show applies it when it shows.
     reload(ids: string[]): Promise<void> {
         if (!this.started || this.safeMode) {
             return Promise.resolve();
@@ -208,6 +282,48 @@ export class MoltenHost {
         } else {
             ids.forEach((id) => this.pendingReloadIds.add(id));
         }
+        if (!this.showing) {
+            return Promise.resolve();
+        }
+        return this.schedulePending();
+    }
+
+    hasPending(): boolean {
+        return this.pendingReloadAll || this.pendingReloadIds.size > 0;
+    }
+
+    // Called by molten-start whenever the view's activity changes between showing and not showing.
+    setShowing(showing: boolean): void {
+        if (showing === this.showing) {
+            return;
+        }
+        this.showing = showing;
+        for (const runtime of this.runtimes.values()) {
+            if (runtime.stopped || runtime.status.background) {
+                continue;
+            }
+            if (showing) {
+                this.resumeRuntime(runtime);
+            } else {
+                this.suspendRuntime(runtime);
+            }
+        }
+        if (showing && this.started && !this.safeMode && this.hasPending()) {
+            this.schedulePending().catch(() => {});
+        }
+    }
+
+    // Waits until the mods this view should run are loaded, loading the pending ones now even if the view does not
+    // show: a molten command from a terminal of a hidden tab (an agent at work) must find them.
+    async whenLoaded(): Promise<void> {
+        if (this.started && !this.safeMode && this.hasPending()) {
+            await this.schedulePending();
+            return;
+        }
+        await this.queue;
+    }
+
+    schedulePending(): Promise<void> {
         if (this.scheduledReload != null) {
             return this.scheduledReload;
         }
@@ -245,7 +361,13 @@ export class MoltenHost {
             return;
         }
         const builtins = this.env.builtins ?? [];
-        const targets = ids ?? [...new Set([...this.runtimes.keys(), ...folders, ...builtins.map((b) => b.id)])].sort();
+        const builtinIds = new Set(builtins.map((b) => b.id));
+        // Built-in mods load first, then the others in id order: when two mods register the same command, every tab
+        // view gives it to the same one (FR-PERF-014-AC3). A mod loaded later never takes it from a running one.
+        const targets = (ids ?? [...new Set([...this.runtimes.keys(), ...folders, ...builtinIds])]).sort((a, b) => {
+            const rank = Number(builtinIds.has(b)) - Number(builtinIds.has(a));
+            return rank !== 0 ? rank : a < b ? -1 : a > b ? 1 : 0;
+        });
         for (const id of targets) {
             this.unloadMod(id);
             const builtin = builtins.find((b) => b.id === id);
@@ -296,6 +418,48 @@ export class MoltenHost {
                 kind: "warning",
             });
         }
+    }
+
+    // A view that does not show lists its mods without reading their code: the enabled ones are pending.
+    async listPending(): Promise<void> {
+        let folders: string[] = [];
+        let state: ModState = { enabled: new Set(), disabled: new Set() };
+        let trusted = new Set<string>();
+        try {
+            folders = (await this.env.listDir(this.env.modsDir))
+                .filter((entry) => entry.isDir && !entry.name.startsWith("."))
+                .map((entry) => entry.name);
+            state = await this.readState();
+            trusted = await this.readTrusted();
+        } catch (e) {
+            console.error("[molten] mods could not be listed", e);
+        }
+        const builtinIds = (this.env.builtins ?? []).map((b) => b.id);
+        for (const id of [...new Set([...folders, ...builtinIds])].sort()) {
+            if (this.runtimes.has(id)) {
+                continue;
+            }
+            const builtin = builtinIds.includes(id);
+            let modState: MoltenModState = "pending";
+            if (builtin ? state.disabled.has(id) : !state.enabled.has(id)) {
+                modState = "disabled";
+            } else if (!builtin && !trusted.has(id)) {
+                modState = "untrusted";
+            }
+            this.runtimes.set(id, {
+                status: {
+                    id,
+                    path: builtin ? `builtin:${id}` : joinPath(this.env.modsDir, id),
+                    state: modState,
+                    commands: [],
+                    ...(builtin ? { builtin } : {}),
+                },
+                disposers: [],
+                stopped: true,
+            });
+        }
+        this.sortRuntimes();
+        this.publish();
     }
 
     // In safe mode no mod code is read, but the mods are still listed, so the user knows which one to disable.
@@ -374,16 +538,15 @@ export class MoltenHost {
     }
 
     async runCommand(req: MoltenRunRequest): Promise<MoltenRunResult> {
+        await this.whenLoaded();
         const entry = this.commands.get(req?.command);
         if (entry == null) {
             return { found: false, commands: [...this.commands.keys()].sort() };
         }
+        const meter = this.runtimes.get(entry.modId)?.meter;
+        const call = () => entry.handler({ args: req.args ?? [], stdin: req.stdin, blockId: req.blockid });
         try {
-            const result = await entry.handler({
-                args: req.args ?? [],
-                stdin: req.stdin,
-                blockId: req.blockid,
-            });
+            const result = await (meter != null ? meter.measure(call) : call());
             if (result == null) {
                 return { found: true, output: "", exitcode: 0 };
             }
@@ -399,6 +562,7 @@ export class MoltenHost {
     }
 
     listMods(): MoltenModList {
+        this.checkBudgets();
         return {
             apiversions: [...MoltenSupportedApiVersions],
             safemode: this.safeMode,
@@ -444,33 +608,169 @@ export class MoltenHost {
             this.stopRuntime(runtime, "failed", `main file "${manifest.main}" not found`);
             return;
         }
+        const clock = this.clock();
+        const meter = new MoltenModMeter(clock.now);
+        runtime.meter = meter;
+        runtime.status.background = manifest.capabilities.includes(MoltenBackgroundCapability) || undefined;
+        const timers = new MoltenModTimers(
+            clock,
+            (fn) => this.runForMod(runtime, fn, true),
+            (count) => (meter.timers = count)
+        );
+        runtime.timers = timers;
+        runtime.disposers.push(() => timers.dispose());
+        if (!this.showing && !runtime.status.background) {
+            timers.pause();
+        }
+        // The mod's timers are shadowed in its module scope (molten-timers.ts), unless it declares one of their names.
+        let code = source;
+        let token: string = null;
+        if (!declaresTimerName(source)) {
+            token = `${manifest.id}#${timerTokenSeq++}`;
+            timerRegistry().set(token, timers.api());
+            code = timerPrologue(MoltenTimerRegistryName, token) + source;
+        }
+        const heapBefore = this.heapUsedMB();
         let mod: any;
         try {
-            mod = await this.env.importModule(source, `${manifest.id}/${manifest.main}`);
+            mod = await this.env.importModule(code, `${manifest.id}/${manifest.main}`);
         } catch (e) {
             this.stopRuntime(runtime, "failed", `loading ${manifest.main}: ${errorMessage(e)}`);
             return;
+        } finally {
+            if (token != null) {
+                timerRegistry().delete(token);
+            }
         }
         if (typeof mod?.activate !== "function") {
             this.stopRuntime(runtime, "failed", `${manifest.main} does not export an activate(api) function`);
             return;
         }
+        runtime.module = mod;
         const api = makeMoltenApi(manifest, this.makeBackend(runtime));
         try {
             await withTimeout(
-                Promise.resolve().then(() => mod.activate(api)),
+                Promise.resolve().then(() => meter.measure(() => mod.activate(api))),
                 MoltenActivateTimeoutMs,
                 `activate did not finish within ${MoltenActivateTimeoutMs / 1000} s`
             );
         } catch (e) {
-            this.stopRuntime(runtime, "failed", `activate: ${errorMessage(e)}`);
+            const title = e instanceof MoltenCommandConflictError ? conflictTitle(e) : null;
+            this.stopRuntime(runtime, "failed", `activate: ${errorMessage(e)}`, title);
             return;
         }
         if (runtime.stopped) {
             return;
         }
+        meter.activateMs = meter.scriptMs;
+        const heapAfter = this.heapUsedMB();
+        if (heapBefore != null && heapAfter != null) {
+            meter.heapMB = Math.max(0, heapAfter - heapBefore);
+        }
         runtime.status.state = "active";
+        runtime.status.usage = meter.usage(clock.now());
+        if (runtime.conflict != null) {
+            // The mod caught the refusal and runs without that command: still tell the user, naming both mods.
+            runtime.status.error = runtime.conflict.message;
+            this.notify({ title: conflictTitle(runtime.conflict), message: runtime.conflict.message, kind: "error" });
+        }
+        if (!this.showing && !runtime.status.background) {
+            this.callHook(runtime, "suspend");
+        }
         this.publish();
+    }
+
+    clock(): MoltenTimerClock {
+        return this.env?.clock ?? DefaultClock;
+    }
+
+    heapUsedMB(): number {
+        try {
+            const mb = this.env?.heapUsedMB?.();
+            return typeof mb === "number" && Number.isFinite(mb) ? mb : null;
+        } catch {
+            return null;
+        }
+    }
+
+    // Runs a timer callback (or a hook) for a mod, measured. A throw is logged: unlike a command handler, a timer has
+    // no caller to report to, and the mod's own window timers behaved the same way before they were shadowed.
+    runForMod(runtime: ModRuntime, fn: () => void, idle: boolean): void {
+        if (runtime.stopped) {
+            return;
+        }
+        runtime.meter.measure(() => {
+            try {
+                fn();
+            } catch (e) {
+                console.error(`[molten:${runtime.status.id}] callback failed`, e);
+            }
+        }, idle);
+    }
+
+    callHook(runtime: ModRuntime, name: "suspend" | "resume"): void {
+        const hook = runtime.module?.[name];
+        if (typeof hook !== "function") {
+            return;
+        }
+        this.runForMod(runtime, () => hook.call(runtime.module), false);
+    }
+
+    suspendRuntime(runtime: ModRuntime): void {
+        runtime.timers?.pause();
+        if (runtime.status.state === "active") {
+            this.callHook(runtime, "suspend");
+        }
+    }
+
+    resumeRuntime(runtime: ModRuntime): void {
+        runtime.timers?.resume();
+        if (runtime.status.state === "active") {
+            this.callHook(runtime, "resume");
+        }
+    }
+
+    // Long animation frames whose scripts come from a mod (molten-start.ts): its work outside the host's own calls.
+    recordLongFrameScript(modId: string, ms: number, at: number): void {
+        const runtime = this.runtimes.get(modId);
+        if (runtime == null || runtime.stopped || runtime.meter == null) {
+            return;
+        }
+        runtime.meter.addLongFrameScript(ms, at);
+    }
+
+    // Compares every running mod with its budget (FR-PERF-014): its usage goes to the mod list, and a mod newly over
+    // budget is reported once until it comes back under.
+    checkBudgets(): void {
+        const now = this.clock().now();
+        let changed = false;
+        for (const runtime of this.runtimes.values()) {
+            if (runtime.stopped || runtime.meter == null || runtime.status.state !== "active") {
+                continue;
+            }
+            const usage = runtime.meter.usage(now);
+            // The list always gets the fresh numbers; the screens re-render only when they moved enough to show.
+            changed ||= !sameUsage(usage, runtime.status.usage);
+            runtime.status.usage = usage;
+            if (!usage.over) {
+                runtime.overNotified = false;
+                continue;
+            }
+            if (runtime.overNotified) {
+                continue;
+            }
+            runtime.overNotified = true;
+            const id = runtime.status.id;
+            console.warn(`[molten:${id}] over budget: ${usage.reason}`);
+            this.notify({
+                title: `Mod "${id}" is over its budget`,
+                message: `${usage.reason}. Settings > Mods shows its numbers; molten mod disable ${id} turns it off.`,
+                kind: "warning",
+            });
+        }
+        if (changed) {
+            this.publish();
+        }
     }
 
     makeBackend(runtime: ModRuntime): MoltenApiBackend {
@@ -493,7 +793,17 @@ export class MoltenHost {
             fail: (err: unknown) => this.stopRuntime(runtime, "failed", errorMessage(err)),
             registerCommand: (name, description, handler) => this.registerCommand(runtime, name, description, handler),
             showNotification: (opts: MoltenNotificationOptions) => this.notify(opts, modId),
-            showBox: (opts: MoltenBoxOptions) => this.showBox(opts, modId),
+            showBox: (opts: MoltenBoxOptions) =>
+                this.showBox(
+                    {
+                        ...opts,
+                        actions: (opts.actions ?? []).map((action) => ({
+                            ...action,
+                            run: () => (runtime.meter != null ? runtime.meter.measure(action.run) : action.run()),
+                        })),
+                    },
+                    modId
+                ),
             writeClipboard: (text: string) => this.env.writeClipboard(text),
         };
     }
@@ -507,7 +817,9 @@ export class MoltenHost {
         const modId = runtime.status.id;
         const existing = this.commands.get(name);
         if (existing != null) {
-            throw new Error(`command "${name}" is already registered by mod "${existing.modId}"`);
+            const conflict = new MoltenCommandConflictError(name, existing.modId, modId);
+            runtime.conflict ??= conflict;
+            throw conflict;
         }
         const entry: MoltenCommandEntry = { modId, name, description, handler };
         this.commands.set(name, entry);
@@ -523,7 +835,7 @@ export class MoltenHost {
     }
 
     // Stops a failed or refused mod: undoes its registrations, records why and tells the user.
-    stopRuntime(runtime: ModRuntime, state: MoltenModState, error: string): void {
+    stopRuntime(runtime: ModRuntime, state: MoltenModState, error: string, title: string = null): void {
         if (runtime.stopped) {
             return;
         }
@@ -531,10 +843,11 @@ export class MoltenHost {
         runtime.status.state = state;
         runtime.status.error = error;
         runtime.status.commands = [];
+        delete runtime.status.usage;
         this.publish();
         console.error(`[molten:${runtime.status.id}] ${state}: ${error}`);
         this.notify({
-            title: `Mod "${runtime.status.id}" ${state === "refused" ? "was refused" : "stopped"}`,
+            title: title ?? `Mod "${runtime.status.id}" ${state === "refused" ? "was refused" : "stopped"}`,
             message: error,
             kind: state === "refused" ? "warning" : "error",
         });

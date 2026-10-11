@@ -58,6 +58,43 @@ func TestFormatMoltenModListRows(t *testing.T) {
 	}
 }
 
+func TestFormatMoltenModListUsage(t *testing.T) {
+	reason := "4.8 % CPU while idle over the last 30 s (budget 2 %)"
+	list := &MoltenModList{
+		ModsDir: "/cfg/mods",
+		Mods: []MoltenModStatus{
+			{Id: "calm", State: "active", Usage: &MoltenModUsage{CpuPct: 0.04}},
+			{Id: "heavy", State: "active", Usage: &MoltenModUsage{CpuPct: 4.8, Timers: 1, Over: true, Reason: reason}},
+			{Id: "off", State: "disabled"},
+		},
+	}
+	out := formatMoltenModList(list)
+	lines := strings.Split(out, "\n")
+	if !strings.Contains(lines[0], "CPU") || !strings.Contains(lines[1], "0.0%") || !strings.Contains(lines[3], " - ") {
+		t.Fatalf("unexpected table: %q", out)
+	}
+	if !strings.Contains(lines[2], "4.8% (over budget)") {
+		t.Fatalf("over budget not marked: %q", lines[2])
+	}
+	if !strings.Contains(out, "over budget: heavy: "+reason+" (molten mod disable heavy)") {
+		t.Fatalf("reason not given: %q", out)
+	}
+}
+
+// The tab's usage numbers decode into MoltenModUsage (frontend/molten/molten-budget.ts).
+func TestMoltenModListDecodesUsage(t *testing.T) {
+	var list MoltenModList
+	err := json.Unmarshal([]byte(`{"mods":[{"id":"h","state":"active","commands":[],"background":true,
+		"usage":{"activatems":1.5,"scriptms":30,"cpupct":4.8,"timers":2,"heapmb":null,"over":true,"reason":"r"}}]}`), &list)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := list.Mods[0].Usage
+	if u == nil || u.CpuPct != 4.8 || u.Timers != 2 || u.HeapMB != nil || !u.Over || u.Reason != "r" || !list.Mods[0].Background {
+		t.Fatalf("unexpected usage: %+v", list.Mods[0])
+	}
+}
+
 // The renderer answers with the JSON of MoltenModList in frontend/molten/molten-host.ts; the field names must match.
 func TestMoltenModListDecodesRendererAnswer(t *testing.T) {
 	var answer any
