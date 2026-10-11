@@ -6,6 +6,7 @@
 
 /* global console, setTimeout */
 
+import fs from "node:fs";
 import path from "node:path";
 import { analyzeBundle } from "./bundle.mjs";
 import { BusyLoad, Instance } from "./instance.mjs";
@@ -24,7 +25,7 @@ const MemLoops = 20;
 
 export const Profiles = {
   full: {
-    scenarios: ["bundle", "startup", "session", "leaks", "load", "mods"],
+    scenarios: ["bundle", "startup", "session", "leaks", "load", "mods", "working"],
     coldRuns: 3,
     warmRuns: 4,
     settleS: 60,
@@ -37,10 +38,11 @@ export const Profiles = {
     loadProcs: 12,
     loadTimeoutS: 30,
     modsSettleS: 30,
+    workingSettleS: 30,
     traceS: 5,
   },
   quick: {
-    scenarios: ["bundle", "startup", "session", "leaks", "load", "mods"],
+    scenarios: ["bundle", "startup", "session", "leaks", "load", "mods", "working"],
     coldRuns: 2,
     warmRuns: 2,
     settleS: 20,
@@ -53,6 +55,7 @@ export const Profiles = {
     loadProcs: 8,
     loadTimeoutS: 20,
     modsSettleS: 10,
+    workingSettleS: 10,
     traceS: 3,
   },
   // The subset that is stable on CI runners: machine-independent numbers (bundle, JS evaluated, leaked views) and
@@ -482,6 +485,80 @@ export async function runMods(ctx) {
   ctx.metrics["mods.memDeltaMB"] = single(round(res.on.memMB - res.off.memMB, 1));
 }
 
+// The focused tab's panels replaced by `count` terminals, each set to the agent state "working" as an agent's hook
+// would. They are shell terminals, which draw the panel header, but their "shell" is a script in the instance's root
+// that only sleeps: no rc file, no prompt, nothing typed.
+const WorkingSetupExpr = (count, shellPath) => `(async () => {
+    const tabId = globalStore.get(globalAtoms.staticTabId);
+    const tab = await WOS.callBackendService("object", "GetObject", ["tab:" + tabId]);
+    const ids = [];
+    for (let i = 0; i < ${count}; i++) {
+        const oref = await RpcApi.CreateBlockCommand(TabRpcClient, { tabid: tabId,
+            blockdef: { meta: { view: "term", controller: "shell", "term:localshellpath": ${JSON.stringify(shellPath)} } } });
+        ids.push(String(oref).replace(/^block:/, ""));
+    }
+    // After the creation: deleting a tab's last panel closes the tab.
+    for (const blockid of tab?.blockids ?? []) {
+        await RpcApi.DeleteBlockCommand(TabRpcClient, { blockid });
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+    for (const blockid of ids) {
+        await TabRpcClient.wshRpcCall("moltenagentstateset", { blockid, state: "working", agent: "claude" },
+            { route: "molten:agents", timeout: 5000 });
+    }
+    return ids.length; })()`;
+
+// The tab activity model reads the window's focus from the main process (DS-PERF-008). The harness never takes the
+// user's focus: the window reports itself focused and announces it, which is all a focused window changes for the
+// view; Chromium draws a visible window the same, focused or not (#473 checked it against a real focus on the same
+// build, 3 agents: 36.3 % emulated, 35.9 % focused).
+const EmulateFocusExpr = `(() => { for (const w of require("electron").BaseWindow.getAllWindows()) {
+    if (w.isMinimized()) w.restore(); w.showInactive(); w.isFocused = () => true; w.emit("focus"); } return 1; })()`;
+const WorkingStateExpr = `(() => ({ activity: globalThis.moltenTabActivity?.state() ?? null,
+    motion: document.documentElement.dataset.mtMotion ?? null,
+    headers: document.querySelectorAll('[data-role="molten-header-working"]').length,
+    animations: document.getAnimations().filter((a) => a.playState === "running").length }))()`;
+
+// The working indicators' budget (#473): the whole app with 3, then 10 agents working on the focused tab.
+export async function runWorking(ctx) {
+  const p = ctx.profile;
+  const inst = ctx.track(Instance.create(ctx.repoRoot, ctx.tmpBase));
+  const driver = new Driver(inst);
+  const res = {};
+  try {
+    // Not exec'd: the script's command line names the root, so the clean-up finds it and its sleep.
+    const shellPath = path.join(inst.root, "agent-shell.sh");
+    fs.writeFileSync(shellPath, "#!/bin/sh\n/bin/sleep 86400\n", { mode: 0o755 });
+    await inst.launch();
+    const t = await inst.waitReady();
+    if (t.timedOut) {
+      throw new Error("the app did not reach wave-ready");
+    }
+    await driver.attach();
+    await driver.stopPoll();
+    await sleep(3000);
+    for (const count of [3, 10]) {
+      await driver.pageEval(WorkingSetupExpr(count, shellPath));
+      await driver.mainEval(EmulateFocusExpr);
+      await sleep(p.workingSettleS * 1000);
+      log(`working ${count}: sampling ${p.samples} x ${p.intervalS} s`);
+      const cpu = await sampleCpu(inst.pid, { samples: p.samples, intervalS: p.intervalS });
+      const view = await driver.pageEval(WorkingStateExpr);
+      res[count] = { ...cpu, view };
+      log(`working ${count}: ${cpu.total.value} % ${JSON.stringify(view)}`);
+      if (view?.activity !== "active" || view?.headers !== count) {
+        throw new Error(`working ${count}: the view was ${view?.activity} with ${view?.headers} working headers`);
+      }
+    }
+  } finally {
+    driver.detach();
+    await ctx.dispose(inst);
+  }
+  ctx.details.working = res;
+  ctx.metrics["working.cpu3Pct"] = res[3].total;
+  ctx.metrics["working.cpu10Pct"] = res[10].total;
+}
+
 // Workspace operation latencies, pooled across the session and leaks scenarios so that the p95 rests on enough
 // samples. An operation that never reached the screen is a null sample: it is counted in ws.failedOps, not in the p95.
 function opSamples(ctx) {
@@ -518,4 +595,5 @@ export const Runners = {
   leaks: runLeaks,
   load: runLoad,
   mods: runMods,
+  working: runWorking,
 };

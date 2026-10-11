@@ -199,7 +199,7 @@ describe("budget gate", () => {
       expect(m.title, id).toBeTruthy();
       expect(m.nfr, id).toBeTruthy();
       expect(["ci", "local", "info"], id).toContain(m.gate);
-      expect(["bundle", "startup", "session", "leaks", "load", "mods"], id).toContain(m.scenario);
+      expect(["bundle", "startup", "session", "leaks", "load", "mods", "working"], id).toContain(m.scenario);
     }
   });
 });

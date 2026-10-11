@@ -19,7 +19,7 @@ Without building first: `node scripts/perf/perf.mjs run --profile full`.
 | Option             | Meaning                                                                                                    |
 | ------------------ | ---------------------------------------------------------------------------------------------------------- |
 | `--profile`        | `full` (default), `quick` or `ci`                                                                          |
-| `--scenarios a,b`  | Subset of `bundle`, `startup`, `session`, `leaks`, `load`, `mods`                                          |
+| `--scenarios a,b`  | Subset of `bundle`, `startup`, `session`, `leaks`, `load`, `mods`, `working`                               |
 | `--out dir`        | Report folder (default `dist/perf/<timestamp>-<profile>/`): `report.json`, `report.md`, trace              |
 | `--gate ci\|local` | Exit 1 when a gated metric fails (or a scenario fails); without it the run only reports                    |
 | `--baseline file`  | Compare with another report instead of the stored baseline (a "before" run, for instance)                  |
@@ -63,6 +63,7 @@ report and the next one still runs.
 | `leaks`   | 4 creates and 4 deletes, then create/delete loops (views counted after 5, memory over 20; the `ci` profile runs 5): tab views left for deleted workspaces, memory growth per loop                                                                                                                           |
 | `load`    | Launch with N busy processes (12 in `full`): time to the first tab, and whether the window is left without a tab view                                                                                                                                                                                       |
 | `mods`    | Idle CPU and memory with the built-in mods on and off (`molten/mods.json` disables `copy-box`)                                                                                                                                                                                                              |
+| `working` | CPU with 3, then 10 agents working on the focused tab: the starter panels replaced by terminals whose shell is a script that only sleeps, each set to `working` through `moltenagentstateset`; the window reports itself focused (it never takes the focus)                                                 |
 
 Measurement protocol (DS-PERF-001): idle CPU is the whole process tree in % of one core, from cumulative CPU time
 (`ps` on macOS, `/proc` on Linux) over consecutive 5 s intervals after a settle (60 s and 12 samples in `full`), the
