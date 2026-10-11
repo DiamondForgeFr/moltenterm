@@ -17,7 +17,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/blocklogger"
 	"github.com/wavetermdev/waveterm/pkg/filestore"
-	"github.com/wavetermdev/waveterm/pkg/molten/attention" // MOLTENTERM-PATCH (#72)
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/streamclient"
@@ -777,6 +776,10 @@ func doWFSAppend(ctx context.Context, oref waveobj.ORef, fileName string, data [
 	if err != nil {
 		return err
 	}
+	// MOLTENTERM-PATCH (#456): no base64 or event when no renderer shows the block (moltenterm_outputpath.go)
+	if !hasBlockFileSubscribers(oref) {
+		return nil
+	}
 	wps.Broker.Publish(wps.WaveEvent{
 		Event: wps.Event_BlockFile,
 		Scopes: []string{
@@ -792,28 +795,9 @@ func doWFSAppend(ctx context.Context, oref waveobj.ORef, fileName string, data [
 	return nil
 }
 
+// MOLTENTERM-PATCH (#456): one event per chunk, to the block only, and no DB read per chunk (moltenterm_outputpath.go)
 func handleAppendJobFile(ctx context.Context, jobId string, fileName string, data []byte) error {
-	err := doWFSAppend(ctx, waveobj.MakeORef(waveobj.OType_Job, jobId), fileName, data)
-	if err != nil {
-		return fmt.Errorf("error appending to job file: %w", err)
-	}
-
-	job, err := wstore.DBGet[*waveobj.Job](ctx, jobId)
-	if err != nil {
-		return fmt.Errorf("error getting job: %w", err)
-	}
-	if job != nil && job.AttachedBlockId != "" {
-		err = doWFSAppend(ctx, waveobj.MakeORef(waveobj.OType_Block, job.AttachedBlockId), fileName, data)
-		if err != nil {
-			return fmt.Errorf("error appending to block file: %w", err)
-		}
-		// MOLTENTERM-PATCH (#72): durable shells raise agents' notifications too (#46)
-		if fileName == JobOutputFileName {
-			attention.ScanTerminalOutput(job.AttachedBlockId, data)
-		}
-	}
-
-	return nil
+	return appendJobOutput(ctx, jobId, fileName, data)
 }
 
 func runOutputLoop(ctx context.Context, jobId string, streamId string, reader *streamclient.Reader) {
@@ -823,47 +807,50 @@ func runOutputLoop(ctx context.Context, jobId string, streamId string, reader *s
 	}()
 
 	log.Printf("[job:%s] [stream:%s] output loop started", jobId, streamId)
-	buf := make([]byte, 4096)
-	for {
-		n, err := reader.Read(buf)
+	// MOLTENTERM-PATCH (#456): reads of one frame are coalesced into one append and one event (moltenterm_outputpath.go)
+	superseded := false
+	err := pumpOutput(reader, OutputCoalesceWindow, OutputCoalesceMaxBytes, func(data []byte) bool {
 		currentStreamId, _ := jobStreamIds.GetEx(jobId)
 		if currentStreamId != streamId {
 			log.Printf("[job:%s] [stream:%s] stream superseded by [stream:%s], exiting output loop", jobId, streamId, currentStreamId)
-			break
+			superseded = true
+			return false
 		}
-		if n > 0 {
-			appendErr := handleAppendJobFile(ctx, jobId, JobOutputFileName, buf[:n])
-			if appendErr != nil {
-				log.Printf("[job:%s] error appending data to WaveFS: %v", jobId, appendErr)
-			}
+		appendErr := handleAppendJobFile(ctx, jobId, JobOutputFileName, data)
+		if appendErr != nil {
+			log.Printf("[job:%s] error appending data to WaveFS: %v", jobId, appendErr)
 		}
-
-		if err == io.EOF {
-			log.Printf("[job:%s] stream ended (EOF)", jobId)
-			updateErr := wstore.DBUpdateFn(ctx, jobId, func(job *waveobj.Job) {
-				job.StreamDone = true
-			})
-			if updateErr != nil {
-				log.Printf("[job:%s] error updating job stream status: %v", jobId, updateErr)
-			}
-			tryTerminateJobManager(ctx, jobId)
-			break
-		}
-
-		if err != nil {
-			log.Printf("[job:%s] stream error: %v", jobId, err)
-			streamErr := err.Error()
-			updateErr := wstore.DBUpdateFn(ctx, jobId, func(job *waveobj.Job) {
-				job.StreamDone = true
-				job.StreamError = streamErr
-			})
-			if updateErr != nil {
-				log.Printf("[job:%s] error updating job stream error: %v", jobId, updateErr)
-			}
-			tryTerminateJobManager(ctx, jobId)
-			break
-		}
+		return true
+	})
+	if superseded {
+		return
 	}
+	currentStreamId, _ := jobStreamIds.GetEx(jobId)
+	if currentStreamId != streamId {
+		log.Printf("[job:%s] [stream:%s] stream superseded by [stream:%s], exiting output loop", jobId, streamId, currentStreamId)
+		return
+	}
+	if err == io.EOF {
+		log.Printf("[job:%s] stream ended (EOF)", jobId)
+		updateErr := wstore.DBUpdateFn(ctx, jobId, func(job *waveobj.Job) {
+			job.StreamDone = true
+		})
+		if updateErr != nil {
+			log.Printf("[job:%s] error updating job stream status: %v", jobId, updateErr)
+		}
+		tryTerminateJobManager(ctx, jobId)
+		return
+	}
+	log.Printf("[job:%s] stream error: %v", jobId, err)
+	streamErr := err.Error()
+	updateErr := wstore.DBUpdateFn(ctx, jobId, func(job *waveobj.Job) {
+		job.StreamDone = true
+		job.StreamError = streamErr
+	})
+	if updateErr != nil {
+		log.Printf("[job:%s] error updating job stream error: %v", jobId, updateErr)
+	}
+	tryTerminateJobManager(ctx, jobId)
 }
 
 func HandleCmdJobExited(ctx context.Context, jobId string, data wshrpc.CommandJobCmdExitedData) error {
@@ -1418,13 +1405,16 @@ func DeleteJob(ctx context.Context, jobId string) error {
 	if err != nil {
 		log.Printf("[job:%s] warning: error deleting WaveFS zone: %v", jobId, err)
 	}
+	// MOLTENTERM-PATCH (#456): the output path caches the attached block (moltenterm_outputpath.go)
+	defer InvalidateAttachedBlock(jobId)
 	return wstore.DBDelete(ctx, waveobj.OType_Job, jobId)
 }
 
 func AttachJobToBlock(ctx context.Context, jobId string, blockId string) error {
+	// MOLTENTERM-PATCH (#456): the output path caches the attached block (moltenterm_outputpath.go)
+	var oldJobId string
+	defer func() { InvalidateAttachedBlock(jobId, oldJobId) }()
 	err := wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
-		var oldJobId string
-
 		err := wstore.DBUpdateFn(tx.Context(), blockId, func(block *waveobj.Block) {
 			oldJobId = block.JobId
 			block.JobId = jobId
@@ -1468,6 +1458,7 @@ func AttachJobToBlock(ctx context.Context, jobId string, blockId string) error {
 }
 
 func DetachJobFromBlock(ctx context.Context, jobId string, updateBlock bool) error {
+	defer InvalidateAttachedBlock(jobId) // MOLTENTERM-PATCH (#456)
 	var blockId string
 	var blockUpdated bool
 	err := wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {

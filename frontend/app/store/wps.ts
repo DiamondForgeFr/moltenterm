@@ -114,9 +114,21 @@ function getFileSubject(zoneId: string, fileName: string): SubjectWithRef<WSFile
     if (subject == null) {
         subject = new Subject<any>() as any;
         subject.refCount = 0;
+        // MOLTENTERM-PATCH (#456): a tab view receives a block's output only while it holds that block's file subject,
+        // instead of every block's output through one all-scopes subscription (FR-PERF-010)
+        const unsubscribe = waveEventSubscribeSingle({
+            eventType: "blockfile",
+            scope: "block:" + zoneId,
+            handler: (event) => {
+                if (event.data?.filename === fileName) {
+                    subject.next(event.data);
+                }
+            },
+        });
         subject.release = () => {
             subject.refCount--;
             if (subject.refCount === 0) {
+                unsubscribe(); // MOLTENTERM-PATCH (#456)
                 subject.complete();
                 fileSubjects.delete(subjectKey);
             }
