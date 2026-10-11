@@ -21,7 +21,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { disposeAll, installCleanupHandlers } from "./lib/instance.mjs";
 import { compareReports, evaluate, renderCompare, renderMarkdown } from "./lib/report.mjs";
-import { Profiles, Runners } from "./lib/scenarios.mjs";
+import { finalize, Profiles, Runners } from "./lib/scenarios.mjs";
 
 const PerfDir = path.dirname(fileURLToPath(import.meta.url));
 const RepoRoot = path.resolve(PerfDir, "..", "..");
@@ -165,6 +165,7 @@ async function cmdRun(opts) {
       await disposeAll({ keep: !!opts.keep });
     }
   }
+  finalize(ctx);
   if (!Object.keys(report.details.idle).length) {
     delete report.details.idle;
   }

@@ -55,7 +55,7 @@ the report and the next one still runs.
 | `bundle`  | `dist/frontend`: JS raw and gzip, CSS, and the JS `index.html` loads up front (entry script + modulepreloads)                                                                                                                                                                                               |
 | `startup` | Fresh (cold) and warm launches: launch → wavesrv ready, Init Bare, wave-ready, first tab view init (from `waveapp.log`), JS evaluated by the visible tab view (CDP `Debugger.scriptParsed`)                                                                                                                 |
 | `session` | One instance: idle at 1 workspace (visible, then minimised; CPU, memory, renderer metrics and a short trace over CDP), 5 creates, idle at 3 workspaces, relaunch, switches to never-visited (warm spare) and visited workspaces, idle at 6 workspaces with memory per tab view, deletes, create/delete race |
-| `leaks`   | 4 creates and 4 deletes, then create/delete loops: tab views left for deleted workspaces, memory growth per loop                                                                                                                                                                                            |
+| `leaks`   | 4 creates and 4 deletes, then create/delete loops (5 counted, 20 in `full` for memory): tab views left for deleted workspaces, memory growth per loop                                                                                                                                                       |
 | `load`    | Launch with N busy processes (12 in `full`): time to the first tab, and whether the window is left without a tab view                                                                                                                                                                                       |
 | `mods`    | Idle CPU and memory with the built-in mods on and off (`molten/mods.json` disables `copy-box`)                                                                                                                                                                                                              |
 
@@ -64,7 +64,9 @@ Measurement protocol (DS-PERF-001): idle CPU is the whole process tree in % of o
 median reported; memory is macOS `footprint` (phys_footprint) per process, Linux PSS, RSS elsewhere; each tab view's
 renderer is attributed through the main process (`webContents.getOSProcessId()`). Workspace operations are timed from
 the preload call to the expected tab view on screen, read by a 4 ms poll in the main process (stopped while idle CPU
-is sampled). The launched window may take the focus; the harness never forces it, and the focus state of every idle
+is sampled); the create and delete samples of `session` and `leaks` are pooled for their p95, and an operation that
+never reaches the screen within 30 s counts in `ws.failedOps` instead. Memory is sampled 4 times per condition. The
+launched window may take the focus; the harness never forces it, and the focus state of every idle
 sample is in the report.
 
 ## Budgets and the gate
@@ -72,7 +74,8 @@ sample is in the report.
 `budgets.json` is the one place budgets live. Each metric has its NFR, a budget (or `null`), a tolerance (10 % by
 default), a noise floor, and a gate:
 
-- `ci`: machine-independent (bundle, JS evaluated, failed launches, leaked views). Gated in CI and locally.
+- `ci`: machine-independent (bundle, JS evaluated, failed launches, views left after 4 deletes). Gated in CI and
+  locally.
 - `local`: measured on a machine (CPU, memory, latencies). Gated only by `--gate local`, against a baseline taken on
   the same machine.
 - `info`: reported only.
@@ -84,7 +87,8 @@ samples disagree (split-half medians more than 10 % and more than the floor apar
 the gate; rerun it. Changing a budget, a tolerance or the baseline needs a reason in the pull request.
 
 The first baseline, `baselines/75f1354a.json`, is a full run of origin/develop 75f1354a (the audit's commit) on an
-Apple M1 Max, 64 GB, with the user's usual background load. Local metrics are only comparable to it on that machine;
+Apple M1 Max, 64 GB, while other workloads were running (load average 5 to 8): idle CPU is flagged noisy in it. A
+second full run of the same build is compared with it in the pull request of #452. Local metrics are only comparable to it on that machine;
 on another machine, take your own "before" report and pass it with `--baseline`.
 
 ## CI
