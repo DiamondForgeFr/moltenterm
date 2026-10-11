@@ -258,7 +258,7 @@ export function renderMarkdown(report, evaluation) {
     out.push(
       ...detailTable(
         ["Operation", "Samples"],
-        Object.entries(d.workspaces.samples ?? {}).map(([k, v]) => [k, v.join(", ") || "—"])
+        Object.entries(d.workspaces.samples ?? {}).map(([k, v]) => [k, v.map((x) => x ?? "timeout").join(", ") || "—"])
       )
     );
     if (d.workspaces.race) {

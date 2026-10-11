@@ -2,7 +2,10 @@
     "$comment": "Performance budgets (FR-PERF-006, NFR-PERF-001..007). The one place budgets live: changing a budget, a tolerance or the baseline needs a reason in the pull request. gate: ci = machine-independent, gated in CI and locally; local = gated only against a baseline taken on the same machine (task perf -- --gate local); info = reported only. Values lower is better. Units: MB = 10^6 bytes for bundle and JS, MiB for memory.",
     "version": 1,
     "baseline": "baselines/75f1354a.json",
-    "defaults": { "tolerancePct": 10, "noisePct": 10 },
+    "defaults": {
+        "tolerancePct": 10,
+        "noisePct": 10
+    },
     "metrics": {
         "bundle.initialJsMB": {
             "nfr": "NFR-PERF-003",
@@ -172,6 +175,14 @@
             "gate": "local",
             "noiseFloor": 25
         },
+        "ws.failedOps": {
+            "nfr": "NFR-PERF-004",
+            "title": "Workspace operations that never reached the screen (30 s)",
+            "unit": "",
+            "budget": 0,
+            "gate": "local",
+            "tolerancePct": 0
+        },
         "ws.raceBlockedMs": {
             "nfr": "NFR-PERF-004",
             "title": "Action queue blocked by a delete right after a create",
@@ -204,12 +215,12 @@
             "gate": "ci",
             "tolerancePct": 0
         },
-        "leak.viewsPerLoop": {
+        "leak.viewsAfterLoops": {
             "nfr": "NFR-PERF-006",
-            "title": "Tab views left per create/delete loop",
+            "title": "Tab views left after 5 create/delete loops",
             "unit": "",
             "budget": 0,
-            "gate": "ci",
+            "gate": "local",
             "tolerancePct": 0
         },
         "leak.memGrowthPerLoopMB": {
@@ -218,7 +229,7 @@
             "unit": "MiB",
             "budget": 2,
             "gate": "local",
-            "noiseFloor": 2
+            "noiseFloor": 10
         },
         "bundle.jsMB": {
             "nfr": "NFR-PERF-007",

@@ -17,11 +17,14 @@ import { Driver } from "./workspace.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Create/delete loops after which the leaked views are counted (leak.viewsAfterLoops), the same in every profile.
+const GatedLoops = 5;
+
 export const Profiles = {
   full: {
     scenarios: ["bundle", "startup", "session", "leaks", "load", "mods"],
     coldRuns: 3,
-    warmRuns: 3,
+    warmRuns: 4,
     settleS: 60,
     samples: 12,
     intervalS: 5,
@@ -60,7 +63,7 @@ export const Profiles = {
     samples: 0,
     intervalS: 5,
     deletes: 4,
-    loops: 3,
+    loops: 5,
     readyTimeoutS: 90,
   },
 };
@@ -112,8 +115,24 @@ async function idleCondition(ctx, inst, driver, label, { withRenderer = false } 
     out[state] = { ...cpu, window };
     ctx.details.idle[`${label} ${state}`] = out[state];
     if (state === "visible") {
-      ctx.details.memory[label] = await memoryWithViews(inst, driver);
-      ctx.meta.memoryMethod = ctx.details.memory[label].method;
+      // A few snapshots, so that memory gets a median and a spread like CPU (the GPU process moves the most).
+      const snaps = [];
+      for (let i = 0; i < (p.memSamples ?? 4); i++) {
+        if (i > 0) {
+          await sleep(3000);
+        }
+        snaps.push(await memoryWithViews(inst, driver));
+      }
+      const hidden = snaps
+        .map((m) => (m.views.hiddenMB.length ? median(m.views.hiddenMB) : null))
+        .filter((x) => x != null);
+      out.memory = {
+        total: summarize(snaps.map((m) => m.totalMB)),
+        gpu: summarize(snaps.map((m) => m.byKind.gpu).filter((x) => x != null)),
+        hiddenView: hidden.length ? summarize(hidden) : single(null),
+      };
+      ctx.details.memory[label] = snaps.at(-1);
+      ctx.meta.memoryMethod = snaps.at(-1).method;
       if (withRenderer) {
         const page = await visiblePage(inst.port, driver.main);
         try {
@@ -202,8 +221,7 @@ export async function runStartup(ctx) {
 // Idle at 1, 3 and 6 workspaces, workspace operations, and the create/delete race, in one instance.
 export async function runSession(ctx) {
   const p = ctx.profile;
-  const samples = { create: [], switchNew: [], switchVisited: [], delete: [] };
-  ctx.details.workspaces = { samples };
+  const samples = opSamples(ctx);
   const inst = ctx.track(Instance.create(ctx.repoRoot, ctx.tmpBase));
   const driver = new Driver(inst);
   try {
@@ -217,7 +235,7 @@ export async function runSession(ctx) {
     const idle1 = await idleCondition(ctx, inst, driver, "1 ws", { withRenderer: true });
     ctx.metrics["idle.cpu1wsVisiblePct"] = idle1.visible.total;
     ctx.metrics["idle.cpu1wsMinimisedPct"] = idle1.minimised.total;
-    ctx.metrics["mem.total1wsMB"] = single(ctx.details.memory["1 ws"].totalMB);
+    ctx.metrics["mem.total1wsMB"] = idle1.memory.total;
     ctx.metrics["renderer.taskMsPerS"] = single(ctx.details.renderer.metrics.taskMsPerS);
     ctx.metrics["renderer.timerFiresPerS"] = single(ctx.details.renderer.trace.timerFiresPerS);
 
@@ -259,17 +277,15 @@ export async function runSession(ctx) {
       }
     }
     await driver.switchTo(first);
-    samples.switchVisited = samples.switchVisited.filter((x) => x != null);
     log(`switch visited: ${samples.switchVisited.join(", ")} ms`);
 
     await sleep(p.settleS * 1000);
     const idle6 = await idleCondition(ctx, inst, driver, "6 ws");
     ctx.metrics["idle.cpu6wsVisiblePct"] = idle6.visible.total;
     ctx.metrics["idle.cpu6wsMinimisedPct"] = idle6.minimised.total;
-    const mem6 = ctx.details.memory["6 ws"];
-    ctx.metrics["mem.total6wsMB"] = single(mem6.totalMB);
-    ctx.metrics["mem.gpu6wsMB"] = single(mem6.byKind.gpu ?? null);
-    ctx.metrics["mem.hiddenViewMB"] = single(mem6.views.hiddenMB.length ? median(mem6.views.hiddenMB) : null);
+    ctx.metrics["mem.total6wsMB"] = idle6.memory.total;
+    ctx.metrics["mem.gpu6wsMB"] = idle6.memory.gpu;
+    ctx.metrics["mem.hiddenViewMB"] = idle6.memory.hiddenView;
 
     await driver.startPoll();
     for (const ws of others.slice(0, p.deletes)) {
@@ -278,10 +294,6 @@ export async function runSession(ctx) {
       log(`delete: ${r.ms} ms`);
       await sleep(500);
     }
-    ctx.metrics["ws.createP95Ms"] = summarize(samples.create, "p95");
-    ctx.metrics["ws.switchNewP95Ms"] = summarize(samples.switchNew, "p95");
-    ctx.metrics["ws.switchVisitedP95Ms"] = summarize(samples.switchVisited, "p95");
-    ctx.metrics["ws.deleteP95Ms"] = summarize(samples.delete, "p95");
 
     const race = await driver.race();
     ctx.details.workspaces.race = race;
@@ -324,13 +336,14 @@ export async function runLeaks(ctx) {
     const created = [];
     for (let i = 0; i < p.deletes; i++) {
       const r = await driver.create();
+      opSamples(ctx).create.push(r.ms);
       created.push(r.workspace);
       await driver.waitSpare(r.t0);
     }
     await driver.switchTo(first);
     await sleep(1000);
     for (const ws of created) {
-      await driver.remove(ws);
+      opSamples(ctx).delete.push((await driver.remove(ws)).ms);
       await sleep(500);
     }
     await sleep(3000);
@@ -339,22 +352,33 @@ export async function runLeaks(ctx) {
     ctx.metrics["leak.viewsAfterDeletes"] = single(leaks.afterDeletes.leaked);
     log(`leaks after ${created.length} deletes: ${JSON.stringify(leaks.afterDeletes)}`);
 
+    // The view count is read after a fixed number of loops in every profile, so CI and local runs compare with
+    // the same baseline: the tab cache evicts old views, so the count per loop depends on the number of loops.
     const memBefore = memory(inst.pid).totalMB;
-    for (let i = 0; i < p.loops; i++) {
+    const loops = Math.max(p.loops, GatedLoops);
+    for (let i = 0; i < loops; i++) {
       const r = await driver.create();
+      opSamples(ctx).create.push(r.ms);
       await driver.waitSpare(r.t0);
       if (r.workspace) {
-        await driver.remove(r.workspace);
+        opSamples(ctx).delete.push((await driver.remove(r.workspace)).ms);
       }
       await sleep(500);
+      if (i + 1 === GatedLoops) {
+        await sleep(2000);
+        leaks.gatedLoops = {
+          loops: GatedLoops,
+          ...leakedViews(await driver.inventory(), await driver.listWorkspaces()),
+        };
+      }
     }
     await sleep(3000);
     const after = leakedViews(await driver.inventory(), await driver.listWorkspaces());
     const memAfter = memory(inst.pid).totalMB;
-    leaks.loops = { loops: p.loops, ...after, memBeforeMB: memBefore, memAfterMB: memAfter };
-    ctx.metrics["leak.viewsPerLoop"] = single(round((after.leaked - leaks.afterDeletes.leaked) / p.loops, 2));
-    ctx.metrics["leak.memGrowthPerLoopMB"] = single(round((memAfter - memBefore) / p.loops, 1));
-    log(`leaks after ${p.loops} loops: ${JSON.stringify(leaks.loops)}`);
+    leaks.loops = { loops, ...after, memBeforeMB: memBefore, memAfterMB: memAfter };
+    ctx.metrics["leak.viewsAfterLoops"] = single(leaks.gatedLoops.leaked - leaks.afterDeletes.leaked);
+    ctx.metrics["leak.memGrowthPerLoopMB"] = single(round((memAfter - memBefore) / loops, 1));
+    log(`leaks after ${loops} loops: ${JSON.stringify(leaks.loops)}`);
   } finally {
     driver.detach();
     await ctx.dispose(inst);
@@ -423,6 +447,35 @@ export async function runMods(ctx) {
   ctx.details.mods = res;
   ctx.metrics["mods.cpuDeltaPct"] = single(round(res.on.cpuPct - res.off.cpuPct, 2));
   ctx.metrics["mods.memDeltaMB"] = single(round(res.on.memMB - res.off.memMB, 1));
+}
+
+// Workspace operation latencies, pooled across the session and leaks scenarios so that the p95 rests on enough
+// samples. An operation that never reached the screen is a null sample: it is counted in ws.failedOps, not in the p95.
+function opSamples(ctx) {
+  ctx.details.workspaces ??= {};
+  ctx.details.workspaces.samples ??= { create: [], switchNew: [], switchVisited: [], delete: [] };
+  return ctx.details.workspaces.samples;
+}
+
+export function finalize(ctx) {
+  const samples = ctx.details.workspaces?.samples;
+  if (!samples) {
+    return;
+  }
+  const ops = {
+    create: "ws.createP95Ms",
+    switchNew: "ws.switchNewP95Ms",
+    switchVisited: "ws.switchVisitedP95Ms",
+    delete: "ws.deleteP95Ms",
+  };
+  let failed = 0;
+  for (const [op, id] of Object.entries(ops)) {
+    if (samples[op].length) {
+      ctx.metrics[id] = summarize(samples[op], "p95");
+      failed += samples[op].filter((x) => x == null).length;
+    }
+  }
+  ctx.metrics["ws.failedOps"] = single(failed);
 }
 
 export const Runners = {

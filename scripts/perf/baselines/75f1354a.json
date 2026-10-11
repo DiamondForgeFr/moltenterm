@@ -1,0 +1,1354 @@
+{
+    "meta": {
+        "note": "App code of origin/develop 75f1354a: the harness commit it ran from (3d7e80c9) changes only scripts/perf, Taskfile.yml, ci.yml and UPSTREAM.md. Measured on the reference machine with other workloads running; idle CPU and start-up times are noisy in it.",
+        "id": "75f1354a",
+        "commit": "3d7e80c9",
+        "dirty": true,
+        "profile": "full",
+        "scenarios": ["bundle", "startup", "session", "leaks", "load", "mods"],
+        "startedAt": "2026-10-11T09:59:11.996Z",
+        "durationS": 1072,
+        "machine": {
+            "platform": "darwin",
+            "arch": "arm64",
+            "cpu": "Apple M1 Max",
+            "cores": 10,
+            "memGB": 64,
+            "loadAvg": "4.61 48.53 57.54",
+            "ci": false
+        },
+        "electron": "41.1.0",
+        "memoryMethod": "footprint",
+        "settings": {
+            "scenarios": ["bundle", "startup", "session", "leaks", "load", "mods"],
+            "coldRuns": 3,
+            "warmRuns": 4,
+            "settleS": 60,
+            "samples": 12,
+            "intervalS": 5,
+            "minimisedSettleS": 10,
+            "switchRounds": 2,
+            "deletes": 4,
+            "loops": 20,
+            "loadProcs": 12,
+            "loadTimeoutS": 30,
+            "modsSettleS": 30,
+            "traceS": 5
+        }
+    },
+    "metrics": {
+        "bundle.initialJsMB": {
+            "value": 30.65,
+            "stat": "value",
+            "n": 1
+        },
+        "bundle.jsMB": {
+            "value": 49.84,
+            "stat": "value",
+            "n": 1
+        },
+        "bundle.jsGzipMB": {
+            "value": 9.11,
+            "stat": "value",
+            "n": 1
+        },
+        "bundle.cssMB": {
+            "value": 0.62,
+            "stat": "value",
+            "n": 1
+        },
+        "startup.failedLaunches": {
+            "value": 0,
+            "stat": "value",
+            "n": 1
+        },
+        "startup.jsEvaluatedMB": {
+            "value": 30.78,
+            "stat": "median",
+            "n": 7,
+            "median": 30.78,
+            "p95": 30.78,
+            "min": 30.78,
+            "max": 30.78,
+            "spreadPct": 0,
+            "spreadAbs": 0,
+            "samples": [30.78, 30.78, 30.78, 30.78, 30.78, 30.78, 30.78]
+        },
+        "startup.waveReadyColdMs": {
+            "value": 2166,
+            "stat": "median",
+            "n": 3,
+            "median": 2166,
+            "p95": 2189.4,
+            "min": 1944,
+            "max": 2192,
+            "spreadPct": null,
+            "spreadAbs": null,
+            "samples": [1944, 2192, 2166]
+        },
+        "startup.tabviewInitColdMs": {
+            "value": 1459,
+            "stat": "median",
+            "n": 3,
+            "median": 1459,
+            "p95": 1479.7,
+            "min": 1201,
+            "max": 1482,
+            "spreadPct": null,
+            "spreadAbs": null,
+            "samples": [1201, 1482, 1459]
+        },
+        "startup.waveReadyWarmMs": {
+            "value": 2037,
+            "stat": "median",
+            "n": 4,
+            "median": 2037,
+            "p95": 2098.75,
+            "min": 2019,
+            "max": 2107,
+            "spreadPct": 1.3,
+            "spreadAbs": 26,
+            "samples": [2052, 2107, 2022, 2019]
+        },
+        "startup.tabviewInitWarmMs": {
+            "value": 1284,
+            "stat": "median",
+            "n": 4,
+            "median": 1284,
+            "p95": 1345,
+            "min": 1268,
+            "max": 1354,
+            "spreadPct": 2.1,
+            "spreadAbs": 27,
+            "samples": [1294, 1354, 1274, 1268]
+        },
+        "idle.cpu1wsVisiblePct": {
+            "value": 2.47,
+            "stat": "median",
+            "n": 12,
+            "median": 2.47,
+            "p95": 5.93,
+            "min": 1.39,
+            "max": 6.9,
+            "spreadPct": 92,
+            "spreadAbs": 2.27,
+            "samples": [2.95, 6.9, 1.77, 5.13, 1.78, 1.39, 1.58, 3.95, 2.56, 2.36, 2.37, 4.74]
+        },
+        "idle.cpu1wsMinimisedPct": {
+            "value": 1.28,
+            "stat": "median",
+            "n": 12,
+            "median": 1.28,
+            "p95": 3.96,
+            "min": 0.79,
+            "max": 4.95,
+            "spreadPct": 61.5,
+            "spreadAbs": 0.79,
+            "samples": [0.99, 2.96, 4.95, 0.99, 2.77, 0.79, 1.18, 2.56, 1.18, 1.38, 1.18, 3.16]
+        },
+        "mem.total1wsMB": {
+            "value": 743.4,
+            "stat": "median",
+            "n": 4,
+            "median": 743.4,
+            "p95": 743.4,
+            "min": 743.4,
+            "max": 743.4,
+            "spreadPct": 0,
+            "spreadAbs": 0,
+            "samples": [743.4, 743.4, 743.4, 743.4]
+        },
+        "renderer.taskMsPerS": {
+            "value": 6.99,
+            "stat": "value",
+            "n": 1
+        },
+        "renderer.timerFiresPerS": {
+            "value": 2.2,
+            "stat": "value",
+            "n": 1
+        },
+        "idle.cpu3wsVisiblePct": {
+            "value": 1.38,
+            "stat": "median",
+            "n": 12,
+            "median": 1.38,
+            "p95": 4.63,
+            "min": 0.79,
+            "max": 5.71,
+            "spreadPct": 50,
+            "spreadAbs": 0.69,
+            "samples": [1.38, 5.71, 3.76, 3.56, 0.99, 1.38, 2.77, 0.79, 1.32, 2.77, 1.38, 0.99]
+        },
+        "idle.cpu3wsMinimisedPct": {
+            "value": 1.57,
+            "stat": "median",
+            "n": 12,
+            "median": 1.57,
+            "p95": 4.88,
+            "min": 0.59,
+            "max": 5.53,
+            "spreadPct": 6.5,
+            "spreadAbs": 0.1,
+            "samples": [1.98, 0.59, 4.35, 2.56, 1.38, 1.18, 1.38, 5.53, 1.38, 1.77, 2.36, 1.38]
+        },
+        "idle.cpu6wsVisiblePct": {
+            "value": 1.18,
+            "stat": "median",
+            "n": 12,
+            "median": 1.18,
+            "p95": 6.94,
+            "min": 0.39,
+            "max": 10.36,
+            "spreadPct": 66.8,
+            "spreadAbs": 0.79,
+            "samples": [10.36, 0.39, 4.15, 3.96, 0.79, 4.14, 0.79, 0.79, 0.99, 1.98, 0.4, 1.38]
+        },
+        "idle.cpu6wsMinimisedPct": {
+            "value": 1.95,
+            "stat": "median",
+            "n": 12,
+            "median": 1.95,
+            "p95": 4.53,
+            "min": 0.59,
+            "max": 4.53,
+            "spreadPct": 91.8,
+            "spreadAbs": 1.8,
+            "samples": [4.15, 1.97, 4.53, 0.99, 2.37, 0.59, 4.53, 2.76, 0.59, 0.79, 0.98, 1.94]
+        },
+        "mem.total6wsMB": {
+            "value": 1821,
+            "stat": "median",
+            "n": 4,
+            "median": 1821,
+            "p95": 1851.6,
+            "min": 1820,
+            "max": 1857,
+            "spreadPct": 1,
+            "spreadAbs": 18.5,
+            "samples": [1821, 1821, 1820, 1857]
+        },
+        "mem.gpu6wsMB": {
+            "value": 858,
+            "stat": "median",
+            "n": 4,
+            "median": 858,
+            "p95": 858,
+            "min": 858,
+            "max": 858,
+            "spreadPct": 0,
+            "spreadAbs": 0,
+            "samples": [858, 858, 858, 858]
+        },
+        "mem.hiddenViewMB": {
+            "value": 107,
+            "stat": "median",
+            "n": 4,
+            "median": 107,
+            "p95": 108.7,
+            "min": 107,
+            "max": 109,
+            "spreadPct": 0.9,
+            "spreadAbs": 1,
+            "samples": [107, 107, 107, 109]
+        },
+        "ws.raceBlockedMs": {
+            "value": 5001,
+            "stat": "value",
+            "n": 1
+        },
+        "leak.viewsAfterDeletes": {
+            "value": 4,
+            "stat": "value",
+            "n": 1
+        },
+        "leak.viewsAfterLoops": {
+            "value": 5,
+            "stat": "value",
+            "n": 1
+        },
+        "leak.memGrowthPerLoopMB": {
+            "value": 73.1,
+            "stat": "value",
+            "n": 1
+        },
+        "load.firstTabMs": {
+            "value": 18544,
+            "stat": "value",
+            "n": 1
+        },
+        "load.blankWindow": {
+            "value": 0,
+            "stat": "value",
+            "n": 1
+        },
+        "mods.cpuDeltaPct": {
+            "value": -0.78,
+            "stat": "value",
+            "n": 1
+        },
+        "mods.memDeltaMB": {
+            "value": -3.1,
+            "stat": "value",
+            "n": 1
+        },
+        "ws.createP95Ms": {
+            "value": 165.6,
+            "stat": "p95",
+            "n": 29,
+            "median": 137,
+            "p95": 165.6,
+            "min": 105,
+            "max": 193,
+            "spreadPct": 6.9,
+            "spreadAbs": 9.5,
+            "samples": [
+                142, 118, 144, 113, 109, 130, 125, 110, 124, 105, 111, 108, 118, 114, 118, 133, 168, 162, 193, 148, 146,
+                148, 140, 152, 142, 159, 152, 137, 141
+            ]
+        },
+        "ws.switchNewP95Ms": {
+            "value": 131.4,
+            "stat": "p95",
+            "n": 5,
+            "median": 114,
+            "p95": 131.4,
+            "min": 109,
+            "max": 135,
+            "spreadPct": 0.9,
+            "spreadAbs": 1,
+            "samples": [109, 117, 114, 113, 135]
+        },
+        "ws.switchVisitedP95Ms": {
+            "value": 63.9,
+            "stat": "p95",
+            "n": 12,
+            "median": 46,
+            "p95": 63.9,
+            "min": 40,
+            "max": 65,
+            "spreadPct": 1.1,
+            "spreadAbs": 0.5,
+            "samples": [63, 59, 40, 53, 40, 40, 65, 49, 44, 43, 48, 44]
+        },
+        "ws.deleteP95Ms": {
+            "value": 228.3,
+            "stat": "p95",
+            "n": 28,
+            "median": 87,
+            "p95": 228.3,
+            "min": 27,
+            "max": 350,
+            "spreadPct": 4.6,
+            "spreadAbs": 4,
+            "samples": [
+                350, 257, 175, 118, 55, 62, 57, 60, 66, 81, 27, 62, 105, 72, 84, 68, 35, 90, 69, 92, 124, 93, 95, 81,
+                105, 142, 102, 102
+            ]
+        },
+        "ws.failedOps": {
+            "value": 0,
+            "stat": "value",
+            "n": 1
+        }
+    },
+    "details": {
+        "idle": {
+            "1 ws visible": {
+                "total": {
+                    "value": 2.47,
+                    "stat": "median",
+                    "n": 12,
+                    "median": 2.47,
+                    "p95": 5.93,
+                    "min": 1.39,
+                    "max": 6.9,
+                    "spreadPct": 92,
+                    "spreadAbs": 2.27,
+                    "samples": [2.95, 6.9, 1.77, 5.13, 1.78, 1.39, 1.58, 3.95, 2.56, 2.36, 2.37, 4.74]
+                },
+                "processes": 9,
+                "perKind": {
+                    "gpu": {
+                        "n": 1,
+                        "cpuMed": 0.59,
+                        "cpuMean": 0.62,
+                        "rssMB": 118.9
+                    },
+                    "main": {
+                        "n": 1,
+                        "cpuMed": 0.1,
+                        "cpuMean": 0.1,
+                        "rssMB": 188.2
+                    },
+                    "other": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0,
+                        "rssMB": 9.2
+                    },
+                    "renderer": {
+                        "n": 3,
+                        "cpuMed": 1.48,
+                        "cpuMean": 2.1,
+                        "rssMB": 803.6
+                    },
+                    "utility-network": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.05,
+                        "rssMB": 74.8
+                    },
+                    "wavesrv": {
+                        "n": 1,
+                        "cpuMed": 0.2,
+                        "cpuMean": 0.21,
+                        "rssMB": 33.8
+                    },
+                    "wsh": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.03,
+                        "rssMB": 18.8
+                    }
+                },
+                "window": [
+                    {
+                        "focused": false,
+                        "visible": true,
+                        "minimized": false
+                    }
+                ]
+            },
+            "1 ws minimised": {
+                "total": {
+                    "value": 1.28,
+                    "stat": "median",
+                    "n": 12,
+                    "median": 1.28,
+                    "p95": 3.96,
+                    "min": 0.79,
+                    "max": 4.95,
+                    "spreadPct": 61.5,
+                    "spreadAbs": 0.79,
+                    "samples": [0.99, 2.96, 4.95, 0.99, 2.77, 0.79, 1.18, 2.56, 1.18, 1.38, 1.18, 3.16]
+                },
+                "processes": 10,
+                "perKind": {
+                    "gpu": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.02,
+                        "rssMB": 113.3
+                    },
+                    "main": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.08,
+                        "rssMB": 190.6
+                    },
+                    "other": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0,
+                        "rssMB": 9.2
+                    },
+                    "renderer": {
+                        "n": 3,
+                        "cpuMed": 0.98,
+                        "cpuMean": 1.65,
+                        "rssMB": 749.6
+                    },
+                    "utility": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0,
+                        "rssMB": 57.4
+                    },
+                    "utility-network": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.03,
+                        "rssMB": 75.1
+                    },
+                    "wavesrv": {
+                        "n": 1,
+                        "cpuMed": 0.2,
+                        "cpuMean": 0.2,
+                        "rssMB": 34
+                    },
+                    "wsh": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.03,
+                        "rssMB": 19.4
+                    }
+                },
+                "window": [
+                    {
+                        "focused": false,
+                        "visible": false,
+                        "minimized": true
+                    }
+                ]
+            },
+            "3 ws visible": {
+                "total": {
+                    "value": 1.38,
+                    "stat": "median",
+                    "n": 12,
+                    "median": 1.38,
+                    "p95": 4.63,
+                    "min": 0.79,
+                    "max": 5.71,
+                    "spreadPct": 50,
+                    "spreadAbs": 0.69,
+                    "samples": [1.38, 5.71, 3.76, 3.56, 0.99, 1.38, 2.77, 0.79, 1.32, 2.77, 1.38, 0.99]
+                },
+                "processes": 16,
+                "perKind": {
+                    "gpu": {
+                        "n": 1,
+                        "cpuMed": 0.2,
+                        "cpuMean": 0.26,
+                        "rssMB": 119.8
+                    },
+                    "main": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.08,
+                        "rssMB": 194.7
+                    },
+                    "other": {
+                        "n": 3,
+                        "cpuMed": 0,
+                        "cpuMean": 0.02,
+                        "rssMB": 26.8
+                    },
+                    "renderer": {
+                        "n": 5,
+                        "cpuMed": 0.79,
+                        "cpuMean": 1.64,
+                        "rssMB": 1379.4
+                    },
+                    "utility": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0,
+                        "rssMB": 57.6
+                    },
+                    "utility-network": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.03,
+                        "rssMB": 75.3
+                    },
+                    "wavesrv": {
+                        "n": 1,
+                        "cpuMed": 0.2,
+                        "cpuMean": 0.15,
+                        "rssMB": 36
+                    },
+                    "wsh": {
+                        "n": 3,
+                        "cpuMed": 0,
+                        "cpuMean": 0.05,
+                        "rssMB": 57.3
+                    }
+                },
+                "window": [
+                    {
+                        "focused": false,
+                        "visible": true,
+                        "minimized": false
+                    }
+                ]
+            },
+            "3 ws minimised": {
+                "total": {
+                    "value": 1.57,
+                    "stat": "median",
+                    "n": 12,
+                    "median": 1.57,
+                    "p95": 4.88,
+                    "min": 0.59,
+                    "max": 5.53,
+                    "spreadPct": 6.5,
+                    "spreadAbs": 0.1,
+                    "samples": [1.98, 0.59, 4.35, 2.56, 1.38, 1.18, 1.38, 5.53, 1.38, 1.77, 2.36, 1.38]
+                },
+                "processes": 16,
+                "perKind": {
+                    "gpu": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.02,
+                        "rssMB": 118.7
+                    },
+                    "main": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.07,
+                        "rssMB": 194.7
+                    },
+                    "other": {
+                        "n": 3,
+                        "cpuMed": 0,
+                        "cpuMean": 0,
+                        "rssMB": 26.8
+                    },
+                    "renderer": {
+                        "n": 5,
+                        "cpuMed": 0.98,
+                        "cpuMean": 1.74,
+                        "rssMB": 1321.7
+                    },
+                    "utility": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.02,
+                        "rssMB": 57.6
+                    },
+                    "utility-network": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.03,
+                        "rssMB": 75.3
+                    },
+                    "wavesrv": {
+                        "n": 1,
+                        "cpuMed": 0.2,
+                        "cpuMean": 0.21,
+                        "rssMB": 36.4
+                    },
+                    "wsh": {
+                        "n": 3,
+                        "cpuMed": 0,
+                        "cpuMean": 0.07,
+                        "rssMB": 58.5
+                    }
+                },
+                "window": [
+                    {
+                        "focused": false,
+                        "visible": false,
+                        "minimized": true
+                    }
+                ]
+            },
+            "6 ws visible": {
+                "total": {
+                    "value": 1.18,
+                    "stat": "median",
+                    "n": 12,
+                    "median": 1.18,
+                    "p95": 6.94,
+                    "min": 0.39,
+                    "max": 10.36,
+                    "spreadPct": 66.8,
+                    "spreadAbs": 0.79,
+                    "samples": [10.36, 0.39, 4.15, 3.96, 0.79, 4.14, 0.79, 0.79, 0.99, 1.98, 0.4, 1.38]
+                },
+                "processes": 12,
+                "perKind": {
+                    "gpu": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0,
+                        "rssMB": 135.5
+                    },
+                    "main": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.08,
+                        "rssMB": 199.9
+                    },
+                    "renderer": {
+                        "n": 8,
+                        "cpuMed": 0.89,
+                        "cpuMean": 2.25,
+                        "rssMB": 2262.6
+                    },
+                    "utility-network": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.03,
+                        "rssMB": 73
+                    },
+                    "wavesrv": {
+                        "n": 1,
+                        "cpuMed": 0.2,
+                        "cpuMean": 0.15,
+                        "rssMB": 36.1
+                    }
+                },
+                "window": [
+                    {
+                        "focused": false,
+                        "visible": true,
+                        "minimized": false
+                    }
+                ]
+            },
+            "6 ws minimised": {
+                "total": {
+                    "value": 1.95,
+                    "stat": "median",
+                    "n": 12,
+                    "median": 1.95,
+                    "p95": 4.53,
+                    "min": 0.59,
+                    "max": 4.53,
+                    "spreadPct": 91.8,
+                    "spreadAbs": 1.8,
+                    "samples": [4.15, 1.97, 4.53, 0.99, 2.37, 0.59, 4.53, 2.76, 0.59, 0.79, 0.98, 1.94]
+                },
+                "processes": 12,
+                "perKind": {
+                    "gpu": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0,
+                        "rssMB": 132.4
+                    },
+                    "main": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.07,
+                        "rssMB": 193.8
+                    },
+                    "renderer": {
+                        "n": 8,
+                        "cpuMed": 1.76,
+                        "cpuMean": 1.92,
+                        "rssMB": 2183
+                    },
+                    "utility-network": {
+                        "n": 1,
+                        "cpuMed": 0,
+                        "cpuMean": 0.05,
+                        "rssMB": 73.1
+                    },
+                    "wavesrv": {
+                        "n": 1,
+                        "cpuMed": 0.2,
+                        "cpuMean": 0.15,
+                        "rssMB": 36.2
+                    }
+                },
+                "window": [
+                    {
+                        "focused": false,
+                        "visible": false,
+                        "minimized": true
+                    }
+                ]
+            }
+        },
+        "memory": {
+            "1 ws": {
+                "method": "footprint",
+                "totalMB": 743.4,
+                "byKind": {
+                    "main": 56,
+                    "renderer": 361,
+                    "utility-network": 13,
+                    "gpu": 281,
+                    "wavesrv": 16,
+                    "wsh": 8.9,
+                    "other": 7.5
+                },
+                "views": {
+                    "activeMB": 181,
+                    "hiddenMB": [],
+                    "spareMB": [79],
+                    "webviewMB": [101]
+                }
+            },
+            "3 ws": {
+                "method": "footprint",
+                "totalMB": 1155.7,
+                "byKind": {
+                    "main": 58,
+                    "renderer": 536,
+                    "utility": 19,
+                    "utility-network": 14,
+                    "gpu": 462,
+                    "wavesrv": 18,
+                    "wsh": 27.1,
+                    "other": 21.6
+                },
+                "views": {
+                    "activeMB": 159,
+                    "hiddenMB": [99, 123],
+                    "spareMB": [79],
+                    "webviewMB": [76]
+                }
+            },
+            "6 ws": {
+                "method": "footprint",
+                "totalMB": 1857,
+                "byKind": {
+                    "main": 62,
+                    "renderer": 906,
+                    "utility-network": 13,
+                    "gpu": 858,
+                    "wavesrv": 18
+                },
+                "views": {
+                    "activeMB": 164,
+                    "hiddenMB": [109, 105, 107, 121, 145],
+                    "spareMB": [79],
+                    "webviewMB": [76]
+                }
+            }
+        },
+        "bundle": {
+            "jsMB": 49.84,
+            "jsGzipMB": 9.11,
+            "jsFiles": 15,
+            "cssMB": 0.62,
+            "initialJsMB": 30.65,
+            "initial": [
+                {
+                    "file": "assets/index-DDgLSaCS.js",
+                    "mb": 7.18
+                },
+                {
+                    "file": "assets/shiki-BfBlzdYL.js",
+                    "mb": 9.78
+                },
+                {
+                    "file": "assets/cytoscape-FbyQjGbU.js",
+                    "mb": 1.54
+                },
+                {
+                    "file": "assets/monaco-YhQxO6qw.js",
+                    "mb": 8.15
+                },
+                {
+                    "file": "assets/mermaid-C1ds_iLa.js",
+                    "mb": 3.51
+                },
+                {
+                    "file": "assets/katex-D1cNczuU.js",
+                    "mb": 0.48
+                }
+            ],
+            "totalWithoutMapsMB": 62.04,
+            "largest": [
+                {
+                    "file": "assets/ts.worker-C7hW3aY-.js",
+                    "mb": 13.26,
+                    "gzipMB": 2.15
+                },
+                {
+                    "file": "assets/shiki-BfBlzdYL.js",
+                    "mb": 9.78,
+                    "gzipMB": 1.7
+                },
+                {
+                    "file": "assets/monaco-YhQxO6qw.js",
+                    "mb": 8.15,
+                    "gzipMB": 1.53
+                },
+                {
+                    "file": "assets/index-DDgLSaCS.js",
+                    "mb": 7.18,
+                    "gzipMB": 1.53
+                },
+                {
+                    "file": "assets/mermaid-C1ds_iLa.js",
+                    "mb": 3.51,
+                    "gzipMB": 0.71
+                },
+                {
+                    "file": "assets/css.worker-umuuUiIb.js",
+                    "mb": 1.87,
+                    "gzipMB": 0.3
+                },
+                {
+                    "file": "assets/cytoscape-FbyQjGbU.js",
+                    "mb": 1.54,
+                    "gzipMB": 0.29
+                },
+                {
+                    "file": "assets/yamlworker-VevFtHSr.js",
+                    "mb": 1.44,
+                    "gzipMB": 0.3
+                },
+                {
+                    "file": "assets/html.worker-BT47iy49.js",
+                    "mb": 1.24,
+                    "gzipMB": 0.23
+                },
+                {
+                    "file": "assets/json.worker-D4JVmXIe.js",
+                    "mb": 0.84,
+                    "gzipMB": 0.16
+                }
+            ]
+        },
+        "startup": {
+            "runs": [
+                {
+                    "kind": "cold",
+                    "wavesrvReady": 281,
+                    "createWin": 666,
+                    "initBare": 1730,
+                    "waveReady": 1944,
+                    "firstTabviewInitMs": 1201,
+                    "tabviewInits": [1201],
+                    "timedOut": false,
+                    "jsEvaluatedMB": 30.78,
+                    "jsTop": [
+                        {
+                            "name": "shiki-BfBlzdYL.js",
+                            "mb": 9.76
+                        },
+                        {
+                            "name": "monaco-YhQxO6qw.js",
+                            "mb": 8.15
+                        },
+                        {
+                            "name": "index-DDgLSaCS.js",
+                            "mb": 7.17
+                        },
+                        {
+                            "name": "mermaid-C1ds_iLa.js",
+                            "mb": 3.51
+                        },
+                        {
+                            "name": "cytoscape-FbyQjGbU.js",
+                            "mb": 1.54
+                        },
+                        {
+                            "name": "katex-D1cNczuU.js",
+                            "mb": 0.48
+                        },
+                        {
+                            "name": "sandbox_bundle",
+                            "mb": 0.16
+                        },
+                        {
+                            "name": "isolated_bundle",
+                            "mb": 0.01
+                        },
+                        {
+                            "name": "main.js",
+                            "mb": 0
+                        }
+                    ]
+                },
+                {
+                    "kind": "warm",
+                    "wavesrvReady": 297,
+                    "createWin": 675,
+                    "initBare": 1826,
+                    "waveReady": 2052,
+                    "firstTabviewInitMs": 1294,
+                    "tabviewInits": [1294],
+                    "timedOut": false,
+                    "jsEvaluatedMB": 30.78,
+                    "jsTop": [
+                        {
+                            "name": "shiki-BfBlzdYL.js",
+                            "mb": 9.76
+                        },
+                        {
+                            "name": "monaco-YhQxO6qw.js",
+                            "mb": 8.15
+                        },
+                        {
+                            "name": "index-DDgLSaCS.js",
+                            "mb": 7.17
+                        },
+                        {
+                            "name": "mermaid-C1ds_iLa.js",
+                            "mb": 3.51
+                        },
+                        {
+                            "name": "cytoscape-FbyQjGbU.js",
+                            "mb": 1.54
+                        },
+                        {
+                            "name": "katex-D1cNczuU.js",
+                            "mb": 0.48
+                        },
+                        {
+                            "name": "sandbox_bundle",
+                            "mb": 0.16
+                        },
+                        {
+                            "name": "isolated_bundle",
+                            "mb": 0.01
+                        },
+                        {
+                            "name": "main.js",
+                            "mb": 0
+                        }
+                    ]
+                },
+                {
+                    "kind": "warm",
+                    "wavesrvReady": 317,
+                    "createWin": 693,
+                    "initBare": 1899,
+                    "waveReady": 2107,
+                    "firstTabviewInitMs": 1354,
+                    "tabviewInits": [1354],
+                    "timedOut": false,
+                    "jsEvaluatedMB": 30.78,
+                    "jsTop": [
+                        {
+                            "name": "shiki-BfBlzdYL.js",
+                            "mb": 9.76
+                        },
+                        {
+                            "name": "monaco-YhQxO6qw.js",
+                            "mb": 8.15
+                        },
+                        {
+                            "name": "index-DDgLSaCS.js",
+                            "mb": 7.17
+                        },
+                        {
+                            "name": "mermaid-C1ds_iLa.js",
+                            "mb": 3.51
+                        },
+                        {
+                            "name": "cytoscape-FbyQjGbU.js",
+                            "mb": 1.54
+                        },
+                        {
+                            "name": "katex-D1cNczuU.js",
+                            "mb": 0.48
+                        },
+                        {
+                            "name": "sandbox_bundle",
+                            "mb": 0.16
+                        },
+                        {
+                            "name": "isolated_bundle",
+                            "mb": 0.01
+                        },
+                        {
+                            "name": "main.js",
+                            "mb": 0
+                        }
+                    ]
+                },
+                {
+                    "kind": "warm",
+                    "wavesrvReady": 303,
+                    "createWin": 678,
+                    "initBare": 1824,
+                    "waveReady": 2022,
+                    "firstTabviewInitMs": 1274,
+                    "tabviewInits": [1274],
+                    "timedOut": false,
+                    "jsEvaluatedMB": 30.78,
+                    "jsTop": [
+                        {
+                            "name": "shiki-BfBlzdYL.js",
+                            "mb": 9.76
+                        },
+                        {
+                            "name": "monaco-YhQxO6qw.js",
+                            "mb": 8.15
+                        },
+                        {
+                            "name": "index-DDgLSaCS.js",
+                            "mb": 7.17
+                        },
+                        {
+                            "name": "mermaid-C1ds_iLa.js",
+                            "mb": 3.51
+                        },
+                        {
+                            "name": "cytoscape-FbyQjGbU.js",
+                            "mb": 1.54
+                        },
+                        {
+                            "name": "katex-D1cNczuU.js",
+                            "mb": 0.48
+                        },
+                        {
+                            "name": "sandbox_bundle",
+                            "mb": 0.16
+                        },
+                        {
+                            "name": "isolated_bundle",
+                            "mb": 0.01
+                        },
+                        {
+                            "name": "main.js",
+                            "mb": 0
+                        }
+                    ]
+                },
+                {
+                    "kind": "warm",
+                    "wavesrvReady": 307,
+                    "createWin": 682,
+                    "initBare": 1829,
+                    "waveReady": 2019,
+                    "firstTabviewInitMs": 1268,
+                    "tabviewInits": [1268],
+                    "timedOut": false,
+                    "jsEvaluatedMB": 30.78,
+                    "jsTop": [
+                        {
+                            "name": "shiki-BfBlzdYL.js",
+                            "mb": 9.76
+                        },
+                        {
+                            "name": "monaco-YhQxO6qw.js",
+                            "mb": 8.15
+                        },
+                        {
+                            "name": "index-DDgLSaCS.js",
+                            "mb": 7.17
+                        },
+                        {
+                            "name": "mermaid-C1ds_iLa.js",
+                            "mb": 3.51
+                        },
+                        {
+                            "name": "cytoscape-FbyQjGbU.js",
+                            "mb": 1.54
+                        },
+                        {
+                            "name": "katex-D1cNczuU.js",
+                            "mb": 0.48
+                        },
+                        {
+                            "name": "sandbox_bundle",
+                            "mb": 0.16
+                        },
+                        {
+                            "name": "isolated_bundle",
+                            "mb": 0.01
+                        },
+                        {
+                            "name": "main.js",
+                            "mb": 0
+                        }
+                    ]
+                },
+                {
+                    "kind": "cold",
+                    "wavesrvReady": 276,
+                    "createWin": 653,
+                    "initBare": 1963,
+                    "waveReady": 2192,
+                    "firstTabviewInitMs": 1482,
+                    "tabviewInits": [1482],
+                    "timedOut": false,
+                    "jsEvaluatedMB": 30.78,
+                    "jsTop": [
+                        {
+                            "name": "shiki-BfBlzdYL.js",
+                            "mb": 9.76
+                        },
+                        {
+                            "name": "monaco-YhQxO6qw.js",
+                            "mb": 8.15
+                        },
+                        {
+                            "name": "index-DDgLSaCS.js",
+                            "mb": 7.17
+                        },
+                        {
+                            "name": "mermaid-C1ds_iLa.js",
+                            "mb": 3.51
+                        },
+                        {
+                            "name": "cytoscape-FbyQjGbU.js",
+                            "mb": 1.54
+                        },
+                        {
+                            "name": "katex-D1cNczuU.js",
+                            "mb": 0.48
+                        },
+                        {
+                            "name": "sandbox_bundle",
+                            "mb": 0.16
+                        },
+                        {
+                            "name": "isolated_bundle",
+                            "mb": 0.01
+                        },
+                        {
+                            "name": "main.js",
+                            "mb": 0
+                        }
+                    ]
+                },
+                {
+                    "kind": "cold",
+                    "wavesrvReady": 274,
+                    "createWin": 651,
+                    "initBare": 1964,
+                    "waveReady": 2166,
+                    "firstTabviewInitMs": 1459,
+                    "tabviewInits": [1459],
+                    "timedOut": false,
+                    "jsEvaluatedMB": 30.78,
+                    "jsTop": [
+                        {
+                            "name": "shiki-BfBlzdYL.js",
+                            "mb": 9.76
+                        },
+                        {
+                            "name": "monaco-YhQxO6qw.js",
+                            "mb": 8.15
+                        },
+                        {
+                            "name": "index-DDgLSaCS.js",
+                            "mb": 7.17
+                        },
+                        {
+                            "name": "mermaid-C1ds_iLa.js",
+                            "mb": 3.51
+                        },
+                        {
+                            "name": "cytoscape-FbyQjGbU.js",
+                            "mb": 1.54
+                        },
+                        {
+                            "name": "katex-D1cNczuU.js",
+                            "mb": 0.48
+                        },
+                        {
+                            "name": "sandbox_bundle",
+                            "mb": 0.16
+                        },
+                        {
+                            "name": "isolated_bundle",
+                            "mb": 0.01
+                        },
+                        {
+                            "name": "main.js",
+                            "mb": 0
+                        }
+                    ]
+                }
+            ]
+        },
+        "workspaces": {
+            "samples": {
+                "create": [
+                    142, 118, 144, 113, 109, 130, 125, 110, 124, 105, 111, 108, 118, 114, 118, 133, 168, 162, 193, 148,
+                    146, 148, 140, 152, 142, 159, 152, 137, 141
+                ],
+                "switchNew": [109, 117, 114, 113, 135],
+                "switchVisited": [63, 59, 40, 53, 40, 40, 65, 49, 44, 43, 48, 44],
+                "delete": [
+                    350, 257, 175, 118, 55, 62, 57, 60, 66, 81, 27, 62, 105, 72, 84, 68, 35, 90, 69, 92, 124, 93, 95,
+                    81, 105, 142, 102, 102
+                ]
+            },
+            "relaunch6ws": {
+                "wavesrvReady": 329,
+                "createWin": 705,
+                "initBare": 1970,
+                "waveReady": 2161,
+                "firstTabviewInitMs": 1396,
+                "tabviewInits": [1396],
+                "timedOut": false
+            },
+            "race": {
+                "created": "a90b2a92-5632-4cbc-9a4f-bc5aa5a7cd6f",
+                "foundMs": 86,
+                "blockedMs": 5001,
+                "screen": [
+                    [5183, "bc89882e-d33c-4b87-8267-15e42942a564"],
+                    [5334, "1fcdb93c-1474-4a27-9a59-38d127d4d79c"]
+                ]
+            }
+        },
+        "renderer": {
+            "metrics": {
+                "windowS": 10,
+                "taskMsPerS": 6.99,
+                "scriptMsPerS": 2.65,
+                "layoutsPerS": 1,
+                "styleRecalcsPerS": 1,
+                "jsHeapMB": 49.7,
+                "nodes": 3018,
+                "listeners": 1167
+            },
+            "trace": {
+                "windowS": 5,
+                "events": 1436,
+                "timerFiresPerS": 2.2,
+                "animationFramesPerS": 0,
+                "topFunctionCalls": [
+                    "11.8 ms performWorkUntilDeadline index-DDgLSaCS.js:178140",
+                    "7.4 ms (anonymous) monaco-YhQxO6qw.js:3117",
+                    "6.3 ms observerCallback index-DDgLSaCS.js:66937",
+                    "0.9 ms wsConn.onmessage index-DDgLSaCS.js:19932",
+                    "0.8 ms (anonymous) index-DDgLSaCS.js:115640",
+                    "0.3 ms (anonymous) index-DDgLSaCS.js:186971",
+                    "0.1 ms (anonymous) index-DDgLSaCS.js:156555",
+                    "0.1 ms sendPing index-DDgLSaCS.js:20033"
+                ]
+            }
+        },
+        "leaks": {
+            "afterDeletes": {
+                "tabViews": 6,
+                "spares": 1,
+                "unresponsive": 0,
+                "leaked": 4,
+                "webviews": 0,
+                "deleted": 4
+            },
+            "gatedLoops": {
+                "loops": 5,
+                "tabViews": 11,
+                "spares": 1,
+                "unresponsive": 0,
+                "leaked": 9,
+                "webviews": 0
+            },
+            "loops": {
+                "loops": 20,
+                "tabViews": 11,
+                "spares": 1,
+                "unresponsive": 0,
+                "leaked": 9,
+                "webviews": 0,
+                "memBeforeMB": 1537.1,
+                "memAfterMB": 2999.1
+            }
+        },
+        "load": {
+            "busyProcesses": 12,
+            "timeoutS": 30,
+            "wavesrvReady": 329,
+            "createWin": 713,
+            "initBare": 18107,
+            "waveReady": 18544,
+            "firstTabviewInitMs": 17047,
+            "tabviewInits": [17047, 12658],
+            "timedOut": false,
+            "onScreen": ["da8ee101-9919-4beb-b2ff-149e4695978c"],
+            "blank": 0
+        },
+        "mods": {
+            "on": {
+                "tabviewInitMs": 1733,
+                "cpuPct": 1.87,
+                "memMB": 741.8
+            },
+            "off": {
+                "tabviewInitMs": 1508,
+                "cpuPct": 2.65,
+                "memMB": 744.9
+            }
+        }
+    },
+    "errors": []
+}
