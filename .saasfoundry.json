@@ -111,7 +111,13 @@
     ".agents/skills/sf-workflow/statuses/2c-spawning.md": "66c6845fd89e09518380a4398174d316413770505707e6e7a18ce6ac72a20042",
     ".agents/skills/sf-workflow/statuses/3-ai-testing.md": "adb0df5106f7668e23fcc68c39d4d6cd43381bb74576b5653d93d0ec1a62b76b",
     ".agents/skills/sf-workflow/statuses/4-in-review.md": "b4237b12ca9b137671317f9e4e75135fa084a191d6fd2efa202f7645a7e49309",
-    ".agents/skills/sf-workflow/statuses/5-done.md": "c2142db8097ce25a648ac06d61163803a65c0b9647ed5672a1fe354751f5d7b1"
+    ".agents/skills/sf-workflow/statuses/5-done.md": "c2142db8097ce25a648ac06d61163803a65c0b9647ed5672a1fe354751f5d7b1",
+    ".agents/skills/sf-srs/scripts/detect-eval-signals.sh": "68a1276a31747af6fca4f2ede3365936d9c16db630621dcbfd279dd7b0e7e943",
+    ".agents/skills/sf-srs/scripts/srs-cli.sh": "6beef7c860b237e94bc4f8dfef85e84f2129eb368c5fb4c79524a4f9742a680e",
+    ".agents/skills/sf-srs/SKILL.md": "3568fa1ec932057acd79afbf0c960f25ecc09e40c59fec798f6fc51bd94bbfda",
+    ".agents/skills/sf-srs/templates/examples/example-epic.md": "353c7ab168a78283a0051f48b91775550b218ff25bf9e87ff9b668fdefa9864f",
+    ".agents/skills/sf-srs/templates/examples/example-three-levels.spec.json": "710c232072e333a0fb6918629e25d3caa73952ea2bf4d11b284703cd0fbcb41c",
+    ".agents/skills/sf-srs/templates/pages/README.md": "6f9748935e491e82a3064a443907545cf9c806c38f534428b3c11dbb6532c3db"
   },
   "workflow": {
     "template": "SaaSFoundry Solo",
