@@ -12,6 +12,7 @@ import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 import { ciCancel, missionCancel, MissionCiEvent, MissionRouteId, MissionRunEvent } from "./mission/mission-client";
+import { TabActivity, whileShown } from "./tab-activity";
 import { GoldUpdateModel } from "./update/update-store";
 
 // must match WorkItem in pkg/molten/mission/work.go
@@ -98,10 +99,16 @@ export function useRunningWork(): WorkItem[] {
         };
     }, []);
     const busy = items.length > 0;
-    useEffect(() => {
-        const timer = setInterval(() => setTick((t) => t + 1), busy ? WorkPollMs : IdlePollMs);
-        return () => clearInterval(timer);
-    }, [busy]);
+    // The run and CI events keep the bell current while it is hidden too; the poll only catches what they miss.
+    useEffect(
+        () =>
+            TabActivity.getInstance().every(
+                whileShown(busy ? WorkPollMs : IdlePollMs),
+                () => setTick((t) => t + 1),
+                "bell-work"
+            ),
+        [busy]
+    );
     if (!updating) {
         return items;
     }

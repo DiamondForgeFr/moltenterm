@@ -19,6 +19,7 @@ import {
     registerNotificationGesture,
     resolveMoltentermNotification,
 } from "../notifications-store";
+import { TabActivity, whileShown } from "../tab-activity";
 import {
     installedSince,
     shouldOffer,
@@ -105,11 +106,15 @@ export class GoldUpdateModel {
         });
         this.announceInstalled();
         this.check();
-        const timer = setInterval(() => this.check(), UpdateCheckIntervalMs);
+        const stop = TabActivity.getInstance().every(
+            whileShown(UpdateCheckIntervalMs),
+            () => this.check(),
+            "update-check"
+        );
         const onFocus = () => this.check();
         window.addEventListener("focus", onFocus);
         return () => {
-            clearInterval(timer);
+            stop();
             window.removeEventListener("focus", onFocus);
             unregister();
             this.started = false;

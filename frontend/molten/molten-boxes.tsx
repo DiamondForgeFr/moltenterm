@@ -9,6 +9,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
+import { TabActivity, whileShown } from "../moltenterm-shell/tab-activity";
 import type { MoltenBoxAction } from "./molten-api";
 import type { MoltenBoxEntry, MoltenHost } from "./molten-host";
 
@@ -163,10 +164,10 @@ export function MoltenBoxes({ host }: { host: MoltenHost }) {
             });
         };
         update();
-        const timer = setInterval(update, PositionPollMs);
+        const stop = TabActivity.getInstance().every(whileShown(PositionPollMs), update, "molten-box-anchors");
         window.addEventListener("resize", update);
         return () => {
-            clearInterval(timer);
+            stop();
             window.removeEventListener("resize", update);
         };
     }, [blockKey, host]);

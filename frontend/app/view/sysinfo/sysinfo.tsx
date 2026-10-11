@@ -16,6 +16,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { MetaKeyAtomFnType, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
+import { SysinfoUnfocusedRedrawMs, useActivityGatedValue } from "../../../moltenterm-shell/tab-activity"; // MOLTENTERM-PATCH (#455)
 
 export type SysinfoEnv = WaveEnvSubset<{
     rpc: {
@@ -125,10 +126,12 @@ class SysinfoViewModel implements ViewModel {
     endIconButtons: jotai.Atom<IconButtonDecl[]>;
     plotTypeSelectedAtom: jotai.Atom<string>;
     env: SysinfoEnv;
+    panelFocusedAtom: jotai.Atom<boolean>; // MOLTENTERM-PATCH (#455)
 
-    constructor({ blockId, waveEnv }: ViewModelInitType) {
+    constructor({ blockId, waveEnv, nodeModel }: ViewModelInitType) {
         this.viewType = "sysinfo";
         this.blockId = blockId;
+        this.panelFocusedAtom = nodeModel?.isFocused ?? jotai.atom(false); // MOLTENTERM-PATCH (#455)
         this.env = waveEnv;
         this.addInitialDataAtom = jotai.atom(null, (get, set, points) => {
             const targetLen = get(this.numPoints) + 1;
@@ -523,7 +526,10 @@ function SingleLinePlot({
 }
 
 const SysinfoViewInner = React.memo(({ model }: SysinfoViewProps) => {
-    const plotData = jotai.useAtomValue(model.dataAtom);
+    // MOLTENTERM-PATCH (#455): each redraw rebuilds the whole SVG; it follows every sample only while the window and
+    // this panel are focused, every 5 s otherwise, and not while hidden (FR-PERF-009-AC3)
+    const panelFocused = jotai.useAtomValue(model.panelFocusedAtom);
+    const plotData = useActivityGatedValue(model.dataAtom, panelFocused, SysinfoUnfocusedRedrawMs);
     const yvals = jotai.useAtomValue(model.metrics);
     const plotMeta = jotai.useAtomValue(model.plotMetaAtom);
     const osRef = React.useRef<OverlayScrollbarsComponentRef>(null);

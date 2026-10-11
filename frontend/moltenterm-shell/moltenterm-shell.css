@@ -528,6 +528,27 @@
     }
 }
 
+/* FR-PERF-009-AC4: the working indicators stay visible but stand still whenever this view is not the active one (the
+   window unfocused or minimised, another tab or workspace on screen): the tab activity model sets data-mt-motion on
+   the root (tab-activity.ts). An infinite animation makes Chromium draw a frame at every display refresh even where
+   nobody looks. mt-working-motion marks Tailwind's animate-pulse and animate-spin used as working indicators (the rail
+   dot, the bell's ring), which also stand still under reduced motion. */
+:root[data-mt-motion="still"] .mt-step-blink,
+:root[data-mt-motion="still"] .mt-step-ping,
+:root[data-mt-motion="still"] .mt-step-spin,
+:root[data-mt-motion="still"] .mt-working-motion,
+:root[data-mt-motion="still"] .block.block-frame-default[data-mt-agent-state]::after,
+.prefers-reduced-motion .mt-working-motion,
+.prefers-reduced-motion .block.block-frame-default[data-mt-agent-state]::after {
+    animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-working-motion {
+        animation: none;
+    }
+}
+
 /* The pending state of a tab view (#450, DS-PERF-005): a view reports no progress while it loads, so the line sweeps,
    quietly, under the workspace's name. The overlay fades in, so a switch that lands just after the grace barely shows. */
 .molten-view-pending-line {

@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { EmptyState, EmptyStateDetails } from "../empty-state";
 import { MoltenWave } from "../molten-button";
+import { TabActivity, whileShown } from "../tab-activity";
 import { pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { chooseMoltentermPath, linkWorkspaceProject, ProjectFacts, readProjectFacts } from "../workspace-project-store";
 import { FolderEntry, gitProblem, sortFolderEntries } from "./git-problem";
@@ -152,8 +153,7 @@ export function MissionHeader({
 }) {
     const [now, setNow] = useState(Date.now());
     useEffect(() => {
-        const timer = setInterval(() => setNow(Date.now()), 30000);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(whileShown(30000), () => setNow(Date.now()), "clock");
     }, []);
     const name = project.facts?.name ?? pathBaseName(project.dir);
     const at = Math.max(snapshot?.gitat ?? 0, snapshot?.githubat ?? 0);

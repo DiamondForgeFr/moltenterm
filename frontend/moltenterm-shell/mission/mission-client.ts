@@ -8,6 +8,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useState } from "react";
+import { TabActivity, whileShown } from "../tab-activity";
 import { BuildsFacts } from "./builds-model";
 import { CiRunRecord, CiState, upsertCiRun } from "./ci-model";
 import {
@@ -207,14 +208,14 @@ export function useMissionSnapshot(dir: string): MissionState {
             },
         });
         ask((d) => missionGet(d));
-        const timer = setInterval(() => {
-            if (document.visibilityState === "visible") {
-                ask((d) => missionGet(d));
-            }
-        }, MissionPollMs);
+        const stop = TabActivity.getInstance().every(
+            whileShown(MissionPollMs),
+            () => ask((d) => missionGet(d)),
+            "mission"
+        );
         return () => {
             unsubscribe();
-            clearInterval(timer);
+            stop();
         };
     }, [dir, ask]);
     const refresh = useCallback(() => ask(missionRefresh), [ask]);
@@ -398,12 +399,7 @@ export function useReleaseSession(dir: string): { session: ReleaseSession; reloa
     useEffect(() => {
         setSession(null);
         load();
-        const timer = setInterval(() => {
-            if (document.visibilityState === "visible") {
-                load();
-            }
-        }, ReleaseSessionPollMs);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(whileShown(ReleaseSessionPollMs), load, "mission-release-session");
     }, [load]);
     return { session, reload: load };
 }
@@ -467,17 +463,15 @@ export function useReleaseFacts(dir: string, bump: string): { facts: ReleaseFact
         };
     }, [dir, bump, tick]);
     const followed = !!facts?.tag;
-    useEffect(() => {
-        const timer = setInterval(
-            () => {
-                if (document.visibilityState === "visible") {
-                    reload();
-                }
-            },
-            followed ? ReleaseFactsPollMs : ReleaseIdlePollMs
-        );
-        return () => clearInterval(timer);
-    }, [followed, reload]);
+    useEffect(
+        () =>
+            TabActivity.getInstance().every(
+                whileShown(followed ? ReleaseFactsPollMs : ReleaseIdlePollMs),
+                reload,
+                "mission-release-facts"
+            ),
+        [followed, reload]
+    );
     return { facts, reload };
 }
 

@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ScrimClass } from "../dialog-frame";
 import { MoltenWave } from "../molten-button";
+import { TabActivity, whileShown } from "../tab-activity";
 import { pathParent } from "../workspace-project";
 import { buildCardTitle, BuildManifest, BuildPhaseDef, BuildPhaseStatus, buildRunView } from "./builds-model";
 import { missionBuilds, missionCancel, missionClose, missionLog, missionRun, missionTrust } from "./mission-client";
@@ -189,10 +190,10 @@ export function useRunLog(run: RunRecord): string {
                 cancelled = true;
             };
         }
-        const timer = setInterval(read, 1000);
+        const stop = TabActivity.getInstance().every(whileShown(1000), read, "run-log");
         return () => {
             cancelled = true;
-            clearInterval(timer);
+            stop();
         };
     }, [run.id, run.state, run.logsize]);
     return text;
