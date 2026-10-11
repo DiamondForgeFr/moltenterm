@@ -202,6 +202,10 @@ function tryEvictEntry(tabView: WaveTabView): boolean {
     if (tabView == null || tabView.isActiveTab) {
         return false;
     }
+    // Only a hidden view goes: one still loading or ready is being shown by its window (a wake during a switch).
+    if (hostEnabled && registry.stateOf(tabView) !== "hidden") {
+        return false;
+    }
     // A tab view holding a browser tab an agent drives stays, so its page keeps running and can be read and captured
     // while the tab is hidden (#301, FR-BRW-009); so does one showing a browser panel with a loaded page, driven or
     // not: its page (a sign-in, a form) survives the wake refresh and the cache eviction (#375).
@@ -261,7 +265,15 @@ export async function acquireViewForTab(
     deadline: number,
     cancelled: Promise<void>
 ): Promise<AcquiredTabView> {
-    const cached = getWaveTabView(tabId);
+    let cached = getWaveTabView(tabId);
+    // A view kept by another window (its workspace now opens here) is not this window's to show: the other window
+    // closes it and this one builds its own (#68 keeps the views of a workspace left, not only its active tab's).
+    const owner = registry.windowOf(cached);
+    if (cached != null && hostEnabled && owner !== waveWindowId && !registry.isActive(cached)) {
+        console.log("[#461] tab view kept by another window, closing it", tabId, owner);
+        destroyTabView(cached, "its tab opened in another window");
+        cached = null;
+    }
     if (cached != null) {
         return { view: cached, initialized: true, fullConfig: null };
     }
@@ -414,6 +426,9 @@ function activateTabView(win: WaveBrowserWindow, tabView: WaveTabView, oldActive
 }
 
 function restoreActiveTabView(win: WaveBrowserWindow, oldActiveView: WaveTabView) {
+    if (oldActiveView != null && !registry.isLive(oldActiveView)) {
+        oldActiveView = null;
+    }
     registry.activate(win.waveWindowId, oldActiveView, "given back after a failed show");
     if (oldActiveView != null) {
         oldActiveView.isActiveTab = true;
@@ -496,6 +511,7 @@ async function setTabViewIntoWindow(
         if (reinitDone != null) {
             // A superseded switch leaves the reused view off-screen, in the cache (#68, #449).
             await run.race(withTimeout(reinitDone, Math.min(MoltentermReinitTimeoutMs, run.remainingMs())));
+            throwIfGone(tabView, "while it reinitialized");
             activateTabView(win, tabView, oldActiveView);
         }
         positionWindowTabViews(win);
@@ -572,7 +588,16 @@ async function initializeTab(
         throw new Error(`tab view ${tabView.waveTabId} not ready by the readiness deadline`);
     }
     console.log("wave-ready init time", Date.now() - startTime + "ms");
+    throwIfGone(tabView, "while it loaded");
     registry.markReady(tabView, tabView.isWaveReady ? "rendered" : "shown at the readiness deadline (#68)");
+}
+
+// A view destroyed while its window waited on it (a sweep, a wake) is never shown: the action fails instead (Wave and
+// #68 showed the dead view, a blank window).
+function throwIfGone(tabView: WaveTabView, when: string) {
+    if (hostEnabled && !registry.isLive(tabView)) {
+        throw new Error(`tab view ${tabView.waveTabId} destroyed ${when}`);
+    }
 }
 
 // The first time an action's readiness deadline passes, a view still loading is kept and gets one more readiness
