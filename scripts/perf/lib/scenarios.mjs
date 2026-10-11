@@ -105,6 +105,30 @@ async function memoryWithViews(inst, driver) {
   return { ...mem, views, procs: undefined };
 }
 
+// The programs wavesrv started for its own work (FR-PERF-011, pkg/molten/spawns); null on a build without the counter.
+const SpawnsExpr = `TabRpcClient.wshRpcCall("moltenmissionspawns", {}, { route: "molten:mission", timeout: 5000 })`;
+
+async function readSpawns(driver) {
+  try {
+    return await driver.pageEval(SpawnsExpr);
+  } catch {
+    return null;
+  }
+}
+
+// git and gh started per minute between two reads of the counter.
+export function spawnsPerMinute(before, after) {
+  if (before?.counts == null || after?.counts == null || !(after.at > before.at)) {
+    return null;
+  }
+  const gitGh = (s) => (s.counts.git ?? 0) + (s.counts.gh ?? 0);
+  const minutes = (after.at - before.at) / 60000;
+  return {
+    gitGhPerMin: round((gitGh(after) - gitGh(before)) / minutes, 2),
+    totalPerMin: round((after.total - before.total) / minutes, 2),
+  };
+}
+
 async function idleCondition(ctx, inst, driver, label, { withRenderer = false } = {}) {
   const p = ctx.profile;
   const out = {};
@@ -116,8 +140,9 @@ async function idleCondition(ctx, inst, driver, label, { withRenderer = false } 
     }
     const window = await driver.windowState();
     log(`idle ${label} ${state}: sampling ${p.samples} x ${p.intervalS} s`);
+    const spawnsBefore = await readSpawns(driver);
     const cpu = await sampleCpu(inst.pid, { samples: p.samples, intervalS: p.intervalS });
-    out[state] = { ...cpu, window };
+    out[state] = { ...cpu, window, spawns: spawnsPerMinute(spawnsBefore, await readSpawns(driver)) };
     ctx.details.idle[`${label} ${state}`] = out[state];
     if (state === "visible") {
       // A few snapshots, so that memory gets a median and a spread like CPU (the GPU process moves the most).
@@ -240,6 +265,9 @@ export async function runSession(ctx) {
     const idle1 = await idleCondition(ctx, inst, driver, "1 ws", { withRenderer: true });
     ctx.metrics["idle.cpu1wsVisiblePct"] = idle1.visible.total;
     ctx.metrics["idle.cpu1wsMinimisedPct"] = idle1.minimised.total;
+    if (idle1.visible.spawns != null) {
+      ctx.metrics["idle.spawns1wsPerMin"] = single(idle1.visible.spawns.gitGhPerMin);
+    }
     ctx.metrics["mem.total1wsMB"] = idle1.memory.total;
     ctx.metrics["renderer.taskMsPerS"] = single(ctx.details.renderer.metrics.taskMsPerS);
     ctx.metrics["renderer.timerFiresPerS"] = single(ctx.details.renderer.trace.timerFiresPerS);
@@ -288,6 +316,9 @@ export async function runSession(ctx) {
     const idle6 = await idleCondition(ctx, inst, driver, "6 ws");
     ctx.metrics["idle.cpu6wsVisiblePct"] = idle6.visible.total;
     ctx.metrics["idle.cpu6wsMinimisedPct"] = idle6.minimised.total;
+    if (idle6.visible.spawns != null) {
+      ctx.metrics["idle.spawns6wsPerMin"] = single(idle6.visible.spawns.gitGhPerMin);
+    }
     ctx.metrics["mem.total6wsMB"] = idle6.memory.total;
     ctx.metrics["mem.gpu6wsMB"] = idle6.memory.gpu;
     ctx.metrics["mem.hiddenViewMB"] = idle6.memory.hiddenView;

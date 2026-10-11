@@ -3,7 +3,8 @@
 
 // The status bar's side of DS-SHELL-010: wavesrv probes the focused pane's tree (at most once a second per tree, off
 // the renderer); the bar asks again when the pane's folder changes, when its shell is back at the prompt (a checkout
-// just ran), when the project's CI or collector reports, and every few seconds for git run outside the terminal.
+// just ran), when the project's CI or collector reports, when wavesrv's watch sees git change the tree, and every few
+// seconds, which wavesrv answers from its last probe while the tree has not changed (FR-PERF-011).
 
 import { getBlockComponentModel } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -15,9 +16,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MissionCiEvent, missionGet, MissionRouteId, MissionUpdateEvent } from "./mission/mission-client";
 import { keepPaneState, PaneState } from "./status-bar-model";
 import { TabActivity, whileShown } from "./tab-activity";
+import { isShowing } from "./tab-activity-model";
 
 // must match PaneCommand in pkg/molten/mission/pane.go
 export const MissionPaneCommand = "moltenmissionpane";
+// must match PaneEvent in pkg/molten/mission/pane.go
+export const MissionPaneEvent = "molten:mission:pane";
 
 const PaneRpcTimeoutMs = 15000;
 const PanePollMs = 3000;
@@ -149,24 +153,43 @@ export function usePaneStatus(folder: string, blockId: string, worktree?: string
         }
         return watchPrompt(blockId, () => ask(true));
     }, [blockId, ask]);
+    const root = state?.root ?? "";
+    const linkedPath = state?.linked?.path ?? "";
+    useEffect(() => {
+        const trees = [...new Set([root, linkedPath].filter((tree) => tree))];
+        // A hidden tab asks again as it is shown.
+        const unsubscribes = trees.map((tree) =>
+            waveEventSubscribeSingle({
+                eventType: MissionPaneEvent as WaveEventName,
+                scope: tree,
+                handler: () => {
+                    if (isShowing(TabActivity.getInstance().state())) {
+                        ask(true);
+                    }
+                },
+            })
+        );
+        return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+    }, [root, linkedPath, ask]);
     const project = state?.project ?? "";
     useEffect(() => {
         if (!project) {
             return;
         }
+        // wavesrv reads the verdict and the pull request on every answer: no git probe for them.
         const unsubscribeCi = waveEventSubscribeSingle({
             eventType: MissionCiEvent as WaveEventName,
             scope: project,
             handler: (event) => {
                 if ((event.data as { status?: string })?.status !== "running") {
-                    ask(true);
+                    ask(false);
                 }
             },
         });
         const unsubscribeMission = waveEventSubscribeSingle({
             eventType: MissionUpdateEvent as WaveEventName,
             scope: project,
-            handler: () => ask(true),
+            handler: () => ask(false),
         });
         return () => {
             unsubscribeCi();
@@ -182,7 +205,7 @@ export function useWarmLinkedProject(dir: string) {
             return;
         }
         const warm = () => {
-            missionGet(dir).catch(() => {});
+            missionGet(dir, undefined, true).catch(() => {});
         };
         warm();
         return TabActivity.getInstance().every(whileShown(LinkedProjectPollMs), warm, "linked-project");

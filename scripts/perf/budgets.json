@@ -124,6 +124,22 @@
             "gate": "local",
             "noiseFloor": 0.5
         },
+        "idle.spawns1wsPerMin": {
+            "nfr": "NFR-PERF-001",
+            "title": "git and gh started by wavesrv per minute, idle, 1 workspace visible (FR-PERF-011)",
+            "scenario": "session",
+            "unit": "/min",
+            "budget": 2,
+            "gate": "info"
+        },
+        "idle.spawns6wsPerMin": {
+            "nfr": "NFR-PERF-001",
+            "title": "git and gh started by wavesrv per minute, idle, 6 workspaces visited (FR-PERF-011)",
+            "scenario": "session",
+            "unit": "/min",
+            "budget": 2,
+            "gate": "info"
+        },
         "mem.total6wsMB": {
             "nfr": "NFR-PERF-002",
             "title": "Memory, 6 workspaces visited (macOS footprint)",
