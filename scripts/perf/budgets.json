@@ -225,7 +225,7 @@
         },
         "leak.memGrowthPerLoopMB": {
             "nfr": "NFR-PERF-006",
-            "title": "Memory growth per create/delete loop",
+            "title": "Memory growth per create/delete loop, over 20 loops",
             "unit": "MiB",
             "budget": 2,
             "gate": "local",
