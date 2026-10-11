@@ -99,7 +99,7 @@ class FakeWebContents {
     id = FakeWebContents.nextId++;
     destroyed = false;
     listeners = new Map<string, ((...args: any[]) => void)[]>();
-    sent: { channel: string; args: any[] }[] = [];
+    sent: { channel: string; args: any[]; t: number }[] = [];
 
     on(ev: string, fn: (...args: any[]) => void) {
         this.listeners.set(ev, [...(this.listeners.get(ev) ?? []), fn]);
@@ -117,7 +117,7 @@ class FakeWebContents {
         h.scheduleBoot(this);
     }
     send(channel: string, ...args: any[]) {
-        this.sent.push({ channel, args });
+        this.sent.push({ channel, args, t: Date.now() });
         if (channel === "wave-init") {
             h.scheduleRender(this, args[0]);
         }
@@ -136,6 +136,17 @@ class FakeWebContents {
     focus() {}
     isFocused() {
         return true;
+    }
+    isCrashed() {
+        return false;
+    }
+    // Chromium backgrounds a view's renderer while its throttling is allowed and it is not shown (#450).
+    throttling = true;
+    setBackgroundThrottling(allowed: boolean) {
+        this.throttling = allowed;
+    }
+    getBackgroundThrottling() {
+        return this.throttling;
     }
     isDevToolsOpened() {
         return true;
@@ -222,10 +233,13 @@ const h = {
     ipc: new Map<string, (...args: any[]) => any>(),
     dialogs: [] as string[],
     isDev: false,
+    settings: {} as Record<string, unknown>,
     // Renderers created while set never report "ready"; renderers never report "wave-ready" while set.
     silentBoot: false,
     silentRender: false,
     tabviewModule: null as any,
+    priorityModule: null as any,
+    startup: null as Promise<any>,
     scheduleBoot(wc: FakeWebContents) {
         const silent = h.silentBoot;
         setTimeout(() => {
@@ -266,7 +280,7 @@ const h = {
         }
         return win.contentView.children
             .filter((c) => c.bounds.x === 0 && c.bounds.y === 0 && c.bounds.width > 0)
-            .map((c) => c.waveTabId)
+            .map((c) => (c.moltenPendingView ? "(pending)" : c.waveTabId))
             .join(",");
     },
     // Read once the current task has run, as a compositor would: a view moved on and off screen within one task is
@@ -413,7 +427,7 @@ function makeServices() {
 let win: any;
 let mod: any;
 
-async function setup(opts: { isDev?: boolean } = {}) {
+async function setup(opts: { isDev?: boolean; settings?: Record<string, unknown>; silentStart?: boolean } = {}) {
     vi.resetModules();
     h.backend = new FakeBackend();
     h.windows = [];
@@ -424,8 +438,9 @@ async function setup(opts: { isDev?: boolean } = {}) {
     h.ipc = new Map();
     h.dialogs = [];
     h.isDev = opts.isDev ?? false;
-    h.silentBoot = false;
+    h.silentBoot = opts.silentStart ?? false;
     h.silentRender = false;
+    h.settings = opts.settings ?? {};
     vi.doMock("electron", () => ({
         BaseWindow: FakeBaseWindow,
         WebContentsView: FakeWebContentsView,
@@ -452,7 +467,7 @@ async function setup(opts: { isDev?: boolean } = {}) {
     vi.doMock("@/app/store/services", () => makeServices());
     vi.doMock("@/app/store/wps", () => ({ waveEventSubscribeSingle: () => {} }));
     vi.doMock("@/app/store/wshclientapi", () => ({
-        RpcApi: { GetFullConfigCommand: async () => ({ settings: {} }) },
+        RpcApi: { GetFullConfigCommand: async () => ({ settings: h.settings }) },
     }));
     vi.doMock("emain/emain-events", () => ({ globalEvents: { emit: () => {}, on: () => {} } }));
     vi.doMock("./emain-activity", () => ({
@@ -497,6 +512,8 @@ async function setup(opts: { isDev?: boolean } = {}) {
     }));
     h.tabviewModule = await import("./emain-tabview");
     mod = await import("./emain-window");
+    h.priorityModule = await import("./moltenterm-tabview-priority");
+    h.tabviewModule.ensureHotSpareTab({ settings: h.settings });
     const ws = h.backend.addWorkspace("Starter");
     h.backend.windows.set("win-1", { oid: "win-1", workspaceid: ws.oid });
     const waveWindow = {
@@ -507,12 +524,16 @@ async function setup(opts: { isDev?: boolean } = {}) {
     };
     const created = mod.createBrowserWindow(
         waveWindow,
-        { settings: {} },
+        { settings: h.settings },
         {
             unamePlatform: "darwin",
             isPrimaryStartupWindow: true,
         }
     );
+    if (opts.silentStart) {
+        h.startup = created;
+        return ws;
+    }
     await vi.advanceTimersByTimeAsync(2000);
     win = await created;
     expect(h.onScreen()).toBe(ws.activetabid);
@@ -536,12 +557,14 @@ async function addVisitedWorkspace(): Promise<FakeWs> {
 }
 
 async function warmSpare() {
-    h.tabviewModule.ensureHotSpareTab({ settings: {} });
+    h.tabviewModule.ensureHotSpareTab({ settings: h.settings });
     await vi.advanceTimersByTimeAsync(RendererBootMs + 50);
 }
 
 function liveTabViews(): string[] {
-    return h.allViews.filter((v) => !v.webContents.destroyed).map((v: any) => v.waveTabId ?? "(spare)");
+    return h.allViews
+        .filter((v: any) => !v.webContents.destroyed && !v.moltenPendingView)
+        .map((v: any) => v.waveTabId ?? "(spare)");
 }
 
 function screenSince(t0: number): [number, string][] {
@@ -688,7 +711,7 @@ describe("window action queue: interleavings", () => {
         await setup();
         const targets = [1, 2, 3].map((i) => h.backend.addWorkspace(`W${i}`));
         h.tabviewModule.discardHotSpareTab();
-        h.tabviewModule.ensureHotSpareTab({ settings: {} });
+        h.tabviewModule.ensureHotSpareTab({ settings: h.settings });
         const viewsBefore = h.allViews.length;
         const clicks = [0, 1, 2, 0, 1, 2, 1];
         for (const i of clicks) {
@@ -770,51 +793,125 @@ describe("window action queue: interleavings", () => {
     });
 });
 
-describe("window action queue: one readiness deadline", () => {
+function pendingMessages(view: any): [number, any][] {
+    return view.webContents.sent
+        .filter((m: any) => m.channel === "moltenterm-view-pending")
+        .map((m: any) => [m.t, m.args[0]]);
+}
+
+function lastPending(view: any): any {
+    const all = pendingMessages(view);
+    return all.length === 0 ? undefined : all[all.length - 1][1];
+}
+
+function viewsForTab(tabId: string): any[] {
+    return h.allViews.filter((v: any) => v.waveTabId === tabId);
+}
+
+function pendingAction(view: any, action: string) {
+    h.ipc.get("moltenterm-view-pending-action")({ sender: { id: view.webContents.id } }, action);
+}
+
+describe("window action queue: one readiness deadline, one retry (#449, #450)", () => {
     it.each([
         [false, 10000],
         [true, 5000],
-    ])("gives up on a view that never initializes at the deadline (dev %s, %i ms)", async (isDev, deadlineMs) => {
-        const starter = await setup({ isDev });
+    ])(
+        "keeps a view still loading at the deadline, retries once, then offers Reload (dev %s, %i ms)",
+        async (isDev, deadlineMs) => {
+            const starter = await setup({ isDev });
+            await warmSpare();
+            const a = h.backend.addWorkspace("A");
+            h.silentBoot = true;
+            h.tabviewModule.discardHotSpareTab();
+            h.tabviewModule.ensureHotSpareTab({ settings: h.settings });
+            const starterView = win.activeTabView;
+            const t0 = Date.now();
+            ipc("switch-workspace", a.oid);
+            await vi.advanceTimersByTimeAsync(100);
+            expect(lastPending(starterView)).toEqual({ phase: "loading", workspaceName: "A" });
+            await vi.advanceTimersByTimeAsync(deadlineMs);
+            // Before #450: the view was dropped at the deadline and nothing retried.
+            expect(queueLength()).toBe(1);
+            expect(lastPending(starterView)).toEqual({ phase: "retrying", workspaceName: "A" });
+            expect(viewsForTab(a.activetabid).map((v) => v.webContents.destroyed)).toEqual([false]);
+            expect(h.onScreen()).toBe(starter.activetabid);
+            await vi.advanceTimersByTimeAsync(deadlineMs);
+            expect(queueLength()).toBe(0);
+            expect(Date.now() - t0).toBeLessThanOrEqual(2 * deadlineMs + 200);
+            expect(win.workspaceId).toBe(starter.oid);
+            expect(backendWindowWs()).toBe(starter.oid);
+            expect(h.onScreen()).toBe(starter.activetabid);
+            expect(lastPending(starterView)).toEqual({ phase: "failed", workspaceName: "A" });
+            // One view for the tab the whole time: kept and retried, never destroyed and recreated before giving up.
+            expect(viewsForTab(a.activetabid)).toHaveLength(1);
+            expect(liveTabViews()).not.toContain(a.activetabid);
+            h.silentBoot = false;
+            h.tabviewModule.discardHotSpareTab();
+            await warmSpare();
+            pendingAction(starterView, "reload");
+            await vi.advanceTimersByTimeAsync(1000);
+            expect(h.onScreen()).toBe(a.activetabid);
+            expect(win.workspaceId).toBe(a.oid);
+            expect(lastPending(starterView)).toBeNull();
+        }
+    );
+
+    it("shows a view that finishes booting during the retry, without recreating it", async () => {
+        await setup();
         await warmSpare();
         const a = h.backend.addWorkspace("A");
         h.silentBoot = true;
         h.tabviewModule.discardHotSpareTab();
-        h.tabviewModule.ensureHotSpareTab({ settings: {} });
-        const t0 = Date.now();
-        ipc("switch-workspace", a.oid);
-        await vi.advanceTimersByTimeAsync(deadlineMs - 100);
-        expect(queueLength()).toBe(1);
-        await vi.advanceTimersByTimeAsync(200);
-        // Before #449: 5 s for the spare, then 15 s for the fresh view (35 s and more with the init wait).
-        expect(queueLength()).toBe(0);
-        expect(Date.now() - t0).toBeLessThanOrEqual(deadlineMs + 100);
-        expect(win.workspaceId).toBe(starter.oid);
-        expect(backendWindowWs()).toBe(starter.oid);
-        expect(h.onScreen()).toBe(starter.activetabid);
-        expect(win.allLoadedTabViews.has(a.activetabid)).toBe(false);
-        expect(liveTabViews()).not.toContain(a.activetabid);
+        h.tabviewModule.ensureHotSpareTab({ settings: h.settings });
         h.silentBoot = false;
-        h.tabviewModule.discardHotSpareTab();
-        await warmSpare();
+        const starterView = win.activeTabView;
         ipc("switch-workspace", a.oid);
-        await vi.advanceTimersByTimeAsync(1000);
+        await vi.advanceTimersByTimeAsync(12000);
+        expect(lastPending(starterView)).toEqual({ phase: "retrying", workspaceName: "A" });
+        const [view] = viewsForTab(a.activetabid);
+        view.initResolve();
+        await vi.advanceTimersByTimeAsync(500);
         expect(h.onScreen()).toBe(a.activetabid);
+        expect(win.workspaceId).toBe(a.oid);
+        expect(viewsForTab(a.activetabid)).toEqual([view]);
+        expect(lastPending(starterView)).toBeNull();
     });
 
-    it("shows a view that initialized but did not report ready by the deadline (#68)", async () => {
+    it("dismisses a failed pending state and stays on the workspace on screen", async () => {
+        const starter = await setup({ isDev: true });
+        await warmSpare();
+        const a = h.backend.addWorkspace("A");
+        h.silentBoot = true;
+        h.tabviewModule.discardHotSpareTab();
+        h.tabviewModule.ensureHotSpareTab({ settings: h.settings });
+        const starterView = win.activeTabView;
+        ipc("switch-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(10200);
+        expect(lastPending(starterView)?.phase).toBe("failed");
+        pendingAction(starterView, "dismiss");
+        expect(lastPending(starterView)).toBeNull();
+        expect(h.onScreen()).toBe(starter.activetabid);
+    });
+
+    it("shows a view that initialized but did not report ready after the retry (#68)", async () => {
         await setup();
         await warmSpare();
         const a = h.backend.addWorkspace("A");
         h.silentRender = true;
+        const starterView = win.activeTabView;
         const t0 = Date.now();
         ipc("switch-workspace", a.oid);
-        await vi.advanceTimersByTimeAsync(9900);
+        await vi.advanceTimersByTimeAsync(10100);
         expect(h.onScreen()).not.toBe(a.activetabid);
-        await vi.advanceTimersByTimeAsync(200);
+        expect(lastPending(starterView)?.phase).toBe("retrying");
+        await vi.advanceTimersByTimeAsync(9800);
+        expect(h.onScreen()).not.toBe(a.activetabid);
+        await vi.advanceTimersByTimeAsync(300);
         expect(h.onScreen()).toBe(a.activetabid);
         expect(win.workspaceId).toBe(a.oid);
-        expect(screenSince(t0).find((e) => e[1] === a.activetabid)[0]).toBeLessThanOrEqual(10050);
+        expect(screenSince(t0).find((e) => e[1] === a.activetabid)[0]).toBeLessThanOrEqual(20200);
+        expect(lastPending(starterView)).toBeNull();
     });
 
     it("drops a view whose tab was deleted meanwhile instead of showing it", async () => {
@@ -822,14 +919,170 @@ describe("window action queue: one readiness deadline", () => {
         await warmSpare();
         const a = h.backend.addWorkspace("A");
         h.silentRender = true;
+        const starterView = win.activeTabView;
         ipc("switch-workspace", a.oid);
         await vi.advanceTimersByTimeAsync(500);
         h.backend.tabs.delete(a.activetabid);
-        await vi.advanceTimersByTimeAsync(10000);
+        await vi.advanceTimersByTimeAsync(20500);
         expect(h.onScreen()).toBe(starter.activetabid);
         expect(win.workspaceId).toBe(starter.oid);
         expect(backendWindowWs()).toBe(starter.oid);
         expect(liveTabViews()).not.toContain(a.activetabid);
+        // Not a readiness failure: no Reload is offered for a workspace that is gone.
+        expect(lastPending(starterView)).toBeNull();
+    });
+});
+
+describe("window pending state (#450)", () => {
+    it("shows the pending state within 100 ms while a view loads and clears it when the view is on screen", async () => {
+        await setup();
+        const a = h.backend.addWorkspace("A");
+        h.tabviewModule.discardHotSpareTab();
+        const starterView = win.activeTabView;
+        const t0 = Date.now();
+        ipc("switch-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(50);
+        expect(pendingMessages(starterView)).toEqual([]);
+        await vi.advanceTimersByTimeAsync(50);
+        const [[shownAt, state]] = pendingMessages(starterView);
+        expect(shownAt - t0).toBeLessThanOrEqual(100);
+        expect(state).toEqual({ phase: "loading", workspaceName: "A" });
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(h.onScreen()).toBe(a.activetabid);
+        const clearedAt = pendingMessages(starterView).find((m) => m[1] == null)[0];
+        const shownOnScreenAt = screenSince(t0).find((e) => e[1] === a.activetabid)[0] + t0;
+        expect(clearedAt).toBeGreaterThanOrEqual(shownOnScreenAt);
+        expect(clearedAt - shownOnScreenAt).toBeLessThan(20);
+        // The view that was loading never draws the pending state of its own switch.
+        expect(pendingMessages(win.activeTabView)).toEqual([]);
+    });
+
+    it("names the last workspace asked for when clicks come during a pending switch, and lands on it", async () => {
+        const starter = await setup();
+        const a = h.backend.addWorkspace("A");
+        const b = h.backend.addWorkspace("B");
+        h.tabviewModule.discardHotSpareTab();
+        const starterView = win.activeTabView;
+        const t0 = Date.now();
+        ipc("switch-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(150);
+        expect(lastPending(starterView)).toEqual({ phase: "loading", workspaceName: "A" });
+        ipc("switch-workspace", b.oid);
+        await vi.advanceTimersByTimeAsync(20);
+        expect(lastPending(starterView)).toEqual({ phase: "loading", workspaceName: "B" });
+        // The pending state stays on screen between the two switches.
+        const states = pendingMessages(starterView).map((m) => m[1]);
+        expect(states.indexOf(null)).toBe(-1);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(win.workspaceId).toBe(b.oid);
+        expect(h.onScreen()).toBe(b.activetabid);
+        expect(screenSince(t0).some((e) => e[1] === a.activetabid)).toBe(false);
+        expect(screenSince(t0).every((e) => e[1] === starter.activetabid || e[1] === b.activetabid)).toBe(true);
+        expect(lastPending(starterView)).toBeNull();
+    });
+
+    it("a launch whose first tab is slow shows the pending page, never an empty window, and offers Reload", async () => {
+        const ws = await setup({ silentStart: true });
+        await vi.advanceTimersByTimeAsync(100);
+        const w = h.windows[0];
+        await vi.advanceTimersByTimeAsync(2800);
+        expect(w.visible).toBe(false);
+        await vi.advanceTimersByTimeAsync(200);
+        expect(w.visible).toBe(true);
+        expect(h.onScreen()).toBe("(pending)");
+        const page: any = h.allViews.find((v: any) => v.moltenPendingView);
+        expect(page.moltenPendingState).toBe("loading");
+        await vi.advanceTimersByTimeAsync(7000);
+        expect(page.moltenPendingState).toBe("retrying");
+        await vi.advanceTimersByTimeAsync(10100);
+        expect(page.moltenPendingState).toBe("failed");
+        expect(h.onScreen()).toBe("(pending)");
+        win = await h.startup;
+        h.silentBoot = false;
+        h.tabviewModule.discardHotSpareTab();
+        await warmSpare();
+        page.webContents.emit("will-navigate", { preventDefault: () => {} }, "moltenterm-pending://reload");
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(h.onScreen()).toBe(ws.activetabid);
+        expect(page.webContents.destroyed).toBe(true);
+        // Once the window is visible it always shows the pending page or a tab, never nothing.
+        expect(h.screen.filter((e) => e[0] >= 3000 && e[1] === "")).toEqual([]);
+    });
+
+    it("a launch whose first tab loads in time never shows the pending page", async () => {
+        const ws = await setup();
+        expect(h.allViews.some((v: any) => v.moltenPendingView)).toBe(false);
+        expect(h.onScreen()).toBe(ws.activetabid);
+    });
+});
+
+describe("tab view priority (#450, FR-PERF-004 AC1)", () => {
+    // The newest view with no tab (a view taken for a tab gets its tab id only once acquired).
+    function spare(): any {
+        return h.allViews
+            .filter((v: any) => v.waveTabId == null && !v.moltenPendingView && !v.webContents.destroyed)
+            .pop();
+    }
+
+    it("raises the spare and the view being switched to, and restores the view once it is on screen", async () => {
+        await setup();
+        await warmSpare();
+        expect(spare().webContents.throttling).toBe(false);
+        expect(win.activeTabView.webContents.throttling).toBe(true);
+        const a = h.backend.addWorkspace("A");
+        ipc("switch-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(30);
+        const [view] = viewsForTab(a.activetabid);
+        expect(view.webContents.throttling).toBe(false);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(h.onScreen()).toBe(a.activetabid);
+        expect(view.webContents.throttling).toBe(true);
+        expect(spare().webContents.throttling).toBe(false);
+    });
+
+    it("raises a cached view being switched back to for the time of the switch", async () => {
+        const starter = await setup();
+        await addVisitedWorkspace();
+        const starterView = viewsForTab(starter.activetabid)[0];
+        const seen: boolean[] = [];
+        const orig = starterView.webContents.setBackgroundThrottling.bind(starterView.webContents);
+        starterView.webContents.setBackgroundThrottling = (allowed: boolean) => {
+            seen.push(allowed);
+            orig(allowed);
+        };
+        ipc("switch-workspace", starter.oid);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(h.onScreen()).toBe(starter.activetabid);
+        expect(seen).toEqual([false, true]);
+    });
+
+    it("a spare made while a view is being shown is raised only once that view is done", async () => {
+        await setup();
+        const a = h.backend.addWorkspace("A");
+        h.tabviewModule.discardHotSpareTab();
+        h.silentBoot = true;
+        ipc("switch-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(100);
+        h.silentBoot = false;
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(spare()).toBeDefined();
+        expect(spare().webContents.throttling).toBe(true);
+        await vi.advanceTimersByTimeAsync(20000);
+        expect(queueLength()).toBe(0);
+        expect(spare().webContents.throttling).toBe(false);
+    });
+
+    it("moltenterm:tabviewpriority false keeps Chromium's backgrounding", async () => {
+        await setup({ settings: { "moltenterm:tabviewpriority": false } });
+        await warmSpare();
+        expect(spare().webContents.throttling).toBe(true);
+        const a = h.backend.addWorkspace("A");
+        ipc("switch-workspace", a.oid);
+        await vi.advanceTimersByTimeAsync(30);
+        expect(viewsForTab(a.activetabid)[0].webContents.throttling).toBe(true);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(h.onScreen()).toBe(a.activetabid);
+        expect(h.allViews.every((v: any) => v.webContents.throttling)).toBe(true);
     });
 });
 

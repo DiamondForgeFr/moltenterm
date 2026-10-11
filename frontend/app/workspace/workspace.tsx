@@ -25,6 +25,7 @@ import {
 // MOLTENTERM-PATCH (#44, #55, #110)
 import { MoltentermStatusBar, MoltentermToolRail, MoltentermWorkspaceRail } from "../../moltenterm-shell/shell-flags";
 import { StatusBar } from "../../moltenterm-shell/status-bar"; // MOLTENTERM-PATCH (#55)
+import { ViewPendingOverlay } from "../../moltenterm-shell/view-pending"; // MOLTENTERM-PATCH (#450)
 import { WorkspaceRail } from "../../moltenterm-shell/workspace-rail"; // MOLTENTERM-PATCH (#44)
 
 const MacOSTabBarSpacer = memo(() => {
@@ -119,7 +120,8 @@ const WorkspaceElem = memo(() => {
             {/* MOLTENTERM-PATCH (#44): the workspace rail on the left of the content row */}
             <div className="flex flex-row flex-grow overflow-hidden">
             {MoltentermWorkspaceRail && <WorkspaceRail />}
-            <div ref={panelContainerRef} className="flex flex-row flex-grow overflow-hidden">
+            {/* MOLTENTERM-PATCH (#450): relative, for the pending state drawn over the panels */}
+            <div ref={panelContainerRef} className="relative flex flex-row flex-grow overflow-hidden">
                 <ErrorBoundary key={tabId}>
                     <PanelGroup
                         direction="horizontal"
@@ -176,6 +178,8 @@ const WorkspaceElem = memo(() => {
                     </PanelGroup>
                     <ModalsRenderer />
                 </ErrorBoundary>
+                {/* MOLTENTERM-PATCH (#450): another workspace's view is loading (FR-PERF-004) */}
+                <ViewPendingOverlay />
             </div>
             </div>
             {/* MOLTENTERM-PATCH (#55): the status bar under the content */}

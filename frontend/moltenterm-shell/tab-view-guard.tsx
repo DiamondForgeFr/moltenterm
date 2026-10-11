@@ -5,13 +5,18 @@ import { atoms, getApi } from "@/app/store/global";
 import * as WOS from "@/app/store/wos";
 import { atom, Atom, useAtomValue } from "jotai";
 import React, { ReactNode } from "react";
+import { PendingSurface } from "./view-pending";
 
 const NullTabAtom = atom<Tab>(null) as Atom<Tab>;
 
-// The pending state of a tab view (FR-PERF-001 AC4). FR-PERF-004 (#450) gives it its visible form; until then it only
-// keeps the window's background, never an unmounted, black root.
+// The pending state of a tab view (FR-PERF-001 AC4), in its visible form (FR-PERF-004, view-pending.tsx): never an
+// unmounted, black root.
 export function TabViewPending() {
-    return <div className="flex-grow w-full h-full" data-molten-view-pending="" />;
+    return (
+        <div className="flex-grow w-full h-full">
+            <PendingSurface phase="loading" />
+        </div>
+    );
 }
 
 type TabViewBoundaryProps = {
