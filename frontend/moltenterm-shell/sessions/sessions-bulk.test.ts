@@ -162,12 +162,12 @@ describe("bulk eligibility", () => {
         expect(busyNote("send", claude("a", { agentstate: "working" }), interrupt)).toBe("");
     });
 
-    it("says what ending each session stops (FR-SHELL-061)", () => {
+    it("says what ending a session with a busy agent loses (FR-SHELL-061)", () => {
         expect(busyNote("end", claude("a", { agentstate: "working" }))).toBe("working: its current task stops");
         expect(busyNote("end", claude("a", { agentstate: "waiting" }))).toBe("waiting for you: what it asked is lost");
         expect(busyNote("end", claude("a", { agentstate: "idle" }))).toBe("");
-        expect(busyNote("end", session("b", { command: "npm run dev" }))).toBe("running npm run dev");
-        expect(busyNote("end", session("c", { command: "zsh at prompt" }))).toBe("");
+        // The row's agent column already names the command.
+        expect(busyNote("end", session("b", { command: "npm run dev" }))).toBe("");
     });
 
     it("counts the sessions the confirmation reaches", () => {

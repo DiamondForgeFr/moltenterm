@@ -296,17 +296,14 @@ export function atPrompt(s: DurableSession): boolean {
     return !s.agent && (cmd.endsWith(AtPromptSuffix) || BareShell.test(cmd));
 }
 
-// What ending a session stops, for the confirmations listing several (FR-SHELL-061, DS-SHELL-108): what its agent
-// loses, or the command it runs; nothing for a shell at its prompt or an agent idle at its own.
+// What ending a session loses, for the confirmations listing several (FR-SHELL-061, DS-SHELL-108): their rows already
+// name the agent or the command each session runs, so the note only says what a working or waiting agent loses.
 export function endRunningNote(s: DurableSession): string {
     if (s.agent && s.agentstate === "working") {
         return "working: its current task stops";
     }
     if (s.agent && s.agentstate === "waiting") {
         return "waiting for you: what it asked is lost";
-    }
-    if (!s.agent && s.command && !atPrompt(s)) {
-        return `running ${s.command}`;
     }
     return "";
 }
