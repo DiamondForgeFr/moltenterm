@@ -18,29 +18,21 @@ import {
 } from "./emain-activity";
 import { log } from "./emain-log";
 import { getElectronAppBasePath, isDev, unamePlatform } from "./emain-platform";
-import { getOrCreateWebViewForTab, getWaveTabViewByWebContentsId, WaveTabView } from "./emain-tabview";
+import { getWaveTabViewByWebContentsId, WaveTabView } from "./emain-tabview"; // MOLTENTERM-PATCH (#461)
 import { delay, ensureBoundsAreVisible, waveKeyToElectronKey } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
-import { ActionRun, isSuperseded, readinessDeadlineMs, WindowActionQueue } from "./moltenterm-action-queue"; // MOLTENTERM-PATCH (#449)
-import { noteTabViewWorkspace } from "./moltenterm-tabview-budget"; // MOLTENTERM-PATCH (#454)
-// MOLTENTERM-PATCH (#461): the tab view host owns every view and shows it (emain/moltenterm-tabview-host.ts)
+import { readinessDeadlineMs, WindowActionQueue } from "./moltenterm-action-queue"; // MOLTENTERM-PATCH (#449)
+// MOLTENTERM-PATCH (#461): the tab view host owns every view and shows it (emain/moltenterm-tabview-host.ts); the
+// window's actions run in emain/moltenterm-window-actions.ts
 import {
-    acquireWindowTabView,
     activeWindowTabView,
-    beginWindowPending,
     closeWindowTabViews,
-    enforceHiddenTabViewBudget,
     positionWindowTabViews,
-    ReadinessError,
     removeWindowTabView,
-    showTabViewInWindow,
     sweepDeletedTabViews,
     windowTabViews,
-    windowViewPending,
 } from "./moltenterm-tabview-host";
-import { beginTabViewWork, endTabViewWork } from "./moltenterm-tabview-priority"; // MOLTENTERM-PATCH (#450)
-import { StartupPendingGraceMs } from "./moltenterm-view-pending"; // MOLTENTERM-PATCH (#450)
-import { releaseTabViewFromOtherWindow, tabViewsToCloseOnLeave } from "./moltenterm-workspace-switch"; // MOLTENTERM-PATCH (#68)
+import { isWindowOnWorkspace, runWindowAction, WindowAction } from "./moltenterm-window-actions";
 import { updater } from "./updater";
 
 export type WindowOpts = {
@@ -129,31 +121,7 @@ export function getQuakeWindow(): WaveBrowserWindow | null {
 
 let hasCompletedFirstRelaunch = false;
 
-type WindowActionQueueEntry =
-    | {
-          op: "switchtab";
-          tabId: string;
-          setInBackend: boolean;
-          primaryStartupTab?: boolean;
-      }
-    | {
-          op: "createtab";
-      }
-    | {
-          op: "closetab";
-          tabId: string;
-      }
-    | {
-          op: "switchworkspace";
-          workspaceId: string;
-      }
-    | {
-          op: "resetworkspace"; // MOLTENTERM-PATCH (#222)
-      }
-    | {
-          op: "deleteworkspace"; // MOLTENTERM-PATCH (#449)
-          workspaceId: string;
-      };
+type WindowActionQueueEntry = WindowAction; // MOLTENTERM-PATCH (#222, #449, #461)
 
 function isNonEmptyUnsavedWorkspace(workspace: Workspace): boolean {
     return !workspace.name && !workspace.icon && workspace.tabids?.length > 1;
@@ -164,12 +132,10 @@ export class WaveBrowserWindow extends BaseWindow {
     workspaceId: string;
     private canClose: boolean;
     private deleteAllowed: boolean;
-    // MOLTENTERM-PATCH (#449): workspaceId is the workspace on screen; the backend's window can be ahead of it while a
-    // switch is running or after one was superseded
-    private actionQueue: WindowActionQueue<WindowActionQueueEntry>;
-    private backendWorkspaceId: string;
+    // MOLTENTERM-PATCH (#449, #461): workspaceId is the workspace on screen; the window's views and its active view are
+    // the tab view host's
+    readonly actionQueue: WindowActionQueue<WindowActionQueueEntry>;
 
-    // MOLTENTERM-PATCH (#461): the window's views and its active view are the tab view host's
     get allLoadedTabViews(): Map<string, WaveTabView> {
         return windowTabViews(this.waveWindowId);
     }
@@ -249,16 +215,15 @@ export class WaveBrowserWindow extends BaseWindow {
                 this.setFullScreen(true);
             });
         }
-        // MOLTENTERM-PATCH (#449)
+        // MOLTENTERM-PATCH (#449, #461): what Wave's processActionQueue did runs in runWindowAction, one action at a time
         this.actionQueue = new WindowActionQueue<WindowActionQueueEntry>(
-            (entry, run) => this.runQueuedAction(entry, run), // MOLTENTERM-PATCH (#450)
+            (entry, run) => runWindowAction(this, entry, run),
             () => this.isDestroyed(),
             () => readinessDeadlineMs(isDev),
             (msg, ...args) => console.log(msg, ...args)
         );
         this.waveWindowId = waveWindow.oid;
         this.workspaceId = waveWindow.workspaceid;
-        this.backendWorkspaceId = waveWindow.workspaceid; // MOLTENTERM-PATCH (#449)
         const winBoundsPoller = setInterval(() => {
             if (this.isDestroyed()) {
                 clearInterval(winBoundsPoller);
@@ -455,253 +420,12 @@ export class WaveBrowserWindow extends BaseWindow {
 
     // MOLTENTERM-PATCH (#449): the window shows the workspace, is switching to it, or its backend window is on it
     isOnWorkspace(workspaceId: string): boolean {
-        return (
-            this.workspaceId == workspaceId ||
-            this.backendWorkspaceId == workspaceId ||
-            this.actionQueue.targetsWorkspace(workspaceId)
-        );
+        return isWindowOnWorkspace(this, workspaceId);
     }
 
     // MOLTENTERM-PATCH (#283, #449): coalescing, superseding and the drain live in emain/moltenterm-action-queue.ts
     private async _queueActionInternal(entry: WindowActionQueueEntry) {
         await this.actionQueue.enqueue(entry);
-    }
-
-    private removeTabViewLater(tabId: string, delayMs: number) {
-        setTimeout(() => {
-            this.removeTabView(tabId, false);
-        }, delayMs);
-    }
-
-    // MOLTENTERM-PATCH (#450): while an action runs the hot spare waits to be raised (it would compete with the view
-    // being shown); once the queue is empty a pending state that is not a failure goes
-    private async runQueuedAction(entry: WindowActionQueueEntry, run: ActionRun) {
-        beginTabViewWork();
-        try {
-            await this.runAction(entry, run);
-        } finally {
-            endTabViewWork();
-            if (this.actionQueue.length <= 1) {
-                windowViewPending(this).settle();
-            }
-            enforceHiddenTabViewBudget(); // MOLTENTERM-PATCH (#454)
-        }
-    }
-
-    // MOLTENTERM-PATCH (#450)
-    private beginPending(workspaceName: string, onReload: () => void, startedAt: number, graceMs?: number): number {
-        return beginWindowPending(this, workspaceName, onReload, startedAt, graceMs);
-    }
-
-    // MOLTENTERM-PATCH (#450)
-    private async beginStartupPending(tabId: string): Promise<number> {
-        const startedAt = Date.now();
-        const ws = await WorkspaceService.GetWorkspace(this.workspaceId).catch((): Workspace => null);
-        const onReload = () => fireAndForget(() => this.setActiveTab(tabId, false));
-        // A window already shown (Reload after a failure) has nothing else to show: no grace.
-        return this.beginPending(ws?.name, onReload, startedAt, this.isVisible() ? 0 : StartupPendingGraceMs);
-    }
-
-    // the queue and this function are used to serialize operations that update the window contents view
-    // processActionQueue will replace [1] if it is already set
-    // we don't mess with [0] because it is "in process"
-    // we replace [1] because there is no point to run an action that is going to be overwritten
-    // MOLTENTERM-PATCH (#449): one action of the queue; a return or a throw anywhere here only ends this action
-    private async runAction(entry: WindowActionQueueEntry, run: ActionRun) {
-        let tabId: string = null;
-        let tabViewsToClose: string[] = []; // MOLTENTERM-PATCH (#68)
-        // have to use "===" here to get the typechecker to work :/
-        switch (entry.op) {
-            case "createtab":
-                tabId = await WorkspaceService.CreateTab(this.workspaceId, null, true);
-                break;
-            case "switchtab":
-                tabId = entry.tabId;
-                if (this.activeTabView?.waveTabId == tabId) {
-                    return;
-                }
-                if (entry.setInBackend) {
-                    await WorkspaceService.SetActiveTab(this.workspaceId, tabId);
-                }
-                break;
-            case "closetab": {
-                tabId = entry.tabId;
-                const rtn = await WorkspaceService.CloseTab(this.workspaceId, tabId, true);
-                if (rtn == null) {
-                    console.log("[error] closeTab: no return value", tabId, this.workspaceId, this.waveWindowId);
-                    return;
-                }
-                this.removeTabViewLater(tabId, 1000);
-                if (rtn.closewindow) {
-                    this.close();
-                    return;
-                }
-                if (!rtn.newactivetabid) {
-                    return;
-                }
-                tabId = rtn.newactivetabid;
-                break;
-            }
-            case "switchworkspace":
-                await this.runSwitchWorkspace(entry.workspaceId, run);
-                return;
-            case "deleteworkspace":
-                await this.runDeleteWorkspace(entry.workspaceId, run);
-                return;
-            case "resetworkspace": {
-                // MOLTENTERM-PATCH (#222): the old tabs' views close once the new tab is on screen
-                const resetWs = await WorkspaceService.GetWorkspace(this.workspaceId);
-                tabId = await WorkspaceService.ResetWorkspace(this.workspaceId);
-                tabViewsToClose = resetWs?.tabids ?? [];
-                break;
-            }
-        }
-        if (tabId == null) {
-            return;
-        }
-        // MOLTENTERM-PATCH (#450): a window that has never shown a tab (a launch) shows the pending page when its first
-        // tab is slow, and Reload when it fails
-        const startupPending = this.activeTabView == null ? await this.beginStartupPending(tabId) : null;
-        try {
-            const [tabView, tabInitialized] = await getOrCreateWebViewForTab(this.waveWindowId, tabId, run.deadline);
-            noteTabViewWorkspace(tabView, this.workspaceId); // MOLTENTERM-PATCH (#454)
-            const primaryStartupTabFlag = entry.op === "switchtab" ? (entry.primaryStartupTab ?? false) : false;
-            await showTabViewInWindow(this, tabView, tabInitialized, primaryStartupTabFlag, false, run); // MOLTENTERM-PATCH (#450, #461)
-        } catch (e) {
-            if (startupPending != null && e instanceof ReadinessError) {
-                windowViewPending(this).setPhase(startupPending, "failed");
-            }
-            throw e;
-        }
-        if (startupPending != null) {
-            windowViewPending(this).end(startupPending);
-        }
-        for (const closeId of tabViewsToClose) {
-            this.removeTabView(closeId, false); // MOLTENTERM-PATCH (#68)
-        }
-        // MOLTENTERM-PATCH (#448): the closed tab's view, wherever it is cached, once its successor is on screen
-        if (entry.op === "closetab") {
-            sweepDeletedTabViews("tab closed");
-        }
-    }
-
-    // MOLTENTERM-PATCH (#68, #449): the new view is shown only once it has rendered, and workspaceId follows the screen:
-    // it changes only once that view is on screen. A switch that fails takes the backend back to the workspace on
-    // screen; a superseded one leaves the backend to the action that superseded it.
-    private async runSwitchWorkspace(workspaceId: string, run: ActionRun) {
-        const startedAt = Date.now(); // MOLTENTERM-PATCH (#450)
-        // MOLTENTERM-PATCH (#68): read before the switch, which deletes an unsaved workspace
-        const leftIds = [this.workspaceId, this.backendWorkspaceId].filter(
-            (id, idx, all) => id != null && id != workspaceId && all.indexOf(id) == idx
-        );
-        const leftWss = await Promise.all(
-            leftIds.map((id) => WorkspaceService.GetWorkspace(id).catch((): Workspace => null))
-        );
-        run.check();
-        let newWs = await WindowService.SwitchWorkspace(this.waveWindowId, workspaceId);
-        if (newWs != null) {
-            this.backendWorkspaceId = workspaceId;
-        } else if (this.backendWorkspaceId == workspaceId && this.workspaceId != workspaceId) {
-            // The backend is already there: an earlier switch to it was superseded, or could not be rolled back.
-            newWs = await WorkspaceService.GetWorkspace(workspaceId);
-        }
-        if (!newWs) {
-            return;
-        }
-        run.check();
-        console.log("processActionQueue switchworkspace newWs", newWs);
-        const tabId = newWs.activetabid;
-        if (tabId == null) {
-            this.workspaceId = workspaceId;
-            return;
-        }
-        releaseTabViewFromOtherWindow(tabId, this.waveWindowId, getWaveWindowById);
-        // MOLTENTERM-PATCH (#450): the window on the workspace left shows the pending state of this one
-        const pendingToken = this.beginPending(
-            newWs.name,
-            () => fireAndForget(() => this.switchWorkspace(workspaceId)),
-            startedAt
-        );
-        try {
-            const [tabView, tabInitialized] = await acquireWindowTabView(this, tabId, run); // MOLTENTERM-PATCH (#461)
-            noteTabViewWorkspace(tabView, workspaceId); // MOLTENTERM-PATCH (#454)
-            await showTabViewInWindow(this, tabView, tabInitialized, false, true, run); // MOLTENTERM-PATCH (#450, #461)
-        } catch (e) {
-            if (!isSuperseded(e)) {
-                await this.rollBackBackendWorkspace(workspaceId);
-                // MOLTENTERM-PATCH (#450)
-                if (e instanceof ReadinessError) {
-                    windowViewPending(this).setPhase(pendingToken, "failed");
-                } else {
-                    windowViewPending(this).end(pendingToken);
-                }
-            }
-            throw e;
-        }
-        windowViewPending(this).end(pendingToken); // MOLTENTERM-PATCH (#450)
-        // MOLTENTERM-PATCH (#68): the views of the workspace left are kept (off-screen, in the tab
-        // cache) instead of destroyed, so switching back is as instant as switching tabs
-        this.workspaceId = workspaceId;
-        for (const closeId of leftWss.flatMap((ws) => tabViewsToCloseOnLeave(ws))) {
-            this.removeTabView(closeId, false); // MOLTENTERM-PATCH (#68)
-        }
-        // MOLTENTERM-PATCH (#448): a workspace left that no longer exists (deleted while on screen) leaves views of
-        // deleted tabs that tabViewsToCloseOnLeave cannot name
-        if (leftWss.some((ws) => ws == null)) {
-            sweepDeletedTabViews("left a deleted workspace");
-        }
-    }
-
-    // MOLTENTERM-PATCH (#449)
-    private async rollBackBackendWorkspace(failedWorkspaceId: string) {
-        if (this.workspaceId == failedWorkspaceId || this.backendWorkspaceId != failedWorkspaceId) {
-            return;
-        }
-        try {
-            const ws = await WindowService.SwitchWorkspace(this.waveWindowId, this.workspaceId);
-            if (ws != null) {
-                this.backendWorkspaceId = this.workspaceId;
-            }
-            console.log("[#449] switch failed, backend back on", this.workspaceId, this.waveWindowId);
-        } catch (e) {
-            console.log("[#449] switch failed, could not take the backend back to", this.workspaceId, e);
-        }
-    }
-
-    // MOLTENTERM-PATCH (#449): the delete runs in the queue, after any switch to the workspace has stopped and dropped its
-    // view, so no renderer initializes a tab being deleted. When the window was only switching to it, it stays on the
-    // workspace it shows.
-    // MOLTENTERM-PATCH (#448): then the views of its tabs are destroyed in every window, once this window shows another
-    // workspace (the view on screen is never destroyed)
-    private async runDeleteWorkspace(workspaceId: string, run: ActionRun) {
-        try {
-            await this.applyDeleteWorkspace(workspaceId, run);
-        } finally {
-            sweepDeletedTabViews("workspace deleted");
-        }
-    }
-
-    private async applyDeleteWorkspace(workspaceId: string, run: ActionRun) {
-        const onThisWindow = this.workspaceId == workspaceId || this.backendWorkspaceId == workspaceId;
-        const newWorkspaceId = await WorkspaceService.DeleteWorkspace(workspaceId);
-        console.log("delete-workspace done", workspaceId, this.waveWindowId);
-        if (!onThisWindow) {
-            return;
-        }
-        if (this.backendWorkspaceId == workspaceId) {
-            this.backendWorkspaceId = null;
-        }
-        if (!newWorkspaceId) {
-            console.log("delete-workspace closing window", workspaceId, this.waveWindowId);
-            this.destroy();
-            return;
-        }
-        if (run.isSuperseded()) {
-            return;
-        }
-        const stay = this.workspaceId != workspaceId && (await WorkspaceService.GetWorkspace(this.workspaceId)) != null;
-        run.check();
-        await this.runSwitchWorkspace(stay ? this.workspaceId : newWorkspaceId, run);
     }
 
     private async mainResizeHandler(_: any) {
