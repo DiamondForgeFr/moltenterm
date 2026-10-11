@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { MagnifyIcon } from "@/app/element/magnify";
-import { WaveStreamdown } from "@/app/element/streamdown";
 import { CodeEditor } from "@/app/view/codeeditor/codeeditor";
 import { cn, makeIconClass } from "@/util/util";
 import { useLayoutEffect, useRef, useState } from "react";
+import { WaveStreamdown } from "../../moltenterm-shell/lazy/streamdown-lazy"; // MOLTENTERM-PATCH (#453): shiki/katex/mermaid on demand
 
 export type FakeBlockProps = {
     icon: string;

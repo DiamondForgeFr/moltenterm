@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { App } from "@/app/app";
-import { loadMonaco } from "@/app/monaco/monaco-env";
 import { loadBadges } from "@/app/store/badge";
 import { GlobalModel } from "@/app/store/global-model";
 import {
@@ -202,7 +201,7 @@ async function initWave(initOpts: WaveInitOpts) {
     registerGlobalKeys();
     registerElectronReinjectKeyHandler();
     registerControlShiftStateUpdateHandler();
-    await loadMonaco();
+    // MOLTENTERM-PATCH (#453): no loadMonaco() here, the editors load and configure monaco on first mount
     const fullConfig = await RpcApi.GetFullConfigCommand(TabRpcClient);
     console.log("fullconfig", fullConfig);
     globalStore.set(atoms.fullConfigAtom, fullConfig);
@@ -275,7 +274,7 @@ async function initBuilder(initOpts: BuilderInitOpts) {
 
     registerBuilderGlobalKeys();
     registerElectronReinjectKeyHandler();
-    await loadMonaco();
+    // MOLTENTERM-PATCH (#453): no loadMonaco() here, the editors load and configure monaco on first mount
     const fullConfig = await RpcApi.GetFullConfigCommand(TabRpcClient);
     console.log("fullconfig", fullConfig);
     globalStore.set(atoms.fullConfigAtom, fullConfig);

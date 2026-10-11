@@ -1,9 +1,9 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { WaveStreamdown } from "@/app/element/streamdown";
 import { cn } from "@/util/util";
 import { memo, useEffect, useRef } from "react";
+import { WaveStreamdown } from "../../moltenterm-shell/lazy/streamdown-lazy"; // MOLTENTERM-PATCH (#453): shiki/katex/mermaid on demand
 import { getFileIcon } from "./ai-utils";
 import { AIFeedbackButtons } from "./aifeedbackbuttons";
 import { AIToolUseGroup } from "./aitooluse";
