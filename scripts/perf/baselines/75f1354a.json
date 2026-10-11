@@ -1,20 +1,21 @@
 {
     "meta": {
-        "note": "App code of origin/develop 75f1354a: the harness commit it ran from (3d7e80c9) changes only scripts/perf, Taskfile.yml, ci.yml and UPSTREAM.md. Measured on the reference machine with other workloads running; idle CPU and start-up times are noisy in it.",
+        "note": "origin/develop 75f1354a (the audit commit), built from a clean export and measured with this harness (--app). Reference machine: Apple M1 Max, 64 GB, with other workloads running; idle CPU is noisy in it.",
         "id": "75f1354a",
-        "commit": "3d7e80c9",
-        "dirty": true,
+        "commit": "75f1354a",
+        "dirty": false,
+        "harnessCommit": "5c2860e4",
         "profile": "full",
         "scenarios": ["bundle", "startup", "session", "leaks", "load", "mods"],
-        "startedAt": "2026-10-11T09:59:11.996Z",
-        "durationS": 1072,
+        "startedAt": "2026-10-11T11:42:34.354Z",
+        "durationS": 1083,
         "machine": {
             "platform": "darwin",
             "arch": "arm64",
             "cpu": "Apple M1 Max",
             "cores": 10,
             "memGB": 64,
-            "loadAvg": "4.61 48.53 57.54",
+            "loadAvg": "3.70 4.42 5.73",
             "ci": false
         },
         "electron": "41.1.0",
@@ -75,91 +76,91 @@
             "samples": [30.78, 30.78, 30.78, 30.78, 30.78, 30.78, 30.78]
         },
         "startup.waveReadyColdMs": {
-            "value": 2166,
+            "value": 2299,
             "stat": "median",
             "n": 3,
-            "median": 2166,
-            "p95": 2189.4,
-            "min": 1944,
-            "max": 2192,
+            "median": 2299,
+            "p95": 4798.3,
+            "min": 2177,
+            "max": 5076,
             "spreadPct": null,
             "spreadAbs": null,
-            "samples": [1944, 2192, 2166]
+            "samples": [5076, 2177, 2299]
         },
         "startup.tabviewInitColdMs": {
-            "value": 1459,
+            "value": 1531,
             "stat": "median",
             "n": 3,
-            "median": 1459,
-            "p95": 1479.7,
-            "min": 1201,
-            "max": 1482,
+            "median": 1531,
+            "p95": 1746.1,
+            "min": 1418,
+            "max": 1770,
             "spreadPct": null,
             "spreadAbs": null,
-            "samples": [1201, 1482, 1459]
+            "samples": [1770, 1418, 1531]
         },
         "startup.waveReadyWarmMs": {
-            "value": 2037,
+            "value": 2128.5,
             "stat": "median",
             "n": 4,
-            "median": 2037,
-            "p95": 2098.75,
-            "min": 2019,
-            "max": 2107,
-            "spreadPct": 1.3,
-            "spreadAbs": 26,
-            "samples": [2052, 2107, 2022, 2019]
+            "median": 2128.5,
+            "p95": 2577.3,
+            "min": 1979,
+            "max": 2640,
+            "spreadPct": 11.1,
+            "spreadAbs": 237,
+            "samples": [2640, 2222, 2035, 1979]
         },
         "startup.tabviewInitWarmMs": {
-            "value": 1284,
+            "value": 1342,
             "stat": "median",
             "n": 4,
-            "median": 1284,
-            "p95": 1345,
-            "min": 1268,
-            "max": 1354,
-            "spreadPct": 2.1,
-            "spreadAbs": 27,
-            "samples": [1294, 1354, 1274, 1268]
+            "median": 1342,
+            "p95": 1794.55,
+            "min": 1185,
+            "max": 1858,
+            "spreadPct": 18.1,
+            "spreadAbs": 243.5,
+            "samples": [1858, 1435, 1249, 1185]
         },
         "idle.cpu1wsVisiblePct": {
-            "value": 2.47,
+            "value": 1.97,
             "stat": "median",
             "n": 12,
-            "median": 2.47,
-            "p95": 5.93,
-            "min": 1.39,
-            "max": 6.9,
-            "spreadPct": 92,
-            "spreadAbs": 2.27,
-            "samples": [2.95, 6.9, 1.77, 5.13, 1.78, 1.39, 1.58, 3.95, 2.56, 2.36, 2.37, 4.74]
+            "median": 1.97,
+            "p95": 5.65,
+            "min": 1.58,
+            "max": 7.5,
+            "spreadPct": 55,
+            "spreadAbs": 1.09,
+            "samples": [1.78, 7.5, 1.97, 1.58, 2.17, 4.14, 1.58, 1.97, 1.97, 4.14, 2.17, 1.97]
         },
         "idle.cpu1wsMinimisedPct": {
-            "value": 1.28,
+            "value": 2.07,
             "stat": "median",
             "n": 12,
-            "median": 1.28,
-            "p95": 3.96,
+            "median": 2.07,
+            "p95": 4.23,
             "min": 0.79,
-            "max": 4.95,
-            "spreadPct": 61.5,
-            "spreadAbs": 0.79,
-            "samples": [0.99, 2.96, 4.95, 0.99, 2.77, 0.79, 1.18, 2.56, 1.18, 1.38, 1.18, 3.16]
+            "max": 5.31,
+            "spreadPct": 14.3,
+            "spreadAbs": 0.29,
+            "samples": [1.38, 2.75, 5.31, 0.79, 2.95, 1.37, 1.77, 2.37, 2.56, 1.18, 1.57, 3.34]
         },
         "mem.total1wsMB": {
-            "value": 743.4,
+            "value": 742.1,
             "stat": "median",
             "n": 4,
-            "median": 743.4,
-            "p95": 743.4,
-            "min": 743.4,
-            "max": 743.4,
-            "spreadPct": 0,
-            "spreadAbs": 0,
-            "samples": [743.4, 743.4, 743.4, 743.4]
+            "median": 742.1,
+            "p95": 743.45,
+            "min": 740.6,
+            "max": 743.6,
+            "spreadPct": 0.1,
+            "spreadAbs": 1,
+            "samples": [741.6, 742.6, 743.6, 740.6]
         },
         "renderer.taskMsPerS": {
-            "value": 6.99,
+            "value": 17.66,
             "stat": "value",
             "n": 1
         },
@@ -169,88 +170,88 @@
             "n": 1
         },
         "idle.cpu3wsVisiblePct": {
-            "value": 1.38,
+            "value": 1.91,
             "stat": "median",
             "n": 12,
-            "median": 1.38,
-            "p95": 4.63,
-            "min": 0.79,
-            "max": 5.71,
-            "spreadPct": 50,
-            "spreadAbs": 0.69,
-            "samples": [1.38, 5.71, 3.76, 3.56, 0.99, 1.38, 2.77, 0.79, 1.32, 2.77, 1.38, 0.99]
+            "median": 1.91,
+            "p95": 5.19,
+            "min": 0.98,
+            "max": 5.53,
+            "spreadPct": 3.4,
+            "spreadAbs": 0.07,
+            "samples": [0.98, 4.91, 3.12, 1.25, 5.53, 1.18, 2.76, 1.18, 1.18, 2.56, 1.18, 2.56]
         },
         "idle.cpu3wsMinimisedPct": {
-            "value": 1.57,
+            "value": 2.07,
             "stat": "median",
             "n": 12,
-            "median": 1.57,
-            "p95": 4.88,
+            "median": 2.07,
+            "p95": 7.23,
             "min": 0.59,
-            "max": 5.53,
-            "spreadPct": 6.5,
-            "spreadAbs": 0.1,
-            "samples": [1.98, 0.59, 4.35, 2.56, 1.38, 1.18, 1.38, 5.53, 1.38, 1.77, 2.36, 1.38]
+            "max": 7.67,
+            "spreadPct": 9.6,
+            "spreadAbs": 0.2,
+            "samples": [1.97, 0.98, 6.87, 2.16, 1.38, 4.52, 2.17, 7.67, 3.35, 1.58, 0.59, 1.18]
         },
         "idle.cpu6wsVisiblePct": {
-            "value": 1.18,
+            "value": 2.28,
             "stat": "median",
             "n": 12,
-            "median": 1.18,
-            "p95": 6.94,
-            "min": 0.39,
-            "max": 10.36,
-            "spreadPct": 66.8,
-            "spreadAbs": 0.79,
-            "samples": [10.36, 0.39, 4.15, 3.96, 0.79, 4.14, 0.79, 0.79, 0.99, 1.98, 0.4, 1.38]
+            "median": 2.28,
+            "p95": 7.86,
+            "min": 1.18,
+            "max": 11.43,
+            "spreadPct": 47.4,
+            "spreadAbs": 1.08,
+            "samples": [11.43, 1.18, 2, 4.52, 3.15, 1.77, 1.57, 2.76, 4.93, 1.77, 2.56, 1.77]
         },
         "idle.cpu6wsMinimisedPct": {
-            "value": 1.95,
+            "value": 1.87,
             "stat": "median",
             "n": 12,
-            "median": 1.95,
-            "p95": 4.53,
-            "min": 0.59,
-            "max": 4.53,
-            "spreadPct": 91.8,
-            "spreadAbs": 1.8,
-            "samples": [4.15, 1.97, 4.53, 0.99, 2.37, 0.59, 4.53, 2.76, 0.59, 0.79, 0.98, 1.94]
+            "median": 1.87,
+            "p95": 5.02,
+            "min": 0.79,
+            "max": 6.1,
+            "spreadPct": 58.1,
+            "spreadAbs": 1.09,
+            "samples": [1.18, 2.36, 6.1, 0.79, 1.18, 3.74, 1.37, 1.18, 2.37, 4.14, 0.99, 2.36]
         },
         "mem.total6wsMB": {
-            "value": 1821,
+            "value": 1773,
             "stat": "median",
             "n": 4,
-            "median": 1821,
-            "p95": 1851.6,
-            "min": 1820,
-            "max": 1857,
-            "spreadPct": 1,
-            "spreadAbs": 18.5,
-            "samples": [1821, 1821, 1820, 1857]
+            "median": 1773,
+            "p95": 1804.35,
+            "min": 1768,
+            "max": 1809,
+            "spreadPct": 0.9,
+            "spreadAbs": 15.5,
+            "samples": [1768, 1768, 1778, 1809]
         },
         "mem.gpu6wsMB": {
-            "value": 858,
+            "value": 807,
             "stat": "median",
             "n": 4,
-            "median": 858,
-            "p95": 858,
-            "min": 858,
-            "max": 858,
+            "median": 807,
+            "p95": 807,
+            "min": 807,
+            "max": 807,
             "spreadPct": 0,
             "spreadAbs": 0,
-            "samples": [858, 858, 858, 858]
+            "samples": [807, 807, 807, 807]
         },
         "mem.hiddenViewMB": {
             "value": 107,
             "stat": "median",
             "n": 4,
             "median": 107,
-            "p95": 108.7,
+            "p95": 118.05,
             "min": 107,
-            "max": 109,
-            "spreadPct": 0.9,
-            "spreadAbs": 1,
-            "samples": [107, 107, 107, 109]
+            "max": 120,
+            "spreadPct": 6.1,
+            "spreadAbs": 6.5,
+            "samples": [107, 107, 107, 120]
         },
         "ws.raceBlockedMs": {
             "value": 5001,
@@ -268,82 +269,82 @@
             "n": 1
         },
         "leak.memGrowthPerLoopMB": {
-            "value": 73.1,
+            "value": 69.4,
             "stat": "value",
             "n": 1
         },
         "load.firstTabMs": {
-            "value": 18544,
+            "value": 30000,
             "stat": "value",
             "n": 1
         },
         "load.blankWindow": {
-            "value": 0,
+            "value": 1,
             "stat": "value",
             "n": 1
         },
         "mods.cpuDeltaPct": {
-            "value": -0.78,
+            "value": -0.39,
             "stat": "value",
             "n": 1
         },
         "mods.memDeltaMB": {
-            "value": -3.1,
+            "value": 1.5,
             "stat": "value",
             "n": 1
         },
         "ws.createP95Ms": {
-            "value": 165.6,
+            "value": 176.6,
             "stat": "p95",
             "n": 29,
-            "median": 137,
-            "p95": 165.6,
-            "min": 105,
-            "max": 193,
-            "spreadPct": 6.9,
-            "spreadAbs": 9.5,
+            "median": 138,
+            "p95": 176.6,
+            "min": 103,
+            "max": 200,
+            "spreadPct": 0.2,
+            "spreadAbs": 0.35,
             "samples": [
-                142, 118, 144, 113, 109, 130, 125, 110, 124, 105, 111, 108, 118, 114, 118, 133, 168, 162, 193, 148, 146,
-                148, 140, 152, 142, 159, 152, 137, 141
+                137, 115, 138, 103, 107, 107, 118, 123, 112, 112, 141, 122, 140, 152, 136, 139, 150, 163, 177, 153, 153,
+                200, 176, 121, 134, 138, 149, 146, 150
             ]
         },
         "ws.switchNewP95Ms": {
-            "value": 131.4,
+            "value": 135,
             "stat": "p95",
             "n": 5,
-            "median": 114,
-            "p95": 131.4,
-            "min": 109,
-            "max": 135,
-            "spreadPct": 0.9,
-            "spreadAbs": 1,
-            "samples": [109, 117, 114, 113, 135]
+            "median": 113,
+            "p95": 135,
+            "min": 101,
+            "max": 139,
+            "spreadPct": 13.6,
+            "spreadAbs": 18.3,
+            "samples": [113, 101, 104, 119, 139]
         },
         "ws.switchVisitedP95Ms": {
-            "value": 63.9,
+            "value": 56,
             "stat": "p95",
             "n": 12,
-            "median": 46,
-            "p95": 63.9,
-            "min": 40,
-            "max": 65,
-            "spreadPct": 1.1,
-            "spreadAbs": 0.5,
-            "samples": [63, 59, 40, 53, 40, 40, 65, 49, 44, 43, 48, 44]
+            "median": 44.5,
+            "p95": 56,
+            "min": 35,
+            "max": 56,
+            "spreadPct": 17.9,
+            "spreadAbs": 10,
+            "samples": [47, 46, 56, 41, 35, 46, 49, 43, 56, 36, 40, 37]
         },
         "ws.deleteP95Ms": {
-            "value": 228.3,
+            "value": 70.8,
             "stat": "p95",
             "n": 28,
-            "median": 87,
-            "p95": 228.3,
-            "min": 27,
-            "max": 350,
-            "spreadPct": 4.6,
-            "spreadAbs": 4,
+            "median": 25.5,
+            "p95": 70.8,
+            "min": 21,
+            "max": 105,
+            "spreadPct": 63.9,
+            "spreadAbs": 45.25,
             "samples": [
-                350, 257, 175, 118, 55, 62, 57, 60, 66, 81, 27, 62, 105, 72, 84, 68, 35, 90, 69, 92, 124, 93, 95, 81,
-                105, 142, 102, 102
+                50, 82, 28, 27, 27, 21, 23, 29, 40, 24, 22, 25, 25, 23, 22, 24, 33, 22, 25, 105, 42, 21, 22, 26, 28, 24,
+                36, 27
             ]
         },
         "ws.failedOps": {
@@ -356,60 +357,60 @@
         "idle": {
             "1 ws visible": {
                 "total": {
-                    "value": 2.47,
+                    "value": 1.97,
                     "stat": "median",
                     "n": 12,
-                    "median": 2.47,
-                    "p95": 5.93,
-                    "min": 1.39,
-                    "max": 6.9,
-                    "spreadPct": 92,
-                    "spreadAbs": 2.27,
-                    "samples": [2.95, 6.9, 1.77, 5.13, 1.78, 1.39, 1.58, 3.95, 2.56, 2.36, 2.37, 4.74]
+                    "median": 1.97,
+                    "p95": 5.65,
+                    "min": 1.58,
+                    "max": 7.5,
+                    "spreadPct": 55,
+                    "spreadAbs": 1.09,
+                    "samples": [1.78, 7.5, 1.97, 1.58, 2.17, 4.14, 1.58, 1.97, 1.97, 4.14, 2.17, 1.97]
                 },
                 "processes": 9,
                 "perKind": {
                     "gpu": {
                         "n": 1,
                         "cpuMed": 0.59,
-                        "cpuMean": 0.62,
-                        "rssMB": 118.9
+                        "cpuMean": 0.56,
+                        "rssMB": 115
                     },
                     "main": {
                         "n": 1,
-                        "cpuMed": 0.1,
-                        "cpuMean": 0.1,
-                        "rssMB": 188.2
+                        "cpuMed": 0,
+                        "cpuMean": 0.08,
+                        "rssMB": 188.6
                     },
                     "other": {
                         "n": 1,
                         "cpuMed": 0,
                         "cpuMean": 0,
-                        "rssMB": 9.2
+                        "rssMB": 9.3
                     },
                     "renderer": {
                         "n": 3,
-                        "cpuMed": 1.48,
-                        "cpuMean": 2.1,
-                        "rssMB": 803.6
+                        "cpuMed": 0.99,
+                        "cpuMean": 1.91,
+                        "rssMB": 797.2
                     },
                     "utility-network": {
                         "n": 1,
                         "cpuMed": 0,
-                        "cpuMean": 0.05,
-                        "rssMB": 74.8
+                        "cpuMean": 0.03,
+                        "rssMB": 74.5
                     },
                     "wavesrv": {
                         "n": 1,
                         "cpuMed": 0.2,
-                        "cpuMean": 0.21,
-                        "rssMB": 33.8
+                        "cpuMean": 0.15,
+                        "rssMB": 34
                     },
                     "wsh": {
                         "n": 1,
                         "cpuMed": 0,
-                        "cpuMean": 0.03,
-                        "rssMB": 18.8
+                        "cpuMean": 0.02,
+                        "rssMB": 19.1
                     }
                 },
                 "window": [
@@ -422,66 +423,66 @@
             },
             "1 ws minimised": {
                 "total": {
-                    "value": 1.28,
+                    "value": 2.07,
                     "stat": "median",
                     "n": 12,
-                    "median": 1.28,
-                    "p95": 3.96,
+                    "median": 2.07,
+                    "p95": 4.23,
                     "min": 0.79,
-                    "max": 4.95,
-                    "spreadPct": 61.5,
-                    "spreadAbs": 0.79,
-                    "samples": [0.99, 2.96, 4.95, 0.99, 2.77, 0.79, 1.18, 2.56, 1.18, 1.38, 1.18, 3.16]
+                    "max": 5.31,
+                    "spreadPct": 14.3,
+                    "spreadAbs": 0.29,
+                    "samples": [1.38, 2.75, 5.31, 0.79, 2.95, 1.37, 1.77, 2.37, 2.56, 1.18, 1.57, 3.34]
                 },
                 "processes": 10,
                 "perKind": {
                     "gpu": {
                         "n": 1,
                         "cpuMed": 0,
-                        "cpuMean": 0.02,
-                        "rssMB": 113.3
+                        "cpuMean": 0,
+                        "rssMB": 109.4
                     },
                     "main": {
                         "n": 1,
-                        "cpuMed": 0,
-                        "cpuMean": 0.08,
-                        "rssMB": 190.6
+                        "cpuMed": 0.1,
+                        "cpuMean": 0.1,
+                        "rssMB": 191.8
                     },
                     "other": {
                         "n": 1,
                         "cpuMed": 0,
                         "cpuMean": 0,
-                        "rssMB": 9.2
+                        "rssMB": 9.3
                     },
                     "renderer": {
                         "n": 3,
-                        "cpuMed": 0.98,
-                        "cpuMean": 1.65,
-                        "rssMB": 749.6
+                        "cpuMed": 1.48,
+                        "cpuMean": 1.87,
+                        "rssMB": 750.1
                     },
                     "utility": {
                         "n": 1,
                         "cpuMed": 0,
                         "cpuMean": 0,
-                        "rssMB": 57.4
+                        "rssMB": 57.1
                     },
                     "utility-network": {
                         "n": 1,
                         "cpuMed": 0,
-                        "cpuMean": 0.03,
-                        "rssMB": 75.1
+                        "cpuMean": 0.07,
+                        "rssMB": 74.8
                     },
                     "wavesrv": {
                         "n": 1,
                         "cpuMed": 0.2,
-                        "cpuMean": 0.2,
-                        "rssMB": 34
+                        "cpuMean": 0.21,
+                        "rssMB": 34.4
                     },
                     "wsh": {
                         "n": 1,
                         "cpuMed": 0,
                         "cpuMean": 0.03,
-                        "rssMB": 19.4
+                        "rssMB": 19.6
                     }
                 },
                 "window": [
@@ -494,66 +495,66 @@
             },
             "3 ws visible": {
                 "total": {
-                    "value": 1.38,
+                    "value": 1.91,
                     "stat": "median",
                     "n": 12,
-                    "median": 1.38,
-                    "p95": 4.63,
-                    "min": 0.79,
-                    "max": 5.71,
-                    "spreadPct": 50,
-                    "spreadAbs": 0.69,
-                    "samples": [1.38, 5.71, 3.76, 3.56, 0.99, 1.38, 2.77, 0.79, 1.32, 2.77, 1.38, 0.99]
+                    "median": 1.91,
+                    "p95": 5.19,
+                    "min": 0.98,
+                    "max": 5.53,
+                    "spreadPct": 3.4,
+                    "spreadAbs": 0.07,
+                    "samples": [0.98, 4.91, 3.12, 1.25, 5.53, 1.18, 2.76, 1.18, 1.18, 2.56, 1.18, 2.56]
                 },
                 "processes": 16,
                 "perKind": {
                     "gpu": {
                         "n": 1,
                         "cpuMed": 0.2,
-                        "cpuMean": 0.26,
-                        "rssMB": 119.8
+                        "cpuMean": 0.24,
+                        "rssMB": 115.2
                     },
                     "main": {
                         "n": 1,
                         "cpuMed": 0,
-                        "cpuMean": 0.08,
-                        "rssMB": 194.7
+                        "cpuMean": 0.07,
+                        "rssMB": 194.6
                     },
                     "other": {
                         "n": 3,
                         "cpuMed": 0,
-                        "cpuMean": 0.02,
-                        "rssMB": 26.8
+                        "cpuMean": 0,
+                        "rssMB": 27
                     },
                     "renderer": {
                         "n": 5,
-                        "cpuMed": 0.79,
-                        "cpuMean": 1.64,
-                        "rssMB": 1379.4
+                        "cpuMed": 1.38,
+                        "cpuMean": 1.85,
+                        "rssMB": 1374.1
                     },
                     "utility": {
                         "n": 1,
                         "cpuMed": 0,
                         "cpuMean": 0,
-                        "rssMB": 57.6
+                        "rssMB": 57.3
                     },
                     "utility-network": {
                         "n": 1,
                         "cpuMed": 0,
                         "cpuMean": 0.03,
-                        "rssMB": 75.3
+                        "rssMB": 75.1
                     },
                     "wavesrv": {
                         "n": 1,
                         "cpuMed": 0.2,
-                        "cpuMean": 0.15,
-                        "rssMB": 36
+                        "cpuMean": 0.13,
+                        "rssMB": 36.7
                     },
                     "wsh": {
                         "n": 3,
                         "cpuMed": 0,
                         "cpuMean": 0.05,
-                        "rssMB": 57.3
+                        "rssMB": 57.4
                     }
                 },
                 "window": [
@@ -566,66 +567,66 @@
             },
             "3 ws minimised": {
                 "total": {
-                    "value": 1.57,
+                    "value": 2.07,
                     "stat": "median",
                     "n": 12,
-                    "median": 1.57,
-                    "p95": 4.88,
+                    "median": 2.07,
+                    "p95": 7.23,
                     "min": 0.59,
-                    "max": 5.53,
-                    "spreadPct": 6.5,
-                    "spreadAbs": 0.1,
-                    "samples": [1.98, 0.59, 4.35, 2.56, 1.38, 1.18, 1.38, 5.53, 1.38, 1.77, 2.36, 1.38]
+                    "max": 7.67,
+                    "spreadPct": 9.6,
+                    "spreadAbs": 0.2,
+                    "samples": [1.97, 0.98, 6.87, 2.16, 1.38, 4.52, 2.17, 7.67, 3.35, 1.58, 0.59, 1.18]
                 },
                 "processes": 16,
                 "perKind": {
                     "gpu": {
                         "n": 1,
                         "cpuMed": 0,
-                        "cpuMean": 0.02,
-                        "rssMB": 118.7
+                        "cpuMean": 0,
+                        "rssMB": 114
                     },
                     "main": {
                         "n": 1,
-                        "cpuMed": 0,
-                        "cpuMean": 0.07,
-                        "rssMB": 194.7
+                        "cpuMed": 0.1,
+                        "cpuMean": 0.1,
+                        "rssMB": 194.9
                     },
                     "other": {
                         "n": 3,
                         "cpuMed": 0,
-                        "cpuMean": 0,
-                        "rssMB": 26.8
+                        "cpuMean": 0.03,
+                        "rssMB": 27
                     },
                     "renderer": {
                         "n": 5,
-                        "cpuMed": 0.98,
-                        "cpuMean": 1.74,
-                        "rssMB": 1321.7
+                        "cpuMed": 1.18,
+                        "cpuMean": 2.33,
+                        "rssMB": 1317.4
                     },
                     "utility": {
                         "n": 1,
                         "cpuMed": 0,
                         "cpuMean": 0.02,
-                        "rssMB": 57.6
+                        "rssMB": 57.3
                     },
                     "utility-network": {
                         "n": 1,
                         "cpuMed": 0,
-                        "cpuMean": 0.03,
-                        "rssMB": 75.3
+                        "cpuMean": 0.07,
+                        "rssMB": 75.1
                     },
                     "wavesrv": {
                         "n": 1,
                         "cpuMed": 0.2,
-                        "cpuMean": 0.21,
-                        "rssMB": 36.4
+                        "cpuMean": 0.25,
+                        "rssMB": 36.8
                     },
                     "wsh": {
                         "n": 3,
                         "cpuMed": 0,
-                        "cpuMean": 0.07,
-                        "rssMB": 58.5
+                        "cpuMean": 0.08,
+                        "rssMB": 58.6
                     }
                 },
                 "window": [
@@ -638,48 +639,48 @@
             },
             "6 ws visible": {
                 "total": {
-                    "value": 1.18,
+                    "value": 2.28,
                     "stat": "median",
                     "n": 12,
-                    "median": 1.18,
-                    "p95": 6.94,
-                    "min": 0.39,
-                    "max": 10.36,
-                    "spreadPct": 66.8,
-                    "spreadAbs": 0.79,
-                    "samples": [10.36, 0.39, 4.15, 3.96, 0.79, 4.14, 0.79, 0.79, 0.99, 1.98, 0.4, 1.38]
+                    "median": 2.28,
+                    "p95": 7.86,
+                    "min": 1.18,
+                    "max": 11.43,
+                    "spreadPct": 47.4,
+                    "spreadAbs": 1.08,
+                    "samples": [11.43, 1.18, 2, 4.52, 3.15, 1.77, 1.57, 2.76, 4.93, 1.77, 2.56, 1.77]
                 },
                 "processes": 12,
                 "perKind": {
                     "gpu": {
                         "n": 1,
-                        "cpuMed": 0,
-                        "cpuMean": 0,
-                        "rssMB": 135.5
+                        "cpuMed": 0.39,
+                        "cpuMean": 0.32,
+                        "rssMB": 126.6
                     },
                     "main": {
                         "n": 1,
                         "cpuMed": 0,
                         "cpuMean": 0.08,
-                        "rssMB": 199.9
+                        "rssMB": 193.4
                     },
                     "renderer": {
                         "n": 8,
-                        "cpuMed": 0.89,
-                        "cpuMean": 2.25,
-                        "rssMB": 2262.6
+                        "cpuMed": 1.58,
+                        "cpuMean": 2.67,
+                        "rssMB": 2223.2
                     },
                     "utility-network": {
                         "n": 1,
                         "cpuMed": 0,
-                        "cpuMean": 0.03,
-                        "rssMB": 73
+                        "cpuMean": 0.05,
+                        "rssMB": 71.7
                     },
                     "wavesrv": {
                         "n": 1,
                         "cpuMed": 0.2,
-                        "cpuMean": 0.15,
-                        "rssMB": 36.1
+                        "cpuMean": 0.16,
+                        "rssMB": 36.7
                     }
                 },
                 "window": [
@@ -692,16 +693,16 @@
             },
             "6 ws minimised": {
                 "total": {
-                    "value": 1.95,
+                    "value": 1.87,
                     "stat": "median",
                     "n": 12,
-                    "median": 1.95,
-                    "p95": 4.53,
-                    "min": 0.59,
-                    "max": 4.53,
-                    "spreadPct": 91.8,
-                    "spreadAbs": 1.8,
-                    "samples": [4.15, 1.97, 4.53, 0.99, 2.37, 0.59, 4.53, 2.76, 0.59, 0.79, 0.98, 1.94]
+                    "median": 1.87,
+                    "p95": 5.02,
+                    "min": 0.79,
+                    "max": 6.1,
+                    "spreadPct": 58.1,
+                    "spreadAbs": 1.09,
+                    "samples": [1.18, 2.36, 6.1, 0.79, 1.18, 3.74, 1.37, 1.18, 2.37, 4.14, 0.99, 2.36]
                 },
                 "processes": 12,
                 "perKind": {
@@ -709,31 +710,31 @@
                         "n": 1,
                         "cpuMed": 0,
                         "cpuMean": 0,
-                        "rssMB": 132.4
+                        "rssMB": 126.3
                     },
                     "main": {
                         "n": 1,
-                        "cpuMed": 0,
-                        "cpuMean": 0.07,
-                        "rssMB": 193.8
+                        "cpuMed": 0.1,
+                        "cpuMean": 0.1,
+                        "rssMB": 193.3
                     },
                     "renderer": {
                         "n": 8,
-                        "cpuMed": 1.76,
-                        "cpuMean": 1.92,
-                        "rssMB": 2183
+                        "cpuMed": 1.48,
+                        "cpuMean": 1.94,
+                        "rssMB": 2170.4
                     },
                     "utility-network": {
                         "n": 1,
                         "cpuMed": 0,
-                        "cpuMean": 0.05,
-                        "rssMB": 73.1
+                        "cpuMean": 0.07,
+                        "rssMB": 71.8
                     },
                     "wavesrv": {
                         "n": 1,
                         "cpuMed": 0.2,
-                        "cpuMean": 0.15,
-                        "rssMB": 36.2
+                        "cpuMean": 0.21,
+                        "rssMB": 36.8
                     }
                 },
                 "window": [
@@ -748,56 +749,56 @@
         "memory": {
             "1 ws": {
                 "method": "footprint",
-                "totalMB": 743.4,
+                "totalMB": 740.6,
                 "byKind": {
                     "main": 56,
-                    "renderer": 361,
+                    "renderer": 357,
                     "utility-network": 13,
-                    "gpu": 281,
+                    "gpu": 282,
                     "wavesrv": 16,
-                    "wsh": 8.9,
+                    "wsh": 9.1,
                     "other": 7.5
                 },
                 "views": {
-                    "activeMB": 181,
+                    "activeMB": 180,
                     "hiddenMB": [],
                     "spareMB": [79],
-                    "webviewMB": [101]
+                    "webviewMB": [98]
                 }
             },
             "3 ws": {
                 "method": "footprint",
-                "totalMB": 1155.7,
+                "totalMB": 1186.7,
                 "byKind": {
-                    "main": 58,
-                    "renderer": 536,
+                    "main": 57,
+                    "renderer": 552,
                     "utility": 19,
-                    "utility-network": 14,
-                    "gpu": 462,
+                    "utility-network": 13,
+                    "gpu": 479,
                     "wavesrv": 18,
-                    "wsh": 27.1,
-                    "other": 21.6
+                    "wsh": 27,
+                    "other": 21.7
                 },
                 "views": {
                     "activeMB": 159,
-                    "hiddenMB": [99, 123],
-                    "spareMB": [79],
-                    "webviewMB": [76]
+                    "hiddenMB": [100, 139],
+                    "spareMB": [80],
+                    "webviewMB": [74]
                 }
             },
             "6 ws": {
                 "method": "footprint",
-                "totalMB": 1857,
+                "totalMB": 1809,
                 "byKind": {
                     "main": 62,
-                    "renderer": 906,
-                    "utility-network": 13,
-                    "gpu": 858,
-                    "wavesrv": 18
+                    "renderer": 911,
+                    "utility-network": 12,
+                    "gpu": 807,
+                    "wavesrv": 17
                 },
                 "views": {
-                    "activeMB": 164,
-                    "hiddenMB": [109, 105, 107, 121, 145],
+                    "activeMB": 162,
+                    "hiddenMB": [108, 120, 120, 125, 121],
                     "spareMB": [79],
                     "webviewMB": [76]
                 }
@@ -811,7 +812,7 @@
             "initialJsMB": 30.65,
             "initial": [
                 {
-                    "file": "assets/index-DDgLSaCS.js",
+                    "file": "assets/index-Yeu6tNjK.js",
                     "mb": 7.18
                 },
                 {
@@ -853,7 +854,7 @@
                     "gzipMB": 1.53
                 },
                 {
-                    "file": "assets/index-DDgLSaCS.js",
+                    "file": "assets/index-Yeu6tNjK.js",
                     "mb": 7.18,
                     "gzipMB": 1.53
                 },
@@ -893,12 +894,12 @@
             "runs": [
                 {
                     "kind": "cold",
-                    "wavesrvReady": 281,
-                    "createWin": 666,
-                    "initBare": 1730,
-                    "waveReady": 1944,
-                    "firstTabviewInitMs": 1201,
-                    "tabviewInits": [1201],
+                    "wavesrvReady": 2847,
+                    "createWin": 3235,
+                    "initBare": 4751,
+                    "waveReady": 5076,
+                    "firstTabviewInitMs": 1770,
+                    "tabviewInits": [1770],
                     "timedOut": false,
                     "jsEvaluatedMB": 30.78,
                     "jsTop": [
@@ -911,7 +912,7 @@
                             "mb": 8.15
                         },
                         {
-                            "name": "index-DDgLSaCS.js",
+                            "name": "index-Yeu6tNjK.js",
                             "mb": 7.17
                         },
                         {
@@ -942,12 +943,12 @@
                 },
                 {
                     "kind": "warm",
-                    "wavesrvReady": 297,
-                    "createWin": 675,
-                    "initBare": 1826,
-                    "waveReady": 2052,
-                    "firstTabviewInitMs": 1294,
-                    "tabviewInits": [1294],
+                    "wavesrvReady": 334,
+                    "createWin": 714,
+                    "initBare": 2429,
+                    "waveReady": 2640,
+                    "firstTabviewInitMs": 1858,
+                    "tabviewInits": [1858],
                     "timedOut": false,
                     "jsEvaluatedMB": 30.78,
                     "jsTop": [
@@ -960,7 +961,7 @@
                             "mb": 8.15
                         },
                         {
-                            "name": "index-DDgLSaCS.js",
+                            "name": "index-Yeu6tNjK.js",
                             "mb": 7.17
                         },
                         {
@@ -991,12 +992,12 @@
                 },
                 {
                     "kind": "warm",
-                    "wavesrvReady": 317,
-                    "createWin": 693,
-                    "initBare": 1899,
-                    "waveReady": 2107,
-                    "firstTabviewInitMs": 1354,
-                    "tabviewInits": [1354],
+                    "wavesrvReady": 328,
+                    "createWin": 709,
+                    "initBare": 2034,
+                    "waveReady": 2222,
+                    "firstTabviewInitMs": 1435,
+                    "tabviewInits": [1435],
                     "timedOut": false,
                     "jsEvaluatedMB": 30.78,
                     "jsTop": [
@@ -1009,7 +1010,7 @@
                             "mb": 8.15
                         },
                         {
-                            "name": "index-DDgLSaCS.js",
+                            "name": "index-Yeu6tNjK.js",
                             "mb": 7.17
                         },
                         {
@@ -1040,12 +1041,12 @@
                 },
                 {
                     "kind": "warm",
-                    "wavesrvReady": 303,
-                    "createWin": 678,
-                    "initBare": 1824,
-                    "waveReady": 2022,
-                    "firstTabviewInitMs": 1274,
-                    "tabviewInits": [1274],
+                    "wavesrvReady": 326,
+                    "createWin": 713,
+                    "initBare": 1800,
+                    "waveReady": 2035,
+                    "firstTabviewInitMs": 1249,
+                    "tabviewInits": [1249],
                     "timedOut": false,
                     "jsEvaluatedMB": 30.78,
                     "jsTop": [
@@ -1058,7 +1059,7 @@
                             "mb": 8.15
                         },
                         {
-                            "name": "index-DDgLSaCS.js",
+                            "name": "index-Yeu6tNjK.js",
                             "mb": 7.17
                         },
                         {
@@ -1089,12 +1090,12 @@
                 },
                 {
                     "kind": "warm",
-                    "wavesrvReady": 307,
-                    "createWin": 682,
-                    "initBare": 1829,
-                    "waveReady": 2019,
-                    "firstTabviewInitMs": 1268,
-                    "tabviewInits": [1268],
+                    "wavesrvReady": 336,
+                    "createWin": 718,
+                    "initBare": 1751,
+                    "waveReady": 1979,
+                    "firstTabviewInitMs": 1185,
+                    "tabviewInits": [1185],
                     "timedOut": false,
                     "jsEvaluatedMB": 30.78,
                     "jsTop": [
@@ -1107,7 +1108,7 @@
                             "mb": 8.15
                         },
                         {
-                            "name": "index-DDgLSaCS.js",
+                            "name": "index-Yeu6tNjK.js",
                             "mb": 7.17
                         },
                         {
@@ -1138,12 +1139,12 @@
                 },
                 {
                     "kind": "cold",
-                    "wavesrvReady": 276,
-                    "createWin": 653,
-                    "initBare": 1963,
-                    "waveReady": 2192,
-                    "firstTabviewInitMs": 1482,
-                    "tabviewInits": [1482],
+                    "wavesrvReady": 313,
+                    "createWin": 695,
+                    "initBare": 1922,
+                    "waveReady": 2177,
+                    "firstTabviewInitMs": 1418,
+                    "tabviewInits": [1418],
                     "timedOut": false,
                     "jsEvaluatedMB": 30.78,
                     "jsTop": [
@@ -1156,7 +1157,7 @@
                             "mb": 8.15
                         },
                         {
-                            "name": "index-DDgLSaCS.js",
+                            "name": "index-Yeu6tNjK.js",
                             "mb": 7.17
                         },
                         {
@@ -1187,12 +1188,12 @@
                 },
                 {
                     "kind": "cold",
-                    "wavesrvReady": 274,
-                    "createWin": 651,
-                    "initBare": 1964,
-                    "waveReady": 2166,
-                    "firstTabviewInitMs": 1459,
-                    "tabviewInits": [1459],
+                    "wavesrvReady": 321,
+                    "createWin": 707,
+                    "initBare": 2057,
+                    "waveReady": 2299,
+                    "firstTabviewInitMs": 1531,
+                    "tabviewInits": [1531],
                     "timedOut": false,
                     "jsEvaluatedMB": 30.78,
                     "jsTop": [
@@ -1205,7 +1206,7 @@
                             "mb": 8.15
                         },
                         {
-                            "name": "index-DDgLSaCS.js",
+                            "name": "index-Yeu6tNjK.js",
                             "mb": 7.17
                         },
                         {
@@ -1239,78 +1240,78 @@
         "workspaces": {
             "samples": {
                 "create": [
-                    142, 118, 144, 113, 109, 130, 125, 110, 124, 105, 111, 108, 118, 114, 118, 133, 168, 162, 193, 148,
-                    146, 148, 140, 152, 142, 159, 152, 137, 141
+                    137, 115, 138, 103, 107, 107, 118, 123, 112, 112, 141, 122, 140, 152, 136, 139, 150, 163, 177, 153,
+                    153, 200, 176, 121, 134, 138, 149, 146, 150
                 ],
-                "switchNew": [109, 117, 114, 113, 135],
-                "switchVisited": [63, 59, 40, 53, 40, 40, 65, 49, 44, 43, 48, 44],
+                "switchNew": [113, 101, 104, 119, 139],
+                "switchVisited": [47, 46, 56, 41, 35, 46, 49, 43, 56, 36, 40, 37],
                 "delete": [
-                    350, 257, 175, 118, 55, 62, 57, 60, 66, 81, 27, 62, 105, 72, 84, 68, 35, 90, 69, 92, 124, 93, 95,
-                    81, 105, 142, 102, 102
+                    50, 82, 28, 27, 27, 21, 23, 29, 40, 24, 22, 25, 25, 23, 22, 24, 33, 22, 25, 105, 42, 21, 22, 26, 28,
+                    24, 36, 27
                 ]
             },
             "relaunch6ws": {
-                "wavesrvReady": 329,
-                "createWin": 705,
-                "initBare": 1970,
-                "waveReady": 2161,
-                "firstTabviewInitMs": 1396,
-                "tabviewInits": [1396],
+                "wavesrvReady": 317,
+                "createWin": 701,
+                "initBare": 1823,
+                "waveReady": 2050,
+                "firstTabviewInitMs": 1291,
+                "tabviewInits": [1291],
                 "timedOut": false
             },
             "race": {
-                "created": "a90b2a92-5632-4cbc-9a4f-bc5aa5a7cd6f",
-                "foundMs": 86,
+                "created": "9fc97d75-f3b2-49c5-97dc-4ebaface2d41",
+                "foundMs": 20,
                 "blockedMs": 5001,
                 "screen": [
-                    [5183, "bc89882e-d33c-4b87-8267-15e42942a564"],
-                    [5334, "1fcdb93c-1474-4a27-9a59-38d127d4d79c"]
+                    [5049, "431473cc-63ef-4086-bfb5-45d025ca5ca0"],
+                    [5080, "4be3f395-2a51-45e2-a0f1-823d80d77c22"]
                 ]
             }
         },
         "renderer": {
             "metrics": {
                 "windowS": 10,
-                "taskMsPerS": 6.99,
-                "scriptMsPerS": 2.65,
+                "taskMsPerS": 17.66,
+                "scriptMsPerS": 6.36,
                 "layoutsPerS": 1,
-                "styleRecalcsPerS": 1,
-                "jsHeapMB": 49.7,
-                "nodes": 3018,
-                "listeners": 1167
+                "styleRecalcsPerS": 1.7,
+                "jsHeapMB": 49.8,
+                "nodes": 2430,
+                "listeners": 1076
             },
             "trace": {
                 "windowS": 5,
-                "events": 1436,
+                "events": 1428,
                 "timerFiresPerS": 2.2,
                 "animationFramesPerS": 0,
                 "topFunctionCalls": [
-                    "11.8 ms performWorkUntilDeadline index-DDgLSaCS.js:178140",
-                    "7.4 ms (anonymous) monaco-YhQxO6qw.js:3117",
-                    "6.3 ms observerCallback index-DDgLSaCS.js:66937",
-                    "0.9 ms wsConn.onmessage index-DDgLSaCS.js:19932",
-                    "0.8 ms (anonymous) index-DDgLSaCS.js:115640",
-                    "0.3 ms (anonymous) index-DDgLSaCS.js:186971",
-                    "0.1 ms (anonymous) index-DDgLSaCS.js:156555",
-                    "0.1 ms sendPing index-DDgLSaCS.js:20033"
+                    "28.9 ms performWorkUntilDeadline index-Yeu6tNjK.js:178140",
+                    "16.2 ms (anonymous) monaco-YhQxO6qw.js:3117",
+                    "11.2 ms observerCallback index-Yeu6tNjK.js:66937",
+                    "2.6 ms wsConn.onmessage index-Yeu6tNjK.js:19932",
+                    "2.5 ms (anonymous) index-Yeu6tNjK.js:115640",
+                    "0.8 ms (anonymous) index-Yeu6tNjK.js:186971",
+                    "0.1 ms (anonymous) index-Yeu6tNjK.js:156555",
+                    "0.1 ms sendPing index-Yeu6tNjK.js:20033"
                 ]
             }
         },
         "leaks": {
             "afterDeletes": {
+                "deleted": 4,
                 "tabViews": 6,
                 "spares": 1,
                 "unresponsive": 0,
                 "leaked": 4,
-                "webviews": 0,
-                "deleted": 4
+                "webviews": 0
             },
             "gatedLoops": {
                 "loops": 5,
                 "tabViews": 11,
                 "spares": 1,
                 "unresponsive": 0,
-                "leaked": 9,
+                "leaked": 5,
                 "webviews": 0
             },
             "loops": {
@@ -1320,33 +1321,33 @@
                 "unresponsive": 0,
                 "leaked": 9,
                 "webviews": 0,
-                "memBeforeMB": 1537.1,
-                "memAfterMB": 2999.1
+                "memBeforeMB": 1574,
+                "memAfterMB": 2962
             }
         },
         "load": {
             "busyProcesses": 12,
             "timeoutS": 30,
-            "wavesrvReady": 329,
-            "createWin": 713,
-            "initBare": 18107,
-            "waveReady": 18544,
-            "firstTabviewInitMs": 17047,
-            "tabviewInits": [17047, 12658],
-            "timedOut": false,
-            "onScreen": ["da8ee101-9919-4beb-b2ff-149e4695978c"],
-            "blank": 0
+            "wavesrvReady": 348,
+            "createWin": 736,
+            "initBare": null,
+            "waveReady": null,
+            "firstTabviewInitMs": null,
+            "tabviewInits": [],
+            "timedOut": true,
+            "onScreen": [],
+            "blank": 1
         },
         "mods": {
             "on": {
-                "tabviewInitMs": 1733,
-                "cpuPct": 1.87,
-                "memMB": 741.8
+                "tabviewInitMs": 1310,
+                "cpuPct": 2.46,
+                "memMB": 736
             },
             "off": {
-                "tabviewInitMs": 1508,
-                "cpuPct": 2.65,
-                "memMB": 744.9
+                "tabviewInitMs": 1544,
+                "cpuPct": 2.85,
+                "memMB": 734.5
             }
         }
     },

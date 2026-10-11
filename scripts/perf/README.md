@@ -93,10 +93,11 @@ fails only when its regression also exceeds twice that gap, and a rerun is in or
 has but that a scenario which ran did not produce fails as "missing", and so does a run whose scenarios failed.
 Changing a budget, a tolerance or the baseline needs a reason in the pull request.
 
-The first baseline, `baselines/75f1354a.json`, is a full run of origin/develop 75f1354a (the audit's commit) on an
-Apple M1 Max, 64 GB, while other workloads were running (load average 5 to 8): idle CPU is flagged noisy in it. A
-second full run of the same build is compared with it in the pull request of #452. Local metrics are only comparable to it on that machine;
-on another machine, take your own "before" report and pass it with `--baseline`.
+The first baseline, `baselines/75f1354a.json`, is a full run of origin/develop 75f1354a (the audit's commit), built
+from a clean export and measured with this harness through `--app`, on an Apple M1 Max, 64 GB, while other workloads
+were running (load average 4 to 6). A second full run of the same build is compared with it in the pull request of
+#452. Local metrics are only comparable to it on that machine; on another machine, take your own "before" report and
+pass it with `--baseline`.
 
 ## CI
 
