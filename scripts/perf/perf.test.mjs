@@ -11,6 +11,7 @@ import { initialScripts } from "./lib/bundle.mjs";
 import { assertOwnedRoot, Instance, MarkerName, startupTimings } from "./lib/instance.mjs";
 import { descendants, parseFootprint, parsePs, parsePsTime } from "./lib/procs.mjs";
 import { compareReports, evaluate, evaluateMetric, renderMarkdown } from "./lib/report.mjs";
+import { spawnsPerMinute } from "./lib/scenarios.mjs";
 import { quantile, splitHalfSpreadPct, summarize } from "./lib/stats.mjs";
 
 const budgets = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "budgets.json"), "utf8"));
@@ -213,5 +214,18 @@ describe("same-build comparison", () => {
       b
     );
     expect(cmp.noisy).toEqual(["d"]);
+  });
+});
+
+describe("spawn counter", () => {
+  it("counts git and gh per minute between two reads", () => {
+    const before = { at: 0, total: 5, counts: { git: 3, gh: 1, security: 1 } };
+    const after = { at: 120000, total: 12, counts: { git: 6, gh: 2, security: 4 } };
+    expect(spawnsPerMinute(before, after)).toEqual({ gitGhPerMin: 2, totalPerMin: 3.5 });
+  });
+
+  it("is unknown on a build without the counter", () => {
+    expect(spawnsPerMinute(null, { at: 1, total: 0, counts: {} })).toBeNull();
+    expect(spawnsPerMinute({ at: 5, total: 0, counts: {} }, { at: 5, total: 0, counts: {} })).toBeNull();
   });
 });

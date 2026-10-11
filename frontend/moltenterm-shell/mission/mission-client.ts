@@ -74,10 +74,12 @@ export function missionGitInit(dir: string): Promise<MissionSnapshot> {
     );
 }
 
-export function missionGet(dir: string, maxAgeSec?: number): Promise<MissionSnapshot> {
+// passive: the status bar keeping a linked project warm without a Mission Control view; wavesrv then reads git only
+// after a change and GitHub rarely (FR-PERF-011).
+export function missionGet(dir: string, maxAgeSec?: number, passive?: boolean): Promise<MissionSnapshot> {
     return TabRpcClient.wshRpcCall(
         MissionGetCommand,
-        { dir, maxagesec: maxAgeSec },
+        { dir, maxagesec: maxAgeSec, passive: passive || undefined },
         { route: MissionRouteId, timeout: MissionRpcTimeoutMs }
     );
 }
