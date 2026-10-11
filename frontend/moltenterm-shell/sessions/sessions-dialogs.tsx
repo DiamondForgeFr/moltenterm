@@ -167,8 +167,7 @@ export function CleanupDialog({
             <ul className="flex flex-col gap-1.5" aria-label="Sessions to end">
                 {sessions.map((s) => {
                     const folder = displayFolder(s, home);
-                    // The row already names the command a session without an agent runs.
-                    const note = s.agent ? endRunningNote(s) : "";
+                    const note = endRunningNote(s);
                     return (
                         <li key={s.id} className="flex min-w-0 flex-col gap-0.5">
                             <div className="flex min-w-0 items-baseline gap-2">
