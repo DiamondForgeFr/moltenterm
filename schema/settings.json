@@ -21,7 +21,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 96
+            "order": 97
           }
         },
         "app:globalhotkey": {
@@ -40,7 +40,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 112
+            "order": 113
           }
         },
         "app:defaultnewblock": {
@@ -201,7 +201,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 97
+            "order": 98
           }
         },
         "term:fontsize": {
@@ -259,7 +259,7 @@
             "label": "No WebGL in terminals",
             "description": "Draw terminals without WebGL, slower but safer on some GPUs.",
             "control": "toggle",
-            "order": 86
+            "order": 87
           }
         },
         "term:localshellpath": {
@@ -498,7 +498,7 @@
             "label": "Split buttons in headers",
             "description": "Show split buttons in terminal headers.",
             "control": "toggle",
-            "order": 87
+            "order": 88
           }
         },
         "term:trimtrailingwhitespace": {
@@ -565,7 +565,7 @@
             "label": "Claude Code limits (experimental)",
             "description": "Read Claude Code's limits from Anthropic's undocumented endpoint with its own sign-in.",
             "control": "toggle",
-            "order": 88
+            "order": 89
           }
         },
         "linemap:animation": {
@@ -684,7 +684,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 98
+            "order": 99
           }
         },
         "web:openlinksinternally": {
@@ -823,35 +823,35 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 99
+            "order": 100
           }
         },
         "autoupdate:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 106
+            "order": 107
           }
         },
         "autoupdate:intervalms": {
           "type": "number",
           "x-moltenterm": {
             "hidden": true,
-            "order": 107
+            "order": 108
           }
         },
         "autoupdate:installonquit": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 108
+            "order": 109
           }
         },
         "autoupdate:channel": {
           "type": "string",
           "x-moltenterm": {
             "hidden": true,
-            "order": 109
+            "order": 110
           }
         },
         "markdown:fontsize": {
@@ -1094,6 +1094,19 @@
             "order": 82
           }
         },
+        "moltenterm:tabviewhost": {
+          "type": "boolean",
+          "description": "A new tab renders off-screen and replaces the tab on screen once ready, with a pending state if it is slow; a tab view that does not render is only rebuilt while its window is focused and in use; dev builds stop on an invalid tab view transition. false restores the previous behaviour (a new tab shown at once while it loads, the paint check whatever the window's state, invalid transitions only logged)",
+          "x-moltenterm": {
+            "section": "advanced",
+            "group": "Window",
+            "label": "Open tabs when ready",
+            "description": "A new tab replaces the one on screen once it has rendered, with a pending state if it is slow.",
+            "control": "toggle",
+            "default": true,
+            "order": 83
+          }
+        },
         "moltenterm:hiddenpagefreeze": {
           "type": "boolean",
           "description": "A browser panel page not on screen is frozen after a few seconds (no timers, frames or network callbacks) and resumes when shown; pages an agent drives, that play audio or whose DevTools are open keep running. false turns freezing off",
@@ -1144,21 +1157,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 100
+            "order": 101
           }
         },
         "widget:showhelp": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 111
+            "order": 112
           }
         },
         "window:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 101
+            "order": 102
           }
         },
         "window:fullscreenonlaunch": {
@@ -1361,7 +1374,7 @@
               "step": 1
             },
             "unit": "px",
-            "order": 83
+            "order": 84
           }
         },
         "window:magnifiedblockblursecondarypx": {
@@ -1379,7 +1392,7 @@
               "step": 1
             },
             "unit": "px",
-            "order": 84
+            "order": 85
           }
         },
         "window:confirmclose": {
@@ -1415,7 +1428,7 @@
             "label": "New window size",
             "description": "The size of new windows, such as 1400x900.",
             "control": "text",
-            "order": 85
+            "order": 86
           }
         },
         "window:zoom": {
@@ -1440,21 +1453,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 102
+            "order": 103
           }
         },
         "telemetry:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 110
+            "order": 111
           }
         },
         "conn:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 103
+            "order": 104
           }
         },
         "conn:askbeforewshinstall": {
@@ -1497,7 +1510,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 104
+            "order": 105
           }
         },
         "debug:pprofport": {
@@ -1514,7 +1527,7 @@
               "max": 65535,
               "step": 1
             },
-            "order": 89
+            "order": 90
           }
         },
         "debug:pprofmemprofilerate": {
@@ -1531,7 +1544,7 @@
               "max": 1048576,
               "step": 1
             },
-            "order": 90
+            "order": 91
           }
         },
         "debug:webglstatus": {
@@ -1543,14 +1556,14 @@
             "label": "WebGL status",
             "description": "Show whether each terminal draws with WebGL.",
             "control": "toggle",
-            "order": 91
+            "order": 92
           }
         },
         "tsunami:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 105
+            "order": 106
           }
         },
         "tsunami:scaffoldpath": {
@@ -1562,7 +1575,7 @@
             "label": "Scaffold path",
             "description": "Where the app builder's scaffold lives.",
             "control": "path",
-            "order": 92
+            "order": 93
           }
         },
         "tsunami:sdkreplacepath": {
@@ -1574,7 +1587,7 @@
             "label": "SDK replace path",
             "description": "A local SDK used in place of the published one.",
             "control": "path",
-            "order": 93
+            "order": 94
           }
         },
         "tsunami:sdkversion": {
@@ -1586,7 +1599,7 @@
             "label": "SDK version",
             "description": "The SDK version apps build against.",
             "control": "text",
-            "order": 94
+            "order": 95
           }
         },
         "tsunami:gopath": {
@@ -1598,7 +1611,7 @@
             "label": "Go binary",
             "description": "The Go binary apps build with.",
             "control": "path",
-            "order": 95
+            "order": 96
           }
         }
       },

@@ -8,6 +8,12 @@
 // WasShown) does: the renderer draws a full frame and the eviction bookkeeping is reset. So a view that sat off-screen
 // for a while gets that cycle as it is shown, and every reused view is then probed; one that still does not render is
 // cycled again, then rebuilt.
+//
+// A page also stops running frames when its window cannot show it: occluded, minimised, unfocused behind other
+// windows, or on a display that went to sleep. A probe then says nothing about the view, and rebuilding a working view
+// costs a renderer and a flash (#461). So a negative probe only counts while the target can judge (its window is
+// focused and in use); otherwise the check stops as "deferred", with no visibility cycle and no rebuild, and the
+// caller runs it again once the window can show frames.
 
 // Below Chromium's five-minute culling, so every view that may have lost its frame gets the cycle.
 export const MoltentermLongHiddenMs = 60 * 1000;
@@ -29,9 +35,11 @@ export type TabViewPaintTarget = {
     cycleVisibility(): void;
     rebuild(): Promise<void>;
     log(msg: string): void;
+    // Whether a probe that finds no frames means the view itself does not render; absent, it always does.
+    canJudge?(): boolean;
 };
 
-export type PaintCheckResult = "rendering" | "refreshed" | "repainted" | "rebuilt" | "skipped";
+export type PaintCheckResult = "rendering" | "refreshed" | "repainted" | "rebuilt" | "skipped" | "deferred";
 
 // Runs in the renderer: animation frames only run for a page the compositor considers shown.
 export const ShownViewProbeScript = `new Promise((resolve) => {
@@ -51,6 +59,10 @@ export const ShownViewProbeScript = `new Promise((resolve) => {
 
 export function isRendering(probe: ShownViewProbe): boolean {
     return probe != null && probe.visible && probe.frames > 0;
+}
+
+function canJudge(target: TabViewPaintTarget): boolean {
+    return target.canJudge == null || target.canJudge();
 }
 
 function delay(ms: number): Promise<void> {
@@ -94,6 +106,9 @@ export async function ensureTabViewPainted(
     if (!target.isLive()) {
         return "skipped";
     }
+    if (!canJudge(target)) {
+        return "deferred";
+    }
     target.log("shown tab view does not render, cycling its visibility");
     target.cycleVisibility();
     await delay(settleMs);
@@ -105,6 +120,9 @@ export async function ensureTabViewPainted(
     }
     if (!target.isLive()) {
         return "skipped";
+    }
+    if (!canJudge(target)) {
+        return "deferred";
     }
     target.log("shown tab view still does not render, rebuilding it");
     await target.rebuild();
