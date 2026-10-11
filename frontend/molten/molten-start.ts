@@ -194,6 +194,8 @@ export function startMoltenHost(): void {
     const safeMode = getApi().getEnv(MoltentermSafeModeVarName) === "1";
     mountMoltenNotifications(host, safeMode);
     // Mod code loads once the view shows and its timers are held while it does not (FR-PERF-014).
+    // For the performance harness and DevTools: the mods' state and usage, read without loading them.
+    (globalThis as any).moltenModHost = host;
     const activity = TabActivity.getInstance();
     host.showing = isShowing(activity.state());
     globalStore.sub(activity.stateAtom, () => host.setShowing(isShowing(activity.state())));
