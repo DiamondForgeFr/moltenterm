@@ -1465,6 +1465,8 @@ declare global {
         "moltenterm:tabviewbudget"?: boolean;
         "moltenterm:hiddentabviews"?: number;
         "moltenterm:hiddentabviewsmb"?: number;
+        "moltenterm:hiddenpagefreeze"?: boolean;
+        "moltenterm:hiddenpagediscardmin"?: number;
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;
         "window:*"?: boolean;

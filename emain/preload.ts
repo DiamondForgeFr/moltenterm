@@ -110,6 +110,15 @@ contextBridge.exposeInMainWorld("api", {
     moltentermGetWindowActivity: () => ipcRenderer.sendSync("moltenterm-window-activity-get"),
     onMoltentermWindowActivity: (callback) =>
         ipcRenderer.on("moltenterm-window-activity", (_event, activity) => callback(activity)),
+    // MOLTENTERM-PATCH (#459): hidden browser pages frozen and discarded (emain/moltenterm-webview-lifecycle.ts)
+    moltentermWebviewShown: (blockId: string, browserTabId: string, webContentsId: number, shown: boolean) =>
+        ipcRenderer.send("moltenterm-webview-shown", blockId, browserTabId, webContentsId, shown),
+    onMoltentermWebviewDiscard: (callback: (blockId: string, browserTabId: string, webContentsId: number, scroll: any) => void) => {
+        const listener = (_event, blockId, browserTabId, webContentsId, scroll) =>
+            callback(blockId, browserTabId, webContentsId, scroll);
+        ipcRenderer.on("moltenterm-webview-discard", listener);
+        return () => ipcRenderer.removeListener("moltenterm-webview-discard", listener);
+    },
 });
 
 // Custom event for "new-window"

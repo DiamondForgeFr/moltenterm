@@ -31,9 +31,15 @@ import {
     TabViewBudgetDeps,
     tabViewWorkspace,
 } from "./moltenterm-tabview-budget";
+import {
+    hostedPagesHaveUnsavedWork,
+    initMoltentermWebviewLifecycle,
+    noteWebviewLifecycleSettings,
+} from "./moltenterm-webview-lifecycle";
 
 const SnapshotTimeoutMs = 5000;
 const UnsavedWorkProbeTimeoutMs = 1500;
+const PagesProbeTimeoutMs = 3000;
 // must match UnsavedWorkProbeName in frontend/moltenterm-shell/unsaved-work.ts; a renderer without the probe (still
 // loading) answers false only when it has no blocks to hold anything
 const UnsavedWorkProbeScript = `typeof globalThis.moltentermHasUnsavedWork === "function" ? globalThis.moltentermHasUnsavedWork() : false`;
@@ -81,6 +87,8 @@ function loadAgentSnapshot(tries: number) {
 // Subscribes first, so nothing published while the snapshot travels is lost (versions order the two).
 export function initMoltentermTabViewBudget(fullConfig: FullConfigType) {
     noteTabViewBudgetSettings(fullConfig?.settings as Record<string, unknown>);
+    // The browser pages' lifecycle (#459) follows the same settings events.
+    initMoltentermWebviewLifecycle(fullConfig?.settings as Record<string, unknown>);
     if (started) {
         return;
     }
@@ -91,6 +99,7 @@ export function initMoltentermTabViewBudget(fullConfig: FullConfigType) {
             const settings = (event?.data as { fullconfig?: FullConfigType })?.fullconfig?.settings;
             if (settings != null) {
                 noteTabViewBudgetSettings(settings as Record<string, unknown>);
+                noteWebviewLifecycleSettings(settings as Record<string, unknown>);
             }
         },
     });
@@ -142,26 +151,27 @@ export function makeHiddenTabViewBudget(windows: () => BudgetWindow[]): () => vo
     };
 }
 
-// Asks the view's renderer (frontend/moltenterm-shell/unsaved-work.ts). No answer in time keeps the view: losing an
-// edit is worse than a view kept a little longer. A crashed renderer holds nothing.
+function withDeadline(answer: Promise<boolean>, ms: number): Promise<boolean> {
+    let timer: ReturnType<typeof setTimeout> = null;
+    const timeout = new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(true), ms);
+    });
+    return Promise.race([answer.catch(() => true), timeout]).finally(() => clearTimeout(timer));
+}
+
+// Asks the view's renderer (frontend/moltenterm-shell/unsaved-work.ts), then its browser pages (#459: a beforeunload
+// listener or text typed in a form, emain/moltenterm-webview-lifecycle.ts). No answer in time keeps the view: losing
+// an edit is worse than a view kept a little longer. A crashed renderer holds nothing.
 async function viewHasUnsavedWork(view: WaveTabView): Promise<boolean> {
     const wc = view.webContents;
     if (wc.isDestroyed() || wc.isCrashed()) {
         return false;
     }
-    let timer: ReturnType<typeof setTimeout> = null;
-    const timeout = new Promise<boolean>((resolve) => {
-        timer = setTimeout(() => resolve(true), UnsavedWorkProbeTimeoutMs);
-    });
-    try {
-        const answer = wc
-            .executeJavaScript(UnsavedWorkProbeScript)
-            .then((v) => v !== false)
-            .catch(() => true);
-        return await Promise.race([answer, timeout]);
-    } finally {
-        clearTimeout(timer);
+    const answer = wc.executeJavaScript(UnsavedWorkProbeScript).then((v) => v !== false);
+    if (await withDeadline(answer, UnsavedWorkProbeTimeoutMs)) {
+        return true;
     }
+    return withDeadline(hostedPagesHaveUnsavedWork(wc.id), PagesProbeTimeoutMs);
 }
 
 function makeBudgetDeps(windows: () => BudgetWindow[]): TabViewBudgetDeps<WaveTabView> {

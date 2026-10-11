@@ -113,6 +113,8 @@ const (
 	ConfigKey_MoltentermTabViewBudget        = "moltenterm:tabviewbudget"
 	ConfigKey_MoltentermHiddenTabViews       = "moltenterm:hiddentabviews"
 	ConfigKey_MoltentermHiddenTabViewsMb     = "moltenterm:hiddentabviewsmb"
+	ConfigKey_MoltentermHiddenPageFreeze     = "moltenterm:hiddenpagefreeze"
+	ConfigKey_MoltentermHiddenPageDiscardMin = "moltenterm:hiddenpagediscardmin"
 
 	ConfigKey_WidgetClear                    = "widget:*"
 	ConfigKey_WidgetShowHelp                 = "widget:showhelp"

@@ -92,9 +92,12 @@ import { noteBrowserPanelFocus } from "./browser-routing";
 import { dropOnTab, DropTarget, overTab, startTabDrag, tabDropIndex, TabDropIndicator } from "./browser-tab-drag";
 import { browserTabMenu } from "./browser-tab-menu";
 import "./browser.css";
+import { BrowserLifecycleModel, PageScroll, reportWebviewShown, scrollScript, shouldRestore } from "./browser-lifecycle";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
+import { TabActivity } from "../tab-activity";
+import { isShowing } from "../tab-activity-model";
 
 export { MoltentermBrowserView };
 
@@ -146,6 +149,8 @@ export class BrowserViewModel implements ViewModel {
     // The tabs agents drive, and their control bars (FR-BRW-008).
     agents: BrowserAgentModel;
     handledCloseIds = new Set<string>();
+    // Hidden pages frozen and discarded by the main process (#459).
+    lifecycle: BrowserLifecycleModel;
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
@@ -155,6 +160,8 @@ export class BrowserViewModel implements ViewModel {
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
         this.agents = new BrowserAgentModel(blockId);
         this.agents.start();
+        this.lifecycle = new BrowserLifecycleModel(blockId);
+        this.lifecycle.start((tabId, webContentsId, scroll) => this.discardTab(tabId, webContentsId, scroll));
         this.takeInitialNotice();
         this.takeInitialAsk();
         fireAndForget(() => this.engines.ensureLoaded());
@@ -237,6 +244,7 @@ export class BrowserViewModel implements ViewModel {
             return;
         }
         this.webviews.delete(id);
+        this.lifecycle.forget(id);
         this.signIn.forget(id);
         this.loads.forget(id);
         this.errors.forget(id);
@@ -645,6 +653,7 @@ export class BrowserViewModel implements ViewModel {
 
     closeTab(id: string): void {
         this.webviews.delete(id);
+        this.lifecycle.forget(id);
         this.signIn.forget(id);
         this.loads.forget(id);
         this.errors.forget(id);
@@ -852,10 +861,36 @@ export class BrowserViewModel implements ViewModel {
         return false;
     }
 
+    // Whether a tab's page is on screen: the panel's active tab, in a tab view that shows.
+    isTabShown(id: string): boolean {
+        return this.state().activeId === id && isShowing(TabActivity.getInstance().state());
+    }
+
+    isAgentDriven(id: string): boolean {
+        return controlBarView(this.agents.tabs()[id]) != null;
+    }
+
+    // The main process asks to drop a hidden page (#459); the panel checks again that the page is the same one and
+    // still hidden, and that no agent took it meanwhile.
+    discardTab(id: string, webContentsId: number, scroll: PageScroll): void {
+        const webview = this.webviews.get(id);
+        let current: number = null;
+        try {
+            current = webview?.getWebContentsId();
+        } catch {
+            return;
+        }
+        if (current !== webContentsId || this.isTabShown(id) || this.isAgentDriven(id)) {
+            return;
+        }
+        this.lifecycle.discard(id, scroll);
+    }
+
     dispose(): void {
         if (this.persistTimer != null) {
             clearTimeout(this.persistTimer);
         }
+        this.lifecycle.dispose();
         this.agents.dispose();
     }
 }
@@ -864,8 +899,29 @@ function makeBlockAtom(blockId: string): Atom<Block> {
     return WOS.getWaveObjectAtom<Block>(makeORef("block", blockId));
 }
 
-function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: BrowserTab; active: boolean }) {
+function TabWebview({
+    model,
+    tab,
+    active,
+    shown,
+}: {
+    model: BrowserViewModel;
+    tab: BrowserTab;
+    active: boolean;
+    shown: boolean;
+}) {
     const ref = useRef<WebviewTag>(null);
+    const shownRef = useRef(shown);
+    shownRef.current = shown;
+    // The main process freezes and discards hidden pages (#459); a webview throws before its first dom-ready, which
+    // reports it then.
+    useEffect(() => {
+        try {
+            reportWebviewShown(model.blockId, tab.id, ref.current?.getWebContentsId(), shown);
+        } catch {
+            // not attached yet: dom-ready reports it
+        }
+    }, [model, tab.id, shown]);
     // The src is set once: later navigation happens inside the page, and re-rendering with a new src would reload it.
     const [initialUrl] = useState(tab.url);
     // MOLTENTERM-PATCH (#371): hidden mounted tabs are never valid edit/image targets.
@@ -938,6 +994,7 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
             if (!isPageFailure(e)) {
                 return;
             }
+            model.lifecycle.finishRestoring(tab.id);
             const url = e.validatedURL || webview.getURL();
             model.errors.noteFailure(tab.id, { url, code: e.errorCode, description: e.errorDescription });
             if (url && !/^chrome-error:/i.test(url)) {
@@ -951,6 +1008,14 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
             webview.dataset.webcontentsid = String(webview.getWebContentsId());
             registerWebview(model.blockId, tab.id, webview.getWebContentsId());
             getApi().setContextMenuGuest?.(webview.getWebContentsId(), model.state().activeId === tab.id);
+            reportWebviewShown(model.blockId, tab.id, webview.getWebContentsId(), shownRef.current);
+        };
+        // A page reloaded after a discard gets its scroll position back once loaded.
+        const onFinishLoad = () => {
+            const scroll = model.lifecycle.finishRestoring(tab.id);
+            if (scroll != null && (scroll.x > 0 || scroll.y > 0)) {
+                webview.executeJavaScript(scrollScript(scroll)).catch(() => {});
+            }
         };
         const onVisibility = () => {
             try {
@@ -966,6 +1031,7 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
         webview.addEventListener("focus", onFocus);
         webview.addEventListener("blur", onBlur);
         webview.addEventListener("dom-ready", onDomReady);
+        webview.addEventListener("did-finish-load", onFinishLoad);
 
         webview.addEventListener("did-start-loading", onStartLoading);
         webview.addEventListener("did-stop-loading", onStopLoading);
@@ -991,6 +1057,7 @@ function TabWebview({ model, tab, active }: { model: BrowserViewModel; tab: Brow
             webview.removeEventListener("focus", onFocus);
             webview.removeEventListener("blur", onBlur);
             webview.removeEventListener("dom-ready", onDomReady);
+            webview.removeEventListener("did-finish-load", onFinishLoad);
             if (model.webviews.get(tab.id) === webview) {
                 model.webviews.delete(tab.id);
                 model.loads.noteStop(tab.id);
@@ -1466,6 +1533,31 @@ function HandoffPage({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
     );
 }
 
+// A discarded page coming back (#459): its tab's favicon and title over the reloading webview, until it has loaded.
+function ReloadingPlaceholder({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+    const loads = useAtomValue(model.loads.loadsAtom);
+    if (tab == null || tab.engine) {
+        return null;
+    }
+    const favicon = loads[tab.id]?.favicon;
+    return (
+        <div
+            role="status"
+            className="molten-browser-reloading pointer-events-none absolute inset-0 flex items-center justify-center bg-background"
+        >
+            <div className="flex max-w-[360px] flex-col items-center gap-2 text-center">
+                {favicon ? (
+                    <img src={favicon} alt="" draggable={false} className="h-5 w-5 object-contain" />
+                ) : (
+                    <i className="fa fa-solid fa-globe text-icon-20 text-secondary" />
+                )}
+                {tab.title ? <div className="max-w-full truncate text-12 text-primary">{tab.title}</div> : null}
+                <div className="text-12 text-muted">Reloading the page…</div>
+            </div>
+        </div>
+    );
+}
+
 // The shown tab's failed page, drawn over its webview (DS-SHELL-092); the failed URL stays in the address bar.
 function ActiveErrorPage({ model, tabId }: { model: BrowserViewModel; tabId: string }) {
     const errors = useAtomValue(model.errors.errorsAtom);
@@ -1491,7 +1583,19 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const defaultSetting = useAtomValue(getSettingsKeyAtom("browser:default"));
     const sitesSetting = useAtomValue(getSettingsKeyAtom("browser:sites"));
     const engineList = useAtomValue(model.engines.listAtom);
+    const activity = useAtomValue(TabActivity.getInstance().stateAtom);
+    const discarded = useAtomValue(model.lifecycle.discardedAtom);
+    const restoring = useAtomValue(model.lifecycle.restoringAtom);
+    const agentTabs = useAtomValue(model.agents.tabsAtom);
+    const viewShown = isShowing(activity);
     const blockMeta = block?.meta;
+    useEffect(() => {
+        for (const id of Object.keys(discarded)) {
+            if (shouldRestore(id === state.activeId, viewShown, controlBarView(agentTabs[id]) != null)) {
+                model.lifecycle.restore(id);
+            }
+        }
+    }, [model, discarded, state.activeId, viewShown, agentTabs]);
     useEffect(() => {
         fireAndForget(() => model.engines.ensureLoaded());
     }, [model, installedSetting, defaultSetting, sitesSetting]);
@@ -1533,10 +1637,19 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                         tab.id === state.activeId ? (
                             <HandoffPage key={tab.id} model={model} tab={tab} />
                         ) : null
-                    ) : (
-                        <TabWebview key={tab.id} model={model} tab={tab} active={tab.id === state.activeId} />
+                    ) : discarded[tab.id] != null ? null : (
+                        <TabWebview
+                            key={tab.id}
+                            model={model}
+                            tab={tab}
+                            active={tab.id === state.activeId}
+                            shown={viewShown && tab.id === state.activeId}
+                        />
                     )
                 )}
+                {discarded[state.activeId] != null || restoring[state.activeId] != null ? (
+                    <ReloadingPlaceholder model={model} tab={model.findTab(state.activeId)} />
+                ) : null}
                 <ActiveErrorPage model={model} tabId={state.activeId} />
                 <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
             </div>

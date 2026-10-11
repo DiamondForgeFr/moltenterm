@@ -164,7 +164,9 @@ var settings = []Setting{
 	{Key: "browser:sites", Section: SectionBrowser, Group: "Opening pages", Label: "Per-site browser", Description: "Sites that always open in MoltenTerm's browser or the installed one.", Control: ControlJSON},
 	{Key: "web:defaulturl", Section: SectionBrowser, Group: "Browser panel", Label: "Home page", Description: "The page a new browser panel opens.", Control: ControlText},
 	{Key: "web:defaultsearch", Section: SectionBrowser, Group: "Browser panel", Label: "Search engine", Description: "The search URL, with {query} where the words go.", Control: ControlText},
-	{Key: "browser:agentsites", Section: SectionBrowser, Group: "Agents", Label: "Agent site permissions", Description: "Sites agents may use or are blocked from in the browser panel.", Control: ControlJSON},
+	{Key: "moltenterm:hiddenpagefreeze", Section: SectionBrowser, Group: "Browser panel", Label: "Pause hidden pages", Description: "A page not on screen stops running until shown, unless an agent drives it or it plays audio.", Control: ControlToggle, Default: true},
+	{Key: "moltenterm:hiddenpagediscardmin", Section: SectionBrowser, Group: "Browser panel", Label: "Unload hidden pages after", Description: "A page not on screen this long is unloaded, then reloads when shown; 0 keeps pages loaded.", Control: ControlNumber, Range: rng(0, 1440, 1), Unit: "min", Default: 10},
+	{Key: "browser:agentsites", Section: SectionBrowser, Group: "Agents",Label: "Agent site permissions", Description: "Sites agents may use or are blocked from in the browser panel.", Control: ControlJSON},
 
 	// Mission Control
 	{Key: "linemap:animation", Section: SectionMission, Group: "Line map", Label: "Animate the line map", Description: "Play the load sequence and the moving trains; reduced motion turns it off.", Control: ControlToggle, Default: true},
