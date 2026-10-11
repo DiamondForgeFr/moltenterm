@@ -162,7 +162,7 @@ jobs:
                   [ -f perf-report/report.md ] || exit 0
                   marker="<!-- moltenterm-perf-report -->"
                   { echo "$marker"; head -c 60000 perf-report/report.md; } > perf-comment.md
-                  id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | tail -1)
+                  id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | tail -1)
                   if [ -n "$id" ]; then
                       gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@perf-comment.md > /dev/null
                   else

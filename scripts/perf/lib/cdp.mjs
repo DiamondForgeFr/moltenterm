@@ -32,7 +32,14 @@ export function connect(wsUrl, { timeoutMs = CallTimeoutMs } = {}) {
         l(d);
       }
     };
-    ws.onerror = (e) => reject(new Error(`CDP connection to ${wsUrl} failed: ${e.message ?? e.type}`));
+    const openTimer = setTimeout(() => {
+      reject(new Error(`CDP connection to ${wsUrl} timed out`));
+      ws.close();
+    }, timeoutMs);
+    ws.onerror = (e) => {
+      clearTimeout(openTimer);
+      reject(new Error(`CDP connection to ${wsUrl} failed: ${e.message ?? e.type}`));
+    };
     ws.onclose = () => {
       for (const { done, timer } of pending.values()) {
         clearTimeout(timer);
@@ -40,7 +47,8 @@ export function connect(wsUrl, { timeoutMs = CallTimeoutMs } = {}) {
       }
       pending.clear();
     };
-    ws.onopen = () =>
+    ws.onopen = () => {
+      clearTimeout(openTimer);
       resolve({
         send(method, params = {}) {
           return new Promise((done) => {
@@ -50,7 +58,13 @@ export function connect(wsUrl, { timeoutMs = CallTimeoutMs } = {}) {
               done({ error: { message: `${method} timed out` } });
             }, timeoutMs);
             pending.set(id, { done, timer });
-            ws.send(JSON.stringify({ id, method, params }));
+            try {
+              ws.send(JSON.stringify({ id, method, params }));
+            } catch (e) {
+              clearTimeout(timer);
+              pending.delete(id);
+              done({ error: { message: e.message } });
+            }
           });
         },
         on(fn) {
@@ -60,6 +74,7 @@ export function connect(wsUrl, { timeoutMs = CallTimeoutMs } = {}) {
           ws.close();
         },
       });
+    };
   });
 }
 

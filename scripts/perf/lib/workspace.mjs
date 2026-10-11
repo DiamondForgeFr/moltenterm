@@ -44,13 +44,32 @@ export class Driver {
     return evaluate(this.main, expr);
   }
 
-  async pageEval(expr) {
-    const page = await visiblePage(this.inst.port, this.main);
+  // The visible tab's page. Right after a switch the on-screen view and its page can briefly disagree, so it retries.
+  async page(timeoutMs = 10000) {
+    const end = Date.now() + timeoutMs;
+    for (;;) {
+      try {
+        return await visiblePage(this.inst.port, this.main);
+      } catch (e) {
+        if (Date.now() > end) {
+          throw e;
+        }
+        await sleep(250);
+      }
+    }
+  }
+
+  async withPage(fn) {
+    const page = await this.page();
     try {
-      return await evaluate(page, expr);
+      return await fn(page);
     } finally {
       page.close();
     }
+  }
+
+  pageEval(expr) {
+    return this.withPage((page) => evaluate(page, expr));
   }
 
   startPoll() {
@@ -70,12 +89,12 @@ export class Driver {
     return this.mainEval(InventoryExpr);
   }
 
-  listWorkspaces() {
-    return this
-      .pageEval(`(async () => { const l = await WOS.callBackendService("workspace", "ListWorkspaces", []); const out = [];
+  listWorkspaces(page) {
+    const expr = `(async () => { const l = await WOS.callBackendService("workspace", "ListWorkspaces", []); const out = [];
             for (const e of l) { const w = await WOS.callBackendService("workspace", "GetWorkspace", [e.workspaceid]);
                 out.push({ id: e.workspaceid, tabs: w?.tabids ?? [], active: w?.activetabid }); }
-            return out; })()`);
+            return out; })()`;
+    return page ? evaluate(page, expr) : this.pageEval(expr);
   }
 
   currentWorkspace() {
@@ -107,11 +126,16 @@ export class Driver {
     return ready != null;
   }
 
+  // Each operation is timed from the preload call, made on a page connection opened beforehand, so that finding the
+  // page is not part of the latency.
   async create() {
     await this.startPoll();
-    const before = new Set((await this.listWorkspaces()).flatMap((w) => w.tabs));
-    const t0 = Date.now();
-    await this.pageEval("window.api.createWorkspace(); 1");
+    const { before, t0 } = await this.withPage(async (page) => {
+      const tabs = new Set((await this.listWorkspaces(page)).flatMap((w) => w.tabs));
+      const start = Date.now();
+      await evaluate(page, "window.api.createWorkspace(); 1");
+      return { before: tabs, t0: start };
+    });
     const hit = await this.waitOnScreen(t0, (on) => on && on.split(",").length === 1 && !before.has(on));
     const after = await this.listWorkspaces();
     const ws = after.find((w) => w.tabs.includes(hit?.[1]));
@@ -120,24 +144,40 @@ export class Driver {
 
   async switchTo(wsId) {
     await this.startPoll();
-    const ws = (await this.listWorkspaces()).find((w) => w.id === wsId);
-    const t0 = Date.now();
-    await this.pageEval(`window.api.switchWorkspace(${JSON.stringify(wsId)}); 1`);
+    const { ws, t0 } = await this.withPage(async (page) => {
+      const target = (await this.listWorkspaces(page)).find((w) => w.id === wsId);
+      const start = Date.now();
+      await evaluate(page, `window.api.switchWorkspace(${JSON.stringify(wsId)}); 1`);
+      return { ws: target, t0: start };
+    });
     const hit = await this.waitOnScreen(t0, (on) => on === ws.active);
     return { ms: hit ? hit[0] - t0 : null, t0, workspace: wsId };
   }
 
+  // Timed until the workspace is gone from ListWorkspaces, polled with one RPC on an open page. Deleting the current
+  // workspace can take its page away: the poll then moves to the page now on screen.
   async remove(wsId) {
+    let page = await this.page();
     const t0 = Date.now();
-    await this.pageEval(`window.api.deleteWorkspace(${JSON.stringify(wsId)}); 1`);
-    for (let i = 0; i < 1500; i++) {
-      const l = await this.listWorkspaces().catch(() => null);
-      if (l && !l.find((w) => w.id === wsId)) {
-        return { ms: Date.now() - t0, t0, workspace: wsId, count: l.length };
+    try {
+      await evaluate(page, `window.api.deleteWorkspace(${JSON.stringify(wsId)}); 1`);
+      const end = t0 + 30000;
+      while (Date.now() < end) {
+        try {
+          const l = await evaluate(page, `WOS.callBackendService("workspace", "ListWorkspaces", [])`);
+          if (!l.find((w) => w.workspaceid === wsId)) {
+            return { ms: Date.now() - t0, t0, workspace: wsId, count: l.length };
+          }
+        } catch {
+          page.close();
+          page = await this.page();
+        }
+        await sleep(10);
       }
-      await sleep(20);
+      return { ms: null, t0, workspace: wsId };
+    } finally {
+      page.close();
     }
-    return { ms: null, t0, workspace: wsId };
   }
 
   // Creates a workspace and deletes it as soon as it exists, while its switch is still pending (FR-PERF-003).

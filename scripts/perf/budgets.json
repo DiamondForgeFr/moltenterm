@@ -1,5 +1,5 @@
 {
-    "$comment": "Performance budgets (FR-PERF-006, NFR-PERF-001..007). The one place budgets live: changing a budget, a tolerance or the baseline needs a reason in the pull request. gate: ci = machine-independent, gated in CI and locally; local = gated only against a baseline taken on the same machine (task perf -- --gate local); info = reported only. Values lower is better. Units: MB = 10^6 bytes for bundle and JS, MiB for memory.",
+    "$comment": "Performance budgets (FR-PERF-006, NFR-PERF-001..007). The one place budgets live: changing a budget, a tolerance or the baseline needs a reason in the pull request. gate: ci = machine-independent, gated in CI and locally; local = gated only against a baseline taken on the same machine (task perf -- --gate local); info = reported only. scenario: the scenario that produces the metric (a gated metric it did not produce fails). Values lower is better. Units: MB = 10^6 bytes for bundle and JS, MiB for memory.",
     "version": 1,
     "baseline": "baselines/75f1354a.json",
     "defaults": {
@@ -10,6 +10,7 @@
         "bundle.initialJsMB": {
             "nfr": "NFR-PERF-003",
             "title": "JS loaded up front by index.html (entry + modulepreloads)",
+            "scenario": "bundle",
             "unit": "MB",
             "budget": 8,
             "gate": "ci",
@@ -18,6 +19,7 @@
         "startup.jsEvaluatedMB": {
             "nfr": "NFR-PERF-003",
             "title": "JS evaluated by the starter tab view",
+            "scenario": "startup",
             "unit": "MB",
             "budget": 8,
             "gate": "ci",
@@ -26,6 +28,7 @@
         "startup.failedLaunches": {
             "nfr": "NFR-PERF-003",
             "title": "Launches that did not reach wave-ready",
+            "scenario": "startup",
             "unit": "",
             "budget": 0,
             "gate": "ci",
@@ -34,6 +37,7 @@
         "startup.waveReadyWarmMs": {
             "nfr": "NFR-PERF-003",
             "title": "Launch to first tab ready, warm (median)",
+            "scenario": "startup",
             "unit": "ms",
             "budget": 1500,
             "gate": "local",
@@ -42,6 +46,7 @@
         "startup.tabviewInitWarmMs": {
             "nfr": "NFR-PERF-003",
             "title": "Tab view init, warm (median)",
+            "scenario": "startup",
             "unit": "ms",
             "budget": 600,
             "gate": "local",
@@ -50,6 +55,7 @@
         "startup.waveReadyColdMs": {
             "nfr": "NFR-PERF-003",
             "title": "Launch to first tab ready, fresh data (median)",
+            "scenario": "startup",
             "unit": "ms",
             "budget": null,
             "gate": "info",
@@ -58,6 +64,7 @@
         "startup.tabviewInitColdMs": {
             "nfr": "NFR-PERF-003",
             "title": "Tab view init, fresh data (median)",
+            "scenario": "startup",
             "unit": "ms",
             "budget": null,
             "gate": "info",
@@ -66,6 +73,7 @@
         "idle.cpu1wsVisiblePct": {
             "nfr": "NFR-PERF-001",
             "title": "Idle CPU, 1 workspace, visible (whole tree, % of a core)",
+            "scenario": "session",
             "unit": "%",
             "budget": 2,
             "gate": "local",
@@ -74,6 +82,7 @@
         "idle.cpu1wsMinimisedPct": {
             "nfr": "NFR-PERF-001",
             "title": "Idle CPU, 1 workspace, minimised",
+            "scenario": "session",
             "unit": "%",
             "budget": 1,
             "gate": "local",
@@ -82,6 +91,7 @@
         "idle.cpu3wsVisiblePct": {
             "nfr": "NFR-PERF-001",
             "title": "Idle CPU, 3 workspaces, visible",
+            "scenario": "session",
             "unit": "%",
             "budget": null,
             "gate": "info",
@@ -90,6 +100,7 @@
         "idle.cpu3wsMinimisedPct": {
             "nfr": "NFR-PERF-001",
             "title": "Idle CPU, 3 workspaces, minimised",
+            "scenario": "session",
             "unit": "%",
             "budget": 1,
             "gate": "local",
@@ -98,6 +109,7 @@
         "idle.cpu6wsVisiblePct": {
             "nfr": "NFR-PERF-001",
             "title": "Idle CPU, 6 workspaces visited, visible",
+            "scenario": "session",
             "unit": "%",
             "budget": 3,
             "gate": "local",
@@ -106,6 +118,7 @@
         "idle.cpu6wsMinimisedPct": {
             "nfr": "NFR-PERF-001",
             "title": "Idle CPU, 6 workspaces visited, minimised",
+            "scenario": "session",
             "unit": "%",
             "budget": 1,
             "gate": "local",
@@ -114,6 +127,7 @@
         "mem.total6wsMB": {
             "nfr": "NFR-PERF-002",
             "title": "Memory, 6 workspaces visited (macOS footprint)",
+            "scenario": "session",
             "unit": "MiB",
             "budget": 900,
             "gate": "local",
@@ -122,6 +136,7 @@
         "mem.hiddenViewMB": {
             "nfr": "NFR-PERF-002",
             "title": "Memory per hidden tab view (median)",
+            "scenario": "session",
             "unit": "MiB",
             "budget": 60,
             "gate": "local",
@@ -130,6 +145,7 @@
         "mem.gpu6wsMB": {
             "nfr": "NFR-PERF-002",
             "title": "GPU process memory, 6 workspaces",
+            "scenario": "session",
             "unit": "MiB",
             "budget": 400,
             "gate": "local",
@@ -138,6 +154,7 @@
         "mem.total1wsMB": {
             "nfr": "NFR-PERF-002",
             "title": "Memory, 1 workspace",
+            "scenario": "session",
             "unit": "MiB",
             "budget": null,
             "gate": "info",
@@ -146,6 +163,7 @@
         "ws.createP95Ms": {
             "nfr": "NFR-PERF-004",
             "title": "Create workspace to new tab on screen (p95)",
+            "scenario": "session",
             "unit": "ms",
             "budget": 150,
             "gate": "local",
@@ -154,6 +172,7 @@
         "ws.switchNewP95Ms": {
             "nfr": "NFR-PERF-004",
             "title": "Switch to a never-visited workspace, warm spare (p95)",
+            "scenario": "session",
             "unit": "ms",
             "budget": 150,
             "gate": "local",
@@ -162,6 +181,7 @@
         "ws.switchVisitedP95Ms": {
             "nfr": "NFR-PERF-004",
             "title": "Switch to a visited workspace (p95)",
+            "scenario": "session",
             "unit": "ms",
             "budget": 150,
             "gate": "local",
@@ -170,6 +190,7 @@
         "ws.deleteP95Ms": {
             "nfr": "NFR-PERF-004",
             "title": "Delete a workspace (p95)",
+            "scenario": "session",
             "unit": "ms",
             "budget": 150,
             "gate": "local",
@@ -178,6 +199,7 @@
         "ws.failedOps": {
             "nfr": "NFR-PERF-004",
             "title": "Workspace operations that never reached the screen (30 s)",
+            "scenario": "session",
             "unit": "",
             "budget": 0,
             "gate": "local",
@@ -186,6 +208,7 @@
         "ws.raceBlockedMs": {
             "nfr": "NFR-PERF-004",
             "title": "Action queue blocked by a delete right after a create",
+            "scenario": "session",
             "unit": "ms",
             "budget": null,
             "gate": "info",
@@ -194,6 +217,7 @@
         "load.firstTabMs": {
             "nfr": "NFR-PERF-005",
             "title": "First tab ready with N busy processes (capped at the scenario timeout)",
+            "scenario": "load",
             "unit": "ms",
             "budget": 10000,
             "gate": "local",
@@ -202,6 +226,7 @@
         "load.blankWindow": {
             "nfr": "NFR-PERF-005",
             "title": "Window without a tab view after the load timeout (1 = blank)",
+            "scenario": "load",
             "unit": "",
             "budget": 0,
             "gate": "local",
@@ -210,6 +235,7 @@
         "leak.viewsAfterDeletes": {
             "nfr": "NFR-PERF-006",
             "title": "Tab views left after deleting 4 workspaces",
+            "scenario": "leaks",
             "unit": "",
             "budget": 0,
             "gate": "ci",
@@ -218,6 +244,7 @@
         "leak.viewsAfterLoops": {
             "nfr": "NFR-PERF-006",
             "title": "Tab views left after 5 create/delete loops",
+            "scenario": "leaks",
             "unit": "",
             "budget": 0,
             "gate": "local",
@@ -226,6 +253,7 @@
         "leak.memGrowthPerLoopMB": {
             "nfr": "NFR-PERF-006",
             "title": "Memory growth per create/delete loop, over 20 loops",
+            "scenario": "leaks",
             "unit": "MiB",
             "budget": 2,
             "gate": "local",
@@ -234,6 +262,7 @@
         "bundle.jsMB": {
             "nfr": "NFR-PERF-007",
             "title": "Renderer bundle JavaScript, raw",
+            "scenario": "bundle",
             "unit": "MB",
             "budget": null,
             "gate": "ci",
@@ -242,6 +271,7 @@
         "bundle.jsGzipMB": {
             "nfr": "NFR-PERF-007",
             "title": "Renderer bundle JavaScript, gzip",
+            "scenario": "bundle",
             "unit": "MB",
             "budget": null,
             "gate": "info"
@@ -249,6 +279,7 @@
         "bundle.cssMB": {
             "nfr": "NFR-PERF-007",
             "title": "Renderer bundle CSS, raw",
+            "scenario": "bundle",
             "unit": "MB",
             "budget": null,
             "gate": "info"
@@ -256,6 +287,7 @@
         "renderer.taskMsPerS": {
             "nfr": "Renderer (diagnostic)",
             "title": "Visible tab main-thread task time while idle",
+            "scenario": "session",
             "unit": "ms/s",
             "budget": null,
             "gate": "info",
@@ -264,6 +296,7 @@
         "renderer.timerFiresPerS": {
             "nfr": "Renderer (diagnostic)",
             "title": "Visible tab timer fires while idle",
+            "scenario": "session",
             "unit": "/s",
             "budget": null,
             "gate": "info",
@@ -272,6 +305,7 @@
         "mods.cpuDeltaPct": {
             "nfr": "Mods (diagnostic)",
             "title": "Idle CPU, built-in mods on minus off",
+            "scenario": "mods",
             "unit": "%",
             "budget": null,
             "gate": "info",
@@ -280,6 +314,7 @@
         "mods.memDeltaMB": {
             "nfr": "Mods (diagnostic)",
             "title": "Memory, built-in mods on minus off",
+            "scenario": "mods",
             "unit": "MiB",
             "budget": null,
             "gate": "info",

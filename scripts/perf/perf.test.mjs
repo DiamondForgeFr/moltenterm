@@ -159,13 +159,30 @@ describe("budget gate", () => {
     expect(evaluateMetric("info", { value: 500 }, { value: 1 }, b, "local").fails).toBe(false);
   });
 
-  it("flags a noisy metric and never fails the gate on it", () => {
+  it("flags a noisy metric and fails it only beyond twice its split-half gap", () => {
     const row = evaluateMetric("cpu", { value: 5, spreadPct: 40, spreadAbs: 2 }, { value: 3 }, b, "local");
     expect(row.noisy).toBe(true);
     expect(row.fails).toBe(false);
+    expect(evaluateMetric("cpu", { value: 9, spreadPct: 40, spreadAbs: 2 }, { value: 3 }, b, "local").fails).toBe(true);
     expect(evaluateMetric("cpu", { value: 3, spreadPct: 40, spreadAbs: 0.2 }, { value: 3 }, b, "local").noisy).toBe(
       false
     );
+  });
+
+  it("fails a gated metric that a scenario which ran did not produce, and a report with failed scenarios", () => {
+    const bs = { ...b, metrics: { js: { budget: 8, gate: "ci", scenario: "startup" } } };
+    const base = { metrics: { js: { value: 7 } } };
+    const ran = evaluate({ meta: { scenarios: ["startup"] }, metrics: {}, errors: [] }, bs, base, "ci");
+    expect(ran.failures).toEqual(["js"]);
+    const skipped = evaluate({ meta: { scenarios: ["bundle"] }, metrics: {}, errors: [] }, bs, base, "ci");
+    expect(skipped.pass).toBe(true);
+    const crashed = evaluate(
+      { meta: { scenarios: ["bundle"] }, metrics: {}, errors: [{ scenario: "leaks", message: "x" }] },
+      bs,
+      base,
+      "ci"
+    );
+    expect(crashed.pass).toBe(false);
   });
 
   it("passes the stored baseline against itself in both scopes", () => {
@@ -182,6 +199,7 @@ describe("budget gate", () => {
       expect(m.title, id).toBeTruthy();
       expect(m.nfr, id).toBeTruthy();
       expect(["ci", "local", "info"], id).toContain(m.gate);
+      expect(["bundle", "startup", "session", "leaks", "load", "mods"], id).toContain(m.scenario);
     }
   });
 });

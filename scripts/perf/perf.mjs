@@ -5,7 +5,7 @@
 // MoltenTerm performance harness (FR-PERF-006). See scripts/perf/README.md.
 //
 //   node scripts/perf/perf.mjs run [--profile full|quick|ci] [--scenarios a,b] [--out dir] [--id name] [--gate ci|local]
-//                                [--tmp dir] [--keep] [--baseline file]
+//                                [--tmp dir] [--keep] [--baseline file] [--app checkout]
 //   node scripts/perf/perf.mjs check <report.json> [--scope ci|local] [--baseline file]
 //   node scripts/perf/perf.mjs compare <a.json> <b.json>
 //   node scripts/perf/perf.mjs baseline <report.json> [--id name]
@@ -19,7 +19,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { disposeAll, installCleanupHandlers } from "./lib/instance.mjs";
+import { disposeAll, installCleanupHandlers, sweepStaleRoots } from "./lib/instance.mjs";
 import { compareReports, evaluate, renderCompare, renderMarkdown } from "./lib/report.mjs";
 import { finalize, Profiles, Runners } from "./lib/scenarios.mjs";
 
@@ -62,9 +62,9 @@ function loadBaseline(budgets, override) {
   return readJson(file);
 }
 
-function git(args) {
+function git(args, cwd = RepoRoot) {
   try {
-    return execFileSync("git", args, { cwd: RepoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
   } catch {
     return null;
   }
@@ -86,9 +86,9 @@ function machine() {
   };
 }
 
-function electronVersion() {
+function electronVersion(appRoot) {
   try {
-    return readJson(path.join(RepoRoot, "node_modules", "electron", "package.json")).version;
+    return readJson(path.join(appRoot, "node_modules", "electron", "package.json")).version;
   } catch {
     return null;
   }
@@ -116,18 +116,21 @@ async function cmdRun(opts) {
   const outDir = path.resolve(opts.out ?? path.join(RepoRoot, "dist", "perf", `${stamp}-${profileName}`));
   fs.mkdirSync(outDir, { recursive: true });
   const started = Date.now();
-  const commit = git(["rev-parse", "--short=8", "HEAD"]);
+  // --app measures the build of another checkout (a "before" worktree, for instance) with this harness.
+  const appRoot = typeof opts.app === "string" ? path.resolve(opts.app) : RepoRoot;
+  const commit = git(["rev-parse", "--short=8", "HEAD"], appRoot);
   const report = {
     meta: {
       id: opts.id ?? commit,
       commit,
-      dirty: !!git(["status", "--porcelain", "--untracked-files=no"]),
+      dirty: !!git(["status", "--porcelain", "--untracked-files=no"], appRoot),
+      harnessCommit: git(["rev-parse", "--short=8", "HEAD"]),
       profile: profileName,
       scenarios,
       startedAt: new Date(started).toISOString(),
       durationS: null,
       machine: machine(),
-      electron: electronVersion(),
+      electron: electronVersion(appRoot),
       memoryMethod: null,
       settings: profile,
     },
@@ -137,7 +140,7 @@ async function cmdRun(opts) {
   };
   const instances = new Set();
   const ctx = {
-    repoRoot: RepoRoot,
+    repoRoot: appRoot,
     tmpBase: path.resolve(typeof opts.tmp === "string" ? opts.tmp : "/tmp"),
     outDir,
     profile,
@@ -154,6 +157,10 @@ async function cmdRun(opts) {
     },
   };
   installCleanupHandlers();
+  const swept = sweepStaleRoots(RepoRoot, ctx.tmpBase);
+  if (swept) {
+    console.error(`perf: removed ${swept} root(s) left by a harness that was killed`);
+  }
   for (const s of scenarios) {
     console.error(`perf: scenario ${s}`);
     try {
@@ -226,6 +233,11 @@ function cmdBaseline(pos, opts) {
   const id = opts.id ?? report.meta.id;
   if (!/^[\w.-]+$/.test(id)) {
     throw new Error(`invalid baseline id ${id}`);
+  }
+  if (report.errors?.length && !opts.force) {
+    throw new Error(
+      `the report has failed scenarios (${report.errors.map((e) => e.scenario).join(", ")}); --force to store it anyway`
+    );
   }
   report.meta.id = id;
   delete report.evaluation;
