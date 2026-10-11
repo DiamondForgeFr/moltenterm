@@ -741,15 +741,20 @@ export class WaveBrowserWindow extends BaseWindow {
         }
     }
 
-    // MOLTENTERM-PATCH (#449): a view still being acquired when its switch is superseded is destroyed once it arrives,
-    // instead of staying in the tab cache without a window that shows it
+    // MOLTENTERM-PATCH (#449): a view still being acquired when its switch is superseded stops waiting at once and goes
+    // back as the hot spare (getOrCreateWebViewForTab); one acquired just then is destroyed, never left in the tab cache
+    // without a window that shows it
     private async acquireTabView(tabId: string, run: ActionRun): Promise<[WaveTabView, boolean]> {
-        const acquiring = getOrCreateWebViewForTab(this.waveWindowId, tabId, run.deadline);
+        const acquiring = getOrCreateWebViewForTab(this.waveWindowId, tabId, run.deadline, run.whenSuperseded);
         try {
             return await run.race(acquiring);
         } catch (e) {
             fireAndForget(async () => {
-                const [tabView, tabInitialized] = await acquiring;
+                const acquired = await acquiring;
+                if (acquired == null) {
+                    return;
+                }
+                const [tabView, tabInitialized] = acquired;
                 if (!tabInitialized && this.allLoadedTabViews.get(tabId) !== tabView) {
                     tabView.destroy();
                 }

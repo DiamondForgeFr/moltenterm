@@ -6,7 +6,8 @@ import { acquireReadyView, awaitViewInitialized, isDuplicateSwitch, ReadyTracked
 
 type FakeView = ReadyTrackedView & { resolve: () => void; destroyed: number };
 
-function makeView(opts: { ready?: boolean } = {}): FakeView {
+// Views are made a minute old unless `young`: an old spare still silent is the stale case of #283.
+function makeView(opts: { ready?: boolean; young?: boolean } = {}): FakeView {
     let resolve: () => void;
     const initPromise = new Promise<void>((r) => {
         resolve = r;
@@ -14,6 +15,7 @@ function makeView(opts: { ready?: boolean } = {}): FakeView {
     const view: FakeView = {
         isInitialized: false,
         isDestroyed: false,
+        createdTs: opts.young ? Date.now() : Date.now() - 60000,
         initPromise,
         destroyed: 0,
         destroy() {
@@ -154,6 +156,63 @@ describe("acquireReadyView under a single deadline (#449)", () => {
         );
         await vi.advanceTimersByTimeAsync(1);
         await expect(result).resolves.toEqual({ view: fresh, ready: false });
+    });
+});
+
+describe("acquireReadyView: young spares and cancellation (#449)", () => {
+    it("waits for a spare still booting until the deadline instead of starting a fresh view", async () => {
+        const spare = makeView({ young: true });
+        const makeFresh = vi.fn(() => makeView());
+        const result = acquireReadyView(
+            () => spare,
+            makeFresh,
+            () => {},
+            Date.now() + 10000
+        );
+        await vi.advanceTimersByTimeAsync(7000);
+        spare.resolve();
+        await expect(result).resolves.toEqual({ view: spare, ready: true });
+        expect(makeFresh).not.toHaveBeenCalled();
+        expect(spare.destroyed).toBe(0);
+    });
+
+    it("returns a young spare still silent at the deadline as not ready, without a fresh view", async () => {
+        const spare = makeView({ young: true });
+        const makeFresh = vi.fn(() => makeView());
+        const result = acquireReadyView(
+            () => spare,
+            makeFresh,
+            () => {},
+            Date.now() + 5000
+        );
+        await vi.advanceTimersByTimeAsync(5000);
+        await expect(result).resolves.toEqual({ view: spare, ready: false });
+        expect(makeFresh).not.toHaveBeenCalled();
+    });
+
+    it("stops waiting at once when cancelled, and hands the view back untouched", async () => {
+        const spare = makeView({ young: true });
+        let cancel: () => void;
+        const cancelled = new Promise<void>((r) => {
+            cancel = r;
+        });
+        let settled = false;
+        const result = acquireReadyView(
+            () => spare,
+            () => makeView(),
+            () => {},
+            Date.now() + 10000,
+            cancelled
+        ).then((r) => {
+            settled = true;
+            return r;
+        });
+        await vi.advanceTimersByTimeAsync(100);
+        cancel();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(settled).toBe(true);
+        await expect(result).resolves.toEqual({ view: spare, ready: false, cancelled: true });
+        expect(spare.destroyed).toBe(0);
     });
 });
 
