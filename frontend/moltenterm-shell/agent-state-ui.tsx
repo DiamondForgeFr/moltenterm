@@ -10,8 +10,11 @@ import { atom, Atom, useAtomValue } from "jotai";
 import { useMemo } from "react";
 import { AgentStateDotClasses, AgentStateInfo, agentStateTitle } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
+import { useWorkingBeat } from "./working-beat";
 
 export function AgentStateDot({ info, className }: { info: AgentStateInfo; className?: string }) {
+    const working = info?.state === "working";
+    useWorkingBeat(working);
     if (info == null) {
         return null;
     }
@@ -20,7 +23,7 @@ export function AgentStateDot({ info, className }: { info: AgentStateInfo; class
             className={cn(
                 "inline-block h-2 w-2 shrink-0 rounded-full",
                 AgentStateDotClasses[info.state] ?? AgentStateDotClasses.idle,
-                info.state === "working" && "mt-working-motion animate-pulse",
+                working && "mt-beat-blink",
                 className
             )}
             role="img"

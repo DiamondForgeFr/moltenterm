@@ -87,7 +87,11 @@ describe("heat states (DS-SHELL-014)", () => {
         for (const state of ["working", "waiting", "error", "done"]) {
             expect(shellCss).toContain(`[data-mt-agent-state="${state}"]::after`);
         }
-        expect(shellCss).toMatch(/\[data-mt-agent-state="working"\]::after \{[^}]*animation: mt-heat-breathe/);
+        const working = /\[data-mt-agent-state="working"\]::after \{([^}]*)\}/.exec(shellCss)[1];
+        expect(working).toContain("--mt-state-working");
+        // #473: a static glow; the header segment carries the motion on the shared beat.
+        expect(working).not.toContain("animation");
+        expect(shellCss).not.toContain("mt-heat-breathe");
         expect(shellCss).toMatch(/\[data-mt-agent-state="waiting"\]::after \{[^}]*--mt-state-waiting/);
         expect(shellCss).toMatch(/\[data-mt-agent-state="done"\]::after \{[^}]*animation: mt-heat-cool[^;]*forwards/);
     });

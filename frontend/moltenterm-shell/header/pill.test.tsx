@@ -8,7 +8,6 @@ import { Pill } from "./pill";
 
 // Read from disk: vitest stubs stylesheet imports.
 const headerCss = readFileSync(new URL("./header.css", import.meta.url), "utf8");
-const tokensCss = readFileSync(new URL("../tokens.css", import.meta.url), "utf8");
 const shellCss = readFileSync(new URL("../moltenterm-shell.css", import.meta.url), "utf8");
 const headerTsx = readFileSync(new URL("../../app/block/blockframe-header.tsx", import.meta.url), "utf8");
 const termModel = readFileSync(new URL("../../app/view/term/term-model.ts", import.meta.url), "utf8");
@@ -88,27 +87,29 @@ describe("header hierarchy (FR-SHELL-052-AC1, AC5)", () => {
 });
 
 describe("working segment (FR-SHELL-052-AC4, NFR-SHELL-027)", () => {
-    it("travels a quarter of the width along the bottom edge in the loop token", () => {
+    it("hops a quarter of the width along the bottom edge on the working beat (#473)", () => {
         const segment = rule(headerCss, ".molten-header-working");
         expect(segment).toContain("position: absolute;");
         expect(segment).toContain("height: 2px;");
         expect(segment).toContain("bottom: -1px;");
-        const moving = rule(headerCss, ".molten-header-working::before");
+        const moving = rule(headerCss, ".molten-header-working::after");
         expect(moving).toContain("width: 25%;");
-        expect(moving).toContain("animation: mt-header-working var(--mt-duration-loop) linear infinite;");
-        expect(tokensCss).toContain("--mt-duration-loop: 1600ms;");
+        expect(moving).toContain("display: none;");
+        expect(headerCss).not.toMatch(/animation:/);
+        expect(rule(headerCss, ':root[data-mt-motion="live"][data-mt-beat] .molten-header-working::after')).toContain(
+            "display: block;"
+        );
+        for (const phase of [1, 2, 3]) {
+            expect(
+                rule(headerCss, `:root[data-mt-motion="live"][data-mt-beat="${phase}"] .molten-header-working::after`)
+            ).toContain(`transform: translateX(${phase * 100}%);`);
+        }
     });
 
-    it("stands still at full width and 40 % under reduced motion, the system's and MoltenTerm's", () => {
-        const media = /@media \(prefers-reduced-motion: reduce\) \{\s*\.molten-header-working::before \{([^}]*)\}/.exec(
-            headerCss
-        )?.[1];
-        const setting = rule(headerCss, ".prefers-reduced-motion .molten-header-working::before");
-        for (const body of [media, setting]) {
-            expect(body).toContain("animation: none;");
-            expect(body).toContain("width: 100%;");
-            expect(body).toContain("opacity: 0.4;");
-        }
+    it("keeps a static track at full width and 40 %, all that shows without the beat", () => {
+        const track = rule(headerCss, ".molten-header-working::before");
+        expect(track).toContain("inset: 0;");
+        expect(track).toContain("opacity: 0.4;");
     });
 
     it("never shifts the layout: the header anchors an overlay (NFR-SHELL-029)", () => {

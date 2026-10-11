@@ -194,15 +194,19 @@ describe("working animations stand still when the view is not active (AC4)", () 
     const read = (rel: string) => readFileSync(path.join(__dirname, rel), "utf8");
 
     it("covers the tab dot, the header segment, the heat glow, the rail dot and the bell", () => {
-        expect(read("tab-bar.css")).toContain(
-            ':root[data-mt-motion="still"] .molten-tab-dot[data-state="working"]::after'
-        );
-        expect(read("header/header.css")).toContain(':root[data-mt-motion="still"] .molten-header-working::before');
+        // #473: they all move on the working beat, whose every rule needs data-mt-motion="live".
+        const beatRules = [read("moltenterm-shell.css"), read("header/header.css")]
+            .join("\n")
+            .split("\n")
+            .filter((line) => line.includes("[data-mt-beat"));
+        expect(beatRules.length).toBeGreaterThan(0);
+        for (const line of beatRules) {
+            expect(line).toContain(':root[data-mt-motion="live"][data-mt-beat');
+        }
         const shell = read("moltenterm-shell.css");
         expect(shell).toContain(':root[data-mt-motion="still"] .block.block-frame-default[data-mt-agent-state]::after');
-        expect(shell).toContain(':root[data-mt-motion="still"] .mt-working-motion');
-        expect(shell).toContain(".prefers-reduced-motion .mt-working-motion");
-        expect(read("agent-state-ui.tsx")).toContain('"mt-working-motion animate-pulse"');
-        expect(read("notification-center.tsx")).toContain('"mt-working-motion animate-spin"');
+        expect(read("agent-state-ui.tsx")).toContain('working && "mt-beat-blink"');
+        expect(read("tab-identity-ui.tsx")).toContain('working && "mt-beat-blink"');
+        expect(read("notification-center.tsx")).toContain('progress == null && "mt-beat-turn"');
     });
 });

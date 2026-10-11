@@ -149,7 +149,8 @@ body:not(.nohover) .tab.molten-tab.active:hover .tab-inner,
     display: none;
 }
 
-/* The agent mark (8 px): shape first, colour second. */
+/* The agent mark (8 px): shape first, colour second. Working is a ring, waiting a filled dot; the ring blinks on the
+   shared working beat (mt-beat-blink, #473) instead of an expanding halo of its own. */
 .molten-tab-dot {
     position: relative;
     display: inline-block;
@@ -162,15 +163,6 @@ body:not(.nohover) .tab.molten-tab.active:hover .tab-inner,
 
 .molten-tab-dot[data-state="working"] {
     border: 2px solid var(--mt-state-working);
-}
-
-.molten-tab-dot[data-state="working"]::after {
-    content: "";
-    position: absolute;
-    inset: -2px;
-    border-radius: 9999px;
-    border: 1.5px solid var(--mt-state-working);
-    animation: molten-tab-dot-pulse 1.2s var(--mt-ease) infinite;
 }
 
 .molten-tab-dot[data-state="waiting"] {
@@ -191,28 +183,4 @@ body:not(.nohover) .tab.molten-tab.active:hover .tab-inner,
     height: 6px;
     margin: 0 1px;
     background: var(--mt-state-done);
-}
-
-@keyframes molten-tab-dot-pulse {
-    from {
-        transform: scale(1);
-        opacity: 0.9;
-    }
-    to {
-        transform: scale(2.2);
-        opacity: 0;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .molten-tab-dot[data-state="working"]::after {
-        display: none;
-        animation: none;
-    }
-}
-
-.prefers-reduced-motion .molten-tab-dot[data-state="working"]::after,
-:root[data-mt-motion="still"] .molten-tab-dot[data-state="working"]::after {
-    display: none;
-    animation: none;
 }

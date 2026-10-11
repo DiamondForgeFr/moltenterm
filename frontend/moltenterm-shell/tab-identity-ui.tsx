@@ -14,6 +14,7 @@ import { AgentStateInfo, agentStatesOfBlocks, agentStateTitle } from "./agent-st
 import { AgentStates } from "./agent-state-store";
 import { ProjectTabMetaKey } from "./project/project-model";
 import { agentGlyph, panelIcon, PanelMeta, tabDisplayName } from "./tab-identity";
+import { useWorkingBeat } from "./working-beat";
 
 let homeDir: string = null;
 
@@ -89,13 +90,15 @@ export function agentMarkTitle(info: AgentStateInfo): string {
 }
 
 export function TabAgentMark({ info }: { info: AgentStateInfo }) {
+    const working = info?.state === "working";
+    useWorkingBeat(working);
     if (info == null) {
         return null;
     }
     const title = agentMarkTitle(info);
     return (
         <span
-            className="molten-tab-dot"
+            className={cn("molten-tab-dot", working && "mt-beat-blink")}
             data-state={info.state}
             role="img"
             aria-label={title}
