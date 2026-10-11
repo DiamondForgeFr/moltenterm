@@ -40,6 +40,7 @@ import "./moltenterm-shell/moltenterm-shell.css"; // MOLTENTERM-PATCH (#48)
 import "./moltenterm-shell/molten-button.css"; // MOLTENTERM-PATCH (#145): molten call-to-action buttons, after the shell
 import { startMoltentermAccent } from "./moltenterm-shell/accent"; // MOLTENTERM-PATCH (#47)
 import { reconnectWSIfClosed } from "./moltenterm-shell/ws-health"; // MOLTENTERM-PATCH (#223)
+import { pinTabWorkspace } from "./moltenterm-shell/tab-workspace"; // MOLTENTERM-PATCH (#447)
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -191,6 +192,7 @@ async function initWave(initOpts: WaveInitOpts) {
             WOS.reloadWaveObject<LayoutState>(WOS.makeORef("layout", initialTab.layoutstate)),
         ]);
         loadAllWorkspaceTabs(ws);
+        pinTabWorkspace(waveWindow.workspaceid); // MOLTENTERM-PATCH (#447): the view keeps its tab's workspace
         WOS.wpsSubscribeToObject(WOS.makeORef("workspace", waveWindow.workspaceid));
         document.title = `${MoltentermWindowTitle} - ${initialTab.name}`; // TODO update with tab name change (MOLTENTERM-PATCH #4)
     } catch (e) {

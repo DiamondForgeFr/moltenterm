@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ContextMenuModel, ContextMenuSession } from "@/app/store/contextmenu";
-import { atoms, getApi, getBlockComponentModel, getSettingsKeyAtom, globalStore } from "@/app/store/global";
+import { getApi, getBlockComponentModel, getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { subscribeWindowWorkspaceChange } from "../tab-workspace";
 import { useMenuGesture } from "./menu-gesture";
 import { captureMenuFocus, menuHasRoles, menuOpenedByKeyboard, menuPoint, runMenuSelection } from "./menu-model";
 import { MenuSurface } from "./menu-surface";
@@ -115,7 +116,7 @@ export function MenuHost() {
         document.addEventListener("visibilitychange", cancel);
         window.addEventListener("blur", cancel);
         window.addEventListener("resize", cancel);
-        const unsubscribe = globalStore.sub(atoms.workspaceId, cancel);
+        const unsubscribe = subscribeWindowWorkspaceChange(cancel);
         return () => {
             window.removeEventListener("keydown", keydown, true);
             window.removeEventListener("keyup", keyup, true);
