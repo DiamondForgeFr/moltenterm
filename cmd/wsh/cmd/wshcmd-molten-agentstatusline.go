@@ -4,22 +4,11 @@
 package cmd
 
 import (
-	"bytes"
-	"errors"
-	"fmt"
 	"io"
 	"os"
-	"os/exec"
-	"os/signal"
-	"runtime"
-	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/wavetermdev/waveterm/pkg/molten"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
-	"github.com/wavetermdev/waveterm/pkg/wshrpc"
-	"github.com/wavetermdev/waveterm/pkg/wshutil"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthook"
 )
 
 // Claude Code's status line relay (FR-SHELL-027, DS-SHELL-031). Claude Code runs it as its statusLine command:
@@ -27,9 +16,11 @@ import (
 // change, and in a MoltenTerm terminal it also hands the input's rate limit windows, and nothing else, to the pane's
 // companion. Outside MoltenTerm it only runs the command. It never prints anything of its own: any failure of the
 // hand-off is ignored, the status line is the user's.
+// The relay itself is in pkg/molten/agenthook, which the small molten program (cmd/molten) runs without wsh
+// (FR-PERF-012); wsh runs it for `wsh molten agent statusline` and where molten is wsh (Windows).
 
 // The whole hand-off, connection included, never holds the status line longer than this.
-const moltenStatusLineSendTimeout = 300 * time.Millisecond
+const moltenStatusLineSendTimeout = agenthook.StatusLineSendTimeout
 
 var moltenAgentStatusLineCmd = &cobra.Command{
 	Use:   "statusline [-- <command> [args...]]",
@@ -58,113 +49,17 @@ func moltenAgentStatusLineRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-type statusLineSender func(req molten.AgentStatusLineRequest)
+type statusLineSender = agenthook.StatusLineSender
 
 // moltenStatusLineSender sends to the companion of the terminal the relay runs in, or is nil outside MoltenTerm.
 func moltenStatusLineSender() statusLineSender {
-	jwt := os.Getenv(wshutil.WaveJwtTokenVarName)
-	blockId := os.Getenv("WAVETERM_BLOCKID")
-	if jwt == "" || blockId == "" {
-		return nil
-	}
-	return func(req molten.AgentStatusLineRequest) {
-		if setupRpcClient(nil, jwt) != nil {
-			return
-		}
-		req.BlockId = blockId
-		if RpcContext.BlockId != "" {
-			req.BlockId = RpcContext.BlockId
-		}
-		opts := &wshrpc.RpcOpts{Route: molten.CompanionRoute, Timeout: int64(moltenStatusLineSendTimeout / time.Millisecond)}
-		RpcClient.SendRpcRequest(molten.AgentStatusLineCommand, req, opts)
-	}
+	return agenthook.MakeStatusLineSender(os.Getenv, agenthook.StatusLineCacheDir())
 }
 
-// runStatusLineRelay runs the chained command on the relay's whole input while the windows are handed off, and
-// returns the command's exit code.
 func runStatusLineRelay(stdin io.Reader, stdout io.Writer, stderr io.Writer, args []string, send statusLineSender) int {
-	start := time.Now()
-	head, _ := io.ReadAll(io.LimitReader(stdin, molten.StatusLineMaxInput+1))
-	var sent chan struct{}
-	if send != nil && len(head) <= molten.StatusLineMaxInput {
-		req, err := molten.ParseStatusLineInput(head)
-		if err != nil {
-			// An input this relay cannot read is reported as unreadable limits: the companion says the source changed.
-			req = molten.AgentStatusLineRequest{RateLimits: true}
-		}
-		sent = make(chan struct{})
-		go func() {
-			defer close(sent)
-			defer func() {
-				panichandler.PanicHandlerNoTelemetry("molten:statusline:send", recover())
-			}()
-			send(req)
-		}()
-	}
-	code := 0
-	if len(args) > 0 {
-		code = runStatusLineCommand(args, io.MultiReader(bytes.NewReader(head), stdin), stdout, stderr)
-	}
-	if sent != nil {
-		wait := moltenStatusLineSendTimeout - time.Since(start)
-		if wait > 0 {
-			select {
-			case <-sent:
-			case <-time.After(wait):
-			}
-		}
-	}
-	return code
-}
-
-// statusLineCommand: one argument is a shell command line, as Claude Code's statusLine command is; several are a
-// program and its arguments.
-func statusLineCommand(args []string) *exec.Cmd {
-	if len(args) > 1 {
-		return exec.Command(args[0], args[1:]...)
-	}
-	if runtime.GOOS == "windows" {
-		if sh, err := exec.LookPath("sh"); err == nil {
-			return exec.Command(sh, "-c", args[0])
-		}
-		return exec.Command("cmd", "/C", args[0])
-	}
-	return exec.Command("/bin/sh", "-c", args[0])
+	return agenthook.RunStatusLineRelay(stdin, stdout, stderr, args, send)
 }
 
 func runStatusLineCommand(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
-	c := statusLineCommand(args)
-	c.Stdin, c.Stdout, c.Stderr = stdin, stdout, stderr
-	if err := c.Start(); err != nil {
-		fmt.Fprintf(stderr, "%s: %v\n", args[0], err)
-		return 127
-	}
-	// Claude Code cancels a status line run still going when a new one starts: the command stops with the relay.
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
-	done := make(chan struct{})
-	defer close(done)
-	defer signal.Stop(signals)
-	go func() {
-		select {
-		case sig := <-signals:
-			c.Process.Signal(sig)
-		case <-done:
-		}
-	}()
-	err := c.Wait()
-	if err == nil {
-		return 0
-	}
-	var ee *exec.ExitError
-	if !errors.As(err, &ee) {
-		return 1
-	}
-	if code := ee.ExitCode(); code >= 0 {
-		return code
-	}
-	if ws, ok := ee.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
-		return 128 + int(ws.Signal())
-	}
-	return 1
+	return agenthook.RunStatusLineCommand(args, stdin, stdout, stderr)
 }

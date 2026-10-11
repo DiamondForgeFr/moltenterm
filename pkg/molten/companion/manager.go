@@ -140,6 +140,9 @@ type Manager struct {
 	usagePublished map[string]time.Time
 	// Whether the last plan usage request of each block's companion came from a window that shows (NFR-SHELL-013).
 	usageVisible map[string]bool
+	// The status line relay's reports of each block, at most one a second (statuslinegate.go).
+	statusLines   map[string]*statusLineGate
+	statusLineGap time.Duration
 	// Whether Codex's plan limits are kept: set when the gauges are turned on or off, before the reloaded settings
 	// say so; until then (limitsUnset) the settings tell.
 	limitsState atomic.Int32
@@ -170,6 +173,8 @@ func MakeManager() *Manager {
 		claims:         map[string]sessionClaim{},
 		usagePublished: map[string]time.Time{},
 		usageVisible:   map[string]bool{},
+		statusLines:    map[string]*statusLineGate{},
+		statusLineGap:  statusLineMinGap,
 		idMisses:       map[string]time.Time{},
 		adapterFor:     AdapterFor,
 		now:            time.Now,
@@ -277,6 +282,7 @@ func (m *Manager) ForgetBlock(blockId string) {
 	delete(m.picks, blockId)
 	delete(m.usagePublished, blockId)
 	delete(m.usageVisible, blockId)
+	delete(m.statusLines, blockId)
 	usage.DefaultStatusLineStore.Forget(blockId)
 }
 

@@ -22,7 +22,8 @@ const config = {
         {
             from: "./dist",
             to: "./dist",
-            filter: ["**/*", "!bin/*", "bin/wavesrv.${arch}*", "bin/wsh*", "!tsunamiscaffold/**/*"],
+            // MOLTENTERM-PATCH (#458): the small molten program (cmd/molten) ships next to wsh.
+            filter: ["**/*", "!bin/*", "bin/wavesrv.${arch}*", "bin/wsh*", "bin/molten-*", "!tsunamiscaffold/**/*"],
         },
         {
             from: ".",

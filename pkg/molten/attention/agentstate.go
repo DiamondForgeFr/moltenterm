@@ -572,12 +572,17 @@ func ReportAgentState(ctx context.Context, req molten.AgentStateRequest) error {
 	if req.BlockId == "" {
 		return fmt.Errorf("molten agent state must run in a MoltenTerm terminal")
 	}
-	block, err := wstore.DBGet[*waveobj.Block](ctx, req.BlockId)
-	if err != nil {
-		return err
-	}
-	if block == nil || block.Meta.GetString(waveobj.MetaKey_View, "") != "term" {
-		return fmt.Errorf("block %s is not a terminal", req.BlockId)
+	// A block with a record is a terminal already checked (records are kept for terminals only and dropped when the
+	// block closes): an agent's hooks report every tool call, and the store is read once per run, not every time
+	// (FR-PERF-012).
+	if _, known := defaultAgentStates.runOf(req.BlockId); !known {
+		block, err := wstore.DBGet[*waveobj.Block](ctx, req.BlockId)
+		if err != nil {
+			return err
+		}
+		if block == nil || block.Meta.GetString(waveobj.MetaKey_View, "") != "term" {
+			return fmt.Errorf("block %s is not a terminal", req.BlockId)
+		}
 	}
 	signal, kind, err := defaultAgentStates.report(req)
 	if err != nil {

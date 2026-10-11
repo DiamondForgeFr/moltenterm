@@ -127,14 +127,38 @@ func writeFileAtomic(path string, data []byte) error {
 	return nil
 }
 
+// MoltenProgramPath is the small molten program built for this platform (cmd/molten, FR-PERF-012) in the app's
+// binaries, or "" when there is none (Windows, or a build without it); replaced in tests.
+var MoltenProgramPath = func() string {
+	if runtime.GOOS == "windows" {
+		return ""
+	}
+	arch := runtime.GOARCH
+	if arch == "amd64" {
+		arch = "x64"
+	}
+	path := filepath.Join(wavebase.GetWaveAppBinPath(), fmt.Sprintf("molten-%s-%s.%s", wavebase.WaveVersion, runtime.GOOS, arch))
+	if _, err := os.Stat(path); err != nil {
+		return ""
+	}
+	return path
+}
+
 // InstallMoltenCommand makes `molten` and `molten-open` available wherever wsh is: a relative symlink to wsh, so that
-// they follow every wsh update, or a copy on Windows, where symlinks need extra rights. The agent launchers and the
-// inhibitor shims go in their own folder (agents/claude -> ../wsh), which only local shells put on PATH.
+// they follow every wsh update, or a copy on Windows, where symlinks need extra rights. Where the small molten program
+// exists, molten is a copy of it instead: it runs the agents' hook commands without starting wsh and hands wsh, next to
+// it, every other command (FR-PERF-012). The agent launchers and the inhibitor shims go in their own folder
+// (agents/claude -> ../wsh), which only local shells put on PATH.
 func InstallMoltenCommand(binDir string, wshPath string) error {
-	for _, name := range []string{MoltenCommandName, MoltenOpenCommandName} {
-		if err := installWshAlias(binDir, wshPath, name, filepath.Base(wshPath)); err != nil {
+	if program := MoltenProgramPath(); program != "" {
+		if err := utilfn.AtomicRenameCopy(filepath.Join(binDir, MoltenCommandName), program, 0755); err != nil {
 			return err
 		}
+	} else if err := installWshAlias(binDir, wshPath, MoltenCommandName, filepath.Base(wshPath)); err != nil {
+		return err
+	}
+	if err := installWshAlias(binDir, wshPath, MoltenOpenCommandName, filepath.Base(wshPath)); err != nil {
+		return err
 	}
 	agentDir := filepath.Join(binDir, AgentBinDirName)
 	if err := os.MkdirAll(agentDir, 0755); err != nil {

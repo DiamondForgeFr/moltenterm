@@ -177,7 +177,7 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
-		return nil, l.m.RecordStatusLine(req)
+		return l.m.HandleStatusLine(req)
 	case molten.CompanionSessionCommand:
 		var req molten.AgentSessionRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

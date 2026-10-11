@@ -270,8 +270,9 @@ func claudeBrowserInProjectFiles(ctx LaunchContext) (string, error) {
 	}
 }
 
-// MoltenPath is the molten command of a MoltenTerm data folder (<data>/bin/molten, a link to wsh), or "" when it is
-// not installed: the browser server is then not offered. It is this same wsh, so it serves `molten mcp browser`.
+// MoltenPath is the molten command of a MoltenTerm data folder (<data>/bin/molten, a link to wsh or the molten
+// program that hands wsh every command but the hooks', FR-PERF-012), or "" when it is not installed: the browser server
+// is then not offered. It runs this same wsh, so it serves `molten mcp browser`.
 func MoltenPath(dataDir string) string {
 	if dataDir == "" {
 		return ""
