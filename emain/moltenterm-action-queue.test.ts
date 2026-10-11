@@ -190,6 +190,19 @@ describe("WindowActionQueue: generations", () => {
         expect(runs.second.deadline).toBeGreaterThanOrEqual(start + 5100);
         expect(runs.second.remainingMs()).toBeLessThanOrEqual(5000);
     });
+
+    it("extends an action's deadline once, for its one retry (#450)", async () => {
+        const { queue, runs } = makeQueue();
+        queue.enqueue({ op: "createtab", id: "first", behave: "wait" });
+        await vi.advanceTimersByTimeAsync(4000);
+        const run = runs.first;
+        expect(run.remainingMs()).toBe(1000);
+        expect(run.extendOnce(5000)).toBe(true);
+        expect(run.remainingMs()).toBe(5000);
+        expect(run.deadline).toBe(Date.now() + 5000);
+        expect(run.extendOnce(5000)).toBe(false);
+        expect(run.remainingMs()).toBe(5000);
+    });
 });
 
 describe("WindowActionQueue: pending actions", () => {

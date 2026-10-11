@@ -36,6 +36,9 @@ export type ActionRun = {
     generation: number;
     // Absolute time (ms since epoch) by which every view this action waits on must be ready.
     deadline: number;
+    // The one retry of an action (#450, FR-PERF-004): a view still loading at the deadline gets `ms` more, once. Returns
+    // false when the action already had its retry.
+    extendOnce(ms: number): boolean;
     remainingMs(): number;
     isSuperseded(): boolean;
     // Throws SupersededError once a newer action took over; call it after every await.
@@ -138,7 +141,8 @@ export class WindowActionQueue<E extends QueuedAction> {
 
     makeRun(): ActionRun {
         const generation = this.generation;
-        const deadline = Date.now() + this.deadlineMs();
+        let deadline = Date.now() + this.deadlineMs();
+        let extended = false;
         let resolveSuperseded: () => void;
         const whenSuperseded = new Promise<void>((resolve) => {
             resolveSuperseded = resolve;
@@ -150,9 +154,18 @@ export class WindowActionQueue<E extends QueuedAction> {
         // Nobody may be racing when it fires.
         superseded.catch(() => {});
         const isStale = () => this.generation !== generation;
-        return {
+        const run: ActionRun = {
             generation,
             deadline,
+            extendOnce: (ms: number) => {
+                if (extended) {
+                    return false;
+                }
+                extended = true;
+                deadline = Date.now() + ms;
+                run.deadline = deadline;
+                return true;
+            },
             remainingMs: () => Math.max(0, deadline - Date.now()),
             isSuperseded: isStale,
             whenSuperseded,
@@ -168,6 +181,7 @@ export class WindowActionQueue<E extends QueuedAction> {
                 return Promise.race([p, superseded as Promise<never>]);
             },
         };
+        return run;
     }
 
     async drain() {

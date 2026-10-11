@@ -101,6 +101,10 @@ contextBridge.exposeInMainWorld("api", {
         ipcRenderer.on("moltenterm-getting-started", () => callback()),
     // MOLTENTERM-PATCH (#294): the app menu's Edit Workspace… (emain/moltenterm-workspace-menu.ts)
     onMoltentermEditWorkspace: (callback: () => void) => ipcRenderer.on("moltenterm-edit-workspace", () => callback()),
+    // MOLTENTERM-PATCH (#450): the window's pending state, drawn by the view on screen (emain/moltenterm-view-pending.ts)
+    onMoltentermViewPending: (callback: (state: any) => void) =>
+        ipcRenderer.on("moltenterm-view-pending", (_event, state) => callback(state)),
+    moltentermViewPendingAction: (action: string) => ipcRenderer.send("moltenterm-view-pending-action", action),
 });
 
 // Custom event for "new-window"

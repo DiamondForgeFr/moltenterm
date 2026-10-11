@@ -54,7 +54,11 @@ describe("TabViewGuard (FR-PERF-001)", () => {
 
     it("shows the pending state while the workspace is not loaded", () => {
         update({ otype: "tab", oid: TabId, version: 1, name: "T", blockids: [] } as Tab);
-        expect(render()).toBe('<div class="flex-grow w-full h-full" data-molten-view-pending=""></div>');
+        const html = render();
+        // The visible form of #450: a quiet progress line, not an empty surface.
+        expect(html).toContain('data-molten-view-pending="loading"');
+        expect(html).toContain("molten-view-pending-line");
+        expect(html).toContain("Opening…");
     });
 
     it("renders the view once its workspace and tab are there", () => {
