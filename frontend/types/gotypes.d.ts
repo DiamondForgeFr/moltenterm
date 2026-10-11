@@ -1467,6 +1467,7 @@ declare global {
         "moltenterm:hiddentabviewsmb"?: number;
         "moltenterm:hiddenpagefreeze"?: boolean;
         "moltenterm:hiddenpagediscardmin"?: number;
+        "moltenterm:confirmbusyclose"?: boolean;
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;
         "window:*"?: boolean;

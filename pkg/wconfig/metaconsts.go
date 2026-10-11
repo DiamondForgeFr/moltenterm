@@ -115,6 +115,7 @@ const (
 	ConfigKey_MoltentermHiddenTabViewsMb     = "moltenterm:hiddentabviewsmb"
 	ConfigKey_MoltentermHiddenPageFreeze     = "moltenterm:hiddenpagefreeze"
 	ConfigKey_MoltentermHiddenPageDiscardMin = "moltenterm:hiddenpagediscardmin"
+	ConfigKey_MoltentermConfirmBusyClose     = "moltenterm:confirmbusyclose"
 
 	ConfigKey_WidgetClear                    = "widget:*"
 	ConfigKey_WidgetShowHelp                 = "widget:showhelp"
