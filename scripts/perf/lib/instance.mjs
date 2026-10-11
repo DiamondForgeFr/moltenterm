@@ -129,6 +129,13 @@ export class Instance {
     fs.writeFileSync(file, typeof content === "string" ? content : JSON.stringify(content, null, 2));
   }
 
+  writeData(rel, content) {
+    assertOwnedRoot(this.root);
+    const file = path.join(this.dataDir, rel);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, typeof content === "string" ? content : JSON.stringify(content, null, 2));
+  }
+
   electronBinary() {
     return createRequire(path.join(this.repoRoot, "package.json"))("electron");
   }

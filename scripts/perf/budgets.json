@@ -353,6 +353,24 @@
             "budget": 4.5,
             "gate": "local",
             "noiseFloor": 0.5
+        },
+        "mods.manyCpuDeltaPct": {
+            "nfr": "FR-PERF-014",
+            "title": "Idle CPU at 6 workspaces, 10 user mods minus no mod",
+            "scenario": "mods",
+            "unit": "%",
+            "budget": 0.5,
+            "gate": "info",
+            "noiseFloor": 1
+        },
+        "mods.manyMemDeltaMB": {
+            "nfr": "FR-PERF-014",
+            "title": "Memory at 6 workspaces, 10 user mods minus no mod",
+            "scenario": "mods",
+            "unit": "MiB",
+            "budget": 50,
+            "gate": "info",
+            "noiseFloor": 30
         }
     }
 }
