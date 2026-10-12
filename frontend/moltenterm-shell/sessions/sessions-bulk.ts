@@ -323,6 +323,19 @@ export function bulkSummary(
     };
 }
 
+// The summary toast of a finished run (#439): only when its results dialog is gone (the view closed, or its sessions
+// all went away), since an open dialog already shows every result; null when there is nothing to report.
+export function unseenBulkSummary(
+    action: BulkAction,
+    results: BulkResult[],
+    dialogOpen: boolean
+): { title: string; detail: string; tone: BulkResultKind } {
+    if (dialogOpen || results.length === 0) {
+        return null;
+    }
+    return bulkSummary(action, results);
+}
+
 // Selection (#389): a click toggles, Shift+click sets the range from the anchor to the row, in table order.
 export function toggleSelected(selected: Set<string>, id: string): Set<string> {
     const next = new Set(selected);

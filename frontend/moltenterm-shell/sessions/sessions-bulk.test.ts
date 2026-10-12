@@ -19,6 +19,7 @@ import {
     sendResult,
     toggleAll,
     toggleSelected,
+    unseenBulkSummary,
 } from "./sessions-bulk";
 import { agentCell, atPrompt, DurableSession, lastActive, runningCommand, sessionName } from "./sessions-model";
 
@@ -211,6 +212,10 @@ describe("bulk run", () => {
             detail: "2 skipped",
             tone: "skipped",
         });
+        // #439: the open results dialog shows them; only a run whose dialog went gets the toast.
+        expect(unseenBulkSummary("restart", results, true)).toBeNull();
+        expect(unseenBulkSummary("restart", results, false)).toEqual(bulkSummary("restart", results));
+        expect(unseenBulkSummary("restart", [], false)).toBeNull();
     });
 
     it("sends one command once to each agent, with the draft consent of the confirmation", async () => {
