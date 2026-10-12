@@ -9,6 +9,7 @@
 
 import { atoms, getApi, globalStore } from "@/app/store/global";
 import * as WOS from "@/app/store/wos";
+import type { WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
 import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
@@ -44,6 +45,8 @@ import {
 } from "./settings-catalog";
 import { ModsSection } from "./settings-mods";
 import { readSettingsSection, SettingsSectionMetaKey } from "./settings-open";
+import { PageCard, PageColumn, PageHeader } from "./settings-page";
+import { SecretsSection } from "./settings-secrets";
 
 export type SettingsFile = { path: string; name: string; description?: string };
 
@@ -51,6 +54,10 @@ export type SettingsScreenProps = {
     blockId: string;
     files: SettingsFile[];
     onOpenFile: (path: string) => void;
+    // Wave's settings model, for the Secrets section (#534); without it the section says it is not available.
+    model?: WaveConfigViewModel;
+    // The section a block opened on a file that is now a section (file "secrets") shows first.
+    initialSection?: SettingsSectionId;
 };
 
 // The files' one-liners where Wave gives none.
@@ -436,7 +443,7 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
             id={rowId}
             data-setting={entry.key}
             className={cn(
-                "molten-settings-row flex items-center gap-4 rounded-6 border-b border-line px-2 py-2.5 transition-colors duration-240 ease-mt last:border-b-0",
+                "molten-settings-row flex items-center gap-4 border-b border-line px-4 py-3 transition-colors duration-240 ease-mt first:rounded-t-6 last:rounded-b-6 last:border-b-0",
                 highlighted && "bg-surface-2"
             )}
         >
@@ -480,40 +487,37 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
 
 SettingRow.displayName = "SettingRow";
 
-function GroupHeading({ children }: { children: React.ReactNode }) {
-    return <h3 className="px-2 pt-6 pb-1 text-11 font-semibold tracking-wide text-muted uppercase">{children}</h3>;
-}
-
 function FileRows({ files, onOpenFile }: { files: SettingsFile[]; onOpenFile: (path: string) => void }) {
     return (
-        <section aria-label="JSON files">
-            <GroupHeading>JSON files</GroupHeading>
-            {files.map((f) => (
-                <div
-                    key={f.path}
-                    className="flex items-center gap-4 border-b border-line px-2 py-2.5 last:border-b-0"
-                    data-file={f.path}
-                >
-                    <div className="min-w-0 flex-1">
-                        <div className="flex min-w-0 items-baseline gap-2">
-                            <span className="truncate text-12 font-medium text-primary">
-                                {FileNames[f.path] ?? f.name}
-                            </span>
-                            {f.path !== "secrets" ? (
-                                <span className="truncate font-mono text-11 text-muted">{f.path}</span>
-                            ) : null}
+        <PageCard title="JSON files" hint="Edited in place, checked before they are saved.">
+            {files
+                .filter((f) => f.path !== "secrets")
+                .map((f) => (
+                    <div
+                        key={f.path}
+                        className="flex items-center gap-4 border-b border-line px-4 py-3 last:border-b-0"
+                        data-file={f.path}
+                    >
+                        <div className="min-w-0 flex-1">
+                            <div className="flex min-w-0 items-baseline gap-2">
+                                <span className="truncate text-12 font-medium text-primary">
+                                    {FileNames[f.path] ?? f.name}
+                                </span>
+                                {f.path !== "secrets" ? (
+                                    <span className="truncate font-mono text-11 text-muted">{f.path}</span>
+                                ) : null}
+                            </div>
+                            <div className="truncate text-12 text-muted">
+                                {FileDescriptions[f.path] ?? f.description ?? ""}
+                            </div>
                         </div>
-                        <div className="truncate text-12 text-muted">
-                            {FileDescriptions[f.path] ?? f.description ?? ""}
-                        </div>
+                        <button type="button" className={GhostButton} onClick={() => onOpenFile(f.path)}>
+                            Open
+                            <i className="fa fa-solid fa-arrow-right text-11" aria-hidden />
+                        </button>
                     </div>
-                    <button type="button" className={GhostButton} onClick={() => onOpenFile(f.path)}>
-                        Open
-                        <i className="fa fa-solid fa-arrow-right text-11" aria-hidden />
-                    </button>
-                </div>
-            ))}
-        </section>
+                ))}
+        </PageCard>
     );
 }
 
@@ -521,19 +525,24 @@ function KeyboardShortcuts() {
     const mac = isMacOS();
     const sections = useMemo(() => filterShortcuts(platformShortcuts(mac), "", mac), [mac]);
     return (
-        <section aria-label="Shortcuts" className="flex flex-col gap-3 px-2">
-            <h3 className="pt-6 text-11 font-semibold tracking-wide text-muted uppercase">Shortcuts</h3>
-            <ShortcutSections sections={sections} mac={mac} headingClass="pb-1 text-12 font-medium text-secondary" />
-        </section>
+        <PageCard title="Shortcuts" hint="Every key MoltenTerm answers, by area.">
+            <div className="flex flex-col gap-3 px-4 py-3">
+                <ShortcutSections
+                    sections={sections}
+                    mac={mac}
+                    headingClass="pb-1 text-12 font-medium text-secondary"
+                />
+            </div>
+        </PageCard>
     );
 }
 
-export function SettingsScreen({ blockId, files, onOpenFile }: SettingsScreenProps) {
+export function SettingsScreen({ blockId, files, onOpenFile, model, initialSection }: SettingsScreenProps) {
     const settings = useAtomValue(atoms.settingsAtom) as Record<string, unknown>;
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const workspace = useAtomValue(atoms.workspace);
     const [section, setSectionState] = useState<SettingsSectionId>(
-        () => LastSection.get(blockId) ?? openedOnSection(blockId) ?? "general"
+        () => initialSection ?? LastSection.get(blockId) ?? openedOnSection(blockId) ?? "general"
     );
     const [query, setQuery] = useState("");
     const [active, setActive] = useState(0);
@@ -649,7 +658,7 @@ export function SettingsScreen({ blockId, files, onOpenFile }: SettingsScreenPro
                 })}
             </nav>
             <div ref={contentRef} className="min-w-0 flex-1 overflow-y-auto">
-                <div className="flex w-full max-w-[720px] flex-col px-6 pt-4 pb-10 @max-w600:px-3">
+                <PageColumn>
                     <div className="relative">
                         <i
                             className="fa fa-solid fa-magnifying-glass pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-11 text-muted"
@@ -726,11 +735,16 @@ export function SettingsScreen({ blockId, files, onOpenFile }: SettingsScreenPro
                         )
                     ) : (
                         <>
-                            <h2 className="px-2 pt-6 text-20 font-semibold text-primary">{sectionTitle(section)}</h2>
+                            <div className="pt-6">
+                                <PageHeader
+                                    title={sectionTitle(section)}
+                                    description={SettingsSections.find((s) => s.id === section)?.description}
+                                    icon={SettingsSections.find((s) => s.id === section)?.icon}
+                                />
+                            </div>
                             {section === "advanced" ? <FileRows files={files} onOpenFile={onOpenFile} /> : null}
                             {groupEntries(entries).map((g) => (
-                                <section key={g.group} aria-label={g.group}>
-                                    <GroupHeading>{g.group}</GroupHeading>
+                                <PageCard key={g.group} title={g.group}>
                                     {g.entries.map((entry) => (
                                         <SettingRow
                                             key={entry.key}
@@ -743,13 +757,20 @@ export function SettingsScreen({ blockId, files, onOpenFile }: SettingsScreenPro
                                             onOpenJson={openSettingsJson}
                                         />
                                     ))}
-                                </section>
+                                </PageCard>
                             ))}
                             {section === "keyboard" ? <KeyboardShortcuts /> : null}
                             {section === "mods" ? <ModsSection /> : null}
+                            {section === "secrets" ? (
+                                model != null ? (
+                                    <SecretsSection model={model} />
+                                ) : (
+                                    <p className="pt-6 text-12 text-muted">Secrets open from the Settings pane.</p>
+                                )
+                            ) : null}
                         </>
                     )}
-                </div>
+                </PageColumn>
             </div>
         </div>
     );
