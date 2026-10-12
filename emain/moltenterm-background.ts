@@ -116,6 +116,7 @@ type WindowProto = {
 };
 
 const focus = new VirtualFocus<WindowProto>();
+const prepared = new WeakSet<WindowProto>();
 const parked = new WeakSet<WindowProto>();
 let installed = false;
 
@@ -123,12 +124,11 @@ export function getVirtualFocus(): VirtualFocus<FocusableWindow> {
     return focus;
 }
 
-function park(win: WindowProto) {
-    if (parked.has(win)) {
+function prepare(win: WindowProto) {
+    if (prepared.has(win)) {
         return;
     }
-    parked.add(win);
-    win.setBounds(backgroundPlacement(screen.getPrimaryDisplay().workArea, win.getBounds()));
+    prepared.add(win);
     // Above the other windows without being key, on every Space (a full-screen app included), so the user's windows
     // never cover the test page: covered, it would go "hidden" and stop drawing. Transparent and click-through, so the
     // corner it floats over stays the user's; macOS still counts it as visible and Chromium still draws it.
@@ -139,11 +139,21 @@ function park(win: WindowProto) {
     win.once("closed", () => focus.forget(win));
 }
 
+// Moved once it is on screen: macOS pulls a hidden window's frame back onto the screen as it orders it in.
+function park(win: WindowProto) {
+    if (parked.has(win) || win.isDestroyed()) {
+        return;
+    }
+    parked.add(win);
+    win.setBounds(backgroundPlacement(screen.getPrimaryDisplay().workArea, win.getBounds()));
+}
+
 function showInBackground(win: WindowProto, showInactive: () => void) {
-    park(win);
+    prepare(win);
     if (win.isMinimized() || !win.isVisible()) {
         showInactive();
     }
+    park(win);
 }
 
 function patchWindowPrototype(proto: WindowProto) {
