@@ -110,7 +110,7 @@ Release candidates are `v1.0.0-N` until the first public release, `v1.0.0` (FR-R
 | Phase   | Step                                               | What happens                                                                                                                                                                                                 |
 | ------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | prepare | `molten release promote --workflow ci.yml`         | `develop` reaches `main` (fast-forward, else a merge commit) once CI is green on its commit. Refused while `main` holds a release commit `develop` lacks: merge the previous sync-back first.                |
-| prepare | `molten release prepare <tag>`                     | In `../MoltenTerm-release` (a worktree on `origin/main`): `package.json` and `package-lock.json` bumped, `releases/<tag>.md` drafted from the commit subjects. Review and edit the notes before the cut.     |
+| prepare | `molten release prepare <tag>`                     | In `../MoltenTerm-release` (a worktree on `origin/main`): `package.json` and `package-lock.json` bumped, `releases/<tag>.md` and `releases/<tag>.internal.md` written ("Release notes", below). Review the notes before the cut. |
 | cut     | `molten release finalize <tag>`                    | Commit `chore(release): <tag> (rc\|public)`, tag, `git push --atomic origin main <tag>` (as a repository admin: the `main` ruleset accepts pull requests only).                                              |
 | build   | `.github/workflows/release.yml`                    | On the tag: macOS arm64 and x64 (dmg, zip; ad-hoc signed, not notarized) and Linux x64 and arm64 (AppImage, deb), checked to come from `main` and carry the tag's version.                                   |
 | publish | release.yml, then `molten release close-milestone` | The GitHub release with every file, `SHA256SUMS.txt` and electron-builder's `latest*.yml`: a candidate is published as a prerelease, a public release waits as a draft. Its milestone closes once published. |
@@ -121,6 +121,56 @@ Until an Apple Developer ID exists, macOS builds are ad-hoc signed and not notar
 right-click › Open (or `xattr -dr com.apple.quarantine`). Developer ID signing and notarization are required before
 the first public release, 1.0.0, is published. The update feeds the app reads (per channel) are not published yet;
 Windows builds come later. Wave's `RELEASES.md` describes Wave's own process and does not apply.
+
+### Release notes
+
+Every release has two files in `releases/`, committed with the version bump by `molten release finalize` (FR-REL-003).
+The paths come from `versions.notes` in `.molten/project.json` (`releases/{tag}.md`), so any project using the
+generic commands gets the same pair.
+
+| File                          | Who reads it | Where it goes                                                                                                              |
+| ----------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `releases/<tag>.md`           | users        | The GitHub release body (`release.yml`, before the install text), the app's version history (bundled at build time), the update notification. |
+| `releases/<tag>.internal.md`  | developers   | Nowhere but the repository: every ticket of the range with its title and link, the commits claiming no ticket, the diff link. Never bundled. |
+
+`<tag>` is the full tag: `v1.0.0-3` for a release candidate, `v1.0.0` for a public release. The public file is markdown
+with an optional front matter, `key: value` lines between two `---` lines:
+
+```markdown
+---
+date: 2026-10-20
+draft: true
+---
+
+## What this version brings
+
+One short paragraph, then at most three `###` sections.
+```
+
+- `date`: the day of the cut, written by `molten release prepare`.
+- `draft: true`: notes written ahead of the cut that are not ready. `molten release finalize` refuses them, `release.yml`
+  fails on them, and the app's version history leaves them out. Remove the line once the notes are final.
+- Any other key is kept and ignored. Readers show the markdown after the front matter: `scripts/moltenterm-release-notes-body.mjs`
+  (what `release.yml` uses), `pkg/molten/release/notes_format.go`, and the app's catalog in `frontend/moltenterm-shell/releases`.
+
+The public text must pass the audit (`molten release notes <tag> --check`, also run by finalize): no ticket reference
+(`#123`), no link into the repository, no commit or ticket count, at most 25 non-empty lines.
+
+How the notes are written, during `molten release prepare <tag>`:
+
+1. The facts: the conventional commits since the previous release (the last public one for a public release, the last
+   of either channel for a candidate), the tickets they claim and the closed issues of the version's milestone.
+2. The engineering record is derived from them, with no agent.
+3. The public notes are written by the coding agent CLI named in `versions.notesagent` (MoltenTerm: `claude -p` with its
+   tools disabled; Codex is `["codex", "exec", "-"]`), the prompt on its standard input, audited; after two refused or
+   failed attempts, or with `MOLTEN_RELEASE_NOTES_AI=off`, they are the `feat` subjects under New and the `fix`, `perf`
+   and `revert` ones under Fixed. `MOLTEN_RELEASE_NOTES_AGENT="codex exec -"` replaces the agent for one run.
+4. Notes already on `main` (written by hand, like `releases/v1.0.0.md`) are kept: prepare only stamps their `date` and
+   warns about a `draft: true` line or what the audit finds.
+
+Review them before the cut: in Mission Control, the release panel edits the file and "Rewrite" runs the
+`rewrite-notes` step (`molten release notes {tag}`); in a terminal, `molten release notes <tag>` rewrites them and offers
+accept, edit (`$EDITOR`), redo, plain (from the commit subjects) or quit. The cut (finalize) is the acceptance.
 
 ## Remotes, once per clone
 

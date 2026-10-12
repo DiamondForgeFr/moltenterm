@@ -1364,6 +1364,7 @@ var moltenBuiltinHelp = [][2]string{
 	{"release plan [--rc|--public]", "the next release of this project, the milestone it ships and its open issues"},
 	{"release promote --workflow <file>", "bring the trunk onto the release branch once its CI is green"},
 	{"release prepare <tag>", "bump the version and draft the notes beside the checkout, without committing"},
+	{"release notes <tag> [--plain|--check]", "rewrite the prepared notes with the project's coding agent, or audit them"},
 	{"release finalize <tag>", "commit, tag and push the prepared release atomically"},
 	{"release sync-back <tag>", "carry the release commit back to the trunk by pull request"},
 	{"release close-milestone <tag>", "close the milestone of a published public release"},

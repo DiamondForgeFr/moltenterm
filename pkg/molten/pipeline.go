@@ -39,6 +39,9 @@ type PipelineVersions struct {
 	FirstPublic string `json:"firstpublic,omitempty"`
 	// The files that carry the version; the first one holds the project's current version (FR-REL-001).
 	Files []versions.VersionFile `json:"files,omitempty"`
+	// The coding agent CLI that writes the public notes from the release's facts (FR-REL-003), as argv: the prompt goes
+	// to its standard input and the notes come back on its standard output. Empty: the notes are the commit subjects.
+	NotesAgent []string `json:"notesagent,omitempty"`
 }
 
 // A command Moltenterm may run in the project: in `cwd` (relative to the project, default its root), with `env` added.
@@ -476,6 +479,11 @@ func (c *pipelineChecker) checkVersions(v *PipelineVersions) {
 	}
 	if v.TagPrefix != "" && !tagPrefixRegex.MatchString(v.TagPrefix) {
 		c.errorf("versions.tagprefix must start with a letter and hold only letters, digits, '.', '_', '/' or '-' (got %q)", v.TagPrefix)
+	}
+	for i, arg := range v.NotesAgent {
+		if strings.TrimSpace(arg) == "" {
+			c.errorf("versions.notesagent[%d] is empty: name the program, then its arguments (e.g. [\"claude\", \"-p\"])", i)
+		}
 	}
 	if v.FirstPublic != "" {
 		if _, err := versions.ParseBase(v.FirstPublic); err != nil {

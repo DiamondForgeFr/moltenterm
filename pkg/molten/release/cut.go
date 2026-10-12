@@ -106,18 +106,23 @@ func (e *Env) Prepare(ctx context.Context, tag string) error {
 	}
 	if existing, err := os.ReadFile(notesPath); err == nil && strings.TrimSpace(string(existing)) != "" {
 		e.printf("Notes kept: %s is already on %s.\n", notesRel, p.Release)
-	} else {
 		facts, err := e.gatherNotesFacts(ctx, wt, p, tag, v)
 		if err != nil {
 			return err
 		}
-		if err := os.MkdirAll(filepath.Dir(notesPath), 0755); err != nil {
+		internalPath := filepath.Join(wt, p.InternalNotesFile(tag))
+		if !insideDir(wt, internalPath) {
+			return fmt.Errorf("versions.notes (%s) leaves the project", p.Notes)
+		}
+		if err := os.WriteFile(internalPath, []byte(InternalRecord(facts)), 0644); err != nil {
 			return err
 		}
-		if err := os.WriteFile(notesPath, []byte(DraftNotes(facts)), 0644); err != nil {
+		e.printf("Engineering record written: %s.\n", p.InternalNotesFile(tag))
+		if err := e.keepNotes(notesPath, facts.Repo); err != nil {
 			return err
 		}
-		e.printf("Notes drafted from %d commit subject(s) since %s.\n", len(facts.Subjects), facts.sinceLabel())
+	} else if _, err := e.writeNotes(ctx, wt, p, tag, v, false); err != nil {
+		return err
 	}
 	e.printf("\n%s prepared, nothing committed. Review the notes, then finalize to commit, tag and push.\n", tag)
 	e.printf("%s%s\n", NotesMarker, notesPath)
@@ -163,7 +168,7 @@ func (e *Env) releasesNotCarriedBack(ctx context.Context, p *Project) []string {
 
 // releaseFiles are the paths a prepared tree may change: the version files and the tag's notes.
 func (p *Project) releaseFiles(tag string) map[string]bool {
-	allowed := map[string]bool{filepath.ToSlash(p.NotesFile(tag)): true}
+	allowed := map[string]bool{filepath.ToSlash(p.NotesFile(tag)): true, filepath.ToSlash(p.InternalNotesFile(tag)): true}
 	for _, f := range p.Files {
 		allowed[filepath.ToSlash(filepath.Clean(f.Path))] = true
 	}
@@ -259,6 +264,9 @@ func (e *Env) Finalize(ctx context.Context, tag string) error {
 	notes, err := os.ReadFile(filepath.Join(wt, notesRel))
 	if err != nil || strings.TrimSpace(string(notes)) == "" {
 		return fmt.Errorf("%s is missing or empty: write the notes, or prepare %s again", notesRel, tag)
+	}
+	if err := checkPublicNotes(string(notes), e.originRepo(ctx, wt)); err != nil {
+		return fmt.Errorf("%s: %w; edit them, or rewrite them (molten release notes %s)", notesRel, err, tag)
 	}
 	addArgs := []string{"add", "--"}
 	for path := range allowed {

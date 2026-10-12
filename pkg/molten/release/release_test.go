@@ -158,6 +158,8 @@ func makeFixture(t *testing.T) *fixture {
 	t.Setenv("GIT_AUTHOR_EMAIL", "release@example.invalid")
 	t.Setenv("GIT_COMMITTER_NAME", "Release test")
 	t.Setenv("GIT_COMMITTER_EMAIL", "release@example.invalid")
+	t.Setenv(NotesAgentEnv, "")
+	t.Setenv(NotesAiEnv, "")
 	base, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -264,7 +266,7 @@ func TestReleaseChainEndToEnd(t *testing.T) {
 		t.Fatalf("prepare did not announce the notes:\n%s", f.out.String())
 	}
 	notes := readFile(t, notesPath)
-	for _, want := range []string{"## New", "- A second feature", "## Fixes", "- A crash on start"} {
+	for _, want := range []string{"## New", "- A second feature", "## Fixed", "- A crash on start"} {
 		if !strings.Contains(notes, want) {
 			t.Fatalf("notes lack %q:\n%s", want, notes)
 		}

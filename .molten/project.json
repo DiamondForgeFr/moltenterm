@@ -6,6 +6,7 @@
         "tagprefix": "v",
         "notes": "releases/{tag}.md",
         "firstpublic": "1.0.0",
+        "notesagent": ["claude", "-p", "--disallowed-tools", "Bash", "Edit", "Write", "Read", "WebFetch", "WebSearch"],
         "files": [
             { "path": "package.json", "format": "json", "keys": [["version"]] },
             { "path": "package-lock.json", "format": "json", "keys": [["version"], ["packages", "", "version"]] }
@@ -70,6 +71,12 @@
                 "run": "molten release prepare {tag}"
             },
             {
+                "id": "rewrite-notes",
+                "title": "Rewrite the public notes with the coding agent",
+                "notes": true,
+                "run": "molten release notes {tag}"
+            },
+            {
                 "id": "finalize",
                 "title": "Commit, tag and push: release.yml builds macOS and Linux and publishes the prerelease",
                 "phase": "cut",
@@ -95,6 +102,12 @@
                 "title": "Bump the version and draft the notes beside the checkout",
                 "phase": "prepare",
                 "run": "molten release prepare {tag}"
+            },
+            {
+                "id": "rewrite-notes",
+                "title": "Rewrite the public notes with the coding agent",
+                "notes": true,
+                "run": "molten release notes {tag}"
             },
             {
                 "id": "finalize",

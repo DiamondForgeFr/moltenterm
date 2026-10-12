@@ -4,14 +4,17 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/wavetermdev/waveterm/pkg/molten/release"
 	"github.com/wavetermdev/waveterm/pkg/molten/versions"
+	"golang.org/x/term"
 )
 
 // `molten release` (FR-REL-002, DS-REL-002): the generic commands a project's release.rc and release.public steps call
@@ -23,6 +26,9 @@ var moltenReleasePublic bool
 var moltenReleaseVersion string
 var moltenReleaseWorkflows []string
 var moltenReleaseDryRun bool
+var moltenReleaseNotesPlain bool
+var moltenReleaseNotesCheck bool
+var moltenReleaseNotesNoReview bool
 
 var moltenReleaseCmd = &cobra.Command{
 	Use:   "release",
@@ -52,6 +58,13 @@ var moltenReleasePrepareCmd = &cobra.Command{
 	RunE: moltenWrap(func(cmd *cobra.Command, args []string) error {
 		return moltenReleaseEnv().Prepare(context.Background(), args[0])
 	}),
+}
+
+var moltenReleaseNotesCmd = &cobra.Command{
+	Use:   "notes <tag>",
+	Short: "rewrite the notes of a prepared release with the project's coding agent (or from the commit subjects), or audit them",
+	Args:  cobra.ExactArgs(1),
+	RunE:  moltenWrap(moltenReleaseNotesRun),
 }
 
 var moltenReleaseFinalizeCmd = &cobra.Command{
@@ -88,8 +101,11 @@ func init() {
 	moltenReleasePlanCmd.Flags().BoolVar(&moltenJson, "json", false, "print the result as JSON")
 	moltenReleasePromoteCmd.Flags().StringArrayVar(&moltenReleaseWorkflows, "workflow", nil, "a GitHub workflow that must be green on the trunk's commit (repeatable)")
 	moltenReleasePromoteCmd.Flags().BoolVar(&moltenReleaseDryRun, "dry-run", false, "check everything, push nothing and start no workflow")
+	moltenReleaseNotesCmd.Flags().BoolVar(&moltenReleaseNotesPlain, "plain", false, "write the public notes from the commit subjects, without the agent")
+	moltenReleaseNotesCmd.Flags().BoolVar(&moltenReleaseNotesCheck, "check", false, "only audit the notes as they are, as finalize does")
+	moltenReleaseNotesCmd.Flags().BoolVar(&moltenReleaseNotesNoReview, "no-review", false, "never ask to accept, edit or redo, even in a terminal")
 	for _, cmd := range []*cobra.Command{moltenReleasePlanCmd, moltenReleasePromoteCmd, moltenReleasePrepareCmd,
-		moltenReleaseFinalizeCmd, moltenReleaseSyncBackCmd, moltenReleaseCloseMilestoneCmd} {
+		moltenReleaseNotesCmd, moltenReleaseFinalizeCmd, moltenReleaseSyncBackCmd, moltenReleaseCloseMilestoneCmd} {
 		moltenReleaseCmd.AddCommand(cmd)
 	}
 	moltenCmd.AddCommand(moltenReleaseCmd)
@@ -160,4 +176,64 @@ func formatMoltenReleasePlan(reports []release.PlanReport) string {
 		}
 	}
 	return sb.String()
+}
+
+// moltenReleaseNotesRun rewrites (or audits) the notes; in a terminal, it then offers Notulia's review: accept, edit in
+// $EDITOR, redo with the agent, redo from the commit subjects, quit. Mission Control runs it without a terminal: its
+// notes editor and its cut are the review there.
+func moltenReleaseNotesRun(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+	env := moltenReleaseEnv()
+	tag := args[0]
+	if err := env.Notes(ctx, tag, release.NotesOptions{Plain: moltenReleaseNotesPlain, Check: moltenReleaseNotesCheck}); err != nil {
+		return err
+	}
+	if moltenReleaseNotesCheck || moltenReleaseNotesNoReview || !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
+		return nil
+	}
+	path, err := env.PreparedNotesPath(ctx, tag)
+	if err != nil {
+		return err
+	}
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		WriteStdout("\nPublic notes of %s: [a]ccept, [e]dit, [r]edo with the agent, [p]lain from the commit subjects, [q]uit? ", tag)
+		line, err := reader.ReadString('\n')
+		if err != nil && line == "" {
+			return fmt.Errorf("no answer: the notes stay in %s", path)
+		}
+		switch strings.ToLower(strings.TrimSpace(line)) {
+		case "", "a":
+			if err := env.Notes(ctx, tag, release.NotesOptions{Check: true}); err != nil {
+				WriteStdout("%v\n", err)
+				continue
+			}
+			WriteStdout("Accepted. Finalize %s when ready (molten release finalize %s).\n", tag, tag)
+			return nil
+		case "e":
+			editor := os.Getenv("VISUAL")
+			if editor == "" {
+				editor = os.Getenv("EDITOR")
+			}
+			if editor == "" {
+				editor = "vi"
+			}
+			fields := strings.Fields(editor)
+			edit := exec.Command(fields[0], append(fields[1:], path)...)
+			edit.Stdin, edit.Stdout, edit.Stderr = os.Stdin, os.Stdout, os.Stderr
+			if err := edit.Run(); err != nil {
+				WriteStdout("%s: %v\n", editor, err)
+			}
+			if err := env.Notes(ctx, tag, release.NotesOptions{Check: true}); err != nil {
+				WriteStdout("%v\n", err)
+			}
+		case "r", "p":
+			plain := strings.ToLower(strings.TrimSpace(line)) == "p"
+			if err := env.Notes(ctx, tag, release.NotesOptions{Plain: plain}); err != nil {
+				WriteStdout("%v\n", err)
+			}
+		case "q":
+			return fmt.Errorf("stopped: nothing is cut, the notes stay in %s", path)
+		}
+	}
 }
