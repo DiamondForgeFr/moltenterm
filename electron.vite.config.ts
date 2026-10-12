@@ -7,7 +7,7 @@ import { defineConfig } from "electron-vite";
 import { ViteImageOptimizer } from "vite-plugin-image-optimizer";
 import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
-import { makeMoltentermBuildInfo } from "./frontend/moltenterm-shell/build/build-info"; // MOLTENTERM-PATCH (#55)
+import { makeMoltentermBuildChanges, makeMoltentermBuildInfo } from "./frontend/moltenterm-shell/build/build-info"; // MOLTENTERM-PATCH (#55, #187)
 import { moltentermCapRadius } from "./frontend/moltenterm-shell/build/cap-radius"; // MOLTENTERM-PATCH (#48)
 import { moltentermEntryGuard } from "./frontend/moltenterm-shell/build/entry-guard"; // MOLTENTERM-PATCH (#453)
 
@@ -128,8 +128,12 @@ export default defineConfig({
     },
     renderer: {
         root: ".",
-        // MOLTENTERM-PATCH (#55): the build facts the status bar shows
-        define: { __MOLTENTERM_BUILD__: JSON.stringify(makeMoltentermBuildInfo()) },
+        // MOLTENTERM-PATCH (#55): the build facts the status bar shows; (#187) the changes the version history lists,
+        // a define of their own so that only the history's lazy chunk carries them
+        define: {
+            __MOLTENTERM_BUILD__: JSON.stringify(makeMoltentermBuildInfo()),
+            __MOLTENTERM_BUILD_CHANGES__: JSON.stringify(makeMoltentermBuildChanges()),
+        },
         build: {
             target: CHROME,
             sourcemap: true,

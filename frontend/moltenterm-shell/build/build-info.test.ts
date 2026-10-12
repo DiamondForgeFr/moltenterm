@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { makeMoltentermBuildInfo } from "./build-info";
+import { makeMoltentermBuildChanges, makeMoltentermBuildInfo } from "./build-info";
 
 function fakeGit(answers: Record<string, string>) {
     return (args: string[]) => {
@@ -107,5 +107,27 @@ describe("makeMoltentermBuildInfo", () => {
             1790930000
         );
         expect(makeMoltentermBuildInfo({ MOLTENTERM_BUILD_ID: "x" }, fakeGit({}), now, project).buildId).toBe(1790928000);
+    });
+});
+
+describe("makeMoltentermBuildChanges", () => {
+    const git = fakeGit({
+        "rev-parse HEAD": "bf031b0aaaa",
+        "tag --merged HEAD -l v*": "v1.0.0-2\nv0.14.5",
+        remote: "origin\nupstream",
+        "log --no-merges --max-count=200 --format=%h%x09%s v1.0.0-2..HEAD --not --remotes=upstream":
+            "bf031b0\tfeat(#187): the version history\na1b2c3d\tfix(#12): a crash: with a colon",
+    });
+
+    it("lists the commits since the last release for a local channel", () => {
+        expect(makeMoltentermBuildChanges({ MOLTENTERM_BUILD_CHANNEL: "gold" }, git, project)).toEqual([
+            { sha: "bf031b0", subject: "feat(#187): the version history" },
+            { sha: "a1b2c3d", subject: "fix(#12): a crash: with a colon" },
+        ]);
+    });
+
+    it("lists none for a release candidate or a public release", () => {
+        expect(makeMoltentermBuildChanges({ MOLTENTERM_BUILD_CHANNEL: "rc" }, git, project)).toEqual([]);
+        expect(makeMoltentermBuildChanges({ MOLTENTERM_BUILD_CHANNEL: "public" }, git, project)).toEqual([]);
     });
 });
