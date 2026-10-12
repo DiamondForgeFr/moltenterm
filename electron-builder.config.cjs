@@ -85,6 +85,8 @@ const config = {
         executableName: pkg.name,
         target: ["zip", "deb", "rpm", "snap", "AppImage", "pacman"],
         synopsis: pkg.description,
+        // MOLTENTERM-PATCH (#508): a deb needs a maintainer with an address, which package.json's author lacks.
+        maintainer: process.env.MOLTENTERM_MAINTAINER || "DiamondForge <noreply@github.com>",
         description: null,
         desktop: {
             entry: {
