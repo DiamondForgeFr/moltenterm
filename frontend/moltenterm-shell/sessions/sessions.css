@@ -1,0 +1,67 @@
+/* Copyright 2026, DiamondForge
+   SPDX-License-Identifier: Apache-2.0 */
+
+/* The Sessions view's checkbox (#533): a native checkbox, so the keyboard and screen readers keep the real control,
+   drawn with MoltenTerm's tokens instead of the platform's white box. It shows on the row's hover or focus, and for
+   every row once one is checked (.molten-sessions-selecting on the table). Unlayered: Wave's global input rules are
+   unlayered too and would win over a layer. */
+input[type="checkbox"].molten-check {
+    appearance: none;
+    display: inline-grid;
+    place-content: center;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-4);
+    background: transparent;
+    cursor: pointer;
+    opacity: 0;
+    transition:
+        opacity var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease),
+        border-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+input[type="checkbox"].molten-check::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    transform: scale(0);
+    background: var(--mt-surface-1);
+    clip-path: polygon(14% 44%, 0 59%, 39% 100%, 100% 22%, 85% 8%, 38% 68%);
+}
+
+input[type="checkbox"].molten-check:checked,
+input[type="checkbox"].molten-check:indeterminate {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+}
+
+input[type="checkbox"].molten-check:checked::before {
+    transform: scale(1);
+}
+
+input[type="checkbox"].molten-check:indeterminate::before {
+    transform: scale(1);
+    height: 2px;
+    clip-path: none;
+}
+
+input[type="checkbox"].molten-check:hover {
+    border-color: var(--color-accent);
+}
+
+input[type="checkbox"].molten-check:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+}
+
+input[type="checkbox"].molten-check:checked,
+input[type="checkbox"].molten-check:indeterminate,
+input[type="checkbox"].molten-check:focus-visible,
+.group:hover input[type="checkbox"].molten-check,
+.group:focus-within input[type="checkbox"].molten-check,
+.molten-sessions-selecting input[type="checkbox"].molten-check {
+    opacity: 1;
+}

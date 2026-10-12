@@ -16,6 +16,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { agentStateLabel } from "../agent-state-model";
 import { AgentStateDot } from "../agent-state-ui";
 import { AgentInputs } from "../command-panel/agent-input-store";
 import { EmptyState } from "../empty-state";
@@ -76,6 +77,7 @@ import {
     showLabel,
 } from "./sessions-model";
 import { DurableSessions } from "./sessions-store";
+import "./sessions.css";
 
 export { MoltentermSessionsView };
 
@@ -84,9 +86,14 @@ const FolderMaxChars = 56;
 const NavKeys = new Set(["ArrowDown", "ArrowUp", "Home", "End", "PageDown", "PageUp"]);
 
 // DS-SHELL-100: select, name, actions, folder, agent, last active. Rows are subgrids of the table, so the actions
-// column is as wide as the widest row's actions and every column lines up.
+// column is as wide as the widest row's actions and every column lines up. A narrow pane (#533) drops the folder
+// column (it is in the name's tooltip) and lays the actions over the row's end on hover, so the name and the agent
+// keep the width.
 const TableColumns =
-    "grid grid-cols-[28px_minmax(96px,max-content)_auto_minmax(0,1fr)_minmax(88px,auto)_minmax(56px,auto)]";
+    "grid grid-cols-[28px_minmax(0,1fr)_minmax(0,max-content)_minmax(56px,auto)] @2xl:grid-cols-[28px_minmax(96px,max-content)_auto_minmax(0,1fr)_minmax(120px,auto)_minmax(64px,auto)]";
+const FolderCell = "hidden @2xl:block";
+const ActionsCell =
+    "absolute top-1/2 right-1 -translate-y-1/2 rounded-6 bg-surface-2 px-1 shadow-e1 @2xl:static @2xl:translate-y-0 @2xl:bg-transparent @2xl:px-0 @2xl:shadow-none";
 const RowGrid = "col-span-full grid grid-cols-subgrid items-center";
 
 const RowButton =
@@ -94,8 +101,8 @@ const RowButton =
 const RowDangerButton =
     "molten-btn-ghost cursor-pointer rounded-6 px-2 py-0.5 text-11 whitespace-nowrap text-error disabled:opacity-50";
 const BarButton =
-    "molten-btn-ghost cursor-pointer rounded-6 px-2 py-1 text-12 whitespace-nowrap text-secondary hover:bg-surface-2 hover:text-primary disabled:opacity-50";
-const CheckboxClass = "h-3.5 w-3.5 cursor-pointer accent-[var(--accent-color)]";
+    "molten-btn-secondary cursor-pointer rounded-6 px-2.5 py-1 text-12 whitespace-nowrap disabled:opacity-50";
+const CheckboxClass = "molten-check";
 
 const ConnDotClasses: Record<string, string> = {
     connected: "bg-success",
@@ -191,6 +198,7 @@ function AgentCellView({ session }: { session: DurableSession }) {
                     }}
                 />
                 <span className="truncate text-12 text-primary">{cell.label}</span>
+                <span className="shrink-0 text-11 text-muted">{agentStateLabel(session.agentstate || "idle")}</span>
             </span>
         );
     }
@@ -303,7 +311,7 @@ function SessionRow({
             {...sessionRowDragProps(session, sessionWhat(session))}
             className={cn(
                 RowGrid,
-                "group h-8 cursor-pointer rounded-6 transition-colors duration-120 ease-mt outline-none hover:bg-hover focus-visible:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                "group relative h-9 cursor-pointer rounded-6 transition-colors duration-120 ease-mt outline-none hover:bg-hover focus-visible:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
                 checked && "bg-accent/10",
                 focused && !checked && "bg-hover/60"
             )}
@@ -319,7 +327,7 @@ function SessionRow({
             <div role="cell" className="flex min-w-0 items-center gap-1.5 pr-1">
                 <span
                     className="max-w-[16rem] min-w-0 shrink truncate text-12 font-medium text-primary"
-                    title={session.tabname || name}
+                    title={[session.tabname || name, session.folder].filter((p) => !!p).join(" · ")}
                 >
                     {name}
                 </span>
@@ -340,8 +348,9 @@ function SessionRow({
             <div
                 role="cell"
                 className={cn(
-                    "flex items-center gap-0.5 pr-2 opacity-0 transition-opacity duration-120 ease-mt group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none",
-                    busy && "opacity-100"
+                    ActionsCell,
+                    "pointer-events-none flex items-center gap-0.5 pr-2 opacity-0 transition-opacity duration-120 ease-mt group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 motion-reduce:transition-none",
+                    busy && "pointer-events-auto opacity-100"
                 )}
             >
                 {busy ? <span className="px-1 text-11 whitespace-nowrap text-muted">{busy}</span> : null}
@@ -386,7 +395,11 @@ function SessionRow({
                     End…
                 </button>
             </div>
-            <div role="cell" className="min-w-0 truncate pr-3 font-mono text-11 text-secondary" title={session.folder}>
+            <div
+                role="cell"
+                className={cn(FolderCell, "min-w-0 truncate pr-3 font-mono text-11 text-secondary")}
+                title={session.folder}
+            >
                 {folder ? middleTruncate(folder, FolderMaxChars) : <span className="text-muted">—</span>}
             </div>
             <div role="cell" className="min-w-0 pr-3">
@@ -413,11 +426,11 @@ function GroupHeader({
     const hidden = group.id === HiddenGroupId;
     const endable = group.sessions.filter((s) => s.canend).length;
     return (
-        <div role="row" className={cn(RowGrid, "pt-3 pb-1")}>
+        <div role="row" className={cn(RowGrid, "group h-9")}>
             <div role="cell" className="flex items-center justify-center">
                 <Check state={checks} label={`Select every session of ${group.title}`} onToggle={onCheckAll} />
             </div>
-            <div role="cell" className="col-span-5 flex min-w-0 items-center gap-2">
+            <div role="cell" className="col-[2/-1] flex min-w-0 items-center gap-2">
                 {hidden ? (
                     <i className={cn(makeIconClass("link-slash", true), "text-11 text-warning")} />
                 ) : (
@@ -427,13 +440,17 @@ function GroupHeader({
                         aria-hidden="true"
                     />
                 )}
-                <span className="truncate text-11 font-semibold tracking-wide text-secondary uppercase">
-                    {group.title}
+                <span className="truncate text-12 font-semibold text-primary">{group.title}</span>
+                <span className="shrink-0 rounded-4 bg-surface-2 px-1.5 text-11 leading-[16px] text-secondary">
+                    {group.sessions.length}
                 </span>
-                {group.current ? <span className="shrink-0 text-11 text-muted">this workspace</span> : null}
-                <span className="shrink-0 text-11 text-muted">{group.sessions.length}</span>
+                {group.current ? (
+                    <span className="shrink-0 rounded-4 bg-accent/15 px-1.5 text-11 leading-[16px] text-accent">
+                        This workspace
+                    </span>
+                ) : null}
                 {hidden && endable > 0 ? (
-                    <button type="button" className={cn(RowDangerButton, "ml-auto")} onClick={onCleanup}>
+                    <button type="button" className={cn(RowDangerButton, "mr-1 ml-auto")} onClick={onCleanup}>
                         End all ({endable})…
                     </button>
                 ) : null}
@@ -445,17 +462,20 @@ function GroupHeader({
 function TableHeader({ checks, onCheckAll }: { checks: CheckState; onCheckAll: () => void }) {
     const head = "text-11 font-medium text-muted";
     return (
-        <div role="row" className={cn(RowGrid, "sticky top-0 z-[1] h-7 border-b border-border bg-surface-1")}>
+        <div
+            role="row"
+            className={cn(RowGrid, "group sticky top-0 z-[1] mb-1 h-8 border-b border-border bg-surface-1")}
+        >
             <div role="columnheader" className="flex items-center justify-center">
                 <Check state={checks} label="Select every session" onToggle={onCheckAll} />
             </div>
             <div role="columnheader" className={head}>
                 Name
             </div>
-            <div role="columnheader" className="sr-only">
-                Actions
+            <div role="columnheader" className="hidden @2xl:block">
+                <span className="sr-only">Actions</span>
             </div>
-            <div role="columnheader" className={head}>
+            <div role="columnheader" className={cn(FolderCell, head)}>
                 Folder
             </div>
             <div role="columnheader" className={head}>
@@ -487,7 +507,7 @@ function SelectionBar({
             role="toolbar"
             aria-label="Selected sessions"
             data-testid="sessions-selection-bar"
-            className="flex min-h-9 flex-wrap items-center gap-1 rounded-6 border border-border bg-surface-2 px-2 py-1"
+            className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-6 border border-accent/40 bg-surface-2 px-2 py-1.5 shadow-e1"
         >
             <span className="px-1 text-12 font-medium whitespace-nowrap text-primary" aria-live="polite">
                 {count} selected
@@ -522,7 +542,11 @@ function SelectionBar({
                 <i className={cn(makeIconClass("power-off", true), "mr-1.5 text-11")} />
                 End…
             </button>
-            <button type="button" className={cn(BarButton, "ml-auto")} onClick={onClear}>
+            <button
+                type="button"
+                className="molten-btn-ghost ml-auto cursor-pointer rounded-6 px-2 py-1 text-12"
+                onClick={onClear}
+            >
                 Clear
             </button>
         </div>
@@ -856,7 +880,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     const allChecks = checkState(checked, order);
 
     return (
-        <div className="flex h-full w-full flex-col overflow-hidden" data-role="molten-sessions">
+        <div className="@container flex h-full w-full flex-col overflow-hidden" data-role="molten-sessions">
             <div className="mx-auto flex min-h-0 w-full max-w-[960px] flex-1 flex-col" data-testid="sessions-frame">
                 {/* With nothing listed the empty state says it: the summary row only stays for a notice. */}
                 <div
@@ -909,7 +933,8 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                         data-testid="sessions-table"
                         className={cn(
                             TableColumns,
-                            "min-h-0 flex-1 content-start overflow-x-hidden overflow-y-auto px-1 pb-3"
+                            "min-h-0 flex-1 content-start overflow-x-hidden overflow-y-auto px-2 pb-3",
+                            checked.size > 0 && "molten-sessions-selecting"
                         )}
                         onKeyDown={onKeyDown}
                     >
@@ -917,7 +942,16 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                         {groups.map((group) => {
                             const ids = group.sessions.map((s) => s.id);
                             return (
-                                <div key={group.id} role="rowgroup" aria-label={group.title} className={RowGrid}>
+                                <div
+                                    key={group.id}
+                                    role="rowgroup"
+                                    aria-label={group.title}
+                                    className={cn(
+                                        RowGrid,
+                                        "mb-2 rounded-6 border bg-surface-1 pb-1",
+                                        group.current ? "border-accent/40" : "border-border"
+                                    )}
+                                >
                                     <GroupHeader
                                         group={group}
                                         checks={checkState(checked, ids)}
