@@ -77,7 +77,7 @@ func (e *Env) Prepare(ctx context.Context, tag string) error {
 	}
 	start := "origin/" + p.Release
 	if e.revParse(ctx, p.Root, start) == "" {
-		return fmt.Errorf("origin has no %s branch: promote %s first", p.Release, p.Trunk)
+		return p.releaseBranchMissing()
 	}
 	if pending := e.releasesNotCarriedBack(ctx, p); len(pending) > 0 {
 		return fmt.Errorf("%s holds release commits %s lacks (%s): merge their sync-back pull request first, or run molten release sync-back", p.Release, p.Trunk, strings.Join(pending, ", "))

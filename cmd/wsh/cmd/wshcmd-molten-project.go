@@ -334,6 +334,9 @@ func formatMoltenProjectDetails(status MoltenProjectStatus) string {
 	if info.Group != "" {
 		fmt.Fprintf(&sb, "  group: %s (its members: molten project group)\n", info.Group)
 	}
+	if b := info.Branches; b != nil {
+		fmt.Fprintf(&sb, "  branches: trunk %s (from %s), releases from %s (from %s)\n", b.Trunk, b.TrunkFrom, b.Release, b.ReleaseFrom)
+	}
 	if conv := info.Conventions; conv != nil {
 		fmt.Fprintf(&sb, "  harness: SaaSFoundryAI (%s)\n", molten.ProjectSaaSFoundryFile)
 		if conv.WorkingBranch != "" {

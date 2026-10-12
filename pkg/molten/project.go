@@ -53,6 +53,9 @@ type ProjectInfo struct {
 	Group       string              `json:"group,omitempty"`
 	Harness     string              `json:"harness,omitempty"`
 	Conventions *ProjectConventions `json:"conventions,omitempty"`
+	// The trunk and the release branch the release commands use, and where each name was read (#415); set for a
+	// project with a pipeline or a harness manifest.
+	Branches *ProjectBranches `json:"branches,omitempty"`
 }
 
 // FindGitRoot returns the closest folder at or above dir holding a `.git` entry (a folder, or a file in a worktree).
@@ -176,6 +179,10 @@ func ReadProject(dir string) ProjectInfo {
 	if hasSf {
 		info.Harness = "saasfoundryai"
 		info.Conventions = conv
+	}
+	if info.HasPipeline || hasSf {
+		branches := ResolvedBranches(dir)
+		info.Branches = &branches
 	}
 	var pkg struct {
 		Name string `json:"name"`
