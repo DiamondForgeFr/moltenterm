@@ -45,6 +45,10 @@ type fakeGh struct {
 	noRelease bool
 	issues    string
 	prs       string
+	// The rehearsal runs listed (JSON), the states `run view` reports in turn, and the artifacts (JSON).
+	rehearsals string
+	views      []string
+	artifacts  string
 }
 
 func (f *fakeGh) record(args []string) {
@@ -69,6 +73,27 @@ func (f *fakeGh) answer(args []string) ([]byte, error) {
 	f.record(args)
 	joined := strings.Join(args, " ")
 	switch {
+	case strings.HasPrefix(joined, "run list") && strings.Contains(joined, "--event workflow_dispatch"):
+		if f.rehearsals == "" {
+			return []byte(`[]`), nil
+		}
+		return []byte(f.rehearsals), nil
+	case strings.HasPrefix(joined, "run view"):
+		f.lock.Lock()
+		defer f.lock.Unlock()
+		state := "completed success"
+		if len(f.views) > 0 {
+			state, f.views = f.views[0], f.views[1:]
+		}
+		status, conclusion, _ := strings.Cut(state, " ")
+		return []byte(fmt.Sprintf(`{"databaseId":%s,"status":%q,"conclusion":%q,"url":"https://ci/run/%s"}`, args[2], status, conclusion, args[2])), nil
+	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/actions/runs/"):
+		if f.artifacts == "" {
+			return []byte(`{"artifacts":[]}`), nil
+		}
+		return []byte(f.artifacts), nil
+	case strings.HasPrefix(joined, "run download"):
+		return nil, nil
 	case strings.HasPrefix(joined, "run list"):
 		state := f.ciRuns[args[3]]
 		switch state {

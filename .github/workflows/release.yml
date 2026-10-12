@@ -7,6 +7,12 @@
 #   vX.Y.Z-N  a release candidate: published as a prerelease at once, never the latest release
 #   vX.Y.Z    a public release: left as a draft the developer publishes on GitHub
 #
+# A rehearsal (#508) builds the same files from any branch without a tag, and publishes nothing: started by hand or by
+# `molten release rehearse` (the rehearse step of .molten/project.json), it keeps the files as the run's artifacts
+# for 14 days, to install and check before cutting a release candidate. A pull request that changes this workflow
+# runs its first job only, which also makes GitHub know the workflow, so that it can be dispatched before it is on
+# main.
+#
 # macOS builds are ad-hoc signed and not notarized until a Developer ID exists; the release text says how to open
 # them. The channel feeds read by the app are #188's: the electron-builder update files (latest*.yml) are published
 # with the binaries for it.
@@ -16,6 +22,17 @@ name: Release
 on:
     push:
         tags: ["v*"]
+    workflow_dispatch:
+        inputs:
+            channel:
+                description: "The channel the rehearsal is built for"
+                type: choice
+                options: [rc, public]
+                default: rc
+    pull_request:
+        paths:
+            - .github/workflows/release.yml
+            - scripts/moltenterm-release-files.sh
 
 permissions:
     contents: read
@@ -33,6 +50,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
         outputs:
+            mode: ${{ steps.tag.outputs.mode }}
             channel: ${{ steps.tag.outputs.channel }}
             version: ${{ steps.tag.outputs.version }}
         steps:
@@ -40,12 +58,35 @@ jobs:
               with:
                   fetch-depth: 0
                   persist-credentials: false
-            # A tag nobody can classify is never published under a default, and a release is only built from main.
+            # A tag nobody can classify is never published under a default, and a release is only built from main. A
+            # rehearsal builds the commit as it is, with package.json's version, and is never published.
             - name: Read the tag
               id: tag
               env:
                   TAG: ${{ github.ref_name }}
+                  EVENT: ${{ github.event_name }}
+                  INPUT_CHANNEL: ${{ inputs.channel }}
               run: |
+                  if [ "$EVENT" != push ]; then
+                      mode=check
+                      channel=rc
+                      if [ "$EVENT" = workflow_dispatch ]; then
+                          mode=rehearsal
+                          channel="${INPUT_CHANNEL:-rc}"
+                      fi
+                      if [ "$channel" != rc ] && [ "$channel" != public ]; then
+                          echo "::error::$channel is not a release channel (rc or public)"
+                          exit 1
+                      fi
+                      version="$(node -p 'require("./package.json").version')"
+                      {
+                          echo "mode=$mode"
+                          echo "channel=$channel"
+                          echo "version=$version"
+                      } >> "$GITHUB_OUTPUT"
+                      echo "$mode of $TAG at ${GITHUB_SHA:0:7}: $channel build of $version, nothing is published"
+                      exit 0
+                  fi
                   if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-([1-9][0-9]*))?$ ]]; then
                       echo "::error::$TAG is not a release tag (vX.Y.Z or vX.Y.Z-N)"
                       exit 1
@@ -74,6 +115,7 @@ jobs:
                   if [ "$channel" = public ]; then
                       echo "::warning::The macOS builds are not signed with a Developer ID nor notarized: sign them before publishing a public release"
                   fi
+                  echo "mode=release" >> "$GITHUB_OUTPUT"
                   echo "channel=$channel" >> "$GITHUB_OUTPUT"
                   echo "version=$version" >> "$GITHUB_OUTPUT"
                   echo "$TAG: $channel release $version"
@@ -81,6 +123,7 @@ jobs:
     macos:
         name: macOS (arm64, x64)
         needs: meta
+        if: needs.meta.outputs.mode != 'check'
         # Both architectures on one runner: electron-builder writes one latest-mac.yml listing both.
         runs-on: macos-latest
         timeout-minutes: 90
@@ -122,20 +165,23 @@ jobs:
                       codesign --verify --deep --strict "$app"
                       echo "$app: valid ad-hoc signature"
                   done
+            # A rehearsal's artifacts are named so that they are never taken for a release's, and kept long enough to
+            # be installed and checked.
             - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
               with:
-                  name: release-macos
+                  name: ${{ needs.meta.outputs.mode == 'rehearsal' && format('{0}-rehearsal-macos-{1}', github.event.repository.name, github.sha) || 'release-macos' }}
                   path: |
                       make/*.dmg
                       make/*.zip
                       make/*.blockmap
                       make/latest-mac.yml
                   if-no-files-found: error
-                  retention-days: 1
+                  retention-days: ${{ needs.meta.outputs.mode == 'rehearsal' && 14 || 1 }}
 
     linux:
         name: Linux (${{ matrix.arch }})
         needs: meta
+        if: needs.meta.outputs.mode != 'check'
         # wavesrv's CGO build targets the runner's own architecture (Taskfile.yml, build:server:linux).
         runs-on: ${{ matrix.runner }}
         timeout-minutes: 90
@@ -188,17 +234,58 @@ jobs:
                   -c.publish.provider=github "-c.publish.owner=$OWNER" "-c.publish.repo=$REPO"
             - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
               with:
-                  name: release-linux-${{ matrix.arch }}
+                  name: ${{ needs.meta.outputs.mode == 'rehearsal' && format('{0}-rehearsal-linux-{1}-{2}', github.event.repository.name, matrix.arch, github.sha) || format('release-linux-{0}', matrix.arch) }}
                   path: |
                       make/*.AppImage
                       make/*.deb
                       make/latest-linux*.yml
                   if-no-files-found: error
-                  retention-days: 1
+                  retention-days: ${{ needs.meta.outputs.mode == 'rehearsal' && 14 || 1 }}
+
+    rehearsal:
+        name: Rehearsal files
+        needs: [meta, macos, linux]
+        if: needs.meta.outputs.mode == 'rehearsal'
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+              with:
+                  pattern: ${{ github.event.repository.name }}-rehearsal-*
+                  path: dist-rehearsal
+                  merge-multiple: true
+            - name: Check the files and write the checksums
+              run: scripts/moltenterm-release-files.sh dist-rehearsal
+            - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: ${{ github.event.repository.name }}-rehearsal-checksums-${{ github.sha }}
+                  path: dist-rehearsal/SHA256SUMS.txt
+                  if-no-files-found: error
+                  retention-days: 14
+            - name: Summary
+              env:
+                  CHANNEL: ${{ needs.meta.outputs.channel }}
+                  VERSION: ${{ needs.meta.outputs.version }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  {
+                      echo "## Rehearsal of $VERSION ($CHANNEL), ${GITHUB_SHA:0:7} on $GITHUB_REF_NAME"
+                      echo
+                      echo "No tag, no release: the files are this run's artifacts for 14 days, at $RUN_URL."
+                      echo "Install and check them before cutting a release candidate."
+                      echo
+                      echo '```'
+                      cat dist-rehearsal/SHA256SUMS.txt
+                      echo '```'
+                  } >> "$GITHUB_STEP_SUMMARY"
 
     publish:
         name: GitHub release
         needs: [meta, macos, linux]
+        if: needs.meta.outputs.mode == 'release'
         runs-on: ubuntu-latest
         timeout-minutes: 20
         permissions:
@@ -212,32 +299,8 @@ jobs:
                   pattern: release-*
                   path: dist-release
                   merge-multiple: true
-            # Every platform or none: a release missing one would be offered as complete.
             - name: Check the files and write the checksums
-              working-directory: dist-release
-              run: |
-                  missing=0
-                  for pattern in "*.dmg:2" "*darwin*.zip:2" "*.AppImage:2" "*.deb:2" "latest-mac.yml:1" "latest-linux.yml:1" "latest-linux-arm64.yml:1"; do
-                      glob="${pattern%:*}"
-                      want="${pattern##*:}"
-                      found=0
-                      # shellcheck disable=SC2086
-                      for file in $glob; do
-                          if [ -e "$file" ]; then
-                              found=$((found + 1))
-                          fi
-                      done
-                      if [ "$found" -ne "$want" ]; then
-                          echo "::error::expected $want file(s) matching $glob, found $found"
-                          missing=1
-                      fi
-                  done
-                  if [ "$missing" -ne 0 ]; then
-                      ls -l
-                      exit 1
-                  fi
-                  sha256sum -- *.dmg *.zip *.AppImage *.deb > SHA256SUMS.txt
-                  cat SHA256SUMS.txt
+              run: scripts/moltenterm-release-files.sh dist-release
             - name: Write the release text
               env:
                   TAG: ${{ github.ref_name }}

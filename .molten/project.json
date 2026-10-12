@@ -58,6 +58,12 @@
     ],
     "steps": [
         {
+            "id": "rehearse",
+            "title": "Rehearse the release build: macOS and Linux files from develop, no tag, no release (then walk RELEASE.md)",
+            "section": "cd",
+            "run": "molten release rehearse --workflow release.yml --download ~/Downloads/MoltenTerm-rehearsal"
+        },
+        {
             "id": "checklist",
             "title": "Release checklist (RELEASE.md): walk it on every rehearsal and release candidate",
             "section": "cd",
