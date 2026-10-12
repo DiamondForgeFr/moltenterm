@@ -129,6 +129,12 @@ func TestSampleTreesReadsThisProcess(t *testing.T) {
 	if err != nil {
 		t.Skip(err)
 	}
+	// Linux counts CPU in 10 ms ticks: a test binary this young may have none yet.
+	n := 0
+	for end := time.Now().Add(50 * time.Millisecond); time.Now().Before(end); {
+		n++
+	}
+	_ = n
 	root := TreeRoot{BlockId: "b1", Pid: self, StartMs: table.Get(self).StartMs}
 	got := sampleTrees([]TreeRoot{root, {BlockId: "gone", Pid: self, StartMs: root.StartMs - 3_600_000}})
 	sample, ok := got["b1"][self]
