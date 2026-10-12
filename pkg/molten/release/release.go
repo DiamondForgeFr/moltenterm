@@ -29,8 +29,8 @@ import (
 )
 
 const (
-	DefaultTrunk         = "develop"
-	DefaultReleaseBranch = "main"
+	DefaultTrunk         = molten.DefaultTrunkBranch
+	DefaultReleaseBranch = molten.DefaultReleaseBranch
 	DefaultNotesPath     = "releases/{tag}.md"
 
 	// The release worktree sits beside the checkout, as Notulia's ../<repo>-release: the checkout the developer works
@@ -83,6 +83,13 @@ type Project struct {
 	Release string
 	// versions.notesagent: the coding agent CLI that writes the public notes, empty for none.
 	NotesAgent []string
+	// Where the release branch's name was read (molten.BranchFrom…), for the messages that name it.
+	ReleaseFrom string
+}
+
+// releaseBranchMissing says which branch was looked for, and why that one (#415).
+func (p *Project) releaseBranchMissing() error {
+	return fmt.Errorf("origin has no %s branch, the release branch (from %s): create it on origin, or name the project's release branch in %s (branches.release)", p.Release, p.ReleaseFrom, molten.ProjectPipelineFile)
 }
 
 func (e *Env) printf(format string, args ...any) {
@@ -230,14 +237,8 @@ func (e *Env) LoadProject(ctx context.Context) (*Project, error) {
 		}
 		p.Files = v.Files
 	}
-	branches := molten.ConfiguredBranches(root)
-	p.Trunk, p.Release = branches.Trunk, branches.Release
-	if p.Trunk == "" {
-		p.Trunk = DefaultTrunk
-	}
-	if p.Release == "" {
-		p.Release = DefaultReleaseBranch
-	}
+	branches := molten.ResolvedBranches(root)
+	p.Trunk, p.Release, p.ReleaseFrom = branches.Trunk, branches.Release, branches.ReleaseFrom
 	return p, nil
 }
 

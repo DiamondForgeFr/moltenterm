@@ -44,7 +44,7 @@ func (e *Env) Promote(ctx context.Context, opts PromoteOptions) error {
 	}
 	rel := e.revParse(ctx, root, releaseRef)
 	if rel == "" {
-		return fmt.Errorf("origin has no %s branch: create it from the first commit %s should release", p.Release, p.Trunk)
+		return p.releaseBranchMissing()
 	}
 	if e.isAncestor(ctx, root, trunk, rel) {
 		e.printf("%s already holds every commit of %s: nothing to promote.\n", p.Release, p.Trunk)

@@ -9,11 +9,25 @@ import (
 	"path/filepath"
 )
 
+const (
+	DefaultTrunkBranch   = "develop"
+	DefaultReleaseBranch = "main"
+
+	BranchFromPipeline        = ".molten/project.json branches"
+	BranchFromSfWorkingBranch = ".saasfoundry.json workflow.workingBranch"
+	BranchFromSfReleaseBranch = ".saasfoundry.json workflow.releaseBranch"
+	BranchFromSfMainBranch    = ".saasfoundry.json mainBranch"
+	BranchFromDefault         = "the default"
+)
+
 // ProjectBranches are the two long-lived branches: work is merged into the trunk, releases are cut from the release
 // branch. The same branch for both is a single-branch project.
 type ProjectBranches struct {
 	Trunk   string `json:"trunk"`
 	Release string `json:"release"`
+	// Where each name was read (BranchFrom…); empty when nothing declares it.
+	TrunkFrom   string `json:"trunkfrom,omitempty"`
+	ReleaseFrom string `json:"releasefrom,omitempty"`
 }
 
 func readBranchesJson(path string, target any) bool {
@@ -25,28 +39,50 @@ func readBranchesJson(path string, target any) bool {
 }
 
 // ConfiguredBranches reads the branch names the project declares: `.molten/project.json` first, then
-// `.saasfoundry.json`. Empty names are left to the repository's defaults.
+// `.saasfoundry.json` (the release branch from workflow.releaseBranch, else mainBranch, #415). Empty names are left
+// to the repository's defaults.
 func ConfiguredBranches(dir string) ProjectBranches {
 	var rtn ProjectBranches
 	var pipeline struct {
 		Branches ProjectBranches `json:"branches"`
 	}
 	if readBranchesJson(filepath.Join(dir, ProjectPipelineFile), &pipeline) {
-		rtn = pipeline.Branches
+		if pipeline.Branches.Trunk != "" {
+			rtn.Trunk, rtn.TrunkFrom = pipeline.Branches.Trunk, BranchFromPipeline
+		}
+		if pipeline.Branches.Release != "" {
+			rtn.Release, rtn.ReleaseFrom = pipeline.Branches.Release, BranchFromPipeline
+		}
 	}
 	var sf struct {
 		MainBranch string `json:"mainBranch"`
 		Workflow   struct {
 			WorkingBranch string `json:"workingBranch"`
+			ReleaseBranch string `json:"releaseBranch"`
 		} `json:"workflow"`
 	}
 	if readBranchesJson(filepath.Join(dir, ".saasfoundry.json"), &sf) {
-		if rtn.Trunk == "" {
-			rtn.Trunk = sf.Workflow.WorkingBranch
+		if rtn.Trunk == "" && sf.Workflow.WorkingBranch != "" {
+			rtn.Trunk, rtn.TrunkFrom = sf.Workflow.WorkingBranch, BranchFromSfWorkingBranch
 		}
-		if rtn.Release == "" {
-			rtn.Release = sf.MainBranch
+		if rtn.Release == "" && sf.Workflow.ReleaseBranch != "" {
+			rtn.Release, rtn.ReleaseFrom = sf.Workflow.ReleaseBranch, BranchFromSfReleaseBranch
 		}
+		if rtn.Release == "" && sf.MainBranch != "" {
+			rtn.Release, rtn.ReleaseFrom = sf.MainBranch, BranchFromSfMainBranch
+		}
+	}
+	return rtn
+}
+
+// ResolvedBranches are the configured branches with the defaults filled in, each with where it came from.
+func ResolvedBranches(dir string) ProjectBranches {
+	rtn := ConfiguredBranches(dir)
+	if rtn.Trunk == "" {
+		rtn.Trunk, rtn.TrunkFrom = DefaultTrunkBranch, BranchFromDefault
+	}
+	if rtn.Release == "" {
+		rtn.Release, rtn.ReleaseFrom = DefaultReleaseBranch, BranchFromDefault
 	}
 	return rtn
 }
