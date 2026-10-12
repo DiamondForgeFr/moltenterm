@@ -6,9 +6,12 @@ package keepawake
 import (
 	"errors"
 	"log"
+	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 )
 
@@ -54,6 +57,9 @@ type ProcSample struct {
 	Ppid    int32
 	StartMs int64
 	Cpu     proctree.Cpu
+	// Agent: the agent's own process, measured against BusyAgentCpu: the root, or a process under it named after an
+	// agent (the native binary an npm wrapper starts, as Codex's does), whose idle TUI is not background work.
+	Agent bool
 }
 
 // TreeSample is a tree at a sample: the root and its live descendants, by pid.
@@ -200,8 +206,9 @@ func growth(before time.Duration, after time.Duration) time.Duration {
 	return 0
 }
 
-// cpuSpentBetween is the CPU a tree used between two samples: agent, the root's own; tree, everything else (the
-// root's reaped children, and each descendant's own and reaped). A process started since the previous sample counts
+// cpuSpentBetween is the CPU a tree used between two samples: agent, the own CPU of the agent's processes (ProcSample.
+// Agent); tree, everything else (their reaped children, and each other descendant's own and reaped). A process started
+// since the previous sample counts
 // whole. A process that ended moved its CPU into its parent's reaped total: what was already counted of it is taken
 // off there, so it is not counted twice.
 func cpuSpentBetween(rootPid int32, prev TreeSample, cur TreeSample, prevAt time.Time) (time.Duration, time.Duration) {
@@ -227,7 +234,7 @@ func cpuSpentBetween(rootPid int32, prev TreeSample, cur TreeSample, prevAt time
 			continue
 		}
 		children = growth(ended[pid], children)
-		if pid == rootPid {
+		if pid == rootPid || c.Agent {
 			agent += self
 			tree += children
 			continue
@@ -235,6 +242,17 @@ func cpuSpentBetween(rootPid int32, prev TreeSample, cur TreeSample, prevAt time
 		tree += self + children
 	}
 	return agent, tree
+}
+
+// isAgentName tells a process named after a known agent's command (`codex`, `claude`).
+func isAgentName(name string) bool {
+	base := filepath.Base(name)
+	for _, kind := range molten.AgentKinds {
+		if slices.Contains(kind.Commands, base) {
+			return true
+		}
+	}
+	return false
 }
 
 // sampleTrees is the TreeSampler of wavesrv: one read of the process table, then the CPU of each process of the
@@ -259,7 +277,7 @@ func sampleTrees(roots []TreeRoot) map[string]TreeSample {
 			if !ok {
 				continue
 			}
-			sample[p.Pid] = ProcSample{Ppid: p.Ppid, StartMs: p.StartMs, Cpu: cpu}
+			sample[p.Pid] = ProcSample{Ppid: p.Ppid, StartMs: p.StartMs, Cpu: cpu, Agent: p.Pid == root.Pid || isAgentName(p.Name)}
 		}
 		if _, ok := sample[root.Pid]; ok {
 			rtn[root.BlockId] = sample
