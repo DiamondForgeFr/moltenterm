@@ -32,6 +32,8 @@ const (
 	// A call may wait 2 minutes for the user's site permission, then load a page for up to 30 seconds.
 	callTimeout           = 190 * time.Second
 	defaultControlTimeout = 5 * time.Second
+	// Typing waits for the process table and the terminal.
+	shareTellTimeout = 15 * time.Second
 )
 
 type routeLink struct {
@@ -106,6 +108,8 @@ func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) 
 		timeout = helloTimeout
 	case mcpbrowser.CallCommand, mcpbrowser.DownloadCommand:
 		timeout = callTimeout
+	case mcpbrowser.ShareTellCommand:
+		timeout = shareTellTimeout
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -185,6 +189,24 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return l.manager.AskDownload(ctx, source, req)
+	case mcpbrowser.ListCommand:
+		var req ListRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.manager.ListSessions(ctx, source, req)
+	case mcpbrowser.ShareCommand:
+		var req ShareRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.manager.Share(ctx, source, req)
+	case mcpbrowser.ShareTellCommand:
+		var req ShareTellRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.manager.ShareTell(ctx, source, req)
 	}
 	return nil, fmt.Errorf("unknown browser agent command %q", command)
 }

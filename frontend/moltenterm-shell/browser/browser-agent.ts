@@ -20,11 +20,16 @@ export const BrowserAgentStateCommand = "moltenbrowseragentstate";
 export const BrowserAgentStateEvent = "molten:browseragent";
 export const BrowserAgentAnswerCommand = "moltenbrowseragentanswer";
 export const BrowserAgentSiteCommand = "moltenbrowseragentsite";
+export const BrowserAgentListCommand = "moltenbrowseragentlist";
+export const BrowserAgentShareCommand = "moltenbrowseragentshare";
+export const BrowserAgentShareTellCommand = "moltenbrowseragentsharetell";
 
 // must match TabStateActive, TabStateTakenOver and the Control* actions in pkg/molten/browseragent/env.go
 export const AgentStateActive = "active";
 export const AgentStateTakenOver = "takenover";
 export type AgentControlAction = "stop" | "takeover" | "giveback";
+// must match OriginShared in pkg/molten/browseragent/env.go
+export const OriginShared = "shared";
 // must match the Decision* constants in pkg/molten/browseragent/env.go
 export type PermissionDecision = "once" | "always" | "block" | "dismiss" | "allow" | "deny";
 // must match PromptSite and PromptAction in pkg/molten/browseragent/env.go
@@ -34,6 +39,9 @@ export type AgentSiteDecision = "allow" | "block";
 
 const ControlTimeoutMs = 5000;
 const SnapshotTimeoutMs = 5000;
+const ShareTellTimeoutMs = 15000;
+// The share menu waits this long for the connected agents before it opens without them.
+const ListTimeoutMs = 1500;
 // A cue shows where the agent just acted, then fades out.
 export const ActionCueMs = 1500;
 
@@ -58,7 +66,14 @@ export type AgentTab = {
     cue?: AgentActionCue;
     permission?: AgentPermission;
     viewport?: AgentViewport;
+    // A tab the user shared shows its badge alone until the agent acts on it (FR-BRW-011).
+    engaged?: boolean;
 };
+
+// must match ShareResult, ShareTellResult and SessionEntry in pkg/molten/browseragent/share.go
+export type ShareResult = { result: "shared" | "move"; agentname?: string; holder?: string };
+export type ShareTellResult = { sent: boolean; message: string };
+export type AgentSession = { sessionid: string; blockid: string; agentname: string };
 
 export type PanelAgentState = { blockid: string; tabs: AgentTab[] };
 
@@ -120,7 +135,7 @@ export function controlBarView(tab: AgentTab): ControlBarView {
             ],
         };
     }
-    if (tab.state !== AgentStateActive) {
+    if (tab.state !== AgentStateActive || (tab.origin === OriginShared && !tab.engaged)) {
         return null;
     }
     return {
@@ -299,6 +314,8 @@ export function activeCue(tab: AgentTab, now: number): AgentActionCue {
 export class BrowserAgentModel {
     blockId: string;
     tabsAtom = atom({}) as PrimitiveAtom<AgentTabs>;
+    // The agents of the workspace connected to MoltenTerm's browser, as last listed (FR-BRW-011).
+    sessionsAtom = atom([]) as PrimitiveAtom<AgentSession[]>;
     unsubscribe: () => void = null;
     // A snapshot must not overwrite an event or a user action that arrived while it was in flight.
     stateVersion = 0;
@@ -388,6 +405,47 @@ export class BrowserAgentModel {
                 await this.loadSnapshot(true);
             }
         });
+    }
+
+    // The agents of the panel's workspace connected to MoltenTerm's browser (FR-BRW-011).
+    async listSessions(): Promise<AgentSession[]> {
+        const res: { sessions: AgentSession[] } = await TabRpcClient.wshRpcCall(
+            BrowserAgentListCommand,
+            { blockid: this.blockId },
+            { route: BrowserAgentRouteId, timeout: ListTimeoutMs }
+        );
+        const sessions = res?.sessions ?? [];
+        globalStore.set(this.sessionsAtom, sessions);
+        return sessions;
+    }
+
+    // The toolbar button reads the last list; a session has no event of its own, so the list is read again when the
+    // agent states change and when the pointer reaches the button.
+    refreshSessions(): void {
+        fireAndForget(async () => {
+            try {
+                await this.listSessions();
+            } catch {
+                // wavesrv still starting: the next refresh brings them.
+            }
+        });
+    }
+
+    async share(browserTabId: string, sessionId: string, move: boolean): Promise<ShareResult> {
+        return await TabRpcClient.wshRpcCall(
+            BrowserAgentShareCommand,
+            { blockid: this.blockId, browsertabid: browserTabId, sessionid: sessionId, move },
+            { route: BrowserAgentRouteId, timeout: ControlTimeoutMs }
+        );
+    }
+
+    // wavesrv builds the line from the panel's tab and types it: the window sends no text.
+    async shareTell(browserTabId: string): Promise<ShareTellResult> {
+        return await TabRpcClient.wshRpcCall(
+            BrowserAgentShareTellCommand,
+            { blockid: this.blockId, browsertabid: browserTabId },
+            { route: BrowserAgentRouteId, timeout: ShareTellTimeoutMs }
+        );
     }
 
     dispose(): void {

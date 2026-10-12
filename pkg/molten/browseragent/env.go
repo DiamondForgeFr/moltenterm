@@ -105,6 +105,8 @@ type PanelAgentTab struct {
 	Permission *PermissionPrompt `json:"permission,omitempty"`
 	// Viewport is the size the resize tool emulates, shown on the control bar.
 	Viewport *Viewport `json:"viewport,omitempty"`
+	// Engaged: the agent acts on the tab. A tab the user shared shows its badge alone until then (FR-BRW-011).
+	Engaged bool `json:"engaged,omitempty"`
 }
 
 type Viewport struct {
@@ -188,4 +190,12 @@ type Env interface {
 	AgentSites() map[string]string
 	// SetAgentSite stores a site decision in the user's settings; an empty decision removes it.
 	SetAgentSite(site string, decision string) error
+	// TypeLine types a line into the prompt of the agent in a terminal, without Enter, with the guarded agent input's
+	// checks (pkg/molten/termupdate); it says whether it typed and why not.
+	TypeLine(ctx context.Context, blockId string, line string) TypeLineResult
+}
+
+type TypeLineResult struct {
+	Sent    bool
+	Message string
 }
