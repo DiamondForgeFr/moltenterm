@@ -171,7 +171,7 @@ describe("one Icon field, Symbol or Image (FR-SHELL-059-AC1, FR-SHELL-031)", () 
         expect(html).not.toContain('data-image-kind="imported"');
     });
 
-    it("shows the imported image in the preview, square and cropped", () => {
+    it("shows the imported image in the preview, square and fitted whole", () => {
         const html = sheetWith({ "molten:workspaceicon": Stored, "molten:projectlogo": "/p/logo.svg" });
         expect(html).toContain('aria-label="Rail badge: Rocket, Blue, imported image"');
         const src = encodeURIComponent(`/data/workspace-icons/${Stored}`);
@@ -180,7 +180,7 @@ describe("one Icon field, Symbol or Image (FR-SHELL-059-AC1, FR-SHELL-031)", () 
                 `<img src="http://localhost/wave/stream-local-file\\?path=${src.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`
             )
         );
-        expect(html).toMatch(/data-icon-kind="imported" decoding="async" class="[^"]*object-cover/);
+        expect(html).toMatch(/data-icon-kind="imported" decoding="async" class="[^"]*object-contain/);
     });
 
     it("previews the project logo when no image was imported, and the glyph otherwise", () => {

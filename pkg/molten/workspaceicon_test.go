@@ -211,8 +211,8 @@ func TestImportWorkspaceIconFile(t *testing.T) {
 		t.Fatalf("stored copy: %v", err)
 	}
 	cfg, err := png.DecodeConfig(bytes.NewReader(stored))
-	if err != nil || cfg.Width != 10 || cfg.Height != 10 {
-		t.Fatalf("stored copy is %dx%d (%v), want the 10x10 centred square", cfg.Width, cfg.Height, err)
+	if err != nil || cfg.Width != 20 || cfg.Height != 20 {
+		t.Fatalf("stored copy is %dx%d (%v), want the image fitted in a 20x20 square", cfg.Width, cfg.Height, err)
 	}
 	after, _ := os.Stat(source)
 	if !after.ModTime().Equal(before.ModTime()) || after.Size() != before.Size() {
@@ -345,7 +345,16 @@ func decodeStored(t *testing.T, data []byte) image.Image {
 	return img
 }
 
-// Left and right thirds are red, the centre square is green: a cover crop keeps only the green.
+func mustPrepare(t *testing.T, data []byte) []byte {
+	t.Helper()
+	stored, _, err := PrepareWorkspaceIcon(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return stored
+}
+
+// The sides are red, the centre square is green: a cover crop would keep only the green, a fit keeps both.
 func makeBanner(t *testing.T, w int, h int, centre color.NRGBA, kind string) []byte {
 	t.Helper()
 	img := image.NewNRGBA(image.Rect(0, 0, w, h))
@@ -380,12 +389,12 @@ func TestWorkspaceIconRasterCopy(t *testing.T) {
 		name string
 		data []byte
 		side int
+		wide bool
 	}{
-		{"large wide png is cropped and scaled to 256", makeBanner(t, 900, 400, green, WorkspaceIconPng), 256},
-		{"large tall png", makeBanner(t, 300, 700, green, WorkspaceIconPng), 256},
-		{"large jpeg", makeBanner(t, 800, 500, green, WorkspaceIconJpeg), 256},
-		{"exactly 256 square", makeBanner(t, 256, 256, green, WorkspaceIconPng), 256},
-		{"small png is not scaled up", makeBanner(t, 64, 40, green, WorkspaceIconPng), 40},
+		{"large wide png is fitted and scaled to 256", makeBanner(t, 900, 400, green, WorkspaceIconPng), 256, true},
+		{"large tall png", makeBanner(t, 300, 700, green, WorkspaceIconPng), 256, false},
+		{"large jpeg", makeBanner(t, 800, 500, green, WorkspaceIconJpeg), 256, true},
+		{"small png is not scaled up", makeBanner(t, 64, 40, green, WorkspaceIconPng), 64, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -397,13 +406,26 @@ func TestWorkspaceIconRasterCopy(t *testing.T) {
 			if b := img.Bounds(); b.Dx() != tc.side || b.Dy() != tc.side {
 				t.Fatalf("stored %dx%d, want %dx%d", b.Dx(), b.Dy(), tc.side, tc.side)
 			}
-			for _, pt := range [][2]int{{1, 1}, {tc.side - 2, 1}, {tc.side / 2, tc.side / 2}, {1, tc.side - 2}} {
-				got := solidAt(img, pt[0], pt[1])
-				if got.R > 40 || got.G < 150 {
-					t.Fatalf("pixel %v is %+v, want the green centre", pt, got)
-				}
+			mid := tc.side / 2
+			if got := solidAt(img, mid, mid); got.R > 40 || got.G < 150 {
+				t.Fatalf("centre %+v, want green", got)
+			}
+			// The long side keeps its red ends; the short side gets transparent bands, nothing is cropped.
+			edge, band := [2]int{1, mid}, [2]int{mid, 1}
+			if !tc.wide {
+				edge, band = band, edge
+			}
+			if got := solidAt(img, edge[0], edge[1]); got.R < 200 || got.A != 255 {
+				t.Fatalf("end of the long side %v is %+v, want red", edge, got)
+			}
+			if got := solidAt(img, band[0], band[1]); got.A != 0 {
+				t.Fatalf("band %v is %+v, want transparent", band, got)
 			}
 		})
+	}
+	square := decodeStored(t, mustPrepare(t, makeBanner(t, 256, 256, green, WorkspaceIconPng)))
+	if b := square.Bounds(); b.Dx() != 256 || solidAt(square, 1, 1).G < 150 {
+		t.Fatalf("a 256 square is not kept as it is")
 	}
 }
 
@@ -442,11 +464,14 @@ func TestWorkspaceIconWebp(t *testing.T) {
 		t.Fatalf("a decodable WebP: ext %q err %v", ext, err)
 	}
 	img := decodeStored(t, stored)
-	if b := img.Bounds(); b.Dx() != 200 || b.Dy() != 200 {
-		t.Fatalf("stored %v, want 200x200", b)
+	if b := img.Bounds(); b.Dx() != 256 || b.Dy() != 256 {
+		t.Fatalf("stored %v, want 256x256", b)
 	}
-	if got := solidAt(img, 2, 100); got.G < 190 || got.R > 10 {
-		t.Fatalf("edge pixel %+v, want the green centre", got)
+	if got := solidAt(img, 128, 128); got.G < 190 || got.R > 10 {
+		t.Fatalf("centre pixel %+v, want green", got)
+	}
+	if got := solidAt(img, 2, 128); got.R < 200 || got.A != 255 {
+		t.Fatalf("edge pixel %+v, want the magenta side kept", got)
 	}
 	// Structurally valid but not decodable here (the decoder has no animation): kept as it is.
 	undecodable := makeWebp(128, 64)

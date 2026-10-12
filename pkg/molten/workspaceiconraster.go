@@ -15,7 +15,7 @@ import (
 )
 
 // The stored copy of a raster icon (NFR-SHELL-016, #316): a badge is 24 px, so the original is not kept. It is decoded
-// once, cropped to a centred square (the badge crops the same way) and scaled down to at most this side, then stored
+// once, fitted whole and centred in a transparent square (#522) and scaled down to at most this side, then stored
 // as PNG. Nothing is scaled up: a smaller image keeps its own size, so it is never blurred nor made heavier.
 //
 // Icons stored before #316 are not converted at start-up: #295 has shipped in no release, so a start-up pass that
@@ -59,22 +59,20 @@ func decodeWorkspaceIconRaster(kind string, data []byte) (image.Image, error) {
 
 func encodeWorkspaceIconPng(img image.Image, orientation int) ([]byte, error) {
 	src := img.Bounds()
-	side := min(src.Dx(), src.Dy())
-	if side <= 0 {
+	side := max(src.Dx(), src.Dy())
+	if min(src.Dx(), src.Dy()) <= 0 {
 		return nil, refuseIcon(IconRefusedUnreadable)
 	}
+	// Fitted whole in a transparent square, never cropped (#522): a wide or tall logo lost its edges.
 	target := min(side, StoredWorkspaceIconSide)
-	square := image.Rect(
-		src.Min.X+(src.Dx()-side)/2,
-		src.Min.Y+(src.Dy()-side)/2,
-		src.Min.X+(src.Dx()-side)/2+side,
-		src.Min.Y+(src.Dy()-side)/2+side,
-	)
+	w := max(1, src.Dx()*target/side)
+	h := max(1, src.Dy()*target/side)
+	inside := image.Rect((target-w)/2, (target-h)/2, (target-w)/2+w, (target-h)/2+h)
 	dst := image.NewNRGBA(image.Rect(0, 0, target, target))
 	if side == target {
-		draw.Draw(dst, dst.Bounds(), img, square.Min, draw.Src)
+		draw.Draw(dst, inside, img, src.Min, draw.Src)
 	} else {
-		draw.CatmullRom.Scale(dst, dst.Bounds(), img, square, draw.Src, nil)
+		draw.CatmullRom.Scale(dst, inside, img, src, draw.Src, nil)
 	}
 	out := orientWorkspaceIcon(dst, orientation)
 	var buf bytes.Buffer
