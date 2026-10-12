@@ -103,7 +103,7 @@ describe("coffee approvals (FR-SHELL-063)", () => {
         expect(html).toContain("still asks you: MoltenTerm cannot answer Codex&#x27;s approvals yet");
         expect(html).toContain("1 approved · 1 left to you");
         expect(html).toContain("Bash: go test ./...");
-        expect(html).toContain("Left to you: reads or writes a credential file: .env");
+        expect(html).toContain("reads or writes a credential file: .env");
         expect(html).toContain("molten/coffee-approvals.jsonl");
         expect(html).not.toContain("b3");
     });

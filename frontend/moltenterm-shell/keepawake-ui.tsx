@@ -23,6 +23,7 @@ import {
     computerName,
     describeApproval,
     describeAttempt,
+    KeepAwakeApproval,
     KeepAwakeCoffee,
     keepAwakeCount,
     KeepAwakeSession,
@@ -226,6 +227,11 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
 
 const MaxListedApprovals = 8;
 
+function approvalTitle(a: KeepAwakeApproval): string {
+    const what = describeApproval(a);
+    return a.outcome === "asked" && a.reason ? `${what}\nLeft to you: ${a.reason}` : what;
+}
+
 // Under the coffees (FR-SHELL-063, DS-SHELL-112): the agent sessions a coffee answers for or not, and its latest
 // decisions; the log file keeps them all.
 export function CoffeeApprovals({ state, coffee }: { state: KeepAwakeState; coffee: KeepAwakeCoffee }) {
@@ -260,19 +266,19 @@ export function CoffeeApprovals({ state, coffee }: { state: KeepAwakeState; coff
             ))}
             {summary ? <span className="text-11 text-secondary">{summary}</span> : null}
             {approvals.slice(0, MaxListedApprovals).map((a) => (
-                <span key={a.id} className="flex min-w-0 items-baseline gap-1.5 text-11" title={describeApproval(a)}>
-                    <span className="shrink-0 text-muted">{formatClock(a.at)}</span>
-                    <span className={cn("shrink-0", a.outcome === "approved" ? "text-secondary" : "text-primary")}>
-                        {a.outcome === "approved" ? "approved" : "asked you"}
+                <span key={a.id} className="flex min-w-0 flex-col text-11" title={approvalTitle(a)}>
+                    <span className="flex min-w-0 items-baseline gap-1.5">
+                        <span className="shrink-0 text-muted">{formatClock(a.at)}</span>
+                        <span className={cn("shrink-0", a.outcome === "approved" ? "text-secondary" : "text-primary")}>
+                            {a.outcome === "approved" ? "approved" : "asked you"}
+                        </span>
+                        <span className="min-w-0 truncate font-mono text-11 text-secondary">{describeApproval(a)}</span>
                     </span>
-                    <span className="min-w-0 truncate font-mono text-11 text-secondary">{describeApproval(a)}</span>
+                    {a.outcome === "asked" && a.reason ? (
+                        <span className="truncate pl-10 text-11 text-muted">{a.reason}</span>
+                    ) : null}
                 </span>
             ))}
-            {approvals.some((a) => a.outcome === "asked") ? (
-                <span className="text-11 text-muted">
-                    Left to you: {approvals.find((a) => a.outcome === "asked").reason}
-                </span>
-            ) : null}
             {approvals.length > 0 ? (
                 <span className="text-11 text-muted">Every decision: {ApprovalLogText}</span>
             ) : null}
