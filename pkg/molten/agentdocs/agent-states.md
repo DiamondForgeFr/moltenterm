@@ -107,6 +107,26 @@ with the hooks you already have:
 ends its turn; `UserPromptSubmit` when you send a prompt; `PostToolUse` after each tool it runs, so the dot is
 working again once you approved a permission.
 
+### Coffee approvals
+
+While a workspace's coffee is on, MoltenTerm approves the permission requests of the Claude Code sessions in it, except
+what its deny list keeps for you (deletions outside the session's folder, force pushes to main branches, credential
+files) and the questions only you can answer. `claude` started in a local MoltenTerm terminal gets this through
+MoltenTerm's launcher. For a Claude Code started otherwise in a MoltenTerm terminal, add this hook:
+
+```json
+{
+  "hooks": {
+    "PermissionRequest": [
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent permission --agent claude || true", "timeout": 15 }] }
+    ]
+  }
+}
+```
+
+With the coffee off it prints nothing, and Claude Code asks you as usual. Every decision taken while a coffee is on is
+kept in the status bar's sleep list and in `molten/coffee-approvals.jsonl` in MoltenTerm's data folder.
+
 ## Codex
 
 Codex runs its `notify` program when a turn completes, with a JSON argument MoltenTerm ignores. In

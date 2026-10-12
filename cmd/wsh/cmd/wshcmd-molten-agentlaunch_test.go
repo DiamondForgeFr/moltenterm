@@ -73,7 +73,7 @@ func TestPlanMoltenAgentLaunch(t *testing.T) {
 	env, data := launchEnv(t)
 	getenv := func(name string) string { return env[name] }
 	report, args, procEnv := planMoltenAgentLaunch(agentlaunch.FindAdapter("claude"), "/real/claude", []string{"-p", "hi"}, getenv, time.Now())
-	if report.StepAside != "" || len(report.Added) != 3 || report.RealPath != "/real/claude" || report.BlockId != "block-1" {
+	if report.StepAside != "" || len(report.Added) != 4 || !report.HasCoffeeApproval() || report.RealPath != "/real/claude" || report.BlockId != "block-1" {
 		t.Fatalf("report %+v", report)
 	}
 	if len(args) != 4 || args[0] != "--settings" || !strings.HasPrefix(args[1], agentlaunch.LaunchDir(data)) || !slices.Equal(args[2:], []string{"-p", "hi"}) {
