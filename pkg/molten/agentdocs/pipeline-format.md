@@ -260,7 +260,10 @@ and the cut is prepared in a release worktree beside the main checkout (`../<rep
 | `molten release rehearse --workflow <file> [--ref <branch>] [--field key=value] [--download <folder>]` | a `cd` step, outside the release | Builds the release files without a tag, to install and check them before a release: starts the project's release workflow by `workflow_dispatch` on the trunk (or `--ref`), waits for it (up to 90 minutes), then lists the run's artifacts and their expiry, and with `--download` fetches them into `<folder>/<short commit>/`. The workflow must publish nothing when dispatched. Run again on the same commit, it follows the rehearsal still running, or reuses the green one whose artifacts are still there; a run with `--field` is always a new one. |
 
 `molten release plan [--rc|--public] [--version X.Y.Z] [--json]` shows what the Release menu would start: the tag,
-the milestone it ships and the milestone's open issues. Off GitHub, nothing waits for CI, opens a pull request or
+the milestone it ships and the milestone's open issues. A finished milestone comes first: an open milestone naming a
+version above the last public release, with every issue closed and no tag yet, is the release proposed (the lowest of
+them), and the version the commits suggest is shown beside it as a note when it differs, never in its place; a
+milestone with open issues is never proposed over the commits. `--version` always wins. Off GitHub, nothing waits for CI, opens a pull request or
 closes a milestone. Steps run by Mission Control find `molten` first on their PATH: it is the running app's own.
 
 ## Ids

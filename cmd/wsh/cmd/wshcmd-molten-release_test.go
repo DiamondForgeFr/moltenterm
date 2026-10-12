@@ -34,6 +34,23 @@ func TestFormatMoltenReleasePlan(t *testing.T) {
 	}
 }
 
+func TestFormatMoltenReleasePlanMismatch(t *testing.T) {
+	out := formatMoltenReleasePlan([]release.PlanReport{{
+		PlanResult: versions.PlanResult{Channel: "public", Tag: "v1.0.1", Base: "1.0.1", How: release.HowMilestone, Reason: "Milestone v1.0.1 is finished and not tagged yet."},
+		Mismatch:   "the commits since v1.0.0 suggest 1.1.0 (a minor version); milestone v1.0.1 declares 1.0.1",
+		Milestone:  &release.Milestone{Title: "v1.0.1", Url: "https://m/7", Issues: []release.MilestoneIssue{}},
+	}})
+	for _, want := range []string{
+		"Public release: v1.0.1. Milestone v1.0.1 is finished and not tagged yet.",
+		"Note: the commits since v1.0.0 suggest 1.1.0 (a minor version); milestone v1.0.1 declares 1.0.1.",
+		"Ships milestone v1.0.1 (https://m/7).",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("plan output lacks %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestMoltenReleaseChannels(t *testing.T) {
 	defer func() { moltenReleaseRc, moltenReleasePublic = false, false }()
 	moltenReleaseRc, moltenReleasePublic = false, false
