@@ -20,7 +20,7 @@ import {
 } from "@floating-ui/react";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
-import { openMoltentermView } from "./open-view";
+import { makeViewInActiveTabAtom, toggleMoltentermView } from "./open-view";
 import { railCustomWidgets, railWidgetTooltip, splitRailWidgets } from "./rail-tools-model";
 import { MoltentermSessionsView, RailBadge } from "./sessions/sessions-model";
 import { DurableSessions } from "./sessions/sessions-store";
@@ -39,6 +39,7 @@ function ToolButton({
     onClick,
     buttonRef,
     pressed,
+    active,
     children,
 }: {
     label: string;
@@ -46,6 +47,8 @@ function ToolButton({
     onClick: () => void;
     buttonRef?: (elem: HTMLButtonElement) => void;
     pressed?: boolean;
+    // The view the button opens is shown in this tab: the next click closes it.
+    active?: boolean;
     children: React.ReactNode;
 }) {
     return (
@@ -54,6 +57,7 @@ function ToolButton({
             type="button"
             aria-label={label}
             aria-expanded={pressed}
+            aria-pressed={active}
             onClick={() => {
                 onHover(null, null);
                 onClick();
@@ -68,7 +72,9 @@ function ToolButton({
             onMouseLeave={() => onHover(null, null)}
             className={cn(
                 "molten-rail-tool relative flex h-8 w-9 shrink-0 cursor-pointer items-center justify-center rounded-6 text-icon-16 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary",
-                pressed && "bg-hover text-primary"
+                pressed && "bg-hover text-primary",
+                active &&
+                    "bg-hover text-primary before:absolute before:top-2 before:bottom-2 before:-left-1 before:w-0.5 before:rounded-4 before:bg-accent"
             )}
         >
             {children}
@@ -142,13 +148,16 @@ const BadgeToneClasses: Record<RailBadge["tone"], string> = {
 
 // The Sessions view (FR-SHELL-020), with the number of agents running in durable sessions, coloured by the most urgent
 // state. The store starts here, so the badge is live in every window.
+// A second click closes the view the first one opened (#533).
 function SessionsToolButton({ onHover }: { onHover: RailHover }) {
     const badge = useAtomValue(DurableSessions.getInstance().badgeAtom);
+    const openBlockId = useAtomValue(makeViewInActiveTabAtom(MoltentermSessionsView));
     return (
         <ToolButton
             label={badge.label}
             onHover={onHover}
-            onClick={() => fireAndForget(() => openMoltentermView(MoltentermSessionsView))}
+            onClick={() => fireAndForget(() => toggleMoltentermView(MoltentermSessionsView))}
+            active={openBlockId != null}
         >
             <i className={makeIconClass("layer-group", true)} />
             {badge.count > 0 ? (
