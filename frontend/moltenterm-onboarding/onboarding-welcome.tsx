@@ -37,8 +37,8 @@ const Points: { icon: string; title: string; text: React.ReactNode }[] = [
     },
     {
         icon: "lock",
-        title: "Nothing leaves your machine.",
-        text: "MoltenTerm sends no usage data. No account, no telemetry.",
+        title: "No telemetry, no account.",
+        text: "MoltenTerm sends no usage data and connects only for what you ask.",
     },
 ];
 
