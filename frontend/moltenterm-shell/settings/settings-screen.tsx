@@ -8,6 +8,7 @@
 // in Wave's editor in place (settings-view.tsx).
 
 import { atoms, getApi, globalStore } from "@/app/store/global";
+import * as WOS from "@/app/store/wos";
 import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
@@ -42,6 +43,7 @@ import {
     SettingsSections,
 } from "./settings-catalog";
 import { ModsSection } from "./settings-mods";
+import { readSettingsSection, SettingsSectionMetaKey } from "./settings-open";
 
 export type SettingsFile = { path: string; name: string; description?: string };
 
@@ -75,6 +77,11 @@ const GhostButton =
 
 // The section each screen was last on, so a remount (a tab switch) keeps it.
 const LastSection = new Map<string, SettingsSectionId>();
+
+function openedOnSection(blockId: string): SettingsSectionId {
+    const block = globalStore.get(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId)));
+    return readSettingsSection(block?.meta?.[SettingsSectionMetaKey]);
+}
 
 function platformName(): string {
     const p = getApi().getPlatform();
@@ -525,7 +532,9 @@ export function SettingsScreen({ blockId, files, onOpenFile }: SettingsScreenPro
     const settings = useAtomValue(atoms.settingsAtom) as Record<string, unknown>;
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const workspace = useAtomValue(atoms.workspace);
-    const [section, setSectionState] = useState<SettingsSectionId>(LastSection.get(blockId) ?? "general");
+    const [section, setSectionState] = useState<SettingsSectionId>(
+        () => LastSection.get(blockId) ?? openedOnSection(blockId) ?? "general"
+    );
     const [query, setQuery] = useState("");
     const [active, setActive] = useState(0);
     const [highlight, setHighlight] = useState<string>(null);
