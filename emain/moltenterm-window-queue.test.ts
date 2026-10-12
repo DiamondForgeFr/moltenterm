@@ -635,6 +635,22 @@ describe("window action queue: single operations", () => {
         expect(screenSince(t0).find((e) => e[1] === starter.activetabid)[0]).toBeLessThan(150);
     });
 
+    it("logs a workspace switch with ids only, never the workspace object (#501)", async () => {
+        const starter = await setup();
+        await addVisitedWorkspace();
+        const log = vi.spyOn(console, "log").mockImplementation(() => {});
+        ipc("switch-workspace", starter.oid);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(h.onScreen()).toBe(starter.activetabid);
+        const switchLines = log.mock.calls.filter((args) => args[0] === "processActionQueue switchworkspace");
+        expect(switchLines).toEqual([["processActionQueue switchworkspace", starter.oid, starter.activetabid, "win-1"]]);
+        for (const args of log.mock.calls) {
+            for (const arg of args) {
+                expect(typeof arg === "object" && arg != null && "tabids" in arg).toBe(false);
+            }
+        }
+    });
+
     it("deletes a workspace that is not on screen", async () => {
         const starter = await setup();
         const other = h.backend.addWorkspace("Other");

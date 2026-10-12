@@ -276,7 +276,8 @@ async function runSwitchWorkspace(win: WaveBrowserWindow, workspaceId: string, r
         return;
     }
     run.check();
-    console.log("processActionQueue switchworkspace newWs", newWs);
+    // ids only: the workspace object carries its name and tab ids, and would bloat the log on every switch (#501)
+    console.log("processActionQueue switchworkspace", newWs.oid, newWs.activetabid ?? "", win.waveWindowId);
     const tabId = newWs.activetabid;
     if (tabId == null) {
         win.workspaceId = workspaceId;
