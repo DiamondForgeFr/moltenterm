@@ -5,8 +5,8 @@
 // the keyboard focus or cover the user's work: on macOS, BaseWindow.show() and focus(), and webContents.focus(),
 // activate the application. With MOLTENTERM_BACKGROUND=1 (never on by default) the instance:
 // - runs with the "accessory" activation policy on macOS: no Dock icon, no menu bar, never the active app on its own;
-// - shows every window with showInactive(), parked in a corner of the screen (see BackgroundPlacement), above the
-//   other windows without being key;
+// - shows every window with showInactive(), parked in a corner of the screen (see park), above the other windows
+//   without being key, transparent and click-through;
 // - turns every window focus into a virtual one: the window the app asked to focus reports isFocused(), is returned
 //   by getFocusedWindow() and gets its "focus" event (the previous one its "blur"), so everything that follows the
 //   focus (the focused window of the backend, the tab activity model, the paint check of #461) behaves as if the
@@ -20,7 +20,8 @@ import { app, BaseWindow, BrowserWindow, screen } from "electron";
 export const BackgroundModeEnv = "MOLTENTERM_BACKGROUND";
 
 // How much of a parked window stays on screen, from the bottom-right corner of the primary display's work area. A
-// window entirely off screen counts as occluded on macOS: its pages go "hidden" and stop drawing (see #495).
+// window entirely covered counts as occluded on macOS (its pages go "hidden" and stop drawing), and macOS keeps at
+// least a strip of a window on screen anyway (#495).
 export const BackgroundVisiblePx = { width: 160, height: 120 };
 
 type Rect = { x: number; y: number; width: number; height: number };
@@ -107,6 +108,9 @@ type WindowProto = {
     getBounds(): Rect;
     setBounds(bounds: Partial<Rect>): void;
     setAlwaysOnTop(flag: boolean, level?: string): void;
+    setVisibleOnAllWorkspaces(visible: boolean, options?: object): void;
+    setOpacity(opacity: number): void;
+    setIgnoreMouseEvents(ignore: boolean): void;
     once(event: string, listener: () => void): unknown;
     emit(event: string, ...args: any[]): boolean;
 };
@@ -125,8 +129,13 @@ function park(win: WindowProto) {
     }
     parked.add(win);
     win.setBounds(backgroundPlacement(screen.getPrimaryDisplay().workArea, win.getBounds()));
-    // Above the other windows without being key, so the user's own windows never cover (and hide) the test page.
+    // Above the other windows without being key, on every Space (a full-screen app included), so the user's windows
+    // never cover the test page: covered, it would go "hidden" and stop drawing. Transparent and click-through, so the
+    // corner it floats over stays the user's; macOS still counts it as visible and Chromium still draws it.
     win.setAlwaysOnTop(true, "floating");
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
+    win.setOpacity(0);
+    win.setIgnoreMouseEvents(true);
     win.once("closed", () => focus.forget(win));
 }
 
