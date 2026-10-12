@@ -5,6 +5,7 @@ package keepawake
 
 import (
 	"context"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -106,6 +107,39 @@ func TestCpuSpentBetween(t *testing.T) {
 	agent, tree = cpuSpentBetween(agentPid, prev, cur, prevAt)
 	if agent != 0 || tree != 200*time.Millisecond {
 		t.Errorf("reused pid: agent %v, tree %v, want 0 and 200ms", agent, tree)
+	}
+	// Codex's npm wrapper is the root and its native binary, under it, draws the TUI: that binary is the agent's own.
+	prev = TreeSample{
+		agentPid: {Ppid: 1, StartMs: agentStart, Cpu: proctree.Cpu{Self: time.Second}, Agent: true},
+		160:      {Ppid: agentPid, StartMs: agentStart + 500, Cpu: proctree.Cpu{Self: time.Minute}, Agent: true},
+	}
+	cur = TreeSample{
+		agentPid: prev[agentPid],
+		160:      {Ppid: agentPid, StartMs: agentStart + 500, Cpu: proctree.Cpu{Self: time.Minute + 150*time.Millisecond, Children: 40 * time.Millisecond}, Agent: true},
+	}
+	agent, tree = cpuSpentBetween(agentPid, prev, cur, prevAt)
+	if agent != 150*time.Millisecond || tree != 40*time.Millisecond {
+		t.Errorf("an agent under its wrapper: agent %v, tree %v, want 150ms and 40ms", agent, tree)
+	}
+}
+
+func TestSampleTreesReadsThisProcess(t *testing.T) {
+	self := int32(os.Getpid())
+	table, err := proctree.Read()
+	if err != nil {
+		t.Skip(err)
+	}
+	root := TreeRoot{BlockId: "b1", Pid: self, StartMs: table.Get(self).StartMs}
+	got := sampleTrees([]TreeRoot{root, {BlockId: "gone", Pid: self, StartMs: root.StartMs - 3_600_000}})
+	sample, ok := got["b1"][self]
+	if !ok || !sample.Agent || sample.Cpu.Self <= 0 || sample.Ppid != int32(os.Getppid()) {
+		t.Fatalf("this process's sample: %+v (%v)", sample, ok)
+	}
+	if _, ok := got["gone"]; ok {
+		t.Error("a root with another start time is another process")
+	}
+	if !isAgentName("codex") || !isAgentName("/usr/local/bin/claude") || isAgentName("node") {
+		t.Error("agent names")
 	}
 }
 
