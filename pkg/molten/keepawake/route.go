@@ -18,6 +18,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
+	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -66,6 +67,9 @@ type service struct {
 	locate     *ttlCache[BlockInfo]
 	workspaces *ttlCache[workspaceEntry]
 	poke       chan struct{}
+	// The coffee approvals (approveroute.go): tab names of the agents' terminals, and the log file.
+	tabs        *ttlCache[string]
+	approvalLog *approvalLog
 }
 
 type workspaceEntry struct {
@@ -266,6 +270,10 @@ func makeService(hooks Hooks) *service {
 		locate:     makeTtlCache[BlockInfo](),
 		workspaces: makeTtlCache[workspaceEntry](),
 		poke:       make(chan struct{}, 1),
+		tabs:       makeTtlCache[string](),
+	}
+	if dataDir := wavebase.GetWaveDataDir(); dataDir != "" {
+		s.approvalLog = makeApprovalLog(dataDir)
 	}
 	sources := WorkSources{
 		Agents:            attention.AgentRuns,
@@ -287,6 +295,8 @@ func makeService(hooks Hooks) *service {
 		ProcessAlive: processAlive,
 		ProcessName:  processName,
 		Async:        func(fn func()) { goSafe("molten:keepawake:shim", fn) },
+		Sessions:     s.sessions,
+		LogApproval:  s.logApproval,
 	})
 	return s
 }
@@ -323,6 +333,7 @@ func (s *service) loop() {
 		now := time.Now()
 		s.locate.sweep(now)
 		s.workspaces.sweep(now)
+		s.tabs.sweep(now)
 		ctx, cancel := context.WithTimeout(context.Background(), storeTimeout)
 		s.keeper.Evaluate(ctx)
 		cancel()
@@ -344,6 +355,7 @@ func (s *service) blockClosed(event *wps.WaveEvent) {
 	}
 	s.commands.forget(blockId)
 	s.locate.forget(blockId)
+	s.tabs.forget(blockId)
 	s.keeper.ForgetBlock(blockId)
 	s.triggerIfActive()
 }
@@ -457,6 +469,17 @@ func (l *routeLink) handle(command string, from string, data any) (any, error) {
 			return nil, err
 		}
 		return l.s.keeper.Shim(ctx, req)
+	case PermissionCommand:
+		// The coffee approvals (FR-SHELL-063): from a local terminal's own link only, as the shims; a remote host's
+		// agent is never approved from here.
+		if from != fromTerminal {
+			return nil, fmt.Errorf("permission requests come from a local MoltenTerm terminal")
+		}
+		var req PermissionRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.s.permission(ctx, req), nil
 	}
 	return nil, fmt.Errorf("unknown keep-awake command %q", command)
 }

@@ -31,6 +31,10 @@ type Env struct {
 	ProcessName  func(pid int32) string
 	// Async runs work that must not hold a shim's answer; nil runs it at once (tests).
 	Async func(fn func())
+	// Sessions: the agent sessions of these workspaces, and whether their prompts are answered (FR-SHELL-063).
+	Sessions func(ctx context.Context, wsIds []string) []AutoApproveSession
+	// LogApproval appends a coffee approval's decision to the log file.
+	LogApproval func(a Approval)
 }
 
 const (
@@ -68,6 +72,9 @@ type Keeper struct {
 	version   int64
 	published State
 	nextId    int64
+	// The coffee approvals (approve.go): decisions, oldest first, and the sessions the coffees cover.
+	approvals   []Approval
+	autoApprove []AutoApproveSession
 }
 
 func MakeKeeper(env Env) *Keeper {
@@ -352,6 +359,7 @@ func (k *Keeper) Evaluate(ctx context.Context) {
 			k.env.Notify(n)
 		}
 	}
+	k.refreshSessions(ctx, ids)
 	k.publishIfChanged()
 }
 
@@ -497,6 +505,7 @@ func (k *Keeper) buildLocked() State {
 		state.Overrides = append(state.Overrides, *o)
 	}
 	sort.Slice(state.Overrides, func(i, j int) bool { return state.Overrides[i].BlockId < state.Overrides[j].BlockId })
+	k.approvalsState(&state)
 	state.Hold = state.PolicyHolding || len(state.Coffees) > 0
 	return state
 }

@@ -115,6 +115,10 @@ type State struct {
 	Coffees   []Coffee   `json:"coffees"`
 	Attempts  []Attempt  `json:"attempts"`
 	Overrides []Override `json:"overrides"`
+	// The coffee approvals (FR-SHELL-063): the agent sessions each coffee covers, and the latest decisions, newest
+	// first.
+	AutoApprove []AutoApproveSession `json:"autoapprove"`
+	Approvals   []Approval           `json:"approvals"`
 }
 
 // ShimRequest is what a shim reports before it decides (cmd/wsh/cmd/wshcmd-molten-sleepshim.go).
