@@ -3,10 +3,25 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("electron", () => ({ WebContentsView: class {} }));
+vi.mock("electron", () => ({
+    WebContentsView: class {
+        handlers = new Map<string, (...args: any[]) => void>();
+        openHandler: (details: { url: string }) => { action: string } = null;
+        webContents = {
+            on: (event: string, fn: (...args: any[]) => void) => this.handlers.set(event, fn),
+            setWindowOpenHandler: (fn: (details: { url: string }) => { action: string }) => {
+                this.openHandler = fn;
+            },
+            loadURL: () => Promise.resolve(),
+        };
+        setBackgroundColor() {}
+    },
+}));
 
 import {
+    makePendingPage,
     makePendingPageHtml,
+    PendingPageReloadUrl,
     ViewPendingChannel,
     ViewPendingController,
     ViewPendingGraceMs,
@@ -132,5 +147,20 @@ describe("pending page (#450)", () => {
         const failed = makePendingPageHtml({ phase: "failed", workspaceName: "A" });
         expect(failed).toContain('href="moltenterm-pending://reload"');
         expect(failed).toContain("prefers-reduced-motion");
+    });
+
+    it("never opens a window: a Cmd-click or middle-click on Reload is denied and still reloads (#500)", () => {
+        const onReload = vi.fn();
+        const page = makePendingPage({ phase: "failed", workspaceName: "A" }, onReload);
+        const view = page.view as any;
+        expect(view.openHandler).not.toBeNull();
+        expect(view.openHandler({ url: PendingPageReloadUrl })).toEqual({ action: "deny" });
+        expect(onReload).toHaveBeenCalledOnce();
+        expect(view.openHandler({ url: "https://example.com/" })).toEqual({ action: "deny" });
+        expect(onReload).toHaveBeenCalledOnce();
+        const preventDefault = vi.fn();
+        view.handlers.get("will-navigate")({ preventDefault }, PendingPageReloadUrl);
+        expect(preventDefault).toHaveBeenCalledOnce();
+        expect(onReload).toHaveBeenCalledTimes(2);
     });
 });

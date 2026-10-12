@@ -225,6 +225,13 @@ export function makePendingPage(state: ViewPendingState, onReload: () => void): 
             onReload();
         }
     });
+    // A Cmd-click or middle-click on Reload asks for a new window instead of navigating (#500).
+    view.webContents.setWindowOpenHandler(({ url }) => {
+        if (url === PendingPageReloadUrl) {
+            onReload();
+        }
+        return { action: "deny" };
+    });
     const loaded = loadPendingPage(view, state);
     return { view, loaded };
 }
