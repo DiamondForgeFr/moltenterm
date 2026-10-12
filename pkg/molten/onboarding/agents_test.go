@@ -143,3 +143,20 @@ func TestInstallDeclinedAgentLeavesForeignFiles(t *testing.T) {
 		t.Errorf("status %+v", status)
 	}
 }
+
+func TestEnsureMorphDir(t *testing.T) {
+	dataDir := t.TempDir()
+	dir, err := EnsureMorphDir(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dir != filepath.Join(dataDir, "molten", "first-morph") {
+		t.Errorf("scratch folder %s", dir)
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		t.Errorf("scratch folder not created: %v", err)
+	}
+	if _, err := EnsureMorphDir(dataDir); err != nil {
+		t.Errorf("a second call failed: %v", err)
+	}
+}

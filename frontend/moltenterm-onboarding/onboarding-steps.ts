@@ -8,7 +8,8 @@
 
 import type React from "react";
 import { AgentStep } from "./onboarding-agent-step";
-import { MorphPlaceholderStep, ProjectPlaceholderStep } from "./onboarding-placeholder-steps";
+import { MorphStep } from "./onboarding-morph-step";
+import { ProjectPlaceholderStep } from "./onboarding-placeholder-steps";
 import type { FirstRunStepId, OnboardingState } from "./onboarding-state";
 
 export type { FirstRunStepId, FirstRunStepStatus } from "./onboarding-state";
@@ -26,6 +27,8 @@ export type FirstRunStepContext = {
     complete: () => Promise<void>;
     // status skipped, then the panel moves to the next step; same rules as complete
     skip: () => Promise<void>;
+    // status done, the panel stays on the step (a step that shows its result before the user moves on)
+    markDone: () => Promise<void>;
     // splits the panel "after": the new pane lands on its right; returns the new block id
     openBeside: (blockdef: BlockDef) => Promise<string>;
 };
@@ -59,8 +62,7 @@ export const FirstRunSteps: FirstRunStep[] = [
         title: "Your first morph",
         label: "First morph",
         summary: "Ask your agent to reshape MoltenTerm, and see the change land.",
-        component: MorphPlaceholderStep,
-        placeholder: true,
+        component: MorphStep,
     },
     {
         id: "project",
