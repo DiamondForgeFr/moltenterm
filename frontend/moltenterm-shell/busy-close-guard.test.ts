@@ -34,6 +34,7 @@ vi.mock("@/layout/index", async () => {
     };
 });
 vi.mock("./notifications-store", () => ({ registerNotificationGesture: () => () => {} }));
+vi.mock("./reopen/reopen-store", () => ({ recordingTabClose: (close: unknown) => close }));
 vi.mock("./worktree-store", () => ({
     removeWorktree: vi.fn(),
     resolveKeptWorktreeNotice: vi.fn(),

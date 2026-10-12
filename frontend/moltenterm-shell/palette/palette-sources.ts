@@ -243,6 +243,15 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
             run: { kind: "newtab" },
         },
         {
+            id: "action:reopenclosed",
+            group: "actions",
+            label: "Reopen the last closed pane or tab",
+            icon: "rotate-left",
+            hint: "⇧⌘T",
+            keywords: ["undo close", "restore", "closed tab", "closed panel"],
+            run: { kind: "reopenclosed" },
+        },
+        {
             id: "action:newworkspace",
             group: "actions",
             label: "New workspace",

@@ -28,6 +28,7 @@ import {
 import { DialogFrame, useEscape } from "./dialog-frame";
 import { MoltenWave } from "./molten-button";
 import { registerNotificationGesture } from "./notifications-store";
+import { recordingTabClose } from "./reopen/reopen-store";
 import {
     ClosePlanView,
     closePlanView,
@@ -213,6 +214,8 @@ export async function closeTabAskingFirst(
     if (dialogOpen()) {
         return false;
     }
+    // A tab that really closes can come back with Cmd+Shift+T (#512).
+    closeTab = recordingTabClose(closeTab);
     let blocks: Block[] = [];
     try {
         const tab = await loadAndPinWaveObject<Tab>(makeORef("tab", tabId));

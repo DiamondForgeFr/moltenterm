@@ -508,7 +508,9 @@ export class LayoutModel {
                 break;
             }
             case LayoutTreeActionType.SplitHorizontal: {
-                const targetNode = this?.getNodeByBlockId(action.targetblockid);
+                // MOLTENTERM-PATCH (#512): a node added earlier in the same batch is in the tree, not yet in the leafs
+                const targetNode =
+                    this?.getNodeByBlockId(action.targetblockid) ?? this.findLeafInTree(action.targetblockid);
                 if (!targetNode) {
                     console.error(
                         "Cannot apply eventbus layout action SplitHorizontal, could not find target node with blockId",
@@ -536,7 +538,9 @@ export class LayoutModel {
                 break;
             }
             case LayoutTreeActionType.SplitVertical: {
-                const targetNode = this?.getNodeByBlockId(action.targetblockid);
+                // MOLTENTERM-PATCH (#512): a node added earlier in the same batch is in the tree, not yet in the leafs
+                const targetNode =
+                    this?.getNodeByBlockId(action.targetblockid) ?? this.findLeafInTree(action.targetblockid);
                 if (!targetNode) {
                     console.error(
                         "Cannot apply eventbus layout action SplitVertical, could not find target node with blockId",
@@ -1513,6 +1517,20 @@ export class LayoutModel {
             }
         }
         return null;
+    }
+
+    // MOLTENTERM-PATCH (#512): the leaf of a block in the tree being built, before updateTree refreshes the leafs
+    findLeafInTree(blockId: string): LayoutNode {
+        let found: LayoutNode = null;
+        if (this.treeState.rootNode == null || !blockId) {
+            return null;
+        }
+        walkNodes(this.treeState.rootNode, (node) => {
+            if (found == null && !node.children?.length && node.data?.blockId === blockId) {
+                found = node;
+            }
+        });
+        return found;
     }
 
     /**
