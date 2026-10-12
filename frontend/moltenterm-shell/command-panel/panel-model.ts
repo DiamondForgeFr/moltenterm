@@ -21,6 +21,17 @@ export const PanelWidthPx = 360;
 export const PanelMaxHeightPx = 560;
 export const FooterSectionTitle = "Panel";
 
+// The footer's pane action says what it closes: a bare "Close" in a menu reads as closing the menu (#511).
+export function closePaneLabel(view: string): string {
+    if (view === "term") {
+        return "Close terminal";
+    }
+    if (view === "molten-browser" || view === "web") {
+        return "Close browser";
+    }
+    return "Close pane";
+}
+
 export type PanelRow =
     | { kind: "heading"; key: string; title: string; state?: string; stateTone?: "warning" | "muted" }
     | { kind: "item"; key: string; item: PanelItem; path: string[]; breadcrumb?: string; indices?: number[] }

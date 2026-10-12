@@ -18,10 +18,10 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { highlightRuns } from "../palette/palette-model";
-import { subscribeWindowWorkspaceChange } from "../tab-workspace";
 import { formatShortcutById } from "../shortcuts/format";
 import { splitPanel } from "../split/split";
 import { SplitDownIcon, SplitRightIcon } from "../split/split-menu";
+import { subscribeWindowWorkspaceChange } from "../tab-workspace";
 import { trackContextMenuPoint } from "./block-menus";
 import { CommandPanelModel, OpenCommandPanel, OpenMark, PaintedMeasure } from "./command-panel-store";
 import "./command-panel.css";
@@ -31,6 +31,7 @@ import {
     buildRows,
     canReset,
     choiceValueLabel,
+    closePaneLabel,
     effectiveValue,
     findPage,
     firstSelectable,
@@ -117,7 +118,7 @@ function rowAccessibleName(row: PanelRow, scopes: Record<string, PanelScopeId>, 
 
 type FooterAction = PanelAction & { refocus?: boolean };
 
-function footerItems(blockId: string, magnified: boolean): FooterAction[] {
+function footerItems(blockId: string, view: string, magnified: boolean): FooterAction[] {
     const layoutModel = getLayoutModelForStaticTab();
     const node = layoutModel?.getNodeByBlockId(blockId);
     return [
@@ -157,11 +158,11 @@ function footerItems(blockId: string, magnified: boolean): FooterAction[] {
         {
             id: "footer:close",
             type: "action",
-            label: "Close",
+            label: closePaneLabel(view),
             icon: "xmark",
             destructive: true,
             shortcut: formatShortcutById("close-panel"),
-            keywords: ["close panel"],
+            keywords: ["close", "close pane", "close panel"],
             refocus: false,
             run: () => uxCloseBlock(blockId),
         },
@@ -727,7 +728,8 @@ function CommandPanel({ open }: CommandPanelProps) {
     const collected = useMemo(() => (ctx ? collectPanel(ctx) : { sections: [], suggestions: [] }), [ctx]);
     const node = layoutModel?.getNodeByBlockId(blockId);
     const magnified = node != null && magnifiedNodeId === node.id;
-    const footer = useMemo(() => footerItems(blockId, magnified), [blockId, magnified]);
+    const view = block?.meta?.view ?? "";
+    const footer = useMemo(() => footerItems(blockId, view, magnified), [blockId, view, magnified]);
     const liveStack = useMemo(() => validStack(collected.sections, stack), [collected, stack]);
     const page = liveStack.length > 0 ? findPage(collected.sections, liveStack) : null;
     const rows = useMemo(
@@ -1367,22 +1369,38 @@ function CommandPanel({ open }: CommandPanelProps) {
                 aria-label="Panel actions"
             >
                 {footer.map((item) => (
-                    <button
-                        key={item.id}
-                        type="button"
-                        className={cn(
-                            "molten-cmdpanel-footer-btn flex h-7 cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-12 whitespace-nowrap text-secondary",
-                            item.destructive && "is-destructive ml-auto"
-                        )}
-                        title={item.shortcut ? `${item.label} (${item.shortcut})` : item.label}
-                        aria-keyshortcuts={item.shortcut || undefined}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => runAction(item)}
-                    >
-                        <i className={cn(panelIconClass(item.icon), "text-icon-14")} aria-hidden />
-                        {item.label}
-                    </button>
+                    <React.Fragment key={item.id}>
+                        {item.destructive && <span className="mx-0.5 h-4 w-px shrink-0 bg-line" aria-hidden />}
+                        <button
+                            type="button"
+                            className={cn(
+                                "molten-cmdpanel-footer-btn flex h-7 cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-12 whitespace-nowrap text-secondary",
+                                item.destructive && "is-destructive"
+                            )}
+                            title={item.shortcut ? `${item.label} (${item.shortcut})` : item.label}
+                            aria-label={item.label}
+                            aria-keyshortcuts={item.shortcut || undefined}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => runAction(item)}
+                        >
+                            <i className={cn(panelIconClass(item.icon), "text-icon-14")} aria-hidden />
+                            {/* The layout actions keep to their icons so the named close action and Dismiss fit. */}
+                            {item.destructive && item.label}
+                        </button>
+                    </React.Fragment>
                 ))}
+                {/* The corner is where a menu's own close is expected: it dismisses the panel, never the pane (#511). */}
+                <button
+                    type="button"
+                    className="molten-cmdpanel-footer-btn ml-auto flex h-7 cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-12 whitespace-nowrap text-muted"
+                    title="Dismiss this menu (Esc)"
+                    aria-keyshortcuts="Escape"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => closePanel()}
+                >
+                    <kbd className="rounded-4 border border-line-strong px-1 font-mono text-11 leading-[16px]">esc</kbd>
+                    Dismiss
+                </button>
             </div>
         </div>
     );
