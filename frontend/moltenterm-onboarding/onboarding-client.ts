@@ -9,6 +9,12 @@ import { makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import {
+    OnboardingAgent,
+    OnboardingAgentInstallCommand,
+    OnboardingAgents,
+    OnboardingAgentsCommand,
+} from "./onboarding-agent-model";
+import {
     FirstRunPage,
     FirstRunStepId,
     OnboardingMetaKey,
@@ -50,6 +56,30 @@ export async function findOnboardingPanel(workspaceId: string): Promise<Onboardi
         { route: OnboardingRoute, timeout: OnboardingCallTimeoutMs }
     );
     return rtn ?? {};
+}
+
+// Reading the login shell's PATH can take seconds on the first call; wavesrv reads it once.
+export async function listOnboardingAgents(): Promise<OnboardingAgents> {
+    const rtn = await TabRpcClient.wshRpcCall(
+        OnboardingAgentsCommand,
+        {},
+        {
+            route: OnboardingRoute,
+            timeout: OnboardingCallTimeoutMs,
+        }
+    );
+    return rtn ?? { agents: [], version: "" };
+}
+
+export async function installDeclinedAgent(id: string): Promise<OnboardingAgent> {
+    return TabRpcClient.wshRpcCall(
+        OnboardingAgentInstallCommand,
+        { id },
+        {
+            route: OnboardingRoute,
+            timeout: OnboardingCallTimeoutMs,
+        }
+    );
 }
 
 export function clientMeta(): MetaType {

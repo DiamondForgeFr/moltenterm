@@ -7,7 +7,8 @@
 // FirstRunSteps with their component and touch nothing else in the host.
 
 import type React from "react";
-import { AgentPlaceholderStep, MorphPlaceholderStep, ProjectPlaceholderStep } from "./onboarding-placeholder-steps";
+import { AgentStep } from "./onboarding-agent-step";
+import { MorphPlaceholderStep, ProjectPlaceholderStep } from "./onboarding-placeholder-steps";
 import type { FirstRunStepId, OnboardingState } from "./onboarding-state";
 
 export type { FirstRunStepId, FirstRunStepStatus } from "./onboarding-state";
@@ -37,8 +38,7 @@ export type FirstRunStep = {
     // one line, shown in the stepper's tooltip and on the summary page
     summary: string;
     component: React.FC<{ ctx: FirstRunStepContext }>;
-    // Until its story ships (#162): a step that cannot do its job is left out, never shown as "not ready"
-    // (FR-SHELL-053-AC4).
+    // A step that cannot do its job yet is left out, never shown as "not ready" (FR-SHELL-053-AC4).
     hidden?: boolean;
     // A step whose component has no primary action of its own yet: the footer's Next moves on (recorded as skipped,
     // so Getting started brings it back once it does something).
@@ -52,9 +52,7 @@ export const FirstRunSteps: FirstRunStep[] = [
         title: "Your agent",
         label: "Your agent",
         summary: "The coding agents MoltenTerm finds on this machine, and the one you work with.",
-        component: AgentPlaceholderStep,
-        hidden: true,
-        placeholder: true,
+        component: AgentStep,
     },
     {
         id: "morph",
