@@ -71,7 +71,8 @@ export class AgentHookOffers {
         await agentCall(AgentHookDismissCommand, { agent });
     }
 
-    docPath(): Promise<string> {
-        return agentCall<string>(AgentStatesDocCommand, {});
+    // doc: another agent guide, such as agent-integrations.md (FR-SHELL-040); agent-states.md when omitted.
+    docPath(doc?: string): Promise<string> {
+        return agentCall<string>(AgentStatesDocCommand, doc ? { doc } : {});
     }
 }

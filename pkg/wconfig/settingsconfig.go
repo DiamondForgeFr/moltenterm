@@ -119,6 +119,9 @@ type SettingsType struct {
 
 	// MOLTENTERM-PATCH (#141): the agent companion also reads coding agents' sessions from these configuration folders.
 	AgentSessionRoots map[string][]string `json:"agent:sessionroots,omitempty" jsonschema_description:"Extra configuration folders per coding agent (claude: like CLAUDE_CONFIG_DIR, codex: like CODEX_HOME) whose sessions the agent companion reads"`
+	// MOLTENTERM-PATCH (#322): turn MoltenTerm's agent integration at launch off, for every agent or some (FR-SHELL-040).
+	AgentIntegrate    *bool    `json:"agent:integrate,omitempty" jsonschema_description:"Add MoltenTerm's integration (state hooks, session link, status line relay, browser server) to claude and codex started in a local terminal, for that run only; nothing of yours is edited. Default true; false turns it off for every agent from the next launch"`
+	AgentIntegrateOff []string `json:"agent:integrateoff,omitempty" jsonschema_description:"Agents (claude, codex) started without MoltenTerm's integration, from the next launch; the others keep it"`
 
 	// MOLTENTERM-PATCH (#261): the coding agents whose plan usage gauges the agent companion shows (FR-SHELL-027, pkg/molten/usage).
 	CompanionUsageGauges []string `json:"companion:usagegauges,omitempty" jsonschema_description:"Coding agents (claude, codex) whose plan usage gauges the agent companion shows; empty shows none. Set from the companion's Show plan usage"`
@@ -895,6 +898,22 @@ func convertJsonNumber(num json.Number, ctype reflect.Type) (interface{}, error)
 	return nil, fmt.Errorf("cannot convert number to %s", ctype)
 }
 
+// MOLTENTERM-PATCH (#322): convertConfigList turns a decoded JSON list into the setting's slice type when every item
+// converts (a list of strings for []string); ok is false otherwise.
+func convertConfigList(val any, ctype reflect.Type) (any, bool) {
+	src := reflect.ValueOf(val)
+	elem := ctype.Elem()
+	rtn := reflect.MakeSlice(ctype, 0, src.Len())
+	for i := 0; i < src.Len(); i++ {
+		item := reflect.ValueOf(src.Index(i).Interface())
+		if !item.IsValid() || !item.Type().ConvertibleTo(elem) || item.Kind() != elem.Kind() {
+			return nil, false
+		}
+		rtn = reflect.Append(rtn, item.Convert(elem))
+	}
+	return rtn.Interface(), true
+}
+
 func SetBaseConfigValue(toMerge waveobj.MetaMapType) error {
 	m, cerrs := ReadWaveHomeConfigFile(SettingsFile)
 	if len(cerrs) > 0 {
@@ -919,6 +938,12 @@ func SetBaseConfigValue(toMerge waveobj.MetaMapType) error {
 				}
 				val = convertedVal
 				rtype = reflect.TypeOf(val)
+			}
+			// MOLTENTERM-PATCH (#322): a list from JSON ([]any of strings) is accepted for a []string setting.
+			if rtype != ctype && ctype.Kind() == reflect.Slice && rtype.Kind() == reflect.Slice {
+				if converted, ok := convertConfigList(val, ctype); ok {
+					val, rtype = converted, ctype
+				}
 			}
 			if rtype != ctype {
 				if ctype == reflect.PointerTo(rtype) {

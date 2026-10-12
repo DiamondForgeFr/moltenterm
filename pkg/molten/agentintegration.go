@@ -88,6 +88,20 @@ func (r AgentIntegrationReport) ReportsStates() bool {
 	return false
 }
 
+// RelaysStatusLine tells whether the run got the status line relay, which gives the plan usage gauges their values:
+// the companion then has no setup to show (FR-SHELL-040-AC6).
+func (r AgentIntegrationReport) RelaysStatusLine() bool {
+	if !r.Integrated() {
+		return false
+	}
+	for _, it := range r.Added {
+		if it.Kind == IntegrationStatusLine {
+			return true
+		}
+	}
+	return false
+}
+
 // Integrated tells whether anything was added to the run.
 func (r AgentIntegrationReport) Integrated() bool {
 	return r.StepAside == "" && len(r.Added) > 0

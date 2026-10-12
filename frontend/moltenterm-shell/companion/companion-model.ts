@@ -115,19 +115,38 @@ export type CompanionIntegrationItem = { kind: string; name: string; reason?: st
 export type CompanionIntegration = {
     agent: string;
     realpath: string;
+    settings?: string;
+    mcpconfig?: string;
+    args?: string[];
     added?: CompanionIntegrationItem[];
     skipped?: CompanionIntegrationItem[];
     stepaside?: string;
+    at?: number;
 };
+
+// The start of the launcher's reasons when the settings turn the integration off (agentlaunch/settings.go): the
+// user's own choice, not a problem to show.
+export const IntegrationTurnedOffPrefix = "the integration is turned off";
 
 // The launcher could not add MoltenTerm's integration to this run (FR-SHELL-036 AC10): the companion says why, since
 // the session link and the precise states it would have brought are missing.
 export function integrationProblem(view: CompanionView): string {
     const reason = view?.integration?.stepaside;
-    if (!reason) {
+    if (!reason || reason.startsWith(IntegrationTurnedOffPrefix)) {
         return null;
     }
     return `MoltenTerm added nothing to this run: ${reason}.`;
+}
+
+// The launcher added the session link to this run: nothing for the user to paste (FR-SHELL-040-AC6).
+export function linksItsSession(view: CompanionView): boolean {
+    return isIntegrated(view) && view.integration.added.some((item) => item.kind === "sessionlink");
+}
+
+// The run got MoltenTerm's integration (FR-SHELL-040-AC3): the session bar says so.
+export function isIntegrated(view: CompanionView): boolean {
+    const integration = view?.integration;
+    return integration != null && !integration.stepaside && (integration.added?.length ?? 0) > 0;
 }
 
 export type CompanionUsagePage = { pageurl: string; pagename: string };
@@ -191,7 +210,9 @@ export function statusMessage(view: CompanionView): { title: string; detail?: st
                 title: `Waiting for the ${name} session`,
                 detail:
                     view.message ||
-                    "It shows once the agent writes its first message, or at once with a SessionStart hook (molten docs, agent-states.md).",
+                    (linksItsSession(view)
+                        ? "MoltenTerm's integration links it as soon as the agent starts its session."
+                        : "It shows once the agent writes its first message, or at once with a SessionStart hook (molten docs, agent-states.md)."),
             };
         case "unsupportedformat":
             return {

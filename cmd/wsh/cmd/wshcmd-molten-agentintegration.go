@@ -16,6 +16,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
@@ -65,8 +66,12 @@ func moltenAgentIntegrationStatusRun(cmd *cobra.Command, args []string) error {
 		}
 		rtn = append(rtn, status)
 	} else {
+		settings := moltenStatusSettings(os.Getenv)
 		for _, name := range agentlaunch.LauncherNames() {
-			rtn = append(rtn, moltenPlannedIntegration(agentlaunch.AdapterForProgram(name), os.Getenv))
+			rtn = append(rtn, moltenPlannedIntegrationWith(agentlaunch.AdapterForProgram(name), os.Getenv, settings))
+		}
+		if note := moltenUnknownOffNote(settings); note != "" {
+			rtn = append(rtn, MoltenIntegrationStatus{Note: note})
 		}
 	}
 	if moltenJson {
@@ -115,8 +120,49 @@ func moltenRunningIntegration(agent string) (MoltenIntegrationStatus, error) {
 	return status, nil
 }
 
-// moltenPlannedIntegration is what the agent (`claude`, `codex`) would run with if started now in this shell.
+// moltenStatusSettings reads the integration settings from wavesrv as the launcher does; nil when it cannot (outside
+// MoltenTerm, or MoltenTerm did not answer).
+func moltenStatusSettings(getenv func(string) string) *agentlaunch.IntegrationSettings {
+	jwt := getenv(wshutil.WaveJwtTokenVarName)
+	if jwt == "" || setupRpcClient(nil, jwt) != nil {
+		return nil
+	}
+	config, err := wshclient.GetFullConfigCommand(RpcClient, &wshrpc.RpcOpts{Timeout: moltenAgentStateTimeoutMs})
+	if err != nil {
+		return nil
+	}
+	return &agentlaunch.IntegrationSettings{Integrate: config.Settings.AgentIntegrate, Off: config.Settings.AgentIntegrateOff}
+}
+
+// moltenSettingsReport is why the settings keep a launch from being integrated, as the launcher decides it.
+func moltenSettingsReport(adapter agentlaunch.LaunchAdapter, settings *agentlaunch.IntegrationSettings) string {
+	if settings == nil {
+		return agentlaunch.StepAsideSettingsUnknown
+	}
+	return settings.StepAside(adapter.Id())
+}
+
+// moltenUnknownOffNote names the ids of agent:integrateoff that are ignored (FR-SHELL-040 validation rules).
+func moltenUnknownOffNote(settings *agentlaunch.IntegrationSettings) string {
+	if settings == nil {
+		return ""
+	}
+	unknown := settings.UnknownOff()
+	if len(unknown) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s lists %s, which MoltenTerm does not integrate: ignored", agentlaunch.SettingIntegrateOff, strings.Join(unknown, ", "))
+}
+
+// moltenPlannedIntegration is what the agent (`claude`, `codex`) would run with if started now in this shell, with
+// the integration settings left at their defaults.
 func moltenPlannedIntegration(adapter agentlaunch.LaunchAdapter, getenv func(string) string) MoltenIntegrationStatus {
+	return moltenPlannedIntegrationWith(adapter, getenv, &agentlaunch.IntegrationSettings{})
+}
+
+// moltenPlannedIntegrationWith applies the integration settings too; nil settings: they could not be read, and a
+// launch would add nothing.
+func moltenPlannedIntegrationWith(adapter agentlaunch.LaunchAdapter, getenv func(string) string, settings *agentlaunch.IntegrationSettings) MoltenIntegrationStatus {
 	status := MoltenIntegrationStatus{Agent: adapter.Id()}
 	if onPath, err := exec.LookPath(adapter.Executable()); err == nil {
 		if abs, err := filepath.Abs(onPath); err == nil {
@@ -133,6 +179,8 @@ func moltenPlannedIntegration(adapter agentlaunch.LaunchAdapter, getenv func(str
 	if !status.Launcher {
 		report.StepAside = "`" + adapter.Executable() + "` does not run MoltenTerm's launcher in this shell"
 	} else if reason := agentlaunch.StepAsideReason(getenv, nil, adapter); reason != "" {
+		report.StepAside = reason
+	} else if reason := moltenSettingsReport(adapter, settings); reason != "" {
 		report.StepAside = reason
 	} else {
 		report = planMoltenAgentLaunchDry(adapter, real, getenv)
@@ -163,6 +211,10 @@ func planMoltenAgentLaunchDry(adapter agentlaunch.LaunchAdapter, real string, ge
 
 func formatMoltenIntegrationStatus(s MoltenIntegrationStatus) string {
 	var b strings.Builder
+	if s.Agent == "" {
+		fmt.Fprintf(&b, "Note: %s.\n", s.Note)
+		return b.String()
+	}
 	name := molten.AgentDisplayName(s.Agent)
 	fmt.Fprintf(&b, "%s\n", name)
 	if !s.Running {

@@ -159,8 +159,11 @@ type agentStates struct {
 	onHooked     func(agent string)
 	// onRunEnd: told when a block's agent run ends (agentintegration.go drops its launcher report).
 	onRunEnd func(blockId string)
-	wake     chan struct{}
-	now      func() time.Time
+	// integratedRun: the run got its state hooks from MoltenTerm's launcher (agentintegration.go); called with the
+	// lock held, so it must not call back into agentStates.
+	integratedRun func(blockId string, run agentRunRecord) bool
+	wake          chan struct{}
+	now           func() time.Time
 	// Injected: wavesrv's object store and event bus, replaced in tests.
 	locate  func(blockId string) (string, string, error)
 	publish func(info molten.AgentStateInfo)
@@ -196,6 +199,10 @@ func makeDefaultAgentStates() *agentStates {
 	}
 	a.onRunEnd = func(blockId string) {
 		defaultIntegrationReports.forget(blockId)
+	}
+	a.integratedRun = func(blockId string, run agentRunRecord) bool {
+		rep, ok := defaultIntegrationReports.current(blockId, run, true)
+		return ok && rep.ReportsStates()
 	}
 	return a
 }
@@ -346,7 +353,11 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 	}
 	if !req.TurnEnd {
 		a.hookedLocked(req.BlockId, rec.agent)
-		a.agentHookedLocked(rec.agent)
+		// Hooks MoltenTerm's launcher added for this run are not the user's: remembering them would hide the hook
+		// setup offer once the integration is off (FR-SHELL-040-AC5).
+		if a.integratedRun == nil || !a.integratedRun(req.BlockId, agentRunRecord{agent: rec.agent, running: rec.running, pid: rec.pid, started: rec.started, source: rec.source}) {
+			a.agentHookedLocked(rec.agent)
+		}
 	}
 	rec.fromActivity = false
 	a.setStateLocked(req.BlockId, rec, req.State, message)

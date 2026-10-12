@@ -224,6 +224,31 @@ describe("MoltenTerm widget options (FR-SHELL-049-AC4..AC6, DS-SHELL-090, TC-SHE
         expect(find(companionSections(c), "companion:usage")).not.toBeNull();
     });
 
+    it("turns MoltenTerm's agent integration off for every agent or for the companion's agent (FR-SHELL-040-AC7)", async () => {
+        state.agents.t1 = { agent: "codex" };
+        const c = ctx("molten-companion", [], { meta: { "molten:companion:block": "t1" } as MetaType });
+        const all = find(companionSections(c), "companion:integrate");
+        expect(effectiveValue(all)).toBe(true);
+        expect(activeScope(all).scope).toBe("global");
+        await setItemValue(all, false);
+        expect(state.settingsWrites.at(-1)).toEqual({ "agent:integrate": false });
+
+        const mine = find(companionSections(c), "companion:integrateagent");
+        expect(mine.label).toBe("Integration for Codex");
+        expect(effectiveValue(mine)).toBe(true);
+        await setItemValue(mine, false);
+        expect(state.settingsWrites.at(-1)).toEqual({ "agent:integrateoff": ["codex"] });
+        state.settings["agent:integrateoff"] = ["claude", "codex"];
+        const off = find(companionSections(c), "companion:integrateagent");
+        expect(effectiveValue(off)).toBe(false);
+        await resetItem(off);
+        expect(state.settingsWrites.at(-1)).toEqual({ "agent:integrateoff": ["claude"] });
+
+        state.agents.t1 = { agent: "gemini" };
+        expect(find(companionSections(c), "companion:integrateagent")).toBeNull();
+        expect(find(companionSections(c), "companion:integrate")).not.toBeNull();
+    });
+
     it("opens the companion's session picker from Linked session, naming the session", () => {
         state.agents.t1 = { agent: "claude" };
         const historyAtom = { key: "history" };

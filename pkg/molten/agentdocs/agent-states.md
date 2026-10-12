@@ -43,17 +43,24 @@ MoltenTerm learns the state from four sources:
    a hook reports in a pane, its output activity is ignored there, for this agent, until the pane is closed: the
    hooks alone say when it works.
 
-MoltenTerm never changes your agent's configuration by itself. The settings below are yours to add.
+MoltenTerm never changes your agent's configuration by itself.
+
+**Started in a local MoltenTerm terminal, `claude` and `codex` need none of the settings below**: MoltenTerm's
+launcher adds the state hooks, the session link and the rest for that run only, without editing your files (see
+`agent-integrations.md`: what is added, how to see it with `molten agent integration status`, and how to turn it
+off). The settings below are for the other cases: Gemini CLI, OpenCode and other agents, an agent started by its
+full path or by another program, or with the integration turned off. They are yours to add.
 
 ### The offer in the pane header
 
-While Claude Code or Codex runs in a local terminal without these hooks, the pane header shows a small **Set up
-hooks** chip next to the agent. It opens the snippet below for that agent, where to add it and a Copy button; you
+While Claude Code or Codex runs in a local terminal without these hooks and without MoltenTerm's integration (an
+integrated run never shows it), the pane header shows a small **Set up hooks** chip next to the agent. It opens the snippet below for that agent, where to add it and a Copy button; you
 apply it yourself. MoltenTerm only reads the agent's settings to know whether the hooks are already there (Claude
 Code: `~/.claude/settings.json` or `$CLAUDE_CONFIG_DIR/settings.json`, its `settings.local.json`, the managed settings,
 and the `.claude/settings.json` and `.claude/settings.local.json` of the pane's folder and its parents up to the
 repository's root; Codex: `~/.codex/config.toml` or `$CODEX_HOME/config.toml`, a line running `molten agent state`).
-The chip does not show once the agent's hooks have reported, in this run or an earlier one, nor for an agent you ran
+The chip does not show once your own hooks for the agent have reported, in this run or an earlier one (the hooks
+MoltenTerm's launcher adds do not count), nor for an agent you ran
 `molten agent remove` for. Its × (or **Don't offer again**) hides it for that agent for good; the choice is kept in
 `agent-guides.json`, in MoltenTerm's data folder under `molten/`.
 
@@ -176,7 +183,9 @@ molten agent session [<transcript-path>] [--agent <name>] [--stdin]
 - The path must be in the agent's session folder above, or in one from `agent:sessionroots`; any other file is
   refused.
 
-For Claude Code, add a `SessionStart` hook (it also runs after `/clear` and when a session is resumed):
+A `claude` or `codex` started in a local MoltenTerm terminal already links its session through MoltenTerm's launcher.
+For a Claude Code started otherwise, add a `SessionStart` hook (it also runs after `/clear` and when a session is
+resumed):
 
 ```json
 {
