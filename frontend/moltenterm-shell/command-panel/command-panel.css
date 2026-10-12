@@ -176,6 +176,7 @@
 }
 
 .molten-cmdpanel-footer-btn.is-destructive:hover {
+    background: color-mix(in srgb, var(--mt-danger-text) 14%, transparent);
     color: var(--mt-danger-text);
 }
 

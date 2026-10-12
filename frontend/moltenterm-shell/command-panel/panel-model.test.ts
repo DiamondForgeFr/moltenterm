@@ -6,6 +6,7 @@ import {
     activeScope,
     buildRows,
     canReset,
+    closePaneLabel,
     effectiveValue,
     firstSelectable,
     flattenPanel,
@@ -276,5 +277,15 @@ describe("command panel items as palette commands", () => {
         expect(names).toContain("Split right");
         expect(names).not.toContain("Advanced");
         expect(flat.find((f) => f.label === "Open a file browser here").breadcrumb).toBe("Terminal › Advanced");
+    });
+});
+
+describe("the footer's pane action", () => {
+    it("names what it closes, never a bare Close (#511)", () => {
+        expect(closePaneLabel("term")).toBe("Close terminal");
+        expect(closePaneLabel("molten-browser")).toBe("Close browser");
+        expect(closePaneLabel("web")).toBe("Close browser");
+        expect(closePaneLabel("preview")).toBe("Close pane");
+        expect(closePaneLabel("")).toBe("Close pane");
     });
 });
