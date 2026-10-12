@@ -51,7 +51,8 @@ task dev    # run MoltenTerm in development mode
 ## Privacy
 
 MoltenTerm sends no usage data and has no account. [PRIVACY.md](PRIVACY.md) lists the only connections it makes, all
-of them at your request.
+of them at your request. The built-in browser does not block ads or trackers yet: that is planned
+([#426](https://github.com/DiamondForgeFr/moltenterm/issues/426)).
 
 ## Relationship with Wave Terminal
 

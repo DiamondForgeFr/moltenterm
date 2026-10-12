@@ -57,7 +57,7 @@ The core provides four surfaces. Mods extend, rearrange or replace them.
 | Surface       | What it is |
 | ------------- | ---------- |
 | **Terminal**  | The heart of MoltenTerm. Agents run here, in any folder, with any shell. |
-| **Browser**   | An embedded, privacy-first browser: Chromium with Brave's open-source ad and tracker blocking engine. Agents open pages from the CLI and use them to check their own work. An optional bridge drives your installed Brave, with your real sessions, through the DevTools protocol. |
+| **Browser**   | An embedded Chromium browser. Ad and tracker blocking with Brave's open-source engine is planned ([#426](https://github.com/DiamondForgeFr/moltenterm/issues/426)) and not in 1.0.0. Agents open pages from the CLI and use them to check their own work. An optional bridge drives your installed Brave, with your real sessions, through the DevTools protocol. |
 | **Dashboard** | A new kind of tab: the state of a project at a glance, with the actions next to it (see below). |
 | **Workspace** | A named set of tabs and layouts for one project, restored exactly as you left it. |
 
@@ -149,7 +149,7 @@ These phases have no dates. Each one validates the next.
 - **Phase 1: mod host.** Fork Wave and add the first version of the mod API (themes, layouts, panels), hot reload,
   the `molten` CLI and `/morph`, safe mode and undo.
 - **Phase 2: Dashboard and browser.** Add the Mission Control tab (branches, local and remote CI, deployments,
-  releases, actions), the privacy-first browser and the Brave bridge.
+  releases, actions), the embedded browser and the Brave bridge.
 - **Phase 3: community.** Add morph packs, a registry, permissions and signing, and an in-app gallery.
 
 ## Non-goals
