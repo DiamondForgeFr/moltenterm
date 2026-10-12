@@ -20,24 +20,69 @@ export type SettingsSectionId =
     | "mission"
     | "keyboard"
     | "mods"
+    | "secrets"
     | "advanced";
 
 export type SettingsControl = "toggle" | "select" | "number" | "slider" | "text" | "path" | "multi" | "json";
 
-export type SettingsSection = { id: SettingsSectionId; title: string; icon: string };
+// description: the line under the section's title (#534).
+export type SettingsSection = { id: SettingsSectionId; title: string; icon: string; description: string };
 
 // The fixed order of the left list (DS-SHELL-091).
 export const SettingsSections: SettingsSection[] = [
-    { id: "general", title: "General", icon: "sliders" },
-    { id: "appearance", title: "Appearance", icon: "palette" },
-    { id: "terminal", title: "Terminal", icon: "terminal" },
-    { id: "agents", title: "Agents", icon: "robot" },
-    { id: "browser", title: "Browser", icon: "globe" },
-    { id: "mission", title: "Mission Control", icon: "diagram-project" },
-    { id: "keyboard", title: "Keyboard", icon: "keyboard" },
+    {
+        id: "general",
+        title: "General",
+        icon: "sliders",
+        description: "This workspace, quitting and closing, startup, panels and files.",
+    },
+    {
+        id: "appearance",
+        title: "Appearance",
+        icon: "palette",
+        description: "The window, its text and the magnified panel.",
+    },
+    {
+        id: "terminal",
+        title: "Terminal",
+        icon: "terminal",
+        description: "How terminals look and behave, their shell and connections.",
+    },
+    {
+        id: "agents",
+        title: "Agents",
+        icon: "robot",
+        description: "The agent companion, and what MoltenTerm adds when an agent starts in its terminals.",
+    },
+    {
+        id: "browser",
+        title: "Browser",
+        icon: "globe",
+        description: "The browser panel, how pages open, and the browser agents use.",
+    },
+    {
+        id: "mission",
+        title: "Mission Control",
+        icon: "diagram-project",
+        description: "Mission Control's CI/CD and line map.",
+    },
+    { id: "keyboard", title: "Keyboard", icon: "keyboard", description: "Keys and every shortcut." },
     // The mods this tab view runs and what each costs (FR-PERF-014); no settings.json key maps here.
-    { id: "mods", title: "Mods", icon: "puzzle-piece" },
-    { id: "advanced", title: "Advanced", icon: "code" },
+    { id: "mods", title: "Mods", icon: "puzzle-piece", description: "The mods this window runs and what each costs." },
+    // Secrets live in the system's secret store, not in settings.json (#534).
+    {
+        id: "secrets",
+        title: "Secrets",
+        icon: "lock",
+        description:
+            "Values stored in your system's secret store, for connections and commands. Never shown unless you ask.",
+    },
+    {
+        id: "advanced",
+        title: "Advanced",
+        icon: "code",
+        description: "Window and app internals, debugging, and the JSON files behind every setting.",
+    },
 ];
 
 export type SettingOption = { value: string; label: string };

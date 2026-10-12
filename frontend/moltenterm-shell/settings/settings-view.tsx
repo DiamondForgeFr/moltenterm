@@ -24,6 +24,8 @@ export function closeConfigFile(model: WaveConfigViewModel) {
     void model.env.rpc.SetMetaCommand(TabRpcClient, { oref: makeORef("block", model.blockId), meta: { file: null } });
 }
 
+const SecretsFilePath = "secrets";
+
 export function openConfigFile(model: WaveConfigViewModel, path: string) {
     const file = [...model.getConfigFiles(), ...model.getDeprecatedConfigFiles()].find((f) => f.path === path);
     if (file == null) {
@@ -36,9 +38,19 @@ export const MoltentermSettingsView = memo((props: ViewComponentProps<WaveConfig
     const { blockId, model } = props;
     const selectedFile = useAtomValue(model.selectedFileAtom);
     const metaFile = useAtomValue(model.env.getBlockMetaKeyAtom(blockId, "file"));
-    if (selectedFile == null && !metaFile) {
+    // Secrets are a section of the screen since #534: a block opened on the "secrets" file shows it there.
+    const secretsFile = selectedFile?.path === SecretsFilePath || metaFile === SecretsFilePath;
+    if ((selectedFile == null && !metaFile) || secretsFile) {
         const files = model.getConfigFiles().map((f) => ({ path: f.path, name: f.name, description: f.description }));
-        return <SettingsScreen blockId={blockId} files={files} onOpenFile={(path) => openConfigFile(model, path)} />;
+        return (
+            <SettingsScreen
+                blockId={blockId}
+                files={files}
+                model={model}
+                initialSection={secretsFile ? "secrets" : undefined}
+                onOpenFile={(path) => openConfigFile(model, path)}
+            />
+        );
     }
     return (
         <div className="flex h-full w-full min-h-0 flex-col">

@@ -3,11 +3,12 @@
 
 // The tool section of the workspace rail (FR-SHELL-012, DS-SHELL-012): what Wave's right widget bar offered (the user's
 // widgets.json widgets, apps, settings), icon-only at the bottom of the rail, so the content gains the bar's width. Apps
-// and settings reuse Wave's own flyouts, opened to the right of the rail. The add-panel button left the rail with
-// FR-SHELL-042 (DS-SHELL-068): panels are added where the user works, by splitting one.
+// reuse Wave's own flyout, opened to the right of the rail. The add-panel button left the rail with FR-SHELL-042
+// (DS-SHELL-068): panels are added where the user works, by splitting one. Since #534 the gear opens Settings itself
+// (Secrets is one of its sections) and Tips has its own lightbulb: no menu in between, a second click closes.
 
 import { useWaveEnv } from "@/app/waveenv/waveenv";
-import { AppsFloatingWindow, SettingsFloatingWindow, WidgetsEnv } from "@/app/workspace/widgets";
+import { AppsFloatingWindow, WidgetsEnv } from "@/app/workspace/widgets";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import {
     autoUpdate,
@@ -24,6 +25,7 @@ import { makeViewInActiveTabAtom, toggleMoltentermView } from "./open-view";
 import { railCustomWidgets, railWidgetTooltip, splitRailWidgets } from "./rail-tools-model";
 import { MoltentermSessionsView, RailBadge } from "./sessions/sessions-model";
 import { DurableSessions } from "./sessions/sessions-store";
+import { MoltentermTipsView } from "./tips/tips-view";
 
 export type RailHover = (label: string, anchor: { top: number; left: number }) => void;
 
@@ -175,7 +177,38 @@ function SessionsToolButton({ onHover }: { onHover: RailHover }) {
     );
 }
 
-type Flyout = "apps" | "settings" | "more";
+type Flyout = "apps" | "more";
+
+const SettingsView = "waveconfig";
+
+function ViewToggleButton({
+    view,
+    label,
+    icon,
+    onHover,
+    open,
+    children,
+}: {
+    view: string;
+    label: string;
+    icon: string;
+    onHover: RailHover;
+    open: () => Promise<unknown>;
+    children?: React.ReactNode;
+}) {
+    const openBlockId = useAtomValue(makeViewInActiveTabAtom(view));
+    return (
+        <ToolButton
+            label={label}
+            onHover={onHover}
+            active={openBlockId != null}
+            onClick={() => fireAndForget(() => toggleMoltentermView(view, async () => void (await open())))}
+        >
+            <i className={makeIconClass(icon, true)} />
+            {children}
+        </ToolButton>
+    );
+}
 
 export function RailTools({ onHover }: { onHover: RailHover }) {
     const env = useWaveEnv<WidgetsEnv>();
@@ -253,21 +286,27 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
                     <i className={makeIconClass("cube", true)} />
                 </ToolButton>
             ) : null}
-            <ToolButton
-                label={hasConfigErrors ? "Settings & Help · config errors" : "Settings & Help"}
+            <ViewToggleButton
+                view={MoltentermTipsView}
+                label="Tips"
+                icon="lightbulb"
                 onHover={onHover}
-                onClick={() => toggle("settings")}
-                buttonRef={anchorRef("settings")}
-                pressed={open === "settings"}
+                open={() => env.createBlock({ meta: { view: MoltentermTipsView } }, false, true)}
+            />
+            <ViewToggleButton
+                view={SettingsView}
+                label={hasConfigErrors ? "Settings · config errors" : "Settings"}
+                icon="gear"
+                onHover={onHover}
+                open={() => env.createBlock({ meta: { view: SettingsView } }, false, true)}
             >
-                <i className={makeIconClass("gear", true)} />
                 {hasConfigErrors ? (
                     <span
                         className="absolute top-1 right-1.5 h-2 w-2 rounded-full bg-error ring-2 ring-[var(--color-background)]"
                         aria-label="Config errors"
                     />
                 ) : null}
-            </ToolButton>
+            </ViewToggleButton>
             {open === "more" && anchors.more ? (
                 <OverflowFlyout widgets={overflow} reference={anchors.more} onClose={close} env={env} />
             ) : null}
@@ -276,15 +315,6 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
                     isOpen={open === "apps"}
                     onClose={close}
                     referenceElement={anchors.apps}
-                    placement={FlyoutPlacement}
-                />
-            ) : null}
-            {anchors.settings ? (
-                <SettingsFloatingWindow
-                    isOpen={open === "settings"}
-                    onClose={close}
-                    referenceElement={anchors.settings}
-                    hasConfigErrors={hasConfigErrors}
                     placement={FlyoutPlacement}
                 />
             ) : null}
