@@ -49,7 +49,10 @@ type agentTab struct {
 	download  *permissionRequest
 	createdAt time.Time
 	confirmed bool
-	calls     map[int64]context.CancelFunc
+	// engaged: the agent acts on the tab, so it shows the control bar and emain watches it. A tab the user shared
+	// engages on the agent's first call on it (FR-BRW-011).
+	engaged bool
+	calls   map[int64]context.CancelFunc
 	// refs maps read_page and find's element refs to the page's DOM nodes, for the document they were read from.
 	refs *refTable
 }
@@ -59,6 +62,7 @@ type session struct {
 	source    string
 	blockId   string
 	agentName string
+	started   time.Time
 	tabs      map[int64]*agentTab
 	// allowedOnce holds the sites the user allowed for this session only (Allow once).
 	allowedOnce map[string]bool
@@ -79,6 +83,7 @@ type tabInfo struct {
 	state     string
 	createdAt time.Time
 	confirmed bool
+	engaged   bool
 }
 
 type Manager struct {
@@ -161,6 +166,7 @@ func (m *Manager) Hello(ctx context.Context, source string, req mcpbrowser.Hello
 		source:      source,
 		blockId:     blockId,
 		agentName:   agentDisplayName(m.env.AgentName(blockId), req.ClientName),
+		started:     m.now(),
 		tabs:        make(map[int64]*agentTab),
 		allowedOnce: make(map[string]bool),
 	}
@@ -374,6 +380,7 @@ func (m *Manager) panelState(panelId string) PanelState {
 			Cue:          t.cue,
 			Permission:   m.pendingPromptLocked(key),
 			Viewport:     t.viewport,
+			Engaged:      t.engaged,
 		})
 	}
 	sort.Slice(rtn.Tabs, func(i, j int) bool { return rtn.Tabs[i].BrowserTabId < rtn.Tabs[j].BrowserTabId })
@@ -423,6 +430,8 @@ func (m *Manager) addTab(sessionId string, key TabKey, origin string, action str
 		action:    action,
 		actionTs:  now.UnixMilli(),
 		createdAt: now,
+		confirmed: origin == OriginShared,
+		engaged:   origin == OriginOpened,
 		calls:     make(map[int64]context.CancelFunc),
 	}
 	m.owners[key] = sessionId
@@ -440,7 +449,7 @@ func (m *Manager) tab(sessionId string, tabId int64) (tabInfo, bool) {
 	if t == nil {
 		return tabInfo{}, false
 	}
-	return tabInfo{id: t.id, key: t.key, origin: t.origin, state: t.state, createdAt: t.createdAt, confirmed: t.confirmed}, true
+	return t.info(), true
 }
 
 // listTabs returns the session's tabs the agent can still see (stopped ones are the user's again), by id.
@@ -456,10 +465,14 @@ func (m *Manager) listTabs(sessionId string) []tabInfo {
 		if t.state == TabStateStopped {
 			continue
 		}
-		rtn = append(rtn, tabInfo{id: t.id, key: t.key, origin: t.origin, state: t.state, createdAt: t.createdAt, confirmed: t.confirmed})
+		rtn = append(rtn, t.info())
 	}
 	sort.Slice(rtn, func(i, j int) bool { return rtn[i].id < rtn[j].id })
 	return rtn
+}
+
+func (t *agentTab) info() tabInfo {
+	return tabInfo{id: t.id, key: t.key, origin: t.origin, state: t.state, createdAt: t.createdAt, confirmed: t.confirmed, engaged: t.engaged}
 }
 
 func (m *Manager) confirmTab(sessionId string, tabId int64) {

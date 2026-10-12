@@ -18,7 +18,13 @@ export type BrowserTabActions = {
 // Unavailable actions are absent, not disabled (FR-SHELL-049), as in the command panel: a page handed off to the
 // installed browser has no Reload, a tab without an address no Copy link, and the last tab (it closes with its panel,
 // Cmd+W) neither Close nor Close others.
-export function browserTabMenu(state: BrowserState, tab: BrowserTab, actions: BrowserTabActions): ContextMenuItem[] {
+// shareItems: Share with agent and its entries (FR-BRW-011, browser-share.ts), after the tab's own actions.
+export function browserTabMenu(
+    state: BrowserState,
+    tab: BrowserTab,
+    actions: BrowserTabActions,
+    shareItems: ContextMenuItem[] = []
+): ContextMenuItem[] {
     if (tab == null) {
         return [];
     }
@@ -29,6 +35,9 @@ export function browserTabMenu(state: BrowserState, tab: BrowserTab, actions: Br
     menu.push({ label: "Duplicate", icon: "clone", click: () => actions.duplicateTab(tab.id) });
     if (tab.url) {
         menu.push({ label: "Copy link", icon: "link", click: () => actions.copyTabLink(tab.id) });
+    }
+    if (shareItems.length > 0) {
+        menu.push({ type: "separator" }, ...shareItems);
     }
     if (state.tabs.length > 1) {
         menu.push(

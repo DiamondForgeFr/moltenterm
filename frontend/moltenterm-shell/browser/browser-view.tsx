@@ -13,7 +13,7 @@ import { OptMagnifyButton } from "@/app/block/blockutil";
 import { Button } from "@/app/element/button";
 import { IconButton } from "@/app/element/iconbutton";
 import { ContextMenuModel } from "@/app/store/contextmenu";
-import { getApi, getSettingsKeyAtom, refocusNode } from "@/app/store/global";
+import { atoms, getApi, getSettingsKeyAtom, refocusNode } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
 import * as WOS from "@/app/store/wos";
@@ -26,23 +26,35 @@ import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { agentStatesOfWorkspace } from "../agent-state-model";
+import { AgentStates } from "../agent-state-store";
 import { openHeaderCommandPanel } from "../command-panel/block-menus";
 import { openCommandPanelFromTrigger } from "../command-panel/command-panel-store";
 import type { BrowserCommandState } from "../command-panel/providers/browser";
+import { Pill } from "../header/pill";
 import { guestEditMenu, guestMenuEvent } from "../menu/guest-menu";
+import { openSettingsSection } from "../settings/settings-open";
 import { formatShortcutById } from "../shortcuts/format";
 import { splitPanel } from "../split/split";
 import { splitMenuItems } from "../split/split-menu";
+import { TabActivity } from "../tab-activity";
+import { isShowing } from "../tab-activity-model";
+import { PanelMeta, panelTitle } from "../tab-identity";
+import { showToast } from "../toast-store";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import {
     AgentControlAction,
+    agentName,
+    AgentSession,
     agentSiteDecision,
+    AgentTab,
     AgentTabs,
     BrowserAgentModel,
     controlBarView,
     permissionBarView,
     setAgentSite,
+    ShareResult,
 } from "./browser-agent";
 import {
     browserActivate,
@@ -62,6 +74,13 @@ import {
 } from "./browser-engine";
 import { BrowserErrorModel, isPageFailure } from "./browser-error";
 import { BrowserErrorPage } from "./browser-error-page";
+import {
+    BrowserLifecycleModel,
+    PageScroll,
+    reportWebviewShown,
+    scrollScript,
+    shouldRestore,
+} from "./browser-lifecycle";
 import { BrowserLoadModel, reloadAction, runReload, TabLoad } from "./browser-loading";
 import {
     activateTab,
@@ -89,15 +108,22 @@ import {
 } from "./browser-model";
 import type { SignInBar } from "./browser-popup";
 import { noteBrowserPanelFocus } from "./browser-routing";
+import {
+    isSharedTab,
+    moveQuestion,
+    NoAgentReason,
+    ShareAgent,
+    shareAgents,
+    ShareLabel,
+    shareMenuItems,
+    unshareableReason,
+} from "./browser-share";
 import { dropOnTab, DropTarget, overTab, startTabDrag, tabDropIndex, TabDropIndicator } from "./browser-tab-drag";
 import { browserTabMenu } from "./browser-tab-menu";
 import "./browser.css";
-import { BrowserLifecycleModel, PageScroll, reportWebviewShown, scrollScript, shouldRestore } from "./browser-lifecycle";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
-import { TabActivity } from "../tab-activity";
-import { isShowing } from "../tab-activity-model";
 
 export { MoltentermBrowserView };
 
@@ -720,14 +746,114 @@ export class BrowserViewModel implements ViewModel {
 
     showTabMenu(e: React.MouseEvent, tab: BrowserTab): void {
         e.preventDefault();
-        const menu = browserTabMenu(this.state(), tab, {
-            reloadTab: (id) => this.reloadTab(id),
-            duplicateTab: (id) => this.duplicateTab(id),
-            copyTabLink: (id) => this.copyTabLink(id),
-            closeTab: (id) => this.closeTab(id),
-            closeOtherTabs: (id) => this.closeOtherTabs(id),
+        fireAndForget(async () => {
+            const share = await this.shareItems(tab);
+            const menu = browserTabMenu(
+                this.state(),
+                tab,
+                {
+                    reloadTab: (id) => this.reloadTab(id),
+                    duplicateTab: (id) => this.duplicateTab(id),
+                    copyTabLink: (id) => this.copyTabLink(id),
+                    closeTab: (id) => this.closeTab(id),
+                    closeOtherTabs: (id) => this.closeOtherTabs(id),
+                },
+                share
+            );
+            ContextMenuModel.getInstance().showContextMenu(menu, e);
         });
-        ContextMenuModel.getInstance().showContextMenu(menu, e);
+    }
+
+    // The toolbar's Share with agent button opens the same entries as the tab menu (FR-BRW-011 AC1).
+    showShareMenu(e: React.MouseEvent, tab: BrowserTab): void {
+        e.preventDefault();
+        fireAndForget(async () => {
+            const menu = await this.shareItems(tab);
+            ContextMenuModel.getInstance().showContextMenu(menu, e);
+        });
+    }
+
+    // The workspace's agents (the agent states the companion and the command panel read) joined with the agents
+    // connected to MoltenTerm's browser, read when a menu opens.
+    async loadShareAgents(): Promise<ShareAgent[]> {
+        let sessions: AgentSession[] = [];
+        try {
+            sessions = await this.agents.listSessions();
+        } catch (e) {
+            console.log("browser share: no agent sessions", e);
+        }
+        const workspaceId = globalStore.get(atoms.workspace)?.oid;
+        const states = agentStatesOfWorkspace(globalStore.get(AgentStates.getInstance().dataAtom), workspaceId);
+        const blockIds = [...new Set([...states.map((s) => s.blockid), ...sessions.map((s) => s.blockid)])];
+        const metas = new Map<string, MetaType>();
+        await Promise.all(
+            blockIds.map(async (id) => {
+                try {
+                    metas.set(id, (await WOS.loadAndPinWaveObject<Block>(makeORef("block", id)))?.meta);
+                } catch {
+                    // A pane that just closed has no title.
+                }
+            })
+        );
+        return shareAgents(states, sessions, (id) => panelTitle(metas.get(id) as PanelMeta));
+    }
+
+    async shareItems(tab: BrowserTab): Promise<ContextMenuItem[]> {
+        if (tab == null) {
+            return [];
+        }
+        const agents = tab.engine ? [] : await this.loadShareAgents();
+        const engineLabel = tab.engine ? engineName(tab.engine, globalStore.get(this.engines.listAtom)) : "";
+        return shareMenuItems(tab, this.agents.tabs()[tab.id] ?? null, agents, engineLabel, {
+            share: (agent, tell) => this.shareTab(tab.id, agent, tell, false),
+            stopSharing: () => this.controlAgent(tab.id, "stop"),
+            openAgentSettings: () => fireAndForget(() => openSettingsSection("agents")),
+        });
+    }
+
+    // Sharing a tab another agent holds asks first (AC5); Share and tell then types the line wavesrv builds (AC6).
+    shareTab(id: string, agent: ShareAgent, tell: boolean, move: boolean): void {
+        fireAndForget(async () => {
+            let res: ShareResult;
+            try {
+                res = await this.agents.share(id, agent.sessionId, move);
+            } catch (e) {
+                this.showNotice(`The tab could not be shared: ${errorText(e)}`);
+                return;
+            }
+            if (res?.result === "move") {
+                const holder = res.holder || "another agent";
+                const question = moveQuestion(holder, agent.agentName);
+                showToast({
+                    id: `molten-share-move-${this.blockId}-${id}`,
+                    kind: "info",
+                    title: question.title,
+                    message: question.message,
+                    stays: true,
+                    actions: [
+                        { id: "move", label: "Move", run: () => this.shareTab(id, agent, tell, true) },
+                        { id: "keep", label: `Keep with ${holder}`, run: () => {} },
+                    ],
+                });
+                return;
+            }
+            if (tell) {
+                await this.tellAgent(id, agent);
+            }
+        });
+    }
+
+    async tellAgent(id: string, agent: ShareAgent): Promise<void> {
+        try {
+            const res = await this.agents.shareTell(id);
+            showToast({
+                kind: res?.sent ? "info" : "warning",
+                title: res?.sent ? `Shared with ${agent.agentName}` : `Shared with ${agent.agentName}, nothing typed`,
+                message: res?.message ?? "",
+            });
+        } catch (e) {
+            this.showNotice(`The line could not be typed: ${errorText(e)}`);
+        }
     }
 
     showTab(id: string): void {
@@ -866,8 +992,9 @@ export class BrowserViewModel implements ViewModel {
         return this.state().activeId === id && isShowing(TabActivity.getInstance().state());
     }
 
+    // A tab shared with an agent stays loaded before the agent acts on it, so the agent finds its page.
     isAgentDriven(id: string): boolean {
-        return controlBarView(this.agents.tabs()[id]) != null;
+        return this.agents.tabs()[id] != null;
     }
 
     // The main process asks to drop a hidden page (#459); the panel checks again that the page is the same one and
@@ -893,6 +1020,10 @@ export class BrowserViewModel implements ViewModel {
         this.lifecycle.dispose();
         this.agents.dispose();
     }
+}
+
+function errorText(e: unknown): string {
+    return e instanceof Error ? e.message : String(e);
 }
 
 function makeBlockAtom(blockId: string): Atom<Block> {
@@ -1177,7 +1308,7 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                                 <TabIcon load={loads[tab.id]} failed={errors[tab.id]?.error != null} />
                             )}
                             <span className="molten-browser-tab-name">{browserTabTitle(tab) || "New tab"}</span>
-                            <AgentTabMarker agentTabs={agentTabs} tabId={tab.id} />
+                            <AgentTabMarker model={model} agentTabs={agentTabs} tabId={tab.id} />
                         </div>
                         {state.tabs.length > 1 ? (
                             <button
@@ -1217,12 +1348,16 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
 }
 
 // A tab an agent controls carries its mark, so the user sees it even when the tab is not shown.
-function AgentTabMarker({ agentTabs, tabId }: { agentTabs: AgentTabs; tabId: string }) {
-    const view = controlBarView(agentTabs[tabId]);
+function AgentTabMarker({ model, agentTabs, tabId }: { model: BrowserViewModel; agentTabs: AgentTabs; tabId: string }) {
+    const agentTab = agentTabs[tabId];
+    if (isSharedTab(agentTab)) {
+        return <SharedTabBadge model={model} agentTab={agentTab} tabId={tabId} />;
+    }
+    const view = controlBarView(agentTab);
     if (view == null) {
         return null;
     }
-    const asking = permissionBarView(agentTabs[tabId]);
+    const asking = permissionBarView(agentTab);
     if (asking != null) {
         return (
             <i
@@ -1240,6 +1375,32 @@ function AgentTabMarker({ agentTabs, tabId }: { agentTabs: AgentTabs; tabId: str
             title={view.title}
             className={cn("fa fa-solid fa-robot shrink-0 text-11", view.takenOver ? "text-secondary" : "text-accent")}
         />
+    );
+}
+
+// A tab the user shared carries a calm badge with the agent's name (FR-BRW-011 AC3); a click on it stops sharing (AC4).
+function SharedTabBadge({ model, agentTab, tabId }: { model: BrowserViewModel; agentTab: AgentTab; tabId: string }) {
+    const name = agentName(agentTab);
+    const asking = permissionBarView(agentTab);
+    return (
+        <>
+            {asking != null ? (
+                <i
+                    role="img"
+                    aria-label={asking.title}
+                    title={asking.title}
+                    className="fa fa-solid fa-circle-question shrink-0 text-11 text-[var(--mt-state-waiting)]"
+                />
+            ) : null}
+            <Pill
+                label={name}
+                icon="share-nodes"
+                title={`Shared with ${name}. Click to stop sharing.`}
+                className="molten-browser-share-badge"
+                testId="browser-share-badge"
+                onClick={() => model.controlAgent(tabId, "stop")}
+            />
+        </>
     );
 }
 
@@ -1393,6 +1554,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 }}
                 className="h-6 min-w-0 flex-1 rounded-4 border border-border bg-transparent px-2 text-12 text-primary outline-none focus:border-accent"
             />
+            <ShareButton model={model} tab={active} />
             <EngineButton model={model} tab={active} />
             {loading ? (
                 <div
@@ -1404,6 +1566,48 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 </div>
             ) : null}
         </div>
+    );
+}
+
+// Share with agent in the toolbar (FR-BRW-011 AC1): disabled with its reason when no agent runs in the workspace or the
+// page is not in MoltenTerm's engine (AC2, AC8).
+function ShareButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+    const agentData = useAtomValue(AgentStates.getInstance().dataAtom);
+    const workspace = useAtomValue(atoms.workspace);
+    const list = useAtomValue(model.engines.listAtom);
+    const sessions = useAtomValue(model.agents.sessionsAtom);
+    useEffect(() => {
+        model.agents.refreshSessions();
+    }, [model, agentData]);
+    if (tab == null) {
+        return null;
+    }
+    const running = agentStatesOfWorkspace(agentData, workspace?.oid).filter((s) => s.agent || s.agentname);
+    const reason = tab.engine
+        ? unshareableReason(tab, engineName(tab.engine, list))
+        : running.length === 0 && sessions.length === 0
+          ? NoAgentReason
+          : "";
+    return (
+        <button
+            type="button"
+            aria-label={ShareLabel}
+            aria-disabled={reason ? true : undefined}
+            title={reason || ShareLabel}
+            onMouseEnter={() => model.agents.refreshSessions()}
+            onClick={(e) => {
+                if (!reason) {
+                    model.showShareMenu(e, tab);
+                }
+            }}
+            data-testid="browser-share-button"
+            className={cn(
+                "flex h-6 w-6 shrink-0 items-center justify-center rounded-6 text-secondary",
+                reason ? "opacity-40" : "cursor-pointer hover:bg-hover hover:text-primary"
+            )}
+        >
+            <i className="fa fa-solid fa-share-nodes text-12" />
+        </button>
     );
 }
 
@@ -1591,7 +1795,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const blockMeta = block?.meta;
     useEffect(() => {
         for (const id of Object.keys(discarded)) {
-            if (shouldRestore(id === state.activeId, viewShown, controlBarView(agentTabs[id]) != null)) {
+            if (shouldRestore(id === state.activeId, viewShown, agentTabs[id] != null)) {
                 model.lifecycle.restore(id);
             }
         }

@@ -418,6 +418,7 @@ func Start() {
 		log.Printf("molten: terminal update route not started: %v\n", err)
 		return
 	}
+	setRunningUpdater(s.updater)
 	go s.recordLoop()
 	go s.publishLoop()
 	rpcClient := wshclient.GetBareRpcClient()

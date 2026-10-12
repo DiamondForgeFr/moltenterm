@@ -24,6 +24,10 @@ const (
 	SiteCommand   = "moltenbrowseragentsite"
 	// emain asks whether a download an agent's tab started may go on (FR-BRW-010).
 	DownloadCommand = "moltenbrowseragentdownload"
+	// The panel lists the agents it can share a tab with, shares one, and types the Share and tell line (FR-BRW-011).
+	ListCommand      = "moltenbrowseragentlist"
+	ShareCommand     = "moltenbrowseragentshare"
+	ShareTellCommand = "moltenbrowseragentsharetell"
 	// WPS event with the agent state of one browser panel (scope: the panel's block oref).
 	StateEvent = "molten:browseragent"
 )
