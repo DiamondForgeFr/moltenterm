@@ -8,16 +8,38 @@
 import { getApi } from "@/app/store/global";
 import { getWebServerEndpoint } from "@/util/endpoints";
 import { cn, makeIconClass } from "@/util/util";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { resolveWorkspaceIcon, WorkspaceIconSource } from "./workspace-icon-model";
+import { trimmedIconUrl } from "./workspace-icon-trim";
 import { logoUrl } from "./workspace-project";
 
 // The rail item's box and glyph size, shared with the edit sheet's preview so it shows the badge at its real size.
 export const RailBadgeClass = "relative flex h-9 w-9 items-center justify-center rounded-6 text-icon-16";
 
-// Images fill more of the badge than a glyph does, square and cropped to cover, never stretched (FR-SHELL-031 AC5):
-// 24 px with a 4 px radius in the 36 px rail badge, in proportion elsewhere.
-export const WorkspaceImageClass = "inline-block h-[1.4em] w-[1.4em] shrink-0 rounded-4 object-cover";
+// Images fill more of the badge than a glyph does, square and fitted whole, never cropped nor stretched (FR-SHELL-031
+// AC5, #522): 24 px with a 4 px radius in the 36 px rail badge, in proportion elsewhere.
+export const WorkspaceImageClass = "inline-block h-[1.4em] w-[1.4em] shrink-0 rounded-4 object-contain";
+
+// The trimmed copy of an image (workspace-icon-trim.ts) once it is made; the file itself, fitted, until then.
+function useTrimmedSrc(src: string, revision: number): string {
+    const key = `${src}#${revision ?? 0}`;
+    const [trimmed, setTrimmed] = useState<{ key: string; url: string }>(null);
+    useEffect(() => {
+        if (!src) {
+            return;
+        }
+        let live = true;
+        trimmedIconUrl(src, key).then((url) => {
+            if (live && url) {
+                setTrimmed({ key, url });
+            }
+        });
+        return () => {
+            live = false;
+        };
+    }, [key]);
+    return trimmed?.key === key ? trimmed.url : src;
+}
 
 let dataDir: string = null;
 
@@ -41,11 +63,13 @@ export function WorkspaceIcon({ source, className }: { source: WorkspaceIconSour
     const [failed, setFailed] = useState<FailedImages>({ revision: source?.revision, paths: [] });
     const failedPaths = failed.revision === source?.revision ? failed.paths : [];
     const resolved = resolveWorkspaceIcon(source, getDataDir(), failedPaths);
+    const fileSrc = resolved.kind !== "builtin" ? logoUrl(getWebServerEndpoint(), resolved.path) : "";
+    const src = useTrimmedSrc(fileSrc, source?.revision);
     if (resolved.kind !== "builtin") {
         return (
             <img
                 key={resolved.path}
-                src={logoUrl(getWebServerEndpoint(), resolved.path)}
+                src={src}
                 alt=""
                 draggable={false}
                 data-icon-kind={resolved.kind}
