@@ -56,6 +56,14 @@
             "artifact": "~/Library/Application Support/Moltenterm Local Builds/gold.noindex/Moltenterm.app"
         }
     ],
+    "steps": [
+        {
+            "id": "checklist",
+            "title": "Release checklist (RELEASE.md): walk it on every rehearsal and release candidate",
+            "section": "cd",
+            "run": "cat RELEASE.md"
+        }
+    ],
     "release": {
         "rc": [
             {
@@ -80,7 +88,7 @@
                 "id": "finalize",
                 "title": "Commit, tag and push: release.yml builds macOS and Linux and publishes the prerelease",
                 "phase": "cut",
-                "confirm": "{tag} is public once pushed: the release workflow builds it and publishes it as a prerelease.",
+                "confirm": "{tag} is public once pushed: the release workflow builds it and publishes it as a prerelease. Walk RELEASE.md's checklist on the rehearsal of this commit first, and on the prerelease after.",
                 "run": "molten release finalize {tag}"
             },
             {
@@ -113,7 +121,7 @@
                 "id": "finalize",
                 "title": "Commit, tag and push: release.yml builds macOS and Linux and leaves a draft release",
                 "phase": "cut",
-                "confirm": "{tag} is public once pushed, and goes to every user once its draft release is published.",
+                "confirm": "{tag} is public once pushed, and goes to every user once its draft release is published. Walk RELEASE.md's checklist on the draft's files before publishing it.",
                 "run": "molten release finalize {tag}"
             },
             {

@@ -20,7 +20,11 @@ export const GoldManifestSchema = 1;
 // The name inside the gold folder, kept from the first golds so they keep recognising their updates; the app
 // itself is MoltenTerm.app.
 export const GoldAppName = "Moltenterm.app";
-export const GoldIdentifier = "fr.diamondforge.moltenterm";
+// The gold's own bundle identifier (#509); the golds before it had the releases' one, and refuse to update themselves
+// to a gold with another identifier: that first one is installed by hand.
+export const GoldIdentifier = "fr.diamondforge.moltenterm.gold";
+export const LegacyGoldIdentifier = "fr.diamondforge.moltenterm";
+const InstalledGold = "/Applications/MoltenTerm Gold.app";
 // must match frontend/util/moltenterm-gold.ts (#191): Spotlight skips a folder named *.noindex, so only the installed
 // gold is found; golds installed before read the old name, kept as a link.
 export const GoldFolderName = "gold.noindex";
@@ -189,6 +193,25 @@ function main() {
   linkLegacyGoldDir(dir);
   console.log(`gold ${commit.slice(0, 7)} (build ${buildId}) delivered to ${dir}`);
   console.log(`${manifest.notes.length} change(s) since the previous gold`);
+  const notice = identityNotice(previous, dir);
+  if (notice) {
+    console.log(notice);
+  }
+}
+
+// The first gold with its own identifier cannot reach the installed one through its update: say how to install it.
+export function identityNotice(previous, dir) {
+  if (previous == null || previous.identifier !== LegacyGoldIdentifier) {
+    return "";
+  }
+  const app = path.join(dir, GoldAppName);
+  return [
+    `⚠ this gold has an identity of its own (${GoldIdentifier}, #509): the installed gold cannot update itself to it.`,
+    "  Install it once by hand: quit MoltenTerm Gold, then run",
+    `    mv "${InstalledGold}" ~/.Trash/ && ditto "${app}" "${InstalledGold}" && open "${InstalledGold}"`,
+    "  On its first start it moves its data and configuration to folders of its own (moltenterm-gold); give it its",
+    "  privacy grants once more (Files and Folders, Full Disk Access): later golds keep them.",
+  ].join("\n");
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {

@@ -8,7 +8,9 @@
 export const GoldManifestSchema = 1;
 // The name inside the gold folder, kept from the first golds so they keep recognising their updates.
 export const GoldAppName = "Moltenterm.app";
-export const GoldIdentifier = "fr.diamondforge.moltenterm";
+// The gold's own bundle identifier (#509): releases keep fr.diamondforge.moltenterm, so that one installed beside the
+// gold never takes over its macOS privacy grants. scripts/moltenterm-build-gold.sh builds with it.
+export const GoldIdentifier = "fr.diamondforge.moltenterm.gold";
 export const GoldMaxManifestBytes = 1 << 20;
 // The gold says it is the gold (#191): its bundle, Dock and menu name, so it is told apart from a dev build beside it.
 export const GoldBundleName = "MoltenTerm Gold.app";

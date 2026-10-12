@@ -9,6 +9,9 @@ import {
   deliverGold,
   GoldAppName,
   goldDir,
+  GoldIdentifier,
+  identityNotice,
+  LegacyGoldIdentifier,
   linkLegacyGoldDir,
   makeManifest,
   migrateLegacyGoldDir,
@@ -79,5 +82,15 @@ describe("gold delivery", () => {
     migrateLegacyGoldDir(other);
     linkLegacyGoldDir(other);
     expect(fs.readlinkSync(legacy)).toBe("gold.noindex");
+  });
+
+  it("delivers golds with their own identifier and says how to install the first one by hand (#509)", () => {
+    expect(GoldIdentifier).toBe("fr.diamondforge.moltenterm.gold");
+    expect(makeManifest({ version: "1", buildId: 2, builtAt: "", commit: "c", notes: [] }).identifier).toBe(GoldIdentifier);
+    const notice = identityNotice({ identifier: LegacyGoldIdentifier }, "/g/gold.noindex");
+    expect(notice).toContain(`ditto "/g/gold.noindex/${GoldAppName}" "/Applications/MoltenTerm Gold.app"`);
+    expect(notice).toContain("privacy grants once more");
+    expect(identityNotice({ identifier: GoldIdentifier }, "/g")).toBe("");
+    expect(identityNotice(null, "/g")).toBe("");
   });
 });

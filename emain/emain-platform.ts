@@ -14,11 +14,14 @@ import {
     MoltentermConfigHomeVarName,
     MoltentermDataHomeVarName,
     MoltentermDirName,
+    MoltentermGoldProductName,
     MoltentermHomeVarName,
     MoltentermProductName,
     MoltentermRepoUrl,
     moltentermProductNameFor,
 } from "../frontend/util/moltenterm-identity";
+// MOLTENTERM-PATCH (#509): the gold's own folders.
+import { applyGoldDirs, GoldDirMove, GoldDirSuffix, moltentermDirSuffix, planGoldDirs } from "./moltenterm-gold-dirs";
 
 declare const __MOLTENTERM_CHANNEL__: string;
 
@@ -39,7 +42,7 @@ if (isDevVite) {
 }
 
 const waveDirNamePrefix = MoltentermDirName; // MOLTENTERM-PATCH (#4)
-const waveDirNameSuffix = isDev ? "dev" : "";
+const waveDirNameSuffix = moltentermDirSuffix(__MOLTENTERM_CHANNEL__, isDev); // MOLTENTERM-PATCH (#509): "gold" for a gold
 const waveDirName = `${waveDirNamePrefix}${waveDirNameSuffix ? `-${waveDirNameSuffix}` : ""}`;
 
 const paths = envPaths(MoltentermDirName, { suffix: waveDirNameSuffix }); // MOLTENTERM-PATCH (#4)
@@ -53,6 +56,38 @@ keyutil.setKeyUtilPlatform(unamePlatform);
 const WaveConfigHomeVarName = "WAVETERM_CONFIG_HOME";
 const WaveDataHomeVarName = "WAVETERM_DATA_HOME";
 // MOLTENTERM-PATCH (#4): WAVETERM_HOME is no longer read; the legacy home comes from MOLTENTERM_HOME.
+
+// MOLTENTERM-PATCH (#509): the first gold with folders of its own takes over the ones golds shared with releases
+// before, by renaming them, before anything opens them. Folders named by the override variables are never moved.
+if (waveDirNameSuffix === GoldDirSuffix) {
+    takeOverLegacyGoldDirs();
+}
+
+function takeOverLegacyGoldDirs() {
+    const legacyName = MoltentermDirName;
+    const xdgData = process.env.XDG_DATA_HOME;
+    const xdgConfig = process.env.XDG_CONFIG_HOME;
+    const legacyData = xdgData ? path.join(xdgData, legacyName) : envPaths(legacyName, { suffix: "" }).data;
+    const pairs: GoldDirMove[] = [];
+    if (!process.env[MoltentermDataHomeVarName]) {
+        pairs.push({ from: legacyData, to: xdgData ? path.join(xdgData, waveDirName) : paths.data });
+    }
+    if (!process.env[MoltentermConfigHomeVarName]) {
+        const configBase = xdgConfig || path.join(app.getPath("home"), ".config");
+        pairs.push({ from: path.join(configBase, legacyName), to: path.join(configBase, waveDirName) });
+    }
+    const plan = planGoldDirs(pairs, legacyData);
+    if (plan.busy) {
+        dialog.showErrorBox(
+            `${MoltentermGoldProductName} cannot start yet`,
+            `${plan.busy}. The gold moves its data to folders of its own once: quit that MoltenTerm, then open ${MoltentermGoldProductName} again.`
+        );
+        process.exit(1);
+    }
+    for (const line of applyGoldDirs(plan)) {
+        console.log("gold folders:", line);
+    }
+}
 
 // MOLTENTERM-PATCH (#4): keep Electron's own data (Chromium profile, single-instance lock) in <data>/electron.
 // With the product name "Moltenterm", Electron's default userData folder would be the data directory itself on
