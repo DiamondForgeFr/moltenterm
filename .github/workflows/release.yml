@@ -278,7 +278,7 @@ jobs:
                       echo "## Rehearsal of $VERSION ($CHANNEL), ${GITHUB_SHA:0:7} on $GITHUB_REF_NAME"
                       echo
                       echo "No tag, no release: the files are this run's artifacts for 14 days, at $RUN_URL."
-                      echo "Install and check them before cutting a release candidate."
+                      echo "Install them and walk the checklist of RELEASE.md before cutting a release candidate."
                       echo
                       echo '```'
                       cat dist-rehearsal/SHA256SUMS.txt
