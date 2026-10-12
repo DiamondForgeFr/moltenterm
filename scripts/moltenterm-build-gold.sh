@@ -62,7 +62,10 @@ MOLTENTERM_BUILD_CHANNEL=gold MOLTENTERM_BUILD_ID=$BUILD_ID npm run build:prod
 # electron-builder signs every nested helper and framework before the app, with the entitlements of the config. A
 # self-signed identity has no "Developer ID Application:" prefix; electron-builder still takes it as a non-Apple
 # certificate when it is named.
+# The gold has its own bundle identifier (#509, GoldIdentifier in frontend/util/moltenterm-gold.ts), so that a release
+# installed beside it never takes over its privacy grants; the build channel gives it its own folders.
 CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder -c electron-builder.config.cjs -c.buildVersion="$BUILD_ID" \
+    -c.appId=fr.diamondforge.moltenterm.gold \
     -c.productName="MoltenTerm Gold" -c.mac.icon=build/moltenterm/icon-gold.icns -c.mac.identity="$MAC_IDENTITY" \
     -p never --mac dir --"$ARCH"
 
