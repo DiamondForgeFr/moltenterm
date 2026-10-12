@@ -88,6 +88,20 @@ describe("windowCanShowFrames", () => {
     });
 });
 
+describe("windowCanShowFrames in the background test mode (#495)", () => {
+    it("does not need recent user input, but still a visible, unminimised, focused window", () => {
+        const win = makeWindow(makeView());
+        expect(windowCanShowFrames(win, 3600, true)).toBe(true);
+        expect(windowCanShowFrames(win, 3600, false)).toBe(false);
+        expect(windowCanShowFrames(win, 3600, true, true)).toBe(false);
+        win.focused = false;
+        expect(windowCanShowFrames(win, 0, true)).toBe(false);
+        win.focused = true;
+        win.minimized = true;
+        expect(windowCanShowFrames(win, 0, true)).toBe(false);
+    });
+});
+
 describe("checkReusedTabViewPainted (#223, #461)", () => {
     it("rebuilds a view with no frames in a focused window in use, as before", async () => {
         const view = makeView();
