@@ -62,6 +62,7 @@ export type Milestone = {
     open_issues: number;
     closed_issues: number;
     due_on?: string;
+    created_at?: string;
     html_url: string;
 };
 

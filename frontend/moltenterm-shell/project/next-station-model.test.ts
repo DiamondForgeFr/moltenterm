@@ -3,11 +3,20 @@
 
 import { describe, expect, it } from "vitest";
 import { CiState } from "../mission/ci-model";
+import { Milestone } from "../mission/github";
 import { terminusText } from "../mission/line-map-geometry";
 import { buildLineMap } from "../mission/line-map-model";
 import { MissionGit, PipelineDef } from "../mission/mission-model";
 import { ReleaseSession } from "../mission/release-model";
-import { countsLine, githubBase, nextStation, runCiTarget, tickerItems, waitingCounts } from "./next-station-model";
+import {
+    countsLine,
+    githubBase,
+    nextStation,
+    runCiTarget,
+    stationSchedule,
+    tickerItems,
+    waitingCounts,
+} from "./next-station-model";
 
 const Now = new Date("2026-10-05T12:00:00Z").getTime();
 
@@ -233,5 +242,65 @@ describe("run CI on develop", () => {
         });
         expect(runCiTarget(git(), null, null).disabled).toBe("The pipeline declares no CI job.");
         expect(runCiTarget(null, Pipeline, null).disabled).toBe("The project's trunk is not known yet.");
+    });
+});
+
+describe("the next station's schedule", () => {
+    const station = { tag: "v1.0.0", state: "decision" as const, chip: "to decide", note: "" };
+    const m = (number: number, title: string, extra: Partial<Milestone> = {}): Milestone => ({
+        number,
+        title,
+        open_issues: 0,
+        closed_issues: 0,
+        html_url: `https://github.com/o/r/milestone/${number}`,
+        ...extra,
+    });
+    const Oct12 = new Date("2026-10-12T12:00:00Z").getTime();
+
+    it("shows the due date and the milestone due first after it", () => {
+        const milestones = [
+            m(14, "Later", { due_on: "2026-10-15T07:00:00Z", created_at: "2026-09-01T00:00:00Z" }),
+            m(13, "1.1.0", { due_on: "2026-10-20T07:00:00Z", created_at: "2026-10-04T00:00:00Z" }),
+            m(15, "1.2.0", { due_on: "2026-11-02T07:00:00Z", created_at: "2026-10-03T00:00:00Z" }),
+            m(12, "1.0.0", { due_on: "2026-10-13T07:00:00Z", created_at: "2026-09-20T00:00:00Z" }),
+        ];
+        expect(stationSchedule(station, milestones, "v", Oct12)).toEqual({
+            due: "due Oct 13",
+            overdue: false,
+            then: {
+                label: "then v1.1.0 · Oct 20",
+                url: "https://github.com/o/r/milestone/13",
+                title: "Open the milestone 1.1.0 on GitHub",
+            },
+        });
+        expect(stationSchedule(station, milestones, "v", new Date("2026-10-14T09:00:00Z").getTime()).overdue).toBe(
+            true
+        );
+    });
+
+    it("without due dates, takes the next milestone created after the station's, never a bucket", () => {
+        const milestones = [
+            m(12, "1.0.0", { created_at: "2026-09-20T00:00:00Z" }),
+            m(14, "Later", { created_at: "2026-09-25T00:00:00Z" }),
+            m(16, "v1.2.0", { created_at: "2026-10-06T00:00:00Z" }),
+            m(13, "1.1.0", { created_at: "2026-10-04T00:00:00Z" }),
+            m(11, "0.9.0", { created_at: "2026-09-01T00:00:00Z" }),
+        ];
+        expect(stationSchedule(station, milestones, "v", Oct12)).toEqual({
+            due: null,
+            overdue: false,
+            then: {
+                label: "then v1.1.0",
+                url: "https://github.com/o/r/milestone/13",
+                title: "Open the milestone 1.1.0 on GitHub",
+            },
+        });
+    });
+
+    it("shows nothing without a following milestone or a due date", () => {
+        const alone = [m(12, "1.0.0", { created_at: "2026-09-20T00:00:00Z" }), m(14, "Later")];
+        expect(stationSchedule(station, alone, "v", Oct12)).toBeNull();
+        expect(stationSchedule(station, [], "v", Oct12)).toBeNull();
+        expect(stationSchedule({ tag: null, state: "nothing", chip: null, note: "" }, [], "v", Oct12)).toBeNull();
     });
 });

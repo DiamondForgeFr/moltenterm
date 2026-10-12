@@ -6,6 +6,7 @@
 // hands every card (no new git or GitHub call), and kept apart from the component so it can be tested without the app.
 
 import { CiState } from "../mission/ci-model";
+import { Milestone, milestoneKey } from "../mission/github";
 import { MissionGit, PipelineDef, RawCommit, toTreeData } from "../mission/mission-model";
 import { ReleaseSession } from "../mission/release-model";
 import { readableSubject, releaseState, treeRules } from "../mission/versions";
@@ -86,6 +87,100 @@ export function nextStation(git: MissionGit, session: ReleaseSession): NextStati
         chip: next.level ?? null,
         note: next.reason ? `Derived from the commits: ${next.reason}.` : "Derived from the commits.",
     };
+}
+
+export type StationSchedule = {
+    // "due Oct 13"; null when the station's milestone has no due date.
+    due: string;
+    overdue: boolean;
+    // The milestone after the station's; null when none is planned.
+    then: { label: string; url: string; title: string };
+};
+
+// A milestone that names a version (1.1.0, v1.1.0, or a line, v2): buckets like "Later" never count.
+const VersionKeyRegex = /^\d+(\.\d+)*$/;
+
+function shortDate(iso: string): string {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) {
+        return "";
+    }
+    // GitHub stores a due date as a day: read it in UTC so that no time zone moves it to the day before.
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+function utcDay(iso: string): string {
+    return iso ? new Date(iso).toISOString().slice(0, 10) : "";
+}
+
+// The milestone of the station's version: its title names it ("1.2.0", "v1.2.0") or its line ("v1" for 1.x.y). No
+// fallback here, unlike the Next release card: a date shown beside a version must be that version's.
+export function stationMilestone(milestones: readonly Milestone[], version: string): Milestone {
+    if (!version) {
+        return null;
+    }
+    const list = (milestones ?? []).filter((m) => m != null);
+    return (
+        list.find((m) => milestoneKey(m.title) === version) ??
+        list.find((m) => {
+            const key = milestoneKey(m.title);
+            return /^\d+(\.\d+)?$/.test(key) && version.startsWith(key + ".");
+        }) ??
+        null
+    );
+}
+
+// The milestone after the station's, among the other open ones that name a version: the one due first (after the
+// station's due date when it has one); without due dates, the next one created after it.
+export function followingMilestone(milestones: readonly Milestone[], current: Milestone): Milestone {
+    const others = (milestones ?? []).filter(
+        (m) => m != null && m.number !== current?.number && VersionKeyRegex.test(milestoneKey(m.title))
+    );
+    const after = current?.due_on ? utcDay(current.due_on) : "";
+    const dated = others
+        .filter((m) => m.due_on && (!after || utcDay(m.due_on) > after))
+        .sort((a, b) => a.due_on.localeCompare(b.due_on));
+    if (dated.length > 0) {
+        return dated[0];
+    }
+    if (current?.created_at == null) {
+        return null;
+    }
+    const created = others
+        .filter((m) => m.created_at && m.created_at > current.created_at)
+        .sort((a, b) => a.created_at.localeCompare(b.created_at));
+    return created[0] ?? null;
+}
+
+export function stationSchedule(
+    station: NextStation,
+    milestones: readonly Milestone[],
+    prefix: string,
+    now: number = Date.now()
+): StationSchedule {
+    const version = station?.tag ? station.tag.slice((prefix || DefaultTagPrefix).length) : "";
+    const current = stationMilestone(milestones, version);
+    if (current == null && !station?.tag) {
+        return null;
+    }
+    const next = followingMilestone(milestones, current);
+    const due = current?.due_on ? shortDate(current.due_on) : "";
+    const rtn: StationSchedule = {
+        due: due ? `due ${due}` : null,
+        overdue: due !== "" && utcDay(current.due_on) < new Date(now).toISOString().slice(0, 10),
+        then: null,
+    };
+    if (next != null) {
+        const key = milestoneKey(next.title);
+        const tag = /^\d+\.\d+\.\d+$/.test(key) ? (prefix || DefaultTagPrefix) + key : next.title;
+        const date = next.due_on ? shortDate(next.due_on) : "";
+        rtn.then = {
+            label: `then ${tag}${date ? ` · ${date}` : ""}`,
+            url: next.html_url,
+            title: `Open the milestone ${next.title} on GitHub`,
+        };
+    }
+    return rtn.due == null && rtn.then == null ? null : rtn;
 }
 
 function isSingleBranch(git: Pick<MissionGit, "trunk" | "release">): boolean {

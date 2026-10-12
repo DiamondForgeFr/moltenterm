@@ -21,6 +21,8 @@ import {
     nextStation,
     NextStationState,
     runCiTarget,
+    StationSchedule,
+    stationSchedule,
     TickerItem,
     tickerItems,
     waitingCounts,
@@ -60,6 +62,34 @@ function ProjectBadge({ name, source }: { name: string; source: WorkspaceIconSou
             aria-hidden
         >
             {(name || "?").slice(0, 1).toUpperCase()}
+        </span>
+    );
+}
+
+// The station's due date and the milestone after it, beside the version: small and muted, so the band keeps its look.
+function StationScheduleText({ schedule }: { schedule: StationSchedule }) {
+    return (
+        <span className="flex items-baseline gap-2 text-12 text-muted" data-testid="next-station-schedule">
+            {schedule.due ? (
+                <span
+                    className={cn(schedule.overdue && "text-warning")}
+                    title={schedule.overdue ? "Overdue" : undefined}
+                >
+                    {schedule.due}
+                </span>
+            ) : null}
+            {schedule.then ? (
+                // A button, not a link: Wave's link colour would make the line louder than the band around it.
+                <button
+                    type="button"
+                    onClick={() => fireAndForget(() => openLink(schedule.then.url))}
+                    className="cursor-pointer rounded-4 text-muted hover:text-primary"
+                    title={schedule.then.title}
+                    data-testid="next-station-then"
+                >
+                    {schedule.then.label}
+                </button>
+            ) : null}
         </span>
     );
 }
@@ -134,6 +164,11 @@ export function NextStationHeader({
 }: ProjectCardProps) {
     const git = snapshot?.git;
     const station = useMemo(() => nextStation(git, release), [git, release]);
+    const milestones = snapshot?.github?.milestones;
+    const schedule = useMemo(
+        () => stationSchedule(station, milestones, git?.tagprefix),
+        [station, milestones, git?.tagprefix]
+    );
     const counts = useMemo(() => waitingCounts(git), [git]);
     const items = useMemo(() => tickerItems(git), [git]);
     const target = runCiTarget(git, pipeline, ci);
@@ -163,6 +198,7 @@ export function NextStationHeader({
                                     {station.chip}
                                 </span>
                             ) : null}
+                            {schedule ? <StationScheduleText schedule={schedule} /> : null}
                         </div>
                         <span className="text-13 text-secondary">{station?.note ?? "Reading the history…"}</span>
                     </div>
