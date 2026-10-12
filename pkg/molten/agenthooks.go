@@ -5,6 +5,7 @@ package molten
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -25,6 +26,8 @@ const (
 	// What every hook of agent-states.md runs; a configuration that runs it is set up.
 	agentStateHookCommand = "molten agent state"
 	agentStatesDocFile    = "agent-states.md"
+	// What MoltenTerm's launcher adds to claude and codex, and how to turn it off (FR-SHELL-040).
+	AgentIntegrationsDocFile = "agent-integrations.md"
 )
 
 const (
@@ -265,4 +268,27 @@ func AgentStatesDocPath(dataDir string, version string) (string, error) {
 		return "", err
 	}
 	return filepath.Join(dir, agentStatesDocFile), nil
+}
+
+// AgentDocRequest names the agent guide AgentStatesDocCommand returns: agent-states.md when empty.
+type AgentDocRequest struct {
+	Doc string `json:"doc,omitempty"`
+}
+
+// The agent guides the pane and the companion open (FR-SHELL-040: agent-integrations.md).
+var agentDocFiles = map[string]bool{agentStatesDocFile: true, AgentIntegrationsDocFile: true}
+
+// AgentDocPath writes the documentation of this version and returns one of its agent guides.
+func AgentDocPath(dataDir string, version string, doc string) (string, error) {
+	if doc == "" {
+		doc = agentStatesDocFile
+	}
+	if !agentDocFiles[doc] {
+		return "", fmt.Errorf("unknown agent guide %q", doc)
+	}
+	path, err := AgentStatesDocPath(dataDir, version)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(filepath.Dir(path), doc), nil
 }

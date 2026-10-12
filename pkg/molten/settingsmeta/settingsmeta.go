@@ -213,6 +213,11 @@ var settings = []Setting{
 	{Key: "tsunami:sdkversion", Section: SectionAdvanced, Group: "App builder", Label: "SDK version", Description: "The SDK version apps build against.", Control: ControlText},
 	{Key: "tsunami:gopath", Section: SectionAdvanced, Group: "App builder", Label: "Go binary", Description: "The Go binary apps build with.", Control: ControlPath},
 
+	// Agents, Integration (FR-SHELL-040): kept here so adding them renumbers only the hidden rows; the screen sorts by
+	// section first.
+	{Key: "agent:integrate", Section: SectionAgents, Group: "Integration", Label: "Agent integration", Description: "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited.", Control: ControlToggle, Default: true},
+	{Key: "agent:integrateoff", Section: SectionAgents, Group: "Integration", Label: "Without integration", Description: "Agents started without the integration while the others keep it.", Control: ControlMulti, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
+
 	// Hidden: namespace resets (only meaningful in the JSON file), Wave's inert updater (MoltenTerm has its own update
 	// flow, #5), telemetry (forced off, FR-FORK-003) and Wave-only surfaces MoltenTerm does not show.
 	hidden("app:*"),

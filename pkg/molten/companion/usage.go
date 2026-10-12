@@ -126,6 +126,15 @@ type usageRead struct {
 	fetch   bool
 }
 
+// runRelaysStatusLine tells whether the launcher added its status line relay to the block's current run.
+func (m *Manager) runRelaysStatusLine(blockId string) bool {
+	if m.integrationOf == nil {
+		return false
+	}
+	rep, ok := m.integrationOf(blockId)
+	return ok && rep.RelaysStatusLine()
+}
+
 // usageInfo reads the gauges with the given settings. A source the user sets up outside MoltenTerm that never
 // reported is looked up, read-only, for the setup to show, unless another source gives the windows.
 func (m *Manager) usageInfo(blockId string, agent string, a usage.UsageAdapter, settings *wconfig.SettingsType, read usageRead) UsageInfo {
@@ -155,7 +164,12 @@ func (m *Manager) usageInfoCtx(parent context.Context, blockId string, agent str
 			cwd = bi.cwd
 		}
 	}
-	setup := usage.SetupOf(a, settings, cwd)
+	var setup *usage.UsageSetup
+	// The launcher's relay already runs for this run: there is nothing to paste, the values come with the next
+	// response (FR-SHELL-040-AC6).
+	if !m.runRelaysStatusLine(blockId) {
+		setup = usage.SetupOf(a, settings, cwd)
+	}
 	if setup == nil {
 		// Still set up but quiet: a window another source still reports comes from it.
 		if stale {

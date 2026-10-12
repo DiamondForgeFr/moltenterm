@@ -230,3 +230,22 @@ func TestAgentStatesDocPath(t *testing.T) {
 		t.Fatalf("written where molten docs writes: %s", path)
 	}
 }
+
+// FR-SHELL-040: the companion opens agent-integrations.md the same way; other names are refused.
+func TestAgentDocPath(t *testing.T) {
+	dataDir := t.TempDir()
+	path, err := AgentDocPath(dataDir, "9.9.9", AgentIntegrationsDocFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(data), "agent:integrateoff") {
+		t.Fatalf("guide at %s: %v", path, err)
+	}
+	if def, err := AgentDocPath(dataDir, "9.9.9", ""); err != nil || filepath.Base(def) != agentStatesDocFile {
+		t.Fatalf("default guide %s: %v", def, err)
+	}
+	if _, err := AgentDocPath(dataDir, "9.9.9", "../secret.md"); err == nil {
+		t.Fatalf("an unknown guide is refused")
+	}
+}

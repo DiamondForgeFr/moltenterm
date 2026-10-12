@@ -166,7 +166,7 @@ func TestWriteDocsAndExampleMatchesBuiltin(t *testing.T) {
 	if err := WriteDocs(dir); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"mod-format.md", "morph.md", "agent-states.md", "worktrees.md", "examples/copy-box/mod.json", "examples/copy-box/main.js"} {
+	for _, name := range []string{"mod-format.md", "morph.md", "agent-states.md", "agent-integrations.md", "worktrees.md", "examples/copy-box/mod.json", "examples/copy-box/main.js"} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			t.Errorf("missing %s: %v", name, err)
 		}

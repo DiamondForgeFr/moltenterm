@@ -9,6 +9,7 @@
 import { atoms, globalStore } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { AgentStates } from "../../agent-state-store";
+import { IntegrateKey, IntegrateOffKey } from "../../companion/companion-integration-model";
 import {
     CompanionRoute,
     CompanionTargetMetaKey,
@@ -36,7 +37,7 @@ import {
     SessionsStateMetaKey,
 } from "../../widget-options";
 import { readWorkspaceProject } from "../../workspace-project";
-import { metaBinding, readSettings, settingsBinding } from "../bindings";
+import { metaBinding, readSettings, settingsBinding, writeSettings } from "../bindings";
 import {
     CommandProvider,
     PanelChoiceOption,
@@ -51,6 +52,8 @@ const UsageRpcTimeoutMs = 12000;
 const UsageAgents = new Set(["claude", "codex"]);
 // The agent with an experimental source to choose (FR-SHELL-028).
 const UsageSourceAgent = "claude";
+// The agents MoltenTerm's launcher integrates (pkg/molten/agentlaunch).
+const IntegratedAgents = new Set(["claude", "codex"]);
 
 function choiceOptions(prefix: string, choices: readonly { value: string; label: string; icon?: string }[]) {
     return choices.map(
@@ -70,6 +73,53 @@ function usageCall(command: string, target: string, on: boolean): Promise<void> 
 function settingIncludes(key: string, value: string): boolean {
     const list = readSettings(key);
     return Array.isArray(list) && list.includes(value);
+}
+
+// MoltenTerm's integration at launch (FR-SHELL-040-AC7): for every agent, and for the companion's agent when it has a
+// launcher. Both are read at the next launch.
+function integrationItems(agent: string): PanelItem[] {
+    const items: PanelItem[] = [
+        {
+            id: "companion:integrate",
+            type: "toggle",
+            label: "Agent integration",
+            detail: "every agent, from the next launch",
+            icon: "plug",
+            keywords: ["hooks", "launcher", "integrated by moltenterm"],
+            defaultValue: true,
+            scopes: [settingsBinding<boolean>(IntegrateKey, true, "global")],
+        },
+    ];
+    if (!IntegratedAgents.has(agent)) {
+        return items;
+    }
+    const agentOff = (): string[] => {
+        const off = readSettings(IntegrateOffKey);
+        return Array.isArray(off) ? off : [];
+    };
+    const writeAgent = (on: boolean) => {
+        const rest = agentOff().filter((id) => id !== agent);
+        const next = on ? rest : [...rest, agent];
+        return writeSettings({ [IntegrateOffKey]: next.length > 0 ? next : null });
+    };
+    items.push({
+        id: "companion:integrateagent",
+        type: "toggle",
+        label: `Integration for ${agentName(agent)}`,
+        detail: "from the next launch",
+        icon: "plug",
+        keywords: ["hooks", "launcher", "integrateoff"],
+        defaultValue: true,
+        scopes: [
+            {
+                scope: "global",
+                get: () => (agentOff().includes(agent) ? false : undefined),
+                set: (on) => writeAgent(on !== false),
+                clear: () => writeAgent(true),
+            },
+        ],
+    });
+    return items;
 }
 
 export function companionSections(ctx: PanelContext): PanelSection[] {
@@ -132,6 +182,9 @@ export function companionSections(ctx: PanelContext): PanelSection[] {
                 ],
             });
         }
+    }
+    if (agent) {
+        items.push(...integrationItems(agent));
     }
     const historyAtom = (ctx.viewModel as any)?.historyAtom;
     if (agent && historyAtom != null) {

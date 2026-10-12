@@ -14,6 +14,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
+	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
@@ -94,15 +95,62 @@ func runMoltenAgentLaunch(agent string, args []string, getenv func(string) strin
 	}
 	start := time.Now()
 	connected := moltenLaunchConnect(getenv(wshutil.WaveJwtTokenVarName))
-	report, finalArgs, env := planMoltenAgentLaunch(adapter, real, args, getenv, start)
-	sendMoltenLaunchReport(connected, report, start)
+	settings, reportConn := moltenLaunchSettings(connected, start.Add(moltenAgentLaunchReportTimeout))
+	gate := func() string {
+		return moltenLaunchSettingsStepAside(settings, adapter.Id(), start.Add(moltenAgentLaunchReportTimeout))
+	}
+	report, finalArgs, env := planMoltenAgentLaunchWith(adapter, real, args, getenv, start, gate)
+	sendMoltenLaunchReport(reportConn, report, start)
 	return execAgentBinary(real, finalArgs, env)
+}
+
+// moltenLaunchSettings asks wavesrv for the integration settings (FR-SHELL-040) once connected, and relays the
+// connection's outcome for the report. A nil answer: they could not be read before the deadline.
+func moltenLaunchSettings(connected chan bool, deadline time.Time) (chan *agentlaunch.IntegrationSettings, chan bool) {
+	settings := make(chan *agentlaunch.IntegrationSettings, 1)
+	relay := make(chan bool, 1)
+	go func() {
+		ok := <-connected
+		relay <- ok
+		left := time.Until(deadline)
+		if !ok || left <= 0 {
+			settings <- nil
+			return
+		}
+		config, err := wshclient.GetFullConfigCommand(RpcClient, &wshrpc.RpcOpts{Timeout: max(int64(left/time.Millisecond), 1)})
+		if err != nil {
+			settings <- nil
+			return
+		}
+		settings <- &agentlaunch.IntegrationSettings{Integrate: config.Settings.AgentIntegrate, Off: config.Settings.AgentIntegrateOff}
+	}()
+	return settings, relay
+}
+
+// moltenLaunchSettingsStepAside waits for the settings until the deadline: off, or unknown, the run gets nothing (on
+// any doubt the launcher steps aside).
+func moltenLaunchSettingsStepAside(settings chan *agentlaunch.IntegrationSettings, agentId string, deadline time.Time) string {
+	select {
+	case s := <-settings:
+		if s == nil {
+			return agentlaunch.StepAsideSettingsUnknown
+		}
+		return s.StepAside(agentId)
+	case <-time.After(time.Until(deadline)):
+		return agentlaunch.StepAsideSettingsUnknown
+	}
 }
 
 // planMoltenAgentLaunch asks the adapter what to add and writes its files. Whatever fails, the user's arguments
 // run unchanged and the report says why. The run is the pane's agent either way: its own subprocesses are marked as
 // nested, so a `claude -p` they start never takes the pane's session link.
 func planMoltenAgentLaunch(adapter agentlaunch.LaunchAdapter, real string, args []string, getenv func(string) string, now time.Time) (molten.AgentIntegrationReport, []string, []string) {
+	return planMoltenAgentLaunchWith(adapter, real, args, getenv, now, nil)
+}
+
+// planMoltenAgentLaunchWith plans like planMoltenAgentLaunch; gate, when set, is asked once the plan is made and before
+// anything is written or added: a reason it gives keeps the run as the user started it.
+func planMoltenAgentLaunchWith(adapter agentlaunch.LaunchAdapter, real string, args []string, getenv func(string) string, now time.Time, gate func() string) (molten.AgentIntegrationReport, []string, []string) {
 	report := molten.AgentIntegrationReport{BlockId: getenv("WAVETERM_BLOCKID"), Agent: adapter.Id(), RealPath: real}
 	if execKeepsPid {
 		report.Pid = os.Getpid()
@@ -117,6 +165,12 @@ func planMoltenAgentLaunch(adapter agentlaunch.LaunchAdapter, real string, args 
 	if plan.StepAside != "" {
 		report.StepAside, report.Added = plan.StepAside, nil
 		return report, args, env
+	}
+	if gate != nil {
+		if reason := gate(); reason != "" {
+			report.StepAside, report.Added, report.Skipped = reason, nil, nil
+			return report, args, env
+		}
 	}
 	if plan.MakeArgs == nil {
 		return report, args, env

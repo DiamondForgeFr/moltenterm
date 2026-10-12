@@ -5,12 +5,14 @@
 // (title, start time, how it was linked, history button), the hint of a guessed link, and the history list.
 
 import { cn } from "@/util/util";
+import { IntegratedBadge } from "./companion-integration";
 import {
     candidateTitle,
     CompanionCandidate,
     CompanionSession,
     CompanionView,
     guessHint,
+    isIntegrated,
     linkLabel,
     relativeTime,
     sessionTitle,
@@ -91,7 +93,15 @@ export function SessionHistoryList({
 }
 
 // The session's name and start time, so the terminal's agent label and this bar can be matched at a glance.
-export function SessionBar({ view, onHistory }: { view: CompanionView; onHistory: () => void }) {
+export function SessionBar({
+    view,
+    onHistory,
+    onIntegration,
+}: {
+    view: CompanionView;
+    onHistory: () => void;
+    onIntegration?: () => void;
+}) {
     const session = view.session;
     const started = startedLabel(session?.started, Date.now());
     return (
@@ -111,6 +121,9 @@ export function SessionBar({ view, onHistory }: { view: CompanionView; onHistory
             <div className="ml-auto flex shrink-0 items-center gap-2">
                 {view.ended ? <span className="text-warning">Agent exited · last session</span> : null}
                 {view.status === "loading" ? <span>Reading…</span> : null}
+                {onIntegration != null && isIntegrated(view) ? (
+                    <IntegratedBadge onOpen={onIntegration} className="-my-0.5" />
+                ) : null}
                 <UsageButton view={view} className="-my-0.5" />
                 <button
                     type="button"

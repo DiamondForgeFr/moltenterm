@@ -97,6 +97,21 @@ func statusLineReport(blockId string, session float64) molten.AgentStatusLineReq
 	}
 }
 
+// FR-SHELL-040-AC6: a run that got the launcher's status line relay is not told to paste one; it waits.
+func TestIntegratedRunShowsNoStatusLineSetup(t *testing.T) {
+	m, _, _ := gaugesTestManager(t)
+	m.integrationOf = func(blockId string) (molten.AgentIntegrationReport, bool) {
+		return molten.AgentIntegrationReport{Agent: "claude", Added: []molten.IntegrationItem{{Kind: molten.IntegrationStatusLine, Name: "Status line relay around your status line"}}}, blockId == "b1"
+	}
+	info, err := m.SetUsageGauges("b1", true)
+	if err != nil || info.Setup != nil || info.Reason != usage.ReasonWaiting {
+		t.Fatalf("integrated run: %+v %v", info, err)
+	}
+	if info, _ := m.Usage("b3", false); info.Setup == nil || info.Reason != usage.ReasonNotSetUp {
+		t.Errorf("a run without the integration still gets the setup: %+v", info)
+	}
+}
+
 func TestPlanGaugesAreOptInPerAgent(t *testing.T) {
 	m, g, _ := gaugesTestManager(t)
 	if _, err := m.Open("b3", "v"); err != nil {

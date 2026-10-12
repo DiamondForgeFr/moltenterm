@@ -21,7 +21,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 97
+            "order": 99
           }
         },
         "app:globalhotkey": {
@@ -40,7 +40,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 113
+            "order": 115
           }
         },
         "app:defaultnewblock": {
@@ -201,7 +201,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 98
+            "order": 100
           }
         },
         "term:fontsize": {
@@ -531,6 +531,44 @@
             "order": 49
           }
         },
+        "agent:integrate": {
+          "type": "boolean",
+          "description": "Add MoltenTerm's integration (state hooks, session link, status line relay, browser server) to claude and codex started in a local terminal, for that run only; nothing of yours is edited. Default true; false turns it off for every agent from the next launch",
+          "x-moltenterm": {
+            "section": "agents",
+            "group": "Integration",
+            "label": "Agent integration",
+            "description": "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited.",
+            "control": "toggle",
+            "default": true,
+            "order": 97
+          }
+        },
+        "agent:integrateoff": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Agents (claude, codex) started without MoltenTerm's integration, from the next launch; the others keep it",
+          "x-moltenterm": {
+            "section": "agents",
+            "group": "Integration",
+            "label": "Without integration",
+            "description": "Agents started without the integration while the others keep it.",
+            "control": "multi",
+            "options": [
+              {
+                "value": "claude",
+                "label": "Claude Code"
+              },
+              {
+                "value": "codex",
+                "label": "Codex"
+              }
+            ],
+            "order": 98
+          }
+        },
         "companion:usagegauges": {
           "items": {
             "type": "string"
@@ -684,7 +722,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 99
+            "order": 101
           }
         },
         "web:openlinksinternally": {
@@ -823,35 +861,35 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 100
+            "order": 102
           }
         },
         "autoupdate:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 107
+            "order": 109
           }
         },
         "autoupdate:intervalms": {
           "type": "number",
           "x-moltenterm": {
             "hidden": true,
-            "order": 108
+            "order": 110
           }
         },
         "autoupdate:installonquit": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 109
+            "order": 111
           }
         },
         "autoupdate:channel": {
           "type": "string",
           "x-moltenterm": {
             "hidden": true,
-            "order": 110
+            "order": 112
           }
         },
         "markdown:fontsize": {
@@ -1157,21 +1195,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 101
+            "order": 103
           }
         },
         "widget:showhelp": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 112
+            "order": 114
           }
         },
         "window:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 102
+            "order": 104
           }
         },
         "window:fullscreenonlaunch": {
@@ -1453,21 +1491,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 103
+            "order": 105
           }
         },
         "telemetry:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 111
+            "order": 113
           }
         },
         "conn:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 104
+            "order": 106
           }
         },
         "conn:askbeforewshinstall": {
@@ -1510,7 +1548,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 105
+            "order": 107
           }
         },
         "debug:pprofport": {
@@ -1563,7 +1601,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 106
+            "order": 108
           }
         },
         "tsunami:scaffoldpath": {

@@ -244,6 +244,30 @@ func TestPublisherCoalescesAndLocates(t *testing.T) {
 	}
 }
 
+// FR-SHELL-040-AC5: the hooks the launcher added to a run do not mark the agent as hooked by the user, so the hook
+// setup offer comes back once the integration is off.
+func TestIntegratedRunHooksAreNotTheUsers(t *testing.T) {
+	h := makeAgentHarness()
+	var remembered []string
+	h.states.onHooked = func(agent string) { remembered = append(remembered, agent) }
+	h.states.integratedRun = func(blockId string, run agentRunRecord) bool { return blockId == "b1" && run.agent == "claude" }
+	h.out("b1", cmdMark("claude"))
+	h.out("b2", cmdMark("claude"))
+	h.states.flush()
+	if err := h.report("b1", molten.AgentStateWorking, "claude"); err != nil {
+		t.Fatal(err)
+	}
+	if h.states.isAgentHooked("claude") || len(remembered) != 0 {
+		t.Fatalf("an integrated run's hooks are not remembered: %v", remembered)
+	}
+	if err := h.report("b2", molten.AgentStateWorking, "claude"); err != nil {
+		t.Fatal(err)
+	}
+	if !h.states.isAgentHooked("claude") || strings.Join(remembered, ",") != "claude" {
+		t.Fatalf("the user's own hooks are remembered: %v", remembered)
+	}
+}
+
 func TestHookedAgentRepublishesItsTerminals(t *testing.T) {
 	h := makeAgentHarness()
 	var remembered []string

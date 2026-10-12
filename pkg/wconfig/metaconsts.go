@@ -65,6 +65,8 @@ const (
 	ConfigKey_TermTrimTrailingWhitespace     = "term:trimtrailingwhitespace"
 
 	ConfigKey_AgentSessionRoots              = "agent:sessionroots"
+	ConfigKey_AgentIntegrate                 = "agent:integrate"
+	ConfigKey_AgentIntegrateOff              = "agent:integrateoff"
 
 	ConfigKey_CompanionUsageGauges           = "companion:usagegauges"
 	ConfigKey_CompanionUsageClaudeOAuth      = "companion:usageclaudeoauth"

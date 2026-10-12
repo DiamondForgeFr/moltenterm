@@ -96,7 +96,13 @@ func handleAgentCommand(command string, data any) (any, error) {
 		}
 		return nil, DismissAgentHookOffer(req.Agent)
 	case molten.AgentStatesDocCommand:
-		return molten.AgentStatesDocPath(wavebase.GetWaveDataDir(), wavebase.WaveVersion)
+		var req molten.AgentDocRequest
+		if data != nil {
+			if err := utilfn.ReUnmarshal(&req, data); err != nil {
+				return nil, err
+			}
+		}
+		return molten.AgentDocPath(wavebase.GetWaveDataDir(), wavebase.WaveVersion, req.Doc)
 	case molten.AgentIntegrationReportCommand:
 		var req molten.AgentIntegrationReport
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

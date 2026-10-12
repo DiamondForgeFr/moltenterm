@@ -20,6 +20,7 @@ import { EmptyState, EmptyStateAction } from "../empty-state";
 import { always, TabActivity } from "../tab-activity";
 import { attachCompanion, companionAgent, startCompanionAgent, tabAttachCandidates } from "./companion-attach";
 import { PlanUsageSection } from "./companion-gauges";
+import { IntegratedBadge, IntegrationDetails } from "./companion-integration";
 import {
     CompanionAnswer,
     CompanionAnswerCommand,
@@ -43,6 +44,7 @@ import {
     firstChangedLine,
     formatArgs,
     integrationProblem,
+    isIntegrated,
     MoltentermCompanionView,
     needsLatest,
     neighbourAnswer,
@@ -77,6 +79,8 @@ export class CompanionViewModel implements ViewModel {
     // The folder's sessions to pick from, opened by Choose from the folder's sessions, the session bar or the command
     // panel's Linked session (FR-SHELL-049).
     historyAtom = atom(false) as PrimitiveAtom<boolean>;
+    // What MoltenTerm added to this run, opened by Integrated by MoltenTerm (FR-SHELL-040-AC3).
+    integrationAtom = atom(false) as PrimitiveAtom<boolean>;
     targetAtom = atom<string>((get) => {
         const block = get(getWaveObjectAtom<Block>(makeORef("block", this.blockId)));
         return (block?.meta?.[CompanionTargetMetaKey] as string) ?? null;
@@ -197,6 +201,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     const terminal = useAtomValueSafe(target ? getWaveObjectAtom<Block>(makeORef("block", target)) : null);
     const { view, error, viewId, setView } = useCompanion(target);
     const [history, setHistory] = useAtom(model.historyAtom);
+    const [integrationOpen, setIntegrationOpen] = useAtom(model.integrationAtom);
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const agent = companionAgent(fullConfig?.presets);
     const actions = useEmptyActions();
@@ -211,6 +216,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     }, [target]);
     useEffect(() => {
         setHistory(false);
+        setIntegrationOpen(false);
     }, [target, view?.agent]);
     const startAction: EmptyStateAction = {
         label: `Start ${agent.name} here`,
@@ -270,6 +276,9 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
             </WithUsage>
         );
     }
+    if (integrationOpen && isIntegrated(view)) {
+        return <IntegrationDetails view={view} target={target} onClose={() => setIntegrationOpen(false)} />;
+    }
     const message = statusMessage(view);
     if (message != null && view?.status === "noagent") {
         return (
@@ -304,6 +313,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 details={message.raw}
             >
                 <IntegrationNotice view={view} />
+                {isIntegrated(view) ? <IntegratedBadge onOpen={() => setIntegrationOpen(true)} /> : null}
                 {/* The plan usage section above already stands for usage while it shows. */}
                 {withUsage ? null : <UsageButton view={view} variant="button" />}
             </EmptyState>
@@ -312,7 +322,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     }
     return (
         <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
-            <SessionBar view={view} onHistory={() => setHistory(true)} />
+            <SessionBar view={view} onHistory={() => setHistory(true)} onIntegration={() => setIntegrationOpen(true)} />
             <GuessNotice session={session} onHistory={() => setHistory(true)} />
             <IntegrationNotice view={view} className="mx-3 mt-2" />
             {usage}
