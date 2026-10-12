@@ -44,8 +44,9 @@ Test instances also start with `MOLTENTERM_BACKGROUND=1` (#495), so that they ne
 the user's windows; only `1` turns it on, and without it nothing changes. On macOS the instance runs with the
 `accessory` activation policy (no Dock icon, no menu bar, never the active app); every window is shown with
 `showInactive()`, keeps its size and is parked in the bottom-right corner of the primary display with only 160 by 120
-points on screen, floating above the other windows so that they never cover it: a window that is entirely covered or
-off screen counts as occluded, and its pages go `hidden` and stop drawing. Focus is virtual: the window the app focuses
+points on screen, floating above the other windows on every Space so that they never cover it (an entirely covered
+window counts as occluded: its pages go `hidden` and stop drawing), transparent and click-through so that the corner
+stays the user's. A locked screen still hides every page. Focus is virtual: the window the app focuses
 reports `isFocused()`, is the one `getFocusedWindow()` returns and gets its `focus` event, while the OS focus stays with
 the user's app; `webContents.focus()` (which would activate the app) only runs in a window the user clicked. Drive the
 pages through CDP, whose input reaches a page whatever the OS focus, and use `Emulation.setFocusEmulationEnabled` when a
