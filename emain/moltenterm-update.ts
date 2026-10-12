@@ -31,6 +31,7 @@ import {
 } from "../frontend/util/moltenterm-gold";
 import { setUserConfirmedQuit } from "./emain-activity";
 import { getWaveDataDir } from "./emain-platform";
+import { initMoltentermReleaseFeed } from "./moltenterm-release-feed";
 
 const execFileAsync = promisify(execFile);
 
@@ -252,6 +253,8 @@ export function initMoltentermUpdate() {
         applyGoldUpdate(buildId, when)
     );
     electron.ipcMain.handle(MoltentermUpdateLastChannel, () => takeLastSwapStatus());
+    // Releases learn about newer releases from GitHub (#188); golds keep the local update above.
+    initMoltentermReleaseFeed();
     // "Update when I quit": the swap starts as the app ends, without reopening it.
     electron.app.on("will-quit", () => {
         if (pendingOnQuit == null) {

@@ -140,8 +140,21 @@ known because a pull request that changes it runs its first job (check mode, not
 The release needs nothing more on GitHub than the repository's own token (`contents: write` for the publish job only).
 Until an Apple Developer ID exists, macOS builds are ad-hoc signed and not notarized: the release text tells users to
 right-click › Open (or `xattr -dr com.apple.quarantine`). Developer ID signing and notarization are required before
-the first public release, 1.0.0, is published. The update feeds the app reads (per channel) are not published yet;
-Windows builds come later. Wave's `RELEASES.md` describes Wave's own process and does not apply.
+the first public release, 1.0.0, is published. Windows builds come later.
+
+**Telling users about a new release (#188).** There is one update source, the repository's GitHub Releases, read with
+no feed file of its own. A release build (`rc` or `public` channel) asks the Releases API once its window is idle after
+start, and again when a window gets the focus, but at most once a day (an hour after a failed request), anonymously
+from a session of its own. The releases read are kept in `<data>/molten/update/release-check.json`, and the offer is
+picked from them at every answer for the version and channel running then, so an installed update or a channel change
+never shows a stale offer. A public build is offered only public releases; a release candidate is offered the next
+candidate or a public release, whichever is newer. A newer release shows once in the notification center ("MoltenTerm X
+is available", its public notes up to the release body's `## Install` heading, a Download button to its github.com
+release page), one window announcing it for all, and as a status bar entry that opens the page; a release no longer
+offered is withdrawn. The setting `moltenterm:releasenotify` turns it off. Golds (local update, #64) and dev or local
+builds never ask. Nothing is downloaded or installed, and Wave's auto-updater stays off (#5): installing from the app
+needs signed builds (#507, follow-up #536). A test instance (`MOLTENTERM_BACKGROUND=1`) can point the check at a feed on
+this machine with `MOLTENTERM_RELEASE_FEED_URL=http://127.0.0.1:<port>/…`. Wave's `RELEASES.md` describes Wave's own process and does not apply.
 
 ### Release notes
 
@@ -449,6 +462,7 @@ DO NOT EDIT.` near the top), which `task generate` would strip of one; they stil
 | `emain/emain-window.ts` | `createBrowserWindow` logs the window and workspace ids only, no longer the workspace object after them. Already patched | Every window creation wrote the whole workspace (name, icon, colour, tab ids) to the log; the switch line in `emain/moltenterm-window-actions.ts` gets the same fix | #501 |
 | `emain/emain-window.ts`, `emain/emain.ts`, `emain/preload.ts` | The window's `close` handler, `switchWorkspace` (and `createWorkspace`, which deletes the new workspace when that switch is cancelled), `delete-workspace` and `before-quit` first ask the renderer concerned what the action stops (`emain/moltenterm-busy-close.ts`, `emain/moltenterm-busy-close-actions.ts`, `emain/moltenterm-busy-close-policy.ts`; renderer side `frontend/moltenterm-shell/busy-close-main.ts`, FR-SHELL-061's reader and dialog). When something runs, MoltenTerm's dialog replaces `window:confirmclose`, the workspace delete box and `app:confirmquit`; when nothing runs, with `moltenterm:confirmbusyclose` off, or with no ack within 1.5 s, those confirmations decide as before. `before-quit` now waits for that answer before quitting; `WAVETERM_NOCONFIRMQUIT` and a quit already confirmed skip both. The preload gets `onMoltentermBusyAsk` and `moltentermBusyReply`. All three files already patched | A window close, a quit, a workspace delete or a switch away from an unsaved workspace never stops a coding agent or a command by accident (FR-SHELL-062) | #490 |
 | `emain/emain.ts` | `appMain` first calls `installBackgroundMode()` (`emain/moltenterm-background.ts`), which does nothing unless `MOLTENTERM_BACKGROUND=1`: then the activation policy is `accessory` on macOS, every window show is `showInactive()` with the window parked in a corner, and every focus is virtual (see "Test instances"). Already patched | Test instances never take the focus or cover the user's windows | #495 |
+| `emain/preload.ts`, `pkg/wconfig/settingsconfig.go`, `pkg/wconfig/defaultconfig/settings.json` (and the generated `pkg/wconfig/metaconsts.go`, `frontend/types/gotypes.d.ts`, `schema/settings.json`) | The preload gets `moltentermReleaseCheck`; setting `moltenterm:releasenotify` (default on) | A release build tells its user once that a newer release is out, with its notes and a download link (`emain/moltenterm-release-feed.ts`); Wave's updater stays off (#5) | #188 |
 
 ## Known upstream items
 

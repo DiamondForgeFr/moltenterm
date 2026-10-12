@@ -188,6 +188,9 @@ type SettingsType struct {
 	MoltentermHiddenPageFreeze     *bool    `json:"moltenterm:hiddenpagefreeze,omitempty" jsonschema_description:"A browser panel page not on screen is frozen after a few seconds (no timers, frames or network callbacks) and resumes when shown; pages an agent drives, that play audio or whose DevTools are open keep running. false turns freezing off"`
 	MoltentermHiddenPageDiscardMin *float64 `json:"moltenterm:hiddenpagediscardmin,omitempty" jsonschema:"minimum=0,maximum=1440" jsonschema_description:"Minutes a browser panel page stays loaded while not on screen; past that it is unloaded and reloads at its URL and scroll position when shown (default 10, 0 never). Pages an agent drives, that play audio or hold unsaved input are kept"`
 
+	// MOLTENTERM-PATCH (#188): the notification of a newer release (FR-REL-005, emain/moltenterm-release-feed.ts).
+	MoltentermReleaseNotify *bool `json:"moltenterm:releasenotify,omitempty" jsonschema_description:"A release build asks GitHub at start, at most once a day, whether a newer release of its channel is out, and says so once with its notes and a download link; false never asks. Golds and dev builds never ask"`
+
 	// MOLTENTERM-PATCH (#489): a close that would stop what runs in a terminal asks first (FR-SHELL-061, frontend/moltenterm-shell/busy-close*.ts).
 	MoltentermConfirmBusyClose *bool `json:"moltenterm:confirmbusyclose,omitempty" jsonschema_description:"Closing a pane, a tab or replacing a terminal in which something runs (a coding agent, even idle, or a command other than the shell) asks first and names what would stop; false closes at once as before (the worktree and Sessions confirmations still ask)"`
 

@@ -1,0 +1,143 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+import { describe, expect, it } from "vitest";
+import { parseVersion } from "../releases/versions";
+import {
+    dueForCheck,
+    feedReleasesOf,
+    isSafeReleaseUrl,
+    GithubRelease,
+    isNewerRelease,
+    notesAsText,
+    pickReleaseOffer,
+    ReleaseCheckIntervalMs,
+    ReleaseRetryIntervalMs,
+    releaseFeedEnabled,
+    releaseFeedUrl,
+    releaseNotesOf,
+    ReleaseNotesMaxChars,
+    releaseNotificationTitle,
+} from "./release-feed";
+
+const Rules = { tagprefix: "v", firstpublic: "1.0.0" };
+
+function release(tag: string, more: Partial<GithubRelease> = {}): GithubRelease {
+    return {
+        tag_name: tag,
+        prerelease: tag.includes("-"),
+        draft: false,
+        html_url: `https://github.com/DiamondForgeFr/moltenterm/releases/tag/${tag}`,
+        body: `Notes of ${tag}\n\n## Install\n\n- macOS: open the dmg`,
+        published_at: "2026-10-20T10:00:00Z",
+        ...more,
+    };
+}
+
+describe("release notification (#188)", () => {
+    it("only looks from release builds", () => {
+        expect(releaseFeedEnabled("rc", true)).toBe(true);
+        expect(releaseFeedEnabled("public", true)).toBe(true);
+        expect(releaseFeedEnabled("gold", true)).toBe(false);
+        expect(releaseFeedEnabled("local", true)).toBe(false);
+        expect(releaseFeedEnabled("rc", false)).toBe(false);
+    });
+
+    it("asks at most once a day", () => {
+        const now = 1_000_000_000_000;
+        expect(dueForCheck(null, now)).toBe(true);
+        expect(dueForCheck({ checkedat: now - 1000, releases: [] }, now)).toBe(false);
+        expect(dueForCheck({ checkedat: now - ReleaseCheckIntervalMs, releases: [] }, now)).toBe(true);
+        expect(dueForCheck({ checkedat: now + 60_000, releases: [] }, now)).toBe(true);
+        expect(dueForCheck({ checkedat: Number.NaN, releases: [] }, now)).toBe(true);
+        expect(dueForCheck({ checkedat: now - ReleaseRetryIntervalMs, releases: [], failed: true }, now)).toBe(true);
+        expect(dueForCheck({ checkedat: now - ReleaseRetryIntervalMs, releases: [] }, now)).toBe(false);
+    });
+
+    it("compares with the running version, X.Y.Z-0 coming before every release of X.Y.Z", () => {
+        expect(isNewerRelease(parseVersion("1.0.0-1"), "1.0.0-0")).toBe(true);
+        expect(isNewerRelease(parseVersion("1.0.0"), "1.0.0-0")).toBe(true);
+        expect(isNewerRelease(parseVersion("0.9.0"), "1.0.0-0")).toBe(false);
+        expect(isNewerRelease(parseVersion("1.0.0-2"), "1.0.0-2")).toBe(false);
+        expect(isNewerRelease(parseVersion("1.0.0"), "1.0.0-2")).toBe(true);
+        expect(isNewerRelease(parseVersion("1.0.1"), "1.0.0")).toBe(true);
+        expect(isNewerRelease(parseVersion("1.0.0"), "1.0.0")).toBe(false);
+        expect(isNewerRelease(parseVersion("1.0.1"), "not a version")).toBe(false);
+    });
+
+    it("offers a public build only public releases, newer than itself", () => {
+        const releases = [release("v1.0.0"), release("v1.0.1-1"), release("v1.0.1", { draft: true }), release("v0.9.0")];
+        expect(pickReleaseOffer(releases, "public", "1.0.0", Rules)).toBeNull();
+        const offer = pickReleaseOffer([...releases, release("v1.0.1")], "public", "1.0.0", Rules);
+        expect(offer.tag).toBe("v1.0.1");
+        expect(offer.version).toBe("1.0.1");
+        expect(offer.notes).toBe("Notes of v1.0.1");
+        expect(releaseNotificationTitle(offer)).toBe("MoltenTerm 1.0.1 is available");
+    });
+
+    it("offers a release candidate the newer of the next candidate and a public release", () => {
+        const releases = [release("v1.0.0-1"), release("v1.0.0-2"), release("v1.0.0")];
+        expect(pickReleaseOffer(releases, "rc", "1.0.0-1", Rules).tag).toBe("v1.0.0");
+        expect(pickReleaseOffer(releases.slice(0, 2), "rc", "1.0.0-1", Rules).tag).toBe("v1.0.0-2");
+        expect(pickReleaseOffer(releases, "rc", "1.0.0", Rules)).toBeNull();
+    });
+
+    it("never offers a public build a release marked as prerelease, a foreign tag or an unsafe link", () => {
+        expect(pickReleaseOffer([release("v1.1.0", { prerelease: true })], "public", "1.0.0", Rules)).toBeNull();
+        expect(pickReleaseOffer([release("v0.14.5")], "rc", "0.1.0", Rules)).toBeNull();
+        expect(pickReleaseOffer([release("nightly")], "rc", "1.0.0-0", Rules)).toBeNull();
+        expect(pickReleaseOffer([release("v1.0.1", { html_url: "javascript:alert(1)" })], "public", "1.0.0", Rules)).toBeNull();
+        expect(pickReleaseOffer([null, { tag_name: null } as any], "public", "1.0.0", Rules)).toBeNull();
+    });
+
+    it("shows the public notes only, shortened", () => {
+        expect(releaseNotesOf("Hello\r\n\r\n## Install\r\nxattr")).toBe("Hello");
+        expect(releaseNotesOf("## New\n\n- a\n- b")).toBe("## New\n\n- a\n- b");
+        expect(releaseNotesOf(null)).toBe("");
+        const long = Array.from({ length: 60 }, (_, i) => `- change number ${i}`).join("\n");
+        const short = releaseNotesOf(long);
+        expect(short.length).toBeLessThanOrEqual(ReleaseNotesMaxChars + 2);
+        expect(short.endsWith("\n…")).toBe(true);
+    });
+
+    it("asks the repository's Releases API, or a loopback test feed only", () => {
+        const repo = "https://github.com/DiamondForgeFr/moltenterm";
+        expect(releaseFeedUrl(repo, {})).toBe("https://api.github.com/repos/DiamondForgeFr/moltenterm/releases?per_page=30");
+        const test = { MOLTENTERM_BACKGROUND: "1" };
+        expect(releaseFeedUrl(repo, { ...test, MOLTENTERM_RELEASE_FEED_URL: "http://127.0.0.1:9/feed.json" })).toBe("http://127.0.0.1:9/feed.json");
+        expect(releaseFeedUrl(repo, { MOLTENTERM_RELEASE_FEED_URL: "http://127.0.0.1:9/feed.json" })).toContain("api.github.com");
+        expect(releaseFeedUrl(repo, { ...test, MOLTENTERM_RELEASE_FEED_URL: "http://localhost:9/feed" })).toContain("api.github.com");
+        expect(releaseFeedUrl(repo, { ...test, MOLTENTERM_RELEASE_FEED_URL: "https://evil.example/feed" })).toContain("api.github.com");
+        expect(releaseFeedUrl(repo, { ...test, MOLTENTERM_RELEASE_FEED_URL: "::" })).toContain("api.github.com");
+    });
+
+    it("turns the notes into plain text for the notification", () => {
+        const notes = "## New\n\n- Workspaces **remember** their agents.\n- A [browser](https://x) panel\n\n## Fixed\n\n- The status bar";
+        expect(notesAsText(notes)).toBe("New: Workspaces remember their agents; A browser panel. Fixed: The status bar.");
+        expect(notesAsText("Just one sentence!")).toBe("Just one sentence!");
+        expect(notesAsText("")).toBe("");
+    });
+
+    it("opens only release pages on github.com, and keeps only what it reads of the feed", () => {
+        expect(isSafeReleaseUrl("https://github.com/DiamondForgeFr/moltenterm/releases/tag/v1.0.0")).toBe(true);
+        expect(isSafeReleaseUrl("https://evil.example/DiamondForgeFr/moltenterm/releases/tag/v1")).toBe(false);
+        expect(isSafeReleaseUrl("https://github.com/DiamondForgeFr/moltenterm/issues/1")).toBe(false);
+        expect(isSafeReleaseUrl("http://github.com/a/b/releases/tag/v1")).toBe(false);
+        const kept = feedReleasesOf([
+            { tag_name: "v1.0.1", body: 42, html_url: ["x"], prerelease: "yes", extra: 1 },
+            { tag_name: "v1.0.2", draft: true },
+            "junk",
+            null,
+        ]);
+        expect(kept).toEqual([{ tag_name: "v1.0.1", prerelease: false, html_url: undefined, body: undefined, published_at: undefined }]);
+        expect(feedReleasesOf({})).toEqual([]);
+        // An unsafe link on the newest release falls back to the next one.
+        const offer = pickReleaseOffer(
+            [release("v1.0.2", { html_url: "https://evil.example/r" }), release("v1.0.1")],
+            "public",
+            "1.0.0",
+            Rules
+        );
+        expect(offer.tag).toBe("v1.0.1");
+    });
+});

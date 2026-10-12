@@ -30,6 +30,7 @@ import {
     statusBarFolder,
 } from "./status-bar-model";
 import { GoldUpdateButton } from "./update/update-dialog";
+import { ReleaseUpdateButton } from "./update/release-update-ui";
 import { folderIconSource, WorkspaceIcon } from "./workspace-icon";
 import { WorkspaceIconSource, workspaceIconSource } from "./workspace-icon-model";
 import { readWorkspaceProject } from "./workspace-project";
@@ -150,6 +151,7 @@ export function StatusBar() {
             <span className="ml-auto flex shrink-0 items-center gap-3">
                 <KeepAwakeStatusItem />
                 <GoldUpdateButton />
+                <ReleaseUpdateButton />
                 <button
                     type="button"
                     title={`${view.tooltip}\n\nRelease notes`}
