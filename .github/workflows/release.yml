@@ -43,6 +43,9 @@ concurrency:
 
 env:
     NODE_VERSION: 22
+    # The renderer bundle needs more than Node's default heap on the macOS runners, as in ci.yml (found by the first
+    # rehearsal, #508).
+    NODE_OPTIONS: --max-old-space-size=4096
 
 jobs:
     meta:
