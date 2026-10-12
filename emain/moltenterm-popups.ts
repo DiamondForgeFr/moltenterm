@@ -19,6 +19,7 @@ import {
 } from "../frontend/moltenterm-shell/browser/browser-popup";
 import type { WaveTabView } from "./emain-tabview";
 import { getWaveWindowById } from "./emain-window";
+import { isBackgroundMode } from "./moltenterm-background";
 
 // Received by emain/preload.ts, which dispatches it to the panel webview that opened the popup.
 export const SignInRefusedChannel = "moltenterm-signin-refused";
@@ -59,7 +60,9 @@ function handleWindowOpen(
             width: bounds.width,
             height: bounds.height,
             parent: parent ?? undefined,
-            show: true,
+            // The constructor shows a window natively, past the background test mode's show (#495): there,
+            // configurePopup shows it.
+            show: !isBackgroundMode(),
             autoHideMenuBar: true,
             fullscreenable: false,
             webPreferences: {
@@ -87,6 +90,9 @@ function configurePopup(tabView: WaveTabView, guest: WebContents, win: BrowserWi
     const wc = win.webContents;
     const wcId = wc.id;
     popupWindows.set(wcId, win);
+    if (isBackgroundMode()) {
+        win.show();
+    }
     wc.setWindowOpenHandler((details) => handleWindowOpen(tabView, guest, wc, details));
     wc.on("did-create-window", (child) => configurePopup(tabView, guest, child));
     const updateTitle = () => {

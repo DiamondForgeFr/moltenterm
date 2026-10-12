@@ -56,6 +56,7 @@ import {
 } from "./emain-window";
 import { ElectronWshClient, initElectronWshClient } from "./emain-wsh";
 import { getLaunchSettings } from "./launchsettings";
+import { installBackgroundMode } from "./moltenterm-background"; // MOLTENTERM-PATCH (#495)
 import { initBusyCloseReplies } from "./moltenterm-busy-close"; // MOLTENTERM-PATCH (#490)
 import { askQuitStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
 import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
@@ -388,6 +389,7 @@ globalEvents.on("windows-updated", () => {
 });
 
 async function appMain() {
+    installBackgroundMode(); // MOLTENTERM-PATCH (#495): test instances never take the focus (MOLTENTERM_BACKGROUND=1)
     // Set disableHardwareAcceleration as early as possible, if required.
     const launchSettings = getLaunchSettings();
     if (launchSettings?.["window:disablehardwareacceleration"]) {

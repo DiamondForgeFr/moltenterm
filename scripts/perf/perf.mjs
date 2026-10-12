@@ -5,7 +5,7 @@
 // MoltenTerm performance harness (FR-PERF-006). See scripts/perf/README.md.
 //
 //   node scripts/perf/perf.mjs run [--profile full|quick|ci] [--scenarios a,b] [--out dir] [--id name] [--gate ci|local]
-//                                [--tmp dir] [--keep] [--baseline file] [--app checkout]
+//                                [--tmp dir] [--keep] [--baseline file] [--app checkout] [--foreground]
 //   node scripts/perf/perf.mjs check <report.json> [--scope ci|local] [--baseline file]
 //   node scripts/perf/perf.mjs compare <a.json> <b.json>
 //   node scripts/perf/perf.mjs baseline <report.json> [--id name]
@@ -19,7 +19,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { disposeAll, installCleanupHandlers, sweepStaleRoots } from "./lib/instance.mjs";
+import { disposeAll, installCleanupHandlers, setBackgroundMode, sweepStaleRoots } from "./lib/instance.mjs";
 import { compareReports, evaluate, renderCompare, renderMarkdown } from "./lib/report.mjs";
 import { finalize, Profiles, Runners } from "./lib/scenarios.mjs";
 
@@ -112,6 +112,7 @@ async function cmdRun(opts) {
       throw new Error(`unknown scenario ${s} (${Object.keys(Runners).join(", ")})`);
     }
   }
+  setBackgroundMode(!opts.foreground);
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const outDir = path.resolve(opts.out ?? path.join(RepoRoot, "dist", "perf", `${stamp}-${profileName}`));
   fs.mkdirSync(outDir, { recursive: true });
@@ -127,6 +128,7 @@ async function cmdRun(opts) {
       harnessCommit: git(["rev-parse", "--short=8", "HEAD"]),
       profile: profileName,
       scenarios,
+      background: !opts.foreground,
       startedAt: new Date(started).toISOString(),
       durationS: null,
       machine: machine(),
