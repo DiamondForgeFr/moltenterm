@@ -39,7 +39,6 @@ import {
     BulkOptions,
     BulkResult,
     BulkRunners,
-    bulkSummary,
     checkState,
     CheckState,
     pruneSelected,
@@ -47,6 +46,7 @@ import {
     runBulk,
     toggleAll,
     toggleSelected,
+    unseenBulkSummary,
 } from "./sessions-bulk";
 import { BulkDialog, CleanupDialog, EndSessionDialog } from "./sessions-dialogs";
 import {
@@ -782,12 +782,16 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
         }
     };
 
-    const closeBulk = (action: BulkAction, results: BulkResult[]) => {
+    // The results dialog showed every result: closing it adds no toast (#439).
+    const closeBulk = () => {
         closeDialog();
-        if (results.length === 0) {
+    };
+
+    const reportUnseenBulk = (action: BulkAction, results: BulkResult[]) => {
+        const summary = unseenBulkSummary(action, results, false);
+        if (summary == null) {
             return;
         }
-        const summary = bulkSummary(action, results);
         showToast({ kind: ToastKinds[summary.tone], title: summary.title, message: summary.detail || undefined });
     };
 
@@ -984,7 +988,8 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                     action={dialog.action}
                     sessions={bulkSessions}
                     home={home}
-                    onClose={(results) => closeBulk(dialog.action, results)}
+                    onClose={closeBulk}
+                    onUnseen={(results) => reportUnseenBulk(dialog.action, results)}
                     run={runBulkDialog(dialog.action)}
                 />
             ) : null}

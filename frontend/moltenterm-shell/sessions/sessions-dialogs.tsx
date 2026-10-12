@@ -253,12 +253,14 @@ export function BulkDialog({
     sessions,
     home,
     onClose,
+    onUnseen,
     run,
 }: {
     action: BulkAction;
     sessions: DurableSession[];
     home: string;
     onClose: (results: BulkResult[]) => void;
+    onUnseen?: (results: BulkResult[]) => void;
     run: (items: BulkItem[], opts: BulkOptions, onResult: (r: BulkResult) => void) => Promise<BulkResult[]>;
 }) {
     const [phase, setPhase] = useState<BulkPhase>("confirm");
@@ -275,12 +277,25 @@ export function BulkDialog({
     const hasClaude = items.some((i) => !i.skip && i.session.agent === "claude");
     const close = () => onClose(done);
     useEscape(phase !== "running", close);
+    // The dialog can go while its run goes on (the view closes, or every session it lists ended): the run then
+    // reports through onUnseen instead (#439).
+    const mounted = useRef(true);
+    useEffect(
+        () => () => {
+            mounted.current = false;
+        },
+        []
+    );
     const confirm = async () => {
         setFrozen(items);
         setPhase("running");
         const all = await run(items, { command, mode }, (r) => {
             setResults((prev) => ({ ...prev, [r.id]: r }));
         });
+        if (!mounted.current) {
+            onUnseen?.(all);
+            return;
+        }
         setDone(all);
         setPhase("results");
     };
