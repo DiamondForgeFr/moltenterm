@@ -27,6 +27,14 @@ const (
 	// The SessionStart hook of agent-states.md, byte for byte: an identical handler in the user's settings runs once.
 	ClaudeSessionHookCommand = `[ -n "$WAVETERM_BLOCKID" ] && molten agent session --agent claude --stdin || true`
 	ClaudeSessionHookEvent   = "SessionStart"
+
+	// What the PermissionRequest hook runs (FR-SHELL-063, DS-SHELL-110): it answers allow while the pane's workspace
+	// has its coffee on, nothing otherwise. A configuration that runs it answers its prompts itself.
+	agentPermissionHookCommand  = "molten agent permission"
+	ClaudePermissionHookCommand = `[ -n "$WAVETERM_BLOCKID" ] && molten agent permission --agent claude || true`
+	ClaudePermissionHookEvent   = "PermissionRequest"
+	// Seconds: the command waits 5 s at most for wavesrv; Claude Code shows its prompt meanwhile.
+	ClaudePermissionHookTimeout = 15
 )
 
 // Kinds of what the launcher adds to a run.
@@ -38,6 +46,8 @@ const (
 	IntegrationBrowser = "browser"
 	// Codex's notify, run through `molten agent notify` around the user's own (FR-SHELL-038).
 	IntegrationNotify = "notify"
+	// The PermissionRequest hook that answers the agent's prompts while a coffee holds (FR-SHELL-063).
+	IntegrationCoffeeApproval = "coffeeapproval"
 )
 
 // IntegrationItem is one thing added to a run, or left out (Reason says why, in plain words).
@@ -134,6 +144,37 @@ func IsAgentStateHookCommand(command string) bool {
 // IsAgentSessionHookCommand tells whether a hook command links the session (any variant of agent-states.md's).
 func IsAgentSessionHookCommand(command string) bool {
 	return strings.Contains(command, agentSessionHookCommand)
+}
+
+// IsAgentPermissionHookCommand tells whether a hook command answers permission requests through MoltenTerm.
+func IsAgentPermissionHookCommand(command string) bool {
+	return strings.Contains(command, agentPermissionHookCommand)
+}
+
+// HasCoffeeApproval tells whether the run got the PermissionRequest hook of the coffee approvals.
+func (r AgentIntegrationReport) HasCoffeeApproval() bool {
+	if r.StepAside != "" {
+		return false
+	}
+	for _, it := range r.Added {
+		if it.Kind == IntegrationCoffeeApproval {
+			return true
+		}
+	}
+	return false
+}
+
+// CoffeeApprovalSkipped is why the launcher left the hook out of the run, "" when it did not say.
+func (r AgentIntegrationReport) CoffeeApprovalSkipped() string {
+	if r.StepAside != "" {
+		return r.StepAside
+	}
+	for _, it := range r.Skipped {
+		if it.Kind == IntegrationCoffeeApproval {
+			return it.Reason
+		}
+	}
+	return ""
 }
 
 // IsStatusLineRelayCommand tells whether a status line command already runs the relay.

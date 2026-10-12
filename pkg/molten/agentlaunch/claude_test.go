@@ -68,6 +68,7 @@ type generatedSettings struct {
 		Hooks   []struct {
 			Type    string `json:"type"`
 			Command string `json:"command"`
+			Timeout int    `json:"timeout"`
 		} `json:"hooks"`
 	} `json:"hooks"`
 	StatusLine map[string]any `json:"statusLine"`
@@ -186,7 +187,13 @@ func TestClaudePlanEmptySettings(t *testing.T) {
 			t.Errorf("the generated settings set %q", key)
 		}
 	}
-	if got := itemKinds(plan.Added); !slices.Equal(got, []string{molten.IntegrationStateHooks, molten.IntegrationSession, molten.IntegrationStatusLine}) {
+	if got := hookCommands(gen, molten.ClaudePermissionHookEvent); !slices.Equal(got, []string{molten.ClaudePermissionHookCommand}) {
+		t.Errorf("PermissionRequest: %q", got)
+	}
+	if h := gen.Hooks[molten.ClaudePermissionHookEvent][0].Hooks[0]; h.Timeout != molten.ClaudePermissionHookTimeout || h.Type != "command" {
+		t.Errorf("PermissionRequest handler %+v", h)
+	}
+	if got := itemKinds(plan.Added); !slices.Equal(got, []string{molten.IntegrationStateHooks, molten.IntegrationSession, molten.IntegrationCoffeeApproval, molten.IntegrationStatusLine}) {
 		t.Errorf("added %v", got)
 	}
 	args := plan.MakeArgs([]string{"/data/claude-x.json"})
@@ -284,6 +291,55 @@ func TestClaudePlanSkipsUserHooks(t *testing.T) {
 	}
 }
 
+// FR-SHELL-063 (TC-SHELL-131): the user's own PreToolUse validator stays theirs, and the coffee approvals' handler is
+// added next to it; a user copy of the handler is left in charge.
+func TestClaudePlanCoffeeApprovalHook(t *testing.T) {
+	tree := makeFakeTree(t)
+	validator := `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bun ~/.claude/scripts/command-validator/src/cli.ts"}]}]}}`
+	tree.write(t, tree.userSettings(), validator)
+	plan, gen, _ := planOf(t, tree.ctx())
+	if _, ok := gen.Hooks["PreToolUse"]; ok {
+		t.Fatalf("the user's PreToolUse hook must not be copied: %v", gen.Hooks["PreToolUse"])
+	}
+	if got := hookCommands(gen, molten.ClaudePermissionHookEvent); !slices.Equal(got, []string{molten.ClaudePermissionHookCommand}) {
+		t.Fatalf("PermissionRequest: %q", got)
+	}
+	if !slices.Contains(itemKinds(plan.Added), molten.IntegrationCoffeeApproval) {
+		t.Fatalf("added %v", plan.Added)
+	}
+	if data, _ := os.ReadFile(tree.userSettings()); string(data) != validator {
+		t.Fatalf("the user's file changed: %s", data)
+	}
+
+	tree.write(t, tree.userSettings(), `{"hooks":{"PermissionRequest":[{"hooks":[{"type":"command","command":"molten agent permission --agent claude"}]}]}}`)
+	plan, gen, _ = planOf(t, tree.ctx())
+	if _, ok := gen.Hooks[molten.ClaudePermissionHookEvent]; ok {
+		t.Fatalf("PermissionRequest is the user's: %v", gen.Hooks[molten.ClaudePermissionHookEvent])
+	}
+	var name string
+	for _, it := range plan.Added {
+		if it.Kind == molten.IntegrationCoffeeApproval {
+			name = it.Name
+		}
+	}
+	if !strings.Contains(name, "~/.claude/settings.json") {
+		t.Fatalf("added %v", plan.Added)
+	}
+	if report := (molten.AgentIntegrationReport{Added: plan.Added, Skipped: plan.Skipped}); !report.HasCoffeeApproval() {
+		t.Fatalf("the user's own hook answers the prompts: %+v", report)
+	}
+
+	tree.write(t, tree.managed, `{"allowManagedHooksOnly":true}`)
+	plan, _, _ = planOf(t, tree.ctx())
+	report := molten.AgentIntegrationReport{Added: plan.Added, Skipped: plan.Skipped}
+	if report.HasCoffeeApproval() || !strings.Contains(report.CoffeeApprovalSkipped(), "managed") {
+		t.Fatalf("managed hooks only: %+v", report)
+	}
+	if report := (molten.AgentIntegrationReport{StepAside: "disableAllHooks is on"}); report.CoffeeApprovalSkipped() != "disableAllHooks is on" {
+		t.Fatalf("step aside: %+v", report)
+	}
+}
+
 func TestClaudePlanStepsAsideOrLeavesOut(t *testing.T) {
 	tree := makeFakeTree(t)
 	tree.write(t, tree.userSettings(), `{"disableAllHooks": true}`)
@@ -303,7 +359,7 @@ func TestClaudePlanStepsAsideOrLeavesOut(t *testing.T) {
 	if len(plan.Files) != 0 || gen.StatusLine != nil {
 		t.Fatalf("managed status line and hooks only: %+v", plan)
 	}
-	if got := itemKinds(plan.Skipped); !slices.Equal(got, []string{molten.IntegrationStateHooks, molten.IntegrationSession, molten.IntegrationStatusLine, molten.IntegrationBrowser}) {
+	if got := itemKinds(plan.Skipped); !slices.Equal(got, []string{molten.IntegrationStateHooks, molten.IntegrationSession, molten.IntegrationCoffeeApproval, molten.IntegrationStatusLine, molten.IntegrationBrowser}) {
 		t.Fatalf("skipped %v", got)
 	}
 	os.Remove(tree.managed)
