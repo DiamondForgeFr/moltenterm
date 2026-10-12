@@ -302,18 +302,35 @@ func hookWhere(sources []settingsSource, event string, match func(string) bool) 
 type plannedHook struct {
 	event   string
 	command string
+	// timeout in seconds, 0 for Claude Code's default.
+	timeout int
 }
 
-// planClaudeHooks adds the state hooks and the session link, except the events the user's files already wire to
-// MoltenTerm.
+const coffeeApprovalName = "Coffee approvals"
+
+// planClaudeHooks adds the state hooks, the session link and the coffee approvals' PermissionRequest hook
+// (FR-SHELL-063), except what the user's files already wire to MoltenTerm.
 func planClaudeHooks(managed settingsSource, sources []settingsSource, plan *LaunchPlan) []plannedHook {
 	if only, _ := managed.boolKey("allowManagedHooksOnly"); only {
 		reason := "your organization's managed settings allow only their own hooks"
 		plan.Skipped = append(plan.Skipped,
 			molten.IntegrationItem{Kind: molten.IntegrationStateHooks, Name: "Agent state hooks", Reason: reason},
-			molten.IntegrationItem{Kind: molten.IntegrationSession, Name: "Session link", Reason: reason})
+			molten.IntegrationItem{Kind: molten.IntegrationSession, Name: "Session link", Reason: reason},
+			molten.IntegrationItem{Kind: molten.IntegrationCoffeeApproval, Name: coffeeApprovalName, Reason: reason})
 		return nil
 	}
+	hooks := planClaudeStateHooks(managed, sources, plan)
+	all := append([]settingsSource{managed}, sources...)
+	if where := hookWhere(all, molten.ClaudePermissionHookEvent, molten.IsAgentPermissionHookCommand); where != "" {
+		// The user's own copy answers the prompts just the same: the run is reported as covered, by their hook.
+		plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationCoffeeApproval, Name: coffeeApprovalName + " (your own hook, in " + where + ")"})
+		return hooks
+	}
+	plan.Added = append(plan.Added, molten.IntegrationItem{Kind: molten.IntegrationCoffeeApproval, Name: coffeeApprovalName})
+	return append(hooks, plannedHook{event: molten.ClaudePermissionHookEvent, command: molten.ClaudePermissionHookCommand, timeout: molten.ClaudePermissionHookTimeout})
+}
+
+func planClaudeStateHooks(managed settingsSource, sources []settingsSource, plan *LaunchPlan) []plannedHook {
 	all := append([]settingsSource{managed}, sources...)
 	var hooks []plannedHook
 	var added, skipped []string
@@ -476,9 +493,11 @@ func claudeSettingsJSON(flag map[string]json.RawMessage, hooks []plannedHook, st
 			}
 		}
 		for _, h := range hooks {
-			events[h.event] = append(events[h.event], map[string]any{
-				"hooks": []any{map[string]any{"type": "command", "command": h.command}},
-			})
+			handler := map[string]any{"type": "command", "command": h.command}
+			if h.timeout > 0 {
+				handler["timeout"] = h.timeout
+			}
+			events[h.event] = append(events[h.event], map[string]any{"hooks": []any{handler}})
 		}
 		doc["hooks"] = events
 	}
