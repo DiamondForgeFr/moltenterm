@@ -175,6 +175,7 @@ function RailButton({
     // Read live: the icon can change from the editor or from molten while the rail's list is not refreshed.
     const [workspace] = useWaveObjectValue<Workspace>(makeORef("workspace", entry.id));
     const coffee = useAtomValue(KeepAwakeModel.getInstance().coffeeAtom(entry.id));
+    const approvalLines = useAtomValue(KeepAwakeModel.getInstance().approvalLinesAtom(entry.id));
     const agent = useAtomValue(AgentStates.getInstance().workspaceAtom(entry.id));
     const { isOpen, hostProps } = useRailTrayHost(entry.id, entry.saved);
     const platform = usePlatform();
@@ -284,7 +285,7 @@ function RailButton({
             ? {
                   kind: "coffee",
                   label: railCoffeeLabel(entry.name, true, platform),
-                  tooltip: coffeeTooltip(coffee, entry.name, platform, Date.now()),
+                  tooltip: [coffeeTooltip(coffee, entry.name, platform, Date.now()), ...approvalLines].join("\n"),
                   pressed: true,
                   onActivate: () => setCoffee(false),
               }
