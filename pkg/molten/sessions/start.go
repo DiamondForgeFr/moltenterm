@@ -157,7 +157,7 @@ func reconnectAtStartup(data molten.DurableSessionsData) {
 	log.Printf("molten: %d/%d durable sessions reconnected at startup\n", ok, len(ids))
 }
 
-func firstBuild(model *Model) {
+func firstBuild(model *Model, src *liveSources, welcome *welcomeBackRun) {
 	defer func() {
 		panichandler.PanicHandler("molten:sessions:firstbuild", recover())
 	}()
@@ -171,12 +171,14 @@ func firstBuild(model *Model) {
 	log.Printf("molten: %d durable sessions, first build in %dms\n", len(data.Sessions), time.Since(started).Milliseconds())
 	reconnectAtStartup(data)
 	model.Trigger()
+	welcome.finish(src)
 }
 
 // Start registers the route and the listeners (microseconds), then builds the list in the background; wavesrv calls it
 // at startup, from Mission Control's start.
 func Start() {
 	startOnce.Do(func() {
+		welcome := startWelcomeBack()
 		src := makeLiveSources()
 		model := MakeModel(src.Build, publishSessions)
 		link := &routeLink{output: make(chan []byte, routeQueueSize), model: model, actions: MakeActions(model, liveOps{}), localSource: localSourceOnLink}
@@ -185,6 +187,6 @@ func Start() {
 		}
 		watch(model)
 		go model.Run(context.Background())
-		go firstBuild(model)
+		go firstBuild(model, src, welcome)
 	})
 }

@@ -10,6 +10,9 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
+import { registerNotificationGesture } from "../notifications-store";
+import { openMoltentermView } from "../open-view";
+import { showPane } from "./pane-focus";
 import { AgentRestartCommand, AgentRestartOutcome, AgentRestartRequest, AgentRestartRoute } from "./sessions-bulk";
 import {
     applySessions,
@@ -21,12 +24,17 @@ import {
     DurableSessionsReconnectCommand,
     DurableSessionsRoute,
     DurableSessionsShowCommand,
+    MoltentermSessionsView,
     RailBadge,
     railBadge,
     SessionEndResult,
     SessionLocation,
     SessionsCleanupResult,
 } from "./sessions-model";
+
+// must match pkg/molten/sessions/welcomeback.go
+export const ShowSessionGesture = "sessions:show";
+export const OpenSessionsGesture = "sessions:open";
 
 const SnapshotTimeoutMs = 5000;
 const SnapshotRetryMs = 2000;
@@ -88,6 +96,7 @@ export class DurableSessions {
             console.log("sessions: no event bus", e);
             return;
         }
+        this.registerWelcomeBackGestures();
         let tries = 0;
         const load = () => {
             fireAndForget(async () => {
@@ -107,6 +116,25 @@ export class DurableSessions {
             });
         };
         load();
+    }
+
+    // Welcome back's buttons (FR-SHELL-019, pkg/molten/sessions/welcomeback.go): a line's session, or the whole list.
+    private registerWelcomeBackGestures(): void {
+        registerNotificationGesture(ShowSessionGesture, async (args) => {
+            const id = typeof args?.id === "string" ? args.id : "";
+            if (!id) {
+                return { ok: false, error: "No session given." };
+            }
+            const loc = await this.show(id);
+            if (loc != null && !loc.created) {
+                showPane(loc);
+            }
+            return { ok: true };
+        });
+        registerNotificationGesture(OpenSessionsGesture, async () => {
+            await openMoltentermView(MoltentermSessionsView);
+            return { ok: true };
+        });
     }
 
     private call<T>(command: string, data: any, timeout = ActionTimeoutMs): Promise<T> {
