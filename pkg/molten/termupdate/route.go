@@ -15,6 +15,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
@@ -169,6 +170,13 @@ func makeService() *service {
 		},
 		WatchPrompt: s.prompts.watch,
 		InputState:  s.inputs.state,
+		EffortLevels: func(agent string, model string) []string {
+			return agentcontinuity.EffortLevels(agentEnv(), agent, model)
+		},
+		EffortKeysRemapped: func(agent string) bool {
+			return agentcontinuity.EffortKeysRemapped(agentEnv(), agent)
+		},
+		ClearEffort: attention.ClearAgentEffort,
 	})
 	return s
 }

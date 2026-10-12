@@ -47,6 +47,14 @@ describe("the companion's session bar (DS-SHELL-060)", () => {
         expect(html).not.toContain(">guessed<");
     });
 
+    it("shows the model and effort beside the agent, and nothing when unknown (#549)", () => {
+        const html = renderToStaticMarkup(<SessionBar view={guessed} modelEffort="Opus · high" onHistory={noop} />);
+        expect(html).toContain('data-testid="companion-model-effort">Opus · high<');
+        expect(renderToStaticMarkup(<SessionBar view={guessed} onHistory={noop} />)).not.toContain(
+            "companion-model-effort"
+        );
+    });
+
     it("explains a guess and offers another session, never for a hook link", () => {
         const html = renderToStaticMarkup(<GuessNotice session={guessed.session} onHistory={noop} />);
         expect(html).toContain("started after this terminal");

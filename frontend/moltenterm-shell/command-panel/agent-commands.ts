@@ -27,6 +27,7 @@ export type AgentInputRequest = {
     action: string;
     mode?: string;
     confirmeddraft?: boolean;
+    effort?: string;
 };
 
 export type AgentInputReason =
@@ -37,7 +38,8 @@ export type AgentInputReason =
     | "unknownaction"
     | "noagent"
     | "busy"
-    | "unavailable";
+    | "unavailable"
+    | "effortunknown";
 
 export type AgentInputResult = {
     result: "sent" | "refused";
@@ -49,6 +51,7 @@ export type AgentInputResult = {
     program?: string;
     mode?: string;
     presses?: number;
+    effort?: string;
 };
 
 export type AgentInputInfo = {
@@ -57,11 +60,16 @@ export type AgentInputInfo = {
     mode?: string;
     modes?: string[];
     draft?: boolean;
+    // The run's effort level and the levels MoltenTerm can set (#549); no levels: the agent's own picker only.
+    effort?: string;
+    efforts?: string[];
 };
 
 // must match pkg/molten/agentcontinuity/commands.go
 export const PermissionModeAction = "permissionmode";
 export const InterruptAction = "interrupt";
+export const EffortAction = "effort";
+export const ModelAction = "model";
 
 export type AgentCommandDef = {
     action: string;
@@ -109,9 +117,13 @@ export const CodexCommands: AgentCommandDef[] = [
     { action: "quit", label: "Quit", icon: "right-from-bracket", command: "/exit", keywords: ["exit"] },
 ];
 
-const Tables: Record<string, { commands: AgentCommandDef[]; modes: boolean }> = {
-    claude: { commands: ClaudeCommands, modes: true },
-    codex: { commands: CodexCommands, modes: false },
+// How an agent takes an effort level (#549), told in the submenu: Claude Code keeps what /effort sets as its default
+// for new sessions (max excepted); Codex's effort keys change this session only.
+export type EffortStyle = "claude" | "codex";
+
+const Tables: Record<string, { commands: AgentCommandDef[]; modes: boolean; effort?: EffortStyle }> = {
+    claude: { commands: ClaudeCommands, modes: true, effort: "claude" },
+    codex: { commands: CodexCommands, modes: false, effort: "codex" },
 };
 
 export function agentCommandTable(agent: string): AgentCommandDef[] {
@@ -144,7 +156,57 @@ export function agentName(agent: AgentStateInfo): string {
 export type AgentCommandHandlers = {
     run: (action: string) => Promise<PanelActionResult>;
     setMode: (mode: string) => Promise<PanelActionResult>;
+    setEffort?: (effort: string) => Promise<PanelActionResult>;
 };
+
+function effortDetail(style: EffortStyle, level: string): string {
+    if (style === "codex" || level === "max") {
+        return "This session";
+    }
+    return "Saved as your default";
+}
+
+// The Effort entry below Model (#549): the level the agent reported on the right, its levels in the submenu. Codex
+// without a known level (before its first turn, or with its effort keys moved) offers its own picker instead.
+export function effortItem(
+    agent: AgentStateInfo,
+    info: AgentInputInfo,
+    style: EffortStyle,
+    handlers: AgentCommandHandlers
+): PanelChoice {
+    const current = agent?.effort || info?.effort || "";
+    const levels = info?.efforts ?? [];
+    let options: PanelChoiceOption[] = levels.map((level) => ({
+        id: `effort:${level}`,
+        label: level,
+        detail: effortDetail(style, level),
+        checked: level === current,
+        run: () => handlers.setEffort?.(level),
+    }));
+    if (options.length === 0) {
+        options = [
+            {
+                id: "effort:model",
+                label: style === "codex" ? `Choose in ${agentName(agent)}` : "Choose a level",
+                detail: "/model",
+                checked: false,
+                run: () => handlers.run(ModelAction),
+            },
+        ];
+        if (current) {
+            options.unshift({ id: `effort:${current}`, label: current, checked: true, disabled: true });
+        }
+    }
+    return {
+        id: "agent:effort",
+        type: "choice",
+        label: "Effort",
+        icon: "gauge-high",
+        keywords: ["effort", "reasoning", "thinking", "/effort", ...levels],
+        awaitResult: true,
+        options,
+    };
+}
 
 export function permissionModeItem(info: AgentInputInfo, handlers: AgentCommandHandlers): PanelChoice {
     const current = info?.mode ?? "";
@@ -204,6 +266,9 @@ export function agentSection(
             awaitResult: true,
             run: () => handlers.run(def.action),
         });
+        if (def.action === ModelAction && table.effort != null) {
+            items.push(effortItem(agent, info, table.effort, handlers));
+        }
     }
     const state = agent.state && agent.state !== "idle" ? agentStateLabel(agent.state) : null;
     return {
@@ -237,6 +302,7 @@ export function agentSuggestions(agent: AgentStateInfo): PanelSuggestion[] {
 export type FeedbackHandlers = {
     interrupt: () => Promise<PanelActionResult>;
     confirmDraft: () => Promise<PanelActionResult>;
+    openModel?: () => Promise<PanelActionResult>;
 };
 
 // What the panel does with wavesrv's answer: close on a command sent, or say why nothing was typed and offer what
@@ -256,6 +322,10 @@ export function feedbackFor(
         };
     }
     if (result.result === "sent") {
+        if (action === EffortAction && result.presses > 0) {
+            // Codex's effort keys: the header shows the level from the agent's next turn, and says nothing until then.
+            return { id: "agent:effort", tone: "muted", role: "alert", message: result.message };
+        }
         if (action !== PermissionModeAction) {
             return "close";
         }
@@ -292,6 +362,16 @@ export function feedbackFor(
                     { id: "cancel", label: "Cancel", run: () => "dismiss" },
                     { id: "confirm", label: "Clear and send", primary: true, run: handlers.confirmDraft },
                 ],
+            };
+        case "effortunknown":
+            return {
+                id: "agent:effortunknown",
+                tone: "warning",
+                role: "alert",
+                message: result.message,
+                actions: handlers.openModel
+                    ? [{ id: "model", label: "Open /model", primary: true, run: handlers.openModel }]
+                    : undefined,
             };
         default:
             return {

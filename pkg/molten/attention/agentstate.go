@@ -139,6 +139,8 @@ type agentRecord struct {
 	pidStart int64
 	// fromActivity: the working state came from the pane's output activity (agentactivity.go), which also ends it.
 	fromActivity bool
+	// settings: the run's model and effort level as the agent reported them (#549); a new record starts without.
+	settings molten.AgentSettings
 }
 
 type noticeMark struct {
@@ -349,6 +351,7 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		rec.located = false
 		rec.source = sourceHook
 		rec.pid, rec.pidStart = 0, 0
+		rec.settings = molten.AgentSettings{}
 		a.markDirtyLocked(req.BlockId)
 	}
 	if !req.TurnEnd {
@@ -449,7 +452,36 @@ func (a *agentStates) infoLocked(blockId string, rec *agentRecord) molten.AgentS
 		Since:       rec.since,
 		Version:     rec.version,
 		Hooked:      a.hookedAgents[rec.agent],
+		Model:       rec.settings.Model,
+		ModelName:   rec.settings.ModelName,
+		Effort:      rec.settings.Effort,
 	}
+}
+
+// setSettings records what an agent reports of its run's model and effort (#549) for the block's running agent of
+// that id; a report for another agent, or a block without one, changes nothing.
+func (a *agentStates) setSettings(blockId string, agent string, settings molten.AgentSettings) bool {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	rec := a.records[blockId]
+	if rec == nil || !rec.running || rec.agent != agent || rec.settings == settings {
+		return false
+	}
+	rec.settings = settings
+	a.markDirtyLocked(blockId)
+	return true
+}
+
+// clearEffort forgets the run's effort level: MoltenTerm just changed it and the agent has not reported the new one.
+func (a *agentStates) clearEffort(blockId string, agent string) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	rec := a.records[blockId]
+	if rec == nil || rec.agent != agent || rec.settings.Effort == "" {
+		return
+	}
+	rec.settings.Effort = ""
+	a.markDirtyLocked(blockId)
 }
 
 // agentHookedLocked notes the first report of an agent's hooks: every terminal running it is published again, so
@@ -660,7 +692,7 @@ func (a *agentStates) runOf(blockId string) (molten.AgentRunInfo, bool) {
 	if rec == nil {
 		return molten.AgentRunInfo{}, false
 	}
-	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart}, true
+	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings}, true
 }
 
 func (a *agentStates) allRuns() []molten.AgentRunInfo {
@@ -671,6 +703,16 @@ func (a *agentStates) allRuns() []molten.AgentRunInfo {
 		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart})
 	}
 	return rtn
+}
+
+// SetAgentSettings records the model and effort level a block's agent reports for its run (#549).
+func SetAgentSettings(blockId string, agent string, settings molten.AgentSettings) {
+	defaultAgentStates.setSettings(blockId, agent, settings)
+}
+
+// ClearAgentEffort forgets a block's effort level until its agent reports it again (#549).
+func ClearAgentEffort(blockId string, agent string) {
+	defaultAgentStates.clearEffort(blockId, agent)
 }
 
 func AgentStatesSnapshot() []molten.AgentStateInfo {

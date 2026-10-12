@@ -268,8 +268,20 @@ type AgentStateInfo struct {
 	Version     int64  `json:"version"`
 	// Hooked: this agent's hooks reported in this run of MoltenTerm, in any terminal (the hook setup offer, #221).
 	Hooked bool `json:"hooked,omitempty"`
+	// Model, ModelName, Effort: the run's model and effort level as the agent last reported them (#549: Claude Code's
+	// status line, Codex's last turn), "" when unknown; never a guess.
+	Model     string `json:"model,omitempty"`
+	ModelName string `json:"modelname,omitempty"`
+	Effort    string `json:"effort,omitempty"`
 	// Cleared: the block has no agent any more.
 	Cleared bool `json:"cleared,omitempty"`
+}
+
+// AgentSettings is a run's model and effort level as its agent reports them (#549); "" fields are unknown.
+type AgentSettings struct {
+	Model     string
+	ModelName string
+	Effort    string
 }
 
 // AgentRunInfo is what the agent companion (DS-SHELL-019) needs of a block's agent: which one, and since when it runs.
@@ -286,4 +298,6 @@ type AgentRunInfo struct {
 	// reused pid apart. The keep-awake reads its tree's CPU to see background work (#493).
 	Pid        int32
 	PidStartMs int64
+	// Settings: the model and effort level the agent last reported for this run.
+	Settings AgentSettings
 }

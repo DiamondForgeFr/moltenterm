@@ -88,6 +88,11 @@ type Env struct {
 	WatchPrompt func(blockId string) (<-chan struct{}, func())
 	// InputState: what the terminal's input and output tell about its agent (moltenagentinput); nil: nothing known.
 	InputState func(blockId string) AgentInputState
+	// EffortLevels: the effort levels an agent takes for a model, in its order (#549); EffortKeysRemapped: the user
+	// moved the agent's effort keys; ClearEffort: forget a run's effort until its agent reports it again.
+	EffortLevels       func(agent string, model string) []string
+	EffortKeysRemapped func(agent string) bool
+	ClearEffort        func(blockId string, agent string)
 	// Current is the app's shell generation (shellutil.MoltenShellGeneration when 0).
 	Current int
 	Sleep   func(d time.Duration)

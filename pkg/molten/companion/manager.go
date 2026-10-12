@@ -156,6 +156,7 @@ type Manager struct {
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
 	runOf         func(blockId string) (molten.AgentRunInfo, bool)
+	setSettings   func(blockId string, agent string, settings molten.AgentSettings)
 	integrationOf func(blockId string) (molten.AgentIntegrationReport, bool)
 	allRuns       func() []molten.AgentRunInfo
 	blockInfo     func(blockId string) (blockInfo, error)
@@ -463,19 +464,45 @@ func (m *Manager) ReportSession(req molten.AgentSessionRequest) error {
 	if err != nil {
 		return err
 	}
+	if err := m.recordReport(req.BlockId, agent, path); err != nil {
+		return err
+	}
+	m.readSettings(req.BlockId, agent, adapter, path)
+	return nil
+}
+
+func (m *Manager) recordReport(blockId string, agent string, path string) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	if m.reportedByOtherLocked(req.BlockId, path) {
+	if m.reportedByOtherLocked(blockId, path) {
 		return fmt.Errorf("this session belongs to another terminal")
 	}
-	if _, ok := m.reports[req.BlockId]; !ok && len(m.reports) >= maxReports {
+	if _, ok := m.reports[blockId]; !ok && len(m.reports) >= maxReports {
 		m.evictOldestReportLocked()
 	}
-	m.reports[req.BlockId] = sessionReport{agent: agent, path: path, at: m.now()}
-	if w := m.watchers[req.BlockId]; w != nil {
+	m.reports[blockId] = sessionReport{agent: agent, path: path, at: m.now()}
+	if w := m.watchers[blockId]; w != nil {
 		w.poke()
 	}
 	return nil
+}
+
+// readSettings reads the run's model and effort from the session an agent just reported, when its transcript is the
+// only place they are written (Codex's notify links the session at each turn's end, #549): one bounded read per
+// report, in the background, never a poll.
+func (m *Manager) readSettings(blockId string, agent string, adapter Adapter, path string) {
+	reader, ok := adapter.(SettingsReader)
+	if !ok || m.setSettings == nil {
+		return
+	}
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:companion:settings", recover())
+		}()
+		if settings, ok := reader.ReadSettings(path); ok {
+			m.setSettings(blockId, agent, settings)
+		}
+	}()
 }
 
 const (
