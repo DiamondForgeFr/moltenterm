@@ -13,15 +13,23 @@ import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+    ApprovalLogText,
+    approvalSummary,
+    coffeeApprovals,
     coffeeCondition,
     coffeeReason,
+    coffeeSessions,
     coffeeSupported,
     computerName,
+    describeApproval,
     describeAttempt,
+    KeepAwakeCoffee,
     keepAwakeCount,
     KeepAwakeSession,
     keepAwakeSessions,
+    KeepAwakeState,
     policyHoldingLine,
+    sessionWhere,
     SleepPolicy,
     sleepPolicyChoices,
     sleepPolicySentence,
@@ -199,6 +207,9 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
                             </button>
                         </li>
                     ))}
+                    {state.coffees.map((coffee) => (
+                        <CoffeeApprovals key={`approvals-${coffee.workspaceid}`} state={state} coffee={coffee} />
+                    ))}
                 </ul>
             ) : null}
             {sessions.length > 0 ? (
@@ -210,6 +221,62 @@ function KeepAwakePanel({ anchor, onClose }: { anchor: HTMLElement; onClose: () 
             ) : null}
         </div>,
         document.body
+    );
+}
+
+const MaxListedApprovals = 8;
+
+// Under the coffees (FR-SHELL-063, DS-SHELL-112): the agent sessions a coffee answers for or not, and its latest
+// decisions; the log file keeps them all.
+export function CoffeeApprovals({ state, coffee }: { state: KeepAwakeState; coffee: KeepAwakeCoffee }) {
+    const sessions = coffeeSessions(state, coffee.workspaceid);
+    const approvals = coffeeApprovals(state, coffee.workspaceid);
+    if (sessions.length === 0 && approvals.length === 0) {
+        return null;
+    }
+    const name = coffee.workspacename || "Workspace";
+    const summary = approvalSummary(approvals);
+    return (
+        <li aria-label={`Agents' requests in ${name}`} className="flex flex-col gap-1 px-1 pt-1 pb-1.5">
+            <span className="text-11 text-muted">Agents&apos; requests in {name}</span>
+            {sessions.map((s) => (
+                <span key={s.blockid} className="flex items-start gap-1.5 text-11">
+                    <i
+                        className={cn(
+                            "fa fa-solid mt-[2px] text-11",
+                            s.approved ? "fa-check text-[var(--color-awake)]" : "fa-hand text-muted"
+                        )}
+                        aria-hidden
+                    />
+                    <span className="min-w-0 flex-1">
+                        <span className="text-primary">{sessionWhere(s)}</span>
+                        <span className="text-muted">
+                            {s.approved
+                                ? " · approved automatically"
+                                : ` · still asks you${s.reason ? `: ${s.reason}` : ""}`}
+                        </span>
+                    </span>
+                </span>
+            ))}
+            {summary ? <span className="text-11 text-secondary">{summary}</span> : null}
+            {approvals.slice(0, MaxListedApprovals).map((a) => (
+                <span key={a.id} className="flex min-w-0 items-baseline gap-1.5 text-11" title={describeApproval(a)}>
+                    <span className="shrink-0 text-muted">{formatClock(a.at)}</span>
+                    <span className={cn("shrink-0", a.outcome === "approved" ? "text-secondary" : "text-primary")}>
+                        {a.outcome === "approved" ? "approved" : "asked you"}
+                    </span>
+                    <span className="min-w-0 truncate font-mono text-11 text-secondary">{describeApproval(a)}</span>
+                </span>
+            ))}
+            {approvals.some((a) => a.outcome === "asked") ? (
+                <span className="text-11 text-muted">
+                    Left to you: {approvals.find((a) => a.outcome === "asked").reason}
+                </span>
+            ) : null}
+            {approvals.length > 0 ? (
+                <span className="text-11 text-muted">Every decision: {ApprovalLogText}</span>
+            ) : null}
+        </li>
     );
 }
 

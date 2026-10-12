@@ -15,6 +15,7 @@ import { selectAtom } from "jotai/utils";
 import {
     applyKeepAwakeState,
     cleanSleepPolicy,
+    coffeeApprovalLines,
     coffeeOf,
     EmptyKeepAwakeState,
     KeepAwakeCoffee,
@@ -48,12 +49,17 @@ function sameCoffee(a: KeepAwakeCoffee, b: KeepAwakeCoffee): boolean {
     );
 }
 
+function sameLines(a: string[], b: string[]): boolean {
+    return a.length === b.length && a.every((line, i) => line === b[i]);
+}
+
 export class KeepAwakeModel {
     private static instance: KeepAwakeModel = null;
 
     stateAtom = atom(EmptyKeepAwakeState) as PrimitiveAtom<KeepAwakeState>;
     coffeeAtoms = new Map<string, Atom<KeepAwakeCoffee>>();
     anyCoffeeAtoms = new Map<string, Atom<boolean>>();
+    approvalLinesAtoms = new Map<string, Atom<string[]>>();
     started = false;
     refreshTimer: ReturnType<typeof setTimeout> = null;
 
@@ -147,6 +153,20 @@ export class KeepAwakeModel {
                 sameCoffee
             );
             this.coffeeAtoms.set(workspaceId, rtn);
+        }
+        return rtn;
+    }
+
+    // The coffee bud's lines about the agents it approves (FR-SHELL-063); a new approval alone re-renders nothing.
+    approvalLinesAtom(workspaceId: string): Atom<string[]> {
+        let rtn = this.approvalLinesAtoms.get(workspaceId);
+        if (rtn == null) {
+            rtn = selectAtom(
+                this.stateAtom,
+                (state) => (workspaceId == null ? [] : coffeeApprovalLines(state, workspaceId)),
+                sameLines
+            );
+            this.approvalLinesAtoms.set(workspaceId, rtn);
         }
         return rtn;
     }

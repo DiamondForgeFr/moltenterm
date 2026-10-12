@@ -64,6 +64,35 @@ export type KeepAwakeState = {
     coffees: KeepAwakeCoffee[];
     attempts: KeepAwakeAttempt[];
     overrides: KeepAwakeOverride[];
+    autoapprove: KeepAwakeAutoApprove[];
+    approvals: KeepAwakeApproval[];
+};
+
+// must match AutoApproveSession in pkg/molten/keepawake/approve.go (FR-SHELL-063)
+export type KeepAwakeAutoApprove = {
+    workspaceid: string;
+    blockid: string;
+    tabname?: string;
+    agent: string;
+    agentname: string;
+    approved: boolean;
+    reason?: string;
+};
+
+// must match Approval in pkg/molten/keepawake/approve.go
+export type KeepAwakeApproval = {
+    id: string;
+    at: number;
+    workspaceid?: string;
+    workspacename?: string;
+    tabname?: string;
+    blockid: string;
+    agent?: string;
+    sessionid?: string;
+    tool: string;
+    detail?: string;
+    outcome: "approved" | "asked";
+    reason?: string;
 };
 
 export const EmptyKeepAwakeState: KeepAwakeState = {
@@ -73,6 +102,8 @@ export const EmptyKeepAwakeState: KeepAwakeState = {
     coffees: [],
     attempts: [],
     overrides: [],
+    autoapprove: [],
+    approvals: [],
 };
 
 // The newer state wins: events and the first read may cross.
@@ -85,6 +116,8 @@ export function applyKeepAwakeState(current: KeepAwakeState, next: KeepAwakeStat
         coffees: next.coffees ?? [],
         attempts: next.attempts ?? [],
         overrides: next.overrides ?? [],
+        autoapprove: next.autoapprove ?? [],
+        approvals: next.approvals ?? [],
     };
 }
 
@@ -250,4 +283,56 @@ export function cleanSleepPolicy(value: string): SleepPolicy {
 export function describeAttempt(attempt: KeepAwakeAttempt): string {
     const args = (attempt.args ?? []).join(" ");
     return args ? `${attempt.tool} ${args}` : attempt.tool;
+}
+
+// The coffee approvals (FR-SHELL-063, DS-SHELL-112): which agent sessions a coffee answers for, and its decisions.
+export const ApprovalLogText = "molten/coffee-approvals.jsonl in MoltenTerm's data folder";
+
+export function coffeeSessions(state: KeepAwakeState, workspaceId: string): KeepAwakeAutoApprove[] {
+    return (state.autoapprove ?? []).filter((s) => s.workspaceid === workspaceId);
+}
+
+export function sessionWhere(session: KeepAwakeAutoApprove): string {
+    return `${session.agentname || session.agent} in ${session.tabname || "a terminal"}`;
+}
+
+// The lines the coffee bud's tooltip adds: who gets approved, who still asks and why.
+export function coffeeApprovalLines(state: KeepAwakeState, workspaceId: string): string[] {
+    const sessions = coffeeSessions(state, workspaceId);
+    const approved = sessions.filter((s) => s.approved);
+    const asking = sessions.filter((s) => !s.approved);
+    const lines: string[] = [];
+    if (approved.length > 0) {
+        lines.push(`Approves the agents' requests: ${approved.map(sessionWhere).join(", ")}`);
+    }
+    for (const s of asking) {
+        lines.push(`Still asks: ${sessionWhere(s)}${s.reason ? ` (${s.reason})` : ""}`);
+    }
+    return lines;
+}
+
+export function coffeeApprovals(state: KeepAwakeState, workspaceId: string): KeepAwakeApproval[] {
+    return (state.approvals ?? []).filter((a) => a.workspaceid === workspaceId);
+}
+
+export function approvalCounts(approvals: KeepAwakeApproval[]): { approved: number; asked: number } {
+    const approved = approvals.filter((a) => a.outcome === "approved").length;
+    return { approved, asked: approvals.length - approved };
+}
+
+export function describeApproval(approval: KeepAwakeApproval): string {
+    return approval.detail ? `${approval.tool}: ${approval.detail}` : approval.tool;
+}
+
+// One line per counted outcome, "" when nothing was decided yet.
+export function approvalSummary(approvals: KeepAwakeApproval[]): string {
+    const { approved, asked } = approvalCounts(approvals);
+    const parts: string[] = [];
+    if (approved > 0) {
+        parts.push(`${approved} approved`);
+    }
+    if (asked > 0) {
+        parts.push(`${asked} left to you`);
+    }
+    return parts.join(" · ");
 }
