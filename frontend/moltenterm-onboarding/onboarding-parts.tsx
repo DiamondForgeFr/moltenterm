@@ -13,8 +13,20 @@ export function Code({ children }: { children: React.ReactNode }) {
     return <code className="rounded-4 bg-line-strong px-1 font-mono text-12 text-primary">{children}</code>;
 }
 
-export function StepText({ children, className }: { children: React.ReactNode; className?: string }) {
-    return <p className={cn("text-13 leading-5 text-secondary", className)}>{children}</p>;
+export function StepText({
+    children,
+    className,
+    testId,
+}: {
+    children: React.ReactNode;
+    className?: string;
+    testId?: string;
+}) {
+    return (
+        <p className={cn("text-13 leading-5 text-secondary", className)} data-testid={testId}>
+            {children}
+        </p>
+    );
 }
 
 export function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {

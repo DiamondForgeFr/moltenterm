@@ -15,6 +15,7 @@ import {
     OnboardingAgentsCommand,
 } from "./onboarding-agent-model";
 import { OnboardingMorphDirCommand } from "./onboarding-morph-model";
+import { OnboardingProjectsCommand, ProjectCandidate } from "./onboarding-project-model";
 import {
     FirstRunPage,
     FirstRunStepId,
@@ -91,6 +92,16 @@ export async function ensureMorphDir(): Promise<string> {
         { route: OnboardingRoute, timeout: OnboardingCallTimeoutMs }
     );
     return rtn?.path;
+}
+
+// The git repositories under the home folder, scanned by wavesrv once per run.
+export async function scanProjectCandidates(): Promise<ProjectCandidate[]> {
+    const rtn = await TabRpcClient.wshRpcCall(
+        OnboardingProjectsCommand,
+        {},
+        { route: OnboardingRoute, timeout: OnboardingCallTimeoutMs }
+    );
+    return rtn?.projects ?? [];
 }
 
 export function clientMeta(): MetaType {

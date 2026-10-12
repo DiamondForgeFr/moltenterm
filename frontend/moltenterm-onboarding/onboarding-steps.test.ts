@@ -17,11 +17,9 @@ describe("first run steps (FR-SHELL-053-AC4)", () => {
         expect(findFirstRunStep("agent")?.id).toBe("agent");
     });
 
-    it("gives the agent and morph steps their own primary, the placeholders the footer's Next", () => {
-        expect(findFirstRunStep("agent").placeholder).toBeFalsy();
-        expect(findFirstRunStep("morph").placeholder).toBeFalsy();
-        for (const step of ShownFirstRunSteps.filter((s) => s.id !== "agent" && s.id !== "morph")) {
-            expect(step.placeholder, step.id).toBe(true);
+    it("gives every step its own primary: none is a placeholder any more", () => {
+        for (const step of ShownFirstRunSteps) {
+            expect(step.placeholder, step.id).toBeFalsy();
         }
     });
 
