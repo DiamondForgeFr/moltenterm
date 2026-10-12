@@ -1470,6 +1470,7 @@ declare global {
         "moltenterm:tabviewhost"?: boolean;
         "moltenterm:hiddenpagefreeze"?: boolean;
         "moltenterm:hiddenpagediscardmin"?: number;
+        "moltenterm:releasenotify"?: boolean;
         "moltenterm:confirmbusyclose"?: boolean;
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;

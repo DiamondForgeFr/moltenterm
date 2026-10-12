@@ -93,6 +93,8 @@ contextBridge.exposeInMainWorld("api", {
     moltentermUpdateApply: (buildId: number, when: string) =>
         ipcRenderer.invoke("moltenterm-update-apply", buildId, when),
     moltentermUpdateLast: () => ipcRenderer.invoke("moltenterm-update-last"),
+    // MOLTENTERM-PATCH (#188): newer releases on GitHub (emain/moltenterm-release-feed.ts)
+    moltentermReleaseCheck: () => ipcRenderer.invoke("moltenterm-release-check"),
     // MOLTENTERM-PATCH (#300): a browser panel tab's webview, for the agents' DevTools controller (emain/moltenterm-browseragent.ts)
     moltentermRegisterWebview: (blockId: string, browserTabId: string, webContentsId: number) =>
         ipcRenderer.send("moltenterm-webview-registered", blockId, browserTabId, webContentsId),
