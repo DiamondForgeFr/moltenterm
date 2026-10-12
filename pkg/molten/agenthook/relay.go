@@ -18,8 +18,8 @@ import (
 
 // Claude Code's status line relay (FR-SHELL-027, DS-SHELL-031). Claude Code runs it as its statusLine command:
 // it runs the user's own status line command with the same input and environment, so what Claude Code shows does not
-// change, and in a MoltenTerm terminal it also hands the input's rate limit windows, and nothing else, to the pane's
-// companion. Outside MoltenTerm it only runs the command. It never prints anything of its own: any failure of the
+// change, and in a MoltenTerm terminal it also hands the input's rate limit windows, model and effort level (#549), and
+// nothing else, to the pane's companion and header. Outside MoltenTerm it only runs the command. It never prints anything of its own: any failure of the
 // hand-off is ignored, the status line is the user's.
 
 // The whole hand-off, connection included, never holds the status line longer than this.

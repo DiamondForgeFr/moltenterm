@@ -29,6 +29,11 @@ func (m *Manager) HandleStatusLine(req molten.AgentStatusLineRequest) (molten.Ag
 	if req.BlockId == "" {
 		return molten.AgentStatusLineResponse{}, fmt.Errorf("molten agent statusline must run in a MoltenTerm terminal")
 	}
+	// The model and effort level are the pane's header (#549), shown whatever the plan usage setting; the agent
+	// states store only marks a change.
+	if m.setSettings != nil {
+		m.setSettings(req.BlockId, molten.AgentIdClaude, molten.AgentSettings{Model: req.Model, ModelName: req.ModelName, Effort: req.Effort})
+	}
 	if !usage.GaugesOn(m.currentSettings(), "claude") {
 		return molten.AgentStatusLineResponse{Kept: false}, nil
 	}

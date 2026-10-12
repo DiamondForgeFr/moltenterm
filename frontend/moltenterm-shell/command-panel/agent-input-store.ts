@@ -72,7 +72,7 @@ export class AgentInputs {
                 route: AgentInputRoute,
                 timeout: InputTimeoutMs,
             });
-            if (result?.mode != null || req.action === "permissionmode") {
+            if (result?.mode != null || req.action === "permissionmode" || req.action === "effort") {
                 this.infos.delete(req.blockid);
                 this.refresh(req.blockid);
             }

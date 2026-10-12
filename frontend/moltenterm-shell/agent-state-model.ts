@@ -24,6 +24,10 @@ export type AgentStateInfo = {
     since?: number;
     version: number;
     hooked?: boolean;
+    // The run's model and effort level as the agent last reported them (#549), absent when unknown.
+    model?: string;
+    modelname?: string;
+    effort?: string;
     cleared?: boolean;
 };
 
@@ -117,6 +121,30 @@ export function agentStateTitle(info: AgentStateInfo): string {
     const name = info.agentname || info.agent || "Agent";
     const line = `${name}: ${agentStateLabel(info.state)}`;
     return info.message ? `${line}\n${info.message}` : line;
+}
+
+// The model and effort the header and the companion show beside the agent ("Opus · high", #549): only what the agent
+// reported, so an unknown effort shows the model alone and an unknown model nothing.
+export function agentModelEffortLabel(info: AgentStateInfo): string {
+    const model = (info?.modelname || info?.model || "").trim();
+    if (!model) {
+        return "";
+    }
+    const effort = (info?.effort ?? "").trim();
+    return effort ? `${model} · ${effort}` : model;
+}
+
+export function agentModelEffortTitle(info: AgentStateInfo): string {
+    const label = agentModelEffortLabel(info);
+    if (!label) {
+        return "";
+    }
+    const model =
+        info.model && info.modelname && info.model !== info.modelname
+            ? `${info.modelname} (${info.model})`
+            : label.split(" · ")[0];
+    const lines = [`Model: ${model}`, info.effort ? `Effort: ${info.effort}` : "Effort: not reported"];
+    return [...lines, "Click to change the effort level"].join("\n");
 }
 
 // What the header says next to the agent: project and branch, when the pane's folder is known.

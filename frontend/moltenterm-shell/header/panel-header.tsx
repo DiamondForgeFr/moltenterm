@@ -14,7 +14,7 @@ import { Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import type { ReactElement, RefObject } from "react";
 import { useEffect } from "react";
 import { AgentHookOfferHost } from "../agent-hooks-ui";
-import { agentStateTitle } from "../agent-state-model";
+import { agentModelEffortLabel, agentModelEffortTitle, agentStateTitle } from "../agent-state-model";
 import { useBlockAgentState } from "../agent-state-ui";
 import { openCommandPanel } from "../command-panel/command-panel-store";
 import { sessionTooltipLine } from "../companion/companion-model";
@@ -76,6 +76,9 @@ export type MoltenHeaderState = {
     remoteConnection: string;
     remoteTitle: string;
     context: HeaderContextPart[];
+    // The agent's model and effort ("Opus · high", #549), "" when the agent reported neither.
+    modelEffort: string;
+    modelEffortTitle: string;
     pill: HeaderPillSpec;
     working: boolean;
     termHeader: boolean;
@@ -170,6 +173,8 @@ export function useMoltenHeader(input: MoltenHeaderInput): MoltenHeaderState {
         remoteTitle:
             manageConnection && !local ? (pill?.kind === "remote" ? pill.title : `Connected to ${connection}`) : "",
         context,
+        modelEffort: agentModelEffortLabel(agent),
+        modelEffortTitle: agentModelEffortTitle(agent),
         pill,
         working: agent?.state === "working",
         termHeader,
@@ -266,8 +271,23 @@ export function MoltenHeaderLead({
                 )}
             </div>
             {preIcon}
-            {state.context.length > 0 || state.remoteConnection ? (
+            {state.context.length > 0 || state.remoteConnection || (state.modelEffort && !state.preview) ? (
                 <div className="molten-header-context" data-role="molten-header-context">
+                    {state.modelEffort && !state.preview ? (
+                        <button
+                            type="button"
+                            className="molten-header-context-part molten-header-link shrink-0 px-1"
+                            title={state.modelEffortTitle}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                openCommandPanel(blockId, "header", "Effort");
+                            }}
+                            data-testid="molten-header-model-effort"
+                        >
+                            <span className="truncate">{state.modelEffort}</span>
+                        </button>
+                    ) : null}
                     {state.remoteConnection ? (
                         <div
                             ref={connBtnRef}

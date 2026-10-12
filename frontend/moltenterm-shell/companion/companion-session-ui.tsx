@@ -95,10 +95,13 @@ export function SessionHistoryList({
 // The session's name and start time, so the terminal's agent label and this bar can be matched at a glance.
 export function SessionBar({
     view,
+    modelEffort,
     onHistory,
     onIntegration,
 }: {
     view: CompanionView;
+    // The agent's model and effort as it reported them ("Opus · high", #549).
+    modelEffort?: string;
     onHistory: () => void;
     onIntegration?: () => void;
 }) {
@@ -111,6 +114,11 @@ export function SessionBar({
             data-testid="companion-session-bar"
         >
             <span className="shrink-0 font-medium text-secondary">{view.agentname}</span>
+            {modelEffort ? (
+                <span className="shrink-0" data-testid="companion-model-effort">
+                    {modelEffort}
+                </span>
+            ) : null}
             <span className="min-w-0 truncate text-primary" data-testid="companion-session-title">
                 {sessionTitle(session)}
             </span>

@@ -37,10 +37,13 @@ func TestParseStatusLineInput(t *testing.T) {
 		*req.SpendLimit != (StatusLineWindow{UsedPercent: 62.8, ResetsAt: 1740787200}) {
 		t.Errorf("windows: %+v %+v %+v", req.FiveHour, req.SevenDay, req.SpendLimit)
 	}
+	if req.Model != "claude-opus-4-1" || req.ModelName != "Opus" {
+		t.Errorf("the model is kept for the header (#549): %+v", req)
+	}
 	out, _ := json.Marshal(req)
-	for _, kept := range []string{"abc123", "transcript", "Opus", "/w", "314", "monthly"} {
+	for _, kept := range []string{"abc123", "transcript", "/w", "314", "monthly"} {
 		if strings.Contains(string(out), kept) {
-			t.Errorf("only the rate limit windows are sent, found %q in %s", kept, out)
+			t.Errorf("only the rate limit windows, the model and the effort are sent, found %q in %s", kept, out)
 		}
 	}
 

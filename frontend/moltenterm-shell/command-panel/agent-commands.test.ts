@@ -52,6 +52,7 @@ describe("agent command tables", () => {
             "New conversation",
             "Compact",
             "Model",
+            "Effort",
             "Resume",
             "Copy last answer",
             "Status",
@@ -66,8 +67,11 @@ describe("agent command tables", () => {
     it("lists Codex's commands, without a permission mode", () => {
         const section = agentSection(codex, null, handlers);
         expect(section.title).toBe("Agent · Codex");
-        expect(section.items.map((i) => (i as PanelAction).shortcut)).toEqual(CodexCommands.map((c) => c.command));
+        const actions = section.items.filter((i) => i.type === "action");
+        expect(actions.map((i) => (i as PanelAction).shortcut)).toEqual(CodexCommands.map((c) => c.command));
         expect(section.items.some((i) => i.id === "agent:permissionmode")).toBe(false);
+        const ids = section.items.map((i) => i.id);
+        expect(ids.indexOf("agent:effort")).toBe(ids.indexOf("agent:model") + 1);
     });
 
     it("has no section for an agent without a table", () => {

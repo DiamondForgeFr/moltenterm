@@ -17,6 +17,7 @@ const (
 	ActionNew            = "new"
 	ActionCompact        = "compact"
 	ActionModel          = "model"
+	ActionEffort         = "effort"
 	ActionResume         = "resume"
 	ActionCopy           = "copy"
 	ActionStatus         = "status"
@@ -37,11 +38,18 @@ const (
 	CommandMode = "mode"
 	// CommandInterrupt: the agent's interrupt key, the only command sent while the agent works.
 	CommandInterrupt = "interrupt"
+	// CommandEffort: an effort level (#549). With a Text, the slash command the level follows (Ctrl+U, the text and
+	// the level, Enter); without, the agent's effort keys, KeyLower and KeyRaise, one press per level.
+	CommandEffort = "effort"
 )
 
 const (
 	keyShiftTab = "\x1b[Z"
 	keyEscape   = "\x1b"
+	// Codex's default effort shortcuts besides Alt+, and Alt+. (tui/src/keymap.rs): Shift+Down and Shift+Up, CSI
+	// sequences that an Escape read alone can never cut short.
+	keyShiftDown = "\x1b[1;2B"
+	keyShiftUp   = "\x1b[1;2A"
 )
 
 // AgentCommand is one row of an agent's table.
@@ -50,11 +58,14 @@ type AgentCommand struct {
 	Kind   string `json:"kind"`
 	// Text: the slash command, or the raw key of a key, mode or interrupt command.
 	Text string `json:"text"`
+	// KeyLower, KeyRaise: an effort command's keys when it has no Text.
+	KeyLower string `json:"keylower,omitempty"`
+	KeyRaise string `json:"keyraise,omitempty"`
 }
 
 // ClearsLine tells whether the command empties the input line first, which loses an unsent draft.
 func (c AgentCommand) ClearsLine() bool {
-	return c.Kind == CommandSlash
+	return c.Kind == CommandSlash || (c.Kind == CommandEffort && c.Text != "")
 }
 
 var claudeCommands = []AgentCommand{
@@ -62,6 +73,7 @@ var claudeCommands = []AgentCommand{
 	{Action: ActionClear, Kind: CommandSlash, Text: "/clear"},
 	{Action: ActionCompact, Kind: CommandSlash, Text: "/compact"},
 	{Action: ActionModel, Kind: CommandSlash, Text: "/model"},
+	{Action: ActionEffort, Kind: CommandEffort, Text: "/effort"},
 	{Action: ActionResume, Kind: CommandSlash, Text: "/resume"},
 	{Action: ActionCopy, Kind: CommandSlash, Text: "/copy"},
 	{Action: ActionStatus, Kind: CommandSlash, Text: "/status"},
@@ -75,6 +87,7 @@ var codexCommands = []AgentCommand{
 	{Action: ActionNew, Kind: CommandSlash, Text: "/new"},
 	{Action: ActionCompact, Kind: CommandSlash, Text: "/compact"},
 	{Action: ActionModel, Kind: CommandSlash, Text: "/model"},
+	{Action: ActionEffort, Kind: CommandEffort, KeyLower: keyShiftDown, KeyRaise: keyShiftUp},
 	{Action: ActionStatus, Kind: CommandSlash, Text: "/status"},
 	{Action: ActionDiff, Kind: CommandSlash, Text: "/diff"},
 	{Action: ActionInterrupt, Kind: CommandInterrupt, Text: keyEscape},

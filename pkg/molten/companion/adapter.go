@@ -49,6 +49,12 @@ type SessionFinder interface {
 	IsSubagent(path string) bool
 }
 
+// SettingsReader is an adapter whose agent writes its run's model and effort level only in its transcript (#549).
+type SettingsReader interface {
+	// ReadSettings reads them from the end of a transcript; false when it holds none.
+	ReadSettings(path string) (molten.AgentSettings, bool)
+}
+
 // Candidate is a session discovery found for a block.
 type Candidate struct {
 	Path     string `json:"path"`
