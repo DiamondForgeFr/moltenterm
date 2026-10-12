@@ -69,6 +69,44 @@ function lastReachableRelease(git: Git, rules: VersionRules): string {
     return best;
 }
 
+// A commit since the last release, for the version history's "This build" (FR-REL-004).
+export type MoltentermBuildChange = { sha: string; subject: string };
+
+export const MaxBuildChanges = 200;
+
+// The commits since the last release the build contains, newest first, merges and a fork's upstream history left out.
+// A release candidate or a public release is exactly its tag: it lists none.
+export function makeMoltentermBuildChanges(
+    env: Record<string, string> = process.env,
+    git: Git = realGit,
+    readText: ReadText = realReadText
+): MoltentermBuildChange[] {
+    const channel = env.MOLTENTERM_BUILD_CHANNEL || "local";
+    if (channel === "rc" || channel === "public" || !tryGit(git, ["rev-parse", "HEAD"])) {
+        return [];
+    }
+    const rules: VersionRules = readJson(readText, ".molten/project.json")?.versions ?? {};
+    const releaseTag = lastReachableRelease(git, rules);
+    const args = [
+        "log",
+        "--no-merges",
+        `--max-count=${MaxBuildChanges}`,
+        "--format=%h%x09%s",
+        releaseTag ? `${releaseTag}..HEAD` : "HEAD",
+    ];
+    if (tryGit(git, ["remote"]).split("\n").includes("upstream")) {
+        args.push("--not", "--remotes=upstream");
+    }
+    const changes: MoltentermBuildChange[] = [];
+    for (const line of tryGit(git, args).split("\n")) {
+        const tab = line.indexOf("\t");
+        if (tab > 0) {
+            changes.push({ sha: line.slice(0, tab), subject: line.slice(tab + 1) });
+        }
+    }
+    return changes;
+}
+
 export function makeMoltentermBuildInfo(
     env: Record<string, string> = process.env,
     git: Git = realGit,

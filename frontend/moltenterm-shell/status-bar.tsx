@@ -3,7 +3,8 @@
 
 // The status bar: the focused pane's project, branch, local CI verdict and pull request on the left (FR-SHELL-010);
 // the build of Moltenterm that runs as one badge on the right, next to the gold update button (FR-SHELL-008), and the
-// sleep item: the sleep policy, the coffees and the blocks terminals asked for (FR-SHELL-023, #276).
+// sleep item: the sleep policy, the coffees and the blocks terminals asked for (FR-SHELL-023, #276). The badge opens the
+// version history (FR-REL-004).
 
 import { atoms, getApi, openLink } from "@/app/store/global";
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
@@ -17,6 +18,8 @@ import { MoltentermCicdView } from "./mission/cicd-view";
 import { openMoltentermView } from "./open-view";
 import { usePaneStatus, useWarmLinkedProject } from "./pane-status";
 import { openProjectOverview } from "./project/project-tab";
+import { ReleaseNotesHost } from "./releases/release-notes-host";
+import { ReleaseNotesModel } from "./releases/release-notes-store";
 import {
     makePaneView,
     makeStatusBarView,
@@ -147,17 +150,21 @@ export function StatusBar() {
             <span className="ml-auto flex shrink-0 items-center gap-3">
                 <KeepAwakeStatusItem />
                 <GoldUpdateButton />
-                <span
-                    title={view.tooltip}
+                <button
+                    type="button"
+                    title={`${view.tooltip}\n\nRelease notes`}
+                    aria-label={`${view.badge}: release notes`}
                     data-testid="build-badge"
+                    onClick={() => ReleaseNotesModel.getInstance().open()}
                     className={cn(
-                        "inline-flex h-5 items-center rounded-6 border px-2 text-11 font-medium",
+                        "inline-flex h-5 cursor-pointer items-center rounded-6 border px-2 text-11 font-medium hover:bg-hover",
                         ChannelClasses[view.channel]
                     )}
                 >
                     {view.badge}
-                </span>
+                </button>
             </span>
+            <ReleaseNotesHost />
         </footer>
     );
 }

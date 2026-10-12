@@ -10,10 +10,12 @@ import { atoms } from "@/app/store/global";
 import { modalsModel } from "@/app/store/modalmodel";
 import { isDev } from "@/util/isdev";
 import { moltentermProductNameFor, MoltentermRepoUrl, MoltentermTagline } from "@/util/moltenterm-identity";
+import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useMemo } from "react";
 import type { BuildIdentity } from "../../moltenterm-shell/build/build-identity";
 import { currentBuildIdentity } from "../../moltenterm-shell/build/current-build";
+import { ReleaseNotesModel } from "../../moltenterm-shell/releases/release-notes-store";
 import { Modal } from "./modal";
 
 const WaveTerminalRepoUrl = "https://github.com/wavetermdev/waveterm";
@@ -28,6 +30,11 @@ interface MoltentermAboutModalVProps {
 
 const MoltentermAboutModalV = ({ identity, onClose }: MoltentermAboutModalVProps) => {
     const currentYear = new Date().getFullYear();
+    // About closes first: the version history is a dialog of its own, over the app.
+    const openReleaseNotes = () => {
+        onClose();
+        ReleaseNotesModel.getInstance().open();
+    };
 
     return (
         <Modal className="pt-[34px] pb-[34px] overflow-hidden w-[450px]" onClose={onClose}>
@@ -44,7 +51,14 @@ const MoltentermAboutModalV = ({ identity, onClose }: MoltentermAboutModalVProps
                     <div className="leading-5">{MoltentermTagline}</div>
                 </div>
                 <div className="flex flex-col items-center gap-1 self-stretch w-full text-center">
-                    <div className="text-primary">Version {identity.version || "unknown"}</div>
+                    <button
+                        type="button"
+                        onClick={openReleaseNotes}
+                        title="Release notes"
+                        className="cursor-pointer text-primary hover:underline"
+                    >
+                        Version {identity.version || "unknown"}
+                    </button>
                     <div className="text-xs text-secondary">{identity.buildLine}</div>
                     {identity.commitLine ? (
                         <div className="text-xs text-secondary font-mono">{identity.commitLine}</div>
@@ -54,6 +68,13 @@ const MoltentermAboutModalV = ({ identity, onClose }: MoltentermAboutModalVProps
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-[10px] self-stretch w-full">
+                    <button
+                        type="button"
+                        onClick={openReleaseNotes}
+                        className={cn(linkClassName, "col-span-2 cursor-pointer text-accent")}
+                    >
+                        <i className="fa-solid fa-scroll mr-2"></i>Release notes
+                    </button>
                     <a href={MoltentermRepoUrl} target="_blank" rel="noopener" className={linkClassName}>
                         <i className="fa-brands fa-github mr-2"></i>GitHub
                     </a>
