@@ -520,7 +520,8 @@ export async function createBrowserWindow(
         waveWindow = await WindowService.CreateWindow(null, "");
         workspace = await WorkspaceService.GetWorkspace(waveWindow.workspaceid);
     }
-    console.log("createBrowserWindow", waveWindow.oid, workspace.oid, workspace);
+    // MOLTENTERM-PATCH (#501): ids only, never the whole workspace object (its name and tabs) in the log
+    console.log("createBrowserWindow", waveWindow.oid, workspace.oid);
     const bwin = new WaveBrowserWindow(waveWindow, fullConfig, opts);
 
     if (workspace.activetabid) {
