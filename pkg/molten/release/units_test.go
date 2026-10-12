@@ -24,7 +24,7 @@ func TestDraftNotes(t *testing.T) {
 		"feat(#16): Show the milestone in the release menu",
 		"a subject outside the convention",
 	}})
-	want := "## New\n\n- Show the milestone in the release menu\n- A new settings format\n\n## Fixes\n\n- A crash when the folder is gone\n- Faster start\n"
+	want := "## New\n\n- Show the milestone in the release menu\n- A new settings format\n\n## Fixed\n\n- A crash when the folder is gone\n- Faster start\n"
 	if notes != want {
 		t.Fatalf("notes:\n%s\nwant:\n%s", notes, want)
 	}
@@ -36,8 +36,11 @@ func TestDraftNotes(t *testing.T) {
 		many = append(many, fmt.Sprintf("fix: problem %d", i))
 	}
 	long := DraftNotes(NotesFacts{Subjects: many})
-	if strings.Count(long, "\n- ") != maxNotesLines || !strings.Contains(long, "And 10 more changes.") {
+	if strings.Count(long, "\n- ") != MaxPublicNoteLines-2 || !strings.Contains(long, "And more changes and fixes.") {
 		t.Fatalf("notes are not capped:\n%s", long)
+	}
+	if problems := AuditPublicNotes(long, ""); len(problems) > 0 {
+		t.Fatalf("the capped notes fail the audit: %v", problems)
 	}
 }
 
@@ -121,9 +124,17 @@ func TestMoltentermReleaseSteps(t *testing.T) {
 	for name, steps := range map[string][]molten.PipelineStep{"rc": release.Rc, "public": release.Public} {
 		phases := []string{}
 		confirms := 0
+		rewrites := 0
 		for _, step := range steps {
 			if !strings.HasPrefix(step.Run, "molten release ") {
 				t.Errorf("%s step %s does not run a molten release command: %s", name, step.Id, step.Run)
+			}
+			if step.Notes {
+				rewrites++
+				if step.Phase != "" || step.Run != "molten release notes {tag}" {
+					t.Errorf("%s: the notes step %s has a phase or another command: %+v", name, step.Id, step)
+				}
+				continue
 			}
 			phases = append(phases, step.Phase)
 			if step.Confirm != "" {
@@ -137,8 +148,8 @@ func TestMoltentermReleaseSteps(t *testing.T) {
 		if name == "public" {
 			want = "prepare prepare cut publish back"
 		}
-		if strings.Join(phases, " ") != want || confirms != 1 {
-			t.Errorf("%s phases %v (%d confirm), want %s and one confirm", name, phases, confirms, want)
+		if strings.Join(phases, " ") != want || confirms != 1 || rewrites != 1 {
+			t.Errorf("%s phases %v (%d confirm, %d notes step), want %s, one confirm and one notes step", name, phases, confirms, rewrites, want)
 		}
 	}
 	if report.Pipeline.Versions == nil || report.Pipeline.Versions.TagPrefix != "v" || report.Pipeline.Versions.Notes != DefaultNotesPath {

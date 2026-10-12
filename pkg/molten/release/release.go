@@ -62,8 +62,11 @@ type Env struct {
 	// IsGithub tells whether the project's origin is on GitHub: off GitHub, there is no CI to wait for, no pull request
 	// to open and no milestone to close. nil reads origin's URL.
 	IsGithub func(ctx context.Context) bool
-	Sleep    func(time.Duration)
-	Now      func() time.Time
+	// Agent runs the coding agent CLI that writes the public notes, the prompt on its standard input; nil runs it with
+	// ExecAgent. Tests replace it.
+	Agent AgentRunner
+	Sleep func(time.Duration)
+	Now   func() time.Time
 	// Zero means the defaults (30 s, 90 min).
 	CiPoll  time.Duration
 	CiLimit time.Duration
@@ -72,11 +75,14 @@ type Env struct {
 // Project is what the release commands read from `.molten/project.json`.
 type Project struct {
 	Root    string
+	Name    string
 	Rules   versions.Rules
 	Files   []versions.VersionFile
 	Notes   string
 	Trunk   string
 	Release string
+	// versions.notesagent: the coding agent CLI that writes the public notes, empty for none.
+	NotesAgent []string
 }
 
 func (e *Env) printf(format string, args ...any) {
@@ -212,8 +218,9 @@ func (e *Env) LoadProject(ctx context.Context) (*Project, error) {
 	if !report.Valid {
 		return nil, fmt.Errorf("%s is not valid: %s (molten project validate)", molten.ProjectPipelineFile, strings.Join(report.Errors, "; "))
 	}
-	p := &Project{Root: root, Rules: versions.Rules{TagPrefix: versions.DefaultTagPrefix}, Notes: DefaultNotesPath}
+	p := &Project{Root: root, Name: report.Pipeline.Name, Rules: versions.Rules{TagPrefix: versions.DefaultTagPrefix}, Notes: DefaultNotesPath}
 	if v := report.Pipeline.Versions; v != nil {
+		p.NotesAgent = v.NotesAgent
 		if v.TagPrefix != "" {
 			p.Rules.TagPrefix = v.TagPrefix
 		}
@@ -237,6 +244,14 @@ func (e *Env) LoadProject(ctx context.Context) (*Project, error) {
 // NotesFile is the notes path of a tag, relative to the project's root.
 func (p *Project) NotesFile(tag string) string {
 	return strings.ReplaceAll(p.Notes, "{tag}", tag)
+}
+
+// InternalNotesFile is where the engineering record of a tag sits: beside its public notes (releases/v1.2.0.internal.md
+// beside releases/v1.2.0.md), as Mission Control reads it (pkg/molten/mission/git.go readNotes).
+func (p *Project) InternalNotesFile(tag string) string {
+	path := p.NotesFile(tag)
+	ext := filepath.Ext(path)
+	return strings.TrimSuffix(path, ext) + ".internal" + ext
 }
 
 // releaseOf reads a tag as one of the project's releases, refusing anything else: the tag goes into git commands and

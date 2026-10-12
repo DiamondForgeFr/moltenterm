@@ -68,6 +68,8 @@ func makeMoltentermFixture(t *testing.T) (*Runs, string, string) {
 	t.Setenv("GIT_AUTHOR_EMAIL", "release@example.invalid")
 	t.Setenv("GIT_COMMITTER_NAME", "Release test")
 	t.Setenv("GIT_COMMITTER_EMAIL", "release@example.invalid")
+	// MoltenTerm's pipeline names a real coding agent for the notes: a test never runs it.
+	t.Setenv(release.NotesAiEnv, "off")
 	base, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

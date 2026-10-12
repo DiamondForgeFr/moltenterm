@@ -67,6 +67,9 @@ jobs:
                   fi
                   if [ ! -s "releases/$TAG.md" ]; then
                       echo "::warning::releases/$TAG.md is missing: the release text will say so"
+                  elif node scripts/moltenterm-release-notes-body.mjs --draft "releases/$TAG.md"; then
+                      echo "::error::releases/$TAG.md is marked draft: true: its notes were never finished (molten release finalize refuses them)"
+                      exit 1
                   fi
                   if [ "$channel" = public ]; then
                       echo "::warning::The macOS builds are not signed with a Developer ID nor notarized: sign them before publishing a public release"
@@ -241,7 +244,8 @@ jobs:
               run: |
                   {
                       if [ -s "releases/$TAG.md" ]; then
-                          cat "releases/$TAG.md"
+                          # The public notes without their front matter (UPSTREAM.md, "Release notes").
+                          node scripts/moltenterm-release-notes-body.mjs "releases/$TAG.md"
                       else
                           echo "The notes of $TAG are missing."
                       fi
