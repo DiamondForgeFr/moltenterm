@@ -101,6 +101,11 @@ contextBridge.exposeInMainWorld("api", {
         ipcRenderer.on("moltenterm-getting-started", () => callback()),
     // MOLTENTERM-PATCH (#294): the app menu's Edit Workspace… (emain/moltenterm-workspace-menu.ts)
     onMoltentermEditWorkspace: (callback: () => void) => ipcRenderer.on("moltenterm-edit-workspace", () => callback()),
+    // MOLTENTERM-PATCH (#490): Electron main asks what a window close, a quit or a workspace delete would stop
+    // (emain/moltenterm-busy-close.ts, frontend/moltenterm-shell/busy-close-main.ts)
+    onMoltentermBusyAsk: (callback: (request: any) => void) =>
+        ipcRenderer.on("moltenterm-busy-ask", (_event, request) => callback(request)),
+    moltentermBusyReply: (reply: any) => ipcRenderer.send("moltenterm-busy-reply", reply),
     // MOLTENTERM-PATCH (#450): the window's pending state, drawn by the view on screen (emain/moltenterm-view-pending.ts)
     onMoltentermViewPending: (callback: (state: any) => void) =>
         ipcRenderer.on("moltenterm-view-pending", (_event, state) => callback(state)),

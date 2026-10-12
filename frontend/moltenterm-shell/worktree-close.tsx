@@ -15,6 +15,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 import { BusyCloseHost, DangerButton as BusyDangerButton, RunningList } from "./busy-close";
+import { listenMainBusyAsks } from "./busy-close-main";
 import { BusyCloseAction, RunningItem } from "./busy-close-model";
 import {
     askBusyClose,
@@ -108,7 +109,7 @@ function answeredRecently(blockId: string): boolean {
 // Closes whose terminals are being read: pressing the same close again meanwhile does nothing more.
 const PendingCloses = new Set<string>();
 
-function dialogOpen(): boolean {
+export function dialogOpen(): boolean {
     return (
         globalStore.get(CloseRequestAtom) != null || globalStore.get(TabCloseRequestAtom) != null || busyDialogOpen()
     );
@@ -776,6 +777,8 @@ export function WorktreeCloseHost() {
     const request = useAtomValue(CloseRequestAtom);
     const tabRequest = useAtomValue(TabCloseRequestAtom);
     useEffect(() => registerNotificationGesture(WorktreeReviewGesture, reviewKeptWorktree), []);
+    // Electron main's asks (window close, quit, workspace delete, switch: FR-SHELL-062) wait while one of these is open.
+    useEffect(() => listenMainBusyAsks(dialogOpen), []);
     if (tabRequest != null) {
         return (
             <TabCloseDialog
