@@ -183,6 +183,9 @@ func formatMoltenReleasePlan(reports []release.PlanReport) string {
 			continue
 		}
 		fmt.Fprintf(&sb, "%s: %s. %s\n", name, r.Tag, r.Reason)
+		if r.Mismatch != "" {
+			fmt.Fprintf(&sb, "  Note: %s.\n", r.Mismatch)
+		}
 		switch {
 		case r.MilestoneError != "":
 			fmt.Fprintf(&sb, "  Milestone not read: %s\n", r.MilestoneError)

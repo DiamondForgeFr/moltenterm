@@ -45,6 +45,8 @@ type fakeGh struct {
 	noRelease bool
 	issues    string
 	prs       string
+	// The open milestones listed (JSON); empty for the default board.
+	milestones string
 	// The rehearsal runs listed (JSON), the states `run view` reports in turn, and the artifacts (JSON).
 	rehearsals string
 	views      []string
@@ -122,6 +124,8 @@ func (f *fakeGh) answer(args []string) ([]byte, error) {
 			return nil, fmt.Errorf("gh release view: release not found")
 		}
 		return []byte(fmt.Sprintf(`{"isDraft":%v,"url":"https://github.example/releases/%s"}`, f.draft, args[2])), nil
+	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/milestones?") && f.milestones != "":
+		return []byte(f.milestones), nil
 	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/milestones?"):
 		return []byte(`[{"number":7,"title":"Later","html_url":"https://m/7","open_issues":4},{"number":12,"title":"1.0.0","html_url":"https://m/12","open_issues":2},{"number":3,"title":"v1","html_url":"https://m/3","open_issues":0}]`), nil
 	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/issues?milestone=12"):
