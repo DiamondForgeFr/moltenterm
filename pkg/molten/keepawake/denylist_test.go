@@ -144,3 +144,36 @@ func TestDenyListHomeSession(t *testing.T) {
 		t.Fatal("an unknown branch counts as a main one")
 	}
 }
+
+// FR-SHELL-064: Codex's apply_patch, its patch in tool_input.command.
+func TestDenyListCodexPatch(t *testing.T) {
+	patch := func(lines ...string) PermissionCheck {
+		body := append([]string{"*** Begin Patch"}, lines...)
+		return denyCheck("apply_patch", map[string]any{"command": strings.Join(append(body, "*** End Patch"), "\n")})
+	}
+	cases := []struct {
+		check PermissionCheck
+		want  string
+	}{
+		{patch("*** Update File: src/main.go", "@@", "-a", "+b"), ""},
+		{patch("*** Add File: docs/new.md", "+hello"), ""},
+		{patch("*** Delete File: build/old.txt"), ""},
+		{patch("*** Delete File: /tmp/scratch.txt"), ""},
+		{patch("*** Update File: .env.example", "+A=1"), ""},
+		{patch("*** Delete File: ../other/file.go"), reasonRemove},
+		{patch("*** Delete File: /Users/me/notes.txt"), reasonRemove},
+		{patch("*** Delete File: ~/notes.txt"), reasonRemove},
+		{patch("*** Update File: .env", "+SECRET=1"), reasonCredential},
+		{patch("*** Add File: /Users/me/.ssh/config", "+Host x"), reasonCredential},
+		{patch("*** Update File: src/a.go", "*** Move to: /Users/me/.aws/credentials"), reasonCredential},
+		{denyCheck("Bash", map[string]any{"command": "rm -rf ~/projects"}), reasonRemove},
+		{denyCheck("mcp__filesystem__read_file", map[string]any{"path": "/Users/me/.ssh/id_ed25519"}), reasonCredential},
+		{denyCheck("mcp__molten-browser__navigate", map[string]any{"url": "https://example.com"}), ""},
+	}
+	for _, tc := range cases {
+		got := DenyReason(tc.check)
+		if (tc.want == "") != (got == "") || !strings.HasPrefix(got, tc.want) {
+			t.Errorf("%s %v: %q, want %q", tc.check.Tool, tc.check.Input, got, tc.want)
+		}
+	}
+}

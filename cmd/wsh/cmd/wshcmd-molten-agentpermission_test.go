@@ -72,3 +72,23 @@ func TestAgentPermissionPrintsOnlyAnAllow(t *testing.T) {
 		t.Fatal("outside a terminal nothing is sent")
 	}
 }
+
+// FR-SHELL-064: Codex's PermissionRequest input (its documented fields, an apply_patch) gets the same answer, in the
+// output shape Codex documents.
+func TestAgentPermissionCodexInput(t *testing.T) {
+	input := `{"session_id":"019a-thread","transcript_path":null,"cwd":"/Users/me/work/app","hook_event_name":"PermissionRequest",` +
+		`"model":"gpt-5.4","permission_mode":"default","turn_id":"t-3","tool_name":"apply_patch",` +
+		`"tool_input":{"command":"*** Begin Patch\n*** Update File: src/a.go\n@@\n-a\n+b\n*** End Patch","description":null}}`
+	var sent keepawake.PermissionRequest
+	var out bytes.Buffer
+	runAgentPermission(strings.NewReader(input), &out, "block-2", "codex", func(req keepawake.PermissionRequest) (keepawake.PermissionAnswer, error) {
+		sent = req
+		return keepawake.PermissionAnswer{Decision: keepawake.PermissionAllow}, nil
+	})
+	if out.String() != `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}`+"\n" {
+		t.Fatalf("output %q", out.String())
+	}
+	if sent.Agent != "codex" || sent.SessionId != "019a-thread" || sent.ToolName != "apply_patch" || !strings.Contains(sent.ToolInput["command"].(string), "Update File: src/a.go") {
+		t.Fatalf("sent %+v", sent)
+	}
+}

@@ -126,19 +126,24 @@ func TestSessionApproval(t *testing.T) {
 		remote    bool
 		report    molten.AgentIntegrationReport
 		hasReport bool
+		hookRan   bool
 		approved  bool
 		reason    string
 	}{
-		{"claude", false, added, true, true, ""},
-		{"claude", true, added, true, false, "remote"},
-		{"claude", false, molten.AgentIntegrationReport{}, false, false, "outside MoltenTerm's launcher"},
-		{"claude", false, old, true, false, "restart it"},
-		{"claude", false, managed, true, false, "managed only"},
-		{"codex", false, added, true, false, "Codex's approvals"},
-		{"gemini", false, molten.AgentIntegrationReport{}, false, false, "cannot answer"},
+		{"claude", false, added, true, false, true, ""},
+		{"claude", true, added, true, false, false, "remote"},
+		{"claude", false, molten.AgentIntegrationReport{}, false, false, false, "outside MoltenTerm's launcher"},
+		{"claude", false, old, true, false, false, "restart it"},
+		{"claude", false, managed, true, false, false, "managed only"},
+		// FR-SHELL-064-AC3: Codex asks until its hook ran once, the sign the developer trusted it in /hooks.
+		{"codex", false, added, true, false, false, "/hooks"},
+		{"codex", false, added, true, true, true, ""},
+		{"codex", false, managed, true, true, false, "managed only"},
+		{"codex", false, molten.AgentIntegrationReport{}, false, true, false, "outside MoltenTerm's launcher"},
+		{"gemini", false, molten.AgentIntegrationReport{}, false, false, false, "cannot answer"},
 	}
 	for _, tc := range cases {
-		approved, reason := SessionApproval(tc.agent, tc.remote, tc.report, tc.hasReport)
+		approved, reason := SessionApproval(tc.agent, tc.remote, tc.report, tc.hasReport, tc.hookRan)
 		if approved != tc.approved || !strings.Contains(reason, tc.reason) {
 			t.Errorf("%s remote=%v: %v %q, want %v %q", tc.agent, tc.remote, approved, reason, tc.approved, tc.reason)
 		}

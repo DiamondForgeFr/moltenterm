@@ -56,6 +56,8 @@ func (s *service) permission(ctx context.Context, req PermissionRequest) Permiss
 	if !found || info.Remote {
 		return PermissionAnswer{}
 	}
+	// The hook ran, so the agent runs it: Codex only does once the developer trusted it.
+	s.hooks.mark(req.Agent)
 	home, _ := os.UserHomeDir()
 	check := PermissionCheck{
 		Tool: req.ToolName, Input: req.ToolInput, Cwd: req.Cwd, Home: home, TempDirs: tempDirs(), Branch: gitBranch,
@@ -112,7 +114,7 @@ func (s *service) sessions(ctx context.Context, wsIds []string) []AutoApproveSes
 			continue
 		}
 		report, hasReport := attention.AgentIntegration(run.BlockId)
-		approved, reason := SessionApproval(run.Agent, info.Remote, report, hasReport)
+		approved, reason := SessionApproval(run.Agent, info.Remote, report, hasReport, s.hooks.ran(run.Agent))
 		rtn = append(rtn, AutoApproveSession{
 			WorkspaceId: info.WorkspaceId, BlockId: run.BlockId, TabName: s.tabName(ctx, run.BlockId), Agent: run.Agent,
 			AgentName: molten.AgentDisplayName(run.Agent), Approved: approved, Reason: reason,

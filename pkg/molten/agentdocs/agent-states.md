@@ -151,8 +151,22 @@ browser server (`-c mcp_servers.molten-browser...`). `molten agent notify` runs 
 JSON argument Codex gives it, then reports done and links the companion to the session from the payload's thread id.
 Your `config.toml` is only read, never written. Your own `-c notify=...`, a profile or a project `.codex/config.toml`
 that sets notify, or a `config.toml` that cannot be read leave notify as you set it. `molten agent integration status`
-shows what a run gets; `MOLTENTERM_AGENT_INTEGRATION=0 codex` starts it with nothing added. Codex hooks are not
-added: Codex runs hooks given for one run only after you trust them, and MoltenTerm never bypasses that trust.
+shows what a run gets; `MOLTENTERM_AGENT_INTEGRATION=0 codex` starts it with nothing added. Codex state hooks are
+not added: Codex runs hooks given for one run only after you trust them, and MoltenTerm never bypasses that trust.
+
+### Coffee approvals for Codex
+
+The one hook the launcher gives Codex is the coffee approvals' `PermissionRequest` hook, for that run only:
+`-c hooks.PermissionRequest=[{hooks=[{type="command",command="[ -n \"$WAVETERM_BLOCKID\" ] && molten agent permission --agent codex || true",timeout=15}]}]`.
+Codex holds it for your review: the first time, it warns that hooks need review; type `/hooks` in Codex and trust
+`molten agent permission`. Codex keeps that trust in its own configuration against the hook's definition, which
+MoltenTerm never changes, so one trust is enough. Until then the coffee bud lists the session as still asking.
+Once trusted, while the workspace's coffee is on, Codex's approval requests (shell commands, `apply_patch`, MCP
+tools) get the same answer as Claude Code's, the deny list included (for `apply_patch`, the files it deletes or
+touches); with the coffee off, Codex asks you as usual. MoltenTerm writes nothing in `~/.codex` and never passes
+`--dangerously-bypass-hook-trust`. Your own `-c hooks...`, your own `PermissionRequest` hooks in a `config.toml`,
+hooks turned off (`[features] hooks = false`) or managed hooks only leave it out. Codex's own app-level approvals
+(Computer Use per app, the Full Access selection) are not approval requests: they still wait for you.
 
 ## Gemini CLI, OpenCode and other agents
 

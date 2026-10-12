@@ -58,7 +58,8 @@ func DenyReason(c PermissionCheck) string {
 	if questionTools[c.Tool] {
 		return reasonQuestion
 	}
-	if fileTools[c.Tool] {
+	// An MCP tool's path arguments are read the same way (a filesystem server's read_file).
+	if fileTools[c.Tool] || strings.HasPrefix(c.Tool, "mcp__") {
 		for _, key := range fileInputKeys {
 			if p, ok := c.Input[key].(string); ok && p != "" && isCredentialPath(p, c.Home) {
 				return reasonCredential + clipDetail(p)
@@ -66,11 +67,72 @@ func DenyReason(c PermissionCheck) string {
 		}
 		return ""
 	}
+	if c.Tool == codexPatchTool {
+		patch, _ := c.Input["command"].(string)
+		return patchDenyReason(patch, c)
+	}
 	if c.Tool != "Bash" {
 		return ""
 	}
 	command, _ := c.Input["command"].(string)
 	return commandDenyReason(command, c)
+}
+
+// Codex's file edits (FR-SHELL-064): the apply_patch tool, its patch in tool_input.command, each file it touches on
+// a "*** Add File:", "*** Update File:", "*** Delete File:" or "*** Move to:" line.
+const codexPatchTool = "apply_patch"
+
+var patchFileMarkers = []string{"*** Add File: ", "*** Update File: ", "*** Delete File: ", "*** Move to: "}
+
+const patchDeleteMarker = "*** Delete File: "
+
+// patchDenyReason keeps a patch that touches a credential file, or deletes a file outside the session's folder and
+// the temporary folders, for the person.
+func patchDenyReason(patch string, c PermissionCheck) string {
+	for _, line := range strings.Split(patch, "\n") {
+		line = strings.TrimRight(line, "\r")
+		for _, marker := range patchFileMarkers {
+			if !strings.HasPrefix(line, marker) {
+				continue
+			}
+			p := strings.TrimSpace(strings.TrimPrefix(line, marker))
+			if p == "" {
+				continue
+			}
+			if isCredentialPath(p, c.Home) {
+				return reasonCredential + clipDetail(p)
+			}
+			if marker == patchDeleteMarker && deletesOutsideSession(p, c) {
+				return reasonRemove + clipDetail(p)
+			}
+		}
+	}
+	return ""
+}
+
+// deletesOutsideSession tells whether deleting p leaves the session's own folder and the temporary folders.
+func deletesOutsideSession(p string, c PermissionCheck) bool {
+	sessionDir := ""
+	if c.Cwd != "" && filepath.IsAbs(c.Cwd) {
+		sessionDir = filepath.Clean(c.Cwd)
+	}
+	if sessionDir == "/" || (c.Home != "" && sessionDir == filepath.Clean(c.Home)) {
+		sessionDir = ""
+	}
+	if strings.HasPrefix(p, "~") {
+		return true
+	}
+	if !filepath.IsAbs(p) {
+		if sessionDir == "" {
+			return true
+		}
+		p = filepath.Join(sessionDir, p)
+	}
+	p = filepath.Clean(p)
+	if inTempDir(p, c.TempDirs) {
+		return false
+	}
+	return sessionDir == "" || !within(p, sessionDir) || p == sessionDir
 }
 
 func clipDetail(s string) string {

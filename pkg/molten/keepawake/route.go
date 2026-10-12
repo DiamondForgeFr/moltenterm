@@ -70,6 +70,8 @@ type service struct {
 	// The coffee approvals (approveroute.go): tab names of the agents' terminals, and the log file.
 	tabs        *ttlCache[string]
 	approvalLog *approvalLog
+	// hooks: the agents whose PermissionRequest hook reached wavesrv (FR-SHELL-064).
+	hooks hookRuns
 }
 
 type workspaceEntry struct {

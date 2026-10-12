@@ -17,8 +17,9 @@ import (
 // parse is taken literally, so every value here is valid TOML). Tables merge key by key, so
 // mcp_servers.molten-browser is added next to the user's servers; a single value such as notify is replaced whole,
 // so the generated notify runs `molten agent notify`, which reports the turn's end and links the session, then runs
-// the user's own notify with the same JSON argument (Codex appends it to the argv). Codex hooks are not used: hooks
-// passed for one run stay untrusted until the user trusts them, and MoltenTerm never bypasses that trust. Profiles
+// the user's own notify with the same JSON argument (Codex appends it to the argv). The states do not come from Codex
+// hooks: hooks passed for one run stay untrusted until the user trusts them, and MoltenTerm never bypasses that trust;
+// only the coffee approvals' PermissionRequest hook is given, and waits for that trust (codexpermission.go). Profiles
 // and CODEX_HOME are not used either: the first needs a file in ~/.codex, the second hides the user's config.
 
 const (
@@ -172,6 +173,9 @@ func (codexAdapter) Plan(ctx LaunchContext) (LaunchPlan, error) {
 	extra := planCodexBrowser(ctx, args, config, &plan)
 	plan.ShownArgs = append(plan.ShownArgs, extra...)
 	extra = append(extra, planCodexNotify(ctx, args, config, &plan)...)
+	permission := planCodexPermission(ctx, args, config, &plan)
+	plan.ShownArgs = append(plan.ShownArgs, permission...)
+	extra = append(extra, permission...)
 	plan.Skipped = append(plan.Skipped, molten.IntegrationItem{Kind: molten.IntegrationStateHooks, Name: codexHooksItemName,
 		Reason: "Codex runs hooks added for one run only once you trust them, and MoltenTerm never bypasses that trust"})
 	if len(extra) == 0 {

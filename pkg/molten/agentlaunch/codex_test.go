@@ -27,7 +27,23 @@ func (f fakeTree) codexCtx(args ...string) LaunchContext {
 
 func (f fakeTree) codexConfig() string { return filepath.Join(f.home, ".codex", "config.toml") }
 
+// codexPlan plans a run and returns its arguments without the coffee approvals' hook (codexpermission_test.go reads
+// it with codexPlanAll), so the browser and notify tests keep their own arguments' positions.
 func codexPlan(t *testing.T, ctx LaunchContext) (LaunchPlan, []string) {
+	t.Helper()
+	plan, args := codexPlanAll(t, ctx)
+	var rtn []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == codexConfigFlag && i+1 < len(args) && strings.HasPrefix(args[i+1], codexPermissionOverrideKey+"=") && args[i+1] == codexPermissionOverrideKey+"="+codexPermissionHookValue() {
+			i++
+			continue
+		}
+		rtn = append(rtn, args[i])
+	}
+	return plan, rtn
+}
+
+func codexPlanAll(t *testing.T, ctx LaunchContext) (LaunchPlan, []string) {
 	t.Helper()
 	plan, err := codexAdapter{}.Plan(ctx)
 	if err != nil {

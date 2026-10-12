@@ -35,6 +35,11 @@ const (
 	ClaudePermissionHookEvent   = "PermissionRequest"
 	// Seconds: the command waits 5 s at most for wavesrv; Claude Code shows its prompt meanwhile.
 	ClaudePermissionHookTimeout = 15
+	// Codex's PermissionRequest hook (FR-SHELL-064, DS-SHELL-113), the same answer. Codex trusts a hook against the
+	// hash of its definition, so this text and its timeout must not change from one run or version to the next: a
+	// change asks the developer to trust it again in /hooks.
+	CodexPermissionHookCommand = `[ -n "$WAVETERM_BLOCKID" ] && molten agent permission --agent codex || true`
+	CodexPermissionHookTimeout = 15
 )
 
 // Kinds of what the launcher adds to a run.
