@@ -100,7 +100,9 @@ describe("the surfaces of FR-SHELL-053 use it", () => {
     });
 
     it("onboarding never says a step is not ready", () => {
-        const src = read("../moltenterm-onboarding/onboarding-placeholder-steps.tsx");
-        expect(src).not.toMatch(/not ready in this version/i);
+        for (const step of ["agent", "morph", "project"]) {
+            const src = read(`../moltenterm-onboarding/onboarding-${step}-step.tsx`);
+            expect(src, step).not.toMatch(/not ready in this version/i);
+        }
     });
 });

@@ -9,7 +9,7 @@
 import type React from "react";
 import { AgentStep } from "./onboarding-agent-step";
 import { MorphStep } from "./onboarding-morph-step";
-import { ProjectPlaceholderStep } from "./onboarding-placeholder-steps";
+import { ProjectStep } from "./onboarding-project-step";
 import type { FirstRunStepId, OnboardingState } from "./onboarding-state";
 
 export type { FirstRunStepId, FirstRunStepStatus } from "./onboarding-state";
@@ -69,8 +69,7 @@ export const FirstRunSteps: FirstRunStep[] = [
         title: "Your project and your sessions",
         label: "Your project",
         summary: "Link a workspace to your project folder and find your agent sessions.",
-        component: ProjectPlaceholderStep,
-        placeholder: true,
+        component: ProjectStep,
     },
 ];
 
