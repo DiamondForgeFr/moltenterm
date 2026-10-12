@@ -24,6 +24,8 @@ import { ElectronWshClient } from "./emain-wsh";
 import { readinessDeadlineMs, WindowActionQueue } from "./moltenterm-action-queue"; // MOLTENTERM-PATCH (#449)
 // MOLTENTERM-PATCH (#461): the tab view host owns every view and shows it (emain/moltenterm-tabview-host.ts); the
 // window's actions run in emain/moltenterm-window-actions.ts
+import { askDeleteStops, askSwitchStops, askWindowCloseStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
+import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
 import {
     activeWindowTabView,
     closeWindowTabViews,
@@ -303,8 +305,17 @@ export class WaveBrowserWindow extends BaseWindow {
             fireAndForget(async () => {
                 const numWindows = waveWindowMap.size;
                 const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+                // MOLTENTERM-PATCH (#490): when the close stops what runs, MoltenTerm's dialog replaces window:confirmclose
+                const busy = await askWindowCloseStops(
+                    this,
+                    numWindows,
+                    !!fullConfig.settings["window:savelastwindow"]
+                );
+                if (busy === BusyOutcomeCancel || this.isDestroyed()) {
+                    return;
+                }
                 if (numWindows > 1 || !fullConfig.settings["window:savelastwindow"]) {
-                    if (fullConfig.settings["window:confirmclose"]) {
+                    if (busy !== BusyOutcomeClose && fullConfig.settings["window:confirmclose"]) {
                         const workspace = await WorkspaceService.GetWorkspace(this.workspaceId);
                         if (isNonEmptyUnsavedWorkspace(workspace)) {
                             const choice = dialog.showMessageBoxSync(this, {
@@ -358,12 +369,13 @@ export class WaveBrowserWindow extends BaseWindow {
         closeWindowTabViews(this); // MOLTENTERM-PATCH (#450, #461)
     }
 
-    async switchWorkspace(workspaceId: string) {
+    // MOLTENTERM-PATCH (#490): false when the user kept the workspace left (FR-SHELL-062)
+    async switchWorkspace(workspaceId: string): Promise<boolean> {
         console.log("switchWorkspace", workspaceId, this.waveWindowId);
         // MOLTENTERM-PATCH (#449): coming back to the workspace on screen while a switch is under way cancels that switch
         if (workspaceId == this.workspaceId && !this.actionQueue.hasWorkspaceChange()) {
             console.log("switchWorkspace already on this workspace", this.waveWindowId);
-            return;
+            return true;
         }
 
         // If the workspace is already owned by a window, then we can just call SwitchWorkspace without first prompting the user, since it'll just focus to the other window.
@@ -376,10 +388,16 @@ export class WaveBrowserWindow extends BaseWindow {
                     `existing unsaved workspace ${this.workspaceId} has content, opening workspace ${workspaceId} in new window`
                 );
                 await createWindowForWorkspace(workspaceId);
-                return;
+                return true;
+            }
+            // MOLTENTERM-PATCH (#490): the switch deletes the unsaved workspace left; it asks when its terminals run something
+            if (!(await askSwitchStops(this, curWorkspace, false))) {
+                console.log("switchWorkspace cancelled: the workspace left runs something", this.waveWindowId);
+                return false;
             }
         }
         await this._queueActionInternal({ op: "switchworkspace", workspaceId });
+        return true;
     }
 
     async setActiveTab(tabId: string, setInBackend: boolean, primaryStartupTab = false) {
@@ -588,7 +606,10 @@ export async function createWorkspace(window: WaveBrowserWindow) {
     const newWsId = await WorkspaceService.CreateWorkspace("", "", "", true);
     if (newWsId) {
         if (window) {
-            await window.switchWorkspace(newWsId);
+            // MOLTENTERM-PATCH (#490): a switch the user cancelled leaves no empty workspace behind
+            if (!(await window.switchWorkspace(newWsId))) {
+                await WorkspaceService.DeleteWorkspace(newWsId);
+            }
         } else {
             await createWindowForWorkspace(newWsId);
         }
@@ -618,15 +639,23 @@ ipcMain.on("delete-workspace", (event, workspaceId) => {
             return;
         }
 
-        const choice = dialog.showMessageBoxSync(this, {
-            type: "question",
-            buttons: ["Cancel", "Delete Workspace"],
-            title: "Confirm",
-            message: `Deleting workspace will also delete its contents.\n\nContinue?`,
-        });
-        if (choice === 0) {
+        // MOLTENTERM-PATCH (#490): when its terminals run something, MoltenTerm's dialog replaces this box
+        const busy = await askDeleteStops(event.sender, workspaceId);
+        if (busy === BusyOutcomeCancel) {
             console.log("user cancelled workspace delete", workspaceId, ww?.waveWindowId);
             return;
+        }
+        if (busy !== BusyOutcomeClose) {
+            const choice = dialog.showMessageBoxSync(this, {
+                type: "question",
+                buttons: ["Cancel", "Delete Workspace"],
+                title: "Confirm",
+                message: `Deleting workspace will also delete its contents.\n\nContinue?`,
+            });
+            if (choice === 0) {
+                console.log("user cancelled workspace delete", workspaceId, ww?.waveWindowId);
+                return;
+            }
         }
 
         // MOLTENTERM-PATCH (#449): applied by the action queue of the window that shows the workspace or is switching to

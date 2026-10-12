@@ -184,6 +184,11 @@ export type BusyCloseRequest = {
     blockId?: string;
     tabId?: string;
     tabName?: string;
+    // Asked by Electron main (FR-SHELL-062): the app's or the workspace's name, a window close that quits, and the
+    // durable sessions a quit keeps.
+    name?: string;
+    quits?: boolean;
+    kept?: RunningItem[];
     answer: (close: boolean) => void;
 };
 

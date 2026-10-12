@@ -11,7 +11,14 @@ import { cn, makeIconClass, NullAtom } from "@/util/util";
 import { Atom, useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
 import { AgentStateDotClasses } from "./agent-state-model";
-import { busyCloseText, RunningItem, runningPlace, runningStateText, visibleRunning } from "./busy-close-model";
+import {
+    busyCloseText,
+    KeptHeading,
+    RunningItem,
+    runningPlace,
+    runningStateText,
+    visibleRunning,
+} from "./busy-close-model";
 import { BusyCloseRequest, BusyCloseRequestAtom } from "./busy-close-store";
 import { DialogFrame, useEscape } from "./dialog-frame";
 import { MoltenWave } from "./molten-button";
@@ -87,7 +94,7 @@ export function useRestoreFocus() {
 }
 
 function BusyCloseDialog({ request }: { request: BusyCloseRequest }) {
-    const text = busyCloseText(request.action, request.tabName);
+    const text = busyCloseText(request.action, request.tabName ?? request.name, request.quits);
     const cancelRef = useRef<HTMLButtonElement>(null);
     const blockAtom = request.blockId
         ? getWaveObjectAtom<Block>(makeORef("block", request.blockId))
@@ -126,6 +133,7 @@ function BusyCloseDialog({ request }: { request: BusyCloseRequest }) {
             }
         >
             <RunningList items={request.running} />
+            <RunningList items={request.kept} heading={KeptHeading} />
         </DialogFrame>
     );
 }

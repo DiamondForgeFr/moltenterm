@@ -56,6 +56,9 @@ import {
 } from "./emain-window";
 import { ElectronWshClient, initElectronWshClient } from "./emain-wsh";
 import { getLaunchSettings } from "./launchsettings";
+import { initBusyCloseReplies } from "./moltenterm-busy-close"; // MOLTENTERM-PATCH (#490)
+import { askQuitStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
+import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
 import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-PATCH (#276)
 import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
 import { initMoltentermTabActivity } from "./moltenterm-tab-activity"; // MOLTENTERM-PATCH (#455)
@@ -270,8 +273,9 @@ electronApp.on("window-all-closed", () => {
 electronApp.on("before-quit", (e) => {
     const allWindows = getAllWaveWindows();
     const allBuilders = getAllBuilderWindows();
+    // MOLTENTERM-PATCH (#490): a quit that stops what runs in a non-durable terminal asks in MoltenTerm's dialog, which
+    // replaces app:confirmquit; with nothing running (or the setting off, or no answer) app:confirmquit decides as before
     if (
-        confirmQuit &&
         !getForceQuit() &&
         !getUserConfirmedQuit() &&
         (allWindows.length > 0 || allBuilders.length > 0) &&
@@ -279,19 +283,27 @@ electronApp.on("before-quit", (e) => {
         !process.env.WAVETERM_NOCONFIRMQUIT
     ) {
         e.preventDefault();
-        const choice = electron.dialog.showMessageBoxSync(null, {
-            type: "question",
-            buttons: ["Cancel", "Quit"],
-            title: "Confirm Quit",
-            message: `Are you sure you want to quit ${electron.app.getName()}?`, // MOLTENTERM-PATCH (#6, #191): the gold's own name
-            defaultId: 0,
-            cancelId: 0,
+        fireAndForget(async () => {
+            const busy = await askQuitStops(allWindows, focusedWaveWindow);
+            if (busy === BusyOutcomeCancel) {
+                return;
+            }
+            if (busy !== BusyOutcomeClose && confirmQuit) {
+                const choice = electron.dialog.showMessageBoxSync(null, {
+                    type: "question",
+                    buttons: ["Cancel", "Quit"],
+                    title: "Confirm Quit",
+                    message: `Are you sure you want to quit ${electron.app.getName()}?`, // MOLTENTERM-PATCH (#6, #191): the gold's own name
+                    defaultId: 0,
+                    cancelId: 0,
+                });
+                if (choice === 0) {
+                    return;
+                }
+            }
+            setUserConfirmedQuit(true);
+            electronApp.quit();
         });
-        if (choice === 0) {
-            return;
-        }
-        setUserConfirmedQuit(true);
-        electronApp.quit();
         return;
     }
     setGlobalIsQuitting(true);
@@ -404,6 +416,7 @@ async function appMain() {
     await electronApp.whenReady();
     configureAuthKeyRequestInjection(electron.session.defaultSession);
     initIpcHandlers();
+    initBusyCloseReplies(electron.ipcMain); // MOLTENTERM-PATCH (#490): the renderers' answers to FR-SHELL-062's asks
     initMoltentermTabActivity(); // MOLTENTERM-PATCH (#455): window state for the tab activity model, before any window
 
     await sleep(10); // wait a bit for wavesrv to be ready
