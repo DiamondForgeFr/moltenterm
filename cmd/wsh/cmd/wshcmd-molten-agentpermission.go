@@ -36,7 +36,7 @@ var moltenAgentPermissionCmd = &cobra.Command{
 	Long: "Answer the permission request of the coding agent running in this terminal, from its PermissionRequest " +
 		"hook: while the workspace's coffee is on, MoltenTerm approves what its deny list lets through; otherwise " +
 		"nothing is printed and the agent asks you as usual. Reads the hook's JSON input on stdin. MoltenTerm's " +
-		"launcher adds this hook to the Claude Code sessions it starts.",
+		"launcher adds this hook to the Claude Code and Codex sessions it starts (Codex runs it once you trust it in /hooks).",
 	Args: cobra.NoArgs,
 	RunE: moltenAgentPermissionRun,
 }

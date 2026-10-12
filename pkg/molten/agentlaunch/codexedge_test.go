@@ -88,7 +88,7 @@ func TestCodexPlanSnippetAndShownArgs(t *testing.T) {
 	if strings.Contains(shown, "T0K3N") || !strings.Contains(shown, `"/bin/notify","<1 more of your arguments>"]`) || !strings.Contains(args[5], "T0K3N") {
 		t.Fatalf("the report never shows the user's notify arguments: %q", shown)
 	}
-	if len(plan.ShownArgs) != 6 {
+	if len(plan.ShownArgs) != 8 {
 		t.Fatalf("shown args: %q", plan.ShownArgs)
 	}
 }

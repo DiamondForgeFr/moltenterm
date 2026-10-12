@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"sort"
 	"strconv"
+	"sync"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 )
@@ -135,16 +136,18 @@ func (k *Keeper) approvalsState(state *State) {
 	}
 }
 
+// ReasonCodexHookUntrusted: Codex runs MoltenTerm's hook only once the developer trusted it (FR-SHELL-064-AC3).
+const ReasonCodexHookUntrusted = "approved once you trust MoltenTerm's hook: type /hooks in Codex and trust molten agent permission"
+
 // SessionApproval says whether a terminal's agent gets its prompts answered while a coffee holds, and why not.
-func SessionApproval(agent string, remote bool, report molten.AgentIntegrationReport, hasReport bool) (bool, string) {
+// hookRan: the agent's hook reached wavesrv since it started, so the agent runs it (Codex runs it only once trusted).
+func SessionApproval(agent string, remote bool, report molten.AgentIntegrationReport, hasReport bool, hookRan bool) (bool, string) {
 	name := molten.AgentDisplayName(agent)
 	if remote {
 		return false, "it runs on a remote host"
 	}
 	switch agent {
-	case molten.AgentIdClaude:
-	case molten.AgentIdCodex:
-		return false, "MoltenTerm cannot answer Codex's approvals yet"
+	case molten.AgentIdClaude, molten.AgentIdCodex:
 	default:
 		return false, "MoltenTerm cannot answer " + name + "'s prompts"
 	}
@@ -152,12 +155,39 @@ func SessionApproval(agent string, remote bool, report molten.AgentIntegrationRe
 		return false, "it was started outside MoltenTerm's launcher"
 	}
 	if report.HasCoffeeApproval() {
+		if agent == molten.AgentIdCodex && !hookRan {
+			return false, ReasonCodexHookUntrusted
+		}
 		return true, ""
 	}
 	if skipped := report.CoffeeApprovalSkipped(); skipped != "" {
 		return false, skipped
 	}
 	return false, "it was started before coffee approvals existed: restart it from MoltenTerm"
+}
+
+// hookRuns remembers the agents whose PermissionRequest hook reached wavesrv: for Codex, the sign it is trusted.
+type hookRuns struct {
+	lock   sync.Mutex
+	agents map[string]bool
+}
+
+func (h *hookRuns) mark(agent string) {
+	if agent == "" {
+		return
+	}
+	h.lock.Lock()
+	defer h.lock.Unlock()
+	if h.agents == nil {
+		h.agents = map[string]bool{}
+	}
+	h.agents[agent] = true
+}
+
+func (h *hookRuns) ran(agent string) bool {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+	return h.agents[agent]
 }
 
 func sortSessions(sessions []AutoApproveSession) {

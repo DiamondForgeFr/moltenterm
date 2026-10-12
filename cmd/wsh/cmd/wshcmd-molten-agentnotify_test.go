@@ -97,7 +97,7 @@ func TestPlanMoltenAgentLaunchCodex(t *testing.T) {
 	os.WriteFile(filepath.Join(data, "bin", "wsh"), []byte("#!/bin/sh\n"), 0755)
 	os.Symlink("wsh", filepath.Join(data, "bin", "molten"))
 	report, args, procEnv := planMoltenAgentLaunch(agentlaunch.FindAdapter("codex"), "/real/codex", []string{"fix it"}, getenv, time.Now())
-	if report.StepAside != "" || len(args) != 7 || args[len(args)-1] != "fix it" || !slices.Equal(report.Args, args[:6]) {
+	if report.StepAside != "" || len(args) != 9 || args[len(args)-1] != "fix it" || !slices.Equal(report.Args, args[:8]) || !strings.HasPrefix(args[7], "hooks.PermissionRequest=") {
 		t.Fatalf("args %q report %+v", args, report)
 	}
 	moltenPath := filepath.Join(data, "bin", "molten")
