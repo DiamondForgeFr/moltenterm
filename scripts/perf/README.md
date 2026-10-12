@@ -27,6 +27,7 @@ Without building first: `node scripts/perf/perf.mjs run --profile full`.
 | `--keep`           | Keep the roots (logs, data) after the run for debugging; processes are still stopped                       |
 | `--id name`        | Report id (default: the short commit)                                                                      |
 | `--app checkout`   | Measure the build of another checkout (built, with its `node_modules`), e.g. a worktree of the base commit |
+| `--foreground`     | Launch without the background test mode (#495): the window may take the focus                              |
 
 Other commands:
 
@@ -72,8 +73,11 @@ renderer is attributed through the main process (`webContents.getOSProcessId()`)
 the preload call to the expected tab view on screen, read by a 4 ms poll in the main process (stopped while idle CPU
 is sampled); the create and delete samples of `session` and `leaks` are pooled for their p95, and an operation that
 never reaches the screen within 30 s counts in `ws.failedOps` instead. Memory is sampled 4 times per condition. The
-launched window may take the focus; the harness never forces it, and the focus state of every idle
-sample is in the report.
+instances run in the background test mode (`MOLTENTERM_BACKGROUND=1`, #495, see `UPSTREAM.md`, "Test instances"): they
+never take the focus, their window is parked in a screen corner above the other windows and its focus is virtual, so
+the focus state of every idle sample in the report is the app's own. `run --foreground` launches them as a user would
+(the window may then take the focus; `meta.background` says which), and a build from before #495 measured through
+`--app` ignores the variable.
 
 ## Budgets and the gate
 

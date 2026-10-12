@@ -86,6 +86,14 @@ export function startupTimings(lines, startMs) {
   };
 }
 
+// Instances run in the background test mode (#495) unless `run --foreground`: they never take the focus or cover the
+// user's windows. A build from before #495 (`--app` on an older checkout) ignores the variable.
+let backgroundMode = true;
+
+export function setBackgroundMode(on) {
+  backgroundMode = !!on;
+}
+
 export class Instance {
   root;
   dataDir;
@@ -161,6 +169,11 @@ export class Instance {
       WAVETERM_NOCONFIRMQUIT: "1",
       MOLTENTERM_SKIP_ONBOARDING: "1",
     };
+    if (backgroundMode) {
+      env.MOLTENTERM_BACKGROUND = "1";
+    } else {
+      delete env.MOLTENTERM_BACKGROUND;
+    }
     delete env.ELECTRON_RUN_AS_NODE;
     delete env.ELECTRON_RENDERER_URL;
     const out = fs.openSync(path.join(this.root, `electron-${++this.launches}.out`), "a");
