@@ -63,7 +63,7 @@ export function makeBusyAsker(ackTimeoutMs = BusyAskAckTimeoutMs): BusyAsker {
         stops: BusyStops,
         opts?: { name?: string; onAsking?: () => void }
     ): Promise<string> {
-        if (target == null || target.isDestroyed()) {
+        if (typeof target?.send !== "function" || typeof target.isDestroyed !== "function" || target.isDestroyed()) {
             return Promise.resolve(BusyOutcomeNoAnswer);
         }
         seq++;
