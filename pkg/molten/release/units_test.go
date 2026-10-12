@@ -155,4 +155,13 @@ func TestMoltentermReleaseSteps(t *testing.T) {
 	if report.Pipeline.Versions == nil || report.Pipeline.Versions.TagPrefix != "v" || report.Pipeline.Versions.Notes != DefaultNotesPath {
 		t.Fatalf("versions: %+v", report.Pipeline.Versions)
 	}
+	rehearse := false
+	for _, step := range report.Pipeline.Steps {
+		if step.Id == "rehearse" && step.Section == "cd" && strings.HasPrefix(step.Run, "molten release rehearse --workflow release.yml") {
+			rehearse = true
+		}
+	}
+	if !rehearse {
+		t.Errorf("no rehearse step in the CD section running molten release rehearse on release.yml")
+	}
 }

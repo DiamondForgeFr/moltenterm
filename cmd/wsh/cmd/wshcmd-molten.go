@@ -1368,6 +1368,7 @@ var moltenBuiltinHelp = [][2]string{
 	{"release finalize <tag>", "commit, tag and push the prepared release atomically"},
 	{"release sync-back <tag>", "carry the release commit back to the trunk by pull request"},
 	{"release close-milestone <tag>", "close the milestone of a published public release"},
+	{"release rehearse --workflow <file>", "build the release files from the trunk on GitHub without a tag or a release, and say where they are"},
 	{"session list [--json]", "the terminal sessions that keep running across restarts, where they are and what runs in them"},
 	{"session show <id>", "focus a session's pane, or attach it to a new pane in this tab"},
 	{"session end <id> [--yes]", "end a session (asks first; never the one this command runs in)"},

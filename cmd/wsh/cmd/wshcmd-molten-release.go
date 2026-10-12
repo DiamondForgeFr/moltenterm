@@ -29,6 +29,10 @@ var moltenReleaseDryRun bool
 var moltenReleaseNotesPlain bool
 var moltenReleaseNotesCheck bool
 var moltenReleaseNotesNoReview bool
+var moltenReleaseRef string
+var moltenReleaseRehearseWorkflow string
+var moltenReleaseFields []string
+var moltenReleaseDownload string
 
 var moltenReleaseCmd = &cobra.Command{
 	Use:   "release",
@@ -94,6 +98,20 @@ var moltenReleaseCloseMilestoneCmd = &cobra.Command{
 	}),
 }
 
+var moltenReleaseRehearseCmd = &cobra.Command{
+	Use:   "rehearse",
+	Short: "build the release files from a branch without a tag, through the release workflow, and publish nothing",
+	Args:  cobra.NoArgs,
+	RunE: moltenWrap(func(cmd *cobra.Command, args []string) error {
+		return moltenReleaseEnv().Rehearse(context.Background(), release.RehearseOptions{
+			Workflow: moltenReleaseRehearseWorkflow,
+			Ref:      moltenReleaseRef,
+			Fields:   moltenReleaseFields,
+			Download: moltenReleaseDownload,
+		})
+	}),
+}
+
 func init() {
 	moltenReleasePlanCmd.Flags().BoolVar(&moltenReleaseRc, "rc", false, "only the release candidate")
 	moltenReleasePlanCmd.Flags().BoolVar(&moltenReleasePublic, "public", false, "only the public release")
@@ -104,8 +122,13 @@ func init() {
 	moltenReleaseNotesCmd.Flags().BoolVar(&moltenReleaseNotesPlain, "plain", false, "write the public notes from the commit subjects, without the agent")
 	moltenReleaseNotesCmd.Flags().BoolVar(&moltenReleaseNotesCheck, "check", false, "only audit the notes as they are, as finalize does")
 	moltenReleaseNotesCmd.Flags().BoolVar(&moltenReleaseNotesNoReview, "no-review", false, "never ask to accept, edit or redo, even in a terminal")
+	moltenReleaseRehearseCmd.Flags().StringVar(&moltenReleaseRehearseWorkflow, "workflow", "", "the GitHub workflow that rehearses the release on workflow_dispatch")
+	moltenReleaseRehearseCmd.Flags().StringVar(&moltenReleaseRef, "ref", "", "the branch to build (default: the trunk)")
+	moltenReleaseRehearseCmd.Flags().StringArrayVarP(&moltenReleaseFields, "field", "f", nil, "an input of the workflow, key=value (repeatable)")
+	moltenReleaseRehearseCmd.Flags().StringVar(&moltenReleaseDownload, "download", "", "download the artifacts into <folder>/<short commit>")
 	for _, cmd := range []*cobra.Command{moltenReleasePlanCmd, moltenReleasePromoteCmd, moltenReleasePrepareCmd,
-		moltenReleaseNotesCmd, moltenReleaseFinalizeCmd, moltenReleaseSyncBackCmd, moltenReleaseCloseMilestoneCmd} {
+		moltenReleaseNotesCmd, moltenReleaseFinalizeCmd, moltenReleaseSyncBackCmd, moltenReleaseCloseMilestoneCmd,
+		moltenReleaseRehearseCmd} {
 		moltenReleaseCmd.AddCommand(cmd)
 	}
 	moltenCmd.AddCommand(moltenReleaseCmd)

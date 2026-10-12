@@ -102,10 +102,12 @@ const config = {
     win: {
         target: ["nsis", "msi", "zip"],
         icon: "build/moltenterm/icon.png", // MOLTENTERM-PATCH (#4)
+        // MOLTENTERM-PATCH (#508): no Windows build is published yet (#289); a signed one names its own publisher,
+        // never Wave's.
         signtoolOptions: windowsShouldSign && {
             signingHashAlgorithms: ["sha256"],
-            publisherName: "Command Line Inc",
-            certificateSubjectName: "Command Line Inc",
+            publisherName: process.env.MOLTENTERM_WIN_PUBLISHER || "DiamondForge",
+            certificateSubjectName: process.env.MOLTENTERM_WIN_PUBLISHER || "DiamondForge",
             certificateSha1: process.env.SM_CODE_SIGNING_CERT_SHA1_HASH,
         },
     },
