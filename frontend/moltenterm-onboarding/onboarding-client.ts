@@ -14,6 +14,7 @@ import {
     OnboardingAgents,
     OnboardingAgentsCommand,
 } from "./onboarding-agent-model";
+import { OnboardingMorphDirCommand } from "./onboarding-morph-model";
 import {
     FirstRunPage,
     FirstRunStepId,
@@ -80,6 +81,16 @@ export async function installDeclinedAgent(id: string): Promise<OnboardingAgent>
             timeout: OnboardingCallTimeoutMs,
         }
     );
+}
+
+// Creates the first morph's scratch folder and returns it.
+export async function ensureMorphDir(): Promise<string> {
+    const rtn = await TabRpcClient.wshRpcCall(
+        OnboardingMorphDirCommand,
+        {},
+        { route: OnboardingRoute, timeout: OnboardingCallTimeoutMs }
+    );
+    return rtn?.path;
 }
 
 export function clientMeta(): MetaType {

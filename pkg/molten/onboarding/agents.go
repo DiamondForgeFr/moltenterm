@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
@@ -16,12 +17,14 @@ import (
 
 // Step 1 of the first run, "Your agent" (FR-ONB-002, DS-ONB-002): the catalog's agents, which of them the login
 // shell's PATH has, and the molten guides MoltenTerm installed for them at start (DS-ONB-006, agentguides.go). The
-// step writes only when the user wants a declined agent back.
+// step writes only when the user wants a declined agent back. Step 2, "Your first morph" (FR-ONB-003, DS-ONB-003),
+// starts the chosen agent in a scratch folder of its own, so a first request never lands in a project.
 
 // must match frontend/moltenterm-onboarding/onboarding-agent-model.ts
 const (
 	AgentsCommand       = "onboardingagents"
 	AgentInstallCommand = "onboardingagentinstall"
+	MorphDirCommand     = "onboardingmorphdir"
 )
 
 // The pages the step links to when no agent is found; checked on 2026-10-12.
@@ -86,6 +89,16 @@ func InstallDeclinedAgent(env molten.AgentEnv, id string, version string) (molte
 	return profile.Status(env), installErr
 }
 
+func MorphDir(dataDir string) string {
+	return filepath.Join(dataDir, "molten", "first-morph")
+}
+
+// EnsureMorphDir creates the scratch folder and returns it.
+func EnsureMorphDir(dataDir string) (string, error) {
+	dir := MorphDir(dataDir)
+	return dir, os.MkdirAll(dir, 0755)
+}
+
 func agentEnv() (molten.AgentEnv, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -114,7 +127,16 @@ func handleAgentInstall(ctx context.Context, source string, data any) (any, erro
 	return InstallDeclinedAgent(env, req.Id, wavebase.WaveVersion)
 }
 
+func handleMorphDir(ctx context.Context, source string, data any) (any, error) {
+	dir, err := EnsureMorphDir(wavebase.GetWaveDataDir())
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"path": dir}, nil
+}
+
 func init() {
 	HandleCommand(AgentsCommand, handleAgents)
 	HandleCommand(AgentInstallCommand, handleAgentInstall)
+	HandleCommand(MorphDirCommand, handleMorphDir)
 }

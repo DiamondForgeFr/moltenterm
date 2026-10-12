@@ -131,6 +131,9 @@ export class OnboardingViewModel implements ViewModel {
             },
             complete: () => this.run(() => this.moveOn(step.id, "done")),
             skip: () => this.run(() => this.moveOn(step.id, "skipped")),
+            markDone: async () => {
+                await this.update({ kind: "step", step: step.id, status: "done" });
+            },
             openBeside: (blockdef) => openBesidePanel(this.blockId, blockdef),
         };
     }
