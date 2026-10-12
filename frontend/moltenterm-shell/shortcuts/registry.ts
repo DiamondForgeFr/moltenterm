@@ -46,6 +46,8 @@ export type Shortcut = {
     // Extra words the sheet's search matches.
     keywords?: string[];
     macOnly?: boolean;
+    // Keys that exist off macOS only (Ctrl+Shift+T as well as Cmd+Shift+T, #512).
+    notMac?: boolean;
 };
 
 export const ShortcutsSheetKey = "Cmd:/";
@@ -150,6 +152,23 @@ export const Shortcuts: Shortcut[] = [
     // Tabs
     { id: "new-tab", label: "New tab", category: "Tabs", scope: "global", keys: "Cmd:t" },
     { id: "close-tab", label: "Close the tab", category: "Tabs", scope: "global", keys: "Cmd:Shift:w" },
+    {
+        id: "reopen-closed",
+        label: "Reopen the last closed pane or tab",
+        category: "Tabs",
+        scope: "global",
+        keys: "Cmd:Shift:t",
+        keywords: ["undo close", "restore", "closed tab", "closed panel"],
+    },
+    {
+        id: "reopen-closed-ctrl",
+        label: "Reopen the last closed pane or tab",
+        category: "Tabs",
+        scope: "global",
+        keys: "Ctrl:Shift:t",
+        keywords: ["undo close", "restore", "closed tab", "closed panel"],
+        notMac: true,
+    },
     { id: "next-tab", label: "Next tab", category: "Tabs", scope: "global", keys: "Cmd:]", alt: ["Shift:Cmd:]"] },
     {
         id: "previous-tab",
@@ -286,7 +305,7 @@ export function shortcutBindings(s: Shortcut): string[] {
 
 // Shortcuts that apply on this platform.
 export function platformShortcuts(mac = isMacOS()): Shortcut[] {
-    return Shortcuts.filter((s) => mac || !s.macOnly);
+    return Shortcuts.filter((s) => (mac ? !s.notMac : !s.macOnly));
 }
 
 // Wave's modifier order in a key description does not matter ("Shift:Cmd:d" is "Cmd:Shift:d"): compare them sorted.

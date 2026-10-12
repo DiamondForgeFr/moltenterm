@@ -21,6 +21,7 @@ import { handOffActivePage } from "../browser/browser-routing";
 import { openPanelFromPalette, runPanelPaletteEntry } from "../command-panel/command-panel-palette";
 import { openMoltentermView } from "../open-view";
 import { openProjectTab } from "../project/project-tab";
+import { reopenLastClosed } from "../reopen/reopen-store";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
 import { openShortcutsSheet } from "../shortcuts/shortcuts-keys";
 import { TermUpdates } from "../termupdate/termupdate-store";
@@ -146,6 +147,9 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             return;
         case "shortcuts":
             openShortcutsSheet();
+            return;
+        case "reopenclosed":
+            await reopenLastClosed();
             return;
         case "panelcommands":
             openPanelFromPalette(target.blockId);

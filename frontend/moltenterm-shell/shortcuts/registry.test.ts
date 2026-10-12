@@ -160,3 +160,22 @@ describe("shortcuts sheet search (TC-SHELL-085)", () => {
         expect(filterShortcuts(platformShortcuts(true), "zzzz", true)).toEqual([]);
     });
 });
+
+describe("reopen the last closed pane or tab (#512)", () => {
+    it("takes Cmd+Shift+T, and Ctrl+Shift+T off macOS, which nothing else uses", () => {
+        const reopen = new Set(["reopen-closed", "reopen-closed-ctrl"]);
+        const keys = ["Cmd:Shift:t", "Ctrl:Shift:t"].map(normalizeKeys);
+        const others = Shortcuts.filter((s) => !reopen.has(s.id))
+            .flatMap(shortcutBindings)
+            .map(normalizeKeys);
+        expect(others.filter((k) => keys.includes(k))).toEqual([]);
+        expect(
+            keyModelBindings()
+                .map(normalizeKeys)
+                .filter((k) => keys.includes(k))
+        ).toEqual([]);
+        expect(platformShortcuts(true).map((s) => s.id)).toContain("reopen-closed");
+        expect(platformShortcuts(true).map((s) => s.id)).not.toContain("reopen-closed-ctrl");
+        expect(platformShortcuts(false).map((s) => s.id)).toEqual(expect.arrayContaining([...reopen]));
+    });
+});

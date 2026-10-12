@@ -26,6 +26,7 @@ import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palet
 import { splitFocusedPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
 import { closeTabAskingFirst, interceptTerminalClose } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#114, #134, #489)
+import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
 import { isWindows } from "@/util/platformutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
@@ -179,7 +180,11 @@ function uxCloseBlock(blockId: string) {
     const layoutModel = getLayoutModelForStaticTab();
     const node = layoutModel.getNodeByBlockId(blockId);
     if (node) {
-        fireAndForget(() => layoutModel.closeNode(node.id));
+        // MOLTENTERM-PATCH (#512): wavesrv keeps the pane before it goes, for Cmd+Shift+T
+        fireAndForget(async () => {
+            await recordPaneClose(blockId);
+            await layoutModel.closeNode(node.id);
+        });
 
         if (isAIFileDiff && isAIPanelOpen) {
             setTimeout(() => WaveAIModel.getInstance().focusInput(), 50);
@@ -234,7 +239,11 @@ function genericClose() {
     const blockData = blockAtom ? globalStore.get(blockAtom) : null;
     const isAIFileDiff = blockData?.meta?.view === "aifilediff";
 
-    fireAndForget(layoutModel.closeFocusedNode.bind(layoutModel));
+    // MOLTENTERM-PATCH (#512): wavesrv keeps the pane before it goes, for Cmd+Shift+T
+    fireAndForget(async () => {
+        await recordPaneClose(blockId);
+        await layoutModel.closeFocusedNode();
+    });
 
     if (isAIFileDiff && isAIPanelOpen) {
         setTimeout(() => WaveAIModel.getInstance().focusInput(), 50);
@@ -548,6 +557,13 @@ function registerGlobalKeys() {
         simpleCloseStaticTab();
         return true;
     });
+    // MOLTENTERM-PATCH (#512): the last closed pane or tab comes back (Cmd+Shift+T, also Ctrl+Shift+T off macOS)
+    for (const key of reopenKeys()) {
+        globalKeyMap.set(key, () => {
+            fireAndForget(reopenLastClosed);
+            return true;
+        });
+    }
     globalKeyMap.set("Cmd:m", () => {
         const layoutModel = getLayoutModelForStaticTab();
         const focusedNode = globalStore.get(layoutModel.focusedNode);

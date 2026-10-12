@@ -5,6 +5,7 @@ import { getOrefMetaKeyAtom, globalStore, recordTEvent } from "@/app/store/globa
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { DeveloperSection } from "../../moltenterm-shell/menu/menu-model"; // MOLTENTERM-PATCH (#408)
+import { reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
 import { acceleratorById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
 import { makeORef } from "../store/wos";
 import type { TabEnv } from "./tab";
@@ -122,6 +123,13 @@ export function buildTabContextMenu(
         menu.push({ label: "Backgrounds", type: "submenu", submenu, icon: "image" });
     }
     menu.push(...buildTabBarContextMenu(env, "Tab bar"), developer, { type: "separator" });
+    // MOLTENTERM-PATCH (#512): the workspace's last closed pane or tab comes back
+    menu.push({
+        label: "Reopen closed",
+        icon: "rotate-left",
+        accelerator: acceleratorById("reopen-closed"),
+        click: () => fireAndForget(reopenLastClosed),
+    });
     menu.push({
         label: "Close tab",
         icon: "xmark",
