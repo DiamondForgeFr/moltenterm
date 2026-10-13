@@ -11,3 +11,31 @@ export function SectionTitle({ children, right }: { children: React.ReactNode; r
         </div>
     );
 }
+
+export type SessionSectionSlots = {
+    usage: React.ReactNode;
+    agents: React.ReactNode;
+    permission: React.ReactNode;
+    topics: React.ReactNode;
+    answer: React.ReactNode;
+    todos: React.ReactNode;
+    task: React.ReactNode;
+    files: React.ReactNode;
+};
+
+// The order of a session's sections (#555, the developer's choice on PR #557): the plan usage and the agents at work
+// first, then the topics, the answer, the tasks and the workspace task; the changed files last, collapsed.
+export function SessionSections(slots: SessionSectionSlots) {
+    return (
+        <>
+            {slots.usage != null ? <div className="mt-1.5">{slots.usage}</div> : null}
+            {slots.agents}
+            {slots.permission}
+            {slots.topics}
+            {slots.answer}
+            {slots.todos}
+            {slots.task}
+            {slots.files}
+        </>
+    );
+}

@@ -49,7 +49,7 @@ import {
     todoCounts,
 } from "./companion-model";
 import { AgentsSection, RecentTopicsSection } from "./companion-recap";
-import { SectionTitle } from "./companion-section";
+import { SectionTitle, SessionSections } from "./companion-section";
 import { CompanionSessions } from "./companion-session-store";
 import { GuessNotice, SessionBar, SessionHistoryList } from "./companion-session-ui";
 import { WorkspaceTaskSection } from "./companion-task";
@@ -321,20 +321,23 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
             <SessionBar view={view} onHistory={() => setHistory(true)} onIntegration={() => setIntegrationOpen(true)} />
             <GuessNotice session={session} onHistory={() => setHistory(true)} />
             <IntegrationNotice view={view} className="mx-3 mt-2" />
-            {/* #555: what the developer looks at first, the changed files last and collapsed. */}
-            <RecentTopicsSection view={view} now={Date.now()} />
-            <AgentsSection view={view} agentState={agentState} now={Date.now()} />
-            {usage != null ? <div className="mt-3">{usage}</div> : null}
-            <PermissionCard pending={view.pending} agentState={agentState?.state} />
-            <AnswerSection key={view.session?.path} target={target} view={view} />
-            <TodoSection todos={view.todos} />
-            <WorkspaceTaskSection target={target} companionId={model.blockId} />
-            <FilesSection
-                key={`files:${view.session?.path}`}
-                target={target}
-                companionId={model.blockId}
-                files={view.files}
-                folder={folder}
+            <SessionSections
+                usage={usage}
+                agents={<AgentsSection view={view} agentState={agentState} now={Date.now()} />}
+                permission={<PermissionCard pending={view.pending} agentState={agentState?.state} />}
+                topics={<RecentTopicsSection view={view} now={Date.now()} />}
+                answer={<AnswerSection key={view.session?.path} target={target} view={view} />}
+                todos={<TodoSection todos={view.todos} />}
+                task={<WorkspaceTaskSection target={target} companionId={model.blockId} />}
+                files={
+                    <FilesSection
+                        key={`files:${view.session?.path}`}
+                        target={target}
+                        companionId={model.blockId}
+                        files={view.files}
+                        folder={folder}
+                    />
+                }
             />
         </div>
     );
