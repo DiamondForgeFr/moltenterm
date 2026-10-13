@@ -9,6 +9,7 @@ import { filterFiles, fuzzyScore, readCompanionPrefs } from "./companion-files-m
 import { CompanionFile, CompanionView } from "./companion-model";
 import { AgentsSection, RecentTopicsSection } from "./companion-recap";
 import { agentsView, branchTicket, finishedLabel, mainAgentRow, topicRows } from "./companion-recap-model";
+import { SessionSections } from "./companion-section";
 
 vi.mock("@/app/store/wos", () => ({ makeORef: (t: string, id: string) => `${t}:${id}` }));
 vi.mock("@/app/store/wps", () => ({ waveEventSubscribeSingle: () => () => {} }));
@@ -190,5 +191,53 @@ describe("changed files", () => {
         expect(html).toContain('data-testid="companion-files-count">4<');
         expect(html).not.toContain('data-testid="companion-files-filter"');
         expect(html).not.toContain("CHANGELOG.md");
+    });
+});
+
+function slotOrder(html: string): string[] {
+    return [...html.matchAll(/data-slot="(\w+)"/g)].map((m) => m[1]);
+}
+
+describe("the companion's order (#555, PR #557)", () => {
+    it("puts the plan usage and the agents first, the topics after, the changed files last", () => {
+        const slot = (name: string) => <i data-slot={name} />;
+        const html = renderToStaticMarkup(
+            <SessionSections
+                usage={slot("usage")}
+                agents={slot("agents")}
+                permission={slot("permission")}
+                topics={slot("topics")}
+                answer={slot("answer")}
+                todos={slot("todos")}
+                task={slot("task")}
+                files={slot("files")}
+            />
+        );
+        expect(slotOrder(html)).toEqual([
+            "usage",
+            "agents",
+            "permission",
+            "topics",
+            "answer",
+            "todos",
+            "task",
+            "files",
+        ]);
+    });
+
+    it("starts with the agents when the plan usage does not show", () => {
+        const html = renderToStaticMarkup(
+            <SessionSections
+                usage={null}
+                agents={<i data-slot="agents" />}
+                permission={null}
+                topics={<i data-slot="topics" />}
+                answer={null}
+                todos={null}
+                task={null}
+                files={<i data-slot="files" />}
+            />
+        );
+        expect(slotOrder(html)).toEqual(["agents", "topics", "files"]);
     });
 });
