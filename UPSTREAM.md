@@ -140,7 +140,7 @@ known because a pull request that changes it runs its first job (check mode, not
 The release needs nothing more on GitHub than the repository's own token (`contents: write` for the publish job only)
 and, to be signed, the two secrets of the release key (#576): `scripts/moltenterm-release-sign.sh` signs
 `SHA256SUMS.txt` into `SHA256SUMS.txt.asc` (plus a `.asc` per AppImage and deb) on a release and a rehearsal, verified
-against the committed `release-signing-key.asc`. With neither the key nor the secrets the release is published
+against the committed `release-signing-key.asc` (fingerprint `A2E8049BB69F46620E99C304B003BEB5DC25CABA`). With neither the key nor the secrets the release is published
 unsigned and the log says so; with only one of them, or a wrong passphrase, the run fails (`RELEASE.md`, "The release
 key").
 Until an Apple Developer ID exists, macOS builds are ad-hoc signed and not notarized: the release text tells users to

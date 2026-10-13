@@ -52,7 +52,8 @@ Every release is signed with the DiamondForge release key (#576), the same GPG k
 `.asc` beside each AppImage and deb. Linux has no Gatekeeper or SmartScreen: this is provenance, not a condition to
 open the app, and it prepares a future apt repository. The rehearsal signs too.
 
-- **Fingerprint:** not created yet. Once it is, write it here, in `UPSTREAM.md` ("Releases") and on the website.
+- **Fingerprint:** `A2E8 049B B69F 4662 0E99  C304 B003 BEB5 DC25 CABA` ("DiamondForge Releases", ed25519,
+  created 2026-10-13, expires 2031-10-12). Also in `UPSTREAM.md` ("Releases"), and on the website once it exists.
 - **Public key:** `release-signing-key.asc` at the root of the repository.
 - **Secrets:** `RELEASE_GPG_PRIVATE_KEY` (the armoured private key) and `RELEASE_GPG_PASSPHRASE`.
 
