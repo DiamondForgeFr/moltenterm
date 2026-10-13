@@ -61,6 +61,7 @@ const (
 	ReleaseMilestoneCommand = "moltenmissionreleasemilestone"
 	BranchesPlanCommand     = "moltenmissionbranchesplan"
 	BranchesCleanCommand    = "moltenmissionbranchesclean"
+	BranchesAutoDeleteCmd   = "moltenmissionbranchesautodelete"
 	WorkCommand             = "moltenmissionwork"
 	GitInitCommand          = "moltenmissiongitinit"
 	UpdateEvent             = "molten:mission:update"

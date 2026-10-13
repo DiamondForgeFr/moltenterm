@@ -223,6 +223,15 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 			return nil, err
 		}
 		return l.runs.CleanBranches(req)
+	case BranchesAutoDeleteCmd:
+		if !isWindowSource(source) {
+			return nil, fmt.Errorf("the repository setting can only be changed from a MoltenTerm window")
+		}
+		var req BranchesAutoDeleteRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return nil, l.runs.AnswerAutoDelete(req)
 	case ReleaseStartCommand:
 		var req ReleaseStartRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

@@ -54,6 +54,7 @@ export const MissionReleaseNotesSaveCommand = "moltenmissionreleasenotessave";
 export const MissionReleaseMilestoneCommand = "moltenmissionreleasemilestone";
 export const MissionBranchesPlanCommand = "moltenmissionbranchesplan";
 export const MissionBranchesCleanCommand = "moltenmissionbranchesclean";
+export const MissionBranchesAutoDeleteCommand = "moltenmissionbranchesautodelete";
 export const MissionGitInitCommand = "moltenmissiongitinit";
 // must match pkg/molten/mission/github_run.go
 export const MissionGithubRunLogCommand = "moltenmissionghrunlog";
@@ -478,15 +479,23 @@ export function useReleaseFacts(dir: string, bump: string): { facts: ReleaseFact
 }
 
 // must match BranchPlan and BranchesCleanResult in pkg/molten/mission/branches.go
+export type BranchDeleteReason = "merged-pr" | "on-trunk" | "patches-on-trunk";
 export type BranchKeepReason =
     | "protected"
     | "not-on-trunk"
     | "content-unknown"
     | "checked-out"
     | "open-pr"
-    | "pr-unknown";
-export type BranchPlan = { name: string; remote: boolean; action: "delete" | "keep"; reason?: BranchKeepReason };
-export type BranchesPlan = { trunk: string; branches: BranchPlan[] };
+    | "pr-unknown"
+    | "commits-after-pr";
+export type BranchPlan = {
+    name: string;
+    remote: boolean;
+    action: "delete" | "keep";
+    reason?: BranchDeleteReason | BranchKeepReason;
+    pr?: number;
+};
+export type BranchesPlan = { trunk: string; branches: BranchPlan[]; autodeleteoffer?: boolean };
 export type BranchesCleanResult = { deleted: string[]; failed: number; errors?: string[] };
 
 export function branchesPlan(dir: string): Promise<BranchesPlan> {
@@ -495,4 +504,8 @@ export function branchesPlan(dir: string): Promise<BranchesPlan> {
 
 export function branchesClean(dir: string, names: string[]): Promise<BranchesCleanResult> {
     return releaseCall(MissionBranchesCleanCommand, { dir, names });
+}
+
+export function branchesAutoDelete(dir: string, enable: boolean): Promise<void> {
+    return releaseCall(MissionBranchesAutoDeleteCommand, { dir, enable });
 }
