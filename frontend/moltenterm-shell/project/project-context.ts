@@ -25,6 +25,8 @@ export type ProjectCardProps = {
     reloadRelease: () => void;
     // Starts a declared build (the trust prompt opens when needed); resolves to the error, if any.
     startBuild: (buildId: string) => Promise<string>;
+    // Starts a declared adapter step as the CD tab's Run button does (the trust prompt opens when needed).
+    startStep: (stepId: string) => void;
     // Starts the local CI on a branch (the trust prompt opens when needed).
     runCi: (branch: string) => void;
     // Scrolls the run cards into view after a start.

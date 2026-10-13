@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The Project overview's header band (FR-MC-021), a passenger information screen: the next station and its state,
-// what waits on the trunk, Mission Control's only copy of the actions (Run CI on develop, Build local, Release, Clean
-// branches), and a fixed list of the latest pending changes. What it shows comes from next-station-model.ts.
+// what waits on the trunk, Mission Control's only copy of the actions (Run CI on develop, Build local, Release, Deploy
+// to, Clean branches), and a fixed list of the latest pending changes. What it shows comes from next-station-model.ts.
 
 import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
@@ -11,6 +11,8 @@ import { useMemo } from "react";
 import { ActionPrimaryClass, RunningDot } from "../mission/action-button";
 import { BranchCleanupButton } from "../mission/branch-cleanup";
 import { BuildLocalMenu } from "../mission/build-local-menu";
+import { DeployMenu } from "../mission/deploy-menu";
+import { deployRevision, deployTargets, stepRunning } from "../mission/deploy-model";
 import { latestRun } from "../mission/mission-model";
 import { ReleaseMenu } from "../mission/release-menu";
 import { MoltenWave } from "../molten-button";
@@ -159,6 +161,7 @@ export function NextStationHeader({
     reloadRelease,
     refresh,
     startBuild,
+    startStep,
     runCi,
     showRuns,
 }: ProjectCardProps) {
@@ -267,6 +270,13 @@ export function NextStationHeader({
                             onShowRelease={showRuns}
                         />
                     ) : null}
+                    <DeployMenu
+                        targets={deployTargets(pipeline, runs)}
+                        revision={deployRevision(git)}
+                        busy={stepRunning(runs)}
+                        onRun={startStep}
+                        onShowRun={showRuns}
+                    />
                     <BranchCleanupButton dir={project.dir} onCleaned={refresh} />
                     {pipeline ? null : (
                         <p className="basis-full text-11 text-muted @min-[64rem]:text-right">

@@ -8,8 +8,10 @@ import { cn, fireAndForget } from "@/util/util";
 import { useState } from "react";
 import { MoltenWave } from "../molten-button";
 import { BlockHeader } from "./cicd-panels";
+import { useConfirmedDeploy } from "./deploy-menu";
+import { deployRevision, deployTarget } from "./deploy-model";
 import { missionCancel, missionClose } from "./mission-client";
-import { logTail, PipelineDef, RunLogMode, runLogVisible, RunRecord, runStale } from "./mission-model";
+import { logTail, MissionGit, PipelineDef, RunLogMode, runLogVisible, RunRecord, runStale } from "./mission-model";
 import { RunStateBadge, useRunLog, useStartRun } from "./runs-view";
 import { timeAgo } from "./time-format";
 
@@ -144,6 +146,7 @@ export function AdapterSteps({
     runs,
     section,
     bare,
+    git,
 }: {
     dir: string;
     projectName: string;
@@ -153,8 +156,11 @@ export function AdapterSteps({
     // Inside a card that already frames and titles it (the Project overview's Project steps card): each step on two
     // lines, which fits a quarter of the row.
     bare?: boolean;
+    // What a deploy takes, named when a step's environment asks first (#559).
+    git?: MissionGit;
 }) {
     const { start, prompt, error, clearError } = useStartRun(dir, projectName);
+    const { deploy, dialog } = useConfirmedDeploy(deployRevision(git), (stepId) => start("step", stepId));
     const steps = (pipeline?.steps ?? []).filter((s) => s.section === section);
     if (steps.length === 0) {
         return null;
@@ -171,7 +177,7 @@ export function AdapterSteps({
                         last={lastRun(runs, step.id)}
                         runs={runs}
                         busy={anyRunning}
-                        onRun={() => start("step", step.id)}
+                        onRun={() => deploy(deployTarget(step, runs))}
                         stacked={bare}
                     />
                 ))}
@@ -182,6 +188,7 @@ export function AdapterSteps({
                 </button>
             ) : null}
             {prompt}
+            {dialog}
         </section>
     );
 }

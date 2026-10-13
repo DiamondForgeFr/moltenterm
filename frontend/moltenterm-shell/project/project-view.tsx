@@ -123,7 +123,7 @@ function ProjectContent({
     const { state: ci, reload: reloadCi } = useCiState(dir);
     const { session: release, reload: reloadRelease } = useReleaseSession(dir);
     const group = useMissionGroup(project.workspace?.oid, dir);
-    const { startAsync, prompt, error, clearError } = useStartRun(dir, projectName);
+    const { start, startAsync, prompt, error, clearError } = useStartRun(dir, projectName);
     const [ciError, setCiError] = useState<string>(null);
     const [untrusted, setUntrusted] = useState<{ branch: string; info: UntrustedInfo }>(null);
     const rootRef = useRef<HTMLDivElement>(null);
@@ -187,6 +187,7 @@ function ProjectContent({
         release,
         reloadRelease,
         startBuild: (id) => startAsync("build", id),
+        startStep: (id) => start("step", id),
         runCi,
         showRuns,
         group,
