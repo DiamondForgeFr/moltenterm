@@ -128,6 +128,10 @@ type PipelineAdapterStep struct {
 	Id      string `json:"id"`
 	Title   string `json:"title"`
 	Section string `json:"section"`
+	// The environment a cd step deploys to (#559): the Project header offers it as "Deploy to <environment>".
+	Environment string `json:"environment,omitempty"`
+	// The deploy asks first even when its environment is not named like production.
+	Confirm bool `json:"confirm,omitempty"`
 	PipelineCommand
 }
 
@@ -165,6 +169,8 @@ type Pipeline struct {
 
 // must match the sections in frontend/moltenterm-shell/mission and pipeline-format.md
 var PipelineSections = []string{"timeline", "cilocal", "ciremote", "cd"}
+
+const PipelineSectionCd = "cd"
 
 type PipelineReport struct {
 	Path     string    `json:"path"`
@@ -584,6 +590,7 @@ func (c *pipelineChecker) check(p *Pipeline) {
 		c.checkSteps("release.public", p.Release.Public)
 	}
 	seen = map[string]bool{}
+	environments := map[string]bool{}
 	for i, step := range p.Steps {
 		label := fmt.Sprintf("steps[%d]", i)
 		c.checkId(label, step.Id, seen)
@@ -597,11 +604,33 @@ func (c *pipelineChecker) check(p *Pipeline) {
 		if !known {
 			c.errorf("%s (%s): section %q is not one of %s", label, step.Id, step.Section, strings.Join(PipelineSections, ", "))
 		}
+		c.checkStepEnvironment(label, step, environments)
 		c.checkCommand(label+" ("+step.Id+")", step.PipelineCommand)
 	}
 	if p.Ci == nil && len(p.Builds) == 0 && p.Release == nil && len(p.Steps) == 0 {
 		c.warnf("the pipeline declares nothing to run (ci, builds, release, steps)")
 	}
+}
+
+func (c *pipelineChecker) checkStepEnvironment(label string, step PipelineAdapterStep, seen map[string]bool) {
+	if step.Environment == "" {
+		if step.Confirm {
+			c.errorf("%s (%s): confirm needs an environment", label, step.Id)
+		}
+		return
+	}
+	if step.Section != PipelineSectionCd {
+		c.errorf("%s (%s): environment is only for a %q step", label, step.Id, PipelineSectionCd)
+		return
+	}
+	if !pipelineIdRegex.MatchString(step.Environment) {
+		c.errorf("%s (%s): environment %q must be lowercase letters, digits, '.', '_' or '-'", label, step.Id, step.Environment)
+		return
+	}
+	if seen[step.Environment] {
+		c.errorf("%s (%s): environment %q is deployed by two steps", label, step.Id, step.Environment)
+	}
+	seen[step.Environment] = true
 }
 
 func readProjectJson(path string, target any) bool {

@@ -120,6 +120,16 @@ export type PipelineDependency = {
     output: string[];
 };
 
+// must match PipelineAdapterStep in pkg/molten/pipeline.go
+export type PipelineAdapterStep = PipelineCommand & {
+    id: string;
+    title: string;
+    section: string;
+    // The environment a cd step deploys to (#559).
+    environment?: string;
+    confirm?: boolean;
+};
+
 export type PipelineDef = {
     schema: number;
     name: string;
@@ -152,7 +162,7 @@ export type PipelineDef = {
         rc?: PipelineReleaseStep[];
         public?: PipelineReleaseStep[];
     };
-    steps?: (PipelineCommand & { id: string; title: string; section: string })[];
+    steps?: PipelineAdapterStep[];
 };
 
 // must match PipelineReport in pkg/molten/pipeline.go

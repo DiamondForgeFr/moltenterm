@@ -135,7 +135,14 @@ function CicdContent({
     const pipeline = report?.valid ? report.pipeline : null;
     const projectName = project.facts?.name ?? pathBaseName(project.dir);
     const steps = (section: "cilocal" | "ciremote" | "cd") => (
-        <AdapterSteps dir={project.dir} projectName={projectName} pipeline={pipeline} runs={runs} section={section} />
+        <AdapterSteps
+            dir={project.dir}
+            projectName={projectName}
+            pipeline={pipeline}
+            runs={runs}
+            section={section}
+            git={snapshot?.git}
+        />
     );
     return (
         <>

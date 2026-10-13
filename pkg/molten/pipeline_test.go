@@ -111,6 +111,46 @@ func TestValidatePipelineErrors(t *testing.T) {
 	}
 }
 
+func TestValidatePipelineStepEnvironments(t *testing.T) {
+	report := validateWith(t, map[string]string{".molten/project.json": `{
+	  "schema": 1, "name": "x",
+	  "steps": [
+	    {"id": "deploy-dev", "title": "Deploy to dev", "section": "cd", "environment": "dev", "run": "true"},
+	    {"id": "deploy-prod", "title": "Deploy to prod", "section": "cd", "environment": "prod", "confirm": true, "run": "true", "env": {"TARGET": "prod"}}
+	  ]
+	}`})
+	if !report.Valid || len(report.Errors) != 0 {
+		t.Fatalf("errors: %v", report.Errors)
+	}
+	steps := report.Pipeline.Steps
+	if steps[0].Environment != "dev" || steps[0].Confirm || steps[1].Environment != "prod" || !steps[1].Confirm || steps[1].Env["TARGET"] != "prod" {
+		t.Fatalf("steps: %+v", steps)
+	}
+	report = validateWith(t, map[string]string{".molten/project.json": `{
+	  "schema": 1, "name": "x",
+	  "steps": [
+	    {"id": "a", "title": "A", "section": "timeline", "environment": "dev", "run": "true"},
+	    {"id": "b", "title": "B", "section": "cd", "environment": "Dev Env", "run": "true"},
+	    {"id": "c", "title": "C", "section": "cd", "environment": "prod", "run": "true"},
+	    {"id": "d", "title": "D", "section": "cd", "environment": "prod", "run": "true"},
+	    {"id": "e", "title": "E", "section": "cd", "confirm": true, "run": "true"}
+	  ]
+	}`})
+	for _, want := range []string{
+		`steps[0] (a): environment is only for a "cd" step`,
+		`steps[1] (b): environment "Dev Env" must be lowercase`,
+		`steps[3] (d): environment "prod" is deployed by two steps`,
+		"steps[4] (e): confirm needs an environment",
+	} {
+		if !hasMessage(report.Errors, want) {
+			t.Errorf("missing error %q in %v", want, report.Errors)
+		}
+	}
+	if len(report.Errors) != 4 {
+		t.Errorf("errors: %v", report.Errors)
+	}
+}
+
 func TestValidatePipelineUnknownFieldAndBrokenJson(t *testing.T) {
 	report := validateWith(t, map[string]string{".molten/project.json": `{"schema": 1, "name": "x", "ci": {"jobs": [{"name": "a", "run": "true", "command": "x"}]}}`})
 	if report.Valid || !hasMessage(report.Errors, `unknown field "command"`) {
