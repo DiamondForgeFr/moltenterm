@@ -189,6 +189,47 @@ describe("plan usage section", () => {
         expect(html).toContain(">Hide</button>");
     });
 
+    it("is one line per limit in its compact form, the details a click away (#555)", () => {
+        const onDetails = vi.fn();
+        const html = renderToStaticMarkup(
+            <PlanUsageBody view={gaugesView(enabled, now)} {...noop} compact onDetails={onDetails} />
+        );
+        expect(html).toContain('data-compact="true"');
+        expect(html.match(/data-testid="companion-gauge"/g)).toHaveLength(2);
+        expect(html).toContain(">23.5 %<");
+        expect(html).toContain(">in 2 h 14 min<");
+        expect(html).toContain(">Fri 10:00<");
+        expect(html).toContain("From the Claude Code status line · Updated 3 min ago");
+        expect(html).toContain('aria-label="Plan usage details"');
+        expect(html).not.toContain("Experimental");
+        expect(html).not.toContain(">Hide</button>");
+        const full = renderToStaticMarkup(
+            <PlanUsageBody view={gaugesView(enabled, now)} {...noop} compact={false} onDetails={onDetails} />
+        );
+        expect(full).toContain('aria-label="Compact plan usage"');
+        expect(full).toContain(">Hide</button>");
+    });
+
+    it("keeps the limits beyond two and the credits in the details", () => {
+        const many: CompanionUsageInfo = {
+            ...enabled,
+            snapshot: {
+                ...enabled.snapshot,
+                windows: [
+                    ...enabled.snapshot.windows,
+                    { id: "opus", label: "Opus this week", usedpercent: 10, resetsat: now + 3 * 24 * Hour },
+                ],
+                credits: { enabled: true, used: 5, limit: 50, unit: "USD" },
+            },
+        };
+        const html = renderToStaticMarkup(
+            <PlanUsageBody view={gaugesView(many, now)} {...noop} compact onDetails={() => {}} />
+        );
+        expect(html.match(/data-testid="companion-gauge"/g)).toHaveLength(2);
+        expect(html).not.toContain("Opus this week");
+        expect(html).toContain(">+2<");
+    });
+
     it("collapses to one muted line on failure, with the reason as tooltip and Hide kept", () => {
         const html = markup({ ...enabled, gauges: "unavailable", reason: "noplan", snapshot: undefined });
         expect(html).toContain('data-state="unavailable"');
