@@ -3,7 +3,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { agentModelEffortLabel, agentModelEffortTitle, AgentStateInfo } from "../agent-state-model";
+import { agentEffortTitle, agentModelEffortLabel, agentModelTitle, AgentStateInfo } from "../agent-state-model";
 import { agentSection, EffortAction, effortItem, feedbackFor } from "./agent-commands";
 import { choiceValueLabel } from "./panel-model";
 import { PanelChoice, PanelFeedback } from "./panel-types";
@@ -99,7 +99,8 @@ describe("model and effort label", () => {
         expect(agentModelEffortLabel({ ...codex, model: "gpt-6.1-sol", effort: "xhigh" })).toBe("gpt-6.1-sol · xhigh");
         expect(agentModelEffortLabel({ ...claude, model: "", modelname: "" })).toBe("");
         expect(agentModelEffortLabel(null)).toBe("");
-        expect(agentModelEffortTitle(claude)).toContain("Opus (claude-opus-5-5)");
-        expect(agentModelEffortTitle({ ...claude, effort: "" })).toContain("Effort: not reported");
+        expect(agentModelTitle(claude)).toContain("Opus (claude-opus-5-5)");
+        expect(agentEffortTitle(claude)).toContain("Effort: high");
+        expect(agentEffortTitle({ ...claude, effort: "" })).toBe("");
     });
 });

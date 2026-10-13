@@ -28,6 +28,7 @@ export type AgentInputRequest = {
     mode?: string;
     confirmeddraft?: boolean;
     effort?: string;
+    model?: string;
 };
 
 export type AgentInputReason =
@@ -63,6 +64,13 @@ export type AgentInputInfo = {
     // The run's effort level and the levels MoltenTerm can set (#549); no levels: the agent's own picker only.
     effort?: string;
     efforts?: string[];
+    // The models the agent's model command takes inline (#573); none: the agent's own picker only.
+    models?: AgentModelOption[];
+};
+
+export type AgentModelOption = {
+    id: string;
+    label: string;
 };
 
 // must match pkg/molten/agentcontinuity/commands.go
@@ -157,7 +165,60 @@ export type AgentCommandHandlers = {
     run: (action: string) => Promise<PanelActionResult>;
     setMode: (mode: string) => Promise<PanelActionResult>;
     setEffort?: (effort: string) => Promise<PanelActionResult>;
+    setModel?: (model: string) => Promise<PanelActionResult>;
 };
+
+export const ModelItemId = "agent:model";
+export const EffortItemId = "agent:effort";
+
+// The Model choice (#573), built like Effort: the model the agent reported, checked, then the models its model
+// command takes inline (Claude Code's `/model <alias>`, which Claude Code keeps as the default for new sessions),
+// then the agent's own picker, the only way for Codex, whose /model takes no argument.
+export function modelItem(
+    agent: AgentStateInfo,
+    info: AgentInputInfo,
+    def: AgentCommandDef,
+    handlers: AgentCommandHandlers
+): PanelChoice {
+    const options: PanelChoiceOption[] = [];
+    const current = (agent?.model || "").trim();
+    const currentLabel = (agent?.modelname || agent?.model || "").trim();
+    if (currentLabel) {
+        options.push({
+            id: "model:current",
+            label: currentLabel,
+            detail: current && current !== currentLabel ? current : undefined,
+            checked: true,
+            disabled: true,
+        });
+    }
+    const models = info?.models ?? [];
+    for (const m of models) {
+        options.push({
+            id: `model:${m.id}`,
+            label: m.label,
+            detail: "Saved as your default",
+            checked: false,
+            run: () => handlers.setModel?.(m.id),
+        });
+    }
+    options.push({
+        id: "model:picker",
+        label: `Choose in ${agentName(agent)}`,
+        detail: def.command,
+        checked: false,
+        run: () => handlers.run(ModelAction),
+    });
+    return {
+        id: ModelItemId,
+        type: "choice",
+        label: def.label,
+        icon: def.icon,
+        keywords: [def.command, "model", ...models.map((m) => m.id)],
+        awaitResult: true,
+        options,
+    };
+}
 
 function effortDetail(style: EffortStyle, level: string): string {
     if (style === "codex" || level === "max") {
@@ -198,7 +259,7 @@ export function effortItem(
         }
     }
     return {
-        id: "agent:effort",
+        id: EffortItemId,
         type: "choice",
         label: "Effort",
         icon: "gauge-high",
@@ -256,6 +317,13 @@ export function agentSection(
         items.push(permissionModeItem(info, handlers));
     }
     for (const def of table.commands) {
+        if (def.action === ModelAction) {
+            items.push(modelItem(agent, info, def, handlers));
+            if (table.effort != null) {
+                items.push(effortItem(agent, info, table.effort, handlers));
+            }
+            continue;
+        }
         items.push({
             id: `agent:${def.action}`,
             type: "action",
@@ -266,9 +334,6 @@ export function agentSection(
             awaitResult: true,
             run: () => handlers.run(def.action),
         });
-        if (def.action === ModelAction && table.effort != null) {
-            items.push(effortItem(agent, info, table.effort, handlers));
-        }
     }
     const state = agent.state && agent.state !== "idle" ? agentStateLabel(agent.state) : null;
     return {
