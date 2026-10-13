@@ -18,6 +18,7 @@ import { WorkspaceIcon } from "../workspace-icon";
 import { WorkspaceIconSource, workspaceIconSource } from "../workspace-icon-model";
 import {
     countsLine,
+    NextStation,
     nextStation,
     NextStationState,
     runCiTarget,
@@ -31,13 +32,23 @@ import { ProjectCardProps } from "./project-context";
 
 const LatestShown = 3;
 
+const WarningChipClass = "border-warning/50 bg-warning/10 text-warning";
+
 // Only a decision asks for something: it gets the warning tone, the other states stay calm.
 const ChipClass: Record<NextStationState, string> = {
-    decision: "border-warning/50 bg-warning/10 text-warning",
+    decision: WarningChipClass,
     chosen: "border-accent/50 bg-[color-mix(in_srgb,var(--mt-accent)_10%,transparent)] text-primary",
     derived: "border-border text-secondary",
     nothing: "border-border text-muted",
 };
+
+// A chip that shows the due date asks for attention only once the day has come or passed.
+function chipClass(station: NextStation): string {
+    if (station.chiptitle == null) {
+        return ChipClass[station.state];
+    }
+    return station.urgent ? WarningChipClass : ChipClass.derived;
+}
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
     return <span className="text-11 font-semibold tracking-[0.14em] text-muted uppercase">{children}</span>;
@@ -66,18 +77,11 @@ function ProjectBadge({ name, source }: { name: string; source: WorkspaceIconSou
     );
 }
 
-// The station's due date and the milestone after it, beside the version: small and muted, so the band keeps its look.
+// The milestone after the station's, beside the version: small and muted, so the band keeps its look. The station's
+// own due date is in the chip.
 function StationScheduleText({ schedule }: { schedule: StationSchedule }) {
     return (
         <span className="flex items-baseline gap-2 text-12 text-muted" data-testid="next-station-schedule">
-            {schedule.due ? (
-                <span
-                    className={cn(schedule.overdue && "text-warning")}
-                    title={schedule.overdue ? "Overdue" : undefined}
-                >
-                    {schedule.due}
-                </span>
-            ) : null}
             {schedule.then ? (
                 // A button, not a link: Wave's link colour would make the line louder than the band around it.
                 <button
@@ -163,8 +167,8 @@ export function NextStationHeader({
     showRuns,
 }: ProjectCardProps) {
     const git = snapshot?.git;
-    const station = useMemo(() => nextStation(git, release), [git, release]);
     const milestones = snapshot?.github?.milestones;
+    const station = useMemo(() => nextStation(git, release, milestones), [git, release, milestones]);
     const schedule = useMemo(
         () => stationSchedule(station, milestones, git?.tagprefix),
         [station, milestones, git?.tagprefix]
@@ -191,14 +195,15 @@ export function NextStationHeader({
                                 <span
                                     className={cn(
                                         "rounded-4 border px-2 py-0.5 text-12 font-semibold",
-                                        ChipClass[station.state]
+                                        chipClass(station)
                                     )}
+                                    title={station.chiptitle}
                                     data-testid="next-station-state"
                                 >
                                     {station.chip}
                                 </span>
                             ) : null}
-                            {schedule ? <StationScheduleText schedule={schedule} /> : null}
+                            {schedule?.then ? <StationScheduleText schedule={schedule} /> : null}
                         </div>
                         <span className="text-13 text-secondary">{station?.note ?? "Reading the history…"}</span>
                     </div>

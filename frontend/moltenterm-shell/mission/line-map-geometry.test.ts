@@ -109,7 +109,22 @@ describe("scale and ticks", () => {
         expect(geo.devY).toBeGreaterThan(geo.mainY);
         expect(geo.route.startsWith(`M ${geo.nowX} ${geo.devY}`)).toBe(true);
         expect(geo.terminus.textX + "public release".length * 6.6).toBeLessThanOrEqual(geo.width);
-        expect(geo.terminus).toMatchObject({ title: "v1.0.0", sub: "public release", status: "to decide" });
+        expect(geo.terminus).toMatchObject({
+            title: "v1.0.0",
+            sub: "public release",
+            status: "to decide",
+            urgent: false,
+        });
+    });
+
+    it("writes the terminus's due date in the warning tone once the day has come", () => {
+        const due = (chip: string, urgent: boolean) =>
+            layoutLineMap(
+                model({ terminus: { tag: "v1.0.0", state: "decision", chip, note: "", waiting: 3, urgent } }),
+                { width: 1400 }
+            ).terminus;
+        expect(due("overdue by 2 days", true)).toMatchObject({ status: "overdue by 2 days", urgent: true });
+        expect(due("due in 3 days", false)).toMatchObject({ status: "due in 3 days", urgent: false });
     });
 });
 

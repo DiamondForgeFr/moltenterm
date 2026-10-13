@@ -21,10 +21,15 @@ export type NextStation = {
     // "v1.2.0"; null when nothing justifies a release.
     tag: string;
     state: NextStationState;
-    // The chip next to the version: "to decide", the bump level, "chosen"; null when there is no version.
+    // The chip next to the version: the schedule of the station's milestone when it has a due date ("due today",
+    // "overdue by 2 days"), else "to decide", the bump level, "chosen"; null when there is no version.
     chip: string;
     // One line of explanation under the version.
     note: string;
+    // The chip shows a due date that is today or past: it asks for attention.
+    urgent?: boolean;
+    // "Due Oct 13 (milestone 1.0.0)" when the chip shows the schedule.
+    chiptitle?: string;
 };
 
 export type WaitingCounts = {
@@ -49,8 +54,37 @@ export type RunCiTarget = {
 };
 
 // The next station of the header, which the line map's terminus also reads (buildLineMap in
-// ../mission/line-map-model.ts), so the header and the map name the same next version in the same state.
-export function nextStation(git: MissionGit, session: ReleaseSession): NextStation {
+// ../mission/line-map-model.ts), so the header and the map name the same next version in the same state. Given the
+// milestones, a dated station shows its schedule in the chip and keeps what the chip said in its note.
+export function nextStation(
+    git: MissionGit,
+    session: ReleaseSession,
+    milestones?: readonly Milestone[],
+    now: number = Date.now()
+): NextStation {
+    const station = plainStation(git, session);
+    if (station == null || milestones == null) {
+        return station;
+    }
+    return scheduledStation(station, stationSchedule(station, milestones, git.tagprefix, now));
+}
+
+const DecisionNote = "First public release: the number is a choice, pick it in the Release menu.";
+
+function scheduledStation(station: NextStation, schedule: StationSchedule): NextStation {
+    if (!schedule?.chip) {
+        return station;
+    }
+    let note = station.note;
+    if (station.state === "decision") {
+        note = DecisionNote;
+    } else if (station.state === "derived" && station.chip) {
+        note = station.note.replace(/^Derived from the commits/, `A ${station.chip} release, derived from the commits`);
+    }
+    return { ...station, chip: schedule.chip, urgent: schedule.urgent, chiptitle: schedule.title, note };
+}
+
+function plainStation(git: MissionGit, session: ReleaseSession): NextStation {
     if (git == null) {
         return null;
     }
@@ -93,6 +127,13 @@ export type StationSchedule = {
     // "due Oct 13"; null when the station's milestone has no due date.
     due: string;
     overdue: boolean;
+    // The due date from today, for the chip: "overdue by 2 days", "due today", "due tomorrow", "due in 3 days", then
+    // "due Oct 20" from a week on; null without a due date.
+    chip: string;
+    // Overdue or due today.
+    urgent: boolean;
+    // "Due Oct 13 (milestone 1.0.0)"; null without a due date.
+    title: string;
     // The milestone after the station's; null when none is planned.
     then: { label: string; url: string; title: string };
 };
@@ -111,6 +152,31 @@ function shortDate(iso: string): string {
 
 function utcDay(iso: string): string {
     return iso ? new Date(iso).toISOString().slice(0, 10) : "";
+}
+
+const DayMs = 24 * 60 * 60 * 1000;
+// From this many days on, the chip gives the date rather than a count.
+const RelativeDaysMax = 6;
+
+// Whole days from today to the due day, both read in UTC as GitHub stores the day.
+function daysUntil(iso: string, now: number): number {
+    const due = Date.parse(utcDay(iso) + "T00:00:00Z");
+    const today = Date.parse(new Date(now).toISOString().slice(0, 10) + "T00:00:00Z");
+    return Math.round((due - today) / DayMs);
+}
+
+function relativeDue(days: number, date: string): string {
+    const plural = (n: number) => `${n} day${n === 1 ? "" : "s"}`;
+    if (days < 0) {
+        return `overdue by ${plural(-days)}`;
+    }
+    if (days === 0) {
+        return "due today";
+    }
+    if (days === 1) {
+        return "due tomorrow";
+    }
+    return days <= RelativeDaysMax ? `due in ${plural(days)}` : `due ${date}`;
 }
 
 // The milestone of the station's version: its title names it ("1.2.0", "v1.2.0") or its line ("v1" for 1.x.y). No
@@ -165,9 +231,13 @@ export function stationSchedule(
     }
     const next = followingMilestone(milestones, current);
     const due = current?.due_on ? shortDate(current.due_on) : "";
+    const days = due ? daysUntil(current.due_on, now) : null;
     const rtn: StationSchedule = {
         due: due ? `due ${due}` : null,
-        overdue: due !== "" && utcDay(current.due_on) < new Date(now).toISOString().slice(0, 10),
+        overdue: due !== "" && days < 0,
+        chip: due ? relativeDue(days, due) : null,
+        urgent: due !== "" && days <= 0,
+        title: due ? `Due ${due} (milestone ${current.title})` : null,
         then: null,
     };
     if (next != null) {

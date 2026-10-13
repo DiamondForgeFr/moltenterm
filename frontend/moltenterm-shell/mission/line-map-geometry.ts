@@ -251,7 +251,8 @@ export type LineMapGeometry = {
     // The part of the window before the history read: shaded, with its date.
     unread: { x1: number; x2: number; label: string };
     head: Point;
-    terminus: Point & { r: number; title: string; sub: string; status: string; textX: number };
+    // urgent: the status is a due date that has come or passed, in the warning colour as the header's chip.
+    terminus: Point & { r: number; title: string; sub: string; status: string; textX: number; urgent: boolean };
 };
 
 function truncate(text: string, max: number): string {
@@ -262,8 +263,8 @@ export function tickStep(pxPerDay: number): number {
     return TickSteps.find((s) => s * pxPerDay >= MinTickSpacing) ?? TickSteps[TickSteps.length - 1];
 }
 
-// The terminus reads "v<next> · public release", then where it stands: the Project header's chip ("to decide", the
-// bump level, "chosen"), with what waits for it when the number follows from the commits.
+// The terminus reads "v<next> · public release", then where it stands: the Project header's chip (the due date, or
+// "to decide", the bump level, "chosen"), with what waits for it when the number follows from the commits.
 export function terminusText(model: LineMapModel): { title: string; sub: string; status: string } {
     const t = model.terminus;
     const title = t.tag ?? "next";
@@ -656,6 +657,7 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
             sub,
             status,
             textX: termX + TerminusRadius + 10,
+            urgent: model.terminus.state !== "nothing" && model.terminus.urgent === true,
         },
     };
 }
