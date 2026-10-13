@@ -15,7 +15,7 @@ import { NextStation, nextStation } from "../project/next-station-model";
 import { BranchPr, projectBranchRows } from "../project/project-model";
 import { channelOfTag, DefaultTagPrefix, parseVersion, VersionRules } from "../releases/versions";
 import { CiBranch, CiVerdictStatus } from "./ci-model";
-import { GithubRelease, PullRequest } from "./github";
+import { GithubRelease, Milestone, PullRequest } from "./github";
 import { BuildMarker, LocalBuild, placeBuildMarkers } from "./line-map-builds";
 import { MissionGit, RawCommit, toTreeData } from "./mission-model";
 import { ReleaseSession } from "./release-model";
@@ -115,6 +115,8 @@ export type LineMapInput = {
     releases?: readonly GithubRelease[];
     // The release under way: a public one carries the number chosen in the Release menu.
     session?: ReleaseSession;
+    // The open GitHub milestones: the terminus shows its milestone's due date as the header's chip does.
+    milestones?: readonly Milestone[];
     // The delivered local builds, from their manifests.
     builds?: readonly LocalBuild[];
     now: number;
@@ -383,7 +385,10 @@ export function buildLineMap(input: LineMapInput): LineMapModel {
     const earlier = all.filter((s) => s.at < start).reverse();
 
     const state = releaseState(tree.tags, git.ahead ?? [], git.sincepublic ?? [], rules);
-    const terminus: LineMapTerminus = { ...nextStation(git, input.session), waiting: state.pending.total };
+    const terminus: LineMapTerminus = {
+        ...nextStation(git, input.session, input.milestones, now),
+        waiting: state.pending.total,
+    };
 
     const headCommit = trunkCommits[0];
     const oldestRead = trunkCommits.length >= TrunkCommitsRead ? time(trunkCommits[trunkCommits.length - 1].date) : NaN;

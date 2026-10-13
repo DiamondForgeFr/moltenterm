@@ -323,6 +323,30 @@ describe("the terminus", () => {
         expect(model.terminus).toMatchObject({ state: "decision", chip: "to decide" });
     });
 
+    it("shows its milestone's due date as the header's chip, 'to decide' kept in the note", () => {
+        const git = makeGit({ tags: [{ name: "v1.0.0-1", sha: "t", date: "2026-10-01T00:00:00Z" }] });
+        const milestones = [
+            {
+                number: 1,
+                title: "1.0.0",
+                open_issues: 0,
+                closed_issues: 0,
+                html_url: "",
+                due_on: "2026-10-05T07:00:00Z",
+            },
+        ];
+        const model = buildLineMap({ git, milestones, now: NOW, days: 21 });
+        expect(model.terminus).toMatchObject({ state: "decision", chip: "due today", urgent: true });
+        expect(model.terminus.note).toContain("the number is a choice");
+        const later = buildLineMap({
+            git,
+            milestones: [{ ...milestones[0], due_on: "2026-10-08T07:00:00Z" }],
+            now: NOW,
+            days: 21,
+        });
+        expect(later.terminus).toMatchObject({ chip: "due in 3 days", urgent: false });
+    });
+
     it("is derived from the commits after a public release", () => {
         const feat = c("f", "2026-10-02T00:00:00Z", "feat(#4): new");
         const git = makeGit({

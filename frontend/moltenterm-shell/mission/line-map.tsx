@@ -145,6 +145,7 @@ const Styles = `
 .lm-termtxt { font-family: var(--font-sans); font-weight: 700; font-size: 20px; fill: var(--color-primary); }
 .lm-termsub { font-family: var(--font-sans); font-size: 12px; fill: var(--color-secondary); }
 .lm-termstatus { font-family: var(--font-sans); font-size: 11px; fill: var(--color-muted); }
+.lm-termstatus.lm-urgent { fill: var(--color-warning); font-weight: 600; }
 .lm-hit { outline: none; }
 .lm-hit:focus-visible .lm-focus { stroke: var(--color-accent); stroke-width: 2; stroke-dasharray: 3 2; fill: none; }
 .lm-hit .lm-focus { fill: none; stroke: none; }
@@ -841,6 +842,10 @@ export function LineMap({
     );
     const ci = useStable(ciBranches, (ciBranches ?? []).map((b) => `${b.name}:${b.verdict}`).join(","));
     const release = useStable(session, session ? `${session.channel}:${session.version}:${session.tag}` : "");
+    const milestones = useStable(
+        snapshot?.github?.milestones,
+        (snapshot?.github?.milestones ?? []).map((m) => `${m?.number}:${m?.title}:${m?.due_on ?? ""}`).join(",")
+    );
     // "now" follows each new read of the project, not the clock: the map holds still between refreshes.
     const now = useMemo(() => Date.now(), [git, days]);
     const fetched = useLocalBuilds(dir, gitFingerprint(git));
@@ -852,9 +857,19 @@ export function LineMap({
         if (!git) {
             return null;
         }
-        const built = buildLineMap({ git, prs, ciBranches: ci, releases, session: release, builds, now, days });
+        const built = buildLineMap({
+            git,
+            prs,
+            ciBranches: ci,
+            releases,
+            session: release,
+            milestones,
+            builds,
+            now,
+            days,
+        });
         return { ...built, branches: filterBranches(built.branches, branchFilter) };
-    }, [git, prs, releases, ci, release, builds, now, days, branchFilter]);
+    }, [git, prs, releases, ci, release, milestones, builds, now, days, branchFilter]);
     // A detail opened on a mark the new data no longer has would float detached, with old figures.
     useEffect(() => setHover(null), [model]);
     useEffect(
@@ -1374,7 +1389,11 @@ export const MapSvg = memo(function MapSvg({
                         <text className="lm-termsub" x={geo.terminus.textX} y={geo.terminus.y + 13}>
                             {geo.terminus.sub}
                         </text>
-                        <text className="lm-termstatus" x={geo.terminus.textX} y={geo.terminus.y + 28}>
+                        <text
+                            className={cn("lm-termstatus", geo.terminus.urgent && "lm-urgent")}
+                            x={geo.terminus.textX}
+                            y={geo.terminus.y + 28}
+                        >
                             {geo.terminus.status}
                         </text>
                     </g>

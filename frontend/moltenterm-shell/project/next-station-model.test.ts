@@ -267,6 +267,9 @@ describe("the next station's schedule", () => {
         expect(stationSchedule(station, milestones, "v", Oct12)).toEqual({
             due: "due Oct 13",
             overdue: false,
+            chip: "due tomorrow",
+            urgent: false,
+            title: "Due Oct 13 (milestone 1.0.0)",
             then: {
                 label: "then v1.1.0 · Oct 20",
                 url: "https://github.com/o/r/milestone/13",
@@ -289,6 +292,9 @@ describe("the next station's schedule", () => {
         expect(stationSchedule(station, milestones, "v", Oct12)).toEqual({
             due: null,
             overdue: false,
+            chip: null,
+            urgent: false,
+            title: null,
             then: {
                 label: "then v1.1.0",
                 url: "https://github.com/o/r/milestone/13",
@@ -302,5 +308,85 @@ describe("the next station's schedule", () => {
         expect(stationSchedule(station, alone, "v", Oct12)).toBeNull();
         expect(stationSchedule(station, [], "v", Oct12)).toBeNull();
         expect(stationSchedule({ tag: null, state: "nothing", chip: null, note: "" }, [], "v", Oct12)).toBeNull();
+    });
+
+    it("reads the due date from today in UTC days", () => {
+        const dueOn = (due_on: string) => [m(12, "1.0.0", { due_on })];
+        const chip = (due_on: string, now: string) => {
+            const s = stationSchedule(station, dueOn(due_on), "v", new Date(now).getTime());
+            return [s.chip, s.urgent];
+        };
+        expect(chip("2026-10-13T07:00:00Z", "2026-10-13T00:10:00Z")).toEqual(["due today", true]);
+        expect(chip("2026-10-13T07:00:00Z", "2026-10-13T23:50:00Z")).toEqual(["due today", true]);
+        expect(chip("2026-10-13T07:00:00Z", "2026-10-12T23:59:00Z")).toEqual(["due tomorrow", false]);
+        expect(chip("2026-10-16T07:00:00Z", "2026-10-13T23:00:00Z")).toEqual(["due in 3 days", false]);
+        expect(chip("2026-10-19T07:00:00Z", "2026-10-13T09:00:00Z")).toEqual(["due in 6 days", false]);
+        expect(chip("2026-10-20T07:00:00Z", "2026-10-13T09:00:00Z")).toEqual(["due Oct 20", false]);
+        expect(chip("2026-10-12T07:00:00Z", "2026-10-13T00:01:00Z")).toEqual(["overdue by 1 day", true]);
+        expect(chip("2026-10-11T07:00:00Z", "2026-10-13T09:00:00Z")).toEqual(["overdue by 2 days", true]);
+        // A due date a few hours later in the day is the same day, whatever time GitHub stored.
+        expect(chip("2026-10-13T00:00:00Z", "2026-10-13T22:00:00Z")).toEqual(["due today", true]);
+    });
+});
+
+describe("the next station with its milestone's due date", () => {
+    const m = (title: string, due_on?: string): Milestone => ({
+        number: title.length,
+        title,
+        open_issues: 0,
+        closed_issues: 0,
+        html_url: `https://github.com/o/r/milestone/${title}`,
+        due_on,
+    });
+    const Oct13 = new Date("2026-10-13T09:00:00Z").getTime();
+
+    it("shows the schedule in the chip and keeps 'to decide' in the note", () => {
+        expect(nextStation(git(), null, [m("1.0.0", "2026-10-13T07:00:00Z")], Oct13)).toEqual({
+            tag: "v1.0.0",
+            state: "decision",
+            chip: "due today",
+            urgent: true,
+            chiptitle: "Due Oct 13 (milestone 1.0.0)",
+            note: "First public release: the number is a choice, pick it in the Release menu.",
+        });
+        expect(nextStation(git(), null, [m("1.0.0", "2026-10-16T07:00:00Z")], Oct13)).toMatchObject({
+            chip: "due in 3 days",
+            urgent: false,
+        });
+        expect(nextStation(git(), null, [m("1.0.0", "2026-10-11T07:00:00Z")], Oct13)).toMatchObject({
+            chip: "overdue by 2 days",
+            urgent: true,
+        });
+    });
+
+    it("keeps the bump level in the note of a derived station", () => {
+        const s = nextStation(Released, null, [m("1.2.0", "2026-10-20T07:00:00Z")], Oct13);
+        expect(s).toMatchObject({ tag: "v1.2.0", state: "derived", chip: "due Oct 20", urgent: false });
+        expect(s.note).toMatch(/^A minor release, derived from the commits: 3 new feature/);
+        const chosen = nextStation(Released, session("public", "2.0.0"), [m("v2", "2026-10-13T07:00:00Z")], Oct13);
+        expect(chosen).toMatchObject({ tag: "v2.0.0", state: "chosen", chip: "due today", urgent: true });
+        expect(chosen.note).toContain("Chosen in the Release menu");
+    });
+
+    it("is unchanged without a due date on the station's own milestone", () => {
+        const plain = nextStation(git(), null);
+        expect(nextStation(git(), null, [], Oct13)).toEqual(plain);
+        expect(nextStation(git(), null, [m("1.0.0")], Oct13)).toEqual(plain);
+        expect(nextStation(git(), null, [m("1.1.0", "2026-10-20T07:00:00Z")], Oct13)).toEqual(plain);
+        expect(nextStation(git({ ...Released, sincepublic: commits("chore: x") }), null, [m("1.0.0")], Oct13)).toEqual(
+            nextStation(git({ ...Released, sincepublic: commits("chore: x") }), null)
+        );
+    });
+
+    it("reads the same chip as the line map's terminus", () => {
+        const milestones = [m("1.0.0", "2026-10-11T07:00:00Z")];
+        const station = nextStation(git(), null, milestones, Oct13);
+        const model = buildLineMap({ git: git(), milestones, now: Oct13, days: 21 });
+        expect(model.terminus).toMatchObject({ chip: station.chip, note: station.note, urgent: true });
+        expect(terminusText(model).status).toBe("overdue by 2 days");
+        const derived = [m("1.2.0", "2026-10-16T07:00:00Z")];
+        const map = buildLineMap({ git: Released, milestones: derived, now: Oct13, days: 21 });
+        expect(terminusText(map).status).toBe("due in 3 days · 6 changes waiting");
+        expect(nextStation(Released, null, derived, Oct13).chip).toBe("due in 3 days");
     });
 });
