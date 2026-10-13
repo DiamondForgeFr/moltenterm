@@ -680,7 +680,7 @@ function CommandPanel({ open }: CommandPanelProps) {
     const magnifiedNodeId = useAtomValue(layoutModel?.magnifiedNodeIdAtom ?? NullStringAtom);
     const [tick, setTick] = useState(0);
     const [query, setQuery] = useState(open.query ?? "");
-    const [stack, setStack] = useState<string[]>([]);
+    const [stack, setStack] = useState<string[]>(open.stack ?? []);
     const [direction, setDirection] = useState<"in" | "back">("in");
     const [selected, setSelected] = useState(-1);
     const [scopes, setScopes] = useState<Record<string, PanelScopeId>>({});
@@ -758,7 +758,22 @@ function CommandPanel({ open }: CommandPanelProps) {
     }, [selected]);
     const pageKey = `${query}\u0000${liveStack.join("/")}`;
     const lastPageKey = useRef(pageKey);
+    // Opened on a choice (#573): its options may land a moment after the panel paints, so the current one is selected
+    // again as they change, until the user moves the selection or leaves the choice.
+    const openingChoice = useRef((open.stack?.length ?? 0) > 0);
     useEffect(() => {
+        if (openingChoice.current && (query !== "" || stack.length === 0)) {
+            openingChoice.current = false;
+        }
+        if (openingChoice.current) {
+            lastPageKey.current = pageKey;
+            selectedKey.current = null;
+            const opening = openingSelection(rows, scopes);
+            if (opening !== selected) {
+                setSelected(opening);
+            }
+            return;
+        }
         if (lastPageKey.current !== pageKey) {
             lastPageKey.current = pageKey;
             selectedKey.current = null;
@@ -1081,6 +1096,7 @@ function CommandPanel({ open }: CommandPanelProps) {
         const row = rows[selected];
         switch (intent.type) {
             case "move":
+                openingChoice.current = false;
                 setSelected(moveRowSelection(rows, selected, intent.command));
                 return;
             case "activate":
@@ -1339,7 +1355,10 @@ function CommandPanel({ open }: CommandPanelProps) {
                                     ctx={ctx}
                                     scopes={scopes}
                                     digit={digits.get(index) ?? 0}
-                                    onHover={setSelected}
+                                    onHover={(i) => {
+                                        openingChoice.current = false;
+                                        setSelected(i);
+                                    }}
                                     onActivate={(r) => {
                                         if (!armed.current) {
                                             return;

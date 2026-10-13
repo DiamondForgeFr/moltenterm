@@ -33,6 +33,11 @@
     overflow: hidden;
 }
 
+/* The model and the effort are two buttons (#573): their own padding spaces the dot between them. */
+.molten-header-model-effort {
+    gap: 0;
+}
+
 .molten-header-context-part + .molten-header-context-part::before {
     content: "·";
     padding-right: var(--mt-space-4);

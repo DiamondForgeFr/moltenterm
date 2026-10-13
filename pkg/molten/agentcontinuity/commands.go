@@ -61,6 +61,9 @@ type AgentCommand struct {
 	// KeyLower, KeyRaise: an effort command's keys when it has no Text.
 	KeyLower string `json:"keylower,omitempty"`
 	KeyRaise string `json:"keyraise,omitempty"`
+	// TakesModel: the slash command also takes one of ModelAliases after its text (Claude Code's `/model <alias>`,
+	// #573), checked against that list, never free text.
+	TakesModel bool `json:"takesmodel,omitempty"`
 }
 
 // ClearsLine tells whether the command empties the input line first, which loses an unsent draft.
@@ -72,7 +75,7 @@ var claudeCommands = []AgentCommand{
 	{Action: ActionPermissionMode, Kind: CommandMode, Text: keyShiftTab},
 	{Action: ActionClear, Kind: CommandSlash, Text: "/clear"},
 	{Action: ActionCompact, Kind: CommandSlash, Text: "/compact"},
-	{Action: ActionModel, Kind: CommandSlash, Text: "/model"},
+	{Action: ActionModel, Kind: CommandSlash, Text: "/model", TakesModel: true},
 	{Action: ActionEffort, Kind: CommandEffort, Text: "/effort"},
 	{Action: ActionResume, Kind: CommandSlash, Text: "/resume"},
 	{Action: ActionCopy, Kind: CommandSlash, Text: "/copy"},
@@ -103,6 +106,33 @@ func AgentCommands(agent string) []AgentCommand {
 		return codexCommands
 	}
 	return nil
+}
+
+// ModelAliases lists the models an agent's model command takes inline (#573): Claude Code's launch aliases, which
+// `/model <alias>` also takes (claude --help and the /model argument hint, 2.1.296), without the agent's default;
+// nil for an agent whose model command is a picker only (Codex's /model takes no argument).
+func ModelAliases(agent string) []ModelChoice {
+	cmd, ok := FindAgentCommand(agent, ActionModel)
+	if !ok || !cmd.TakesModel || agent != molten.AgentIdClaude {
+		return nil
+	}
+	var rtn []ModelChoice
+	for _, m := range claudeModels {
+		if m.Id != "" {
+			rtn = append(rtn, m)
+		}
+	}
+	return rtn
+}
+
+// ModelAlias looks a model up in an agent's ModelAliases.
+func ModelAlias(agent string, model string) (ModelChoice, bool) {
+	for _, m := range ModelAliases(agent) {
+		if m.Id == model {
+			return m, true
+		}
+	}
+	return ModelChoice{}, false
 }
 
 // FindAgentCommand looks an action up in an agent's table.

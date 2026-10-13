@@ -134,17 +134,35 @@ export function agentModelEffortLabel(info: AgentStateInfo): string {
     return effort ? `${model} · ${effort}` : model;
 }
 
-export function agentModelEffortTitle(info: AgentStateInfo): string {
-    const label = agentModelEffortLabel(info);
+// The header's two click targets (#573): the model, which opens the Model choice, and the effort, which opens Effort;
+// "" for a part the agent did not report.
+export function agentModelPart(info: AgentStateInfo): string {
+    return (info?.modelname || info?.model || "").trim();
+}
+
+export function agentEffortPart(info: AgentStateInfo): string {
+    if (!agentModelPart(info)) {
+        return "";
+    }
+    return (info?.effort ?? "").trim();
+}
+
+export function agentModelTitle(info: AgentStateInfo): string {
+    const label = agentModelPart(info);
     if (!label) {
         return "";
     }
     const model =
-        info.model && info.modelname && info.model !== info.modelname
-            ? `${info.modelname} (${info.model})`
-            : label.split(" · ")[0];
-    const lines = [`Model: ${model}`, info.effort ? `Effort: ${info.effort}` : "Effort: not reported"];
-    return [...lines, "Click to change the effort level"].join("\n");
+        info.model && info.modelname && info.model !== info.modelname ? `${info.modelname} (${info.model})` : label;
+    return [`Model: ${model}`, "Click to change the model"].join("\n");
+}
+
+export function agentEffortTitle(info: AgentStateInfo): string {
+    const effort = agentEffortPart(info);
+    if (!effort) {
+        return "";
+    }
+    return [`Effort: ${effort}`, "Click to change the effort level"].join("\n");
 }
 
 // What the header says next to the agent: project and branch, when the pane's folder is known.

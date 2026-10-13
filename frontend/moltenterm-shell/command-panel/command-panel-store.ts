@@ -20,6 +20,8 @@ export type OpenCommandPanel = {
     token: number;
     // A search to start with (the palette opens the panel on one of its options).
     query?: string;
+    // The ids of the page or choice to open on (the header's model and effort open their choices, #573).
+    stack?: string[];
 };
 
 // The performance marks of NFR-SHELL-028 (the panel painted under 50 ms after its trigger).
@@ -74,7 +76,7 @@ export class CommandPanelModel {
         return globalStore.get(this.openAtom);
     }
 
-    open(blockId: string, anchor: PanelAnchor, source: CommandPanelSource, query?: string) {
+    open(blockId: string, anchor: PanelAnchor, source: CommandPanelSource, query?: string, stack?: string[]) {
         if (!blockId) {
             return;
         }
@@ -91,6 +93,7 @@ export class CommandPanelModel {
             source,
             token: this.token,
             query,
+            stack,
         });
     }
 
@@ -130,6 +133,11 @@ export function openCommandPanelAtPoint(blockId: string, x: number, y: number, s
 
 export function openCommandPanel(blockId: string, source: CommandPanelSource = "menu", query?: string) {
     CommandPanelModel.getInstance().open(blockId, defaultAnchor(blockId), source, query);
+}
+
+// Opens the panel on one of its choices, under what was clicked; a choice that is not there opens the panel's root.
+export function openCommandPanelOn(blockId: string, itemId: string, trigger?: Element) {
+    CommandPanelModel.getInstance().open(blockId, trigger ? rectAnchor(trigger) : null, "header", undefined, [itemId]);
 }
 
 // Cmd+. on the focused panel; pressed again, it closes the panel.

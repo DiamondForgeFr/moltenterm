@@ -86,6 +86,8 @@ type AgentInputRequest struct {
 	ConfirmedDraft bool   `json:"confirmeddraft,omitempty"`
 	// Effort: the effort level to set (effort only, #549).
 	Effort string `json:"effort,omitempty"`
+	// Model: the model alias to switch to (model only, #573), "" to open the agent's own picker.
+	Model string `json:"model,omitempty"`
 }
 
 type AgentInputResult struct {
@@ -125,6 +127,8 @@ type AgentInputInfo struct {
 	// none when MoltenTerm cannot set one (#549).
 	Effort  string   `json:"effort,omitempty"`
 	Efforts []string `json:"efforts,omitempty"`
+	// Models: the models the panel offers to switch to without the agent's picker, none for a picker only (#573).
+	Models []agentcontinuity.ModelChoice `json:"models,omitempty"`
 }
 
 func (u *Updater) inputState(blockId string) AgentInputState {
@@ -145,6 +149,7 @@ func (u *Updater) AgentInputInfo(blockId string) AgentInputInfo {
 	rtn.Agent, rtn.Mode, rtn.Modes, rtn.Draft = run.Agent, in.Mode, in.Modes, in.Draft
 	rtn.Effort = run.Settings.Effort
 	rtn.Efforts = u.offeredEfforts(run)
+	rtn.Models = agentcontinuity.ModelAliases(run.Agent)
 	return rtn
 }
 
@@ -215,6 +220,13 @@ func (u *Updater) AgentInput(ctx context.Context, req AgentInputRequest) AgentIn
 	if !ok {
 		return base(refused(InputReasonUnknownAction, fmt.Sprintf("%s has no command %q in MoltenTerm: nothing was typed.", name, req.Action)))
 	}
+	text := cmd.Text
+	if req.Model != "" {
+		if _, ok := agentcontinuity.ModelAlias(agent, req.Model); !ok || req.Action != agentcontinuity.ActionModel {
+			return base(refused(InputReasonUnknownAction, fmt.Sprintf("%s has no model %q that MoltenTerm can switch to: choose it in %s's /model. Nothing was typed.", name, req.Model, name)))
+		}
+		text = cmd.Text + " " + req.Model
+	}
 	if blocker := u.foregroundBlocker(st.agent, st.shell.Pid); blocker != "" {
 		r := refused(InputReasonNotForeground, fmt.Sprintf("%s is in the foreground of this terminal, not %s: nothing was typed.", blocker, name))
 		if blocker == name {
@@ -245,7 +257,6 @@ func (u *Updater) AgentInput(ctx context.Context, req AgentInputRequest) AgentIn
 	if cmd.Kind == agentcontinuity.CommandEffort {
 		return base(u.setEffort(req, st, cmd, name))
 	}
-	text := cmd.Text
 	steps := []string{text}
 	shown := text
 	switch {

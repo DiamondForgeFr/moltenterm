@@ -68,7 +68,9 @@ describe("agent command tables", () => {
         const section = agentSection(codex, null, handlers);
         expect(section.title).toBe("Agent · Codex");
         const actions = section.items.filter((i) => i.type === "action");
-        expect(actions.map((i) => (i as PanelAction).shortcut)).toEqual(CodexCommands.map((c) => c.command));
+        expect(actions.map((i) => (i as PanelAction).shortcut)).toEqual(
+            CodexCommands.filter((c) => c.action !== "model").map((c) => c.command)
+        );
         expect(section.items.some((i) => i.id === "agent:permissionmode")).toBe(false);
         const ids = section.items.map((i) => i.id);
         expect(ids.indexOf("agent:effort")).toBe(ids.indexOf("agent:model") + 1);
