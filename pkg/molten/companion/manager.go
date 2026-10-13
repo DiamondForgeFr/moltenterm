@@ -72,6 +72,8 @@ const (
 const idleTickInterval = 2 * time.Second
 
 var largeRecordMarkers = [][]byte{[]byte(`"structuredPatch"`), []byte(`"bashEditDiff"`), []byte(`"FileChange"`), []byte(`"patch_apply_begin"`)}
+var asyncLaunchedMarker = []byte(`"async_launched"`)
+var taskNotificationMarker = []byte(`<task-notification>`)
 var resultIdRegex = regexp.MustCompile(`"(?:tool_use_id|call_id)"\s*:\s*"([^"]{1,200})"`)
 
 type SessionInfo struct {
@@ -84,6 +86,10 @@ type SessionInfo struct {
 	Title   string `json:"title,omitempty"`
 	Command string `json:"command,omitempty"`
 	Started int64  `json:"started,omitempty"`
+	// Name: the agent's own name of the session (Claude Code's title, or the user's /rename), when it gave one.
+	Name string `json:"name,omitempty"`
+	// Branch: the branch the agent's records last named.
+	Branch string `json:"branch,omitempty"`
 }
 
 // CompanionView is what the companion view shows of a block; the earlier answers and the diffs are fetched on demand.
@@ -107,6 +113,10 @@ type CompanionView struct {
 	Usage *usage.UsagePage `json:"usage,omitempty"`
 	// Integration: what MoltenTerm's launcher added to this run, or why nothing (FR-SHELL-036).
 	Integration *molten.AgentIntegrationReport `json:"integration,omitempty"`
+	// The recap (#555): the latest topics of the session, the sub-agents its agent started, its latest call.
+	Topics    []TopicInfo    `json:"topics,omitempty"`
+	Subagents []SubagentInfo `json:"subagents,omitempty"`
+	Activity  *ActivityInfo  `json:"activity,omitempty"`
 }
 
 type blockInfo struct {
@@ -1253,6 +1263,13 @@ func parseRecordLine(adapter Adapter, s *Session, line []byte) {
 		if !carries {
 			if m := resultIdRegex.FindSubmatch(line); m != nil {
 				s.ResolveTool(string(m[1]))
+				s.SubagentResult(string(m[1]), bytes.Contains(line, asyncLaunchedMarker), false, "")
+			}
+			if bytes.Contains(line, taskNotificationMarker) {
+				ends, _ := taskNotifications(string(line))
+				for _, end := range ends {
+					s.EndSubagent(end[0], end[1])
+				}
 			}
 			s.countLine(true, true)
 			return
@@ -1359,6 +1376,8 @@ func (w *watcher) view(elide bool) CompanionView {
 		Title:    w.session.Title(),
 		Command:  w.session.FirstCommand(),
 		Started:  w.session.StartedAt(),
+		Name:     w.session.Name(),
+		Branch:   w.session.Branch(),
 	}
 	if w.status == StatusUnsupportedFormat {
 		return v
@@ -1377,6 +1396,9 @@ func (w *watcher) view(elide bool) CompanionView {
 	v.Files = w.session.Files()
 	v.Todos = w.session.Todos()
 	v.Pending = w.session.Pending()
+	v.Topics = w.session.Topics()
+	v.Subagents = w.session.Subagents()
+	v.Activity = w.session.Activity()
 	return v
 }
 

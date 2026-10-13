@@ -282,6 +282,9 @@ func (a *CodexAdapter) Parse(rec map[string]any, s *Session) bool {
 		if id := str(payload, "id"); id != "" && s.Id == "" && !codexSubagent(payload) {
 			s.Id = id
 		}
+		if !codexSubagent(payload) {
+			s.SetBranch(str(obj(payload, "git"), "branch"))
+		}
 		return true
 	case "turn_context":
 		if cwd := str(payload, "cwd"); cwd != "" {
@@ -322,6 +325,9 @@ func (a *CodexAdapter) parseItem(item map[string]any, s *Session, at int64) {
 		name := str(item, "name")
 		args := str(item, "arguments")
 		s.AddToolCall(codexCallId(item), name, args, at)
+		var parsed map[string]any
+		_ = json.Unmarshal([]byte(args), &parsed)
+		s.NoteActivity(name, activityTarget(parsed), at)
 		if name == "update_plan" {
 			var input map[string]any
 			if json.Unmarshal([]byte(args), &input) == nil {
@@ -330,8 +336,10 @@ func (a *CodexAdapter) parseItem(item map[string]any, s *Session, at int64) {
 		}
 	case "custom_tool_call":
 		s.AddToolCall(codexCallId(item), str(item, "name"), compactJSON(item["input"]), at)
+		s.NoteActivity(str(item, "name"), "", at)
 	case "local_shell_call":
 		s.AddToolCall(codexCallId(item), "shell", argsJSON(item["action"]), at)
+		s.NoteActivity("shell", activityTarget(obj(item, "action")), at)
 	case "function_call_output", "custom_tool_call_output":
 		s.ResolveTool(codexCallId(item))
 	}

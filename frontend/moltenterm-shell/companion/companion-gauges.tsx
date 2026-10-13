@@ -36,6 +36,7 @@ import {
     CompanionUsageExperimentalCommand,
     CompanionUsageGaugesCommand,
 } from "./companion-model";
+import { useCompanionPref } from "./companion-prefs";
 
 const RpcTimeoutMs = 12000;
 // While the setup shows, the settings are looked at again this often, read-only: pasting the snippet is detected
@@ -44,6 +45,8 @@ const SetupRecheckMs = 3000;
 // Reset times and the age are relative: they are redrawn this often.
 const ClockTickMs = 30000;
 const CopiedMs = 1500;
+// The compact form shows this many limits, one line each (#555); the others are in the details.
+const CompactRows = 2;
 
 const GhostButton =
     "shrink-0 cursor-pointer rounded-6 px-1.5 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary focus-visible:bg-hover focus-visible:text-primary";
@@ -201,6 +204,7 @@ function usePlanUsage(target: string, agent: string, now: number) {
 export function PlanUsageSection({ target, agent }: { target: string; agent: string }) {
     const now = useNow(ClockTickMs);
     const { info, failed, refreshing, show, hide, refresh, setExperimental } = usePlanUsage(target, agent, now);
+    const [details, setDetails] = useCompanionPref("usagedetails");
     // Held here, so an update that changes the section's layout keeps an open confirmation.
     const [confirming, setConfirming] = useState(false);
     const experimental = experimentalView(info);
@@ -222,6 +226,8 @@ export function PlanUsageSection({ target, agent }: { target: string; agent: str
             onHide={hide}
             onRefresh={refresh}
             onExperimental={setExperimental}
+            compact={!details}
+            onDetails={setDetails}
         />
     );
 }
@@ -232,6 +238,8 @@ export type PlanUsageActions = {
     onRefresh: () => void;
     onExperimental?: (on: boolean) => void;
     onConfirming?: (confirming: boolean) => void;
+    // The compact form's details toggle (#555); without it the full section shows.
+    onDetails?: (details: boolean) => void;
 };
 
 const BarColours: Record<GaugeLevel, string> = {
@@ -257,12 +265,15 @@ export function PlanUsageBody({
     onRefresh,
     onExperimental,
     onConfirming,
+    compact,
+    onDetails,
 }: {
     view: GaugesView;
     experimental?: ExperimentalView;
     confirming?: boolean;
     failed?: boolean;
     refreshing?: boolean;
+    compact?: boolean;
 } & PlanUsageActions) {
     const extra = (
         <ExperimentalRow
@@ -314,6 +325,9 @@ export function PlanUsageBody({
     if (view.kind === "setup") {
         return <StatusLineSetupCard setup={view.setup} failed={failed} onHide={onHide} extra={extra} />;
     }
+    if (compact && onDetails != null) {
+        return <CompactGauges view={view} onDetails={() => onDetails(true)} />;
+    }
     return (
         <section
             className="shrink-0 border-b border-border px-3 pt-2 pb-2.5"
@@ -327,6 +341,7 @@ export function PlanUsageBody({
                 refreshing={refreshing}
                 onRefresh={onRefresh}
                 onHide={onHide}
+                onLess={onDetails != null ? () => onDetails(false) : null}
             />
             <ul className="mt-1.5 flex flex-col gap-2">
                 {view.rows.map((row) => (
@@ -455,12 +470,14 @@ function GaugesHeader({
     refreshing,
     onRefresh,
     onHide,
+    onLess,
 }: {
     source: string;
     age: string;
     refreshing?: boolean;
     onRefresh: () => void;
     onHide: () => void;
+    onLess?: () => void;
 }) {
     return (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -481,9 +498,89 @@ function GaugesHeader({
                 <button type="button" className={GhostButton} onClick={onHide}>
                     Hide
                 </button>
+                {onLess != null ? (
+                    <button
+                        type="button"
+                        className={GhostButton}
+                        onClick={onLess}
+                        title="Compact plan usage"
+                        aria-label="Compact plan usage"
+                        data-testid="companion-plan-usage-less"
+                    >
+                        <i className="fa fa-solid fa-chevron-up" aria-hidden="true" />
+                    </button>
+                ) : null}
             </div>
             {source ? <div className="w-full text-11 text-muted">From the {source}</div> : null}
         </div>
+    );
+}
+
+// One line per limit: its name, a thin bar, the percent and the reset; the source and age in the tooltip, the rest
+// in the details.
+function CompactGauges({ view, onDetails }: { view: Extract<GaugesView, { kind: "enabled" }>; onDetails: () => void }) {
+    const rows = view.rows.slice(0, CompactRows);
+    const more = view.rows.length - rows.length + (view.credits ? 1 : 0);
+    const about = [view.source ? `From the ${view.source}` : "", view.age].filter((s) => !!s).join(" · ");
+    return (
+        <section
+            className="shrink-0 px-3 py-1"
+            aria-label="Plan usage"
+            data-testid="companion-plan-usage"
+            data-state="enabled"
+            data-compact="true"
+        >
+            <div className="flex items-start gap-2">
+                <ul className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    {rows.length === 0 && view.credits ? (
+                        <li className="truncate text-11 text-secondary">{view.credits}</li>
+                    ) : null}
+                    {rows.map((row) => (
+                        <CompactGaugeRow key={row.id} row={row} about={about} />
+                    ))}
+                </ul>
+                <button
+                    type="button"
+                    className={cn(GhostButton, "-my-0.5")}
+                    onClick={onDetails}
+                    title={more > 0 ? `Plan usage details (${more} more)` : "Plan usage details"}
+                    aria-label="Plan usage details"
+                    data-testid="companion-plan-usage-details"
+                >
+                    {more > 0 ? <span className="mr-1 tabular-nums">+{more}</span> : null}
+                    <i className="fa fa-solid fa-chevron-down" aria-hidden="true" />
+                </button>
+            </div>
+        </section>
+    );
+}
+
+function CompactGaugeRow({ row, about }: { row: GaugeRow; about: string }) {
+    const percent = row.percent.replace(/ used$/, "");
+    const resets = row.resets.replace(/^Resets /, "");
+    return (
+        <li
+            className="flex items-center gap-2 text-11"
+            title={[`${row.label}: ${row.percent}`, row.resets, about].filter((s) => !!s).join("\n")}
+            data-testid="companion-gauge"
+            data-window={row.id}
+        >
+            <span className="w-24 shrink-0 truncate text-secondary">{row.label}</span>
+            <div
+                className="h-1 min-w-8 flex-1 overflow-hidden rounded-full bg-hover"
+                role="meter"
+                aria-label={row.label}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(row.bar)}
+                aria-valuetext={row.percent}
+            >
+                <div className={cn("h-full rounded-full", BarColours[row.level])} style={{ width: `${row.bar}%` }} />
+            </div>
+            <span className={cn("w-11 shrink-0 text-right tabular-nums", PercentColours[row.level])}>{percent}</span>
+            {/* A fixed width keeps the bars of the rows aligned. */}
+            <span className="w-[5.5rem] shrink-0 truncate text-muted tabular-nums">{resets}</span>
+        </li>
     );
 }
 

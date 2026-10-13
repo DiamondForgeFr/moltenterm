@@ -195,6 +195,8 @@ func (a *ClaudeAdapter) Parse(rec map[string]any, s *Session) bool {
 	if s.Id == "" {
 		s.Id = str(rec, "sessionId")
 	}
+	// After the record: a prompt that comes with a new branch gives it to its own topic, not to the one before.
+	defer s.SetBranch(str(rec, "gitBranch"))
 	switch kind {
 	case "user":
 		a.parseUser(rec, s, at)
@@ -204,6 +206,21 @@ func (a *ClaudeAdapter) Parse(rec map[string]any, s *Session) bool {
 		return true
 	case "attachment":
 		a.parseAttachment(obj(rec, "attachment"), s)
+		return true
+	case "ai-title":
+		s.SetSessionName(str(rec, "aiTitle"), false)
+		return true
+	case "custom-title":
+		name := str(rec, "customTitle")
+		if name == "" {
+			name = str(rec, "title")
+		}
+		s.SetSessionName(name, true)
+		return true
+	case "pr-link":
+		if n, ok := num(rec, "prNumber"); ok {
+			s.AddPRLink(int(n), str(rec, "prUrl"))
+		}
 		return true
 	}
 	if claudeQuietTypes[kind] {
@@ -216,6 +233,10 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 	msg := obj(rec, "message")
 	isMeta := boolean(rec, "isMeta")
 	if text, ok := msg["content"].(string); ok {
+		if a.parseNotifications(text, s) {
+			s.StartTurn(at)
+			return
+		}
 		s.NoteCommand(commandName(text))
 		if !isMeta && !boolean(rec, "isCompactSummary") && cleanTitleText(text) != "" && !isCommandRecord(text) {
 			s.StartTurn(at)
@@ -235,8 +256,13 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 				callId = id
 			}
 			s.ResolveTool(id)
+			result := obj(rec, "toolUseResult")
+			s.SubagentResult(id, str(result, "status") == "async_launched", boolean(block, "is_error"), str(result, "resolvedModel"))
 		case "text":
 			text := str(block, "text")
+			if a.parseNotifications(text, s) {
+				continue
+			}
 			s.NoteCommand(commandName(text))
 			if !isCommandRecord(text) && cleanTitleText(text) != "" {
 				prompt = true
@@ -312,9 +338,31 @@ func (a *ClaudeAdapter) parseAssistant(rec map[string]any, s *Session, at int64)
 			name := str(block, "name")
 			input := obj(block, "input")
 			s.AddToolCall(str(block, "id"), name, argsJSON(input), at)
+			s.NoteActivity(name, activityTarget(input), at)
 			a.parseTasks(name, input, s)
+			a.parseSubagent(str(block, "id"), name, input, s, at)
 		}
 	}
+}
+
+// parseSubagent follows the agents the main one starts: its Agent call (Task in older versions) names them; a
+// background one's call returns at once and its end comes as a notification.
+func (a *ClaudeAdapter) parseSubagent(id string, tool string, input map[string]any, s *Session, at int64) {
+	if tool != "Agent" && tool != "Task" {
+		return
+	}
+	background := boolean(input, "run_in_background") || str(input, "run_in_background") == "true"
+	s.StartSubagent(id, str(input, "description"), str(input, "subagent_type"), str(input, "model"), background, at)
+}
+
+// parseNotifications ends the background agents a record notifies about; true when the text holds nothing else (it
+// is the agent's own message, not a prompt of the user).
+func (a *ClaudeAdapter) parseNotifications(text string, s *Session) bool {
+	ends, only := taskNotifications(text)
+	for _, end := range ends {
+		s.EndSubagent(end[0], end[1])
+	}
+	return only
 }
 
 // parseTasks follows the task list: TodoWrite replaces it; TaskCreate and TaskUpdate change one task.

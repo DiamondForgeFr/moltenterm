@@ -88,7 +88,35 @@ export type CompanionSession = {
     title?: string;
     command?: string;
     started?: number;
+    // The agent's own name of the session (Claude Code's title, or the user's /rename), and the branch its records
+    // last named (#555).
+    name?: string;
+    branch?: string;
 };
+
+// must match pkg/molten/companion/topics.go
+export type CompanionPRLink = { number: number; url?: string };
+export type CompanionTopic = {
+    text: string;
+    branch?: string;
+    at?: number;
+    last?: number;
+    tools?: number;
+    files?: number;
+    prs?: CompanionPRLink[];
+};
+export type SubagentState = "running" | "done" | "failed" | "stopped";
+export type CompanionSubagent = {
+    id: string;
+    description?: string;
+    kind?: string;
+    model?: string;
+    background?: boolean;
+    state: SubagentState;
+    started?: number;
+    ended?: number;
+};
+export type CompanionActivity = { tool: string; target?: string; at?: number };
 
 export type CompanionView = {
     blockid: string;
@@ -108,6 +136,10 @@ export type CompanionView = {
     usage?: CompanionUsagePage;
     // What MoltenTerm's launcher added to this run, or why nothing (FR-SHELL-036, pkg/molten/agentintegration.go).
     integration?: CompanionIntegration;
+    // The recap (#555): the latest topics, the sub-agents the agent started, its latest tool call.
+    topics?: CompanionTopic[];
+    subagents?: CompanionSubagent[];
+    activity?: CompanionActivity;
 };
 
 export type CompanionIntegrationItem = { kind: string; name: string; reason?: string };
