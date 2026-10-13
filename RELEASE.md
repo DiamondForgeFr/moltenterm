@@ -41,6 +41,86 @@ onboarding, permission prompts). Never give Full Disk Access to a build whose bu
   ad-hoc signed and the release text says how to open them.
 - The milestone of the release is triaged: `molten release plan` lists its open issues. They are reported, never
   blocking.
+- The release key exists, its public key is committed and its two secrets are set (below, "The release key"). Until
+  then, releases are published unsigned and the run's log says so.
+
+## The release key
+
+Every release is signed with the DiamondForge release key (#576), the same GPG key as Notulia's Linux packages
+(DiamondForgeFr/Notulia#1110): a company key, not a product key. `release.yml` signs `SHA256SUMS.txt` into
+`SHA256SUMS.txt.asc` (`scripts/moltenterm-release-sign.sh`), so one signature covers every file, and adds a detached
+`.asc` beside each AppImage and deb. Linux has no Gatekeeper or SmartScreen: this is provenance, not a condition to
+open the app, and it prepares a future apt repository. The rehearsal signs too.
+
+- **Fingerprint:** not created yet. Once it is, write it here, in `UPSTREAM.md` ("Releases") and on the website.
+- **Public key:** `release-signing-key.asc` at the root of the repository.
+- **Secrets:** `RELEASE_GPG_PRIVATE_KEY` (the armoured private key) and `RELEASE_GPG_PASSPHRASE`.
+
+The switch is the committed public key together with the secrets, as in Notulia:
+
+| Committed public key | Secrets | Result |
+| --- | --- | --- |
+| no | no | nothing is signed, the log says so, the release is published unsigned |
+| yes | yes, the same key | every signature is made, verified against the committed key alone (`gpgv`), then published |
+| one without the other, another key, or a wrong passphrase | | **the run fails** before anything is published |
+
+The key is created by the developer, on their Mac, never by an agent or the CI.
+
+### Create it (once, for every DiamondForge product)
+
+If it was already created for Notulia, skip to "Set it": the same key signs both. Otherwise, in a throwaway GnuPG
+folder so that it never enters the machine's keyring (a short path: gpg-agent's socket lives in it):
+
+```bash
+brew install gnupg
+export GNUPGHOME="$(mktemp -d /tmp/release-key.XXXXXX)"
+cd "$GNUPGHOME"
+gpg --quick-generate-key "DiamondForge Releases <releases@diamondforge.fr>" ed25519 sign 5y
+# asks for a passphrase: generate it in the password manager
+gpg --armor --export-secret-keys > release-signing-private.asc   # asks for the passphrase again
+gpg --armor --export > release-signing-key.asc
+gpg --fingerprint
+```
+
+**Back up offline**, in the password manager: `release-signing-private.asc`, the passphrase, and the revocation
+certificate GnuPG wrote in `$GNUPGHOME/openpgp-revocs.d/`. The private key never goes into a repository.
+
+### Set it
+
+From the same folder:
+
+```bash
+gh secret set RELEASE_GPG_PRIVATE_KEY --repo DiamondForgeFr/moltenterm < release-signing-private.asc
+gh secret set RELEASE_GPG_PASSPHRASE --repo DiamondForgeFr/moltenterm   # asks for the value, keeps it out of the history
+gh secret list --repo DiamondForgeFr/moltenterm                        # both appear
+cp release-signing-key.asc <checkout>/release-signing-key.asc            # then commit it on a ticket branch, with its PR
+```
+
+Write the fingerprint above in the same pull request, then move `$GNUPGHOME` to the trash. The secrets and the public
+key arrive **together**: a release or a rehearsal run with only one of them fails, on purpose. Run a rehearsal once
+the pull request is merged: its summary names the fingerprint.
+
+### Extend, rotate, revoke
+
+- **Expiry** (five years): before it, import the backup in a throwaway `GNUPGHOME`, run
+  `gpg --quick-set-expire <fingerprint> 5y`, export both files again, set `RELEASE_GPG_PRIVATE_KEY` again and commit
+  the new `release-signing-key.asc`. The fingerprint does not change. An expired key fails the run.
+- **Rotation**: create a new key as above, then replace the two secrets and the committed public key in one pull
+  request, and publish the new fingerprint. Older releases stay verifiable with the old public key: keep its
+  fingerprint listed here as retired.
+- **Compromise**: import the revocation certificate (`gpg --import <fingerprint>.rev`, once the colon GnuPG puts
+  before its `-----BEGIN` line is removed), export the revoked public key, publish it in place of the old one with a
+  new key, and say so in the next release notes.
+
+### What a user does
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DiamondForgeFr/moltenterm/main/release-signing-key.asc | gpg --import
+gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt   # names the fingerprint above
+sha256sum --ignore-missing -c SHA256SUMS.txt     # shasum -a 256 --ignore-missing -c on macOS
+```
+
+The release text carries these commands, with the fingerprint once the release is signed.
 
 ## The steps
 
@@ -70,6 +150,9 @@ on the ticket of the release.
 - [ ] Every file is there: 2 dmg, 2 zip, 2 AppImage, 2 deb, `latest-mac.yml`, `latest-linux.yml`,
       `latest-linux-arm64.yml` and `SHA256SUMS.txt`. `scripts/moltenterm-release-files.sh` refuses the run otherwise.
 - [ ] `sha256sum --ignore-missing -c SHA256SUMS.txt` (`shasum -a 256 -c` on macOS) passes on the downloaded files.
+- [ ] Once the release key exists: `SHA256SUMS.txt.asc` and a `.asc` per AppImage and deb are there, and
+      `gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt` says "Good signature" and names the fingerprint of "The release
+      key". Before it exists, the run's log says the release is unsigned.
 
 ### 1. macOS (arm64; x64 when an Intel Mac is at hand)
 
@@ -118,5 +201,6 @@ Needs two successive candidates, the earlier one installed:
 
 ### 5. The release page
 
-- [ ] The title, the notes (plain words, no ticket numbers) and the install text are right. A candidate is a
+- [ ] The title, the notes (plain words, no ticket numbers), the install text and the Verify section (its
+      fingerprint once the release is signed) are right. A candidate is a
       prerelease and not the latest release; a public release waits as a draft until it is published.

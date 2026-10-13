@@ -16,6 +16,9 @@
 # macOS builds are ad-hoc signed and not notarized until a Developer ID exists; the release text says how to open
 # them. The channel feeds read by the app are #188's: the electron-builder update files (latest*.yml) are published
 # with the binaries for it.
+#
+# SHA256SUMS.txt is signed with the DiamondForge release key once it exists (#576, scripts/moltenterm-release-sign.sh):
+# until then the release is published unsigned and the log says so; afterwards a signature that fails fails the run.
 
 name: Release
 
@@ -33,6 +36,8 @@ on:
         paths:
             - .github/workflows/release.yml
             - scripts/moltenterm-release-files.sh
+            - scripts/moltenterm-release-sign.sh
+            - scripts/moltenterm-release-sign-test.sh
 
 permissions:
     contents: read
@@ -122,6 +127,10 @@ jobs:
                   echo "channel=$channel" >> "$GITHUB_OUTPUT"
                   echo "version=$version" >> "$GITHUB_OUTPUT"
                   echo "$TAG: $channel release $version"
+            # The signing logic, with a throwaway key the test generates and deletes: never the release key (#576).
+            - name: Test the release signing
+              if: github.event_name == 'pull_request'
+              run: scripts/moltenterm-release-sign-test.sh
 
     macos:
         name: macOS (arm64, x64)
@@ -262,10 +271,19 @@ jobs:
                   merge-multiple: true
             - name: Check the files and write the checksums
               run: scripts/moltenterm-release-files.sh dist-rehearsal
+            # As on a release, so that the checklist covers the signature before a candidate is cut.
+            - name: Sign the checksums
+              id: sign
+              env:
+                  RELEASE_GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+                  RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+              run: scripts/moltenterm-release-sign.sh dist-rehearsal
             - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
               with:
                   name: ${{ github.event.repository.name }}-rehearsal-checksums-${{ github.sha }}
-                  path: dist-rehearsal/SHA256SUMS.txt
+                  path: |
+                      dist-rehearsal/SHA256SUMS.txt
+                      dist-rehearsal/*.asc
                   if-no-files-found: error
                   retention-days: 14
             - name: Summary
@@ -273,12 +291,20 @@ jobs:
                   CHANNEL: ${{ needs.meta.outputs.channel }}
                   VERSION: ${{ needs.meta.outputs.version }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  SIGNED: ${{ steps.sign.outputs.signed }}
+                  FINGERPRINT: ${{ steps.sign.outputs.fingerprint }}
               run: |
                   {
                       echo "## Rehearsal of $VERSION ($CHANNEL), ${GITHUB_SHA:0:7} on $GITHUB_REF_NAME"
                       echo
                       echo "No tag, no release: the files are this run's artifacts for 14 days, at $RUN_URL."
                       echo "Install them and walk the checklist of RELEASE.md before cutting a release candidate."
+                      echo
+                      if [ "$SIGNED" = true ]; then
+                          echo "Signed with the release key $FINGERPRINT: \`SHA256SUMS.txt.asc\` and a \`.asc\` per AppImage and deb."
+                      else
+                          echo "Not signed: no release key yet (RELEASE.md, \"The release key\")."
+                      fi
                       echo
                       echo '```'
                       cat dist-rehearsal/SHA256SUMS.txt
@@ -304,9 +330,19 @@ jobs:
                   merge-multiple: true
             - name: Check the files and write the checksums
               run: scripts/moltenterm-release-files.sh dist-release
+            # Closed failure once the key exists: a wrong secret fails the run here, before anything is published.
+            - name: Sign the checksums
+              id: sign
+              env:
+                  RELEASE_GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+                  RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+              run: scripts/moltenterm-release-sign.sh dist-release
             - name: Write the release text
               env:
                   TAG: ${{ github.ref_name }}
+                  SIGNED: ${{ steps.sign.outputs.signed }}
+                  FINGERPRINT: ${{ steps.sign.outputs.fingerprint }}
+                  KEY_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/release-signing-key.asc
               run: |
                   {
                       if [ -s "releases/$TAG.md" ]; then
@@ -322,6 +358,22 @@ jobs:
                   - **macOS**: open the `.dmg` (`darwin-arm64` for Apple Silicon, `darwin-x64` for Intel) and drag MoltenTerm to Applications. This build is not signed with an Apple Developer ID yet, so macOS refuses to open it the first time: right-click MoltenTerm in Applications and choose **Open**, or run `xattr -dr com.apple.quarantine /Applications/MoltenTerm.app`.
                   - **Linux**: make the `.AppImage` executable (`chmod +x`) and run it, or install the `.deb` with `sudo apt install ./<file>.deb`. `arm64` is for ARM machines, the other files for Intel and AMD.
                   - **Checksums**: `SHA256SUMS.txt` lists the SHA-256 of every file (`sha256sum --ignore-missing -c SHA256SUMS.txt`).
+
+                  ## Verify
+
+                  EOF
+                      if [ "$SIGNED" = true ]; then
+                          echo "\`SHA256SUMS.txt.asc\` is a GPG signature of \`SHA256SUMS.txt\` by the DiamondForge release key, so one check covers every file; each AppImage and deb also has its own \`.asc\`. The key's fingerprint is \`$FINGERPRINT\`: check that \`gpg --verify\` names it."
+                      else
+                          echo "This release is not signed yet: it has no \`SHA256SUMS.txt.asc\`, and the DiamondForge release key's fingerprint is not published yet. Once it is, the releases are verified this way:"
+                      fi
+                      cat <<EOF
+
+                  \`\`\`
+                  curl -fsSL $KEY_URL | gpg --import
+                  gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt
+                  sha256sum --ignore-missing -c SHA256SUMS.txt   # shasum -a 256 --ignore-missing -c on macOS
+                  \`\`\`
                   EOF
                   } > release-body.md
             - name: Create or update the release
