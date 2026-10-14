@@ -10,6 +10,7 @@ import { modalsModel } from "@/app/store/modalmodel";
 import { registerCommandPanelKeys } from "../command-panel/command-panel-keys";
 import { registerCompanionKeys } from "../companion/companion-open";
 import { registerShortcutsKeys } from "../shortcuts/shortcuts-keys";
+import { registerPinKeys } from "../view360/view360-pin";
 
 export const CommandPaletteKey = "Cmd:Shift:k";
 export const CommandPaletteModalName = "MoltentermCommandPaletteModal";
@@ -40,4 +41,5 @@ export function registerCommandPaletteKeys(keyMap: Map<string, (e: WaveKeyboardE
     registerCompanionKeys(keyMap);
     registerShortcutsKeys(keyMap);
     registerCommandPanelKeys(keyMap);
+    registerPinKeys(keyMap);
 }

@@ -4,6 +4,7 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { RpcApi } from "@/app/store/wshclientapi";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
+import { findNode } from "@/layout/lib/layoutNode";
 import {
     FlexDirection,
     LayoutTreeActionType,
@@ -14,8 +15,9 @@ import {
 } from "@/layout/lib/types";
 import { atom, type PrimitiveAtom } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { showToast } from "../toast-store";
 import { ResizeSettleMs } from "./view360-decision";
-import { View360FixedPxMetaKey, View360MetaKey } from "./view360-meta";
+import { View360FixedPxMetaKey, View360MetaKey, View360PinsMetaKey } from "./view360-meta";
 import { View360Model } from "./view360-model";
 
 const settingAtom = vi.hoisted(() => ({ current: null as unknown }));
@@ -27,10 +29,12 @@ vi.mock("@/app/store/global", async () => {
 });
 vi.mock("@/app/store/wshclientapi", () => ({ RpcApi: { SetMetaCommand: vi.fn(() => Promise.resolve()) } }));
 vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: {} }));
+vi.mock("../toast-store", () => ({ showToast: vi.fn() }));
 
 function metaWrites(): Record<string, unknown>[] {
     return vi.mocked(RpcApi.SetMetaCommand).mock.calls.map((c) => c[1].meta as Record<string, unknown>);
 }
+
 vi.mock("../panel-size/panel-size-store", () => ({
     cachedBlockView: (blockId: string) => (blockId === "b-b" ? "web" : "term"),
     currentPanelSizes: () => ({ web: { width: 700 } }),
@@ -76,6 +80,7 @@ function boundsOf(width: number) {
 }
 
 const bounds = { top: 0, left: 0, width: 1600, height: 900 };
+const wideBounds = { top: 0, left: 0, width: 2400, height: 900 };
 
 describe("View360Model", () => {
     it("lays an inserted panel at the end of the carpet in 360 view", () => {
@@ -205,6 +210,90 @@ describe("View360Model", () => {
         const base = { transform: "translate3d(900px, 0px, 0)" };
         expect(model.placeholderTransform("c", rect, base).transform).toContain("var(--mt-carpet-scroll");
         expect(model.placeholderTransform("a", rect, base)).toBe(base);
+    });
+
+    it("draws a pinned column in the fixed zone and gives it back to the carpet at its place (FR-SHELL-067)", () => {
+        const root: LayoutNode = {
+            id: "root",
+            flexDirection: FlexDirection.Row,
+            size: 10,
+            children: [leaf("a"), leaf("b"), leaf("c")],
+        };
+        const { model, tabAtom, layoutModel } = makeModel(true, root);
+        (layoutModel as any).getNodeByBlockId = (blockId: string) => findNode(root, blockId.slice(2));
+        globalStore.set(tabAtom, {
+            oid: "tab-1",
+            blockids: ["b-a", "b-b", "b-c"],
+            meta: { [View360MetaKey]: true, [View360PinsMetaKey]: { "b-b": { mode: "beside", px: 360 } } },
+        } as unknown as Tab);
+        model.evaluate(root, wideBounds);
+        let layout = model.computeLayout(root, wideBounds);
+        expect(layout.fixedColumns.map((c) => [c.nodeId, c.mode])).toEqual([
+            ["a", "first"],
+            ["b", "beside"],
+        ]);
+        expect(layout.fixedColumns[1].rect.width).toBe(360);
+        expect(layout.columns.map((c) => c.nodeId)).toEqual(["c"]);
+        expect(model.rootChild("b")).toMatchObject({ carpet: false, pinned: true });
+        expect(model.isInFixedZone("b")).toBe(true);
+        expect(model.carpetColumnOf("b")).toBeNull();
+        expect(globalStore.get(model.placementsAtom)).toEqual({ "b-a": "first", "b-b": "beside", "b-c": "carpet" });
+
+        expect(model.unpin("b-b")).toBe(true);
+        expect(vi.mocked(RpcApi.SetMetaCommand).mock.calls.at(-1)[1]).toEqual({
+            oref: "tab:tab-1",
+            meta: { [View360PinsMetaKey]: null },
+        });
+        layout = model.computeLayout(root, wideBounds);
+        expect(layout.columns.map((c) => c.nodeId)).toEqual(["b", "c"]);
+        expect(model.placementOf("b-b")).toBe("carpet");
+
+        // Stacked in the first column: the fixed zone keeps its width.
+        expect(model.pin("b-c", "stacked")).toBe(true);
+        layout = model.computeLayout(root, wideBounds);
+        expect(layout.fixedColumns.map((c) => [c.nodeId, c.mode])).toEqual([
+            ["a", "first"],
+            ["c", "stacked"],
+        ]);
+        expect(layout.columns.map((c) => c.nodeId)).toEqual(["b"]);
+        // The first column is never pinned.
+        expect(model.pin("b-a", "beside")).toBe(false);
+    });
+
+    it("refuses a pin beside that the fixed zone cannot hold in half of the window", () => {
+        const root: LayoutNode = {
+            id: "root",
+            flexDirection: FlexDirection.Row,
+            size: 10,
+            children: [leaf("a"), leaf("b"), leaf("c")],
+        };
+        const { model, layoutModel } = makeModel(true, root);
+        (layoutModel as any).getNodeByBlockId = (blockId: string) => findNode(root, blockId.slice(2));
+        model.evaluate(root, { ...bounds, width: 1440 });
+        model.computeLayout(root, { ...bounds, width: 1440 });
+        expect(model.pin("b-b", "beside")).toBe(true);
+        model.evaluate(root, { ...bounds, width: 1440 });
+        model.computeLayout(root, { ...bounds, width: 1440 });
+        expect(model.pin("b-c", "beside")).toBe(false);
+        expect(showToast).toHaveBeenCalledWith(expect.objectContaining({ id: "view360-pin-refused" }));
+        expect(model.placementOf("b-c")).toBe("carpet");
+    });
+
+    it("lays pinned panels out as ordinary panels in normal mode", () => {
+        const root: LayoutNode = {
+            id: "root",
+            flexDirection: FlexDirection.Row,
+            size: 10,
+            children: [leaf("a"), leaf("b")],
+        };
+        const { model, tabAtom } = makeModel(false, root);
+        globalStore.set(tabAtom, {
+            oid: "tab-1",
+            meta: { [View360PinsMetaKey]: { "b-b": { mode: "beside" } } },
+        } as unknown as Tab);
+        expect(model.computeLayout(root, bounds)).toBeNull();
+        expect(model.rootChild("b")).toBeNull();
+        expect(globalStore.get(model.placementsAtom)).toEqual({});
     });
 
     it("re-runs the layout when the tab enters or leaves 360 view", () => {

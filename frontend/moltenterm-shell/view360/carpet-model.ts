@@ -23,6 +23,11 @@ export const CarpetScrubberPx = 32;
 export const CarpetColumnGapPx = 12;
 export const MinCarpetColumnPx = 280;
 export const DefaultCarpetColumnPx = 560;
+// With a column pinned beside it (FR-SHELL-067), every fixed column (the first one included) keeps this width at
+// least, so a terminal and a side panel fit side by side in half of a laptop's window. Fixed columns are separated
+// by the carpet's margin.
+export const PinnedColumnMinPx = 320;
+export const FixedColumnGapPx = CarpetMarginPx;
 
 // The width a column takes on the carpet when none is remembered for its kind.
 const DefaultCarpetWidths: Record<string, number> = {
@@ -49,9 +54,22 @@ export type CarpetColumn = {
     width: number;
 };
 
+// A carpet column pinned to the fixed zone (FR-SHELL-067): a second fixed column beside the first, or stacked under it.
+export type PinMode = "beside" | "stacked";
+
+export type FixedColumn = {
+    nodeId: string;
+    // "first" is the tab's first column; the others are pinned columns.
+    mode: "first" | PinMode;
+    rect: Rect;
+};
+
 export type CarpetLayout = {
     fixedNodeId: string;
+    // The whole fixed zone: the first column, with the columns pinned beside it.
     fixed: Rect;
+    // The fixed zone's columns: the first one, then the pinned ones in the tree's order.
+    fixedColumns: FixedColumn[];
     // The recessed surface, and inside it the band the columns are laid in.
     surface: Rect;
     viewport: Rect;
@@ -66,7 +84,10 @@ export type CarpetLayoutInput = {
     fixedNodeId: string;
     // The fixed zone's chosen width (dragged, or the first column's normal width the first time).
     fixedPx: number;
+    // The columns left on the carpet, left to right.
     columns: { nodeId: string; widthPx: number }[];
+    // The columns pinned to the fixed zone, in the tree's order; widthPx is only used beside.
+    pins?: { nodeId: string; mode: PinMode; widthPx: number }[];
 };
 
 // The tab's columns in 360 view, or null when there is nothing to lay out (no tree, or a single panel).
@@ -115,10 +136,88 @@ export function clampColumnPx(px: number, viewportWidth: number): number {
     return Math.round(Math.min(Math.max(want, MinCarpetColumnPx), max));
 }
 
+function sumPx(values: number[]): number {
+    return values.reduce((acc, v) => acc + v, 0);
+}
+
+// Whether one more column fits beside the first in the fixed zone: every fixed column at its minimum, with the gaps
+// between them, within half of the window (FR-SHELL-067-AC3).
+export function canPinBeside(width: number, besideCount: number): boolean {
+    const columns = besideCount + 2;
+    const needed = columns * PinnedColumnMinPx + (columns - 1) * FixedColumnGapPx;
+    return needed <= fixedBoundsPx(width).max;
+}
+
+// The widths of the fixed zone's columns side by side, the first one then those pinned beside it, within half of the
+// window. When they do not fit, the pinned columns shrink to their minimum first, then the first column; below every
+// minimum (a very narrow window) they share the half in proportion, so the carpet never loses its space.
+export function fitFixedWidths(width: number, firstPx: number, pinnedPx: number[]): number[] {
+    if (!pinnedPx.length) {
+        return [clampFixedPx(firstPx, width)];
+    }
+    const avail = Math.max(0, fixedBoundsPx(width).max - FixedColumnGapPx * pinnedPx.length);
+    const want = (px: number, fallback: number) =>
+        Math.max(PinnedColumnMinPx, Number.isFinite(px) && px > 0 ? px : fallback);
+    let first = want(firstPx, FixedMinPx);
+    let pins = pinnedPx.map((px) => want(px, DefaultCarpetColumnPx));
+    let over = first + sumPx(pins) - avail;
+    if (over > 0) {
+        const room = sumPx(pins.map((px) => px - PinnedColumnMinPx));
+        const take = Math.min(over, room);
+        if (room > 0) {
+            pins = pins.map((px) => px - ((px - PinnedColumnMinPx) * take) / room);
+        }
+        over -= take;
+    }
+    if (over > 0) {
+        const take = Math.min(over, first - PinnedColumnMinPx);
+        first -= take;
+        over -= take;
+    }
+    if (over > 0) {
+        const scale = avail / (first + sumPx(pins));
+        first *= scale;
+        pins = pins.map((px) => px * scale);
+    }
+    return [first, ...pins].map((px) => Math.floor(px));
+}
+
+// The fixed zone's columns: the first one and those pinned beside it side by side, those stacked under the first one
+// sharing its width at equal heights.
+function layoutFixedColumns(input: CarpetLayoutInput, width: number, height: number): FixedColumn[] {
+    const pins = input.pins ?? [];
+    const beside = pins.filter((p) => p.mode === "beside");
+    const stacked = pins.filter((p) => p.mode === "stacked");
+    const widths = fitFixedWidths(
+        width,
+        input.fixedPx,
+        beside.map((p) => p.widthPx)
+    );
+    const rows = stacked.length + 1;
+    const rowHeight = Math.max(0, (height - FixedColumnGapPx * stacked.length) / rows);
+    const rtn: FixedColumn[] = [
+        { nodeId: input.fixedNodeId, mode: "first", rect: { top: 0, left: 0, width: widths[0], height: rowHeight } },
+    ];
+    stacked.forEach((pin, i) => {
+        const top = (i + 1) * (rowHeight + FixedColumnGapPx);
+        rtn.push({ nodeId: pin.nodeId, mode: "stacked", rect: { top, left: 0, width: widths[0], height: rowHeight } });
+    });
+    let left = widths[0];
+    beside.forEach((pin, i) => {
+        left += FixedColumnGapPx;
+        rtn.push({ nodeId: pin.nodeId, mode: "beside", rect: { top: 0, left, width: widths[i + 1], height } });
+        left += widths[i + 1];
+    });
+    // The tree's order, so the fixed zone reads like the normal layout.
+    const order = new Map(pins.map((p, i) => [p.nodeId, i]));
+    return [rtn[0], ...rtn.slice(1).sort((a, b) => order.get(a.nodeId) - order.get(b.nodeId))];
+}
+
 export function computeCarpetLayout(input: CarpetLayoutInput): CarpetLayout {
     const width = Math.max(0, input.width);
     const height = Math.max(0, input.height);
-    const fixedPx = clampFixedPx(input.fixedPx, width);
+    const fixedColumns = layoutFixedColumns(input, width, height);
+    const fixedPx = Math.max(...fixedColumns.map((c) => c.rect.left + c.rect.width));
     const fixed: Rect = { top: 0, left: 0, width: fixedPx, height };
     const surfaceLeft = fixedPx + CarpetMarginPx;
     const surface: Rect = {
@@ -144,6 +243,7 @@ export function computeCarpetLayout(input: CarpetLayoutInput): CarpetLayout {
     return {
         fixedNodeId: input.fixedNodeId,
         fixed,
+        fixedColumns,
         surface,
         viewport,
         columns,

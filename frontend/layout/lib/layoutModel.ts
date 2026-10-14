@@ -920,6 +920,8 @@ export class LayoutModel {
                 transform,
                 treeKey: additionalProps.treeKey + i,
                 moltenCarpet,
+                // MOLTENTERM-PATCH (#616): a column pinned to the fixed zone, and every panel inside it
+                moltenPinned: moltenView360 != null && (moltenChild?.pinned || !!additionalProps.moltenPinned),
             };
 
             // We only want the resize handles in between nodes, this ensures we have n-1 handles.

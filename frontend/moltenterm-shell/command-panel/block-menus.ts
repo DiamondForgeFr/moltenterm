@@ -11,6 +11,7 @@ import { fireAndForget } from "@/util/util";
 import { DeveloperSection } from "../menu/menu-model";
 import { acceleratorById } from "../shortcuts/format";
 import { PanelSection, splitMenuItems } from "../split/split-menu";
+import { pinMenuItems } from "../view360/view360-pin";
 import { openCommandPanel, openCommandPanelAtPoint } from "./command-panel-store";
 
 export const MoreLabel = "More…";
@@ -86,6 +87,7 @@ export function blockBodyMenuItems(blockId: string, nodeModel: MagnifyNode): Con
     return [
         ...splitMenuItems(blockId, ""),
         magnifyMenuItem(nodeModel, ""),
+        ...pinMenuItems(blockId, ""),
         { ...moreMenuItem(blockId), section: "" },
         ...panelDeveloperItems(blockId),
         { type: "separator" },
@@ -105,6 +107,7 @@ export function terminalBodyMenuTail(blockId: string, nodeModel: MagnifyNode): C
     return [
         ...splitMenuItems(blockId, PanelSection),
         magnifyMenuItem(nodeModel, PanelSection),
+        ...pinMenuItems(blockId, PanelSection),
         { ...moreMenuItem(blockId), section: PanelSection },
         ...panelDeveloperItems(blockId),
     ];

@@ -7,6 +7,7 @@
 // binding of Wave's key model has no entry here.
 
 import { isMacOS } from "@/util/platformutil";
+import { PinText } from "../view360/pin-text";
 
 export type ShortcutCategory =
     | "Panels"
@@ -100,6 +101,14 @@ export const Shortcuts: Shortcut[] = [
         scope: "global",
         keys: "Cmd:m",
         keywords: ["zoom", "maximize"],
+    },
+    {
+        id: "pin-panel",
+        label: PinText.shortcutLabel,
+        category: "Panels",
+        scope: "global",
+        keys: "Cmd:Shift:p",
+        keywords: ["360", "carpet", "fixed zone", "pin beside", "unpin"],
     },
     {
         id: "replace-panel",
