@@ -27,6 +27,12 @@ export const AppLanguageSettingKey = "app:language";
 
 type LocaleListener = (locale: string) => void;
 
+// The page's lang attribute: screen readers, hyphenation and spell checking follow the interface language.
+function setDocumentLang(locale: string) {
+    if (typeof document === "undefined") return;
+    document.documentElement?.setAttribute("lang", locale);
+}
+
 export class I18nModel {
     private static instance: I18nModel | null = null;
 
@@ -61,6 +67,7 @@ export class I18nModel {
         onLanguagesChange(() => globalStore.set(this.languagesVersionAtom, (v) => v + 1));
         globalStore.sub(this.localeAtom, () => this.notifyLocale());
         this.lastLocale = globalStore.get(this.localeAtom);
+        setDocumentLang(this.lastLocale);
     }
 
     static getInstance(): I18nModel {
@@ -99,7 +106,7 @@ export class I18nModel {
         const locale = this.getLocale();
         if (locale === this.lastLocale) return;
         this.lastLocale = locale;
-        if (typeof document !== "undefined") document.documentElement?.setAttribute("lang", locale);
+        setDocumentLang(locale);
         for (const listener of [...this.listeners]) {
             try {
                 listener(locale);
