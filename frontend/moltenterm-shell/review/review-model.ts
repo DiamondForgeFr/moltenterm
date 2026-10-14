@@ -4,6 +4,7 @@
 // The Review tab's pure helpers (FR-REV-002): the file tree, the viewed marks, the collapsed files' wording and the
 // diff editor's language. Kept apart from the view so they can be tested.
 
+import { t } from "../i18n/i18n";
 import type { ReviewCollapsed, ReviewFile, ReviewFileStatus, ReviewState } from "./review-client";
 
 // must match ReviewView in pkg/molten/review/tab.go
@@ -115,13 +116,55 @@ export function nextFile(files: readonly ReviewFile[], current: string, step: 1 
 }
 
 export const StatusLetters: Record<ReviewFileStatus, { letter: string; label: string; tone: string }> = {
-    added: { letter: "A", label: "added", tone: "text-success" },
-    modified: { letter: "M", label: "modified", tone: "text-warning" },
-    deleted: { letter: "D", label: "deleted", tone: "text-error" },
-    renamed: { letter: "R", label: "renamed", tone: "text-accent" },
-    copied: { letter: "C", label: "copied", tone: "text-accent" },
-    typechanged: { letter: "T", label: "type changed", tone: "text-warning" },
-    submodule: { letter: "S", label: "submodule", tone: "text-muted" },
+    added: {
+        letter: "A",
+        get label() {
+            return t("review.file.status.added");
+        },
+        tone: "text-success",
+    },
+    modified: {
+        letter: "M",
+        get label() {
+            return t("review.file.status.modified");
+        },
+        tone: "text-warning",
+    },
+    deleted: {
+        letter: "D",
+        get label() {
+            return t("review.file.status.deleted");
+        },
+        tone: "text-error",
+    },
+    renamed: {
+        letter: "R",
+        get label() {
+            return t("review.file.status.renamed");
+        },
+        tone: "text-accent",
+    },
+    copied: {
+        letter: "C",
+        get label() {
+            return t("review.file.status.copied");
+        },
+        tone: "text-accent",
+    },
+    typechanged: {
+        letter: "T",
+        get label() {
+            return t("review.file.status.typechanged");
+        },
+        tone: "text-warning",
+    },
+    submodule: {
+        letter: "S",
+        get label() {
+            return t("review.file.status.submodule");
+        },
+        tone: "text-muted",
+    },
 };
 
 export function formatBytes(n: number): string {
@@ -141,15 +184,17 @@ export function formatBytes(n: number): string {
 export function collapsedReason(collapsed: ReviewCollapsed, file?: ReviewFile): string {
     switch (collapsed) {
         case "binary":
-            return "Binary file: it is not shown as text.";
+            return t("review.file.collapsed.binary");
         case "generated":
-            return "Generated file (lock file, generated code or marked linguist-generated): collapsed.";
+            return t("review.file.collapsed.generated");
         case "large": {
             const size = Math.max(file?.oldsize ?? 0, file?.newsize ?? 0);
-            return `Large file${size > 0 ? ` (${formatBytes(size)})` : ""}: over 1 MB or 20,000 lines, collapsed.`;
+            return size > 0
+                ? t("review.file.collapsed.largeSize", { size: formatBytes(size) })
+                : t("review.file.collapsed.large");
         }
         case "submodule":
-            return "Submodule: its commit changed; its content lives in another repository.";
+            return t("review.file.collapsed.submodule");
     }
     return "";
 }
@@ -157,13 +202,13 @@ export function collapsedReason(collapsed: ReviewCollapsed, file?: ReviewFile): 
 export function collapsedTag(collapsed: ReviewCollapsed): string {
     switch (collapsed) {
         case "binary":
-            return "binary";
+            return t("review.file.tag.binary");
         case "generated":
-            return "generated";
+            return t("review.file.tag.generated");
         case "large":
-            return "large";
+            return t("review.file.tag.large");
         case "submodule":
-            return "submodule";
+            return t("review.file.tag.submodule");
     }
     return "";
 }
@@ -250,9 +295,14 @@ export function shortOid(oid: string): string {
 
 export function newCommitsLabel(commits: number, rewritten: boolean): string {
     if (rewritten) {
-        return commits > 0 ? `${commits} new commit${commits > 1 ? "s" : ""} (rewritten)` : "head rewritten";
+        if (commits <= 0) {
+            return t("review.commits.headRewritten");
+        }
+        return t(commits === 1 ? "review.commits.newRewrittenOne" : "review.commits.newRewrittenOther", {
+            count: commits,
+        });
     }
-    return `${commits} new commit${commits === 1 ? "" : "s"}`;
+    return t(commits === 1 ? "review.commits.newOne" : "review.commits.newOther", { count: commits });
 }
 
 // must match AiPaneView in pkg/molten/review/tab.go
@@ -302,14 +352,14 @@ export function briefingNote(briefing: { at: number; headoid?: string }, shownHe
     const minutes = Math.max(0, Math.round((now - briefing.at) / 60_000));
     const when =
         minutes < 1
-            ? "just now"
+            ? t("review.briefing.justNow")
             : minutes < 60
-              ? `${minutes} min ago`
+              ? t("review.briefing.minutesAgo", { count: minutes })
               : minutes < 48 * 60
-                ? `${Math.round(minutes / 60)} h ago`
-                : `${Math.round(minutes / 1440)} days ago`;
+                ? t("review.briefing.hoursAgo", { count: Math.round(minutes / 60) })
+                : t("review.briefing.daysAgo", { count: Math.round(minutes / 1440) });
     if (briefing.headoid && shownHead && briefing.headoid !== shownHead) {
-        return `${when}, on ${shortOid(briefing.headoid)}: the PR moved since`;
+        return t("review.briefing.moved", { when, oid: shortOid(briefing.headoid) });
     }
     return when;
 }

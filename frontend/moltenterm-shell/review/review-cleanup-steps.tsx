@@ -5,6 +5,7 @@
 // reason or failed with its message, the other PRs under their step, and the agent worktree's second confirmation.
 
 import { cn } from "@/util/util";
+import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import {
     cleanupNeedsConfirmation,
@@ -34,20 +35,22 @@ type CleanupStepsProps = {
 };
 
 export function CleanupSteps({ steps, onConfirmWorktree, busy }: CleanupStepsProps) {
+    const t = useT();
     if (steps == null) {
         return null;
     }
     const pending = cleanupNeedsConfirmation(steps);
+    const stateWord = (state: string) => t(`review.cleanup.state.${state}`);
     return (
         <div className="flex flex-col gap-1.5 text-12" data-testid="review-cleanup-steps">
             {steps.map((step) => (
                 <div key={step.id} className="flex flex-col" data-step={step.id} data-state={step.state}>
                     <div className="flex items-center gap-2">
-                        <i className={cn(StateIcons[step.state], "w-4 text-center")} title={step.state} />
+                        <i className={cn(StateIcons[step.state], "w-4 text-center")} title={stateWord(step.state)} />
                         <span className={cn(step.state === "skipped" && "text-secondary")}>
                             {cleanupStepLabel(step.id)}
                         </span>
-                        {step.state !== "planned" && <span className="text-secondary">· {step.state}</span>}
+                        {step.state !== "planned" && <span className="text-secondary">· {stateWord(step.state)}</span>}
                     </div>
                     {cleanupStepDetail(step) !== "" && (
                         <div
@@ -61,7 +64,7 @@ export function CleanupSteps({ steps, onConfirmWorktree, busy }: CleanupStepsPro
                     )}
                     {step.prs?.map((pr) => (
                         <div key={pr.number} className="ml-6 flex items-center gap-2" data-pr={pr.number}>
-                            <i className={cn(StateIcons[pr.state], "w-4 text-center")} title={pr.state} />
+                            <i className={cn(StateIcons[pr.state], "w-4 text-center")} title={stateWord(pr.state)} />
                             <span>#{pr.number}</span>
                             <span className="truncate text-secondary">{pr.branch}</span>
                             <span className={cn(pr.state === "failed" ? "text-error" : "text-secondary")}>
@@ -74,7 +77,7 @@ export function CleanupSteps({ steps, onConfirmWorktree, busy }: CleanupStepsPro
             {pending != null && onConfirmWorktree != null && (
                 <div className="mt-1 flex items-center gap-2">
                     <button className={DangerButton} disabled={busy} onClick={() => onConfirmWorktree(pending.confirm)}>
-                        Remove the agent worktree anyway
+                        {t("review.cleanup.removeAgentWorktree")}
                         <MoltenWave />
                     </button>
                 </div>

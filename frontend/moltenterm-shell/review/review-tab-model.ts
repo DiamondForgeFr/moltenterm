@@ -16,6 +16,7 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
+import { I18nModel, t } from "../i18n/i18n";
 import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
 import { ReviewsAnswer } from "../reviews/reviews-model";
 import { TabActivity, whileShown } from "../tab-activity";
@@ -273,7 +274,8 @@ export abstract class ReviewTabModel implements ViewModel {
         this.prAtom = atom((get) => (get(blockAtom)?.meta?.[ReviewPrMetaKey] as ReviewPrInfo) ?? null);
         this.viewName = atom((get) => {
             const pr = get(this.prAtom);
-            return pr ? `Review #${pr.number}` : "Review";
+            get(I18nModel.getInstance().localeAtom);
+            return pr ? t("review.view.viewNamePr", { number: pr.number }) : t("review.view.viewName");
         });
         this.treeAtom = atom((get) => buildFileTree(get(this.filesAtom)?.files ?? []));
         this.orderedFilesAtom = atom((get) => treeFiles(get(this.treeAtom)));
@@ -751,7 +753,7 @@ export abstract class ReviewTabModel implements ViewModel {
             const session = globalStore.get(this.aiAtom).session;
             if (session == null) {
                 const ai = globalStore.get(this.aiAtom);
-                throw new Error(ai.message || "The review session is not running.");
+                throw new Error(ai.message || t("review.ai.notRunning"));
             }
             const result = await askReviewSession({ id: session.id }, ask.anchor, ask.text, question.trim());
             globalStore.set(this.askAtom, (cur) => ({ ...cur, sending: false, result }));
