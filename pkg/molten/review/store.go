@@ -66,6 +66,8 @@ type State struct {
 	UpdatedAt int64   `json:"updatedat,omitempty"`
 	// Merge: the last Validate's merge and its outcome (FR-REV-012, merge.go).
 	Merge *MergeRecord `json:"merge,omitempty"`
+	// Cleanup: what the last cleanup after the merge did (FR-REV-013).
+	Cleanup *CleanupResult `json:"cleanup,omitempty"`
 }
 
 type PrKey struct {
@@ -198,6 +200,28 @@ func (s *Store) update(k PrKey, change func(state *State) bool) (State, bool, er
 func (s *Store) SetMerge(k PrKey, record MergeRecord) (State, bool, error) {
 	return s.update(k, func(state *State) bool {
 		state.Merge = &record
+		return true
+	})
+}
+
+// SetCleanup records a cleanup's outcome. A run of some steps only (a retry, a confirmed worktree) replaces those steps
+// and keeps the others the developer already saw.
+func (s *Store) SetCleanup(result CleanupResult) (State, bool, error) {
+	return s.update(PrKey{Repo: result.Repo, Number: result.Number}, func(state *State) bool {
+		if state.Cleanup == nil {
+			state.Cleanup = &result
+			return true
+		}
+		merged := result
+		merged.Steps = []CleanupStepResult{}
+		for _, id := range CleanupSteps {
+			if step := result.Step(id); step != nil {
+				merged.Steps = append(merged.Steps, *step)
+			} else if old := state.Cleanup.Step(id); old != nil {
+				merged.Steps = append(merged.Steps, *old)
+			}
+		}
+		state.Cleanup = &merged
 		return true
 	})
 }

@@ -7,6 +7,7 @@
 
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import type { ReviewCleanupResult } from "./review-cleanup";
 import { reviewScope } from "./review-session";
 
 // must match pkg/molten/review/route.go
@@ -166,6 +167,8 @@ export type ReviewState = {
     lasthead?: string;
     since?: ReviewSince;
     rounds: ReviewRound[];
+    // What the last cleanup after the merge did (FR-REV-013, review-cleanup.ts).
+    cleanup?: ReviewCleanupResult;
     updatedat?: number;
     merge?: ReviewMergeRecord;
 };
