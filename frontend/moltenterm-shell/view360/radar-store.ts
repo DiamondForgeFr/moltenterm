@@ -9,6 +9,7 @@ import { findNode } from "@/layout/lib/layoutNode";
 import type { LayoutNode } from "@/layout/lib/types";
 import { atom, Atom } from "jotai";
 import { agentLabel } from "../agent-state-model";
+import { I18nModel } from "../i18n/i18n";
 import { AgentStates } from "../agent-state-store";
 import { MoltentermNotifications } from "../notifications-store";
 import { PanelMeta, panelTitle } from "../tab-identity";
@@ -68,6 +69,7 @@ function sameFacts(a: Record<string, RadarBlockFacts>, b: Record<string, RadarBl
 export function makeRadarFactsAtom(blockIds: string[]): Atom<Record<string, RadarBlockFacts>> {
     let last: Record<string, RadarBlockFacts> = {};
     return atom((get) => {
+        get(I18nModel.getInstance().localeAtom);
         const agents = get(AgentStates.getInstance().dataAtom).states;
         const attention = get(attentionAtom);
         const next: Record<string, RadarBlockFacts> = {};
