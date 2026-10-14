@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/baseds"
@@ -41,11 +42,25 @@ type Hooks struct {
 
 var startOnce sync.Once
 
+// The started manager, for EndSession.
+var liveManager atomic.Pointer[Manager]
+
+// EndSession ends a PR's review session when it has one (the cleanup after the merge, FR-REV-013); nothing when the
+// sessions were not started.
+func EndSession(ctx context.Context, repo string, number int) error {
+	manager := liveManager.Load()
+	if manager == nil {
+		return nil
+	}
+	return manager.End(ctx, mcpreview.SessionKey{Repo: repo, Number: number})
+}
+
 // Start registers the review sessions on wavesrv's router and ends a session when its terminal closes; it starts
 // with Mission Control. Nothing else runs until a window or an agent asks: no timer, no watcher (NFR-REV-002).
 func Start(hooks Hooks) {
 	startOnce.Do(func() {
 		manager := MakeManager(liveEnv(hooks))
+		liveManager.Store(manager)
 		link := &routeLink{
 			manager:     manager,
 			output:      make(chan []byte, routeQueueSize),

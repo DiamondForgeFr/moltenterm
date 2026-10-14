@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/baseds"
+	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
@@ -77,6 +78,8 @@ type Service struct {
 	dataDir string
 	publish func(k PrKey, state State)
 	merger  *Merger
+	// cleaner: the cleanup after the merge (FR-REV-013); nil in the tests that do not need it.
+	cleaner *Cleaner
 
 	lock      sync.Mutex
 	treeLocks map[string]*sync.Mutex
@@ -135,6 +138,13 @@ func Start() {
 		service := MakeService(wavebase.GetWaveDataDir(), git, func(k PrKey, state State) {
 			wps.Broker.Publish(wps.WaveEvent{Event: UpdateEvent, Scopes: []string{mcpreview.ScopeOf(k.Repo, k.Number)}, Data: state})
 		})
+		service.cleaner = MakeCleaner(CleanupEnv{
+			Run:        cleanupRunner,
+			Terminals:  mission.WorktreeTerminalsOf,
+			AgentState: agentStateOf,
+			EndSession: reviewsession.EndSession,
+			DataDir:    wavebase.GetWaveDataDir(),
+		})
 		link := &routeLink{service: service, output: make(chan []byte, routeQueueSize), localSource: localSourceOnLink}
 		if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId); err != nil {
 			log.Printf("%s route not started: %v\n", logPrefix, err)
@@ -163,6 +173,14 @@ func (s *Service) SessionPosted(update mcpreview.Update) {
 	if _, err := s.changed(s.store.SetBriefing(k, b)); err != nil {
 		log.Printf("%s %s#%d: the briefing could not be kept: %v\n", logPrefix, k.Repo, k.Number, err)
 	}
+}
+
+func agentStateOf(blockId string) string {
+	run, ok := attention.AgentRun(blockId)
+	if !ok || !run.Running {
+		return ""
+	}
+	return run.State
 }
 
 func localSourceOnLink(source string, ingressLinkId baseds.LinkId) bool {
@@ -206,6 +224,8 @@ func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) 
 	switch req.Command {
 	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand:
 		timeout = gitTimeout
+	case CleanupCommand:
+		timeout = cleanupTimeout
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -327,6 +347,12 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return nil, s.merger.Cancel(req)
+	case CleanupCommand:
+		req, err := decode[CleanupRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.Cleanup(ctx, req)
 	}
 	return nil, fmt.Errorf("unknown review command %q", command)
 }
