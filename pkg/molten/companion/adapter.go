@@ -64,6 +64,22 @@ type SubagentWriter interface {
 	SubagentWritten(sessionPath string, agentId string) int64
 }
 
+// SubagentReader is an adapter whose sub-agents' own transcripts say their model, effort and branch (#601).
+type SubagentReader interface {
+	// SubagentIds maps the calls that started sub-agents to the agents' ids, for the agents whose call result did not
+	// give it yet (a foreground agent's comes with its end).
+	SubagentIds(sessionPath string) map[string]string
+	// ReadSubagent reads the latest facts of a sub-agent's transcript; false when it has none.
+	ReadSubagent(sessionPath string, agentId string) (SubagentFacts, bool)
+}
+
+// SubagentFacts is what a sub-agent's own transcript last says of it.
+type SubagentFacts struct {
+	Model  string
+	Effort string
+	Branch string
+}
+
 // Candidate is a session discovery found for a block.
 type Candidate struct {
 	Path     string `json:"path"`

@@ -252,6 +252,7 @@ func Start() {
 	m.integrationOf = attention.AgentIntegration
 	m.allRuns = attention.AgentRuns
 	m.blockInfo = readBlockInfo
+	m.ticketLabels = GhIssueLabels
 	m.publish = publishView
 	m.publishUsage = publishUsage
 	m.writeGauges = writeGaugesSetting

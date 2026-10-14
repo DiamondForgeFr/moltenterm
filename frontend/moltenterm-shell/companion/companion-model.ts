@@ -108,6 +108,12 @@ export type CompanionSession = {
     // earlier: the user chose an earlier session of the terminal; the agent runs a newer one (#600).
     earlier?: boolean;
     livepath?: string;
+    // The main agent's model and effort as its transcript records them (the status line's win), the ticket it works on
+    // and that ticket's complexity label (#601).
+    model?: string;
+    effort?: string;
+    ticket?: number;
+    complexity?: string;
 };
 
 // must match pkg/molten/companion/topics.go
@@ -128,6 +134,11 @@ export type CompanionSubagent = {
     description?: string;
     kind?: string;
     model?: string;
+    // effort: absent when neither its transcript nor its call says it (its parent's then, #601).
+    effort?: string;
+    branch?: string;
+    ticket?: number;
+    complexity?: string;
     background?: boolean;
     state: SubagentState;
     started?: number;

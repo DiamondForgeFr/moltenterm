@@ -5,6 +5,7 @@ package companion
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -95,6 +96,12 @@ type SessionInfo struct {
 	Name string `json:"name,omitempty"`
 	// Branch: the branch the agent's records last named.
 	Branch string `json:"branch,omitempty"`
+	// Model, Effort: the main agent's as its latest answer records them (the status line's win in the view, #549).
+	Model  string `json:"model,omitempty"`
+	Effort string `json:"effort,omitempty"`
+	// Ticket, Complexity: the ticket the main agent works on and its complexity label (#601).
+	Ticket     int    `json:"ticket,omitempty"`
+	Complexity string `json:"complexity,omitempty"`
 	// Earlier: the user chose an earlier session of the pane in the history; the agent's hook reported a newer one.
 	Earlier bool `json:"earlier,omitempty"`
 	// LivePath: with Earlier, the session the agent runs now.
@@ -189,6 +196,9 @@ type Manager struct {
 	// Session ids reported by an agent and not found among its transcripts, with when: not looked up again for a
 	// while (Codex reports its thread id at every turn's end).
 	idMisses map[string]time.Time
+	// The complexity of the tickets the agents work on (#601, tickets.go), by folder and ticket, and the gh calls running.
+	complexities  map[string]*complexityEntry
+	ticketLookups int
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
 	runOf         func(blockId string) (molten.AgentRunInfo, bool)
@@ -196,6 +206,7 @@ type Manager struct {
 	integrationOf func(blockId string) (molten.AgentIntegrationReport, bool)
 	allRuns       func() []molten.AgentRunInfo
 	blockInfo     func(blockId string) (blockInfo, error)
+	ticketLabels  func(ctx context.Context, dir string, number int) ([]string, error)
 	publish       func(view CompanionView)
 	publishUsage  func(info UsageInfo)
 	writeGauges   func(agents []string) error
@@ -972,6 +983,8 @@ type watcher struct {
 	// refreshAsked: a view asked to look again now (Refresh); quietAt: when the background agents were last checked.
 	refreshAsked atomic.Bool
 	quietAt      time.Time
+	// factsAsked: a refresh asked to read the running sub-agents' own transcripts and to look tickets up (#601).
+	factsAsked bool
 }
 
 func makeWatcher(m *Manager, blockId string) *watcher {
@@ -1109,6 +1122,7 @@ func (w *watcher) refreshInfo(force bool) error {
 func (w *watcher) step() bool {
 	if w.refreshAsked.Swap(false) {
 		w.discoveredAt, w.infoAt, w.quietAt = time.Time{}, time.Time{}, time.Time{}
+		w.factsAsked = true
 	}
 	w.refreshIntegration()
 	run, ok := w.resolveRun()
@@ -1152,6 +1166,7 @@ func (w *watcher) step() bool {
 	more := w.read()
 	if !more {
 		w.settleSubagents()
+		w.readAgentFacts()
 	}
 	return more
 }
@@ -1176,6 +1191,51 @@ func (w *watcher) settleSubagents() {
 		lastWrite = func(agentId string) int64 { return writer.SubagentWritten(path, agentId) }
 	}
 	w.session.QuietSubagents(now.UnixMilli(), lastWrite)
+}
+
+// readAgentFacts gives the agents their ticket and its complexity (#601). Only a refresh (a view that shows asked)
+// reads the running sub-agents' own transcripts and may start a gh lookup; any other pass answers from the cache.
+func (w *watcher) readAgentFacts() {
+	fetch := w.factsAsked
+	w.factsAsked = false
+	reader, _ := w.adapter.(SubagentReader)
+	dir := w.info.cwd
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.session == nil {
+		return
+	}
+	if fetch && reader != nil {
+		w.readSubagents(reader)
+	}
+	w.session.ResolveTickets(func(number int, wanted bool) (string, bool) {
+		return w.m.ticketComplexity(dir, number, fetch && wanted)
+	})
+}
+
+// readSubagents reads the running sub-agents' own transcripts: the meta files only while one's agent id is unknown.
+func (w *watcher) readSubagents(reader SubagentReader) {
+	running := w.session.runningSubagents()
+	var ids map[string]string
+	for _, sa := range running {
+		agentId := sa.agentId
+		if agentId == "" {
+			if ids == nil {
+				ids = reader.SubagentIds(w.path)
+				if ids == nil {
+					ids = map[string]string{}
+				}
+			}
+			agentId = ids[sa.callId]
+			w.session.SetSubagentId(sa.callId, agentId)
+		}
+		if agentId == "" {
+			continue
+		}
+		if facts, ok := reader.ReadSubagent(w.path, agentId); ok {
+			w.session.SetSubagentFacts(sa.callId, facts)
+		}
+	}
 }
 
 // refreshIntegration follows the launcher's report of the block's run; a new or gone report is a new view.
@@ -1674,7 +1734,10 @@ func (w *watcher) view(elide bool) CompanionView {
 		Started:  w.session.StartedAt(),
 		Name:     w.session.Name(),
 		Branch:   w.session.Branch(),
+		Model:    w.session.Model(),
+		Effort:   w.session.Effort(),
 	}
+	v.Session.Ticket, v.Session.Complexity = w.session.Ticket()
 	if w.status == StatusUnsupportedFormat {
 		return v
 	}

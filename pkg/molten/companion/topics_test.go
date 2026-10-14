@@ -79,13 +79,13 @@ func TestCustomTitleWins(t *testing.T) {
 
 func TestLargeNotificationEndsAgent(t *testing.T) {
 	s := MakeSession()
-	s.StartSubagent("bg", "Long job", "general-purpose", "", true, 1)
+	s.StartSubagent("bg", "Long job", "general-purpose", "", "", true, 1)
 	huge := `{"type":"user","message":{"role":"user","content":"<task-notification><tool-use-id>bg</tool-use-id><status>killed</status><result>` + strings.Repeat("z", largeRecordBytes+10) + `</result></task-notification>"}}`
 	parseRecordLine(MakeClaudeAdapter([]string{"/nowhere"}), s, []byte(huge))
 	if got := s.Subagents()[0].State; got != SubagentStopped {
 		t.Errorf("a large notification still ends its agent: %s", got)
 	}
-	s.StartSubagent("fg", "Short job", "", "", false, 1)
+	s.StartSubagent("fg", "Short job", "", "", "", false, 1)
 	launched := `{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"fg","content":"` + strings.Repeat("y", largeRecordBytes+10) + `"}]}}`
 	parseRecordLine(MakeClaudeAdapter([]string{"/nowhere"}), s, []byte(launched))
 	if got := s.Subagents()[1].State; got != SubagentDone {
@@ -95,10 +95,10 @@ func TestLargeNotificationEndsAgent(t *testing.T) {
 
 func TestSubagentsAreCapped(t *testing.T) {
 	s := MakeSession()
-	s.StartSubagent("keep", "still running", "", "", true, 1)
+	s.StartSubagent("keep", "still running", "", "", "", true, 1)
 	for i := 0; i < MaxSubagents+5; i++ {
 		id := strings.Repeat("x", i+1)
-		s.StartSubagent(id, "job", "", "", false, 1)
+		s.StartSubagent(id, "job", "", "", "", false, 1)
 		s.SubagentResult(id, false, false, "")
 	}
 	list := s.Subagents()

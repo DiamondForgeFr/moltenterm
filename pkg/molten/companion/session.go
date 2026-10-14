@@ -151,6 +151,11 @@ type Session struct {
 	prsSeen    map[int]bool
 	subagents  []*subagent
 	activity   *ActivityInfo
+	// The main agent's model and effort as its latest records say them, and the ticket it works on (#601,
+	// tickets.go).
+	model  string
+	effort string
+	ticket ticketRef
 }
 
 func MakeSession() *Session {
