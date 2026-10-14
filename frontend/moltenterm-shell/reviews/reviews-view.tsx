@@ -190,7 +190,7 @@ function ReviewsList({ dir, answer }: { dir: string; answer: ReviewsAnswer }) {
         }
         listRef.current?.querySelector<HTMLElement>(`[data-pr="${selected}"]`)?.scrollIntoView?.({ block: "nearest" });
     }, [selected, draftsOpen]);
-    const open = (pr: ReviewPr) => fireAndForget(() => model.openPullRequestReview(dir, pr));
+    const open = (pr: ReviewPr) => fireAndForget(() => model.openPullRequestReview(dir, pr, answer.repo));
     const onKeyDown = (e: React.KeyboardEvent) => {
         // The focused row wins over the state: focus moves before React renders the selection it sets.
         const focused = Number((e.target as HTMLElement).closest?.("[data-pr]")?.getAttribute("data-pr"));

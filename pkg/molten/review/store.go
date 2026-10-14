@@ -1,0 +1,231 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+package review
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+// The review store (DS-REV-007): one JSON file per PR under <data>/molten/reviews/<repo-key>/<N>.json, written under a
+// per-PR lock, never in the project. This story keeps the viewed files and the heads the Review tab showed; the rounds
+// are FR-REV-010's (publish), read here for the "since last round" view, and the comments, briefing and explanations
+// come with their stories.
+
+var repoPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+
+// Round is one review round (DS-REV-007); PublishedAt is set once its GitHub review is posted.
+type Round struct {
+	Id             string `json:"id"`
+	StartedAt      int64  `json:"startedat"`
+	HeadOid        string `json:"headoid"`
+	PublishedAt    int64  `json:"publishedat,omitempty"`
+	GithubReviewId int64  `json:"githubreviewid,omitempty"`
+	GithubUrl      string `json:"githuburl,omitempty"`
+	RestartedAt    int64  `json:"restartedat,omitempty"`
+}
+
+// Since is the "since last round" diff the tab offers after the head moved (AC5).
+type Since struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+	// Published: From is the head of the last published round; otherwise the head shown before the refresh.
+	Published bool `json:"published,omitempty"`
+}
+
+type State struct {
+	Repo   string `json:"repo"`
+	Number int    `json:"number"`
+	// Viewed: path → the head's blob id when it was marked viewed. A push that changes the file unviews it, as on
+	// GitHub.
+	Viewed map[string]string `json:"viewed"`
+	// LastHead: the head the Review tab showed last.
+	LastHead  string  `json:"lasthead,omitempty"`
+	Since     *Since  `json:"since,omitempty"`
+	Rounds    []Round `json:"rounds"`
+	UpdatedAt int64   `json:"updatedat,omitempty"`
+}
+
+type PrKey struct {
+	Repo   string `json:"repo"`
+	Number int    `json:"number"`
+}
+
+func (k PrKey) check() error {
+	if !repoPattern.MatchString(k.Repo) || strings.HasPrefix(k.Repo, ".") || strings.Contains(k.Repo, "/.") {
+		return fmt.Errorf("repo must be owner/name")
+	}
+	if k.Number <= 0 {
+		return fmt.Errorf("number must be the PR's number")
+	}
+	return nil
+}
+
+type ViewedRequest struct {
+	PrKey
+	Path string `json:"path"`
+	// Blob: the head's blob id of the file ("" for a deleted file).
+	Blob   string `json:"blob,omitempty"`
+	Viewed bool   `json:"viewed"`
+}
+
+// ShownRequest records the head the tab shows now.
+type ShownRequest struct {
+	PrKey
+	HeadOid string `json:"headoid"`
+}
+
+type Store struct {
+	dir string
+	now func() time.Time
+
+	lock  sync.Mutex
+	locks map[string]*sync.Mutex
+}
+
+func MakeStore(dataDir string) *Store {
+	return &Store{dir: filepath.Join(dataDir, "molten", "reviews"), now: time.Now, locks: map[string]*sync.Mutex{}}
+}
+
+// RepoKey is the store's folder of a repository: owner__name, lower case.
+func RepoKey(repo string) string {
+	return strings.ToLower(strings.ReplaceAll(repo, "/", "__"))
+}
+
+func (s *Store) fileOf(k PrKey) string {
+	return filepath.Join(s.dir, RepoKey(k.Repo), strconv.Itoa(k.Number)+".json")
+}
+
+func (s *Store) prLock(k PrKey) *sync.Mutex {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	key := s.fileOf(k)
+	if s.locks[key] == nil {
+		s.locks[key] = &sync.Mutex{}
+	}
+	return s.locks[key]
+}
+
+func (s *Store) read(k PrKey) (State, error) {
+	rtn := State{Repo: k.Repo, Number: k.Number, Viewed: map[string]string{}, Rounds: []Round{}}
+	data, err := os.ReadFile(s.fileOf(k))
+	if errors.Is(err, os.ErrNotExist) {
+		return rtn, nil
+	}
+	if err != nil {
+		return rtn, err
+	}
+	if err := json.Unmarshal(data, &rtn); err != nil {
+		return State{Repo: k.Repo, Number: k.Number, Viewed: map[string]string{}, Rounds: []Round{}}, nil
+	}
+	if rtn.Viewed == nil {
+		rtn.Viewed = map[string]string{}
+	}
+	if rtn.Rounds == nil {
+		rtn.Rounds = []Round{}
+	}
+	return rtn, nil
+}
+
+func (s *Store) write(k PrKey, state State) error {
+	file := s.fileOf(k)
+	if err := os.MkdirAll(filepath.Dir(file), 0700); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := file + ".tmp"
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, file)
+}
+
+func (s *Store) Get(k PrKey) (State, error) {
+	if err := k.check(); err != nil {
+		return State{}, err
+	}
+	lock := s.prLock(k)
+	lock.Lock()
+	defer lock.Unlock()
+	return s.read(k)
+}
+
+// update changes a PR's state under its lock; change returns false when nothing changed.
+func (s *Store) update(k PrKey, change func(state *State) bool) (State, bool, error) {
+	if err := k.check(); err != nil {
+		return State{}, false, err
+	}
+	lock := s.prLock(k)
+	lock.Lock()
+	defer lock.Unlock()
+	state, err := s.read(k)
+	if err != nil {
+		return state, false, err
+	}
+	if !change(&state) {
+		return state, false, nil
+	}
+	state.UpdatedAt = s.now().UnixMilli()
+	return state, true, s.write(k, state)
+}
+
+// SetViewed marks or unmarks a file viewed (AC1).
+func (s *Store) SetViewed(req ViewedRequest) (State, bool, error) {
+	if req.Path == "" {
+		return State{}, false, fmt.Errorf("path is required")
+	}
+	if err := checkOid(req.Blob, "blob"); err != nil {
+		return State{}, false, err
+	}
+	return s.update(req.PrKey, func(state *State) bool {
+		old, had := state.Viewed[req.Path]
+		if !req.Viewed {
+			delete(state.Viewed, req.Path)
+			return had
+		}
+		state.Viewed[req.Path] = req.Blob
+		return !had || old != req.Blob
+	})
+}
+
+func lastPublished(rounds []Round) *Round {
+	for i := len(rounds) - 1; i >= 0; i-- {
+		if rounds[i].PublishedAt > 0 && rounds[i].HeadOid != "" {
+			return &rounds[i]
+		}
+	}
+	return nil
+}
+
+// Shown records the head the tab shows (AC5). When it differs from the one shown before, the "since last round" diff
+// goes from the last published round's head, else from the head shown before, to this one.
+func (s *Store) Shown(req ShownRequest) (State, bool, error) {
+	if !isOid(req.HeadOid) {
+		return State{}, false, fmt.Errorf("headoid must be a commit id")
+	}
+	return s.update(req.PrKey, func(state *State) bool {
+		if state.LastHead == req.HeadOid {
+			return false
+		}
+		previous := state.LastHead
+		state.LastHead = req.HeadOid
+		if round := lastPublished(state.Rounds); round != nil && round.HeadOid != req.HeadOid {
+			state.Since = &Since{From: round.HeadOid, To: req.HeadOid, Published: true}
+		} else if previous != "" {
+			state.Since = &Since{From: previous, To: req.HeadOid}
+		}
+		return true
+	})
+}

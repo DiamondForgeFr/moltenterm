@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The Reviews view's entry points (FR-REV-001-AC3, DS-REV-012): the widget opens the view, Mission Control's Pull
-// requests waiting block opens it on one PR, and a row opens that PR's review. The Review tab comes with FR-REV-002
-// (#580): openPullRequestReview is the one place it plugs into.
+// requests waiting block opens it on one PR, and a row opens that PR's Review tab (FR-REV-002).
 
-import { openLink } from "@/app/store/global";
+import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
 import { openMoltentermView } from "../open-view";
-import { MoltentermReviewsView, ReviewPr } from "./reviews-model";
+import { openReviewTab } from "../review/review-client";
+import { MoltentermReviewsView, repoOfPrUrl, ReviewPr } from "./reviews-model";
 
 // The PR a Reviews view brings into sight and marks, asked by another surface.
 export type ReviewsFocus = { dir: string; number: number; at: number };
@@ -36,11 +36,25 @@ export class ReviewsModel {
         await openMoltentermView(MoltentermReviewsView);
     }
 
-    // A row's action: the PR's Review tab. Until FR-REV-002 (#580) brings it, the PR opens on GitHub.
-    async openPullRequestReview(dir: string, pr: ReviewPr): Promise<void> {
-        if (!dir || pr == null) {
+    // A row's action: the PR's Review tab in this workspace, created the first time, shown after.
+    async openPullRequestReview(dir: string, pr: ReviewPr, repo?: string): Promise<void> {
+        const workspaceId = globalStore.get(atoms.workspace)?.oid;
+        const repoName = repo || repoOfPrUrl(pr?.url);
+        if (!dir || pr == null || !workspaceId || !repoName) {
             return;
         }
-        await openLink(pr.url);
+        const { tabid } = await openReviewTab(workspaceId, {
+            dir,
+            repo: repoName,
+            number: pr.number,
+            title: pr.tickettitle || pr.title,
+            url: pr.url,
+            headref: pr.branch,
+            baseref: pr.base,
+            headoid: pr.headoid,
+            baseoid: pr.baseoid,
+            ticket: pr.ticket,
+        });
+        getApi().setActiveTab(tabid);
     }
 }

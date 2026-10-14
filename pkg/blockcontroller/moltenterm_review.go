@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
+	"github.com/wavetermdev/waveterm/pkg/molten/review"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 )
 
@@ -16,6 +17,8 @@ func init() {
 	mission.UseStarter(func() {
 		reviewsession.Start(reviewsession.Hooks{StartTerminal: startReviewTerminal})
 	})
+	// The Review tab's diff and store (FR-REV-002).
+	mission.UseStarter(review.Start)
 }
 
 func startReviewTerminal(ctx context.Context, tabId string, blockId string) error {
