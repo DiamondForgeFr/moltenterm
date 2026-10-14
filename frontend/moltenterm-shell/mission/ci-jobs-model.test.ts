@@ -70,7 +70,7 @@ describe("triggerWords", () => {
             "By hand (Run workflow on GitHub)",
             "On push of tags v*",
             "On pull requests, only when .github/workflows/release.yml or scripts/a.sh change",
-            "On pull requests, with the repository's own permissions, when opened or closed or merged",
+            "On pull requests, with the repository's own permissions, when opened or closed (merged or not)",
         ]);
     });
 
@@ -170,10 +170,10 @@ describe("jobs", () => {
             ],
         };
         expect(localWhenWords(local)).toBe(
-            "When you or an agent run the local CI (Run CI, or molten ci run), and before the Gold build"
+            "Each time you or an agent run the local CI (Run CI, or molten ci run), and before the Gold build"
         );
         expect(localWhenWords({ path: "", jobs: [] })).toBe(
-            "When you or an agent run the local CI (Run CI, or molten ci run)"
+            "Each time you or an agent run the local CI (Run CI, or molten ci run)"
         );
         expect(localAfterWords(local.jobs[0], local)).toBeNull();
         expect(localAfterWords(local.jobs[3], local)).toBe(

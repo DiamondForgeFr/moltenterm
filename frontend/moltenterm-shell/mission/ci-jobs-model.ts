@@ -98,7 +98,7 @@ const PullRequestTypeWords: Record<string, string> = {
     reopened: "reopened",
     ready_for_review: "marked ready for review",
     converted_to_draft: "returned to draft",
-    closed: "closed or merged",
+    closed: "closed (merged or not)",
     edited: "edited",
     labeled: "labelled",
     unlabeled: "unlabelled",
@@ -718,7 +718,7 @@ export function needsWords(needs: readonly string[], jobs: readonly CatalogueJob
 
 // When a local CI job runs: there is no event, only who starts the local CI.
 export function localWhenWords(local: CatalogueLocal): string {
-    const parts = ["When you or an agent run the local CI (Run CI, or molten ci run)"];
+    const parts = ["Each time you or an agent run the local CI (Run CI, or molten ci run)"];
     if (local?.verifybuilds?.length) {
         parts.push(`before the ${andList(local.verifybuilds)} build`);
     }
