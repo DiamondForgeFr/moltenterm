@@ -195,6 +195,7 @@ describe("View360Model", () => {
         const { model, layoutModel } = makeModel(true, root);
         const props = { a: {}, b: { moltenCarpet: true }, c: { moltenCarpet: true } };
         Object.assign(layoutModel, { additionalProps: atom(props), getter: (a: any) => globalStore.get(a) });
+        model.evaluate(root, bounds);
         const layout = model.computeLayout(root, bounds);
         expect(layout.maxScroll).toBeGreaterThan(200);
         model.scrollTo(200);
