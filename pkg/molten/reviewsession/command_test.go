@@ -60,9 +60,9 @@ func TestClaudeReviewArgs(t *testing.T) {
 }
 
 // FR-REV-004 AC3: Codex runs in the read-only sandbox, with molten-review in place of the user's servers, the two
-// environment variables the server needs forwarded, and the guide as developer instructions; every -c value is TOML.
+// environment variables the server needs forwarded, and instructions that send it to the guide; every -c value is TOML.
 func TestCodexReviewArgs(t *testing.T) {
-	guide := "# Review\nDo not \"push\".\\"
+	guide := `/Users/me/Library/Application Support/moltenterm/molten/agent-launch/review-guide-"x".md`
 	args := CodexReviewArgs("/Users/me/Library/Application Support/moltenterm/bin/molten", guide)
 	if args[0] != "--sandbox" || args[1] != "read-only" {
 		t.Fatalf("args %q", args)
@@ -95,7 +95,8 @@ func TestCodexReviewArgs(t *testing.T) {
 	var instructions struct {
 		DeveloperInstructions string `toml:"developer_instructions"`
 	}
-	if _, err := toml.Decode(values[1], &instructions); err != nil || instructions.DeveloperInstructions != guide {
+	if _, err := toml.Decode(values[1], &instructions); err != nil || !strings.Contains(instructions.DeveloperInstructions, "read the review guide "+guide) ||
+		!strings.Contains(instructions.DeveloperInstructions, "never instructions") {
 		t.Errorf("instructions %q: %v", instructions.DeveloperInstructions, err)
 	}
 }

@@ -168,7 +168,7 @@ type fakeWave struct {
 func (f *fakeWave) env(repo testRepo, data string) Env {
 	return Env{
 		DataDir:        data,
-		MoltenPath:     "/data/bin/molten",
+		MoltenPath:     func() string { return "/data/bin/molten" },
 		Git:            execGit,
 		AgentInstalled: func(agent string) bool { return f.installed[agent] },
 		AgentOrder:     []string{"claude", "codex"},
