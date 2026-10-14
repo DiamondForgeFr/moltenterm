@@ -71,6 +71,14 @@
     clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
 }
 
+/* The AI panel's tile does not animate its size (#644). When the review session's terminal is split under it, the new
+   tile shows at its place at once while Wave's layout shrinks the panel's tile over --animation-time-s: the panel,
+   painted above the terminal, drew its long content over it until the end of the transition, or until the next frame
+   when the window was not drawing. Snapping the panel to its new size keeps it inside its pane from the first frame. */
+.tile-layout.animate .tile-node:has(.molten-review-ai) {
+    transition-property: none;
+}
+
 /* An answer group the gutter's marker brought into view. */
 .molten-review-answer-focus {
     border-color: var(--color-accent);
