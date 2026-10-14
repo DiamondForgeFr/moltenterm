@@ -139,7 +139,8 @@ describe("agents at work", () => {
     it("lists the sub-agents that still run, newest first, and counts the others", () => {
         const agents = agentsView(view, working, now);
         expect(agents.rows.map((r) => r.name)).toEqual(["Claude Code", "Check the links", "Audit the docs"]);
-        expect(agents.rows[2]).toMatchObject({ config: "sonnet", background: true });
+        expect(agents.rows[2]).toMatchObject({ config: "Sonnet · high (inherited)", background: true });
+        expect(agents.rows[1]).toMatchObject({ config: "Opus · high (inherited)" });
         expect(agents.rows[2].lines).toEqual(["general-purpose · background · started 5 min ago"]);
         expect(finishedLabel(agents.finished, agents.failed)).toBe("1 finished · 1 failed");
     });
@@ -148,6 +149,57 @@ describe("agents at work", () => {
         const idle = agentsView(view, { ...working, state: "idle" }, now);
         expect(idle.rows.map((r) => r.name)).toEqual(["Claude Code", "Audit the docs"]);
         expect(agentsView({ ...view, ended: true }, working, now).rows).toHaveLength(1);
+    });
+
+    // #601: every row's model and effort, the ticket's complexity, and the hint when they are out of proportion.
+    it("shows a sub-agent's own model and effort, and its ticket's complexity", () => {
+        const sub = {
+            id: "w",
+            description: "#601 agents complexity",
+            kind: "general-purpose",
+            model: "claude-opus-5-5",
+            effort: "high",
+            branch: "feature/601-agents-complexity",
+            ticket: 601,
+            complexity: "low",
+            background: true,
+            state: "running" as const,
+            started: now - Min,
+        };
+        const rows = agentsView({ ...view, subagents: [sub] }, working, now).rows;
+        expect(rows[1]).toMatchObject({ config: "Opus 5.5 · high", ticket: "#601", complexity: "low" });
+        expect(rows[1].hint?.kind).toBe("over");
+        expect(rows[1].configTitle).toContain("Branch: feature/601-agents-complexity");
+        const fits = agentsView({ ...view, subagents: [{ ...sub, complexity: "medium" }] }, working, now).rows;
+        expect(fits[1].hint).toBeUndefined();
+        const unlabelled = agentsView({ ...view, subagents: [{ ...sub, complexity: undefined }] }, working, now).rows;
+        expect(unlabelled[1].ticket).toBeUndefined();
+    });
+
+    it("takes the main agent's model and effort from its transcript when the status line said nothing", () => {
+        const session = {
+            ...view.session,
+            model: "claude-haiku-4-5",
+            effort: "low",
+            ticket: 42,
+            complexity: "complex",
+        };
+        const bare: AgentStateInfo = { ...working, model: undefined, modelname: undefined, effort: undefined };
+        const row = mainAgentRow({ ...view, session }, bare);
+        expect(row.config).toBe("Haiku 4.5 · low");
+        expect(row).toMatchObject({ ticket: "#42", complexity: "complex" });
+        expect(row.hint?.kind).toBe("under");
+        expect(mainAgentRow({ ...view, session }, working).config).toBe("Opus · high");
+    });
+
+    it("renders the ticket line and the hint", () => {
+        const session = { ...view.session, ticket: 7, complexity: "low" };
+        const html = renderToStaticMarkup(
+            <AgentsSection view={{ ...view, session, subagents: [] }} agentState={working} now={now} />
+        );
+        expect(html).toContain("#7 · complexity: low");
+        expect(html).toContain('data-proportion="over"');
+        expect(html).toContain("More than a low ticket needs");
     });
 
     it("renders the main session and its sub-agents", () => {

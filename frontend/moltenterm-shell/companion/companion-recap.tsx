@@ -47,6 +47,35 @@ const RowDotClasses: Record<string, string> = {
     exited: "bg-secondary",
 };
 
+// The ticket the agent works on and its complexity, with a calm hint when its model and effort look out of proportion
+// with it (#601): a check for the developer, never a warning that blocks.
+function TicketLine({ row }: { row: AgentRow }) {
+    return (
+        <div className="flex min-w-0 items-center gap-2 pl-4 text-11" data-testid="companion-agent-ticket">
+            <span className="shrink-0 text-secondary tabular-nums">
+                {row.ticket} · complexity: {row.complexity}
+            </span>
+            {row.hint ? (
+                <span
+                    className="min-w-0 truncate text-muted"
+                    title={row.hint.title}
+                    data-testid="companion-proportion"
+                    data-proportion={row.hint.kind}
+                >
+                    <i
+                        className={cn(
+                            "fa fa-solid fa-fw mr-0.5",
+                            row.hint.kind === "over" ? "fa-arrow-trend-up" : "fa-arrow-trend-down"
+                        )}
+                        aria-hidden="true"
+                    />
+                    {row.hint.label}
+                </span>
+            ) : null}
+        </div>
+    );
+}
+
 function AgentCard({ row }: { row: AgentRow }) {
     return (
         <li
@@ -65,12 +94,14 @@ function AgentCard({ row }: { row: AgentRow }) {
                 {row.config ? (
                     <span
                         className="ml-auto shrink-0 text-11 text-secondary"
+                        title={row.configTitle || undefined}
                         data-testid={row.main ? "companion-model-effort" : "companion-subagent-model"}
                     >
                         {row.config}
                     </span>
                 ) : null}
             </div>
+            {row.ticket ? <TicketLine row={row} /> : null}
             {row.lines.map((line, i) => (
                 <div key={i} className="truncate pl-4 text-11 text-secondary" title={line}>
                     {line}

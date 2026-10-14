@@ -66,10 +66,15 @@ type subagent struct {
 	description string
 	kind        string
 	model       string
-	background  bool
-	state       string
-	started     int64
-	ended       int64
+	// effort: the effort its own transcript records, else the one its call asked for; empty when the parent's.
+	effort string
+	// branch: the branch its own transcript last names (a worktree's).
+	branch     string
+	background bool
+	state      string
+	started    int64
+	ended      int64
+	ticket     ticketRef
 }
 
 // PRLink is a pull request the session pushed, as the agent recorded it (Claude Code's pr-link records).
@@ -96,10 +101,17 @@ type SubagentInfo struct {
 	Description string `json:"description,omitempty"`
 	Kind        string `json:"kind,omitempty"`
 	Model       string `json:"model,omitempty"`
-	Background  bool   `json:"background,omitempty"`
-	State       string `json:"state"`
-	Started     int64  `json:"started,omitempty"`
-	Ended       int64  `json:"ended,omitempty"`
+	// Effort: empty when neither its transcript nor its call says it (the parent's then).
+	Effort     string `json:"effort,omitempty"`
+	Branch     string `json:"branch,omitempty"`
+	Background bool   `json:"background,omitempty"`
+	State      string `json:"state"`
+	Started    int64  `json:"started,omitempty"`
+	Ended      int64  `json:"ended,omitempty"`
+	// Ticket and Complexity: the ticket it works on and that ticket's complexity label (#601), kept on the agent's
+	// entry for the model usage journal (#556).
+	Ticket     int    `json:"ticket,omitempty"`
+	Complexity string `json:"complexity,omitempty"`
 }
 
 // ActivityInfo is the main agent's latest tool call: the tool and what it was given (a command's description, a
@@ -247,7 +259,7 @@ func (s *Session) Activity() *ActivityInfo {
 }
 
 // StartSubagent records a sub-agent the main agent starts with one of its calls.
-func (s *Session) StartSubagent(id string, description string, kind string, model string, background bool, at int64) {
+func (s *Session) StartSubagent(id string, description string, kind string, model string, effort string, background bool, at int64) {
 	if id == "" {
 		return
 	}
@@ -260,6 +272,7 @@ func (s *Session) StartSubagent(id string, description string, kind string, mode
 	sa.description = cutRunes(oneLine(description), MaxSubagentText)
 	sa.kind = cutString(kind, 100)
 	sa.model = cutString(model, 100)
+	sa.effort = cutString(effort, 40)
 	sa.background = background
 	sa.state = SubagentRunning
 	sa.started = at
@@ -377,7 +390,11 @@ func (s *Session) trimSubagents() {
 func (s *Session) Subagents() []SubagentInfo {
 	rtn := make([]SubagentInfo, 0, len(s.subagents))
 	for _, sa := range s.subagents {
-		rtn = append(rtn, SubagentInfo{Id: sa.id, Description: sa.description, Kind: sa.kind, Model: sa.model, Background: sa.background, State: sa.state, Started: sa.started, Ended: sa.ended})
+		rtn = append(rtn, SubagentInfo{
+			Id: sa.id, Description: sa.description, Kind: sa.kind, Model: sa.model, Effort: sa.effort, Branch: sa.branch,
+			Background: sa.background, State: sa.state, Started: sa.started, Ended: sa.ended,
+			Ticket: sa.ticket.number, Complexity: sa.ticket.complexity,
+		})
 	}
 	return rtn
 }

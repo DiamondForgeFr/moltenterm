@@ -4,6 +4,8 @@
 package companion
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -21,6 +23,13 @@ import (
 // (task reminders among them) and bookkeeping records this adapter ignores.
 
 const claudeSlugMax = 200
+
+// A sub-agent's facts (#601) are read from the end of its transcript; its meta files are small and few.
+const (
+	claudeSubagentTailBytes = 256 * 1024
+	claudeMaxSubagentMetas  = 200
+	claudeMaxMetaBytes      = 64 * 1024
+)
 
 var claudeSlugRegex = regexp.MustCompile(`[^A-Za-z0-9]`)
 
@@ -90,6 +99,83 @@ func (a *ClaudeAdapter) SubagentWritten(sessionPath string, agentId string) int6
 		return 0
 	}
 	return info.ModTime().UnixMilli()
+}
+
+// SubagentIds reads the sub-agents' agent-<id>.meta.json files next to the session: each names the call that started
+// its agent (toolUseId), foreground agents included.
+func (a *ClaudeAdapter) SubagentIds(sessionPath string) map[string]string {
+	if !strings.HasSuffix(sessionPath, ".jsonl") {
+		return nil
+	}
+	dir := filepath.Join(strings.TrimSuffix(sessionPath, ".jsonl"), "subagents")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	rtn := map[string]string{}
+	read := 0
+	for _, e := range entries {
+		name := e.Name()
+		agentId, ok := strings.CutSuffix(strings.TrimPrefix(name, "agent-"), ".meta.json")
+		if !ok || !strings.HasPrefix(name, "agent-") || !claudeAgentIdRegex.MatchString(agentId) || !e.Type().IsRegular() {
+			continue
+		}
+		if read >= claudeMaxSubagentMetas {
+			break
+		}
+		read++
+		var meta struct {
+			ToolUseId string `json:"toolUseId"`
+		}
+		if readSmallJSON(filepath.Join(dir, name), claudeMaxMetaBytes, &meta) != nil || meta.ToolUseId == "" {
+			continue
+		}
+		rtn[meta.ToolUseId] = agentId
+	}
+	return rtn
+}
+
+// ReadSubagent reads the end of a sub-agent's transcript for its latest model (the model's own answers), effort and
+// branch: a sub-agent in a worktree names the worktree's branch.
+func (a *ClaudeAdapter) ReadSubagent(sessionPath string, agentId string) (SubagentFacts, bool) {
+	if !claudeAgentIdRegex.MatchString(agentId) || !strings.HasSuffix(sessionPath, ".jsonl") {
+		return SubagentFacts{}, false
+	}
+	path := filepath.Join(strings.TrimSuffix(sessionPath, ".jsonl"), "subagents", "agent-"+agentId+".jsonl")
+	if info, err := os.Lstat(path); err != nil || !info.Mode().IsRegular() {
+		return SubagentFacts{}, false
+	}
+	tail, err := readFileTail(path, claudeSubagentTailBytes)
+	if err != nil {
+		return SubagentFacts{}, false
+	}
+	var facts SubagentFacts
+	lines := bytes.Split(tail, []byte("\n"))
+	for i := len(lines) - 1; i >= 0; i-- {
+		if facts.Model != "" && facts.Effort != "" && facts.Branch != "" {
+			break
+		}
+		var rec struct {
+			GitBranch string `json:"gitBranch"`
+			Effort    string `json:"effort"`
+			Message   struct {
+				Model string `json:"model"`
+			} `json:"message"`
+		}
+		if len(lines[i]) == 0 || json.Unmarshal(lines[i], &rec) != nil {
+			continue
+		}
+		if facts.Branch == "" && rec.GitBranch != "" && rec.GitBranch != "HEAD" {
+			facts.Branch = cutString(rec.GitBranch, 300)
+		}
+		if facts.Effort == "" && rec.Effort != "" {
+			facts.Effort = cutString(rec.Effort, 40)
+		}
+		if facts.Model == "" && rec.Message.Model != "" && !strings.HasPrefix(rec.Message.Model, "<") {
+			facts.Model = cutString(rec.Message.Model, 100)
+		}
+	}
+	return facts, facts != SubagentFacts{}
 }
 
 func (a *ClaudeAdapter) projectDirs(root string, cwd string) []string {
@@ -349,6 +435,7 @@ func (a *ClaudeAdapter) parseEdits(result map[string]any, callId string, s *Sess
 
 func (a *ClaudeAdapter) parseAssistant(rec map[string]any, s *Session, at int64) {
 	msg := obj(rec, "message")
+	s.SetModelEffort(str(msg, "model"), str(rec, "effort"))
 	if text, ok := msg["content"].(string); ok {
 		s.AddText(text, at)
 		return
@@ -376,7 +463,7 @@ func (a *ClaudeAdapter) parseSubagent(id string, tool string, input map[string]a
 		return
 	}
 	background := boolean(input, "run_in_background") || str(input, "run_in_background") == "true"
-	s.StartSubagent(id, str(input, "description"), str(input, "subagent_type"), str(input, "model"), background, at)
+	s.StartSubagent(id, str(input, "description"), str(input, "subagent_type"), str(input, "model"), str(input, "effort"), background, at)
 }
 
 // parseNotifications ends the background agents a record notifies about; true when the text holds nothing else (it
