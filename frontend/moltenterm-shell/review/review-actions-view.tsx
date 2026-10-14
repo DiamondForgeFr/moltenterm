@@ -8,6 +8,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { ReviewCommentKind } from "./review-client";
 import { CommentCard, KindToggle } from "./review-comments-view";
@@ -26,6 +27,7 @@ const FocusBackMs = 400;
 
 // SelectionOverlay floats over the diff: the selection's actions, or the comment box.
 export function SelectionOverlay({ model }: { model: ReviewTabModel }) {
+    const t = useT();
     const selection = useAtomValue(model.selectionAtom);
     const composer = useAtomValue(model.composerAtom);
     const pos = useAtomValue(model.overlayAtom);
@@ -45,7 +47,7 @@ export function SelectionOverlay({ model }: { model: ReviewTabModel }) {
             className="absolute z-10 flex items-center gap-1 rounded-6 border border-border bg-modalbg p-1 shadow-lg"
             style={{ top: pos.top + 2, left: pos.left }}
             role="toolbar"
-            aria-label={`Selected: ${anchorLabel(selection.anchor)}`}
+            aria-label={t("review.select.selected", { anchor: anchorLabel(selection.anchor) })}
             data-testid="review-selection-actions"
         >
             <button
@@ -53,11 +55,11 @@ export function SelectionOverlay({ model }: { model: ReviewTabModel }) {
                 className={SmallButton}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => model.askSelection()}
-                title={`Ask the AI about ${linesLabel(selection.anchor)} (${AltKey}A)`}
+                title={t("review.select.askTitle", { lines: linesLabel(selection.anchor), key: `${AltKey}A` })}
                 data-testid="review-ask"
             >
                 <i className="fa fa-solid fa-sparkles text-11 text-accent" />
-                Ask the AI
+                {t("review.select.ask")}
                 <kbd className="text-10 text-muted">{AltKey}A</kbd>
             </button>
             <button
@@ -67,13 +69,13 @@ export function SelectionOverlay({ model }: { model: ReviewTabModel }) {
                 onClick={() => model.openComposer()}
                 title={
                     selection.linecomment
-                        ? `Comment ${linesLabel(selection.anchor)} (${AltKey}C)`
+                        ? t("review.select.commentTitle", { lines: linesLabel(selection.anchor), key: `${AltKey}C` })
                         : `${selection.filereason} (${AltKey}C)`
                 }
                 data-testid="review-comment"
             >
                 <i className="fa fa-solid fa-comment text-11" />
-                {selection.linecomment ? "Comment" : "Comment (file)"}
+                {selection.linecomment ? t("review.select.comment") : t("review.select.commentFile")}
                 <kbd className="text-10 text-muted">{AltKey}C</kbd>
             </button>
         </div>
@@ -91,6 +93,7 @@ function CommentBox({
     top: number;
     left: number;
 }) {
+    const t = useT();
     const [text, setText] = useState(composer.text);
     const [kind, setKind] = useState<ReviewCommentKind>(composer.kind ?? "comment");
     const ref = useRef<HTMLTextAreaElement>(null);
@@ -117,8 +120,14 @@ function CommentBox({
     };
     const where =
         composer.subject === "file"
-            ? `File-level comment quoting ${linesLabel(composer.anchor)} (${sideLabel(composer.anchor.side)})`
-            : `Comment on ${linesLabel(composer.anchor)} (${sideLabel(composer.anchor.side)})`;
+            ? t("review.composer.fileLevel", {
+                  lines: linesLabel(composer.anchor),
+                  side: sideLabel(composer.anchor.side),
+              })
+            : t("review.composer.onLines", {
+                  lines: linesLabel(composer.anchor),
+                  side: sideLabel(composer.anchor.side),
+              });
     return (
         <div
             className="absolute z-10 flex w-[380px] max-w-[calc(100%-24px)] flex-col gap-1.5 rounded-6 border border-border bg-modalbg p-2 text-12 shadow-lg"
@@ -127,7 +136,7 @@ function CommentBox({
         >
             <div className="flex items-center gap-1.5 text-secondary">
                 <i className="fa fa-solid fa-comment text-11" />
-                <span className="min-w-0 truncate">{composer.id ? `Edit: ${where}` : where}</span>
+                <span className="min-w-0 truncate">{composer.id ? t("review.composer.edit", { where }) : where}</span>
             </div>
             {composer.filereason && !composer.id ? (
                 <div className="text-11 text-muted">{composer.filereason}</div>
@@ -140,18 +149,18 @@ function CommentBox({
                 onKeyDown={onKeyDown}
                 rows={4}
                 placeholder={
-                    kind === "change"
-                        ? "What should be reworked, in your language"
-                        : "Your comment or question for the author, in your language"
+                    kind === "change" ? t("review.composer.placeholderChange") : t("review.composer.placeholderComment")
                 }
                 className="w-full resize-y rounded-4 border border-border bg-background px-2 py-1.5 text-12 text-primary outline-none focus:border-accent/60"
                 data-testid="review-comment-text"
             />
             {composer.error ? <div className="text-11 text-error">{composer.error}</div> : null}
             <div className="flex items-center justify-end gap-1.5">
-                <span className="mr-auto text-11 text-muted">{IsMac ? "⌘" : "Ctrl+"}Enter to save, Esc to cancel</span>
+                <span className="mr-auto text-11 text-muted">
+                    {t("review.composer.keys", { key: IsMac ? "⌘" : "Ctrl+" })}
+                </span>
                 <button type="button" className={SmallButton} onClick={() => model.closeComposer()}>
-                    Cancel
+                    {t("common.cancel")}
                 </button>
                 <button
                     type="button"
@@ -160,7 +169,7 @@ function CommentBox({
                     onClick={save}
                     data-testid="review-comment-save"
                 >
-                    {composer.id ? "Save" : "Save draft"}
+                    {composer.id ? t("common.save") : t("review.composer.saveDraft")}
                     <MoltenWave />
                 </button>
             </div>
@@ -172,6 +181,7 @@ function CommentBox({
 // outdated ones, which only show here with their excerpt.
 export function CommentsStrip({ model, path }: { model: ReviewTabModel; path: string }) {
     const state = useAtomValue(model.stateAtom);
+    const t = useT();
     const [open, setOpen] = useState(true);
     const comments = commentsOfFile(state, path);
     if (comments.length === 0) {
@@ -195,7 +205,9 @@ export function CommentsStrip({ model, path }: { model: ReviewTabModel; path: st
                     )}
                 />
                 <i className="fa fa-solid fa-comment text-11" />
-                {comments.length === 1 ? "1 comment" : `${comments.length} comments`}
+                {comments.length === 1
+                    ? t("review.comments.one")
+                    : t("review.comments.other", { count: comments.length })}
             </button>
             {open ? (
                 <ul className="flex flex-col">
@@ -210,6 +222,7 @@ export function CommentsStrip({ model, path }: { model: ReviewTabModel; path: st
 
 // AskBox is Ask the AI's box in the AI panel (AC2): the selection named, the question, what sending did.
 export function AskBox({ model }: { model: ReviewTabModel }) {
+    const t = useT();
     const ask = useAtomValue(model.askAtom);
     const [question, setQuestion] = useState("");
     const ai = useAtomValue(model.aiAtom);
@@ -243,10 +256,10 @@ export function AskBox({ model }: { model: ReviewTabModel }) {
     };
     const excerpt = (ask.text ?? "").split("\n");
     return (
-        <section className="flex flex-col gap-1.5" aria-label="Ask the AI" data-testid="review-ask-box">
+        <section className="flex flex-col gap-1.5" aria-label={t("review.select.ask")} data-testid="review-ask-box">
             <div className="flex items-center gap-1.5 font-medium">
                 <i className="fa fa-solid fa-sparkles text-11 text-accent" />
-                Ask the AI
+                {t("review.select.ask")}
             </div>
             {ask.anchor ? (
                 <div className="flex flex-col gap-1 rounded-4 border border-border px-2 py-1.5">
@@ -262,8 +275,8 @@ export function AskBox({ model }: { model: ReviewTabModel }) {
                             type="button"
                             className="cursor-pointer px-1 text-muted hover:text-primary"
                             onClick={() => model.clearAskSelection()}
-                            title="Ask about the whole PR instead"
-                            aria-label="Remove the selection"
+                            title={t("review.ask.wholePrTitle")}
+                            aria-label={t("review.ask.removeSelection")}
                         >
                             <i className="fa fa-solid fa-xmark text-11" />
                         </button>
@@ -274,7 +287,7 @@ export function AskBox({ model }: { model: ReviewTabModel }) {
                     </pre>
                 </div>
             ) : (
-                <div className="text-11 text-muted">About the whole PR.</div>
+                <div className="text-11 text-muted">{t("review.ask.wholePr")}</div>
             )}
             <textarea
                 ref={ref}
@@ -282,12 +295,12 @@ export function AskBox({ model }: { model: ReviewTabModel }) {
                 onChange={(e) => setQuestion(e.target.value)}
                 onKeyDown={onKeyDown}
                 rows={3}
-                placeholder="Your question, in your language"
+                placeholder={t("review.ask.placeholder")}
                 className="w-full resize-y rounded-4 border border-border bg-background px-2 py-1.5 text-12 text-primary outline-none focus:border-accent/60"
                 data-testid="review-ask-question"
             />
             <div className="flex items-center gap-1.5">
-                <span className="mr-auto text-11 text-muted">Enter to send, Shift+Enter for a new line</span>
+                <span className="mr-auto text-11 text-muted">{t("review.ask.keys")}</span>
                 <button
                     type="button"
                     className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
@@ -295,7 +308,7 @@ export function AskBox({ model }: { model: ReviewTabModel }) {
                     onClick={send}
                     data-testid="review-ask-send"
                 >
-                    {ask.sending ? "Sending…" : "Send"}
+                    {ask.sending ? t("review.ask.sending") : t("review.ask.send")}
                     <MoltenWave />
                 </button>
             </div>
@@ -336,6 +349,7 @@ function AskOutcome({
     // The ids of the questions still waiting in the session's queue.
     waiting: readonly string[];
 }) {
+    const t = useT();
     if (ask.error) {
         return (
             <p className="text-11 text-error" data-testid="review-ask-outcome">
@@ -365,16 +379,14 @@ function AskOutcome({
     if (result.sent) {
         return (
             <p className="text-11 text-success" data-testid="review-ask-outcome">
-                {result.submitted
-                    ? "Sent to the review session: the answer comes in its terminal."
-                    : "Typed in the agent's prompt after your draft there: press Enter in its terminal to send it."}
+                {result.submitted ? t("review.ask.sent") : t("review.ask.typed")}
             </p>
         );
     }
     return (
         <p className={cn("text-11", result.busy ? "text-warning" : "text-error")} data-testid="review-ask-outcome">
-            {result.message || "The question could not be typed."}
-            {result.busy ? " Your question is kept: send it again when the agent is idle." : ""}
+            {result.message || t("review.ask.notTyped")}
+            {result.busy ? " " + t("review.ask.kept") : ""}
         </p>
     );
 }

@@ -11,6 +11,7 @@ import { Markdown } from "@/app/element/markdown";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
+import { getLocale, t, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { ReviewComment, ReviewCommentAction, ReviewCommentKind, ReviewCommentMessage } from "./review-client";
 import {
@@ -36,24 +37,48 @@ const TextArea =
 
 // The developer's actions, by name (stage, drop...).
 const ActionLabels: Record<ReviewCommentAction, string> = {
-    stage: "Stage",
-    unstage: "Unstage",
-    drop: "Drop",
-    restore: "Restore",
-    accept: "Accept",
+    get stage() {
+        return t("review.cmt.action.stage");
+    },
+    get unstage() {
+        return t("review.cmt.action.unstage");
+    },
+    get drop() {
+        return t("review.cmt.action.drop");
+    },
+    get restore() {
+        return t("review.cmt.action.restore");
+    },
+    get accept() {
+        return t("review.cmt.action.accept");
+    },
 };
 
 const ActionTitles: Record<ReviewCommentAction, string> = {
-    stage: "Stage it for the next publication",
-    unstage: "Keep it as a draft, out of the next publication",
-    drop: "Drop it: it stays in this PR's history and can be restored",
-    restore: "Bring it back",
-    accept: "Make the agent's proposal one of your comments, staged for the next publication",
+    get stage() {
+        return t("review.cmt.actionTitle.stage");
+    },
+    get unstage() {
+        return t("review.cmt.actionTitle.unstage");
+    },
+    get drop() {
+        return t("review.cmt.actionTitle.drop");
+    },
+    get restore() {
+        return t("review.cmt.actionTitle.restore");
+    },
+    get accept() {
+        return t("review.cmt.actionTitle.accept");
+    },
 };
 
 const KindTitles: Record<ReviewCommentKind, string> = {
-    comment: "A remark or a question for the PR's author",
-    change: "A change request: what the agent is asked to rework",
+    get comment() {
+        return t("review.cmt.kindTitle.comment");
+    },
+    get change() {
+        return t("review.cmt.kindTitle.change");
+    },
 };
 
 // KindToggle chooses a comment's kind (AC1).
@@ -66,11 +91,12 @@ export function KindToggle({
     onChange: (kind: ReviewCommentKind) => void;
     disabled?: boolean;
 }) {
+    const t = useT();
     return (
         <div
             className="flex w-fit overflow-hidden rounded-6 border border-border"
             role="group"
-            aria-label="Kind"
+            aria-label={t("review.cmt.kind")}
             data-testid="review-comment-kind"
         >
             {(["comment", "change"] as ReviewCommentKind[]).map((kind) => (
@@ -98,7 +124,7 @@ function formatTime(at: number): string {
     if (!at) {
         return "";
     }
-    return new Date(at).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
+    return new Date(at).toLocaleString(getLocale(), { dateStyle: "short", timeStyle: "short" });
 }
 
 // CommentCard is one comment with its actions. showFile: the card names its file (the AI panel lists all of them).
@@ -111,6 +137,7 @@ export function CommentCard({
     comment: ReviewComment;
     showFile?: boolean;
 }) {
+    const t = useT();
     const [editing, setEditing] = useState(false);
     const [text, setText] = useState(comment.original.text);
     const [kind, setKind] = useState<ReviewCommentKind>(comment.kind);
@@ -172,7 +199,7 @@ export function CommentCard({
                 ) : null}
                 {comment.outdated ? (
                     <span className="shrink-0 rounded-4 border border-warning/50 px-1 text-10 text-warning">
-                        Outdated
+                        {t("review.comment.outdated")}
                     </span>
                 ) : null}
                 <button
@@ -180,13 +207,13 @@ export function CommentCard({
                     className="min-w-0 cursor-pointer truncate text-left text-muted hover:text-primary disabled:cursor-default disabled:hover:text-muted"
                     onClick={() => model.revealComment(comment)}
                     disabled={comment.outdated}
-                    title={comment.outdated ? "Its lines are not in the head shown any more" : "Show the lines"}
+                    title={comment.outdated ? t("review.comment.outdatedTitle") : t("review.comment.showLines")}
                 >
-                    {comment.subject === "file" ? `File-level, quoting ${where}` : where}
+                    {comment.subject === "file" ? t("review.comment.fileLevelQuoting", { lines: where }) : where}
                 </button>
             </div>
             {comment.state === "proposed" ? (
-                <div className="text-11 text-muted">Proposed by your agent: yours only once you accept it.</div>
+                <div className="text-11 text-muted">{t("review.cmt.proposedNote")}</div>
             ) : null}
             {comment.outdated || comment.subject === "file" ? (
                 <pre className="max-h-24 overflow-auto rounded-4 bg-panel px-2 py-1 font-mono text-11 whitespace-pre-wrap text-muted">
@@ -205,7 +232,7 @@ export function CommentCard({
                     />
                     <div className="flex justify-end gap-1.5">
                         <button type="button" className={SmallButton} onClick={() => setEditing(false)}>
-                            Cancel
+                            {t("common.cancel")}
                         </button>
                         <button
                             type="button"
@@ -214,7 +241,7 @@ export function CommentCard({
                             onClick={save}
                             data-testid="review-comment-edit-save"
                         >
-                            Save
+                            {t("common.save")}
                             <MoltenWave />
                         </button>
                     </div>
@@ -255,11 +282,11 @@ export function CommentCard({
                             type="button"
                             className={SmallButton}
                             onClick={startEdit}
-                            title="Edit the text or the kind"
+                            title={t("review.cmt.editTitle")}
                             data-testid="review-comment-edit"
                         >
                             <i className="fa fa-solid fa-pen text-10" />
-                            Edit
+                            {t("review.cmt.edit")}
                         </button>
                     ) : null}
                     {canDiscuss(comment) ? (
@@ -268,11 +295,11 @@ export function CommentCard({
                             className={cn(SmallButton, discussing && "border-accent/60 text-primary")}
                             onClick={() => setDiscussing(!discussing)}
                             aria-expanded={discussing}
-                            title="Discuss this comment with your agent, in the review session"
+                            title={t("review.cmt.discussTitle")}
                             data-testid="review-comment-discuss"
                         >
                             <i className="fa fa-solid fa-sparkles text-10 text-accent" />
-                            Discuss
+                            {t("review.cmt.discuss")}
                         </button>
                     ) : null}
                     {(comment.history?.length ?? 0) > 0 ? (
@@ -283,7 +310,7 @@ export function CommentCard({
                             aria-expanded={showHistory}
                             data-testid="review-comment-history-toggle"
                         >
-                            History ({comment.history.length})
+                            {t("review.cmt.history", { count: comment.history.length })}
                         </button>
                     ) : null}
                 </div>
@@ -298,6 +325,7 @@ export function CommentCard({
 
 // DiscussBox sends the comment to the review session with the developer's optional message (AC2).
 function DiscussBox({ model, comment }: { model: ReviewTabModel; comment: ReviewComment }) {
+    const t = useT();
     const [message, setMessage] = useState("");
     const [sending, setSending] = useState(false);
     const [outcome, setOutcome] = useState<{ text: string; tone: "ok" | "warn" | "error" }>(null);
@@ -316,15 +344,13 @@ function DiscussBox({ model, comment }: { model: ReviewTabModel; comment: Review
             if (result.sent) {
                 setMessage("");
                 setOutcome({
-                    text: result.submitted
-                        ? "Sent to your agent: its reply comes under this comment."
-                        : "Typed in the agent's prompt after your draft there: press Enter in its terminal to send it.",
+                    text: result.submitted ? t("review.cmt.discussSent") : t("review.ask.typed"),
                     tone: "ok",
                 });
                 return;
             }
             setOutcome({
-                text: `${result.message || "The comment could not be sent."}${result.busy ? " Your message is kept: send it again when the agent is idle." : ""}`,
+                text: `${result.message || t("review.cmt.notSent")}${result.busy ? " " + t("review.cmt.kept") : ""}`,
                 tone: result.busy ? "warn" : "error",
             });
         });
@@ -342,12 +368,12 @@ function DiscussBox({ model, comment }: { model: ReviewTabModel; comment: Review
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={onKeyDown}
                 rows={2}
-                placeholder="Your message to the agent, in your language (optional)"
+                placeholder={t("review.cmt.messagePlaceholder")}
                 className={TextArea}
                 data-testid="review-discuss-message"
             />
             <div className="flex items-center gap-1.5">
-                <span className="mr-auto text-11 text-muted">Enter to send, Shift+Enter for a new line</span>
+                <span className="mr-auto text-11 text-muted">{t("review.ask.keys")}</span>
                 <button
                     type="button"
                     className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
@@ -355,7 +381,7 @@ function DiscussBox({ model, comment }: { model: ReviewTabModel; comment: Review
                     onClick={send}
                     data-testid="review-discuss-send"
                 >
-                    {sending ? "Sending…" : "Send"}
+                    {sending ? t("review.ask.sending") : t("review.ask.send")}
                     <MoltenWave />
                 </button>
             </div>
@@ -377,6 +403,7 @@ function DiscussBox({ model, comment }: { model: ReviewTabModel; comment: Review
 // Discussion is the comment's exchange with the review session; a rewrite the agent proposed is used or ignored.
 function Discussion({ model, comment }: { model: ReviewTabModel; comment: ReviewComment }) {
     const [error, setError] = useState<string>(null);
+    const t = useT();
     const messages = comment.discussion ?? [];
     if (messages.length === 0) {
         return null;
@@ -395,7 +422,7 @@ function Discussion({ model, comment }: { model: ReviewTabModel; comment: Review
                     data-testid="review-discussion-message"
                 >
                     <div className="text-10 text-muted">
-                        {msg.by === "agent" ? "Your agent" : "You"} · {formatTime(msg.at)}
+                        {msg.by === "agent" ? t("review.cmt.byAgent") : t("review.cmt.byYou")} · {formatTime(msg.at)}
                     </div>
                     {msg.by === "agent" ? (
                         <div className="min-w-0 text-12">
@@ -408,7 +435,7 @@ function Discussion({ model, comment }: { model: ReviewTabModel; comment: Review
                         </div>
                     ) : (
                         <div className="text-12 whitespace-pre-wrap text-secondary">
-                            {msg.text || "Asked your agent what it thinks of this comment."}
+                            {msg.text || t("review.cmt.askedOpinion")}
                         </div>
                     )}
                     {msg.rewrite ? (
@@ -417,7 +444,7 @@ function Discussion({ model, comment }: { model: ReviewTabModel; comment: Review
                             data-testid="review-rewrite"
                             data-rewritestate={msg.rewritestate}
                         >
-                            <div className="text-10 text-muted">Rewrite proposed</div>
+                            <div className="text-10 text-muted">{t("review.cmt.rewriteProposed")}</div>
                             <div className="text-12 whitespace-pre-wrap">{msg.rewrite}</div>
                             {msg === pending && canEdit(comment) ? (
                                 <div className="flex gap-1">
@@ -427,7 +454,7 @@ function Discussion({ model, comment }: { model: ReviewTabModel; comment: Review
                                         onClick={() => use(msg, true)}
                                         data-testid="review-rewrite-use"
                                     >
-                                        Use this rewrite
+                                        {t("review.cmt.useRewrite")}
                                         <MoltenWave />
                                     </button>
                                     <button
@@ -436,13 +463,13 @@ function Discussion({ model, comment }: { model: ReviewTabModel; comment: Review
                                         onClick={() => use(msg, false)}
                                         data-testid="review-rewrite-ignore"
                                     >
-                                        Ignore
+                                        {t("review.cmt.ignore")}
                                     </button>
                                 </div>
                             ) : msg.rewritestate === "accepted" ? (
-                                <div className="text-10 text-success">Used</div>
+                                <div className="text-10 text-success">{t("review.cmt.used")}</div>
                             ) : msg.rewritestate === "ignored" ? (
-                                <div className="text-10 text-muted">Ignored</div>
+                                <div className="text-10 text-muted">{t("review.cmt.ignored")}</div>
                             ) : null}
                         </div>
                     ) : null}
@@ -455,13 +482,14 @@ function Discussion({ model, comment }: { model: ReviewTabModel; comment: Review
 
 // History lists the comment's original text and every later state (AC5).
 function History({ comment }: { comment: ReviewComment }) {
+    const t = useT();
     return (
         <ol className="flex flex-col gap-0.5 rounded-4 bg-panel px-2 py-1 text-11" data-testid="review-comment-history">
             {(comment.history ?? []).map((e, i) => (
                 <li key={i} className="flex flex-col">
                     <span className="text-muted">
                         {formatTime(e.at)} · {CommentEventLabels[e.event] ?? e.event}
-                        {e.by === "agent" ? " (agent)" : ""}
+                        {e.by === "agent" ? " " + t("review.cmt.agentSuffix") : ""}
                         {e.kind === "change" && (e.event === "kind" || i === 0) ? ` · ${CommentKindLabels.change}` : ""}
                     </span>
                     {e.text ? <span className="whitespace-pre-wrap text-secondary">{e.text}</span> : null}
@@ -475,31 +503,34 @@ function History({ comment }: { comment: ReviewComment }) {
 // the next publication takes, the drafts, and the dropped ones.
 export function CommentsPanel({ model }: { model: ReviewTabModel }) {
     const state = useAtomValue(model.stateAtom);
+    const t = useT();
     const [showDropped, setShowDropped] = useState(false);
     const groups = groupComments(state);
     const total = groups.proposals.length + groups.staged.length + groups.drafts.length;
     return (
-        <section className="flex flex-col gap-1.5" aria-label="Review comments" data-testid="review-comments-panel">
+        <section
+            className="flex flex-col gap-1.5"
+            aria-label={t("review.cmt.panelAria")}
+            data-testid="review-comments-panel"
+        >
             <div className="flex items-center gap-1.5 font-medium">
                 <i className="fa fa-solid fa-comment text-11" />
-                Comments
+                {t("review.cmt.panelTitle")}
                 <span className="text-11 font-normal text-muted" data-testid="review-comments-staged-count">
-                    {groups.staged.length} staged for the next publication
+                    {t("review.cmt.stagedCount", { count: groups.staged.length })}
                 </span>
             </div>
             {total === 0 && groups.dropped.length === 0 ? (
-                <p className="text-11 text-muted">
-                    Select lines in the diff and click Comment; your agent's proposals show here too.
-                </p>
+                <p className="text-11 text-muted">{t("review.cmt.empty")}</p>
             ) : null}
             <CommentGroup
                 model={model}
-                title="Proposals from your agent"
+                title={t("review.cmt.group.proposals")}
                 comments={groups.proposals}
                 testId="proposals"
             />
-            <CommentGroup model={model} title="Staged" comments={groups.staged} testId="staged" />
-            <CommentGroup model={model} title="Drafts" comments={groups.drafts} testId="drafts" />
+            <CommentGroup model={model} title={t("review.cmt.group.staged")} comments={groups.staged} testId="staged" />
+            <CommentGroup model={model} title={t("review.cmt.group.drafts")} comments={groups.drafts} testId="drafts" />
             {groups.dropped.length > 0 ? (
                 <button
                     type="button"
@@ -508,11 +539,18 @@ export function CommentsPanel({ model }: { model: ReviewTabModel }) {
                     aria-expanded={showDropped}
                     data-testid="review-comments-dropped-toggle"
                 >
-                    {showDropped ? "Hide" : "Show"} dropped ({groups.dropped.length})
+                    {showDropped
+                        ? t("review.cmt.hideDropped", { count: groups.dropped.length })
+                        : t("review.cmt.showDropped", { count: groups.dropped.length })}
                 </button>
             ) : null}
             {showDropped ? (
-                <CommentGroup model={model} title="Dropped" comments={groups.dropped} testId="dropped" />
+                <CommentGroup
+                    model={model}
+                    title={t("review.cmt.group.dropped")}
+                    comments={groups.dropped}
+                    testId="dropped"
+                />
             ) : null}
         </section>
     );

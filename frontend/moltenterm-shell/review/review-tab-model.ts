@@ -16,7 +16,7 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
-import { I18nModel, t } from "../i18n/i18n";
+import { getLocale, I18nModel, t } from "../i18n/i18n";
 import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
 import { ReviewsAnswer } from "../reviews/reviews-model";
 import { TabActivity, whileShown } from "../tab-activity";
@@ -849,7 +849,7 @@ export abstract class ReviewTabModel implements ViewModel {
                 subject: composer.id ? undefined : composer.subject,
                 kind,
                 text,
-                lang: composer.id ? undefined : developerLanguage(navigator.language),
+                lang: composer.id ? undefined : developerLanguage(getLocale()),
             });
             globalStore.set(this.stateAtom, state);
             this.clearSelection();
@@ -913,7 +913,7 @@ export abstract class ReviewTabModel implements ViewModel {
             }
             if (globalStore.get(this.aiAtom).session == null) {
                 const ai = globalStore.get(this.aiAtom);
-                return { error: ai.message || "The review session is not running." };
+                return { error: ai.message || t("review.cmt.sessionNotRunning") };
             }
             const result = await discussReviewComment(pr.repo, pr.number, comment.id, message.trim());
             if (result.state != null) {

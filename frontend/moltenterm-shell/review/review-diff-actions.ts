@@ -11,6 +11,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import type * as MonacoTypes from "monaco-editor";
 import { answerAtLine, answerMarkerLines, answersOnSide } from "./review-answers";
 import { ReviewComment, ReviewExplanation } from "./review-client";
+import { t } from "../i18n/i18n";
 import {
     commentAtLine,
     commentsOfFile,
@@ -46,9 +47,15 @@ function escapeMarkdown(text: string): string {
 
 export function commentHover(comment: ReviewComment): string {
     const where =
-        comment.subject === "file" ? "file-level, quoting " + linesLabel(comment.anchor) : linesLabel(comment.anchor);
-    const what = comment.kind === "change" ? "change request" : "comment";
-    return `**${CommentStateLabels[comment.state] ?? comment.state} ${what}** · ${where}\n\n${escapeMarkdown(comment.original.text)}`;
+        comment.subject === "file"
+            ? t("review.comment.fileLevelQuoting", { lines: linesLabel(comment.anchor) })
+            : linesLabel(comment.anchor);
+    const state = CommentStateLabels[comment.state] ?? comment.state;
+    const heading =
+        comment.kind === "change"
+            ? t("review.comment.hoverHeadingChange", { state })
+            : t("review.comment.hoverHeading", { state });
+    return `**${heading}** · ${where}\n\n${escapeMarkdown(comment.original.text)}`;
 }
 
 // The gutter marker of the agent's answers (FR-REV-006): its click opens them in the AI panel.
@@ -231,7 +238,7 @@ export function attachDiffActions(
             // must match the shortcut registry's review-ask and review-comment
             editor.addAction({
                 id: "molten.review.ask",
-                label: "Ask the AI about these lines",
+                label: t("review.diff.askLines"),
                 keybindings: [monacoApi.KeyMod.Alt | monacoApi.KeyCode.KeyA],
                 contextMenuGroupId: "navigation",
                 run: () => {
@@ -241,7 +248,7 @@ export function attachDiffActions(
             }),
             editor.addAction({
                 id: "molten.review.comment",
-                label: "Comment these lines",
+                label: t("review.diff.commentLines"),
                 keybindings: [monacoApi.KeyMod.Alt | monacoApi.KeyCode.KeyC],
                 contextMenuGroupId: "navigation",
                 run: () => {

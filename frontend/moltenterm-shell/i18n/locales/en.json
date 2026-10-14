@@ -339,7 +339,8 @@
             "debugging": "Debugging",
             "appBuilder": "App builder",
             "thisWorkspace": "This workspace",
-            "otherSettings": "Other settings"
+            "otherSettings": "Other settings",
+            "360View": "360 view"
         },
         "items": {
             "app:nativecontextmenu": {
@@ -814,6 +815,15 @@
             "molten:project": {
                 "label": "Project folder",
                 "description": "The project this workspace is linked to, for Mission Control."
+            },
+            "moltenterm:view360": {
+                "label": "360 view",
+                "description": "When a tab fixes its first column and lays the others on a sideways carpet. The tab's 360 toggle wins.",
+                "options": {
+                    "auto": "Automatic",
+                    "always": "Always",
+                    "never": "Never"
+                }
             }
         },
         "title": "Settings",
@@ -3456,7 +3466,23 @@
     },
     "view360": {
         "carpet": "carpet",
-        "empty": "Panels you open are laid here"
+        "empty": "Panels you open are laid here",
+        "ui": {
+            "toggleLabel": "360",
+            "toggleAutoMark": "A",
+            "tooltipOn": "360 view is on: the first column stays fixed, the other panels scroll sideways on the carpet.",
+            "tooltipOff": "360 view is off: every panel shares the tab's width.",
+            "tooltipAuto": "Automatic: switches by itself when a panel gets too narrow to read.",
+            "tooltipManual": "Chosen for this tab. Right-click to follow the setting again.",
+            "tooltipSetting": "From the 360 view setting.",
+            "tooltipSingle": "360 view needs a second panel beside the first one.",
+            "menuOn": "On",
+            "menuOff": "Off",
+            "menuFollow": "Follow the setting",
+            "pillText": "Too tight to read",
+            "pillAction": "Switch to 360",
+            "pillClose": "Hide until a panel is added"
+        }
     },
     "termcopy": {
         "terminal": "Terminal",
@@ -3824,7 +3850,8 @@
                 "staged": "Staged",
                 "translated": "Translated",
                 "published": "Published",
-                "dropped": "Dropped"
+                "dropped": "Dropped",
+                "proposed": "Proposal"
             },
             "hoverHeading": "{state} comment",
             "fileLevelQuoting": "File-level, quoting {lines}",
@@ -3832,7 +3859,26 @@
             "outdatedTitle": "Its lines are not in the head shown any more",
             "showLines": "Show the lines",
             "edit": "Edit the comment",
-            "delete": "Delete the comment"
+            "delete": "Delete the comment",
+            "kind": {
+                "comment": "Comment",
+                "change": "Change request"
+            },
+            "event": {
+                "created": "Written",
+                "proposed": "Proposed by the agent",
+                "edited": "Edited",
+                "kind": "Kind changed",
+                "staged": "Staged",
+                "unstaged": "Unstaged",
+                "dropped": "Dropped",
+                "restored": "Restored",
+                "accepted": "Proposal accepted",
+                "rewritten": "Agent's rewrite used",
+                "translated": "Translated",
+                "published": "Published"
+            },
+            "hoverHeadingChange": "{state} change request"
         },
         "comments": {
             "one": "1 comment",
@@ -3851,7 +3897,9 @@
             "edit": "Edit: {where}",
             "placeholder": "Your comment, in your language",
             "keys": "{key}Enter to save, Esc to cancel",
-            "saveDraft": "Save draft"
+            "saveDraft": "Save draft",
+            "placeholderChange": "What should be reworked, in your language",
+            "placeholderComment": "Your comment or question for the author, in your language"
         },
         "diff": {
             "askLines": "Ask the AI about these lines",
@@ -3981,6 +4029,65 @@
             "readingFile": "Reading {path}…",
             "lines": "{count} lines",
             "loadDiff": "Load the diff"
+        },
+        "cmt": {
+            "action": {
+                "stage": "Stage",
+                "unstage": "Unstage",
+                "drop": "Drop",
+                "restore": "Restore",
+                "accept": "Accept"
+            },
+            "actionTitle": {
+                "stage": "Stage it for the next publication",
+                "unstage": "Keep it as a draft, out of the next publication",
+                "drop": "Drop it: it stays in this PR's history and can be restored",
+                "restore": "Bring it back",
+                "accept": "Make the agent's proposal one of your comments, staged for the next publication"
+            },
+            "kindTitle": {
+                "comment": "A remark or a question for the PR's author",
+                "change": "A change request: what the agent is asked to rework"
+            },
+            "kind": "Kind",
+            "proposedNote": "Proposed by your agent: yours only once you accept it.",
+            "editTitle": "Edit the text or the kind",
+            "edit": "Edit",
+            "discussTitle": "Discuss this comment with your agent, in the review session",
+            "discuss": "Discuss",
+            "history": "History ({count})",
+            "discussSent": "Sent to your agent: its reply comes under this comment.",
+            "notSent": "The comment could not be sent.",
+            "kept": "Your message is kept: send it again when the agent is idle.",
+            "messagePlaceholder": "Your message to the agent, in your language (optional)",
+            "byAgent": "Your agent",
+            "byYou": "You",
+            "askedOpinion": "Asked your agent what it thinks of this comment.",
+            "rewriteProposed": "Rewrite proposed",
+            "useRewrite": "Use this rewrite",
+            "ignore": "Ignore",
+            "used": "Used",
+            "ignored": "Ignored",
+            "agentSuffix": "(agent)",
+            "panelAria": "Review comments",
+            "panelTitle": "Comments",
+            "stagedCount": "{count} staged for the next publication",
+            "empty": "Select lines in the diff and click Comment; your agent's proposals show here too.",
+            "group": {
+                "proposals": "Proposals from your agent",
+                "staged": "Staged",
+                "drafts": "Drafts",
+                "dropped": "Dropped"
+            },
+            "showDropped": "Show dropped ({count})",
+            "hideDropped": "Hide dropped ({count})",
+            "sessionNotRunning": "The review session is not running."
+        },
+        "publish": {
+            "noneStaged": "No comment is staged: stage drafts or accept proposals first",
+            "title": "Show the staged comments in the AI panel (publishing on GitHub is not available yet)",
+            "label": "Publish review ({count})",
+            "checkAndPost": "Check the translations, then post one GitHub review with the staged comments"
         }
     }
 }
