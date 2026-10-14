@@ -122,10 +122,40 @@ export function sizesForRememberedPanel(
     const keptPx = others.filter((i) => !yielding.includes(i)).reduce((acc, i) => acc + px[i], 0);
     const yieldingPx = yielding.reduce((acc, i) => acc + px[i], 0);
     const leftPx = availPx - keptPx - panelPx;
+    const shared = shareRoom(
+        yielding.map((i) => (yieldingPx > 0 ? px[i] : 1)),
+        leftPx,
+        MinFillPx
+    );
     const rtnPx = [...px];
     rtnPx[index] = panelPx;
-    for (const i of yielding) {
-        rtnPx[i] = yieldingPx > 0 ? (leftPx * px[i]) / yieldingPx : leftPx / yielding.length;
-    }
+    yielding.forEach((i, k) => {
+        rtnPx[i] = shared[k];
+    });
     return rtnPx.map((p) => (p / availPx) * SizeTotal);
+}
+
+// Shares `room` pixels in proportion to `weights`, each share at least `min` when the room allows it: a narrow
+// terminal next to a wide group keeps a usable width instead of its proportional sliver.
+export function shareRoom(weights: number[], room: number, min: number): number[] {
+    const rtn = weights.map(() => 0);
+    const floor = Math.min(min, room / Math.max(weights.length, 1));
+    let open = weights.map((_, i) => i);
+    let left = room;
+    while (open.length) {
+        const total = open.reduce((acc, i) => acc + weights[i], 0);
+        const short = open.filter((i) => (left * weights[i]) / total < floor);
+        if (!short.length) {
+            for (const i of open) {
+                rtn[i] = (left * weights[i]) / total;
+            }
+            break;
+        }
+        for (const i of short) {
+            rtn[i] = floor;
+            left -= floor;
+        }
+        open = open.filter((i) => !short.includes(i));
+    }
+    return rtn;
 }
