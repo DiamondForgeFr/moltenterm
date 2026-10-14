@@ -22,10 +22,11 @@ import (
 
 // `molten review show|comments|open|publish|merge|restart` (FR-REV-014). show and comments read the Reviews data and
 // the review store, the same data the views show: they are the only review commands an agent should run. open,
-// publish and merge hand off to the window of this terminal's workspace (pkg/molten/review/cli.go): it opens the PR's
-// Review tab, and its Publish or Validate sheet. The terminal prints what the sheet shows, then follows the outcome.
-// GitHub gets a review or a merge only on the developer's click in the sheet (DS-REV-011): a prompt in a terminal can
-// be answered by an agent, so the sheet's click is the confirmation. publish and merge refuse in an agent's terminal.
+// publish, merge and restart hand off to the window of this terminal's workspace (pkg/molten/review/cli.go): it opens
+// the PR's Review tab, and its Publish, Validate or Restart work sheet. The terminal prints what the sheet shows, then
+// follows the outcome. GitHub gets a review or a merge, and an agent the round's comments, only on the developer's click
+// in the sheet (DS-REV-011): a prompt in a terminal can be answered by an agent, so the sheet's click is the
+// confirmation. publish, merge and restart refuse in an agent's terminal.
 
 // must match pkg/molten/review (route.go, cli.go, merge.go, publish.go, comments.go, cleanup.go)
 const (
@@ -36,6 +37,7 @@ const (
 	moltenReviewHandoffOpen     = "open"
 	moltenReviewHandoffPublish  = "publish"
 	moltenReviewHandoffMerge    = "merge"
+	moltenReviewHandoffRestart  = "restart"
 	moltenReviewRpcTimeoutMs    = 20000
 	moltenReviewMergeMerged     = "merged"
 	moltenReviewCommentStaged   = "staged"
@@ -86,7 +88,10 @@ type moltenReviewRound struct {
 	PublishedAt int64  `json:"publishedat,omitempty"`
 	GithubUrl   string `json:"githuburl,omitempty"`
 	RestartedAt int64  `json:"restartedat,omitempty"`
-	Lang        string `json:"lang,omitempty"`
+	// The agent and the worktree Restart work handed the round to (FR-REV-011).
+	RestartAgent    string `json:"restartagent,omitempty"`
+	RestartWorktree string `json:"restartworktree,omitempty"`
+	Lang            string `json:"lang,omitempty"`
 }
 
 type moltenReviewMerge struct {
@@ -241,8 +246,11 @@ var moltenReviewMergeCmd = &cobra.Command{
 }
 
 var moltenReviewRestartCmd = &cobra.Command{
-	Use:     "restart <N>",
-	Short:   "hand the PR back to an agent with the review (Restart work): not in this build yet",
+	Use:   "restart <N>",
+	Short: "open Restart work's sheet in the window: the last published round goes to an agent on your click there",
+	Long: "Opens the PR's Review tab on its Restart work sheet in this terminal's window and prints the round it hands\n" +
+		"over. The round's comments go to an agent in the worktree of the PR's branch only when you click Restart work\n" +
+		"in that sheet. Refused in a terminal where an agent runs.",
 	Args:    cobra.ExactArgs(1),
 	RunE:    moltenWrap(moltenReviewRestartRun),
 	PreRunE: preRunSetupRpcClient,
@@ -252,7 +260,7 @@ func init() {
 	for _, cmd := range []*cobra.Command{moltenReviewShowCmd, moltenReviewCommentsCmd} {
 		cmd.Flags().BoolVar(&moltenJson, "json", false, "print the result as JSON")
 	}
-	for _, cmd := range []*cobra.Command{moltenReviewPublishCmd, moltenReviewMergeCmd} {
+	for _, cmd := range []*cobra.Command{moltenReviewPublishCmd, moltenReviewMergeCmd, moltenReviewRestartCmd} {
 		cmd.Flags().BoolVar(&moltenReviewNoWait, "no-wait", false, "open the sheet and print its plan, without following the outcome")
 	}
 	for _, cmd := range []*cobra.Command{moltenReviewShowCmd, moltenReviewCommentsCmd, moltenReviewOpenCmd,
@@ -435,8 +443,86 @@ func moltenReviewRestartRun(cmd *cobra.Command, args []string) error {
 	if err := moltenReviewGuard("restart"); err != nil {
 		return err
 	}
-	// FR-REV-011 (Restart work) has no sheet in this build yet; once it has one, restart hands off like publish.
-	return fmt.Errorf("Restart work is not in this MoltenTerm build yet: hand the PR back to its agent from the Review tab when it is")
+	t, err := moltenReviewFind(args[0])
+	if err != nil {
+		return err
+	}
+	round, number := moltenReviewLastPublished(t.State.Rounds)
+	if round == nil {
+		return fmt.Errorf("no review round of PR #%d is published yet: publish your comments first (molten review publish %d)", t.Pr.Number, t.Pr.Number)
+	}
+	WriteStdout("%s", formatMoltenReviewRestartPlan(t.Pr.Number, *round, number, t.State.Comments))
+	handed, err := moltenReviewHandoff(t, moltenReviewHandoffRestart)
+	if err != nil {
+		return err
+	}
+	WriteStdout("\nThe Restart work sheet is open in the Review tab of this terminal's window. No agent gets the round until\n" +
+		"you click Restart work there.\n")
+	if moltenReviewNoWait {
+		return nil
+	}
+	WriteStdout("Waiting for your click in the sheet (Ctrl-C stops waiting, not the sheet)...\n")
+	state, err := moltenReviewFollow(t, moltenReviewClickWait, func(state moltenReviewState) bool {
+		r, _ := moltenReviewLastPublished(state.Rounds)
+		return r != nil && r.RestartedAt >= handed.At
+	})
+	if err != nil {
+		return err
+	}
+	r, _ := moltenReviewLastPublished(state.Rounds)
+	if r == nil || r.RestartedAt < handed.At {
+		WriteStdout("The work was not restarted in the last %d minutes; the sheet stays open in the window.\n", int(moltenReviewClickWait.Minutes()))
+		return nil
+	}
+	WriteStdout("%s", formatMoltenReviewRestarted(*r, number))
+	return nil
+}
+
+// moltenReviewLastPublished is the round Restart work hands over, with its number (1 for the first).
+func moltenReviewLastPublished(rounds []moltenReviewRound) (*moltenReviewRound, int) {
+	for i := len(rounds) - 1; i >= 0; i-- {
+		if rounds[i].PublishedAt != 0 {
+			return &rounds[i], i + 1
+		}
+	}
+	return nil, 0
+}
+
+func formatMoltenReviewRestartPlan(pr int, round moltenReviewRound, number int, comments []moltenReviewComment) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Restart work on PR #%d: review round %d, published %s", pr, number, moltenReviewTime(round.PublishedAt))
+	if round.GithubUrl != "" {
+		fmt.Fprintf(&b, " (%s)", round.GithubUrl)
+	}
+	b.WriteString("\n")
+	count := 0
+	for _, c := range comments {
+		if c.Round == round.Id && c.State == "published" {
+			count++
+		}
+	}
+	fmt.Fprintf(&b, "  %d published comments go to an agent in the worktree of the PR's branch, which applies them,\n", count)
+	b.WriteString("  commits, pushes and replies on each thread; the ticket keeps its status.\n")
+	if round.RestartedAt != 0 {
+		fmt.Fprintf(&b, "  Already restarted %s", moltenReviewTime(round.RestartedAt))
+		if round.RestartWorktree != "" {
+			fmt.Fprintf(&b, " in %s", round.RestartWorktree)
+		}
+		b.WriteString(": a new click hands it again.\n")
+	}
+	return b.String()
+}
+
+func formatMoltenReviewRestarted(round moltenReviewRound, number int) string {
+	agent := round.RestartAgent
+	if agent == "" {
+		agent = "an agent"
+	}
+	text := fmt.Sprintf("Review round %d handed to %s", number, agent)
+	if round.RestartWorktree != "" {
+		text += " in " + round.RestartWorktree
+	}
+	return text + ". Follow it in the Review tab.\n"
 }
 
 func moltenReviewPublishRun(cmd *cobra.Command, args []string) error {

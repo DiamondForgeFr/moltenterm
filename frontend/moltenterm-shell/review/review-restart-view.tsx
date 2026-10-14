@@ -2,13 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Restart work (FR-REV-011): the Review tab's header button, and the line under the header that follows the agent the
-// round went to (its live state from the agent states) and, after its push, offers the changes since the round.
+// round went to (its live state from the agent states) and, after its push, offers the changes since the round; and the
+// sheet `molten review restart` opens.
 
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { AgentStateDotClasses } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
-import { useLocale } from "../i18n/i18n";
+import { DialogFrame, useEscape } from "../dialog-frame";
+import { useLocale, useT } from "../i18n/i18n";
+import { MoltenWave } from "../molten-button";
 import { shortOid } from "./review-model";
 import {
     folderName,
@@ -24,6 +27,9 @@ import { ReviewTabModel } from "./review-tab-model";
 
 const ToolbarButton =
     "flex h-6 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 text-12 whitespace-nowrap text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
+
+const PlainButton =
+    "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
 
 const LinkButton = "cursor-pointer text-12 text-secondary underline-offset-2 hover:text-primary hover:underline";
 
@@ -55,6 +61,65 @@ export function RestartButton({ model }: { model: ReviewTabModel }) {
             )}
             {restarting ? RestartText.restarting() : RestartText.button()}
         </button>
+    );
+}
+
+// RestartSheet is what `molten review restart` opens (FR-REV-014): the round it hands over and to whom; the round goes
+// to an agent only on its button's click, never from the terminal.
+export function RestartSheet({ model }: { model: ReviewTabModel }) {
+    const t = useT();
+    const open = useAtomValue(model.restartSheetAtom);
+    const pr = useAtomValue(model.prAtom);
+    const state = useAtomValue(model.stateAtom);
+    const restart = useAtomValue(model.restartAtom);
+    useEscape(open, () => model.closeRestart());
+    if (!open || pr == null) {
+        return null;
+    }
+    const last = lastPublished(state);
+    const restarting = restart.status === "restarting";
+    const outcome = restart.status === "done" ? restartOutcome(restart.result, restart.error) : "";
+    const tone = restart.error ? "fail" : restartResultTone(restart.result);
+    const count = (state?.comments ?? []).filter((c) => c.state === "published" && c.round === last?.round?.id).length;
+    return (
+        <DialogFrame
+            role="review-restart"
+            title={t("review.restart.sheet.title", { number: pr.number })}
+            subtitle={pr.headref}
+            widthClass="w-[560px]"
+            trapFocus
+            buttons={
+                <>
+                    <button type="button" className={PlainButton} onClick={() => model.closeRestart()}>
+                        {t("review.restart.sheet.cancel")}
+                    </button>
+                    <button
+                        type="button"
+                        className="molten-btn cursor-pointer rounded-6 px-3 py-1 text-12"
+                        disabled={last == null || restarting}
+                        onClick={() => fireAndForget(() => model.confirmRestart())}
+                        data-testid="review-restart-confirm"
+                    >
+                        {restarting ? RestartText.restarting() : RestartText.button()}
+                        <MoltenWave />
+                    </button>
+                </>
+            }
+        >
+            <div className="flex flex-col gap-2 text-12 text-secondary" data-testid="review-restart-sheet">
+                {last == null ? (
+                    <div>{RestartText.noRound()}</div>
+                ) : (
+                    <>
+                        <div>{t("review.restart.sheet.what", { round: last.number, count, branch: pr.headref })}</div>
+                        <div>{t("review.restart.sheet.who")}</div>
+                        {last.round.restartedat ? <div>{t("review.restart.sheet.again")}</div> : null}
+                        <div className="text-muted">{t("review.restart.sheet.ticket")}</div>
+                    </>
+                )}
+                {outcome ? <div className={cn("break-words", ToneClasses[tone])}>{outcome}</div> : null}
+            </div>
+        </DialogFrame>
     );
 }
 

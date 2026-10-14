@@ -43,13 +43,13 @@ func handoffReq(action string) HandoffRequest {
 
 func TestHandoffReachesTheTerminalsWorkspace(t *testing.T) {
 	f := &handoffFake{}
-	for _, action := range []string{HandoffOpen, HandoffPublish, HandoffMerge} {
+	for _, action := range []string{HandoffOpen, HandoffPublish, HandoffMerge, HandoffRestart} {
 		res, err := RunHandoff(context.Background(), f.env(), handoffReq(action))
 		if err != nil || res.WorkspaceId != "ws-1" || res.At == 0 {
 			t.Fatalf("%s: %+v %v", action, res, err)
 		}
 	}
-	if len(f.published) != 3 || f.scopes[0] != "ws-1" || f.published[1].Action != HandoffPublish || f.published[2].Number != 7 {
+	if len(f.published) != 4 || f.scopes[0] != "ws-1" || f.published[1].Action != HandoffPublish || f.published[2].Number != 7 || f.published[3].Action != HandoffRestart {
 		t.Errorf("published: %+v %v", f.published, f.scopes)
 	}
 }
@@ -67,7 +67,7 @@ func TestHandoffRefusals(t *testing.T) {
 		{"no token", handoffFake{}, HandoffRequest{Action: HandoffOpen, Dir: "/p", Number: 7}, "WAVETERM_JWT"},
 		{"bad token", handoffFake{}, HandoffRequest{Token: "bad", Action: HandoffOpen, Dir: "/p", Number: 7}, "not valid"},
 		{"cleanup", handoffFake{}, handoffReq("cleanup"), "unknown review action"},
-		{"restart", handoffFake{}, handoffReq("restart"), "unknown review action"},
+		{"agent restart", handoffFake{agent: true}, handoffReq(HandoffRestart), "runs an agent"},
 		{"relative dir", handoffFake{}, HandoffRequest{Token: "good", Action: HandoffOpen, Dir: "p", Number: 7}, "absolute"},
 		{"no number", handoffFake{}, HandoffRequest{Token: "good", Action: HandoffOpen, Dir: "/p"}, "number"},
 	}

@@ -11,7 +11,13 @@ vi.mock("../review/review-sheet-request", () => ({ requestReviewSheet: vi.fn() }
 vi.mock("./reviews-client", () => ({ reviewsGet: vi.fn() }));
 vi.mock("./reviews-store", () => ({ openPullRequestTab: vi.fn() }));
 
-import { installReviewHandoff, readHandoff, ReviewHandoff, ReviewHandoffDeps, runReviewHandoff } from "./reviews-handoff";
+import {
+    installReviewHandoff,
+    readHandoff,
+    ReviewHandoff,
+    ReviewHandoffDeps,
+    runReviewHandoff,
+} from "./reviews-handoff";
 import { ReviewPr, ReviewsAnswer } from "./reviews-model";
 
 const pr = { number: 12, title: "feat", branch: "feature/12-x", base: "develop" } as ReviewPr;
@@ -43,8 +49,27 @@ describe("review handoff", () => {
         const d = deps();
         await runReviewHandoff(handoff("publish"), "ws-1", d);
         await runReviewHandoff(handoff("merge"), "ws-1", d);
-        expect(d.requestSheet).toHaveBeenNthCalledWith(1, "tab-r", expect.objectContaining({ id: "h-publish12", action: "publish" }));
-        expect(d.requestSheet).toHaveBeenNthCalledWith(2, "tab-r", expect.objectContaining({ id: "h-merge12", action: "merge" }));
+        expect(d.requestSheet).toHaveBeenNthCalledWith(
+            1,
+            "tab-r",
+            expect.objectContaining({ id: "h-publish12", action: "publish" })
+        );
+        expect(d.requestSheet).toHaveBeenNthCalledWith(
+            2,
+            "tab-r",
+            expect.objectContaining({ id: "h-merge12", action: "merge" })
+        );
+    });
+
+    it("leaves the Review tab Restart work's sheet for restart (FR-REV-011)", async () => {
+        const d = deps();
+        expect(readHandoff(handoff("restart"))).not.toBeNull();
+        expect(await runReviewHandoff(handoff("restart"), "ws-1", d)).toBe(true);
+        expect(d.requestSheet).toHaveBeenCalledWith(
+            "tab-r",
+            expect.objectContaining({ id: "h-restart12", action: "restart" })
+        );
+        expect(d.showTab).toHaveBeenCalledWith("tab-r");
     });
 
     it("does nothing for a PR the Reviews data does not list", async () => {
@@ -64,7 +89,9 @@ describe("review handoff", () => {
 
     it("listens on the window's workspace only", () => {
         installReviewHandoff("ws-1");
-        expect(Mocks.subscribe).toHaveBeenCalledWith(expect.objectContaining({ eventType: "molten:review:handoff", scope: "ws-1" }));
+        expect(Mocks.subscribe).toHaveBeenCalledWith(
+            expect.objectContaining({ eventType: "molten:review:handoff", scope: "ws-1" })
+        );
         Mocks.subscribe.mockClear();
         installReviewHandoff("");
         expect(Mocks.subscribe).not.toHaveBeenCalled();

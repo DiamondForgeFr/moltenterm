@@ -14,14 +14,24 @@ vi.mock("@/app/store/wos", () => ({
 }));
 
 import { globalStore } from "@/app/store/jotaiStore";
-import { readSheetRequest, ReviewSheetMaxAgeMs, ReviewSheetMetaKey, watchReviewSheetRequests } from "./review-sheet-request";
+import {
+    readSheetRequest,
+    ReviewSheetMaxAgeMs,
+    ReviewSheetMetaKey,
+    watchReviewSheetRequests,
+} from "./review-sheet-request";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 function setup() {
     Mocks.tabAtom = atom({ oid: "tab-r", meta: {} }) as PrimitiveAtom<any>;
     const stateAtom = atom(null) as PrimitiveAtom<any>;
-    const model = { stateAtom, openPublish: vi.fn(async () => {}), openValidate: vi.fn(async () => {}) };
+    const model = {
+        stateAtom,
+        openPublish: vi.fn(async () => {}),
+        openValidate: vi.fn(async () => {}),
+        openRestart: vi.fn(async () => {}),
+    };
     return { model, stateAtom };
 }
 
@@ -30,7 +40,10 @@ describe("review sheet request", () => {
         const { model, stateAtom } = setup();
         Mocks.setMeta.mockClear();
         const stop = watchReviewSheetRequests("tab-r", model);
-        globalStore.set(Mocks.tabAtom, { oid: "tab-r", meta: { [ReviewSheetMetaKey]: { id: "a", action: "merge", at: Date.now() } } });
+        globalStore.set(Mocks.tabAtom, {
+            oid: "tab-r",
+            meta: { [ReviewSheetMetaKey]: { id: "a", action: "merge", at: Date.now() } },
+        });
         await flush();
         expect(model.openValidate).not.toHaveBeenCalled();
         globalStore.set(stateAtom, { comments: [] });
@@ -47,16 +60,35 @@ describe("review sheet request", () => {
     it("opens the Publish sheet for publish", async () => {
         const { model, stateAtom } = setup();
         globalStore.set(stateAtom, { comments: [] });
-        globalStore.set(Mocks.tabAtom, { oid: "tab-r", meta: { [ReviewSheetMetaKey]: { id: "b", action: "publish", at: Date.now() } } });
+        globalStore.set(Mocks.tabAtom, {
+            oid: "tab-r",
+            meta: { [ReviewSheetMetaKey]: { id: "b", action: "publish", at: Date.now() } },
+        });
         const stop = watchReviewSheetRequests("tab-r", model);
         await flush();
         expect(model.openPublish).toHaveBeenCalledTimes(1);
         stop();
     });
 
+    it("opens Restart work's sheet for restart, and nothing else (FR-REV-011)", async () => {
+        const { model, stateAtom } = setup();
+        globalStore.set(stateAtom, { comments: [] });
+        globalStore.set(Mocks.tabAtom, {
+            oid: "tab-r",
+            meta: { [ReviewSheetMetaKey]: { id: "c", action: "restart", at: Date.now() } },
+        });
+        const stop = watchReviewSheetRequests("tab-r", model);
+        await flush();
+        expect(model.openRestart).toHaveBeenCalledTimes(1);
+        expect(model.openPublish).not.toHaveBeenCalled();
+        expect(model.openValidate).not.toHaveBeenCalled();
+        stop();
+    });
+
     it("ignores stale and malformed requests", () => {
         const now = 1_000_000_000;
         expect(readSheetRequest({ id: "a", action: "publish", at: now }, now)).not.toBeNull();
+        expect(readSheetRequest({ id: "a", action: "restart", at: now }, now)).not.toBeNull();
         expect(readSheetRequest({ id: "a", action: "publish", at: now - ReviewSheetMaxAgeMs - 1 }, now)).toBeNull();
         expect(readSheetRequest({ id: "a", action: "cleanup", at: now }, now)).toBeNull();
         expect(readSheetRequest({ action: "merge", at: now }, now)).toBeNull();

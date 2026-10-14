@@ -1,11 +1,11 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// `molten review open|publish|merge` (FR-REV-014): a local terminal asks the window of its workspace, through wavesrv
-// (pkg/molten/review/cli.go), to open a PR's Review tab and, for publish and merge, its Publish or Validate sheet. The
-// window does what a click on the Reviews row then on the sheet's button would: it reads the PR from the Reviews data,
-// opens the tab, and leaves the sheet's request to the tab's page (review-sheet-request.ts). It never posts nor merges:
-// that stays the developer's click in the sheet.
+// `molten review open|publish|merge|restart` (FR-REV-014): a local terminal asks the window of its workspace, through
+// wavesrv (pkg/molten/review/cli.go), to open a PR's Review tab and, for publish, merge and restart, its Publish,
+// Validate or Restart work sheet. The window does what a click on the Reviews row then on the sheet's button would: it
+// reads the PR from the Reviews data, opens the tab, and leaves the sheet's request to the tab's page
+// (review-sheet-request.ts). It never posts, merges nor restarts the work: that stays the developer's click in the sheet.
 
 import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -19,7 +19,7 @@ import { openPullRequestTab } from "./reviews-store";
 // must match pkg/molten/review/cli.go
 export const ReviewHandoffEvent = "molten:review:handoff";
 
-export type ReviewHandoffAction = "open" | "publish" | "merge";
+export type ReviewHandoffAction = "open" | "publish" | "merge" | "restart";
 
 export type ReviewHandoff = { id: string; action: ReviewHandoffAction; dir: string; number: number; at: number };
 
@@ -41,7 +41,7 @@ const DefaultDeps: ReviewHandoffDeps = {
 };
 
 export function readHandoff(data: any): ReviewHandoff {
-    const actions: ReviewHandoffAction[] = ["open", "publish", "merge"];
+    const actions: ReviewHandoffAction[] = ["open", "publish", "merge", "restart"];
     if (data == null || typeof data.id !== "string" || !actions.includes(data.action)) {
         return null;
     }

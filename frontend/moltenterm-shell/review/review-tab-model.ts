@@ -82,7 +82,6 @@ import {
 import { missingTranslations } from "./review-publish";
 import { ReadyAnswer, ReadyWhat, sendWhenReady } from "./review-ready";
 import { ReviewRestartState } from "./review-restart";
-import { watchReviewSheetRequests } from "./review-sheet-request";
 import { developerLanguage, ReviewSelection, stagedCount } from "./review-selection";
 import {
     askReviewBriefing,
@@ -98,6 +97,7 @@ import {
     startReviewSession,
     subscribeReviewSession,
 } from "./review-session";
+import { watchReviewSheetRequests } from "./review-sheet-request";
 
 // The PR's head is asked from the collector at most this often while the tab shows (it reads GitHub at most once a
 // minute per project, NFR-REV-002).
@@ -242,6 +242,8 @@ export abstract class ReviewTabModel implements ViewModel {
     validateAtom = atom({ open: false, loading: false, override: false }) as PrimitiveAtom<ReviewValidateState>;
     publishAtom = atom({ open: false, translate: { status: "idle" } }) as PrimitiveAtom<ReviewPublishSheet>;
     restartAtom = atom({ status: "idle" }) as PrimitiveAtom<ReviewRestartState>;
+    // Restart work's sheet, opened by `molten review restart` (FR-REV-014): its click is the confirmation.
+    restartSheetAtom = atom(false) as PrimitiveAtom<boolean>;
     // FR-REV-003: the lines selected in the diff, where their actions show, the comment box and Ask the AI's box.
     selectionAtom = atom(null) as PrimitiveAtom<ReviewSelection>;
     overlayAtom = atom(null) as PrimitiveAtom<ReviewOverlayPos>;
@@ -1041,6 +1043,24 @@ export abstract class ReviewTabModel implements ViewModel {
             globalStore.set(this.restartAtom, { status: "done", result });
         } catch (e) {
             globalStore.set(this.restartAtom, { status: "done", error: String(e?.message ?? e) });
+        }
+    }
+
+    async openRestart() {
+        globalStore.set(this.restartAtom, (r) => (r.status === "restarting" ? r : { status: "idle" }));
+        globalStore.set(this.restartSheetAtom, true);
+    }
+
+    closeRestart() {
+        globalStore.set(this.restartSheetAtom, false);
+    }
+
+    // confirmRestart is the sheet's click: the sheet stays open on the outcome when the round was not handed over.
+    async confirmRestart() {
+        await this.restartWork();
+        const r = globalStore.get(this.restartAtom);
+        if (r.error == null && (r.result?.status === "started" || r.result?.status === "sent")) {
+            this.closeRestart();
         }
     }
 

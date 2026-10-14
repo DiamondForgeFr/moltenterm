@@ -4447,6 +4447,14 @@
             "showSince": "Show the changes since the round",
             "showAgent": "Show the agent",
             "dismiss": "Dismiss",
+            "sheet": {
+                "title": "Restart work · #{number}",
+                "what": "Review round {round}'s {count} published comments go to an agent in the worktree of {branch}: it applies them, commits in the project's format, pushes and replies on each thread.",
+                "who": "An idle agent already working there gets them; otherwise your agent starts in a new terminal of this tab, with your usual permissions.",
+                "ticket": "The ticket keeps its status. Nothing starts until you click Restart work.",
+                "again": "This round was already handed over: a new click hands it again.",
+                "cancel": "Cancel"
+            },
             "outcome": {
                 "started": "{agent} started in {folder} with the round's comments.",
                 "sent": "Sent to {agent}, already in {folder}.",

@@ -120,3 +120,34 @@ func TestFormatMoltenReviewPlanAndOutcome(t *testing.T) {
 		t.Errorf("another merge:\n%s", out)
 	}
 }
+
+func TestMoltenReviewRestartPlan(t *testing.T) {
+	rounds := []moltenReviewRound{
+		{Id: "r1", PublishedAt: 1000, RestartedAt: 2000},
+		{Id: "r2", PublishedAt: 3000, GithubUrl: "https://github.com/acme/app/pull/7#pullrequestreview-9"},
+		{Id: "r3"},
+	}
+	round, number := moltenReviewLastPublished(rounds)
+	if round == nil || round.Id != "r2" || number != 2 {
+		t.Fatalf("last published: %+v %d", round, number)
+	}
+	if r, _ := moltenReviewLastPublished([]moltenReviewRound{{Id: "r1"}}); r != nil {
+		t.Errorf("no published round: %+v", r)
+	}
+	comments := []moltenReviewComment{{Round: "r2", State: "published"}, {Round: "r2", State: "published"},
+		{Round: "r1", State: "published"}, {State: "staged"}}
+	plan := formatMoltenReviewRestartPlan(7, *round, number, comments)
+	for _, part := range []string{"Restart work on PR #7: review round 2", "pullrequestreview-9", "2 published comments go to an agent"} {
+		if !strings.Contains(plan, part) {
+			t.Errorf("plan misses %q:\n%s", part, plan)
+		}
+	}
+	again := formatMoltenReviewRestartPlan(7, moltenReviewRound{Id: "r1", PublishedAt: 1000, RestartedAt: 2000, RestartWorktree: "/w/work-7"}, 1, nil)
+	if !strings.Contains(again, "Already restarted") || !strings.Contains(again, "/w/work-7") {
+		t.Errorf("a restarted round says so:\n%s", again)
+	}
+	done := formatMoltenReviewRestarted(moltenReviewRound{RestartAgent: "claude", RestartWorktree: "/w/work-7"}, 2)
+	if done != "Review round 2 handed to claude in /w/work-7. Follow it in the Review tab.\n" {
+		t.Errorf("restarted: %q", done)
+	}
+}
