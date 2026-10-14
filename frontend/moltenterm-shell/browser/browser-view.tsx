@@ -41,6 +41,7 @@ import { TabActivity } from "../tab-activity";
 import { isShowing } from "../tab-activity-model";
 import { PanelMeta, panelTitle } from "../tab-identity";
 import { showToast } from "../toast-store";
+import { PinHeaderButton } from "../view360/view360-pin";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import {
@@ -1478,6 +1479,7 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
     };
     return (
         <div className="molten-browser-panel-buttons flex h-full shrink-0 items-center gap-0.5 px-1.5">
+            <PinHeaderButton blockId={model.blockId} />
             <span data-role="command-panel-trigger" className="flex">
                 <IconButton decl={commands} />
             </span>

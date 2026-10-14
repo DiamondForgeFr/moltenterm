@@ -110,8 +110,20 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
             e.stopPropagation();
             view360.scrollBy(delta * unit);
         };
+        // Panels laid past the carpet's right edge overflow the layout: a focus moving into one of them would let the
+        // browser scroll the layout itself, shifting the fixed zone off the window. Only the carpet scrolls.
+        const onScroll = () => {
+            if (root.scrollLeft !== 0) {
+                root.scrollLeft = 0;
+            }
+        };
+        onScroll();
         root.addEventListener("wheel", onWheel, { capture: true, passive: false });
-        return () => root.removeEventListener("wheel", onWheel, { capture: true });
+        root.addEventListener("scroll", onScroll);
+        return () => {
+            root.removeEventListener("wheel", onWheel, { capture: true });
+            root.removeEventListener("scroll", onScroll);
+        };
     }, [active, layoutModel, view360]);
 
     if (layout == null) {
