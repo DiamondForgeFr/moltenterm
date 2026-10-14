@@ -24,6 +24,8 @@ export type ReviewCleanupStepId =
     | "other-prs";
 
 export type ReviewCleanupState = "done" | "skipped" | "failed";
+// planned: a step of Validate's plan sheet, before the merge (pkg/molten/review/postmerge.go).
+export type ReviewCleanupStepState = "planned" | ReviewCleanupState;
 
 export const ReviewCleanupSteps: ReviewCleanupStepId[] = [
     "pr",
@@ -50,7 +52,7 @@ export type ReviewCleanupPr = {
 
 export type ReviewCleanupStepResult = {
     id: ReviewCleanupStepId;
-    state: ReviewCleanupState;
+    state: ReviewCleanupStepState;
     reason?: string;
     message?: string;
     // The agent worktree's plan (mission WorktreePlan) and the risk to send back once the developer confirms it.
@@ -126,8 +128,8 @@ export function cleanupPrDetail(pr: ReviewCleanupPr): string {
 }
 
 // cleanupNeedsConfirmation is the agent worktree step waiting for the second confirmation of its plan.
-export function cleanupNeedsConfirmation(result: ReviewCleanupResult): ReviewCleanupStepResult {
-    const step = result?.steps?.find((s) => s.id === "agent-worktree");
+export function cleanupNeedsConfirmation(steps: ReviewCleanupStepResult[]): ReviewCleanupStepResult {
+    const step = steps?.find((s) => s.id === "agent-worktree");
     if (step == null || step.confirm == null || step.state === "done") {
         return null;
     }
@@ -138,6 +140,9 @@ export function cleanupNeedsConfirmation(result: ReviewCleanupResult): ReviewCle
 export function cleanupSummary(result: ReviewCleanupResult): Record<ReviewCleanupState, number> {
     const rtn: Record<ReviewCleanupState, number> = { done: 0, skipped: 0, failed: 0 };
     for (const step of result?.steps ?? []) {
+        if (step.state === "planned") {
+            continue;
+        }
         rtn[step.state] = (rtn[step.state] ?? 0) + 1;
     }
     return rtn;

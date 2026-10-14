@@ -7,6 +7,7 @@ import {
     canCancelMerge,
     canClickMerge,
     mergeButtonLabel,
+    mergeCleanup,
     mergeDisabledReason,
     mergeRunning,
     mergeStateLabel,
@@ -76,5 +77,13 @@ describe("Validate's plan sheet", () => {
         expect(canCancelMerge(record({ state: "updating" }))).toBe(true);
         expect(canCancelMerge(record({ state: "merging" }))).toBe(false);
         expect(canCancelMerge(null)).toBe(false);
+    });
+
+    it("shows the cleanup this merge ran, never an older one", () => {
+        const cleanup = { repo: "o/n", number: 7, steps: [], startedat: 5, endedat: 6 };
+        expect(mergeCleanup(record({ state: "merged", startedat: 4 }), cleanup)).toBe(cleanup);
+        expect(mergeCleanup(record({ state: "merged", startedat: 9 }), cleanup)).toBeNull();
+        expect(mergeCleanup(record({ state: "refused", startedat: 4 }), cleanup)).toBeNull();
+        expect(mergeCleanup(record({ state: "merged", startedat: 4 }), null)).toBeNull();
     });
 });

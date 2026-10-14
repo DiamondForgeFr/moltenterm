@@ -40,6 +40,8 @@ const (
 	CleanupStepRemoteBranch = "remote-branch"
 	CleanupStepOtherPrs     = "other-prs"
 
+	// CleanupStatePlanned: a step of Validate's plan sheet, before the merge (postmerge.go).
+	CleanupStatePlanned = "planned"
 	CleanupStateDone    = "done"
 	CleanupStateSkipped = "skipped"
 	CleanupStateFailed  = "failed"

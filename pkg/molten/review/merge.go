@@ -120,10 +120,10 @@ type MergePlan struct {
 	MergeState string `json:"mergestate,omitempty"`
 	Mergeable  string `json:"mergeable,omitempty"`
 	// Behind: GitHub rebases the branch first, then CI runs again on the new head before the merge (AC3).
-	Behind  bool          `json:"behind,omitempty"`
-	Checks  []MergeCheck  `json:"checks"`
-	Steps   []MergeStep   `json:"steps"`
-	Cleanup []CleanupStep `json:"cleanup"`
+	Behind  bool                `json:"behind,omitempty"`
+	Checks  []MergeCheck        `json:"checks"`
+	Steps   []MergeStep         `json:"steps"`
+	Cleanup []CleanupStepResult `json:"cleanup"`
 	// CanMerge: no check fails or waits; Reason: the first one that does (AC4).
 	CanMerge bool   `json:"canmerge"`
 	Reason   string `json:"reason,omitempty"`
@@ -152,14 +152,14 @@ type MergeRecord struct {
 	MergedOid string `json:"mergedoid,omitempty"`
 	State     string `json:"state"`
 	// Refused: why (Refused…); Message: what the developer reads.
-	Refused        string        `json:"refused,omitempty"`
-	Message        string        `json:"message,omitempty"`
-	Updated        bool          `json:"updated,omitempty"`
-	Overridden     []string      `json:"overridden,omitempty"`
-	StartedAt      int64         `json:"startedat"`
-	EndedAt        int64         `json:"endedat,omitempty"`
-	Cleanup        []CleanupStep `json:"cleanup,omitempty"`
-	CleanupRunning bool          `json:"cleanuprunning,omitempty"`
+	Refused    string   `json:"refused,omitempty"`
+	Message    string   `json:"message,omitempty"`
+	Updated    bool     `json:"updated,omitempty"`
+	Overridden []string `json:"overridden,omitempty"`
+	StartedAt  int64    `json:"startedat"`
+	EndedAt    int64    `json:"endedat,omitempty"`
+	// CleanupRunning: the post-merge hook runs; its outcome is the store's State.Cleanup.
+	CleanupRunning bool `json:"cleanuprunning,omitempty"`
 }
 
 func (r MergeRecord) ended() bool {
@@ -227,8 +227,11 @@ func MakeMerger(store *Store, gh GhRunner, publish func(k PrKey, state State)) *
 	}
 }
 
+// mergeRunner runs gh for Validate in wavesrv (a test build may replace it, cleanup_testoverride.go).
+var mergeRunner mission.Runner = mission.ExecRunner
+
 func ExecGh(ctx context.Context, dir string, args ...string) ([]byte, error) {
-	return mission.ExecRunner(ctx, dir, "gh", args...)
+	return mergeRunner(ctx, dir, "gh", args...)
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) bool {
@@ -499,7 +502,7 @@ func (m *Merger) Plan(ctx context.Context, req MergePlanRequest) (MergePlan, err
 	plan.Steps = planSteps(plan)
 	plan.Cleanup = currentPostMerge().Plan(ctx, plan.mergedPr("", ""))
 	if plan.Cleanup == nil {
-		plan.Cleanup = []CleanupStep{}
+		plan.Cleanup = []CleanupStepResult{}
 	}
 	m.keepPlan(plan)
 	return plan, nil
@@ -720,16 +723,10 @@ func (r MergeRecord) overrides(warnings []string) bool {
 	return true
 }
 
-// cleanup runs the post-merge hook once (FR-REV-013); its outcome is kept with the merge record.
+// cleanup runs the post-merge hook once (FR-REV-013); the hook records its outcome in the store.
 func (m *Merger) cleanup(plan MergePlan, record MergeRecord, head string) {
 	k := PrKey{Repo: plan.Repo, Number: plan.Number}
-	report := func(steps []CleanupStep) {
-		record.Cleanup = steps
-		m.record(k, record)
-	}
-	ctx := context.Background()
-	steps := currentPostMerge().Run(ctx, plan.mergedPr(head, record.MergedOid), report)
-	record.Cleanup = steps
+	currentPostMerge().Run(context.Background(), plan.mergedPr(head, record.MergedOid))
 	record.CleanupRunning = false
 	m.record(k, record)
 }

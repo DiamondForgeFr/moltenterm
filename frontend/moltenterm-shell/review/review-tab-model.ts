@@ -19,6 +19,7 @@ import type * as MonacoTypes from "monaco-editor";
 import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
 import { ReviewsAnswer } from "../reviews/reviews-model";
 import { TabActivity, whileShown } from "../tab-activity";
+import { confirmAgentWorktree, ReviewWorktreeRisk } from "./review-cleanup";
 import {
     deleteReviewComment,
     openReviewAiPane,
@@ -104,6 +105,8 @@ export type ReviewValidateState = {
     error?: string;
     override: boolean;
     clicked?: string;
+    // The agent worktree's removal the developer confirmed after the merge's cleanup is running.
+    confirming?: boolean;
 };
 
 // Where the selection's toolbar or the comment box shows over the diff, in pixels from its top left corner.
@@ -957,6 +960,21 @@ export abstract class ReviewTabModel implements ViewModel {
             await reviewMergeCancel(pr.repo, pr.number);
         } catch (e) {
             globalStore.set(this.validateAtom, (s) => ({ ...s, error: String(e?.message ?? e) }));
+        }
+    }
+
+    // The agent worktree the merge's cleanup kept for its risk (FR-REV-013): removed on the developer's second
+    // confirmation of the plan shown; the outcome comes back in the review store.
+    async confirmCleanupWorktree(risk: ReviewWorktreeRisk) {
+        const pr = this.pr();
+        const ticket = globalStore.get(this.validateAtom).plan?.ticket;
+        globalStore.set(this.validateAtom, (s) => ({ ...s, confirming: true, error: null }));
+        try {
+            await confirmAgentWorktree({ dir: pr.dir, repo: pr.repo, number: pr.number, ticket }, risk);
+        } catch (e) {
+            globalStore.set(this.validateAtom, (s) => ({ ...s, error: String(e?.message ?? e) }));
+        } finally {
+            globalStore.set(this.validateAtom, (s) => ({ ...s, confirming: false }));
         }
     }
 

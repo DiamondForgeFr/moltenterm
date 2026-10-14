@@ -7,7 +7,7 @@
 
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import type { ReviewCleanupResult } from "./review-cleanup";
+import type { ReviewCleanupResult, ReviewCleanupStepResult } from "./review-cleanup";
 import { ReviewAnchor, reviewScope } from "./review-session";
 
 // must match pkg/molten/review/route.go
@@ -105,12 +105,6 @@ export type ReviewSince = { from: string; to: string; published?: boolean };
 export type ReviewCheckState = "ok" | "info" | "warn" | "pending" | "fail";
 export type ReviewMergeCheck = { id: string; label: string; state: ReviewCheckState; detail?: string };
 export type ReviewMergeStep = { id: string; label: string; detail?: string };
-export type ReviewCleanupStep = {
-    id: string;
-    label: string;
-    state: "planned" | "done" | "skipped" | "failed";
-    detail?: string;
-};
 
 export type ReviewMergePlan = {
     id: string;
@@ -129,7 +123,8 @@ export type ReviewMergePlan = {
     behind?: boolean;
     checks: ReviewMergeCheck[];
     steps: ReviewMergeStep[];
-    cleanup: ReviewCleanupStep[];
+    // The cleanup after the merge, every step planned.
+    cleanup: ReviewCleanupStepResult[];
     canmerge: boolean;
     reason?: string;
     warnings: string[];
@@ -159,7 +154,7 @@ export type ReviewMergeRecord = {
     overridden?: string[];
     startedat: number;
     endedat?: number;
-    cleanup?: ReviewCleanupStep[];
+    // The cleanup after the merge runs; its outcome is ReviewState.cleanup.
     cleanuprunning?: boolean;
 };
 // The review session's latest briefing (FR-REV-005); headoid: the head the agent briefed.

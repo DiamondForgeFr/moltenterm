@@ -9,12 +9,15 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { MoltenWave } from "../molten-button";
-import { ReviewCleanupStep, ReviewMergeCheck, ReviewMergePlan, ReviewMergeRecord } from "./review-client";
+import { ReviewCleanupResult } from "./review-cleanup";
+import { CleanupSteps } from "./review-cleanup-steps";
+import { ReviewMergeCheck, ReviewMergePlan, ReviewMergeRecord } from "./review-client";
 import {
     canCancelMerge,
     canClickMerge,
     CheckLooks,
     mergeButtonLabel,
+    mergeCleanup,
     mergeDisabledReason,
     mergeRunning,
     mergeStateLabel,
@@ -26,13 +29,6 @@ import { ReviewTabModel } from "./review-tab-model";
 
 const PlainButton =
     "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
-
-const CleanupLooks: Record<ReviewCleanupStep["state"], { icon: string; tone: string }> = {
-    planned: { tone: "text-muted", icon: "fa-circle" },
-    done: { tone: "text-success", icon: "fa-circle-check" },
-    skipped: { tone: "text-muted", icon: "fa-circle-minus" },
-    failed: { tone: "text-error", icon: "fa-circle-xmark" },
-};
 
 export function ValidateButton({ model }: { model: ReviewTabModel }) {
     const state = useAtomValue(model.stateAtom);
@@ -95,7 +91,15 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
                     {v.error}
                 </div>
             ) : null}
-            {record != null ? <MergeProgress record={record} baseref={baseref} /> : null}
+            {record != null ? (
+                <MergeProgress
+                    model={model}
+                    record={record}
+                    cleanup={mergeCleanup(record, state?.cleanup)}
+                    confirming={v.confirming}
+                    baseref={baseref}
+                />
+            ) : null}
             {plan == null && v.loading ? (
                 <div className="flex items-center gap-2 text-muted">
                     <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
@@ -265,17 +269,14 @@ function PlanBody({
                             {s.detail ? <div className="text-muted">{s.detail}</div> : null}
                         </li>
                     ))}
-                    {plan.cleanup.map((s) => (
-                        <li key={`cleanup-${s.id}`}>
-                            <span className="text-primary">{s.label}</span>
-                            {s.detail ? <div className="text-muted">{s.detail}</div> : null}
-                        </li>
-                    ))}
                 </ol>
-                {plan.cleanup.length === 0 ? (
-                    <div className="mt-1 text-muted">Then the cleanup after the merge, when it is available.</div>
-                ) : null}
             </section>
+            {plan.cleanup.length > 0 ? (
+                <section data-testid="validate-cleanup-plan">
+                    <div className="mb-1.5 font-medium text-muted">Then the cleanup</div>
+                    <CleanupSteps steps={plan.cleanup} />
+                </section>
+            ) : null}
             {disabledReason && !plan.canmerge ? (
                 <div className="text-error" data-testid="validate-reason">
                     Merge is disabled: {disabledReason}
@@ -298,7 +299,19 @@ function CheckRow({ check }: { check: ReviewMergeCheck }) {
     );
 }
 
-function MergeProgress({ record, baseref }: { record: ReviewMergeRecord; baseref: string }) {
+function MergeProgress({
+    model,
+    record,
+    cleanup,
+    confirming,
+    baseref,
+}: {
+    model: ReviewTabModel;
+    record: ReviewMergeRecord;
+    cleanup: ReviewCleanupResult;
+    confirming: boolean;
+    baseref: string;
+}) {
     const running = mergeRunning(record);
     return (
         <div
@@ -315,19 +328,21 @@ function MergeProgress({ record, baseref }: { record: ReviewMergeRecord; baseref
                     Rebased by GitHub: head <code title={record.head}>{shortOid(record.head)}</code>
                 </div>
             ) : null}
-            {(record.cleanup ?? []).length > 0 || record.cleanuprunning ? (
-                <div className="flex flex-col gap-0.5">
-                    <div className="font-medium text-muted">Cleanup</div>
-                    {(record.cleanup ?? []).map((s) => {
-                        const look = CleanupLooks[s.state] ?? CleanupLooks.planned;
-                        return (
-                            <div key={s.id} className="flex items-start gap-2">
-                                <i className={cn("fa fa-solid mt-0.5 w-3.5 text-11", look.icon, look.tone)} />
-                                <span className="text-primary">{s.label}</span>
-                                {s.detail ? <span className="text-muted">— {s.detail}</span> : null}
-                            </div>
-                        );
-                    })}
+            {record.cleanuprunning || cleanup != null ? (
+                <div className="mt-1 flex flex-col gap-1" data-testid="validate-cleanup">
+                    <div className="flex items-center gap-2 font-medium text-muted">
+                        {record.cleanuprunning ? (
+                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
+                        ) : null}
+                        {record.cleanuprunning ? "Cleaning up after the merge…" : "Cleanup"}
+                    </div>
+                    {cleanup != null ? (
+                        <CleanupSteps
+                            steps={cleanup.steps}
+                            busy={confirming}
+                            onConfirmWorktree={(risk) => fireAndForget(() => model.confirmCleanupWorktree(risk))}
+                        />
+                    ) : null}
                 </div>
             ) : null}
         </div>

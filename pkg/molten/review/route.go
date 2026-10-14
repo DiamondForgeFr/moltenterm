@@ -149,6 +149,7 @@ func Start() {
 			EndSession: reviewsession.EndSession,
 			DataDir:    wavebase.GetWaveDataDir(),
 		})
+		SetPostMerge(service)
 		link := &routeLink{service: service, output: make(chan []byte, routeQueueSize), localSource: localSourceOnLink}
 		if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId); err != nil {
 			log.Printf("%s route not started: %v\n", logPrefix, err)
