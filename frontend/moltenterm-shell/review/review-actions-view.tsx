@@ -304,10 +304,24 @@ export function AskBox({ model }: { model: ReviewTabModel }) {
     );
 }
 
+// What a queued question's outcome says (FR-REV-006 AC4); the queue itself is listed under the box.
+const AskQueuedNext = "Queued: it is sent when your agent is idle, and its answer shows under this box.";
+const AskQueuedBehind = "Queued behind %d other questions: each is sent when your agent is idle.";
+
 function AskOutcome({
     ask,
 }: {
-    ask: { result?: { sent: boolean; submitted?: boolean; busy?: boolean; message?: string }; error?: string };
+    ask: {
+        result?: {
+            sent: boolean;
+            submitted?: boolean;
+            busy?: boolean;
+            queued?: boolean;
+            position?: number;
+            message?: string;
+        };
+        error?: string;
+    };
 }) {
     if (ask.error) {
         return (
@@ -319,6 +333,16 @@ function AskOutcome({
     const result = ask.result;
     if (result == null) {
         return null;
+    }
+    if (result.queued) {
+        return (
+            <p className="text-11 text-warning" data-testid="review-ask-outcome">
+                {result.message ? `${result.message} ` : ""}
+                {(result.position ?? 1) > 1
+                    ? AskQueuedBehind.replace("%d", String(result.position - 1))
+                    : AskQueuedNext}
+            </p>
+        );
     }
     if (result.sent) {
         return (

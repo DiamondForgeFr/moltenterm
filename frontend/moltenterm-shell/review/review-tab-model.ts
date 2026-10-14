@@ -19,6 +19,7 @@ import type * as MonacoTypes from "monaco-editor";
 import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
 import { ReviewsAnswer } from "../reviews/reviews-model";
 import { TabActivity, whileShown } from "../tab-activity";
+import { answerKey } from "./review-answers";
 import { confirmAgentWorktree, ReviewWorktreeRisk } from "./review-cleanup";
 import {
     discussReviewComment,
@@ -70,6 +71,7 @@ import { developerLanguage, ReviewSelection, stagedCount } from "./review-select
 import {
     askReviewBriefing,
     askReviewSession,
+    cancelReviewQuestion,
     getReviewSession,
     ReviewAnchor,
     ReviewAskResult,
@@ -150,6 +152,9 @@ export type ReviewAiState = {
     session?: ReviewSessionInfo;
 };
 
+// The answer group the AI panel brings into view and highlights (a gutter marker's click); seq bumps on each ask.
+export type ReviewAnswerFocus = { key: string; seq: number };
+
 // What asking the agent for a briefing gave (FR-REV-005 AC4).
 export type ReviewBriefAsk = { status: "idle" | "asking" | ReviewBriefResult["status"]; message?: string; at?: number };
 
@@ -206,6 +211,8 @@ export abstract class ReviewTabModel implements ViewModel {
     overlayAtom = atom(null) as PrimitiveAtom<ReviewOverlayPos>;
     composerAtom = atom(null) as PrimitiveAtom<ReviewComposer>;
     askAtom = atom(null) as PrimitiveAtom<ReviewAsk>;
+    // FR-REV-006: the answer group a gutter marker asked the AI panel to show.
+    answerFocusAtom = atom(null) as PrimitiveAtom<ReviewAnswerFocus>;
 
     treeAtom: Atom<TreeNode[]>;
     orderedFilesAtom: Atom<ReviewFile[]>;
@@ -227,8 +234,8 @@ export abstract class ReviewTabModel implements ViewModel {
     checkingHead = false;
     // The head the session was last moved to (one request per head).
     sessionHeadAsked: string = null;
-    // A line a briefing link asked for, shown once its file's diff is on screen.
-    pendingReveal: FileLink = null;
+    // A line a briefing link or an answer card asked for (on its side), shown once its file's diff is on screen.
+    pendingReveal: FileLink & { side?: string } = null;
     registeredKey: string = null;
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
@@ -568,7 +575,7 @@ export abstract class ReviewTabModel implements ViewModel {
         if (!(reveal.line > 0)) {
             return;
         }
-        const editor = diff.getModifiedEditor();
+        const editor = reveal.side === "LEFT" ? diff.getOriginalEditor() : diff.getModifiedEditor();
         editor.revealLineInCenter(reveal.line);
         editor.setSelection({ startLineNumber: reveal.line, startColumn: 1, endLineNumber: reveal.line, endColumn: 1 });
     }
@@ -719,12 +726,54 @@ export abstract class ReviewTabModel implements ViewModel {
             }
             const result = await askReviewSession({ id: session.id }, ask.anchor, ask.text, question.trim());
             globalStore.set(this.askAtom, (cur) => ({ ...cur, sending: false, result }));
-            return result.sent;
+            return result.sent || !!result.queued;
         } catch (e) {
             console.log(`[review] ${pr.repo}#${pr.number}: the question could not be sent`, e);
             globalStore.set(this.askAtom, (cur) => ({ ...cur, sending: false, error: String(e?.message ?? e) }));
             return false;
         }
+    }
+
+    // cancelQuestion removes a queued question (FR-REV-006 AC4); the session's update shows the queue without it.
+    async cancelQuestion(questionid: string): Promise<string> {
+        const session = globalStore.get(this.aiAtom).session;
+        if (session == null) {
+            return null;
+        }
+        try {
+            await cancelReviewQuestion({ id: session.id }, questionid);
+            return null;
+        } catch (e) {
+            return String(e?.message ?? e);
+        }
+    }
+
+    // showAnswer is a gutter marker's click (FR-REV-006 AC2): the AI panel opens, without starting a session, and
+    // brings the answers on those lines into view.
+    showAnswer(anchor: ReviewAnchor) {
+        const previous = globalStore.get(this.answerFocusAtom);
+        globalStore.set(this.answerFocusAtom, { key: answerKey(anchor), seq: (previous?.seq ?? 0) + 1 });
+        if (globalStore.get(this.aiPaneIdAtom) != null) {
+            return;
+        }
+        const pr = this.pr();
+        fireAndForget(async () => {
+            await openReviewAiPane(globalStore.get(atoms.staticTabId), this.blockId, pr);
+        });
+    }
+
+    // revealAnchor shows an answer's lines in the diff, on their side (an answer card's link).
+    revealAnchor(anchor: ReviewAnchor): boolean {
+        if (anchor == null || this.fileOf(anchor.path) == null) {
+            return false;
+        }
+        this.pendingReveal = { path: anchor.path, line: anchor.startline ?? anchor.line, side: anchor.side };
+        if (globalStore.get(this.selectedAtom) === anchor.path && this.diffEditor != null) {
+            this.revealPending(this.diffEditor);
+        } else {
+            this.selectFile(anchor.path);
+        }
+        return true;
     }
 
     // openComposer is Comment (AC3, AC4): a line comment inside a hunk, a file-level one quoting the lines elsewhere.

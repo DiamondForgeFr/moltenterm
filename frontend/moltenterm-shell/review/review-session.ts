@@ -21,6 +21,7 @@ export const ReviewPostsCommand = "moltenreviewposts";
 export const ReviewSetHeadCommand = "moltenreviewsethead";
 export const ReviewBriefCommand = "moltenreviewbrief";
 export const ReviewAskCommand = "moltenreviewask";
+export const ReviewAskCancelCommand = "moltenreviewaskcancel";
 
 // Starting may fetch the PR's branch and create its worktree.
 const StartTimeoutMs = 100_000;
@@ -84,6 +85,18 @@ export type ReviewSessionInfo = {
     message?: string;
     startedat: number;
     connected: boolean;
+    // The questions waiting for the agent to be idle, oldest first (FR-REV-006 AC4).
+    questions?: ReviewQueuedQuestion[];
+    // Why the queue does not move, or what its last delivery did when it failed.
+    queuenote?: string;
+};
+
+export type ReviewQueuedQuestion = {
+    id: string;
+    anchor?: ReviewAnchor;
+    text?: string;
+    question: string;
+    queuedat: number;
 };
 
 // noagent: no supported agent is installed; the review works without AI (FR-REV-004 AC6).
@@ -97,6 +110,7 @@ export type ReviewPost = {
     at: number;
     markdown?: string;
     text?: string;
+    question?: string;
     anchor?: ReviewAnchor;
     depth?: "quick" | "detailed";
     sources?: string[];
@@ -155,9 +169,18 @@ export function askReviewBriefing(key: ReviewSessionKey): Promise<ReviewBriefRes
     return call(ReviewBriefCommand, key, BriefTimeoutMs);
 }
 
-// sent: typed into the agent's prompt (submitted: with Enter). busy: the agent works or waits for an answer, nothing
-// was typed.
-export type ReviewAskResult = { sent: boolean; submitted?: boolean; busy?: boolean; line?: string; message?: string };
+// sent: typed into the agent's prompt (submitted: with Enter). queued: the agent works or waits for an answer (busy),
+// or other questions wait: it is typed once the agent is idle (position 1: next).
+export type ReviewAskResult = {
+    sent: boolean;
+    submitted?: boolean;
+    busy?: boolean;
+    queued?: boolean;
+    questionid?: string;
+    position?: number;
+    line?: string;
+    message?: string;
+};
 
 // askReviewSession is Ask the AI (FR-REV-003): the selection becomes the session's and the question is typed into the
 // agent's terminal with the selection's reference.
@@ -168,6 +191,11 @@ export function askReviewSession(
     question: string
 ): Promise<ReviewAskResult> {
     return call(ReviewAskCommand, { ...key, anchor: anchor ?? undefined, text: text || undefined, question });
+}
+
+// cancelReviewQuestion removes a queued question before it is typed.
+export function cancelReviewQuestion(key: ReviewSessionKey, questionid: string): Promise<void> {
+    return call(ReviewAskCancelCommand, { ...key, questionid });
 }
 
 export async function reviewSessionPosts(key: ReviewSessionKey): Promise<ReviewPost[]> {

@@ -4,11 +4,13 @@
 // The Review tab's diff editor and its line selection (FR-REV-003, DS-REV-003), on MonacoDiffViewer's onMount: the
 // selection of either side becomes the tab's (base = LEFT, head = RIGHT), its actions show next to it and answer
 // Alt+A (Ask the AI) and Alt+C (Comment), and the file's comments show in the gutter of their side, coloured by state;
-// a click on one opens it. Monaco comes from onMount, so nothing here loads it.
+// a click on one opens it. The agent's answers (FR-REV-006) show as a spark on their first line, whose click shows
+// them in the AI panel. Monaco comes from onMount, so nothing here loads it.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import type * as MonacoTypes from "monaco-editor";
-import { ReviewComment } from "./review-client";
+import { answerAtLine, answerMarkerLines, answersOnSide } from "./review-answers";
+import { ReviewComment, ReviewExplanation } from "./review-client";
 import {
     commentAtLine,
     commentsOfFile,
@@ -47,6 +49,19 @@ export function commentHover(comment: ReviewComment): string {
         comment.subject === "file" ? "file-level, quoting " + linesLabel(comment.anchor) : linesLabel(comment.anchor);
     const what = comment.kind === "change" ? "change request" : "comment";
     return `**${CommentStateLabels[comment.state] ?? comment.state} ${what}** · ${where}\n\n${escapeMarkdown(comment.original.text)}`;
+}
+
+// The gutter marker of the agent's answers (FR-REV-006): its click opens them in the AI panel.
+const AnswerGlyphClass = "molten-review-answer";
+const AnswerHoverTitle = "AI answer";
+const AnswerHoverTitleMany = "AI answers";
+const AnswerHoverHint = "Click to show it in the AI panel.";
+
+export function answerHover(answers: readonly ReviewExplanation[]): string {
+    const title = answers.length > 1 ? `${AnswerHoverTitleMany} (${answers.length})` : AnswerHoverTitle;
+    const last = answers[answers.length - 1];
+    const question = last?.question ? `\n\n${escapeMarkdown(last.question)}` : "";
+    return `**${title}** · ${linesLabel(last.anchor)}${question}\n\n${AnswerHoverHint}`;
 }
 
 export function attachDiffActions(
@@ -152,6 +167,16 @@ export function attachDiffActions(
                     },
                 });
             }
+            const answers = answersOnSide(state?.explanations, path, side, head, since);
+            for (const [line, onLine] of answerMarkerLines(answers)) {
+                items.push({
+                    range: new monacoApi.Range(line, 1, line, 1),
+                    options: {
+                        glyphMarginClassName: `molten-review-glyph ${AnswerGlyphClass}`,
+                        glyphMarginHoverMessage: { value: answerHover(onLine) },
+                    },
+                });
+            }
             let collection = decorations.get(side);
             if (collection == null) {
                 collection = editor.createDecorationsCollection();
@@ -172,6 +197,20 @@ export function attachDiffActions(
                 }
                 const line = e.target.position?.lineNumber;
                 const state = globalStore.get(model.stateAtom);
+                if (line != null && (e.target.element as HTMLElement)?.classList?.contains(AnswerGlyphClass)) {
+                    const answers = answersOnSide(
+                        state?.explanations,
+                        globalStore.get(model.selectedAtom),
+                        side,
+                        model.shownHead(),
+                        globalStore.get(model.modeAtom) === "since"
+                    );
+                    const answer = answerAtLine(answers, line);
+                    if (answer != null) {
+                        model.showAnswer(answer.anchor);
+                    }
+                    return;
+                }
                 const shown = commentsOfFile(state, globalStore.get(model.selectedAtom)).filter((c) =>
                     onEditorSide(c, side, model.shownHead(), globalStore.get(model.modeAtom) === "since")
                 );
