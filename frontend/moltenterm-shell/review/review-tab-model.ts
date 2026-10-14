@@ -24,6 +24,10 @@ import {
     ReviewFileResult,
     reviewFiles,
     ReviewFilesResult,
+    reviewMerge,
+    reviewMergeCancel,
+    ReviewMergePlan,
+    reviewMergePlan,
     ReviewPrInfo,
     ReviewPrMetaKey,
     ReviewState,
@@ -35,6 +39,7 @@ import {
     subscribeReviewState,
 } from "./review-client";
 import { buildFileTree, firstFile, isViewed, MoltentermReviewView, treeFiles, TreeNode } from "./review-model";
+import { mergeRunning } from "./review-merge";
 import { getReviewSession, ReviewSessionInfo, startReviewSession, subscribeReviewSession } from "./review-session";
 
 // The PR's head is asked from the collector at most this often while the tab shows (it reads GitHub at most once a
@@ -57,6 +62,17 @@ export type ReviewFileView = {
 export type ReviewNewCommits = { to: string; baseoid?: string; commits: number; rewritten?: boolean };
 
 export type ReviewWorktreeState = { state: "pending" | "ready" | "failed"; worktree?: ReviewWorktree; error?: string };
+
+// Validate's plan sheet (FR-REV-012): the plan read on opening it, the developer's confirmation of its warnings, and
+// the plan whose merge was clicked, so the sheet follows that merge in the review store.
+export type ReviewValidateState = {
+    open: boolean;
+    loading: boolean;
+    plan?: ReviewMergePlan;
+    error?: string;
+    override: boolean;
+    clicked?: string;
+};
 
 export type ReviewAiState = {
     open: boolean;
@@ -93,6 +109,7 @@ export abstract class ReviewTabModel implements ViewModel {
     worktreeAtom = atom({ state: "pending" }) as PrimitiveAtom<ReviewWorktreeState>;
     aiAtom = atom({ open: false, status: "idle" }) as PrimitiveAtom<ReviewAiState>;
     renderMsAtom = atom(null) as PrimitiveAtom<number>;
+    validateAtom = atom({ open: false, loading: false, override: false }) as PrimitiveAtom<ReviewValidateState>;
 
     treeAtom: Atom<TreeNode[]>;
     orderedFilesAtom: Atom<ReviewFile[]>;
@@ -136,7 +153,7 @@ export abstract class ReviewTabModel implements ViewModel {
         }
         this.started = true;
         this.cleanups.push(
-            subscribeReviewState(pr.repo, pr.number, (state) => globalStore.set(this.stateAtom, state)),
+            subscribeReviewState(pr.repo, pr.number, (state) => this.applyState(state)),
             subscribeReviewSession(pr.repo, pr.number, (update) => {
                 if (update.ended) {
                     globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "idle", session: null }));
@@ -476,6 +493,89 @@ export abstract class ReviewTabModel implements ViewModel {
         } catch (e) {
             globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "failed", message: String(e?.message ?? e) }));
         }
+    }
+
+    // applyState takes the store's state; a merge that just ended refreshes the Reviews list once (DS-REV-001: right
+    // after a MoltenTerm action).
+    applyState(state: ReviewState) {
+        const before = globalStore.get(this.stateAtom)?.merge;
+        globalStore.set(this.stateAtom, state);
+        const after = state?.merge;
+        if (after == null || !mergeRunning(before) || mergeRunning(after) || before.planid !== after.planid) {
+            return;
+        }
+        const pr = this.pr();
+        fireAndForget(async () => {
+            await reviewsGet(pr.dir, true);
+        });
+    }
+
+    // Validate (FR-REV-012, AC1): the plan sheet opens on a fresh read of the PR. Nothing merges until Merge is
+    // clicked on it.
+    async openValidate() {
+        globalStore.set(this.validateAtom, { open: true, loading: true, override: false });
+        await this.loadPlan();
+    }
+
+    async loadPlan() {
+        const pr = this.pr();
+        globalStore.set(this.validateAtom, (v) => ({ ...v, loading: true, error: null }));
+        try {
+            const plan = await reviewMergePlan({ dir: pr.dir, repo: pr.repo, number: pr.number, ticket: pr.ticket });
+            globalStore.set(this.validateAtom, (v) => (v.open ? { ...v, loading: false, plan, override: false } : v));
+        } catch (e) {
+            globalStore.set(this.validateAtom, (v) => ({ ...v, loading: false, error: String(e?.message ?? e) }));
+        }
+    }
+
+    closeValidate() {
+        globalStore.set(this.validateAtom, { open: false, loading: false, override: false });
+    }
+
+    setValidateOverride(override: boolean) {
+        globalStore.set(this.validateAtom, (v) => ({ ...v, override }));
+    }
+
+    // merge is the developer's click (AC5): wavesrv checks the plan and the head again, then reports in the store.
+    async merge() {
+        const pr = this.pr();
+        const v = globalStore.get(this.validateAtom);
+        if (v.plan == null) {
+            return;
+        }
+        globalStore.set(this.validateAtom, (s) => ({ ...s, clicked: v.plan.id, error: null }));
+        try {
+            const record = await reviewMerge(pr.repo, pr.number, v.plan.id, v.override);
+            // The store's event may have come first with a newer step of this merge.
+            globalStore.set(this.stateAtom, (state) =>
+                state && state.merge?.planid !== record.planid ? { ...state, merge: record } : state
+            );
+        } catch (e) {
+            globalStore.set(this.validateAtom, (s) => ({ ...s, clicked: null, error: String(e?.message ?? e) }));
+        }
+    }
+
+    async cancelMerge() {
+        const pr = this.pr();
+        try {
+            await reviewMergeCancel(pr.repo, pr.number);
+        } catch (e) {
+            globalStore.set(this.validateAtom, (s) => ({ ...s, error: String(e?.message ?? e) }));
+        }
+    }
+
+    // After a refusal on new commits (AC2): the sheet closes and the tab shows the PR's new head.
+    async reviewNewCommits() {
+        this.closeValidate();
+        try {
+            const latest = this.prOf(await reviewsGet(this.pr().dir, true));
+            if (latest?.headoid) {
+                await this.noticeHead(latest.headoid, latest.baseoid);
+            }
+        } catch (e) {
+            console.log("[review] the pull request's head could not be read", e);
+        }
+        await this.refresh();
     }
 
     dispose() {

@@ -53,6 +53,8 @@ type State struct {
 	Since     *Since  `json:"since,omitempty"`
 	Rounds    []Round `json:"rounds"`
 	UpdatedAt int64   `json:"updatedat,omitempty"`
+	// Merge: the last Validate's merge and its outcome (FR-REV-012, merge.go).
+	Merge *MergeRecord `json:"merge,omitempty"`
 }
 
 type PrKey struct {
@@ -179,6 +181,49 @@ func (s *Store) update(k PrKey, change func(state *State) bool) (State, bool, er
 	}
 	state.UpdatedAt = s.now().UnixMilli()
 	return state, true, s.write(k, state)
+}
+
+// SetMerge records the merge's progress or outcome (FR-REV-012-AC5).
+func (s *Store) SetMerge(k PrKey, record MergeRecord) (State, bool, error) {
+	return s.update(k, func(state *State) bool {
+		state.Merge = &record
+		return true
+	})
+}
+
+// Unpublished counts the PR's comments not published yet (drafted, staged, translated, outdated). It reads the
+// stored file's comments by their state only, so it does not depend on the rest of the comment's shape (FR-REV-003).
+func (s *Store) Unpublished(k PrKey) (int, error) {
+	if err := k.check(); err != nil {
+		return 0, err
+	}
+	lock := s.prLock(k)
+	lock.Lock()
+	defer lock.Unlock()
+	data, err := os.ReadFile(s.fileOf(k))
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	var stored struct {
+		Comments []struct {
+			State string `json:"state"`
+		} `json:"comments"`
+	}
+	if err := json.Unmarshal(data, &stored); err != nil {
+		return 0, nil
+	}
+	count := 0
+	for _, c := range stored.Comments {
+		switch c.State {
+		case "published", "dropped":
+			continue
+		}
+		count++
+	}
+	return count, nil
 }
 
 // SetViewed marks or unmarks a file viewed (AC1).

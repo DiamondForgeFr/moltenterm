@@ -254,6 +254,18 @@ func SummarizeReviewChecks(rollup []ghReviewRollup) ReviewCi {
 	return ci
 }
 
+// ParseReviewChecks folds a statusCheckRollup as gh prints it (gh pr view --json statusCheckRollup), for the merge plan
+// of the Review tab (FR-REV-012).
+func ParseReviewChecks(raw json.RawMessage) (ReviewCi, error) {
+	var rollup []ghReviewRollup
+	if len(raw) > 0 && string(raw) != "null" {
+		if err := json.Unmarshal(raw, &rollup); err != nil {
+			return ReviewCi{State: ReviewCheckNone, Checks: []ReviewCheck{}}, err
+		}
+	}
+	return SummarizeReviewChecks(rollup), nil
+}
+
 // ReviewMergeOf names GitHub's mergeStateStatus in the review's words (FR-REV-001-AC2).
 func ReviewMergeOf(mergeState string) string {
 	switch strings.ToUpper(mergeState) {
