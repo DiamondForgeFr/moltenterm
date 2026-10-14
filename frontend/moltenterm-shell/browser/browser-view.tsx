@@ -112,6 +112,7 @@ import {
     isSharedTab,
     moveQuestion,
     NoAgentReason,
+    ofTab,
     ShareAgent,
     shareAgents,
     ShareLabel,
@@ -156,6 +157,8 @@ export class BrowserViewModel implements ViewModel {
     noPadding = atom(true);
     noHeader = atom(true);
     stateAtom: PrimitiveAtom<BrowserState>;
+    // The panes of the workspace tab holding this panel: Share with agent offers only their agents (#594).
+    tabBlockIdsAtom: Atom<string[]>;
     webviews = new Map<string, WebviewTag>();
     urlInputRef: React.RefObject<HTMLInputElement> = { current: null };
     persistTimer: ReturnType<typeof setTimeout> = null;
@@ -178,9 +181,12 @@ export class BrowserViewModel implements ViewModel {
     // Hidden pages frozen and discarded by the main process (#459).
     lifecycle: BrowserLifecycleModel;
 
-    constructor({ blockId, nodeModel }: ViewModelInitType) {
+    constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.blockId = blockId;
         this.nodeModel = nodeModel;
+        this.tabBlockIdsAtom = atom((get) =>
+            tabModel != null ? ((get(tabModel.tabAtom) as Tab)?.blockids ?? []) : []
+        );
         this.layoutNode = nodeModel as Partial<NodeModel>;
         this.blockAtom = makeBlockAtom(blockId);
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
@@ -773,7 +779,7 @@ export class BrowserViewModel implements ViewModel {
         });
     }
 
-    // The workspace's agents (the agent states the companion and the command panel read) joined with the agents
+    // The agents of this panel's tab (the agent states the companion and the command panel read) joined with the agents
     // connected to MoltenTerm's browser, read when a menu opens.
     async loadShareAgents(): Promise<ShareAgent[]> {
         let sessions: AgentSession[] = [];
@@ -782,8 +788,13 @@ export class BrowserViewModel implements ViewModel {
         } catch (e) {
             console.log("browser share: no agent sessions", e);
         }
+        const tabBlockIds = globalStore.get(this.tabBlockIdsAtom);
+        sessions = ofTab(sessions, tabBlockIds);
         const workspaceId = globalStore.get(atoms.workspace)?.oid;
-        const states = agentStatesOfWorkspace(globalStore.get(AgentStates.getInstance().dataAtom), workspaceId);
+        const states = ofTab(
+            agentStatesOfWorkspace(globalStore.get(AgentStates.getInstance().dataAtom), workspaceId),
+            tabBlockIds
+        );
         const blockIds = [...new Set([...states.map((s) => s.blockid), ...sessions.map((s) => s.blockid)])];
         const metas = new Map<string, MetaType>();
         await Promise.all(
@@ -1569,23 +1580,26 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
     );
 }
 
-// Share with agent in the toolbar (FR-BRW-011 AC1): disabled with its reason when no agent runs in the workspace or the
-// page is not in MoltenTerm's engine (AC2, AC8).
+// Share with agent in the toolbar (FR-BRW-011 AC1): disabled with its reason when no agent runs in the panel's tab
+// (#594) or the page is not in MoltenTerm's engine (AC2, AC8).
 function ShareButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
     const agentData = useAtomValue(AgentStates.getInstance().dataAtom);
     const workspace = useAtomValue(atoms.workspace);
     const list = useAtomValue(model.engines.listAtom);
     const sessions = useAtomValue(model.agents.sessionsAtom);
+    const tabBlockIds = useAtomValue(model.tabBlockIdsAtom);
     useEffect(() => {
         model.agents.refreshSessions();
-    }, [model, agentData]);
+    }, [model, agentData, tabBlockIds]);
     if (tab == null) {
         return null;
     }
-    const running = agentStatesOfWorkspace(agentData, workspace?.oid).filter((s) => s.agent || s.agentname);
+    const running = ofTab(agentStatesOfWorkspace(agentData, workspace?.oid), tabBlockIds).filter(
+        (s) => s.agent || s.agentname
+    );
     const reason = tab.engine
         ? unshareableReason(tab, engineName(tab.engine, list))
-        : running.length === 0 && sessions.length === 0
+        : running.length === 0 && ofTab(sessions, tabBlockIds).length === 0
           ? NoAgentReason
           : "";
     return (
