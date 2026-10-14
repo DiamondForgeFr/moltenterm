@@ -9,20 +9,25 @@ import { MoltentermBrowserView } from "./browser/browser-model";
 import { MoltentermCompanionView } from "./companion/companion-model";
 import { t } from "./i18n/i18n";
 import { MoltentermLineMapView } from "./mission/line-map-model";
-import { MoltentermProjectView } from "./project/project-model";
+import { MoltentermOnboardingView } from "../moltenterm-onboarding/onboarding-state";
+import { LegacyTimelineView, MoltentermProjectView } from "./project/project-model";
+import { MoltentermReviewAiView } from "./review/review-model";
 import { MoltentermSessionsView } from "./sessions/sessions-model";
 import { pathBaseName } from "./workspace-project";
 
 export const DefaultTabIcon = "square";
 export const DefaultAgentGlyph = "robot";
-// The CI/CD, Reviews and Review views' types, repeated here so this file stays free of the views' React code.
+// The CI/CD, Reviews, Review and Tips views' types, repeated here so this file stays free of the views' React code.
 const CicdView = "molten-cicd";
 const ReviewsView = "molten-reviews";
 const ReviewView = "molten-review";
+const TipsView = "tips";
 
 // title is a dictionary key.
 type ViewFacts = { icon: string; title: string };
 
+// Every view the block registry knows (blockregistry.ts and views.ts) has an entry: a panel's title is never its raw
+// view type (#642).
 const Views: Record<string, ViewFacts> = {
     term: { icon: "terminal", title: "tabs.views.terminal" },
     preview: { icon: "folder-open", title: "tabs.views.files" },
@@ -41,6 +46,15 @@ const Views: Record<string, ViewFacts> = {
     help: { icon: "circle-question", title: "tabs.views.help" },
     processviewer: { icon: "microchip", title: "tabs.views.processes" },
     codeeditor: { icon: "file-lines", title: "tabs.views.editor" },
+    [MoltentermReviewAiView]: { icon: "sparkles", title: "tabs.views.reviewAi" },
+    [TipsView]: { icon: "lightbulb", title: "tabs.views.tips" },
+    [MoltentermOnboardingView]: { icon: "compass", title: "tabs.views.onboarding" },
+    [LegacyTimelineView]: { icon: "gauge", title: "tabs.views.project" },
+    waveai: { icon: "sparkles", title: "tabs.views.waveAi" },
+    cpuplot: { icon: "chart-line", title: "tabs.views.system" },
+    vdom: { icon: "shapes", title: "tabs.views.app" },
+    tsunami: { icon: "shapes", title: "tabs.views.app" },
+    aifilediff: { icon: "code-compare", title: "tabs.views.fileDiff" },
 };
 
 export type PanelMeta = {
@@ -71,12 +85,9 @@ function hostOf(url: string): string {
     }
 }
 
-function capitalize(text: string): string {
-    return text ? text[0].toUpperCase() + text.slice(1) : "";
-}
-
 // A terminal is named after its folder (the home folder reads ~), a file view after its file, a web page after its
-// host; MoltenTerm views and the other Wave views after the view.
+// host; MoltenTerm views and the other Wave views after the view. A view without an entry gives no title, never its raw
+// view type: the caller shows its own generic name (the radar's "Panel", Wave's tab name).
 export function panelTitle(meta: PanelMeta, homeDir = ""): string {
     if (meta == null) {
         return "";
@@ -97,7 +108,7 @@ export function panelTitle(meta: PanelMeta, homeDir = ""): string {
     if (view === "web" || view === MoltentermBrowserView) {
         return hostOf(meta.url ?? "") || viewTitle;
     }
-    return viewTitle || capitalize(view);
+    return viewTitle;
 }
 
 // The name the tab shows: the user's, else its first panel's title, else Wave's own.
