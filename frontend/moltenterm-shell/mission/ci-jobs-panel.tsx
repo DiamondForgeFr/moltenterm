@@ -7,13 +7,13 @@
 // catalogue is read when the tab opens and again when the snapshot says a workflow file or the pipeline changed.
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { openWebLink } from "@/moltenterm-shell/open-web-link";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { agentCallName, agentLabel, AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { useT } from "../i18n/i18n";
+import { openWebLink } from "../open-web-link";
 import { workspaceAgents } from "../project/project-model";
 import { openFileInPreview } from "../term-copy/term-copy";
 import { CiIcon, githubRunIconState, LocalCiIcon } from "./ci-icon";

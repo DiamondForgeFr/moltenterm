@@ -41,8 +41,10 @@ import {
     Lock,
     LogOut,
     Map as MapIcon,
+    MapPin,
     Maximize2,
     MessageSquareText,
+    Mic,
     Orbit,
     PackageCheck,
     Palette,
@@ -64,6 +66,7 @@ import {
     Trash2,
     TriangleAlert,
     Type,
+    Video,
     Wand2,
     Workflow,
     Wrench,
@@ -139,6 +142,9 @@ export const SuiteIcons = {
     files: p(FileBraces),
     startup: p(Rocket),
     mission: p(Radar),
+    camera: p(Video),
+    microphone: p(Mic),
+    location: p(MapPin),
 } satisfies Record<string, SuiteIconEntry>;
 
 export type SuiteIconName = keyof typeof SuiteIcons;

@@ -8,7 +8,6 @@
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { globalStore } from "@/app/store/jotaiStore";
-import { openWebLink } from "@/moltenterm-shell/open-web-link";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -18,6 +17,7 @@ import { CiIcon, CiIconState } from "../mission/ci-icon";
 import { ActiveProject, MissionFrame, MissionHeader } from "../mission/mission-frame";
 import { MissionSnapshot } from "../mission/mission-model";
 import { timeAgo } from "../mission/time-format";
+import { openWebLink } from "../open-web-link";
 import { useReviews } from "./reviews-client";
 import {
     ciLabel,

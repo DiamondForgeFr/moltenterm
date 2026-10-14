@@ -5,7 +5,6 @@
 // what waits on the trunk, Mission Control's only copy of the actions (Run CI on develop, Build local, Release, Deploy
 // to, Clean branches), and a fixed list of the latest pending changes. What it shows comes from next-station-model.ts.
 
-import { openWebLink } from "@/moltenterm-shell/open-web-link";
 import { cn, fireAndForget } from "@/util/util";
 import { useMemo } from "react";
 import { useLocale, useT } from "../i18n/i18n";
@@ -17,6 +16,7 @@ import { deployRevision, deployTargets, stepRunning } from "../mission/deploy-mo
 import { latestRun } from "../mission/mission-model";
 import { ReleaseMenu } from "../mission/release-menu";
 import { MoltenWave } from "../molten-button";
+import { openWebLink } from "../open-web-link";
 import { WorkspaceIcon } from "../workspace-icon";
 import { WorkspaceIconSource, workspaceIconSource } from "../workspace-icon-model";
 import {

@@ -63,6 +63,7 @@ import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-pol
 import { exportSystemLanguageToEnv, initMoltentermI18n, initMoltentermI18nIpc, mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
 import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-PATCH (#276)
 import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
+import { initMoltentermSitePermissions, installMoltentermSitePermissionHandlers } from "./moltenterm-site-permissions"; // MOLTENTERM-PATCH (#663)
 import { initMoltentermSystemNotify } from "./moltenterm-system-notify"; // MOLTENTERM-PATCH (#605)
 import { initMoltentermTabActivity } from "./moltenterm-tab-activity"; // MOLTENTERM-PATCH (#455)
 import { initMoltentermTabViewBudget } from "./moltenterm-tabview-budget-live"; // MOLTENTERM-PATCH (#454)
@@ -426,6 +427,7 @@ async function appMain() {
     initMoltentermTabActivity(); // MOLTENTERM-PATCH (#455): window state for the tab activity model, before any window
     initMoltentermSystemNotify(); // MOLTENTERM-PATCH (#605): system notifications while no window is in front
     initMoltentermI18nIpc(); // MOLTENTERM-PATCH (#623): the OS languages for the renderers, their resolved language
+    installMoltentermSitePermissionHandlers(); // MOLTENTERM-PATCH (#663): what pages may use, before any page loads
 
     await sleep(10); // wait a bit for wavesrv to be ready
     try {
@@ -438,6 +440,7 @@ async function appMain() {
     }
     const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
     initMoltentermI18n(fullConfig); // MOLTENTERM-PATCH (#623): menus and dialogs follow app:language, live
+    initMoltentermSitePermissions(fullConfig); // MOLTENTERM-PATCH (#663): the remembered site permissions, live
     checkIfRunningUnderARM64Translation(fullConfig);
     if (fullConfig?.settings?.["app:confirmquit"] != null) {
         confirmQuit = fullConfig.settings["app:confirmquit"];

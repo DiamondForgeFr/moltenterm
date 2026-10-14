@@ -6,11 +6,11 @@
 // before the failed one is offered again beside it); the cut says what cannot be taken back before it lands, and
 // while it waits its public notes are read and edited here.
 
-import { openWebLink } from "@/moltenterm-shell/open-web-link";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { openWebLink } from "../open-web-link";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {

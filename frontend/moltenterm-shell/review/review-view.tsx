@@ -7,7 +7,6 @@
 // read-only text: nothing from it is executed.
 
 import { useOverrideConfigAtom } from "@/app/store/global";
-import { openWebLink } from "@/moltenterm-shell/open-web-link";
 import { boundNumber, cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
@@ -16,6 +15,7 @@ import { EmptyState } from "../empty-state";
 import { useT } from "../i18n/i18n";
 import { MonacoDiffViewer } from "../lazy/monaco-lazy";
 import { MoltenWave } from "../molten-button";
+import { openWebLink } from "../open-web-link";
 import { CommentsStrip, SelectionOverlay } from "./review-actions-view";
 import { ReviewFile, ReviewState } from "./review-client";
 import {

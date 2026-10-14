@@ -620,6 +620,10 @@
                 "label": "Per-site browser",
                 "description": "Sites that always open in MoltenTerm's browser or the installed one."
             },
+            "browser:sitepermissions": {
+                "label": "Site permissions",
+                "description": "What each site may use: camera, microphone, location, notifications."
+            },
             "browser:agentsites": {
                 "label": "Agent site permissions",
                 "description": "Sites agents may use or are blocked from in the browser panel."
@@ -1674,6 +1678,20 @@
             "siteDetail": "It can read and act on this site's pages, with your sign-ins.",
             "allowOnce": "Allow once",
             "always": "Always for this site",
+            "block": "Block"
+        },
+        "sitePermission": {
+            "aria": "Site permission request",
+            "title": "{site} wants to {what}",
+            "detail": "Your answer is remembered for this site.",
+            "what": {
+                "camera": "use your camera",
+                "microphone": "use your microphone",
+                "cameraMicrophone": "use your camera and microphone",
+                "location": "know your location",
+                "notifications": "show notifications"
+            },
+            "allow": "Allow",
             "block": "Block"
         },
         "engine": {

@@ -9,7 +9,6 @@
 import { atoms, getApi } from "@/app/store/global";
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { getLayoutModelForStaticTab } from "@/layout/index";
-import { openWebLink } from "@/moltenterm-shell/open-web-link";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
@@ -18,6 +17,7 @@ import { useLocale, useT } from "./i18n/i18n";
 import { KeepAwakeStatusItem } from "./keepawake-ui";
 import { MoltentermCicdView } from "./mission/cicd-view";
 import { openMoltentermView } from "./open-view";
+import { openWebLink } from "./open-web-link";
 import { usePaneStatus, useWarmLinkedProject } from "./pane-status";
 import { openProjectOverview } from "./project/project-tab";
 import { ReleaseNotesHost } from "./releases/release-notes-host";
