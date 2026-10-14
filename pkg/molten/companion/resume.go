@@ -28,6 +28,9 @@ type ResumeSession struct {
 func (w *watcher) resumeLink() (agent string, path string, linkedBy string) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
+	if w.earlier {
+		return w.agent, "", ""
+	}
 	return w.agent, w.path, w.linkedBy
 }
 

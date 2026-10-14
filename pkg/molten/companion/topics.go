@@ -6,6 +6,7 @@ package companion
 import (
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -32,11 +33,19 @@ const (
 	SubagentDone    = "done"
 	SubagentFailed  = "failed"
 	SubagentStopped = "stopped"
+	// SubagentQuiet: a background agent whose end the transcript never told and that wrote nothing for
+	// SubagentQuietAfter (an interrupted run, a resumed session): not shown as at work, back to running if it writes.
+	SubagentQuiet = "quiet"
 )
+
+// A background agent that wrote nothing for this long is no longer shown as running.
+const SubagentQuietAfter = 30 * time.Minute
 
 var (
 	taskNotificationRegex = regexp.MustCompile(`(?s)<task-notification>.*?</task-notification>`)
 	notificationToolRegex = regexp.MustCompile(`<tool-use-id>\s*([^<\s]{1,200})\s*</tool-use-id>`)
+	// A notification about agents that ended with a previous run names them by their agent ids, several at once.
+	notificationTaskRegex = regexp.MustCompile(`<task-id>\s*([^<\s]{1,200})\s*</task-id>`)
 	notificationStatus    = regexp.MustCompile(`<status>\s*([a-z_]{1,40})\s*</status>`)
 )
 
@@ -51,7 +60,9 @@ type topic struct {
 }
 
 type subagent struct {
-	id          string
+	id string
+	// agentId: the agent's own id (Claude Code's agentId), which names its transcript and some notifications.
+	agentId     string
 	description string
 	kind        string
 	model       string
@@ -255,13 +266,54 @@ func (s *Session) StartSubagent(id string, description string, kind string, mode
 	s.touch()
 }
 
+// subagent finds a sub-agent by its call's id, or by its own agent id.
 func (s *Session) subagent(id string) *subagent {
+	if id == "" {
+		return nil
+	}
 	for _, sa := range s.subagents {
-		if sa.id == id {
+		if sa.id == id || sa.agentId == id {
 			return sa
 		}
 	}
 	return nil
+}
+
+// SetSubagentId keeps the agent id the result of a sub-agent's call gives it.
+func (s *Session) SetSubagentId(callId string, agentId string) {
+	sa := s.subagent(callId)
+	if sa == nil || agentId == "" || sa.agentId == agentId {
+		return
+	}
+	sa.agentId = cutString(agentId, 200)
+}
+
+// QuietSubagents settles the background agents whose end the transcript did not tell: one that wrote nothing for
+// SubagentQuietAfter is quiet, a quiet one that writes again runs. lastWrite gives when an agent last wrote its own
+// transcript (0 when unknown, then its start counts). It tells whether anything changed.
+func (s *Session) QuietSubagents(now int64, lastWrite func(agentId string) int64) bool {
+	changed := false
+	for _, sa := range s.subagents {
+		if !sa.background || (sa.state != SubagentRunning && sa.state != SubagentQuiet) {
+			continue
+		}
+		last := sa.started
+		if sa.agentId != "" && lastWrite != nil {
+			last = max(last, lastWrite(sa.agentId))
+		}
+		state := SubagentRunning
+		if last > 0 && now-last > SubagentQuietAfter.Milliseconds() {
+			state = SubagentQuiet
+		}
+		if state != sa.state {
+			sa.state = state
+			changed = true
+		}
+	}
+	if changed {
+		s.touch()
+	}
+	return changed
 }
 
 // SubagentResult reads the result of a sub-agent's call: a background agent's call returns at once (async) and the
@@ -338,15 +390,17 @@ func taskNotifications(text string) (ends [][2]string, ok bool) {
 		return nil, false
 	}
 	for _, block := range blocks {
-		id := notificationToolRegex.FindStringSubmatch(block)
-		if id == nil {
-			continue
-		}
 		status := ""
 		if m := notificationStatus.FindStringSubmatch(block); m != nil {
 			status = m[1]
 		}
-		ends = append(ends, [2]string{id[1], status})
+		if id := notificationToolRegex.FindStringSubmatch(block); id != nil {
+			ends = append(ends, [2]string{id[1], status})
+			continue
+		}
+		for _, id := range notificationTaskRegex.FindAllStringSubmatch(block, -1) {
+			ends = append(ends, [2]string{id[1], status})
+		}
 	}
 	rest := strings.TrimSpace(cleanTitleText(taskNotificationRegex.ReplaceAllString(text, " ")))
 	return ends, rest == ""

@@ -4,6 +4,8 @@
 // The workspace task checkpoint (FR-CONT-007, DS-CONT-008): what wavesrv keeps of a workspace's task
 // (pkg/molten/agentcontinuity/checkpoint), and the pure rules of the companion's "Workspace task" section.
 
+import { CompanionView, sessionRelation } from "./companion-model";
+
 // must match pkg/molten/agenttask.go
 export const TaskRoute = "molten:task";
 export const TaskEvent = "molten:task";
@@ -147,6 +149,22 @@ export function taskSummary(view: TaskView): TaskSummary {
         redactions: view?.redactions ?? 0,
         versions: view?.versions ?? 0,
     };
+}
+
+const SessionLabels: Record<string, string> = {
+    current: "the current session",
+    earlier: "an earlier session of this terminal",
+    other: "another session",
+};
+
+// Which session last wrote the task, as the companion knows the terminal's sessions (#600); "" when the task names
+// no transcript.
+export function taskSessionLabel(view: TaskView, companion: CompanionView): string {
+    const path = view?.transcript?.path;
+    if (!path) {
+        return "";
+    }
+    return SessionLabels[sessionRelation(path, companion)] ?? "";
 }
 
 export function redactionLabel(count: number): string {

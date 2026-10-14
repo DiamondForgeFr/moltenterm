@@ -3,6 +3,7 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { CompanionView } from "./companion-model";
 import { WorkspaceTaskCard, WorkspaceTaskCardProps } from "./companion-task";
 import {
     authorLabel,
@@ -11,6 +12,7 @@ import {
     newerTask,
     planCounts,
     redactionLabel,
+    taskSessionLabel,
     taskSummary,
     TaskView,
 } from "./companion-task-model";
@@ -151,6 +153,24 @@ describe("workspace task section", () => {
         expect(html).not.toContain(">Open<");
         expect(html).not.toContain("Clear…");
         expect(html).not.toContain("updated");
+    });
+
+    it("says which session of the terminal wrote it (#600)", () => {
+        const companion: CompanionView = {
+            blockid: "b",
+            version: 1,
+            status: "live",
+            session: { path: "/private/home/me/.claude/projects/x/s2.jsonl", linkedby: "hook" },
+            earlier: [{ path: "/home/me/.claude/projects/x/s1.jsonl" }],
+        };
+        expect(taskSessionLabel(view, companion)).toBe("an earlier session of this terminal");
+        const current = { ...view, transcript: { ...view.transcript, path: "/home/me/.claude/projects/x/s2.jsonl" } };
+        expect(taskSessionLabel(current, companion)).toBe("the current session");
+        expect(taskSessionLabel(view, { ...companion, earlier: [] })).toBe("another session");
+        expect(taskSessionLabel({ ...view, transcript: null }, companion)).toBe("");
+        expect(card({ session: "the current session" })).toContain(
+            "by MoltenTerm, from Claude Code · the current session"
+        );
     });
 
     it("shows an action's error", () => {

@@ -6,8 +6,10 @@ package companion
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,6 +57,13 @@ type SettingsReader interface {
 	ReadSettings(path string) (molten.AgentSettings, bool)
 }
 
+// SubagentWriter is an adapter whose background agents write transcripts of their own, next to their session's:
+// when one was last written tells whether the agent still works when its end was never recorded.
+type SubagentWriter interface {
+	// SubagentWritten: when the agent last wrote its transcript, in Unix milliseconds; 0 when it has none.
+	SubagentWritten(sessionPath string, agentId string) int64
+}
+
 // Candidate is a session discovery found for a block.
 type Candidate struct {
 	Path     string `json:"path"`
@@ -69,7 +78,11 @@ type Candidate struct {
 	Current bool `json:"current,omitempty"`
 	// Elsewhere: another terminal's companion shows it as a guess; picking it here takes it.
 	Elsewhere bool `json:"elsewhere,omitempty"`
-	cwd       string
+	// Earlier: a session this terminal showed before its current one (#600).
+	Earlier bool `json:"earlier,omitempty"`
+	// Live: the session the agent runs now, while the companion shows an earlier one.
+	Live bool `json:"live,omitempty"`
+	cwd  string
 }
 
 func homeDir() string {
@@ -129,6 +142,45 @@ func ValidateSessionPath(a Adapter, path string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("the session transcript is not under %s's session folder", a.Id())
+}
+
+// ValidateReportedSessionPath is ValidateSessionPath for a hook's report, which may come before the transcript exists:
+// Claude Code runs SessionStart (after /clear too) before it writes the new session's first record. A missing file
+// is accepted when its folder passes the same checks; pending then tells the companion to wait for it.
+func ValidateReportedSessionPath(a Adapter, path string) (resolved string, pending bool, err error) {
+	resolved, err = ValidateSessionPath(a, path)
+	if err == nil {
+		return resolved, false, nil
+	}
+	if path == "" || len(path) > MaxPathBytes || strings.ContainsRune(path, 0) || !filepath.IsAbs(path) || !strings.HasSuffix(path, ".jsonl") {
+		return "", false, err
+	}
+	clean := filepath.Clean(path)
+	if _, statErr := os.Lstat(clean); !errors.Is(statErr, fs.ErrNotExist) {
+		return "", false, err
+	}
+	dir, err := filepath.EvalSymlinks(filepath.Dir(clean))
+	if err != nil {
+		return "", false, fmt.Errorf("session folder not found")
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return "", false, fmt.Errorf("session folder not found")
+	}
+	resolved = filepath.Join(dir, filepath.Base(clean))
+	for _, root := range a.Roots() {
+		realRoot, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			continue
+		}
+		rel, err := filepath.Rel(realRoot, resolved)
+		if err != nil || rel == "." || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+			continue
+		}
+		if a.ValidLayout(filepath.ToSlash(rel)) {
+			return resolved, true, nil
+		}
+	}
+	return "", false, fmt.Errorf("the session transcript is not under %s's session folder", a.Id())
 }
 
 // samePath compares two folders, symlinks resolved when they exist (/tmp and /private/tmp on macOS).

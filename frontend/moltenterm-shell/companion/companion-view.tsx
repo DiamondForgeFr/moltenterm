@@ -18,7 +18,7 @@ import { memo, useEffect, useMemo, useState } from "react";
 import { agentLabel } from "../agent-state-model";
 import { useBlockAgentState } from "../agent-state-ui";
 import { EmptyState, EmptyStateAction } from "../empty-state";
-import { always, TabActivity } from "../tab-activity";
+import { always, TabActivity, whileShown } from "../tab-activity";
 import { attachCompanion, companionAgent, startCompanionAgent, tabAttachCandidates } from "./companion-attach";
 import { FilesSection } from "./companion-files";
 import { PlanUsageSection } from "./companion-gauges";
@@ -61,6 +61,7 @@ export { MoltentermCompanionView };
 const RpcTimeoutMs = 5000;
 // The lease wavesrv keeps a follower for is 45 s.
 const LeaseRenewMs = 15000;
+const RefreshMs = 10000;
 
 function companionCall<T>(command: string, data: any): Promise<T> {
     return TabRpcClient.wshRpcCall(command, data, { route: CompanionRoute, timeout: RpcTimeoutMs });
@@ -132,11 +133,15 @@ function useCompanion(target: string): {
         } catch (e) {
             console.log("companion: no event bus", e);
         }
-        const open = () =>
+        const open = (refresh: boolean) =>
             fireAndForget(async () => {
                 try {
                     accept(
-                        await companionCall<CompanionView>(CompanionOpenCommand, { blockid: target, viewid: viewId })
+                        await companionCall<CompanionView>(CompanionOpenCommand, {
+                            blockid: target,
+                            viewid: viewId,
+                            refresh,
+                        })
                     );
                     if (!cancelled) {
                         setError(null);
@@ -147,12 +152,21 @@ function useCompanion(target: string): {
                     }
                 }
             });
-        open();
+        open(true);
         // The lease must not lapse while the view is hidden: wavesrv would drop the follower.
-        const stopRenew = TabActivity.getInstance().every(always(LeaseRenewMs), open, "companion-lease");
+        const stopRenew = TabActivity.getInstance().every(always(LeaseRenewMs), () => open(false), "companion-lease");
+        // While it shows, the companion looks again on a bounded interval, on top of the file watch: a session link
+        // that came while nobody looked, agents gone quiet (#600). Paused while hidden; a view that shows again runs
+        // it at once, overdue.
+        const stopRefresh = TabActivity.getInstance().every(
+            whileShown(RefreshMs),
+            () => open(true),
+            "companion-refresh"
+        );
         return () => {
             cancelled = true;
             stopRenew();
+            stopRefresh();
             unsubscribe();
             fireAndForget(async () => {
                 try {
@@ -324,6 +338,21 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 name={agentState?.firstname ? agentLabel(agentState) : view.agentname}
                 onHistory={() => setHistory(true)}
                 onIntegration={() => setIntegrationOpen(true)}
+                onBackToCurrent={() =>
+                    fireAndForget(async () => {
+                        try {
+                            setView(
+                                await companionCall<CompanionView>(CompanionPickCommand, {
+                                    blockid: target,
+                                    viewid: viewId,
+                                    path: "",
+                                })
+                            );
+                        } catch (e) {
+                            console.log("companion: back to the current session", e);
+                        }
+                    })
+                }
             />
             <GuessNotice session={session} onHistory={() => setHistory(true)} />
             <IntegrationNotice view={view} className="mx-3 mt-2" />
@@ -334,7 +363,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 topics={<RecentTopicsSection view={view} now={Date.now()} />}
                 answer={<AnswerSection key={view.session?.path} target={target} view={view} />}
                 todos={<TodoSection todos={view.todos} />}
-                task={<WorkspaceTaskSection target={target} companionId={model.blockId} />}
+                task={<WorkspaceTaskSection target={target} companionId={model.blockId} companion={view} />}
                 files={
                     <FilesSection
                         key={`files:${view.session?.path}`}

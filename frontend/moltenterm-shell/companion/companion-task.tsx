@@ -17,7 +17,7 @@ import { fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { MoltenWave } from "../molten-button";
 import { TabActivity, whileShown } from "../tab-activity";
-import { relativeTime } from "./companion-model";
+import { CompanionView, relativeTime } from "./companion-model";
 import {
     newerTask,
     redactionLabel,
@@ -25,6 +25,7 @@ import {
     TaskEvent,
     TaskReadCommand,
     TaskRoute,
+    taskSessionLabel,
     taskSummary,
     TaskView,
 } from "./companion-task-model";
@@ -120,7 +121,15 @@ function useWorkspaceTask(target: string): { view: TaskView; error: string; setV
     return { view, error, setView };
 }
 
-export function WorkspaceTaskSection({ target, companionId }: { target: string; companionId: string }) {
+export function WorkspaceTaskSection({
+    target,
+    companionId,
+    companion,
+}: {
+    target: string;
+    companionId: string;
+    companion?: CompanionView;
+}) {
     const { view, error, setView } = useWorkspaceTask(target);
     const [confirming, setConfirming] = useState(false);
     const [actionError, setActionError] = useState<string>(null);
@@ -159,6 +168,7 @@ export function WorkspaceTaskSection({ target, companionId }: { target: string; 
     return (
         <WorkspaceTaskCard
             view={view}
+            session={taskSessionLabel(view, companion)}
             now={Date.now()}
             confirming={confirming}
             actionError={actionError ?? (error ? `Not refreshed: ${error}` : null)}
@@ -173,6 +183,8 @@ export function WorkspaceTaskSection({ target, companionId }: { target: string; 
 
 export type WorkspaceTaskCardProps = {
     view: TaskView;
+    // Which session of the terminal last wrote the task (#600), "" when unknown.
+    session?: string;
     now: number;
     confirming: boolean;
     actionError: string;
@@ -185,6 +197,7 @@ export type WorkspaceTaskCardProps = {
 
 export function WorkspaceTaskCard({
     view,
+    session,
     now,
     confirming,
     actionError,
@@ -236,7 +249,11 @@ export function WorkspaceTaskCard({
                             </div>
                         ) : null}
                         <div className="flex flex-wrap gap-x-3 text-11 text-muted">
-                            {summary.by ? <span>{`by ${summary.by}`}</span> : null}
+                            {summary.by ? (
+                                <span data-testid="companion-task-by">
+                                    {[`by ${summary.by}`, session].filter((s) => !!s).join(" · ")}
+                                </span>
+                            ) : null}
                             {summary.redactions > 0 ? (
                                 <span data-testid="companion-task-redactions">
                                     <i className="fa fa-solid fa-shield-halved mr-1" />
