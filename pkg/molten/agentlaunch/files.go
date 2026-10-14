@@ -28,6 +28,9 @@ const (
 	launchTempPrefix     = ".tmp-"
 )
 
+// The kinds of file a launch writes, and so the sweep may remove.
+var launchFileExts = map[string]bool{launchFileExt: true, ".md": true}
+
 // LaunchDir is the folder of the generated files.
 func LaunchDir(dataDir string) string {
 	return filepath.Join(dataDir, "molten", "agent-launch")
@@ -35,20 +38,32 @@ func LaunchDir(dataDir string) string {
 
 // LaunchFileName is the content-addressed name of a generated file.
 func LaunchFileName(prefix string, data []byte) string {
+	return launchFileNameExt(prefix, launchFileExt, data)
+}
+
+func launchFileNameExt(prefix string, ext string, data []byte) string {
 	sum := sha256.Sum256(data)
-	return prefix + "-" + hex.EncodeToString(sum[:16]) + launchFileExt
+	return prefix + "-" + hex.EncodeToString(sum[:16]) + ext
 }
 
 // WriteLaunchFile writes data under its content-addressed name, or marks the existing file as used. created: the
 // file is new (the folder is then swept).
 func WriteLaunchFile(dir string, prefix string, data []byte, now time.Time) (string, bool, error) {
+	return WriteLaunchFileExt(dir, prefix, launchFileExt, data, now)
+}
+
+// WriteLaunchFileExt is WriteLaunchFile for a file of another kind (a review session's guide is .md).
+func WriteLaunchFileExt(dir string, prefix string, ext string, data []byte, now time.Time) (string, bool, error) {
+	if !launchFileExts[ext] {
+		return "", false, fmt.Errorf("a launch file cannot end with %q", ext)
+	}
 	if err := os.MkdirAll(dir, launchDirMode); err != nil {
 		return "", false, err
 	}
 	if info, err := os.Stat(dir); err == nil && info.Mode().Perm() != launchDirMode {
 		os.Chmod(dir, launchDirMode)
 	}
-	path := filepath.Join(dir, LaunchFileName(prefix, data))
+	path := filepath.Join(dir, launchFileNameExt(prefix, ext, data))
 	if existing, err := os.ReadFile(path); err == nil && string(existing) == string(data) {
 		os.Chtimes(path, now, now)
 		return path, false, nil
@@ -86,7 +101,7 @@ func SweepLaunchFiles(dir string, now time.Time) {
 	}
 	for _, entry := range entries {
 		name := entry.Name()
-		if entry.IsDir() || !(strings.HasSuffix(name, launchFileExt) || strings.HasPrefix(name, launchTempPrefix)) {
+		if entry.IsDir() || !(launchFileExts[filepath.Ext(name)] || strings.HasPrefix(name, launchTempPrefix)) {
 			continue
 		}
 		maxAge := launchFileMaxAge

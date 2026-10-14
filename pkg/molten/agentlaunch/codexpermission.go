@@ -78,6 +78,9 @@ func planCodexPermission(ctx LaunchContext, args codexArgs, config codexConfig, 
 		plan.Skipped = append(plan.Skipped, molten.IntegrationItem{Kind: molten.IntegrationCoffeeApproval, Name: codexCoffeeSkippedName, Reason: reason})
 		return nil
 	}
+	if isReviewSession(ctx) {
+		return skip(ReasonReviewSession)
+	}
 	if ctx.MoltenPath == "" {
 		return skip("MoltenTerm's molten command is not installed")
 	}
