@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 )
 
@@ -45,7 +46,6 @@ const (
 )
 
 var planHeadingRe = regexp.MustCompile(`(?i)\bplan\b`)
-var tokenRe = regexp.MustCompile(`\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}`)
 
 // GhRunner runs gh in dir and returns its standard output (mission.ExecRunner in wavesrv).
 type GhRunner func(ctx context.Context, dir string, args ...string) ([]byte, error)
@@ -154,7 +154,7 @@ func cut(text string, max int) string {
 
 // maskTokens hides anything shaped like a GitHub token in a message kept or shown (DS-REV-011).
 func maskTokens(text string) string {
-	return tokenRe.ReplaceAllString(text, "[token]")
+	return molten.MaskGitHubTokens(text)
 }
 
 func ghError(err error) string {

@@ -316,7 +316,7 @@ func TestStartAttachEnd(t *testing.T) {
 	if len(token) != 64 || block.Meta.GetString(waveobj.MetaKey_CmdCwd, "") != s.Worktree || block.Meta.GetString(waveobj.MetaKey_Controller, "") != "shell" {
 		t.Errorf("block meta %+v", block.Meta)
 	}
-	if strings.Contains(f.typed[blockId], token) || !strings.HasPrefix(f.typed[blockId], "claude --permission-mode default") {
+	if strings.Contains(f.typed[blockId], token) || !strings.HasPrefix(f.typed[blockId], "claude --setting-sources user --permission-mode default") {
 		t.Errorf("typed %q", f.typed[blockId])
 	}
 	if raw, _ := json.Marshal(s); strings.Contains(string(raw), token) {
@@ -369,6 +369,12 @@ func TestStartWithoutAgent(t *testing.T) {
 	if !strings.HasPrefix(f.typed[blockId], "codex --sandbox read-only -c ") {
 		t.Errorf("typed %q", f.typed[blockId])
 	}
+	// #664: the review folder and the project are untrusted for the run, so the PR's .codex/ never loads.
+	for _, dir := range []string{res.Session.Worktree, res.Session.ProjectDir} {
+		if !strings.Contains(f.typed[blockId], tomlString(dir)+`={trust_level="untrusted"}`) {
+			t.Errorf("%s is not untrusted in %q", dir, f.typed[blockId])
+		}
+	}
 }
 
 func TestStartRefusesBadRequests(t *testing.T) {
@@ -401,7 +407,7 @@ func TestStartTypingFails(t *testing.T) {
 	for time.Now().Before(deadline) {
 		got := m.Get(context.Background(), mcpreview.SessionKey{Id: res.Session.Id})
 		if got.State == mcpreview.StateFailed {
-			if got.Reason != mcpreview.ReasonNotStarted || got.Message != "the terminal showed no prompt" || !strings.Contains(got.Command, "claude --permission-mode") {
+			if got.Reason != mcpreview.ReasonNotStarted || got.Message != "the terminal showed no prompt" || !strings.Contains(got.Command, "claude --setting-sources user --permission-mode") {
 				t.Errorf("failed session %+v", got)
 			}
 			return

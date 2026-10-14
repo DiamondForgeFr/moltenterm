@@ -444,7 +444,7 @@ func (m *Manager) Start(ctx context.Context, callerTab string, req mcpreview.Sta
 	if req.Brief {
 		prompt = mcpreview.BriefingPrompt(head, false)
 	}
-	rec.Command, err = m.agentCommand(agent, moltenPath, prompt)
+	rec.Command, err = m.agentCommand(agent, moltenPath, prompt, []string{rec.Worktree, rec.ProjectDir})
 	if err != nil {
 		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Reason: mcpreview.ReasonCommand, Message: err.Error()}, nil
 	}
@@ -489,8 +489,9 @@ func (m *Manager) typeCommand(s *session) {
 	m.setState(s, mcpreview.StateRunning, "", "")
 }
 
-// agentCommand is the command line of the agent's review run; prompt, when set, is its first prompt.
-func (m *Manager) agentCommand(agent string, moltenPath string, prompt string) (string, error) {
+// agentCommand is the command line of the agent's review run; prompt, when set, is its first prompt; untrusted: the folders
+// whose agent configuration is the PR's (CodexReviewArgs).
+func (m *Manager) agentCommand(agent string, moltenPath string, prompt string, untrusted []string) (string, error) {
 	if m.env.Guide == nil || m.env.WriteFile == nil {
 		return "", errors.New("the review guide is not available")
 	}
@@ -503,7 +504,7 @@ func (m *Manager) agentCommand(agent string, moltenPath string, prompt string) (
 		return "", fmt.Errorf("the review guide could not be written: %w", err)
 	}
 	if agent == molten.AgentIdCodex {
-		return CommandLine("codex", withPrompt(CodexReviewArgs(moltenPath, guidePath), prompt)), nil
+		return CommandLine("codex", withPrompt(CodexReviewArgs(moltenPath, guidePath, untrusted), prompt)), nil
 	}
 	mcp, err := claudeReviewMcpJSON(moltenPath)
 	if err != nil {

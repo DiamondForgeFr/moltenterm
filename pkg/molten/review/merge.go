@@ -8,13 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
@@ -78,9 +78,6 @@ const (
 )
 
 var prViewFields = "number,title,url,state,isDraft,headRefName,baseRefName,headRefOid,mergeable,mergeStateStatus,statusCheckRollup,closingIssuesReferences,mergeCommit"
-
-// DS-REV-011: gh's messages are kept, but never a token in gh's formats.
-var ghTokenRe = regexp.MustCompile(`\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})`)
 
 // GhRunner runs gh in a folder; tests fake it.
 type GhRunner func(ctx context.Context, dir string, args ...string) ([]byte, error)
@@ -246,7 +243,7 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 }
 
 func maskTokens(text string) string {
-	return ghTokenRe.ReplaceAllString(text, "<github-token>")
+	return molten.MaskGitHubTokens(text)
 }
 
 func shortHead(oid string) string {
