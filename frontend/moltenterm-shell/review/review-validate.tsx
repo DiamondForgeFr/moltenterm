@@ -28,10 +28,10 @@ const PlainButton =
     "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
 
 const CleanupLooks: Record<ReviewCleanupStep["state"], { icon: string; tone: string }> = {
-    planned: { icon: "fa-circle", tone: "text-muted" },
-    done: { icon: "fa-circle-check", tone: "text-success" },
-    skipped: { icon: "fa-circle-minus", tone: "text-muted" },
-    failed: { icon: "fa-circle-xmark", tone: "text-error" },
+    planned: { tone: "text-muted", icon: "fa-circle" },
+    done: { tone: "text-success", icon: "fa-circle-check" },
+    skipped: { tone: "text-muted", icon: "fa-circle-minus" },
+    failed: { tone: "text-error", icon: "fa-circle-xmark" },
 };
 
 export function ValidateButton({ model }: { model: ReviewTabModel }) {

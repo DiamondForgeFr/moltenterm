@@ -24,11 +24,11 @@ export function sheetRecord(record: ReviewMergeRecord, planid: string): ReviewMe
 }
 
 export const CheckLooks: Record<ReviewCheckState, { icon: string; tone: string; word: string }> = {
-    ok: { icon: "fa-circle-check", tone: "text-success", word: "Passed" },
-    info: { icon: "fa-circle-info", tone: "text-accent", word: "Note" },
-    warn: { icon: "fa-triangle-exclamation", tone: "text-warning", word: "Warning" },
-    pending: { icon: "fa-clock", tone: "text-muted", word: "Waiting" },
-    fail: { icon: "fa-circle-xmark", tone: "text-error", word: "Failed" },
+    ok: { tone: "text-success", icon: "fa-circle-check", word: "Passed" },
+    info: { tone: "text-accent", icon: "fa-circle-info", word: "Note" },
+    warn: { tone: "text-warning", icon: "fa-triangle-exclamation", word: "Warning" },
+    pending: { tone: "text-muted", icon: "fa-clock", word: "Waiting" },
+    fail: { tone: "text-error", icon: "fa-circle-xmark", word: "Failed" },
 };
 
 // Merge is clickable when the plan allows it, its warnings are confirmed and no merge of the PR is running (AC4).
