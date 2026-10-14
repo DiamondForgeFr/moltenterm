@@ -261,8 +261,10 @@ func reviewBody(summary string, plans []*planned, round string) string {
 			parts = append(parts, inBodySection(p))
 		}
 	}
-	parts = append(parts, reviewMarker(round))
-	return strings.Join(parts, "\n\n---\n\n")
+	if len(parts) == 0 {
+		return reviewMarker(round)
+	}
+	return strings.Join(parts, "\n\n---\n\n") + "\n\n" + reviewMarker(round)
 }
 
 // decodeList reads gh api's answer: one JSON array, or several (--paginate writes one per page).
@@ -578,7 +580,8 @@ func (s *Service) post(ctx context.Context, req PublishRequest, record PublishRe
 	fail := func(err error) PublishRecord {
 		record.State = PublishFailed
 		record.Message = maskTokens(err.Error())
-		record.Notes = notesOf(plans)
+		// Nothing of this attempt is sure to be on GitHub: where the comments would have gone is not reported.
+		record.Notes = nil
 		return record
 	}
 	base := fmt.Sprintf("repos/%s/pulls/%d", req.Repo, req.Number)
