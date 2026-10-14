@@ -26,7 +26,7 @@ import type { SuiteIcon } from "../suite/suite";
 import type { SuiteIconName } from "../suite/suite-icons";
 import type { SettingsSectionId } from "./settings-catalog";
 
-export const SettingsSectionIcons: Record<SettingsSectionId, SuiteIconName> = {
+export const SettingsSectionConcepts: Record<SettingsSectionId, SuiteIconName> = {
     general: "settings",
     appearance: "appearance",
     terminal: "terminal",
@@ -39,7 +39,7 @@ export const SettingsSectionIcons: Record<SettingsSectionId, SuiteIconName> = {
     advanced: "tools",
 };
 
-const GroupIcons: Record<string, SuiteIconName> = {
+const GroupConcepts: Record<string, SuiteIconName> = {
     thisWorkspace: "workspace",
     quittingAndClosing: "quitting",
     startup: "startup",
@@ -72,7 +72,7 @@ const GroupIcons: Record<string, SuiteIconName> = {
 };
 
 export function settingsGroupIcon(slug: string): SuiteIconName {
-    return GroupIcons[slug] ?? "tools";
+    return GroupConcepts[slug] ?? "tools";
 }
 
 // The icon of each choice where one says more than the label; a choice missing here has none.
