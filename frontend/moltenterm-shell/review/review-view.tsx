@@ -32,6 +32,7 @@ import {
     TreeNode,
 } from "./review-model";
 import { PublishSheet } from "./review-publish-sheet";
+import { RestartButton, RestartStatus } from "./review-restart-view";
 import { commentCounts } from "./review-selection";
 import { ReviewFileView, ReviewTabModel } from "./review-tab-model";
 import { ValidateButton, ValidateSheet } from "./review-validate";
@@ -62,6 +63,7 @@ export function ReviewView({ model }: ViewComponentProps<ReviewViewModel>) {
     return (
         <div className="flex h-full min-h-0 w-full flex-col" data-role="molten-review">
             <ReviewHeader model={model} />
+            <RestartStatus model={model} />
             <div className="flex min-h-0 flex-1">
                 <FilesPanel model={model} />
                 <DiffPanel model={model} />
@@ -151,6 +153,7 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                         {t("review.ai.viewName")}
                     </button>
                     <PublishButton model={model} />
+                    <RestartButton model={model} />
                     <ValidateButton model={model} />
                 </div>
             </div>

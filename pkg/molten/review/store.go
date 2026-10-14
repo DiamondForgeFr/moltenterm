@@ -32,6 +32,10 @@ type Round struct {
 	GithubReviewId int64  `json:"githubreviewid,omitempty"`
 	GithubUrl      string `json:"githuburl,omitempty"`
 	RestartedAt    int64  `json:"restartedat,omitempty"`
+	// The agent Restart work handed the round to, its terminal and its worktree (FR-REV-011, restart.go).
+	RestartAgent    string `json:"restartagent,omitempty"`
+	RestartBlockId  string `json:"restartblockid,omitempty"`
+	RestartWorktree string `json:"restartworktree,omitempty"`
 	// Lang: the language the round was published in (FR-REV-010).
 	Lang string `json:"lang,omitempty"`
 }

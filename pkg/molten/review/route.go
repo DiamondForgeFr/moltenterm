@@ -103,6 +103,8 @@ type Service struct {
 	cleaner *Cleaner
 	// handoff: what `molten review` asks of the terminal's window (FR-REV-014).
 	handoff HandoffEnv
+	// restarter: Restart work (FR-REV-011); nil in the tests that do not need it.
+	restarter *Restarter
 	// discuss sends a comment to the PR's review session (FR-REV-009); reviewsession.Discuss outside the tests.
 	discuss func(ctx context.Context, req mcpreview.DiscussRequest) (mcpreview.AskResult, error)
 	// translate asks the PR's review session for the translations (FR-REV-010); reviewsession.Translate outside the
@@ -192,6 +194,7 @@ func Start() {
 			EndSession: reviewsession.EndSession,
 			DataDir:    wavebase.GetWaveDataDir(),
 		})
+		service.restarter = MakeRestarter(service.store, liveRestartEnv(git))
 		SetPostMerge(service)
 		service.handoff = defaultHandoffEnv()
 		service.discuss = reviewsession.Discuss
@@ -338,6 +341,8 @@ func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) 
 		timeout = publishTimeout
 	case CleanupCommand:
 		timeout = cleanupTimeout
+	case RestartCommand:
+		timeout = restartTimeout
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -542,6 +547,13 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return s.Publish(ctx, req)
+	case RestartCommand:
+		// The developer's click on Restart work: an agent reached from a terminal never restarts another one's work.
+		req, err := decode[RestartRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.Restart(ctx, req)
 	}
 	return nil, fmt.Errorf("unknown review command %q", command)
 }

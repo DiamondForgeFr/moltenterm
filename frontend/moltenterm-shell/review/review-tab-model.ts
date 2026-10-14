@@ -16,7 +16,9 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
+import type { AgentStateInfo } from "../agent-state-model";
 import { getLocale, I18nModel, t } from "../i18n/i18n";
+import { MoltentermNotifications } from "../notifications-store";
 import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
 import { ReviewsAnswer } from "../reviews/reviews-model";
 import { whileShown } from "../tab-activity";
@@ -29,6 +31,7 @@ import {
     openReviewAiPane,
     publishReview,
     relocateReviewComments,
+    restartReviewWork,
     ReviewBriefing,
     ReviewComment,
     ReviewCommentAction,
@@ -78,6 +81,7 @@ import {
 } from "./review-model";
 import { missingTranslations } from "./review-publish";
 import { ReadyAnswer, ReadyWhat, sendWhenReady } from "./review-ready";
+import { ReviewRestartState } from "./review-restart";
 import { watchReviewSheetRequests } from "./review-sheet-request";
 import { developerLanguage, ReviewSelection, stagedCount } from "./review-selection";
 import {
@@ -237,6 +241,7 @@ export abstract class ReviewTabModel implements ViewModel {
     renderMsAtom = atom(null) as PrimitiveAtom<number>;
     validateAtom = atom({ open: false, loading: false, override: false }) as PrimitiveAtom<ReviewValidateState>;
     publishAtom = atom({ open: false, translate: { status: "idle" } }) as PrimitiveAtom<ReviewPublishSheet>;
+    restartAtom = atom({ status: "idle" }) as PrimitiveAtom<ReviewRestartState>;
     // FR-REV-003: the lines selected in the diff, where their actions show, the comment box and Ask the AI's box.
     selectionAtom = atom(null) as PrimitiveAtom<ReviewSelection>;
     overlayAtom = atom(null) as PrimitiveAtom<ReviewOverlayPos>;
@@ -1007,6 +1012,52 @@ export abstract class ReviewTabModel implements ViewModel {
         const status = session.state === "failed" ? "failed" : session.state === "starting" ? "starting" : "running";
         globalStore.set(this.aiAtom, (ai) => ({ ...ai, status, session, message: session.message }));
         fireAndForget(() => this.syncSessionHead());
+    }
+
+    // Restart work (FR-REV-011) is the developer's click: wavesrv hands the last published round to an agent in the
+    // worktree of the PR's branch and marks the round; the ticket's status is not touched.
+    async restartWork() {
+        const pr = this.pr();
+        if (pr == null || globalStore.get(this.restartAtom).status === "restarting") {
+            return;
+        }
+        globalStore.set(this.restartAtom, { status: "restarting" });
+        try {
+            const result = await restartReviewWork({
+                repo: pr.repo,
+                number: pr.number,
+                dir: pr.dir,
+                headref: pr.headref,
+                baseref: pr.baseref,
+                title: pr.title,
+                url: pr.url,
+                ticket: pr.ticket,
+                tabid: globalStore.get(atoms.staticTabId),
+                afterblockid: globalStore.get(this.aiPaneIdAtom) ?? this.blockId,
+            });
+            if (result.state != null) {
+                this.applyState(result.state);
+            }
+            globalStore.set(this.restartAtom, { status: "done", result });
+        } catch (e) {
+            globalStore.set(this.restartAtom, { status: "done", error: String(e?.message ?? e) });
+        }
+    }
+
+    dismissRestart() {
+        globalStore.set(this.restartAtom, { status: "idle" });
+    }
+
+    // showRestartAgent brings the agent of the restarted round into view, wherever its terminal is.
+    async showRestartAgent(agent: AgentStateInfo) {
+        if (agent?.blockid == null) {
+            return;
+        }
+        await MoltentermNotifications.getInstance().goTo({
+            workspaceid: agent.workspaceid,
+            tabid: agent.tabid,
+            blockid: agent.blockid,
+        });
     }
 
     // openPublish is Publish review (FR-REV-010): the sheet opens on the publication language, and the session is
