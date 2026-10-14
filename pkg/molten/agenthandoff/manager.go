@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten"
@@ -144,6 +146,14 @@ func foldName(name string) string {
 		}
 		return r
 	}, name)
+}
+
+// capitalize starts a sentence that may begin with "a terminal".
+func capitalize(text string) string {
+	for i, r := range text {
+		return string(unicode.ToUpper(r)) + text[i+utf8.RuneLen(r):]
+	}
+	return text
 }
 
 func pairKey(a string, b string) string {
@@ -466,8 +476,8 @@ func approvalNotification(key string, id string, from Party, to Party, b Brief) 
 	return molten.NotificationInput{
 		Key:    key,
 		Source: NotificationSource,
-		Title:  fmt.Sprintf("%s wants to hand work to %s", from.callName(), to.callName()),
-		Message: fmt.Sprintf("%s → %s: %s. Allowing it types a prompt in %s's terminal.", fromWhere, toWhere,
+		Title:  capitalize(fmt.Sprintf("%s wants to hand work to %s", from.callName(), to.callName())),
+		Message: fmt.Sprintf("%s → %s: %s. Allowing it types a prompt in %s's terminal.", capitalize(fromWhere), toWhere,
 			cut(cleanLine(b.Goal), 160), to.callName()),
 		Kind:        "warning",
 		WorkspaceId: from.WorkspaceId,
@@ -504,7 +514,10 @@ func receiverBusy(run molten.AgentRunInfo) bool {
 // deliver types the prompt now when the receiver's prompt is idle, else queues it.
 func (m *Manager) deliver(ctx context.Context, d *delivery) (SendResult, error) {
 	rtn := SendResult{To: d.to.FirstName, BriefPath: d.briefPath}
-	if !m.hasQueue(d.to.BlockId) {
+	reason := "it is working or waiting for an answer"
+	if m.hasQueue(d.to.BlockId) {
+		reason = "other handoffs wait before this one"
+	} else {
 		if run, ok := m.env.Run(d.to.BlockId); ok && run.Running && !receiverBusy(run) {
 			out := m.env.TypePrompt(ctx, d.to.BlockId, d.line)
 			if out.Sent {
@@ -522,12 +535,14 @@ func (m *Manager) deliver(ctx context.Context, d *delivery) (SendResult, error) 
 				m.logf("%s from=%q to=%q not delivered: %s\n", logPrefix, d.from.callName(), d.to.callName(), out.Message)
 				return SendResult{}, fmt.Errorf("Not delivered to %s: %s The brief is at %s.", d.to.FirstName, out.Message, d.briefPath)
 			}
+			reason = out.Message
 		}
 	}
 	m.enqueue(d)
+	m.logf("%s from=%q to=%q queued: %s\n", logPrefix, d.from.callName(), d.to.callName(), reason)
 	rtn.Status = StatusQueued
-	rtn.Message = fmt.Sprintf("%s is busy: the handoff is queued and typed in its terminal when its prompt is idle (within an hour). "+
-		"The brief is at %s.", d.to.FirstName, d.briefPath)
+	rtn.Message = fmt.Sprintf("%s cannot take it now (%s): the handoff is queued and typed in its terminal when its prompt is "+
+		"idle (within an hour). The brief is at %s.", d.to.FirstName, strings.TrimSuffix(reason, "."), d.briefPath)
 	return rtn, nil
 }
 
@@ -590,6 +605,7 @@ func (m *Manager) runQueue(blockId string) {
 			m.logf("%s queue panic: %v\n", logPrefix, r)
 		}
 	}()
+	lastRefusal := ""
 	for {
 		d := m.peekQueue(blockId)
 		if d == nil {
@@ -617,6 +633,10 @@ func (m *Manager) runQueue(blockId string) {
 		out := m.env.TypePrompt(ctx, blockId, d.line)
 		cancel()
 		if !out.Sent && out.Retry {
+			if out.Message != lastRefusal {
+				lastRefusal = out.Message
+				m.logf("%s to=%q waiting: %s\n", logPrefix, d.to.callName(), out.Message)
+			}
 			m.sleep(m.queuePoll)
 			continue
 		}
@@ -636,7 +656,7 @@ func (m *Manager) notifyUndelivered(d *delivery, reason string) {
 	m.logf("%s from=%q to=%q not delivered: %s\n", logPrefix, d.from.callName(), d.to.callName(), reason)
 	m.env.Notify(molten.NotificationInput{
 		Source:  NotificationSource,
-		Title:   fmt.Sprintf("%s's handoff to %s was not delivered", d.from.callName(), d.to.callName()),
+		Title:   capitalize(fmt.Sprintf("%s's handoff to %s was not delivered", d.from.callName(), d.to.callName())),
 		Message: fmt.Sprintf("%s The brief is at %s.", reason, d.briefPath),
 		Kind:    "error",
 	})
