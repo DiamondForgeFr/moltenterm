@@ -222,9 +222,17 @@ func (r *Restarter) newTreeDir(projectDir string, entries []treeEntry, number in
 	return tree
 }
 
+// pathInside compares the paths with symlinks resolved: git lists /private/tmp for /tmp on macOS.
 func pathInside(path string, dir string) bool {
-	rel, err := filepath.Rel(dir, path)
+	rel, err := filepath.Rel(resolvedPath(dir), resolvedPath(path))
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func resolvedPath(path string) string {
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		return real
+	}
+	return filepath.Clean(path)
 }
 
 func pathExists(path string) bool {
