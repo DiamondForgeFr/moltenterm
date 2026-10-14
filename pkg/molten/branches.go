@@ -75,6 +75,20 @@ func ConfiguredBranches(dir string) ProjectBranches {
 	return rtn
 }
 
+// PrTargetBranch is the branch the project's pull requests target, as `.saasfoundry.json` declares it
+// (workflow.prTargetBranch); empty when nothing declares it, and the caller falls back to the trunk (FR-REV-001).
+func PrTargetBranch(dir string) string {
+	var sf struct {
+		Workflow struct {
+			PrTargetBranch string `json:"prTargetBranch"`
+		} `json:"workflow"`
+	}
+	if !readBranchesJson(filepath.Join(dir, ProjectSaaSFoundryFile), &sf) {
+		return ""
+	}
+	return sf.Workflow.PrTargetBranch
+}
+
 // ResolvedBranches are the configured branches with the defaults filled in, each with where it came from.
 func ResolvedBranches(dir string) ProjectBranches {
 	rtn := ConfiguredBranches(dir)

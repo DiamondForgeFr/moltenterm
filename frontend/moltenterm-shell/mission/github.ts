@@ -24,6 +24,8 @@ export type PullRequest = {
     headRefName: string;
     baseRefName: string;
     isDraft: boolean;
+    isCrossRepository?: boolean;
+    author?: { login: string };
     createdAt: string;
     updatedAt: string;
     url: string;

@@ -8,6 +8,8 @@
 import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useMemo, useRef, useState } from "react";
+import { isReviewable } from "../reviews/reviews-model";
+import { ReviewsModel } from "../reviews/reviews-store";
 import { checkIconState, CiIcon, CiIconLabels, githubRunIconState } from "./ci-icon";
 import { ActionRowClass, RerunConfirm, RowAction, RowActions } from "./ci-row-actions";
 import {
@@ -95,8 +97,20 @@ function Placeholder({ rows }: { rows: number }) {
     );
 }
 
-function PullRequestsBlock({ github, trunk }: { github: MissionGithub; trunk: string }) {
+function PullRequestsBlock({
+    github,
+    trunk,
+    dir,
+    prTarget,
+}: {
+    github: MissionGithub;
+    trunk: string;
+    dir: string;
+    prTarget: string;
+}) {
     const prs = github?.prs;
+    // The PRs the Reviews view lists get a Review action (FR-REV-001-AC3).
+    const reviewTarget = prTarget || trunk;
     return (
         <section className="flex flex-col gap-2">
             <BlockHeader title="Pull requests waiting" hint="hover: what it brings · merging happens on GitHub" />
@@ -125,14 +139,33 @@ function PullRequestsBlock({ github, trunk }: { github: MissionGithub; trunk: st
                                         {timeAgo(pr.updatedAt)}
                                     </div>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => open(pr.url)}
-                                    className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 hover:bg-hover"
-                                >
-                                    <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
-                                    Open
-                                </button>
+                                <div className="flex shrink-0 items-center gap-1.5">
+                                    {dir && isReviewable(pr, reviewTarget) ? (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                fireAndForget(() =>
+                                                    ReviewsModel.getInstance().openReviews(dir, pr.number)
+                                                )
+                                            }
+                                            className="flex cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 hover:bg-hover"
+                                            title="Open it in Reviews"
+                                            data-testid="mission-pr-review"
+                                        >
+                                            <i className="fa fa-solid fa-code-pull-request text-11" />
+                                            Review
+                                        </button>
+                                    ) : null}
+                                    <button
+                                        type="button"
+                                        onClick={() => open(pr.url)}
+                                        className="flex cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 hover:bg-hover"
+                                        title="Open on GitHub"
+                                    >
+                                        <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
+                                        Open
+                                    </button>
+                                </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-1.5">
                                 <span className={cn("rounded-4 border px-2 py-0.5 text-12", ToneClasses[merge.tone])}>
@@ -383,11 +416,13 @@ function RecentRunsBlock({ github, dir, onRefresh }: { github: MissionGithub; di
 export function RemoteCiTab({
     github,
     trunk,
+    prTarget,
     dir,
     onRefresh,
 }: {
     github: MissionGithub;
     trunk: string;
+    prTarget?: string;
     dir: string;
     onRefresh: () => void;
 }) {
@@ -397,7 +432,7 @@ export function RemoteCiTab({
     }
     return (
         <div className="flex flex-col gap-5">
-            <PullRequestsBlock github={github} trunk={trunk} />
+            <PullRequestsBlock github={github} trunk={trunk} dir={dir} prTarget={prTarget} />
             <div className="grid gap-5 @3xl:grid-cols-2">
                 <ScheduledBlock github={github} />
                 <RecentRunsBlock github={github} dir={dir} onRefresh={onRefresh} />

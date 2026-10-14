@@ -180,7 +180,7 @@ func TestCollectGithubSections(t *testing.T) {
 		"gh pr list":      `[{"number":1}]`,
 		"gh run list":     `[]`,
 		"gh release list": `[{"tagName":"v1.0.0"}]`,
-	}, map[string]error{"gh api repos/{owner}/{repo}/milestones?state=open&per_page=20": errors.New("rate limited")})
+	}, map[string]error{"gh api repos/a/b/milestones?state=open&per_page=20": errors.New("rate limited")})
 	snap := CollectGithub(context.Background(), run, dir)
 	if snap.State != GithubStateOk || snap.Repo != "a/b" || string(snap.Prs) != `[{"number":1}]` {
 		t.Fatalf("snapshot: %+v", snap)

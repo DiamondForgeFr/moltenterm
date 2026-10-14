@@ -100,6 +100,8 @@ type Snapshot struct {
 	Refreshing bool            `json:"refreshing,omitempty"`
 	// Read and validated on every request (FR-MC-008): the agent writing the file sees the panels follow at once.
 	Pipeline *molten.PipelineReport `json:"pipeline,omitempty"`
+	// The branch pull requests target when the project declares one (FR-REV-001), read with the pipeline.
+	PrTarget string `json:"prtarget,omitempty"`
 }
 
 type GetRequest struct {
@@ -377,6 +379,7 @@ func (c *Collector) get(dir string, ask refreshAsk) (Snapshot, error) {
 	if !snap.Missing {
 		report := molten.ValidatePipeline(dir)
 		snap.Pipeline = &report
+		snap.PrTarget = molten.PrTargetBranch(dir)
 	}
 	return snap, nil
 }
@@ -485,6 +488,7 @@ func (c *Collector) refresh(dir string, plan refreshPlan) {
 	snap := c.applyRefresh(dir, plan, gitSnap, gitErr, githubSnap)
 	report := molten.ValidatePipeline(dir)
 	snap.Pipeline = &report
+	snap.PrTarget = molten.PrTargetBranch(dir)
 	c.saveCache(snap)
 	if c.publish != nil {
 		c.publish(snap)
@@ -610,7 +614,8 @@ func Start() {
 	})
 	// What runs now is also work for the keep-awake (FR-SHELL-023).
 	useCurrentWork(runs, ci)
-	if err := registerRoute(collector, runs, ci, panes, MakeWorktrees(ExecRunner, nil), groups); err != nil {
+	reviews := MakeReviews(collector, ExecRunner, publishReviews)
+	if err := registerRoute(collector, runs, ci, panes, MakeWorktrees(ExecRunner, nil), groups, reviews); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
 	// The agent states (FR-SHELL-011) start with Mission Control, so wavesrv's startup keeps one MoltenTerm entry point.
