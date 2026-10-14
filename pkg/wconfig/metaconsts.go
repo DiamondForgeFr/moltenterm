@@ -68,6 +68,8 @@ const (
 	ConfigKey_AgentIntegrate                 = "agent:integrate"
 	ConfigKey_AgentIntegrateOff              = "agent:integrateoff"
 
+	ConfigKey_ReviewLanguage                 = "review:language"
+
 	ConfigKey_CompanionUsageGauges           = "companion:usagegauges"
 	ConfigKey_CompanionUsageClaudeOAuth      = "companion:usageclaudeoauth"
 

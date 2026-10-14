@@ -24,7 +24,10 @@ import (
 // mode, bypass included, and no allow rule or PermissionRequest hook overrides them; plan mode is not used, because
 // Claude Code sends the write calls of plan mode to a prompt whatever the allow rules say and does not document how it
 // classifies an MCP tool, so the output tools could stop on a prompt at each card, and the developer can leave plan
-// mode with Shift+Tab anyway (#582, #505 Q3). The default mode is set explicitly, over a defaultMode of the user's.
+// mode with Shift+Tab anyway (#582, #505 Q3). Checked against Claude Code's permission documentation for #583: plan
+// mode is documented for edits and shell commands only, says nothing of MCP tools or their readOnlyHint, can be left
+// with Shift+Tab and cannot be locked; deny rules are documented to block in every mode and over allow rules and
+// hooks. So the deny list stays. The default mode is set explicitly, over a defaultMode of the user's.
 // --strict-mcp-config keeps the user's own MCP servers, which may publish or merge, out of a session that reads
 // untrusted PR content (the launcher then leaves the browser out too); molten-review's tools are allowed. The review
 // guide is an appended system prompt. Codex: the read-only sandbox, mcp_servers replaced by molten-review alone (the

@@ -78,7 +78,9 @@ func Tools() []mcpbrowser.ToolDef {
 			"The lines the developer selected in the Review tab, with their anchor, when they asked about them.",
 			objectSchema(map[string]any{}, nil)),
 		outputTool(ToolPostBriefing, "Post the PR's briefing",
-			"Shows your briefing of the PR (markdown) at the top of the developer's AI panel, replacing an earlier one.",
+			"Shows your briefing of the PR (markdown) at the top of the developer's AI panel, replacing an earlier one; "+
+				"MoltenTerm keeps it with the PR. Sections: what changed, why (ticket and plan), risks and the files to "+
+				"look at first as [path:line](path#Lline) links, what was tested and its gaps, CI. Say a missing source is missing.",
 			objectSchema(map[string]any{"markdown": stringProp("The briefing, in the developer's language.")}, []string{"markdown"})),
 		outputTool(ToolPostExplanation, "Post an explanation",
 			"Shows an explanation of lines of the PR as a card of the developer's AI panel.",

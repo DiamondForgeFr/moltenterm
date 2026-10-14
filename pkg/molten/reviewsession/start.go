@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wcore"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
@@ -134,6 +136,31 @@ func liveEnv(hooks Hooks) Env {
 			return data
 		},
 		Locale: osLocale,
+		Language: func() string {
+			return wconfig.GetWatcher().GetFullConfig().Settings.ReviewLanguage
+		},
+		Gh: func(ctx context.Context, dir string, args ...string) ([]byte, error) {
+			return mission.ExecRunner(ctx, dir, "gh", args...)
+		},
+		TypePrompt: func(ctx context.Context, blockId string, line string) (bool, bool, string) {
+			out := termupdate.TypeHandoffLine(ctx, blockId, line)
+			if out.Result == termupdate.InputSent {
+				return true, false, out.Message
+			}
+			switch out.Reason {
+			case termupdate.InputReasonWorking, termupdate.InputReasonWaiting, termupdate.InputReasonBusy, termupdate.InputReasonNotForeground:
+				return false, true, out.Message
+			}
+			return false, false, out.Message
+		},
+		SaveRecord: func(ctx context.Context, blockId string, rec any) error {
+			oref := waveobj.MakeORef(waveobj.OType_Block, blockId)
+			if err := wstore.UpdateObjectMeta(ctx, oref, waveobj.MetaMapType{mcpreview.SessionMetaKey: rec}, false); err != nil {
+				return err
+			}
+			wcore.SendWaveObjUpdate(oref)
+			return nil
+		},
 	}
 }
 
@@ -153,8 +180,9 @@ func osLocale() string {
 	return ""
 }
 
-// createTerminal creates the session's terminal in the tab and puts it in the tab's layout, focused.
-func createTerminal(ctx context.Context, tabId string, meta waveobj.MetaMapType) (string, error) {
+// createTerminal creates the session's terminal in the tab and puts it in the tab's layout, focused: under the AI
+// panel when it names one of the tab's blocks (its cards above the agent's terminal, DS-REV-012), else added.
+func createTerminal(ctx context.Context, tabId string, afterBlockId string, meta waveobj.MetaMapType) (string, error) {
 	tab, err := wstore.DBMustGet[*waveobj.Tab](ctx, tabId)
 	if err != nil {
 		return "", err
@@ -164,6 +192,10 @@ func createTerminal(ctx context.Context, tabId string, meta waveobj.MetaMapType)
 		return "", err
 	}
 	action := waveobj.LayoutActionData{ActionType: wcore.LayoutActionDataType_Insert, BlockId: block.OID, Focused: true}
+	if afterBlockId != "" && slices.Contains(tab.BlockIds, afterBlockId) {
+		action = waveobj.LayoutActionData{ActionType: wcore.LayoutActionDataType_SplitVertical, BlockId: block.OID,
+			TargetBlockId: afterBlockId, Position: "after", Focused: true}
+	}
 	if err := wcore.QueueLayoutActionForTab(ctx, tabId, action); err != nil {
 		return "", err
 	}

@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The Review tab (FR-REV-002, DS-REV-012): a PR's changed files as a tree with their status, counts and viewed marks;
-// the selected file's diff in Wave's Monaco diff editor, side by side or unified; and the AI panel, where the review
-// session's cards will show (#583 and after) above the agent's own terminal. The diff is read-only text: nothing from
-// it is executed.
+// the selected file's diff in Wave's Monaco diff editor, side by side or unified; and the button of the AI panel, a pane
+// of its own (review-ai-view.tsx) where the review session's cards show above the agent's own terminal. The diff is
+// read-only text: nothing from it is executed.
 
 import { openLink, useOverrideConfigAtom } from "@/app/store/global";
-import { getLayoutModelForStaticTab } from "@/layout/index";
 import { boundNumber, cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
@@ -30,7 +29,7 @@ import {
     StatusLetters,
     TreeNode,
 } from "./review-model";
-import { ReviewAiState, ReviewFileView, ReviewTabModel } from "./review-tab-model";
+import { ReviewFileView, ReviewTabModel } from "./review-tab-model";
 import { ValidateButton, ValidateSheet } from "./review-validate";
 
 export { MoltentermReviewView };
@@ -67,7 +66,6 @@ export function ReviewView({ model }: ViewComponentProps<ReviewViewModel>) {
             <div className="flex min-h-0 flex-1">
                 <FilesPanel model={model} />
                 <DiffPanel model={model} />
-                <AiPanel model={model} />
             </div>
             <ValidateSheet model={model} />
         </div>
@@ -85,7 +83,8 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
     const viewed = useAtomValue(model.viewedCountAtom);
     const sideBySideToggle = useAtomValue(model.sideBySideAtom);
     const inlineDiff = useOverrideConfigAtom(model.blockId, "editor:inlinediff");
-    const ai = useAtomValue(model.aiAtom);
+    const aiPaneId = useAtomValue(model.aiPaneIdAtom);
+    const aiOpen = aiPaneId != null;
     const sideBySide = sideBySideOf(sideBySideToggle, inlineDiff);
     const since = state?.since;
     const hasSince = since != null && since.to === head && since.from !== head;
@@ -141,10 +140,14 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                     ) : null}
                     <button
                         type="button"
-                        className={cn(ToolbarButton, ai.open && "border-accent/60 text-primary")}
+                        className={cn(ToolbarButton, aiOpen && "border-accent/60 text-primary")}
                         onClick={() => fireAndForget(() => model.toggleAi())}
-                        aria-pressed={ai.open}
-                        title={ai.open ? "Hide the AI panel" : "Open the AI panel: starts the review session"}
+                        aria-pressed={aiOpen}
+                        title={
+                            aiOpen
+                                ? "Close the AI panel (the review session keeps running)"
+                                : "Open the AI panel: the PR's briefing, and the review session"
+                        }
                         data-testid="review-ai-toggle"
                     >
                         <i className="fa fa-solid fa-sparkles text-11" />
@@ -621,91 +624,4 @@ function MonacoDiff({
             />
         </div>
     );
-}
-
-function AiPanel({ model }: { model: ReviewViewModel }) {
-    const ai = useAtomValue(model.aiAtom);
-    const worktree = useAtomValue(model.worktreeAtom);
-    if (!ai.open) {
-        return null;
-    }
-    const focusTerminal = () => {
-        const layout = getLayoutModelForStaticTab();
-        const node = ai.session?.blockid ? layout?.getNodeByBlockId(ai.session.blockid) : null;
-        if (node != null) {
-            layout.focusNode(node.id);
-        }
-    };
-    return (
-        <aside
-            className="flex w-[300px] min-w-[240px] shrink-0 flex-col gap-3 overflow-auto border-l border-border p-3 text-12"
-            aria-label="AI panel"
-            data-testid="review-ai"
-        >
-            <div className="flex items-center gap-1.5 text-13 font-semibold">
-                <i className="fa fa-solid fa-sparkles text-12 text-accent" />
-                AI panel
-            </div>
-            <AiStatus
-                ai={ai}
-                onRetry={() => fireAndForget(() => model.startSession())}
-                onShowTerminal={focusTerminal}
-            />
-            {/* The briefing, the explanations and the staged comments (#583 and after) go here, above the terminal. */}
-            <section className="flex flex-col gap-1.5" data-slot="review-cards" aria-label="Briefing and explanations">
-                <p className="text-muted">
-                    The briefing and the explanations the agent posts will show here. Ask it in its terminal meanwhile.
-                </p>
-            </section>
-            <div className="mt-auto text-11 text-muted" title={worktree.worktree?.worktree ?? worktree.error}>
-                {worktree.state === "ready"
-                    ? `Worktree: ${worktree.worktree.kind === "agent" ? "the agent's" : "MoltenTerm's review copy"}`
-                    : worktree.state === "failed"
-                      ? "The review worktree could not be prepared."
-                      : "Preparing the review worktree…"}
-            </div>
-        </aside>
-    );
-}
-
-function AiStatus({
-    ai,
-    onRetry,
-    onShowTerminal,
-}: {
-    ai: ReviewAiState;
-    onRetry: () => void;
-    onShowTerminal: () => void;
-}) {
-    switch (ai.status) {
-        case "starting":
-            return <p className="text-muted">Starting your agent in the PR's worktree…</p>;
-        case "running":
-            return (
-                <div className="flex flex-col gap-1.5">
-                    <p>
-                        {ai.session?.agentname ?? "Your agent"} reviews this PR, read-only, in the terminal next to this
-                        panel.
-                        {ai.session?.connected ? "" : " Its review tools connect when it starts."}
-                    </p>
-                    {ai.message ? <p className="text-warning">{ai.message}</p> : null}
-                    <button type="button" className={cn(ToolbarButton, "w-fit")} onClick={onShowTerminal}>
-                        <i className="fa fa-solid fa-terminal text-11" />
-                        Show its terminal
-                    </button>
-                </div>
-            );
-        case "noagent":
-            return <p className="text-muted">{ai.message}</p>;
-        case "failed":
-            return (
-                <div className="flex flex-col gap-1.5">
-                    <p className="text-error">{ai.message || "The review session could not start."}</p>
-                    <button type="button" className={cn(ToolbarButton, "w-fit")} onClick={onRetry}>
-                        Try again
-                    </button>
-                </div>
-            );
-    }
-    return <p className="text-muted">The review session starts when this panel opens.</p>;
 }

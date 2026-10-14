@@ -254,3 +254,62 @@ export function newCommitsLabel(commits: number, rewritten: boolean): string {
     }
     return `${commits} new commit${commits === 1 ? "" : "s"}`;
 }
+
+// must match AiPaneView in pkg/molten/review/tab.go
+export const MoltentermReviewAiView = "molten-review-ai";
+
+// reviewKey names a PR in the tab's registry (GitHub's owner/name is case-insensitive).
+export function reviewKey(repo: string, num: number): string {
+    return `${(repo ?? "").toLowerCase()}#${num}`;
+}
+
+export type FileLink = { path: string; line?: number };
+
+const LinkLineRe = /^(.*?)(?:#L(\d+)(?:-L?\d+)?|:(\d+)(?:-\d+)?)$/;
+
+// parseFileLink reads a link of the briefing that points into the PR (the guide asks for [path:line](path#Lline)):
+// path#L12, path#L12-L20, path:12 or a bare path; web links, mail links and anchors are not files.
+export function parseFileLink(href: string): FileLink {
+    if (href == null) {
+        return null;
+    }
+    let target = href.trim();
+    if (
+        target === "" ||
+        target.startsWith("#") ||
+        /^[a-z][a-z0-9+.-]*:\/\//i.test(target) ||
+        /^mailto:/i.test(target)
+    ) {
+        return null;
+    }
+    try {
+        target = decodeURIComponent(target);
+    } catch {
+        return null;
+    }
+    target = target.replace(/^\.\//, "").replace(/^\/+/, "");
+    const m = LinkLineRe.exec(target);
+    const path = m ? m[1] : target;
+    const line = m ? Number(m[2] ?? m[3]) : null;
+    if (path === "" || path.includes("..")) {
+        return null;
+    }
+    return line > 0 ? { path, line } : { path };
+}
+
+// briefingAge says when the briefing was written and whether the PR moved since.
+export function briefingNote(briefing: { at: number; headoid?: string }, shownHead: string, now: number): string {
+    const minutes = Math.max(0, Math.round((now - briefing.at) / 60_000));
+    const when =
+        minutes < 1
+            ? "just now"
+            : minutes < 60
+              ? `${minutes} min ago`
+              : minutes < 48 * 60
+                ? `${Math.round(minutes / 60)} h ago`
+                : `${Math.round(minutes / 1440)} days ago`;
+    if (briefing.headoid && shownHead && briefing.headoid !== shownHead) {
+        return `${when}, on ${shortOid(briefing.headoid)}: the PR moved since`;
+    }
+    return when;
+}

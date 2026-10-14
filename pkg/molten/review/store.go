@@ -42,9 +42,20 @@ type Since struct {
 	Published bool `json:"published,omitempty"`
 }
 
+// Briefing is the review session's latest briefing of the PR (FR-REV-005), kept so a reopened PR shows it again.
+type Briefing struct {
+	Markdown string `json:"markdown"`
+	// HeadOid: the head the agent briefed; the Review tab says when the PR moved since.
+	HeadOid string `json:"headoid,omitempty"`
+	Agent   string `json:"agent,omitempty"`
+	At      int64  `json:"at"`
+}
+
 type State struct {
 	Repo   string `json:"repo"`
 	Number int    `json:"number"`
+	// Briefing: nil until a session posted one.
+	Briefing *Briefing `json:"briefing,omitempty"`
 	// Viewed: path → the head's blob id when it was marked viewed. A push that changes the file unviews it, as on
 	// GitHub.
 	Viewed map[string]string `json:"viewed"`
@@ -242,6 +253,23 @@ func (s *Store) SetViewed(req ViewedRequest) (State, bool, error) {
 		}
 		state.Viewed[req.Path] = req.Blob
 		return !had || old != req.Blob
+	})
+}
+
+// SetBriefing keeps the session's new briefing in place of the previous one (AC4).
+func (s *Store) SetBriefing(k PrKey, b Briefing) (State, bool, error) {
+	if strings.TrimSpace(b.Markdown) == "" {
+		return State{}, false, fmt.Errorf("the briefing is empty")
+	}
+	if err := checkOid(b.HeadOid, "headoid"); err != nil {
+		return State{}, false, err
+	}
+	return s.update(k, func(state *State) bool {
+		if state.Briefing != nil && *state.Briefing == b {
+			return false
+		}
+		state.Briefing = &b
+		return true
 	})
 }
 

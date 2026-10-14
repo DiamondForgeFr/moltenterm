@@ -163,6 +163,15 @@ type fakeWave struct {
 	typeErr   error
 	typedCh   chan string
 	files     map[string][]byte
+	// after: the block each terminal was split under; gh: the fake gh's answers by its first two words.
+	after    map[string]string
+	gh       map[string]string
+	ghErr    error
+	ghCalls  [][]string
+	prompts  map[string][]string
+	busy     bool
+	saved    map[string]any
+	readFile map[string][]byte
 }
 
 func (f *fakeWave) env(repo testRepo, data string) Env {
@@ -180,10 +189,11 @@ func (f *fakeWave) env(repo testRepo, data string) Env {
 			return path, nil
 		},
 		Guide: func() ([]byte, error) { return []byte("# guide"), nil },
-		CreateTerminal: func(ctx context.Context, tabId string, meta waveobj.MetaMapType) (string, error) {
+		CreateTerminal: func(ctx context.Context, tabId string, afterBlockId string, meta waveobj.MetaMapType) (string, error) {
 			f.lock.Lock()
 			defer f.lock.Unlock()
 			id := "block" + string(rune('a'+len(f.blocks)))
+			f.after[id] = afterBlockId
 			stored := waveobj.MetaMapType{}
 			raw, _ := json.Marshal(meta)
 			json.Unmarshal(raw, &stored)
@@ -237,15 +247,46 @@ func (f *fakeWave) env(repo testRepo, data string) Env {
 			if strings.HasSuffix(path, ".saasfoundry.json") {
 				return []byte(`{"language":{"tickets":"en"}}`)
 			}
-			return nil
+			f.lock.Lock()
+			defer f.lock.Unlock()
+			return f.readFile[path]
 		},
 		Now: func() time.Time { return time.UnixMilli(1000) },
+		Gh: func(ctx context.Context, dir string, args ...string) ([]byte, error) {
+			f.lock.Lock()
+			defer f.lock.Unlock()
+			f.ghCalls = append(f.ghCalls, args)
+			if f.ghErr != nil {
+				return nil, f.ghErr
+			}
+			answer, ok := f.gh[strings.Join(args[:2], " ")]
+			if !ok {
+				return nil, errors.New("not found")
+			}
+			return []byte(answer), nil
+		},
+		TypePrompt: func(ctx context.Context, blockId string, line string) (bool, bool, string) {
+			f.lock.Lock()
+			defer f.lock.Unlock()
+			if f.busy {
+				return false, true, "Claude Code is working: nothing was typed."
+			}
+			f.prompts[blockId] = append(f.prompts[blockId], line)
+			return true, false, ""
+		},
+		SaveRecord: func(ctx context.Context, blockId string, rec any) error {
+			f.lock.Lock()
+			defer f.lock.Unlock()
+			f.saved[blockId] = rec
+			return nil
+		},
 	}
 }
 
 func makeFakeWave() *fakeWave {
 	return &fakeWave{blocks: map[string]ReviewBlock{}, typed: map[string]string{}, installed: map[string]bool{"claude": true},
-		typedCh: make(chan string, 4), files: map[string][]byte{}}
+		typedCh: make(chan string, 4), files: map[string][]byte{}, after: map[string]string{}, gh: map[string]string{},
+		prompts: map[string][]string{}, saved: map[string]any{}, readFile: map[string][]byte{}}
 }
 
 func startReq(repo testRepo) mcpreview.StartRequest {

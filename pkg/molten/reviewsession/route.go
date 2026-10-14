@@ -193,6 +193,18 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return nil, l.manager.SetSelection(ctx, req)
+	case mcpreview.SetHeadCommand:
+		var req mcpreview.SetHeadRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.manager.SetHead(ctx, req)
+	case mcpreview.BriefCommand:
+		var key mcpreview.SessionKey
+		if err := utilfn.ReUnmarshal(&key, data); err != nil {
+			return nil, err
+		}
+		return l.manager.Brief(ctx, key)
 	}
 	return nil, fmt.Errorf("unknown review session command %q", command)
 }

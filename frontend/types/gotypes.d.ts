@@ -1431,6 +1431,7 @@ declare global {
         "agent:sessionroots"?: {[key: string]: string[]};
         "agent:integrate"?: boolean;
         "agent:integrateoff"?: string[];
+        "review:language"?: string;
         "companion:usagegauges"?: string[];
         "companion:usageclaudeoauth"?: boolean;
         "linemap:animation"?: boolean;

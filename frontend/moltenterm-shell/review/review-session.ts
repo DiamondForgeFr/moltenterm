@@ -18,10 +18,14 @@ export const ReviewGetCommand = "moltenreviewget";
 export const ReviewListCommand = "moltenreviewlist";
 export const ReviewSelectionCommand = "moltenreviewselection";
 export const ReviewPostsCommand = "moltenreviewposts";
+export const ReviewSetHeadCommand = "moltenreviewsethead";
+export const ReviewBriefCommand = "moltenreviewbrief";
 
 // Starting may fetch the PR's branch and create its worktree.
 const StartTimeoutMs = 100_000;
 const CallTimeoutMs = 10_000;
+// Typing waits for the agent's terminal.
+const BriefTimeoutMs = 20_000;
 
 export type ReviewAnchor = {
     path: string;
@@ -45,7 +49,14 @@ export type ReviewStartRequest = {
     baseref?: string;
     // claude or codex; omitted, the first installed.
     agent?: string;
+    // The agent starts by briefing the PR (FR-REV-005).
+    brief?: boolean;
+    // The session's terminal is split under this block (the AI panel).
+    afterblockid?: string;
 };
+
+// asked: the prompt was typed; busy: the agent works or waits, nothing was typed.
+export type ReviewBriefResult = { status: "asked" | "busy" | "failed"; message?: string };
 
 export type ReviewSessionKey = { id?: string; repo?: string; number?: number };
 
@@ -92,6 +103,8 @@ export type ReviewPost = {
     commentkind?: "comment" | "change";
     commentid?: string;
     explanationid?: string;
+    headoid?: string;
+    agent?: string;
 };
 
 export type ReviewSessionUpdate = { session?: ReviewSessionInfo; ended?: boolean; post?: ReviewPost };
@@ -124,6 +137,20 @@ export async function listReviewSessions(): Promise<ReviewSessionInfo[]> {
 // The developer's selection, which the agent reads with review_selection; no anchor and no text clears it.
 export function setReviewSelection(key: ReviewSessionKey, anchor: ReviewAnchor, text?: string): Promise<void> {
     return call(ReviewSelectionCommand, { ...key, anchor, text });
+}
+
+// setReviewSessionHead moves a running session to the head the tab shows; brief asks the agent for a new briefing.
+export function setReviewSessionHead(
+    key: ReviewSessionKey,
+    headoid: string,
+    brief: boolean
+): Promise<ReviewBriefResult> {
+    return call(ReviewSetHeadCommand, { ...key, headoid, brief: brief || undefined }, BriefTimeoutMs);
+}
+
+// askReviewBriefing types a briefing request into the agent's terminal, when the agent is idle.
+export function askReviewBriefing(key: ReviewSessionKey): Promise<ReviewBriefResult> {
+    return call(ReviewBriefCommand, key, BriefTimeoutMs);
 }
 
 export async function reviewSessionPosts(key: ReviewSessionKey): Promise<ReviewPost[]> {
