@@ -742,6 +742,9 @@ export abstract class ReviewTabModel implements ViewModel {
         }
         try {
             await cancelReviewQuestion({ id: session.id }, questionid);
+            globalStore.set(this.askAtom, (ask) =>
+                ask?.result?.questionid === questionid ? { ...ask, result: null } : ask
+            );
             return null;
         } catch (e) {
             return String(e?.message ?? e);

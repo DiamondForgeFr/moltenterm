@@ -154,7 +154,7 @@ function AnswerGroupCard({ model, group, focusSeq }: { model: ReviewTabModel; gr
         <article
             ref={ref}
             className={cn(
-                "flex flex-col gap-2 rounded-6 border border-border p-2.5 transition-shadow duration-200",
+                "flex flex-col gap-2 rounded-6 border border-border p-2.5 transition-shadow duration-120 ease-mt",
                 focused && "molten-review-answer-focus"
             )}
             data-testid="review-answer-group"
