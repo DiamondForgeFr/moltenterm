@@ -2,7 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { accentForeground, applyAccent, contrastRatio, mixColor, parseColor } from "./accent";
+import {
+    accentForeground,
+    applyAccent,
+    contrastRatio,
+    gradientForeground,
+    mixColor,
+    normaliseColourChoice,
+    parseColor,
+    workspaceColourStops,
+    WorkspaceGradientMetaKey,
+} from "./accent";
 
 function fakeStyle() {
     const props: Record<string, string> = {};
@@ -39,16 +49,88 @@ describe("accentForeground", () => {
 });
 
 describe("applyAccent", () => {
-    it("sets the accent and its text colour", () => {
+    it("sets the accent and its text colour, the gradient's stops the same colour", () => {
         const style = fakeStyle();
         applyAccent("#BF55EC", style);
-        expect(style.props).toEqual({ "--mt-accent": "rgb(191, 85, 236)", "--mt-accent-fg": "#000000" });
+        expect(style.props).toEqual({
+            "--mt-accent": "rgb(191, 85, 236)",
+            "--mt-accent-mid": "rgb(191, 85, 236)",
+            "--mt-accent-end": "rgb(191, 85, 236)",
+            "--mt-accent-fg": "#000000",
+        });
     });
 
     it("falls back to MoltenTerm's orange for a workspace without a colour", () => {
         const style = fakeStyle();
         applyAccent(undefined, style);
-        expect(style.props).toEqual({ "--mt-accent": "rgb(255, 124, 13)", "--mt-accent-fg": "#000000" });
+        expect(style.props).toEqual({
+            "--mt-accent": "rgb(255, 124, 13)",
+            "--mt-accent-mid": "rgb(255, 124, 13)",
+            "--mt-accent-end": "rgb(255, 124, 13)",
+            "--mt-accent-fg": "#000000",
+        });
+    });
+
+    it("keeps the first stop of a gradient as the accent, with its text colour (#657 AC3)", () => {
+        const style = fakeStyle();
+        applyAccent("#00ffdb", style, ["#00ffdb", "#429dff"]);
+        expect(style.props).toEqual({
+            "--mt-accent": "rgb(0, 255, 219)",
+            "--mt-accent-mid": "rgb(33, 206, 237)",
+            "--mt-accent-end": "rgb(66, 157, 255)",
+            "--mt-accent-fg": "#000000",
+        });
+        applyAccent("#ffc53d", style, ["#ffc53d", "#ff7c0d", "#ff453a"]);
+        expect(style.props["--mt-accent-mid"]).toBe("rgb(255, 124, 13)");
+        expect(style.props["--mt-accent-end"]).toBe("rgb(255, 69, 58)");
+    });
+});
+
+describe("gradientForeground (#657 AC5)", () => {
+    it("is the accent's text colour for one stop", () => {
+        expect(gradientForeground([parseColor("#1E3A8A")])).toBe("#ffffff");
+        expect(gradientForeground([parseColor("#FFE900")])).toBe("#000000");
+    });
+
+    it("picks the text colour with the better worst case over every stop", () => {
+        // Black reads on the yellow, white on the navy: across both, the worst case decides.
+        const stops = ["#ffe900", "#1e3a8a"].map(parseColor);
+        const fg = gradientForeground(stops);
+        const other = fg === "#000000" ? "#ffffff" : "#000000";
+        const worst = (c: string) => Math.min(...stops.map((s) => contrastRatio(s, parseColor(c))));
+        expect(worst(fg)).toBeGreaterThanOrEqual(worst(other));
+        expect(gradientForeground(["#00ffdb", "#429dff"].map(parseColor))).toBe("#000000");
+        expect(gradientForeground(["#1e3a8a", "#4c1d95"].map(parseColor))).toBe("#ffffff");
+    });
+});
+
+describe("workspace colour storage (#657 AC4)", () => {
+    it("normalises a choice of 1-3 hex stops", () => {
+        expect(normaliseColourChoice("#429DFF")).toBe("#429dff");
+        expect(normaliseColourChoice(" #fff , #00FFDB ")).toBe("#ffffff,#00ffdb");
+        expect(normaliseColourChoice("#a,#b,#c,#d")).toBe("");
+        expect(normaliseColourChoice("#aaa,#bbb,#ccc,#ddd")).toBe("");
+        expect(normaliseColourChoice("green")).toBe("");
+        expect(normaliseColourChoice(undefined)).toBe("");
+    });
+
+    it("keeps a flat colour from before gradients", () => {
+        expect(workspaceColourStops({ color: "#58C142", meta: {} })).toEqual(["#58c142"]);
+        expect(workspaceColourStops({ color: "#58C142" })).toEqual(["#58c142"]);
+        expect(workspaceColourStops({ color: "" })).toEqual([]);
+    });
+
+    it("reads a gradient whose first stop is the colour", () => {
+        const meta = { [WorkspaceGradientMetaKey]: "#00FFDB,#429dff" };
+        expect(workspaceColourStops({ color: "#00ffdb", meta })).toEqual(["#00ffdb", "#429dff"]);
+    });
+
+    it("ignores a gradient left behind by a colour set elsewhere (Wave's switcher)", () => {
+        const meta = { [WorkspaceGradientMetaKey]: "#00ffdb,#429dff" };
+        expect(workspaceColourStops({ color: "#ff453a", meta })).toEqual(["#ff453a"]);
+        expect(workspaceColourStops({ color: "#ff453a", meta: { [WorkspaceGradientMetaKey]: 42 } })).toEqual([
+            "#ff453a",
+        ]);
     });
 });
 

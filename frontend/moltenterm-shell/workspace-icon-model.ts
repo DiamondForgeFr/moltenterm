@@ -6,6 +6,7 @@
 // stay set underneath, so an image that is removed or fails to show steps down without an error. Kept apart from the
 // component so the rules can be tested without the app. pkg/molten/workspaceicon.go mirrors the order.
 
+import { workspaceColourStops } from "./accent";
 import { t } from "./i18n/i18n";
 import { ProjectLogoMetaKey } from "./workspace-project";
 
@@ -21,8 +22,16 @@ const StoredIconNameRegex = /^[A-Za-z0-9-]{1,64}-[0-9a-f]{12}\.(png|jpg|webp|svg
 export type WorkspaceIconKind = "imported" | "logo" | "builtin";
 
 // What a surface needs to draw a workspace's badge; image is the stored file name, logo an absolute path. revision is
-// the workspace's version, when the surface reads it live.
-export type WorkspaceIconSource = { icon: string; color: string; image: string; logo: string; revision?: number };
+// the workspace's version, when the surface reads it live. stops holds the colours of a gradient (accent.ts, #657):
+// the glyph is drawn with it, and with color, its first stop, where it cannot be.
+export type WorkspaceIconSource = {
+    icon: string;
+    color: string;
+    image: string;
+    logo: string;
+    revision?: number;
+    stops?: string[];
+};
 
 export type ResolvedWorkspaceIcon = { kind: WorkspaceIconKind; path: string; icon: string; color: string };
 
@@ -47,6 +56,7 @@ export function workspaceIconSource(ws: Workspace): WorkspaceIconSource {
         image: metaString(meta, WorkspaceIconMetaKey),
         logo: metaString(meta, ProjectLogoMetaKey),
         revision: ws?.version,
+        stops: workspaceColourStops(ws),
     };
 }
 

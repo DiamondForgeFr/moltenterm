@@ -6,23 +6,12 @@
 // their radio groups, and the double-click handed over between two tab views.
 
 import { t } from "./i18n/i18n";
+import { colourChoiceName } from "./workspace-colour";
 import { lastWorkspaceReason } from "./workspace-reset-model";
 
 export function emptyNameError(): string {
     return t("workspace.edit.emptyName");
 }
-
-// The names of wavesrv's colours (pkg/wcore/workspace.go, WorkspaceColors): a swatch is announced by its name, never by
-// its colour alone (NFR-SHELL-014). Values are dictionary keys.
-const ColourNames: Record<string, string> = {
-    "#ff7c0d": "workspace.colours.orange",
-    "#00ffdb": "workspace.colours.teal",
-    "#429dff": "workspace.colours.blue",
-    "#bf55ec": "workspace.colours.purple",
-    "#ff453a": "workspace.colours.red",
-    "#58c142": "workspace.colours.green",
-    "#ffe900": "workspace.colours.yellow",
-};
 
 const IconNames: Record<string, string> = {
     "custom@wave-logo-solid": "workspace.icons.wave",
@@ -39,12 +28,10 @@ export function checkWorkspaceName(draft: string): string {
     return name === "" ? null : name;
 }
 
+// A swatch is announced by its name, never by its colour alone (NFR-SHELL-014): wavesrv's colours
+// (pkg/wcore/workspace.go, WorkspaceColors) and the presets of workspace-colour.ts each have one.
 export function colourName(colour: string): string {
-    if (!colour) {
-        return t("workspace.colours.none");
-    }
-    const key = ColourNames[colour.toLowerCase()];
-    return key ? t(key) : colour;
+    return colourChoiceName(colour);
 }
 
 export function iconName(icon: string): string {

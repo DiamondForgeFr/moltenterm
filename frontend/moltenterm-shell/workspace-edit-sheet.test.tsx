@@ -23,6 +23,7 @@ vi.mock("./workspace-project-store", () => ({
     chooseMoltentermPath: async () => null,
     findProjectLogos: async () => [],
     setWorkspaceLogo: async () => {},
+    setWorkspaceGradient: async () => {},
 }));
 vi.mock("./workspace-project-section", () => ({
     WorkspaceProjectBlock: () => <div data-stub="project">Link a project…</div>,
@@ -40,7 +41,14 @@ vi.mock("./dialog-frame", () => ({
     ),
 }));
 
-import { ColourChoices, IconChoices, ImagePane, initialIconMode, WorkspaceEditSheet } from "./workspace-edit-sheet";
+import {
+    ColourChoices,
+    ColourField,
+    IconChoices,
+    ImagePane,
+    initialIconMode,
+    WorkspaceEditSheet,
+} from "./workspace-edit-sheet";
 
 const ws = { oid: "w1", name: "Client A", icon: "rocket", color: "#429DFF", meta: {} } as any as Workspace;
 
@@ -238,5 +246,50 @@ describe("icon and colour choices are named radio groups (NFR-SHELL-014)", () =>
             <ColourChoices colors={["#FF7C0D", "#429DFF"]} selected="" onSelect={() => {}} />
         );
         expect([...html.matchAll(/tabindex="(-?\d)"/g)].map((m) => m[1])).toEqual(["0", "-1"]);
+    });
+});
+
+describe("colour field (#657)", () => {
+    const groups = (html: string) => [...html.matchAll(/class="mb-1 text-11 text-muted">([^<]+)</g)].map((m) => m[1]);
+
+    it("offers the logo's colours and gradients first, then the presets, the gradients and a custom colour", () => {
+        const html = renderToStaticMarkup(
+            <ColourField selected="#429dff" logoColours={["#E34F26", "#1572B6"]} onSelect={() => {}} />
+        );
+        expect(groups(html)).toEqual(["From the logo", "Colours", "Gradients", "Custom"]);
+        expect(html).toContain('aria-label="Logo colour #e34f26"');
+        expect(html).toContain('aria-label="Logo gradient #e34f26, #1572b6"');
+        expect(html).toContain("background:linear-gradient(135deg, #e34f26, #1572b6)");
+        expect(html.match(/role="radio"/g)).toHaveLength(3 + 24 + 5);
+        expect(html).toContain('aria-label="Pick a custom colour"');
+        expect(html).toMatch(/aria-checked="true" aria-label="Blue"/);
+        expect(html.match(/fa-check/g)).toHaveLength(1);
+    });
+
+    it("has no logo row without an image, and checks a gradient in its row (#657 AC3)", () => {
+        const html = renderToStaticMarkup(
+            <ColourField selected="#00ffdb,#429dff" logoColours={[]} onSelect={() => {}} />
+        );
+        expect(groups(html)).toEqual(["Colours", "Gradients", "Custom"]);
+        expect(html).toMatch(/aria-checked="true" aria-label="Ocean"/);
+        expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
+    });
+
+    it("shows a colour from before as selected, and an unknown one as the custom colour (#657 AC4)", () => {
+        const wave = renderToStaticMarkup(<ColourField selected="#58c142" logoColours={[]} onSelect={() => {}} />);
+        expect(wave).toMatch(/aria-checked="true" aria-label="Green"/);
+        const custom = renderToStaticMarkup(<ColourField selected="#123456" logoColours={[]} onSelect={() => {}} />);
+        expect(custom).not.toContain('aria-checked="true"');
+        expect(custom).toContain('value="#123456"');
+        expect(custom.match(/fa-check/g)).toHaveLength(1);
+    });
+
+    it("is the sheet's colour field, its choice read from the workspace's gradient", () => {
+        current.ws = { ...ws, color: "#00ffdb", meta: { "molten:workspacegradient": "#00ffdb,#429dff" } } as any;
+        const html = renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />);
+        expect(html).toContain('data-role="colour-field"');
+        expect(html).toMatch(/aria-checked="true" aria-label="Ocean"/);
+        expect(html).toContain("Rail badge: Rocket, Ocean");
+        expect(html).toContain("molten-glyph-gradient");
     });
 });
