@@ -55,6 +55,6 @@ describe("Workspace › Edit Workspace… (FR-SHELL-030-AC3)", () => {
         const preload = readFileSync(new URL("./preload.ts", import.meta.url), "utf8");
         expect(preload).toContain(`ipcRenderer.on("${MoltentermEditWorkspaceChannel}"`);
         const menu = readFileSync(new URL("./emain-menu.ts", import.meta.url), "utf8");
-        expect(menu).toMatch(/label: "Create Workspace",[\s\S]*?makeMoltentermEditWorkspaceMenuItem\(/);
+        expect(menu).toMatch(/label: mt\("appMenu.createWorkspace"\),[\s\S]*?makeMoltentermEditWorkspaceMenuItem\(/);
     });
 });
