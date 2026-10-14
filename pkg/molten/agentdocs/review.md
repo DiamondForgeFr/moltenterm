@@ -118,8 +118,9 @@ Use these as short bold labels (or headings in detailed depth), in `developerlan
    Put each principle you name in `principles`. Skip this section when no principle clearly applies: never force one.
 
 7. **Sources**: the answer ends with its sources list: the lines you read (`path:line`), and the ticket, plan, SRS
-   page, commit, code comment or project rule each reason comes from. Put the same list in `sources`; MoltenTerm
-   refuses an answer without sources.
+   page, commit, code comment or project rule each reason comes from. In the terminal, end your answer with it. In
+   the card, give it as `sources` and leave it out of `markdown`: MoltenTerm shows it last, each `path:line` opening
+   the file. MoltenTerm refuses an answer without sources.
 
 ### Facts only
 
