@@ -25,9 +25,10 @@
 .mt-radar-pill {
     display: flex;
     align-items: center;
-    padding: 4px 8px;
+    padding: 3px 8px;
     margin: 0 2px;
-    border-radius: 999px;
+    /* 9999px: the build caps every smaller radius to the shell's scale (cap-radius.ts). */
+    border-radius: 9999px;
     background: #1c1c1e;
     border: 1px solid #2e2e30;
     cursor: grab;
@@ -48,7 +49,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 22px;
+    height: 16px;
     padding: 0;
     margin: 0;
     border: 0;
@@ -61,7 +62,7 @@
     display: block;
     width: 2px;
     height: 10px;
-    border-radius: 999px;
+    border-radius: 9999px;
     background: var(--mt-radar-color);
     opacity: 0.4;
     transition:
@@ -96,7 +97,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    border-radius: 999px;
+    border-radius: 9999px;
     box-shadow:
         0 0 0 3px rgb(249 115 22 / 0.25),
         0 0 10px rgb(249 115 22 / 0.7);
