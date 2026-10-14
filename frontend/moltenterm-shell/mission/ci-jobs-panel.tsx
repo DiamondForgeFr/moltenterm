@@ -113,7 +113,6 @@ function AskAgent({ dir, target, agents }: { dir: string; target: DescribeTarget
                 <i className={cn("fa fa-solid text-11", busy ? "fa-spinner fa-spin" : "fa-wand-magic-sparkles")} />
                 {JobsText.ask}
             </button>
-            {noAgent ? <span className="text-11 text-muted">{JobsText.askNoAgent}</span> : null}
             {outcome ? (
                 <span className={cn("text-11", outcome.ok ? "text-success" : "text-warning")} role="status">
                     {outcome.text}
@@ -431,8 +430,12 @@ export function CiJobsTab({
     if (catalogue == null) {
         return <Notice text={JobsText.loading} />;
     }
+    const undescribed =
+        catalogue.workflows.some((wf) => wf.jobs.some((j) => !j.description)) ||
+        (catalogue.local?.jobs ?? []).some((j) => !j.description);
     return (
         <div className="flex flex-col gap-5" data-testid="ci-jobs">
+            {undescribed && agents.length === 0 ? <Notice text={JobsText.askNoAgent} /> : null}
             <section className="flex flex-col gap-2">
                 <BlockHeader title={JobsText.remoteTitle} hint={JobsText.remoteHint} />
                 {catalogue.workflows.length === 0 ? <Notice text={JobsText.noWorkflows} /> : null}

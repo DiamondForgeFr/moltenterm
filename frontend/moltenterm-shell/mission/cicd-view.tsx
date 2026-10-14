@@ -174,7 +174,7 @@ function CicdContent({
                             aria-selected={tab === entry.id}
                             onClick={() => setTab(entry.id)}
                             className={cn(
-                                "flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-0.5 text-12 transition-colors duration-120 ease-mt",
+                                "flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-0.5 text-12 whitespace-nowrap transition-colors duration-120 ease-mt",
                                 tab === entry.id ? "bg-hover text-primary" : "text-muted hover:text-primary"
                             )}
                         >
