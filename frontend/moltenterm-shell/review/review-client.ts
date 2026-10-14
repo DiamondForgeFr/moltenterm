@@ -35,6 +35,7 @@ const TranslateCommand = "moltenreviewtranslate";
 const TranslationCommand = "moltenreviewtranslation";
 const SummaryCommand = "moltenreviewsummary";
 const PublishCommand = "moltenreviewpublish";
+const RestartCommand = "moltenreviewrestart";
 
 // A file list or a compare may fetch the PR's branches; a worktree may be created.
 const GitTimeoutMs = 95_000;
@@ -43,6 +44,8 @@ const CallTimeoutMs = 15_000;
 const DiscussTimeoutMs = 25_000;
 // Post review lists, posts and checks on GitHub (pkg/molten/review/route.go's publishTimeout, plus a margin).
 const PublishTimeoutMs = 245_000;
+// Restart work may fetch and create a worktree, then waits for a new terminal's prompt (restart.go's restartTimeout).
+const RestartTimeoutMs = 125_000;
 
 // must match pkg/molten/review/diff.go
 export type ReviewFileStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "typechanged" | "submodule";
@@ -108,8 +111,28 @@ export type ReviewRound = {
     githubreviewid?: number;
     githuburl?: string;
     restartedat?: number;
+    // The agent Restart work handed the round to, its terminal and its worktree (FR-REV-011).
+    restartagent?: string;
+    restartblockid?: string;
+    restartworktree?: string;
     // The language the round was published in (FR-REV-010).
     lang?: string;
+};
+
+// must match RestartResult in pkg/molten/review/restart.go
+export type ReviewRestartStatus = "started" | "sent" | "typed" | "busy" | "noagent" | "failed";
+
+export type ReviewRestartResult = {
+    status: ReviewRestartStatus;
+    message?: string;
+    round?: string;
+    worktree?: string;
+    worktreecreated?: boolean;
+    blockid?: string;
+    agent?: string;
+    agentname?: string;
+    briefpath?: string;
+    state?: ReviewState;
 };
 
 export type ReviewSince = { from: string; to: string; published?: boolean };
@@ -508,6 +531,23 @@ export function publishReview(req: {
     aswritten?: boolean;
 }): Promise<ReviewState> {
     return call(PublishCommand, req, PublishTimeoutMs);
+}
+
+// restartReviewWork is the developer's click on Restart work (FR-REV-011): the last published round goes to an agent in
+// the worktree of the PR's branch; a new agent terminal goes in tabid, right of afterblockid.
+export function restartReviewWork(req: {
+    repo: string;
+    number: number;
+    dir: string;
+    headref: string;
+    baseref?: string;
+    title?: string;
+    url?: string;
+    ticket?: number;
+    tabid: string;
+    afterblockid?: string;
+}): Promise<ReviewRestartResult> {
+    return call(RestartCommand, req, RestartTimeoutMs);
 }
 
 // subscribeReviewState follows a PR's review store (another window, the CLI); returns the unsubscribe function.
