@@ -145,7 +145,7 @@ export type PipelineDef = {
         files?: { path: string; format: "json" | "regex"; keys?: string[][]; pattern?: string }[];
     };
     ci?: {
-        jobs: (PipelineCommand & { name: string; title?: string; lane?: string })[];
+        jobs: (PipelineCommand & { name: string; title?: string; lane?: string; description?: string })[];
         prepare?: PipelineCommand;
         statuses?: string;
     };
@@ -189,6 +189,8 @@ export type MissionSnapshot = {
     pipeline?: PipelineReport;
     // The branch pull requests target when .saasfoundry.json declares one (FR-REV-001).
     prtarget?: string;
+    // The workflow files' names, sizes and times: the Jobs tab reads them again when it moves (#637).
+    workflowsstamp?: string;
 };
 
 export function toTreeData(git: MissionGit): TreeData {

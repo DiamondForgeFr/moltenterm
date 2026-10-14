@@ -291,6 +291,27 @@ func (l *routeLink) handleGithubRun(command string, source string, data any) (an
 	return nil, l.collector.RerunGithubRun(req)
 }
 
+func handleJobs(command string, source string, data any) (any, error) {
+	if command == JobsCommand {
+		var req JobsRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return ReadCiCatalogue(req.Dir)
+	}
+	// Typing into an agent's prompt is the user's click in a window; an agent asks another one itself.
+	if !isWindowSource(source) {
+		return nil, fmt.Errorf("an agent can only be asked to describe a job from a MoltenTerm window")
+	}
+	var req JobDescribeRequest
+	if err := utilfn.ReUnmarshal(&req, data); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return DescribeJob(ctx, req)
+}
+
 func (l *routeLink) handle(command string, source string, data any) (any, error) {
 	if command == SpawnsCommand {
 		return spawns.Snapshot(), nil
@@ -357,6 +378,9 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 	}
 	if command == GithubRunLogCommand || command == GithubRunRerunCommand {
 		return l.handleGithubRun(command, source, data)
+	}
+	if command == JobsCommand || command == JobDescribeCommand {
+		return handleJobs(command, source, data)
 	}
 	if strings.HasPrefix(command, "moltenmissionci") {
 		return l.handleCi(command, data)

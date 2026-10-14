@@ -103,6 +103,8 @@ type Snapshot struct {
 	Pipeline *molten.PipelineReport `json:"pipeline,omitempty"`
 	// The branch pull requests target when the project declares one (FR-REV-001), read with the pipeline.
 	PrTarget string `json:"prtarget,omitempty"`
+	// The workflow files' names, sizes and times (#637): the Jobs tab reads them again when it moves.
+	WorkflowsStamp string `json:"workflowsstamp,omitempty"`
 }
 
 type GetRequest struct {
@@ -381,6 +383,7 @@ func (c *Collector) get(dir string, ask refreshAsk) (Snapshot, error) {
 		report := molten.ValidatePipeline(dir)
 		snap.Pipeline = &report
 		snap.PrTarget = molten.PrTargetBranch(dir)
+		snap.WorkflowsStamp = WorkflowsStamp(dir)
 	}
 	return snap, nil
 }
@@ -490,6 +493,7 @@ func (c *Collector) refresh(dir string, plan refreshPlan) {
 	report := molten.ValidatePipeline(dir)
 	snap.Pipeline = &report
 	snap.PrTarget = molten.PrTargetBranch(dir)
+	snap.WorkflowsStamp = WorkflowsStamp(dir)
 	c.saveCache(snap)
 	if c.publish != nil {
 		c.publish(snap)

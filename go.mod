@@ -40,6 +40,7 @@ require (
 	golang.org/x/sys v0.43.0
 	golang.org/x/term v0.41.0
 	google.golang.org/api v0.275.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -85,7 +86,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9 // indirect
 	google.golang.org/grpc v1.80.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/kevinburke/ssh_config => github.com/wavetermdev/ssh_config v0.0.0-20241219203747-6409e4292f34

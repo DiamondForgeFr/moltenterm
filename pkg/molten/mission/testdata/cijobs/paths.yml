@@ -1,0 +1,24 @@
+name: Docs
+on:
+  push:
+    branches: [develop]
+    tags: ["v*"]
+    paths:
+      - "docs/**"
+      - mkdocs.yml
+  pull_request:
+    branches-ignore: [gh-pages]
+    types: [opened, synchronize, ready_for_review]
+    paths-ignore: ["**/*.png"]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make docs
+  publish:
+    needs: site
+    if: ${{ github.ref == 'refs/heads/develop' && github.event_name == 'push' }}
+    uses: ./.github/workflows/publish.yml
