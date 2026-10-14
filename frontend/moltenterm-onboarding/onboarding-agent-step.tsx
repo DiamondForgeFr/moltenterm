@@ -9,6 +9,7 @@
 
 import { cn, fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useState } from "react";
+import { useT } from "../moltenterm-shell/i18n/i18n";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { openSettingsSection } from "../moltenterm-shell/settings/settings-open";
 import {
@@ -26,22 +27,23 @@ import {
     preselectedAgent,
 } from "./onboarding-agent-model";
 import { installDeclinedAgent, listOnboardingAgents } from "./onboarding-client";
-import { Code, CopyLine, ExternalLink, StepText } from "./onboarding-parts";
+import { Code, CopyLine, ExternalLink, StepText, withCodes } from "./onboarding-parts";
 import type { FirstRunStepContext } from "./onboarding-steps";
 
 function GuideLine({ guide, version }: { guide: OnboardingGuide; version: string }) {
+    const t = useT();
     const state = guideState(guide, version);
     return (
         <li className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-12">
             <Code>{guideCall(guide.invocation)}</Code>
             {state === "installed" ? <span className="text-muted">v{guide.version}</span> : null}
             {state === "outdated" ? (
-                <span className="text-muted">v{guide.version}, updated at the next start</span>
+                <span className="text-muted">{t("onboarding.agent.guideOutdated", { version: guide.version })}</span>
             ) : null}
-            {state === "missing" ? <span className="text-muted">not installed yet</span> : null}
+            {state === "missing" ? <span className="text-muted">{t("onboarding.agent.guideMissing")}</span> : null}
             {state === "foreign" ? (
                 <span className="text-warning" title={guide.path}>
-                    a file MoltenTerm did not write is at its place; it is left alone
+                    {t("onboarding.agent.guideForeign")}
                 </span>
             ) : null}
         </li>
@@ -63,13 +65,16 @@ function AgentRow({
     onSelect: () => void;
     onReinstall: () => void;
 }) {
+    const t = useT();
     if (!agent.found) {
         return (
             <li className="flex items-center gap-3 px-3 py-2" data-agent={agent.id} data-found="false">
                 <i className="fa-solid fa-minus w-[13px] text-center text-muted" aria-hidden />
                 <span className="flex-1 text-13 text-secondary">{agent.name}</span>
-                <span className="text-12 text-muted">Not found</span>
-                {agent.installpage ? <ExternalLink href={agent.installpage}>Install</ExternalLink> : null}
+                <span className="text-12 text-muted">{t("onboarding.agent.notFound")}</span>
+                {agent.installpage ? (
+                    <ExternalLink href={agent.installpage}>{t("onboarding.agent.install")}</ExternalLink>
+                ) : null}
             </li>
         );
     }
@@ -89,18 +94,18 @@ function AgentRow({
                 />
                 <span className="flex-1 text-13 font-medium text-primary">{agent.name}</span>
                 {agent.declined ? (
-                    <span className="text-12 text-muted">Declined</span>
+                    <span className="text-12 text-muted">{t("onboarding.agent.declined")}</span>
                 ) : (
                     <span className="flex items-center gap-1.5 text-12 text-secondary">
                         <i className="fa-solid fa-circle-check text-[var(--mt-state-done)]" aria-hidden />
-                        Found
+                        {t("onboarding.agent.found")}
                     </span>
                 )}
             </label>
             {agent.declined ? (
                 <div className="flex flex-wrap items-center gap-2 pl-7 text-12 text-muted">
                     <span>
-                        Its molten guides were removed with <Code>molten agent remove {agent.id}</Code>.
+                        {withCodes(t("onboarding.agent.guidesRemoved"), { command: `molten agent remove ${agent.id}` })}
                     </span>
                     <button
                         type="button"
@@ -108,7 +113,7 @@ function AgentRow({
                         onClick={onReinstall}
                         className="molten-btn-secondary cursor-pointer rounded-6 px-2 py-1 text-12"
                     >
-                        Install its guides again
+                        {t("onboarding.agent.reinstall")}
                     </button>
                 </div>
             ) : (
@@ -123,39 +128,31 @@ function AgentRow({
 }
 
 function GenericOption({ agent }: { agent: OnboardingAgent }) {
+    const t = useT();
     if (agent == null) {
         return null;
     }
     return (
         <div className="flex flex-col gap-2 rounded-4 border border-border px-3 py-2.5" data-agent={agent.id}>
-            <span className="text-13 font-medium text-primary">Another coding agent</span>
+            <span className="text-13 font-medium text-primary">{t("onboarding.agent.genericTitle")}</span>
             <StepText>
-                Any agent can follow MoltenTerm&apos;s instruction file
-                {agent.installed ? (
-                    <>
-                        {" "}
-                        at <Code>{agent.path}</Code>
-                    </>
-                ) : (
-                    <>
-                        : <Code>molten agent install generic</Code> writes it to <Code>{agent.path}</Code>
-                    </>
-                )}
-                . Point your agent to it with:
+                {agent.installed
+                    ? withCodes(t("onboarding.agent.genericInstalled"), { path: agent.path })
+                    : withCodes(t("onboarding.agent.genericMissing"), {
+                          command: "molten agent install generic",
+                          path: agent.path,
+                      })}
             </StepText>
-            <CopyLine text={genericRequest(agent, "<what you want MoltenTerm to do>")} />
+            <CopyLine text={genericRequest(agent, t("onboarding.agent.requestPlaceholder"))} />
         </div>
     );
 }
 
 function NoAgentFound({ agents, busy, onRetry }: { agents: OnboardingAgent[]; busy: boolean; onRetry: () => void }) {
+    const t = useT();
     return (
         <div className="flex flex-col gap-3" data-testid="first-run-no-agent">
-            <StepText>
-                MoltenTerm ships no AI and needs no API key: the coding agent you already use reshapes it. None of the
-                agents MoltenTerm supports is on this machine&apos;s PATH. Install one, then look again, or skip this
-                step: Getting started offers it again.
-            </StepText>
+            <StepText>{t("onboarding.agent.noneFound")}</StepText>
             <ul className="flex flex-col gap-1.5">
                 {agents.map((agent) => (
                     <li key={agent.id} className="text-13">
@@ -174,7 +171,7 @@ function NoAgentFound({ agents, busy, onRetry }: { agents: OnboardingAgent[]; bu
                     onClick={onRetry}
                     className="molten-btn-secondary cursor-pointer rounded-6 px-3 py-1.5 text-12"
                 >
-                    Look again
+                    {t("onboarding.agent.lookAgain")}
                 </button>
             </div>
         </div>
@@ -182,22 +179,23 @@ function NoAgentFound({ agents, busy, onRetry }: { agents: OnboardingAgent[]; bu
 }
 
 function IntegrationNote() {
+    const t = useT();
     return (
         <StepText className="text-12 text-muted">
-            When Claude Code or Codex starts in a MoltenTerm terminal, MoltenTerm integrates that run (precise states,
-            usage gauges, the browser) without touching your own settings or credentials.{" "}
+            {t("onboarding.agent.integration")}{" "}
             <button
                 type="button"
                 onClick={() => fireAndForget(() => openSettingsSection("agents"))}
                 className="cursor-pointer text-accent hover:underline"
             >
-                Agent settings
+                {t("onboarding.agent.settingsLink")}
             </button>
         </StepText>
     );
 }
 
 export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
+    const t = useT();
     const [list, setList] = useState<OnboardingAgents>(null);
     const [error, setError] = useState<string>(null);
     const [busy, setBusy] = useState(false);
@@ -209,7 +207,7 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
         try {
             setList(await listOnboardingAgents());
         } catch (e) {
-            setError(`The agents could not be listed: ${e?.message ?? e}`);
+            setError(t("onboarding.agent.listFailed", { error: `${e?.message ?? e}` }));
         } finally {
             setBusy(false);
         }
@@ -238,7 +236,7 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
                 {error}
             </p>
         ) : (
-            <StepText>Looking for the coding agents on this machine…</StepText>
+            <StepText>{t("onboarding.agent.looking")}</StepText>
         );
     }
 
@@ -265,11 +263,7 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
 
     return (
         <div className="flex flex-col gap-4" data-testid="first-run-agents">
-            <StepText>
-                MoltenTerm ships no AI: your own coding agent reshapes it. MoltenTerm installed its guides for the
-                agents it found, so <Code>/morph</Code> and the change you want, in your agent, turns into a mod. Pick
-                the agent you work with.
-            </StepText>
+            <StepText>{withCodes(t("onboarding.agent.intro"), { morph: "/morph" })}</StepText>
             <ul className="flex flex-col divide-y divide-border rounded-4 border border-border">
                 {catalog.map((agent) => (
                     <AgentRow
@@ -298,13 +292,11 @@ export function AgentStep({ ctx }: { ctx: FirstRunStepContext }) {
                     className="molten-btn cursor-pointer rounded-6 px-4 py-1.5 text-12 font-medium"
                     data-testid="first-run-use-agent"
                 >
-                    {chosen == null ? "Pick an agent" : `Use ${chosen.name}`}
+                    {chosen == null ? t("onboarding.agent.pick") : t("onboarding.agent.use", { name: chosen.name })}
                     <MoltenWave />
                 </button>
                 {chosen != null && !canMorph(chosen) ? (
-                    <span className="text-12 text-muted">
-                        Its /morph guide is not installed: step 2 shows what to do.
-                    </span>
+                    <span className="text-12 text-muted">{t("onboarding.agent.noMorphGuide")}</span>
                 ) : null}
             </div>
         </div>

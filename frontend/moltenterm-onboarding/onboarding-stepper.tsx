@@ -6,6 +6,7 @@
 
 import { cn } from "@/util/util";
 import { Fragment } from "react";
+import { t, useT } from "../moltenterm-shell/i18n/i18n";
 import { FirstRunPage, OnboardingState, progressLabel, stepPage, stepStatus } from "./onboarding-state";
 import { ShownFirstRunSteps, ShownStepIds } from "./onboarding-steps";
 
@@ -20,8 +21,8 @@ type StepperEntry = {
 function stepperEntries(state: OnboardingState): StepperEntry[] {
     const welcome: StepperEntry = {
         page: "welcome",
-        label: "Welcome",
-        tooltip: "What MoltenTerm is",
+        label: t("onboarding.stepper.welcome"),
+        tooltip: t("onboarding.stepper.welcomeTooltip"),
         number: 0,
         status: state.welcomets > 0 ? "done" : "todo",
     };
@@ -29,8 +30,8 @@ function stepperEntries(state: OnboardingState): StepperEntry[] {
         welcome,
         ...ShownFirstRunSteps.map((step, index) => ({
             page: stepPage(step.id),
-            label: step.label,
-            tooltip: step.summary,
+            label: t(step.labelKey),
+            tooltip: t(step.summaryKey),
             number: index + 1,
             status: stepStatus(state, step.id),
         })),
@@ -59,12 +60,12 @@ function Marker({ entry, current }: { entry: StepperEntry; current: boolean }) {
 
 function statusText(entry: StepperEntry): string {
     if (entry.status === "done") {
-        return "done";
+        return t("onboarding.status.done");
     }
     if (entry.status === "skipped") {
-        return "skipped";
+        return t("onboarding.status.skipped");
     }
-    return "not done";
+    return t("onboarding.status.notDone");
 }
 
 export function OnboardingStepper({
@@ -76,9 +77,10 @@ export function OnboardingStepper({
     page: FirstRunPage;
     onGo: (page: FirstRunPage) => void;
 }) {
+    const t = useT();
     const entries = stepperEntries(state);
     return (
-        <nav aria-label="Setup progress" className="flex min-w-0 items-center gap-3">
+        <nav aria-label={t("onboarding.stepper.aria")} className="flex min-w-0 items-center gap-3">
             <ol className="flex min-w-0 items-center gap-1">
                 {entries.map((entry, index) => {
                     const current = entry.page === page;
@@ -91,8 +93,14 @@ export function OnboardingStepper({
                                 <button
                                     type="button"
                                     onClick={() => onGo(entry.page)}
-                                    title={`${entry.label}: ${entry.tooltip}`}
-                                    aria-label={`${entry.label}, ${statusText(entry)}`}
+                                    title={t("onboarding.stepper.tooltip", {
+                                        label: entry.label,
+                                        tooltip: entry.tooltip,
+                                    })}
+                                    aria-label={t("onboarding.stepper.entryAria", {
+                                        label: entry.label,
+                                        status: statusText(entry),
+                                    })}
                                     aria-current={current ? "step" : undefined}
                                     className={cn(
                                         "flex cursor-pointer items-center gap-1.5 rounded-6 px-1.5 py-1 text-12 transition-colors duration-120 ease-mt hover:bg-hoverbg",
@@ -102,7 +110,9 @@ export function OnboardingStepper({
                                     <Marker entry={entry} current={current} />
                                     <span className="hidden @min-[540px]:inline">{entry.label}</span>
                                     {entry.status === "skipped" ? (
-                                        <span className="hidden text-muted @min-[540px]:inline">Skipped</span>
+                                        <span className="hidden text-muted @min-[540px]:inline">
+                                            {t("onboarding.status.skippedTitle")}
+                                        </span>
                                     ) : null}
                                 </button>
                             </li>

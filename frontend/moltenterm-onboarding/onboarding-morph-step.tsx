@@ -12,6 +12,7 @@ import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { MoltenHost } from "../molten/molten-host";
+import { useT } from "../moltenterm-shell/i18n/i18n";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { OnboardingAgents } from "./onboarding-agent-model";
 import { ensureMorphDir, listOnboardingAgents } from "./onboarding-client";
@@ -29,7 +30,7 @@ import {
     newMod,
     readMorphedMod,
 } from "./onboarding-morph-model";
-import { Code, CopyLine, StepText } from "./onboarding-parts";
+import { CopyLine, StepText, withCodes } from "./onboarding-parts";
 import type { FirstRunStepContext } from "./onboarding-steps";
 
 function blockInLayout(blockId: string): boolean {
@@ -55,27 +56,24 @@ async function typeCommand(blockId: string, command: string): Promise<boolean> {
 }
 
 function MorphDone({ mod, onNext }: { mod: MorphedMod; onNext: () => void }) {
+    const t = useT();
     return (
         <div className="flex flex-col gap-3" data-testid="first-run-morph-done">
             <div className="flex items-center gap-2 text-13 font-medium text-primary">
                 <i className="fa-solid fa-circle-check text-[var(--mt-state-done)]" aria-hidden />
-                MoltenTerm took its first shape: {mod.name}
+                {t("onboarding.morph.doneTitle", { name: mod.name })}
             </div>
             {mod.commands.length > 0 ? (
                 <div className="flex flex-col gap-1.5">
-                    <StepText>Call it from any MoltenTerm terminal:</StepText>
+                    <StepText>{t("onboarding.morph.callIt")}</StepText>
                     {mod.commands.map((command) => (
                         <CopyLine key={command} text={`molten ${command}`} />
                     ))}
                 </div>
             ) : (
-                <StepText>
-                    Its commands are listed by <Code>molten mod list</Code> once it has loaded.
-                </StepText>
+                <StepText>{withCodes(t("onboarding.morph.commandsLater"), { command: "molten mod list" })}</StepText>
             )}
-            <StepText>
-                <Code>molten undo</Code> removes it, and every change after it can be undone the same way.
-            </StepText>
+            <StepText>{withCodes(t("onboarding.morph.undo"), { command: "molten undo" })}</StepText>
             <div>
                 <button
                     type="button"
@@ -83,7 +81,7 @@ function MorphDone({ mod, onNext }: { mod: MorphedMod; onNext: () => void }) {
                     className="molten-btn cursor-pointer rounded-6 px-4 py-1.5 text-12 font-medium"
                     data-testid="first-run-morph-next"
                 >
-                    Next
+                    {t("onboarding.footer.next")}
                     <MoltenWave />
                 </button>
             </div>
@@ -92,6 +90,7 @@ function MorphDone({ mod, onNext }: { mod: MorphedMod; onNext: () => void }) {
 }
 
 function CopyBoxDemo({ ctx }: { ctx: FirstRunStepContext }) {
+    const t = useT();
     const [shown, setShown] = useState(false);
     const [error, setError] = useState<string>(null);
     const show = async () => {
@@ -102,11 +101,7 @@ function CopyBoxDemo({ ctx }: { ctx: FirstRunStepContext }) {
             blockid: ctx.panelBlockId,
         });
         if (!result.found || result.exitcode !== 0) {
-            setError(
-                result.error ||
-                    result.output ||
-                    "The copy box is not loaded (safe mode, or disabled in Settings > Mods)."
-            );
+            setError(result.error || result.output || t("onboarding.morph.copyBoxMissing"));
             return;
         }
         setShown(true);
@@ -114,14 +109,9 @@ function CopyBoxDemo({ ctx }: { ctx: FirstRunStepContext }) {
     return (
         <div className="flex flex-col gap-3" data-testid="first-run-morph-noagent">
             <StepText>
-                With a coding agent, <Code>/morph</Code> and a plain request (&quot;add a command that shows the current
-                git branch in a box&quot;) has the agent write a mod: MoltenTerm checks it, asks you before it runs, and
-                loads it. <Code>molten undo</Code> takes it back.
+                {withCodes(t("onboarding.morph.noAgentIntro"), { morph: "/morph", undo: "molten undo" })}
             </StepText>
-            <StepText>
-                MoltenTerm ships one mod already, the copy box agents use for anything you have to copy. From any
-                MoltenTerm terminal:
-            </StepText>
+            <StepText>{t("onboarding.morph.copyBoxIntro")}</StepText>
             <CopyLine text={CopyDemoCommand} />
             <div className="flex items-center gap-3">
                 <button
@@ -130,19 +120,18 @@ function CopyBoxDemo({ ctx }: { ctx: FirstRunStepContext }) {
                     className="molten-btn-secondary cursor-pointer rounded-6 px-3 py-1.5 text-12"
                     data-testid="first-run-copy-demo"
                 >
-                    Show a copy box
+                    {t("onboarding.morph.showCopyBox")}
                 </button>
-                {shown ? <span className="text-12 text-secondary">There it is, next to this guide.</span> : null}
+                {shown ? <span className="text-12 text-secondary">{t("onboarding.morph.copyBoxShown")}</span> : null}
             </div>
             {error ? <p className="text-12 text-error">{error}</p> : null}
-            <StepText className="text-12 text-muted">
-                Install an agent and pick it in step 1 to try /morph; Getting started brings this step back.
-            </StepText>
+            <StepText className="text-12 text-muted">{t("onboarding.morph.installAgent")}</StepText>
         </div>
     );
 }
 
 export function MorphStep({ ctx }: { ctx: FirstRunStepContext }) {
+    const t = useT();
     const host = MoltenHost.getInstance();
     const mods = useAtomValue(host.modsAtom, { store: globalStore });
     const [list, setList] = useState<OnboardingAgents>(null);
@@ -151,7 +140,9 @@ export function MorphStep({ ctx }: { ctx: FirstRunStepContext }) {
     const recording = useRef(false);
 
     useEffect(() => {
-        listOnboardingAgents().then(setList, (e) => setError(`The agents could not be listed: ${e?.message ?? e}`));
+        listOnboardingAgents().then(setList, (e) =>
+            setError(t("onboarding.agent.listFailed", { error: `${e?.message ?? e}` }))
+        );
     }, []);
 
     const agent = morphAgent(ctx.state, list);
@@ -198,7 +189,11 @@ export function MorphStep({ ctx }: { ctx: FirstRunStepContext }) {
     }, [mods, baseline, recorded, ctx]);
 
     if (list == null) {
-        return error ? <p className="text-13 text-error">{error}</p> : <StepText>Getting your agent ready…</StepText>;
+        return error ? (
+            <p className="text-13 text-error">{error}</p>
+        ) : (
+            <StepText>{t("onboarding.morph.preparing")}</StepText>
+        );
     }
     if (recorded != null) {
         return <MorphDone mod={recorded} onNext={() => fireAndForget(ctx.complete)} />;
@@ -220,7 +215,7 @@ export function MorphStep({ ctx }: { ctx: FirstRunStepContext }) {
             const blockId = await ctx.openBeside({ meta: { view: "term", controller: "shell", "cmd:cwd": dir } });
             await ctx.setData({ [MorphTermKey]: blockId });
             if (!(await typeCommand(blockId, agent.executable))) {
-                setError(`The terminal did not start; type ${agent.executable} in it.`);
+                setError(t("onboarding.morph.termFailed", { command: agent.executable }));
             }
         } catch (e) {
             setError(`${e?.message ?? e}`);
@@ -232,10 +227,7 @@ export function MorphStep({ ctx }: { ctx: FirstRunStepContext }) {
 
     return (
         <div className="flex flex-col gap-4" data-testid="first-run-morph">
-            <StepText>
-                Open {agent.name} next to this guide, in a scratch folder of its own, then paste the request into it.
-                The agent writes a mod, MoltenTerm asks you before it runs it, and this step ticks.
-            </StepText>
+            <StepText>{t("onboarding.morph.intro", { name: agent.name })}</StepText>
             <div className="flex items-center gap-3">
                 <button
                     type="button"
@@ -244,22 +236,24 @@ export function MorphStep({ ctx }: { ctx: FirstRunStepContext }) {
                     className="molten-btn cursor-pointer rounded-6 px-4 py-1.5 text-12 font-medium"
                     data-testid="first-run-open-agent"
                 >
-                    {termOpen ? `Go to ${agent.name}` : `Open ${agent.name} beside this guide`}
+                    {termOpen
+                        ? t("onboarding.morph.goTo", { name: agent.name })
+                        : t("onboarding.morph.openBeside", { name: agent.name })}
                     <MoltenWave />
                 </button>
             </div>
             <div className="flex flex-col gap-1.5">
-                <span className="text-12 font-medium text-secondary">Your first request</span>
+                <span className="text-12 font-medium text-secondary">{t("onboarding.morph.firstRequest")}</span>
                 <CopyLine text={first} testId="first-run-morph-request" />
             </div>
             <div className="flex flex-col gap-1.5">
-                <span className="text-12 text-muted">Or one of these</span>
+                <span className="text-12 text-muted">{t("onboarding.morph.alternatives")}</span>
                 {alternatives.map((request) => (
                     <CopyLine key={request} text={request} />
                 ))}
             </div>
             <StepText className="text-12 text-muted">
-                Waiting for a new mod… Nothing changes in your projects: <Code>molten undo</Code> takes any morph back.
+                {withCodes(t("onboarding.morph.waiting"), { command: "molten undo" })}
             </StepText>
             {error ? (
                 <p className="text-12 text-error" role="alert">
