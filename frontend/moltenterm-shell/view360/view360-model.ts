@@ -515,6 +515,27 @@ export class View360Model {
         return this.carpetColumnOf(parentNodeId) != null ? this.scrollLeft : 0;
     }
 
+    // ---- drag and drop ---------------------------------------------------------------------------------------------
+
+    private onCarpet(nodeId: string): boolean {
+        return (
+            this.layout != null &&
+            !!nodeId &&
+            !!this.layoutModel.getter(this.layoutModel.additionalProps)?.[nodeId]?.moltenCarpet
+        );
+    }
+
+    // The scroll to add to a pointer over a node drawn on the carpet: drop targets compare the pointer with the node's
+    // rect before scrolling.
+    pointerScrollFor(nodeId: string): number {
+        return this.onCarpet(nodeId) ? this.scrollLeft : 0;
+    }
+
+    // The drop placeholder over a node drawn on the carpet follows the scroll and the clip like the node itself.
+    placeholderTransform(targetNodeId: string, rect: Rect, base: CSSProperties): CSSProperties {
+        return this.onCarpet(targetNodeId) ? this.carpetTransform(rect, base) : base;
+    }
+
     // Handles the root's handles in 360 view: they set the fixed zone's width or a carpet column's, never the tree's
     // sizes (the normal layout stays as it was). Returns false for every other handle.
     onResizeMove(handle: ResizeHandleProps, clientX: number): boolean {

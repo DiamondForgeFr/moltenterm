@@ -481,6 +481,8 @@ func approvalNotification(key string, id string, from Party, to Party, b Brief) 
 			cut(cleanLine(b.Goal), 160), to.callName()),
 		Kind:        "warning",
 		WorkspaceId: from.WorkspaceId,
+		// The asking agent waits on it: the 360 view's radar pulses that panel (FR-SHELL-068).
+		BlockId: from.BlockId,
 		Actions: []molten.NotificationAction{
 			action("once", "Allow once", DecisionOnce),
 			action("always", "Always for this pair", DecisionAlways),

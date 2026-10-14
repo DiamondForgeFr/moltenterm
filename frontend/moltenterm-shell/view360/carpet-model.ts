@@ -18,8 +18,8 @@ export const CarpetMarginPx = 8;
 // Room between the carpet surface's edges and the panels laid on it; the top one holds the "carpet" label.
 export const CarpetPadXPx = 12;
 export const CarpetPadTopPx = 16;
-// The bottom of the carpet is reserved for its scrubber (#617).
-export const CarpetScrubberPx = 22;
+// The bottom of the carpet is reserved for its radar scrubber (#617): the pill of the ticks in view and some air.
+export const CarpetScrubberPx = 32;
 export const CarpetColumnGapPx = 12;
 export const MinCarpetColumnPx = 280;
 export const DefaultCarpetColumnPx = 560;

@@ -185,6 +185,27 @@ describe("View360Model", () => {
         expect(model.carpetColumnOf("a")).toBeNull();
     });
 
+    it("shifts drag and drop on the scrolled carpet by the scroll, never in the fixed zone (#617)", () => {
+        const root: LayoutNode = {
+            id: "root",
+            flexDirection: FlexDirection.Row,
+            size: 10,
+            children: [leaf("a"), leaf("b"), leaf("c"), leaf("d")],
+        };
+        const { model, layoutModel } = makeModel(true, root);
+        const props = { a: {}, b: { moltenCarpet: true }, c: { moltenCarpet: true } };
+        Object.assign(layoutModel, { additionalProps: atom(props), getter: (a: any) => globalStore.get(a) });
+        const layout = model.computeLayout(root, bounds);
+        expect(layout.maxScroll).toBeGreaterThan(200);
+        model.scrollTo(200);
+        expect(model.pointerScrollFor("b")).toBe(200);
+        expect(model.pointerScrollFor("a")).toBe(0);
+        const rect = { top: 0, left: 900, width: 300, height: 400 };
+        const base = { transform: "translate3d(900px, 0px, 0)" };
+        expect(model.placeholderTransform("c", rect, base).transform).toContain("var(--mt-carpet-scroll");
+        expect(model.placeholderTransform("a", rect, base)).toBe(base);
+    });
+
     it("re-runs the layout when the tab enters or leaves 360 view", () => {
         const root = rowOf(2);
         const { model, tabAtom, layoutModel } = makeModel(false, root);

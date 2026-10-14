@@ -220,6 +220,9 @@ func TestFirstSendAsksThenAlwaysIsRemembered(t *testing.T) {
 	if len(notes) != 1 || len(notes[0].Actions) != 3 || notes[0].Actions[0].Gesture != AnswerGesture {
 		t.Fatalf("approval: %+v", notes)
 	}
+	if notes[0].BlockId != "blockA" {
+		t.Fatalf("approval block: %q", notes[0].BlockId)
+	}
 	lines := env.typedLines()
 	if len(lines) != 1 || lines[0].blockId != "blockB" {
 		t.Fatalf("typed: %+v", lines)

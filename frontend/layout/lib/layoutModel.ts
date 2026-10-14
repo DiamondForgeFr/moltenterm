@@ -1089,7 +1089,14 @@ export class LayoutModel {
                                 }
                             }
 
-                            return setTransform(placeholderDimensions);
+                            // MOLTENTERM-PATCH (#617): over a panel on the scrolled carpet, the placeholder follows the scroll
+                            return (
+                                this.moltenView360?.placeholderTransform(
+                                    targetNode.id,
+                                    placeholderDimensions,
+                                    setTransform(placeholderDimensions)
+                                ) ?? setTransform(placeholderDimensions)
+                            );
                         }
                     }
                     break;
@@ -1105,7 +1112,14 @@ export class LayoutModel {
                         width: targetBoundingRect.width,
                     };
 
-                    return setTransform(placeholderDimensions);
+                    // MOLTENTERM-PATCH (#617): over a panel on the scrolled carpet, the placeholder follows the scroll
+                    return (
+                        this.moltenView360?.placeholderTransform(
+                            targetNodeId,
+                            placeholderDimensions,
+                            setTransform(placeholderDimensions)
+                        ) ?? setTransform(placeholderDimensions)
+                    );
                 }
                 default:
                     // No-op
