@@ -137,7 +137,7 @@ export function coffeeOf(state: KeepAwakeState, workspaceId: string): KeepAwakeC
     return state.coffees.find((c) => c.workspaceid === workspaceId) ?? null;
 }
 
-export function railCoffeeLabel(name: string, on: boolean, platform: string): string {
+export function railCoffeeLabel(name: string, on: boolean, _platform: string): string {
     if (on) {
         return t("keepawake.railStop", { name });
     }
@@ -251,12 +251,12 @@ export function keepAwakeSessions(state: KeepAwakeState): KeepAwakeSession[] {
 export type SleepPolicyChoice = { policy: SleepPolicy; label: string; detail: string };
 
 // The popover's one sentence (DS-SHELL-101): the segmented control of the policies completes it.
-export function sleepPolicySentence(platform: string): string {
+export function sleepPolicySentence(_platform: string): string {
     return t("keepawake.policySentence");
 }
 
 // The labels answer that sentence; each detail is its segment's tooltip.
-export function sleepPolicyChoices(platform: string): SleepPolicyChoice[] {
+export function sleepPolicyChoices(_platform: string): SleepPolicyChoice[] {
     return [
         { policy: "allow", label: t("keepawake.policy.allow"), detail: t("keepawake.policy.allowDetail") },
         {
