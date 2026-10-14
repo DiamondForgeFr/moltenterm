@@ -18,7 +18,8 @@ import (
 )
 
 // `molten review` (FR-REV-001, FR-REV-014): the pull requests waiting for review, the same list as the Reviews view,
-// read by wavesrv from Mission Control's collector through the developer's gh. Later review commands join this group.
+// read by wavesrv from Mission Control's collector through the developer's gh. The other review commands are in
+// wshcmd-molten-reviewactions.go.
 
 // must match pkg/molten/mission/reviews.go and frontend/moltenterm-shell/reviews/reviews-model.ts
 const (
@@ -68,7 +69,10 @@ var moltenReviewOpen bool
 
 var moltenReviewCmd = &cobra.Command{
 	Use:   "review",
-	Short: "the pull requests waiting for your review, as MoltenTerm's Reviews view shows them",
+	Short: "the pull requests waiting for your review, as MoltenTerm's Reviews view and Review tab show them",
+	Long: "Read-only, for agents too: list, show, comments. open hands the Review tab to this terminal's window.\n" +
+		"publish and merge open their sheet in the window and print its plan: GitHub gets a review or a merge only on\n" +
+		"your click in that sheet, and both refuse in a terminal where an agent runs. Local MoltenTerm terminals only.",
 }
 
 var moltenReviewListCmd = &cobra.Command{
@@ -94,13 +98,14 @@ func moltenReviewProjectDir() (string, error) {
 	return moltenCiProjectDir()
 }
 
-func moltenReviewsAsk(dir string) (moltenReviewsAnswer, error) {
+// moltenReviewsAskRaw also returns the answer as wavesrv sent it: --json prints it whole, as the view gets it.
+func moltenReviewsAskRaw(dir string) (moltenReviewsAnswer, any, error) {
 	var answer moltenReviewsAnswer
 	resp, err := RpcClient.SendRpcRequest(moltenReviewsCommand, map[string]any{"dir": dir}, &wshrpc.RpcOpts{Route: moltenMissionRoute, Timeout: moltenCiRpcTimeoutMs})
 	if err != nil {
-		return answer, fmt.Errorf("asking MoltenTerm for the reviews: %w", err)
+		return answer, nil, fmt.Errorf("asking MoltenTerm for the reviews: %w", err)
 	}
-	return answer, utilfn.ReUnmarshal(&answer, resp)
+	return answer, resp, utilfn.ReUnmarshal(&answer, resp)
 }
 
 // moltenReviewsSettled: GitHub was read, and the test reports too when there are PRs to report on.
@@ -119,12 +124,7 @@ func moltenReviewListRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	answer, err := moltenReviewsAsk(dir)
-	deadline := time.Now().Add(moltenReviewsWait)
-	for err == nil && !moltenReviewsSettled(answer) && time.Now().Before(deadline) {
-		time.Sleep(moltenReviewsPollStep)
-		answer, err = moltenReviewsAsk(dir)
-	}
+	answer, raw, err := moltenReviewsSettledAsk(dir)
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func moltenReviewListRun(cmd *cobra.Command, args []string) error {
 		}
 	}
 	if moltenJson {
-		return moltenWriteJson(answer)
+		return moltenWriteJson(raw)
 	}
 	WriteStdout("%s", formatMoltenReviews(answer))
 	return nil

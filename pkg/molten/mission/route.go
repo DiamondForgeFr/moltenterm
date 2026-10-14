@@ -12,6 +12,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
@@ -32,6 +33,8 @@ type routeLink struct {
 	groups    *Groups
 	reviews   *Reviews
 	output    chan []byte
+	// localSource tells whether a request's source is a local terminal or a window on the link it came in on.
+	localSource func(source string, ingressLinkId baseds.LinkId) bool
 }
 
 type ciLogRequest struct {
@@ -105,16 +108,24 @@ func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debu
 	if req.Command == "" || req.ReqId == "" {
 		return true
 	}
-	go l.answer(req)
+	go l.answer(req, ingressLinkId)
 	return true
 }
 
-func (l *routeLink) answer(req wshutil.RpcMessage) {
+func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) {
 	defer func() {
 		panichandler.PanicHandler("molten:mission:route", recover())
 	}()
 	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := l.handle(req.Command, req.Source, req.Data)
+	var data any
+	var err error
+	// FR-REV-014 AC4: the review list is answered to local terminals and windows only, never to a remote shell's wsh.
+	// Source checks take the router's lock, which is why this runs here and not in SendRpcMessage.
+	if req.Command == ReviewsCommand && (l.localSource == nil || !l.localSource(req.Source, ingressLinkId)) {
+		err = fmt.Errorf("the reviews are answered to MoltenTerm's windows and local terminals only")
+	} else {
+		data, err = l.handle(req.Command, req.Source, req.Data)
+	}
 	if err != nil {
 		resp.Error = err.Error()
 	} else {
@@ -404,7 +415,10 @@ func (l *routeLink) handleWorktree(command string, source string, data any) (any
 }
 
 func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews) error {
-	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews, output: make(chan []byte, routeQueueSize)}
+	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews, output: make(chan []byte, routeQueueSize),
+		localSource: func(source string, ingressLinkId baseds.LinkId) bool {
+			return localroute.OnLink(wshutil.DefaultRouter, source, ingressLinkId)
+		}}
 	_, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId)
 	return err
 }
