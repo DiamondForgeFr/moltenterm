@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Mission Control's CI/CD workshop (FR-MC-025), modelled on Notulia's Dev › CI: CI local, CI remote and CD tabs for the
-// active workspace's project, with history, detail and logs only. The actions and summaries live in Project
+// active workspace's project, with history, detail and logs only, and a Jobs tab listing every CI job (#637). The actions and summaries live in Project
 // (DS-MC-012); the header links back to it.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
@@ -18,6 +18,7 @@ import { openProjectOverview } from "../project/project-tab";
 import { cicdRuns, CicdRunsKey } from "../widget-options";
 import { pathBaseName } from "../workspace-project";
 import { AdapterSteps } from "./adapter-steps";
+import { CiJobsTab } from "./ci-jobs-panel";
 import { LocalCiRunner } from "./ci-local-panel";
 import { BlockHeader, CdTab, Notice, RemoteCiTab } from "./cicd-panels";
 import { useMissionRuns } from "./mission-client";
@@ -31,6 +32,7 @@ const Tabs = [
     { id: "local", labelKey: "mc.cicd.tab.local", icon: "laptop-code" },
     { id: "remote", labelKey: "mc.cicd.tab.remote", icon: "cloud" },
     { id: "cd", labelKey: "mc.cicd.tab.cd", icon: "box" },
+    { id: "jobs", labelKey: "mc.cicd.tab.jobs", icon: "list-check" },
 ] as const;
 
 type TabId = (typeof Tabs)[number]["id"];
@@ -116,19 +118,28 @@ function CicdView({ blockId }: ViewComponentProps<CicdViewModel>) {
     return (
         <MissionFrame title={t("mc.cicd.frameTitle")}>
             {({ project, snapshot, refresh }) => (
-                <CicdContent project={project} snapshot={snapshot} refresh={refresh} tab={tab} setTab={setTab} />
+                <CicdContent
+                    blockId={blockId}
+                    project={project}
+                    snapshot={snapshot}
+                    refresh={refresh}
+                    tab={tab}
+                    setTab={setTab}
+                />
             )}
         </MissionFrame>
     );
 }
 
 function CicdContent({
+    blockId,
     project,
     snapshot,
     refresh,
     tab,
     setTab,
 }: {
+    blockId: string;
     project: ActiveProject;
     snapshot: MissionSnapshot;
     refresh: () => void;
@@ -196,6 +207,14 @@ function CicdContent({
                     <CdTab git={snapshot?.git} github={snapshot?.github} pipeline={snapshot?.pipeline} runs={runs} />
                 ) : null}
                 {tab === "cd" ? steps("cd") : null}
+                {tab === "jobs" ? (
+                    <CiJobsTab
+                        dir={project.dir}
+                        snapshot={snapshot}
+                        blockId={blockId}
+                        workspaceId={project.workspace?.oid}
+                    />
+                ) : null}
             </div>
         </>
     );

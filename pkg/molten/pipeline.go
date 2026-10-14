@@ -56,6 +56,8 @@ type PipelineJob struct {
 	Title string `json:"title,omitempty"`
 	// Jobs of different lanes run side by side; jobs of one lane run in order.
 	Lane string `json:"lane,omitempty"`
+	// What the job checks, in one sentence: the CI/CD panel's Jobs tab shows it (#637).
+	Description string `json:"description,omitempty"`
 	PipelineCommand
 }
 
