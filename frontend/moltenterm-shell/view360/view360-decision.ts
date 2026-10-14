@@ -46,6 +46,16 @@ export function topColumns(root: LayoutNode): LayoutNode[] {
     return [node];
 }
 
+export function countLeaves(root: LayoutNode): number {
+    if (root == null) {
+        return 0;
+    }
+    if (!root.children?.length) {
+        return 1;
+    }
+    return root.children.reduce((acc, c) => acc + countLeaves(c), 0);
+}
+
 export function columnMinPx(index: number): number {
     return index === 0 ? FirstColumnMinPx : SideColumnMinPx;
 }

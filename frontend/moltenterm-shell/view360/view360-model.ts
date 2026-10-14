@@ -50,6 +50,7 @@ import {
 import {
     anyColumnTooTight,
     autoWants,
+    countLeaves,
     decideView360,
     normalColumnPxs,
     normalizeView360Setting,
@@ -81,8 +82,10 @@ export class View360Model {
     autoOnAtom: PrimitiveAtom<boolean> = atom(false);
     columnCountAtom: PrimitiveAtom<number> = atom(0);
     tooTightAtom: PrimitiveAtom<boolean> = atom(false);
-    // The column count when the "too tight" pill was closed; null while it is not dismissed.
+    // The tab's panel count when the "too tight" pill was closed, null while it is not dismissed: a panel added
+    // anywhere (a new column or a split) shows it again.
     pillDismissedAtAtom: PrimitiveAtom<number> = atom(null) as PrimitiveAtom<number>;
+    panelCount = 0;
     // Bumped on each automatic switch, for its short glow.
     signalAtom: PrimitiveAtom<number> = atom(0);
     decisionAtom: Atom<View360Decision>;
@@ -127,17 +130,15 @@ export class View360Model {
             })
         );
         this.activeAtom = selectAtom(this.decisionAtom, (d) => d.active);
-        this.pillAtom = atom((get) => {
-            const count = get(this.columnCountAtom);
-            const dismissedAt = get(this.pillDismissedAtAtom);
-            return showTightPill({
+        this.pillAtom = atom((get) =>
+            showTightPill({
                 setting: normalizeView360Setting(get(this.settingAtom)),
                 manual: get(this.manualAtom),
                 active: get(this.activeAtom),
                 tooTight: get(this.tooTightAtom),
-                dismissed: dismissedAt != null && count <= dismissedAt,
-            });
-        });
+                dismissed: get(this.pillDismissedAtAtom) != null,
+            })
+        );
         const visibleAtom = atom((get) => visibleCarpetColumnIds(get(this.layoutAtom), get(this.scrollLeftAtom)));
         this.visibleColumnIdsAtom = selectAtom(visibleAtom, (ids) => ids, sameIds);
         this.fixedNodeIdAtom = atom((get) => get(this.layoutAtom)?.fixedNodeId ?? null);
@@ -183,7 +184,7 @@ export class View360Model {
     }
 
     dismissPill(): void {
-        globalStore.set(this.pillDismissedAtAtom, globalStore.get(this.columnCountAtom));
+        globalStore.set(this.pillDismissedAtAtom, this.panelCount);
     }
 
     // ---- the automatic decision ------------------------------------------------------------------------------------
@@ -212,8 +213,9 @@ export class View360Model {
         const count = columns.length;
         const gap = this.gapPx();
         globalStore.set(this.columnCountAtom, count);
+        this.panelCount = countLeaves(rootNode);
         const dismissedAt = globalStore.get(this.pillDismissedAtAtom);
-        if (dismissedAt != null && count > dismissedAt) {
+        if (dismissedAt != null && this.panelCount > dismissedAt) {
             globalStore.set(this.pillDismissedAtAtom, null);
         }
         const normalPxs = normalColumnPxs(
