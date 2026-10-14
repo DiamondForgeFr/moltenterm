@@ -5,15 +5,12 @@ package reopen
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wavetermdev/waveterm/pkg/baseds"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
@@ -21,7 +18,6 @@ import (
 // The windows reach the stack through a leaf of wavesrv's router answering plain command names, like the panel move
 // (pkg/molten/panelmove/route.go): only a window records and reopens.
 
-const routeQueueSize = 16
 const routeTimeout = 5 * time.Second
 
 // Store reads a pane or tab before it closes, and brings an entry back; wcore provides both (it owns tabs, blocks
@@ -34,53 +30,14 @@ type Store struct {
 type routeLink struct {
 	store  Store
 	stacks *Stacks
-	output chan []byte
 }
 
-func (l *routeLink) GetPeerInfo() string {
-	return RouteId
+func (l *routeLink) route() localroute.Route {
+	return localroute.Route{Id: RouteId, Policy: localroute.Policy{Default: localroute.AllowWindow}, Handler: l.handle}
 }
 
-func (l *routeLink) RecvRpcMessage() ([]byte, bool) {
-	msg, ok := <-l.output
-	return msg, ok
-}
-
-func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debugStr string) bool {
-	var req wshutil.RpcMessage
-	if err := json.Unmarshal(msg, &req); err != nil {
-		return true
-	}
-	if req.Command == "" || req.ReqId == "" {
-		return true
-	}
-	go l.answer(req)
-	return true
-}
-
-func (l *routeLink) answer(req wshutil.RpcMessage) {
-	defer func() {
-		panichandler.PanicHandler("molten:reopen:route", recover())
-	}()
-	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := l.handle(req.Command, req.Source, req.Data)
-	if err != nil {
-		resp.Error = err.Error()
-	} else {
-		resp.Data = data
-	}
-	out, err := json.Marshal(resp)
-	if err != nil {
-		return
-	}
-	l.output <- out
-}
-
-func (l *routeLink) handle(command string, source string, data any) (any, error) {
-	if !strings.HasPrefix(source, wshutil.RoutePrefix_Tab) {
-		return nil, fmt.Errorf("closed panes and tabs are reopened from MoltenTerm's windows only")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), routeTimeout)
+func (l *routeLink) handle(ctx context.Context, command string, _ localroute.Caller, data any) (any, error) {
+	ctx, cancel := context.WithTimeout(ctx, routeTimeout)
 	defer cancel()
 	switch command {
 	case RecordCommand:
@@ -154,8 +111,8 @@ func ReopenLast(ctx context.Context, store Store, stacks *Stacks, req ReopenRequ
 
 // StartRoute registers the route; wavesrv calls it once.
 func StartRoute(store Store) {
-	link := &routeLink{store: store, stacks: MakeStacks(), output: make(chan []byte, routeQueueSize)}
-	if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId); err != nil {
+	link := &routeLink{store: store, stacks: MakeStacks()}
+	if _, err := localroute.Register(wshutil.DefaultRouter, link.route()); err != nil {
 		log.Printf("molten: reopen route not started: %v\n", err)
 	}
 }

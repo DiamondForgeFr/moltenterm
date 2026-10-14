@@ -5,15 +5,13 @@ package browseragent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"sync"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
@@ -23,12 +21,12 @@ import (
 // The sessions answer on a leaf of wavesrv's router with plain command names (the pattern of
 // pkg/molten/browsers/route.go): nothing is declared in pkg/wshrpc. The router stamps a leaf's requests with the
 // leaf's route, but a router link (an SSH connserver, the windows' websocket) forwards whatever source its sender
-// wrote: a source is believed only when the router maps it to the link the request came in on. That binds a session
-// to its MCP server's connection and keeps terminals and remote hosts off the control commands.
+// wrote: localroute believes a source only from a local terminal's own leaf or the windows' websocket. That binds a
+// session to its MCP server's connection in a local terminal and keeps terminals and remote hosts off the control
+// commands (#662).
 
 const (
-	routeQueueSize = 64
-	helloTimeout   = 10 * time.Second
+	helloTimeout = 10 * time.Second
 	// A call may wait 2 minutes for the user's site permission, then load a page for up to 30 seconds.
 	callTimeout           = 190 * time.Second
 	defaultControlTimeout = 5 * time.Second
@@ -38,107 +36,42 @@ const (
 
 type routeLink struct {
 	manager *Manager
-	output  chan []byte
-	// sourceOnLink tells whether the router routes source through the link a request came in on.
-	sourceOnLink func(source string, ingressLinkId baseds.LinkId) bool
-
-	lock    sync.Mutex
-	pending map[string]context.CancelFunc
 }
 
-func (l *routeLink) GetPeerInfo() string {
-	return mcpbrowser.RouteId
-}
-
-func (l *routeLink) RecvRpcMessage() ([]byte, bool) {
-	msg, ok := <-l.output
-	return msg, ok
-}
-
-func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debugStr string) bool {
-	var req wshutil.RpcMessage
-	if err := json.Unmarshal(msg, &req); err != nil {
-		return true
+func (l *routeLink) route() localroute.Route {
+	session := map[string]string{
+		mcpbrowser.HelloCommand: localroute.AllowLocalTerminal,
+		mcpbrowser.CallCommand:  localroute.AllowLocalTerminal,
+		mcpbrowser.ByeCommand:   localroute.AllowLocalTerminal,
 	}
-	if req.Cancel && req.ReqId != "" {
-		// The MCP client cancelled the call (notifications/cancelled).
-		l.cancel(req.ReqId)
-		return true
+	refusals := map[string]string{}
+	for command := range session {
+		refusals[command] = mcpbrowser.ErrRemotePane
 	}
-	// A command without a reqid wants no answer (emain reports takeover that way), but still runs.
-	if req.Command == "" {
-		return true
-	}
-	// Not here: the router calls SendRpcMessage with its lock held, and checking the source takes it.
-	go l.answer(req, ingressLinkId)
-	return true
-}
-
-func sourceOnIngressLink(source string, ingressLinkId baseds.LinkId) bool {
-	return source != "" && ingressLinkId != baseds.NoLinkId && wshutil.DefaultRouter.GetLinkIdForRoute(source) == ingressLinkId
-}
-
-func (l *routeLink) track(reqId string, cancel context.CancelFunc) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	l.pending[reqId] = cancel
-}
-
-func (l *routeLink) untrack(reqId string) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	delete(l.pending, reqId)
-}
-
-func (l *routeLink) cancel(reqId string) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	if cancel := l.pending[reqId]; cancel != nil {
-		cancel()
+	return localroute.Route{
+		Id:            mcpbrowser.RouteId,
+		Policy:        localroute.Policy{Default: localroute.AllowUi, Commands: session, Refusals: refusals},
+		Handler:       l.handle,
+		RunUnanswered: true,
 	}
 }
 
-func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) {
-	defer func() {
-		panichandler.PanicHandler("molten:browseragent:route", recover())
-	}()
-	timeout := defaultControlTimeout
-	switch req.Command {
+func commandTimeout(command string) time.Duration {
+	switch command {
 	case mcpbrowser.HelloCommand:
-		timeout = helloTimeout
+		return helloTimeout
 	case mcpbrowser.CallCommand, mcpbrowser.DownloadCommand:
-		timeout = callTimeout
+		return callTimeout
 	case mcpbrowser.ShareTellCommand:
-		timeout = shareTellTimeout
+		return shareTellTimeout
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	if req.ReqId != "" {
-		l.track(req.ReqId, cancel)
-		defer l.untrack(req.ReqId)
-	}
-	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	source := req.Source
-	if !l.sourceOnLink(source, ingressLinkId) {
-		source = ""
-	}
-	data, err := l.handle(ctx, req.Command, source, req.Data)
-	if req.ReqId == "" {
-		return
-	}
-	if err != nil {
-		resp.Error = err.Error()
-	} else {
-		resp.Data = data
-	}
-	out, err := json.Marshal(resp)
-	if err != nil {
-		return
-	}
-	l.output <- out
+	return defaultControlTimeout
 }
 
-func (l *routeLink) handle(ctx context.Context, command string, source string, data any) (any, error) {
+func (l *routeLink) handle(ctx context.Context, command string, caller localroute.Caller, data any) (any, error) {
+	ctx, cancel := context.WithTimeout(ctx, commandTimeout(command))
+	defer cancel()
+	source := caller.Source
 	switch command {
 	case mcpbrowser.HelloCommand:
 		var req mcpbrowser.HelloRequest
@@ -225,13 +158,7 @@ func Start() {
 	startOnce.Do(func() {
 		manager := MakeManager(MakeWaveEnv())
 		setRunningManager(manager)
-		link := &routeLink{
-			manager:      manager,
-			output:       make(chan []byte, routeQueueSize),
-			sourceOnLink: sourceOnIngressLink,
-			pending:      make(map[string]context.CancelFunc),
-		}
-		if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, mcpbrowser.RouteId); err != nil {
+		if _, err := localroute.Register(wshutil.DefaultRouter, (&routeLink{manager: manager}).route()); err != nil {
 			log.Printf("molten: browser agent route not started: %v\n", err)
 			return
 		}

@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
 )
 
 func fakeStore(restored *[]string, fail *bool) Store {
@@ -107,5 +109,26 @@ func TestRecordNeedsItsTargets(t *testing.T) {
 		if _, err := Record(context.Background(), store, stacks, req); err == nil {
 			t.Errorf("%+v is refused", req)
 		}
+	}
+}
+
+// #662: only a window records and reopens closes; a remote host forging a tab source does not.
+func TestRouteAnswersWindowsOnly(t *testing.T) {
+	e := routetest.Make(t)
+	var restored []string
+	fail := false
+	link, err := localroute.MakeLink(e.Router, (&routeLink{store: fakeStore(&restored, &fail), stacks: MakeStacks()}).route())
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := map[string]any{"kind": KindPane, "workspaceid": "w", "tabid": "t", "blockid": "b"}
+	for _, command := range []string{RecordCommand, DropCommand, ReopenCommand} {
+		routetest.MustRefuse(t, link, e.NonWindows(), command, record)
+	}
+	if _, errStr := routetest.Ask(t, link, e.Window(), RecordCommand, record); errStr != "" {
+		t.Fatalf("the window's record: %s", errStr)
+	}
+	if _, errStr := routetest.Ask(t, link, e.Window(), ReopenCommand, map[string]any{"workspaceid": "w", "tabid": "t"}); errStr != "" || len(restored) != 1 {
+		t.Fatalf("the window's reopen: %q %v", errStr, restored)
 	}
 }

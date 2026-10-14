@@ -5,7 +5,6 @@ package checkpoint
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -13,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
@@ -33,87 +31,35 @@ import (
 // here: the agents' writes (#330), the briefing (#180).
 
 const (
-	routeQueueSize = 64
-	dbTimeout      = 2 * time.Second
-	sweepInterval  = 6 * time.Hour
+	dbTimeout     = 2 * time.Second
+	sweepInterval = 6 * time.Hour
 )
 
 type routeLink struct {
-	store  *Store
-	output chan []byte
-	// localSource tells a request from a local window or terminal; replaced in tests.
-	localSource func(source string, ingressLinkId baseds.LinkId) bool
+	store *Store
 }
 
-func (l *routeLink) GetPeerInfo() string {
-	return molten.TaskRoute
-}
-
-func (l *routeLink) RecvRpcMessage() ([]byte, bool) {
-	msg, ok := <-l.output
-	return msg, ok
-}
-
-func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debugStr string) bool {
-	var req wshutil.RpcMessage
-	if err := json.Unmarshal(msg, &req); err != nil {
-		return true
-	}
-	if req.Command == "" || req.ReqId == "" {
-		return true
-	}
-	// Not here: the router calls SendRpcMessage with its lock held, and checking the source takes it.
-	go l.answer(req, ingressLinkId)
-	return true
-}
-
-func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) {
-	defer func() {
-		panichandler.PanicHandler("molten:task:route", recover())
-	}()
-	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	source := req.Source
-	if !l.localSource(source, ingressLinkId) {
-		source = ""
-	}
-	data, err := l.handle(req.Command, source, req.Data)
-	if err != nil {
-		resp.Error = err.Error()
-	} else {
-		resp.Data = data
-	}
-	out, err := json.Marshal(resp)
-	if err != nil {
-		return
-	}
-	l.output <- out
-}
-
-// localSourceOnLink: the request's source is a route of the link it came in on, and that link is not a connection's
-// (an SSH or WSL host is a router whose requests keep the source they claim): a remote host never reads or clears the
+// route: the windows and `molten task` in a local terminal, for its own block; a remote host never reads or clears the
 // task memory of this machine (NFR-CONT-001).
-func localSourceOnLink(source string, ingressLinkId baseds.LinkId) bool {
-	return localroute.OnLink(wshutil.DefaultRouter, source, ingressLinkId)
-}
-
-// A window (its route is stamped by the router) or wsh in a local terminal.
-func isWindowSource(source string) bool {
-	return strings.HasPrefix(source, wshutil.RoutePrefix_Tab)
-}
-
-func isTerminalSource(source string) bool {
-	return strings.HasPrefix(source, wshutil.RoutePrefix_Proc)
-}
-
-func (l *routeLink) handle(command string, source string, data any) (any, error) {
-	if !isWindowSource(source) && !isTerminalSource(source) {
-		return nil, fmt.Errorf("the task checkpoint answers MoltenTerm's windows and local terminals only")
+func (l *routeLink) route() localroute.Route {
+	return localroute.Route{
+		Id:     molten.TaskRoute,
+		Policy: localroute.Policy{Default: localroute.AllowLocal},
+		Handler: func(_ context.Context, command string, caller localroute.Caller, data any) (any, error) {
+			return l.handle(command, caller, data)
+		},
 	}
+}
+
+func (l *routeLink) handle(command string, caller localroute.Caller, data any) (any, error) {
 	var req molten.TaskRequest
 	if err := utilfn.ReUnmarshal(&req, data); err != nil {
 		return nil, err
 	}
-	wsId, err := resolveWorkspace(req, isWindowSource(source))
+	if caller.IsLocalTerminal && req.BlockId != caller.BlockId {
+		return nil, fmt.Errorf("a terminal reads its own workspace's task only")
+	}
+	wsId, err := resolveWorkspace(req, caller.IsWindow)
 	if err != nil {
 		return nil, err
 	}
@@ -263,8 +209,7 @@ func start() {
 	attention.SetTurnEndListener(u.TurnEnded)
 	go u.Run(make(chan struct{}))
 	go sweepLoop(store)
-	link := &routeLink{store: store, output: make(chan []byte, routeQueueSize), localSource: localSourceOnLink}
-	if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, molten.TaskRoute); err != nil {
+	if _, err := localroute.Register(wshutil.DefaultRouter, (&routeLink{store: store}).route()); err != nil {
 		log.Printf("molten: task checkpoint route not started: %v\n", err)
 		return
 	}

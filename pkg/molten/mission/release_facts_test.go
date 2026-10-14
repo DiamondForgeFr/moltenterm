@@ -38,6 +38,63 @@ func runStep(t *testing.T, r *Runs, dir string, tag string, step string) RunReco
 	return waitRun(t, r, dir, res.Run.Id)
 }
 
+// #662: a repository that commits its notes file, or the folder holding it, as a link to a file of the user's
+// (~/.zshrc) never gets that file overwritten.
+func TestSaveReleaseNotesNeverWritesThroughALink(t *testing.T) {
+	r, dir := makeReleaseFixture(t, releaseFactsPipeline)
+	r.git = withoutGh
+	start := startRelease(t, r, dir, ReleaseChannelRc, "v1.0.0-1")
+	waitRun(t, r, dir, start.Run.Id)
+	runStep(t, r, dir, "v1.0.0-1", "draft")
+	notes := filepath.Join(dir, "out", "v1.0.0-1.md")
+	outside := t.TempDir()
+	victim := filepath.Join(outside, "v1.0.0-1.md")
+	if err := os.WriteFile(victim, []byte("the user's own file\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	checkUntouched := func(what string) {
+		t.Helper()
+		if data, _ := os.ReadFile(victim); string(data) != "the user's own file\n" {
+			t.Fatalf("%s: the file behind the link was overwritten: %q", what, data)
+		}
+	}
+	if err := os.Remove(notes); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(victim, notes); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SaveReleaseNotes(dir, "v1.0.0-1", "edited"); err == nil {
+		t.Fatal("the notes were written through a link to a file")
+	}
+	checkUntouched("file link")
+	if err := os.RemoveAll(filepath.Join(dir, "out")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, "out")); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SaveReleaseNotes(dir, "v1.0.0-1", "edited"); err == nil {
+		t.Fatal("the notes were written through a linked folder")
+	}
+	checkUntouched("folder link")
+	if err := os.Remove(filepath.Join(dir, "out")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "out"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(notes, []byte("draft\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SaveReleaseNotes(dir, "v1.0.0-1", "edited"); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(notes); string(data) != "edited\n" {
+		t.Fatalf("a regular notes file: %q", data)
+	}
+}
+
 func TestReleaseFactsFollowTheStepsTheNotesAndTheTag(t *testing.T) {
 	r, dir := makeReleaseFixture(t, releaseFactsPipeline)
 	r.git = withoutGh

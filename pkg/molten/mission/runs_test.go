@@ -246,9 +246,6 @@ func TestRunRequestsAreChecked(t *testing.T) {
 	if _, err := r.Start(RunRequest{Dir: "relative", Kind: RunKindBuild, Id: "gold"}); err == nil {
 		t.Fatal("a relative folder must be refused")
 	}
-	if !isWindowSource("tab:abc") || isWindowSource("proc:abc") || isWindowSource("") {
-		t.Fatal("only windows may grant trust")
-	}
 }
 
 func TestBuildVerifiesWithTheLocalCiFirst(t *testing.T) {

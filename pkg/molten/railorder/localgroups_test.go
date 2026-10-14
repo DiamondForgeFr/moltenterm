@@ -292,12 +292,3 @@ func TestList(t *testing.T) {
 		t.Fatalf("groups = %+v", answer.Groups)
 	}
 }
-
-func TestIsTerminalSource(t *testing.T) {
-	if !isTerminalSource("proc:1234") {
-		t.Fatalf("a local terminal's wsh is a terminal")
-	}
-	if isTerminalSource("conn:remote") || isTerminalSource("tab:1") || isTerminalSource("") {
-		t.Fatalf("only local terminals")
-	}
-}

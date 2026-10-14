@@ -4,99 +4,76 @@
 package sessions
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
 	"github.com/wavetermdev/waveterm/pkg/wps"
-	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
-func makeTestLink(sessions ...molten.DurableSession) (*routeLink, *fakeOps) {
+func makeTestLink(t *testing.T, sessions ...molten.DurableSession) (*routetest.Env, *localroute.Link, *fakeOps) {
+	t.Helper()
 	a, _, ops := makeTestActions(sessions...)
-	return &routeLink{output: make(chan []byte, 1), model: a.model, actions: a}, ops
+	e := routetest.Make(t)
+	link, err := localroute.MakeLink(e.Router, (&routeLink{model: a.model, actions: a}).route())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return e, link, ops
 }
 
+var allSessionCommands = []string{molten.DurableSessionsListCommand, molten.DurableSessionsShowCommand, molten.DurableSessionsEndCommand,
+	molten.DurableSessionsReconnectCommand, molten.DurableSessionsCleanupCommand}
+
 func TestRouteRefusesForwardedCallers(t *testing.T) {
-	for _, source := range []string{"proc:remote", "tab:forged", "conn:remote"} {
-		for _, command := range []string{molten.DurableSessionsListCommand, molten.DurableSessionsShowCommand, molten.DurableSessionsEndCommand, molten.DurableSessionsReconnectCommand, molten.DurableSessionsCleanupCommand} {
-			t.Run(source+"/"+command, func(t *testing.T) {
-				l, ops := makeTestLink(detachedS)
-				l.localSource = func(gotSource string, gotLink baseds.LinkId) bool {
-					if gotSource != source || gotLink != 7 {
-						t.Errorf("source check got %q on %d", gotSource, gotLink)
-					}
-					return false
-				}
-				req := wshutil.RpcMessage{Command: command, ReqId: "r1", Source: source, Data: map[string]any{"id": "detached", "ids": []string{"detached"}}}
-				msg, err := json.Marshal(req)
-				if err != nil {
-					t.Fatal(err)
-				}
-				l.SendRpcMessage(msg, 7, "")
-				select {
-				case msg := <-l.output:
-					var resp wshutil.RpcMessage
-					if err := json.Unmarshal(msg, &resp); err != nil || resp.ResId != "r1" || !strings.Contains(resp.Error, "local terminals only") || resp.Data != nil {
-						t.Fatalf("refused caller: %s (%v)", msg, err)
-					}
-				case <-time.After(5 * time.Second):
-					t.Fatal("source check did not answer")
-				}
-				if len(ops.calls) != 0 {
-					t.Fatalf("refused caller acted on a session: %s", ops.trace())
-				}
-			})
+	e, link, ops := makeTestLink(t, detachedS)
+	data := map[string]any{"id": "detached", "ids": []string{"detached"}}
+	for _, command := range allSessionCommands {
+		if command == molten.DurableSessionsCleanupCommand {
+			routetest.MustRefuseWith(t, link, e.NonLocal(), command, data, "from a MoltenTerm window")
+			continue
 		}
+		routetest.MustRefuse(t, link, e.NonLocal(), command, data)
+	}
+	if len(ops.calls) != 0 {
+		t.Fatalf("refused caller acted on a session: %s", ops.trace())
 	}
 }
 
 func TestRouteAnswersVerifiedLocalCallers(t *testing.T) {
-	for _, source := range []string{"proc:local", "tab:window"} {
-		t.Run(source, func(t *testing.T) {
-			l, _ := makeTestLink(detachedS)
-			l.localSource = func(string, baseds.LinkId) bool { return true }
-			l.answer(wshutil.RpcMessage{Command: molten.DurableSessionsListCommand, ReqId: "r1", Source: source}, 7)
-			var resp wshutil.RpcMessage
-			if err := json.Unmarshal(<-l.output, &resp); err != nil || resp.Error != "" || resp.Data == nil {
-				t.Fatalf("local list: %+v (%v)", resp, err)
-			}
-		})
+	e, link, _ := makeTestLink(t, detachedS)
+	for _, from := range []routetest.From{e.Window(), e.Terminal()} {
+		if data, errStr := routetest.Ask(t, link, from, molten.DurableSessionsListCommand, nil); errStr != "" || data == nil {
+			t.Fatalf("local list for %s: %v %q", from.Name, data, errStr)
+		}
 	}
 }
 
 func TestRouteCallers(t *testing.T) {
-	l, ops := makeTestLink(detachedS)
-	if _, err := l.handle(molten.DurableSessionsListCommand, "conn:me@box", nil); err == nil {
-		t.Fatalf("a remote host is not answered")
-	}
-	if _, err := l.handle(molten.DurableSessionsListCommand, "proc:abc", nil); err != nil {
-		t.Fatalf("a terminal lists: %v", err)
-	}
-	_, err := l.handle(molten.DurableSessionsCleanupCommand, "proc:abc", map[string]any{"ids": []string{"detached"}})
-	if err == nil || !strings.Contains(err.Error(), "window") {
-		t.Fatalf("cleanup from a terminal: %v", err)
+	e, link, ops := makeTestLink(t, detachedS)
+	_, errStr := routetest.Ask(t, link, e.Terminal(), molten.DurableSessionsCleanupCommand, map[string]any{"ids": []string{"detached"}})
+	if !strings.Contains(errStr, "window") {
+		t.Fatalf("cleanup from a terminal: %q", errStr)
 	}
 	if len(ops.calls) != 0 {
 		t.Fatalf("refused cleanup ended something: %s", ops.trace())
 	}
-	if _, err := l.handle("moltensessionsnope", "tab:t1", nil); err == nil || !strings.Contains(err.Error(), "unknown") {
-		t.Fatalf("unknown command: %v", err)
+	if _, errStr := routetest.Ask(t, link, e.Window(), "moltensessionsnope", nil); !strings.Contains(errStr, "unknown") {
+		t.Fatalf("unknown command: %q", errStr)
 	}
-	if _, err := l.handle(molten.DurableSessionsEndCommand, "tab:t1", "not an object"); err == nil {
+	if _, errStr := routetest.Ask(t, link, e.Window(), molten.DurableSessionsEndCommand, "not an object"); errStr == "" {
 		t.Fatalf("bad data accepted")
 	}
 }
 
 func TestRouteShowUsesTheWindowsTab(t *testing.T) {
-	l, ops := makeTestLink(detachedS)
-	if _, err := l.handle(molten.DurableSessionsShowCommand, "tab:tabA", map[string]any{"id": "detached"}); err != nil {
-		t.Fatal(err)
+	e, link, ops := makeTestLink(t, detachedS)
+	if _, errStr := routetest.Ask(t, link, e.Window(), molten.DurableSessionsShowCommand, map[string]any{"id": "detached"}); errStr != "" {
+		t.Fatal(errStr)
 	}
-	if !strings.HasPrefix(ops.trace(), "create tabA") {
+	if !strings.HasPrefix(ops.trace(), "create "+routetest.WindowTabId) {
 		t.Fatalf("show from a window opens in its tab: %s", ops.trace())
 	}
 }

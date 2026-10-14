@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
 )
 
 func TestInitGitCreatesARepository(t *testing.T) {
@@ -63,8 +66,14 @@ func TestInitGitRefusesAMissingOrRelativeFolder(t *testing.T) {
 }
 
 func TestInitGitOnlyFromAWindow(t *testing.T) {
-	l := &routeLink{collector: MakeCollector(t.TempDir(), plainRunner, nil)}
-	if _, err := l.handle(GitInitCommand, "proc:term", map[string]any{"dir": t.TempDir()}); err == nil {
-		t.Fatalf("a terminal could initialize git")
+	e := routetest.Make(t)
+	link, err := localroute.MakeLink(e.Router, (&routeLink{collector: MakeCollector(t.TempDir(), plainRunner, nil)}).route())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	routetest.MustRefuseWith(t, link, e.NonWindows(), GitInitCommand, map[string]any{"dir": dir}, "from a MoltenTerm window")
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+		t.Fatalf("a caller other than a window initialized a repository")
 	}
 }

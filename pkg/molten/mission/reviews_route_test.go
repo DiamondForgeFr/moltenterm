@@ -4,33 +4,33 @@
 package mission
 
 import (
-	"encoding/json"
-	"strings"
 	"testing"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
-	"github.com/wavetermdev/waveterm/pkg/wshutil"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
 )
 
-// FR-REV-014 AC4: the review list answers local terminals and windows only.
-func TestReviewsAnswerLocalSourcesOnly(t *testing.T) {
-	l := &routeLink{output: make(chan []byte, 1), localSource: func(source string, ingressLinkId baseds.LinkId) bool {
-		return source == "proc:local"
-	}}
-	l.answer(wshutil.RpcMessage{Command: ReviewsCommand, ReqId: "r1", Source: "proc:remote", Data: map[string]any{"dir": "/p"}}, baseds.NoLinkId)
-	var resp wshutil.RpcMessage
-	if err := json.Unmarshal(<-l.output, &resp); err != nil {
+var localCommands = []string{
+	GetCommand, RefreshCommand, RunCommand, RunsCommand, LogCommand, CancelCommand, CloseCommand, CiStateCommand, CiRunCommand,
+	CiLogCommand, CiCancelCommand, CiStatusCommand, BuildsCommand, ReleaseCommand, ReleaseEndCommand, ReleaseFactsCommand,
+	ReleaseNotesCommand, ReleaseMilestoneCommand, BranchesPlanCommand, WorkCommand, SpawnsCommand, JobsCommand, DepsCommand,
+	DepSyncCommand, GroupsCommand, GithubRunLogCommand, PaneCommand, ReviewsCommand, WorktreePlanCommand,
+}
+
+// #662: a remote host, forging a window's source or not, runs nothing here: not a project's commands, its CI or a
+// release step (the scenario: run an untrusted project, read its hash, trust it with a forged tab source, run its
+// commands), nor reads the reviews (FR-REV-014 AC4). Every decision of the user's is a window's only.
+func TestRouteCallers(t *testing.T) {
+	e := routetest.Make(t)
+	link, err := localroute.MakeLink(e.Router, (&routeLink{}).route())
+	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(resp.Error, "local terminals only") {
-		t.Errorf("remote source: %+v", resp)
+	req := map[string]any{"dir": t.TempDir(), "hash": "h", "id": "build", "kind": RunKindBuild, "tag": "v1", "text": "notes"}
+	for command := range windowCommands {
+		routetest.MustRefuseWith(t, link, e.NonWindows(), command, req, "from a MoltenTerm window")
 	}
-	l.localSource = nil
-	l.answer(wshutil.RpcMessage{Command: ReviewsCommand, ReqId: "r2", Source: "proc:local", Data: map[string]any{"dir": "/p"}}, baseds.NoLinkId)
-	if err := json.Unmarshal(<-l.output, &resp); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(resp.Error, "local terminals only") {
-		t.Errorf("no source check: %+v", resp)
+	for _, command := range localCommands {
+		routetest.MustRefuse(t, link, e.NonLocal(), command, req)
 	}
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -181,8 +182,8 @@ func Start() {
 		welcome := startWelcomeBack()
 		src := makeLiveSources()
 		model := MakeModel(src.Build, publishSessions)
-		link := &routeLink{output: make(chan []byte, routeQueueSize), model: model, actions: MakeActions(model, liveOps{}), localSource: localSourceOnLink}
-		if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, molten.DurableSessionsRoute); err != nil {
+		link := &routeLink{model: model, actions: MakeActions(model, liveOps{})}
+		if _, err := localroute.Register(wshutil.DefaultRouter, link.route()); err != nil {
 			log.Printf("molten: sessions route not started: %v\n", err)
 		}
 		watch(model)

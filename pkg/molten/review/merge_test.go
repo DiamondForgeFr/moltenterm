@@ -533,12 +533,12 @@ func TestMergeCommandsAreWindowOnly(t *testing.T) {
 	link := &routeLink{service: service}
 	terminal := wshutil.RoutePrefix_Proc + "x"
 	for _, command := range []string{MergePlanCommand, MergeCommand, MergeCancelCommand} {
-		if _, err := link.handle(context.Background(), command, terminal, map[string]any{"repo": testRepo, "number": 7, "dir": "/tmp"}); err == nil {
+		if _, err := callAs(link, terminal, command, map[string]any{"repo": testRepo, "number": 7, "dir": "/tmp"}); err == nil {
 			t.Errorf("%s answered a terminal", command)
 		}
 	}
 	window := wshutil.RoutePrefix_Tab + "x"
-	data, err := link.handle(context.Background(), MergePlanCommand, window, map[string]any{"repo": testRepo, "number": 7, "dir": "/tmp"})
+	data, err := callAs(link, window, MergePlanCommand, map[string]any{"repo": testRepo, "number": 7, "dir": "/tmp"})
 	if err != nil {
 		t.Fatal(err)
 	}

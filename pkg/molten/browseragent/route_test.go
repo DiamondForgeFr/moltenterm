@@ -4,39 +4,36 @@
 package browseragent
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
-func sendToLink(t *testing.T, l *routeLink, msg wshutil.RpcMessage) {
+func makeRouteWorld(t *testing.T) (*Manager, *fakeEnv, *routetest.Env, *localroute.Link) {
 	t.Helper()
-	data, err := json.Marshal(msg)
+	m, env, _ := makeWorld(t)
+	e := routetest.Make(t)
+	link, err := localroute.MakeLink(e.Router, (&routeLink{manager: m}).route())
 	if err != nil {
 		t.Fatal(err)
 	}
-	l.SendRpcMessage(data, 7, "test")
+	return m, env, e, link
 }
 
 // emain reports takeover without asking for an answer: the command runs all the same, and nothing is sent back.
 func TestRouteRunsCommandsWithoutReqId(t *testing.T) {
-	m, env, _ := makeWorld(t)
-	l := &routeLink{manager: m, output: make(chan []byte, 4), pending: make(map[string]context.CancelFunc),
-		sourceOnLink: func(source string, ingress baseds.LinkId) bool { return ingress == 7 }}
-	sid := hello(t, m, "proc:a", "tok-a", "a")
-	createdTabId(t, call(m, "proc:a", sid, mcpbrowser.ToolTabsCreate, `{}`))
+	m, env, e, link := makeRouteWorld(t)
+	sid := hello(t, m, e.Terminal().Source, "tok-a", "a")
+	createdTabId(t, call(m, e.Terminal().Source, sid, mcpbrowser.ToolTabsCreate, `{}`))
 	state, _ := env.lastPublished("p1")
-	sendToLink(t, l, wshutil.RpcMessage{
-		Command: mcpbrowser.ControlCommand,
-		Source:  wshutil.ElectronRoute,
-		Data:    ControlRequest{BlockId: "p1", BrowserTabId: state.Tabs[0].BrowserTabId, Action: ControlTakeOver},
-	})
-	deadline := time.Now().Add(2 * time.Second)
+	routetest.Send(t, link, e.Electron(), mcpbrowser.ControlCommand,
+		ControlRequest{BlockId: "p1", BrowserTabId: state.Tabs[0].BrowserTabId, Action: ControlTakeOver})
+	deadline := time.Now().Add(time.Minute)
 	for {
 		snapshot, _ := m.PanelSnapshot("tab:t1", "p1")
 		if len(snapshot.Tabs) == 1 && snapshot.Tabs[0].State == TabStateTakenOver {
@@ -47,63 +44,44 @@ func TestRouteRunsCommandsWithoutReqId(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	select {
-	case out := <-l.output:
-		t.Fatalf("a command without reqid gets no answer, got %s", out)
-	case <-time.After(50 * time.Millisecond):
+	msg, err := json.Marshal(wshutil.RpcMessage{Command: mcpbrowser.StateCommand, ReqId: "r1", Source: e.Terminal().Source, Data: StateRequest{BlockId: "p1"}})
+	if err != nil {
+		t.Fatal(err)
 	}
-	sendToLink(t, l, wshutil.RpcMessage{Command: mcpbrowser.StateCommand, ReqId: "r1", Source: "proc:a", Data: StateRequest{BlockId: "p1"}})
-	select {
-	case out := <-l.output:
-		var resp wshutil.RpcMessage
-		json.Unmarshal(out, &resp)
-		if resp.ResId != "r1" || resp.Error == "" {
-			t.Fatalf("a terminal reading panel state is refused: %s", out)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatalf("no answer")
+	link.SendRpcMessage(msg, e.Terminal().Link, "")
+	// The first message out is r1's: the takeover, applied before, sent nothing back.
+	out, _ := link.RecvRpcMessage()
+	var resp wshutil.RpcMessage
+	if err := json.Unmarshal(out, &resp); err != nil || resp.ResId != "r1" || resp.Error == "" {
+		t.Fatalf("a terminal reading panel state is refused, and alone answered: %s (%v)", out, err)
 	}
 }
 
-// A source claimed over a link the router does not route it through (a remote host's connserver writing
-// "electron" or "tab:x") is not believed: control is refused, and a session's calls do not reach it.
-func TestRouteIgnoresSourcesFromOtherLinks(t *testing.T) {
-	m, env, _ := makeWorld(t)
-	l := &routeLink{manager: m, output: make(chan []byte, 4), pending: make(map[string]context.CancelFunc),
-		sourceOnLink: func(source string, ingress baseds.LinkId) bool { return false }}
-	sid := hello(t, m, "proc:a", "tok-a", "a")
-	createdTabId(t, call(m, "proc:a", sid, mcpbrowser.ToolTabsCreate, `{}`))
+// #662: a source forged on a link it is not bound to (a remote host's connserver writing "electron", "tab:x" or a
+// local terminal's route) is not believed: control is refused, and a session's calls do not reach it.
+func TestRouteRefusesForgedSources(t *testing.T) {
+	m, env, e, link := makeRouteWorld(t)
+	sid := hello(t, m, e.Terminal().Source, "tok-a", "a")
+	createdTabId(t, call(m, e.Terminal().Source, sid, mcpbrowser.ToolTabsCreate, `{}`))
 	state, _ := env.lastPublished("p1")
-	sendToLink(t, l, wshutil.RpcMessage{
-		Command: mcpbrowser.ControlCommand, ReqId: "r1", Source: "tab:t1",
-		Data: ControlRequest{BlockId: "p1", BrowserTabId: state.Tabs[0].BrowserTabId, Action: ControlStop},
-	})
-	sendToLink(t, l, wshutil.RpcMessage{
-		Command: mcpbrowser.CallCommand, ReqId: "r2", Source: "proc:a",
-		Data: mcpbrowser.CallRequest{SessionId: sid, Tool: mcpbrowser.ToolTabsContext},
-	})
-	for i := 0; i < 2; i++ {
-		select {
-		case out := <-l.output:
-			var resp wshutil.RpcMessage
-			json.Unmarshal(out, &resp)
-			if resp.ResId == "r1" && resp.Error == "" {
-				t.Fatalf("a forged window source stopped a tab")
-			}
-			if resp.ResId == "r2" {
-				var result mcpbrowser.CallResult
-				data, _ := json.Marshal(resp.Data)
-				json.Unmarshal(data, &result)
-				if !result.IsError || result.Content[0].Text != mcpbrowser.ErrSessionEnded {
-					t.Fatalf("a forged session source reached the session: %s", out)
-				}
-			}
-		case <-time.After(2 * time.Second):
-			t.Fatalf("no answer")
-		}
+	stop := ControlRequest{BlockId: "p1", BrowserTabId: state.Tabs[0].BrowserTabId, Action: ControlStop}
+	nonUi := append([]routetest.From{e.Terminal()}, e.Forged()...)
+	for _, command := range []string{mcpbrowser.ControlCommand, mcpbrowser.StateCommand, mcpbrowser.AnswerCommand, mcpbrowser.SiteCommand,
+		mcpbrowser.DownloadCommand, mcpbrowser.ListCommand, mcpbrowser.ShareCommand, mcpbrowser.ShareTellCommand} {
+		routetest.MustRefuse(t, link, nonUi, command, stop)
+	}
+	notTerminals := append([]routetest.From{e.Window(), e.Electron()}, e.Forged()...)
+	for _, command := range []string{mcpbrowser.HelloCommand, mcpbrowser.CallCommand, mcpbrowser.ByeCommand} {
+		routetest.MustRefuseWith(t, link, notTerminals, command, mcpbrowser.CallRequest{SessionId: sid, Tool: mcpbrowser.ToolTabsContext}, mcpbrowser.ErrRemotePane)
 	}
 	snapshot, _ := m.PanelSnapshot("tab:t1", "p1")
 	if len(snapshot.Tabs) != 1 || snapshot.Tabs[0].State != TabStateActive {
 		t.Fatalf("the tab must be untouched: %+v", snapshot)
+	}
+	data, errStr := routetest.Ask(t, link, e.Terminal(), mcpbrowser.CallCommand, mcpbrowser.CallRequest{SessionId: sid, Tool: mcpbrowser.ToolTabsContext})
+	var result mcpbrowser.CallResult
+	raw, _ := json.Marshal(data)
+	if errStr != "" || json.Unmarshal(raw, &result) != nil || result.IsError {
+		t.Fatalf("the session's own terminal: %q %s", errStr, raw)
 	}
 }
