@@ -38,7 +38,10 @@ describe("tab identity (FR-SHELL-056, DS-SHELL-098)", () => {
         expect(panelTitle({ view: "web", url: "https://www.github.com/x" })).toBe("github.com");
         expect(panelTitle({ view: "web", url: "not a url" })).toBe("Web");
         expect(panelTitle({ view: "molten-sessions" })).toBe("Sessions");
-        expect(panelTitle({ view: "tsunami" })).toBe("Tsunami");
+        expect(panelTitle({ view: "tsunami" })).toBe("App");
+        expect(panelTitle({ view: "molten-review-ai" })).toBe("AI review");
+        expect(panelTitle({ view: "tips" })).toBe("Tips");
+        expect(panelTitle({ view: "something-new" })).toBe("");
     });
 
     it("keeps a name the user typed and replaces T<n> only", () => {

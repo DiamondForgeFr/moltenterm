@@ -3442,7 +3442,13 @@
             "settings": "Réglages",
             "help": "Aide",
             "processes": "Processus",
-            "editor": "Éditeur"
+            "editor": "Éditeur",
+            "reviewAi": "Revue IA",
+            "tips": "Astuces",
+            "onboarding": "Premiers pas",
+            "waveAi": "Wave AI",
+            "app": "Application",
+            "fileDiff": "Diff de fichier"
         }
     },
     "status": {

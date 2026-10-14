@@ -3442,7 +3442,13 @@
             "settings": "Settings",
             "help": "Help",
             "processes": "Processes",
-            "editor": "Editor"
+            "editor": "Editor",
+            "reviewAi": "AI review",
+            "tips": "Tips",
+            "onboarding": "Getting started",
+            "waveAi": "Wave AI",
+            "app": "App",
+            "fileDiff": "File diff"
         }
     },
     "status": {
