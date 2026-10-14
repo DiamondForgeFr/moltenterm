@@ -70,6 +70,7 @@ func TestRouteCallers(t *testing.T) {
 
 func TestRouteShowUsesTheWindowsTab(t *testing.T) {
 	e, link, ops := makeTestLink(t, detachedS)
+	ops.tabWs[routetest.WindowTabId] = "wsA"
 	if _, errStr := routetest.Ask(t, link, e.Window(), molten.DurableSessionsShowCommand, map[string]any{"id": "detached"}); errStr != "" {
 		t.Fatal(errStr)
 	}
