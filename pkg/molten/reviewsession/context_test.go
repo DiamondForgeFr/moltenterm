@@ -218,6 +218,9 @@ func TestSetHeadAndBrief(t *testing.T) {
 	if _, err := ls.m.SetHead(ctx, mcpreview.SetHeadRequest{SessionKey: mcpreview.SessionKey{Id: ls.id}, HeadOid: "nope"}); err == nil {
 		t.Error("a bad head was accepted")
 	}
+	if res, err := ls.m.Brief(ctx, mcpreview.SessionKey{Id: "gone"}); err != nil || res.Status != mcpreview.BriefFailed || res.Reason != mcpreview.ReasonSessionEnded {
+		t.Errorf("brief without a session %+v: %v", res, err)
+	}
 	res, err := ls.m.SetHead(ctx, mcpreview.SetHeadRequest{SessionKey: mcpreview.SessionKey{Id: ls.id}, HeadOid: newHead, Brief: true})
 	if err != nil || res.Status != mcpreview.BriefAsked {
 		t.Fatalf("set head %+v: %v", res, err)

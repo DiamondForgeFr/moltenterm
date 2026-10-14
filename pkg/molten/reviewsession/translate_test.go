@@ -40,7 +40,7 @@ func TestTranslateRequestAndTool(t *testing.T) {
 		{Id: "c-1", Kind: "change", Where: "main.go, head side, line 4 (line comment)", Text: "Renomme `x`.", Lang: "fr"},
 		{Id: mcpreview.SummaryId, Text: "Merci", Lang: "fr"},
 	}}
-	if _, err := m.Translate(ctx, req); err == nil {
+	if res, err := m.Translate(ctx, req); err != nil || res.Sent || res.Reason != mcpreview.ReasonSessionEnded {
 		t.Fatal("translated without a session")
 	}
 	if _, err := m.Start(ctx, "", startReq(repo)); err != nil {

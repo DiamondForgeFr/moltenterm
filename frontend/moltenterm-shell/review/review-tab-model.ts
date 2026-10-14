@@ -97,6 +97,7 @@ import {
     startReviewSession,
     subscribeReviewSession,
 } from "./review-session";
+import { localizeAsk, localizeBrief, localizeSession, startResultText } from "./review-session-text";
 import { watchReviewSheetRequests } from "./review-sheet-request";
 
 // The PR's head is asked from the collector at most this often while the tab shows (it reads GitHub at most once a
@@ -577,7 +578,13 @@ export abstract class ReviewTabModel implements ViewModel {
     }
 
     applyBriefAsk(result: ReviewBriefResult) {
-        globalStore.set(this.briefAskAtom, { status: result.status, message: result.message, at: Date.now() });
+        const brief = localizeBrief(result, this.sessionAgentName());
+        globalStore.set(this.briefAskAtom, { status: brief.status, message: brief.message, at: Date.now() });
+    }
+
+    // sessionAgentName: the running session's agent, which the session's outcomes name.
+    sessionAgentName(): string {
+        return globalStore.get(this.aiAtom).session?.agentname;
     }
 
     // askBriefing asks the running session for a new briefing (the card's Ask again, or after a busy refresh).
@@ -1004,13 +1011,14 @@ export abstract class ReviewTabModel implements ViewModel {
             if (out.dropped != null) {
                 throw new Error(out.dropped);
             }
-            return out.result;
+            return localizeAsk(out.result, this.sessionAgentName());
         } finally {
             setWaiting(undefined);
         }
     }
 
-    applySession(session: ReviewSessionInfo) {
+    applySession(info: ReviewSessionInfo) {
+        const session = localizeSession(info);
         const status = session.state === "failed" ? "failed" : session.state === "starting" ? "starting" : "running";
         globalStore.set(this.aiAtom, (ai) => ({ ...ai, status, session, message: session.message }));
         fireAndForget(() => this.syncSessionHead());
@@ -1246,10 +1254,14 @@ export abstract class ReviewTabModel implements ViewModel {
                     this.applySession(result.session);
                     return;
                 case "noagent":
-                    globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "noagent", message: result.message }));
+                    globalStore.set(this.aiAtom, (ai) => ({
+                        ...ai,
+                        status: "noagent",
+                        message: startResultText(result),
+                    }));
                     return;
             }
-            globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "failed", message: result.message }));
+            globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "failed", message: startResultText(result) }));
         } catch (e) {
             globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "failed", message: String(e?.message ?? e) }));
         }

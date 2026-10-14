@@ -13,6 +13,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
+	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
 )
 
 // The questions queue (FR-REV-006 AC4): a question asked while the agent works or waits for an answer is kept, shown
@@ -41,23 +42,24 @@ func (m *Manager) sleep(d time.Duration) {
 	time.Sleep(d)
 }
 
-// agentBusy says why the session's agent cannot take a question now, "" when its hooks report it idle or nothing.
-func (m *Manager) agentBusy(s *session) string {
+// agentBusy says why the session's agent cannot take a question now (Retry), nothing when its hooks report it idle or
+// nothing.
+func (m *Manager) agentBusy(s *session) TypeOutcome {
 	if m.env.AgentRun == nil {
-		return ""
+		return TypeOutcome{}
 	}
 	run, ok := m.env.AgentRun(s.blockId)
 	if !ok || !run.Running {
-		return ""
+		return TypeOutcome{}
 	}
 	name := molten.AgentDisplayName(m.recOf(s).Agent)
 	switch run.State {
 	case molten.AgentStateWorking:
-		return name + " is working."
+		return TypeOutcome{Retry: true, Reason: termupdate.InputReasonWorking, Message: name + " is working."}
 	case molten.AgentStateWaiting:
-		return name + " is waiting for your answer."
+		return TypeOutcome{Retry: true, Reason: termupdate.InputReasonWaiting, Message: name + " is waiting for your answer."}
 	}
-	return ""
+	return TypeOutcome{}
 }
 
 func (m *Manager) hasQuestions(s *session) bool {
@@ -110,7 +112,7 @@ func (m *Manager) dropQuestion(s *session, id string) bool {
 		s.questions = append(s.questions[:i:i], s.questions[i+1:]...)
 		if len(s.questions) == 0 {
 			s.queueHold = false
-			s.queueNote = ""
+			s.queueNote = queueNote{}
 		}
 		return true
 	}
@@ -137,12 +139,12 @@ func (m *Manager) nextQueued(s *session) (q mcpreview.QueuedQuestion, hold bool,
 func (m *Manager) clearQueueNote(s *session) bool {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	had := s.queueNote != ""
-	s.queueNote = ""
+	had := s.queueNote.text != ""
+	s.queueNote = queueNote{}
 	return had
 }
 
-func (m *Manager) setHold(s *session, hold bool, note string) {
+func (m *Manager) setHold(s *session, hold bool, note queueNote) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	s.queueHold = hold
@@ -166,14 +168,14 @@ func (m *Manager) runQuestions(s *session) {
 		busy := m.agentBusy(s)
 		if hold {
 			// The question typed without Enter starts once the developer presses it: the agent works then.
-			if busy != "" {
-				m.setHold(s, false, "")
+			if busy.Retry {
+				m.setHold(s, false, queueNote{})
 				m.publish(s, false)
 			}
 			m.sleep(questionPoll)
 			continue
 		}
-		if busy != "" {
+		if busy.Retry {
 			m.sleep(questionPoll)
 			continue
 		}
@@ -189,14 +191,14 @@ func (m *Manager) runQuestions(s *session) {
 		switch {
 		case out.Sent && out.Submitted:
 			log.Printf("%s %s#%d: queued question %s sent\n", logPrefix, rec.Repo, rec.Number, q.Id)
-			m.setHold(s, false, "")
+			m.setHold(s, false, queueNote{})
 		case out.Sent:
 			if m.hasQuestions(s) {
-				m.setHold(s, true, fmt.Sprintf(queueHoldNote, molten.AgentDisplayName(rec.Agent)))
+				m.setHold(s, true, queueNote{text: fmt.Sprintf(queueHoldNote, molten.AgentDisplayName(rec.Agent)), reason: mcpreview.ReasonQueueHold})
 			}
 		default:
 			log.Printf("%s %s#%d: queued question %s not sent: %s\n", logPrefix, rec.Repo, rec.Number, q.Id, out.Message)
-			m.setHold(s, false, "A queued question could not be sent: "+out.Message)
+			m.setHold(s, false, queueNote{text: "A queued question could not be sent: " + out.Message, reason: mcpreview.ReasonQueueFailed, cause: out.Reason})
 		}
 		m.publish(s, false)
 		if out.Sent {

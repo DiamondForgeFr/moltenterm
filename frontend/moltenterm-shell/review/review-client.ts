@@ -444,6 +444,9 @@ export type ReviewDiscussResult = {
     starting?: boolean;
     line?: string;
     message?: string;
+    // Why nothing was typed (review-session-text.ts).
+    reason?: string;
+    program?: string;
     state?: ReviewState;
 };
 

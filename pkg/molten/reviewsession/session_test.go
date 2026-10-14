@@ -351,13 +351,13 @@ func TestStartWithoutAgent(t *testing.T) {
 	f.installed = map[string]bool{}
 	m := MakeManager(f.env(repo, t.TempDir()))
 	res, err := m.Start(context.Background(), "tab1", startReq(repo))
-	if err != nil || res.Status != mcpreview.StatusNoAgent || !strings.Contains(res.Message, "work without it") || len(f.blocks) != 0 {
+	if err != nil || res.Status != mcpreview.StatusNoAgent || res.Reason != mcpreview.ReasonNotInstalled || !strings.Contains(res.Message, "work without it") || len(f.blocks) != 0 {
 		t.Fatalf("start %+v: %v", res, err)
 	}
 	req := startReq(repo)
 	req.Agent = "codex"
 	f.installed = map[string]bool{"claude": true}
-	if res, _ := m.Start(context.Background(), "tab1", req); res.Status != mcpreview.StatusNoAgent || !strings.Contains(res.Message, "Codex") {
+	if res, _ := m.Start(context.Background(), "tab1", req); res.Status != mcpreview.StatusNoAgent || res.Reason != mcpreview.ReasonAgentMissing || res.AgentName != "Codex" {
 		t.Errorf("requested codex: %+v", res)
 	}
 	f.installed = map[string]bool{"codex": true}
@@ -401,8 +401,8 @@ func TestStartTypingFails(t *testing.T) {
 	for time.Now().Before(deadline) {
 		got := m.Get(context.Background(), mcpreview.SessionKey{Id: res.Session.Id})
 		if got.State == mcpreview.StateFailed {
-			if !strings.Contains(got.Message, "claude --permission-mode") {
-				t.Errorf("message %q", got.Message)
+			if got.Reason != mcpreview.ReasonNotStarted || got.Message != "the terminal showed no prompt" || !strings.Contains(got.Command, "claude --permission-mode") {
+				t.Errorf("failed session %+v", got)
 			}
 			return
 		}

@@ -4023,6 +4023,33 @@
                 "translation": "The agent was still not ready after {seconds} s: your translation request was not sent. Try again."
             }
         },
+        "session": {
+            "briefTyped": "The request is in your agent's prompt, after what you were typing there: press Enter in its terminal to send it.",
+            "reason": {
+                "notinstalled": "No supported coding agent (Claude Code or Codex) is installed, so the review has no AI. The diff, the comments, publishing and merging work without it.",
+                "agentmissing": "{agent} is not installed, so the review has no AI. The diff, the comments, publishing and merging work without it.",
+                "alreadystarting": "This PR's review session is already starting.",
+                "nomolten": "MoltenTerm's molten command is not installed: the review tools cannot be given to the agent.",
+                "head": "The PR's head could not be found: {message}",
+                "worktree": "The review worktree could not be prepared: {message}",
+                "command": "The agent's command line could not be prepared: {message}",
+                "terminal": "The session's terminal could not be created: {message}",
+                "notstarted": "The agent was not started ({message}). Start it in the review terminal with: {command}",
+                "sessionended": "This review session has ended.",
+                "cannottype": "MoltenTerm cannot type in the session's terminal.",
+                "agentstarting": "{agent} is starting: this is sent once it is ready.",
+                "queuehold": "The last question is in {agent}'s prompt after what you were typing there: press Enter in its terminal. The next questions wait for it.",
+                "queuefailed": "A queued question could not be sent: {why}",
+                "working": "{agent} is working.",
+                "waiting": "{agent} is waiting for your answer.",
+                "notforeground": "{program} is in the foreground of the review terminal, not {agent}: nothing was typed.",
+                "notforegroundGone": "{agent} is no longer the program in the foreground: nothing was typed.",
+                "noagent": "{agent} no longer runs in the review terminal: nothing was typed.",
+                "busy": "MoltenTerm is already typing in this terminal: try again in a moment.",
+                "unavailable": "MoltenTerm could not type in the review terminal: nothing was typed.",
+                "unknownaction": "There is no line to type: nothing was typed."
+            }
+        },
         "ai": {
             "viewName": "AI panel",
             "viewNamePr": "AI panel · #{number}",

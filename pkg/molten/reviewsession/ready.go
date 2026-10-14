@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 )
 
 // A just-started session's agent is not ready for a typed prompt (#638): until its state hooks report, the guarded
@@ -68,7 +69,7 @@ func (m *Manager) markConnected(s *session) {
 // nothing is typed and the outcome says so (Retry and Starting).
 func (m *Manager) typeLine(ctx context.Context, s *session, line string) TypeOutcome {
 	if reason := m.agentStarting(s); reason != "" {
-		return TypeOutcome{Retry: true, Starting: true, Message: reason}
+		return TypeOutcome{Retry: true, Starting: true, Reason: mcpreview.ReasonAgentStarting, Message: reason}
 	}
 	return m.env.TypePrompt(ctx, s.blockId, line)
 }

@@ -47,7 +47,7 @@ func TestAsk(t *testing.T) {
 	m := MakeManager(env)
 	ctx := context.Background()
 	key := mcpreview.SessionKey{Repo: "Owner/Repo", Number: 7}
-	if _, err := m.Ask(ctx, mcpreview.AskRequest{SessionKey: key, Question: "why?"}); err == nil {
+	if res, err := m.Ask(ctx, mcpreview.AskRequest{SessionKey: key, Question: "why?"}); err != nil || res.Sent || res.Reason != mcpreview.ReasonSessionEnded {
 		t.Fatal("asked without a session")
 	}
 	if _, err := m.Start(ctx, "", startReq(repo)); err != nil {
@@ -75,9 +75,9 @@ func TestAsk(t *testing.T) {
 	if !strings.Contains(string(raw), "Que fait ce code ?") || !strings.Contains(string(raw), `\"line\": 2`) {
 		t.Errorf("review_selection %s", raw)
 	}
-	outcome = TypeOutcome{Retry: true, Message: "Claude Code is working: wait for its turn to end."}
+	outcome = TypeOutcome{Retry: true, Reason: "working", Message: "Claude Code is working: wait for its turn to end."}
 	out, err = m.Ask(ctx, mcpreview.AskRequest{SessionKey: key, Question: "et ensuite ?"})
-	if err != nil || out.Sent || !out.Busy || !out.Queued || out.Position != 1 || !strings.Contains(out.Message, "working") {
+	if err != nil || out.Sent || !out.Busy || !out.Queued || out.Position != 1 || !strings.Contains(out.Message, "working") || out.Reason != "working" {
 		t.Errorf("busy %+v: %v", out, err)
 	}
 	m.End(ctx, key)

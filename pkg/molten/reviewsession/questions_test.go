@@ -160,7 +160,10 @@ func TestQuestionsHoldAfterDraft(t *testing.T) {
 	agent.setOutcome(TypeOutcome{Sent: true})
 	agent.setState(molten.AgentStateIdle)
 	waitFor(t, "the first question", func() bool { return len(agent.lines()) == 1 })
-	waitFor(t, "the hold note", func() bool { return strings.Contains(m.Get(ctx, key).QueueNote, "press Enter") })
+	waitFor(t, "the hold note", func() bool {
+		got := m.Get(ctx, key)
+		return strings.Contains(got.QueueNote, "press Enter") && got.QueueNoteReason == mcpreview.ReasonQueueHold
+	})
 	time.Sleep(20 * time.Millisecond)
 	if len(agent.lines()) != 1 {
 		t.Fatalf("typed into the held prompt: %q", agent.lines())

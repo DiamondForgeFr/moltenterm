@@ -5,7 +5,6 @@ package reviewsession
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 
@@ -24,7 +23,7 @@ func (m *Manager) SetHead(ctx context.Context, req mcpreview.SetHeadRequest) (mc
 	m.ensureLoaded(ctx)
 	s := m.find(req.SessionKey)
 	if s == nil {
-		return mcpreview.BriefResult{}, errors.New(mcpreview.ErrSessionEnded)
+		return sessionEnded(), nil
 	}
 	rec, moved := m.moveHead(s, req.HeadOid)
 	if moved {
@@ -60,7 +59,7 @@ func (m *Manager) Brief(ctx context.Context, key mcpreview.SessionKey) (mcprevie
 	m.ensureLoaded(ctx)
 	s := m.find(key)
 	if s == nil {
-		return mcpreview.BriefResult{}, errors.New(mcpreview.ErrSessionEnded)
+		return sessionEnded(), nil
 	}
 	m.lock.Lock()
 	s.sources = nil
@@ -70,7 +69,7 @@ func (m *Manager) Brief(ctx context.Context, key mcpreview.SessionKey) (mcprevie
 
 func (m *Manager) askBriefing(ctx context.Context, s *session, moved bool) mcpreview.BriefResult {
 	if m.env.TypePrompt == nil {
-		return mcpreview.BriefResult{Status: mcpreview.BriefFailed, Message: "MoltenTerm cannot type in the review terminal."}
+		return mcpreview.BriefResult{Status: mcpreview.BriefFailed, Reason: mcpreview.ReasonCannotType, Message: "MoltenTerm cannot type in the review terminal."}
 	}
 	rec := m.recOf(s)
 	out := m.env.TypePrompt(ctx, s.blockId, mcpreview.BriefingPrompt(rec.HeadOid, moved))
@@ -80,9 +79,14 @@ func (m *Manager) askBriefing(ctx context.Context, s *session, moved bool) mcpre
 	case out.Sent:
 		return mcpreview.BriefResult{Status: mcpreview.BriefTyped, Message: "The request is in your agent's prompt, after what you were typing there: press Enter in its terminal to send it."}
 	case out.Retry:
-		return mcpreview.BriefResult{Status: mcpreview.BriefBusy, Message: out.Message}
+		return mcpreview.BriefResult{Status: mcpreview.BriefBusy, Reason: out.Reason, Program: out.Program, Message: out.Message}
 	}
-	return mcpreview.BriefResult{Status: mcpreview.BriefFailed, Message: out.Message}
+	return mcpreview.BriefResult{Status: mcpreview.BriefFailed, Reason: out.Reason, Program: out.Program, Message: out.Message}
+}
+
+// sessionEnded is a window's call on a session that is gone: the window says so in its language.
+func sessionEnded() mcpreview.BriefResult {
+	return mcpreview.BriefResult{Status: mcpreview.BriefFailed, Reason: mcpreview.ReasonSessionEnded, Message: mcpreview.ErrSessionEnded}
 }
 
 // TypeOutcome is what typing a prompt into the agent did; Retry: nothing was typed, try again once the agent is idle.
@@ -93,4 +97,8 @@ type TypeOutcome struct {
 	// Starting: the session's agent is not ready yet (ready.go); Retry is set too.
 	Starting bool
 	Message  string
+	// Reason: why nothing was typed (the typing path's reason, or mcpreview.ReasonAgentStarting); Program: what is in
+	// the foreground instead of the agent.
+	Reason  string
+	Program string
 }

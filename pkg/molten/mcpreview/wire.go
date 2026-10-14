@@ -78,6 +78,34 @@ const (
 	StatusFailed   = "failed"
 )
 
+// Why a window's call did not do what it asked (#652): the windows show each code's sentence in the interface language
+// (frontend/moltenterm-shell/review/review-session-text.ts), and Message keeps wavesrv's English, the detail of the
+// codes that carry one. The typing path's reasons (termupdate.InputReason…: working, waiting, notforeground, noagent,
+// busy, unavailable, unknownaction) pass through as they are.
+const (
+	// Start: no supported agent is installed; the requested one (AgentName) is not.
+	ReasonNotInstalled = "notinstalled"
+	ReasonAgentMissing = "agentmissing"
+	// Start: this PR's session is already starting; the molten command is missing.
+	ReasonAlreadyStarting = "alreadystarting"
+	ReasonNoMolten        = "nomolten"
+	// Start: the PR's head, its worktree, the agent's command line or its terminal could not be had (Message: why).
+	ReasonHead     = "head"
+	ReasonWorktree = "worktree"
+	ReasonCommand  = "command"
+	ReasonTerminal = "terminal"
+	// A failed session: the agent was not started in its terminal (Message: why, Command: what to type).
+	ReasonNotStarted = "notstarted"
+	// The session is gone; MoltenTerm cannot type in terminals; the agent is starting (nothing typed, send again).
+	ReasonSessionEnded  = "sessionended"
+	ReasonCannotType    = "cannottype"
+	ReasonAgentStarting = "agentstarting"
+	// The queue's note: the last question waits in the agent's prompt behind a draft; a queued question was not sent
+	// (QueueNoteCause: the typing path's reason).
+	ReasonQueueHold   = "queuehold"
+	ReasonQueueFailed = "queuefailed"
+)
+
 // Where the session reads the PR.
 const (
 	WorktreeAgent  = "agent"
@@ -213,6 +241,9 @@ const (
 type BriefResult struct {
 	Status  string `json:"status"`
 	Message string `json:"message,omitempty"`
+	// Reason: why it is busy or failed (see AskResult's).
+	Reason  string `json:"reason,omitempty"`
+	Program string `json:"program,omitempty"`
 }
 
 // BriefingPrompt is what MoltenTerm asks the agent, as its first prompt or typed into its terminal after a push.
@@ -267,6 +298,11 @@ type SessionInfo struct {
 	// QueueNote says why the queue does not move (a question typed without Enter) or what the last delivery did
 	// when it failed.
 	QueueNote string `json:"queuenote,omitempty"`
+	// Reason: why the session failed (ReasonNotStarted). QueueNoteReason: the queue's note as a code (ReasonQueueHold,
+	// ReasonQueueFailed with QueueNoteCause, the typing path's reason).
+	Reason          string `json:"reason,omitempty"`
+	QueueNoteReason string `json:"queuenotereason,omitempty"`
+	QueueNoteCause  string `json:"queuenotecause,omitempty"`
 }
 
 // QueuedQuestion is a question of Ask the AI that waits for the agent to be idle.
@@ -283,6 +319,9 @@ type StartResult struct {
 	Status  string       `json:"status"`
 	Message string       `json:"message,omitempty"`
 	Session *SessionInfo `json:"session,omitempty"`
+	// Reason: why no session was started (noagent or failed); AgentName: the requested agent (ReasonAgentMissing).
+	Reason    string `json:"reason,omitempty"`
+	AgentName string `json:"agentname,omitempty"`
 }
 
 type ListResult struct {
@@ -375,6 +414,10 @@ type AskResult struct {
 	Position   int    `json:"position,omitempty"`
 	Line       string `json:"line,omitempty"`
 	Message    string `json:"message,omitempty"`
+	// Reason: why nothing was typed now (Reason…, or the typing path's reason); Program: what is in the foreground
+	// instead of the agent (notforeground).
+	Reason  string `json:"reason,omitempty"`
+	Program string `json:"program,omitempty"`
 }
 
 // AskCancelRequest removes a queued question.
