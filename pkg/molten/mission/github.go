@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,7 +17,7 @@ import (
 // The GitHub side of a project, read through the user's own gh (DS-MC-004): Moltenterm stores no token. The JSON
 // fields are gh's, passed through untouched, so the panels read them as Notulia's Dev › CI does.
 
-const prFields = "number,title,body,headRefName,baseRefName,isDraft,createdAt,updatedAt,url,mergeStateStatus,statusCheckRollup,closingIssuesReferences"
+const prFields = "number,title,body,author,headRefName,baseRefName,isDraft,isCrossRepository,createdAt,updatedAt,url,mergeStateStatus,statusCheckRollup,closingIssuesReferences"
 const runFields = "databaseId,workflowName,event,status,conclusion,headBranch,headSha,displayTitle,createdAt,updatedAt,url"
 const releaseFields = "tagName,name,isDraft,isPrerelease,isLatest,publishedAt,createdAt"
 const maxWorkflowFileBytes = 256 * 1024
@@ -82,6 +83,39 @@ func ghJson(ctx context.Context, run Runner, dir string, args ...string) (json.R
 	return json.RawMessage(out), nil
 }
 
+// ghRepoRef is the repository as gh's --repo takes it: OWNER/REPO on github.com, HOST/OWNER/REPO elsewhere.
+func ghRepoRef(nameWithOwner string, webUrl string) string {
+	if nameWithOwner == "" {
+		return ""
+	}
+	parsed, err := url.Parse(webUrl)
+	if err != nil || parsed.Host == "" || strings.EqualFold(parsed.Host, "github.com") {
+		return nameWithOwner
+	}
+	return parsed.Host + "/" + nameWithOwner
+}
+
+// ghRepoArgs names the repository gh reads (FR-REV-001-AC6), as pkg/molten/release's ghArgs does: once `gh repo view`
+// resolved it, no later call lets gh pick a remote again (a fork's upstream remote is resolved before origin).
+func ghRepoArgs(repoRef string, args []string) []string {
+	if repoRef == "" || len(args) == 0 {
+		return args
+	}
+	if args[0] != "api" {
+		return append(append([]string{}, args...), "--repo", repoRef)
+	}
+	parts := strings.Split(repoRef, "/")
+	ownerRepo := strings.Join(parts[max(0, len(parts)-2):], "/")
+	rtn := make([]string, 0, len(args)+2)
+	for _, arg := range args {
+		rtn = append(rtn, strings.ReplaceAll(arg, "{owner}/{repo}", ownerRepo))
+	}
+	if len(parts) == 3 {
+		rtn = append(rtn, "--hostname", parts[0])
+	}
+	return rtn
+}
+
 func isLoggedOutError(err error) bool {
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "gh auth login") || strings.Contains(msg, "not logged") || strings.Contains(msg, "authentication")
@@ -125,7 +159,7 @@ func CollectGithub(ctx context.Context, run Runner, dir string) *GithubSnapshot 
 		{"milestones", &snap.Milestones, []string{"api", "repos/{owner}/{repo}/milestones?state=open&per_page=20"}},
 	}
 	for _, section := range sections {
-		out, err := ghJson(ctx, run, dir, section.args...)
+		out, err := ghJson(ctx, run, dir, ghRepoArgs(ghRepoRef(snap.Repo, snap.Url), section.args)...)
 		if err != nil {
 			snap.Errors[section.name] = err.Error()
 			continue

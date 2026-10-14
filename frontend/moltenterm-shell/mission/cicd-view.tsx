@@ -181,6 +181,7 @@ function CicdContent({
                     <RemoteCiTab
                         github={snapshot?.github}
                         trunk={snapshot?.git?.trunk}
+                        prTarget={snapshot?.prtarget}
                         dir={project.dir}
                         onRefresh={refresh}
                     />

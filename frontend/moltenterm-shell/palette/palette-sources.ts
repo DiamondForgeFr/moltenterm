@@ -28,6 +28,7 @@ const PanelNames: Record<string, string> = {
     "defwidget@files": "Files",
     "defwidget@web": "Browser",
     "defwidget@cicd": "CI/CD",
+    "defwidget@reviews": "Reviews",
     "defwidget@sysinfo": "System info",
     "defwidget@processviewer": "Processes",
 };
@@ -332,6 +333,7 @@ export function shortcutsEntry(hint?: string): PaletteEntry {
 const PickerKeywords: Record<string, string[]> = {
     [MoltentermProjectView]: ["mission", "dashboard", "branches", "git", "ci"],
     "molten-browser": ["web", "page", "url"],
+    "molten-reviews": ["pull request", "pr", "review", "github"],
     [MoltentermSessionsView]: ["history", "resume"],
     [MoltentermCompanionView]: ["agent", "usage"],
 };

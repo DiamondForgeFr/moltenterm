@@ -81,6 +81,7 @@ export const PanelKindOrder = [
     "molten-project",
     "molten-linemap",
     "molten-cicd",
+    "molten-reviews",
     "molten-companion",
     "molten-sessions",
     "sysinfo",

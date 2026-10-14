@@ -185,6 +185,8 @@ export type MissionSnapshot = {
     githubat?: number;
     refreshing?: boolean;
     pipeline?: PipelineReport;
+    // The branch pull requests target when .saasfoundry.json declares one (FR-REV-001).
+    prtarget?: string;
 };
 
 export function toTreeData(git: MissionGit): TreeData {

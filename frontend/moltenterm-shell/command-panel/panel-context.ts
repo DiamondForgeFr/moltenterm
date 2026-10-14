@@ -25,6 +25,7 @@ const PanelKinds: Record<string, { name: string; plural: string }> = {
     "molten-companion": { name: "Companion", plural: "companions" },
     "molten-linemap": { name: "Line map", plural: "line maps" },
     "molten-cicd": { name: "CI/CD", plural: "CI/CD panels" },
+    "molten-reviews": { name: "Reviews", plural: "reviews panels" },
     "molten-project": { name: "Project", plural: "project panels" },
     "molten-timeline": { name: "Project", plural: "project panels" },
     "molten-sessions": { name: "Sessions", plural: "sessions panels" },

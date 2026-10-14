@@ -23,6 +23,8 @@ import { useAtomValue } from "jotai";
 import { useState } from "react";
 import { makeViewInActiveTabAtom, toggleMoltentermView } from "./open-view";
 import { railCustomWidgets, railWidgetTooltip, splitRailWidgets } from "./rail-tools-model";
+import { MoltentermReviewsView } from "./reviews/reviews-model";
+import { ReviewsModel } from "./reviews/reviews-store";
 import { MoltentermSessionsView, RailBadge } from "./sessions/sessions-model";
 import { DurableSessions } from "./sessions/sessions-store";
 import { MoltentermTipsView } from "./tips/tips-view";
@@ -254,6 +256,13 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
             className="molten-rail-tools mt-auto flex w-full shrink-0 flex-col items-center gap-0.5 border-t border-border pt-2"
         >
             <SessionsToolButton onHover={onHover} />
+            <ViewToggleButton
+                view={MoltentermReviewsView}
+                label="Reviews · pull requests waiting for your review"
+                icon="code-pull-request"
+                onHover={onHover}
+                open={() => ReviewsModel.getInstance().openReviews()}
+            />
             {shown.map((widget, idx) => (
                 <ToolButton
                     key={idx}
