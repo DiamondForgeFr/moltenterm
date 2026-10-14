@@ -65,7 +65,7 @@ The dictionary has the shape of MoltenTerm's English one: nested objects of stri
    Missing strings are allowed (they show English); say how many remain.
 7. Enable it: `molten mod enable <id>` (no trust prompt for a pack). A pack already enabled reloads by itself when
    its file is saved.
-8. `molten i18n status` must show the language with the expected count, and `molten mod list` the pack `active`.
+8. A saved file reloads the pack within about a second; then `molten i18n status` must show the language with the expected count, and `molten mod list` the pack `active`.
 9. Report: tell the user the language now appears in Settings > General > Language under its own name (or that the
    change applies at once when that language is the interface language), how many strings remain in English if any,
    that `molten undo` reverts the last change and `molten mod disable <id>` turns the pack off.

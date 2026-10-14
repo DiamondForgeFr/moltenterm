@@ -159,7 +159,30 @@ export function onLanguagesChange(listener: () => void): () => void {
     return () => listeners.delete(listener);
 }
 
+let batchDepth = 0;
+let batchChanged = false;
+
+// Runs several registrations as one change: listeners hear once, after the last, so a pack replaced by a newer
+// version never shows a moment where its language is missing (the views would flash and app:language would read as
+// unknown).
+export function batchLanguageChanges(fn: () => void) {
+    batchDepth++;
+    try {
+        fn();
+    } finally {
+        batchDepth--;
+        if (batchDepth === 0 && batchChanged) {
+            batchChanged = false;
+            notify();
+        }
+    }
+}
+
 function notify() {
+    if (batchDepth > 0) {
+        batchChanged = true;
+        return;
+    }
     for (const listener of [...listeners]) {
         try {
             listener();

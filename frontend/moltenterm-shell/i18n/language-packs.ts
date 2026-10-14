@@ -7,7 +7,7 @@
 // stays registered, so a reload never flashes the shipped text. Without Jotai: Electron main keeps its own registry
 // of the packs the renderer forwards, for the app menu and the native dialogs.
 
-import { Dictionary, registerLanguage } from "./i18n-core";
+import { batchLanguageChanges, Dictionary, registerLanguage } from "./i18n-core";
 
 export type LanguagePackInput = {
     modId: string;
@@ -58,17 +58,24 @@ export class LanguagePackRegistry {
                 if (other !== pick) shadowed.push({ modId: other.modId, code, by: pick.modId });
             }
         }
-        for (const [code, reg] of [...this.registrations]) {
-            const next = chosen.get(code);
-            if (next != null && next.modId === reg.modId && signature(next) === reg.signature) continue;
-            reg.dispose();
-            this.registrations.delete(code);
-        }
-        for (const [code, pack] of chosen) {
-            if (this.registrations.has(code)) continue;
-            const dispose = registerLanguage({ code, name: pack.name }, pack.dict);
-            this.registrations.set(code, { modId: pack.modId, name: pack.name, signature: signature(pack), dispose });
-        }
+        batchLanguageChanges(() => {
+            for (const [code, reg] of [...this.registrations]) {
+                const next = chosen.get(code);
+                if (next != null && next.modId === reg.modId && signature(next) === reg.signature) continue;
+                reg.dispose();
+                this.registrations.delete(code);
+            }
+            for (const [code, pack] of chosen) {
+                if (this.registrations.has(code)) continue;
+                const dispose = registerLanguage({ code, name: pack.name }, pack.dict);
+                this.registrations.set(code, {
+                    modId: pack.modId,
+                    name: pack.name,
+                    signature: signature(pack),
+                    dispose,
+                });
+            }
+        });
         this.packs = [...(packs ?? [])];
         this.shadowed = shadowed;
         this.loaded = true;
