@@ -92,7 +92,7 @@ const PlaceholderKeyFor: Partial<Record<string, string>> = { number: "settings.a
 const LanguagesOptions = "languages";
 
 const InputClass =
-    "h-row rounded-4 border border-line-strong bg-transparent px-2 text-12 text-primary outline-none placeholder:text-muted focus:border-accent";
+    "h-row max-w-full min-w-0 rounded-4 border border-line-strong bg-transparent px-2 text-12 text-primary outline-none placeholder:text-muted focus:border-accent";
 const GhostButton =
     "molten-btn-ghost inline-flex h-row shrink-0 cursor-pointer items-center gap-1.5 rounded-4 px-2 text-12";
 
@@ -560,8 +560,8 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
                 highlighted && "bg-surface-2"
             )}
         >
-            <div className={cn("flex items-center gap-4 px-5", choices ? "pt-3 pb-2" : "py-3")}>
-                <div className="min-w-0 flex-1">
+            <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 px-5", choices ? "pt-3 pb-2" : "py-3")}>
+                <div className="min-w-0 flex-1 basis-48">
                     <div className="flex min-w-0 items-center gap-2">
                         <span className="truncate text-12 font-medium text-primary" title={entry.key}>
                             {entry.label}
@@ -579,7 +579,7 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
                         </div>
                     ) : null}
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="ml-auto flex max-w-full shrink-0 items-center gap-1">
                     {reset}
                     {choices == null ? (
                         <span data-setting-control className="contents">
@@ -762,157 +762,166 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     const activeId = searching && results[active] ? `${rowId(results[active].key)}-result` : undefined;
 
     return (
-        <div className="@container flex h-full w-full min-h-0 bg-surface-1 text-primary" onKeyDown={onRootKey}>
-            <nav
-                aria-label={t("settings.sectionsLabel")}
-                className="flex w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line p-2 @max-w600:w-12"
-            >
-                {sections.map((s) => {
-                    const current = !searching && s.id === section;
-                    return (
-                        <button
-                            key={s.id}
-                            type="button"
-                            aria-current={current ? "page" : undefined}
-                            title={s.title}
-                            onClick={() => {
-                                setQuery("");
-                                setSection(s.id);
-                            }}
-                            className={cn(
-                                "relative flex h-row w-full cursor-pointer items-center gap-2 rounded-3 px-2 text-left text-12 transition-colors duration-120 ease-mt",
-                                current
-                                    ? "bg-surface-2 font-medium text-primary before:absolute before:top-1.5 before:bottom-1.5 before:-left-2 before:w-0.5 before:rounded-full before:bg-accent"
-                                    : "text-secondary hover:bg-surface-2 hover:text-primary"
-                            )}
-                        >
-                            <SectionIcon id={s.id} className={cn("h-3.5 w-4 shrink-0", current && "text-accent")} />
-                            <span className="truncate @max-w600:hidden">{s.title}</span>
-                        </button>
-                    );
-                })}
-            </nav>
-            <div ref={contentRef} className="min-w-0 flex-1 overflow-y-auto">
-                <PageColumn>
-                    <div className="relative">
-                        <i
-                            className="fa fa-solid fa-magnifying-glass pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-11 text-muted"
-                            aria-hidden
-                        />
-                        <input
-                            ref={searchRef}
-                            type="text"
-                            role="combobox"
-                            aria-expanded={searching}
-                            aria-controls={`molten-settings-results-${blockId}`}
-                            aria-activedescendant={activeId}
-                            aria-label={t("settings.search.label")}
-                            placeholder={t("settings.search.label")}
-                            value={query}
-                            spellCheck={false}
-                            onChange={(e) => setQuery(e.target.value)}
-                            onKeyDown={onSearchKey}
-                            className={cn(InputClass, "h-row-lg w-full pl-7 text-13")}
-                        />
-                    </div>
-                    {searching ? (
-                        results.length === 0 ? (
-                            <EmptyState
-                                compact
-                                className="pt-10"
-                                icon="magnifying-glass"
-                                title={t("settings.search.none", { query: query.trim() })}
-                                hint={t("settings.search.noneHint")}
-                                secondary={{ label: t("settings.search.clear"), onClick: () => setQuery("") }}
+        <div
+            className="@container flex h-full w-full min-h-0 justify-center bg-surface-1 text-primary"
+            onKeyDown={onRootKey}
+        >
+            {/* The section list and the reading column stay together, centred (#658): on a wide window the list no
+                longer sits at the far edge with an empty field between it and the rows. */}
+            <div className="flex h-full min-h-0 w-full max-w-[1056px]">
+                <nav
+                    aria-label={t("settings.sectionsLabel")}
+                    className="flex w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line p-2 @max-w600:w-12"
+                >
+                    {sections.map((s) => {
+                        const current = !searching && s.id === section;
+                        return (
+                            <button
+                                key={s.id}
+                                type="button"
+                                aria-current={current ? "page" : undefined}
+                                title={s.title}
+                                onClick={() => {
+                                    setQuery("");
+                                    setSection(s.id);
+                                }}
+                                className={cn(
+                                    "relative flex h-row w-full cursor-pointer items-center gap-2 rounded-3 px-2 text-left text-12 transition-colors duration-120 ease-mt",
+                                    current
+                                        ? "bg-surface-2 font-medium text-primary before:absolute before:top-1.5 before:bottom-1.5 before:-left-2 before:w-0.5 before:rounded-full before:bg-accent"
+                                        : "text-secondary hover:bg-surface-2 hover:text-primary"
+                                )}
+                            >
+                                <SectionIcon id={s.id} className={cn("h-3.5 w-4 shrink-0", current && "text-accent")} />
+                                <span className="truncate @max-w600:hidden">{s.title}</span>
+                            </button>
+                        );
+                    })}
+                </nav>
+                <div ref={contentRef} className="min-w-0 flex-1 overflow-y-auto">
+                    <PageColumn>
+                        <div className="relative">
+                            <i
+                                className="fa fa-solid fa-magnifying-glass pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-11 text-muted"
+                                aria-hidden
                             />
+                            <input
+                                ref={searchRef}
+                                type="text"
+                                role="combobox"
+                                aria-expanded={searching}
+                                aria-controls={`molten-settings-results-${blockId}`}
+                                aria-activedescendant={activeId}
+                                aria-label={t("settings.search.label")}
+                                placeholder={t("settings.search.label")}
+                                value={query}
+                                spellCheck={false}
+                                onChange={(e) => setQuery(e.target.value)}
+                                onKeyDown={onSearchKey}
+                                className={cn(InputClass, "h-row-lg w-full pl-7 text-13")}
+                            />
+                        </div>
+                        {searching ? (
+                            results.length === 0 ? (
+                                <EmptyState
+                                    compact
+                                    className="pt-10"
+                                    icon="magnifying-glass"
+                                    title={t("settings.search.none", { query: query.trim() })}
+                                    hint={t("settings.search.noneHint")}
+                                    secondary={{ label: t("settings.search.clear"), onClick: () => setQuery("") }}
+                                />
+                            ) : (
+                                <>
+                                    <div className="px-2 pt-4 pb-1 text-11 text-muted" aria-live="polite">
+                                        {results.length === 1
+                                            ? t("settings.search.count.one")
+                                            : t("settings.search.count.other", { count: results.length })}
+                                    </div>
+                                    <ul
+                                        id={`molten-settings-results-${blockId}`}
+                                        role="listbox"
+                                        aria-label={t("settings.search.results")}
+                                        className="flex flex-col"
+                                    >
+                                        {results.map((entry, i) => (
+                                            <li
+                                                key={entry.key}
+                                                id={`${rowId(entry.key)}-result`}
+                                                role="option"
+                                                aria-selected={i === active}
+                                                onMouseMove={() => setActive(i)}
+                                                onClick={() => jump(entry)}
+                                                className={cn(
+                                                    "flex cursor-pointer items-center gap-4 rounded-4 px-2 py-2",
+                                                    i === active ? "bg-surface-2" : ""
+                                                )}
+                                            >
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex min-w-0 items-center gap-2">
+                                                        <span className="truncate text-12 font-medium text-primary">
+                                                            {entry.label}
+                                                        </span>
+                                                        {entry.scope === "workspace" ? (
+                                                            <WorkspacePill name={workspaceName} />
+                                                        ) : null}
+                                                    </div>
+                                                    <div className="truncate text-12 text-muted">
+                                                        {entry.description}
+                                                    </div>
+                                                </div>
+                                                <span className="shrink-0 text-11 text-muted">
+                                                    {sectionTitle(entry.section, t)}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </>
+                            )
                         ) : (
                             <>
-                                <div className="px-2 pt-4 pb-1 text-11 text-muted" aria-live="polite">
-                                    {results.length === 1
-                                        ? t("settings.search.count.one")
-                                        : t("settings.search.count.other", { count: results.length })}
+                                <div className="pt-6">
+                                    <PageHeader
+                                        title={currentSection?.title ?? section}
+                                        description={currentSection?.description}
+                                        icon={suiteIcon(SettingsSectionConcepts[section])}
+                                    />
                                 </div>
-                                <ul
-                                    id={`molten-settings-results-${blockId}`}
-                                    role="listbox"
-                                    aria-label={t("settings.search.results")}
-                                    className="flex flex-col"
-                                >
-                                    {results.map((entry, i) => (
-                                        <li
-                                            key={entry.key}
-                                            id={`${rowId(entry.key)}-result`}
-                                            role="option"
-                                            aria-selected={i === active}
-                                            onMouseMove={() => setActive(i)}
-                                            onClick={() => jump(entry)}
-                                            className={cn(
-                                                "flex cursor-pointer items-center gap-4 rounded-4 px-2 py-2",
-                                                i === active ? "bg-surface-2" : ""
-                                            )}
-                                        >
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex min-w-0 items-center gap-2">
-                                                    <span className="truncate text-12 font-medium text-primary">
-                                                        {entry.label}
-                                                    </span>
-                                                    {entry.scope === "workspace" ? (
-                                                        <WorkspacePill name={workspaceName} />
-                                                    ) : null}
-                                                </div>
-                                                <div className="truncate text-12 text-muted">{entry.description}</div>
-                                            </div>
-                                            <span className="shrink-0 text-11 text-muted">
-                                                {sectionTitle(entry.section, t)}
-                                            </span>
-                                        </li>
-                                    ))}
-                                </ul>
+                                {section === "advanced" ? <FileRows files={files} onOpenFile={onOpenFile} /> : null}
+                                {groupEntries(entries).map((g) => (
+                                    <PageCard
+                                        key={g.group}
+                                        title={g.group}
+                                        icon={suiteIcon(settingsGroupIcon(groupSlugByKey.get(g.entries[0].key)))}
+                                        glow={highlight != null && g.entries.some((e) => e.key === highlight)}
+                                    >
+                                        {g.entries.map((entry) => (
+                                            <SettingRow
+                                                key={entry.key}
+                                                entry={entry}
+                                                rowId={rowId(entry.key)}
+                                                value={readValue(entry, settings, workspace)}
+                                                workspaceName={workspaceName}
+                                                themes={themes}
+                                                highlighted={highlight === entry.key}
+                                                onOpenJson={openSettingsJson}
+                                            />
+                                        ))}
+                                    </PageCard>
+                                ))}
+                                {section === "keyboard" ? <KeyboardShortcuts /> : null}
+                                {section === "mods" ? <ModsSection /> : null}
+                                {section === "secrets" ? (
+                                    model != null ? (
+                                        <SecretsSection model={model} />
+                                    ) : (
+                                        <p className="pt-6 text-12 text-muted">{t("settings.secretsElsewhere")}</p>
+                                    )
+                                ) : null}
                             </>
-                        )
-                    ) : (
-                        <>
-                            <div className="pt-6">
-                                <PageHeader
-                                    title={currentSection?.title ?? section}
-                                    description={currentSection?.description}
-                                    icon={suiteIcon(SettingsSectionConcepts[section])}
-                                />
-                            </div>
-                            {section === "advanced" ? <FileRows files={files} onOpenFile={onOpenFile} /> : null}
-                            {groupEntries(entries).map((g) => (
-                                <PageCard
-                                    key={g.group}
-                                    title={g.group}
-                                    icon={suiteIcon(settingsGroupIcon(groupSlugByKey.get(g.entries[0].key)))}
-                                    glow={highlight != null && g.entries.some((e) => e.key === highlight)}
-                                >
-                                    {g.entries.map((entry) => (
-                                        <SettingRow
-                                            key={entry.key}
-                                            entry={entry}
-                                            rowId={rowId(entry.key)}
-                                            value={readValue(entry, settings, workspace)}
-                                            workspaceName={workspaceName}
-                                            themes={themes}
-                                            highlighted={highlight === entry.key}
-                                            onOpenJson={openSettingsJson}
-                                        />
-                                    ))}
-                                </PageCard>
-                            ))}
-                            {section === "keyboard" ? <KeyboardShortcuts /> : null}
-                            {section === "mods" ? <ModsSection /> : null}
-                            {section === "secrets" ? (
-                                model != null ? (
-                                    <SecretsSection model={model} />
-                                ) : (
-                                    <p className="pt-6 text-12 text-muted">{t("settings.secretsElsewhere")}</p>
-                                )
-                            ) : null}
-                        </>
-                    )}
-                </PageColumn>
+                        )}
+                    </PageColumn>
+                </div>
             </div>
         </div>
     );

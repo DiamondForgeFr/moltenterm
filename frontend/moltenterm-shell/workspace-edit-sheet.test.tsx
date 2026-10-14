@@ -68,7 +68,7 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
         expect(renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />)).toContain(
             '<div data-subtitle="font-mono text-11">/Users/me/code/client-a</div>'
         );
-        expect(html).toContain('data-width="w-[560px]"');
+        expect(html).toContain('data-width="w-fit max-w-[min(560px,calc(100vw-32px))]"');
         expect(html).not.toContain("workspace-editor");
     });
 

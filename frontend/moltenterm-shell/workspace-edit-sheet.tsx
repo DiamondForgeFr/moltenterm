@@ -957,7 +957,7 @@ export function WorkspaceEditSheet({
             title={t("workspace.edit.title")}
             subtitle={effectiveWorkspaceFolder(ws) || undefined}
             subtitleClass="font-mono text-11"
-            widthClass="w-[560px]"
+            widthClass="w-fit max-w-[min(560px,calc(100vw-32px))]"
             trapFocus
             suite
             onBackdrop={onClose}
