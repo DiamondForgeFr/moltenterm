@@ -408,7 +408,7 @@ func (r *cleanupRun) removeReviewTree() CleanupStepResult {
 	}
 	tree := reviewsession.ReviewTreeDir(r.c.env.DataDir, r.dir, r.req.Number)
 	if _, err := os.Stat(tree); errors.Is(err, os.ErrNotExist) {
-		return skipped(CleanupStepReviewTree, "no review worktree: the review read the agent's worktree")
+		return skipped(CleanupStepReviewTree, "no review worktree of this PR (none was made, or the review read the agent's worktree)")
 	}
 	entries, err := r.worktreeEntries()
 	if err != nil {
