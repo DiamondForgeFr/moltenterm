@@ -125,6 +125,8 @@ type SettingsType struct {
 
 	// MOLTENTERM-PATCH (#583): the language the review session talks and briefs in (FR-REV-005, pkg/molten/reviewsession).
 	ReviewLanguage string `json:"review:language,omitempty" jsonschema_description:"The language of the code review session's briefing and answers, as a language name or code (fr, French, en...); unset, the OS locale's"`
+	// MOLTENTERM-PATCH (#588): the language review comments are published in on GitHub when the project declares none (FR-REV-010).
+	ReviewPublishLanguage string `json:"review:publishlanguage,omitempty" jsonschema_description:"The language review comments are published in on GitHub (en, English, fr...) when the project's .saasfoundry.json declares none; unset, detected from the project's pull requests and README, else English"`
 
 	// MOLTENTERM-PATCH (#261): the coding agents whose plan usage gauges the agent companion shows (FR-SHELL-027, pkg/molten/usage).
 	CompanionUsageGauges []string `json:"companion:usagegauges,omitempty" jsonschema_description:"Coding agents (claude, codex) whose plan usage gauges the agent companion shows; empty shows none. Set from the companion's Show plan usage"`

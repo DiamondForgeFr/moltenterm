@@ -221,6 +221,8 @@ var settings = []Setting{
 	{Key: "agent:integrateoff", Section: SectionAgents, Group: "Integration", Label: "Without integration", Description: "Agents started without the integration while the others keep it.", Control: ControlMulti, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
 	// Agents, Code review (FR-REV-005).
 	{Key: "review:language", Section: SectionAgents, Group: "Code review", Label: "Review language", Description: "Language of the review briefing and answers (fr, French...); empty: this computer's.", Control: ControlText},
+	// Agents, Code review (FR-REV-010).
+	{Key: "review:publishlanguage", Section: SectionAgents, Group: "Code review", Label: "Publication language", Description: "Language of review comments on GitHub when the project names none; empty: from its PRs and README.", Control: ControlText},
 
 	// Hidden: namespace resets (only meaningful in the JSON file), Wave's inert updater (MoltenTerm has its own update
 	// flow, #5), telemetry (forced off, FR-FORK-003) and Wave-only surfaces MoltenTerm does not show.

@@ -115,10 +115,11 @@ func Tools() []mcpbrowser.ToolDef {
 				"rewrite":   stringProp("Optional: the whole comment rewritten, in the developer's language."),
 			}, []string{"commentid", "markdown"})),
 		outputTool(ToolSetTranslation, "Give a comment's translation",
-			"Gives the translation of a staged comment into the publication language. Nothing is published: the "+
-				"developer reviews it and publishes with a click in MoltenTerm.",
+			"Gives the translation of a staged comment, or of the review's summary, into the publication language, "+
+				"when MoltenTerm asked for it (review_context's translate). Nothing is published: the developer reviews "+
+				"it and publishes with a click in MoltenTerm.",
 			objectSchema(map[string]any{
-				"commentid": stringProp("The comment's id, from review_context."),
+				"commentid": stringProp("The item's id, from review_context's translate (\"summary\" for the review's summary)."),
 				"text":      stringProp("The translation; code identifiers, paths and quoted code unchanged."),
 			}, []string{"commentid", "text"})),
 		outputTool(ToolKeepNote, "Keep an explanation",

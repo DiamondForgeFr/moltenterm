@@ -1432,6 +1432,7 @@ declare global {
         "agent:integrate"?: boolean;
         "agent:integrateoff"?: string[];
         "review:language"?: string;
+        "review:publishlanguage"?: string;
         "companion:usagegauges"?: string[];
         "companion:usageclaudeoauth"?: boolean;
         "linemap:animation"?: boolean;

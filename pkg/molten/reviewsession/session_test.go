@@ -505,7 +505,6 @@ func TestOutputTools(t *testing.T) {
 		{mcpreview.ToolPostBriefing, `{"markdown":"second"}`},
 		{mcpreview.ToolPostExplanation, `{"anchor":` + anchor + `,"markdown":"why","depth":"detailed","principles":["KISS"]}`},
 		{mcpreview.ToolProposeComment, `{"anchor":` + anchor + `,"kind":"change","text":"rename"}`},
-		{mcpreview.ToolSetTranslation, `{"commentid":"c1","text":"hello"}`},
 	}
 	for _, c := range ok {
 		if r := call(c.tool, c.args); r.IsError || !strings.Contains(r.Content[0].Text, "Nothing was published") {
@@ -518,6 +517,8 @@ func TestOutputTools(t *testing.T) {
 		{mcpreview.ToolPostExplanation, `{"anchor":` + anchor + `,"markdown":"x","depth":"deep"}`},
 		{mcpreview.ToolProposeComment, `{"anchor":` + anchor + `,"kind":"approve","text":"x"}`},
 		{mcpreview.ToolKeepNote, `{"explanationid":"nope"}`},
+		// A translation MoltenTerm did not ask for (FR-REV-010).
+		{mcpreview.ToolSetTranslation, `{"commentid":"c1","text":"hello"}`},
 		{"review_merge", `{}`},
 	}
 	for _, c := range bad {
@@ -526,7 +527,7 @@ func TestOutputTools(t *testing.T) {
 		}
 	}
 	posts, err := m.Posts(ctx, mcpreview.SessionKey{Id: res.Session.Id})
-	if err != nil || len(posts.Posts) != 4 || posts.Posts[0].Kind != mcpreview.PostBriefing || posts.Posts[0].Markdown != "second" {
+	if err != nil || len(posts.Posts) != 3 || posts.Posts[0].Kind != mcpreview.PostBriefing || posts.Posts[0].Markdown != "second" {
 		t.Fatalf("posts %+v: %v", posts, err)
 	}
 	explanation := posts.Posts[1]
@@ -539,7 +540,7 @@ func TestOutputTools(t *testing.T) {
 			postEvents++
 		}
 	}
-	if postEvents != 6 {
+	if postEvents != 5 {
 		t.Errorf("%d post events", postEvents)
 	}
 }

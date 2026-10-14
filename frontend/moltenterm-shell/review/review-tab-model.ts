@@ -24,6 +24,7 @@ import { confirmAgentWorktree, ReviewWorktreeRisk } from "./review-cleanup";
 import {
     discussReviewComment,
     openReviewAiPane,
+    publishReview,
     relocateReviewComments,
     ReviewBriefing,
     ReviewComment,
@@ -37,12 +38,14 @@ import {
     ReviewFileResult,
     reviewFiles,
     ReviewFilesResult,
+    ReviewLanguage,
     reviewMerge,
     reviewMergeCancel,
     ReviewMergePlan,
     reviewMergePlan,
     ReviewPrInfo,
     ReviewPrMetaKey,
+    reviewPublishInfo,
     ReviewState,
     reviewState,
     ReviewWorktree,
@@ -50,8 +53,11 @@ import {
     saveReviewComment,
     setReviewCommentState,
     setReviewShown,
+    setReviewSummary,
+    setReviewTranslation,
     setReviewViewed,
     subscribeReviewState,
+    translateReview,
     useReviewRewrite,
 } from "./review-client";
 import { attachDiffActions, DiffActions } from "./review-diff-actions";
@@ -67,6 +73,7 @@ import {
     treeFiles,
     TreeNode,
 } from "./review-model";
+import { missingTranslations } from "./review-publish";
 import { developerLanguage, ReviewSelection, stagedCount } from "./review-selection";
 import {
     askReviewBriefing,
@@ -114,6 +121,21 @@ export type ReviewValidateState = {
     clicked?: string;
     // The agent worktree's removal the developer confirmed after the merge's cleanup is running.
     confirming?: boolean;
+};
+
+// What asking the session for the translations did (FR-REV-010 AC1).
+export type ReviewTranslateStatus = "idle" | "asking" | "sent" | "typed" | "busy" | "nosession" | "none" | "failed";
+
+// The Publish sheet (FR-REV-010 AC2): the publication language, the translation request and the post's click.
+export type ReviewPublishSheet = {
+    open: boolean;
+    language?: ReviewLanguage;
+    languageError?: string;
+    translate: { status: ReviewTranslateStatus; count?: number; message?: string };
+    posting?: boolean;
+    // Set once Post review was clicked in this sheet: it then shows the outcome from the review store.
+    clicked?: boolean;
+    error?: string;
 };
 
 // Where the selection's toolbar or the comment box shows over the diff, in pixels from its top left corner.
@@ -206,6 +228,7 @@ export abstract class ReviewTabModel implements ViewModel {
     briefAskAtom = atom({ status: "idle" }) as PrimitiveAtom<ReviewBriefAsk>;
     renderMsAtom = atom(null) as PrimitiveAtom<number>;
     validateAtom = atom({ open: false, loading: false, override: false }) as PrimitiveAtom<ReviewValidateState>;
+    publishAtom = atom({ open: false, translate: { status: "idle" } }) as PrimitiveAtom<ReviewPublishSheet>;
     // FR-REV-003: the lines selected in the diff, where their actions show, the comment box and Ask the AI's box.
     selectionAtom = atom(null) as PrimitiveAtom<ReviewSelection>;
     overlayAtom = atom(null) as PrimitiveAtom<ReviewOverlayPos>;
@@ -231,6 +254,8 @@ export abstract class ReviewTabModel implements ViewModel {
     fileSeq = 0;
     // The base branch's tip as GitHub gave it with the head shown.
     baseOid: string = null;
+    // The merge base of the full diff shown, and its head: Post review checks the line comments' hunks against it.
+    mergeBase: { head: string; base: string } = null;
     checkingHead = false;
     // The head the session was last moved to (one request per head).
     sessionHeadAsked: string = null;
@@ -454,6 +479,7 @@ export abstract class ReviewTabModel implements ViewModel {
             );
             globalStore.set(this.filesAtom, result);
             if (mode === "full") {
+                this.mergeBase = { head: result.headoid, base: result.baseoid };
                 this.headShown(result.headoid);
                 fireAndForget(() => this.relocate(result.headoid, result.baseoid));
             }
@@ -929,13 +955,107 @@ export abstract class ReviewTabModel implements ViewModel {
         fireAndForget(() => this.syncSessionHead());
     }
 
-    // openPublish is Publish review: the staged comments, in the AI panel. Posting them on GitHub after the developer's
-    // click is FR-REV-010's.
+    // openPublish is Publish review (FR-REV-010): the sheet opens on the publication language, and the session is
+    // asked to translate the staged comments not in it yet (AC1). Nothing is posted before Post review's click.
     async openPublish() {
-        if (globalStore.get(this.aiPaneIdAtom) != null) {
+        const pr = this.pr();
+        globalStore.set(this.publishAtom, { open: true, translate: { status: "idle" } });
+        let language: ReviewLanguage = null;
+        try {
+            language = await reviewPublishInfo(pr.dir, pr.repo, pr.number);
+            globalStore.set(this.publishAtom, (p) => (p.open ? { ...p, language } : p));
+        } catch (e) {
+            globalStore.set(this.publishAtom, (p) => ({ ...p, languageError: String(e?.message ?? e) }));
             return;
         }
-        await this.openAi();
+        if (missingTranslations(globalStore.get(this.stateAtom), language.lang) > 0) {
+            await this.requestTranslation(false);
+        }
+    }
+
+    closePublish() {
+        globalStore.set(this.publishAtom, { open: false, translate: { status: "idle" } });
+    }
+
+    // requestTranslation asks the review session, started first when it is not running, for the translations; all asks
+    // again for those the agent gave.
+    async requestTranslation(all: boolean) {
+        const pr = this.pr();
+        const setTranslate = (translate: ReviewPublishSheet["translate"]) =>
+            globalStore.set(this.publishAtom, (p) => ({ ...p, translate }));
+        setTranslate({ status: "asking" });
+        try {
+            if (globalStore.get(this.aiAtom).session == null) {
+                await this.openAi();
+            }
+            if (globalStore.get(this.aiAtom).session == null) {
+                setTranslate({ status: "nosession", message: globalStore.get(this.aiAtom).message });
+                return;
+            }
+            const result = await translateReview(pr.dir, pr.repo, pr.number, all);
+            globalStore.set(this.publishAtom, (p) => ({ ...p, language: result.language ?? p.language }));
+            if (result.count === 0) {
+                setTranslate({ status: "none" });
+            } else if (result.busy) {
+                setTranslate({ status: "busy", count: result.count, message: result.message });
+            } else if (result.sent) {
+                setTranslate({ status: result.submitted ? "sent" : "typed", count: result.count });
+            } else {
+                setTranslate({ status: "failed", count: result.count, message: result.message });
+            }
+        } catch (e) {
+            setTranslate({ status: "failed", message: String(e?.message ?? e) });
+        }
+    }
+
+    // saveTranslation keeps the developer's translation of a comment or of the summary (ReviewSummaryId); the agent's
+    // later ones never replace it.
+    async saveTranslation(id: string, text: string): Promise<string> {
+        const pr = this.pr();
+        const lang = globalStore.get(this.publishAtom).language?.lang;
+        try {
+            globalStore.set(this.stateAtom, await setReviewTranslation(pr.repo, pr.number, id, text, lang));
+            return null;
+        } catch (e) {
+            return String(e?.message ?? e);
+        }
+    }
+
+    async saveSummary(text: string): Promise<string> {
+        const pr = this.pr();
+        try {
+            const state = await setReviewSummary(pr.repo, pr.number, text, developerLanguage(navigator.language));
+            globalStore.set(this.stateAtom, state);
+            return null;
+        } catch (e) {
+            return String(e?.message ?? e);
+        }
+    }
+
+    // postReview is the developer's click (AC3, AC4): one GitHub review on the head shown, its outcome in the store.
+    async postReview(asWritten: boolean) {
+        const pr = this.pr();
+        const head = globalStore.get(this.headAtom);
+        const base = this.mergeBase?.head === head ? this.mergeBase.base : undefined;
+        globalStore.set(this.publishAtom, (p) => ({ ...p, posting: true, clicked: true, error: null }));
+        try {
+            const state = await publishReview({
+                repo: pr.repo,
+                number: pr.number,
+                dir: pr.dir,
+                headoid: head,
+                baseoid: base,
+                aswritten: asWritten || undefined,
+            });
+            globalStore.set(this.stateAtom, state);
+            fireAndForget(async () => {
+                await reviewsGet(pr.dir, true);
+            });
+        } catch (e) {
+            globalStore.set(this.publishAtom, (p) => ({ ...p, error: String(e?.message ?? e) }));
+        } finally {
+            globalStore.set(this.publishAtom, (p) => ({ ...p, posting: false }));
+        }
     }
 
     // The AI panel (DS-REV-012) is a pane of its own right of this block, the session's terminal split under it, so the
