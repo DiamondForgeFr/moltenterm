@@ -299,17 +299,27 @@ export function AskBox({ model }: { model: ReviewTabModel }) {
                     <MoltenWave />
                 </button>
             </div>
-            <AskOutcome ask={ask} />
+            <AskOutcome ask={ask} waiting={(ai.session?.questions ?? []).map((q) => q.id)} />
         </section>
     );
 }
 
 // What a queued question's outcome says (FR-REV-006 AC4); the queue itself is listed under the box.
 const AskQueuedNext = "Queued: it is sent when your agent is idle, and its answer shows under this box.";
+const AskQueuedBehindOne = "Queued behind 1 other question: each is sent when your agent is idle.";
 const AskQueuedBehind = "Queued behind %d other questions: each is sent when your agent is idle.";
+const AskQueuedSent = "Sent to the review session from the queue: its answer shows under this box.";
+
+function queuedText(position: number): string {
+    if (position <= 1) {
+        return AskQueuedNext;
+    }
+    return position === 2 ? AskQueuedBehindOne : AskQueuedBehind.replace("%d", String(position - 1));
+}
 
 function AskOutcome({
     ask,
+    waiting,
 }: {
     ask: {
         result?: {
@@ -317,11 +327,14 @@ function AskOutcome({
             submitted?: boolean;
             busy?: boolean;
             queued?: boolean;
+            questionid?: string;
             position?: number;
             message?: string;
         };
         error?: string;
     };
+    // The ids of the questions still waiting in the session's queue.
+    waiting: readonly string[];
 }) {
     if (ask.error) {
         return (
@@ -334,13 +347,18 @@ function AskOutcome({
     if (result == null) {
         return null;
     }
+    if (result.queued && !waiting.includes(result.questionid)) {
+        return (
+            <p className="text-11 text-success" data-testid="review-ask-outcome">
+                {AskQueuedSent}
+            </p>
+        );
+    }
     if (result.queued) {
         return (
             <p className="text-11 text-warning" data-testid="review-ask-outcome">
                 {result.message ? `${result.message} ` : ""}
-                {(result.position ?? 1) > 1
-                    ? AskQueuedBehind.replace("%d", String(result.position - 1))
-                    : AskQueuedNext}
+                {queuedText(result.position ?? 1)}
             </p>
         );
     }
