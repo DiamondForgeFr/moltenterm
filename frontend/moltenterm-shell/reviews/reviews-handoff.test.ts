@@ -6,9 +6,10 @@ import { describe, expect, it, vi } from "vitest";
 const Mocks = vi.hoisted(() => ({ subscribe: vi.fn(() => () => {}) }));
 
 vi.mock("@/app/store/wps", () => ({ waveEventSubscribeSingle: Mocks.subscribe }));
-vi.mock("../review/review-tab-model", () => ({ ReviewTabModels: {} }));
+vi.mock("@/app/store/global", () => ({ atoms: {}, getApi: () => ({}) }));
+vi.mock("../review/review-sheet-request", () => ({ requestReviewSheet: vi.fn() }));
 vi.mock("./reviews-client", () => ({ reviewsGet: vi.fn() }));
-vi.mock("./reviews-store", () => ({ ReviewsModel: { getInstance: () => ({}) } }));
+vi.mock("./reviews-store", () => ({ openPullRequestTab: vi.fn() }));
 
 import { installReviewHandoff, readHandoff, ReviewHandoff, ReviewHandoffDeps, runReviewHandoff } from "./reviews-handoff";
 import { ReviewPr, ReviewsAnswer } from "./reviews-model";
@@ -16,13 +17,13 @@ import { ReviewPr, ReviewsAnswer } from "./reviews-model";
 const pr = { number: 12, title: "feat", branch: "feature/12-x", base: "develop" } as ReviewPr;
 const answer = { dir: "/p", state: "ok", repo: "acme/app", ready: [pr], drafts: [] } as ReviewsAnswer;
 
-function deps(sheets = { openPublish: vi.fn(async () => {}), openValidate: vi.fn(async () => {}) }) {
-    const d: ReviewHandoffDeps = {
+function deps(): ReviewHandoffDeps {
+    return {
         reviews: vi.fn(async () => answer),
-        openTab: vi.fn(async () => {}),
-        sheets: vi.fn(async () => sheets),
+        openTab: vi.fn(async () => "tab-r"),
+        requestSheet: vi.fn(async () => {}),
+        showTab: vi.fn(),
     };
-    return { d, sheets };
 }
 
 function handoff(action: ReviewHandoff["action"], number = 12): ReviewHandoff {
@@ -30,34 +31,27 @@ function handoff(action: ReviewHandoff["action"], number = 12): ReviewHandoff {
 }
 
 describe("review handoff", () => {
-    it("opens the Review tab only for open", async () => {
-        const { d, sheets } = deps();
-        expect(await runReviewHandoff(handoff("open"), d)).toBe(true);
-        expect(d.openTab).toHaveBeenCalledWith("/p", pr, "acme/app");
-        expect(d.sheets).not.toHaveBeenCalled();
-        expect(sheets.openPublish).not.toHaveBeenCalled();
+    it("opens and shows the Review tab, without a sheet for open", async () => {
+        const d = deps();
+        expect(await runReviewHandoff(handoff("open"), "ws-1", d)).toBe(true);
+        expect(d.openTab).toHaveBeenCalledWith("ws-1", "/p", pr, "acme/app");
+        expect(d.showTab).toHaveBeenCalledWith("tab-r");
+        expect(d.requestSheet).not.toHaveBeenCalled();
     });
 
-    it("opens the Publish sheet for publish and the Validate sheet for merge, never more", async () => {
-        const { d, sheets } = deps();
-        await runReviewHandoff(handoff("publish"), d);
-        expect(sheets.openPublish).toHaveBeenCalledTimes(1);
-        expect(sheets.openValidate).not.toHaveBeenCalled();
-        await runReviewHandoff(handoff("merge"), d);
-        expect(sheets.openValidate).toHaveBeenCalledTimes(1);
-        expect(d.sheets).toHaveBeenCalledWith("acme/app", 12);
+    it("leaves the Review tab the sheet publish and merge ask for", async () => {
+        const d = deps();
+        await runReviewHandoff(handoff("publish"), "ws-1", d);
+        await runReviewHandoff(handoff("merge"), "ws-1", d);
+        expect(d.requestSheet).toHaveBeenNthCalledWith(1, "tab-r", expect.objectContaining({ id: "h-publish12", action: "publish" }));
+        expect(d.requestSheet).toHaveBeenNthCalledWith(2, "tab-r", expect.objectContaining({ id: "h-merge12", action: "merge" }));
     });
 
     it("does nothing for a PR the Reviews data does not list", async () => {
-        const { d } = deps();
-        expect(await runReviewHandoff(handoff("merge", 99), d)).toBe(false);
+        const d = deps();
+        expect(await runReviewHandoff(handoff("merge", 99), "ws-1", d)).toBe(false);
         expect(d.openTab).not.toHaveBeenCalled();
-    });
-
-    it("gives up on the sheet when the tab's model is not ready", async () => {
-        const { d } = deps();
-        d.sheets = vi.fn(async () => null);
-        expect(await runReviewHandoff(handoff("publish"), d)).toBe(false);
+        expect(d.showTab).not.toHaveBeenCalled();
     });
 
     it("reads only well-formed handoffs", () => {

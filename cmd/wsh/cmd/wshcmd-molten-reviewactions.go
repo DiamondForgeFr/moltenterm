@@ -17,6 +17,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
+	"golang.org/x/term"
 )
 
 // `molten review show|comments|open|publish|merge|restart` (FR-REV-014). show and comments read the Reviews data and
@@ -380,8 +381,12 @@ func moltenReviewHandoff(t moltenReviewTarget, action string) (moltenReviewHando
 		return result, fmt.Errorf("molten must run in a MoltenTerm terminal (WAVETERM_JWT is not set)")
 	}
 	data := map[string]any{"token": token, "action": action, "dir": t.Dir, "number": t.Pr.Number}
-	_, err := moltenReviewRequest(moltenReviewHandoffCommand, data, &result)
-	return result, err
+	// wavesrv's refusal is the message: it is printed as it is, for the developer and for an agent parsing it.
+	resp, err := RpcClient.SendRpcRequest(moltenReviewHandoffCommand, data, &wshrpc.RpcOpts{Route: moltenReviewRoute, Timeout: moltenReviewRpcTimeoutMs})
+	if err != nil {
+		return result, err
+	}
+	return result, utilfn.ReUnmarshal(&result, resp)
 }
 
 func moltenReviewOpenRun(cmd *cobra.Command, args []string) error {
@@ -418,7 +423,8 @@ func moltenReviewGuard(action string) error {
 	if marker := moltenReviewAgentMarker(os.Getenv); marker != "" {
 		return fmt.Errorf("molten review %s is refused to agents (%s is set): it is the developer's, from the Review tab of a MoltenTerm window", action, marker)
 	}
-	if !moltenStdinIsTerminal() {
+	// /dev/null is a character device too: only a terminal counts.
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return fmt.Errorf("molten review %s needs a developer at an interactive terminal: run it in a MoltenTerm terminal, or use the Review tab", action)
 	}
 	return nil

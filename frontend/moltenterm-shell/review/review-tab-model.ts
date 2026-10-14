@@ -76,6 +76,7 @@ import {
     TreeNode,
 } from "./review-model";
 import { missingTranslations } from "./review-publish";
+import { watchReviewSheetRequests } from "./review-sheet-request";
 import { developerLanguage, ReviewSelection, stagedCount } from "./review-selection";
 import {
     askReviewBriefing,
@@ -343,7 +344,8 @@ export abstract class ReviewTabModel implements ViewModel {
                 scope: pr.dir,
                 handler: (event) => this.applyReviews(event.data as ReviewsAnswer),
             }),
-            TabActivity.getInstance().every(whileShown(HeadCheckMs), () => this.checkHead(), "review-head")
+            TabActivity.getInstance().every(whileShown(HeadCheckMs), () => this.checkHead(), "review-head"),
+            watchReviewSheetRequests(globalStore.get(atoms.staticTabId), this)
         );
         const onFocus = () => this.checkHead();
         window.addEventListener("focus", onFocus);
