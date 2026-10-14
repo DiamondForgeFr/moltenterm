@@ -135,7 +135,7 @@ func TestContextMissingSources(t *testing.T) {
 	if out.Description.State != SourceUnknown || out.TestReport.State != SourceUnknown || out.Ci.State != SourceUnknown {
 		t.Errorf("unreadable %+v", out)
 	}
-	if strings.Contains(out.Description.Why, "gho_") || !strings.Contains(out.Description.Why, "[token]") {
+	if strings.Contains(out.Description.Why, "gho_") || !strings.Contains(out.Description.Why, "<github-token>") {
 		t.Errorf("the token was not masked: %q", out.Description.Why)
 	}
 }
