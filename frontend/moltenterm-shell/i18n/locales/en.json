@@ -4433,6 +4433,37 @@
             "techniqueHint": "The technique or pattern these lines use",
             "principleHint": "A principle these lines show",
             "openLine": "Open the file at this line"
+        },
+        "restart": {
+            "button": "Restart work",
+            "restarting": "Restarting…",
+            "noRound": "Publish a review round first: Restart work hands its comments to an agent",
+            "enabled": "Hand review round {round}'s comments to an agent in the branch's worktree: it applies them, commits, pushes and replies on each thread",
+            "again": "Hand review round {round}'s comments to the agent again",
+            "working": "{agent} {state} on review round {round}",
+            "noAgentNow": "Review round {round} was handed to an agent; its terminal is closed",
+            "inWorktree": "in {folder}",
+            "pushed": "New commits since review round {round}",
+            "showSince": "Show the changes since the round",
+            "showAgent": "Show the agent",
+            "dismiss": "Dismiss",
+            "outcome": {
+                "started": "{agent} started in {folder} with the round's comments.",
+                "sent": "Sent to {agent}, already in {folder}.",
+                "typed": "Typed in {agent}'s prompt, after what was already there: press Enter in its terminal to send it.",
+                "noagent": "No supported coding agent is installed: start one in {folder} and give it the brief {brief}",
+                "noround": "No review round is published yet: publish your comments first, then restart the work.",
+                "inflight": "Restart work is already on its way for this PR.",
+                "agentbusy": "{agent} is {state} in {folder}: restart the work once it is done.",
+                "notready": "{agent} cannot take the comments now: {message}",
+                "maincheckout": "{branch} is checked out in the project's main folder, where Restart work never works: switch that folder to another branch, then restart the work.",
+                "worktree": "The worktree of {branch} could not be prepared: {message}",
+                "brief": "The brief for the agent could not be written: {message}",
+                "terminal": "MoltenTerm cannot reach its terminals yet: try again in a moment.",
+                "notstarted": "The agent was not started: {message}",
+                "nottyped": "The comments could not be sent to {agent}: {message}",
+                "failed": "Restart work failed: {message}"
+            }
         }
     }
 }

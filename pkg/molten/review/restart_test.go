@@ -156,8 +156,8 @@ func readText(t *testing.T, path string) string {
 
 func TestRestartNeedsAPublishedRound(t *testing.T) {
 	f := makeRestartFixture(t)
-	if _, err := f.r.Restart(context.Background(), f.request()); err == nil || !strings.Contains(err.Error(), "publish") {
-		t.Errorf("want a refusal before any round is published, got %v", err)
+	if res, err := f.r.Restart(context.Background(), f.request()); err != nil || res.Status != RestartFailed || res.Reason != RestartReasonNoRound {
+		t.Errorf("want a refusal before any round is published, got %+v %v", res, err)
 	}
 	if len(f.opened) != 0 {
 		t.Errorf("nothing may start: %v", f.opened)
@@ -287,7 +287,7 @@ func TestRestartRefusesABusyAgent(t *testing.T) {
 		f.terms[realOf(tree)] = []mission.WorktreeTerminal{{BlockId: "agent-term"}}
 		f.runs["agent-term"] = molten.AgentRunInfo{Agent: molten.AgentIdClaude, Running: true, State: state}
 		res := f.restart()
-		if res.Status != RestartBusy || len(f.opened) != 0 || len(f.typed) != 0 {
+		if res.Status != RestartBusy || res.Reason != RestartReasonAgentBusy || res.AgentState != state || len(f.opened) != 0 || len(f.typed) != 0 {
 			t.Errorf("%s: %+v", state, res)
 		}
 		if round := f.round(); round.RestartedAt != 0 {
@@ -305,7 +305,7 @@ func TestRestartAgentThatCannotTakeThePrompt(t *testing.T) {
 	f.terms[realOf(tree)] = []mission.WorktreeTerminal{{BlockId: "agent-term"}}
 	f.runs["agent-term"] = molten.AgentRunInfo{Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateIdle}
 	f.typeOut = RestartTypeOutcome{Retry: true, Message: "vim is in the foreground"}
-	if res := f.restart(); res.Status != RestartBusy || res.Message != "vim is in the foreground" || f.round().RestartedAt != 0 {
+	if res := f.restart(); res.Status != RestartBusy || res.Reason != RestartReasonNotReady || res.Message != "vim is in the foreground" || f.round().RestartedAt != 0 {
 		t.Errorf("result: %+v", res)
 	}
 	f.typeOut = RestartTypeOutcome{Sent: true}
@@ -320,7 +320,7 @@ func TestRestartNeverWorksInTheMainCheckout(t *testing.T) {
 	f.git(f.dir, "fetch", "--quiet", "origin")
 	f.git(f.dir, "checkout", "--quiet", "-b", "feature/9-fix-x", "origin/feature/9-fix-x")
 	res := f.restart()
-	if res.Status != RestartFailed || !strings.Contains(res.Message, "main folder") || len(f.opened) != 0 {
+	if res.Status != RestartFailed || res.Reason != RestartReasonMainCheckout || res.Branch != "feature/9-fix-x" || !strings.Contains(res.Message, "main folder") || len(f.opened) != 0 {
 		t.Errorf("result: %+v", res)
 	}
 	if f.round().RestartedAt != 0 {

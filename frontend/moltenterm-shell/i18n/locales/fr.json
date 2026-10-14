@@ -4433,6 +4433,37 @@
             "techniqueHint": "La technique ou le motif qu'utilisent ces lignes",
             "principleHint": "Un principe que montrent ces lignes",
             "openLine": "Ouvrir le fichier à cette ligne"
+        },
+        "restart": {
+            "button": "Relancer le travail",
+            "restarting": "Relance…",
+            "noRound": "Publiez d'abord un tour de revue : Relancer le travail confie ses commentaires à un agent",
+            "enabled": "Confier les commentaires du tour de revue {round} à un agent dans le worktree de la branche : il les applique, commite, pousse et répond sur chaque fil",
+            "again": "Confier à nouveau les commentaires du tour de revue {round} à l'agent",
+            "working": "{agent} {state} sur le tour de revue {round}",
+            "noAgentNow": "Le tour de revue {round} a été confié à un agent ; son terminal est fermé",
+            "inWorktree": "dans {folder}",
+            "pushed": "Nouveaux commits depuis le tour de revue {round}",
+            "showSince": "Voir les changements depuis le tour",
+            "showAgent": "Voir l'agent",
+            "dismiss": "Masquer",
+            "outcome": {
+                "started": "{agent} a démarré dans {folder} avec les commentaires du tour.",
+                "sent": "Envoyé à {agent}, déjà dans {folder}.",
+                "typed": "Tapé dans l'invite de {agent}, après ce qui s'y trouvait : appuyez sur Entrée dans son terminal pour l'envoyer.",
+                "noagent": "Aucun agent de code pris en charge n'est installé : lancez-en un dans {folder} et donnez-lui le brief {brief}",
+                "noround": "Aucun tour de revue n'est encore publié : publiez d'abord vos commentaires, puis relancez le travail.",
+                "inflight": "Le travail de cette PR est déjà en cours de relance.",
+                "agentbusy": "{agent} est {state} dans {folder} : relancez le travail quand il a fini.",
+                "notready": "{agent} ne peut pas prendre les commentaires maintenant : {message}",
+                "maincheckout": "{branch} est extraite dans le dossier principal du projet, où Relancer le travail ne travaille jamais : passez ce dossier sur une autre branche, puis relancez le travail.",
+                "worktree": "Le worktree de {branch} n'a pas pu être préparé : {message}",
+                "brief": "Le brief de l'agent n'a pas pu être écrit : {message}",
+                "terminal": "MoltenTerm n'atteint pas encore ses terminaux : réessayez dans un instant.",
+                "notstarted": "L'agent n'a pas démarré : {message}",
+                "nottyped": "Les commentaires n'ont pas pu être envoyés à {agent} : {message}",
+                "failed": "La relance du travail a échoué : {message}"
+            }
         }
     }
 }

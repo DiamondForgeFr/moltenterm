@@ -6,24 +6,75 @@
 
 import type { AgentStateInfo } from "../agent-state-model";
 import { agentLabel, agentStateLabel } from "../agent-state-model";
+import { t } from "../i18n/i18n";
 import type { ReviewRestartResult, ReviewRound, ReviewState } from "./review-client";
 
-// The strings of Restart work, in one place until the interface languages land (#623).
+// The strings of Restart work in the interface language; the prompt and the brief the agent gets stay in English
+// (wavesrv's).
 export const RestartText = {
-    button: "Restart work",
-    restarting: "Restarting…",
-    noRound: "Publish a review round first: Restart work hands its comments to an agent",
-    enabled: (round: number) =>
-        `Hand review round ${round}'s comments to an agent in the branch's worktree: it applies them, commits, pushes and replies on each thread`,
-    again: (round: number) => `Hand review round ${round}'s comments to the agent again`,
-    working: (name: string, state: string, round: number) => `${name} ${state} on review round ${round}`,
-    noAgentNow: (round: number) => `Review round ${round} was handed to an agent; its terminal is closed`,
-    inWorktree: (folder: string) => `in ${folder}`,
-    pushed: (round: number) => `New commits since review round ${round}`,
-    showSince: "Show the changes since the round",
-    showAgent: "Show the agent",
-    dismiss: "Dismiss",
+    button: () => t("review.restart.button"),
+    restarting: () => t("review.restart.restarting"),
+    noRound: () => t("review.restart.noRound"),
+    enabled: (round: number) => t("review.restart.enabled", { round }),
+    again: (round: number) => t("review.restart.again", { round }),
+    working: (agent: string, state: string, round: number) => t("review.restart.working", { agent, state, round }),
+    noAgentNow: (round: number) => t("review.restart.noAgentNow", { round }),
+    inWorktree: (folder: string) => t("review.restart.inWorktree", { folder }),
+    pushed: (round: number) => t("review.restart.pushed", { round }),
+    showSince: () => t("review.restart.showSince"),
+    showAgent: () => t("review.restart.showAgent"),
+    dismiss: () => t("review.restart.dismiss"),
 };
+
+// restartOutcome says what the last click did, from the result's status and reason (pkg/molten/review/restart.go);
+// wavesrv's English message is only the detail of an error.
+export function restartOutcome(result: ReviewRestartResult, error?: string): string {
+    if (error) {
+        return t("review.restart.outcome.failed", { message: error });
+    }
+    if (result == null) {
+        return "";
+    }
+    const vars = {
+        agent: result.agentname || result.agent || "",
+        folder: folderName(result.worktree),
+        brief: result.briefpath ?? "",
+        branch: result.branch ?? "",
+        state: agentStateLabel(result.agentstate ?? "working"),
+        message: result.message ?? "",
+    };
+    switch (result.reason || result.status) {
+        case "started":
+            return t("review.restart.outcome.started", vars);
+        case "sent":
+            return t("review.restart.outcome.sent", vars);
+        case "typed":
+            return t("review.restart.outcome.typed", vars);
+        case "noagent":
+            return t("review.restart.outcome.noagent", vars);
+        case "noround":
+            return t("review.restart.outcome.noround");
+        case "inflight":
+            return t("review.restart.outcome.inflight");
+        case "agentbusy":
+            return t("review.restart.outcome.agentbusy", vars);
+        case "notready":
+            return t("review.restart.outcome.notready", vars);
+        case "maincheckout":
+            return t("review.restart.outcome.maincheckout", vars);
+        case "worktree":
+            return t("review.restart.outcome.worktree", vars);
+        case "brief":
+            return t("review.restart.outcome.brief", vars);
+        case "terminal":
+            return t("review.restart.outcome.terminal");
+        case "notstarted":
+            return t("review.restart.outcome.notstarted", vars);
+        case "nottyped":
+            return t("review.restart.outcome.nottyped", vars);
+    }
+    return t("review.restart.outcome.failed", vars);
+}
 
 export type ReviewRestartState = {
     status: "idle" | "restarting" | "done";
@@ -46,7 +97,7 @@ export function lastPublished(state: ReviewState): RestartRound {
 
 export function restartButtonTitle(last: RestartRound): string {
     if (last == null) {
-        return RestartText.noRound;
+        return RestartText.noRound();
     }
     return last.round.restartedat ? RestartText.again(last.number) : RestartText.enabled(last.number);
 }

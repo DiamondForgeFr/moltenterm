@@ -8,6 +8,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { AgentStateDotClasses } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { useLocale } from "../i18n/i18n";
 import { shortOid } from "./review-model";
 import {
     folderName,
@@ -15,6 +16,7 @@ import {
     pushedSinceRound,
     restartButtonTitle,
     restartLine,
+    restartOutcome,
     restartResultTone,
     RestartText,
 } from "./review-restart";
@@ -32,6 +34,7 @@ const ToneClasses: Record<string, string> = {
 };
 
 export function RestartButton({ model }: { model: ReviewTabModel }) {
+    useLocale();
     const state = useAtomValue(model.stateAtom);
     const restart = useAtomValue(model.restartAtom);
     const last = lastPublished(state);
@@ -50,12 +53,13 @@ export function RestartButton({ model }: { model: ReviewTabModel }) {
             ) : (
                 <i className="fa fa-solid fa-arrow-rotate-right text-11" />
             )}
-            {restarting ? RestartText.restarting : RestartText.button}
+            {restarting ? RestartText.restarting() : RestartText.button()}
         </button>
     );
 }
 
 export function RestartStatus({ model }: { model: ReviewTabModel }) {
+    useLocale();
     const state = useAtomValue(model.stateAtom);
     const restart = useAtomValue(model.restartAtom);
     const head = useAtomValue(model.headAtom);
@@ -64,7 +68,7 @@ export function RestartStatus({ model }: { model: ReviewTabModel }) {
     const blockId = last?.round?.restartedat ? last.round.restartblockid : null;
     const agent = useAtomValue(AgentStates.getInstance().blockAtom(blockId));
     const line = restartLine(last, agent);
-    const outcome = restart.status === "done" ? (restart.error ?? restart.result?.message ?? "") : "";
+    const outcome = restart.status === "done" ? restartOutcome(restart.result, restart.error) : "";
     if (!line && !outcome) {
         return null;
     }
@@ -104,7 +108,7 @@ export function RestartStatus({ model }: { model: ReviewTabModel }) {
                             className={LinkButton}
                             onClick={() => fireAndForget(() => model.showRestartAgent(agent))}
                         >
-                            {RestartText.showAgent}
+                            {RestartText.showAgent()}
                         </button>
                     ) : null}
                 </span>
@@ -123,7 +127,7 @@ export function RestartStatus({ model }: { model: ReviewTabModel }) {
                             onClick={() => fireAndForget(() => model.setMode("since"))}
                             data-testid="review-restart-since"
                         >
-                            {RestartText.showSince}
+                            {RestartText.showSince()}
                         </button>
                     ) : null}
                 </span>
@@ -132,7 +136,7 @@ export function RestartStatus({ model }: { model: ReviewTabModel }) {
                 <span className="flex min-w-0 items-center gap-1.5" data-testid="review-restart-outcome">
                     <span className={cn("min-w-0 break-words", ToneClasses[tone])}>{outcome}</span>
                     <button type="button" className={LinkButton} onClick={() => model.dismissRestart()}>
-                        {RestartText.dismiss}
+                        {RestartText.dismiss()}
                     </button>
                 </span>
             ) : null}
