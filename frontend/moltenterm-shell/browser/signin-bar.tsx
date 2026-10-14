@@ -9,6 +9,7 @@
 import { Button } from "@/app/element/button";
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { useT } from "../i18n/i18n";
 import {
     SignInBar,
     signInDismiss,
@@ -73,6 +74,7 @@ export type SignInBarProps = {
 };
 
 export function SignInRefusalBar({ signIn, tabId, browserName, onContinue }: SignInBarProps) {
+    const t = useT();
     const states = useAtomValue(signIn.statesAtom);
     const bar = states[tabId]?.bar;
     if (bar == null) {
@@ -85,21 +87,21 @@ export function SignInRefusalBar({ signIn, tabId, browserName, onContinue }: Sig
         >
             <i className="fa fa-solid fa-triangle-exclamation shrink-0 text-[var(--mt-state-waiting)]" />
             <span className="min-w-0 flex-1 text-primary">
-                {bar.label} doesn't allow signing in from MoltenTerm's browser.
+                {t("browser.signin.refused", { provider: bar.label })}
                 <span className="text-secondary">
                     {browserName
-                        ? ` Continue in ${browserName} from the page you were on.`
-                        : " Open the page in a browser where you can sign in."}
+                        ? " " + t("browser.signin.continueHint", { browser: browserName })
+                        : " " + t("browser.signin.openHint")}
                 </span>
             </span>
             <div className="flex shrink-0 items-center gap-1.5">
                 {browserName ? (
                     <Button className="!h-6 !px-2.5 !text-12" onClick={() => onContinue(bar)}>
-                        Continue in {browserName}
+                        {t("browser.signin.continue", { browser: browserName })}
                     </Button>
                 ) : null}
                 <Button className="ghost grey !h-6 !px-2 !text-12" onClick={() => signIn.dismiss(tabId)}>
-                    Dismiss
+                    {t("common.dismiss")}
                 </Button>
             </div>
         </div>

@@ -12,6 +12,7 @@
 import type { AgentControlAction, AgentTab, ControlBarView } from "../../browser/browser-agent";
 import type { BrowserList } from "../../browser/browser-engine";
 import type { BrowserTab } from "../../browser/browser-model";
+import { t } from "../../i18n/i18n";
 import { settingsBinding } from "../bindings";
 import { CommandProvider, PanelContext, PanelItem, PanelSection } from "../panel-types";
 
@@ -63,7 +64,7 @@ function target(ctx: PanelContext): BrowserCommandTarget {
     return vm?.viewType === BrowserViewType && typeof vm.commandState === "function" ? vm : null;
 }
 
-function pageItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] {
+function pageItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] {
     const tab = s.tab;
     const handedOff = !!tab.engine;
     const chosen = s.list?.chosen;
@@ -72,17 +73,17 @@ function pageItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[]
         items.push({
             id: "browser:reload",
             type: "action",
-            label: "Reload",
+            label: t("browser.nav.reload"),
             icon: "rotate-right",
             shortcut: "⌘R",
             keywords: ["refresh"],
-            run: () => t.reloadActive(false),
+            run: () => bt.reloadActive(false),
         });
         if (s.zoom != null) {
             items.push({
                 id: "browser:zoom",
                 type: "number",
-                label: "Zoom",
+                label: t("cmdpanel.browser.zoom"),
                 icon: "magnifying-glass-plus",
                 keywords: ["zoom in", "zoom out", "text size"],
                 min: BrowserZoomMin,
@@ -91,7 +92,7 @@ function pageItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[]
                 control: "stepper",
                 format: (v) => `${v} %`,
                 value: s.zoom,
-                set: (v) => t.setZoom(v),
+                set: (v) => bt.setZoom(v),
             });
         }
     }
@@ -100,29 +101,29 @@ function pageItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[]
         items.push({
             id: "browser:copylink",
             type: "action",
-            label: "Copy link",
+            label: t("browser.tabMenu.copyLink"),
             icon: "link",
             keywords: ["url", "address"],
             keepOpen: true,
-            run: () => t.copyTabLink(tab.id),
+            run: () => bt.copyTabLink(tab.id),
         });
     }
     if (handedOff) {
         items.push({
             id: "browser:openhere",
             type: "action",
-            label: "Open in MoltenTerm",
+            label: t("browser.menu.openHere"),
             icon: "window-maximize",
-            run: () => t.setEngine(tab.id, "app"),
+            run: () => bt.setEngine(tab.id, "app"),
         });
     } else if (s.site != null && chosen != null) {
         items.push({
             id: "browser:openexternally",
             type: "action",
-            label: `Open in ${chosen.name}`,
+            label: t("browser.choice.openIn", { browser: chosen.name }),
             icon: "arrow-up-right-from-square",
             keywords: ["external", "handoff", "installed browser"],
-            run: () => t.openExternally(tab.id),
+            run: () => bt.openExternally(tab.id),
         });
     }
     // Choosing among browsers only means something with more than one installed.
@@ -131,7 +132,7 @@ function pageItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[]
         items.push({
             id: "browser:engine",
             type: "choice",
-            label: "Engine",
+            label: t("cmdpanel.browser.engine"),
             icon: "compass",
             keywords: ["open with", "browser"],
             options: [
@@ -139,29 +140,29 @@ function pageItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[]
                 ...browsers.map((b) => ({ id: `engine:${b.id}`, label: b.name, value: b.id })),
             ],
             value: tab.engine || "app",
-            set: (v) => t.setEngine(tab.id, String(v)),
+            set: (v) => bt.setEngine(tab.id, String(v)),
         });
     }
     return items;
 }
 
-function tabItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] {
+function tabItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] {
     const tab = s.tab;
     const items: PanelItem[] = [
         {
             id: "browser:newtab",
             type: "action",
-            label: "New tab",
+            label: t("browser.tabs.newTab"),
             icon: "plus",
             shortcut: "⌘T",
-            run: () => t.newTab(),
+            run: () => bt.newTab(),
         },
         {
             id: "browser:duplicatetab",
             type: "action",
-            label: "Duplicate tab",
+            label: t("cmdpanel.browser.duplicateTab"),
             icon: "clone",
-            run: () => t.duplicateTab(tab.id),
+            run: () => bt.duplicateTab(tab.id),
         },
     ];
     // The last tab closes with its panel, which the footer's Close already offers.
@@ -172,23 +173,23 @@ function tabItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] 
         {
             id: "browser:closetab",
             type: "action",
-            label: "Close tab",
+            label: t("browser.tabs.closeTab"),
             icon: "xmark",
             shortcut: "⌘W",
-            run: () => t.closeTab(tab.id),
+            run: () => bt.closeTab(tab.id),
         },
         {
             id: "browser:closeothers",
             type: "action",
-            label: "Close other tabs",
+            label: t("cmdpanel.browser.closeOtherTabs"),
             icon: "xmark",
-            run: () => t.closeOtherTabs(tab.id),
+            run: () => bt.closeOtherTabs(tab.id),
         }
     );
     return items;
 }
 
-function siteItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] {
+function siteItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] {
     const items: PanelItem[] = [];
     const chosen = s.list?.chosen;
     const always = s.routed.engine !== "" && s.routed.engine !== "app";
@@ -196,24 +197,24 @@ function siteItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[]
         items.push({
             id: "browser:sitechoice",
             type: "toggle",
-            label: `Always open in ${chosen.name}`,
+            label: t("browser.menu.alwaysOpenIn", { browser: chosen.name }),
             icon: "thumbtack",
             detail: always ? s.routed.site : s.site,
             keywords: ["site", "engine", "remember"],
             value: always,
-            set: () => t.toggleSiteChoice(s.tab.url),
+            set: () => bt.toggleSiteChoice(s.tab.url),
         });
     }
     if (s.agentDecision != null) {
-        const verb = s.agentDecision.decision === "block" ? "blocked" : "allowed";
+        const blocked = s.agentDecision.decision === "block";
         items.push({
             id: "browser:forgetagentsite",
             type: "action",
-            label: "Forget the agents' choice",
+            label: t("cmdpanel.browser.forgetAgentsChoice"),
             icon: "robot",
-            detail: `Agents ${verb}`,
+            detail: t(blocked ? "cmdpanel.browser.agentsBlocked" : "cmdpanel.browser.agentsAllowed"),
             keywords: ["agent permission", "site permission"],
-            run: () => t.forgetAgentSite(s.agentDecision.site),
+            run: () => bt.forgetAgentSite(s.agentDecision.site),
         });
     }
     return items;
@@ -224,7 +225,7 @@ function linkItems(s: BrowserCommandState): PanelItem[] {
         {
             id: "browser:openlinksinternally",
             type: "toggle",
-            label: "Links open in MoltenTerm",
+            label: t("cmdpanel.browser.linksInternal"),
             icon: "arrow-pointer",
             keywords: ["web:openlinksinternally", "links"],
             defaultValue: true,
@@ -236,7 +237,7 @@ function linkItems(s: BrowserCommandState): PanelItem[] {
         items.push({
             id: "browser:default",
             type: "choice",
-            label: "Default browser",
+            label: t("cmdpanel.browser.defaultBrowser"),
             icon: "globe",
             keywords: ["browser:default", "engine"],
             options: [
@@ -250,55 +251,55 @@ function linkItems(s: BrowserCommandState): PanelItem[] {
     return items;
 }
 
-function agentItems(t: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] {
+function agentItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] {
     const tab = s.agentTab;
     const view = s.agentView;
     // The control bar speaks of the tab it sits on; here the driven tab may be another one.
     const title =
         s.agentTabShown || view.takenOver
             ? view.title
-            : `${tab.agentname?.trim() || "An agent"} is controlling another tab`;
+            : t("cmdpanel.browser.controllingOther", { name: tab.agentname?.trim() || t("browser.agent.anAgent") });
     const items: PanelItem[] = [{ id: "browser:agent:status", type: "info", label: title, detail: view.detail }];
     if (!s.agentTabShown) {
         items.push({
             id: "browser:agent:show",
             type: "action",
-            label: "Show the agent's tab",
+            label: t("cmdpanel.browser.showAgentTab"),
             icon: "eye",
-            run: () => t.showTab(tab.browsertabid),
+            run: () => bt.showTab(tab.browsertabid),
         });
     }
     if (view.takenOver) {
         items.push({
             id: "browser:agent:giveback",
             type: "action",
-            label: "Give back",
+            label: t("browser.agent.giveBack"),
             icon: "robot",
-            run: () => t.controlAgent(tab.browsertabid, "giveback"),
+            run: () => bt.controlAgent(tab.browsertabid, "giveback"),
         });
     } else {
         items.push({
             id: "browser:agent:takeover",
             type: "action",
-            label: "Take over",
+            label: t("cmdpanel.browser.takeOver"),
             icon: "hand",
-            run: () => t.controlAgent(tab.browsertabid, "takeover"),
+            run: () => bt.controlAgent(tab.browsertabid, "takeover"),
         });
     }
     items.push({
         id: "browser:agent:stop",
         type: "action",
-        label: "Stop the agent",
+        label: t("cmdpanel.browser.stopAgent"),
         icon: "stop",
         destructive: true,
-        run: () => t.controlAgent(tab.browsertabid, "stop"),
+        run: () => bt.controlAgent(tab.browsertabid, "stop"),
     });
     return items;
 }
 
 export function browserSections(ctx: PanelContext): PanelSection[] {
-    const t = target(ctx);
-    const s = t?.commandState();
+    const bt = target(ctx);
+    const s = bt?.commandState();
     if (s?.tab == null) {
         return [];
     }
@@ -307,31 +308,31 @@ export function browserSections(ctx: PanelContext): PanelSection[] {
         sections.push({
             id: "agent:browser-control",
             kind: "agent",
-            title: "Agent control",
-            state: s.agentView.takenOver ? "you took over" : "controlling",
+            title: t("browser.agent.controlAria"),
+            state: s.agentView.takenOver ? t("cmdpanel.browser.stateTookOver") : t("cmdpanel.browser.stateControlling"),
             stateTone: s.agentView.takenOver ? "muted" : "warning",
-            items: agentItems(t, s),
+            items: agentItems(bt, s),
         });
     }
     sections.push(
-        { id: "widget:browser:page", kind: "widget", title: "Page", items: pageItems(t, s) },
-        { id: "widget:browser:tabs", kind: "widget", title: "Tabs", items: tabItems(t, s) },
-        { id: "widget:browser:site", kind: "widget", title: "This site", items: siteItems(t, s) },
-        { id: "widget:browser:links", kind: "widget", title: "Links", items: linkItems(s) }
+        { id: "widget:browser:page", kind: "widget", title: t("cmdpanel.browser.page"), items: pageItems(bt, s) },
+        { id: "widget:browser:tabs", kind: "widget", title: t("cmdpanel.browser.tabs"), items: tabItems(bt, s) },
+        { id: "widget:browser:site", kind: "widget", title: t("cmdpanel.browser.thisSite"), items: siteItems(bt, s) },
+        { id: "widget:browser:links", kind: "widget", title: t("cmdpanel.browser.links"), items: linkItems(s) }
     );
     if (!s.tab.engine) {
         sections.push({
             id: "developer",
             kind: "developer",
-            title: "Developer",
+            title: t("cmdpanel.section.developer"),
             items: [
                 {
                     id: "browser:devtools",
                     type: "action",
-                    label: "Inspect the page",
+                    label: t("cmdpanel.browser.inspect"),
                     icon: "code",
                     keywords: ["devtools", "developer tools", "console"],
-                    run: () => t.openPageDevTools(),
+                    run: () => bt.openPageDevTools(),
                 },
             ],
         });

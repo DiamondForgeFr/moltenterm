@@ -4,6 +4,7 @@
 // The error page drawn over a tab's webview when its page fails to load (FR-SHELL-051, DS-SHELL-092).
 
 import { EmptyState } from "../empty-state";
+import { useT } from "../i18n/i18n";
 import { errorPageView, LoadError, LoadErrorClass } from "./browser-error";
 
 const Icons: Record<LoadErrorClass, string> = {
@@ -26,6 +27,7 @@ export function BrowserErrorPage({
     onRetry: () => void;
     onStartDevServer: () => void;
 }) {
+    const t = useT();
     const view = errorPageView(error);
     return (
         <div className="molten-browser-error absolute inset-0 z-[1] bg-surface-1" data-errorclass={view.errorClass}>
@@ -33,12 +35,17 @@ export function BrowserErrorPage({
                 icon={Icons[view.errorClass]}
                 title={view.title}
                 hint={view.hint}
-                primary={{ label: "Retry", busyLabel: "Retrying…", busy: retrying, onClick: () => onRetry() }}
+                primary={{
+                    label: t("browser.error.retry"),
+                    busyLabel: t("browser.error.retrying"),
+                    busy: retrying,
+                    onClick: () => onRetry(),
+                }}
                 secondary={
                     view.local
                         ? {
-                              label: "Start the dev server…",
-                              title: "Open a panel next to this one to start it",
+                              label: t("browser.error.startDevServer"),
+                              title: t("browser.error.startDevServerTitle"),
                               onClick: () => onStartDevServer(),
                           }
                         : undefined

@@ -15,6 +15,7 @@
 
 import { getBlockTermDurableAtom, globalStore } from "@/app/store/global";
 import { findCompanionBlock, toggleCompanion } from "../../companion/companion-open";
+import { t } from "../../i18n/i18n";
 import { formatShortcutById } from "../../shortcuts/format";
 import { CommandProvider, PanelContext, PanelItem, PanelSection } from "../panel-types";
 import { MoltenWidgetProviders } from "./molten-widgets";
@@ -32,23 +33,21 @@ export function durableSessionItem(ctx: PanelContext, durable: boolean): PanelIt
     return {
         id: "molten:durable",
         type: "page",
-        label: "Durable session",
+        label: t("cmdpanel.durable.label"),
         icon: "shield",
-        valueLabel: durable ? "On" : "Off",
+        valueLabel: durable ? t("common.on") : t("common.off"),
         keywords: ["durability", "persist", "keep running"],
         items: [
             {
                 id: "molten:durable:info",
                 type: "info",
-                label: durable
-                    ? "This shell keeps running when you quit or update MoltenTerm."
-                    : "This shell ends when you quit MoltenTerm.",
+                label: durable ? t("cmdpanel.durable.infoOn") : t("cmdpanel.durable.infoOff"),
             },
             {
                 id: durable ? "molten:durable:off" : "molten:durable:on",
                 type: "action",
-                label: durable ? "Restart as a standard session" : "Restart as a durable session",
-                detail: "ends what runs in it",
+                label: durable ? t("cmdpanel.durable.restartStandard") : t("cmdpanel.durable.restartDurable"),
+                detail: t("cmdpanel.durable.restartDetail"),
                 icon: "rotate-right",
                 destructive: true,
                 run: () => model.restartSessionWithDurability(!durable),
@@ -64,7 +63,7 @@ export function companionItem(ctx: PanelContext, open: boolean): PanelItem {
     return {
         id: "molten:companion",
         type: "action",
-        label: open ? "Close the companion" : "Open the companion",
+        label: open ? t("cmdpanel.companion.close") : t("cmdpanel.companion.open"),
         icon: "book-open",
         keywords: ["agent companion", "session", "transcript"],
         shortcut: formatShortcutById("companion"),

@@ -17,6 +17,7 @@ import { atom, Atom, useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { t, useT } from "../i18n/i18n";
 import { highlightRuns } from "../palette/palette-model";
 import { formatShortcutById } from "../shortcuts/format";
 import { splitPanel } from "../split/split";
@@ -104,7 +105,7 @@ function rowAccessibleName(row: PanelRow, scopes: Record<string, PanelScopeId>, 
     const item = row.item;
     const parts = [item.label];
     if (item.type === "toggle") {
-        parts.push(shownValue(item, scopes[item.id]) ? "on" : "off");
+        parts.push(shownValue(item, scopes[item.id]) ? t("cmdpanel.value.on") : t("cmdpanel.value.off"));
     } else if (item.type === "number") {
         const v = Number(shownValue(item, scopes[item.id]));
         parts.push(item.format ? item.format(v) : String(v));
@@ -138,7 +139,7 @@ function footerItems(blockId: string, view: string, magnified: boolean, placemen
         {
             id: "footer:split-right",
             type: "action",
-            label: "Split right",
+            label: t("cmdpanel.footer.splitRight"),
             icon: SplitRightIcon,
             shortcut: formatShortcutById("split-right"),
             keywords: ["new panel", "add panel"],
@@ -148,7 +149,7 @@ function footerItems(blockId: string, view: string, magnified: boolean, placemen
         {
             id: "footer:split-down",
             type: "action",
-            label: "Split down",
+            label: t("cmdpanel.footer.splitDown"),
             icon: SplitDownIcon,
             shortcut: formatShortcutById("split-down"),
             keywords: ["new panel", "add panel"],
@@ -158,7 +159,7 @@ function footerItems(blockId: string, view: string, magnified: boolean, placemen
         {
             id: "footer:magnify",
             type: "action",
-            label: magnified ? "Unmagnify" : "Magnify",
+            label: magnified ? t("cmdpanel.menu.unmagnify") : t("cmdpanel.menu.magnify"),
             icon: magnified ? "compress" : "expand",
             shortcut: formatShortcutById("magnify"),
             keywords: ["zoom", "maximize"],
@@ -222,6 +223,7 @@ function ItemIcon({ icon, swatch }: { icon?: string; swatch?: string[] }) {
 // With several scopes, the badge is the scope switch of an option that has no sub-page (a number, a toggle): a click
 // moves the edit to the next scope.
 function ScopeBadge({ text, quiet, onNext }: { text: string; quiet?: boolean; onNext?: () => void }) {
+    const t = useT();
     const className = cn(
         "molten-cmdpanel-scope shrink-0 rounded-4 px-1.5 text-11 leading-4 whitespace-nowrap",
         quiet && "is-quiet"
@@ -234,7 +236,7 @@ function ScopeBadge({ text, quiet, onNext }: { text: string; quiet?: boolean; on
             type="button"
             tabIndex={-1}
             className={cn(className, "cursor-pointer")}
-            title={`${text}: click to change where this applies`}
+            title={t("cmdpanel.scope.badgeTitle", { scope: text })}
             onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => {
                 e.stopPropagation();
@@ -247,13 +249,14 @@ function ScopeBadge({ text, quiet, onNext }: { text: string; quiet?: boolean; on
 }
 
 function ResetButton({ label, onReset }: { label: string; onReset: () => void }) {
+    const t = useT();
     return (
         <button
             type="button"
             tabIndex={-1}
             className="molten-cmdpanel-mini cursor-pointer"
-            title={`Reset ${label} to its default`}
-            aria-label={`Reset ${label} to its default`}
+            title={t("cmdpanel.reset", { label })}
+            aria-label={t("cmdpanel.reset", { label })}
             onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => {
                 e.stopPropagation();
@@ -299,6 +302,7 @@ function NumberControl({
     onNumber: (item: PanelNumber, value: number) => void;
     onStep: (item: PanelNumber, delta: number) => void;
 }) {
+    const t = useT();
     const text = item.format ? item.format(value) : String(value);
     const stop = (e: React.SyntheticEvent) => e.stopPropagation();
     if (item.control === "slider") {
@@ -327,7 +331,7 @@ function NumberControl({
                 type="button"
                 tabIndex={-1}
                 className="molten-cmdpanel-mini cursor-pointer"
-                aria-label={`Decrease ${item.label}`}
+                aria-label={t("cmdpanel.number.decrease", { label: item.label })}
                 disabled={value <= item.min}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => onStep(item, -1)}
@@ -339,7 +343,7 @@ function NumberControl({
                 type="button"
                 tabIndex={-1}
                 className="molten-cmdpanel-mini cursor-pointer"
-                aria-label={`Increase ${item.label}`}
+                aria-label={t("cmdpanel.number.increase", { label: item.label })}
                 disabled={value >= item.max}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => onStep(item, 1)}
@@ -494,7 +498,10 @@ function PanelRowView(props: RowProps) {
                 {detail && !row.breadcrumb && <span className="ml-1.5 text-11 text-muted">{detail}</span>}
             </span>
             {props.running != null && props.running === (isOption ? row.option.id : row.item.id) ? (
-                <i className="fa fa-solid fa-circle-notch fa-spin shrink-0 text-11 text-muted" aria-label="Sending" />
+                <i
+                    className="fa fa-solid fa-circle-notch fa-spin shrink-0 text-11 text-muted"
+                    aria-label={t("cmdpanel.sending")}
+                />
             ) : digit > 0 ? (
                 <span className="shrink-0 font-mono text-11 text-secondary">⌘{digit}</span>
             ) : (
@@ -509,7 +516,11 @@ function Suggestions({ items, onRun }: { items: PanelSuggestion[]; onRun: (s: Pa
         return null;
     }
     return (
-        <div className="flex flex-wrap gap-1.5 border-b border-line px-3 py-2" role="group" aria-label="Suggestions">
+        <div
+            className="flex flex-wrap gap-1.5 border-b border-line px-3 py-2"
+            role="group"
+            aria-label={t("cmdpanel.aria.suggestions")}
+        >
             {items.map((s) => (
                 <button
                     key={s.id}
@@ -540,6 +551,7 @@ type FeedbackProps = {
 // A refusal or a confirmation in place of the suggestions (FR-SHELL-048): it says why nothing was typed and offers
 // what fits. A confirmation takes the focus on its first action (Cancel), so Enter never clears a draft by accident.
 function Feedback({ feedback, running, onAction }: FeedbackProps) {
+    const t = useT();
     const firstRef = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         if (feedback.role === "alertdialog") {
@@ -553,7 +565,7 @@ function Feedback({ feedback, running, onAction }: FeedbackProps) {
             role={feedback.role ?? "status"}
             aria-live={feedback.role === "alertdialog" ? undefined : "polite"}
             aria-describedby={feedback.role === "alertdialog" ? messageId : undefined}
-            aria-label={feedback.role === "alertdialog" ? "Confirm" : undefined}
+            aria-label={feedback.role === "alertdialog" ? t("common.confirm") : undefined}
         >
             <div id={messageId} className="molten-cmdpanel-feedback-text text-12 leading-5">
                 {feedback.message}
@@ -594,6 +606,7 @@ type PageHeaderProps = {
 };
 
 function PageHeader({ page, ctx, scope, onBack, onScope, onReset }: PageHeaderProps) {
+    const t = useT();
     const scoped = (page as PanelChoice).scopes ?? [];
     const binding = scoped.length ? activeScope(page as PanelChoice, scope) : null;
     return (
@@ -604,8 +617,8 @@ function PageHeader({ page, ctx, scope, onBack, onScope, onReset }: PageHeaderPr
                     className="molten-cmdpanel-back flex h-6 cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-12 font-medium text-primary"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={onBack}
-                    aria-label={`Back from ${page.label}`}
-                    title="Back (←)"
+                    aria-label={t("cmdpanel.page.backFrom", { label: page.label })}
+                    title={t("cmdpanel.page.backTitle")}
                 >
                     <i className="fa fa-solid fa-chevron-left text-11 text-muted" aria-hidden />
                     {page.label}
@@ -619,17 +632,17 @@ function PageHeader({ page, ctx, scope, onBack, onScope, onReset }: PageHeaderPr
                         onClick={onReset}
                     >
                         <i className="fa fa-solid fa-rotate-left" aria-hidden />
-                        Reset
+                        {t("cmdpanel.page.reset")}
                     </button>
                 )}
             </div>
             {scoped.length > 1 && (
                 <div className="flex items-center gap-2 px-1.5 pt-0.5 pb-1">
-                    <span className="text-11 text-muted">Applies to</span>
+                    <span className="text-11 text-muted">{t("cmdpanel.page.appliesTo")}</span>
                     <div
                         className="molten-cmdpanel-segmented flex rounded-6 p-0.5"
                         role="radiogroup"
-                        aria-label="Scope"
+                        aria-label={t("cmdpanel.page.scope")}
                     >
                         {scoped.map((b) => (
                             <button
@@ -685,6 +698,7 @@ function placementFor(open: OpenCommandPanel): Placement {
 type CommandPanelProps = { open: OpenCommandPanel };
 
 function CommandPanel({ open }: CommandPanelProps) {
+    const t = useT();
     const model = CommandPanelModel.getInstance();
     const blockId = open.blockId;
     const block = useAtomValue(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId)));
@@ -1245,13 +1259,13 @@ function CommandPanel({ open }: CommandPanelProps) {
     const emptyText =
         query.trim() !== ""
             ? rows.length === 0
-                ? `Nothing matches "${query.trim()}"`
+                ? t("cmdpanel.empty.noMatch", { query: query.trim() })
                 : null
             : liveStack.length === 0 && !hasOwnSections
-              ? "This panel has no options of its own yet."
+              ? t("cmdpanel.empty.noOptions")
               : null;
     const pageScope = page != null ? scopes[page.id] : null;
-    const panelName = ctx?.panelName ?? "panel";
+    const panelName = ctx?.panelName ?? t("cmdpanel.kinds.other.name");
 
     return (
         <div
@@ -1261,7 +1275,7 @@ function CommandPanel({ open }: CommandPanelProps) {
             }}
             role="dialog"
             aria-modal="true"
-            aria-label={`Commands for this ${panelName.toLowerCase()} panel`}
+            aria-label={t("cmdpanel.aria.commands", { panel: panelName })}
             data-role="command-panel"
             data-blockid-for={blockId}
             className="molten-cmdpanel flex flex-col overflow-hidden rounded-10 border border-line-strong bg-surface-2 shadow-command"
@@ -1289,7 +1303,9 @@ function CommandPanel({ open }: CommandPanelProps) {
                     value={query}
                     spellCheck={false}
                     autoComplete="off"
-                    placeholder={page != null ? `Search ${page.label.toLowerCase()}…` : "Search commands…"}
+                    placeholder={
+                        page != null ? t("cmdpanel.search.page", { label: page.label }) : t("cmdpanel.search.commands")
+                    }
                     onChange={(e) => {
                         setQuery(e.target.value);
                         setFeedback(null);
@@ -1300,7 +1316,7 @@ function CommandPanel({ open }: CommandPanelProps) {
                     aria-autocomplete="list"
                     aria-controls={ListId}
                     aria-activedescendant={selected >= 0 ? rowDomId(rows[selected]) : undefined}
-                    aria-label={`Search the commands of this ${panelName.toLowerCase()} panel`}
+                    aria-label={t("cmdpanel.aria.search", { panel: panelName })}
                 />
                 <span className="shrink-0 font-mono text-11 text-muted" aria-hidden>
                     {formatShortcutById("command-panel")}
@@ -1336,7 +1352,7 @@ function CommandPanel({ open }: CommandPanelProps) {
                 <div
                     id={ListId}
                     role="listbox"
-                    aria-label={page != null ? page.label : `Commands for this ${panelName.toLowerCase()} panel`}
+                    aria-label={page != null ? page.label : t("cmdpanel.aria.commands", { panel: panelName })}
                 >
                     {groups.map((group, gi) => (
                         <div
@@ -1396,14 +1412,14 @@ function CommandPanel({ open }: CommandPanelProps) {
                 </div>
                 {hasDeveloper && !alt && liveStack.length === 0 && query === "" && (
                     <div className="px-3 pt-1.5 pb-1 text-11 text-muted">
-                        Hold {isMacOS() ? "⌥" : "Alt"} for Developer
+                        {t("cmdpanel.holdForDeveloper", { key: isMacOS() ? "⌥" : "Alt" })}
                     </div>
                 )}
             </div>
             <div
                 className="flex shrink-0 items-center gap-0.5 border-t border-line px-1 py-1"
                 role="group"
-                aria-label="Panel actions"
+                aria-label={t("cmdpanel.aria.actions")}
             >
                 {footer.map((item) => (
                     <React.Fragment key={item.id}>
@@ -1430,13 +1446,13 @@ function CommandPanel({ open }: CommandPanelProps) {
                 <button
                     type="button"
                     className="molten-cmdpanel-footer-btn ml-auto flex h-7 cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-12 whitespace-nowrap text-muted"
-                    title="Dismiss this menu (Esc)"
+                    title={t("cmdpanel.dismissTitle")}
                     aria-keyshortcuts="Escape"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => closePanel()}
                 >
                     <kbd className="rounded-4 border border-line-strong px-1 font-mono text-11 leading-[16px]">esc</kbd>
-                    Dismiss
+                    {t("common.dismiss")}
                 </button>
             </div>
         </div>

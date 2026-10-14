@@ -8,6 +8,7 @@
 // the menu.
 
 import { agentCallName, agentLabel, type AgentStateInfo } from "../agent-state-model";
+import { t } from "../i18n/i18n";
 import { agentName, AgentSession, AgentTab, OriginShared } from "./browser-agent";
 import type { BrowserTab } from "./browser-model";
 
@@ -34,12 +35,18 @@ export type ShareActions = {
     openAgentSettings: () => void;
 };
 
-export const NoAgentReason = "No agent is running in this tab";
-export const ShareLabel = "Share with agent";
-export const ShareTellLabel = "Share and tell";
+export function noAgentReason(): string {
+    return t("browser.share.noAgent");
+}
+export function shareLabel(): string {
+    return t("browser.share.share");
+}
+export function shareTellLabel(): string {
+    return t("browser.share.shareTell");
+}
 
 export function setupReason(agent: string): string {
-    return `Set up the MoltenTerm browser for ${agent}`;
+    return t("browser.share.setup", { agent });
 }
 
 export function isSharedTab(tab: AgentTab): boolean {
@@ -89,7 +96,7 @@ export function shareAgents(
         }
         rtn.push({
             blockId: s.blockid,
-            agentName: s.agentname || "An agent",
+            agentName: s.agentname || t("browser.agent.anAgent"),
             paneTitle: paneTitle(s.blockid),
             sessionId: s.sessionid,
         });
@@ -111,10 +118,10 @@ export function agentEntryLabel(agent: ShareAgent): string {
 // from it) is not in MoltenTerm's engine, where the agents act.
 export function unshareableReason(tab: BrowserTab, engineLabel: string): string {
     if (tab == null) {
-        return "This tab is no longer in the panel";
+        return t("browser.share.tabGone");
     }
     if (tab.engine) {
-        return `This page is open in ${engineLabel || "another browser"}: open it in MoltenTerm to share it`;
+        return t("browser.share.openElsewhere", { browser: engineLabel || t("browser.share.anotherBrowser") });
     }
     return "";
 }
@@ -126,20 +133,20 @@ export function tellReason(agent: ShareAgent): string {
         return setupReason(agent.agentKind || agent.agentName);
     }
     if (agent.state === "working") {
-        return `${agent.agentName} is working`;
+        return t("browser.share.working", { name: agent.agentName });
     }
     if (agent.state === "waiting") {
-        return `${agent.agentName} is waiting for your answer`;
+        return t("browser.share.waiting", { name: agent.agentName });
     }
     if (agent.state === "error") {
-        return `${agent.agentName} stopped on an error`;
+        return t("browser.share.error", { name: agent.agentName });
     }
     return "";
 }
 
 // The reason the whole control is unavailable, "" when it opens its list (AC2, AC8).
 export function shareControlReason(tab: BrowserTab, engineLabel: string, agents: ShareAgent[]): string {
-    return unshareableReason(tab, engineLabel) || ((agents ?? []).length === 0 ? NoAgentReason : "");
+    return unshareableReason(tab, engineLabel) || ((agents ?? []).length === 0 ? noAgentReason() : "");
 }
 
 // The tab menu's and the toolbar button's items: Stop sharing on a shared tab, then Share with agent and Share and
@@ -154,14 +161,14 @@ export function shareMenuItems(
     const menu: ContextMenuItem[] = [];
     if (isSharedTab(holder)) {
         menu.push({
-            label: `Stop sharing with ${agentName(holder)}`,
+            label: t("browser.share.stop", { name: agentName(holder) }),
             icon: "link-slash",
             click: () => actions.stopSharing(),
         });
     }
     const reason = shareControlReason(tab, engineLabel, agents);
     if (reason) {
-        menu.push({ label: ShareLabel, icon: "share-nodes", enabled: false, sublabel: reason });
+        menu.push({ label: shareLabel(), icon: "share-nodes", enabled: false, sublabel: reason });
         return menu;
     }
     const holderName = holder != null ? agentName(holder) : null;
@@ -185,20 +192,20 @@ export function shareMenuItems(
     if (agents.some((a) => !a.sessionId)) {
         const settings: ContextMenuItem[] = [
             { type: "separator" },
-            { label: "Agent integration settings…", icon: "gear", click: () => actions.openAgentSettings() },
+            { label: t("browser.share.integrationSettings"), icon: "gear", click: () => actions.openAgentSettings() },
         ];
         shareEntries.push(...settings);
         tellEntries.push(...settings);
     }
     menu.push(
         {
-            label: holderName ? `${ShareLabel} (now ${holderName})` : ShareLabel,
+            label: holderName ? t("browser.share.shareNow", { name: holderName }) : shareLabel(),
             icon: "share-nodes",
             type: "submenu",
             submenu: shareEntries,
         },
         {
-            label: ShareTellLabel,
+            label: shareTellLabel(),
             icon: "comment",
             type: "submenu",
             submenu: tellEntries,
@@ -210,7 +217,7 @@ export function shareMenuItems(
 // The question before a tab moves from the agent that holds it (AC5).
 export function moveQuestion(holder: string, target: string): { title: string; message: string } {
     return {
-        title: `Move this tab to ${target}?`,
-        message: `It is shared with ${holder}, which loses it at once.`,
+        title: t("browser.share.moveTitle", { target }),
+        message: t("browser.share.moveMessage", { holder }),
     };
 }

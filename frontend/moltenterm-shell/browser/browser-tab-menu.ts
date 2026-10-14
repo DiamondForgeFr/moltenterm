@@ -5,6 +5,7 @@
 // others, shown by the MenuHost like every MoltenTerm menu, with the icons of the command panel's rows for the same
 // actions (FR-SHELL-054).
 
+import { t } from "../i18n/i18n";
 import { BrowserState, BrowserTab } from "./browser-model";
 
 export type BrowserTabActions = {
@@ -30,11 +31,11 @@ export function browserTabMenu(
     }
     const menu: ContextMenuItem[] = [];
     if (!tab.engine) {
-        menu.push({ label: "Reload", icon: "rotate-right", click: () => actions.reloadTab(tab.id) });
+        menu.push({ label: t("browser.tabMenu.reload"), icon: "rotate-right", click: () => actions.reloadTab(tab.id) });
     }
-    menu.push({ label: "Duplicate", icon: "clone", click: () => actions.duplicateTab(tab.id) });
+    menu.push({ label: t("browser.tabMenu.duplicate"), icon: "clone", click: () => actions.duplicateTab(tab.id) });
     if (tab.url) {
-        menu.push({ label: "Copy link", icon: "link", click: () => actions.copyTabLink(tab.id) });
+        menu.push({ label: t("browser.tabMenu.copyLink"), icon: "link", click: () => actions.copyTabLink(tab.id) });
     }
     if (shareItems.length > 0) {
         menu.push({ type: "separator" }, ...shareItems);
@@ -42,8 +43,8 @@ export function browserTabMenu(
     if (state.tabs.length > 1) {
         menu.push(
             { type: "separator" },
-            { label: "Close", icon: "xmark", click: () => actions.closeTab(tab.id) },
-            { label: "Close others", icon: "xmark", click: () => actions.closeOtherTabs(tab.id) }
+            { label: t("browser.tabMenu.close"), icon: "xmark", click: () => actions.closeTab(tab.id) },
+            { label: t("browser.tabMenu.closeOthers"), icon: "xmark", click: () => actions.closeOtherTabs(tab.id) }
         );
     }
     return menu;
