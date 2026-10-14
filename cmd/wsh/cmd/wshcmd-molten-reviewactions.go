@@ -155,6 +155,7 @@ type moltenReviewState struct {
 }
 
 type moltenReviewCheck struct {
+	Id     string `json:"id"`
 	Label  string `json:"label"`
 	State  string `json:"state"`
 	Detail string `json:"detail,omitempty"`
@@ -854,8 +855,15 @@ func formatMoltenReviewPlan(number int, plan moltenReviewPlan) string {
 		sb.WriteString("then the cleanup:\n")
 		formatMoltenReviewCleanupSteps(&sb, plan.Cleanup)
 	}
+	// Warnings name their checks by id: the check's label is what the sheet asks to confirm.
 	for _, w := range plan.Warnings {
-		fmt.Fprintf(&sb, "warning: %s (the sheet asks you to confirm it)\n", w)
+		label := w
+		for _, c := range plan.Checks {
+			if c.Id == w {
+				label = c.Label
+			}
+		}
+		fmt.Fprintf(&sb, "warning: %s (the sheet asks you to confirm it before Merge)\n", label)
 	}
 	if !plan.CanMerge {
 		fmt.Fprintf(&sb, "cannot merge: %s\n", plan.Reason)
