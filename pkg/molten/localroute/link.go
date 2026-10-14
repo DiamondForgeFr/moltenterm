@@ -244,7 +244,7 @@ func (l *Link) cancel(reqId string, ingressLinkId baseds.LinkId) {
 
 func (l *Link) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) {
 	defer func() {
-		panichandler.PanicHandler("molten:"+l.route.Id, recover())
+		panichandler.PanicHandler(l.route.Id+":route", recover())
 	}()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
