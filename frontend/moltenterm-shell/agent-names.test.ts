@@ -43,6 +43,7 @@ describe("agent first names (FR-CONT-014)", () => {
             "",
             actions
         );
+        expect(menu[0].submenu[0].sublabel).toBe("Set up the MoltenTerm browser for Claude Code");
         expect(menu[0].submenu.slice(0, 2).map((i) => i.label)).toEqual([
             "[Alice] Claude Code — app",
             "[Jérôme] Claude Code — app",

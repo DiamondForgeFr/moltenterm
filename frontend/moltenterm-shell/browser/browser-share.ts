@@ -20,6 +20,8 @@ export type ShareAgent = {
     // it ("[Jérôme] Claude Code").
     agentName: string;
     label?: string;
+    // agentKind: the agent itself ("Claude Code"), for what concerns the agent rather than the session.
+    agentKind?: string;
     paneTitle: string;
     // The agent's browser session; absent when it has not connected MoltenTerm's browser server.
     sessionId?: string;
@@ -75,6 +77,7 @@ export function shareAgents(
             blockId: info.blockid,
             agentName: agentCallName(info),
             label: agentLabel(info),
+            agentKind: info.agentname || info.agent,
             paneTitle: paneTitle(info.blockid),
             sessionId: byBlock.get(info.blockid)?.sessionid,
             state: info.state,
@@ -120,7 +123,7 @@ export function unshareableReason(tab: BrowserTab, engineLabel: string): string 
 // or waits for an answer to its own question (AC6).
 export function tellReason(agent: ShareAgent): string {
     if (!agent.sessionId) {
-        return setupReason(agent.agentName);
+        return setupReason(agent.agentKind || agent.agentName);
     }
     if (agent.state === "working") {
         return `${agent.agentName} is working`;
@@ -164,7 +167,11 @@ export function shareMenuItems(
     const holderName = holder != null ? agentName(holder) : null;
     const shareEntries: ContextMenuItem[] = agents.map((agent) => {
         if (!agent.sessionId) {
-            return { label: agentEntryLabel(agent), enabled: false, sublabel: setupReason(agent.agentName) };
+            return {
+                label: agentEntryLabel(agent),
+                enabled: false,
+                sublabel: setupReason(agent.agentKind || agent.agentName),
+            };
         }
         return { label: agentEntryLabel(agent), click: () => actions.share(agent, false) };
     });
