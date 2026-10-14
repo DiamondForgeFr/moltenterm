@@ -14,6 +14,13 @@
 .molten-review-published {
     --molten-review-state: var(--color-success);
 }
+/* FR-REV-009: an agent's proposal, not the developer's until accepted. */
+.molten-review-proposed {
+    --molten-review-state: var(--color-secondary);
+}
+.molten-review-range.molten-review-proposed {
+    border-left-style: dashed;
+}
 
 .molten-review-range {
     border-left: 3px solid var(--molten-review-state);
@@ -45,4 +52,9 @@
 .molten-review-badge-published {
     color: var(--color-success);
     background: color-mix(in srgb, var(--color-success) 15%, transparent);
+}
+.molten-review-badge-proposed,
+.molten-review-badge-dropped {
+    color: var(--color-secondary);
+    background: color-mix(in srgb, var(--color-secondary) 15%, transparent);
 }

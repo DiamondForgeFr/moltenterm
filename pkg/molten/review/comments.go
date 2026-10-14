@@ -6,7 +6,6 @@ package review
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -30,48 +29,27 @@ const (
 	CommentStateTranslated = "translated"
 	CommentStatePublished  = "published"
 	CommentStateDropped    = "dropped"
+	// Proposed: a comment the review session's agent proposed (FR-REV-009 AC3), not the developer's until accepted.
+	CommentStateProposed = "proposed"
 
 	CommentKindComment = "comment"
 	CommentKindChange  = "change"
 
 	AuthorDeveloper = "developer"
+	AuthorAgent     = "agent"
+	// AuthorAcceptedProposal: an agent's proposal the developer accepted (DS-REV-007).
+	AuthorAcceptedProposal = "agent-proposal-accepted"
 
 	maxCommentBytes = 64 << 10
 	maxComments     = 500
-	// GitHub's diff shows three lines of context around each change.
-	hunkContext = 3
+	hunkContext     = mcpreview.HunkContext
 )
 
-var hunkHeaderRe = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
-
-// Hunk is one hunk of a file's diff, by its line ranges on the base (old) and head (new) sides.
-type Hunk struct {
-	OldStart int `json:"oldstart"`
-	OldLines int `json:"oldlines"`
-	NewStart int `json:"newstart"`
-	NewLines int `json:"newlines"`
-}
+type Hunk = mcpreview.Hunk
 
 // ParseHunks reads the hunk headers of a unified diff.
 func ParseHunks(out []byte) []Hunk {
-	var rtn []Hunk
-	for _, line := range strings.Split(string(out), "\n") {
-		m := hunkHeaderRe.FindStringSubmatch(line)
-		if m == nil {
-			continue
-		}
-		h := Hunk{OldLines: 1, NewLines: 1}
-		h.OldStart, _ = strconv.Atoi(m[1])
-		if m[2] != "" {
-			h.OldLines, _ = strconv.Atoi(m[2])
-		}
-		h.NewStart, _ = strconv.Atoi(m[3])
-		if m[4] != "" {
-			h.NewLines, _ = strconv.Atoi(m[4])
-		}
-		rtn = append(rtn, h)
-	}
-	return rtn
+	return mcpreview.ParseHunks(out)
 }
 
 // hunksOf: an added or deleted file is one hunk of all its lines; otherwise git's diff of the two blobs.
@@ -105,19 +83,7 @@ func (d *Differ) hunks(ctx context.Context, req FileRequest, oldLines int, newLi
 // InHunk tells whether lines start to end of a side lie in one hunk: GitHub refuses a line comment elsewhere, and a
 // multi-line comment across two hunks.
 func InHunk(hunks []Hunk, side string, start int, end int) bool {
-	if start <= 0 {
-		start = end
-	}
-	for _, h := range hunks {
-		first, count := h.NewStart, h.NewLines
-		if side == mcpreview.SideLeft {
-			first, count = h.OldStart, h.OldLines
-		}
-		if count > 0 && start >= first && end <= first+count-1 {
-			return true
-		}
-	}
-	return false
+	return mcpreview.InHunk(hunks, side, start, end)
 }
 
 type CommentText struct {
@@ -127,7 +93,10 @@ type CommentText struct {
 
 // Comment is one review comment (DS-REV-007). Subject: SubjectLine (a GitHub line comment) or SubjectFile (a
 // file-level comment quoting Anchor.Excerpt). Outdated is a flag next to the state: a staged comment whose lines went
-// away stays staged and is published as a file-level comment quoting its excerpt (DS-REV-008).
+// away stays staged and is published as a file-level comment quoting its excerpt (DS-REV-008). Original is the
+// developer's text in their language; Translation is its version in the publication language (FR-REV-010). History
+// keeps the original text and every later state (FR-REV-009 AC5); Discussion is the exchange with the review session
+// about the comment (AC2).
 type Comment struct {
 	Id              string           `json:"id"`
 	Round           string           `json:"round,omitempty"`
@@ -142,9 +111,11 @@ type Comment struct {
 	Outdated        bool             `json:"outdated,omitempty"`
 	CreatedAt       int64            `json:"createdat"`
 	UpdatedAt       int64            `json:"updatedat,omitempty"`
+	History         []CommentEvent   `json:"history,omitempty"`
+	Discussion      []CommentMessage `json:"discussion,omitempty"`
 }
 
-// CommentRequest saves a comment: a new one (no Id) with its anchor, or the text of an existing one.
+// CommentRequest saves a comment: a new one (no Id) with its anchor, or the text (and kind) of an existing one.
 type CommentRequest struct {
 	PrKey
 	Id      string            `json:"id,omitempty"`
@@ -153,11 +124,6 @@ type CommentRequest struct {
 	Kind    string            `json:"kind,omitempty"`
 	Text    string            `json:"text"`
 	Lang    string            `json:"lang,omitempty"`
-}
-
-type CommentDeleteRequest struct {
-	PrKey
-	Id string `json:"id"`
 }
 
 // RelocateRequest re-anchors the comments made on other heads to the head the tab shows (FR-REV-003 AC5).
@@ -235,14 +201,20 @@ func (s *Store) SaveComment(req CommentRequest) (State, bool, error) {
 			if c.Original.Text == text && (kind == "" || kind == c.Kind) {
 				return false
 			}
+			textChanged := c.Original.Text != text
 			c.Original.Text = text
 			if kind != "" {
 				c.Kind = kind
 			}
-			// A translation of the old text no longer says the same thing.
-			c.Translation = nil
-			if c.State == CommentStateTranslated {
-				c.State = CommentStateStaged
+			if textChanged {
+				// A translation of the old text no longer says the same thing.
+				c.Translation = nil
+				if c.State == CommentStateTranslated {
+					c.State = CommentStateStaged
+				}
+				addEvent(c, now, EventEdited, AuthorDeveloper, text)
+			} else {
+				addEvent(c, now, EventKind, AuthorDeveloper, "")
 			}
 			c.UpdatedAt = now
 			return true
@@ -254,37 +226,16 @@ func (s *Store) SaveComment(req CommentRequest) (State, bool, error) {
 		if kind == "" {
 			kind = CommentKindComment
 		}
-		state.Comments = append(state.Comments, Comment{
+		c := Comment{
 			Id: uuid.NewString(), Anchor: *req.Anchor, Subject: req.Subject, Kind: kind, State: CommentStateDraft,
 			Original: CommentText{Lang: req.Lang, Text: text}, Author: AuthorDeveloper, CreatedAt: now,
-		})
+		}
+		addEvent(&c, now, EventCreated, AuthorDeveloper, text)
+		state.Comments = append(state.Comments, c)
 		return true
 	})
 	if saveErr != nil {
 		return state, false, saveErr
-	}
-	return state, changed, err
-}
-
-// DeleteComment removes a comment not yet published.
-func (s *Store) DeleteComment(req CommentDeleteRequest) (State, bool, error) {
-	var delErr error
-	state, changed, err := s.update(req.PrKey, func(state *State) bool {
-		for i := range state.Comments {
-			if state.Comments[i].Id != req.Id {
-				continue
-			}
-			if state.Comments[i].State == CommentStatePublished {
-				delErr = fmt.Errorf("this comment is published on GitHub: it stays")
-				return false
-			}
-			state.Comments = append(state.Comments[:i], state.Comments[i+1:]...)
-			return true
-		}
-		return false
-	})
-	if delErr != nil {
-		return state, false, delErr
 	}
 	return state, changed, err
 }

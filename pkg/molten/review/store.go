@@ -231,7 +231,8 @@ func (s *Store) SetCleanup(result CleanupResult) (State, bool, error) {
 	})
 }
 
-// Unpublished counts the PR's comments not published yet (drafted, staged, translated, outdated). It reads the
+// Unpublished counts the PR's comments not published yet (drafted, staged, translated, outdated), the agent's
+// proposals aside. It reads the
 // stored file's comments by their state only, so it does not depend on the rest of the comment's shape (FR-REV-003).
 func (s *Store) Unpublished(k PrKey) (int, error) {
 	if err := k.check(); err != nil {
@@ -258,7 +259,8 @@ func (s *Store) Unpublished(k PrKey) (int, error) {
 	count := 0
 	for _, c := range stored.Comments {
 		switch c.State {
-		case "published", "dropped":
+		// A proposal is the agent's until the developer accepts it (FR-REV-009 AC3).
+		case "published", "dropped", "proposed":
 			continue
 		}
 		count++

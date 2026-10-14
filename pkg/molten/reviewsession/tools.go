@@ -80,8 +80,8 @@ func (m *Manager) Call(ctx context.Context, source string, req mcpreview.CallReq
 	case mcpreview.ToolSelection:
 		return m.toolSelection(s)
 	case mcpreview.ToolPostBriefing, mcpreview.ToolPostExplanation, mcpreview.ToolProposeComment,
-		mcpreview.ToolSetTranslation, mcpreview.ToolKeepNote:
-		return m.toolPost(s, req.Tool, args)
+		mcpreview.ToolSetTranslation, mcpreview.ToolKeepNote, mcpreview.ToolReplyComment:
+		return m.toolPost(ctx, s, req.Tool, args)
 	}
 	return mcpbrowser.ErrorResult(mcpreview.ErrUnknownTool)
 }
@@ -345,6 +345,10 @@ func (m *Manager) toolSelection(s *session) mcpbrowser.CallResult {
 	if sel.Question != "" {
 		out["question"] = sel.Question
 	}
+	if sel.Comment != nil {
+		out["comment"] = sel.Comment
+		out["note"] = discussNote
+	}
 	return jsonResult(out)
 }
 
@@ -369,11 +373,12 @@ type postArgs struct {
 	Kind          string            `json:"kind"`
 	CommentId     string            `json:"commentid"`
 	ExplanationId string            `json:"explanationid"`
+	Rewrite       string            `json:"rewrite"`
 }
 
 // makePost checks a tool's arguments and builds its post.
 func makePost(tool string, in postArgs) (mcpreview.Post, error) {
-	if len(in.Markdown) > mcpreview.MaxResultBytes || len(in.Text) > mcpreview.MaxResultBytes {
+	if len(in.Markdown) > mcpreview.MaxResultBytes || len(in.Text) > mcpreview.MaxResultBytes || len(in.Rewrite) > mcpreview.MaxResultBytes {
 		return mcpreview.Post{}, fmt.Errorf("%s", mcpreview.ErrTooLarge)
 	}
 	switch tool {
@@ -426,11 +431,19 @@ func makePost(tool string, in postArgs) (mcpreview.Post, error) {
 			return mcpreview.Post{}, fmt.Errorf("%s", mcpreview.ErrIdNeeded)
 		}
 		return mcpreview.Post{Kind: mcpreview.PostKeepNote, ExplanationId: in.ExplanationId}, nil
+	case mcpreview.ToolReplyComment:
+		if in.CommentId == "" {
+			return mcpreview.Post{}, fmt.Errorf("%s", mcpreview.ErrIdNeeded)
+		}
+		if strings.TrimSpace(in.Markdown) == "" {
+			return mcpreview.Post{}, fmt.Errorf("%s", mcpreview.ErrMarkdownNeeded)
+		}
+		return mcpreview.Post{Kind: mcpreview.PostReply, Markdown: in.Markdown, Text: strings.TrimSpace(in.Rewrite), CommentId: in.CommentId}, nil
 	}
 	return mcpreview.Post{}, fmt.Errorf("%s", mcpreview.ErrUnknownTool)
 }
 
-func (m *Manager) toolPost(s *session, tool string, args json.RawMessage) mcpbrowser.CallResult {
+func (m *Manager) toolPost(ctx context.Context, s *session, tool string, args json.RawMessage) mcpbrowser.CallResult {
 	var in postArgs
 	if err := json.Unmarshal(args, &in); err != nil {
 		return mcpbrowser.ErrorResult("the arguments could not be read: " + err.Error())
@@ -438,6 +451,11 @@ func (m *Manager) toolPost(s *session, tool string, args json.RawMessage) mcpbro
 	post, err := makePost(tool, in)
 	if err != nil {
 		return mcpbrowser.ErrorResult(err.Error())
+	}
+	if post.Kind == mcpreview.PostProposal {
+		if err := m.completeProposal(ctx, s, &post); err != nil {
+			return mcpbrowser.ErrorResult(err.Error())
+		}
 	}
 	post, err = m.addPost(s, post)
 	if err != nil {
@@ -455,6 +473,9 @@ func (m *Manager) addPost(s *session, post mcpreview.Post) (mcpreview.Post, erro
 	defer m.lock.Unlock()
 	if post.Kind == mcpreview.PostKeepNote && !hasPost(s.posts, post.ExplanationId, mcpreview.PostExplanation) {
 		return post, fmt.Errorf("no explanation of this session has the id %s", post.ExplanationId)
+	}
+	if post.Kind == mcpreview.PostReply && !s.discussed[post.CommentId] {
+		return post, fmt.Errorf("%s", mcpreview.ErrNotDiscussed)
 	}
 	s.nextPost++
 	post.Id = "e" + strconv.Itoa(s.nextPost)

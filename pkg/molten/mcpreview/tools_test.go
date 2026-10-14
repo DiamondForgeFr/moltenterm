@@ -35,7 +35,7 @@ func TestReviewTools(t *testing.T) {
 			t.Errorf("%s schema %v", tool.Name, tool.InputSchema)
 		}
 	}
-	if len(seen) != 9 || !ToolNames()[ToolKeepNote] {
+	if len(seen) != 10 || !ToolNames()[ToolKeepNote] || !ToolNames()[ToolReplyComment] {
 		t.Errorf("tools %v", seen)
 	}
 }

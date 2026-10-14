@@ -155,6 +155,7 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                         <i className="fa fa-solid fa-sparkles text-11" />
                         AI panel
                     </button>
+                    <PublishButton model={model} />
                     <ValidateButton model={model} />
                 </div>
             </div>
@@ -191,6 +192,30 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                 </span>
             </div>
         </div>
+    );
+}
+
+// PublishButton carries the count of staged comments (FR-REV-009 AC4). Publishing them as one GitHub review is
+// FR-REV-010's; until then it shows them in the AI panel.
+function PublishButton({ model }: { model: ReviewViewModel }) {
+    const staged = useAtomValue(model.stagedCountAtom);
+    return (
+        <button
+            type="button"
+            className={ToolbarButton}
+            disabled={staged === 0}
+            onClick={() => fireAndForget(() => model.openPublish())}
+            title={
+                staged === 0
+                    ? "No comment is staged: stage drafts or accept proposals first"
+                    : "Show the staged comments in the AI panel (publishing on GitHub is not available yet)"
+            }
+            data-testid="review-publish"
+            data-count={staged}
+        >
+            <i className="fa fa-solid fa-paper-plane text-11" />
+            Publish review ({staged})
+        </button>
     );
 }
 

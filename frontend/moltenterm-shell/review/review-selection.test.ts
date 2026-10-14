@@ -6,16 +6,22 @@ import { ReviewComment, ReviewHunk, ReviewState } from "./review-client";
 import { commentHover } from "./review-diff-actions";
 import {
     anchorLabel,
+    canDiscuss,
+    canEdit,
+    commentActions,
     commentAtLine,
     commentCounts,
     commentsOfFile,
     developerLanguage,
+    groupComments,
     inHunk,
     isEmptySelection,
     makeAnchor,
     makeSelection,
     onEditorSide,
+    pendingRewrite,
     selectedLines,
+    stagedCount,
 } from "./review-selection";
 
 const Head = "a".repeat(40);
@@ -127,5 +133,60 @@ describe("comments", () => {
     it("are written in the app's language", () => {
         expect(developerLanguage("fr-FR")).toBe("fr");
         expect(developerLanguage("")).toBe("en");
+    });
+
+    it("hover a change request by its kind", () => {
+        expect(commentHover(comment("k", { kind: "change" }))).toContain("**Draft change request**");
+    });
+});
+
+// FR-REV-009: the developer's actions on a comment, the AI panel's groups and Publish review's count.
+describe("review comment drafting", () => {
+    it("offers the actions of each state", () => {
+        expect(commentActions(comment("a"))).toEqual(["stage", "drop"]);
+        expect(commentActions(comment("a", { state: "staged" }))).toEqual(["unstage", "drop"]);
+        expect(commentActions(comment("a", { state: "translated" }))).toEqual(["unstage", "drop"]);
+        expect(commentActions(comment("a", { state: "proposed", author: "agent" }))).toEqual(["accept", "drop"]);
+        expect(commentActions(comment("a", { state: "dropped" }))).toEqual(["restore"]);
+        expect(commentActions(comment("a", { state: "published" }))).toEqual([]);
+        expect(canEdit(comment("a", { state: "proposed" }))).toBe(true);
+        expect(canEdit(comment("a", { state: "dropped" }))).toBe(false);
+        expect(canDiscuss(comment("a", { state: "published" }))).toBe(false);
+    });
+
+    it("groups the comments and counts the staged ones", () => {
+        const state: ReviewState = {
+            repo: "o/r",
+            number: 1,
+            viewed: {},
+            rounds: [],
+            comments: [
+                comment("d", { anchor: { path: "b.ts", side: "RIGHT", line: 2 } }),
+                comment("s", { state: "staged" }),
+                comment("t", { state: "translated" }),
+                comment("p", { state: "proposed", author: "agent" }),
+                comment("x", { state: "dropped" }),
+                comment("u", { state: "published" }),
+            ],
+        };
+        const groups = groupComments(state);
+        expect(groups.proposals.map((c) => c.id)).toEqual(["p"]);
+        expect(groups.staged.map((c) => c.id)).toEqual(["s", "t"]);
+        expect(groups.drafts.map((c) => c.id)).toEqual(["d"]);
+        expect(groups.dropped.map((c) => c.id)).toEqual(["x"]);
+        expect(stagedCount(state)).toBe(2);
+        expect(stagedCount(null)).toBe(0);
+    });
+
+    it("finds the rewrite still waiting for the developer", () => {
+        const c = comment("r", {
+            discussion: [
+                { id: "1", at: 1, by: "agent", text: "a", rewrite: "v1", rewritestate: "ignored" },
+                { id: "2", at: 2, by: "developer", text: "?" },
+                { id: "3", at: 3, by: "agent", text: "b", rewrite: "v2", rewritestate: "proposed" },
+            ],
+        });
+        expect(pendingRewrite(c)?.id).toBe("3");
+        expect(pendingRewrite(comment("n"))).toBeNull();
     });
 });

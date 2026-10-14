@@ -46,10 +46,13 @@ const (
 	MergePlanCommand   = "moltenreviewmergeplan"
 	MergeCommand       = "moltenreviewmerge"
 	MergeCancelCommand = "moltenreviewmergecancel"
-	// Comments (FR-REV-003): saved, deleted and moved to a new head from a MoltenTerm window only.
-	CommentCommand   = "moltenreviewcomment"
-	UncommentCommand = "moltenreviewcommentdelete"
-	RelocateCommand  = "moltenreviewrelocate"
+	// Comments (FR-REV-003, FR-REV-009): saved, staged, dropped, discussed and moved to a new head from a MoltenTerm
+	// window only.
+	CommentCommand      = "moltenreviewcomment"
+	CommentStateCommand = "moltenreviewcommentstate"
+	RewriteCommand      = "moltenreviewcommentrewrite"
+	DiscussCommand      = "moltenreviewcommentdiscuss"
+	RelocateCommand     = "moltenreviewrelocate"
 )
 
 const (
@@ -84,6 +87,8 @@ type Service struct {
 	merger  *Merger
 	// cleaner: the cleanup after the merge (FR-REV-013); nil in the tests that do not need it.
 	cleaner *Cleaner
+	// discuss sends a comment to the PR's review session (FR-REV-009); reviewsession.Discuss outside the tests.
+	discuss func(ctx context.Context, req mcpreview.DiscussRequest) (mcpreview.AskResult, error)
 
 	lock      sync.Mutex
 	treeLocks map[string]*sync.Mutex
@@ -150,6 +155,7 @@ func Start() {
 			DataDir:    wavebase.GetWaveDataDir(),
 		})
 		SetPostMerge(service)
+		service.discuss = reviewsession.Discuss
 		link := &routeLink{service: service, output: make(chan []byte, routeQueueSize), localSource: localSourceOnLink}
 		if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId); err != nil {
 			log.Printf("%s route not started: %v\n", logPrefix, err)
@@ -167,16 +173,32 @@ func Start() {
 	})
 }
 
-// SessionPosted keeps what the review session posts that outlives it: the briefing (FR-REV-005 AC4).
+// SessionPosted keeps what the review session posts that outlives it: the briefing (FR-REV-005 AC4), the comment
+// proposals and the replies on comments (FR-REV-009).
 func (s *Service) SessionPosted(update mcpreview.Update) {
 	post := update.Post
-	if post == nil || post.Kind != mcpreview.PostBriefing {
+	if post == nil {
 		return
 	}
 	k := PrKey{Repo: update.Repo, Number: update.Number}
-	b := Briefing{Markdown: post.Markdown, HeadOid: post.HeadOid, Agent: post.Agent, At: post.At}
-	if _, err := s.changed(s.store.SetBriefing(k, b)); err != nil {
-		log.Printf("%s %s#%d: the briefing could not be kept: %v\n", logPrefix, k.Repo, k.Number, err)
+	var err error
+	what := ""
+	switch post.Kind {
+	case mcpreview.PostBriefing:
+		what = "the briefing"
+		b := Briefing{Markdown: post.Markdown, HeadOid: post.HeadOid, Agent: post.Agent, At: post.At}
+		_, err = s.changed(s.store.SetBriefing(k, b))
+	case mcpreview.PostProposal:
+		what = "the comment proposal"
+		_, err = s.changed(s.store.AddProposal(k, *post))
+	case mcpreview.PostReply:
+		what = "the reply on a comment"
+		_, err = s.changed(s.store.AddReply(k, *post))
+	default:
+		return
+	}
+	if err != nil {
+		log.Printf("%s %s#%d: %s could not be kept: %v\n", logPrefix, k.Repo, k.Number, what, err)
 	}
 }
 
@@ -227,7 +249,7 @@ func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) 
 	}()
 	timeout := controlTimeout
 	switch req.Command {
-	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand, RelocateCommand:
+	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand, RelocateCommand, DiscussCommand:
 		timeout = gitTimeout
 	case CleanupCommand:
 		timeout = cleanupTimeout
@@ -364,12 +386,24 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return s.changed(s.store.SaveComment(req))
-	case UncommentCommand:
-		req, err := decode[CommentDeleteRequest](data)
+	case CommentStateCommand:
+		req, err := decode[CommentStateRequest](data)
 		if err != nil {
 			return nil, err
 		}
-		return s.changed(s.store.DeleteComment(req))
+		return s.changed(s.store.SetCommentState(req))
+	case RewriteCommand:
+		req, err := decode[RewriteRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.changed(s.store.UseRewrite(req))
+	case DiscussCommand:
+		req, err := decode[DiscussRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.Discuss(ctx, req)
 	case RelocateCommand:
 		req, err := decode[RelocateRequest](data)
 		if err != nil {

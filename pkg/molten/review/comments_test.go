@@ -58,8 +58,9 @@ func anchorOn(head string, side string, start int, line int, excerpt string) *mc
 	return &mcpreview.Anchor{Path: "change.go", Side: side, StartLine: start, Line: line, HeadOid: head, Excerpt: excerpt}
 }
 
-// FR-REV-003 AC3: a comment is saved as a draft with its anchor; its text can change until it is published.
-func TestSaveAndDeleteComment(t *testing.T) {
+// FR-REV-003 AC3: a comment is saved as a draft with its anchor; its text can change until it is published. FR-REV-009
+// AC5: dropping keeps it, with its history.
+func TestSaveAndDropComment(t *testing.T) {
 	s := MakeStore(t.TempDir())
 	k := PrKey{Repo: "o/r", Number: 3}
 	head := strings.Repeat("a", 40)
@@ -91,13 +92,18 @@ func TestSaveAndDeleteComment(t *testing.T) {
 	if _, _, err := s.SaveComment(CommentRequest{PrKey: k, Id: c.Id, Text: "x"}); err == nil {
 		t.Error("a published comment was changed")
 	}
-	if _, _, err := s.DeleteComment(CommentDeleteRequest{PrKey: k, Id: c.Id}); err == nil {
-		t.Error("a published comment was deleted")
+	if _, _, err := s.SetCommentState(CommentStateRequest{PrKey: k, Id: c.Id, Action: ActionDrop}); err == nil {
+		t.Error("a published comment was dropped")
 	}
 	s.update(k, func(st *State) bool { st.Comments[0].State = CommentStateDraft; return true })
-	state, changed, err = s.DeleteComment(CommentDeleteRequest{PrKey: k, Id: c.Id})
-	if err != nil || !changed || len(state.Comments) != 0 {
-		t.Errorf("delete %v %+v", err, state.Comments)
+	state, changed, err = s.SetCommentState(CommentStateRequest{PrKey: k, Id: c.Id, Action: ActionDrop})
+	if err != nil || !changed || len(state.Comments) != 1 || state.Comments[0].State != CommentStateDropped {
+		t.Errorf("drop %v %+v", err, state.Comments)
+	}
+	h := state.Comments[0].History
+	if len(h) != 3 || h[0].Event != EventCreated || h[0].Text != "Pourquoi ?" || h[1].Event != EventEdited ||
+		h[1].Text != "Pourquoi ce choix ?" || h[1].Kind != CommentKindChange || h[2].Event != EventDropped || h[2].State != CommentStateDropped {
+		t.Errorf("history %+v", h)
 	}
 }
 
