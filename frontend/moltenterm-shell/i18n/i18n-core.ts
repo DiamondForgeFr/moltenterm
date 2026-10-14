@@ -187,6 +187,15 @@ export function translate(locale: string, key: string, vars?: I18nVars): string 
     return interpolate(text, vars);
 }
 
+// The text of `key` in `code` alone, packs included, without falling back to English.
+export function languageText(code: string, key: string): string | undefined {
+    return lookup(code, key);
+}
+
+export function isShippedLanguage(code: string): boolean {
+    return ShippedLanguages.some((l) => l.code === code);
+}
+
 export function hasKey(key: string): boolean {
     return lookup(FallbackLanguage, key) != null;
 }

@@ -10,10 +10,12 @@ import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { addMoltentermNotification } from "../notifications-store";
 import { AppLanguageSettingKey, I18nModel, t } from "./i18n";
+import { LanguagePackInput, languagePacks } from "./language-packs";
 
 type I18nApi = {
     moltentermSystemLanguages?: () => string[];
     moltentermSetLocale?: (locale: string) => void;
+    moltentermSetLanguagePacks?: (packs: LanguagePackInput[]) => void;
 };
 
 let started = false;
@@ -53,12 +55,23 @@ export function startMoltentermI18n() {
     };
     applySetting();
     globalStore.sub(atoms.settingsAtom, applySetting);
+    const packs = languagePacks();
     const sendLocale = () => {
         const api = getApi() as unknown as I18nApi;
         api?.moltentermSetLocale?.(model.getLocale());
+        // A pack's language is unknown until the mod host handed the packs over (FR-I18N-002).
         const unknown = globalStore.get(model.resolutionAtom).unknown;
-        if (unknown) reportUnknownLanguage(unknown);
+        if (unknown && packs.loaded) reportUnknownLanguage(unknown);
+    };
+    // Main gets the packs' dictionaries before the code, so the app menu can speak a pack's language.
+    const sendPacks = () => {
+        const api = getApi() as unknown as I18nApi;
+        api?.moltentermSetLanguagePacks?.(
+            packs.activePacks().map((p) => ({ modId: p.modId, code: p.code, name: p.name, dict: p.dict }))
+        );
+        sendLocale();
     };
     sendLocale();
     globalStore.sub(model.resolutionAtom, sendLocale);
+    packs.onChange(sendPacks);
 }

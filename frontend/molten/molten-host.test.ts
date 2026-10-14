@@ -411,7 +411,12 @@ describe("MoltenHost", () => {
         expect(modState(host, "sneaky")).toMatchObject({ state: "untrusted", commands: [] });
         expect(modState(host, "ok").state).toBe("active");
         expect(importModule).toHaveBeenCalledTimes(1);
-        expect(readTextFile.mock.calls.some(([path]) => path.startsWith(`${ModsDir}/sneaky/`))).toBe(false);
+        // Its manifest is read, to know whether it is a data-only mod (FR-I18N-002); never its code.
+        expect(
+            readTextFile.mock.calls.some(
+                ([path]) => path.startsWith(`${ModsDir}/sneaky/`) && path !== `${ModsDir}/sneaky/mod.json`
+            )
+        ).toBe(false);
 
         trusted.ids = ["ok", "sneaky"];
         await host.reload(["sneaky"]);
