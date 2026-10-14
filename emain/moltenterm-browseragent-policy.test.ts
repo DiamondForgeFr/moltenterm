@@ -1,10 +1,13 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
     captureParams,
     captureTargetSize,
+    CdpAllowedMethods,
     cdpMethodAllowed,
     downloadHost,
     expectedSignature,
@@ -43,7 +46,7 @@ describe("DevTools allow-list (DS-BRW-012)", () => {
     it("allows the page, accessibility, DOM, input and emulation methods the tools use", () => {
         for (const method of [
             "Page.getNavigationHistory",
-            "Page.captureScreenshot",
+            "Page.getLayoutMetrics",
             "Accessibility.getFullAXTree",
             "DOM.getBoxModel",
             "Input.dispatchMouseEvent",
@@ -80,6 +83,30 @@ describe("DevTools allow-list (DS-BRW-012)", () => {
         ]) {
             expect(cdpMethodAllowed(method)).toBe(false);
         }
+    });
+
+    // #663: the allow-list is exactly what wavesrv sends, read from the Go sources (MoltenTerm's own Molten.*
+    // operations aside), so a method no tool uses can never be called.
+    it("matches the DevTools methods pkg/molten/browseragent sends", () => {
+        const dir = path.join(__dirname, "..", "pkg", "molten", "browseragent");
+        const used = new Set<string>();
+        for (const name of fs.readdirSync(dir)) {
+            if (!name.endsWith(".go") || name.endsWith("_test.go")) {
+                continue;
+            }
+            const code = fs
+                .readFileSync(path.join(dir, name), "utf8")
+                .split("\n")
+                .filter((line) => !line.trim().startsWith("//"))
+                .join("\n");
+            for (const match of code.matchAll(/"([A-Z][A-Za-z]*\.[a-z][A-Za-z]*)"/g)) {
+                if (!match[1].startsWith("Molten.")) {
+                    used.add(match[1]);
+                }
+            }
+        }
+        expect(used.size).toBeGreaterThan(0);
+        expect([...CdpAllowedMethods].sort()).toEqual([...used].sort());
     });
 
     it("tells the agent's own input from the user's", () => {
