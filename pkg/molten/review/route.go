@@ -39,6 +39,10 @@ const (
 	StateCommand    = "moltenreviewstate"
 	ViewedCommand   = "moltenreviewviewed"
 	ShownCommand    = "moltenreviewshown"
+	// Validate (FR-REV-012): the plan, the merge and its cancel are a MoltenTerm window's only.
+	MergePlanCommand   = "moltenreviewmergeplan"
+	MergeCommand       = "moltenreviewmerge"
+	MergeCancelCommand = "moltenreviewmergecancel"
 )
 
 const (
@@ -70,13 +74,15 @@ type Service struct {
 	git     reviewsession.GitRunner
 	dataDir string
 	publish func(k PrKey, state State)
+	merger  *Merger
 
 	lock      sync.Mutex
 	treeLocks map[string]*sync.Mutex
 }
 
 func MakeService(dataDir string, git reviewsession.GitRunner, publish func(k PrKey, state State)) *Service {
-	return &Service{differ: MakeDiffer(git), store: MakeStore(dataDir), git: git, dataDir: dataDir, publish: publish, treeLocks: map[string]*sync.Mutex{}}
+	store := MakeStore(dataDir)
+	return &Service{differ: MakeDiffer(git), store: store, git: git, dataDir: dataDir, publish: publish, merger: MakeMerger(store, ExecGh, publish), treeLocks: map[string]*sync.Mutex{}}
 }
 
 func (s *Service) treeLock(key string) *sync.Mutex {
@@ -173,7 +179,7 @@ func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) 
 	}()
 	timeout := controlTimeout
 	switch req.Command {
-	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand:
+	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand:
 		timeout = gitTimeout
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -270,6 +276,26 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return s.changed(s.store.Shown(req))
+	case MergePlanCommand:
+		// A plan is what a merge is bound to: a terminal making one would replace the plan the window shows.
+		req, err := decode[MergePlanRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.merger.Plan(ctx, req)
+	case MergeCommand:
+		// NFR-REV-003: the merge follows the developer's click on the plan sheet; no agent tool reaches it.
+		req, err := decode[MergeRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.merger.Merge(req)
+	case MergeCancelCommand:
+		req, err := decode[PrKey](data)
+		if err != nil {
+			return nil, err
+		}
+		return nil, s.merger.Cancel(req)
 	}
 	return nil, fmt.Errorf("unknown review command %q", command)
 }

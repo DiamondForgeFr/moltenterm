@@ -31,6 +31,7 @@ import {
     TreeNode,
 } from "./review-model";
 import { ReviewAiState, ReviewFileView, ReviewTabModel } from "./review-tab-model";
+import { ValidateButton, ValidateSheet } from "./review-validate";
 
 export { MoltentermReviewView };
 
@@ -68,6 +69,7 @@ export function ReviewView({ model }: ViewComponentProps<ReviewViewModel>) {
                 <DiffPanel model={model} />
                 <AiPanel model={model} />
             </div>
+            <ValidateSheet model={model} />
         </div>
     );
 }
@@ -148,6 +150,7 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                         <i className="fa fa-solid fa-sparkles text-11" />
                         AI panel
                     </button>
+                    <ValidateButton model={model} />
                 </div>
             </div>
             <div className="flex flex-wrap items-center gap-1.5 text-12">

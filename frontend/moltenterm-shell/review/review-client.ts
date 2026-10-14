@@ -20,6 +20,9 @@ const WorktreeCommand = "moltenreviewworktree";
 const StateCommand = "moltenreviewstate";
 const ViewedCommand = "moltenreviewviewed";
 const ShownCommand = "moltenreviewshown";
+const MergePlanCommand = "moltenreviewmergeplan";
+const MergeCommand = "moltenreviewmerge";
+const MergeCancelCommand = "moltenreviewmergecancel";
 
 // A file list or a compare may fetch the PR's branches; a worktree may be created.
 const GitTimeoutMs = 95_000;
@@ -89,6 +92,68 @@ export type ReviewRound = {
 
 export type ReviewSince = { from: string; to: string; published?: boolean };
 
+// must match pkg/molten/review/merge.go and postmerge.go
+export type ReviewCheckState = "ok" | "info" | "warn" | "pending" | "fail";
+export type ReviewMergeCheck = { id: string; label: string; state: ReviewCheckState; detail?: string };
+export type ReviewMergeStep = { id: string; label: string; detail?: string };
+export type ReviewCleanupStep = {
+    id: string;
+    label: string;
+    state: "planned" | "done" | "skipped" | "failed";
+    detail?: string;
+};
+
+export type ReviewMergePlan = {
+    id: string;
+    repo: string;
+    number: number;
+    dir: string;
+    title?: string;
+    url?: string;
+    ticket?: number;
+    headref: string;
+    baseref: string;
+    headoid: string;
+    prstate: string;
+    mergestate?: string;
+    mergeable?: string;
+    behind?: boolean;
+    checks: ReviewMergeCheck[];
+    steps: ReviewMergeStep[];
+    cleanup: ReviewCleanupStep[];
+    canmerge: boolean;
+    reason?: string;
+    warnings: string[];
+    createdat: number;
+};
+
+export type ReviewMergeState =
+    | "checking"
+    | "updating"
+    | "waitingci"
+    | "merging"
+    | "merged"
+    | "refused"
+    | "failed"
+    | "cancelled";
+
+export type ReviewMergeRecord = {
+    planid: string;
+    method: string;
+    planhead: string;
+    head?: string;
+    mergedoid?: string;
+    state: ReviewMergeState;
+    refused?: "headmoved" | "basemoved" | "check" | "mergedaway";
+    message?: string;
+    updated?: boolean;
+    overridden?: string[];
+    startedat: number;
+    endedat?: number;
+    cleanup?: ReviewCleanupStep[];
+    cleanuprunning?: boolean;
+};
+
 // must match State in pkg/molten/review/store.go
 export type ReviewState = {
     repo: string;
@@ -98,6 +163,7 @@ export type ReviewState = {
     since?: ReviewSince;
     rounds: ReviewRound[];
     updatedat?: number;
+    merge?: ReviewMergeRecord;
 };
 
 // The PR a Review tab shows, kept in its block's meta (PrMetaKey).
@@ -172,6 +238,25 @@ export function setReviewViewed(
 
 export function setReviewShown(repo: string, num: number, headoid: string): Promise<ReviewState> {
     return call(ShownCommand, { repo, number: num, headoid });
+}
+
+// Validate (FR-REV-012): the plan reads the PR once on GitHub; the merge starts on the developer's click and reports
+// through the review store.
+export function reviewMergePlan(req: {
+    dir: string;
+    repo: string;
+    number: number;
+    ticket?: number;
+}): Promise<ReviewMergePlan> {
+    return call(MergePlanCommand, req, GitTimeoutMs);
+}
+
+export function reviewMerge(repo: string, num: number, planid: string, override: boolean): Promise<ReviewMergeRecord> {
+    return call(MergeCommand, { repo, number: num, planid, override: override || undefined });
+}
+
+export function reviewMergeCancel(repo: string, num: number): Promise<void> {
+    return call(MergeCancelCommand, { repo, number: num });
 }
 
 // subscribeReviewState follows a PR's review store (another window, the CLI); returns the unsubscribe function.
