@@ -89,6 +89,17 @@ func TestHistoryKeepsTheOriginal(t *testing.T) {
 	}
 }
 
+// A fast agent's reply is kept before the developer's message that asked for it: the discussion stays in time order.
+func TestDiscussionOrder(t *testing.T) {
+	c := Comment{}
+	addMessage(&c, CommentMessage{Id: "reply", At: 20, By: MessageByAgent})
+	addMessage(&c, CommentMessage{Id: "asked", At: 10, By: MessageByDeveloper})
+	addMessage(&c, CommentMessage{Id: "again", At: 30, By: MessageByDeveloper})
+	if c.Discussion[0].Id != "asked" || c.Discussion[1].Id != "reply" || c.Discussion[2].Id != "again" {
+		t.Errorf("order %+v", c.Discussion)
+	}
+}
+
 // FR-REV-009 AC3: the agent's proposal is a proposal until the developer accepts it; then it is a staged comment.
 func TestProposals(t *testing.T) {
 	svc := MakeService(t.TempDir(), execGit, nil)
@@ -175,7 +186,7 @@ func TestDiscussAndReply(t *testing.T) {
 		t.Errorf("developer message %+v", m)
 	}
 
-	reply := mcpreview.Post{Id: "e4", Kind: mcpreview.PostReply, At: 200, CommentId: id, Markdown: "Oui, **mais**…", Text: "Pourquoi appeler deux fois `load` ?", Agent: "claude"}
+	reply := mcpreview.Post{Id: "e4", Kind: mcpreview.PostReply, CommentId: id, Markdown: "Oui, **mais**…", Text: "Pourquoi appeler deux fois `load` ?", Agent: "claude"}
 	svc.SessionPosted(mcpreview.Update{Repo: k.Repo, Number: k.Number, Post: &reply})
 	state, _ = svc.store.Get(k)
 	msg := state.Comments[0].Discussion[1]
