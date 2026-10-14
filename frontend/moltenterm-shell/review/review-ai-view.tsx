@@ -99,7 +99,7 @@ function AiPanel({ review }: { review: ReviewTabModel }) {
     };
     return (
         <div
-            className="flex h-full min-h-0 w-full flex-col gap-3 overflow-auto p-3 text-12"
+            className="molten-review-ai flex h-full min-h-0 w-full flex-col gap-3 overflow-auto p-3 text-12"
             aria-label={t("review.ai.viewName")}
             data-testid="review-ai"
         >
