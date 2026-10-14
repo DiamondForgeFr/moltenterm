@@ -48,12 +48,12 @@ func TranslateLine(req mcpreview.TranslateRequest) string {
 		translateLinePrefix, what, name, reviewlang.Normalize(req.Lang))
 }
 
-// Translate asks the PR's session for the translations (wavesrv's review service calls it); an error when the
-// sessions were not started or the PR has none.
+// Translate asks the PR's session for the translations (wavesrv's review service calls it); when the
+// sessions were not started or the PR has none, the result says the session ended.
 func Translate(ctx context.Context, req mcpreview.TranslateRequest) (mcpreview.AskResult, error) {
 	manager := liveManager.Load()
 	if manager == nil {
-		return mcpreview.AskResult{}, errors.New(mcpreview.ErrSessionEnded)
+		return askSessionEnded(), nil
 	}
 	return manager.Translate(ctx, req)
 }
@@ -80,17 +80,17 @@ func (m *Manager) Translate(ctx context.Context, req mcpreview.TranslateRequest)
 	}
 	s := m.find(req.SessionKey)
 	if s == nil {
-		return mcpreview.AskResult{}, errors.New(mcpreview.ErrSessionEnded)
+		return askSessionEnded(), nil
 	}
 	if m.env.TypePrompt == nil {
-		return mcpreview.AskResult{}, errors.New("MoltenTerm cannot type in the session's terminal")
+		return askCannotType(), nil
 	}
 	kept := req
 	kept.Items = append([]mcpreview.TranslateItem(nil), req.Items...)
 	m.setTranslation(s, &kept)
 	line := TranslateLine(req)
 	out := m.typeLine(ctx, s, line)
-	return mcpreview.AskResult{Sent: out.Sent, Submitted: out.Submitted, Busy: out.Retry && !out.Starting, Starting: out.Starting, Line: line, Message: out.Message}, nil
+	return mcpreview.AskResult{Sent: out.Sent, Submitted: out.Submitted, Busy: out.Retry && !out.Starting, Starting: out.Starting, Line: line, Message: out.Message, Reason: out.Reason, Program: out.Program}, nil
 }
 
 func (m *Manager) setTranslation(s *session, req *mcpreview.TranslateRequest) {

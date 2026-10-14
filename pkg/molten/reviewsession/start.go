@@ -171,9 +171,9 @@ func liveEnv(hooks Hooks) Env {
 			}
 			switch out.Reason {
 			case termupdate.InputReasonWorking, termupdate.InputReasonWaiting, termupdate.InputReasonBusy, termupdate.InputReasonNotForeground:
-				return TypeOutcome{Retry: true, Message: out.Message}
+				return TypeOutcome{Retry: true, Reason: out.Reason, Program: out.Program, Message: out.Message}
 			}
-			return TypeOutcome{Message: out.Message}
+			return TypeOutcome{Reason: out.Reason, Program: out.Program, Message: out.Message}
 		},
 		AgentRun:    attention.AgentRun,
 		AgentHooked: attention.AgentStatesPrecise,

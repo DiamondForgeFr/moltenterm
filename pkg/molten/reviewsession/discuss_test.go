@@ -47,7 +47,7 @@ func TestDiscussReplyAndPropose(t *testing.T) {
 	key := mcpreview.SessionKey{Repo: "Owner/Repo", Number: 7}
 	anchor := &mcpreview.Anchor{Path: "main.go", Side: mcpreview.SideRight, StartLine: 3, Line: 4, HeadOid: repo.head, Excerpt: "func main() {\n\tprintln(\"hi\")"}
 	comment := mcpreview.CommentRef{Id: "c-1", Kind: mcpreview.KindComment, Subject: "line", Text: "Pourquoi println ?", Lang: "fr"}
-	if _, err := m.Discuss(ctx, mcpreview.DiscussRequest{SessionKey: key, Anchor: anchor, Comment: comment}); err == nil {
+	if res, err := m.Discuss(ctx, mcpreview.DiscussRequest{SessionKey: key, Anchor: anchor, Comment: comment}); err != nil || res.Sent || res.Reason != mcpreview.ReasonSessionEnded {
 		t.Fatal("discussed without a session")
 	}
 	if _, err := m.Start(ctx, "", startReq(repo)); err != nil {

@@ -88,44 +88,56 @@ func (m *Manager) Ask(ctx context.Context, req mcpreview.AskRequest) (mcpreview.
 			return mcpreview.AskResult{}, err
 		}
 	}
-	s := m.find(req.SessionKey)
-	if s == nil {
-		return mcpreview.AskResult{}, errors.New(mcpreview.ErrSessionEnded)
-	}
-	if m.env.TypePrompt == nil {
-		return mcpreview.AskResult{}, errors.New("MoltenTerm cannot type in the session's terminal")
-	}
 	if req.Depth != "" && req.Depth != mcpreview.DepthQuick && req.Depth != mcpreview.DepthDetailed {
 		return mcpreview.AskResult{}, errors.New(mcpreview.ErrDepth)
 	}
+	s := m.find(req.SessionKey)
+	if s == nil {
+		return askSessionEnded(), nil
+	}
+	if m.env.TypePrompt == nil {
+		return askCannotType(), nil
+	}
 	q := mcpreview.QueuedQuestion{Anchor: req.Anchor, Text: req.Text, Question: question, Depth: normalDepth(req.Depth)}
 	line := AskLine(req.Anchor, question, q.Depth)
-	busy := ""
+	var busy TypeOutcome
 	if !m.hasQuestions(s) {
 		out := m.deliverQuestion(ctx, s, q)
 		if out.Starting {
-			return mcpreview.AskResult{Starting: true, Line: line, Message: out.Message}, nil
+			return mcpreview.AskResult{Starting: true, Line: line, Message: out.Message, Reason: out.Reason}, nil
 		}
 		if !out.Retry {
 			if out.Sent && m.clearQueueNote(s) {
 				m.publish(s, false)
 			}
-			return mcpreview.AskResult{Sent: out.Sent, Submitted: out.Submitted, Line: line, Message: out.Message}, nil
+			return mcpreview.AskResult{Sent: out.Sent, Submitted: out.Submitted, Line: line, Message: out.Message,
+				Reason: out.Reason, Program: out.Program}, nil
 		}
-		busy = out.Message
+		busy = out
 	}
 	q, position := m.enqueueQuestion(s, q)
 	m.publish(s, false)
 	// Message: why the agent could not take it now; the window says it is queued.
-	return mcpreview.AskResult{Queued: true, Busy: busy != "", QuestionId: q.Id, Position: position, Line: line,
-		Message: strings.TrimSpace(busy)}, nil
+	message := strings.TrimSpace(busy.Message)
+	return mcpreview.AskResult{Queued: true, Busy: message != "", QuestionId: q.Id, Position: position, Line: line,
+		Message: message, Reason: busy.Reason, Program: busy.Program}, nil
+}
+
+// askSessionEnded and askCannotType answer a window's Ask, Discuss or translation request that cannot be typed: the
+// window says why in its language.
+func askSessionEnded() mcpreview.AskResult {
+	return mcpreview.AskResult{Reason: mcpreview.ReasonSessionEnded, Message: mcpreview.ErrSessionEnded}
+}
+
+func askCannotType() mcpreview.AskResult {
+	return mcpreview.AskResult{Reason: mcpreview.ReasonCannotType, Message: "MoltenTerm cannot type in the session's terminal."}
 }
 
 // deliverQuestion makes the question's selection the session's and types its line. A busy agent gets nothing: the
 // selection goes back to what it was, since the agent may be reading it for the question it is answering.
 func (m *Manager) deliverQuestion(ctx context.Context, s *session, q mcpreview.QueuedQuestion) TypeOutcome {
-	if reason := m.agentBusy(s); reason != "" {
-		return TypeOutcome{Retry: true, Message: reason}
+	if busy := m.agentBusy(s); busy.Retry {
+		return busy
 	}
 	sel := &mcpreview.SelectionRequest{SessionKey: mcpreview.SessionKey{Id: s.rec.Id}, Anchor: q.Anchor, Text: q.Text,
 		Question: q.Question, Depth: normalDepth(q.Depth)}

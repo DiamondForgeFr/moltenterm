@@ -45,12 +45,12 @@ func DiscussLine(anchor *mcpreview.Anchor, comment mcpreview.CommentRef, message
 	return ref + ": the message is long, read it with review_selection and reply with review_reply_comment."
 }
 
-// Discuss sends a comment to the PR's session (wavesrv's review service calls it); an error when the sessions were not
-// started or the PR has none.
+// Discuss sends a comment to the PR's session (wavesrv's review service calls it); when the sessions were not
+// started or the PR has none, the result says the session ended.
 func Discuss(ctx context.Context, req mcpreview.DiscussRequest) (mcpreview.AskResult, error) {
 	manager := liveManager.Load()
 	if manager == nil {
-		return mcpreview.AskResult{}, errors.New(mcpreview.ErrSessionEnded)
+		return askSessionEnded(), nil
 	}
 	return manager.Discuss(ctx, req)
 }
@@ -69,10 +69,10 @@ func (m *Manager) Discuss(ctx context.Context, req mcpreview.DiscussRequest) (mc
 	}
 	s := m.find(req.SessionKey)
 	if s == nil {
-		return mcpreview.AskResult{}, errors.New(mcpreview.ErrSessionEnded)
+		return askSessionEnded(), nil
 	}
 	if m.env.TypePrompt == nil {
-		return mcpreview.AskResult{}, errors.New("MoltenTerm cannot type in the session's terminal")
+		return askCannotType(), nil
 	}
 	comment := req.Comment
 	m.setDiscussed(s, &mcpreview.SelectionRequest{
@@ -81,7 +81,7 @@ func (m *Manager) Discuss(ctx context.Context, req mcpreview.DiscussRequest) (mc
 	})
 	line := DiscussLine(req.Anchor, comment, req.Message)
 	out := m.typeLine(ctx, s, line)
-	return mcpreview.AskResult{Sent: out.Sent, Submitted: out.Submitted, Busy: out.Retry && !out.Starting, Starting: out.Starting, Line: line, Message: out.Message}, nil
+	return mcpreview.AskResult{Sent: out.Sent, Submitted: out.Submitted, Busy: out.Retry && !out.Starting, Starting: out.Starting, Line: line, Message: out.Message, Reason: out.Reason, Program: out.Program}, nil
 }
 
 func (m *Manager) setDiscussed(s *session, sel *mcpreview.SelectionRequest) {

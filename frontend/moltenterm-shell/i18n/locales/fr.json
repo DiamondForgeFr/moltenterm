@@ -4041,6 +4041,33 @@
                 "translation": "L'agent n'était toujours pas prêt après {seconds} s : votre demande de traduction n'a pas été envoyée. Réessayez."
             }
         },
+        "session": {
+            "briefTyped": "La demande est dans l'invite de votre agent, après ce que vous y tapiez : appuyez sur Entrée dans son terminal pour l'envoyer.",
+            "reason": {
+                "notinstalled": "Aucun agent de code pris en charge (Claude Code ou Codex) n'est installé : la revue n'a donc pas d'IA. Le diff, les commentaires, la publication et la fusion fonctionnent sans elle.",
+                "agentmissing": "{agent} n'est pas installé : la revue n'a donc pas d'IA. Le diff, les commentaires, la publication et la fusion fonctionnent sans elle.",
+                "alreadystarting": "La session de revue de cette PR est déjà en train de démarrer.",
+                "nomolten": "La commande molten de MoltenTerm n'est pas installée : les outils de revue ne peuvent pas être donnés à l'agent.",
+                "head": "La tête de la PR est introuvable : {message}",
+                "worktree": "Le worktree de revue n'a pas pu être préparé : {message}",
+                "command": "La ligne de commande de l'agent n'a pas pu être préparée : {message}",
+                "terminal": "Le terminal de la session n'a pas pu être créé : {message}",
+                "notstarted": "L'agent n'a pas démarré ({message}). Lancez-le dans le terminal de revue avec : {command}",
+                "sessionended": "Cette session de revue est terminée.",
+                "cannottype": "MoltenTerm ne peut pas taper dans le terminal de la session.",
+                "agentstarting": "{agent} démarre : ceci est envoyé dès qu'il est prêt.",
+                "queuehold": "La dernière question est dans l'invite de {agent}, après ce que vous y tapiez : appuyez sur Entrée dans son terminal. Les questions suivantes l'attendent.",
+                "queuefailed": "Une question en attente n'a pas pu être envoyée : {why}",
+                "working": "{agent} travaille.",
+                "waiting": "{agent} attend votre réponse.",
+                "notforeground": "{program} est au premier plan du terminal de revue, pas {agent} : rien n'a été tapé.",
+                "notforegroundGone": "{agent} n'est plus le programme au premier plan : rien n'a été tapé.",
+                "noagent": "{agent} ne tourne plus dans le terminal de revue : rien n'a été tapé.",
+                "busy": "MoltenTerm tape déjà dans ce terminal : réessayez dans un instant.",
+                "unavailable": "MoltenTerm n'a pas pu taper dans le terminal de revue : rien n'a été tapé.",
+                "unknownaction": "Il n'y a aucune ligne à taper : rien n'a été tapé."
+            }
+        },
         "ai": {
             "viewName": "Panneau IA",
             "viewNamePr": "Panneau IA · #{number}",

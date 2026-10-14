@@ -67,6 +67,8 @@ type session struct {
 	tabId   string
 	state   string
 	message string
+	// reason: the code of message (mcpreview.Reason…), which the windows show in their language.
+	reason string
 
 	selection *mcpreview.SelectionRequest
 	// discussed: the comments the developer discussed in this session, the only ones the agent may reply on.
@@ -84,7 +86,7 @@ type session struct {
 	// queueHold: the last question was typed without Enter, after a draft of the developer's; the next ones wait
 	// until the agent has started working on it.
 	queueHold bool
-	queueNote string
+	queueNote queueNote
 	// baseOid: the merge base of the head with the base branch, read once per head.
 	baseOid string
 	// sources: the PR's sources for review_context, read once per head (context.go).
@@ -106,9 +108,18 @@ func (s *session) info(connected bool) mcpreview.SessionInfo {
 		Id: s.rec.Id, Repo: s.rec.Repo, Number: s.rec.Number, Title: s.rec.Title, ProjectDir: s.rec.ProjectDir,
 		HeadRef: s.rec.HeadRef, HeadOid: s.rec.HeadOid, BaseRef: s.rec.BaseRef, Worktree: s.rec.Worktree,
 		WorktreeKind: s.rec.WorktreeKind, Agent: s.rec.Agent, AgentName: molten.AgentDisplayName(s.rec.Agent),
-		BlockId: s.blockId, TabId: s.tabId, Command: s.rec.Command, State: s.state, Message: s.message,
-		StartedAt: s.rec.StartedAt, Connected: connected, Questions: slices.Clone(s.questions), QueueNote: s.queueNote,
+		BlockId: s.blockId, TabId: s.tabId, Command: s.rec.Command, State: s.state, Message: s.message, Reason: s.reason,
+		StartedAt: s.rec.StartedAt, Connected: connected, Questions: slices.Clone(s.questions), QueueNote: s.queueNote.text,
+		QueueNoteReason: s.queueNote.reason, QueueNoteCause: s.queueNote.cause,
 	}
+}
+
+// queueNote is the question queue's note: wavesrv's English text and its code (mcpreview.ReasonQueue…), with the
+// typing path's reason when a queued question failed.
+type queueNote struct {
+	text   string
+	reason string
+	cause  string
 }
 
 // ReviewBlock is a terminal block that holds a review session.
@@ -304,9 +315,9 @@ func (m *Manager) publish(s *session, ended bool) {
 	m.env.Publish(mcpreview.ScopeOf(s.rec.Repo, s.rec.Number), mcpreview.Update{Session: &info, Ended: ended})
 }
 
-func (m *Manager) setState(s *session, state string, message string) {
+func (m *Manager) setState(s *session, state string, reason string, message string) {
 	m.lock.Lock()
-	s.state, s.message = state, message
+	s.state, s.reason, s.message = state, reason, message
 	live := m.sessions[s.key()] == s
 	m.lock.Unlock()
 	if live {
@@ -352,21 +363,25 @@ func checkStart(req mcpreview.StartRequest) error {
 	return nil
 }
 
-// pickAgent: the requested agent when installed, else the first installed in the registry's order.
-func (m *Manager) pickAgent(requested string) (string, string) {
+// pickAgent: the requested agent when installed, else the first installed in the registry's order. Without one, the
+// result says why.
+func (m *Manager) pickAgent(requested string) (string, mcpreview.StartResult) {
 	installed := func(id string) bool { return m.env.AgentInstalled != nil && m.env.AgentInstalled(id) }
 	if requested != "" {
 		if installed(requested) {
-			return requested, ""
+			return requested, mcpreview.StartResult{}
 		}
-		return "", fmt.Sprintf("%s is not installed, so the review has no AI. The diff, the comments, publishing and merging work without it.", molten.AgentDisplayName(requested))
+		name := molten.AgentDisplayName(requested)
+		return "", mcpreview.StartResult{Status: mcpreview.StatusNoAgent, Reason: mcpreview.ReasonAgentMissing, AgentName: name,
+			Message: fmt.Sprintf("%s is not installed, so the review has no AI. The diff, the comments, publishing and merging work without it.", name)}
 	}
 	for _, id := range m.env.AgentOrder {
 		if isSupportedAgent(id) && installed(id) {
-			return id, ""
+			return id, mcpreview.StartResult{}
 		}
 	}
-	return "", "No supported coding agent (Claude Code or Codex) is installed, so the review has no AI. The diff, the comments, publishing and merging work without it."
+	return "", mcpreview.StartResult{Status: mcpreview.StatusNoAgent, Reason: mcpreview.ReasonNotInstalled,
+		Message: "No supported coding agent (Claude Code or Codex) is installed, so the review has no AI. The diff, the comments, publishing and merging work without it."}
 }
 
 // Start starts the PR's review session, or reattaches the one it has (its terminal still there). callerTab is the
@@ -378,7 +393,7 @@ func (m *Manager) Start(ctx context.Context, callerTab string, req mcpreview.Sta
 	m.ensureLoaded(ctx)
 	key := sessionKey(req.Repo, req.Number)
 	if !m.claimStart(key) {
-		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Message: "This PR's review session is already starting."}, nil
+		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Reason: mcpreview.ReasonAlreadyStarting, Message: "This PR's review session is already starting."}, nil
 	}
 	defer m.releaseStart(key)
 	if s := m.find(mcpreview.SessionKey{Repo: req.Repo, Number: req.Number}); s != nil {
@@ -388,16 +403,16 @@ func (m *Manager) Start(ctx context.Context, callerTab string, req mcpreview.Sta
 		}
 		m.remove(s)
 	}
-	agent, why := m.pickAgent(req.Agent)
+	agent, none := m.pickAgent(req.Agent)
 	if agent == "" {
-		return mcpreview.StartResult{Status: mcpreview.StatusNoAgent, Message: why}, nil
+		return none, nil
 	}
 	moltenPath := ""
 	if m.env.MoltenPath != nil {
 		moltenPath = m.env.MoltenPath()
 	}
 	if moltenPath == "" {
-		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Message: "MoltenTerm's molten command is not installed: the review tools cannot be given to the agent."}, nil
+		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Reason: mcpreview.ReasonNoMolten, Message: "MoltenTerm's molten command is not installed: the review tools cannot be given to the agent."}, nil
 	}
 	tabId := req.TabId
 	if tabId == "" {
@@ -410,11 +425,11 @@ func (m *Manager) Start(ctx context.Context, callerTab string, req mcpreview.Sta
 	defer cancel()
 	head, err := resolveHead(startCtx, m.env.Git, req.ProjectDir, req.HeadRef, req.HeadOid)
 	if err != nil {
-		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Message: err.Error()}, nil
+		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Reason: mcpreview.ReasonHead, Message: err.Error()}, nil
 	}
 	tree, kind, err := ResolveWorktree(startCtx, m.env.Git, m.env.DataDir, req.ProjectDir, req.Number, req.HeadRef, head)
 	if err != nil {
-		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Message: err.Error()}, nil
+		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Reason: mcpreview.ReasonWorktree, Message: err.Error()}, nil
 	}
 	token, err := newToken()
 	if err != nil {
@@ -431,7 +446,7 @@ func (m *Manager) Start(ctx context.Context, callerTab string, req mcpreview.Sta
 	}
 	rec.Command, err = m.agentCommand(agent, moltenPath, prompt)
 	if err != nil {
-		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Message: err.Error()}, nil
+		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Reason: mcpreview.ReasonCommand, Message: err.Error()}, nil
 	}
 	meta := waveobj.MetaMapType{
 		waveobj.MetaKey_View:       "term",
@@ -442,7 +457,7 @@ func (m *Manager) Start(ctx context.Context, callerTab string, req mcpreview.Sta
 	}
 	blockId, err := m.env.CreateTerminal(ctx, tabId, req.AfterBlockId, meta)
 	if err != nil {
-		return mcpreview.StartResult{}, fmt.Errorf("the session's terminal could not be created: %w", err)
+		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Reason: mcpreview.ReasonTerminal, Message: err.Error()}, nil
 	}
 	s := &session{rec: rec, blockId: blockId, tabId: tabId, state: mcpreview.StateStarting}
 	m.addSession(s)
@@ -467,10 +482,11 @@ func (m *Manager) typeCommand(s *session) {
 		return
 	}
 	if err := m.env.StartAndType(ctx, s.tabId, s.blockId, s.rec.Command); err != nil {
-		m.setState(s, mcpreview.StateFailed, fmt.Sprintf("The agent was not started (%v). Start it in the review terminal with: %s", err, s.rec.Command))
+		// The window words it with the session's Command (review.session.reason.notstarted); the message is its detail.
+		m.setState(s, mcpreview.StateFailed, mcpreview.ReasonNotStarted, err.Error())
 		return
 	}
-	m.setState(s, mcpreview.StateRunning, "")
+	m.setState(s, mcpreview.StateRunning, "", "")
 }
 
 // agentCommand is the command line of the agent's review run; prompt, when set, is its first prompt.

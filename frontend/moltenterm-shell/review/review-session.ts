@@ -62,7 +62,12 @@ export type ReviewStartRequest = {
 
 // asked: the prompt was sent; typed: typed without Enter after a draft of the developer's; busy: the agent works or
 // waits, nothing was typed.
-export type ReviewBriefResult = { status: "asked" | "typed" | "busy" | "failed"; message?: string };
+export type ReviewBriefResult = {
+    status: "asked" | "typed" | "busy" | "failed";
+    message?: string;
+    reason?: string;
+    program?: string;
+};
 
 export type ReviewSessionKey = { id?: string; repo?: string; number?: number };
 
@@ -92,6 +97,10 @@ export type ReviewSessionInfo = {
     questions?: ReviewQueuedQuestion[];
     // Why the queue does not move, or what its last delivery did when it failed.
     queuenote?: string;
+    // The codes of message and queuenote, which the windows word in their language (review-session-text.ts).
+    reason?: string;
+    queuenotereason?: string;
+    queuenotecause?: string;
 };
 
 export type ReviewQueuedQuestion = {
@@ -106,7 +115,14 @@ export type ReviewQueuedQuestion = {
 // noagent: no supported agent is installed; the review works without AI (FR-REV-004 AC6).
 export type ReviewStartStatus = "started" | "attached" | "noagent" | "failed";
 
-export type ReviewStartResult = { status: ReviewStartStatus; message?: string; session?: ReviewSessionInfo };
+// reason: why no session was started; agentname: the requested agent that is not installed.
+export type ReviewStartResult = {
+    status: ReviewStartStatus;
+    message?: string;
+    session?: ReviewSessionInfo;
+    reason?: string;
+    agentname?: string;
+};
 
 export type ReviewPost = {
     id: string;
@@ -187,6 +203,9 @@ export type ReviewAskResult = {
     position?: number;
     line?: string;
     message?: string;
+    // Why nothing was typed now, and what is in the foreground instead of the agent (review-session-text.ts).
+    reason?: string;
+    program?: string;
 };
 
 // askReviewSession is Ask the AI (FR-REV-003): the selection becomes the session's and the question is typed into the
