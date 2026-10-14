@@ -311,6 +311,12 @@ func scriptDenyReason(line string, c PermissionCheck, cwd string, cwdKnown bool,
 				if reason := scriptDenyReason(script.text, c, cwd, cwdKnown, depth+1); reason != "" {
 					return reason
 				}
+			} else if shellReadsStdin(words[1:]) {
+				return reasonOpaque + name + reasonStdinDetail
+			}
+		case name == "source" || name == ".":
+			if len(words) < 2 || isStdinOperand(words[1].text) {
+				return reasonOpaque + name + reasonStdinDetail
 			}
 		case name == "eval":
 			texts := make([]string, 0, len(words)-1)
@@ -333,6 +339,9 @@ func scriptDenyReason(line string, c PermissionCheck, cwd string, cwdKnown bool,
 			if opt := inlineProgramOption(name, words[1:]); opt != "" {
 				return reasonOpaque + name + " " + opt
 			}
+			if interpreterReadsStdin(name, words[1:]) {
+				return reasonOpaque + name + reasonStdinDetail
+			}
 		}
 	}
 	return ""
@@ -341,7 +350,7 @@ func scriptDenyReason(line string, c PermissionCheck, cwd string, cwdKnown bool,
 // watchedCommand: the commands an unreadable line is searched for.
 func watchedCommand(name string) bool {
 	switch name {
-	case "rm", "git", "security", "eval", "xargs", "find":
+	case "rm", "git", "security", "eval", "xargs", "find", "source":
 		return true
 	}
 	return inlineShells[name] || isInterpreter(name)
@@ -381,6 +390,66 @@ func shellScript(args []shellWord) (shellWord, bool) {
 		return shellWord{}, false
 	}
 	return shellWord{}, false
+}
+
+const reasonStdinDetail = " reads its program from standard input"
+
+// The interpreters' options that take the next word as their value; -m runs a module, not standard input.
+var interpreterValueOptions = map[string]bool{"-W": true, "-X": true, "-r": true, "--require": true, "--import": true,
+	"--loader": true, "-C": true, "--conditions": true, "-I": true}
+
+// Options that print and exit: `python3 --version` reads no program.
+var printOnlyOptions = map[string]bool{"--version": true, "-V": true, "-v": true, "--help": true, "-h": true}
+
+// isStdinOperand: the operand names standard input (-, /dev/stdin, a redirection, a process substitution <(…),
+// which splitCommands leaves as a bare "<").
+func isStdinOperand(op string) bool {
+	return op == "-" || strings.HasPrefix(op, "<") || op == "/dev/stdin" || strings.HasPrefix(op, "/dev/fd/") ||
+		strings.HasPrefix(op, "/proc/self/fd/")
+}
+
+// shellReadsStdin tells whether a shell without -c takes its commands from standard input: piped (… | sh), sh -s,
+// bash -, bash <(curl …). A script file (bash x.sh) is not read here.
+func shellReadsStdin(args []shellWord) bool {
+	for i := 0; i < len(args); i++ {
+		a := args[i].text
+		switch {
+		case a == "--":
+		case printOnlyOptions[a]:
+			return false
+		case shellValueOptions[a]:
+			i++
+		case strings.HasPrefix(a, "--"):
+		case (strings.HasPrefix(a, "-") || strings.HasPrefix(a, "+")) && len(a) > 1:
+			if strings.ContainsRune(a[1:], 's') {
+				return true
+			}
+		default:
+			return isStdinOperand(a)
+		}
+	}
+	return true
+}
+
+// interpreterReadsStdin tells whether an interpreter without an inline program takes it from standard input
+// (… | python3, node -, perl < x).
+func interpreterReadsStdin(name string, args []shellWord) bool {
+	for i := 0; i < len(args); i++ {
+		a := args[i].text
+		switch {
+		case a == "--":
+		case printOnlyOptions[a]:
+			return false
+		case a == "-m" && strings.HasPrefix(name, "python"):
+			return false
+		case interpreterValueOptions[a]:
+			i++
+		case strings.HasPrefix(a, "-") && len(a) > 1:
+		default:
+			return isStdinOperand(a)
+		}
+	}
+	return true
 }
 
 func isInterpreter(name string) bool {
