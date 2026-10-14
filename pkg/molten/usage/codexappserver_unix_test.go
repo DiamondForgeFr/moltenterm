@@ -36,6 +36,7 @@ while IFS= read -r line; do
       fi ;;
   esac
 done
+echo eof > "$FAKE_LOG.eof"
 `
 
 var fakeCodexExe string
@@ -66,13 +67,14 @@ func fakeCodexEnv(t *testing.T, mode string, result string) ([]string, string) {
 
 func TestRunCodexAppServerProtocol(t *testing.T) {
 	env, log := fakeCodexEnv(t, "ok", `{"id":1,"result":`+appServerResult+`}`)
-	start := time.Now()
 	result, err := runCodexAppServer(context.Background(), fakeCodexExe, env)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if took := time.Since(start); took >= codexAppServerExitGrace {
-		t.Errorf("the app-server ends with its stdin: %v", took)
+	// The fake writes this file once its stdin closed, so a run that returned with it ended the app-server by its stdin,
+	// not by the kill after the grace. The run's duration is not checked: a loaded machine stretches it at will (#643).
+	if _, err := os.Stat(log + ".eof"); err != nil {
+		t.Errorf("the app-server ends with its stdin: %v", err)
 	}
 	snap, err := codexAppServerSnapshot(result, 1)
 	if err != nil || snap.Windows[0].UsedPercent != 33 {
