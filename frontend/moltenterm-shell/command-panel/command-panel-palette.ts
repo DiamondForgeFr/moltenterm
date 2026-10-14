@@ -6,6 +6,7 @@
 // and an entry that opens that panel.
 
 import { fireAndForget } from "@/util/util";
+import { t } from "../i18n/i18n";
 import type { PaletteEntry } from "../palette/palette-model";
 import { openCommandPanel } from "./command-panel-store";
 import { makePanelContext } from "./panel-context";
@@ -30,7 +31,7 @@ export function panelPaletteEntries(blockId: string, hint: string): PaletteEntry
     const open: PaletteEntry = {
         id: "panel:open",
         group: "panel",
-        label: `${panelName} commands and options…`,
+        label: t("cmdpanel.palette.open", { panel: panelName }),
         icon: "sliders",
         hint,
         keywords: ["settings", "gear", "options", "command panel"],

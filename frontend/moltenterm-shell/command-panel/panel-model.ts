@@ -5,6 +5,7 @@
 // reaches every section and sub-page, the Developer gate behind Option, the keyboard and the scopes of an option.
 // Matching reuses the command palette's fuzzy matcher; command-panel.tsx only renders.
 
+import { t } from "../i18n/i18n";
 import { fuzzyMatch, moveSelection, PaletteKey, paletteKeyCommand } from "../palette/palette-model";
 import {
     PanelChoice,
@@ -19,17 +20,19 @@ import {
 
 export const PanelWidthPx = 360;
 export const PanelMaxHeightPx = 560;
-export const FooterSectionTitle = "Panel";
+export function footerSectionTitle(): string {
+    return t("cmdpanel.footer.title");
+}
 
 // The footer's pane action says what it closes: a bare "Close" in a menu reads as closing the menu (#511).
 export function closePaneLabel(view: string): string {
     if (view === "term") {
-        return "Close terminal";
+        return t("cmdpanel.footer.closeTerminal");
     }
     if (view === "molten-browser" || view === "web") {
-        return "Close browser";
+        return t("cmdpanel.footer.closeBrowser");
     }
-    return "Close pane";
+    return t("cmdpanel.footer.closePane");
 }
 
 export type PanelRow =
@@ -287,7 +290,7 @@ export function buildRows(input: PanelRowsInput): PanelRow[] {
     }
     const groups: { id: string; title: string; state?: string; stateTone?: any; items: PanelItem[] }[] = [...sections];
     if (input.footer?.length) {
-        groups.push({ id: "footer", title: FooterSectionTitle, items: input.footer });
+        groups.push({ id: "footer", title: footerSectionTitle(), items: input.footer });
     }
     for (const group of groups) {
         const hits: Hit[] = [];
@@ -500,15 +503,15 @@ export function valueAtScope<T>(item: Scoped<T>, binding: ScopeBinding<T>): T {
 export function scopeLabel(scope: PanelScopeId, kindLabel: string): string {
     switch (scope) {
         case "panel":
-            return "This panel";
+            return t("cmdpanel.scope.panel");
         case "project":
-            return "This project";
+            return t("cmdpanel.scope.project");
         case "workspace":
-            return "This workspace";
+            return t("cmdpanel.scope.workspace");
         case "kind":
-            return kindLabel ? `All ${kindLabel}` : "All panels of this kind";
+            return kindLabel ? t("cmdpanel.scope.kind", { kind: kindLabel }) : t("cmdpanel.scope.kindAny");
         case "global":
-            return "Everywhere";
+            return t("cmdpanel.scope.global");
     }
     return "";
 }
@@ -617,6 +620,6 @@ export function flattenPanel(sections: PanelSection[], footer: PanelItem[] = [])
     for (const section of (sections ?? []).filter((s) => s.kind !== "developer")) {
         walk(section.items, [section.title]);
     }
-    walk(footer, [FooterSectionTitle]);
+    walk(footer, [footerSectionTitle()]);
     return rtn;
 }

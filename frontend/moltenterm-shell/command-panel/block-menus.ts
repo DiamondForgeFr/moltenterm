@@ -8,13 +8,16 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
 import { fireAndForget } from "@/util/util";
+import { t } from "../i18n/i18n";
 import { DeveloperSection } from "../menu/menu-model";
 import { acceleratorById } from "../shortcuts/format";
 import { PanelSection, splitMenuItems } from "../split/split-menu";
 import { pinMenuItems } from "../view360/view360-pin";
 import { openCommandPanel, openCommandPanelAtPoint } from "./command-panel-store";
 
-export const MoreLabel = "More…";
+export function moreLabel(): string {
+    return t("cmdpanel.menu.more");
+}
 
 // Where the last context menu was asked for: More… opens the panel there, not under the header.
 let lastMenuPoint: { x: number; y: number } = null;
@@ -43,7 +46,7 @@ export function openHeaderCommandPanel(e: React.MouseEvent, blockId: string) {
 export function moreMenuItem(blockId: string): ContextMenuItem {
     const point = lastMenuPoint;
     return {
-        label: MoreLabel,
+        label: moreLabel(),
         icon: "sliders",
         accelerator: acceleratorById("command-panel"),
         click: () => {
@@ -61,7 +64,7 @@ type MagnifyNode = { isMagnified: any; toggleMagnify: () => void };
 function magnifyMenuItem(nodeModel: MagnifyNode, section: string): ContextMenuItem {
     const magnified = nodeModel?.isMagnified != null && globalStore.get(nodeModel.isMagnified) === true;
     return {
-        label: magnified ? "Unmagnify" : "Magnify",
+        label: magnified ? t("cmdpanel.menu.unmagnify") : t("cmdpanel.menu.magnify"),
         icon: magnified ? "compress" : "expand",
         section,
         accelerator: acceleratorById("magnify"),
@@ -73,7 +76,7 @@ function magnifyMenuItem(nodeModel: MagnifyNode, section: string): ContextMenuIt
 export function panelDeveloperItems(blockId: string): ContextMenuItem[] {
     return [
         {
-            label: "Copy panel id",
+            label: t("cmdpanel.developer.copyId"),
             icon: "hashtag",
             section: DeveloperSection,
             click: () => fireAndForget(() => navigator.clipboard.writeText(blockId)),
@@ -92,7 +95,7 @@ export function blockBodyMenuItems(blockId: string, nodeModel: MagnifyNode): Con
         ...panelDeveloperItems(blockId),
         { type: "separator" },
         {
-            label: "Close",
+            label: t("common.close"),
             icon: "xmark",
             destructive: true,
             accelerator: acceleratorById("close-panel"),

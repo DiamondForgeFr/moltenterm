@@ -10,9 +10,11 @@
 import { Button } from "@/app/element/button";
 import { useAtomValue } from "jotai";
 import { useRef } from "react";
+import { useT } from "../i18n/i18n";
 import { answerTooSoon, BrowserAgentModel, permissionBarView, PermissionDecision } from "./browser-agent";
 
 export function AgentPermissionBar({ agents, tabId }: { agents: BrowserAgentModel; tabId: string }) {
+    const t = useT();
     const tabs = useAtomValue(agents.tabsAtom);
     const shown = useRef({ requestId: "", at: 0 });
     const view = permissionBarView(tabs[tabId]);
@@ -31,7 +33,7 @@ export function AgentPermissionBar({ agents, tabId }: { agents: BrowserAgentMode
     return (
         <div
             role="region"
-            aria-label={view.escape === "deny" ? "Confirm an agent's action" : "Site permission"}
+            aria-label={view.escape === "deny" ? t("browser.permission.confirmAria") : t("browser.permission.siteAria")}
             onKeyDown={(e) => {
                 if (e.key !== "Escape") {
                     return;

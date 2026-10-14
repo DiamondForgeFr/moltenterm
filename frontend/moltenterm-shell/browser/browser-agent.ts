@@ -12,6 +12,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
+import { t } from "../i18n/i18n";
 
 // must match pkg/molten/mcpbrowser/wire.go
 export const BrowserAgentRouteId = "molten:browseragent";
@@ -113,7 +114,7 @@ export function readPanelAgentState(state: PanelAgentState): AgentTabs {
 }
 
 export function agentName(tab: AgentTab): string {
-    return tab?.agentname?.trim() || "An agent";
+    return tab?.agentname?.trim() || t("browser.agent.anAgent");
 }
 
 // The bar of a controlled tab, or null when no agent controls it (DS-BRW-011).
@@ -126,12 +127,12 @@ export function controlBarView(tab: AgentTab): ControlBarView {
     if (tab.state === AgentStateTakenOver) {
         return {
             takenOver: true,
-            title: "You took over",
-            detail: `${name} waits until you give the tab back.`,
+            title: t("browser.agent.tookOver"),
+            detail: t("browser.agent.waitsGiveBack", { name }),
             viewport,
             buttons: [
-                { label: "Give back", action: "giveback", primary: true },
-                { label: "Stop", action: "stop", primary: false },
+                { label: t("browser.agent.giveBack"), action: "giveback", primary: true },
+                { label: t("browser.agent.stop"), action: "stop", primary: false },
             ],
         };
     }
@@ -140,10 +141,10 @@ export function controlBarView(tab: AgentTab): ControlBarView {
     }
     return {
         takenOver: false,
-        title: `${name} is controlling this tab`,
+        title: t("browser.agent.controlling", { name }),
         detail: tab.action ?? "",
         viewport,
-        buttons: [{ label: "Stop", action: "stop", primary: false }],
+        buttons: [{ label: t("browser.agent.stop"), action: "stop", primary: false }],
     };
 }
 
@@ -173,12 +174,14 @@ export function permissionBarView(tab: AgentTab): PermissionBarView {
         return {
             requestId: tab.permission.requestid,
             site,
-            title: site ? `${agentName(tab)} wants to ${what} on ${site}` : `${agentName(tab)} wants to ${what}`,
-            detail: "Allow this once, or deny it.",
+            title: site
+                ? t("browser.permission.actionOnSite", { name: agentName(tab), action: what, site })
+                : t("browser.permission.action", { name: agentName(tab), action: what }),
+            detail: t("browser.permission.actionDetail"),
             escape: "deny",
             buttons: [
-                { label: "Deny", decision: "deny", primary: false },
-                { label: "Allow", decision: "allow", primary: true },
+                { label: t("browser.permission.deny"), decision: "deny", primary: false },
+                { label: t("browser.permission.allow"), decision: "allow", primary: true },
             ],
         };
     }
@@ -189,13 +192,13 @@ export function permissionBarView(tab: AgentTab): PermissionBarView {
     return {
         requestId: tab.permission.requestid,
         site,
-        title: `Let ${agentName(tab)} use ${site}?`,
-        detail: "It can read and act on this site's pages, with your sign-ins.",
+        title: t("browser.permission.siteTitle", { name: agentName(tab), site }),
+        detail: t("browser.permission.siteDetail"),
         escape: "dismiss",
         buttons: [
-            { label: "Allow once", decision: "once", primary: false },
-            { label: "Always for this site", decision: "always", primary: true },
-            { label: "Block", decision: "block", primary: false },
+            { label: t("browser.permission.allowOnce"), decision: "once", primary: false },
+            { label: t("browser.permission.always"), decision: "always", primary: true },
+            { label: t("browser.permission.block"), decision: "block", primary: false },
         ],
     };
 }

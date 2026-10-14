@@ -6,7 +6,7 @@ import type { AgentStateInfo } from "../agent-state-model";
 import { AgentTab, controlBarView } from "./browser-agent";
 import {
     moveQuestion,
-    NoAgentReason,
+    noAgentReason,
     ofTab,
     ShareActions,
     ShareAgent,
@@ -77,7 +77,7 @@ describe("share with agent (FR-BRW-011)", () => {
     it("disables the control when no agent runs, and on a handed-off tab (AC2, AC8)", () => {
         const { actions } = recorder();
         expect(shareMenuItems(tab, null, [], "", actions)).toEqual([
-            { label: "Share with agent", icon: "share-nodes", enabled: false, sublabel: NoAgentReason },
+            { label: "Share with agent", icon: "share-nodes", enabled: false, sublabel: noAgentReason() },
         ]);
         const handed = shareMenuItems({ ...tab, engine: "chrome" }, null, agents(), "Chrome", actions);
         expect(handed).toHaveLength(1);
@@ -172,9 +172,9 @@ describe("share with agent: the panel's tab only (#594)", () => {
         const list = shareAgents(ofTab(states, ["web-1"]), ofTab(sessions, ["web-1"]), paneTitle);
         expect(list).toEqual([]);
         expect(shareMenuItems(tab, null, list, "", actions)).toEqual([
-            { label: "Share with agent", icon: "share-nodes", enabled: false, sublabel: NoAgentReason },
+            { label: "Share with agent", icon: "share-nodes", enabled: false, sublabel: noAgentReason() },
         ]);
-        expect(NoAgentReason).toBe("No agent is running in this tab");
+        expect(noAgentReason()).toBe("No agent is running in this tab");
     });
 
     it("keeps nothing without the tab's panes or entries without a pane", () => {

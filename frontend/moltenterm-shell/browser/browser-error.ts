@@ -7,6 +7,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
+import { t } from "../i18n/i18n";
 
 export type LoadErrorClass = "dns" | "refused" | "timeout" | "tls" | "offline" | "other";
 
@@ -78,33 +79,35 @@ export function isLocalHost(host: string): boolean {
 function plainHint(errorClass: LoadErrorClass, local: boolean): string {
     switch (errorClass) {
         case "dns":
-            return "The address could not be found. Check it for typos.";
+            return t("browser.error.dns");
         case "refused":
             if (local) {
-                return "No server is running there yet.";
+                return t("browser.error.refusedLocal");
             }
-            return "The server refused the connection.";
+            return t("browser.error.refused");
         case "timeout":
-            return "The server took too long to answer.";
+            return t("browser.error.timeout");
         case "tls":
-            return "Its security certificate can't be trusted.";
+            return t("browser.error.tls");
         case "offline":
-            return "You seem to be offline. Check your connection.";
+            return t("browser.error.offline");
         default:
-            return "The page could not be loaded.";
+            return t("browser.error.other");
     }
 }
 
 export function errorPageView(error: LoadError): ErrorPageView {
     const u = parseUrl(error?.url);
-    const host = u?.host || error?.url || "this page";
+    const host = u?.host || error?.url || t("browser.error.thisPage");
     const local = isLocalHost(u?.hostname);
     const errorClass = classifyLoadError(error?.code);
-    const code = error?.description ? `${error.description} (${error.code})` : `Error ${error?.code}`;
+    const code = error?.description
+        ? `${error.description} (${error.code})`
+        : t("browser.error.code", { code: error?.code });
     return {
         errorClass,
         host,
-        title: `Can't reach ${host}`,
+        title: t("browser.error.title", { host }),
         hint: plainHint(errorClass, local),
         local,
         details: code,

@@ -13,6 +13,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect } from "react";
+import { useT } from "../i18n/i18n";
 import { browserIconClass, BrowserList, InstalledBrowser } from "./browser-engine";
 import { choiceBarVisible, choiceBrowsers, choiceOnNavigate, EngineChoice, makeEngineChoice } from "./link-choice";
 
@@ -84,6 +85,7 @@ export type EngineChoiceBarProps = {
 };
 
 export function EngineChoiceBar({ choices, tabId, list, onStay, onHandOff, onDismiss }: EngineChoiceBarProps) {
+    const t = useT();
     const all = useAtomValue(choices.choicesAtom);
     const defaultEngine = useAtomValue(getSettingsKeyAtom("browser:default"));
     const sites = useAtomValue(getSettingsKeyAtom("browser:sites"));
@@ -98,12 +100,17 @@ export function EngineChoiceBar({ choices, tabId, list, onStay, onHandOff, onDis
     if (!visible) {
         return null;
     }
+    // The site keeps its own colour inside the translated sentence.
+    const [openedBefore, openedAfter = ""] = t("browser.choice.opened", { site: "\u0000" }).split("\u0000");
     const browsers = choiceBrowsers(list);
     const first = browsers[0];
     const others = browsers.slice(1);
     const showOthers = (e: React.MouseEvent) => {
         ContextMenuModel.getInstance().showContextMenu(
-            others.map((b) => ({ label: `Open in ${b.name}`, click: () => onHandOff(choice, b) })),
+            others.map((b) => ({
+                label: t("browser.choice.openIn", { browser: b.name }),
+                click: () => onHandOff(choice, b),
+            })),
             e
         );
     };
@@ -118,36 +125,38 @@ export function EngineChoiceBar({ choices, tabId, list, onStay, onHandOff, onDis
     return (
         <div
             role="group"
-            aria-label={`Where ${choice.site} opens`}
+            aria-label={t("browser.choice.aria", { site: choice.site })}
             onKeyDown={onKeyDown}
             className="molten-browser-choice flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-border px-2 py-1.5 text-12"
         >
             <i className="fa fa-solid fa-globe shrink-0 text-11 text-secondary" />
             <span className="min-w-[150px] flex-1 truncate text-secondary">
-                <span className="text-primary">{choice.site}</span> opened in MoltenTerm.
+                {openedBefore}
+                <span className="text-primary">{choice.site}</span>
+                {openedAfter}
             </span>
             <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <Button ref={choices.primaryRef} className="!h-6 !px-2.5 !text-12" onClick={() => onStay(choice)}>
-                    Open with MoltenTerm
+                    {t("browser.choice.stay")}
                 </Button>
                 <div className="flex h-6 items-center rounded-4 border border-border text-secondary">
                     <button
                         type="button"
                         onClick={() => onHandOff(choice, first)}
-                        title={`Open this page in ${first.name}, with your sessions and extensions`}
+                        title={t("browser.choice.handOffTitle", { browser: first.name })}
                         className={cn(
                             "flex h-full cursor-pointer items-center gap-1.5 px-2 hover:bg-hover hover:text-primary",
                             others.length > 0 ? "rounded-l-4" : "rounded-4"
                         )}
                     >
                         <i className={cn(browserIconClass(first.id), "text-11")} />
-                        <span className="whitespace-nowrap">Open in {first.name}</span>
+                        <span className="whitespace-nowrap">{t("browser.choice.openIn", { browser: first.name })}</span>
                     </button>
                     {others.length > 0 ? (
                         <button
                             type="button"
-                            aria-label="Other browsers"
-                            title="Other browsers"
+                            aria-label={t("browser.choice.otherBrowsers")}
+                            title={t("browser.choice.otherBrowsers")}
                             onClick={showOthers}
                             className="flex h-full cursor-pointer items-center rounded-r-6 border-l border-border px-1.5 hover:bg-hover hover:text-primary"
                         >
@@ -162,12 +171,12 @@ export function EngineChoiceBar({ choices, tabId, list, onStay, onHandOff, onDis
                         onChange={(e) => choices.setRemember(tabId, e.target.checked)}
                         className="cursor-pointer accent-accent"
                     />
-                    Remember for {choice.site}
+                    {t("browser.choice.remember", { site: choice.site })}
                 </label>
                 <button
                     type="button"
-                    aria-label="Dismiss"
-                    title="Keep MoltenTerm for this page, and ask again next time"
+                    aria-label={t("common.dismiss")}
+                    title={t("browser.choice.dismissTitle")}
                     onClick={onDismiss}
                     className="cursor-pointer rounded-6 px-1 text-secondary hover:bg-hover hover:text-primary"
                 >

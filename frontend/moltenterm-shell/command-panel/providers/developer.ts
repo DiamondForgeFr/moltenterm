@@ -3,6 +3,7 @@
 
 // What every panel offers a developer, behind Option (FR-SHELL-047 security rationale): its id.
 
+import { t } from "../../i18n/i18n";
 import { CommandProvider, PanelContext, PanelSection } from "../panel-types";
 
 export function developerSections(ctx: PanelContext): PanelSection[] {
@@ -10,12 +11,12 @@ export function developerSections(ctx: PanelContext): PanelSection[] {
         {
             id: "developer",
             kind: "developer",
-            title: "Developer",
+            title: t("cmdpanel.section.developer"),
             items: [
                 {
                     id: "dev:copyid",
                     type: "action",
-                    label: "Copy panel id",
+                    label: t("cmdpanel.developer.copyId"),
                     icon: "copy",
                     keywords: ["block id", "blockid"],
                     detail: ctx.blockId.slice(0, 8),

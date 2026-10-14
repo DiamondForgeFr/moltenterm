@@ -18,6 +18,8 @@ import {
 } from "../../companion/companion-model";
 import { CompanionSessions } from "../../companion/companion-session-store";
 import { agentName } from "../../companion/companion-task-model";
+import { t } from "../../i18n/i18n";
+import { hasKey } from "../../i18n/i18n-core";
 import { DefaultFullLineMapDays, FullLineMapDayChoices } from "../../mission/line-map-model";
 import { rememberedLineMapDays, rememberLineMapDays } from "../../mission/line-map-store";
 import {
@@ -55,9 +57,20 @@ const UsageSourceAgent = "claude";
 // The agents MoltenTerm's launcher integrates (pkg/molten/agentlaunch).
 const IntegratedAgents = new Set(["claude", "codex"]);
 
+// The choices of widget-options.ts carry English labels; the panel shows them in the interface language.
+function choiceLabel(prefix: string, c: { value: string; label: string }): string {
+    const key = `cmdpanel.choice.${prefix.replace(/:/g, "_")}.${c.value}`;
+    return hasKey(key) ? t(key) : c.label;
+}
+
 function choiceOptions(prefix: string, choices: readonly { value: string; label: string; icon?: string }[]) {
     return choices.map(
-        (c): PanelChoiceOption => ({ id: `${prefix}:${c.value}`, label: c.label, value: c.value, icon: c.icon })
+        (c): PanelChoiceOption => ({
+            id: `${prefix}:${c.value}`,
+            label: choiceLabel(prefix, c),
+            value: c.value,
+            icon: c.icon,
+        })
     );
 }
 
@@ -82,8 +95,8 @@ function integrationItems(agent: string): PanelItem[] {
         {
             id: "companion:integrate",
             type: "toggle",
-            label: "Agent integration",
-            detail: "every agent, from the next launch",
+            label: t("cmdpanel.companion.integration"),
+            detail: t("cmdpanel.companion.integrationDetail"),
             icon: "plug",
             keywords: ["hooks", "launcher", "integrated by moltenterm"],
             defaultValue: true,
@@ -105,8 +118,8 @@ function integrationItems(agent: string): PanelItem[] {
     items.push({
         id: "companion:integrateagent",
         type: "toggle",
-        label: `Integration for ${agentName(agent)}`,
-        detail: "from the next launch",
+        label: t("cmdpanel.companion.integrationFor", { agent: agentName(agent) }),
+        detail: t("cmdpanel.companion.fromNextLaunch"),
         icon: "plug",
         keywords: ["hooks", "launcher", "integrateoff"],
         defaultValue: true,
@@ -141,7 +154,7 @@ export function companionSections(ctx: PanelContext): PanelSection[] {
         items.push({
             id: "companion:usage",
             type: "toggle",
-            label: "Plan usage",
+            label: t("cmdpanel.companion.planUsage"),
             detail: agentName(agent),
             icon: "gauge",
             keywords: ["limits", "quota", "gauges"],
@@ -153,23 +166,23 @@ export function companionSections(ctx: PanelContext): PanelSection[] {
             items.push({
                 id: "companion:usagesource",
                 type: "choice",
-                label: "Usage source",
+                label: t("cmdpanel.companion.usageSource"),
                 icon: "plug",
                 keywords: ["model limits", "credits", "experimental"],
                 defaultValue: false,
                 options: [
                     {
                         id: "usagesource:statusline",
-                        label: "Status line",
+                        label: t("cmdpanel.companion.statusLine"),
                         value: false,
-                        detail: "Claude Code's own figures",
+                        detail: t("cmdpanel.companion.statusLineDetail"),
                     },
                     {
                         id: "usagesource:endpoint",
-                        label: "Plus usage endpoint",
+                        label: t("cmdpanel.companion.endpoint"),
                         value: true,
                         // Picking it is the consent the companion's confirmation asks for: the row says what it uses.
-                        detail: "experimental, Claude Code's token",
+                        detail: t("cmdpanel.companion.endpointDetail"),
                     },
                 ],
                 scopes: [
@@ -192,14 +205,14 @@ export function companionSections(ctx: PanelContext): PanelSection[] {
         items.push({
             id: "companion:session",
             type: "action",
-            label: "Linked session…",
+            label: t("cmdpanel.companion.linkedSession"),
             detail: session?.title || undefined,
             icon: "clock-rotate-left",
             keywords: ["pick session", "history", "transcript"],
             run: () => globalStore.set(historyAtom, true),
         });
     }
-    return [{ id: "widget:companion", kind: "widget", title: "Companion", items }];
+    return [{ id: "widget:companion", kind: "widget", title: t("cmdpanel.companion.title"), items }];
 }
 
 export const CompanionProvider: CommandProvider = {
@@ -230,11 +243,15 @@ export function lineMapSections(ctx: PanelContext): PanelSection[] {
         {
             id: "linemap:days",
             type: "choice",
-            label: "Time window",
+            label: t("cmdpanel.linemap.timeWindow"),
             icon: "calendar-days",
             keywords: ["days", "period", "range"],
             defaultValue: DefaultFullLineMapDays,
-            options: FullLineMapDayChoices.map((d) => ({ id: `linemap:days:${d}`, label: `${d} days`, value: d })),
+            options: FullLineMapDayChoices.map((d) => ({
+                id: `linemap:days:${d}`,
+                label: t("cmdpanel.linemap.days", { count: d }),
+                value: d,
+            })),
             scopes: [
                 metaBinding<number>(ctx.blockId, LineMapDaysMetaKey),
                 ...(dir ? [lineMapProjectBinding(dir)] : []),
@@ -243,9 +260,9 @@ export function lineMapSections(ctx: PanelContext): PanelSection[] {
         {
             id: "linemap:animation",
             type: "toggle",
-            label: "Animation",
+            label: t("cmdpanel.linemap.animation"),
             icon: "wand-magic-sparkles",
-            detail: reduced ? "off while the system reduces motion" : undefined,
+            detail: reduced ? t("cmdpanel.linemap.reducedMotion") : undefined,
             keywords: ["motion", "intro", "trains"],
             defaultValue: true,
             scopes: [
@@ -254,7 +271,7 @@ export function lineMapSections(ctx: PanelContext): PanelSection[] {
             ],
         },
     ];
-    return [{ id: "widget:linemap", kind: "widget", title: "Line map", items }];
+    return [{ id: "widget:linemap", kind: "widget", title: t("cmdpanel.linemap.title"), items }];
 }
 
 export const LineMapProvider: CommandProvider = {
@@ -269,12 +286,12 @@ export function cicdSections(ctx: PanelContext): PanelSection[] {
         {
             id: "widget:cicd",
             kind: "widget",
-            title: "CI/CD",
+            title: t("cmdpanel.cicd.title"),
             items: [
                 {
                     id: "cicd:runs",
                     type: "choice",
-                    label: "Runs shown",
+                    label: t("cmdpanel.cicd.runsShown"),
                     icon: "list-check",
                     keywords: ["local", "remote", "cd", "tab"],
                     defaultValue: CicdRunsDefault,
@@ -301,12 +318,12 @@ export function projectSections(ctx: PanelContext): PanelSection[] {
         {
             id: "widget:project",
             kind: "widget",
-            title: "Filters",
+            title: t("cmdpanel.filters.title"),
             items: [
                 {
                     id: "project:branches",
                     type: "choice",
-                    label: "Branches",
+                    label: t("cmdpanel.filters.branches"),
                     icon: "code-branch",
                     keywords: ["filter", "open", "merged", "line map"],
                     defaultValue: ProjectBranchesDefault,
@@ -348,11 +365,29 @@ export function sessionsSections(ctx: PanelContext): PanelSection[] {
         {
             id: "widget:sessions",
             kind: "widget",
-            title: "Filters",
+            title: t("cmdpanel.filters.title"),
             items: [
-                filter("sessions:agent", "Agent", "robot", SessionsAgentMetaKey, SessionsAgentChoices),
-                filter("sessions:folder", "Folder", "folder", SessionsFolderMetaKey, SessionsFolderChoices),
-                filter("sessions:state", "State", "circle-dot", SessionsStateMetaKey, SessionsStateChoices),
+                filter(
+                    "sessions:agent",
+                    t("cmdpanel.filters.agent"),
+                    "robot",
+                    SessionsAgentMetaKey,
+                    SessionsAgentChoices
+                ),
+                filter(
+                    "sessions:folder",
+                    t("cmdpanel.filters.folder"),
+                    "folder",
+                    SessionsFolderMetaKey,
+                    SessionsFolderChoices
+                ),
+                filter(
+                    "sessions:state",
+                    t("cmdpanel.filters.state"),
+                    "circle-dot",
+                    SessionsStateMetaKey,
+                    SessionsStateChoices
+                ),
             ],
         },
     ];

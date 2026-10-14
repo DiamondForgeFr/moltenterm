@@ -10,6 +10,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { AgentHookOffers } from "../../agent-hooks-store";
 import { HeaderProposals } from "../../header/header-proposals";
+import { t } from "../../i18n/i18n";
 import { TermUpdates } from "../../termupdate/termupdate-store";
 import { pathBaseName } from "../../workspace-project";
 import { linkWorktree } from "../../worktree-store";
@@ -22,7 +23,7 @@ export function proposalSuggestions(ctx: PanelContext): PanelSuggestion[] {
     if (globalStore.get(TermUpdates.getInstance().blockAtom(blockId)) != null) {
         rtn.push({
             id: "molten:termupdate",
-            label: "Update terminal",
+            label: t("cmdpanel.proposals.updateTerminal"),
             icon: "arrows-rotate",
             tone: "accent",
             run: () => proposals.request(blockId, "termupdate"),
@@ -32,7 +33,7 @@ export function proposalSuggestions(ctx: PanelContext): PanelSuggestion[] {
     if (offer != null) {
         rtn.push({
             id: "molten:hooks",
-            label: `Set up ${offer.agentname || offer.agent}'s hooks`,
+            label: t("cmdpanel.proposals.setupHooks", { agent: offer.agentname || offer.agent }),
             icon: "plug",
             tone: "accent",
             run: () => proposals.request(blockId, "hooks"),
@@ -42,7 +43,7 @@ export function proposalSuggestions(ctx: PanelContext): PanelSuggestion[] {
     if (worktree) {
         rtn.push({
             id: "molten:worktree",
-            label: `Link the worktree ${pathBaseName(worktree) || worktree}`,
+            label: t("cmdpanel.proposals.linkWorktree", { name: pathBaseName(worktree) || worktree }),
             icon: "link",
             tone: "accent",
             run: () => fireAndForget(() => linkWorktree(blockId, worktree)),

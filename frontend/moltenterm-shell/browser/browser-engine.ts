@@ -10,6 +10,7 @@ import { getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { atom, PrimitiveAtom } from "jotai";
+import { t } from "../i18n/i18n";
 
 // must match pkg/molten/browsers/route.go
 export const BrowserRouteId = "molten:browser";
@@ -64,7 +65,7 @@ export function engineName(engine: string, list?: BrowserList): string {
         return "MoltenTerm";
     }
     if (engine === EngineInstalled || engine === list?.chosen?.id) {
-        return list?.chosen?.name ?? KnownNames[engine] ?? "your browser";
+        return list?.chosen?.name ?? KnownNames[engine] ?? t("browser.engine.yourBrowser");
     }
     return list?.browsers?.find((b) => b.id === engine)?.name ?? KnownNames[engine] ?? engine;
 }
@@ -129,7 +130,7 @@ export function fallbackReason(route: BrowserRoute): string {
 
 export function fallbackNotice(route: BrowserRoute): string {
     const reason = fallbackReason(route);
-    return reason ? `${reason} Opened in MoltenTerm instead.` : null;
+    return reason ? t("browser.notice.fallback", { reason }) : null;
 }
 
 function browserCall<T>(command: string, data: any): Promise<T> {
