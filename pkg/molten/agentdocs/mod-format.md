@@ -120,7 +120,15 @@ export function activate(api) {
   is `{ icon, label, run }`: `icon` is a Font Awesome name such as `copy`, and `run` may return a short message shown
   on the button for a moment, such as `"Copied"`. A box is declarative, so a mod never depends on React.
 - `api.clipboard.writeText(text)`: copies text to the system clipboard.
+- `api.locale`: the interface language's code (`en`, `fr`, or an installed language), read live: the `app:language`
+  setting, else the OS preferred language MoltenTerm speaks. A mod ships its own strings (MoltenTerm does not
+  translate them) and falls back to English for a language it lacks.
+- `api.onLocaleChange(handler)`: calls `handler(locale)` with the new code each time the interface language changes,
+  without a restart. Use it to redraw text that stays on screen; text built at each call can read `api.locale` instead.
 - `api.log.info|warn|error(...)`: writes to the tab's developer console, prefixed with the mod id.
+
+Output a command handler returns stays English whatever the interface language: coding agents parse `molten`'s
+output.
 
 Every `register` and `show` returns a function that undoes it. MoltenTerm calls them all, in reverse order, when the
 mod stops.
@@ -194,14 +202,21 @@ molten copy [--title <title>] <text…>
 
 The command shows the text in a box next to the terminal it ran in, with a copy button that copies exactly the text
 (several lines, any Unicode; one trailing newline from a pipe is dropped). Coding agents use it for every piece of
-text the user has to copy: a token, a command, a URL.
+text the user has to copy: a token, a command, a URL. The box speaks the interface language (`api.locale`, English
+for a language the mod lacks); the command's own output stays English.
 
 ```js
+export const Strings = {
+    en: { title: "Copy", copy: "Copy", copied: "Copied" },
+    fr: { title: "Copier", copy: "Copier", copied: "Copié" },
+};
+
 export function activate(api) {
     api.commands.register(
         "copy",
         ({ args, stdin, blockId }) => {
-            const { title, text: argText } = parseCopyArgs(args); // --title anywhere, "--" ends the options
+            const strings = Strings[api.locale] ?? Strings.en; // read at each call: a language change applies at once
+            const { title, text: argText } = parseCopyArgs(args, strings.title); // --title anywhere, "--" ends the options
             const text = argText !== "" ? argText : textFromStdin(stdin); // drops one trailing newline
             if (text === "") {
                 return { output: "molten copy: nothing to copy: give a text or pipe one", exitCode: 1 };
@@ -214,10 +229,10 @@ export function activate(api) {
                 actions: [
                     {
                         icon: "copy",
-                        label: "Copy",
+                        label: strings.copy,
                         run: async () => {
                             await api.clipboard.writeText(text);
-                            return "Copied";
+                            return strings.copied;
                         },
                     },
                 ],

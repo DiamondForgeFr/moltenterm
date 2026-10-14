@@ -50,6 +50,21 @@ describe("copy box", () => {
         expect(clipboard).toEqual([text]);
     });
 
+    it("speaks the interface language read at each call, English for a language it lacks", async () => {
+        const { api, commands, boxes } = fakeApi();
+        const localized = api as typeof api & { locale: string };
+        localized.locale = "fr";
+        activate(localized);
+        commands.copy({ args: ["x"] });
+        expect(boxes[0]).toMatchObject({ title: "Copier" });
+        expect(boxes[0].actions[0].label).toBe("Copier");
+        await expect(boxes[0].actions[0].run()).resolves.toBe("Copié");
+        localized.locale = "de";
+        commands.copy({ args: ["x"] });
+        expect(boxes[1]).toMatchObject({ title: "Copy" });
+        expect(commands.copy({ args: [], stdin: "" })).toMatchObject({ exitCode: 1 });
+    });
+
     it("prefers the arguments over stdin and fails when there is nothing to copy", () => {
         const { api, commands, boxes } = fakeApi();
         activate(api);

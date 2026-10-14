@@ -21,7 +21,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 103
+            "order": 104
           }
         },
         "app:globalhotkey": {
@@ -40,7 +40,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 119
+            "order": 120
           }
         },
         "app:defaultnewblock": {
@@ -201,7 +201,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 104
+            "order": 105
           }
         },
         "term:fontsize": {
@@ -571,12 +571,12 @@
         },
         "review:language": {
           "type": "string",
-          "description": "The language of the code review session's briefing and answers, as a language name or code (fr, French, en...); unset, the OS locale's",
+          "description": "The language of the code review session's briefing and answers, as a language name or code (fr, French, en...); unset, the interface language (app:language)",
           "x-moltenterm": {
             "section": "agents",
             "group": "Code review",
             "label": "Review language",
-            "description": "Language of the review briefing and answers (fr, French...); empty: this computer's.",
+            "description": "Language of the review briefing and answers (fr, French...); empty: the interface language.",
             "control": "text",
             "order": 101
           }
@@ -591,6 +591,20 @@
             "description": "Language of review comments on GitHub when the project names none; empty: from its PRs and README.",
             "control": "text",
             "order": 102
+          }
+        },
+        "app:language": {
+          "type": "string",
+          "description": "The interface language: system (the OS preferred languages, the default), en, fr or an installed language",
+          "x-moltenterm": {
+            "section": "general",
+            "group": "Language",
+            "label": "Interface language",
+            "description": "The language of menus, panels and dialogs. Applies at once.",
+            "control": "select",
+            "optionsfrom": "languages",
+            "unsetlabel": "Same as the system",
+            "order": 103
           }
         },
         "companion:usagegauges": {
@@ -746,7 +760,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 105
+            "order": 106
           }
         },
         "web:openlinksinternally": {
@@ -885,35 +899,35 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 106
+            "order": 107
           }
         },
         "autoupdate:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 113
+            "order": 114
           }
         },
         "autoupdate:intervalms": {
           "type": "number",
           "x-moltenterm": {
             "hidden": true,
-            "order": 114
+            "order": 115
           }
         },
         "autoupdate:installonquit": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 115
+            "order": 116
           }
         },
         "autoupdate:channel": {
           "type": "string",
           "x-moltenterm": {
             "hidden": true,
-            "order": 116
+            "order": 117
           }
         },
         "markdown:fontsize": {
@@ -1262,21 +1276,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 107
+            "order": 108
           }
         },
         "widget:showhelp": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 118
+            "order": 119
           }
         },
         "window:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 108
+            "order": 109
           }
         },
         "window:fullscreenonlaunch": {
@@ -1558,21 +1572,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 109
+            "order": 110
           }
         },
         "telemetry:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 117
+            "order": 118
           }
         },
         "conn:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 110
+            "order": 111
           }
         },
         "conn:askbeforewshinstall": {
@@ -1615,7 +1629,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 111
+            "order": 112
           }
         },
         "debug:pprofport": {
@@ -1668,7 +1682,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 112
+            "order": 113
           }
         },
         "tsunami:scaffoldpath": {

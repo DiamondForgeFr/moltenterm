@@ -34,6 +34,9 @@ const (
 // Options filled by the screen at run time (the terminal themes come from the themes config).
 const OptionsTermThemes = "termthemes"
 
+// The interface languages: the shipped ones and the installed language packs (FR-I18N-001).
+const OptionsLanguages = "languages"
+
 var Sections = []string{
 	SectionGeneral,
 	SectionAppearance,
@@ -220,9 +223,11 @@ var settings = []Setting{
 	{Key: "agent:integrate", Section: SectionAgents, Group: "Integration", Label: "Agent integration", Description: "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited.", Control: ControlToggle, Default: true},
 	{Key: "agent:integrateoff", Section: SectionAgents, Group: "Integration", Label: "Without integration", Description: "Agents started without the integration while the others keep it.", Control: ControlMulti, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
 	// Agents, Code review (FR-REV-005).
-	{Key: "review:language", Section: SectionAgents, Group: "Code review", Label: "Review language", Description: "Language of the review briefing and answers (fr, French...); empty: this computer's.", Control: ControlText},
+	{Key: "review:language", Section: SectionAgents, Group: "Code review", Label: "Review language", Description: "Language of the review briefing and answers (fr, French...); empty: the interface language.", Control: ControlText},
 	// Agents, Code review (FR-REV-010).
 	{Key: "review:publishlanguage", Section: SectionAgents, Group: "Code review", Label: "Publication language", Description: "Language of review comments on GitHub when the project names none; empty: from its PRs and README.", Control: ControlText},
+	// General, Language (FR-I18N-001): listed last so the rows above keep their order.
+	{Key: "app:language", Section: SectionGeneral, Group: "Language", Label: "Interface language", Description: "The language of menus, panels and dialogs. Applies at once.", Control: ControlSelect, OptionsFrom: OptionsLanguages, UnsetLabel: "Same as the system"},
 
 	// Hidden: namespace resets (only meaningful in the JSON file), Wave's inert updater (MoltenTerm has its own update
 	// flow, #5), telemetry (forced off, FR-FORK-003) and Wave-only surfaces MoltenTerm does not show.

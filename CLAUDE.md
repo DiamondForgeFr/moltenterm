@@ -96,6 +96,11 @@ Moltenterm is a soft fork of Wave Terminal, so the toolchain and commands are Wa
 - **Validation:** `task check:ts` (TypeScript, frontend and Electron), `npx vitest run` (frontend unit tests), `go test ./cmd/... ./pkg/...` (backend), `node scripts/moltenterm-check-ledger.mjs` (every changed Wave file is ledgered and marked). Run `task generate` after changing Go RPC types. Never call `go build` directly; use the Task targets.
 - **CI:** `.github/workflows/ci.yml` runs these checks, ESLint and the builds on pull requests; drafts get only the quick checks (see `UPSTREAM.md`, "Continuous integration").
 
+## Interface text
+
+- **Every user-facing string goes through a key** (FR-I18N-001): `useT()` in components, `t()` in models and menus (`frontend/moltenterm-shell/i18n/i18n.ts`), `mt()` in Electron main. Add the key to `locales/en.json` and `locales/fr.json` with the same `{name}` placeholders; the i18n tests fail otherwise. Details in `.kilocode/rules/rules.md`, "Interface languages". `molten` and `wsh` output stays English.
+- **UI text never names the machine or the OS** (Mac, macOS, Finder, Windows Explorer): "this computer", "Show in folder", "the system keychain". Shortcut glyphs (⌘ / Ctrl) adapt per platform, and a feature that only exists on one platform may say so.
+
 ## Git remotes
 
 - `origin` is Moltenterm. `upstream` is Wave Terminal, fetch-only, without tags.
