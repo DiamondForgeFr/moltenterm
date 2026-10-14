@@ -11,12 +11,13 @@ import {
     cleanupPrDetail,
     cleanupStepDetail,
     cleanupStepLabel,
-    ReviewCleanupResult,
-    ReviewCleanupState,
+    ReviewCleanupStepResult,
+    ReviewCleanupStepState,
     ReviewWorktreeRisk,
 } from "./review-cleanup";
 
-const StateIcons: Record<ReviewCleanupState, string> = {
+const StateIcons: Record<ReviewCleanupStepState, string> = {
+    planned: "fa-regular fa-circle text-muted",
     done: "fa-solid fa-circle-check text-success",
     skipped: "fa-solid fa-circle-minus text-secondary",
     failed: "fa-solid fa-circle-xmark text-error",
@@ -25,27 +26,28 @@ const StateIcons: Record<ReviewCleanupState, string> = {
 const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded-6 px-3 py-1.5 text-12";
 
 type CleanupStepsProps = {
-    result: ReviewCleanupResult;
+    // The plan's steps (planned) or a cleanup's outcome.
+    steps: ReviewCleanupStepResult[];
     // Called with the risk of the plan shown when the developer confirms removing the agent worktree.
     onConfirmWorktree?: (risk: ReviewWorktreeRisk) => void;
     busy?: boolean;
 };
 
-export function CleanupSteps({ result, onConfirmWorktree, busy }: CleanupStepsProps) {
-    if (result == null) {
+export function CleanupSteps({ steps, onConfirmWorktree, busy }: CleanupStepsProps) {
+    if (steps == null) {
         return null;
     }
-    const pending = cleanupNeedsConfirmation(result);
+    const pending = cleanupNeedsConfirmation(steps);
     return (
         <div className="flex flex-col gap-1.5 text-12" data-testid="review-cleanup-steps">
-            {result.steps.map((step) => (
+            {steps.map((step) => (
                 <div key={step.id} className="flex flex-col" data-step={step.id} data-state={step.state}>
                     <div className="flex items-center gap-2">
                         <i className={cn(StateIcons[step.state], "w-4 text-center")} title={step.state} />
                         <span className={cn(step.state === "skipped" && "text-secondary")}>
                             {cleanupStepLabel(step.id)}
                         </span>
-                        <span className="text-secondary">· {step.state}</span>
+                        {step.state !== "planned" && <span className="text-secondary">· {step.state}</span>}
                     </div>
                     {cleanupStepDetail(step) !== "" && (
                         <div

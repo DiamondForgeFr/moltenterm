@@ -16,8 +16,8 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 )
 
-// Test-only build (`-tags moltentestoverride`, never in a release or a gold): the real app's cleanup after a merge
-// finds gh, git and bash in MOLTENTERM_TEST_REVIEW_CLEANUP_PATH instead of the login shell's PATH, so a test drives a
+// Test-only build (`-tags moltentestoverride`, never in a release or a gold): the real app's merge (Validate) and
+// cleanup after a merge find gh, git and bash in MOLTENTERM_TEST_REVIEW_CLEANUP_PATH instead of the login shell's PATH, so a test drives a
 // fake gh and never writes to GitHub. Without the tag this file does not exist.
 func init() {
 	path := os.Getenv("MOLTENTERM_TEST_REVIEW_CLEANUP_PATH")
@@ -35,4 +35,6 @@ func init() {
 		}
 		return mission.ExecRunner(ctx, dir, program, args...)
 	}
+	// Validate's merge takes the same fake gh, so Validate → merge → cleanup runs end to end without GitHub.
+	mergeRunner = cleanupRunner
 }

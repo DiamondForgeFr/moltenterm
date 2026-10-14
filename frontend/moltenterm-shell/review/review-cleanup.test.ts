@@ -69,9 +69,9 @@ describe("review cleanup", () => {
     });
 
     it("finds the agent worktree waiting for its confirmation", () => {
-        expect(cleanupNeedsConfirmation(result)?.confirm).toEqual(risk);
-        const removed = { ...result, steps: [{ id: "agent-worktree" as const, state: "done" as const }] };
-        expect(cleanupNeedsConfirmation(removed)).toBeNull();
+        expect(cleanupNeedsConfirmation(result.steps)?.confirm).toEqual(risk);
+        expect(cleanupNeedsConfirmation([{ id: "agent-worktree", state: "done" }])).toBeNull();
+        expect(cleanupNeedsConfirmation([{ id: "agent-worktree", state: "planned" }])).toBeNull();
         expect(cleanupNeedsConfirmation(null)).toBeNull();
     });
 

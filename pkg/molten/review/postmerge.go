@@ -5,19 +5,15 @@ package review
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"sync"
 )
 
 // The cleanup after the merge (FR-REV-013, DS-REV-010 steps 2 to 5) plugs in here: Validate (FR-REV-012, merge.go)
 // lists the hook's steps in its plan sheet and, once GitHub merged the PR, runs it once. The hook never runs for a
-// refused, failed or cancelled merge, and the merge itself is never retried whatever the hook reports.
-
-const (
-	CleanupPlanned = "planned"
-	CleanupDone    = "done"
-	CleanupSkipped = "skipped"
-	CleanupFailed  = "failed"
-)
+// refused, failed or cancelled merge, and the merge itself is never retried whatever the hook reports. wavesrv installs
+// the review Service (Start): its Run is Service.Cleanup, whose outcome the review store keeps (State.Cleanup).
 
 // MergedPr is the PR the hook works on. In Plan, MergedOid is empty and HeadOid is the head the plan was made for;
 // in Run, HeadOid is the head GitHub merged (after a rebase by GitHub, the rebased head) and MergedOid the base's
@@ -34,33 +30,21 @@ type MergedPr struct {
 	MergedOid string `json:"mergedoid,omitempty"`
 }
 
-// CleanupStep is one step of the cleanup as the plan sheet and the store show it: planned in the plan, then done,
-// skipped (Detail says why) or failed (Detail carries the message).
-type CleanupStep struct {
-	Id     string `json:"id"`
-	Label  string `json:"label"`
-	State  string `json:"state"`
-	Detail string `json:"detail,omitempty"`
-}
-
 // PostMerge is the cleanup after the merge (FR-REV-013).
 type PostMerge interface {
-	// Plan lists the steps Run would take, shown in the plan sheet; it must not change anything.
-	Plan(ctx context.Context, pr MergedPr) []CleanupStep
-	// Run takes the steps after the merge; report shows the progress (each call replaces the list) and the returned
-	// list is the outcome kept in the review store.
-	Run(ctx context.Context, pr MergedPr, report func(steps []CleanupStep)) []CleanupStep
+	// Plan lists the steps Run would take (CleanupStatePlanned), shown in the plan sheet; it must not change anything.
+	Plan(ctx context.Context, pr MergedPr) []CleanupStepResult
+	// Run takes the steps after the merge and records their outcome in the review store.
+	Run(ctx context.Context, pr MergedPr)
 }
 
 type noPostMerge struct{}
 
-func (noPostMerge) Plan(ctx context.Context, pr MergedPr) []CleanupStep {
+func (noPostMerge) Plan(ctx context.Context, pr MergedPr) []CleanupStepResult {
 	return nil
 }
 
-func (noPostMerge) Run(ctx context.Context, pr MergedPr, report func(steps []CleanupStep)) []CleanupStep {
-	return nil
-}
+func (noPostMerge) Run(ctx context.Context, pr MergedPr) {}
 
 var postMergeLock sync.Mutex
 var postMerge PostMerge = noPostMerge{}
@@ -79,4 +63,39 @@ func currentPostMerge() PostMerge {
 	postMergeLock.Lock()
 	defer postMergeLock.Unlock()
 	return postMerge
+}
+
+// Plan lists every step of the cleanup: which ones apply is only known once the PR is merged (the branch, the
+// worktrees and the other PRs then), and each one reports done, skipped or failed.
+func (s *Service) Plan(ctx context.Context, pr MergedPr) []CleanupStepResult {
+	if s.cleaner == nil {
+		return nil
+	}
+	rtn := make([]CleanupStepResult, 0, len(CleanupSteps))
+	for _, id := range CleanupSteps {
+		step := CleanupStepResult{Id: id, State: CleanupStatePlanned}
+		switch id {
+		case CleanupStepTicketClose, CleanupStepTicketDone:
+			if pr.Ticket > 0 {
+				step.Message = fmt.Sprintf("#%d", pr.Ticket)
+			}
+		case CleanupStepLocalBranch, CleanupStepRemoteBranch:
+			step.Message = pr.HeadRef + ", when its content is on " + pr.BaseRef
+		case CleanupStepOtherPrs:
+			step.Message = "rebased by GitHub on " + pr.BaseRef
+		}
+		rtn = append(rtn, step)
+	}
+	return rtn
+}
+
+// Run is the cleanup of the PR Validate merged; Service.Cleanup records its outcome.
+func (s *Service) Run(ctx context.Context, pr MergedPr) {
+	if s.cleaner == nil {
+		return
+	}
+	_, err := s.Cleanup(ctx, CleanupRequest{Dir: pr.Dir, Repo: pr.Repo, Number: pr.Number, Ticket: pr.Ticket})
+	if err != nil {
+		log.Printf("%s %s#%d: the cleanup after the merge: %v\n", logPrefix, pr.Repo, pr.Number, err)
+	}
 }

@@ -4,6 +4,7 @@
 // Validate's plan sheet, the pure part (FR-REV-012, DS-REV-010): what the checks and the merge's progress look like,
 // and when Merge can be clicked. wavesrv decides again on the click; the sheet only reflects the plan.
 
+import type { ReviewCleanupResult } from "./review-cleanup";
 import { ReviewCheckState, ReviewMergePlan, ReviewMergeRecord, ReviewMergeState } from "./review-client";
 
 const RunningStates: ReviewMergeState[] = ["checking", "updating", "waitingci", "merging"];
@@ -96,4 +97,13 @@ export function mergeStateTone(state: ReviewMergeState): string {
 // The wait can be stopped only before the merge call: GitHub's merge is not undone.
 export function canCancelMerge(record: ReviewMergeRecord): boolean {
     return record != null && (record.state === "updating" || record.state === "waitingci");
+}
+
+// mergeCleanup is the cleanup the merge ran, from the review store: none before the merge, and never an older run
+// (a cleanup started by hand before this merge).
+export function mergeCleanup(record: ReviewMergeRecord, cleanup: ReviewCleanupResult): ReviewCleanupResult {
+    if (record?.state !== "merged" || cleanup == null || cleanup.startedat < record.startedat) {
+        return null;
+    }
+    return cleanup;
 }

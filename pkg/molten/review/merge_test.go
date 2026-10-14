@@ -114,19 +114,17 @@ type fakeHook struct {
 	runs    []MergedPr
 }
 
-func (h *fakeHook) Plan(ctx context.Context, pr MergedPr) []CleanupStep {
+func (h *fakeHook) Plan(ctx context.Context, pr MergedPr) []CleanupStepResult {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	h.planned++
-	return []CleanupStep{{Id: "ticket", Label: fmt.Sprintf("Close #%d", pr.Ticket), State: CleanupPlanned}}
+	return []CleanupStepResult{{Id: CleanupStepTicketClose, State: CleanupStatePlanned, Message: fmt.Sprintf("#%d", pr.Ticket)}}
 }
 
-func (h *fakeHook) Run(ctx context.Context, pr MergedPr, report func(steps []CleanupStep)) []CleanupStep {
+func (h *fakeHook) Run(ctx context.Context, pr MergedPr) {
 	h.lock.Lock()
+	defer h.lock.Unlock()
 	h.runs = append(h.runs, pr)
-	h.lock.Unlock()
-	report([]CleanupStep{{Id: "ticket", Label: "Close", State: CleanupPlanned}})
-	return []CleanupStep{{Id: "ticket", Label: "Close", State: CleanupDone}}
 }
 
 func testMerger(t *testing.T, gh *fakeGh) (*Merger, string, *[]State) {
@@ -180,7 +178,7 @@ func TestMergePlanClean(t *testing.T) {
 	if len(plan.Steps) != 1 || plan.Steps[0].Id != StepMerge || !strings.Contains(plan.Steps[0].Detail, "aaaaaaa") {
 		t.Errorf("steps: %+v", plan.Steps)
 	}
-	if len(plan.Cleanup) != 1 || plan.Cleanup[0].Label != "Close #590" {
+	if len(plan.Cleanup) != 1 || plan.Cleanup[0].Message != "#590" {
 		t.Errorf("cleanup from the hook: %+v", plan.Cleanup)
 	}
 	if len(gh.writes()) != 0 {
@@ -307,8 +305,8 @@ func TestMergeRebaseBoundToHead(t *testing.T) {
 	if rec == nil || rec.State != MergeMerged || rec.MergedOid != oidC || rec.Head != oidA || rec.EndedAt == 0 {
 		t.Fatalf("record: %+v", rec)
 	}
-	if rec.CleanupRunning || len(rec.Cleanup) != 1 || rec.Cleanup[0].State != CleanupDone {
-		t.Errorf("cleanup outcome kept: %+v", rec)
+	if rec.CleanupRunning {
+		t.Errorf("cleanup ended: %+v", rec)
 	}
 	if len(hook.runs) != 1 || hook.runs[0].Ticket != 590 || hook.runs[0].HeadOid != oidA || hook.runs[0].MergedOid != oidC {
 		t.Errorf("hook called once with the merged PR: %+v", hook.runs)
