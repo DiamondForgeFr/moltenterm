@@ -10,7 +10,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
-import { t } from "../i18n/i18n";
+import { I18nModel, t } from "../i18n/i18n";
 import { registerNotificationGesture } from "../notifications-store";
 import { openMoltentermView } from "../open-view";
 import { showPane } from "./pane-focus";
@@ -59,8 +59,8 @@ export class DurableSessions {
         this.runningAgentsAtom = atom((get) => get(this.dataAtom)?.runningagents ?? 0);
         // Every tab renders the rail: a list that changed elsewhere than the badge does not render it again.
         this.badgeAtom = selectAtom(
-            this.dataAtom,
-            (data) => railBadge(data),
+            atom((get) => ({ data: get(this.dataAtom), locale: get(I18nModel.getInstance().localeAtom) })),
+            (source) => railBadge(source.data),
             (a, b) => a.count === b.count && a.tone === b.tone && a.label === b.label
         );
     }

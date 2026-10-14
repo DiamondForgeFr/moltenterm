@@ -14,6 +14,8 @@ import { atom, type Atom, type PrimitiveAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
 import * as React from "react";
 import { MoltentermSettingsView } from "../../../moltenterm-shell/settings/settings-view"; // MOLTENTERM-PATCH (#404)
+import { I18nModel } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
+import { translate } from "../../../moltenterm-shell/i18n/i18n-core"; // MOLTENTERM-PATCH (#623)
 
 type ValidationResult = { success: true } | { error: string };
 type ConfigValidator = (parsed: any) => ValidationResult;
@@ -130,7 +132,7 @@ export class WaveConfigViewModel implements ViewModel {
     blockId: string;
     viewType = "waveconfig";
     viewIcon = atom("gear");
-    viewName = atom("Settings"); // MOLTENTERM-PATCH (#404): no screen is titled Wave Config
+    viewName = atom((get) => translate(get(I18nModel.getInstance().localeAtom), "settings.title")); // MOLTENTERM-PATCH (#404, #623): no screen is titled Wave Config; in the interface language
     viewComponent = MoltentermSettingsView; // MOLTENTERM-PATCH (#404): the settings screen, Wave's editor under Advanced
     noPadding = atom(true);
     nodeModel: BlockNodeModel;

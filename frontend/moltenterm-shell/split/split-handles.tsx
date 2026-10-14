@@ -13,6 +13,7 @@ import { NodeModel } from "@/layout/index";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import React, { useEffect, useId, useRef, useState } from "react";
+import { useLocale } from "../i18n/i18n";
 import { formatShortcutById } from "../shortcuts/format";
 import { splitPanel } from "./split";
 import "./split-handles.css";
@@ -62,6 +63,7 @@ function EdgeHandle({
     onHover: (edge: Edge, inside: boolean) => void;
 }) {
     const tipId = useId();
+    useLocale();
     const keys = formatShortcutById(edge === "right" ? "split-right" : "split-down");
     const { label, tip } = splitHandleText(edge, keys);
     const [before, after] = keys ? tip.split(keys) : [tip, ""];
