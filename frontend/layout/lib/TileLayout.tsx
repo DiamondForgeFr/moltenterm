@@ -19,6 +19,7 @@ import React, {
 import { DropTargetMonitor, XYCoord, useDrag, useDragLayer, useDrop } from "react-dnd";
 import { debounce, throttle } from "throttle-debounce";
 import { useDevicePixelRatio } from "use-device-pixel-ratio";
+import { View360Overlay, View360Underlay } from "../../moltenterm-shell/view360/view360-carpet"; // MOLTENTERM-PATCH (#614)
 import { interceptTerminalClose } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#134, #489)
 import { LayoutModel } from "./layoutModel";
 import { useNodeModel, useTileLayout } from "./layoutModelHooks";
@@ -125,8 +126,11 @@ function TileLayoutComponent({ tabAtom, contents, getCursorPoint }: TileLayoutPr
                 style={tileStyle}
             >
                 <div key="display" ref={layoutModel.displayContainerRef} className="display-container">
+                    {/* MOLTENTERM-PATCH (#614): the 360 view's carpet, under the panels, and its chrome above them */}
+                    <View360Underlay layoutModel={layoutModel} />
                     <ResizeHandleWrapper layoutModel={layoutModel} />
                     <DisplayNodesWrapper layoutModel={layoutModel} />
+                    <View360Overlay layoutModel={layoutModel} />
                     <NodeBackdrops layoutModel={layoutModel} />
                 </div>
                 <Placeholder key="placeholder" layoutModel={layoutModel} style={{ top: 10000, ...overlayTransform }} />
@@ -313,6 +317,7 @@ const DisplayNode = ({ layoutModel, node }: DisplayNodeProps) => {
         <div
             className={clsx("tile-node", {
                 dragging: isDragging,
+                "mt-carpet-node": addlProps?.moltenCarpet, // MOLTENTERM-PATCH (#614): laid on the 360 view's carpet
             })}
             key={node.id}
             ref={tileNodeRef}
