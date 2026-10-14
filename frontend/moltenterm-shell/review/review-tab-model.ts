@@ -19,8 +19,9 @@ import type * as MonacoTypes from "monaco-editor";
 import { getLocale, I18nModel, t } from "../i18n/i18n";
 import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
 import { ReviewsAnswer } from "../reviews/reviews-model";
-import { TabActivity, whileShown } from "../tab-activity";
+import { whileShown } from "../tab-activity";
 import { openFileInPreview } from "../term-copy/term-copy";
+import { everyInPanel } from "../view360/offcarpet-model";
 import { answerKey, worktreeFilePath } from "./review-answers";
 import { confirmAgentWorktree, ReviewWorktreeRisk } from "./review-cleanup";
 import {
@@ -344,7 +345,7 @@ export abstract class ReviewTabModel implements ViewModel {
                 scope: pr.dir,
                 handler: (event) => this.applyReviews(event.data as ReviewsAnswer),
             }),
-            TabActivity.getInstance().every(whileShown(HeadCheckMs), () => this.checkHead(), "review-head"),
+            everyInPanel(this.blockId, whileShown(HeadCheckMs), () => this.checkHead(), "review-head"),
             watchReviewSheetRequests(globalStore.get(atoms.staticTabId), this)
         );
         const onFocus = () => this.checkHead();

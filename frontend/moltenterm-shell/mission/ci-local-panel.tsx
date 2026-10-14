@@ -9,7 +9,8 @@ import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { TabActivity, whileShown } from "../tab-activity";
+import { whileShown } from "../tab-activity";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { LocalCiIcon } from "./ci-icon";
 import {
     branchCi,
@@ -54,6 +55,7 @@ function formatRunDate(ms: number): string {
 function useCiLog(dir: string, run: CiRunRecord, job: string, running: boolean): string {
     const [text, setText] = useState("");
     const offset = useRef(0);
+    const panelId = usePanelBlockId();
     useEffect(() => {
         setText("");
         offset.current = 0;
@@ -78,12 +80,12 @@ function useCiLog(dir: string, run: CiRunRecord, job: string, running: boolean):
                 cancelled = true;
             };
         }
-        const stop = TabActivity.getInstance().every(whileShown(LogPollMs), read, "ci-log");
+        const stop = everyInPanel(panelId, whileShown(LogPollMs), read, "ci-log");
         return () => {
             cancelled = true;
             stop();
         };
-    }, [dir, run?.id, job, running]);
+    }, [dir, run?.id, job, running, panelId]);
     return text;
 }
 
@@ -332,12 +334,13 @@ export function LocalCiRunner({ dir, projectName, github }: { dir: string; proje
     const [now, setNow] = useState(Date.now());
     const logRef = useRef<HTMLPreElement>(null);
     const running = state?.running ? state.runs.find((r) => r.id === state.running) : null;
+    const panelId = usePanelBlockId();
     useEffect(() => {
         if (!running) {
             return;
         }
-        return TabActivity.getInstance().every(whileShown(1000), () => setNow(Date.now()), "clock");
-    }, [running?.id]);
+        return everyInPanel(panelId, whileShown(1000), () => setNow(Date.now()), "clock");
+    }, [running?.id, panelId]);
     useEffect(() => {
         if (branch == null && state?.current) {
             setBranch(state.current);

@@ -9,6 +9,7 @@ import { useAtomValue } from "jotai";
 import { CSSProperties, memo, useEffect, useState } from "react";
 import { MoltenWave } from "../molten-button";
 import { CarpetMarginPx, Rect } from "./carpet-model";
+import { CarpetSensors } from "./view360-offcarpet";
 import { View360Radar } from "./view360-radar";
 import { useLocale, useT } from "../i18n/i18n";
 import { View360Text } from "./view360-text";
@@ -38,6 +39,7 @@ export const View360Underlay = memo(({ layoutModel }: { layoutModel: LayoutModel
             {signal !== mountSignal && <span key={signal} className="mt-carpet-glow" aria-hidden="true" />}
             <span className="mt-carpet-label">{t("view360.carpet")}</span>
             {layout.columns.length === 0 && <span className="mt-carpet-empty">{t("view360.empty")}</span>}
+            <CarpetSensors layoutModel={layoutModel} layout={layout} />
         </div>
     );
 });

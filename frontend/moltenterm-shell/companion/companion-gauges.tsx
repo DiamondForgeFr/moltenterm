@@ -14,7 +14,8 @@ import { useAtomValue } from "jotai";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { TabActivity, whileShown } from "../tab-activity";
+import { whileShown } from "../tab-activity";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
     CompanionUsageInfo,
     experimentalExplanation,
@@ -63,9 +64,10 @@ function visibleRead(): { fetch: boolean } {
 
 function useNow(intervalMs: number): number {
     const [now, setNow] = useState(() => Date.now());
+    const panelId = usePanelBlockId();
     useEffect(() => {
-        return TabActivity.getInstance().every(whileShown(intervalMs), () => setNow(Date.now()), "clock");
-    }, [intervalMs]);
+        return everyInPanel(panelId, whileShown(intervalMs), () => setNow(Date.now()), "clock");
+    }, [intervalMs, panelId]);
     return now;
 }
 
@@ -73,6 +75,7 @@ function useNow(intervalMs: number): number {
 function usePlanUsage(target: string, agent: string, now: number) {
     const [info, setInfo] = useState<CompanionUsageInfo>(null);
     const [failed, setFailed] = useState(false);
+    const panelId = usePanelBlockId();
     // A Refresh may run the agent's own tool (Codex's app-server, a few seconds): the icon turns meanwhile.
     const [refreshing, setRefreshing] = useState(false);
     const accept = (next: CompanionUsageInfo) => {
@@ -143,12 +146,13 @@ function usePlanUsage(target: string, agent: string, now: number) {
         if (!settingUp) {
             return;
         }
-        return TabActivity.getInstance().every(
+        return everyInPanel(
+            panelId,
             whileShown(SetupRecheckMs),
             () => call(CompanionUsageCommand, visibleRead()),
             "companion-usage-setup"
         );
-    }, [settingUp, target]);
+    }, [settingUp, target, panelId]);
     // A source wavesrv does not push (the experimental endpoint) is asked again only while the window shows
     // (NFR-SHELL-013); wavesrv keeps the call limits, this only asks. That also covers stale values.
     const refreshMs = info != null && info.gauges !== "off" ? (info.refreshms ?? 0) : 0;
@@ -179,8 +183,8 @@ function usePlanUsage(target: string, agent: string, now: number) {
                 call(CompanionUsageCommand, { fetch: true });
             }
         };
-        return TabActivity.getInstance().every(whileShown(refreshMs), askIfVisible, "companion-usage");
-    }, [refreshMs, target]);
+        return everyInPanel(panelId, whileShown(refreshMs), askIfVisible, "companion-usage");
+    }, [refreshMs, target, panelId]);
     // wavesrv reads automatically only for a window that shows: it is told when this one hides or shows, and asks
     // once on show (its own call limits keep that from being a burst).
     useEffect(() => {

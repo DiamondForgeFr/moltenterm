@@ -1,0 +1,25 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* Panels off-screen on the carpet (FR-SHELL-069, DS-SHELL-120). The sensors only exist for the carpet's
+   IntersectionObserver. An off-carpet panel's content keeps its layout box and its DOM (nothing is unloaded) but is
+   not rendered: nothing of it is painted, a terminal's renderer pauses (xterm watches its own intersection) and a
+   browser page is hidden to Chromium, which throttles it in the background. */
+
+.mt-carpet-sensors {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.mt-carpet-sensor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 1px;
+}
+
+.block-content.mt-offcarpet {
+    content-visibility: hidden;
+}

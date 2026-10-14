@@ -20,6 +20,7 @@ import { useBlockAgentState } from "../agent-state-ui";
 import { EmptyState, EmptyStateAction } from "../empty-state";
 import { I18nModel, t as translate, useT } from "../i18n/i18n";
 import { always, TabActivity, whileShown } from "../tab-activity";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { attachCompanion, companionAgent, startCompanionAgent, tabAttachCandidates } from "./companion-attach";
 import { FilesSection } from "./companion-files";
 import { PlanUsageSection } from "./companion-gauges";
@@ -109,6 +110,7 @@ function useCompanion(target: string): {
     const [view, setViewState] = useState<CompanionView>(null);
     const [error, setError] = useState<string>(null);
     const viewId = useMemo(() => crypto.randomUUID(), [target]);
+    const panelId = usePanelBlockId();
     const setView = (next: CompanionView) => {
         if (next?.blockid !== target) {
             return;
@@ -161,12 +163,8 @@ function useCompanion(target: string): {
         const stopRenew = TabActivity.getInstance().every(always(LeaseRenewMs), () => open(false), "companion-lease");
         // While it shows, the companion looks again on a bounded interval, on top of the file watch: a session link
         // that came while nobody looked, agents gone quiet (#600). Paused while hidden; a view that shows again runs
-        // it at once, overdue.
-        const stopRefresh = TabActivity.getInstance().every(
-            whileShown(RefreshMs),
-            () => open(true),
-            "companion-refresh"
-        );
+        // it at once, overdue. The same holds while its panel is off-screen on the carpet (#618).
+        const stopRefresh = everyInPanel(panelId, whileShown(RefreshMs), () => open(true), "companion-refresh");
         return () => {
             cancelled = true;
             stopRenew();
@@ -180,7 +178,7 @@ function useCompanion(target: string): {
                 }
             });
         };
-    }, [target, viewId]);
+    }, [target, viewId, panelId]);
     // An event left out the latest answer this view has no copy of: ask for it.
     const missing = needsLatest(view);
     useEffect(() => {

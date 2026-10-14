@@ -11,7 +11,8 @@ import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { TabActivity, whileShown } from "../tab-activity";
+import { whileShown } from "../tab-activity";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
     missionTrust,
     releaseEnd,
@@ -102,12 +103,13 @@ function jobDuration(job: ReleaseGhJob, now: number): string {
 function Jobs({ jobs }: { jobs: ReleaseGhJob[] }) {
     const [now, setNow] = useState(Date.now());
     const running = jobs.some((j) => j.status !== "completed");
+    const panelId = usePanelBlockId();
     useEffect(() => {
         if (!running) {
             return;
         }
-        return TabActivity.getInstance().every(whileShown(1000), () => setNow(Date.now()), "clock");
-    }, [running]);
+        return everyInPanel(panelId, whileShown(1000), () => setNow(Date.now()), "clock");
+    }, [running, panelId]);
     return (
         <ul className="mt-3 flex flex-col gap-1">
             {jobs.map((job) => {

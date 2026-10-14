@@ -19,7 +19,8 @@ import { useEffect, useState } from "react";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { TabActivity, whileShown } from "../tab-activity";
+import { whileShown } from "../tab-activity";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { AskBox } from "./review-actions-view";
 import { AnswersSection, QuestionQueue } from "./review-answers-view";
 import { ReviewPrInfo, ReviewPrMetaKey } from "./review-client";
@@ -126,9 +127,10 @@ function AiPanel({ review }: { review: ReviewTabModel }) {
 
 function useNow(): number {
     const [now, setNow] = useState(() => Date.now());
+    const panelId = usePanelBlockId();
     useEffect(
-        () => TabActivity.getInstance().every(whileShown(ClockMs), () => setNow(Date.now()), "review-briefing-clock"),
-        []
+        () => everyInPanel(panelId, whileShown(ClockMs), () => setNow(Date.now()), "review-briefing-clock"),
+        [panelId]
     );
     return now;
 }

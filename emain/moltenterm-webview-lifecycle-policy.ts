@@ -15,6 +15,8 @@
 //   is false.
 // - Hidden for moltenterm:hiddenpagediscardmin minutes (default 10, 0 never): the panel drops the page's webview; it
 //   keeps the tab's URL, title and favicon, and reloads the page at its URL and scroll position when shown.
+// - Off-screen on the carpet of a tab in 360 view (#618, FR-SHELL-069): frozen like a hidden page, never discarded
+//   while it stays on the carpet.
 // - Never frozen nor discarded: a page an agent drives (#301, FR-BRW-008), a page playing audio, a page whose DevTools
 //   are open. Never discarded: a page holding unsaved work (a changed form field, a focused field with text in it, or
 //   a beforeunload listener that asks to stay), which the tab view budget asks too (#476). A page's fields are read
@@ -104,6 +106,8 @@ type Entry = {
     freezeTimer: any;
     discardTimer: any;
     discardAsked: boolean;
+    // Hidden because its panel is off-screen on the carpet (#618): never discarded while it stays there.
+    offCarpet: boolean;
 };
 
 export class WebviewLifecycleTracker {
@@ -118,7 +122,10 @@ export class WebviewLifecycleTracker {
         return this.entries.get(wcId);
     }
 
-    report(wcId: number, shown: boolean) {
+    // offCarpet: the page is hidden because its panel is off-screen on the carpet of a tab in 360 view (#618,
+    // FR-SHELL-069): it is frozen as a hidden page is, but never discarded while it stays there; the discard delay
+    // starts when it leaves the carpet hidden.
+    report(wcId: number, shown: boolean, offCarpet = false) {
         let e = this.entries.get(wcId);
         if (e == null) {
             e = {
@@ -131,24 +138,37 @@ export class WebviewLifecycleTracker {
                 freezeTimer: null,
                 discardTimer: null,
                 discardAsked: false,
+                offCarpet: false,
             };
             this.entries.set(wcId, e);
         }
         if (shown) {
+            e.offCarpet = false;
             this.show(e);
             return;
         }
+        const cfg = this.actions.config();
         if (!e.shown) {
+            if (e.offCarpet === offCarpet) {
+                return;
+            }
+            e.offCarpet = offCarpet;
+            this.actions.clearTimeout(e.discardTimer);
+            e.discardTimer = null;
+            if (!offCarpet && cfg.discardMs > 0 && !e.discardAsked) {
+                e.hiddenAt = this.actions.now();
+                this.armDiscard(e, cfg.discardMs);
+            }
             return;
         }
         e.shown = false;
+        e.offCarpet = offCarpet;
         e.hiddenAt = this.actions.now();
         e.discardAsked = false;
-        const cfg = this.actions.config();
         if (cfg.freeze) {
             this.armFreeze(e, FreezeDelayMs);
         }
-        if (cfg.discardMs > 0) {
+        if (cfg.discardMs > 0 && !offCarpet) {
             this.armDiscard(e, cfg.discardMs);
         }
     }
@@ -188,7 +208,7 @@ export class WebviewLifecycleTracker {
             }
             this.actions.clearTimeout(e.discardTimer);
             e.discardTimer = null;
-            if (cfg.discardMs > 0 && !e.discardAsked) {
+            if (cfg.discardMs > 0 && !e.discardAsked && !e.offCarpet) {
                 this.armDiscard(e, Math.max(0, e.hiddenAt + cfg.discardMs - this.actions.now()));
             }
         }
@@ -294,7 +314,7 @@ export class WebviewLifecycleTracker {
     }
 
     private async tryDiscard(e: Entry) {
-        if (!this.live(e) || e.discardAsked || this.actions.config().discardMs <= 0) {
+        if (!this.live(e) || e.discardAsked || e.offCarpet || this.actions.config().discardMs <= 0) {
             return;
         }
         const p = this.actions.protection(e.wcId);
