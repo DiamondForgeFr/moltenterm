@@ -794,6 +794,8 @@ export class LayoutModel {
                     boundingRect,
                     resizeAction
                 );
+            // MOLTENTERM-PATCH (#615): the 360 view's mode decides first (automatic, always, never, the tab's choice)
+            this.moltenView360?.evaluate(this.treeState.rootNode, boundingRect);
             // MOLTENTERM-PATCH (#614): in 360 view the tree is balanced first, so the columns placed are the final ones
             if (balanceTree && this.moltenView360?.active) {
                 this.treeState.rootNode = balanceNode(this.treeState.rootNode);

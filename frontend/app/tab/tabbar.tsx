@@ -18,6 +18,7 @@ import { finishTabPanelDrag, trackTabPanelDrag } from "../../moltenterm-shell/sp
 import { checkTabDragReleased } from "../../moltenterm-shell/tab-drag"; // MOLTENTERM-PATCH (#81)
 import { layoutTabs, moveTabId, tabDropIndex, tabOffsets } from "../../moltenterm-shell/tab-layout"; // MOLTENTERM-PATCH (#410)
 import { measureTab } from "../../moltenterm-shell/tab-measure"; // MOLTENTERM-PATCH (#410)
+import { View360Toggle } from "../../moltenterm-shell/view360/view360-toggle"; // MOLTENTERM-PATCH (#615)
 import { closeTabAskingFirst } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#134, #489)
 import { Tab } from "./tab";
 import "./tabbar.scss";
@@ -749,6 +750,8 @@ const TabBar = memo(({ workspace, noTabs }: TabBarProps) => {
             </button>
             <div className="flex-1" />
             <div ref={rightContainerRef} className="flex flex-row gap-1 items-end">
+                {/* MOLTENTERM-PATCH (#615): the tab's "360" view toggle */}
+                <View360Toggle />
                 {/* MOLTENTERM-PATCH (#45): the notification center's bell */}
                 {MoltentermNotificationCenter && <NotificationCenter />}
                 <UpdateStatusBanner />

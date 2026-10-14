@@ -6,6 +6,7 @@
 // activeAtom / setActive (#615's setting and tab-bar toggle), layoutAtom and fixed-zone membership (#616's pinning),
 // scrollLeftAtom, visibleColumnIdsAtom and scrollToColumn (#617's scrubber, #618's off-screen throttling).
 
+import { getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { findNode } from "@/layout/lib/layoutNode";
@@ -46,7 +47,19 @@ import {
     splitCarpetColumns,
     visibleCarpetColumnIds,
 } from "./carpet-model";
-import { isView360On, setTabFixedPx, setTabView360, storedFixedPx } from "./view360-meta";
+import {
+    anyColumnTooTight,
+    autoWants,
+    decideView360,
+    normalColumnPxs,
+    normalizeView360Setting,
+    ResizeSettleMs,
+    showTightPill,
+    topColumns,
+    View360Decision,
+    View360SettingKey,
+} from "./view360-decision";
+import { setTabFixedPx, setTabView360, storedFixedPx, tabManualView360 } from "./view360-meta";
 
 const SmoothScrollMs = 260;
 // Transitions stay off this long after the last scroll step, so the panels follow the scroll without lag.
@@ -62,7 +75,19 @@ export class View360Model {
     layoutModel: LayoutModel;
     tabAtom: Atom<Tab>;
 
+    // The mode (FR-SHELL-066): the setting, the tab's manual choice, and what the layout last measured.
+    settingAtom: Atom<string>;
+    manualAtom: Atom<boolean>;
+    autoOnAtom: PrimitiveAtom<boolean> = atom(false);
+    columnCountAtom: PrimitiveAtom<number> = atom(0);
+    tooTightAtom: PrimitiveAtom<boolean> = atom(false);
+    // The column count when the "too tight" pill was closed; null while it is not dismissed.
+    pillDismissedAtAtom: PrimitiveAtom<number> = atom(null) as PrimitiveAtom<number>;
+    // Bumped on each automatic switch, for its short glow.
+    signalAtom: PrimitiveAtom<number> = atom(0);
+    decisionAtom: Atom<View360Decision>;
     activeAtom: Atom<boolean>;
+    pillAtom: Atom<boolean>;
     // The geometry of the last layout pass, null when the tab is not drawn in 360 view.
     layoutAtom: PrimitiveAtom<CarpetLayout> = atom(null) as PrimitiveAtom<CarpetLayout>;
     scrollLeftAtom: PrimitiveAtom<number> = atom(0);
@@ -82,14 +107,46 @@ export class View360Model {
     smoothFrame: number = null;
     rootChildren: Map<string, CarpetRootChild> = new Map();
 
+    // The automatic decision's last inputs: a new column count switches at once, a width change once it holds.
+    lastColumnCount: number = null;
+    settleTimer360: ReturnType<typeof setTimeout> = null;
+    applySettled = false;
+    inLayoutPass = false;
+
     constructor(layoutModel: LayoutModel, tabAtom: Atom<Tab>) {
         this.layoutModel = layoutModel;
         this.tabAtom = tabAtom;
-        this.activeAtom = atom((get) => isView360On(get(tabAtom)));
+        this.settingAtom = getSettingsKeyAtom(View360SettingKey as keyof SettingsType) as Atom<string>;
+        this.manualAtom = atom((get) => tabManualView360(get(tabAtom)));
+        this.decisionAtom = atom((get) =>
+            decideView360({
+                setting: normalizeView360Setting(get(this.settingAtom)),
+                manual: get(this.manualAtom),
+                autoOn: get(this.autoOnAtom),
+                columnCount: get(this.columnCountAtom),
+            })
+        );
+        this.activeAtom = selectAtom(this.decisionAtom, (d) => d.active);
+        this.pillAtom = atom((get) => {
+            const count = get(this.columnCountAtom);
+            const dismissedAt = get(this.pillDismissedAtAtom);
+            return showTightPill({
+                setting: normalizeView360Setting(get(this.settingAtom)),
+                manual: get(this.manualAtom),
+                active: get(this.activeAtom),
+                tooTight: get(this.tooTightAtom),
+                dismissed: dismissedAt != null && count <= dismissedAt,
+            });
+        });
         const visibleAtom = atom((get) => visibleCarpetColumnIds(get(this.layoutAtom), get(this.scrollLeftAtom)));
         this.visibleColumnIdsAtom = selectAtom(visibleAtom, (ids) => ids, sameIds);
         this.fixedNodeIdAtom = atom((get) => get(this.layoutAtom)?.fixedNodeId ?? null);
-        globalStore.sub(this.activeAtom, () => this.layoutModel.updateTree());
+        // A switch decided inside a layout pass is already drawn by that pass.
+        globalStore.sub(this.activeAtom, () => {
+            if (!this.inLayoutPass) {
+                this.layoutModel.updateTree();
+            }
+        });
         globalStore.sub(this.layoutModel.focusedNode, () => this.revealFocusedNode());
     }
 
@@ -97,20 +154,116 @@ export class View360Model {
         return globalStore.get(this.activeAtom);
     }
 
+    // What the tab asks for whatever its columns: a panel opened in a single-column tab that wants 360 view goes to
+    // the carpet.
+    get wanted(): boolean {
+        return globalStore.get(this.decisionAtom).wanted;
+    }
+
     get tabId(): string {
         return globalStore.get(this.tabAtom)?.oid ?? null;
     }
 
-    setActive(on: boolean): void {
+    // The tab's manual choice (the tab bar's toggle, the pill's action): true or false wins over the setting, null
+    // follows it again.
+    setManual(choice: boolean): void {
         const tabId = this.tabId;
-        if (tabId == null || on === this.active) {
+        if (tabId == null || choice === globalStore.get(this.manualAtom)) {
             return;
         }
-        fireAndForget(() => setTabView360(tabId, on));
+        fireAndForget(() => setTabView360(tabId, choice));
+    }
+
+    setActive(on: boolean): void {
+        this.setManual(on);
     }
 
     toggle(): void {
         this.setActive(!this.active);
+    }
+
+    dismissPill(): void {
+        globalStore.set(this.pillDismissedAtAtom, globalStore.get(this.columnCountAtom));
+    }
+
+    // ---- the automatic decision ------------------------------------------------------------------------------------
+
+    private gapPx(): number {
+        const gapAtom = this.layoutModel.gapSizePx;
+        return gapAtom == null ? 0 : (globalStore.get(gapAtom) ?? 0);
+    }
+
+    // Called by the layout at the start of each pass, before it asks whether the tab is in 360 view.
+    evaluate(rootNode: LayoutNode, bounds: Rect): void {
+        const width = bounds?.width;
+        if (!(width > 0)) {
+            return;
+        }
+        this.inLayoutPass = true;
+        try {
+            this.evaluateInPass(rootNode, width);
+        } finally {
+            this.inLayoutPass = false;
+        }
+    }
+
+    private evaluateInPass(rootNode: LayoutNode, width: number) {
+        const columns = topColumns(rootNode);
+        const count = columns.length;
+        const gap = this.gapPx();
+        globalStore.set(this.columnCountAtom, count);
+        const dismissedAt = globalStore.get(this.pillDismissedAtAtom);
+        if (dismissedAt != null && count > dismissedAt) {
+            globalStore.set(this.pillDismissedAtAtom, null);
+        }
+        const normalPxs = normalColumnPxs(
+            columns.map((c) => c.size),
+            width,
+            gap
+        );
+        globalStore.set(this.tooTightAtom, anyColumnTooTight(normalPxs));
+
+        const prevOn = globalStore.get(this.autoOnAtom);
+        const want = autoWants(prevOn, count, width, gap);
+        const first = this.lastColumnCount == null;
+        const countChanged = !first && count !== this.lastColumnCount;
+        this.lastColumnCount = count;
+        if (want === prevOn) {
+            this.cancelSettle();
+            this.applySettled = false;
+            return;
+        }
+        if (first || countChanged || this.applySettled) {
+            this.cancelSettle();
+            this.applySettled = false;
+            this.applyAuto(want, !first);
+            return;
+        }
+        this.scheduleSettle();
+    }
+
+    private applyAuto(on: boolean, signal: boolean) {
+        const before = this.active;
+        globalStore.set(this.autoOnAtom, on);
+        if (signal && this.active !== before && globalStore.get(this.decisionAtom).source === "auto") {
+            globalStore.set(this.signalAtom, globalStore.get(this.signalAtom) + 1);
+        }
+    }
+
+    private scheduleSettle() {
+        this.cancelSettle();
+        this.settleTimer360 = setTimeout(() => {
+            this.settleTimer360 = null;
+            this.applySettled = true;
+            this.layoutModel.updateTree();
+        }, ResizeSettleMs);
+    }
+
+    private cancelSettle() {
+        if (this.settleTimer360 != null) {
+            clearTimeout(this.settleTimer360);
+            this.settleTimer360 = null;
+        }
     }
 
     // ---- layout pass ---------------------------------------------------------------------------------------------
@@ -151,6 +304,12 @@ export class View360Model {
             const total = rootNode.children.reduce((acc, c) => acc + c.size, 0);
             fixedPx = split.carpet.length && total > 0 ? (split.fixed.size / total) * bounds.width : bounds.width;
             this.savedFixedPx = clampFixedPx(fixedPx, bounds.width);
+            // Saved at once (#614 follow-up): before, the width chosen on entering was kept only once dragged.
+            const tabId = this.tabId;
+            const px = this.savedFixedPx;
+            if (tabId != null && split.carpet.length) {
+                fireAndForget(() => setTabFixedPx(tabId, px));
+            }
         }
         const layout = computeCarpetLayout({
             width: bounds.width,
@@ -261,7 +420,7 @@ export class View360Model {
     // In 360 view a panel opened any way (insert, or a split beside another panel) is laid at the end of the carpet;
     // vertical splits stay in their column. Returns the action the layout should run instead, or the action itself.
     rewriteAction(action: LayoutTreeAction, rootNode: LayoutNode): LayoutTreeAction {
-        if (!this.active || rootNode == null) {
+        if (!this.wanted || rootNode == null) {
             return action;
         }
         let newNode: LayoutNode = null;

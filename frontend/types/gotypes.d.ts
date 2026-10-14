@@ -1473,6 +1473,7 @@ declare global {
         "moltenterm:hiddenpagediscardmin"?: number;
         "moltenterm:releasenotify"?: boolean;
         "moltenterm:confirmbusyclose"?: boolean;
+        "moltenterm:view360"?: string;
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;
         "window:*"?: boolean;

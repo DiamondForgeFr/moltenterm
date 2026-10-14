@@ -33,6 +33,7 @@
     "tab:holdtoclosems": 600,
     "moltenterm:confirmbusyclose": true,
     "moltenterm:releasenotify": true,
+    "moltenterm:view360": "auto",
     "window:savelastwindow": true,
     "telemetry:enabled": false,
     "term:bellsound": false,

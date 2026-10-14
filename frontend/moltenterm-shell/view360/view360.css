@@ -133,3 +133,146 @@
 .mt-carpet-thumb.dragging {
     background: color-mix(in srgb, var(--mt-accent) 55%, transparent);
 }
+
+/* The tab bar's "360" toggle (FR-SHELL-066, DS-SHELL-117): calm when off, the accent when on, a small "A" while the
+   tab follows the automatic setting. */
+.mt-v360-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    margin: 0 4px 4px;
+    padding: 0 8px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-6);
+    background: transparent;
+    color: var(--mt-text-muted);
+    font-family: var(--mt-ui-font);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    line-height: 1;
+    user-select: none;
+    transition:
+        color var(--mt-duration-fast) var(--mt-ease),
+        border-color var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-v360-toggle:hover {
+    color: var(--mt-text-main);
+    border-color: color-mix(in srgb, var(--mt-neutral-line) 24%, transparent);
+}
+
+.mt-v360-toggle.is-on {
+    border-color: color-mix(in srgb, var(--mt-accent) 70%, transparent);
+    background: color-mix(in srgb, var(--mt-accent) 16%, rgb(20, 20, 20));
+    color: color-mix(in srgb, var(--mt-accent) 45%, var(--mt-text-main));
+}
+
+.mt-v360-toggle.is-on:hover {
+    border-color: var(--mt-accent);
+}
+
+.mt-v360-toggle.is-disabled {
+    opacity: 0.45;
+}
+
+.mt-v360-toggle.is-disabled:hover {
+    color: var(--mt-text-muted);
+    border-color: var(--mt-line-2);
+}
+
+.mt-v360-icon {
+    flex-shrink: 0;
+}
+
+.mt-v360-auto {
+    margin-left: -2px;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    opacity: 0.75;
+    transform: translateY(-3px) scale(0.8);
+}
+
+/* The automatic switch's one short glow, on the toggle and the carpet edge; none under reduced motion (the duration
+   token is 0 there). */
+.mt-v360-glow,
+.mt-carpet-glow {
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    animation: mt-v360-glow calc(var(--mt-duration-glow) / 2) var(--mt-ease) 1;
+}
+
+@keyframes mt-v360-glow {
+    0% {
+        opacity: 0;
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--mt-accent) 0%, transparent);
+    }
+    35% {
+        opacity: 1;
+        box-shadow:
+            0 0 0 1px color-mix(in srgb, var(--mt-accent) 80%, transparent),
+            0 0 14px 2px color-mix(in srgb, var(--mt-accent) 45%, transparent);
+    }
+    100% {
+        opacity: 0;
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--mt-accent) 0%, transparent);
+    }
+}
+
+/* "Too tight to read" (FR-SHELL-066-AC5): a calm pill floating at the bottom centre of the tab's panels. */
+.mt-tight-pill {
+    position: absolute;
+    left: 50%;
+    bottom: var(--mt-space-16);
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: var(--mt-space-8);
+    padding: 5px 6px 5px 12px;
+    transform: translateX(-50%);
+    border: 1px solid var(--mt-line-2);
+    border-radius: 999px;
+    background: var(--mt-surface-2);
+    box-shadow: var(--mt-shadow-e2);
+    color: var(--mt-text-main);
+    font-family: var(--mt-ui-font);
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-medium);
+    white-space: nowrap;
+    pointer-events: auto;
+}
+
+.mt-tight-pill-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--mt-accent);
+}
+
+.mt-tight-pill .molten-btn {
+    border-radius: 999px;
+}
+
+.mt-tight-pill-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    color: var(--mt-text-muted);
+    font-size: var(--mt-icon-14);
+    transition:
+        color var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-tight-pill-close:hover {
+    color: var(--mt-text-main);
+    background: var(--mt-line-1);
+}

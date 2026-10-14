@@ -197,6 +197,9 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#489): a close that would stop what runs in a terminal asks first (FR-SHELL-061, frontend/moltenterm-shell/busy-close*.ts).
 	MoltentermConfirmBusyClose *bool `json:"moltenterm:confirmbusyclose,omitempty" jsonschema_description:"Closing a pane, a tab or replacing a terminal in which something runs (a coding agent, even idle, or a command other than the shell) asks first and names what would stop; false closes at once as before (the worktree and Sessions confirmations still ask)"`
 
+	// MOLTENTERM-PATCH (#615): when a tab switches to 360 view (FR-SHELL-066, frontend/moltenterm-shell/view360/view360-decision.ts).
+	MoltentermView360 string `json:"moltenterm:view360,omitempty" jsonschema:"enum=auto,enum=always,enum=never" jsonschema_description:"When a tab with several columns shows in 360 view (its first column fixed, the other panels on a carpet that scrolls sideways). auto: when a panel would fall under its readable width, back when everything fits again. always: every tab with several columns. never: panels squeeze, and a pill says when one is too tight to read. A tab's own 360 toggle wins over this setting"`
+
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`
 
