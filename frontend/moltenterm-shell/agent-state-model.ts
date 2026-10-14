@@ -19,6 +19,8 @@ export type AgentStateInfo = {
     workspaceid?: string;
     agent?: string;
     agentname?: string;
+    // The session's first name, unique among the app's active agents (FR-CONT-014).
+    firstname?: string;
     state?: AgentStateName;
     message?: string;
     since?: number;
@@ -114,11 +116,24 @@ export const AgentStateDotClasses: Record<string, string> = {
     idle: "bg-secondary",
 };
 
+// How a list or a title names a session's agent (FR-CONT-014): "[Jérôme] Claude Code", the agent's name alone without
+// a first name. Must match AgentLabel in pkg/molten/agentstate.go.
+export function agentLabel(info: AgentStateInfo, fallback = "Agent"): string {
+    const kind = info?.agentname || info?.agent || fallback;
+    const first = (info?.firstname ?? "").trim();
+    return first ? `[${first}] ${kind}` : kind;
+}
+
+// How a sentence names a session's agent: its first name, else the agent's name ("Shared with Jérôme").
+export function agentCallName(info: AgentStateInfo, fallback = "Agent"): string {
+    return (info?.firstname ?? "").trim() || info?.agentname || info?.agent || fallback;
+}
+
 export function agentStateTitle(info: AgentStateInfo): string {
     if (info == null) {
         return "";
     }
-    const name = info.agentname || info.agent || "Agent";
+    const name = agentLabel(info);
     const line = `${name}: ${agentStateLabel(info.state)}`;
     return info.message ? `${line}\n${info.message}` : line;
 }
@@ -170,5 +185,5 @@ export function agentHeaderParts(info: AgentStateInfo, projectName: string, bran
     if (info == null) {
         return [];
     }
-    return [info.agentname || info.agent || "Agent", projectName, branch].filter((s) => !!s);
+    return [agentLabel(info), projectName, branch].filter((s) => !!s);
 }

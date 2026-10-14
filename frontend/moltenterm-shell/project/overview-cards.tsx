@@ -11,7 +11,13 @@ import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
-import { AgentStateDotClasses, AgentStateInfo, agentStateLabel, agentStateTitle } from "../agent-state-model";
+import {
+    agentLabel,
+    AgentStateDotClasses,
+    AgentStateInfo,
+    agentStateLabel,
+    agentStateTitle,
+} from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { AdapterSteps } from "../mission/adapter-steps";
 import { latestRun, MissionSnapshot, toTreeData } from "../mission/mission-model";
@@ -166,7 +172,7 @@ function AgentLine({ info }: { info: AgentStateInfo }) {
                 )}
                 aria-hidden
             />
-            <span className="min-w-0 flex-1 truncate text-primary">{info.agentname || info.agent || "Agent"}</span>
+            <span className="min-w-0 flex-1 truncate text-primary">{agentLabel(info)}</span>
             <span
                 className={cn(
                     "max-w-[55%] shrink-0 truncate font-mono text-12",

@@ -117,7 +117,7 @@ func (s *service) sessions(ctx context.Context, wsIds []string) []AutoApproveSes
 		approved, reason := SessionApproval(run.Agent, info.Remote, report, hasReport, s.hooks.ran(run.Agent))
 		rtn = append(rtn, AutoApproveSession{
 			WorkspaceId: info.WorkspaceId, BlockId: run.BlockId, TabName: s.tabName(ctx, run.BlockId), Agent: run.Agent,
-			AgentName: molten.AgentDisplayName(run.Agent), Approved: approved, Reason: reason,
+			AgentName: molten.AgentLabel(run.FirstName, run.Agent), Approved: approved, Reason: reason,
 		})
 	}
 	sortSessions(rtn)

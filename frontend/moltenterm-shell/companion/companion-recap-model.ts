@@ -5,7 +5,7 @@
 // the transcript (pkg/molten/companion/topics.go) and the pane's agent state. Nothing here is written by a model: a
 // line the data cannot support is left out. Pure, so it is tested without a window.
 
-import { agentModelEffortLabel, AgentStateInfo, agentStateLabel } from "../agent-state-model";
+import { agentLabel, agentModelEffortLabel, AgentStateInfo, agentStateLabel } from "../agent-state-model";
 import { CompanionSubagent, CompanionTopic, CompanionView, relativeTime } from "./companion-model";
 
 // The branch naming of the workflow (feature/{N}-…, fix/{N}-…): the number is the ticket.
@@ -91,7 +91,7 @@ export function mainAgentRow(view: CompanionView, agentState: AgentStateInfo): A
     return {
         id: "main",
         main: true,
-        name: view?.agentname || agentState?.agentname || "Agent",
+        name: agentState?.firstname ? agentLabel(agentState) : view?.agentname || agentState?.agentname || "Agent",
         state,
         stateLabel: ended ? "exited" : agentStateLabel(state),
         config: ended ? "" : agentModelEffortLabel(agentState),

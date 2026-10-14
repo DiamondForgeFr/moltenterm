@@ -15,6 +15,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import { atom, PrimitiveAtom, useAtom, useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useState } from "react";
+import { agentLabel } from "../agent-state-model";
 import { useBlockAgentState } from "../agent-state-ui";
 import { EmptyState, EmptyStateAction } from "../empty-state";
 import { always, TabActivity } from "../tab-activity";
@@ -318,7 +319,12 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     }
     return (
         <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
-            <SessionBar view={view} onHistory={() => setHistory(true)} onIntegration={() => setIntegrationOpen(true)} />
+            <SessionBar
+                view={view}
+                name={agentState?.firstname ? agentLabel(agentState) : view.agentname}
+                onHistory={() => setHistory(true)}
+                onIntegration={() => setIntegrationOpen(true)}
+            />
             <GuessNotice session={session} onHistory={() => setHistory(true)} />
             <IntegrationNotice view={view} className="mx-3 mt-2" />
             <SessionSections

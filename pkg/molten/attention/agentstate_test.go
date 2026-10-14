@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentnames"
 )
 
 type agentHarness struct {
@@ -175,6 +176,7 @@ func TestSignalAndCommandInOneChunk(t *testing.T) {
 
 func TestHookReportsAndNoDoubleNotification(t *testing.T) {
 	h := makeAgentHarness()
+	h.states.names = agentnames.MakeAllocator([]string{"Jérôme"})
 	if err := h.report("b1", molten.AgentStateWaiting, ""); err == nil {
 		t.Fatalf("a report without a known agent needs --agent")
 	}
@@ -185,7 +187,7 @@ func TestHookReportsAndNoDoubleNotification(t *testing.T) {
 	if err := h.report("b1", molten.AgentStateWaiting, ""); err != nil {
 		t.Fatal(err)
 	}
-	if len(h.notices) != 1 || h.notices[0] != "warning:Claude Code is waiting for you" {
+	if len(h.notices) != 1 || h.notices[0] != "warning:Jérôme is waiting for you" {
 		t.Fatalf("notices %v", h.notices)
 	}
 	// Claude Code's own OSC 9 for the same moment.
@@ -200,7 +202,7 @@ func TestHookReportsAndNoDoubleNotification(t *testing.T) {
 	h.report("b1", molten.AgentStateWorking, "")
 	h.clock = h.clock.Add(10 * time.Second)
 	h.report("b1", molten.AgentStateDone, "")
-	if len(h.notices) != 2 || h.notices[1] != "success:Claude Code is done" {
+	if len(h.notices) != 2 || h.notices[1] != "success:Jérôme is done" {
 		t.Fatalf("notices %v", h.notices)
 	}
 	// The other way round: the signal first, then the hook.

@@ -6,7 +6,7 @@
 // joined with the agents connected to MoltenTerm's browser server (wavesrv's sessions). Sharing, moving and the Share
 // and tell line all happen in wavesrv (pkg/molten/browseragent/share.go); these rules only build the menu.
 
-import type { AgentStateInfo } from "../agent-state-model";
+import { agentCallName, agentLabel, type AgentStateInfo } from "../agent-state-model";
 import { agentName, AgentSession, AgentTab, OriginShared } from "./browser-agent";
 import type { BrowserTab } from "./browser-model";
 
@@ -15,7 +15,10 @@ export type ShareSession = AgentSession;
 // One agent of the workspace the tab can be shared with.
 export type ShareAgent = {
     blockId: string;
+    // agentName: how a sentence names the agent, its first name when it has one (FR-CONT-014); label: how the menu lists
+    // it ("[Jérôme] Claude Code").
     agentName: string;
+    label?: string;
     paneTitle: string;
     // The agent's browser session; absent when it has not connected MoltenTerm's browser server.
     sessionId?: string;
@@ -62,7 +65,8 @@ export function shareAgents(
         seen.add(info.blockid);
         rtn.push({
             blockId: info.blockid,
-            agentName: info.agentname || info.agent,
+            agentName: agentCallName(info),
+            label: agentLabel(info),
             paneTitle: paneTitle(info.blockid),
             sessionId: byBlock.get(info.blockid)?.sessionid,
             state: info.state,
@@ -81,14 +85,15 @@ export function shareAgents(
     }
     return rtn.sort(
         (a, b) =>
-            a.agentName.localeCompare(b.agentName) ||
+            (a.label || a.agentName).localeCompare(b.label || b.agentName) ||
             a.paneTitle.localeCompare(b.paneTitle) ||
             a.blockId.localeCompare(b.blockId)
     );
 }
 
 export function agentEntryLabel(agent: ShareAgent): string {
-    return agent.paneTitle ? `${agent.agentName} — ${agent.paneTitle}` : agent.agentName;
+    const label = agent.label || agent.agentName;
+    return agent.paneTitle ? `${label} — ${agent.paneTitle}` : label;
 }
 
 // Why a tab cannot be shared at all, or "" when it can (AC8): a page handed off to an installed browser (or bridged
