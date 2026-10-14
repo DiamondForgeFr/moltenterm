@@ -8,7 +8,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
-import { useT } from "../i18n/i18n";
+import { TFunction, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { ReviewCommentKind } from "./review-client";
 import { CommentCard, KindToggle } from "./review-comments-view";
@@ -318,16 +318,11 @@ export function AskBox({ model }: { model: ReviewTabModel }) {
 }
 
 // What a queued question's outcome says (FR-REV-006 AC4); the queue itself is listed under the box.
-const AskQueuedNext = "Queued: it is sent when your agent is idle, and its answer shows under this box.";
-const AskQueuedBehindOne = "Queued behind 1 other question: each is sent when your agent is idle.";
-const AskQueuedBehind = "Queued behind %d other questions: each is sent when your agent is idle.";
-const AskQueuedSent = "Sent to the review session from the queue: its answer shows under this box.";
-
-function queuedText(position: number): string {
+function queuedText(t: TFunction, position: number): string {
     if (position <= 1) {
-        return AskQueuedNext;
+        return t("review.ask.queuedNext");
     }
-    return position === 2 ? AskQueuedBehindOne : AskQueuedBehind.replace("%d", String(position - 1));
+    return position === 2 ? t("review.ask.queuedBehindOne") : t("review.ask.queuedBehind", { count: position - 1 });
 }
 
 function AskOutcome({
@@ -364,7 +359,7 @@ function AskOutcome({
     if (result.queued && !waiting.includes(result.questionid)) {
         return (
             <p className="text-11 text-success" data-testid="review-ask-outcome">
-                {AskQueuedSent}
+                {t("review.ask.queuedSent")}
             </p>
         );
     }
@@ -372,7 +367,7 @@ function AskOutcome({
         return (
             <p className="text-11 text-warning" data-testid="review-ask-outcome">
                 {result.message ? `${result.message} ` : ""}
-                {queuedText(result.position ?? 1)}
+                {queuedText(t, result.position ?? 1)}
             </p>
         );
     }

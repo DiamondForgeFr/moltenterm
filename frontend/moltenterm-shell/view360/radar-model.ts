@@ -8,6 +8,7 @@
 import type { AgentStateInfo } from "../agent-state-model";
 import { MoltentermBrowserView } from "../browser/browser-model";
 import { MoltentermCompanionView } from "../companion/companion-model";
+import { t } from "../i18n/i18n";
 import { MoltentermLineMapView } from "../mission/line-map-model";
 import { checkOpen, type MoltentermNotification } from "../notifications-model";
 import { LegacyTimelineView, MoltentermProjectView } from "../project/project-model";
@@ -53,18 +54,35 @@ const ViewKinds: Record<string, RadarKind> = {
 // notification of the notification center points at the panel.
 export type RadarAttention = "answer" | "notification";
 
-// The UI text of the radar, kept together (#623 moves UI strings to translation keys). Never names the machine or the
-// system (#628).
+// The UI text of the radar, read through the interface's keys at each access (FR-I18N-001). Never names the machine
+// or the system (#628).
 export const RadarText = {
-    label: "Panels on the carpet",
-    inView: "in view",
-    offLeft: "off-screen to the left",
-    offRight: "off-screen to the right",
-    clickToGo: "click to go there",
-    answer: "waiting for your answer",
-    notification: "a notification is waiting",
-    untitled: "Panel",
-    morePanels: (n: number) => (n === 1 ? "+1 panel" : `+${n} panels`),
+    get label() {
+        return t("view360.radar.label");
+    },
+    get inView() {
+        return t("view360.radar.inView");
+    },
+    get offLeft() {
+        return t("view360.radar.offLeft");
+    },
+    get offRight() {
+        return t("view360.radar.offRight");
+    },
+    get clickToGo() {
+        return t("view360.radar.clickToGo");
+    },
+    get answer() {
+        return t("view360.radar.answer");
+    },
+    get notification() {
+        return t("view360.radar.notification");
+    },
+    get untitled() {
+        return t("view360.radar.untitled");
+    },
+    morePanels: (n: number) =>
+        n === 1 ? t("view360.radar.morePanelsOne") : t("view360.radar.morePanels", { count: n }),
 };
 
 // What the radar needs to know of one block.

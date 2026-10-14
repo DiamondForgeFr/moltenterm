@@ -9,9 +9,9 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import type * as MonacoTypes from "monaco-editor";
+import { t } from "../i18n/i18n";
 import { answerAtLine, answerMarkerLines, answersOnSide } from "./review-answers";
 import { ReviewComment, ReviewExplanation } from "./review-client";
-import { t } from "../i18n/i18n";
 import {
     commentAtLine,
     commentsOfFile,
@@ -60,15 +60,15 @@ export function commentHover(comment: ReviewComment): string {
 
 // The gutter marker of the agent's answers (FR-REV-006): its click opens them in the AI panel.
 const AnswerGlyphClass = "molten-review-answer";
-const AnswerHoverTitle = "AI answer";
-const AnswerHoverTitleMany = "AI answers";
-const AnswerHoverHint = "Click to show it in the AI panel.";
 
 export function answerHover(answers: readonly ReviewExplanation[]): string {
-    const title = answers.length > 1 ? `${AnswerHoverTitleMany} (${answers.length})` : AnswerHoverTitle;
+    const title =
+        answers.length > 1
+            ? t("review.answers.hoverTitleMany", { count: answers.length })
+            : t("review.answers.hoverTitle");
     const last = answers[answers.length - 1];
     const question = last?.question ? `\n\n${escapeMarkdown(last.question)}` : "";
-    return `**${title}** · ${linesLabel(last.anchor)}${question}\n\n${AnswerHoverHint}`;
+    return `**${title}** · ${linesLabel(last.anchor)}${question}\n\n${t("review.answers.hoverHint")}`;
 }
 
 export function attachDiffActions(
