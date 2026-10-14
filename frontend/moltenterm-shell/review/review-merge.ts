@@ -4,6 +4,7 @@
 // Validate's plan sheet, the pure part (FR-REV-012, DS-REV-010): what the checks and the merge's progress look like,
 // and when Merge can be clicked. wavesrv decides again on the click; the sheet only reflects the plan.
 
+import { t } from "../i18n/i18n";
 import type { ReviewCleanupResult } from "./review-cleanup";
 import { ReviewCheckState, ReviewMergePlan, ReviewMergeRecord, ReviewMergeState } from "./review-client";
 
@@ -25,11 +26,41 @@ export function sheetRecord(record: ReviewMergeRecord, planid: string): ReviewMe
 }
 
 export const CheckLooks: Record<ReviewCheckState, { icon: string; tone: string; word: string }> = {
-    ok: { tone: "text-success", icon: "fa-circle-check", word: "Passed" },
-    info: { tone: "text-accent", icon: "fa-circle-info", word: "Note" },
-    warn: { tone: "text-warning", icon: "fa-triangle-exclamation", word: "Warning" },
-    pending: { tone: "text-muted", icon: "fa-clock", word: "Waiting" },
-    fail: { tone: "text-error", icon: "fa-circle-xmark", word: "Failed" },
+    ok: {
+        tone: "text-success",
+        icon: "fa-circle-check",
+        get word() {
+            return t("review.merge.check.ok");
+        },
+    },
+    info: {
+        tone: "text-accent",
+        icon: "fa-circle-info",
+        get word() {
+            return t("review.merge.check.info");
+        },
+    },
+    warn: {
+        tone: "text-warning",
+        icon: "fa-triangle-exclamation",
+        get word() {
+            return t("review.merge.check.warn");
+        },
+    },
+    pending: {
+        tone: "text-muted",
+        icon: "fa-clock",
+        get word() {
+            return t("review.merge.check.pending");
+        },
+    },
+    fail: {
+        tone: "text-error",
+        icon: "fa-circle-xmark",
+        get word() {
+            return t("review.merge.check.fail");
+        },
+    },
 };
 
 // Merge is clickable when the plan allows it, its warnings are confirmed and no merge of the PR is running (AC4).
@@ -43,36 +74,36 @@ export function canClickMerge(plan: ReviewMergePlan, override: boolean, record: 
 // Why Merge is disabled, as its tooltip and the line under the checks say.
 export function mergeDisabledReason(plan: ReviewMergePlan, override: boolean, record: ReviewMergeRecord): string {
     if (plan == null) {
-        return "Reading the pull request…";
+        return t("review.merge.reading");
     }
     if (mergeRunning(record)) {
-        return "A merge of this pull request is running";
+        return t("review.merge.running");
     }
     if (!plan.canmerge) {
-        return plan.reason || "A check does not pass";
+        return plan.reason || t("review.merge.checkFails");
     }
     if ((plan.warnings ?? []).length > 0 && !override) {
-        return "Confirm the warnings to merge anyway";
+        return t("review.merge.confirmWarnings");
     }
     return "";
 }
 
 export function mergeButtonLabel(plan: ReviewMergePlan): string {
-    return plan?.behind ? "Update, then merge" : "Rebase and merge";
+    return plan?.behind ? t("review.merge.updateThenMerge") : t("review.merge.rebaseAndMerge");
 }
 
 export function mergeStateLabel(record: ReviewMergeRecord, baseref: string): string {
     switch (record?.state) {
         case "checking":
-            return "Reading the pull request again…";
+            return t("review.merge.state.checking");
         case "updating":
-            return `GitHub is rebasing the branch on ${baseref}…`;
+            return t("review.merge.state.updating", { base: baseref });
         case "waitingci":
-            return "Waiting for CI on the rebased head…";
+            return t("review.merge.state.waitingci");
         case "merging":
-            return "Merging…";
+            return t("review.merge.state.merging");
         case "merged":
-            return record.message || "Merged";
+            return record.message || t("review.merge.state.merged");
         case "refused":
         case "failed":
         case "cancelled":

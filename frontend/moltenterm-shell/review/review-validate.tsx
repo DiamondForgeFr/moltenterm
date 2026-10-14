@@ -8,6 +8,7 @@
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { DialogFrame, useEscape } from "../dialog-frame";
+import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { ReviewCleanupResult } from "./review-cleanup";
 import { CleanupSteps } from "./review-cleanup-steps";
@@ -31,6 +32,7 @@ const PlainButton =
     "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
 
 export function ValidateButton({ model }: { model: ReviewTabModel }) {
+    const t = useT();
     const state = useAtomValue(model.stateAtom);
     const running = mergeRunning(state?.merge);
     return (
@@ -38,7 +40,7 @@ export function ValidateButton({ model }: { model: ReviewTabModel }) {
             type="button"
             className="molten-btn flex h-6 cursor-pointer items-center gap-1.5 rounded-6 px-2 text-12"
             onClick={() => fireAndForget(() => model.openValidate())}
-            title="Rebase and merge this pull request: shows the plan first"
+            title={t("review.validate.buttonTitle")}
             data-testid="review-validate"
         >
             {running ? (
@@ -46,13 +48,14 @@ export function ValidateButton({ model }: { model: ReviewTabModel }) {
             ) : (
                 <i className="fa fa-solid fa-code-merge text-11" />
             )}
-            {running ? "Merging…" : "Validate"}
+            {running ? t("review.merge.state.merging") : t("review.validate.button")}
             <MoltenWave />
         </button>
     );
 }
 
 export function ValidateSheet({ model }: { model: ReviewTabModel }) {
+    const t = useT();
     const v = useAtomValue(model.validateAtom);
     const pr = useAtomValue(model.prAtom);
     const state = useAtomValue(model.stateAtom);
@@ -68,8 +71,8 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
     return (
         <DialogFrame
             role="review-validate"
-            title={`Validate #${pr.number}`}
-            subtitle={`Rebase and merge ${pr.headref} into ${baseref}`}
+            title={t("review.validate.title", { number: pr.number })}
+            subtitle={t("review.validate.subtitle", { head: pr.headref, base: baseref })}
             widthClass="w-[640px]"
             trapFocus
             buttons={
@@ -103,7 +106,7 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
             {plan == null && v.loading ? (
                 <div className="flex items-center gap-2 text-muted">
                     <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
-                    Reading the pull request on GitHub…
+                    {t("review.validate.readingGithub")}
                 </div>
             ) : null}
             {plan != null ? (
@@ -134,11 +137,12 @@ function SheetButtons({
     disabledReason: string;
     loading: boolean;
 }) {
+    const t = useT();
     if (record != null && record.state === "refused" && record.refused === "headmoved") {
         return (
             <>
                 <button type="button" className={PlainButton} onClick={() => model.closeValidate()}>
-                    Close
+                    {t("common.close")}
                 </button>
                 <button
                     type="button"
@@ -146,7 +150,7 @@ function SheetButtons({
                     onClick={() => fireAndForget(() => model.reviewNewCommits())}
                     data-testid="validate-review-new"
                 >
-                    Review the new commits
+                    {t("review.validate.reviewNewCommits")}
                     <MoltenWave />
                 </button>
             </>
@@ -163,7 +167,7 @@ function SheetButtons({
                         onClick={() => fireAndForget(() => model.cancelMerge())}
                         data-testid="validate-cancel"
                     >
-                        Stop waiting
+                        {t("review.validate.stopWaiting")}
                     </button>
                 ) : null}
                 {ended && record.state !== "merged" ? (
@@ -173,11 +177,11 @@ function SheetButtons({
                         onClick={() => fireAndForget(() => model.openValidate())}
                         data-testid="validate-again"
                     >
-                        Validate again
+                        {t("review.validate.again")}
                     </button>
                 ) : null}
                 <button type="button" className={PlainButton} onClick={() => model.closeValidate()}>
-                    Close
+                    {t("common.close")}
                 </button>
             </>
         );
@@ -189,20 +193,20 @@ function SheetButtons({
                 className={cn(PlainButton, "mr-auto")}
                 disabled={loading}
                 onClick={() => fireAndForget(() => model.loadPlan())}
-                title="Read the pull request again"
+                title={t("review.validate.recheckTitle")}
                 data-testid="validate-recheck"
             >
                 <i className="fa fa-solid fa-rotate mr-1 text-11" />
-                Re-check
+                {t("review.validate.recheck")}
             </button>
             <button type="button" className={PlainButton} onClick={() => model.closeValidate()}>
-                Cancel
+                {t("common.cancel")}
             </button>
             <button
                 type="button"
                 className="molten-btn flex cursor-pointer items-center gap-1.5 rounded-6 px-3 py-1 text-12 disabled:cursor-default disabled:opacity-50"
                 disabled={!enabled}
-                title={enabled ? `Merge, bound to head ${shortOid(plan?.headoid)}` : disabledReason}
+                title={enabled ? t("review.validate.mergeTitle", { oid: shortOid(plan?.headoid) }) : disabledReason}
                 onClick={() => fireAndForget(() => model.merge())}
                 data-testid="validate-merge"
             >
@@ -227,15 +231,16 @@ function PlanBody({
     locked: boolean;
     disabledReason: string;
 }) {
+    const t = useT();
     const warnings = plan.warnings ?? [];
     return (
         <div className="flex flex-col gap-3" data-testid="validate-plan">
             <div className="text-muted">
-                Planned on head <code title={plan.headoid}>{shortOid(plan.headoid)}</code>: anything pushed after this
-                plan makes the merge refuse.
+                {t("review.validate.plannedOnBefore")} <code title={plan.headoid}>{shortOid(plan.headoid)}</code>
+                {t("review.validate.plannedOnAfter")}
             </div>
             <section>
-                <div className="mb-1.5 font-medium text-muted">Checks</div>
+                <div className="mb-1.5 font-medium text-muted">{t("review.validate.checks")}</div>
                 <div className="flex flex-col gap-1">
                     {plan.checks.map((c) => (
                         <CheckRow key={c.id} check={c} />
@@ -257,11 +262,11 @@ function PlanBody({
                         onChange={(e) => onOverride(e.target.checked)}
                         data-testid="validate-override"
                     />
-                    <span>Merge anyway: I have read the warnings above.</span>
+                    <span>{t("review.validate.mergeAnyway")}</span>
                 </label>
             ) : null}
             <section>
-                <div className="mb-1.5 font-medium text-muted">Steps</div>
+                <div className="mb-1.5 font-medium text-muted">{t("review.validate.steps")}</div>
                 <ol className="flex list-decimal flex-col gap-1 pl-5">
                     {plan.steps.map((s) => (
                         <li key={s.id} data-testid={`validate-step-${s.id}`}>
@@ -273,13 +278,13 @@ function PlanBody({
             </section>
             {plan.cleanup.length > 0 && !locked ? (
                 <section data-testid="validate-cleanup-plan">
-                    <div className="mb-1.5 font-medium text-muted">Then the cleanup</div>
+                    <div className="mb-1.5 font-medium text-muted">{t("review.validate.thenCleanup")}</div>
                     <CleanupSteps steps={plan.cleanup} />
                 </section>
             ) : null}
             {disabledReason && !plan.canmerge ? (
                 <div className="text-error" data-testid="validate-reason">
-                    Merge is disabled: {disabledReason}
+                    {t("review.validate.mergeDisabled", { reason: disabledReason })}
                 </div>
             ) : null}
         </div>
@@ -312,6 +317,7 @@ function MergeProgress({
     confirming: boolean;
     baseref: string;
 }) {
+    const t = useT();
     const running = mergeRunning(record);
     return (
         <div
@@ -325,7 +331,7 @@ function MergeProgress({
             </div>
             {record.head && record.head !== record.planhead ? (
                 <div className="text-muted">
-                    Rebased by GitHub: head <code title={record.head}>{shortOid(record.head)}</code>
+                    {t("review.validate.rebasedHead")} <code title={record.head}>{shortOid(record.head)}</code>
                 </div>
             ) : null}
             {record.cleanuprunning || cleanup != null ? (
@@ -334,7 +340,7 @@ function MergeProgress({
                         {record.cleanuprunning ? (
                             <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
                         ) : null}
-                        {record.cleanuprunning ? "Cleaning up after the merge…" : "Cleanup"}
+                        {record.cleanuprunning ? t("review.validate.cleaningUp") : t("review.validate.cleanup")}
                     </div>
                     {cleanup != null ? (
                         <CleanupSteps

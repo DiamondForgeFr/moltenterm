@@ -3741,5 +3741,246 @@
             "tableLabel": "Durable sessions",
             "endsLater": "{what} ends once {connection} is back."
         }
+    },
+    "review": {
+        "ai": {
+            "viewName": "AI panel",
+            "viewNamePr": "AI panel · #{number}",
+            "noPr": "No pull request",
+            "noPrHint": "Open the AI panel from a Review tab.",
+            "notOpen": "The review of #{number} is not open",
+            "notOpenHint": "Open the pull request's Review tab from the Reviews view: the AI panel follows it.",
+            "cardsLabel": "Briefing and explanations",
+            "worktreeAgent": "Worktree: the agent's",
+            "worktreeReview": "Worktree: MoltenTerm's review copy",
+            "worktreeFailed": "The review worktree could not be prepared.",
+            "worktreePreparing": "Preparing the review worktree…",
+            "askTitle": "Ask your agent for a new briefing of the PR's head",
+            "agentBusy": "Your agent is busy.",
+            "busy": "{message} Ask again once it is idle.",
+            "askFailed": "The briefing could not be asked for.",
+            "briefing": "Briefing",
+            "yourAgent": "Your agent",
+            "reading": "{agent} is reading the PR, its ticket, the plan and the test report; the briefing shows here.",
+            "noBriefing": "No briefing yet.",
+            "askBriefing": "Ask for a briefing",
+            "briefingLater": "The briefing comes from your agent once its session runs.",
+            "newBriefing": "A new briefing is on its way.",
+            "briefNewHead": "Brief the new head",
+            "askAgain": "Ask again",
+            "starting": "Starting your agent in the PR's worktree…",
+            "running": "{agent} reviews this PR, read-only, in the terminal under this panel.",
+            "toolsConnect": "Its review tools connect when it starts.",
+            "showTerminal": "Show its terminal",
+            "startFailed": "The review session could not start.",
+            "tryAgain": "Try again",
+            "noSession": "No review session runs for this PR.",
+            "startSession": "Start the review session",
+            "notRunning": "The review session is not running."
+        },
+        "ask": {
+            "wholePrTitle": "Ask about the whole PR instead",
+            "removeSelection": "Remove the selection",
+            "wholePr": "About the whole PR.",
+            "placeholder": "Your question, in your language",
+            "keys": "Enter to send, Shift+Enter for a new line",
+            "sending": "Sending…",
+            "send": "Send",
+            "sent": "Sent to the review session: the answer comes in its terminal.",
+            "typed": "Typed in the agent's prompt after your draft there: press Enter in its terminal to send it.",
+            "notTyped": "The question could not be typed.",
+            "kept": "Your question is kept: send it again when the agent is idle."
+        },
+        "briefing": {
+            "justNow": "just now",
+            "minutesAgo": "{count} min ago",
+            "hoursAgo": "{count} h ago",
+            "daysAgo": "{count} days ago",
+            "moved": "{when}, on {oid}: the PR moved since"
+        },
+        "cleanup": {
+            "step": {
+                "pr": "PR merged",
+                "ticketClose": "Ticket closed",
+                "ticketDone": "Ticket moved to Done",
+                "reviewWorktree": "Review worktree removed",
+                "agentWorktree": "Agent worktree removed",
+                "localBranch": "Local branch deleted",
+                "remoteBranch": "Remote branch deleted",
+                "otherPrs": "Other open PRs brought up to date"
+            },
+            "state": {
+                "planned": "planned",
+                "done": "done",
+                "skipped": "skipped",
+                "failed": "failed"
+            },
+            "prRebased": "rebased by GitHub",
+            "removeAgentWorktree": "Remove the agent worktree anyway"
+        },
+        "comment": {
+            "state": {
+                "draft": "Draft",
+                "staged": "Staged",
+                "translated": "Translated",
+                "published": "Published",
+                "dropped": "Dropped"
+            },
+            "hoverHeading": "{state} comment",
+            "fileLevelQuoting": "File-level, quoting {lines}",
+            "outdated": "Outdated",
+            "outdatedTitle": "Its lines are not in the head shown any more",
+            "showLines": "Show the lines",
+            "edit": "Edit the comment",
+            "delete": "Delete the comment"
+        },
+        "comments": {
+            "one": "1 comment",
+            "other": "{count} comments"
+        },
+        "commits": {
+            "headRewritten": "head rewritten",
+            "newOne": "{count} new commit",
+            "newOther": "{count} new commits",
+            "newRewrittenOne": "{count} new commit (rewritten)",
+            "newRewrittenOther": "{count} new commits (rewritten)"
+        },
+        "composer": {
+            "fileLevel": "File-level comment quoting {lines} ({side})",
+            "onLines": "Comment on {lines} ({side})",
+            "edit": "Edit: {where}",
+            "placeholder": "Your comment, in your language",
+            "keys": "{key}Enter to save, Esc to cancel",
+            "saveDraft": "Save draft"
+        },
+        "diff": {
+            "askLines": "Ask the AI about these lines",
+            "commentLines": "Comment these lines"
+        },
+        "file": {
+            "status": {
+                "added": "added",
+                "modified": "modified",
+                "deleted": "deleted",
+                "renamed": "renamed",
+                "copied": "copied",
+                "typechanged": "type changed",
+                "submodule": "submodule"
+            },
+            "collapsed": {
+                "binary": "Binary file: it is not shown as text.",
+                "generated": "Generated file (lock file, generated code or marked linguist-generated): collapsed.",
+                "large": "Large file: over 1 MB or 20,000 lines, collapsed.",
+                "largeSize": "Large file ({size}): over 1 MB or 20,000 lines, collapsed.",
+                "submodule": "Submodule: its commit changed; its content lives in another repository."
+            },
+            "tag": {
+                "binary": "binary",
+                "generated": "generated",
+                "large": "large",
+                "submodule": "submodule"
+            },
+            "renamedFrom": "renamed from {path}",
+            "viewedLabel": "Viewed: {path}",
+            "viewedTitle": "Viewed (uncheck to read it again)",
+            "markViewed": "Mark as viewed"
+        },
+        "merge": {
+            "check": {
+                "ok": "Passed",
+                "info": "Note",
+                "warn": "Warning",
+                "pending": "Waiting",
+                "fail": "Failed"
+            },
+            "reading": "Reading the pull request…",
+            "running": "A merge of this pull request is running",
+            "checkFails": "A check does not pass",
+            "confirmWarnings": "Confirm the warnings to merge anyway",
+            "updateThenMerge": "Update, then merge",
+            "rebaseAndMerge": "Rebase and merge",
+            "state": {
+                "checking": "Reading the pull request again…",
+                "updating": "GitHub is rebasing the branch on {base}…",
+                "waitingci": "Waiting for CI on the rebased head…",
+                "merging": "Merging…",
+                "merged": "Merged"
+            }
+        },
+        "select": {
+            "selected": "Selected: {anchor}",
+            "askTitle": "Ask the AI about {lines} ({key})",
+            "ask": "Ask the AI",
+            "commentTitle": "Comment {lines} ({key})",
+            "comment": "Comment",
+            "commentFile": "Comment (file)"
+        },
+        "selection": {
+            "reasonSince": "Line comments are made on All changes: this one is file-level and quotes the lines.",
+            "reasonOutside": "These lines are outside the diff's hunks: the comment is file-level and quotes them.",
+            "base": "base",
+            "head": "head",
+            "line": "line {line}",
+            "lines": "lines {start}–{end}"
+        },
+        "validate": {
+            "button": "Validate",
+            "buttonTitle": "Rebase and merge this pull request: shows the plan first",
+            "title": "Validate #{number}",
+            "subtitle": "Rebase and merge {head} into {base}",
+            "readingGithub": "Reading the pull request on GitHub…",
+            "reviewNewCommits": "Review the new commits",
+            "stopWaiting": "Stop waiting",
+            "again": "Validate again",
+            "recheckTitle": "Read the pull request again",
+            "recheck": "Re-check",
+            "mergeTitle": "Merge, bound to head {oid}",
+            "plannedOnBefore": "Planned on head",
+            "plannedOnAfter": ": anything pushed after this plan makes the merge refuse.",
+            "checks": "Checks",
+            "mergeAnyway": "Merge anyway: I have read the warnings above.",
+            "steps": "Steps",
+            "thenCleanup": "Then the cleanup",
+            "mergeDisabled": "Merge is disabled: {reason}",
+            "rebasedHead": "Rebased by GitHub: head",
+            "cleaningUp": "Cleaning up after the merge…",
+            "cleanup": "Cleanup"
+        },
+        "view": {
+            "viewName": "Review",
+            "viewNamePr": "Review #{number}",
+            "noPr": "No pull request in this review",
+            "noPrHint": "Open a pull request's review from the Reviews view.",
+            "prTitle": "Pull request #{number}",
+            "into": "into",
+            "head": "head",
+            "since": "since",
+            "movedTitle": "The pull request moved: show its new head",
+            "refresh": "Refresh",
+            "openGithub": "Open the pull request on GitHub",
+            "closeAi": "Close the AI panel (the review session keeps running)",
+            "openAi": "Open the AI panel: the PR's briefing, and the review session",
+            "diff": "Diff",
+            "allChanges": "All changes",
+            "allChangesTitle": "The PR's changes against its base (as GitHub)",
+            "sinceRound": "Since last round",
+            "sinceViewed": "Since last viewed",
+            "sinceRoundTitle": "The changes since the head of the last published review round",
+            "sinceViewedTitle": "The changes since the head you read before",
+            "layout": "Layout",
+            "sideBySide": "Side by side",
+            "unified": "Unified",
+            "reading": "Reading the changes…",
+            "viewedCount": "{viewed} / {total} viewed",
+            "changedFiles": "Changed files",
+            "readFailed": "The changes could not be read. {error}",
+            "noFile": "No file changed.",
+            "selectFile": "Select a file to see its changes.",
+            "fileReadFailed": "This file could not be read",
+            "fileReadFailedHint": "git could not read one of its sides.",
+            "readingFile": "Reading {path}…",
+            "lines": "{count} lines",
+            "loadDiff": "Load the diff"
+        }
     }
 }

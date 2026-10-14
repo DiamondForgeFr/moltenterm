@@ -6,6 +6,7 @@
 // or failed (the message); the agent worktree kept for its risk comes back with the plan to confirm a second time.
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { t } from "../i18n/i18n";
 import { ReviewRoute } from "./review-client";
 
 // must match pkg/molten/review/cleanup.go
@@ -94,19 +95,19 @@ export function confirmAgentWorktree(
     return runReviewCleanup({ ...req, steps: ["agent-worktree", "local-branch"], worktreeconfirmed: risk });
 }
 
-const StepLabels: Record<ReviewCleanupStepId, string> = {
-    pr: "PR merged",
-    "ticket-close": "Ticket closed",
-    "ticket-done": "Ticket moved to Done",
-    "review-worktree": "Review worktree removed",
-    "agent-worktree": "Agent worktree removed",
-    "local-branch": "Local branch deleted",
-    "remote-branch": "Remote branch deleted",
-    "other-prs": "Other open PRs brought up to date",
+const StepLabelKeys: Record<ReviewCleanupStepId, string> = {
+    pr: "review.cleanup.step.pr",
+    "ticket-close": "review.cleanup.step.ticketClose",
+    "ticket-done": "review.cleanup.step.ticketDone",
+    "review-worktree": "review.cleanup.step.reviewWorktree",
+    "agent-worktree": "review.cleanup.step.agentWorktree",
+    "local-branch": "review.cleanup.step.localBranch",
+    "remote-branch": "review.cleanup.step.remoteBranch",
+    "other-prs": "review.cleanup.step.otherPrs",
 };
 
 export function cleanupStepLabel(id: ReviewCleanupStepId): string {
-    return StepLabels[id] ?? id;
+    return StepLabelKeys[id] ? t(StepLabelKeys[id]) : id;
 }
 
 // cleanupStepDetail is the line under a step: why it was skipped, the error that made it fail, or what it did.
@@ -119,10 +120,10 @@ export function cleanupStepDetail(step: ReviewCleanupStepResult): string {
 
 export function cleanupPrDetail(pr: ReviewCleanupPr): string {
     if (pr.state === "done") {
-        return "rebased by GitHub";
+        return t("review.cleanup.prRebased");
     }
     if (pr.state === "failed") {
-        return pr.message ?? "failed";
+        return pr.message ?? t("review.cleanup.state.failed");
     }
     return pr.reason ?? "";
 }

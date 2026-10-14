@@ -17,6 +17,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 import { EmptyState } from "../empty-state";
+import { I18nModel, t as translate, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { TabActivity, whileShown } from "../tab-activity";
 import { AskBox } from "./review-actions-view";
@@ -52,7 +53,8 @@ export class ReviewAiViewModel implements ViewModel {
         this.prAtom = atom((get) => (get(blockAtom)?.meta?.[ReviewPrMetaKey] as ReviewPrInfo) ?? null);
         this.viewName = atom((get) => {
             const pr = get(this.prAtom);
-            return pr ? `AI panel · #${pr.number}` : "AI panel";
+            get(I18nModel.getInstance().localeAtom);
+            return pr ? translate("review.ai.viewNamePr", { number: pr.number }) : translate("review.ai.viewName");
         });
         this.reviewAtom = atom((get) => {
             const pr = get(this.prAtom);
@@ -66,17 +68,18 @@ export class ReviewAiViewModel implements ViewModel {
 }
 
 export function ReviewAiView({ model }: ViewComponentProps<ReviewAiViewModel>) {
+    const t = useT();
     const pr = useAtomValue(model.prAtom);
     const review = useAtomValue(model.reviewAtom);
     if (pr == null) {
-        return <EmptyState icon="sparkles" title="No pull request" hint="Open the AI panel from a Review tab." />;
+        return <EmptyState icon="sparkles" title={t("review.ai.noPr")} hint={t("review.ai.noPrHint")} />;
     }
     if (review == null) {
         return (
             <EmptyState
                 icon="code-pull-request"
-                title={`The review of #${pr.number} is not open`}
-                hint="Open the pull request's Review tab from the Reviews view: the AI panel follows it."
+                title={t("review.ai.notOpen", { number: pr.number })}
+                hint={t("review.ai.notOpenHint")}
             />
         );
     }
@@ -84,6 +87,7 @@ export function ReviewAiView({ model }: ViewComponentProps<ReviewAiViewModel>) {
 }
 
 function AiPanel({ review }: { review: ReviewTabModel }) {
+    const t = useT();
     const ai = useAtomValue(review.aiAtom);
     const worktree = useAtomValue(review.worktreeAtom);
     const focusTerminal = () => {
@@ -96,23 +100,25 @@ function AiPanel({ review }: { review: ReviewTabModel }) {
     return (
         <div
             className="flex h-full min-h-0 w-full flex-col gap-3 overflow-auto p-3 text-12"
-            aria-label="AI panel"
+            aria-label={t("review.ai.viewName")}
             data-testid="review-ai"
         >
             <AiStatus ai={ai} onRetry={() => fireAndForget(() => review.openAi())} onShowTerminal={focusTerminal} />
             <AskBox model={review} />
             <QuestionQueue model={review} />
-            <section className="flex flex-col gap-2" data-slot="review-cards" aria-label="Briefing and explanations">
+            <section className="flex flex-col gap-2" data-slot="review-cards" aria-label={t("review.ai.cardsLabel")}>
                 <BriefingCard review={review} ai={ai} />
             </section>
             <AnswersSection model={review} />
             <CommentsPanel model={review} />
             <div className="mt-auto text-11 text-muted" title={worktree.worktree?.worktree ?? worktree.error}>
                 {worktree.state === "ready"
-                    ? `Worktree: ${worktree.worktree.kind === "agent" ? "the agent's" : "MoltenTerm's review copy"}`
+                    ? worktree.worktree.kind === "agent"
+                        ? t("review.ai.worktreeAgent")
+                        : t("review.ai.worktreeReview")
                     : worktree.state === "failed"
-                      ? "The review worktree could not be prepared."
-                      : "Preparing the review worktree…"}
+                      ? t("review.ai.worktreeFailed")
+                      : t("review.ai.worktreePreparing")}
             </div>
         </div>
     );
@@ -133,6 +139,7 @@ function waitingForBriefing(ask: ReviewBriefAsk, briefingAt: number): boolean {
 }
 
 function BriefingCard({ review, ai }: { review: ReviewTabModel; ai: ReviewAiState }) {
+    const t = useT();
     const briefing = useAtomValue(review.briefingAtom);
     const ask = useAtomValue(review.briefAskAtom);
     const head = useAtomValue(review.headAtom);
@@ -145,7 +152,7 @@ function BriefingCard({ review, ai }: { review: ReviewTabModel; ai: ReviewAiStat
             className={SecondaryButton}
             disabled={ask.status === "asking" || ai.status === "starting"}
             onClick={() => fireAndForget(() => review.askBriefing())}
-            title="Ask your agent for a new briefing of the PR's head"
+            title={t("review.ai.askTitle")}
             data-testid="review-briefing-ask"
         >
             <i className="fa fa-solid fa-rotate text-11" />
@@ -155,14 +162,14 @@ function BriefingCard({ review, ai }: { review: ReviewTabModel; ai: ReviewAiStat
     const askNote =
         ask.status === "busy" ? (
             <p className="text-warning" data-testid="review-briefing-busy">
-                {ask.message || "Your agent is busy."} Ask again once it is idle.
+                {t("review.ai.busy", { message: ask.message || t("review.ai.agentBusy") })}
             </p>
         ) : ask.status === "typed" ? (
             <p className="text-warning" data-testid="review-briefing-typed">
                 {ask.message}
             </p>
         ) : ask.status === "failed" ? (
-            <p className="text-error">{ask.message || "The briefing could not be asked for."}</p>
+            <p className="text-error">{ask.message || t("review.ai.askFailed")}</p>
         ) : null;
     // Links of the briefing that point into the PR open the file in the diff at the line; web links open as usual.
     const onClickCapture = (e: React.MouseEvent) => {
@@ -178,19 +185,18 @@ function BriefingCard({ review, ai }: { review: ReviewTabModel; ai: ReviewAiStat
     if (briefing == null) {
         return (
             <article className="flex flex-col gap-2 rounded-6 border border-border p-2.5" data-testid="review-briefing">
-                <div className="text-13 font-semibold">Briefing</div>
+                <div className="text-13 font-semibold">{t("review.ai.briefing")}</div>
                 {waiting ? (
                     <p className="text-muted" data-testid="review-briefing-waiting">
-                        {ai.session?.agentname ?? "Your agent"} is reading the PR, its ticket, the plan and the test
-                        report; the briefing shows here.
+                        {t("review.ai.reading", { agent: ai.session?.agentname ?? t("review.ai.yourAgent") })}
                     </p>
                 ) : running ? (
                     <>
-                        <p className="text-muted">No briefing yet.</p>
-                        {askButton("Ask for a briefing")}
+                        <p className="text-muted">{t("review.ai.noBriefing")}</p>
+                        {askButton(t("review.ai.askBriefing"))}
                     </>
                 ) : (
-                    <p className="text-muted">The briefing comes from your agent once its session runs.</p>
+                    <p className="text-muted">{t("review.ai.briefingLater")}</p>
                 )}
                 {askNote}
             </article>
@@ -201,7 +207,7 @@ function BriefingCard({ review, ai }: { review: ReviewTabModel; ai: ReviewAiStat
     return (
         <article className="flex flex-col gap-2 rounded-6 border border-border p-2.5" data-testid="review-briefing">
             <div className="flex items-center justify-between gap-2">
-                <div className="text-13 font-semibold">Briefing</div>
+                <div className="text-13 font-semibold">{t("review.ai.briefing")}</div>
                 <span
                     className={cn("text-11", stale ? "text-warning" : "text-muted")}
                     data-testid="review-briefing-note"
@@ -211,7 +217,7 @@ function BriefingCard({ review, ai }: { review: ReviewTabModel; ai: ReviewAiStat
             </div>
             {waiting ? (
                 <p className="text-muted" data-testid="review-briefing-waiting">
-                    A new briefing is on its way.
+                    {t("review.ai.newBriefing")}
                 </p>
             ) : null}
             {askNote}
@@ -231,7 +237,7 @@ function BriefingCard({ review, ai }: { review: ReviewTabModel; ai: ReviewAiStat
                     fixedFontSizeOverride={11}
                 />
             </div>
-            {running && !waiting ? askButton(stale ? "Brief the new head" : "Ask again") : null}
+            {running && !waiting ? askButton(stale ? t("review.ai.briefNewHead") : t("review.ai.askAgain")) : null}
         </article>
     );
 }
@@ -245,21 +251,21 @@ function AiStatus({
     onRetry: () => void;
     onShowTerminal: () => void;
 }) {
+    const t = useT();
     switch (ai.status) {
         case "starting":
-            return <p className="text-muted">Starting your agent in the PR's worktree…</p>;
+            return <p className="text-muted">{t("review.ai.starting")}</p>;
         case "running":
             return (
                 <div className="flex flex-col gap-1.5">
                     <p>
-                        {ai.session?.agentname ?? "Your agent"} reviews this PR, read-only, in the terminal under this
-                        panel.
-                        {ai.session?.connected ? "" : " Its review tools connect when it starts."}
+                        {t("review.ai.running", { agent: ai.session?.agentname ?? t("review.ai.yourAgent") })}
+                        {ai.session?.connected ? "" : " " + t("review.ai.toolsConnect")}
                     </p>
                     {ai.message ? <p className="text-warning">{ai.message}</p> : null}
                     <button type="button" className={SecondaryButton} onClick={onShowTerminal}>
                         <i className="fa fa-solid fa-terminal text-11" />
-                        Show its terminal
+                        {t("review.ai.showTerminal")}
                     </button>
                 </div>
             );
@@ -268,23 +274,23 @@ function AiStatus({
         case "failed":
             return (
                 <div className="flex flex-col gap-1.5">
-                    <p className="text-error">{ai.message || "The review session could not start."}</p>
+                    <p className="text-error">{ai.message || t("review.ai.startFailed")}</p>
                     <button type="button" className={SecondaryButton} onClick={onRetry}>
-                        Try again
+                        {t("review.ai.tryAgain")}
                     </button>
                 </div>
             );
     }
     return (
         <div className="flex flex-col gap-1.5">
-            <p className="text-muted">No review session runs for this PR.</p>
+            <p className="text-muted">{t("review.ai.noSession")}</p>
             <button
                 type="button"
                 className="molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12"
                 onClick={onRetry}
                 data-testid="review-ai-start"
             >
-                Start the review session
+                {t("review.ai.startSession")}
                 <MoltenWave />
             </button>
         </div>

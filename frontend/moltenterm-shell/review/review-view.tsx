@@ -12,6 +12,7 @@ import { useAtomValue } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "../empty-state";
+import { useT } from "../i18n/i18n";
 import { MonacoDiffViewer } from "../lazy/monaco-lazy";
 import { MoltenWave } from "../molten-button";
 import { CommentsStrip, SelectionOverlay } from "./review-actions-view";
@@ -47,6 +48,7 @@ export class ReviewViewModel extends ReviewTabModel {
 }
 
 export function ReviewView({ model }: ViewComponentProps<ReviewViewModel>) {
+    const t = useT();
     const pr = useAtomValue(model.prAtom);
     useEffect(() => {
         if (pr == null) {
@@ -55,13 +57,7 @@ export function ReviewView({ model }: ViewComponentProps<ReviewViewModel>) {
         return model.start();
     }, [model, pr == null]);
     if (pr == null) {
-        return (
-            <EmptyState
-                icon="code-pull-request"
-                title="No pull request in this review"
-                hint="Open a pull request's review from the Reviews view."
-            />
-        );
+        return <EmptyState icon="code-pull-request" title={t("review.view.noPr")} hint={t("review.view.noPrHint")} />;
     }
     return (
         <div className="flex h-full min-h-0 w-full flex-col" data-role="molten-review">
@@ -77,6 +73,7 @@ export function ReviewView({ model }: ViewComponentProps<ReviewViewModel>) {
 }
 
 function ReviewHeader({ model }: { model: ReviewViewModel }) {
+    const t = useT();
     const pr = useAtomValue(model.prAtom);
     const head = useAtomValue(model.headAtom);
     const files = useAtomValue(model.filesAtom);
@@ -99,20 +96,20 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                 <div className="min-w-0">
                     <div className="truncate text-13 leading-5 font-medium" title={pr.title}>
                         {pr.ticket ? <span className="mr-1.5 text-accent">#{pr.ticket}</span> : null}
-                        {pr.title || `Pull request #${pr.number}`}
+                        {pr.title || t("review.view.prTitle", { number: pr.number })}
                     </div>
                     <div className="truncate text-12 text-muted">
-                        PR #{pr.number} · <code>{pr.headref}</code> into <code>{pr.baseref}</code>
+                        PR #{pr.number} · <code>{pr.headref}</code> {t("review.view.into")} <code>{pr.baseref}</code>
                         {head ? (
                             <>
                                 {" "}
-                                · head <code title={head}>{shortOid(head)}</code>
+                                · {t("review.view.head")} <code title={head}>{shortOid(head)}</code>
                             </>
                         ) : null}
                         {mode === "since" && since ? (
                             <>
                                 {" "}
-                                · since <code title={since.from}>{shortOid(since.from)}</code>
+                                · {t("review.view.since")} <code title={since.from}>{shortOid(since.from)}</code>
                             </>
                         ) : null}
                     </div>
@@ -123,11 +120,11 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                             type="button"
                             className="molten-btn flex h-6 cursor-pointer items-center gap-1.5 rounded-6 px-2 text-12"
                             onClick={() => fireAndForget(() => model.refresh())}
-                            title="The pull request moved: show its new head"
+                            title={t("review.view.movedTitle")}
                             data-testid="review-new-commits"
                         >
                             <i className="fa fa-solid fa-rotate text-11" />
-                            {newCommitsLabel(newCommits.commits, newCommits.rewritten)} · Refresh
+                            {newCommitsLabel(newCommits.commits, newCommits.rewritten)} · {t("review.view.refresh")}
                             <MoltenWave />
                         </button>
                     ) : null}
@@ -136,7 +133,7 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                             type="button"
                             className={ToolbarButton}
                             onClick={() => fireAndForget(() => openLink(pr.url))}
-                            title="Open the pull request on GitHub"
+                            title={t("review.view.openGithub")}
                         >
                             <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
                             GitHub
@@ -147,15 +144,11 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                         className={cn(ToolbarButton, aiOpen && "border-accent/60 text-primary")}
                         onClick={() => fireAndForget(() => model.toggleAi())}
                         aria-pressed={aiOpen}
-                        title={
-                            aiOpen
-                                ? "Close the AI panel (the review session keeps running)"
-                                : "Open the AI panel: the PR's briefing, and the review session"
-                        }
+                        title={aiOpen ? t("review.view.closeAi") : t("review.view.openAi")}
                         data-testid="review-ai-toggle"
                     >
                         <i className="fa fa-solid fa-sparkles text-11" />
-                        AI panel
+                        {t("review.ai.viewName")}
                     </button>
                     <PublishButton model={model} />
                     <ValidateButton model={model} />
@@ -163,16 +156,16 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
             </div>
             <div className="flex flex-wrap items-center gap-1.5 text-12">
                 <Segmented
-                    label="Diff"
+                    label={t("review.view.diff")}
                     value={mode}
                     options={[
-                        { value: "full", label: "All changes", title: "The PR's changes against its base (as GitHub)" },
+                        { value: "full", label: t("review.view.allChanges"), title: t("review.view.allChangesTitle") },
                         {
                             value: "since",
-                            label: since?.published ? "Since last round" : "Since last viewed",
+                            label: since?.published ? t("review.view.sinceRound") : t("review.view.sinceViewed"),
                             title: since?.published
-                                ? "The changes since the head of the last published review round"
-                                : "The changes since the head you read before",
+                                ? t("review.view.sinceRoundTitle")
+                                : t("review.view.sinceViewedTitle"),
                             disabled: !hasSince,
                         },
                     ]}
@@ -180,17 +173,17 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                     testId="review-mode"
                 />
                 <Segmented
-                    label="Layout"
+                    label={t("review.view.layout")}
                     value={sideBySide ? "split" : "unified"}
                     options={[
-                        { value: "split", label: "Side by side" },
-                        { value: "unified", label: "Unified" },
+                        { value: "split", label: t("review.view.sideBySide") },
+                        { value: "unified", label: t("review.view.unified") },
                     ]}
                     onChange={(v) => model.setSideBySide(v === "split")}
                     testId="review-layout"
                 />
                 <span className="ml-auto text-muted" data-testid="review-viewed-count">
-                    {loading ? "Reading the changes…" : `${viewed} / ${total} viewed`}
+                    {loading ? t("review.view.reading") : t("review.view.viewedCount", { viewed, total })}
                 </span>
             </div>
         </div>
@@ -265,6 +258,7 @@ function Segmented({
 }
 
 function FilesPanel({ model }: { model: ReviewViewModel }) {
+    const t = useT();
     const tree = useAtomValue(model.treeAtom);
     const files = useAtomValue(model.orderedFilesAtom);
     const result = useAtomValue(model.filesAtom);
@@ -299,7 +293,7 @@ function FilesPanel({ model }: { model: ReviewViewModel }) {
             className="flex w-[280px] min-w-[200px] shrink-0 flex-col overflow-auto border-r border-border py-1"
             onKeyDown={onKeyDown}
             role="tree"
-            aria-label="Changed files"
+            aria-label={t("review.view.changedFiles")}
             data-testid="review-files"
         >
             {error ? (
@@ -307,14 +301,14 @@ function FilesPanel({ model }: { model: ReviewViewModel }) {
                     className="m-2 rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-12 text-error"
                     title={error}
                 >
-                    The changes could not be read. {error}
+                    {t("review.view.readFailed", { error })}
                 </div>
             ) : null}
             {result == null && loading ? (
-                <div className="px-3 py-2 text-12 text-muted">Reading the changes…</div>
+                <div className="px-3 py-2 text-12 text-muted">{t("review.view.reading")}</div>
             ) : null}
             {result != null && result.files.length === 0 ? (
-                <div className="px-3 py-2 text-12 text-muted">No file changed.</div>
+                <div className="px-3 py-2 text-12 text-muted">{t("review.view.noFile")}</div>
             ) : null}
             <TreeLevel model={model} nodes={tree} depth={0} selected={selected} state={state} counts={counts} />
         </div>
@@ -430,12 +424,13 @@ const FileRow = memo(function FileRow({
     viewed: boolean;
     comments: number;
 }) {
+    const t = useT();
     const file = node.file;
     const status = StatusLetters[file.status] ?? StatusLetters.modified;
     const tag = collapsedTag(file.collapsed);
     const title = [
         file.path,
-        file.oldpath ? `renamed from ${file.oldpath}` : null,
+        file.oldpath ? t("review.file.renamedFrom", { path: file.oldpath }) : null,
         `${status.label}, +${file.additions} −${file.deletions}`,
         tag ? collapsedReason(file.collapsed, file) : null,
     ]
@@ -480,7 +475,7 @@ const FileRow = memo(function FileRow({
             {comments > 0 ? (
                 <span
                     className="flex shrink-0 items-center gap-0.5 text-10 text-muted"
-                    title={comments === 1 ? "1 comment" : `${comments} comments`}
+                    title={comments === 1 ? t("review.comments.one") : t("review.comments.other", { count: comments })}
                     data-testid="review-file-comments"
                 >
                     <i className="fa fa-solid fa-comment text-10" />
@@ -497,8 +492,8 @@ const FileRow = memo(function FileRow({
                 checked={viewed}
                 onClick={(e) => e.stopPropagation()}
                 onChange={() => model.toggleViewed(file)}
-                aria-label={`Viewed: ${file.path}`}
-                title={viewed ? "Viewed (uncheck to read it again)" : "Mark as viewed"}
+                aria-label={t("review.file.viewedLabel", { path: file.path })}
+                title={viewed ? t("review.file.viewedTitle") : t("review.file.markViewed")}
                 data-testid="review-viewed"
             />
         </div>
@@ -507,6 +502,7 @@ const FileRow = memo(function FileRow({
 FileRow.displayName = "FileRow";
 
 function DiffPanel({ model }: { model: ReviewViewModel }) {
+    const t = useT();
     const view = useAtomValue(model.fileAtom);
     const selected = useAtomValue(model.selectedAtom);
     const files = useAtomValue(model.filesAtom);
@@ -519,7 +515,7 @@ function DiffPanel({ model }: { model: ReviewViewModel }) {
                 className="flex min-w-0 flex-1 items-center justify-center text-12 text-muted"
                 data-testid="review-diff-empty"
             >
-                {files == null ? "" : "Select a file to see its changes."}
+                {files == null ? "" : t("review.view.selectFile")}
             </div>
         );
     }
@@ -561,21 +557,26 @@ function DiffBody({
     view: ReviewFileView;
     mode: string;
 }) {
+    const t = useT();
     const collapsed =
         view.result?.collapsed || (view.result == null && !view.loading && !view.error ? file.collapsed : "");
     if (view.error) {
         return (
             <EmptyState
                 icon="triangle-exclamation"
-                title="This file could not be read"
-                hint="git could not read one of its sides."
-                primary={{ label: "Try again", onClick: () => model.selectFile(file.path) }}
+                title={t("review.view.fileReadFailed")}
+                hint={t("review.view.fileReadFailedHint")}
+                primary={{ label: t("review.ai.tryAgain"), onClick: () => model.selectFile(file.path) }}
                 details={view.error}
             />
         );
     }
     if (view.loading) {
-        return <div className="flex flex-1 items-center justify-center text-12 text-muted">Reading {file.path}…</div>;
+        return (
+            <div className="flex flex-1 items-center justify-center text-12 text-muted">
+                {t("review.view.readingFile", { path: file.path })}
+            </div>
+        );
     }
     if (collapsed) {
         const binary = collapsed === "binary" || view.result?.binary;
@@ -593,7 +594,7 @@ function DiffBody({
                     {binary
                         ? `${formatBytes(file.oldsize ?? 0)} → ${formatBytes(file.newsize ?? 0)}`
                         : `+${file.additions} −${file.deletions}`}
-                    {lines > 0 ? ` · ${lines.toLocaleString()} lines` : ""}
+                    {lines > 0 ? ` · ${t("review.view.lines", { count: lines.toLocaleString() })}` : ""}
                 </div>
                 {canLoad ? (
                     <button
@@ -602,7 +603,7 @@ function DiffBody({
                         onClick={() => model.loadFile(file.path)}
                         data-testid="review-load"
                     >
-                        Load the diff
+                        {t("review.view.loadDiff")}
                         <MoltenWave />
                     </button>
                 ) : null}

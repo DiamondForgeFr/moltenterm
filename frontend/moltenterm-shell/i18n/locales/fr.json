@@ -3741,5 +3741,246 @@
             "tableLabel": "Sessions durables",
             "endsLater": "{what} s'arrêtera quand {connection} reviendra."
         }
+    },
+    "review": {
+        "ai": {
+            "viewName": "Panneau IA",
+            "viewNamePr": "Panneau IA · #{number}",
+            "noPr": "Aucune pull request",
+            "noPrHint": "Ouvrez le panneau IA depuis un onglet Revue.",
+            "notOpen": "La revue de #{number} n'est pas ouverte",
+            "notOpenHint": "Ouvrez l'onglet Revue de la pull request depuis la vue Revues : le panneau IA le suit.",
+            "cardsLabel": "Briefing et explications",
+            "worktreeAgent": "Worktree : celui de l'agent",
+            "worktreeReview": "Worktree : la copie de revue de MoltenTerm",
+            "worktreeFailed": "Le worktree de revue n'a pas pu être préparé.",
+            "worktreePreparing": "Préparation du worktree de revue…",
+            "askTitle": "Demander à votre agent un nouveau briefing du head de la PR",
+            "agentBusy": "Votre agent est occupé.",
+            "busy": "{message} Redemandez quand il sera libre.",
+            "askFailed": "Le briefing n'a pas pu être demandé.",
+            "briefing": "Briefing",
+            "yourAgent": "Votre agent",
+            "reading": "{agent} lit la PR, son ticket, le plan et le rapport de test ; le briefing s'affichera ici.",
+            "noBriefing": "Pas encore de briefing.",
+            "askBriefing": "Demander un briefing",
+            "briefingLater": "Le briefing vient de votre agent une fois sa session lancée.",
+            "newBriefing": "Un nouveau briefing arrive.",
+            "briefNewHead": "Briefer le nouveau head",
+            "askAgain": "Redemander",
+            "starting": "Démarrage de votre agent dans le worktree de la PR…",
+            "running": "{agent} relit cette PR, en lecture seule, dans le terminal sous ce panneau.",
+            "toolsConnect": "Ses outils de revue se connectent à son démarrage.",
+            "showTerminal": "Afficher son terminal",
+            "startFailed": "La session de revue n'a pas pu démarrer.",
+            "tryAgain": "Réessayer",
+            "noSession": "Aucune session de revue ne tourne pour cette PR.",
+            "startSession": "Démarrer la session de revue",
+            "notRunning": "La session de revue ne tourne pas."
+        },
+        "ask": {
+            "wholePrTitle": "Poser la question sur toute la PR",
+            "removeSelection": "Retirer la sélection",
+            "wholePr": "Sur toute la PR.",
+            "placeholder": "Votre question, dans votre langue",
+            "keys": "Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne",
+            "sending": "Envoi…",
+            "send": "Envoyer",
+            "sent": "Envoyée à la session de revue : la réponse arrive dans son terminal.",
+            "typed": "Tapée dans l'invite de l'agent après votre brouillon : appuyez sur Entrée dans son terminal pour l'envoyer.",
+            "notTyped": "La question n'a pas pu être tapée.",
+            "kept": "Votre question est conservée : renvoyez-la quand l'agent sera libre."
+        },
+        "briefing": {
+            "justNow": "à l'instant",
+            "minutesAgo": "il y a {count} min",
+            "hoursAgo": "il y a {count} h",
+            "daysAgo": "il y a {count} jours",
+            "moved": "{when}, sur {oid} : la PR a bougé depuis"
+        },
+        "cleanup": {
+            "step": {
+                "pr": "PR fusionnée",
+                "ticketClose": "Ticket fermé",
+                "ticketDone": "Ticket passé en Done",
+                "reviewWorktree": "Worktree de revue supprimé",
+                "agentWorktree": "Worktree de l'agent supprimé",
+                "localBranch": "Branche locale supprimée",
+                "remoteBranch": "Branche distante supprimée",
+                "otherPrs": "Autres PR ouvertes mises à jour"
+            },
+            "state": {
+                "planned": "prévu",
+                "done": "fait",
+                "skipped": "ignoré",
+                "failed": "échoué"
+            },
+            "prRebased": "rebasée par GitHub",
+            "removeAgentWorktree": "Supprimer quand même le worktree de l'agent"
+        },
+        "comment": {
+            "state": {
+                "draft": "Brouillon",
+                "staged": "Prêt",
+                "translated": "Traduit",
+                "published": "Publié",
+                "dropped": "Abandonné"
+            },
+            "hoverHeading": "Commentaire : {state}",
+            "fileLevelQuoting": "Au niveau du fichier, citant {lines}",
+            "outdated": "Obsolète",
+            "outdatedTitle": "Ses lignes ne sont plus dans le head affiché",
+            "showLines": "Afficher les lignes",
+            "edit": "Modifier le commentaire",
+            "delete": "Supprimer le commentaire"
+        },
+        "comments": {
+            "one": "1 commentaire",
+            "other": "{count} commentaires"
+        },
+        "commits": {
+            "headRewritten": "head réécrit",
+            "newOne": "{count} nouveau commit",
+            "newOther": "{count} nouveaux commits",
+            "newRewrittenOne": "{count} nouveau commit (réécrit)",
+            "newRewrittenOther": "{count} nouveaux commits (réécrits)"
+        },
+        "composer": {
+            "fileLevel": "Commentaire au niveau du fichier citant {lines} ({side})",
+            "onLines": "Commentaire sur {lines} ({side})",
+            "edit": "Modifier : {where}",
+            "placeholder": "Votre commentaire, dans votre langue",
+            "keys": "{key}Entrée pour enregistrer, Échap pour annuler",
+            "saveDraft": "Enregistrer le brouillon"
+        },
+        "diff": {
+            "askLines": "Interroger l'IA sur ces lignes",
+            "commentLines": "Commenter ces lignes"
+        },
+        "file": {
+            "status": {
+                "added": "ajouté",
+                "modified": "modifié",
+                "deleted": "supprimé",
+                "renamed": "renommé",
+                "copied": "copié",
+                "typechanged": "type modifié",
+                "submodule": "sous-module"
+            },
+            "collapsed": {
+                "binary": "Fichier binaire : il n'est pas affiché en texte.",
+                "generated": "Fichier généré (lock file, code généré ou marqué linguist-generated) : replié.",
+                "large": "Gros fichier : plus de 1 Mo ou 20 000 lignes, replié.",
+                "largeSize": "Gros fichier ({size}) : plus de 1 Mo ou 20 000 lignes, replié.",
+                "submodule": "Sous-module : son commit a changé ; son contenu vit dans un autre dépôt."
+            },
+            "tag": {
+                "binary": "binaire",
+                "generated": "généré",
+                "large": "gros",
+                "submodule": "sous-module"
+            },
+            "renamedFrom": "renommé depuis {path}",
+            "viewedLabel": "Vu : {path}",
+            "viewedTitle": "Vu (décochez pour le relire)",
+            "markViewed": "Marquer comme vu"
+        },
+        "merge": {
+            "check": {
+                "ok": "Réussi",
+                "info": "Note",
+                "warn": "Avertissement",
+                "pending": "En attente",
+                "fail": "Échoué"
+            },
+            "reading": "Lecture de la pull request…",
+            "running": "Une fusion de cette pull request est en cours",
+            "checkFails": "Une vérification ne passe pas",
+            "confirmWarnings": "Confirmez les avertissements pour fusionner quand même",
+            "updateThenMerge": "Mettre à jour, puis fusionner",
+            "rebaseAndMerge": "Rebaser et fusionner",
+            "state": {
+                "checking": "Nouvelle lecture de la pull request…",
+                "updating": "GitHub rebase la branche sur {base}…",
+                "waitingci": "Attente de la CI sur le head rebasé…",
+                "merging": "Fusion…",
+                "merged": "Fusionnée"
+            }
+        },
+        "select": {
+            "selected": "Sélection : {anchor}",
+            "askTitle": "Interroger l'IA sur {lines} ({key})",
+            "ask": "Interroger l'IA",
+            "commentTitle": "Commenter {lines} ({key})",
+            "comment": "Commenter",
+            "commentFile": "Commenter (fichier)"
+        },
+        "selection": {
+            "reasonSince": "Les commentaires de ligne se font sur Tous les changements : celui-ci est au niveau du fichier et cite les lignes.",
+            "reasonOutside": "Ces lignes sont hors des hunks du diff : le commentaire est au niveau du fichier et les cite.",
+            "base": "base",
+            "head": "head",
+            "line": "ligne {line}",
+            "lines": "lignes {start}–{end}"
+        },
+        "validate": {
+            "button": "Valider",
+            "buttonTitle": "Rebaser et fusionner cette pull request : affiche d'abord le plan",
+            "title": "Valider #{number}",
+            "subtitle": "Rebaser et fusionner {head} dans {base}",
+            "readingGithub": "Lecture de la pull request sur GitHub…",
+            "reviewNewCommits": "Relire les nouveaux commits",
+            "stopWaiting": "Arrêter d'attendre",
+            "again": "Valider à nouveau",
+            "recheckTitle": "Relire la pull request",
+            "recheck": "Revérifier",
+            "mergeTitle": "Fusionner, lié au head {oid}",
+            "plannedOnBefore": "Planifié sur le head",
+            "plannedOnAfter": " : tout push après ce plan fait refuser la fusion.",
+            "checks": "Vérifications",
+            "mergeAnyway": "Fusionner quand même : j'ai lu les avertissements ci-dessus.",
+            "steps": "Étapes",
+            "thenCleanup": "Puis le nettoyage",
+            "mergeDisabled": "Fusion désactivée : {reason}",
+            "rebasedHead": "Rebasée par GitHub : head",
+            "cleaningUp": "Nettoyage après la fusion…",
+            "cleanup": "Nettoyage"
+        },
+        "view": {
+            "viewName": "Revue",
+            "viewNamePr": "Revue #{number}",
+            "noPr": "Aucune pull request dans cette revue",
+            "noPrHint": "Ouvrez la revue d'une pull request depuis la vue Revues.",
+            "prTitle": "Pull request #{number}",
+            "into": "dans",
+            "head": "head",
+            "since": "depuis",
+            "movedTitle": "La pull request a bougé : afficher son nouveau head",
+            "refresh": "Actualiser",
+            "openGithub": "Ouvrir la pull request sur GitHub",
+            "closeAi": "Fermer le panneau IA (la session de revue continue)",
+            "openAi": "Ouvrir le panneau IA : le briefing de la PR et la session de revue",
+            "diff": "Diff",
+            "allChanges": "Tous les changements",
+            "allChangesTitle": "Les changements de la PR par rapport à sa base (comme GitHub)",
+            "sinceRound": "Depuis le dernier tour",
+            "sinceViewed": "Depuis la dernière lecture",
+            "sinceRoundTitle": "Les changements depuis le head du dernier tour de revue publié",
+            "sinceViewedTitle": "Les changements depuis le head que vous avez lu",
+            "layout": "Disposition",
+            "sideBySide": "Côte à côte",
+            "unified": "Unifié",
+            "reading": "Lecture des changements…",
+            "viewedCount": "{viewed} / {total} vus",
+            "changedFiles": "Fichiers modifiés",
+            "readFailed": "Les changements n'ont pas pu être lus. {error}",
+            "noFile": "Aucun fichier modifié.",
+            "selectFile": "Sélectionnez un fichier pour voir ses changements.",
+            "fileReadFailed": "Ce fichier n'a pas pu être lu",
+            "fileReadFailedHint": "git n'a pas pu lire l'un de ses côtés.",
+            "readingFile": "Lecture de {path}…",
+            "lines": "{count} lignes",
+            "loadDiff": "Charger le diff"
+        }
     }
 }
