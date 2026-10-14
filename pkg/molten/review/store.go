@@ -56,6 +56,8 @@ type State struct {
 	Number int    `json:"number"`
 	// Briefing: nil until a session posted one.
 	Briefing *Briefing `json:"briefing,omitempty"`
+	// Explanations: the session's answers to the developer's questions (FR-REV-006, explanations.go).
+	Explanations []Explanation `json:"explanations,omitempty"`
 	// Viewed: path → the head's blob id when it was marked viewed. A push that changes the file unviews it, as on
 	// GitHub.
 	Viewed map[string]string `json:"viewed"`

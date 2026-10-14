@@ -19,6 +19,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentdocs"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
+	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
@@ -168,6 +169,7 @@ func liveEnv(hooks Hooks) Env {
 			}
 			return TypeOutcome{Message: out.Message}
 		},
+		AgentRun: attention.AgentRun,
 		SaveRecord: func(ctx context.Context, blockId string, rec any) error {
 			oref := waveobj.MakeORef(waveobj.OType_Block, blockId)
 			if err := wstore.UpdateObjectMeta(ctx, oref, waveobj.MetaMapType{mcpreview.SessionMetaKey: rec}, false); err != nil {

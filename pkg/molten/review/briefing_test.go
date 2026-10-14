@@ -22,9 +22,9 @@ func TestSessionBriefingKept(t *testing.T) {
 		svc.SessionPosted(mcpreview.Update{Repo: "Owner/Repo", Number: 7, Post: &mcpreview.Post{
 			Id: "e1", Kind: kind, Markdown: markdown, HeadOid: testHead, Agent: "claude", At: at}})
 	}
-	post(mcpreview.PostExplanation, "an explanation", 1)
+	post(mcpreview.PostKeepNote, "a note", 1)
 	if len(published) != 0 {
-		t.Fatalf("an explanation was kept: %+v", published)
+		t.Fatalf("a note was kept with the briefing: %+v", published)
 	}
 	post(mcpreview.PostBriefing, "## What changed\nfirst", 2)
 	post(mcpreview.PostBriefing, "## What changed\nsecond", 3)

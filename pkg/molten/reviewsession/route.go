@@ -211,6 +211,12 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return l.manager.Ask(ctx, req)
+	case mcpreview.AskCancelCommand:
+		var req mcpreview.AskCancelRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return nil, l.manager.CancelQuestion(ctx, req)
 	}
 	return nil, fmt.Errorf("unknown review session command %q", command)
 }

@@ -6,11 +6,15 @@ package reviewsession
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
@@ -365,6 +369,7 @@ func checkAnchor(a *mcpreview.Anchor) error {
 type postArgs struct {
 	Markdown      string            `json:"markdown"`
 	Text          string            `json:"text"`
+	Question      string            `json:"question"`
 	Anchor        *mcpreview.Anchor `json:"anchor"`
 	Depth         string            `json:"depth"`
 	Sources       []string          `json:"sources"`
@@ -378,7 +383,8 @@ type postArgs struct {
 
 // makePost checks a tool's arguments and builds its post.
 func makePost(tool string, in postArgs) (mcpreview.Post, error) {
-	if len(in.Markdown) > mcpreview.MaxResultBytes || len(in.Text) > mcpreview.MaxResultBytes || len(in.Rewrite) > mcpreview.MaxResultBytes {
+	if len(in.Markdown) > mcpreview.MaxResultBytes || len(in.Text) > mcpreview.MaxResultBytes ||
+		len(in.Rewrite) > mcpreview.MaxResultBytes || len(in.Question) > maxQuestionLen {
 		return mcpreview.Post{}, fmt.Errorf("%s", mcpreview.ErrTooLarge)
 	}
 	switch tool {
@@ -391,8 +397,11 @@ func makePost(tool string, in postArgs) (mcpreview.Post, error) {
 		if strings.TrimSpace(in.Markdown) == "" {
 			return mcpreview.Post{}, fmt.Errorf("%s", mcpreview.ErrMarkdownNeeded)
 		}
-		if err := checkAnchor(in.Anchor); err != nil {
-			return mcpreview.Post{}, err
+		// No anchor: an answer about the whole PR (FR-REV-006).
+		if in.Anchor != nil {
+			if err := checkAnchor(in.Anchor); err != nil {
+				return mcpreview.Post{}, err
+			}
 		}
 		depth := in.Depth
 		if depth == "" {
@@ -401,8 +410,10 @@ func makePost(tool string, in postArgs) (mcpreview.Post, error) {
 		if depth != mcpreview.DepthQuick && depth != mcpreview.DepthDetailed {
 			return mcpreview.Post{}, fmt.Errorf("%s", mcpreview.ErrDepth)
 		}
-		return mcpreview.Post{Kind: mcpreview.PostExplanation, Markdown: in.Markdown, Anchor: in.Anchor, Depth: depth,
-			Sources: in.Sources, Related: in.Related, Principles: in.Principles}, nil
+		// ExplanationId: the card this answer replaces (a follow-up on the same lines, AC3); it keeps its id.
+		return mcpreview.Post{Id: in.ExplanationId, Kind: mcpreview.PostExplanation, Markdown: in.Markdown,
+			Question: strings.TrimSpace(in.Question), Anchor: in.Anchor, Depth: depth, Sources: in.Sources,
+			Related: in.Related, Principles: in.Principles}, nil
 	case mcpreview.ToolProposeComment:
 		if strings.TrimSpace(in.Text) == "" {
 			return mcpreview.Post{}, fmt.Errorf("%s", mcpreview.ErrTextNeeded)
@@ -477,13 +488,28 @@ func (m *Manager) addPost(s *session, post mcpreview.Post) (mcpreview.Post, erro
 	if post.Kind == mcpreview.PostReply && !s.discussed[post.CommentId] {
 		return post, fmt.Errorf("%s", mcpreview.ErrNotDiscussed)
 	}
-	s.nextPost++
-	post.Id = "e" + strconv.Itoa(s.nextPost)
+	replaces := post.Id
+	if replaces != "" && (!postIdPattern.MatchString(replaces) || hasOtherKind(s.posts, replaces, post.Kind)) {
+		return post, fmt.Errorf("explanationid must be the id review_post_explanation gave for one of your explanations")
+	}
+	if replaces == "" {
+		if s.postPrefix == "" {
+			s.postPrefix = newPostPrefix()
+		}
+		s.nextPost++
+		post.Id = "e" + s.postPrefix + "-" + strconv.Itoa(s.nextPost)
+	}
 	post.At = m.env.Now().UnixMilli()
 	post.HeadOid, post.Agent = s.rec.HeadOid, s.rec.Agent
+	if post.Anchor != nil {
+		post.Anchor = completeAnchor(*post.Anchor, s.rec.HeadOid, s.selection)
+	}
 	kept := s.posts[:0]
 	for _, p := range s.posts {
 		if post.Kind == mcpreview.PostBriefing && p.Kind == mcpreview.PostBriefing {
+			continue
+		}
+		if replaces != "" && p.Id == replaces {
 			continue
 		}
 		kept = append(kept, p)
@@ -493,6 +519,56 @@ func (m *Manager) addPost(s *session, post mcpreview.Post) (mcpreview.Post, erro
 		s.posts = s.posts[len(s.posts)-maxPosts:]
 	}
 	return post, nil
+}
+
+// postIdPattern: "e", the session's prefix, "-", the post's number.
+var postIdPattern = regexp.MustCompile(`^e[0-9a-f]{6}-[0-9]+$`)
+
+func newPostPrefix() string {
+	buf := make([]byte, 3)
+	if _, err := rand.Read(buf); err != nil {
+		return fmt.Sprintf("%06x", time.Now().UnixNano()&0xffffff)
+	}
+	return hex.EncodeToString(buf)
+}
+
+func hasOtherKind(posts []mcpreview.Post, id string, kind string) bool {
+	for _, p := range posts {
+		if p.Id == id && p.Kind != kind {
+			return true
+		}
+	}
+	return false
+}
+
+// completeAnchor fills what the agent left out of an anchor: the head it was made on, and the excerpt of the
+// developer's selection when the anchor names its lines, so the card shows them.
+func completeAnchor(a mcpreview.Anchor, head string, sel *mcpreview.SelectionRequest) *mcpreview.Anchor {
+	if a.StartLine == a.Line {
+		a.StartLine = 0
+	}
+	if sel != nil && sel.Anchor != nil && sameLines(*sel.Anchor, a) {
+		if a.HeadOid == "" {
+			a.HeadOid = sel.Anchor.HeadOid
+		}
+		if a.Excerpt == "" {
+			a.Excerpt = sel.Anchor.Excerpt
+		}
+	}
+	if a.HeadOid == "" {
+		a.HeadOid = head
+	}
+	return &a
+}
+
+func sameLines(a mcpreview.Anchor, b mcpreview.Anchor) bool {
+	start := func(x mcpreview.Anchor) int {
+		if x.StartLine > 0 {
+			return x.StartLine
+		}
+		return x.Line
+	}
+	return a.Path == b.Path && a.Side == b.Side && a.Line == b.Line && start(a) == start(b)
 }
 
 func hasPost(posts []mcpreview.Post, id string, kind string) bool {

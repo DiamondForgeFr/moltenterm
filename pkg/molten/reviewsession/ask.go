@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 )
 
@@ -58,7 +59,8 @@ func AskLine(anchor *mcpreview.Anchor, question string) string {
 	return ref + ": the question is long, read it with review_selection and answer it."
 }
 
-// Ask sets the session's selection and types the question into its terminal.
+// Ask types the question into the session's terminal with its selection's reference; while the agent is busy, or
+// while other questions wait, it is queued and typed once the agent is idle (FR-REV-006 AC4, questions.go).
 func (m *Manager) Ask(ctx context.Context, req mcpreview.AskRequest) (mcpreview.AskResult, error) {
 	m.ensureLoaded(ctx)
 	question := strings.TrimSpace(req.Question)
@@ -80,14 +82,70 @@ func (m *Manager) Ask(ctx context.Context, req mcpreview.AskRequest) (mcpreview.
 	if m.env.TypePrompt == nil {
 		return mcpreview.AskResult{}, errors.New("MoltenTerm cannot type in the session's terminal")
 	}
-	m.setSelection(s, &mcpreview.SelectionRequest{SessionKey: req.SessionKey, Anchor: req.Anchor, Text: req.Text, Question: question})
+	q := mcpreview.QueuedQuestion{Anchor: req.Anchor, Text: req.Text, Question: question}
 	line := AskLine(req.Anchor, question)
-	out := m.env.TypePrompt(ctx, s.blockId, line)
-	return mcpreview.AskResult{Sent: out.Sent, Submitted: out.Submitted, Busy: out.Retry, Line: line, Message: out.Message}, nil
+	busy := ""
+	if !m.hasQuestions(s) {
+		out := m.deliverQuestion(ctx, s, q)
+		if !out.Retry {
+			if out.Sent && m.clearQueueNote(s) {
+				m.publish(s, false)
+			}
+			return mcpreview.AskResult{Sent: out.Sent, Submitted: out.Submitted, Line: line, Message: out.Message}, nil
+		}
+		busy = out.Message
+	}
+	q, position := m.enqueueQuestion(s, q)
+	m.publish(s, false)
+	message := fmt.Sprintf("Queued: %s sends it when %s is idle.", queuePlace(position), molten.AgentDisplayName(m.recOf(s).Agent))
+	if busy != "" {
+		message = strings.TrimSpace(busy) + " " + message
+	}
+	return mcpreview.AskResult{Queued: true, Busy: busy != "", QuestionId: q.Id, Position: position, Line: line, Message: message}, nil
+}
+
+// queuePlace names a place in the queue for the developer.
+func queuePlace(position int) string {
+	if position <= 1 {
+		return "MoltenTerm"
+	}
+	return fmt.Sprintf("after %d other questions, MoltenTerm", position-1)
+}
+
+// deliverQuestion makes the question's selection the session's and types its line. A busy agent gets nothing: the
+// selection goes back to what it was, since the agent may be reading it for the question it is answering.
+func (m *Manager) deliverQuestion(ctx context.Context, s *session, q mcpreview.QueuedQuestion) TypeOutcome {
+	if reason := m.agentBusy(s); reason != "" {
+		return TypeOutcome{Retry: true, Message: reason}
+	}
+	sel := &mcpreview.SelectionRequest{SessionKey: mcpreview.SessionKey{Id: s.rec.Id}, Anchor: q.Anchor, Text: q.Text, Question: q.Question}
+	previous := m.swapSelection(s, sel)
+	out := m.env.TypePrompt(ctx, s.blockId, AskLine(q.Anchor, q.Question))
+	if !out.Sent {
+		m.restoreSelection(s, sel, previous)
+	}
+	return out
 }
 
 func (m *Manager) setSelection(s *session, sel *mcpreview.SelectionRequest) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	s.selection = sel
+}
+
+func (m *Manager) swapSelection(s *session, sel *mcpreview.SelectionRequest) *mcpreview.SelectionRequest {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	previous := s.selection
+	s.selection = sel
+	return previous
+}
+
+// restoreSelection puts the previous selection back, unless the developer set another one meanwhile.
+func (m *Manager) restoreSelection(s *session, sel *mcpreview.SelectionRequest, previous *mcpreview.SelectionRequest) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if s.selection == sel {
+		s.selection = previous
+	}
 }

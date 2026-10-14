@@ -83,15 +83,19 @@ func Tools() []mcpbrowser.ToolDef {
 				"look at first as [path:line](path#Lline) links, what was tested and its gaps, CI. Say a missing source is missing.",
 			objectSchema(map[string]any{"markdown": stringProp("The briefing, in the developer's language.")}, []string{"markdown"})),
 		outputTool(ToolPostExplanation, "Post an explanation",
-			"Shows an explanation of lines of the PR as a card of the developer's AI panel.",
+			"Shows your answer to the developer's question as a card of their AI panel, anchored to the lines it is "+
+				"about (a marker in the diff's gutter opens it). A follow-up on the same lines uses the same anchor; "+
+				"pass explanationid to replace that card instead of adding one. No anchor: an answer about the whole PR.",
 			objectSchema(map[string]any{
-				"anchor":     anchorSchema("The lines explained."),
-				"depth":      map[string]any{"type": "string", "enum": []string{DepthQuick, DepthDetailed}},
-				"markdown":   stringProp("The explanation, in the developer's language."),
-				"sources":    stringList("What the reasons come from: ticket, plan, SRS page, commit, code comment, project rule."),
-				"related":    stringList("Other places of the codebase as path:line."),
-				"principles": stringList("The development principles the lines illustrate or break."),
-			}, []string{"anchor", "markdown"})),
+				"anchor":        anchorSchema("The lines explained: the anchor review_selection gave for the question."),
+				"question":      stringProp("The developer's question this answers, in their words."),
+				"explanationid": stringProp("The id of your earlier card on these lines that this answer replaces."),
+				"depth":         map[string]any{"type": "string", "enum": []string{DepthQuick, DepthDetailed}},
+				"markdown":      stringProp("The explanation, in the developer's language."),
+				"sources":       stringList("What the reasons come from: ticket, plan, SRS page, commit, code comment, project rule."),
+				"related":       stringList("Other places of the codebase as path:line."),
+				"principles":    stringList("The development principles the lines illustrate or break."),
+			}, []string{"markdown"})),
 		outputTool(ToolProposeComment, "Propose a review comment",
 			"Proposes a review comment on lines of the PR's head shown in review_context. It appears as a proposal in "+
 				"the developer's AI panel; it becomes one of their comments only when they accept it. Nothing is published.",
