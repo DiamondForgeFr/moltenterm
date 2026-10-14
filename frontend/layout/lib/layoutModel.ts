@@ -57,6 +57,12 @@ import {
     TileLayoutContents,
 } from "./types";
 import { getCenter, navigateDirectionToOffset, setTransform } from "./utils";
+// MOLTENTERM-PATCH (#606): side panels remember the size they were dragged to and reopen at it
+import {
+    addedBlockId,
+    applyRememberedPanelSizes,
+    recordDraggedPanelSizes,
+} from "../../moltenterm-shell/panel-size/panel-size-store";
 
 interface ResizeContext {
     handleId: string;
@@ -200,6 +206,8 @@ export class LayoutModel {
      * The currently magnified node.
      */
     magnifiedNodeId: string;
+    // MOLTENTERM-PATCH (#606): blocks added since the last updateTree, sized from memory once their parent has a size
+    moltenAddedBlockIds: string[] = [];
     /**
      * Atom for the magnified node ID (derived from local tree state)
      */
@@ -632,6 +640,11 @@ export class LayoutModel {
      * @param action The action to perform.
      */
     treeReducer(action: LayoutTreeAction, setState = true) {
+        // MOLTENTERM-PATCH (#606): note the block an insert or split adds
+        const moltenAdded = addedBlockId(action);
+        if (moltenAdded) {
+            this.moltenAddedBlockIds.push(moltenAdded);
+        }
         switch (action.type) {
             case LayoutTreeActionType.ComputeMove:
                 this.setter(
@@ -791,6 +804,12 @@ export class LayoutModel {
             );
             this.setter(this.leafOrder, this.treeState.leafOrder);
             this.setter(this.additionalProps, newAdditionalProps);
+            // MOLTENTERM-PATCH (#606): the added blocks now have a parent with a pixel size
+            if (this.moltenAddedBlockIds.length) {
+                const added = this.moltenAddedBlockIds;
+                this.moltenAddedBlockIds = [];
+                applyRememberedPanelSizes(this, added);
+            }
         }
     }
 
@@ -1500,6 +1519,15 @@ export class LayoutModel {
      */
     onResizeEnd() {
         if (this.resizeContext) {
+            // MOLTENTERM-PATCH (#606): remember the size the drag gave to the side panels it moved
+            const moltenPending = this.getter(this.pendingTreeAction.currentValueAtom);
+            if (moltenPending?.type === LayoutTreeActionType.ResizeNode) {
+                recordDraggedPanelSizes(
+                    this,
+                    moltenPending as LayoutTreeResizeNodeAction,
+                    this.resizeContext.pixelToSizeRatio
+                );
+            }
             this.resizeContext = undefined;
             this.treeReducer({ type: LayoutTreeActionType.CommitPendingAction });
         }
