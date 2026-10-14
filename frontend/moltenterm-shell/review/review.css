@@ -1,0 +1,48 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* Review comments in the diff's gutter (FR-REV-003): Monaco takes class names for its decorations, so their look lives
+   here. The colour says the state: draft (warning), staged and translated (accent), published (success). */
+
+.molten-review-draft {
+    --molten-review-state: var(--color-warning);
+}
+.molten-review-staged,
+.molten-review-translated {
+    --molten-review-state: var(--color-accent);
+}
+.molten-review-published {
+    --molten-review-state: var(--color-success);
+}
+
+.molten-review-range {
+    border-left: 3px solid var(--molten-review-state);
+    margin-left: 3px;
+}
+
+.molten-review-glyph {
+    cursor: pointer;
+}
+.molten-review-glyph::before {
+    content: "";
+    display: block;
+    width: 9px;
+    height: 9px;
+    margin: 5px auto 0;
+    border-radius: var(--mt-radius-4) var(--mt-radius-4) var(--mt-radius-4) 0;
+    background: var(--molten-review-state);
+}
+
+.molten-review-badge-draft {
+    color: var(--color-warning);
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+}
+.molten-review-badge-staged,
+.molten-review-badge-translated {
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+.molten-review-badge-published {
+    color: var(--color-success);
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+}

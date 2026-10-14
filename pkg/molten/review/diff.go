@@ -128,8 +128,10 @@ type FileResult struct {
 	OldLines  int    `json:"oldlines,omitempty"`
 	NewLines  int    `json:"newlines,omitempty"`
 	// Binary: a side is not text; nothing is shown as text.
-	Binary bool  `json:"binary,omitempty"`
-	Ms     int64 `json:"ms"`
+	Binary bool `json:"binary,omitempty"`
+	// Hunks: the hunks of the diff GitHub shows, where a line comment can go (FR-REV-003 AC4).
+	Hunks []Hunk `json:"hunks,omitempty"`
+	Ms    int64  `json:"ms"`
 }
 
 // CompareRequest asks how far the PR's head moved since the head the tab shows.
@@ -705,6 +707,7 @@ func (d *Differ) File(ctx context.Context, req FileRequest) (FileResult, error) 
 		}
 	}
 	rtn.Original, rtn.Modified = original, modified
+	rtn.Hunks = d.hunks(ctx, req, rtn.OldLines, rtn.NewLines)
 	return rtn, nil
 }
 

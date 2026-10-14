@@ -15,6 +15,7 @@ export type ShortcutCategory =
     | "Terminal"
     | "Browser"
     | "Agents"
+    | "Review"
     | "Palette and menus";
 
 export const ShortcutCategories: ShortcutCategory[] = [
@@ -24,11 +25,12 @@ export const ShortcutCategories: ShortcutCategory[] = [
     "Terminal",
     "Browser",
     "Agents",
+    "Review",
     "Palette and menus",
 ];
 
-// global: the window's key model (keymodel.ts); app: the app menu; terminal, browser, palette: the focused view.
-export type ShortcutScope = "global" | "app" | "terminal" | "browser" | "palette";
+// global: the window's key model (keymodel.ts); app: the app menu; terminal, browser, review, palette: the focused view.
+export type ShortcutScope = "global" | "app" | "terminal" | "browser" | "review" | "palette";
 
 export type Shortcut = {
     id: string;
@@ -230,6 +232,23 @@ export const Shortcuts: Shortcut[] = [
         scope: "global",
         keys: "Ctrl:Shift:i",
         keywords: ["multi-input", "broadcast"],
+    },
+    // Review: in the Review tab's diff, on selected lines (FR-REV-003)
+    {
+        id: "review-ask",
+        label: "Ask the AI about the selected lines",
+        category: "Review",
+        scope: "review",
+        keys: "Alt:a",
+        keywords: ["review", "question", "explain"],
+    },
+    {
+        id: "review-comment",
+        label: "Comment the selected lines",
+        category: "Review",
+        scope: "review",
+        keys: "Alt:c",
+        keywords: ["review", "comment"],
     },
     // Browser
     { id: "browser-new-tab", label: "New browser tab", category: "Browser", scope: "browser", keys: "Cmd:t" },

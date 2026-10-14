@@ -14,6 +14,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "../empty-state";
 import { MonacoDiffViewer } from "../lazy/monaco-lazy";
 import { MoltenWave } from "../molten-button";
+import { CommentsStrip, SelectionOverlay } from "./review-actions-view";
 import { ReviewFile, ReviewState } from "./review-client";
 import {
     collapsedReason,
@@ -29,6 +30,7 @@ import {
     StatusLetters,
     TreeNode,
 } from "./review-model";
+import { commentCounts } from "./review-selection";
 import { ReviewFileView, ReviewTabModel } from "./review-tab-model";
 import { ValidateButton, ValidateSheet } from "./review-validate";
 
@@ -243,6 +245,7 @@ function FilesPanel({ model }: { model: ReviewViewModel }) {
     const selected = useAtomValue(model.selectedAtom);
     const state = useAtomValue(model.stateAtom);
     const listRef = useRef<HTMLDivElement>(null);
+    const counts = useMemo(() => commentCounts(state), [state]);
     useEffect(() => {
         if (selected == null) {
             return;
@@ -285,7 +288,7 @@ function FilesPanel({ model }: { model: ReviewViewModel }) {
             {result != null && result.files.length === 0 ? (
                 <div className="px-3 py-2 text-12 text-muted">No file changed.</div>
             ) : null}
-            <TreeLevel model={model} nodes={tree} depth={0} selected={selected} state={state} />
+            <TreeLevel model={model} nodes={tree} depth={0} selected={selected} state={state} counts={counts} />
         </div>
     );
 }
@@ -296,12 +299,14 @@ function TreeLevel({
     depth,
     selected,
     state,
+    counts,
 }: {
     model: ReviewViewModel;
     nodes: TreeNode[];
     depth: number;
     selected: string;
     state: ReviewState;
+    counts: Map<string, number>;
 }) {
     return (
         <>
@@ -314,6 +319,7 @@ function TreeLevel({
                         depth={depth}
                         selected={selected === node.path}
                         viewed={isViewed(state, node.file)}
+                        comments={counts.get(node.file.path) ?? 0}
                     />
                 ) : (
                     <FolderRow
@@ -323,6 +329,7 @@ function TreeLevel({
                         depth={depth}
                         selected={selected}
                         state={state}
+                        counts={counts}
                     />
                 )
             )}
@@ -336,12 +343,14 @@ function FolderRow({
     depth,
     selected,
     state,
+    counts,
 }: {
     model: ReviewViewModel;
     node: TreeNode;
     depth: number;
     selected: string;
     state: ReviewState;
+    counts: Map<string, number>;
 }) {
     const [open, setOpen] = useState(true);
     return (
@@ -370,6 +379,7 @@ function FolderRow({
                         depth={depth + 1}
                         selected={selected}
                         state={state}
+                        counts={counts}
                     />
                 </div>
             ) : null}
@@ -383,12 +393,14 @@ const FileRow = memo(function FileRow({
     depth,
     selected,
     viewed,
+    comments,
 }: {
     model: ReviewViewModel;
     node: TreeNode;
     depth: number;
     selected: boolean;
     viewed: boolean;
+    comments: number;
 }) {
     const file = node.file;
     const status = StatusLetters[file.status] ?? StatusLetters.modified;
@@ -436,6 +448,16 @@ const FileRow = memo(function FileRow({
             </span>
             {tag ? (
                 <span className="shrink-0 rounded-4 border border-border px-1 text-10 text-muted">{tag}</span>
+            ) : null}
+            {comments > 0 ? (
+                <span
+                    className="flex shrink-0 items-center gap-0.5 text-10 text-muted"
+                    title={comments === 1 ? "1 comment" : `${comments} comments`}
+                    data-testid="review-file-comments"
+                >
+                    <i className="fa fa-solid fa-comment text-10" />
+                    {comments}
+                </span>
             ) : null}
             <span className="shrink-0 font-mono text-11">
                 <span className="text-success">+{file.additions}</span>{" "}
@@ -494,6 +516,7 @@ function DiffPanel({ model }: { model: ReviewViewModel }) {
                     </span>
                 ) : null}
             </div>
+            <CommentsStrip model={model} path={file.path} />
             <DiffBody model={model} file={file} view={view} mode={mode} />
         </div>
     );
@@ -609,19 +632,22 @@ function MonacoDiff({
             minimap: { enabled: minimap },
             scrollbar: { useShadows: false, verticalScrollbarSize: 5, horizontalScrollbarSize: 5 },
             renderOverviewRuler: true,
+            // The review comments' marks (FR-REV-003).
+            glyphMargin: true,
         }),
         [sideBySide, fontSize, minimap]
     );
     return (
-        <div className="min-h-0 flex-1">
+        <div className="relative min-h-0 flex-1">
             <MonacoDiffViewer
                 path={path}
                 original={original}
                 modified={modified}
                 language={language}
                 options={options}
-                onMount={(diff) => model.onDiffMount(diff, askedAt)}
+                onMount={(diff, monacoApi) => model.onDiffMount(diff, monacoApi, askedAt)}
             />
+            <SelectionOverlay model={model} />
         </div>
     );
 }

@@ -46,6 +46,10 @@ const (
 	MergePlanCommand   = "moltenreviewmergeplan"
 	MergeCommand       = "moltenreviewmerge"
 	MergeCancelCommand = "moltenreviewmergecancel"
+	// Comments (FR-REV-003): saved, deleted and moved to a new head from a MoltenTerm window only.
+	CommentCommand   = "moltenreviewcomment"
+	UncommentCommand = "moltenreviewcommentdelete"
+	RelocateCommand  = "moltenreviewrelocate"
 )
 
 const (
@@ -222,7 +226,7 @@ func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) 
 	}()
 	timeout := controlTimeout
 	switch req.Command {
-	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand:
+	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand, RelocateCommand:
 		timeout = gitTimeout
 	case CleanupCommand:
 		timeout = cleanupTimeout
@@ -353,6 +357,24 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return s.Cleanup(ctx, req)
+	case CommentCommand:
+		req, err := decode[CommentRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.changed(s.store.SaveComment(req))
+	case UncommentCommand:
+		req, err := decode[CommentDeleteRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.changed(s.store.DeleteComment(req))
+	case RelocateCommand:
+		req, err := decode[RelocateRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.changed(s.Relocate(ctx, req))
 	}
 	return nil, fmt.Errorf("unknown review command %q", command)
 }
