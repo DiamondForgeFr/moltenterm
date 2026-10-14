@@ -976,5 +976,190 @@
             "edit": "Modifier",
             "addOne": "Ajouter un secret"
         }
+    },
+    "molten": {
+        "box": {
+            "closeTitle": "Fermer (Échap)",
+            "failed": "Échec",
+            "label": "Boîte"
+        },
+        "notify": {
+            "conflict": "Les mods « {holder} » et « {claimant} » déclarent tous deux « {command} »",
+            "overBudgetMessage": "{reason}. Réglages > Mods affiche ses chiffres ; molten mod disable {id} le désactive.",
+            "overBudgetTitle": "Le mod « {id} » dépasse son budget",
+            "refused": "Le mod « {id} » a été refusé",
+            "shadowedMessage": "« {id} » est un mod intégré ; renommez le dossier dans {dir} pour le charger.",
+            "shadowedTitle": "Dossier de mod « {id} » ignoré",
+            "stopped": "Le mod « {id} » s'est arrêté",
+            "unreadable": "Impossible de lire les mods"
+        },
+        "safeMode": {
+            "title": "Mode sans échec : aucun mod n'est chargé.",
+            "message": "Réparez avec molten mod disable, molten mod remove ou molten undo, puis choisissez Redémarrer normalement dans le menu de l'application."
+        },
+        "trust": {
+            "title": "Faire confiance au mod « {name} » ?",
+            "intro": "Un agent de code a demandé d'activer ce mod. Il s'exécute dans MoltenTerm avec vos droits : il peut lire et modifier vos fichiers et lancer des commandes.",
+            "introEnd": "Ne lui faites confiance que si vous savez d'où il vient.",
+            "ok": "Faire confiance et activer",
+            "cancel": "Ne pas faire confiance",
+            "partWarning": "Il contient aussi une partie Claude Code qui s'exécute dans Claude Code, dans chaque session Claude Code lancée dans un terminal MoltenTerm, avec vos droits : elle peut changer ce que Claude Code affiche et fait, lire des fichiers et lancer des commandes.",
+            "partTitle": "Faire confiance à la partie Claude Code de « {name} » ?",
+            "partIntro": "Un agent de code a demandé d'activer ce mod, auquel vous avez fait confiance avant qu'il ait une partie Claude Code. Cette partie s'exécute dans Claude Code, dans chaque session Claude Code lancée dans un terminal MoltenTerm, avec vos droits : elle peut changer ce que Claude Code affiche et fait, lire des fichiers et lancer des commandes. Refuser laisse le reste du mod fonctionner.",
+            "partOk": "Faire confiance à la partie",
+            "fieldMod": "Mod",
+            "fieldDescription": "Description",
+            "fieldCapabilities": "Capacités",
+            "noCapabilities": "aucune déclarée",
+            "fieldFolder": "Dossier",
+            "fieldPart": "Partie Claude Code",
+            "partWrittenFor": ", écrite pour Claude Code {version}",
+            "footer": "L'agent peut continuer à le modifier sans redemander. Annulez avec molten mod untrust {id}."
+        }
+    },
+    "onboarding": {
+        "viewName": "Premiers pas",
+        "unknownError": "erreur inconnue",
+        "stepFailed": "Impossible d'afficher cette étape : {error}",
+        "copy": "Copier",
+        "copied": "Copié",
+        "progress": {
+            "all": "Toutes les étapes",
+            "welcome": "Bienvenue",
+            "step": "Étape {n} sur {total}"
+        },
+        "status": {
+            "done": "faite",
+            "skipped": "passée",
+            "notDone": "à faire",
+            "doneTitle": "Faite",
+            "skippedTitle": "Passée",
+            "notDoneTitle": "À faire"
+        },
+        "stepper": {
+            "aria": "Progression de la configuration",
+            "welcome": "Bienvenue",
+            "welcomeTooltip": "Ce qu'est MoltenTerm",
+            "tooltip": "{label} : {tooltip}",
+            "entryAria": "{label}, {status}"
+        },
+        "steps": {
+            "agent": {
+                "title": "Votre agent",
+                "label": "Votre agent",
+                "summary": "Les agents de code que MoltenTerm trouve sur cet ordinateur, et celui avec lequel vous travaillez."
+            },
+            "morph": {
+                "title": "Votre premier morph",
+                "label": "Premier morph",
+                "summary": "Demandez à votre agent de remodeler MoltenTerm, et voyez le changement arriver."
+            },
+            "project": {
+                "title": "Votre projet et vos sessions",
+                "label": "Votre projet",
+                "summary": "Liez un espace de travail au dossier de votre projet et retrouvez vos sessions d'agent."
+            }
+        },
+        "footer": {
+            "leave": "Quitter la configuration",
+            "next": "Suivant",
+            "skip": "Passer cette étape"
+        },
+        "summary": {
+            "doneTitle": "Tout est prêt",
+            "leftTitle": "Presque fini",
+            "doneText": "MoltenTerm connaît votre agent, a pris une première forme et travaille dans votre projet.",
+            "leftText": "Les étapes laissées de côté vous attendent. Premiers pas reste dans le menu de l'application et la palette de commandes."
+        },
+        "welcome": {
+            "title": "Bienvenue dans MoltenTerm",
+            "tagline": "Le terminal qui prend votre forme.",
+            "start": "Configurer MoltenTerm",
+            "stepsOne": "1 étape courte",
+            "stepsOther": "{count} étapes courtes",
+            "skip": "Passer la configuration",
+            "license": "Open source sous licence Apache 2.0, construit sur Wave Terminal.",
+            "licenceLink": "Licence",
+            "privacyLink": "Confidentialité",
+            "points": {
+                "agent": {
+                    "title": "Apportez votre agent.",
+                    "text": "MoltenTerm n'embarque aucune IA. Claude Code, Codex, Gemini CLI ou tout agent en ligne de commande s'y exécute, avec votre propre compte."
+                },
+                "morph": {
+                    "title": "Remodelé par votre agent.",
+                    "text": "Demandez-lui avec {morph} un panneau, une commande ou une disposition : il écrit un mod, MoltenTerm le charge, {undo} le retire."
+                },
+                "sessions": {
+                    "title": "Des sessions qui survivent.",
+                    "text": "Les terminaux et les agents continuent de tourner quand MoltenTerm se ferme ou se met à jour."
+                },
+                "privacy": {
+                    "title": "Ni télémétrie, ni compte.",
+                    "text": "MoltenTerm n'envoie aucune donnée d'usage et ne se connecte que pour ce que vous demandez."
+                }
+            }
+        },
+        "agent": {
+            "guideOutdated": "v{version}, mis à jour au prochain démarrage",
+            "guideMissing": "pas encore installé",
+            "guideForeign": "un fichier que MoltenTerm n'a pas écrit occupe sa place ; il n'y est pas touché",
+            "notFound": "Introuvable",
+            "install": "Installer",
+            "declined": "Refusé",
+            "found": "Trouvé",
+            "guidesRemoved": "Ses guides molten ont été retirés avec {command}.",
+            "reinstall": "Réinstaller ses guides",
+            "genericTitle": "Un autre agent de code",
+            "genericInstalled": "Tout agent peut suivre le fichier d'instructions de MoltenTerm dans {path}. Indiquez-le à votre agent avec :",
+            "genericMissing": "Tout agent peut suivre le fichier d'instructions de MoltenTerm : {command} l'écrit dans {path}. Indiquez-le à votre agent avec :",
+            "requestPlaceholder": "<ce que MoltenTerm doit faire>",
+            "noneFound": "MoltenTerm n'embarque aucune IA et ne demande aucune clé d'API : c'est l'agent de code que vous utilisez déjà qui le remodèle. Aucun des agents pris en charge par MoltenTerm n'est dans le PATH de cet ordinateur. Installez-en un puis cherchez à nouveau, ou passez cette étape : Premiers pas la propose de nouveau.",
+            "lookAgain": "Chercher à nouveau",
+            "integration": "Quand Claude Code ou Codex démarre dans un terminal MoltenTerm, MoltenTerm intègre cette exécution (états précis, jauges d'usage, navigateur) sans toucher à vos réglages ni à vos identifiants.",
+            "settingsLink": "Réglages des agents",
+            "listFailed": "Impossible de lister les agents : {error}",
+            "looking": "Recherche des agents de code sur cet ordinateur…",
+            "intro": "MoltenTerm n'embarque aucune IA : c'est votre propre agent de code qui le remodèle. MoltenTerm a installé ses guides pour les agents trouvés : {morph} suivi du changement voulu, dans votre agent, devient un mod. Choisissez l'agent avec lequel vous travaillez.",
+            "pick": "Choisissez un agent",
+            "use": "Utiliser {name}",
+            "noMorphGuide": "Son guide /morph n'est pas installé : l'étape 2 indique quoi faire."
+        },
+        "morph": {
+            "doneTitle": "MoltenTerm a pris sa première forme : {name}",
+            "callIt": "Appelez-le depuis n'importe quel terminal MoltenTerm :",
+            "commandsLater": "Ses commandes sont listées par {command} une fois qu'il est chargé.",
+            "undo": "{command} le retire, et chaque changement suivant s'annule de la même façon.",
+            "copyBoxMissing": "La boîte de copie n'est pas chargée (mode sans échec, ou désactivée dans Réglages > Mods).",
+            "noAgentIntro": "Avec un agent de code, {morph} suivi d'une demande simple (« ajoute une commande qui affiche la branche git courante dans une boîte ») fait écrire un mod à l'agent : MoltenTerm le vérifie, vous demande avant de l'exécuter, puis le charge. {undo} le retire.",
+            "copyBoxIntro": "MoltenTerm embarque déjà un mod, la boîte de copie que les agents utilisent pour tout ce que vous devez copier. Depuis n'importe quel terminal MoltenTerm :",
+            "showCopyBox": "Afficher une boîte de copie",
+            "copyBoxShown": "La voici, à côté de ce guide.",
+            "installAgent": "Installez un agent et choisissez-le à l'étape 1 pour essayer /morph ; Premiers pas ramène cette étape.",
+            "preparing": "Préparation de votre agent…",
+            "termFailed": "Le terminal n'a pas démarré ; tapez-y {command}.",
+            "intro": "Ouvrez {name} à côté de ce guide, dans un dossier de brouillon à lui, puis collez-y la demande. L'agent écrit un mod, MoltenTerm vous demande avant de l'exécuter, et cette étape se coche.",
+            "goTo": "Aller à {name}",
+            "openBeside": "Ouvrir {name} à côté de ce guide",
+            "firstRequest": "Votre première demande",
+            "alternatives": "Ou l'une de celles-ci",
+            "waiting": "En attente d'un nouveau mod… Rien ne change dans vos projets : {command} retire n'importe quel morph."
+        },
+        "project": {
+            "notRepo": "Ce dossier n'est pas un dépôt git : Mission Control suit les projets git.",
+            "connected": "{name} est déjà connecté à Mission Control ({file}).",
+            "connect": "Connectez {name} à Mission Control : dans votre agent, lancé dans ce dossier, demandez {file} (il réutilise les scripts et la CI du projet) avec :",
+            "sessionsTitle": "Vos sessions survivent",
+            "sessionsText": "Les terminaux et les agents qu'ils contiennent continuent de tourner quand MoltenTerm se ferme ou se met à jour. À votre retour, ils sont là où vous les avez laissés, et Sessions liste tous ceux qui tournent encore, en local ou via SSH.",
+            "openSessions": "Ouvrir Sessions",
+            "folderTitle": "Le dossier de votre projet",
+            "folderText": "Cet espace de travail prend son nom, une couleur et le dossier de ses terminaux depuis votre projet. Un dépôt git est aussi lié, pour que l'onglet Projet montre où il en est.",
+            "editWorkspace": "Modifier l'espace de travail",
+            "chooseFolder": "Choisir un dossier…",
+            "scan": "Trouver mes dépôts git",
+            "scanEmpty": "Aucun dépôt git à deux niveaux sous votre dossier personnel.",
+            "done": "Terminé",
+            "chooseFirst": "Choisissez d'abord un dossier"
+        }
     }
 }

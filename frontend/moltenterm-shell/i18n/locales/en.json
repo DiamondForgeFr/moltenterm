@@ -976,5 +976,190 @@
             "edit": "Edit",
             "addOne": "Add a secret"
         }
+    },
+    "molten": {
+        "box": {
+            "closeTitle": "Close (Escape)",
+            "failed": "Failed",
+            "label": "Box"
+        },
+        "notify": {
+            "conflict": "Mods \"{holder}\" and \"{claimant}\" both register \"{command}\"",
+            "overBudgetMessage": "{reason}. Settings > Mods shows its numbers; molten mod disable {id} turns it off.",
+            "overBudgetTitle": "Mod \"{id}\" is over its budget",
+            "refused": "Mod \"{id}\" was refused",
+            "shadowedMessage": "\"{id}\" is a built-in mod; rename the folder in {dir} to load it.",
+            "shadowedTitle": "Mod folder \"{id}\" ignored",
+            "stopped": "Mod \"{id}\" stopped",
+            "unreadable": "Mods could not be read"
+        },
+        "safeMode": {
+            "title": "Safe mode: no mod is loaded.",
+            "message": "Repair with molten mod disable, molten mod remove or molten undo, then choose Restart Normally in the app menu."
+        },
+        "trust": {
+            "title": "Trust the mod “{name}”?",
+            "intro": "A coding agent asked to enable this mod. It runs inside MoltenTerm with your rights: it can read and change your files and run commands.",
+            "introEnd": "Trust it only if you know where it comes from.",
+            "ok": "Trust and enable",
+            "cancel": "Don't trust",
+            "partWarning": "It also carries a Claude Code part that runs inside Claude Code, in every Claude Code session you start in a MoltenTerm terminal, with your rights: it can change what Claude Code shows and does, read files and run commands.",
+            "partTitle": "Trust the Claude Code part of “{name}”?",
+            "partIntro": "A coding agent asked to enable this mod, which you trusted before it had a Claude Code part. The part runs inside Claude Code, in every Claude Code session you start in a MoltenTerm terminal, with your rights: it can change what Claude Code shows and does, read files and run commands. Declining keeps the rest of the mod running.",
+            "partOk": "Trust the part",
+            "fieldMod": "Mod",
+            "fieldDescription": "Description",
+            "fieldCapabilities": "Capabilities",
+            "noCapabilities": "none declared",
+            "fieldFolder": "Folder",
+            "fieldPart": "Claude Code part",
+            "partWrittenFor": ", written for Claude Code {version}",
+            "footer": "The agent can keep editing it without asking again. Undo with molten mod untrust {id}."
+        }
+    },
+    "onboarding": {
+        "viewName": "Getting started",
+        "unknownError": "unknown error",
+        "stepFailed": "This step could not be shown: {error}",
+        "copy": "Copy",
+        "copied": "Copied",
+        "progress": {
+            "all": "All steps",
+            "welcome": "Welcome",
+            "step": "Step {n} of {total}"
+        },
+        "status": {
+            "done": "done",
+            "skipped": "skipped",
+            "notDone": "not done",
+            "doneTitle": "Done",
+            "skippedTitle": "Skipped",
+            "notDoneTitle": "Not done"
+        },
+        "stepper": {
+            "aria": "Setup progress",
+            "welcome": "Welcome",
+            "welcomeTooltip": "What MoltenTerm is",
+            "tooltip": "{label}: {tooltip}",
+            "entryAria": "{label}, {status}"
+        },
+        "steps": {
+            "agent": {
+                "title": "Your agent",
+                "label": "Your agent",
+                "summary": "The coding agents MoltenTerm finds on this computer, and the one you work with."
+            },
+            "morph": {
+                "title": "Your first morph",
+                "label": "First morph",
+                "summary": "Ask your agent to reshape MoltenTerm, and see the change land."
+            },
+            "project": {
+                "title": "Your project and your sessions",
+                "label": "Your project",
+                "summary": "Link a workspace to your project folder and find your agent sessions."
+            }
+        },
+        "footer": {
+            "leave": "Leave setup",
+            "next": "Next",
+            "skip": "Skip this step"
+        },
+        "summary": {
+            "doneTitle": "You're set",
+            "leftTitle": "Almost there",
+            "doneText": "MoltenTerm knows your agent, has taken a first shape and works in your project.",
+            "leftText": "The steps you left wait for you. Getting started stays in the app menu and the command palette."
+        },
+        "welcome": {
+            "title": "Welcome to MoltenTerm",
+            "tagline": "The terminal that takes your shape.",
+            "start": "Set up MoltenTerm",
+            "stepsOne": "1 short step",
+            "stepsOther": "{count} short steps",
+            "skip": "Skip setup",
+            "license": "Open source under the Apache License 2.0, built on Wave Terminal.",
+            "licenceLink": "Licence",
+            "privacyLink": "Privacy",
+            "points": {
+                "agent": {
+                    "title": "Bring your own agent.",
+                    "text": "MoltenTerm ships no AI. Claude Code, Codex, Gemini CLI or any CLI agent runs in it, with your own account."
+                },
+                "morph": {
+                    "title": "Reshaped by your agent.",
+                    "text": "Ask it with {morph} for a panel, a command or a layout: it writes a mod, MoltenTerm loads it, {undo} takes it back."
+                },
+                "sessions": {
+                    "title": "Sessions that survive.",
+                    "text": "Terminals and agents keep running when MoltenTerm quits or updates."
+                },
+                "privacy": {
+                    "title": "No telemetry, no account.",
+                    "text": "MoltenTerm sends no usage data and connects only for what you ask."
+                }
+            }
+        },
+        "agent": {
+            "guideOutdated": "v{version}, updated at the next start",
+            "guideMissing": "not installed yet",
+            "guideForeign": "a file MoltenTerm did not write is at its place; it is left alone",
+            "notFound": "Not found",
+            "install": "Install",
+            "declined": "Declined",
+            "found": "Found",
+            "guidesRemoved": "Its molten guides were removed with {command}.",
+            "reinstall": "Install its guides again",
+            "genericTitle": "Another coding agent",
+            "genericInstalled": "Any agent can follow MoltenTerm's instruction file at {path}. Point your agent to it with:",
+            "genericMissing": "Any agent can follow MoltenTerm's instruction file: {command} writes it to {path}. Point your agent to it with:",
+            "requestPlaceholder": "<what you want MoltenTerm to do>",
+            "noneFound": "MoltenTerm ships no AI and needs no API key: the coding agent you already use reshapes it. None of the agents MoltenTerm supports is on this computer's PATH. Install one, then look again, or skip this step: Getting started offers it again.",
+            "lookAgain": "Look again",
+            "integration": "When Claude Code or Codex starts in a MoltenTerm terminal, MoltenTerm integrates that run (precise states, usage gauges, the browser) without touching your own settings or credentials.",
+            "settingsLink": "Agent settings",
+            "listFailed": "The agents could not be listed: {error}",
+            "looking": "Looking for the coding agents on this computer…",
+            "intro": "MoltenTerm ships no AI: your own coding agent reshapes it. MoltenTerm installed its guides for the agents it found, so {morph} and the change you want, in your agent, turns into a mod. Pick the agent you work with.",
+            "pick": "Pick an agent",
+            "use": "Use {name}",
+            "noMorphGuide": "Its /morph guide is not installed: step 2 shows what to do."
+        },
+        "morph": {
+            "doneTitle": "MoltenTerm took its first shape: {name}",
+            "callIt": "Call it from any MoltenTerm terminal:",
+            "commandsLater": "Its commands are listed by {command} once it has loaded.",
+            "undo": "{command} removes it, and every change after it can be undone the same way.",
+            "copyBoxMissing": "The copy box is not loaded (safe mode, or disabled in Settings > Mods).",
+            "noAgentIntro": "With a coding agent, {morph} and a plain request (\"add a command that shows the current git branch in a box\") has the agent write a mod: MoltenTerm checks it, asks you before it runs, and loads it. {undo} takes it back.",
+            "copyBoxIntro": "MoltenTerm ships one mod already, the copy box agents use for anything you have to copy. From any MoltenTerm terminal:",
+            "showCopyBox": "Show a copy box",
+            "copyBoxShown": "There it is, next to this guide.",
+            "installAgent": "Install an agent and pick it in step 1 to try /morph; Getting started brings this step back.",
+            "preparing": "Getting your agent ready…",
+            "termFailed": "The terminal did not start; type {command} in it.",
+            "intro": "Open {name} next to this guide, in a scratch folder of its own, then paste the request into it. The agent writes a mod, MoltenTerm asks you before it runs it, and this step ticks.",
+            "goTo": "Go to {name}",
+            "openBeside": "Open {name} beside this guide",
+            "firstRequest": "Your first request",
+            "alternatives": "Or one of these",
+            "waiting": "Waiting for a new mod… Nothing changes in your projects: {command} takes any morph back."
+        },
+        "project": {
+            "notRepo": "This folder is not a git repository: Mission Control follows git projects.",
+            "connected": "{name} is already connected to Mission Control ({file}).",
+            "connect": "Connect {name} to Mission Control: in your agent, started in this folder, ask for {file} (it reuses the project's scripts and CI) with:",
+            "sessionsTitle": "Your sessions survive",
+            "sessionsText": "Terminals and the agents in them keep running when MoltenTerm quits or updates. When you come back, they are where you left them, and Sessions lists every one still running, local or over SSH.",
+            "openSessions": "Open Sessions",
+            "folderTitle": "Your project folder",
+            "folderText": "This workspace takes its name, a colour and its terminals' folder from your project. A git repository is also linked, so the Project tab shows where it stands.",
+            "editWorkspace": "Edit workspace",
+            "chooseFolder": "Choose a folder…",
+            "scan": "Find my git repositories",
+            "scanEmpty": "No git repository two levels under your home folder.",
+            "done": "Done",
+            "chooseFirst": "Choose a folder first"
+        }
     }
 }
