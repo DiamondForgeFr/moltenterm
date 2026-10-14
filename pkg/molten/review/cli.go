@@ -29,11 +29,12 @@ const (
 	HandoffOpen    = "open"
 	HandoffPublish = "publish"
 	HandoffMerge   = "merge"
-	// Restart work (FR-REV-011) joins as a fourth action once its sheet exists: the same agent refusal applies to it.
+	// HandoffRestart opens Restart work's sheet (FR-REV-011): the round goes to an agent only on the sheet's click.
+	HandoffRestart = "restart"
 )
 
-// ErrAgentTerminal is what publish and merge answer to a terminal where an agent runs; the CLI prints it.
-const ErrAgentTerminal = "this terminal runs an agent: publish and merge are the developer's, from the Review tab of a MoltenTerm window"
+// ErrAgentTerminal is what publish, merge and restart answer to a terminal where an agent runs; the CLI prints it.
+const ErrAgentTerminal = "this terminal runs an agent: publish, merge and restart are the developer's, from the Review tab of a MoltenTerm window"
 
 type HandoffRequest struct {
 	// Token: the terminal's WAVETERM_JWT, which names its block.
@@ -72,13 +73,13 @@ type HandoffEnv struct {
 
 func handoffActionKnown(action string) bool {
 	switch action {
-	case HandoffOpen, HandoffPublish, HandoffMerge:
+	case HandoffOpen, HandoffPublish, HandoffMerge, HandoffRestart:
 		return true
 	}
 	return false
 }
 
-// HandoffRefusedToAgents: publish and merge are refused to a terminal where an agent runs (FR-REV-014 AC3). Opening a
+// HandoffRefusedToAgents: publish, merge and restart are refused to a terminal where an agent runs (FR-REV-014 AC3). Opening a
 // tab shows only what the developer already sees.
 func HandoffRefusedToAgents(action string) bool {
 	return action != HandoffOpen

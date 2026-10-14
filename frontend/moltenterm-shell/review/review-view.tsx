@@ -32,7 +32,7 @@ import {
     TreeNode,
 } from "./review-model";
 import { PublishSheet } from "./review-publish-sheet";
-import { RestartButton, RestartStatus } from "./review-restart-view";
+import { RestartButton, RestartSheet, RestartStatus } from "./review-restart-view";
 import { commentCounts } from "./review-selection";
 import { ReviewFileView, ReviewTabModel } from "./review-tab-model";
 import { ValidateButton, ValidateSheet } from "./review-validate";
@@ -70,6 +70,7 @@ export function ReviewView({ model }: ViewComponentProps<ReviewViewModel>) {
             </div>
             <ValidateSheet model={model} />
             <PublishSheet model={model} />
+            <RestartSheet model={model} />
         </div>
     );
 }

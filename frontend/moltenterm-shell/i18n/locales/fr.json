@@ -4447,6 +4447,14 @@
             "showSince": "Voir les changements depuis le tour",
             "showAgent": "Voir l'agent",
             "dismiss": "Masquer",
+            "sheet": {
+                "title": "Relancer le travail · #{number}",
+                "what": "Les {count} commentaires publiés du tour de revue {round} vont à un agent dans le worktree de {branch} : il les applique, commite au format du projet, pousse et répond sur chaque fil.",
+                "who": "Un agent inactif qui y travaille déjà les reçoit ; sinon votre agent démarre dans un nouveau terminal de cet onglet, avec vos permissions habituelles.",
+                "ticket": "Le ticket garde son statut. Rien ne démarre avant votre clic sur Relancer le travail.",
+                "again": "Ce tour a déjà été confié : un nouveau clic le confie à nouveau.",
+                "cancel": "Annuler"
+            },
             "outcome": {
                 "started": "{agent} a démarré dans {folder} avec les commentaires du tour.",
                 "sent": "Envoyé à {agent}, déjà dans {folder}.",
