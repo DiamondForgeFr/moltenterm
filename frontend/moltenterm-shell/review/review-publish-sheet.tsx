@@ -10,6 +10,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
+import { useLocale } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { ReviewComment, ReviewCommentText, ReviewPublishRecord, ReviewState, ReviewSummaryId } from "./review-client";
 import { shortOid } from "./review-model";
@@ -34,6 +35,7 @@ const TextBox =
     "min-h-[56px] w-full resize-y rounded-6 border border-border bg-surface-1 px-2 py-1.5 text-12 leading-5 text-primary outline-none focus:border-accent disabled:opacity-60";
 
 export function PublishSheet({ model }: { model: ReviewTabModel }) {
+    useLocale();
     const sheet = useAtomValue(model.publishAtom);
     const pr = useAtomValue(model.prAtom);
     const state = useAtomValue(model.stateAtom);

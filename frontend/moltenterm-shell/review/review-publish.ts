@@ -5,6 +5,7 @@
 // translation into the publication language, where it lands on GitHub) and when Post review can be clicked. wavesrv
 // decides the rest at the click (pkg/molten/review/publish.go).
 
+import { t } from "../i18n/i18n";
 import type {
     ReviewComment,
     ReviewCommentText,
@@ -15,63 +16,139 @@ import type {
 } from "./review-client";
 import { isStaged } from "./review-selection";
 
-// The sheet's words, in one place until the interface's strings move to keys (#623).
+// The sheet's words, read in the interface language each time they are shown (#623).
+function keyed<K extends string>(prefix: string, keys: readonly K[]): Record<K, string> {
+    const rtn = {} as Record<K, string>;
+    for (const k of keys) {
+        Object.defineProperty(rtn, k, { get: () => t(`${prefix}.${k}`), enumerable: true });
+    }
+    return rtn;
+}
+
 export const PublishText = {
-    title: (num: number) => `Publish review #${num}`,
-    subtitle: (lang: string, head: string) => `One GitHub review in ${lang}, on head ${head}`,
-    language: "Publication language",
-    languageSource: {
-        project: "from the project's .saasfoundry.json",
-        setting: "from the review:publishlanguage setting",
-        detected: "detected from the project's pull requests and README",
-        default: "the default: the project declares none and its history says too little",
-    } as Record<ReviewLanguage["source"], string>,
-    readingLanguage: "Reading the publication language…",
-    original: "Your text",
-    translation: (lang: string) => `Published in ${lang}`,
-    asIs: (lang: string) => `Already in ${lang}: published as written`,
-    translationPlaceholder: "Your agent's translation shows here; you can also write it.",
-    summary: "Review summary (optional)",
-    summaryPlaceholder: "A few words for the author, shown above the comments",
-    summaryTranslationPlaceholder: "The summary's translation",
-    editedByYou: "edited by you",
-    lineComment: "Line comment",
-    fileComment: "File comment",
-    outdated: "Outdated: posted as a file comment quoting its lines",
-    fileLevel: "File-level: posted as a file comment quoting its lines",
-    translateAgain: "Translate again",
-    translateAgainTitle: "Ask your agent again for every translation you did not edit",
-    translate: "Translate",
-    translating: (n: number) => `Your agent is translating ${n} ${n === 1 ? "text" : "texts"}…`,
-    translateBusy: "Your agent is busy: nothing was asked. Translate again when it is idle.",
-    translateTyped: "The request waits in your agent's prompt behind your draft: send it there.",
-    noSession: "No review session: write the translations, or post as written.",
-    nothingToTranslate: "Every text is in the publication language.",
-    missing: (n: number, lang: string) => `${n} ${n === 1 ? "text is" : "texts are"} not in ${lang} yet.`,
-    cancel: "Cancel",
-    close: "Close",
-    postAsWritten: "Post as written",
-    postAsWrittenTitle: "Publish your texts without translation",
-    post: "Post review",
-    postTitle: "Post one GitHub review with these comments; nothing is posted before this click",
-    postAgain: "Post the rest",
-    postAgainTitle: "Post only what GitHub does not have yet; the review is not posted twice",
-    posting: "Posting the review on GitHub…",
-    published: "Review posted on GitHub",
-    partial: "Review posted on GitHub, but some comments are not",
-    failed: "The review could not be posted",
-    openOnGithub: "Open the review on GitHub",
-    nothing: "No comment is staged.",
-    note: {
-        filelevel: "posted as a file comment",
-        outdated: "outdated: posted as a file comment quoting its lines",
-        otherhead: "made on another head: posted as a file comment",
-        outsidediff: "outside the diff: posted as a file comment",
-        refused: "GitHub refused its lines: re-posted as a file comment",
-        late: "staged after the review was posted: posted as a file comment",
-        notinpr: "its file left the pull request: quoted in the review's text",
-        failed: "not posted",
-    } as Record<ReviewPublishNoteKind, string>,
+    title: (num: number) => t("review.publish.sheet.title", { num }),
+    subtitle: (lang: string, head: string) => t("review.publish.sheet.subtitle", { lang, head }),
+    languageSource: keyed("review.publish.sheet.languageSource", [
+        "project",
+        "setting",
+        "detected",
+        "default",
+    ] as const) as Record<ReviewLanguage["source"], string>,
+    translation: (lang: string) => t("review.publish.sheet.translation", { lang }),
+    asIs: (lang: string) => t("review.publish.sheet.asIs", { lang }),
+    translating: (n: number) =>
+        t(n === 1 ? "review.publish.sheet.translatingOne" : "review.publish.sheet.translatingOther", { n }),
+    missing: (n: number, lang: string) =>
+        t(n === 1 ? "review.publish.sheet.missingOne" : "review.publish.sheet.missingOther", { n, lang }),
+    note: keyed("review.publish.sheet.note", [
+        "filelevel",
+        "outdated",
+        "otherhead",
+        "outsidediff",
+        "refused",
+        "late",
+        "notinpr",
+        "failed",
+    ] as const) as Record<ReviewPublishNoteKind, string>,
+    get language() {
+        return t("review.publish.sheet.language");
+    },
+    get readingLanguage() {
+        return t("review.publish.sheet.readingLanguage");
+    },
+    get original() {
+        return t("review.publish.sheet.original");
+    },
+    get translationPlaceholder() {
+        return t("review.publish.sheet.translationPlaceholder");
+    },
+    get summary() {
+        return t("review.publish.sheet.summary");
+    },
+    get summaryPlaceholder() {
+        return t("review.publish.sheet.summaryPlaceholder");
+    },
+    get summaryTranslationPlaceholder() {
+        return t("review.publish.sheet.summaryTranslationPlaceholder");
+    },
+    get editedByYou() {
+        return t("review.publish.sheet.editedByYou");
+    },
+    get lineComment() {
+        return t("review.publish.sheet.lineComment");
+    },
+    get fileComment() {
+        return t("review.publish.sheet.fileComment");
+    },
+    get outdated() {
+        return t("review.publish.sheet.outdated");
+    },
+    get fileLevel() {
+        return t("review.publish.sheet.fileLevel");
+    },
+    get translateAgain() {
+        return t("review.publish.sheet.translateAgain");
+    },
+    get translateAgainTitle() {
+        return t("review.publish.sheet.translateAgainTitle");
+    },
+    get translate() {
+        return t("review.publish.sheet.translate");
+    },
+    get translateBusy() {
+        return t("review.publish.sheet.translateBusy");
+    },
+    get translateTyped() {
+        return t("review.publish.sheet.translateTyped");
+    },
+    get noSession() {
+        return t("review.publish.sheet.noSession");
+    },
+    get nothingToTranslate() {
+        return t("review.publish.sheet.nothingToTranslate");
+    },
+    get cancel() {
+        return t("review.publish.sheet.cancel");
+    },
+    get close() {
+        return t("review.publish.sheet.close");
+    },
+    get postAsWritten() {
+        return t("review.publish.sheet.postAsWritten");
+    },
+    get postAsWrittenTitle() {
+        return t("review.publish.sheet.postAsWrittenTitle");
+    },
+    get post() {
+        return t("review.publish.sheet.post");
+    },
+    get postTitle() {
+        return t("review.publish.sheet.postTitle");
+    },
+    get postAgain() {
+        return t("review.publish.sheet.postAgain");
+    },
+    get postAgainTitle() {
+        return t("review.publish.sheet.postAgainTitle");
+    },
+    get posting() {
+        return t("review.publish.sheet.posting");
+    },
+    get published() {
+        return t("review.publish.sheet.published");
+    },
+    get partial() {
+        return t("review.publish.sheet.partial");
+    },
+    get failed() {
+        return t("review.publish.sheet.failed");
+    },
+    get openOnGithub() {
+        return t("review.publish.sheet.openOnGithub");
+    },
+    get nothing() {
+        return t("review.publish.sheet.nothing");
+    },
 };
 
 // langCode turns fr-FR, fr_FR or FR into fr; "" stays "".
