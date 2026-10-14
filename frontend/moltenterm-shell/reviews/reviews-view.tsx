@@ -7,8 +7,8 @@
 // rows (arrows, Home, End) and Enter opens one.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
-import { openLink } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import { openWebLink } from "@/moltenterm-shell/open-web-link";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -351,11 +351,11 @@ function ReviewRow({
     const merge = mergeLabel(pr.merge, pr.base);
     const openReport = (e: React.MouseEvent) => {
         e.stopPropagation();
-        fireAndForget(() => openLink(pr.report.url));
+        fireAndForget(() => openWebLink(pr.report.url));
     };
     const openOnGithub = (e: React.MouseEvent) => {
         e.stopPropagation();
-        fireAndForget(() => openLink(pr.url));
+        fireAndForget(() => openWebLink(pr.url));
     };
     return (
         <div

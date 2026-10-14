@@ -7,6 +7,7 @@ import {
     classifyWindowOpen,
     detectSignInRefusal,
     isSignInProviderUrl,
+    pageOpenTarget,
     parseWindowFeatures,
     popupBounds,
     PopupDefaultHeight,
@@ -63,14 +64,38 @@ describe("classifyWindowOpen", () => {
         );
     });
 
-    it("forwards other schemes as before and denies script URLs", () => {
+    it("sends mail to the system and denies every other non-web scheme (#663)", () => {
         expect(
             classifyWindowOpen({ url: "mailto:a@example.com", features: "width=400", disposition: "new-window" })
-        ).toBe("tab");
+        ).toBe("system");
         expect(
             classifyWindowOpen({ url: "javascript:alert(1)", features: "width=400", disposition: "new-window" })
         ).toBe("deny");
         expect(classifyWindowOpen({ url: " JavaScript:void(0)", disposition: "foreground-tab" })).toBe("deny");
+        for (const url of [
+            "file:///Users/me/.ssh/id_rsa",
+            "data:text/html,<form>phish</form>",
+            "blob:https://example.com/1",
+            "vscode://file/x",
+            "chrome://settings",
+            "https://",
+        ]) {
+            expect(classifyWindowOpen({ url, disposition: "foreground-tab" })).toBe("deny");
+            expect(classifyWindowOpen({ url, features: "noopener", disposition: "foreground-tab" })).toBe("deny");
+            expect(classifyWindowOpen({ url, features: "popup", disposition: "new-window" })).toBe("deny");
+        }
+    });
+});
+
+describe("pageOpenTarget (#663)", () => {
+    it("lets only web pages and an empty page become tabs, and mail go to the system", () => {
+        expect(pageOpenTarget("https://example.com/a")).toBe("tab");
+        expect(pageOpenTarget("http://localhost:3000")).toBe("tab");
+        expect(pageOpenTarget("about:blank")).toBe("tab");
+        expect(pageOpenTarget("mailto:a@b.c")).toBe("system");
+        for (const url of ["file:///etc/passwd", "data:text/html,x", "javascript:x", "about:config", "", "nonsense"]) {
+            expect(pageOpenTarget(url)).toBe("deny");
+        }
     });
 });
 

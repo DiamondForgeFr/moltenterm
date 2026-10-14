@@ -10,7 +10,6 @@ import { layoutProjectCards, ProjectCard, ProjectCardRegistry } from "./project-
 import {
     checkProjectRoute,
     checkProjectSource,
-    checkWebUrl,
     currentMissionView,
     LegacyTimelineView,
     MoltentermProjectView,
@@ -184,13 +183,6 @@ describe("notification routing", () => {
         expect(currentMissionView("molten-cicd")).toBe("molten-cicd");
         expect(currentMissionView("term")).toBe("term");
         expect(currentMissionView("")).toBe("");
-    });
-
-    it("opens only web pages from a pull request's address", () => {
-        expect(checkWebUrl("https://github.com/o/r/pull/7")).toBe(true);
-        expect(checkWebUrl("file:///etc/passwd")).toBe(false);
-        expect(checkWebUrl("vscode://x")).toBe(false);
-        expect(checkWebUrl("")).toBe(false);
     });
 });
 

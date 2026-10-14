@@ -6,8 +6,8 @@
 // job without a description can be described by the workspace's agent, as a change the developer reviews. The
 // catalogue is read when the tab opens and again when the snapshot says a workflow file or the pipeline changed.
 
-import { openLink } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { openWebLink } from "@/moltenterm-shell/open-web-link";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -275,7 +275,7 @@ function WorkflowBlock({
                     {last ? (
                         <button
                             type="button"
-                            onClick={() => fireAndForget(() => openLink(last.url))}
+                            onClick={() => fireAndForget(() => openWebLink(last.url))}
                             className="flex shrink-0 cursor-pointer items-center gap-1 text-12 text-muted hover:text-primary"
                             title={t("mc.jobs.ui.lastRunTitle", { title: last.displayTitle ?? "" })}
                         >

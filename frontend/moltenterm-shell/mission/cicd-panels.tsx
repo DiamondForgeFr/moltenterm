@@ -5,7 +5,7 @@
 // (GithubPanels.tsx): open pull requests with their checks, scheduled workflows with their next runs, recent runs. CD
 // holds the local builds with their logs and the full tag registry. Summaries and actions live in Project (DS-MC-012).
 
-import { openLink } from "@/app/store/global";
+import { openWebLink } from "@/moltenterm-shell/open-web-link";
 import { cn, fireAndForget } from "@/util/util";
 import { useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
@@ -44,7 +44,7 @@ export function CheckIcon({ state }: { state: CheckState }) {
 }
 
 function open(url: string) {
-    fireAndForget(() => openLink(url));
+    fireAndForget(() => openWebLink(url));
 }
 
 export function formatDuration(ms: number): string {

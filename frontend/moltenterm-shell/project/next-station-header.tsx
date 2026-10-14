@@ -5,7 +5,7 @@
 // what waits on the trunk, Mission Control's only copy of the actions (Run CI on develop, Build local, Release, Deploy
 // to, Clean branches), and a fixed list of the latest pending changes. What it shows comes from next-station-model.ts.
 
-import { openLink } from "@/app/store/global";
+import { openWebLink } from "@/moltenterm-shell/open-web-link";
 import { cn, fireAndForget } from "@/util/util";
 import { useMemo } from "react";
 import { useLocale, useT } from "../i18n/i18n";
@@ -89,7 +89,7 @@ function StationScheduleText({ schedule }: { schedule: StationSchedule }) {
                 // A button, not a link: Wave's link colour would make the line louder than the band around it.
                 <button
                     type="button"
-                    onClick={() => fireAndForget(() => openLink(schedule.then.url))}
+                    onClick={() => fireAndForget(() => openWebLink(schedule.then.url))}
                     className="cursor-pointer rounded-4 text-muted hover:text-primary"
                     title={schedule.then.title}
                     data-testid="next-station-then"
@@ -132,7 +132,7 @@ function LatestChanges({ items, trunk, total }: { items: TickerItem[]; trunk: st
                                 href={item.url}
                                 onClick={(e) => {
                                     e.preventDefault();
-                                    fireAndForget(() => openLink(item.url));
+                                    fireAndForget(() => openWebLink(item.url));
                                 }}
                                 className="min-w-0 cursor-pointer truncate rounded-4 hover:text-primary"
                                 title={t("project.latest.openTicket", { ticket: item.ticket })}

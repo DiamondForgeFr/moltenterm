@@ -4,7 +4,7 @@
 import { RpcApi } from "@/app/store/wshclientapi";
 import { adaptFromElectronKeyEvent, checkKeyPressed } from "@/util/keyutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
-import { Rectangle, shell, WebContentsView } from "electron";
+import { Rectangle, WebContentsView } from "electron";
 import { createNewWaveWindow, getWaveWindowById } from "emain/emain-window";
 import path from "path";
 import { configureAuthKeyRequestInjection } from "./authkey";
@@ -20,6 +20,7 @@ import {
     shNavHandler,
 } from "./emain-util";
 import { ElectronWshClient } from "./emain-wsh";
+import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
 import { attachWebviewWindowOpen } from "./moltenterm-popups"; // MOLTENTERM-PATCH (#207)
 import { acquireViewForTab, noteTabViewDestroyed, noteTabViewDestroying } from "./moltenterm-tabview-host"; // MOLTENTERM-PATCH (#461)
 
@@ -294,7 +295,7 @@ export async function getOrCreateWebViewForTab(
     tabView.webContents.setWindowOpenHandler(({ url, frameName }) => {
         if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file://")) {
             console.log("openExternal fallback", url);
-            shell.openExternal(url);
+            void openExternalLink(url); // MOLTENTERM-PATCH (#663): the shared scheme rule
         }
         console.log("window-open denied", url);
         return { action: "deny" };

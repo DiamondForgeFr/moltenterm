@@ -7,13 +7,41 @@
 
 // What a page's window.open or target=_blank becomes:
 //   popup: a real child window with window.opener intact (sign-in flows post their result back through it);
-//   tab:   a new tab of the browser panel (#140), as before;
-//   deny:  nothing (script URLs).
+//   tab:    a new tab of the browser panel (#140), as before;
+//   system: the system's handler (mailto:), through emain's scheme rule;
+//   deny:   nothing (#663): file:, data:, javascript: and every other scheme. Chromium refuses a web page's navigation
+//           to file: or data:, but a panel tab's src set by MoltenTerm is not the page's navigation, so the rule is here.
 export const WindowOpenPopup = "popup";
 export const WindowOpenTab = "tab";
+export const WindowOpenSystem = "system";
 export const WindowOpenDeny = "deny";
 
-export type WindowOpenKind = typeof WindowOpenPopup | typeof WindowOpenTab | typeof WindowOpenDeny;
+export type WindowOpenKind =
+    | typeof WindowOpenPopup
+    | typeof WindowOpenTab
+    | typeof WindowOpenSystem
+    | typeof WindowOpenDeny;
+
+export type PageOpenTarget = typeof WindowOpenTab | typeof WindowOpenSystem | typeof WindowOpenDeny;
+
+// Where a URL a page asks to open may go (#663): a panel tab for a web page or an empty page, the system for mail,
+// nowhere for anything else. The address bar, typed by the user, does not go through this.
+export function pageOpenTarget(url: string): PageOpenTarget {
+    const trimmed = (url ?? "").trim();
+    if (trimmed.toLowerCase() === "about:blank") {
+        return WindowOpenTab;
+    }
+    let u: URL;
+    try {
+        u = new URL(trimmed);
+    } catch {
+        return WindowOpenDeny;
+    }
+    if ((u.protocol === "http:" || u.protocol === "https:") && u.hostname !== "") {
+        return WindowOpenTab;
+    }
+    return u.protocol === "mailto:" ? WindowOpenSystem : WindowOpenDeny;
+}
 
 // The fields of Electron's HandlerDetails the decision reads.
 export type WindowOpenDetails = { url?: string; features?: string; disposition?: string };
@@ -63,8 +91,11 @@ function featureOn(value: string): boolean {
 export function classifyWindowOpen(details: WindowOpenDetails): WindowOpenKind {
     const url = (details?.url ?? "").trim();
     const lower = url.toLowerCase();
-    if (lower.startsWith("javascript:")) {
-        return WindowOpenDeny;
+    if (url !== "") {
+        const target = pageOpenTarget(url);
+        if (target !== WindowOpenTab) {
+            return target;
+        }
     }
     const features = parseWindowFeatures(details?.features);
     // A page that gives up its opener does not need a window of its own.
@@ -74,9 +105,6 @@ export function classifyWindowOpen(details: WindowOpenDetails): WindowOpenKind {
     // An empty window is filled by its opener (window.open("", name) then w.location = ...): it must exist.
     if (url === "" || lower === "about:blank") {
         return WindowOpenPopup;
-    }
-    if (!lower.startsWith("http:") && !lower.startsWith("https:")) {
-        return WindowOpenTab;
     }
     if ("popup" in features) {
         return featureOn(features.popup) ? WindowOpenPopup : WindowOpenTab;

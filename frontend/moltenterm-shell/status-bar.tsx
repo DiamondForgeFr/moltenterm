@@ -6,9 +6,10 @@
 // sleep item: the sleep policy, the coffees and the blocks terminals asked for (FR-SHELL-023, #276). The badge opens the
 // version history (FR-REL-004).
 
-import { atoms, getApi, openLink } from "@/app/store/global";
+import { atoms, getApi } from "@/app/store/global";
 import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { getLayoutModelForStaticTab } from "@/layout/index";
+import { openWebLink } from "@/moltenterm-shell/open-web-link";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
@@ -113,7 +114,7 @@ function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: 
                     type="button"
                     className={ItemButton}
                     title={t(pane.pr.draft ? "status.pr.draft" : "status.pr.open", { title: pane.pr.title })}
-                    onClick={() => fireAndForget(() => openLink(pane.pr.url))}
+                    onClick={() => fireAndForget(() => openWebLink(pane.pr.url))}
                 >
                     <i className="fa fa-solid fa-code-pull-request text-11" />#{pane.pr.number}
                 </button>

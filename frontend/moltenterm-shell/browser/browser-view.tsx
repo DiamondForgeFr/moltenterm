@@ -110,7 +110,7 @@ import {
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
-import type { SignInBar } from "./browser-popup";
+import { pageOpenTarget, WindowOpenSystem, WindowOpenTab, type SignInBar } from "./browser-popup";
 import { noteBrowserPanelFocus } from "./browser-routing";
 import {
     isSharedTab,
@@ -345,7 +345,17 @@ export class BrowserViewModel implements ViewModel {
     }
 
     // A page's new window (window.open, target=_blank): a new tab, unless its site is set to the installed browser.
+    // Only a web page or an empty page becomes a tab; mail goes to the system, anything else is dropped (#663).
     openLink(url: string): void {
+        const target = pageOpenTarget(url);
+        if (target === WindowOpenSystem) {
+            getApi().openExternal(url);
+            return;
+        }
+        if (target !== WindowOpenTab) {
+            console.log("molten browser: a page's link to a non-web page dropped");
+            return;
+        }
         if (!this.engines.needsRouting(url)) {
             this.newTab(url);
             return;
@@ -513,9 +523,11 @@ export class BrowserViewModel implements ViewModel {
 
     showLinkMenu(url: string, event?: React.MouseEvent): void {
         const chosen = this.engines.chosen();
-        const menu: ContextMenuItem[] = [
-            { label: t("browser.menu.openLinkNewTab"), icon: "plus", click: () => this.newTab(url) },
-        ];
+        const menu: ContextMenuItem[] = [];
+        // A page's link to a file or a data: page never becomes a tab (#663); Copy link address still works.
+        if (pageOpenTarget(url) === WindowOpenTab) {
+            menu.push({ label: t("browser.menu.openLinkNewTab"), icon: "plus", click: () => this.newTab(url) });
+        }
         if (chosen != null && siteOf(url) != null) {
             menu.push({
                 label: t("browser.menu.openLinkIn", { browser: chosen.name }),
