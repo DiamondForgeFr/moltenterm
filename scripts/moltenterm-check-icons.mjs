@@ -38,7 +38,9 @@ const notIcons = new Set([
 ]);
 
 const sourceDirs = ["frontend", "emain", "pkg", "cmd", "index.html"];
-const skipDir = /(^|\/)(node_modules|dist|preview|fontawesome-free)(\/|$)/;
+// moltenterm-shell/suite is the DiamondForge suite kit (#658): its icons are Lucide components named by concept, not
+// Font Awesome names.
+const skipDir = /(^|\/)(node_modules|dist|preview|fontawesome-free|moltenterm-shell\/suite)(\/|$)/;
 const exts = new Set([".ts", ".tsx", ".scss", ".css", ".html", ".go", ".json"]);
 
 function walk(rel, out) {

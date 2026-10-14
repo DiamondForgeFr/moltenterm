@@ -30,7 +30,7 @@ import {
     UnknownGroup,
     WorkspaceSettings,
 } from "./settings-catalog";
-import { settingsGroupIcon, SettingsSectionIcons } from "./settings-icons";
+import { settingsGroupIcon, SettingsSectionConcepts } from "./settings-icons";
 
 const schema = settingsSchema as SettingsSchema;
 const props = schema.$defs.SettingsType.properties;
@@ -301,7 +301,7 @@ describe("short choices as option rows (#658)", () => {
     });
 
     it("gives every section and group a suite icon", () => {
-        for (const id of Object.values(SettingsSectionIcons)) {
+        for (const id of Object.values(SettingsSectionConcepts)) {
             expect(SuiteIcons[id]).toBeTruthy();
         }
         for (const e of catalog()) {

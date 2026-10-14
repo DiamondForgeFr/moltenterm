@@ -66,17 +66,18 @@ const FocusRingClass =
 // Each section is a DiamondForge suite block (#658): its name in the chip on the top border, its icon on the corner.
 function Section({
     title,
-    icon,
+    concept,
     tone,
     children,
 }: {
     title: string;
-    icon: SuiteIconName;
+    // The suite concept whose Lucide icon sits on the corner (suite/suite-icons.ts), not a Font Awesome name.
+    concept: SuiteIconName;
     tone?: "danger";
     children: React.ReactNode;
 }) {
     return (
-        <SectionBlock title={title} icon={suiteIcon(icon)} tone={tone} data-section={title} className="min-w-0">
+        <SectionBlock title={title} icon={suiteIcon(concept)} tone={tone} data-section={title} className="min-w-0">
             {children}
         </SectionBlock>
     );
@@ -541,7 +542,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
         setResult({ ok: false, text });
     });
     return (
-        <Section title={t("workspace.edit.identity")} icon="identity">
+        <Section title={t("workspace.edit.identity")} concept="identity">
             <div className="flex min-w-0 items-start gap-3">
                 <RailBadgePreview ws={ws} over={drop.over} dropHandlers={drop.handlers} />
                 <div className="min-w-0 flex-1">
@@ -910,7 +911,7 @@ export function DangerSection({ ws, closable, onClose }: { ws: Workspace; closab
         }
     };
     return (
-        <Section title={t("workspace.edit.dangerZone")} icon="danger" tone="danger">
+        <Section title={t("workspace.edit.dangerZone")} concept="danger" tone="danger">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 flex-1 basis-48 text-12 text-muted">{action.text}</div>
                 <button
@@ -972,10 +973,10 @@ export function WorkspaceEditSheet({
             }
         >
             <IdentitySection ws={ws} nameRef={nameRef} />
-            <Section title={t("workspace.edit.project")} icon="project">
+            <Section title={t("workspace.edit.project")} concept="project">
                 <WorkspaceProjectBlock ws={ws} />
             </Section>
-            <Section title={t("workspace.edit.folder")} icon="folder">
+            <Section title={t("workspace.edit.folder")} concept="folder">
                 <WorkspaceFolderLine ws={ws} />
             </Section>
             <DangerSection ws={ws} closable={closable} onClose={onClose} />

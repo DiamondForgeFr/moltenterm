@@ -53,7 +53,7 @@ import {
     SettingsSectionId,
     SettingsSections,
 } from "./settings-catalog";
-import { settingsGroupIcon, settingsOptionIcon, SettingsSectionIcons } from "./settings-icons";
+import { settingsGroupIcon, settingsOptionIcon, SettingsSectionConcepts } from "./settings-icons";
 import { ModsSection } from "./settings-mods";
 import { readSettingsSection, SettingsSectionMetaKey } from "./settings-open";
 import { PageCard, PageColumn, PageHeader } from "./settings-page";
@@ -456,7 +456,7 @@ function Control({
 }
 
 function SectionIcon({ id, className }: { id: SettingsSectionId; className?: string }) {
-    const Icon = suiteIcon(SettingsSectionIcons[id]);
+    const Icon = suiteIcon(SettingsSectionConcepts[id]);
     return <Icon className={className} aria-hidden />;
 }
 
@@ -876,7 +876,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                 <PageHeader
                                     title={currentSection?.title ?? section}
                                     description={currentSection?.description}
-                                    icon={suiteIcon(SettingsSectionIcons[section])}
+                                    icon={suiteIcon(SettingsSectionConcepts[section])}
                                 />
                             </div>
                             {section === "advanced" ? <FileRows files={files} onOpenFile={onOpenFile} /> : null}
