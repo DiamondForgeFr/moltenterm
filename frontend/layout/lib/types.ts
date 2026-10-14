@@ -379,6 +379,8 @@ export interface LayoutNodeAdditionalProps {
     resizeHandles?: ResizeHandleProps[];
     // MOLTENTERM-PATCH (#614): the node is drawn on the 360 view's carpet (it scrolls horizontally)
     moltenCarpet?: boolean;
+    // MOLTENTERM-PATCH (#616): the node is pinned to the 360 view's fixed zone
+    moltenPinned?: boolean;
 }
 
 export interface NodeModel {

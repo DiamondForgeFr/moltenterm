@@ -28,7 +28,9 @@ import { selectAtom } from "jotai/utils";
 import type { CSSProperties } from "react";
 import { rememberedPanelPx } from "../panel-size/panel-size-model";
 import { cachedBlockView, currentPanelSizes, rememberPanelWidth } from "../panel-size/panel-size-store";
+import { showToast } from "../toast-store";
 import {
+    canPinBeside,
     CarpetColumnGapPx,
     carpetColumnKind,
     carpetColumnRect,
@@ -42,11 +44,17 @@ import {
     columnLeadLeaf,
     computeCarpetLayout,
     defaultCarpetWidthPx,
+    fixedBoundsPx,
+    FixedColumn,
+    PinMode,
+    PinnedColumnMinPx,
     Rect,
     scrollToRevealColumn,
     splitCarpetColumns,
     visibleCarpetColumnIds,
 } from "./carpet-model";
+import { countBeside, partPinnedColumns, TabPins, withoutPin, withPin, withPinWidth } from "./pin-model";
+import { PinText } from "./pin-text";
 import {
     anyColumnTooTight,
     autoWants,
@@ -60,16 +68,34 @@ import {
     View360Decision,
     View360SettingKey,
 } from "./view360-decision";
-import { setTabFixedPx, setTabView360, storedFixedPx, tabManualView360 } from "./view360-meta";
+import { setTabFixedPx, setTabPins, setTabView360, storedFixedPx, storedPins, tabManualView360 } from "./view360-meta";
 
 const SmoothScrollMs = 260;
 // Transitions stay off this long after the last scroll step, so the panels follow the scroll without lag.
 const ScrollSettleMs = 140;
 
-export type CarpetRootChild = { rect: Rect; carpet: boolean };
+export type CarpetRootChild = { rect: Rect; carpet: boolean; pinned?: boolean };
+
+// Where a panel is drawn in 360 view: in the first column, on the carpet, or pinned to the fixed zone (FR-SHELL-067).
+export type PanelPlacement = "first" | "carpet" | PinMode;
 
 function sameIds(a: string[], b: string[]): boolean {
     return a.length === b.length && a.every((id, i) => id === b[i]);
+}
+
+function samePlacements(a: Record<string, PanelPlacement>, b: Record<string, PanelPlacement>): boolean {
+    const aKeys = Object.keys(a ?? {});
+    return aKeys.length === Object.keys(b ?? {}).length && aKeys.every((k) => a[k] === b?.[k]);
+}
+
+function leafBlockIds(node: LayoutNode): string[] {
+    if (node == null) {
+        return [];
+    }
+    if (!node.children?.length) {
+        return node.data?.blockId ? [node.data.blockId] : [];
+    }
+    return node.children.flatMap(leafBlockIds);
 }
 
 export class View360Model {
@@ -96,14 +122,24 @@ export class View360Model {
     scrollLeftAtom: PrimitiveAtom<number> = atom(0);
     visibleColumnIdsAtom: Atom<string[]>;
     fixedNodeIdAtom: Atom<string>;
+    // The panels pinned to the fixed zone, from the tab's meta (or this window's last write, ahead of its round trip).
+    pinsAtom: Atom<TabPins>;
+    // Block id -> where it is drawn, while the tab is drawn in 360 view (empty otherwise).
+    placementsAtom: PrimitiveAtom<Record<string, PanelPlacement>> = atom({}) as PrimitiveAtom<
+        Record<string, PanelPlacement>
+    >;
+    pendingPinsAtom: PrimitiveAtom<TabPins> = atom(null) as PrimitiveAtom<TabPins>;
 
     layout: CarpetLayout = null;
+    // The tab's width at the last layout pass.
+    layoutWidth = 0;
     scrollLeft = 0;
     // The fixed zone's width as this window last set it, ahead of the tab meta's round trip.
     savedFixedPx: number = null;
     // Widths being dragged, applied until the drag ends.
     dragFixedPx: number = null;
     dragColumn: { nodeId: string; kind: string; px: number } = null;
+    dragPin: { nodeId: string; blockId: string; px: number } = null;
 
     scrollFrame: number = null;
     settleTimer: ReturnType<typeof setTimeout> = null;
@@ -145,6 +181,19 @@ export class View360Model {
         // A switch decided inside a layout pass is already drawn by that pass.
         globalStore.sub(this.activeAtom, () => {
             if (!this.inLayoutPass) {
+                this.layoutModel.updateTree();
+            }
+        });
+        const metaPinsAtom = selectAtom(
+            tabAtom,
+            (tab) => storedPins(tab),
+            (a, b) => JSON.stringify(a) === JSON.stringify(b)
+        );
+        this.pinsAtom = atom((get) => get(this.pendingPinsAtom) ?? get(metaPinsAtom));
+        // The meta caught up with this window's write (or another window wrote): the meta is the truth again.
+        globalStore.sub(metaPinsAtom, () => globalStore.set(this.pendingPinsAtom, null));
+        globalStore.sub(this.pinsAtom, () => {
+            if (this.active) {
                 this.layoutModel.updateTree();
             }
         });
@@ -292,11 +341,13 @@ export class View360Model {
     computeLayout(rootNode: LayoutNode, bounds: Rect): CarpetLayout {
         const split = this.active ? splitCarpetColumns(rootNode) : null;
         this.rootChildren = new Map();
+        this.layoutWidth = bounds?.width ?? 0;
         if (split == null || !(bounds?.width > 0)) {
             if (!this.active) {
                 this.savedFixedPx = null;
             }
             this.setLayout(null);
+            this.setPlacements({});
             return null;
         }
         let fixedPx = this.storedFixedPx();
@@ -313,21 +364,46 @@ export class View360Model {
                 fireAndForget(() => setTabFixedPx(tabId, px));
             }
         }
+        const { carpet, pinned } = partPinnedColumns(split.carpet, globalStore.get(this.pinsAtom));
         const layout = computeCarpetLayout({
             width: bounds.width,
             height: bounds.height,
             fixedNodeId: split.fixed.id,
             fixedPx,
-            columns: split.carpet.map((c) => ({ nodeId: c.id, widthPx: this.columnWidthPx(c) })),
+            columns: carpet.map((c) => ({ nodeId: c.id, widthPx: this.columnWidthPx(c) })),
+            pins: pinned.map((p) => ({
+                nodeId: p.node.id,
+                mode: p.pin.mode,
+                widthPx:
+                    this.dragPin?.nodeId === p.node.id ? this.dragPin.px : (p.pin.px ?? this.columnWidthPx(p.node)),
+            })),
         });
         if (split.fixed !== rootNode) {
-            this.rootChildren.set(split.fixed.id, { rect: layout.fixed, carpet: false });
+            for (const column of layout.fixedColumns) {
+                this.rootChildren.set(column.nodeId, {
+                    rect: column.rect,
+                    carpet: false,
+                    pinned: column.mode !== "first",
+                });
+            }
         }
         for (const column of layout.columns) {
             this.rootChildren.set(column.nodeId, { rect: carpetColumnRect(layout, column), carpet: true });
         }
+        const placements: Record<string, PanelPlacement> = {};
+        leafBlockIds(split.fixed).forEach((id) => (placements[id] = "first"));
+        carpet.forEach((c) => leafBlockIds(c).forEach((id) => (placements[id] = "carpet")));
+        pinned.forEach((p) => leafBlockIds(p.node).forEach((id) => (placements[id] = p.pin.mode)));
         this.setLayout(layout);
+        this.setPlacements(placements);
         return layout;
+    }
+
+    private setPlacements(placements: Record<string, PanelPlacement>) {
+        if (samePlacements(globalStore.get(this.placementsAtom), placements)) {
+            return;
+        }
+        globalStore.set(this.placementsAtom, placements);
     }
 
     private setLayout(layout: CarpetLayout) {
@@ -367,6 +443,17 @@ export class View360Model {
         return `${rootNode?.id}-mtgrip`;
     }
 
+    fixedHandlePrefix(rootNode: LayoutNode): string {
+        return `${rootNode?.id}-mtfixed-`;
+    }
+
+    // The first column and the columns pinned beside it, left to right.
+    sideBySideFixedColumns(): FixedColumn[] {
+        return (this.layout?.fixedColumns ?? [])
+            .filter((c) => c.mode !== "stacked")
+            .sort((a, b) => a.rect.left - b.rect.left);
+    }
+
     // The root's handles in 360 view: the fixed zone's grip, then one on the right edge of every carpet column. A
     // vertical stack alone keeps its own handles beside the grip.
     rootResizeHandles(
@@ -397,6 +484,25 @@ export class View360Model {
             return [...waveHandles, gripHandle];
         }
         const handles: ResizeHandleProps[] = [gripHandle];
+        // Between fixed columns side by side, a handle sizes the column on its left; the grip sizes the last one.
+        this.sideBySideFixedColumns()
+            .slice(0, -1)
+            .forEach((column, i) => {
+                const dims: Rect = {
+                    top: 0,
+                    left: column.rect.left + column.rect.width + CarpetMarginPx / 2 - half,
+                    width: handleSizePx,
+                    height: layout.fixed.height,
+                };
+                handles.push({
+                    id: `${this.fixedHandlePrefix(rootNode)}${i}`,
+                    parentNodeId: rootNode.id,
+                    parentIndex: 0,
+                    transform: setTransform(dims, true, false),
+                    flexDirection: FlexDirection.Row,
+                    centerPx: dims.left + half,
+                });
+            });
         layout.columns.forEach((column, i) => {
             const rect = carpetColumnRect(layout, column);
             const dims: Rect = {
@@ -501,8 +607,99 @@ export class View360Model {
         if (layout == null || rootNode == null) {
             return false;
         }
-        const fixedNode = findNode(rootNode, layout.fixedNodeId);
-        return fixedNode != null && findNode(fixedNode, nodeId) != null;
+        // The first column, and the columns pinned to the fixed zone (always visible: never throttled, not on the
+        // scrubber).
+        return layout.fixedColumns.some((column) => {
+            const fixedNode = findNode(rootNode, column.nodeId);
+            return fixedNode != null && findNode(fixedNode, nodeId) != null;
+        });
+    }
+
+    // ---- pinning (FR-SHELL-067) -----------------------------------------------------------------------------------
+
+    placementOf(blockId: string): PanelPlacement {
+        return globalStore.get(this.placementsAtom)[blockId] ?? null;
+    }
+
+    private rootColumnOfBlock(blockId: string): LayoutNode {
+        const rootNode = this.layoutModel.treeState?.rootNode;
+        const node = this.layoutModel.getNodeByBlockId?.(blockId);
+        if (rootNode?.children == null || node == null) {
+            return null;
+        }
+        return rootNode.children.find((c) => findNode(c, node.id) != null) ?? null;
+    }
+
+    private writePins(pins: TabPins) {
+        globalStore.set(this.pendingPinsAtom, pins);
+        const tabId = this.tabId;
+        if (tabId != null) {
+            fireAndForget(() => setTabPins(tabId, pins));
+        }
+    }
+
+    private liveBlockIds(): string[] {
+        return globalStore.get(this.tabAtom)?.blockids ?? null;
+    }
+
+    // Pins a carpet panel's column. A pin beside that the fixed zone cannot hold within half of the window is refused
+    // with a short message; returns whether the panel was pinned.
+    pin(blockId: string, mode: PinMode): boolean {
+        const placement = this.placementOf(blockId);
+        if (placement == null || placement === "first" || placement === mode) {
+            return false;
+        }
+        const column = this.rootColumnOfBlock(blockId);
+        if (column == null) {
+            return false;
+        }
+        if (mode === "beside") {
+            const rootNode = this.layoutModel.treeState?.rootNode;
+            const split = splitCarpetColumns(rootNode);
+            const pins = globalStore.get(this.pinsAtom);
+            const beside = countBeside(partPinnedColumns(split?.carpet ?? [], pins).pinned);
+            if (!canPinBeside(this.layoutWidth, beside)) {
+                showToast({
+                    id: "view360-pin-refused",
+                    kind: "info",
+                    title: PinText.refusedTitle,
+                    message: PinText.refusedMessage,
+                });
+                return false;
+            }
+        }
+        this.writePins(withPin(globalStore.get(this.pinsAtom), column, blockId, mode, this.liveBlockIds()));
+        return true;
+    }
+
+    unpin(blockId: string): boolean {
+        const placement = this.placementOf(blockId);
+        if (placement !== "beside" && placement !== "stacked") {
+            return false;
+        }
+        const column = this.rootColumnOfBlock(blockId);
+        if (column == null) {
+            return false;
+        }
+        this.writePins(withoutPin(globalStore.get(this.pinsAtom), column, this.liveBlockIds()));
+        const columnId = column.id;
+        // Back on the carpet at its place: the carpet glides to it once the layout has laid it there.
+        setTimeout(() => this.scrollToColumn(columnId), 0);
+        return true;
+    }
+
+    // The shortcut: a carpet panel is pinned beside, a pinned one goes back to the carpet. False when the panel is
+    // neither (the key then does nothing here).
+    togglePin(blockId: string): boolean {
+        const placement = this.placementOf(blockId);
+        if (placement === "carpet") {
+            this.pin(blockId, "beside");
+            return true;
+        }
+        if (placement === "beside" || placement === "stacked") {
+            return this.unpin(blockId);
+        }
+        return false;
     }
 
     // ---- resizing --------------------------------------------------------------------------------------------------
@@ -545,6 +742,8 @@ export class View360Model {
             return false;
         }
         const isGrip = handle.id === this.gripHandleId(rootNode);
+        const prefix = this.fixedHandlePrefix(rootNode);
+        const isFixedHandle = handle.id.startsWith(prefix);
         if (!isGrip && layout.fixedNodeId === rootNode.id) {
             return false;
         }
@@ -553,8 +752,30 @@ export class View360Model {
             return true;
         }
         const x = clientX - container.left;
-        if (isGrip) {
+        const sideBySide = this.sideBySideFixedColumns();
+        if ((isGrip || isFixedHandle) && sideBySide.length > 1) {
+            const index = isGrip ? sideBySide.length - 1 : Number(handle.id.slice(prefix.length));
+            const column = sideBySide[index];
+            if (column == null) {
+                return true;
+            }
+            // The column takes what the others leave of half of the window, never less than its minimum.
+            const others = layout.fixed.width - column.rect.width;
+            const max = Math.max(PinnedColumnMinPx, fixedBoundsPx(container.width).max - others);
+            const px = Math.round(
+                Math.min(Math.max(x - column.rect.left - CarpetMarginPx / 2, PinnedColumnMinPx), max)
+            );
+            if (column.mode === "first") {
+                this.dragFixedPx = px;
+            } else {
+                const columnNode = findNode(rootNode, column.nodeId);
+                const blockId = leafBlockIds(columnNode).find((id) => globalStore.get(this.pinsAtom)[id] != null);
+                this.dragPin = { nodeId: column.nodeId, blockId, px };
+            }
+        } else if (isGrip) {
             this.dragFixedPx = clampFixedPx(x - CarpetMarginPx / 2, container.width);
+        } else if (isFixedHandle) {
+            return true;
         } else {
             const column = layout.columns[handle.parentIndex - 1];
             if (column == null) {
@@ -573,8 +794,15 @@ export class View360Model {
     }
 
     onResizeEnd(): boolean {
-        if (this.dragFixedPx == null && this.dragColumn == null) {
+        if (this.dragFixedPx == null && this.dragColumn == null && this.dragPin == null) {
             return false;
+        }
+        if (this.dragPin != null) {
+            const { blockId, px } = this.dragPin;
+            if (blockId != null) {
+                this.writePins(withPinWidth(globalStore.get(this.pinsAtom), blockId, px));
+            }
+            this.dragPin = null;
         }
         if (this.dragFixedPx != null) {
             const px = this.dragFixedPx;

@@ -34,6 +34,7 @@ import {
 import { formatShortcutById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
 import { splitPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { SplitDownLabel, SplitRightLabel } from "../../moltenterm-shell/split/split-menu"; // MOLTENTERM-PATCH (#370)
+import { PinHeaderButton } from "../../moltenterm-shell/view360/view360-pin"; // MOLTENTERM-PATCH (#616)
 import { BlockEnv } from "./blockenv";
 import { BlockFrameProps } from "./blocktypes";
 
@@ -146,6 +147,8 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
         endIconsElem.push(<IconButton key="split-horizontal" decl={splitHorizontalDecl} />);
         endIconsElem.push(<IconButton key="split-vertical" decl={splitVerticalDecl} />);
     }
+    // MOLTENTERM-PATCH (#616): in 360 view a carpet panel can be pinned to the fixed zone, a pinned one unpinned
+    endIconsElem.push(<PinHeaderButton key="mt-pin" blockId={blockId} />);
     // MOLTENTERM-PATCH (#401): the gear becomes the command panel's trigger (FR-SHELL-047, DS-SHELL-085)
     const settingsDecl: IconButtonDecl = {
         elemtype: "iconbutton",

@@ -318,6 +318,7 @@ const DisplayNode = ({ layoutModel, node }: DisplayNodeProps) => {
             className={clsx("tile-node", {
                 dragging: isDragging,
                 "mt-carpet-node": addlProps?.moltenCarpet, // MOLTENTERM-PATCH (#614): laid on the 360 view's carpet
+                "mt-pinned-node": addlProps?.moltenPinned, // MOLTENTERM-PATCH (#616): pinned to the fixed zone
             })}
             key={node.id}
             ref={tileNodeRef}

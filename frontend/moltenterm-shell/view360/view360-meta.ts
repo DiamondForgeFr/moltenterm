@@ -7,6 +7,7 @@
 import * as WOS from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { parsePins, type TabPins } from "./pin-model";
 import { manualChoice } from "./view360-decision";
 
 export const View360MetaKey = "molten:view360";
@@ -27,6 +28,21 @@ export function setTabView360(tabId: string, choice: boolean): Promise<void> {
     return RpcApi.SetMetaCommand(TabRpcClient, {
         oref: WOS.makeORef("tab", tabId),
         meta: { [View360MetaKey]: choice == null ? null : choice } as MetaType,
+    });
+}
+
+// The panels pinned to the fixed zone (FR-SHELL-067, DS-SHELL-118), by block id.
+export const View360PinsMetaKey = "molten:view360pins";
+
+export function storedPins(tab: Tab): TabPins {
+    return parsePins((tab?.meta as Record<string, unknown>)?.[View360PinsMetaKey]);
+}
+
+export function setTabPins(tabId: string, pins: TabPins): Promise<void> {
+    const empty = pins == null || Object.keys(pins).length === 0;
+    return RpcApi.SetMetaCommand(TabRpcClient, {
+        oref: WOS.makeORef("tab", tabId),
+        meta: { [View360PinsMetaKey]: empty ? null : pins } as MetaType,
     });
 }
 

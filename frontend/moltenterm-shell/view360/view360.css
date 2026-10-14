@@ -250,3 +250,42 @@
     color: var(--mt-text-main);
     background: var(--mt-line-1);
 }
+
+/* A panel pinned to the fixed zone (FR-SHELL-067): an accent-tinted border and, in its header, a filled pin and a
+   small "pinned" badge, so it reads as taken off the carpet. */
+.tile-layout .tile-node.mt-pinned-node .block.block-frame-default .block-mask {
+    border: 1px solid color-mix(in srgb, var(--mt-accent) 45%, transparent) !important;
+}
+
+.tile-layout .tile-node.mt-pinned-node .block.block-frame-default.block-focused .block-mask {
+    border-color: var(--mt-accent) !important;
+}
+
+.mt-pinned-badge {
+    flex-shrink: 0;
+    margin-right: 2px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--mt-accent) 16%, transparent);
+    color: color-mix(in srgb, var(--mt-accent) 85%, var(--mt-text-main));
+    font-family: var(--mt-ui-font);
+    font-size: var(--mt-text-11);
+    line-height: 16px;
+    letter-spacing: 0.04em;
+    text-transform: lowercase;
+    user-select: none;
+}
+
+.wave-iconbutton.mt-pin-button {
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+.wave-iconbutton.mt-pin-button:hover,
+.wave-iconbutton.mt-pin-button.is-pinned {
+    opacity: 1;
+}
+
+.wave-iconbutton.mt-pin-button.is-pinned {
+    color: var(--mt-accent);
+}

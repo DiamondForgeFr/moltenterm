@@ -10,8 +10,12 @@ import {
     CarpetPadXPx,
     CarpetScrubberPx,
     DefaultCarpetColumnPx,
+    FixedColumnGapPx,
+    FixedMaxShare,
     FixedMinPx,
     MinCarpetColumnPx,
+    PinnedColumnMinPx,
+    canPinBeside,
     carpetColumnKind,
     carpetColumnRect,
     carpetNodeTransform,
@@ -21,6 +25,7 @@ import {
     columnLeadLeaf,
     computeCarpetLayout,
     defaultCarpetWidthPx,
+    fitFixedWidths,
     scrollToRevealColumn,
     splitCarpetColumns,
     visibleCarpetColumnIds,
@@ -217,5 +222,76 @@ describe("scrolling", () => {
         expect(css.clipPath).toContain(
             `calc(${Math.floor(rect.left) + rect.width - (layout.surface.left + layout.surface.width)}px - var(--mt-carpet-scroll, 0px))`
         );
+    });
+});
+
+describe("pinned columns (FR-SHELL-067)", () => {
+    const base = {
+        width: 1700,
+        height: 900,
+        fixedNodeId: "term",
+        fixedPx: 470,
+        columns: [{ nodeId: "web", widthPx: 720 }],
+    };
+
+    it("draws a column pinned beside as a second fixed column, the grip after it", () => {
+        const layout = computeCarpetLayout({ ...base, pins: [{ nodeId: "companion", mode: "beside", widthPx: 360 }] });
+        expect(layout.fixedColumns.map((c) => [c.nodeId, c.mode, c.rect.left, c.rect.width])).toEqual([
+            ["term", "first", 0, 470],
+            ["companion", "beside", 470 + FixedColumnGapPx, 360],
+        ]);
+        expect(layout.fixed.width).toBe(470 + FixedColumnGapPx + 360);
+        expect(layout.surface.left).toBe(layout.fixed.width + CarpetMarginPx);
+        expect(layout.columns.map((c) => c.nodeId)).toEqual(["web"]);
+    });
+
+    it("stacks a column pinned in the first column under it, at its width", () => {
+        const layout = computeCarpetLayout({ ...base, pins: [{ nodeId: "files", mode: "stacked", widthPx: 600 }] });
+        const [first, stacked] = layout.fixedColumns;
+        expect(first.rect).toEqual({ top: 0, left: 0, width: FixedMinPx, height: (900 - FixedColumnGapPx) / 2 });
+        expect(stacked.rect).toEqual({
+            top: first.rect.height + FixedColumnGapPx,
+            left: 0,
+            width: FixedMinPx,
+            height: first.rect.height,
+        });
+        expect(layout.fixed.width).toBe(FixedMinPx);
+    });
+
+    it("never lets the fixed zone exceed half of the window", () => {
+        for (const width of [700, 1200, 1440, 1660, 2560]) {
+            const layout = computeCarpetLayout({
+                ...base,
+                width,
+                fixedPx: 900,
+                pins: [
+                    { nodeId: "a", mode: "beside", widthPx: 700 },
+                    { nodeId: "b", mode: "beside", widthPx: 600 },
+                ],
+            });
+            expect(layout.fixed.width).toBeLessThanOrEqual(width * FixedMaxShare);
+        }
+    });
+
+    it("shrinks the pinned columns to their minimum before the first column", () => {
+        // Half of 1440 is 720, less one gap: 712 for both columns.
+        expect(fitFixedWidths(1440, 392, [360])).toEqual([392, 712 - 392]);
+        expect(fitFixedWidths(1440, 500, [360])).toEqual([712 - PinnedColumnMinPx, PinnedColumnMinPx]);
+        expect(fitFixedWidths(2560, 470, [360])).toEqual([470, 360]);
+        // Below every minimum, they share the half in proportion.
+        const narrow = fitFixedWidths(1000, 470, [360]);
+        expect(narrow[0] + narrow[1] + FixedColumnGapPx).toBeLessThanOrEqual(500);
+        expect(narrow[0]).toBe(narrow[1]);
+        // Without pins, the first column keeps its own bounds.
+        expect(fitFixedWidths(1600, 300, [])).toEqual([clampFixedPx(300, 1600)]);
+    });
+
+    it("refuses a pin beside when the fixed columns' minimums cannot fit in half of the window", () => {
+        expect(canPinBeside(1440, 0)).toBe(true);
+        expect(canPinBeside(1440, 1)).toBe(false);
+        expect(canPinBeside(2 * (2 * PinnedColumnMinPx + FixedColumnGapPx), 0)).toBe(true);
+        expect(canPinBeside(2 * (2 * PinnedColumnMinPx + FixedColumnGapPx) - 2, 0)).toBe(false);
+        expect(canPinBeside(2560, 1)).toBe(true);
+        expect(canPinBeside(2560, 2)).toBe(false);
     });
 });

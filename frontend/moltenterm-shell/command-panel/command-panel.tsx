@@ -22,6 +22,8 @@ import { formatShortcutById } from "../shortcuts/format";
 import { splitPanel } from "../split/split";
 import { SplitDownIcon, SplitRightIcon } from "../split/split-menu";
 import { subscribeWindowWorkspaceChange } from "../tab-workspace";
+import type { PanelPlacement } from "../view360/view360-model";
+import { pinActions, pinActionShortcut, usePanelPlacement } from "../view360/view360-pin";
 import { trackContextMenuPoint } from "./block-menus";
 import { CommandPanelModel, OpenCommandPanel, OpenMark, PaintedMeasure } from "./command-panel-store";
 import "./command-panel.css";
@@ -118,9 +120,20 @@ function rowAccessibleName(row: PanelRow, scopes: Record<string, PanelScopeId>, 
 
 type FooterAction = PanelAction & { refocus?: boolean };
 
-function footerItems(blockId: string, view: string, magnified: boolean): FooterAction[] {
+function footerItems(blockId: string, view: string, magnified: boolean, placement: PanelPlacement): FooterAction[] {
     const layoutModel = getLayoutModelForStaticTab();
     const node = layoutModel?.getNodeByBlockId(blockId);
+    // The 360 view's pins (FR-SHELL-067), for a panel on the carpet or pinned.
+    const pins: FooterAction[] = pinActions(blockId).map((action) => ({
+        id: `footer:${action.id}`,
+        type: "action",
+        label: action.label,
+        icon: action.icon,
+        shortcut: pinActionShortcut(action.id, placement) ? formatShortcutById("pin-panel") : undefined,
+        keywords: ["pin", "unpin", "360", "carpet", "fixed zone"],
+        refocus: false,
+        run: action.run,
+    }));
     return [
         {
             id: "footer:split-right",
@@ -155,6 +168,7 @@ function footerItems(blockId: string, view: string, magnified: boolean): FooterA
                 }
             },
         },
+        ...pins,
         {
             id: "footer:close",
             type: "action",
@@ -678,6 +692,7 @@ function CommandPanel({ open }: CommandPanelProps) {
     const agent = useAtomValue(blockId ? AgentStates.getInstance().blockAtom(blockId) : NullAgentAtom);
     const layoutModel = getLayoutModelForStaticTab();
     const magnifiedNodeId = useAtomValue(layoutModel?.magnifiedNodeIdAtom ?? NullStringAtom);
+    const pinPlacement = usePanelPlacement(blockId);
     const [tick, setTick] = useState(0);
     const [query, setQuery] = useState(open.query ?? "");
     const [stack, setStack] = useState<string[]>(open.stack ?? []);
@@ -729,7 +744,10 @@ function CommandPanel({ open }: CommandPanelProps) {
     const node = layoutModel?.getNodeByBlockId(blockId);
     const magnified = node != null && magnifiedNodeId === node.id;
     const view = block?.meta?.view ?? "";
-    const footer = useMemo(() => footerItems(blockId, view, magnified), [blockId, view, magnified]);
+    const footer = useMemo(
+        () => footerItems(blockId, view, magnified, pinPlacement),
+        [blockId, view, magnified, pinPlacement]
+    );
     const liveStack = useMemo(() => validStack(collected.sections, stack), [collected, stack]);
     const page = liveStack.length > 0 ? findPage(collected.sections, liveStack) : null;
     const rows = useMemo(
