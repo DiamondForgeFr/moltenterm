@@ -350,6 +350,10 @@ func (m *Manager) toolSelection(s *session) mcpbrowser.CallResult {
 	if sel.Question != "" {
 		out["question"] = sel.Question
 	}
+	if sel.Question != "" && sel.Comment == nil {
+		out["depth"] = normalDepth(sel.Depth)
+		out["note"] = questionNote
+	}
 	if sel.Comment != nil {
 		out["comment"] = sel.Comment
 		out["note"] = discussNote
@@ -371,6 +375,7 @@ type postArgs struct {
 	Markdown      string            `json:"markdown"`
 	Text          string            `json:"text"`
 	Question      string            `json:"question"`
+	Technique     string            `json:"technique"`
 	Anchor        *mcpreview.Anchor `json:"anchor"`
 	Depth         string            `json:"depth"`
 	Sources       []string          `json:"sources"`
@@ -411,10 +416,13 @@ func makePost(tool string, in postArgs) (mcpreview.Post, error) {
 		if depth != mcpreview.DepthQuick && depth != mcpreview.DepthDetailed {
 			return mcpreview.Post{}, fmt.Errorf("%s", mcpreview.ErrDepth)
 		}
+		if err := checkExplanation(depth, in.Principles, in.Sources); err != nil {
+			return mcpreview.Post{}, err
+		}
 		// ExplanationId: the card this answer replaces (a follow-up on the same lines, AC3); it keeps its id.
 		return mcpreview.Post{Id: in.ExplanationId, Kind: mcpreview.PostExplanation, Markdown: in.Markdown,
-			Question: strings.TrimSpace(in.Question), Anchor: in.Anchor, Depth: depth, Sources: in.Sources,
-			Related: in.Related, Principles: in.Principles}, nil
+			Question: strings.TrimSpace(in.Question), Technique: oneLine(in.Technique), Anchor: in.Anchor, Depth: depth,
+			Sources: nonEmpty(in.Sources), Related: in.Related, Principles: nonEmpty(in.Principles)}, nil
 	case mcpreview.ToolProposeComment:
 		if strings.TrimSpace(in.Text) == "" {
 			return mcpreview.Post{}, fmt.Errorf("%s", mcpreview.ErrTextNeeded)
@@ -460,9 +468,17 @@ func (m *Manager) toolPost(ctx context.Context, s *session, tool string, args js
 	if err := json.Unmarshal(args, &in); err != nil {
 		return mcpbrowser.ErrorResult("the arguments could not be read: " + err.Error())
 	}
+	if tool == mcpreview.ToolPostExplanation && in.Depth == "" {
+		in.Depth = m.askedDepth(s)
+	}
 	post, err := makePost(tool, in)
 	if err != nil {
 		return mcpbrowser.ErrorResult(err.Error())
+	}
+	if post.Kind == mcpreview.PostExplanation {
+		if post.Related, err = checkRelated(m.recOf(s).Worktree, post.Related); err != nil {
+			return mcpbrowser.ErrorResult(err.Error())
+		}
 	}
 	if post.Kind == mcpreview.PostProposal {
 		if err := m.completeProposal(ctx, s, &post); err != nil {

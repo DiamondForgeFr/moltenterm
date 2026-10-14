@@ -10,7 +10,8 @@ import (
 )
 
 // FR-REV-006 AC2, AC3 (DS-REV-007): the session's answers are kept with the PR and read again when it is reopened; a
-// follow-up under an answer's id replaces it in place, keeping its lines and question when it names none.
+// follow-up under an answer's id replaces it in place, keeping its lines, question and technique (FR-REV-007) when it
+// names none.
 func TestSessionExplanationsKept(t *testing.T) {
 	dir := t.TempDir()
 	svc := MakeService(dir, nil, func(k PrKey, state State) {})
@@ -21,7 +22,7 @@ func TestSessionExplanationsKept(t *testing.T) {
 		p.HeadOid = testHead
 		svc.SessionPosted(mcpreview.Update{Repo: k.Repo, Number: k.Number, Post: &p})
 	}
-	post(mcpreview.Post{Id: "eabcdef-1", Question: "pourquoi ?", Markdown: "Parce que.", Anchor: anchor, At: 10})
+	post(mcpreview.Post{Id: "eabcdef-1", Question: "pourquoi ?", Technique: "defer-unlock helper", Markdown: "Parce que.", Anchor: anchor, At: 10})
 	post(mcpreview.Post{Id: "eabcdef-2", Question: "résume", Markdown: "La PR…", At: 11})
 	post(mcpreview.Post{Id: "eabcdef-1", Markdown: "Parce que, en détail.", Depth: mcpreview.DepthDetailed, At: 12})
 	state, err := MakeStore(dir).Get(k)
@@ -30,7 +31,7 @@ func TestSessionExplanationsKept(t *testing.T) {
 	}
 	first := state.Explanations[0]
 	if first.Id != "eabcdef-1" || first.Markdown != "Parce que, en détail." || first.Question != "pourquoi ?" ||
-		first.Anchor == nil || first.Anchor.Line != 5 || first.At != 10 || first.UpdatedAt != 12 || first.Depth != mcpreview.DepthDetailed {
+		first.Technique != "defer-unlock helper" || first.Anchor == nil || first.Anchor.Line != 5 || first.At != 10 || first.UpdatedAt != 12 || first.Depth != mcpreview.DepthDetailed {
 		t.Errorf("follow-up %+v", first)
 	}
 	if state.Explanations[1].Anchor != nil {

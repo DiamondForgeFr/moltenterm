@@ -44,12 +44,25 @@ func oneLine(text string) string {
 	return strings.Join(strings.Fields(text), " ")
 }
 
+// normalDepth is the depth a question is answered in: detailed when asked, else quick (FR-REV-007 AC8).
+func normalDepth(depth string) string {
+	if depth == mcpreview.DepthDetailed {
+		return mcpreview.DepthDetailed
+	}
+	return mcpreview.DepthQuick
+}
+
 // AskLine is the line typed for a question: the selection's reference, then the question, or a pointer to
-// review_selection when the line would be too long.
-func AskLine(anchor *mcpreview.Anchor, question string) string {
-	ref := askLinePrefix + " on the PR"
+// review_selection when the line would be too long. A detailed answer is asked in the line too, so the agent sees it
+// before reading review_selection.
+func AskLine(anchor *mcpreview.Anchor, question string, depth string) string {
+	prefix := askLinePrefix
+	if normalDepth(depth) == mcpreview.DepthDetailed {
+		prefix += " (detailed answer)"
+	}
+	ref := prefix + " on the PR"
 	if anchor != nil {
-		ref = fmt.Sprintf("%s on %s, %s side, %s (review_selection has them)", askLinePrefix, anchor.Path, sideName(anchor.Side), linesName(anchor))
+		ref = fmt.Sprintf("%s on %s, %s side, %s (review_selection has them)", prefix, anchor.Path, sideName(anchor.Side), linesName(anchor))
 	}
 	line := ref + ": " + oneLine(question)
 	if len(line) <= maxAskLine {
@@ -81,8 +94,11 @@ func (m *Manager) Ask(ctx context.Context, req mcpreview.AskRequest) (mcpreview.
 	if m.env.TypePrompt == nil {
 		return mcpreview.AskResult{}, errors.New("MoltenTerm cannot type in the session's terminal")
 	}
-	q := mcpreview.QueuedQuestion{Anchor: req.Anchor, Text: req.Text, Question: question}
-	line := AskLine(req.Anchor, question)
+	if req.Depth != "" && req.Depth != mcpreview.DepthQuick && req.Depth != mcpreview.DepthDetailed {
+		return mcpreview.AskResult{}, errors.New(mcpreview.ErrDepth)
+	}
+	q := mcpreview.QueuedQuestion{Anchor: req.Anchor, Text: req.Text, Question: question, Depth: normalDepth(req.Depth)}
+	line := AskLine(req.Anchor, question, q.Depth)
 	busy := ""
 	if !m.hasQuestions(s) {
 		out := m.deliverQuestion(ctx, s, q)
@@ -107,9 +123,10 @@ func (m *Manager) deliverQuestion(ctx context.Context, s *session, q mcpreview.Q
 	if reason := m.agentBusy(s); reason != "" {
 		return TypeOutcome{Retry: true, Message: reason}
 	}
-	sel := &mcpreview.SelectionRequest{SessionKey: mcpreview.SessionKey{Id: s.rec.Id}, Anchor: q.Anchor, Text: q.Text, Question: q.Question}
+	sel := &mcpreview.SelectionRequest{SessionKey: mcpreview.SessionKey{Id: s.rec.Id}, Anchor: q.Anchor, Text: q.Text,
+		Question: q.Question, Depth: normalDepth(q.Depth)}
 	previous := m.swapSelection(s, sel)
-	out := m.env.TypePrompt(ctx, s.blockId, AskLine(q.Anchor, q.Question))
+	out := m.env.TypePrompt(ctx, s.blockId, AskLine(q.Anchor, q.Question, q.Depth))
 	if !out.Sent {
 		m.restoreSelection(s, sel, previous)
 	}

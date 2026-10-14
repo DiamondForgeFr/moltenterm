@@ -5,6 +5,7 @@
 // comments under its header (line, file-level and outdated ones, with their state, review-comments-view.tsx), and Ask
 // the AI's box in the AI panel. Every text shown here is the developer's or the diff's, rendered as text.
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
@@ -13,6 +14,7 @@ import { MoltenWave } from "../molten-button";
 import { ReviewCommentKind } from "./review-client";
 import { CommentCard, KindToggle } from "./review-comments-view";
 import { anchorLabel, commentsOfFile, linesLabel, sideLabel } from "./review-selection";
+import type { ReviewDepth } from "./review-session";
 import type { ReviewComposer, ReviewTabModel } from "./review-tab-model";
 
 import "./review.css";
@@ -260,6 +262,7 @@ export function AskBox({ model }: { model: ReviewTabModel }) {
             <div className="flex items-center gap-1.5 font-medium">
                 <i className="fa fa-solid fa-sparkles text-11 text-accent" />
                 {t("review.select.ask")}
+                <DepthToggle model={model} />
             </div>
             {ask.anchor ? (
                 <div className="flex flex-col gap-1 rounded-4 border border-border px-2 py-1.5">
@@ -314,6 +317,45 @@ export function AskBox({ model }: { model: ReviewTabModel }) {
             </div>
             <AskOutcome ask={ask} waiting={(ai.session?.questions ?? []).map((q) => q.id)} />
         </section>
+    );
+}
+
+// The depth of the next answers (FR-REV-007 AC7, AC8).
+const DepthOptions: { depth: ReviewDepth; label: string; hint: string }[] = [
+    { depth: "quick", label: "review.answers.depthQuick", hint: "review.ask.depthQuickHint" },
+    { depth: "detailed", label: "review.answers.depthDetailed", hint: "review.ask.depthDetailedHint" },
+];
+
+// DepthToggle chooses quick or detailed answers for the next questions; quick by default.
+function DepthToggle({ model }: { model: ReviewTabModel }) {
+    const t = useT();
+    const depth = useAtomValue(model.depthAtom);
+    return (
+        <div
+            className="ml-auto flex items-center rounded-6 border border-border p-0.5 text-11 font-normal"
+            role="radiogroup"
+            aria-label={t("review.ask.depthGroup")}
+            title={t("review.ask.depthHint")}
+            data-testid="review-depth"
+        >
+            {DepthOptions.map((o) => (
+                <button
+                    key={o.depth}
+                    type="button"
+                    role="radio"
+                    aria-checked={depth === o.depth}
+                    className={cn(
+                        "cursor-pointer rounded-4 px-1.5 py-px transition-colors duration-120 ease-mt",
+                        depth === o.depth ? "bg-hover text-primary" : "text-muted hover:text-primary"
+                    )}
+                    onClick={() => globalStore.set(model.depthAtom, o.depth)}
+                    title={`${t(o.hint)} ${t("review.ask.depthHint")}`}
+                    data-testid={`review-depth-${o.depth}`}
+                >
+                    {t(o.label)}
+                </button>
+            ))}
+        </div>
     );
 }
 

@@ -6,6 +6,7 @@
 // the head they were made on. An answer without an anchor is about the whole PR.
 
 import type { ReviewExplanation } from "./review-client";
+import type { FileLink } from "./review-model";
 import type { ReviewSide } from "./review-selection";
 import type { ReviewAnchor } from "./review-session";
 
@@ -103,4 +104,27 @@ export function answerMarkerLines(answers: readonly ReviewExplanation[]): Map<nu
         rtn.set(line, [...(rtn.get(line) ?? []), e]);
     }
     return rtn;
+}
+
+// citedLine reads a path:line or path:start-end an answer cites in its other uses or its sources (FR-REV-007 AC4);
+// null for any other source (a ticket, a rule's name, a commit).
+export function citedLine(text: string): FileLink {
+    const m = /^(?:\.\/)?([^\s:]+):(\d+)(?:-\d+)?$/.exec((text ?? "").trim());
+    if (m == null || m[1].split("/").includes("..") || Number(m[2]) <= 0) {
+        return null;
+    }
+    return { path: m[1], line: Number(m[2]) };
+}
+
+// worktreeFilePath is the worktree's file an answer cites (FR-REV-007 AC4), or null when there is no worktree or the
+// path would leave it.
+export function worktreeFilePath(worktree: string, path: string): string {
+    if (!worktree || !path) {
+        return null;
+    }
+    const rel = path.replace(/^\.\//, "");
+    if (rel.startsWith("/") || /^[a-z]:/i.test(rel) || rel.split(/[\\/]/).includes("..")) {
+        return null;
+    }
+    return worktree.replace(/[\\/]+$/, "") + "/" + rel;
 }

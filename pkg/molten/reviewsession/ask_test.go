@@ -14,19 +14,19 @@ import (
 
 func TestAskLine(t *testing.T) {
 	anchor := &mcpreview.Anchor{Path: "pkg/a.go", Side: mcpreview.SideLeft, StartLine: 10, Line: 14}
-	got := AskLine(anchor, "Pourquoi\n  ce verrou ?")
+	got := AskLine(anchor, "Pourquoi\n  ce verrou ?", "")
 	want := "Review question on pkg/a.go, base side, lines 10-14 (review_selection has them): Pourquoi ce verrou ?"
 	if got != want {
 		t.Errorf("got %q", got)
 	}
 	one := &mcpreview.Anchor{Path: "a.ts", Side: mcpreview.SideRight, Line: 3}
-	if got := AskLine(one, "why?"); !strings.Contains(got, "head side, line 3 ") {
+	if got := AskLine(one, "why?", mcpreview.DepthQuick); !strings.Contains(got, "head side, line 3 ") {
 		t.Errorf("one line: %q", got)
 	}
-	if got := AskLine(nil, "what does this PR do?"); got != "Review question on the PR: what does this PR do?" {
+	if got := AskLine(nil, "what does this PR do?", ""); got != "Review question on the PR: what does this PR do?" {
 		t.Errorf("no anchor: %q", got)
 	}
-	long := AskLine(anchor, strings.Repeat("é", 400))
+	long := AskLine(anchor, strings.Repeat("é", 400), mcpreview.DepthDetailed)
 	if len(long) > maxAskLine || !strings.HasSuffix(long, "read it with review_selection and answer it.") {
 		t.Errorf("long: %d %q", len(long), long)
 	}

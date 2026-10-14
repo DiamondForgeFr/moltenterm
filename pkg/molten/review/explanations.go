@@ -20,8 +20,10 @@ const maxExplanations = 200
 
 // Explanation is one answer card of the AI panel. Anchor is nil for an answer about the whole PR.
 type Explanation struct {
-	Id         string            `json:"id"`
-	Question   string            `json:"question,omitempty"`
+	Id       string `json:"id"`
+	Question string `json:"question,omitempty"`
+	// Technique: the technique or pattern the answer teaches (FR-REV-007 AC1), the card's title and a kept note's.
+	Technique  string            `json:"technique,omitempty"`
 	Markdown   string            `json:"markdown"`
 	Anchor     *mcpreview.Anchor `json:"anchor,omitempty"`
 	Depth      string            `json:"depth,omitempty"`
@@ -38,14 +40,14 @@ type Explanation struct {
 
 func explanationOf(post mcpreview.Post) Explanation {
 	return Explanation{
-		Id: post.Id, Question: post.Question, Markdown: post.Markdown, Anchor: post.Anchor, Depth: post.Depth,
+		Id: post.Id, Question: post.Question, Technique: post.Technique, Markdown: post.Markdown, Anchor: post.Anchor, Depth: post.Depth,
 		Sources: post.Sources, Related: post.Related, Principles: post.Principles, HeadOid: post.HeadOid,
 		Agent: post.Agent, At: post.At,
 	}
 }
 
 // SetExplanation adds an answer, or replaces the one with its id (a follow-up), keeping its first time and, when the
-// follow-up names none, its question and its lines.
+// follow-up names none, its question, its technique and its lines.
 func (s *Store) SetExplanation(k PrKey, e Explanation) (State, bool, error) {
 	if e.Id == "" || strings.TrimSpace(e.Markdown) == "" {
 		return State{}, false, fmt.Errorf("the explanation needs an id and a text")
@@ -69,6 +71,9 @@ func (s *Store) SetExplanation(k PrKey, e Explanation) (State, bool, error) {
 		}
 		if e.Anchor == nil {
 			e.Anchor = old.Anchor
+		}
+		if e.Technique == "" {
+			e.Technique = old.Technique
 		}
 		state.Explanations[i] = e
 		return true

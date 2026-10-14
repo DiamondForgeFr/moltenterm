@@ -3848,7 +3848,11 @@
             "queuedNext": "En file : elle est envoyée quand votre agent est disponible, et sa réponse s'affiche sous ce cadre.",
             "queuedBehindOne": "En file derrière 1 autre question : chacune est envoyée quand votre agent est disponible.",
             "queuedBehind": "En file derrière {count} autres questions : chacune est envoyée quand votre agent est disponible.",
-            "queuedSent": "Envoyée à la session de revue depuis la file : sa réponse s'affiche sous ce cadre."
+            "queuedSent": "Envoyée à la session de revue depuis la file : sa réponse s'affiche sous ce cadre.",
+            "depthGroup": "Niveau de détail de la réponse",
+            "depthHint": "S'applique à vos prochaines questions.",
+            "depthQuickHint": "Environ 8 lignes : la technique, sa raison, un principe au plus.",
+            "depthDetailedHint": "Toutes les sections : alternatives, autres usages dans le code, principes avec à quoi ressemblerait leur violation."
         },
         "briefing": {
             "justNow": "à l'instant",
@@ -4192,16 +4196,18 @@
             "depthQuick": "Rapide",
             "depthDetailed": "Détaillée",
             "updated": "Mise à jour",
-            "sources": "Sources : {list}",
             "related": "Aussi dans le code :",
-            "principles": "Principes : {list}",
             "queueTitle": "En attente de votre agent",
             "queueTitleCount": "En attente de votre agent ({count})",
             "queueHint": "Chacune est envoyée quand l'agent est disponible, dans cet ordre.",
             "removeQuestion": "Retirer cette question",
             "hoverTitle": "Réponse de l'IA",
             "hoverTitleMany": "Réponses de l'IA ({count})",
-            "hoverHint": "Cliquez pour l'afficher dans le panneau IA."
+            "hoverHint": "Cliquez pour l'afficher dans le panneau IA.",
+            "sourcesTitle": "Sources",
+            "techniqueHint": "La technique ou le motif qu'utilisent ces lignes",
+            "principleHint": "Un principe que montrent ces lignes",
+            "openLine": "Ouvrir le fichier à cette ligne"
         }
     }
 }

@@ -218,10 +218,10 @@ func TestAnswerCards(t *testing.T) {
 	}
 	sel := &mcpreview.Anchor{Path: "main.go", Side: mcpreview.SideRight, StartLine: 3, Line: 5, HeadOid: repo.head, Excerpt: "func main() {"}
 	m.SetSelection(ctx, mcpreview.SelectionRequest{SessionKey: mcpreview.SessionKey{Id: res.Session.Id}, Anchor: sel, Question: "pourquoi ?"})
-	if r := call(`{"anchor":{"path":"main.go","side":"RIGHT","startline":3,"line":5},"question":"pourquoi ?","markdown":"Parce que."}`); r.IsError {
+	if r := call(`{"anchor":{"path":"main.go","side":"RIGHT","startline":3,"line":5},"question":"pourquoi ?","markdown":"Parce que.","sources":["main.go:3-5"]}`); r.IsError {
 		t.Fatalf("anchored %+v", r)
 	}
-	if r := call(`{"question":"résume","markdown":"La PR ajoute hi."}`); r.IsError {
+	if r := call(`{"question":"résume","markdown":"La PR ajoute hi.","sources":["main.go:4"]}`); r.IsError {
 		t.Fatalf("on the PR %+v", r)
 	}
 	posts, _ := m.Posts(ctx, mcpreview.SessionKey{Id: res.Session.Id})
@@ -235,7 +235,7 @@ func TestAnswerCards(t *testing.T) {
 	if onPr.Anchor != nil || !postIdPattern.MatchString(first.Id) || first.Id == onPr.Id {
 		t.Errorf("cards %+v %+v", first, onPr)
 	}
-	if r := call(`{"explanationid":"` + first.Id + `","markdown":"Parce que, en détail.","depth":"detailed"}`); r.IsError || !strings.Contains(r.Content[0].Text, first.Id) {
+	if r := call(`{"explanationid":"` + first.Id + `","markdown":"Parce que, en détail.","depth":"detailed","sources":["main.go:3-5"]}`); r.IsError || !strings.Contains(r.Content[0].Text, first.Id) {
 		t.Fatalf("follow-up %+v", r)
 	}
 	posts, _ = m.Posts(ctx, mcpreview.SessionKey{Id: res.Session.Id})

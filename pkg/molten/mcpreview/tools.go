@@ -85,17 +85,24 @@ func Tools() []mcpbrowser.ToolDef {
 		outputTool(ToolPostExplanation, "Post an explanation",
 			"Shows your answer to the developer's question as a card of their AI panel, anchored to the lines it is "+
 				"about (a marker in the diff's gutter opens it). A follow-up on the same lines uses the same anchor; "+
-				"pass explanationid to replace that card instead of adding one. No anchor: an answer about the whole PR.",
+				"pass explanationid to replace that card instead of adding one. No anchor: an answer about the whole PR. "+
+				"Follow the review guide's explanation contract: technique, why here with its source, alternatives, "+
+				"other uses, the principle grounded in these lines; quick depth: about 8 lines and one principle at most.",
 			objectSchema(map[string]any{
 				"anchor":        anchorSchema("The lines explained: the anchor review_selection gave for the question."),
 				"question":      stringProp("The developer's question this answers, in their words."),
 				"explanationid": stringProp("The id of your earlier card on these lines that this answer replaces."),
-				"depth":         map[string]any{"type": "string", "enum": []string{DepthQuick, DepthDetailed}},
-				"markdown":      stringProp("The explanation, in the developer's language."),
-				"sources":       stringList("What the reasons come from: ticket, plan, SRS page, commit, code comment, project rule."),
-				"related":       stringList("Other places of the codebase as path:line."),
-				"principles":    stringList("The development principles the lines illustrate or break."),
-			}, []string{"markdown"})),
+				"technique":     stringProp("The technique or pattern the lines use, by its usual name, in a few words (the card's title)."),
+				"depth": map[string]any{"type": "string", "enum": []string{DepthQuick, DepthDetailed},
+					"description": "The depth the developer asked for (review_selection); omitted, that depth."},
+				"markdown": stringProp("The explanation, in the developer's language, in the contract's sections."),
+				"sources": stringList("Required. What the answer comes from: the lines read as path:line, and the ticket, plan, " +
+					"SRS page, commit, code comment or project rule that gives the reason."),
+				"related": stringList("Where else the codebase uses the same technique, as path:line or path:start-end " +
+					"(relative to the worktree's root, lines that exist)."),
+				"principles": stringList("The development principles the lines illustrate or break, each shown on a concrete " +
+					"line in markdown (quick depth: one at most)."),
+			}, []string{"markdown", "sources"})),
 		outputTool(ToolProposeComment, "Propose a review comment",
 			"Proposes a review comment on lines of the PR's head shown in review_context. It appears as a proposal in "+
 				"the developer's AI panel; it becomes one of their comments only when they accept it. Nothing is published.",
