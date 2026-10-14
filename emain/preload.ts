@@ -137,6 +137,8 @@ contextBridge.exposeInMainWorld("api", {
     // interface language, for the app menu and dialogs (emain/moltenterm-i18n.ts)
     moltentermSystemLanguages: () => ipcRenderer.sendSync("moltenterm-system-languages"),
     moltentermSetLocale: (locale: string) => ipcRenderer.send("moltenterm-set-locale", locale),
+    // MOLTENTERM-PATCH (#624): the language packs' dictionaries, so the app menu and dialogs speak a pack's language
+    moltentermSetLanguagePacks: (packs: any[]) => ipcRenderer.send("moltenterm-set-language-packs", packs),
     // MOLTENTERM-PATCH (#605): a system notification while no window is in front (emain/moltenterm-system-notify.ts)
     moltentermSystemNotify: (req: any) => ipcRenderer.invoke("moltenterm-system-notify", req),
     moltentermSystemNotifyClose: (id: string) => ipcRenderer.send("moltenterm-system-notify-close", id),

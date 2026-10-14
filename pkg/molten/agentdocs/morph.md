@@ -7,12 +7,22 @@ The user asked for a change:
 MoltenTerm is the terminal you run in. It changes shape through mods: small JavaScript modules it loads without a
 restart. You build the change as a mod with the `molten` command; you never edit MoltenTerm itself.
 
+## Preconfigured morphs
+
+Some requests have a ready guide in the `molten docs` folder. When the request is one of these, follow that guide
+instead of steps 3 to 9 below (steps 1 and 2 still apply):
+
+| The request | Guide |
+| --- | --- |
+| Translate MoltenTerm into a language, complete a translation, or change some of its texts (any language, English and French included) | `language-pack.md` |
+
 ## Steps
 
 1. Check that you run inside MoltenTerm: `molten help` must work. If `molten` is not found, tell the user to run
    this request from a MoltenTerm terminal, and stop.
 2. Read the documentation of the installed version: run `molten docs`, then read `mod-format.md` in the folder it
-   prints, and the complete example in `examples/copy-box/`.
+   prints, and the complete example in `examples/copy-box/`. If the request is a preconfigured morph (above), read
+   its guide there too and follow it.
 <!-- not:claude-code -->
 3. Decide what the request changes:
    - **The workspace**: panes, boxes, notifications, commands, anything around the terminals. This is a MoltenTerm

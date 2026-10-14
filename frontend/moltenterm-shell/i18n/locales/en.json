@@ -1,7 +1,10 @@
 {
     "language": {
         "name": "English",
-        "system": "Same as the system ({name})"
+        "system": "Same as the system ({name})",
+        "add": "Add a language",
+        "addCopied": "Request copied",
+        "addHint": "Paste the copied /morph request into your coding agent and name the language: it writes the translation and installs it as a mod."
     },
     "common": {
         "cancel": "Cancel",
@@ -20,6 +23,15 @@
         "unknownLanguage": {
             "title": "Unknown interface language \"{value}\"",
             "message": "app:language names no installed language, so MoltenTerm follows the system's. Choose a language in Settings."
+        },
+        "untranslated": {
+            "title": "{count} strings not translated in {language}",
+            "message": "This version added texts your {language} pack lacks; they show in English. Copy the request and give it to your coding agent to complete the translation.",
+            "copy": "Copy the /morph request"
+        },
+        "shadowed": {
+            "title": "Two language packs for {language}",
+            "message": "Mod \"{mod}\" also gives {code}; \"{by}\", enabled more recently, is used. Disable one of them with molten mod disable."
         }
     },
     "appMenu": {

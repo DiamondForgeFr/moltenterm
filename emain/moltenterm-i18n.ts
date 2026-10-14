@@ -7,7 +7,7 @@
 // app.getPreferredSystemLanguages(), never from the bundle's localizations; they go to the renderers through IPC, and
 // the language picked from them to wavesrv through MOLTENTERM_SYSTEM_LANGUAGE (review:language's default,
 // DS-I18N-006). A renderer's resolved code is
-// taken when main has that language (a pack the renderer registered, #624, once it forwards its dictionary).
+// taken when main has that language (a pack the renderer registered and forwarded, #624).
 
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import * as electron from "electron";
@@ -19,10 +19,27 @@ import {
     SystemLanguage,
     translate,
 } from "../frontend/moltenterm-shell/i18n/i18n-core";
+import { LanguagePackInput, LanguagePackRegistry } from "../frontend/moltenterm-shell/i18n/language-packs";
 
 export const MoltentermSystemLanguageVarName = "MOLTENTERM_SYSTEM_LANGUAGE";
 export const SystemLanguagesChannel = "moltenterm-system-languages";
 export const SetLocaleChannel = "moltenterm-set-locale";
+export const SetLanguagePacksChannel = "moltenterm-set-language-packs";
+
+// The packs the renderer forwards (#624): the renderer already chose one pack per code and checked it, so main only
+// registers them. Every renderer sends the same set; the last one sent is kept.
+const mainPacks = new LanguagePackRegistry();
+
+function isForwardedPack(value: any): value is LanguagePackInput {
+    return (
+        value != null &&
+        typeof value.modId === "string" &&
+        typeof value.code === "string" &&
+        typeof value.name === "string" &&
+        value.dict != null &&
+        typeof value.dict === "object"
+    );
+}
 
 let languageSetting: unknown = null;
 let rendererLocale: string = null;
@@ -106,6 +123,11 @@ export function initMoltentermI18n(fullConfig: FullConfigType) {
 export function initMoltentermI18nIpc() {
     electron.ipcMain.on(SystemLanguagesChannel, (event) => {
         event.returnValue = systemLanguages();
+    });
+    electron.ipcMain.on(SetLanguagePacksChannel, (_event, packs: unknown) => {
+        if (!Array.isArray(packs)) return;
+        mainPacks.apply(packs.filter(isForwardedPack).map((p) => ({ ...p, enabledAt: 0 })));
+        recompute();
     });
     electron.ipcMain.on(SetLocaleChannel, (_event, locale: unknown) => {
         if (typeof locale !== "string" || locale === "") return;

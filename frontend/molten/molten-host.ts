@@ -12,6 +12,9 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
 import { t } from "../moltenterm-shell/i18n/i18n";
+import { shippedDictionary } from "../moltenterm-shell/i18n/i18n-core";
+import { checkLanguagePack, formatPackProblems } from "../moltenterm-shell/i18n/language-pack";
+import type { LanguagePackInput } from "../moltenterm-shell/i18n/language-packs";
 import {
     makeMoltenApi,
     MoltenApiBackend,
@@ -23,7 +26,13 @@ import {
     MoltenNotificationOptions,
 } from "./molten-api";
 import { MoltenModMeter, MoltenModUsage, sameUsage } from "./molten-budget";
-import { MoltenManifestFileName, MoltenSupportedApiVersions, parseMoltenManifest } from "./molten-manifest";
+import {
+    isDataOnlyMod,
+    MoltenManifestFileName,
+    MoltenModManifest,
+    MoltenSupportedApiVersions,
+    parseMoltenManifest,
+} from "./molten-manifest";
 import { declaresTimerName, MoltenModTimers, MoltenTimerApi, MoltenTimerClock, timerPrologue } from "./molten-timers";
 
 export const MoltenActivateTimeoutMs = 10000;
@@ -59,6 +68,8 @@ export type MoltenHostEnv = {
     getLocale?: () => string;
     onLocaleChange?: (handler: (locale: string) => void) => () => void;
     builtins?: MoltenBuiltinMod[];
+    // Receives the languages of the active language packs after every sync (FR-I18N-002, language-packs.ts).
+    applyLanguagePacks?: (packs: LanguagePackInput[]) => void;
     // The clock of the budget and of the mods' timers; performance.now and the window's timers by default.
     clock?: MoltenTimerClock;
     // The renderer's JS heap in MB, or null when it does not tell (best-effort memory of a mod's activation).
@@ -88,6 +99,12 @@ export type MoltenModStatus = {
     // Keeps its timers running while the tab view is hidden (it declares the "background" capability).
     background?: boolean;
     usage?: MoltenModUsage;
+    // A data-only mod: it brings data (languages) and runs no code, so it needs no trust (FR-I18N-002).
+    dataonly?: boolean;
+    // The language codes a language pack gives.
+    languages?: string[];
+    // What loading ignored, such as a pack key English does not know.
+    warnings?: string[];
 };
 
 export type MoltenCommandInfo = {
@@ -149,7 +166,13 @@ type ModFileReader = (name: string) => Promise<string>;
 type ModState = {
     enabled: Set<string>;
     disabled: Set<string>;
+    // When each mod was last enabled (`enabledat` in mods.json, ms since epoch).
+    enabledAt: Map<string, number>;
 };
+
+function emptyState(): ModState {
+    return { enabled: new Set(), disabled: new Set(), enabledAt: new Map() };
+}
 
 type ModRuntime = {
     status: MoltenModStatus;
@@ -162,6 +185,9 @@ type ModRuntime = {
     overNotified?: boolean;
     // Set when the mod tried a command name another mod holds, even if its activate caught the error.
     conflict?: MoltenCommandConflictError;
+    enabledAt?: number;
+    // The checked languages of an active language pack.
+    languages?: LanguagePackInput[];
 };
 
 // A command name another mod holds: the error names both mods (FR-PERF-014-AC3).
@@ -362,6 +388,7 @@ export class MoltenHost {
             trusted = await this.readTrusted();
         } catch (e) {
             this.notify({ title: t("molten.notify.unreadable"), message: errorMessage(e), kind: "error" });
+            this.applyLanguages();
             return;
         }
         const builtins = this.env.builtins ?? [];
@@ -383,12 +410,15 @@ export class MoltenHost {
                 continue;
             }
             const enabled = state.enabled;
-            // No code of a mod is read before the user trusted it, even when mods.json enables it by hand.
-            if (!enabled.has(id) || !trusted.has(id)) {
+            const dir = joinPath(this.env.modsDir, id);
+            // No code of a mod is read before the user trusted it, even when mods.json enables it by hand. A
+            // data-only mod has no code: its manifest is read to know it, and it loads without trust.
+            const loadable = enabled.has(id) && (trusted.has(id) || isDataOnlyMod(await this.peekManifest(id, dir)));
+            if (!loadable) {
                 this.runtimes.set(id, {
                     status: {
                         id,
-                        path: joinPath(this.env.modsDir, id),
+                        path: dir,
                         state: enabled.has(id) ? "untrusted" : "disabled",
                         commands: [],
                     },
@@ -397,11 +427,38 @@ export class MoltenHost {
                 });
                 continue;
             }
-            const dir = joinPath(this.env.modsDir, id);
-            await this.loadMod(id, dir, (name) => this.env.readTextFile(joinPath(dir, name)));
+            await this.loadMod(id, dir, (name) => this.env.readTextFile(joinPath(dir, name)), false, state);
         }
         this.sortRuntimes();
         this.publish();
+        this.applyLanguages();
+    }
+
+    // The manifest of a user mod, parsed but nothing else read; a manifest that does not parse gives an empty one.
+    async peekManifest(id: string, dir: string): Promise<MoltenModManifest> {
+        try {
+            const text = await this.env.readTextFile(joinPath(dir, MoltenManifestFileName));
+            const parsed = text == null ? null : parseMoltenManifest(id, text);
+            return parsed?.ok ? parsed.manifest : ({} as MoltenModManifest);
+        } catch {
+            return {} as MoltenModManifest;
+        }
+    }
+
+    // Hands the languages of the active language packs to the dictionaries (language-packs.ts).
+    applyLanguages(): void {
+        const packs: LanguagePackInput[] = [];
+        for (const runtime of this.runtimes.values()) {
+            if (runtime.stopped || runtime.status.state !== "active" || runtime.languages == null) {
+                continue;
+            }
+            packs.push(...runtime.languages);
+        }
+        try {
+            this.env?.applyLanguagePacks?.(packs);
+        } catch (e) {
+            console.error("[molten] language packs could not be applied", e);
+        }
     }
 
     async syncBuiltin(builtin: MoltenBuiltinMod, state: ModState, shadowed: boolean): Promise<void> {
@@ -424,10 +481,11 @@ export class MoltenHost {
         }
     }
 
-    // A view that does not show lists its mods without reading their code: the enabled ones are pending.
+    // A view that does not show lists its mods without reading their code: the enabled ones are pending. Data-only
+    // mods load at once: they cost nothing while idle, and a view must speak a pack's language before it shows.
     async listPending(): Promise<void> {
         let folders: string[] = [];
-        let state: ModState = { enabled: new Set(), disabled: new Set() };
+        let state: ModState = emptyState();
         let trusted = new Set<string>();
         try {
             folders = (await this.env.listDir(this.env.modsDir))
@@ -447,8 +505,15 @@ export class MoltenHost {
             let modState: MoltenModState = "pending";
             if (builtin ? state.disabled.has(id) : !state.enabled.has(id)) {
                 modState = "disabled";
-            } else if (!builtin && !trusted.has(id)) {
-                modState = "untrusted";
+            } else if (!builtin) {
+                const dir = joinPath(this.env.modsDir, id);
+                if (isDataOnlyMod(await this.peekManifest(id, dir))) {
+                    await this.loadMod(id, dir, (name) => this.env.readTextFile(joinPath(dir, name)), false, state);
+                    continue;
+                }
+                if (!trusted.has(id)) {
+                    modState = "untrusted";
+                }
             }
             this.runtimes.set(id, {
                 status: {
@@ -464,12 +529,14 @@ export class MoltenHost {
         }
         this.sortRuntimes();
         this.publish();
+        this.applyLanguages();
     }
 
-    // In safe mode no mod code is read, but the mods are still listed, so the user knows which one to disable.
+    // In safe mode no mod code is read, but the mods are still listed, so the user knows which one to disable. No
+    // language pack applies either.
     async listForSafeMode(): Promise<void> {
         let folders: string[] = [];
-        let state: ModState = { enabled: new Set(), disabled: new Set() };
+        let state: ModState = emptyState();
         try {
             folders = (await this.env.listDir(this.env.modsDir))
                 .filter((entry) => entry.isDir && !entry.name.startsWith("."))
@@ -495,6 +562,7 @@ export class MoltenHost {
             });
         }
         this.publish();
+        this.applyLanguages();
     }
 
     async readJsonFile(path: string): Promise<any> {
@@ -513,7 +581,15 @@ export class MoltenHost {
         const state = await this.readJsonFile(this.env.stateFile);
         const ids = (list: unknown): Set<string> =>
             new Set(Array.isArray(list) ? list.filter((id: unknown) => typeof id === "string") : []);
-        return { enabled: ids(state?.enabled), disabled: ids(state?.disabled) };
+        const enabledAt = new Map<string, number>();
+        const stamps = state?.enabledat;
+        if (stamps != null && typeof stamps === "object" && !Array.isArray(stamps)) {
+            for (const [id, stamp] of Object.entries(stamps)) {
+                const ms = typeof stamp === "string" ? Date.parse(stamp) : NaN;
+                if (Number.isFinite(ms)) enabledAt.set(id, ms);
+            }
+        }
+        return { enabled: ids(state?.enabled), disabled: ids(state?.disabled), enabledAt };
     }
 
     async readTrusted(): Promise<Set<string>> {
@@ -578,11 +654,12 @@ export class MoltenHost {
         };
     }
 
-    async loadMod(id: string, path: string, read: ModFileReader, builtin = false): Promise<void> {
+    async loadMod(id: string, path: string, read: ModFileReader, builtin = false, state?: ModState): Promise<void> {
         const runtime: ModRuntime = {
             status: { id, path, state: "loading", commands: [], ...(builtin ? { builtin } : {}) },
             disposers: [],
             stopped: false,
+            enabledAt: state?.enabledAt.get(id) ?? 0,
         };
         this.runtimes.set(id, runtime);
         this.publish();
@@ -607,6 +684,10 @@ export class MoltenHost {
         const manifest = parsed.manifest;
         runtime.status.name = manifest.name;
         runtime.status.version = manifest.version;
+        if (isDataOnlyMod(manifest)) {
+            await this.activateDataMod(runtime, manifest, read);
+            return;
+        }
         const source = await read(manifest.main);
         if (source == null) {
             this.stopRuntime(runtime, "failed", `main file "${manifest.main}" not found`);
@@ -681,6 +762,56 @@ export class MoltenHost {
         if (!this.showing && !runtime.status.background) {
             this.callHook(runtime, "suspend");
         }
+        this.publish();
+    }
+
+    // A data-only mod: its files are read as JSON and checked, nothing is imported. A language pack that breaks a
+    // placeholder is refused whole, naming the key, so none of it applies (DS-I18N-010).
+    async activateDataMod(runtime: ModRuntime, manifest: MoltenModManifest, read: ModFileReader): Promise<void> {
+        runtime.status.dataonly = true;
+        const english = shippedDictionary("en");
+        const languages: LanguagePackInput[] = [];
+        const warnings: string[] = [];
+        for (const language of manifest.languages ?? []) {
+            const text = await read(language.file);
+            if (text == null) {
+                this.stopRuntime(runtime, "failed", `language file "${language.file}" not found`);
+                return;
+            }
+            let data: unknown;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                this.stopRuntime(runtime, "failed", `${language.file} is not valid JSON: ${errorMessage(e)}`);
+                return;
+            }
+            const check = checkLanguagePack(language.code, data, english);
+            if (!check.ok) {
+                this.stopRuntime(runtime, "refused", `${language.file}: ${formatPackProblems(check)}`);
+                return;
+            }
+            warnings.push(...check.warnings.map((w) => `${language.file}: ${w.message}`));
+            languages.push({
+                modId: manifest.id,
+                code: language.code,
+                name: language.name,
+                dict: check.dict,
+                enabledAt: runtime.enabledAt ?? 0,
+                warnings: check.warnings.map((w) => w.message),
+            });
+        }
+        if (runtime.stopped) {
+            return;
+        }
+        for (const warning of warnings) {
+            console.warn(`[molten:${manifest.id}] ${warning}`);
+        }
+        runtime.languages = languages;
+        runtime.status.languages = languages.map((l) => l.code);
+        if (warnings.length > 0) {
+            runtime.status.warnings = warnings;
+        }
+        runtime.status.state = "active";
         this.publish();
     }
 

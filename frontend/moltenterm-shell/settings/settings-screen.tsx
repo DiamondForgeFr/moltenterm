@@ -14,6 +14,7 @@ import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { addLanguageRequest } from "../../molten/morph-templates";
 import { writeSettings } from "../command-panel/bindings";
 import "../command-panel/command-panel.css";
 import { themeOptions } from "../command-panel/providers/terminal";
@@ -342,6 +343,30 @@ function MultiChoice({ entry, value, onSet }: { entry: SettingEntry; value: unkn
     );
 }
 
+// A language MoltenTerm does not ship comes from the developer's agent (FR-I18N-002): the button copies the ready
+// /morph request of the language pack template.
+function AddLanguageButton() {
+    const t = useT();
+    const [copied, setCopied] = useState(false);
+    useEffect(() => {
+        if (!copied) return;
+        const timer = setTimeout(() => setCopied(false), 2000);
+        return () => clearTimeout(timer);
+    }, [copied]);
+    const onClick = () => {
+        fireAndForget(async () => {
+            await navigator.clipboard.writeText(addLanguageRequest());
+            setCopied(true);
+        });
+    };
+    return (
+        <button type="button" className={GhostButton} title={t("language.addHint")} onClick={onClick}>
+            <i className={cn("fa-solid", copied ? "fa-check" : "fa-language")} />
+            {copied ? t("language.addCopied") : t("language.add")}
+        </button>
+    );
+}
+
 function Control({
     entry,
     value,
@@ -366,12 +391,15 @@ function Control({
             if (entry.optionsFrom === LanguagesOptions) {
                 // Each language in its own name; the empty choice follows the OS and stores nothing (FR-I18N-001).
                 return (
-                    <Select
-                        entry={{ ...entry, unsetLabel: t("language.system", { name: languageName(systemLocale) }) }}
-                        value={shown}
-                        options={languages.map((l) => ({ value: l.code, label: l.name }))}
-                        onSet={onSet}
-                    />
+                    <span className="inline-flex items-center gap-2">
+                        <Select
+                            entry={{ ...entry, unsetLabel: t("language.system", { name: languageName(systemLocale) }) }}
+                            value={shown}
+                            options={languages.map((l) => ({ value: l.code, label: l.name }))}
+                            onSet={onSet}
+                        />
+                        <AddLanguageButton />
+                    </span>
                 );
             }
             return (

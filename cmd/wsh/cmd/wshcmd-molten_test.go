@@ -199,14 +199,17 @@ func TestMoltenStateFile(t *testing.T) {
 	if err != nil || changed {
 		t.Fatalf("enabling twice must report no change: %v %v", changed, err)
 	}
-	data, _ := os.ReadFile(moltenStateFile(configDir))
-	if string(data) != "{\n  \"enabled\": [\n    \"a\",\n    \"b\"\n  ]\n}\n" {
-		t.Fatalf("unexpected state file: %q", data)
+	state, _ = moltenReadState(moltenStateFile(configDir))
+	if strings.Join(state.Enabled, ",") != "a,b" || state.EnabledAt["a"] == "" || state.EnabledAt["b"] == "" {
+		t.Fatalf("unexpected state: %+v", state)
 	}
 	moltenSetEnabled(configDir, "a", false)
 	state, _ = moltenReadState(moltenStateFile(configDir))
 	if strings.Join(state.Enabled, ",") != "b" {
 		t.Fatalf("unexpected enabled list: %q", state.Enabled)
+	}
+	if _, ok := state.EnabledAt["a"]; ok {
+		t.Fatalf("a disabled mod keeps no enable time: %+v", state.EnabledAt)
 	}
 	os.WriteFile(moltenStateFile(configDir), []byte("{oops"), 0644)
 	if _, err := moltenSetEnabled(configDir, "c", true); err == nil {
