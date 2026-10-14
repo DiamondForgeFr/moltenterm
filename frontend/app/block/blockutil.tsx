@@ -11,6 +11,7 @@ import clsx from "clsx";
 import * as jotai from "jotai";
 import * as React from "react";
 import { Pill } from "../../moltenterm-shell/header/pill"; // MOLTENTERM-PATCH (#406)
+import { t as translate, useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 
 export type TabBackgroundEnv = WaveEnvSubset<{
     getTabMetaKeyAtom: MetaKeyAtomFnType<"bg:activebordercolor" | "bg:bordercolor" | "tab:background">;
@@ -47,28 +48,28 @@ export function blockViewToIcon(view: string): string {
 
 export function blockViewToName(view: string): string {
     if (util.isBlank(view)) {
-        return "(No View)";
+        return translate("wave.block.noView"); // MOLTENTERM-PATCH (#623)
     }
     if (view == "term") {
-        return "Terminal";
+        return translate("wave.block.viewTerminal"); // MOLTENTERM-PATCH (#623)
     }
     if (view == "preview") {
-        return "Preview";
+        return translate("wave.block.viewPreview"); // MOLTENTERM-PATCH (#623)
     }
     if (view == "web") {
-        return "Web";
+        return translate("wave.block.viewWeb"); // MOLTENTERM-PATCH (#623)
     }
     if (view == "waveai") {
         return "WaveAI";
     }
     if (view == "help") {
-        return "Help";
+        return translate("wave.block.viewHelp"); // MOLTENTERM-PATCH (#623)
     }
     if (view == "tips") {
-        return "Tips";
+        return translate("wave.block.viewTips"); // MOLTENTERM-PATCH (#623)
     }
     if (view == "processviewer") {
-        return "Processes";
+        return translate("wave.block.viewProcesses"); // MOLTENTERM-PATCH (#623)
     }
     return view;
 }
@@ -209,10 +210,11 @@ export const Input = React.memo(
 
 export const OptMagnifyButton = React.memo(
     ({ magnified, toggleMagnify, disabled }: { magnified: boolean; toggleMagnify: () => void; disabled: boolean }) => {
+        const t = useT(); // MOLTENTERM-PATCH (#623)
         const magnifyDecl: IconButtonDecl = {
             elemtype: "iconbutton",
             icon: <MagnifyIcon enabled={magnified} />,
-            title: magnified ? "Minimize" : "Magnify",
+            title: t(magnified ? "wave.block.unmagnify" : "wave.block.magnify"), // MOLTENTERM-PATCH (#623)
             click: toggleMagnify,
             disabled,
         };

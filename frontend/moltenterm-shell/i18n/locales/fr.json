@@ -88,5 +88,893 @@
         },
         "chooseFolder": "Choisir",
         "images": "Images"
+    },
+    "wave": {
+        "tab": {
+            "rename": "Renommer l'onglet",
+            "copyId": "Copier l'identifiant de l'onglet",
+            "flag": "Marquer l'onglet",
+            "flagNone": "Aucune",
+            "flagGreen": "Vert",
+            "flagTeal": "Turquoise",
+            "flagBlue": "Bleu",
+            "flagPurple": "Violet",
+            "flagRed": "Rouge",
+            "flagOrange": "Orange",
+            "flagYellow": "Jaune",
+            "view360": "Vue 360",
+            "backgrounds": "Arrière-plans",
+            "backgroundDefault": "Par défaut",
+            "sectionTabBar": "Barre d'onglets",
+            "tabBarPosition": "Position de la barre d'onglets",
+            "tabBarTop": "En haut",
+            "tabBarLeft": "À gauche",
+            "reopenClosed": "Rouvrir ce qui a été fermé",
+            "close": "Fermer l'onglet",
+            "add": "Ajouter un onglet",
+            "new": "Nouvel onglet"
+        },
+        "block": {
+            "commandsAndOptions": "Commandes et options ({shortcut})",
+            "suggestionsAndOptions": "Suggestions, commandes et options ({shortcut})",
+            "addToLayout": "Ajouter à la disposition",
+            "magnify": "Agrandir",
+            "unmagnify": "Réduire",
+            "noView": "(Aucune vue)",
+            "viewTerminal": "Terminal",
+            "viewPreview": "Aperçu",
+            "viewWeb": "Web",
+            "viewHelp": "Aide",
+            "viewTips": "Astuces",
+            "viewProcesses": "Processus"
+        },
+        "conn": {
+            "stalledTitle": "Connexion bloquée",
+            "stalled": "La connexion à « {name} » est bloquée",
+            "noActivityFor": " (aucune activité depuis {elapsed})",
+            "disconnect": "Déconnecter",
+            "disconnected": "Déconnecté de « {name} »",
+            "connecting": "Connexion à « {name} »…",
+            "reconnect": "Reconnecter",
+            "copy": "Copier",
+            "alwaysDisableWsh": "toujours désactiver wsh"
+        },
+        "term": {
+            "openUrl": "Ouvrir l'URL",
+            "openUrlHost": "Ouvrir l'URL ({host})",
+            "openUrlExternal": "Ouvrir l'URL dans le navigateur externe",
+            "saveSession": "Enregistrer la session sous…",
+            "saveSessionFailed": "Impossible d'enregistrer l'historique de la session : {error}",
+            "saveSessionEmpty": "Aucun historique à enregistrer.",
+            "unknownError": "Une erreur inconnue s'est produite",
+            "default": "Par défaut",
+            "defaultFontSize": "Par défaut ({size} px)",
+            "defaultValue": "Par défaut ({value})",
+            "themes": "Thèmes",
+            "fontSize": "Taille du texte",
+            "cursor": "Curseur",
+            "cursorBlock": "Bloc",
+            "cursorBlockBlink": "Bloc (clignotant)",
+            "cursorBar": "Barre",
+            "cursorBarBlink": "Barre (clignotante)",
+            "cursorUnderline": "Soulignement",
+            "cursorUnderlineBlink": "Soulignement (clignotant)",
+            "transparency": "Transparence",
+            "transparentBackground": "Arrière-plan transparent",
+            "noTransparency": "Sans transparence",
+            "advanced": "Avancé",
+            "fileBrowser": "Explorateur de fichiers",
+            "bracketedPaste": "Autoriser le mode collage encadré",
+            "forceRestart": "Forcer le redémarrage du contrôleur",
+            "clearOnRestart": "Effacer la sortie au redémarrage",
+            "runOnStartup": "Exécuter au démarrage",
+            "debugConnection": "Déboguer la connexion",
+            "debugInfo": "Info",
+            "debugVerbose": "Détaillé",
+            "durability": "Durabilité de la session",
+            "restartStandard": "Redémarrer la session en mode standard",
+            "restartDurable": "Redémarrer la session en mode durable",
+            "closeToolbar": "Fermer la barre d'outils",
+            "switchToTerminal": "Revenir au terminal",
+            "restartingCommand": "Redémarrage de la commande",
+            "commandSucceeded": "Commande terminée avec succès",
+            "exitCode": "Code de sortie : {code}"
+        },
+        "workspace": {
+            "switch": "Changer d'espace de travail",
+            "open": "Ouvrir un espace de travail",
+            "create": "Créer un espace de travail",
+            "save": "Enregistrer l'espace de travail",
+            "edit": "Modifier l'espace de travail"
+        }
+    },
+    "menu": {
+        "contextMenu": "Menu contextuel",
+        "saveImage": "Enregistrer l'image",
+        "roles": {
+            "undo": "Annuler",
+            "redo": "Rétablir",
+            "cut": "Couper",
+            "copy": "Copier",
+            "paste": "Coller",
+            "pasteAndMatchStyle": "Coller et adapter le style",
+            "delete": "Supprimer",
+            "selectAll": "Tout sélectionner"
+        },
+        "sections": {
+            "developer": "Développeur",
+            "group": "Groupe",
+            "panel": "Panneau",
+            "link": "Lien"
+        }
+    },
+    "palette": {
+        "ariaPalette": "Palette de commandes",
+        "ariaSearch": "Rechercher dans la palette de commandes",
+        "placeholder": "Ouvrir un agent, un panneau, un dossier…",
+        "footer": {
+            "choose": "choisir",
+            "open": "ouvrir",
+            "openHere": "ouvrir ici",
+            "openRight": "ouvrir à droite",
+            "close": "fermer",
+            "cancelSplit": "annuler la division",
+            "clear": "effacer"
+        },
+        "groups": {
+            "agents": "Agents",
+            "panels": "Panneaux",
+            "folders": "Dossiers récents",
+            "actions": "Espace de travail",
+            "panel": "Ce panneau",
+            "agentsIn": "Agents dans {folder}"
+        },
+        "panelNames": {
+            "terminal": "Terminal",
+            "files": "Fichiers",
+            "browser": "Navigateur",
+            "cicd": "CI/CD",
+            "reviews": "Revues",
+            "sysinfo": "Infos système",
+            "processes": "Processus"
+        },
+        "actions": {
+            "projectTab": "Onglet projet",
+            "projectTabDetail": "où en est le projet : agents, branches, CI, versions, actions",
+            "newTab": "Nouvel onglet",
+            "reopenClosed": "Rouvrir le dernier panneau ou onglet fermé",
+            "newWorkspace": "Nouvel espace de travail",
+            "editWorkspace": "Modifier l'espace de travail…",
+            "editWorkspaceDetail": "nom, icône, couleur, projet, dossier",
+            "switchTo": "Passer à {name}",
+            "gettingStarted": "Premiers pas",
+            "gettingStartedDetail": "votre agent, un premier morph, votre projet",
+            "sessions": "Sessions",
+            "sessionsDetail": "terminaux et agents encore en cours, locaux et SSH",
+            "settings": "Réglages",
+            "shortcuts": "Raccourcis clavier",
+            "agentCopy": "Copier la dernière réponse de {agent}",
+            "agentCopyDetail": "tapez {command} dans {agent}, elle arrive dans le presse-papiers par OSC 52",
+            "openInBrowser": "Ouvrir dans {browser}",
+            "openInBrowserDetail": "la page du panneau navigateur, avec vos sessions et extensions",
+            "updateTerminals": "Mettre à jour les terminaux périmés"
+        },
+        "panels": {
+            "missionControl": "Mission Control",
+            "missionControlDetail": "la vue d'ensemble du projet",
+            "noProject": "aucun projet lié pour l'instant",
+            "lineMap": "Plan des lignes",
+            "lineMapDetail": "les branches du projet en lignes",
+            "companion": "Compagnon",
+            "companionDetail": "l'agent de ce terminal",
+            "sessions": "Sessions",
+            "sessionsDetail": "terminaux et agents encore en cours"
+        }
+    },
+    "termupdate": {
+        "title": {
+            "agentStarted": "Démarré avant la mise à jour : {agent} tourne sans le navigateur ni les hooks de MoltenTerm.",
+            "olderShell": "Ce shell a été démarré par une ancienne version de MoltenTerm : les agents lancés ici n'ont pas le navigateur ni les hooks de MoltenTerm.",
+            "olderEnv": "Ce shell a encore un ancien environnement MoltenTerm.",
+            "agentAction": "Mettre à jour le terminal redémarre {agent} dans un nouveau shell, sur la même conversation.",
+            "shellAction": "Mettre à jour le terminal remplace le shell dans le même dossier ; l'historique reste."
+        },
+        "detail": {
+            "one": "1 terminal démarré avant la mise à jour de MoltenTerm",
+            "other": "{count} terminaux démarrés avant la mise à jour de MoltenTerm"
+        },
+        "summary": {
+            "updatedOne": "1 terminal mis à jour",
+            "updatedOther": "{count} terminaux mis à jour",
+            "updatedNone": "Aucun terminal mis à jour",
+            "couldNotUpdate": "il n'a pas pu être mis à jour",
+            "leftOne": "1 terminal a été laissé tel quel",
+            "leftOther": "{count} terminaux ont été laissés tels quels",
+            "leftMessage": "{lead} : {reasons}"
+        },
+        "agentRunsInOne": "{agent} tourne dans l'un d'eux : utilisez Mettre à jour le terminal dans son en-tête pour redémarrer {agent} sur sa conversation.",
+        "failedUpdate": "Le terminal n'a pas pu être mis à jour : {error}",
+        "failedCheck": "Le terminal n'a pas pu être vérifié : {error}",
+        "theAgent": "l'agent",
+        "dialog": {
+            "title": "Redémarrer {agent} ?",
+            "subtitle": "Il a été démarré avant la mise à jour de MoltenTerm, sans son navigateur ni ses hooks.",
+            "restart": "Redémarrer {agent}",
+            "body": "MoltenTerm tape la commande de sortie de {agent}, attend qu'il se termine, démarre un nouveau shell dans le même dossier et relance {agent} sur la même conversation, avec l'intégration de MoltenTerm.",
+            "note": "Avant cela, Échap répond Non à une question que {agent} pose peut-être, et un brouillon non envoyé dans sa saisie est effacé. Rien n'est tué : si {agent} ne se termine pas, il continue de tourner."
+        },
+        "result": {
+            "updated": "Terminal mis à jour",
+            "notNow": "Pas maintenant",
+            "notUpdated": "Terminal non mis à jour"
+        }
+    },
+    "settings": {
+        "title": "Réglages",
+        "default": "Par défaut",
+        "auto": "Auto",
+        "notSet": "Non défini",
+        "editInJson": "Modifier en JSON",
+        "thisWorkspace": "Cet espace de travail",
+        "sectionsLabel": "Sections des réglages",
+        "secretsElsewhere": "Les secrets s'ouvrent depuis le panneau Réglages.",
+        "count": {
+            "items": {
+                "one": "1 élément",
+                "other": "{count} éléments"
+            },
+            "entries": {
+                "one": "1 entrée",
+                "other": "{count} entrées"
+            }
+        },
+        "workspacePill": {
+            "title": "S'applique uniquement à l'espace de travail {name}",
+            "srOnly": "cet espace de travail uniquement"
+        },
+        "error": {
+            "folder": "Ce dossier n'a pas pu être utilisé. Vérifiez qu'il existe.",
+            "notSaved": "Cette valeur n'a pas été enregistrée. Vérifiez settings.json dans Avancé."
+        },
+        "reset": {
+            "label": "Réinitialiser {label}",
+            "title": "Revenir à la valeur par défaut"
+        },
+        "files": {
+            "title": "Fichiers JSON",
+            "hint": "Modifiés sur place, vérifiés avant d'être enregistrés.",
+            "settings": {
+                "description": "Tous les réglages de cet écran, et ceux qu'il n'affiche pas."
+            },
+            "connections": {
+                "description": "Les hôtes SSH et leurs options."
+            },
+            "widgets": {
+                "description": "Les outils personnalisés du rail."
+            },
+            "backgrounds": {
+                "name": "Fonds des onglets",
+                "description": "Les fonds que les onglets peuvent utiliser."
+            },
+            "secrets": {
+                "description": "Les valeurs gardées dans le trousseau du système."
+            }
+        },
+        "shortcuts": {
+            "title": "Raccourcis",
+            "hint": "Toutes les touches auxquelles MoltenTerm répond, par domaine."
+        },
+        "search": {
+            "label": "Rechercher dans les réglages",
+            "none": "Aucun réglage ne correspond à « {query} »",
+            "noneHint": "Essayez un autre mot, ou modifiez les fichiers JSON dans Avancé.",
+            "clear": "Effacer la recherche",
+            "count": {
+                "one": "1 réglage",
+                "other": "{count} réglages"
+            },
+            "results": "Réglages correspondants"
+        },
+        "sections": {
+            "general": {
+                "title": "Général",
+                "description": "Cet espace de travail, quitter et fermer, le démarrage, les panneaux et les fichiers."
+            },
+            "appearance": {
+                "title": "Apparence",
+                "description": "La fenêtre, son texte et le panneau agrandi."
+            },
+            "terminal": {
+                "title": "Terminal",
+                "description": "L'aspect et le comportement des terminaux, leur shell et leurs connexions."
+            },
+            "agents": {
+                "title": "Agents",
+                "description": "Le compagnon des agents, et ce que MoltenTerm ajoute quand un agent démarre dans ses terminaux."
+            },
+            "browser": {
+                "title": "Navigateur",
+                "description": "Le panneau navigateur, l'ouverture des pages, et le navigateur qu'utilisent les agents."
+            },
+            "mission": {
+                "title": "Mission Control",
+                "description": "La CI/CD et le plan de lignes de Mission Control."
+            },
+            "keyboard": {
+                "title": "Clavier",
+                "description": "Les touches et tous les raccourcis."
+            },
+            "mods": {
+                "title": "Mods",
+                "description": "Les mods que cette fenêtre exécute et ce que chacun coûte."
+            },
+            "secrets": {
+                "title": "Secrets",
+                "description": "Des valeurs gardées dans le coffre de secrets du système, pour les connexions et les commandes. Jamais affichées sans votre demande."
+            },
+            "advanced": {
+                "title": "Avancé",
+                "description": "Les rouages de la fenêtre et de l'app, le débogage, et les fichiers JSON derrière chaque réglage."
+            }
+        },
+        "groups": {
+            "thisWorkspace": "Cet espace de travail",
+            "otherSettings": "Autres réglages",
+            "app": "App",
+            "keys": "Touches",
+            "quittingAndClosing": "Quitter et fermer",
+            "panels": "Panneaux",
+            "look": "Aspect",
+            "terminal": "Terminal",
+            "shell": "Shell",
+            "behaviour": "Comportement",
+            "companion": "Compagnon",
+            "integration": "Intégration",
+            "codeReview": "Revue de code",
+            "language": "Langue",
+            "agents": "Agents",
+            "lineMap": "Plan de lignes",
+            "ciCd": "CI/CD",
+            "filesAndEditor": "Fichiers et éditeur",
+            "text": "Texte",
+            "openingPages": "Ouverture des pages",
+            "browserPanel": "Panneau navigateur",
+            "power": "Énergie",
+            "window": "Fenêtre",
+            "updates": "Mises à jour",
+            "startup": "Démarrage",
+            "magnifiedPanel": "Panneau agrandi",
+            "connections": "Connexions",
+            "debugging": "Débogage",
+            "appBuilder": "Créateur d'apps"
+        },
+        "items": {
+            "molten:folder": {
+                "label": "Dossier de travail",
+                "description": "Où démarrent les nouveaux terminaux et vues de fichiers de cet espace de travail."
+            },
+            "molten:project": {
+                "label": "Dossier du projet",
+                "description": "Le projet auquel cet espace de travail est lié, pour Mission Control."
+            },
+            "app:nativecontextmenu": {
+                "label": "Menus contextuels du système",
+                "description": "Utiliser les menus contextuels du système plutôt que ceux de MoltenTerm."
+            },
+            "app:globalhotkey": {
+                "label": "Raccourci global",
+                "description": "Un raccourci valable partout qui ramène MoltenTerm au premier plan."
+            },
+            "app:defaultnewblock": {
+                "label": "Contenu d'un nouvel onglet",
+                "description": "La vue par laquelle commence un nouvel onglet, comme term."
+            },
+            "app:showoverlayblocknums": {
+                "label": "Numéros des panneaux",
+                "description": "Afficher le numéro de chaque panneau tant que ses touches de raccourci sont enfoncées."
+            },
+            "app:ctrlvpaste": {
+                "label": "Ctrl+V colle",
+                "description": "Ctrl+V colle dans les terminaux au lieu d'atteindre le programme."
+            },
+            "app:confirmquit": {
+                "label": "Confirmer avant de quitter",
+                "description": "Demander avant de quitter MoltenTerm."
+            },
+            "app:disablectrlshiftarrows": {
+                "label": "Pas de navigation Ctrl+Maj+flèches",
+                "description": "Ctrl+Maj+flèches atteignent le programme au lieu de passer d'un panneau à l'autre."
+            },
+            "app:disablectrlshiftdisplay": {
+                "label": "Pas de numéros de panneaux avec Ctrl+Maj",
+                "description": "Maintenir Ctrl+Maj n'affiche pas les numéros des panneaux."
+            },
+            "app:focusfollowscursor": {
+                "label": "Le focus suit le pointeur",
+                "description": "Donner le focus au panneau sous le pointeur, sans clic.",
+                "options": {
+                    "off": "Désactivé",
+                    "on": "Activé",
+                    "term": "Terminaux seulement"
+                }
+            },
+            "app:tabbar": {
+                "label": "Position de la barre d'onglets",
+                "description": "Où se trouve la barre d'onglets.",
+                "options": {
+                    "top": "En haut",
+                    "left": "À gauche"
+                }
+            },
+            "app:tilelauncher": {
+                "label": "Lanceur en tuiles dans les panneaux vides",
+                "description": "Un panneau vide affiche le lanceur en tuiles au lieu de la palette de commandes."
+            },
+            "feature:waveappbuilder": {
+                "label": "Créateur d'apps",
+                "description": "Afficher l'outil Apps dans le rail en dehors des builds de développement."
+            },
+            "term:fontsize": {
+                "label": "Taille du texte",
+                "description": "La taille du texte des terminaux."
+            },
+            "term:fontfamily": {
+                "label": "Police",
+                "description": "Une police à chasse fixe installée sur cet ordinateur, comme Hack."
+            },
+            "term:theme": {
+                "label": "Thème",
+                "description": "Les couleurs de tous les terminaux qui n'ont pas leur propre thème."
+            },
+            "term:disablewebgl": {
+                "label": "Pas de WebGL dans les terminaux",
+                "description": "Dessiner les terminaux sans WebGL, plus lent mais plus sûr sur certains GPU."
+            },
+            "term:localshellpath": {
+                "label": "Shell",
+                "description": "Le shell que lancent les terminaux locaux, comme /bin/zsh ; vide, votre shell de connexion."
+            },
+            "term:localshellopts": {
+                "label": "Arguments du shell",
+                "description": "Les arguments passés au shell local."
+            },
+            "term:gitbashpath": {
+                "label": "Git Bash",
+                "description": "Où Git Bash est installé."
+            },
+            "term:scrollback": {
+                "label": "Historique",
+                "description": "Combien de lignes de sortie un terminal garde."
+            },
+            "term:copyonselect": {
+                "label": "Copier à la sélection",
+                "description": "Sélectionner du texte le copie."
+            },
+            "term:transparency": {
+                "label": "Transparence",
+                "description": "Quelle part du fond de la fenêtre se voit à travers un terminal."
+            },
+            "term:allowbracketedpaste": {
+                "label": "Collage délimité",
+                "description": "Les programmes distinguent le texte collé du texte tapé."
+            },
+            "term:shiftenternewline": {
+                "label": "Maj+Entrée insère une ligne",
+                "description": "Maj+Entrée envoie un saut de ligne au lieu d'Entrée."
+            },
+            "term:macoptionismeta": {
+                "label": "Option est Méta",
+                "description": "La touche Option envoie Méta aux programmes du terminal au lieu de taper des symboles."
+            },
+            "term:cursor": {
+                "label": "Curseur",
+                "description": "La forme du curseur du terminal.",
+                "options": {
+                    "block": "Bloc",
+                    "bar": "Barre",
+                    "underline": "Souligné"
+                }
+            },
+            "term:cursorblink": {
+                "label": "Curseur clignotant",
+                "description": "Le curseur clignote."
+            },
+            "term:bellsound": {
+                "label": "Son de la cloche",
+                "description": "Jouer un son quand un programme fait sonner la cloche."
+            },
+            "term:bellindicator": {
+                "label": "Indicateur de cloche",
+                "description": "Marquer l'onglet quand un programme fait sonner la cloche."
+            },
+            "term:osc52": {
+                "label": "Accès au presse-papiers",
+                "description": "Quand les programmes d'un terminal peuvent écrire dans le presse-papiers (OSC 52).",
+                "options": {
+                    "always": "Toujours",
+                    "focus": "Quand le terminal a le focus"
+                }
+            },
+            "term:durable": {
+                "label": "Sessions durables",
+                "description": "Les nouveaux terminaux continuent quand MoltenTerm quitte ou se met à jour."
+            },
+            "term:showsplitbuttons": {
+                "label": "Boutons de division dans les en-têtes",
+                "description": "Afficher les boutons de division dans les en-têtes des terminaux."
+            },
+            "term:trimtrailingwhitespace": {
+                "label": "Rogner les lignes copiées",
+                "description": "La copie retire les espaces à la fin de chaque ligne."
+            },
+            "agent:sessionroots": {
+                "label": "Autres dossiers de sessions",
+                "description": "Des dossiers de configuration en plus, par agent, dont le compagnon lit les sessions."
+            },
+            "agent:integrate": {
+                "label": "Intégration des agents",
+                "description": "claude et codex reçoivent les hooks et le navigateur de MoltenTerm à chaque lancement ; vos fichiers ne sont pas modifiés."
+            },
+            "agent:integrateoff": {
+                "label": "Sans intégration",
+                "description": "Les agents lancés sans l'intégration, tandis que les autres la gardent.",
+                "options": {
+                    "claude": "Claude Code",
+                    "codex": "Codex"
+                }
+            },
+            "review:language": {
+                "label": "Langue de la revue",
+                "description": "Langue du briefing et des réponses de la revue (fr, French...) ; vide : la langue de l'interface."
+            },
+            "app:language": {
+                "label": "Langue de l'interface",
+                "description": "La langue des menus, des panneaux et des boîtes de dialogue. S'applique aussitôt.",
+                "unset": "Comme le système"
+            },
+            "companion:usagegauges": {
+                "label": "Consommation du forfait",
+                "description": "Les agents dont le compagnon affiche la consommation du forfait.",
+                "options": {
+                    "claude": "Claude Code",
+                    "codex": "Codex"
+                }
+            },
+            "companion:usageclaudeoauth": {
+                "label": "Limites de Claude Code (expérimental)",
+                "description": "Lire les limites de Claude Code sur un point d'accès non documenté d'Anthropic, avec sa propre connexion."
+            },
+            "linemap:animation": {
+                "label": "Animer le plan de lignes",
+                "description": "Jouer la séquence de chargement et les trains en mouvement ; la réduction des animations la coupe."
+            },
+            "cicd:runs": {
+                "label": "Exécutions affichées",
+                "description": "Les exécutions qu'un panneau CI/CD affiche d'abord.",
+                "options": {
+                    "local": "CI locale",
+                    "remote": "CI distante",
+                    "cd": "CD"
+                }
+            },
+            "editor:minimapenabled": {
+                "label": "Minimap",
+                "description": "Afficher l'aperçu du code sur le bord droit de l'éditeur."
+            },
+            "editor:stickyscrollenabled": {
+                "label": "Défilement collant",
+                "description": "Garder les portées englobantes en haut de l'éditeur pendant le défilement."
+            },
+            "editor:wordwrap": {
+                "label": "Renvoyer les longues lignes",
+                "description": "L'éditeur renvoie à la ligne celles plus larges que le panneau."
+            },
+            "editor:fontsize": {
+                "label": "Taille du texte de l'éditeur",
+                "description": "La taille du texte des vues de fichiers et de l'éditeur."
+            },
+            "editor:inlinediff": {
+                "label": "Différences en ligne",
+                "description": "Afficher les différences sur une colonne plutôt que côte à côte."
+            },
+            "web:openlinksinternally": {
+                "label": "Ouvrir les liens dans MoltenTerm",
+                "description": "Les liens cliqués dans un terminal ou une page s'ouvrent dans un panneau navigateur."
+            },
+            "web:defaulturl": {
+                "label": "Page d'accueil",
+                "description": "La page qu'ouvre un nouveau panneau navigateur."
+            },
+            "web:defaultsearch": {
+                "label": "Moteur de recherche",
+                "description": "L'URL de recherche, avec {query} à la place des mots."
+            },
+            "browser:installed": {
+                "label": "Navigateur installé",
+                "description": "Le navigateur Chromium auquel les pages sont confiées.",
+                "unset": "Le premier trouvé",
+                "options": {
+                    "chrome": "Chrome",
+                    "brave": "Brave",
+                    "edge": "Edge",
+                    "arc": "Arc",
+                    "vivaldi": "Vivaldi",
+                    "opera": "Opera",
+                    "chromium": "Chromium"
+                }
+            },
+            "browser:default": {
+                "label": "Ouvrir les pages web dans",
+                "description": "Où les liens et les pages web s'ouvrent par défaut.",
+                "unset": "Demander pour chaque site",
+                "options": {
+                    "app": "Le navigateur de MoltenTerm",
+                    "installed": "Le navigateur installé"
+                }
+            },
+            "browser:sites": {
+                "label": "Navigateur par site",
+                "description": "Les sites qui s'ouvrent toujours dans le navigateur de MoltenTerm ou dans celui installé."
+            },
+            "browser:agentsites": {
+                "label": "Permissions des agents par site",
+                "description": "Les sites que les agents peuvent utiliser ou qui leur sont interdits dans le panneau navigateur."
+            },
+            "markdown:fontsize": {
+                "label": "Taille du texte Markdown",
+                "description": "La taille du texte courant du Markdown affiché."
+            },
+            "markdown:fixedfontsize": {
+                "label": "Taille du code Markdown",
+                "description": "La taille du texte du code dans le Markdown affiché."
+            },
+            "preview:showhiddenfiles": {
+                "label": "Afficher les fichiers cachés",
+                "description": "Les vues de fichiers listent les fichiers commençant par un point."
+            },
+            "preview:defaultsort": {
+                "label": "Trier les fichiers par",
+                "description": "L'ordre de la liste d'une vue de fichiers.",
+                "options": {
+                    "name": "Nom",
+                    "modtime": "Dernière modification"
+                }
+            },
+            "tab:preset": {
+                "label": "Préréglage d'onglet",
+                "description": "Le préréglage par lequel commencent les nouveaux onglets."
+            },
+            "tab:confirmclose": {
+                "label": "Confirmer avant de fermer un onglet",
+                "description": "Demander avant de fermer un onglet."
+            },
+            "tab:background": {
+                "label": "Fond des onglets",
+                "description": "Le fond des nouveaux onglets, parmi backgrounds.json."
+            },
+            "tab:holdtoclose": {
+                "label": "Maintenir pour fermer un onglet",
+                "description": "Le bouton de fermeture d'un onglet le ferme après un appui prolongé, pas un simple clic."
+            },
+            "tab:holdtoclosems": {
+                "label": "Durée de l'appui",
+                "description": "Combien de temps maintenir le bouton de fermeture avant que l'onglet se ferme."
+            },
+            "power:sleeppolicy": {
+                "label": "Garder l'ordinateur éveillé",
+                "description": "Si les terminaux peuvent garder l'ordinateur éveillé (caffeinate, systemd-inhibit).",
+                "unset": "Demander la première fois",
+                "options": {
+                    "allow": "Quand un terminal le demande",
+                    "untilworkends": "Jusqu'à la fin du travail",
+                    "letsleep": "Jamais"
+                }
+            },
+            "moltenterm:tabviewpriority": {
+                "label": "Charger les onglets en pleine priorité",
+                "description": "Les espaces de travail en cours d'ouverture se chargent avec la priorité de celui à l'écran : un ordinateur chargé ne les bloque pas."
+            },
+            "moltenterm:tabviewbudget": {
+                "label": "Limiter les espaces de travail cachés",
+                "description": "Les espaces de travail hors écran sont cachés, seuls les plus récents restent chargés ; les autres se rechargent à l'affichage."
+            },
+            "moltenterm:hiddentabviews": {
+                "label": "Espaces de travail cachés gardés chargés",
+                "description": "Combien d'espaces de travail hors écran restent chargés, pour y revenir instantanément."
+            },
+            "moltenterm:hiddentabviewsmb": {
+                "label": "Mémoire des espaces de travail cachés",
+                "description": "Au-delà, l'espace de travail caché utilisé le moins récemment est déchargé."
+            },
+            "moltenterm:tabviewhost": {
+                "label": "Ouvrir les onglets une fois prêts",
+                "description": "Un nouvel onglet remplace celui à l'écran une fois affiché, avec un état d'attente s'il est lent."
+            },
+            "moltenterm:hiddenpagefreeze": {
+                "label": "Mettre en pause les pages cachées",
+                "description": "Une page hors écran s'arrête jusqu'à son affichage, sauf si un agent la pilote ou si elle joue du son."
+            },
+            "moltenterm:hiddenpagediscardmin": {
+                "label": "Décharger les pages cachées après",
+                "description": "Une page hors écran depuis ce temps est déchargée, puis se recharge à l'affichage ; 0 les garde chargées."
+            },
+            "moltenterm:releasenotify": {
+                "label": "M'informer des nouvelles versions",
+                "description": "Une fois par jour au plus, demander à GitHub une version plus récente et afficher ses notes avec un lien de téléchargement."
+            },
+            "moltenterm:confirmbusyclose": {
+                "label": "Demander avant d'arrêter ce qui tourne",
+                "description": "Fermer un panneau ou un onglet où tourne un agent ou une commande demande d'abord, en nommant ce qui s'arrêterait."
+            },
+            "window:fullscreenonlaunch": {
+                "label": "Plein écran au lancement",
+                "description": "Ouvrir les fenêtres en plein écran."
+            },
+            "window:transparent": {
+                "label": "Fenêtre transparente",
+                "description": "Laisser voir le bureau à travers le fond de la fenêtre."
+            },
+            "window:blur": {
+                "label": "Flou derrière la fenêtre",
+                "description": "Flouter le bureau derrière une fenêtre transparente."
+            },
+            "window:opacity": {
+                "label": "Opacité de la fenêtre",
+                "description": "L'opacité d'une fenêtre transparente ou floutée."
+            },
+            "window:bgcolor": {
+                "label": "Fond de la fenêtre",
+                "description": "Une couleur CSS derrière les panneaux, comme #1f1f1f."
+            },
+            "window:reducedmotion": {
+                "label": "Réduire les animations",
+                "description": "Couper les animations, comme le fait le réglage de réduction des animations du système."
+            },
+            "window:tilegapsize": {
+                "label": "Espace entre les panneaux",
+                "description": "L'espace entre les panneaux d'un onglet."
+            },
+            "window:showmenubar": {
+                "label": "Barre de menus",
+                "description": "Afficher la barre de menus dans la fenêtre."
+            },
+            "window:nativetitlebar": {
+                "label": "Barre de titre native",
+                "description": "Utiliser la barre de titre du système."
+            },
+            "window:disablehardwareacceleration": {
+                "label": "Pas d'accélération matérielle",
+                "description": "Dessiner sans le GPU ; prend effet au prochain lancement."
+            },
+            "window:maxtabcachesize": {
+                "label": "Onglets gardés en mémoire",
+                "description": "Combien d'onglets restent chargés en arrière-plan."
+            },
+            "window:magnifiedblockopacity": {
+                "label": "Opacité de l'arrière-plan",
+                "description": "À quel point les panneaux derrière un panneau agrandi s'estompent."
+            },
+            "window:magnifiedblocksize": {
+                "label": "Taille agrandie",
+                "description": "Quelle part de l'onglet couvre un panneau agrandi."
+            },
+            "window:magnifiedblockblurprimarypx": {
+                "label": "Flou derrière le panneau agrandi",
+                "description": "Le flou derrière un panneau agrandi."
+            },
+            "window:magnifiedblockblursecondarypx": {
+                "label": "Flou secondaire",
+                "description": "Le flou derrière les autres couches d'un panneau agrandi."
+            },
+            "window:confirmclose": {
+                "label": "Confirmer avant de fermer une fenêtre",
+                "description": "Demander avant de fermer une fenêtre qui contient plusieurs onglets."
+            },
+            "window:savelastwindow": {
+                "label": "Rouvrir la dernière fenêtre",
+                "description": "Fermer la dernière fenêtre la garde, pour qu'elle se rouvre au prochain lancement."
+            },
+            "window:dimensions": {
+                "label": "Taille des nouvelles fenêtres",
+                "description": "La taille des nouvelles fenêtres, comme 1400x900."
+            },
+            "window:zoom": {
+                "label": "Zoom",
+                "description": "Le zoom du contenu de la fenêtre ; ⌘+ et ⌘- le changent."
+            },
+            "conn:askbeforewshinstall": {
+                "label": "Demander avant de l'installer",
+                "description": "Demander avant d'installer l'assistant sur un nouvel hôte."
+            },
+            "conn:wshenabled": {
+                "label": "Intégration du shell sur les hôtes distants",
+                "description": "Installer l'assistant de MoltenTerm sur les hôtes SSH, pour les vues de fichiers et le suivi du dossier."
+            },
+            "conn:localhostdisplayname": {
+                "label": "Nom de cet ordinateur",
+                "description": "Le nom de la connexion locale dans les en-têtes et les menus."
+            },
+            "debug:pprofport": {
+                "label": "Port du profileur",
+                "description": "Servir le pprof de Go sur ce port."
+            },
+            "debug:pprofmemprofilerate": {
+                "label": "Fréquence du profil mémoire",
+                "description": "La fréquence d'échantillonnage du profil mémoire de Go."
+            },
+            "debug:webglstatus": {
+                "label": "État de WebGL",
+                "description": "Indiquer si chaque terminal dessine avec WebGL."
+            },
+            "tsunami:scaffoldpath": {
+                "label": "Chemin du squelette",
+                "description": "Où se trouve le squelette du créateur d'apps."
+            },
+            "tsunami:sdkreplacepath": {
+                "label": "Chemin de remplacement du SDK",
+                "description": "Un SDK local utilisé à la place de celui publié."
+            },
+            "tsunami:sdkversion": {
+                "label": "Version du SDK",
+                "description": "La version du SDK avec laquelle les apps se construisent."
+            },
+            "tsunami:gopath": {
+                "label": "Binaire Go",
+                "description": "Le binaire Go avec lequel les apps se construisent."
+            }
+        },
+        "mods": {
+            "label": "Mods",
+            "intro": "Ce que coûte chaque mod dans cet onglet : le CPU au repos sur les dernières {seconds} s et la mémoire prise par son activation. Le budget est de {cpu} % de CPU et {mb} Mo.",
+            "disableHint": "Désactivez un mod avec",
+            "none": "Aucun mod",
+            "noneHint": "Demandez-en un à votre agent de code avec /morph.",
+            "builtin": "Intégré",
+            "background": "Arrière-plan",
+            "backgroundTitle": "Continue de tourner quand son onglet est caché",
+            "overBudget": "Hors budget",
+            "state": {
+                "active": "Actif",
+                "pending": "Se charge quand cet onglet s'affiche",
+                "loading": "Chargement",
+                "disabled": "Désactivé",
+                "untrusted": "Non approuvé",
+                "safemode": "Désactivé (mode sans échec)",
+                "failed": "Arrêté",
+                "refused": "Refusé"
+            },
+            "usage": {
+                "cpu": "{pct} % de CPU au repos",
+                "timers": {
+                    "one": "1 minuteur",
+                    "other": "{count} minuteurs"
+                },
+                "activation": "activation {ms} ms",
+                "heap": "{mb} Mo à l'activation"
+            }
+        },
+        "secrets": {
+            "new": {
+                "title": "Nouveau secret",
+                "hint": "Une lettre d'abord, puis des lettres, des chiffres et des tirets bas.",
+                "add": "Ajouter le secret"
+            },
+            "name": "Nom",
+            "value": "Valeur",
+            "detail": {
+                "hint": "Enregistrer remplace la valeur stockée.",
+                "placeholder": "Tapez une nouvelle valeur",
+                "hidden": "La valeur stockée reste cachée tant que vous ne l'affichez pas.",
+                "show": "Afficher la valeur",
+                "deleteName": "Supprimer {name}",
+                "keep": "Le garder",
+                "delete": "Supprimer…"
+            },
+            "stored": "Secrets enregistrés",
+            "loading": "Chargement des secrets…",
+            "none": "Aucun secret pour l'instant.",
+            "edit": "Modifier",
+            "addOne": "Ajouter un secret"
+        }
     }
 }
