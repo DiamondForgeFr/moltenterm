@@ -19,6 +19,7 @@ import (
 	"log"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -72,6 +73,16 @@ type session struct {
 	discussed map[string]bool
 	posts     []mcpreview.Post
 	nextPost  int
+	// postPrefix makes the posts' ids unique across sessions and restarts, as the review store keeps them.
+	postPrefix string
+	// The questions waiting for the agent to be idle (questions.go).
+	questions    []mcpreview.QueuedQuestion
+	nextQuestion int
+	queueRunning bool
+	// queueHold: the last question was typed without Enter, after a draft of the developer's; the next ones wait
+	// until the agent has started working on it.
+	queueHold bool
+	queueNote string
 	// baseOid: the merge base of the head with the base branch, read once per head.
 	baseOid string
 	// sources: the PR's sources for review_context, read once per head (context.go).
@@ -92,7 +103,7 @@ func (s *session) info(connected bool) mcpreview.SessionInfo {
 		HeadRef: s.rec.HeadRef, HeadOid: s.rec.HeadOid, BaseRef: s.rec.BaseRef, Worktree: s.rec.Worktree,
 		WorktreeKind: s.rec.WorktreeKind, Agent: s.rec.Agent, AgentName: molten.AgentDisplayName(s.rec.Agent),
 		BlockId: s.blockId, TabId: s.tabId, Command: s.rec.Command, State: s.state, Message: s.message,
-		StartedAt: s.rec.StartedAt, Connected: connected,
+		StartedAt: s.rec.StartedAt, Connected: connected, Questions: slices.Clone(s.questions), QueueNote: s.queueNote,
 	}
 }
 
@@ -146,6 +157,11 @@ type Env struct {
 	TypePrompt func(ctx context.Context, blockId string, line string) TypeOutcome
 	// SaveRecord writes a session's record back to its terminal block's meta.
 	SaveRecord func(ctx context.Context, blockId string, rec any) error
+	// AgentRun is the agent's run in a terminal as its state hooks report it (working, waiting, idle…); false when
+	// MoltenTerm has no record of one.
+	AgentRun func(blockId string) (molten.AgentRunInfo, bool)
+	// Sleep waits between two looks at a busy agent (questions.go); tests make it instant.
+	Sleep func(d time.Duration)
 }
 
 // conn is one molten-review server connected to its session.

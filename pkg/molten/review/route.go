@@ -173,8 +173,8 @@ func Start() {
 	})
 }
 
-// SessionPosted keeps what the review session posts that outlives it: the briefing (FR-REV-005 AC4), the comment
-// proposals and the replies on comments (FR-REV-009).
+// SessionPosted keeps what the review session posts that outlives it: the briefing (FR-REV-005 AC4), the answers to
+// the developer's questions (FR-REV-006), the comment proposals and the replies on comments (FR-REV-009).
 func (s *Service) SessionPosted(update mcpreview.Update) {
 	post := update.Post
 	if post == nil {
@@ -194,6 +194,9 @@ func (s *Service) SessionPosted(update mcpreview.Update) {
 	case mcpreview.PostReply:
 		what = "the reply on a comment"
 		_, err = s.changed(s.store.AddReply(k, *post))
+	case mcpreview.PostExplanation:
+		what = "the explanation"
+		_, err = s.changed(s.store.SetExplanation(k, explanationOf(*post)))
 	default:
 		return
 	}

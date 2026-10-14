@@ -36,8 +36,10 @@ const (
 	// The Review tab moved to a new head of the PR; asking for a new briefing types a prompt into the agent.
 	SetHeadCommand = "moltenreviewsethead"
 	BriefCommand   = "moltenreviewbrief"
-	// Ask the AI (FR-REV-003): the selection is set and the question typed into the session's terminal.
-	AskCommand = "moltenreviewask"
+	// Ask the AI (FR-REV-003): the selection is set and the question typed into the session's terminal, or queued
+	// while the agent is busy (FR-REV-006 AC4); a queued question can be removed.
+	AskCommand       = "moltenreviewask"
+	AskCancelCommand = "moltenreviewaskcancel"
 
 	// The agent's environment carries the session token (DS-REV-004); the MCP server sends it with each hello.
 	SessionTokenVarName = "MOLTEN_REVIEW_SESSION"
@@ -254,6 +256,20 @@ type SessionInfo struct {
 	StartedAt int64  `json:"startedat"`
 	// Connected: the agent's molten-review server is connected now.
 	Connected bool `json:"connected"`
+	// Questions: the developer's questions waiting for the agent to be idle, oldest first (FR-REV-006 AC4).
+	Questions []QueuedQuestion `json:"questions,omitempty"`
+	// QueueNote says why the queue does not move (a question typed without Enter) or what the last delivery did
+	// when it failed.
+	QueueNote string `json:"queuenote,omitempty"`
+}
+
+// QueuedQuestion is a question of Ask the AI that waits for the agent to be idle.
+type QueuedQuestion struct {
+	Id       string  `json:"id"`
+	Anchor   *Anchor `json:"anchor,omitempty"`
+	Text     string  `json:"text,omitempty"`
+	Question string  `json:"question"`
+	QueuedAt int64   `json:"queuedat"`
 }
 
 type StartResult struct {
@@ -311,24 +327,35 @@ type AskRequest struct {
 }
 
 // AskResult: Sent, the line was typed (Submitted: with Enter; otherwise it waits in the agent's prompt behind a draft
-// of the developer's). Busy: the agent is working or waiting for an answer, nothing was typed; ask again when it is
-// idle. Message says what happened in words.
+// of the developer's). Queued: the agent is working or waiting for an answer, or other questions wait before this
+// one: it is typed once the agent is idle (Position: 1 for the next one). Message says what happened in words.
 type AskResult struct {
-	Sent      bool   `json:"sent"`
-	Submitted bool   `json:"submitted,omitempty"`
-	Busy      bool   `json:"busy,omitempty"`
-	Line      string `json:"line,omitempty"`
-	Message   string `json:"message,omitempty"`
+	Sent       bool   `json:"sent"`
+	Submitted  bool   `json:"submitted,omitempty"`
+	Busy       bool   `json:"busy,omitempty"`
+	Queued     bool   `json:"queued,omitempty"`
+	QuestionId string `json:"questionid,omitempty"`
+	Position   int    `json:"position,omitempty"`
+	Line       string `json:"line,omitempty"`
+	Message    string `json:"message,omitempty"`
+}
+
+// AskCancelRequest removes a queued question.
+type AskCancelRequest struct {
+	SessionKey
+	QuestionId string `json:"questionid"`
 }
 
 // Post is what the agent posted through an output tool: a card of the AI panel, a comment proposal, a translation or
 // a note to keep. The later stories keep them in the review store (DS-REV-007).
 type Post struct {
-	Id            string   `json:"id"`
-	Kind          string   `json:"kind"`
-	At            int64    `json:"at"`
-	Markdown      string   `json:"markdown,omitempty"`
-	Text          string   `json:"text,omitempty"`
+	Id       string `json:"id"`
+	Kind     string `json:"kind"`
+	At       int64  `json:"at"`
+	Markdown string `json:"markdown,omitempty"`
+	Text     string `json:"text,omitempty"`
+	// Question: the developer's question an explanation answers (FR-REV-006).
+	Question      string   `json:"question,omitempty"`
 	Anchor        *Anchor  `json:"anchor,omitempty"`
 	Depth         string   `json:"depth,omitempty"`
 	Sources       []string `json:"sources,omitempty"`

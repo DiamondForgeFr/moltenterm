@@ -77,7 +77,8 @@ func TestAsk(t *testing.T) {
 	}
 	outcome = TypeOutcome{Retry: true, Message: "Claude Code is working: wait for its turn to end."}
 	out, err = m.Ask(ctx, mcpreview.AskRequest{SessionKey: key, Question: "et ensuite ?"})
-	if err != nil || out.Sent || !out.Busy || !strings.Contains(out.Message, "working") {
+	if err != nil || out.Sent || !out.Busy || !out.Queued || out.Position != 1 || !strings.Contains(out.Message, "working") {
 		t.Errorf("busy %+v: %v", out, err)
 	}
+	m.End(ctx, key)
 }
