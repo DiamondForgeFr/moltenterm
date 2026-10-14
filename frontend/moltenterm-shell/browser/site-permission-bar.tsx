@@ -134,7 +134,7 @@ export function SitePermissionBar({ permissions, tabId }: { permissions: SitePer
                 <Icon className="h-3.5 w-3.5" strokeWidth={2} aria-hidden={true} />
             </span>
             <div aria-live="polite" className="flex min-w-[150px] flex-1 items-baseline gap-2 truncate">
-                <span className="truncate text-primary">
+                <span className="max-w-full shrink-0 truncate text-primary">
                     {t("browser.sitePermission.title", { site: ask.site, what: t(sitePermissionWhatKey(ask.kinds)) })}
                 </span>
                 <span className="min-w-0 truncate text-secondary">{t("browser.sitePermission.detail")}</span>
