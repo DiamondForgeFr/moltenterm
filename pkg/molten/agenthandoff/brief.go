@@ -52,12 +52,12 @@ var errGoalRequired = errors.New("brief.goal is required: say what the receiver 
 
 // Party is one end of a handoff, as the brief and the typed prompt name it.
 type Party struct {
-	BlockId    string
-	FirstName  string
-	Agent      string
-	AgentName  string
-	Project    string
-	ProjectDir string
+	BlockId     string
+	FirstName   string
+	Agent       string
+	AgentName   string
+	Project     string
+	ProjectDir  string
 	Folder      string
 	WorkspaceId string
 	Workspace   string
