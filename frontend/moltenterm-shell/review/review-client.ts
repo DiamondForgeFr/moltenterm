@@ -412,6 +412,8 @@ export type ReviewDiscussResult = {
     sent: boolean;
     submitted?: boolean;
     busy?: boolean;
+    // starting: the agent was not ready, nothing was typed (review-ready.ts sends again).
+    starting?: boolean;
     line?: string;
     message?: string;
     state?: ReviewState;

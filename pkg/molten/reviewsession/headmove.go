@@ -90,5 +90,7 @@ type TypeOutcome struct {
 	Sent      bool
 	Submitted bool
 	Retry     bool
-	Message   string
+	// Starting: the session's agent is not ready yet (ready.go); Retry is set too.
+	Starting bool
+	Message  string
 }

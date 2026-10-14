@@ -4006,6 +4006,23 @@
         }
     },
     "review": {
+        "ready": {
+            "waiting": {
+                "question": "{agent} démarre : votre question lui est envoyée dès qu'il est prêt.",
+                "comment": "{agent} démarre : votre commentaire lui est envoyé dès qu'il est prêt.",
+                "translation": "{agent} démarre : votre demande de traduction lui est envoyée dès qu'il est prêt."
+            },
+            "ended": {
+                "question": "La session de revue s'est terminée avant que son agent soit prêt : votre question n'a pas été envoyée.",
+                "comment": "La session de revue s'est terminée avant que son agent soit prêt : votre commentaire n'a pas été envoyé.",
+                "translation": "La session de revue s'est terminée avant que son agent soit prêt : votre demande de traduction n'a pas été envoyée."
+            },
+            "notReady": {
+                "question": "L'agent n'était toujours pas prêt après {seconds} s : votre question n'a pas été envoyée. Réessayez.",
+                "comment": "L'agent n'était toujours pas prêt après {seconds} s : votre commentaire n'a pas été envoyé. Réessayez.",
+                "translation": "L'agent n'était toujours pas prêt après {seconds} s : votre demande de traduction n'a pas été envoyée. Réessayez."
+            }
+        },
         "ai": {
             "viewName": "Panneau IA",
             "viewNamePr": "Panneau IA · #{number}",

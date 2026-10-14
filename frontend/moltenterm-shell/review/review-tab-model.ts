@@ -76,6 +76,7 @@ import {
     TreeNode,
 } from "./review-model";
 import { missingTranslations } from "./review-publish";
+import { ReadyAnswer, ReadyWhat, sendWhenReady } from "./review-ready";
 import { watchReviewSheetRequests } from "./review-sheet-request";
 import { developerLanguage, ReviewSelection, stagedCount } from "./review-selection";
 import {
@@ -96,9 +97,6 @@ import {
 // The PR's head is asked from the collector at most this often while the tab shows (it reads GitHub at most once a
 // minute per project, NFR-REV-002).
 const HeadCheckMs = 30_000;
-// A review session started by Publish review is asked for the translations until its agent takes the prompt.
-const TranslateReadyMs = 30_000;
-const TranslateRetryMs = 1_500;
 
 export type ReviewMode = "full" | "since";
 
@@ -179,6 +177,8 @@ export type ReviewAiState = {
     status: "idle" | "starting" | "running" | "noagent" | "failed";
     message?: string;
     session?: ReviewSessionInfo;
+    // waiting: what a review action holds until the session's agent is ready (review-ready.ts), #638.
+    waiting?: ReadyWhat;
 };
 
 // The answer group the AI panel brings into view and highlights (a gutter marker's click); seq bumps on each ask.
@@ -777,12 +777,9 @@ export abstract class ReviewTabModel implements ViewModel {
                 const ai = globalStore.get(this.aiAtom);
                 throw new Error(ai.message || t("review.ai.notRunning"));
             }
-            const result = await askReviewSession(
-                { id: session.id },
-                ask.anchor,
-                ask.text,
-                question.trim(),
-                globalStore.get(this.depthAtom)
+            const depth = globalStore.get(this.depthAtom);
+            const result = await this.sendToSession("question", () =>
+                askReviewSession({ id: session.id }, ask.anchor, ask.text, question.trim(), depth)
             );
             globalStore.set(this.askAtom, (cur) => ({ ...cur, sending: false, result }));
             return result.sent || !!result.queued;
@@ -943,7 +940,9 @@ export abstract class ReviewTabModel implements ViewModel {
                 const ai = globalStore.get(this.aiAtom);
                 return { error: ai.message || t("review.cmt.sessionNotRunning") };
             }
-            const result = await discussReviewComment(pr.repo, pr.number, comment.id, message.trim());
+            const result = await this.sendToSession("comment", () =>
+                discussReviewComment(pr.repo, pr.number, comment.id, message.trim())
+            );
             if (result.state != null) {
                 globalStore.set(this.stateAtom, result.state);
             }
@@ -979,6 +978,27 @@ export abstract class ReviewTabModel implements ViewModel {
             globalStore.set(this.stateAtom, state);
         } catch (e) {
             console.log("[review] the comments could not be moved to the new head", e);
+        }
+    }
+
+    // sendToSession is the one path of the actions that type into the session (#638): sent again while its agent is
+    // starting, the AI panel saying what waits; an error when the session ends, or its agent never gets ready, first.
+    async sendToSession<T extends ReadyAnswer>(what: ReadyWhat, send: () => Promise<T>): Promise<T> {
+        const sessionId = globalStore.get(this.aiAtom).session?.id;
+        const setWaiting = (waiting: ReadyWhat) =>
+            globalStore.set(this.aiAtom, (ai) => (ai.waiting === waiting ? ai : { ...ai, waiting }));
+        try {
+            const out = await sendWhenReady(send, {
+                what,
+                alive: () => sessionId != null && globalStore.get(this.aiAtom).session?.id === sessionId,
+                onWaiting: () => setWaiting(what),
+            });
+            if (out.dropped != null) {
+                throw new Error(out.dropped);
+            }
+            return out.result;
+        } finally {
+            setWaiting(undefined);
         }
     }
 
@@ -1018,25 +1038,16 @@ export abstract class ReviewTabModel implements ViewModel {
             globalStore.set(this.publishAtom, (p) => ({ ...p, translate }));
         setTranslate({ status: "asking" });
         try {
-            const started = globalStore.get(this.aiAtom).session == null;
-            if (started) {
+            if (globalStore.get(this.aiAtom).session == null) {
                 await this.openAi();
             }
             if (globalStore.get(this.aiAtom).session == null) {
                 setTranslate({ status: "nosession", message: globalStore.get(this.aiAtom).message });
                 return;
             }
-            // A session started just now: its agent is ready for a typed prompt once its review tools connected; typed
-            // earlier, the prompt would wait without Enter.
-            const deadline = Date.now() + TranslateReadyMs;
-            while (started && !globalStore.get(this.aiAtom).session?.connected && Date.now() < deadline) {
-                await new Promise((resolve) => setTimeout(resolve, TranslateRetryMs));
-            }
-            let result = await translateReview(pr.dir, pr.repo, pr.number, all);
-            while (started && result.count > 0 && !result.sent && Date.now() < deadline) {
-                await new Promise((resolve) => setTimeout(resolve, TranslateRetryMs));
-                result = await translateReview(pr.dir, pr.repo, pr.number, all);
-            }
+            const result = await this.sendToSession("translation", () =>
+                translateReview(pr.dir, pr.repo, pr.number, all)
+            );
             globalStore.set(this.publishAtom, (p) => ({ ...p, language: result.language ?? p.language }));
             if (result.count === 0) {
                 setTranslate({ status: "none" });
