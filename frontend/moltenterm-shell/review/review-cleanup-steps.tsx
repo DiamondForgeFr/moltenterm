@@ -22,7 +22,7 @@ const StateIcons: Record<ReviewCleanupState, string> = {
     failed: "fa-solid fa-circle-xmark text-error",
 };
 
-const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded px-3 py-1.5 text-xs";
+const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded-6 px-3 py-1.5 text-12";
 
 type CleanupStepsProps = {
     result: ReviewCleanupResult;
@@ -37,7 +37,7 @@ export function CleanupSteps({ result, onConfirmWorktree, busy }: CleanupStepsPr
     }
     const pending = cleanupNeedsConfirmation(result);
     return (
-        <div className="flex flex-col gap-1.5 text-xs" data-testid="review-cleanup-steps">
+        <div className="flex flex-col gap-1.5 text-12" data-testid="review-cleanup-steps">
             {result.steps.map((step) => (
                 <div key={step.id} className="flex flex-col" data-step={step.id} data-state={step.state}>
                     <div className="flex items-center gap-2">
