@@ -92,6 +92,9 @@ import {
 // The PR's head is asked from the collector at most this often while the tab shows (it reads GitHub at most once a
 // minute per project, NFR-REV-002).
 const HeadCheckMs = 30_000;
+// A review session started by Publish review is asked for the translations until its agent takes the prompt.
+const TranslateReadyMs = 30_000;
+const TranslateRetryMs = 1_500;
 
 export type ReviewMode = "full" | "since";
 
@@ -985,14 +988,25 @@ export abstract class ReviewTabModel implements ViewModel {
             globalStore.set(this.publishAtom, (p) => ({ ...p, translate }));
         setTranslate({ status: "asking" });
         try {
-            if (globalStore.get(this.aiAtom).session == null) {
+            const started = globalStore.get(this.aiAtom).session == null;
+            if (started) {
                 await this.openAi();
             }
             if (globalStore.get(this.aiAtom).session == null) {
                 setTranslate({ status: "nosession", message: globalStore.get(this.aiAtom).message });
                 return;
             }
-            const result = await translateReview(pr.dir, pr.repo, pr.number, all);
+            // A session started just now: its agent is ready for a typed prompt once its review tools connected; typed
+            // earlier, the prompt would wait without Enter.
+            const deadline = Date.now() + TranslateReadyMs;
+            while (started && !globalStore.get(this.aiAtom).session?.connected && Date.now() < deadline) {
+                await new Promise((resolve) => setTimeout(resolve, TranslateRetryMs));
+            }
+            let result = await translateReview(pr.dir, pr.repo, pr.number, all);
+            while (started && result.count > 0 && !result.sent && Date.now() < deadline) {
+                await new Promise((resolve) => setTimeout(resolve, TranslateRetryMs));
+                result = await translateReview(pr.dir, pr.repo, pr.number, all);
+            }
             globalStore.set(this.publishAtom, (p) => ({ ...p, language: result.language ?? p.language }));
             if (result.count === 0) {
                 setTranslate({ status: "none" });
