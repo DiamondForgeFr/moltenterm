@@ -62,6 +62,7 @@ import { askQuitStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PA
 import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
 import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-PATCH (#276)
 import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
+import { initMoltentermSystemNotify } from "./moltenterm-system-notify"; // MOLTENTERM-PATCH (#605)
 import { initMoltentermTabActivity } from "./moltenterm-tab-activity"; // MOLTENTERM-PATCH (#455)
 import { initMoltentermTabViewBudget } from "./moltenterm-tabview-budget-live"; // MOLTENTERM-PATCH (#454)
 import { configureAutoUpdater, updater } from "./updater";
@@ -420,6 +421,7 @@ async function appMain() {
     initIpcHandlers();
     initBusyCloseReplies(electron.ipcMain); // MOLTENTERM-PATCH (#490): the renderers' answers to FR-SHELL-062's asks
     initMoltentermTabActivity(); // MOLTENTERM-PATCH (#455): window state for the tab activity model, before any window
+    initMoltentermSystemNotify(); // MOLTENTERM-PATCH (#605): system notifications while no window is in front
 
     await sleep(10); // wait a bit for wavesrv to be ready
     try {

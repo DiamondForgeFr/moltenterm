@@ -14,6 +14,7 @@ import { useAtomValue } from "jotai";
 import { Component, ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AgentHandoffGesture, answerAgentHandoff } from "./agent-handoff";
+import { startHandoffSystemNotifications } from "./handoff-system-notify";
 import { InlineCodeText } from "./inline-code";
 import { DepSyncHost } from "./mission/dep-sync";
 import {
@@ -401,6 +402,7 @@ export function NotificationCenter() {
     useEffect(() => startNotificationAutoRead(), []);
     useEffect(() => registerBuiltInGestures(), []);
     useEffect(() => startNotificationToasts(), []);
+    useEffect(() => startHandoffSystemNotifications(), []);
     const [anchor, setAnchor] = useState<{ top: number; right: number }>(null);
     const archived = archivedEntries(entries);
     const active = activeEntries(listed);

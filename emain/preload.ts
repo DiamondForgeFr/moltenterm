@@ -126,6 +126,14 @@ contextBridge.exposeInMainWorld("api", {
         ipcRenderer.on("moltenterm-webview-discard", listener);
         return () => ipcRenderer.removeListener("moltenterm-webview-discard", listener);
     },
+    // MOLTENTERM-PATCH (#605): a system notification while no window is in front (emain/moltenterm-system-notify.ts)
+    moltentermSystemNotify: (req: any) => ipcRenderer.invoke("moltenterm-system-notify", req),
+    moltentermSystemNotifyClose: (id: string) => ipcRenderer.send("moltenterm-system-notify-close", id),
+    onMoltentermSystemNotifyClick: (callback: (id: string) => void) => {
+        const listener = (_event, id) => callback(id);
+        ipcRenderer.on("moltenterm-system-notify-click", listener);
+        return () => ipcRenderer.removeListener("moltenterm-system-notify-click", listener);
+    },
 });
 
 // Custom event for "new-window"
