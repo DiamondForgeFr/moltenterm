@@ -4,6 +4,8 @@
 // The local CI's data on the panel side (FR-MC-011): mirrors pkg/molten/mission/ci.go. Kept apart from the components
 // so the rules can be tested without the app.
 
+import { labelRecord } from "./mission-i18n";
+
 export type CiStatus = "running" | "success" | "failure" | "cancelled" | "interrupted" | "queued";
 export type CiVerdictStatus = "success" | "failure" | "missing" | "running";
 
@@ -38,14 +40,14 @@ export type CiState = { runs: CiRunRecord[]; running?: string; branches: CiBranc
 
 export const CiPrepareJob = "prepare";
 
-export const CiStatusLabels: Record<CiStatus, string> = {
-    running: "running",
-    success: "passed",
-    failure: "failed",
-    cancelled: "cancelled",
-    interrupted: "interrupted",
-    queued: "waiting",
-};
+export const CiStatusLabels: Record<CiStatus, string> = labelRecord("mc.ci.status", [
+    "running",
+    "success",
+    "failure",
+    "cancelled",
+    "interrupted",
+    "queued",
+]);
 
 export function upsertCiRun(runs: CiRunRecord[], run: CiRunRecord): CiRunRecord[] {
     const rest = (runs ?? []).filter((r) => r.id !== run.id);

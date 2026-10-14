@@ -9,6 +9,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ScrimClass } from "../dialog-frame";
+import { t, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { ActionSecondaryClass } from "./action-button";
 import {
@@ -21,13 +22,13 @@ import {
     BranchPlan,
 } from "./mission-client";
 
-const KeepReasons: Record<Exclude<BranchKeepReason, "commits-after-pr">, string> = {
-    protected: "a main branch",
-    "not-on-trunk": "its code is not on the trunk yet",
-    "content-unknown": "git could not compare its content",
-    "checked-out": "open in a worktree",
-    "open-pr": "a pull request is open",
-    "pr-unknown": "GitHub did not say whether it has a pull request",
+const KeepReasonKeys: Record<Exclude<BranchKeepReason, "commits-after-pr">, string> = {
+    protected: "mc.branches.keep.protected",
+    "not-on-trunk": "mc.branches.keep.notOnTrunk",
+    "content-unknown": "mc.branches.keep.contentUnknown",
+    "checked-out": "mc.branches.keep.checkedOut",
+    "open-pr": "mc.branches.keep.openPr",
+    "pr-unknown": "mc.branches.keep.prUnknown",
 };
 
 const PlainButton =
@@ -41,22 +42,26 @@ export function branchLabel(b: BranchPlan): string {
 export function branchReason(b: BranchPlan, trunk: string): string {
     switch (b.reason) {
         case "merged-pr":
-            return `merged in #${b.pr}`;
+            return t("mc.branches.reason.mergedPr", { pr: b.pr });
         case "on-trunk":
-            return `its code is on ${trunk}`;
+            return t("mc.branches.reason.onTrunk", { trunk });
         case "patches-on-trunk":
-            return `its commits are on ${trunk} under new ids`;
+            return t("mc.branches.reason.patchesOnTrunk", { trunk });
         case "commits-after-pr":
-            return `commits after #${b.pr} was merged`;
+            return t("mc.branches.reason.commitsAfterPr", { pr: b.pr });
     }
-    return KeepReasons[b.reason as keyof typeof KeepReasons] ?? b.reason ?? "";
+    const key = KeepReasonKeys[b.reason as keyof typeof KeepReasonKeys];
+    return key ? t(key) : (b.reason ?? "");
 }
 
 export function cleanResultLine(result: BranchesCleanResult): string {
-    return `${result.deleted.length} branch(es) deleted${result.failed ? `, ${result.failed} failed` : ""}.`;
+    return result.failed
+        ? t("mc.branches.resultFailed", { deleted: result.deleted.length, failed: result.failed })
+        : t("mc.branches.result", { deleted: result.deleted.length });
 }
 
 function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose: () => void; onCleaned: () => void }) {
+    const t = useT();
     const [plan, setPlan] = useState<BranchesPlan>(null);
     const [error, setError] = useState<string>(null);
     const [busy, setBusy] = useState(false);
@@ -84,7 +89,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
     }, [dir]);
     const going = (plan?.branches ?? []).filter((b) => b.action === "delete");
     const staying = (plan?.branches ?? []).filter((b) => b.action === "keep");
-    const trunk = plan?.trunk || "the trunk";
+    const trunk = plan?.trunk || t("mc.builds.theTrunk");
     const answerOffer = (enable: boolean) =>
         fireAndForget(async () => {
             setOfferBusy(true);
@@ -122,11 +127,8 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                 data-testid="branch-cleanup"
             >
                 <div className="border-b border-border px-4 py-3">
-                    <div className="text-13 leading-5 font-semibold">Clean branches</div>
-                    <div className="mt-0.5 text-12 text-muted">
-                        Branches whose pull request was merged go, and so do those whose code is already on {trunk}. The
-                        main branches stay, and so does anything in doubt.
-                    </div>
+                    <div className="text-13 leading-5 font-semibold">{t("mc.branches.title")}</div>
+                    <div className="mt-0.5 text-12 text-muted">{t("mc.branches.intro", { trunk })}</div>
                 </div>
                 <div className="min-h-0 flex-1 overflow-auto px-4 py-3 text-12">
                     {error ? (
@@ -137,7 +139,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                     {plan == null && error == null ? (
                         <div className="flex items-center gap-2 text-muted">
                             <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
-                            Comparing each branch with {trunk}…
+                            {t("mc.branches.comparing", { trunk })}
                         </div>
                     ) : null}
                     {result ? (
@@ -157,8 +159,10 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                                 <AutoDeleteOffer done={offerAnswer === "on"} busy={offerBusy} onAnswer={answerOffer} />
                             ) : null}
                             <div>
-                                <div className="mb-1.5 font-medium text-muted">Would go ({going.length})</div>
-                                {going.length === 0 ? <p className="text-muted">Nothing to clean.</p> : null}
+                                <div className="mb-1.5 font-medium text-muted">
+                                    {t("mc.branches.wouldGo", { count: going.length })}
+                                </div>
+                                {going.length === 0 ? <p className="text-muted">{t("mc.branches.nothing")}</p> : null}
                                 {going.map((b) => (
                                     <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
                                         <i className="fa fa-solid fa-trash-can w-3.5 text-11 text-error" />
@@ -170,7 +174,9 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                                 ))}
                             </div>
                             <div>
-                                <div className="mb-1.5 font-medium text-muted">Stay ({staying.length})</div>
+                                <div className="mb-1.5 font-medium text-muted">
+                                    {t("mc.branches.stay", { count: staying.length })}
+                                </div>
                                 {staying.map((b) => (
                                     <div key={branchLabel(b)} className="flex items-center gap-2 py-0.5">
                                         <i className="fa fa-solid fa-code-branch w-3.5 text-11 text-muted" />
@@ -184,7 +190,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                 </div>
                 <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
                     <button type="button" onClick={onClose} className={PlainButton}>
-                        {result ? "Close" : "Cancel"}
+                        {result ? t("common.close") : t("common.cancel")}
                     </button>
                     {!result ? (
                         <button
@@ -200,7 +206,7 @@ function BranchCleanupDialog({ dir, onClose, onCleaned }: { dir: string; onClose
                             ) : (
                                 <i className="fa fa-solid fa-trash-can text-11" />
                             )}
-                            Delete {going.length} branch(es)
+                            {t("mc.branches.delete", { count: going.length })}
                         </button>
                     ) : null}
                 </div>
@@ -221,6 +227,7 @@ function AutoDeleteOffer({
     busy: boolean;
     onAnswer: (enable: boolean) => void;
 }) {
+    const t = useT();
     if (done) {
         return (
             <div
@@ -228,19 +235,16 @@ function AutoDeleteOffer({
                 data-testid="autodelete-offer"
             >
                 <i className="fa fa-solid fa-check mr-1.5 text-11 text-success" />
-                GitHub now deletes head branches when their pull request is merged.
+                {t("mc.branches.autoDeleteDone")}
             </div>
         );
     }
     return (
         <div className="flex flex-col gap-2 rounded-6 border border-border px-3 py-2" data-testid="autodelete-offer">
-            <div className="text-12 text-secondary">
-                GitHub keeps head branches after their pull request is merged on this repository. Turn on its
-                “Automatically delete head branches” setting so merged branches stop piling up?
-            </div>
+            <div className="text-12 text-secondary">{t("mc.branches.autoDeleteOffer")}</div>
             <div className="flex justify-end gap-2">
                 <button type="button" disabled={busy} onClick={() => onAnswer(false)} className={PlainButton}>
-                    Not now
+                    {t("mc.branches.notNow")}
                 </button>
                 <button
                     type="button"
@@ -249,7 +253,7 @@ function AutoDeleteOffer({
                     className="molten-btn cursor-pointer rounded-6 px-3 py-1 text-12 disabled:cursor-default disabled:opacity-60"
                 >
                     {busy ? <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1 text-11" /> : null}
-                    Turn on
+                    {t("mc.branches.turnOn")}
                     <MoltenWave />
                 </button>
             </div>
@@ -258,12 +262,13 @@ function AutoDeleteOffer({
 }
 
 export function BranchCleanupButton({ dir, onCleaned }: { dir: string; onCleaned: () => void }) {
+    const t = useT();
     const [open, setOpen] = useState(false);
     return (
         <>
             <button type="button" onClick={() => setOpen(true)} className={ActionSecondaryClass}>
                 <i className="fa fa-solid fa-broom text-11" />
-                Clean branches
+                {t("mc.branches.title")}
             </button>
             {open ? <BranchCleanupDialog dir={dir} onClose={() => setOpen(false)} onCleaned={onCleaned} /> : null}
         </>

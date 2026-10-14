@@ -8,6 +8,7 @@
 import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useMemo, useRef, useState } from "react";
+import { useT } from "../i18n/i18n";
 import { isReviewable } from "../reviews/reviews-model";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { checkIconState, CiIcon, CiIconLabels, githubRunIconState } from "./ci-icon";
@@ -25,10 +26,11 @@ import {
     WorkflowRun,
 } from "./github";
 import { githubRunLog, githubRunRerun } from "./mission-client";
+import { labelRecord } from "./mission-i18n";
 import { githubStateMessage, MissionGit, MissionGithub, PipelineReport, RunRecord } from "./mission-model";
 import { RecentBuilds } from "./runs-view";
 import { RegistryKind, RegistryRow, tagRegistry } from "./tag-registry";
-import { formatWhen, timeAgo } from "./time-format";
+import { dateLocale, formatWhen, timeAgo } from "./time-format";
 
 const ToneClasses: Record<CheckState, string> = {
     success: "border-success/40 bg-success/10 text-success",
@@ -58,7 +60,7 @@ export function formatDuration(ms: number): string {
 }
 
 function localTime(d: Date): string {
-    return d.toLocaleString("en-GB", {
+    return d.toLocaleString(dateLocale(), {
         weekday: "short",
         day: "numeric",
         month: "short",
@@ -108,17 +110,18 @@ function PullRequestsBlock({
     dir: string;
     prTarget: string;
 }) {
+    const t = useT();
     const prs = github?.prs;
     // The PRs the Reviews view lists get a Review action (FR-REV-001-AC3).
     const reviewTarget = prTarget || trunk;
     return (
         <section className="flex flex-col gap-2">
-            <BlockHeader title="Pull requests waiting" hint="hover: what it brings · merging happens on GitHub" />
+            <BlockHeader title={t("mc.remote.prsTitle")} hint={t("mc.remote.prsHint")} />
             {github?.errors?.prs ? <Problem text={github.errors.prs} /> : null}
             <div className="overflow-hidden rounded-4 border border-border">
                 {github == null ? <Placeholder rows={3} /> : null}
                 {github != null && (prs ?? []).length === 0 && !github.errors?.prs ? (
-                    <p className="p-3 text-13 leading-5 text-muted">No open pull request.</p>
+                    <p className="p-3 text-13 leading-5 text-muted">{t("mc.remote.noPr")}</p>
                 ) : null}
                 {(prs ?? []).map((pr) => {
                     const merge = mergeStateLabel(pr.isDraft ? "DRAFT" : pr.mergeStateStatus, pr.baseRefName || trunk);
@@ -135,8 +138,8 @@ function PullRequestsBlock({
                                         <span className="text-muted">#{pr.number}</span> {pr.title}
                                     </div>
                                     <div className="truncate text-12 text-muted">
-                                        <code>{pr.headRefName}</code> → <code>{pr.baseRefName}</code> · updated{" "}
-                                        {timeAgo(pr.updatedAt)}
+                                        <code>{pr.headRefName}</code> → <code>{pr.baseRefName}</code> ·{" "}
+                                        {t("mc.remote.updated")} {timeAgo(pr.updatedAt)}
                                     </div>
                                 </div>
                                 <div className="flex shrink-0 items-center gap-1.5">
@@ -149,21 +152,21 @@ function PullRequestsBlock({
                                                 )
                                             }
                                             className="flex cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 hover:bg-hover"
-                                            title="Open it in Reviews"
+                                            title={t("mc.remote.openInReviews")}
                                             data-testid="mission-pr-review"
                                         >
                                             <i className="fa fa-solid fa-code-pull-request text-11" />
-                                            Review
+                                            {t("mc.remote.review")}
                                         </button>
                                     ) : null}
                                     <button
                                         type="button"
                                         onClick={() => open(pr.url)}
                                         className="flex cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 hover:bg-hover"
-                                        title="Open on GitHub"
+                                        title={t("mc.remote.openOnGithub")}
                                     >
                                         <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
-                                        Open
+                                        {t("common.open")}
                                     </button>
                                 </div>
                             </div>
@@ -175,7 +178,7 @@ function PullRequestsBlock({
                                     <span
                                         key={c.name}
                                         className="flex items-center gap-1 rounded-4 border border-border px-1.5 py-0.5 text-12"
-                                        title={c.local ? "local check" : "GitHub job"}
+                                        title={c.local ? t("mc.remote.localCheck") : t("mc.remote.githubJob")}
                                     >
                                         <CheckIcon state={c.state} />
                                         {c.name}
@@ -191,15 +194,16 @@ function PullRequestsBlock({
 }
 
 function ScheduledBlock({ github }: { github: MissionGithub }) {
+    const t = useT();
     const schedules = useMemo(() => scheduledWorkflows(github?.workflows ?? []), [github?.workflows]);
     const now = new Date();
     return (
         <section className="flex flex-col gap-2">
-            <BlockHeader title="Scheduled jobs" hint="local times · GitHub may start them hours late" />
+            <BlockHeader title={t("mc.remote.scheduledTitle")} hint={t("mc.remote.scheduledHint")} />
             <div className="overflow-hidden rounded-4 border border-border">
                 {github == null ? <Placeholder rows={2} /> : null}
                 {github != null && schedules.length === 0 ? (
-                    <p className="p-3 text-13 leading-5 text-muted">No scheduled workflow.</p>
+                    <p className="p-3 text-13 leading-5 text-muted">{t("mc.remote.noScheduled")}</p>
                 ) : null}
                 {schedules.map((wf) => {
                     const next = wf.crons
@@ -225,7 +229,7 @@ function ScheduledBlock({ github }: { github: MissionGithub }) {
                                         className="flex shrink-0 cursor-pointer items-center gap-1 text-12 text-muted hover:text-primary"
                                     >
                                         <CheckIcon state={runState(last.status, last.conclusion)} />
-                                        last {timeAgo(last.createdAt)}
+                                        {t("mc.remote.last", { when: timeAgo(last.createdAt) })}
                                     </button>
                                 ) : null}
                             </div>
@@ -253,6 +257,7 @@ function ScheduledBlock({ github }: { github: MissionGithub }) {
 type RunLogView = { text: string; error: string; failedonly?: boolean; truncated?: boolean };
 
 export function RunLogBlock({ log }: { log: RunLogView }) {
+    const t = useT();
     if (log == null) {
         return <div className="h-16 mt-step-blink rounded-4 bg-hover" aria-busy="true" />;
     }
@@ -262,15 +267,15 @@ export function RunLogBlock({ log }: { log: RunLogView }) {
     return (
         <>
             <div className="pb-1 text-11 text-muted">
-                {log.failedonly ? "The failed steps" : "The whole log"}
-                {log.truncated ? ", its end" : ""}
+                {log.failedonly ? t("mc.remote.failedSteps") : t("mc.remote.wholeLog")}
+                {log.truncated ? t("mc.remote.itsEnd") : ""}
             </div>
             <pre
                 tabIndex={0}
-                aria-label="Log"
+                aria-label={t("mc.run.log")}
                 className="max-h-64 overflow-auto rounded-4 bg-black/50 p-2 font-mono text-11 leading-snug whitespace-pre-wrap text-[#e5e7eb]"
             >
-                {log.text === "" ? "(no output)" : log.text}
+                {log.text === "" ? t("mc.run.noOutput") : log.text}
             </pre>
         </>
     );
@@ -279,6 +284,7 @@ export function RunLogBlock({ log }: { log: RunLogView }) {
 // A GitHub run's row (FR-SHELL-057): its state as a shape, then Logs (read in the row through gh), Rerun (after a
 // question; the failed jobs of a red run) and GitHub, on hover and focus.
 function RunRow({ run, dir, onRefresh }: { run: WorkflowRun; dir: string; onRefresh: () => void }) {
+    const t = useT();
     const icon = githubRunIconState(run.status, run.conclusion);
     const active = icon === "running" || icon === "queued";
     const failed = icon === "failure";
@@ -351,10 +357,10 @@ function RunRow({ run, dir, onRefresh }: { run: WorkflowRun; dir: string; onRefr
                         <code>{run.headBranch}</code> · {timeAgo(run.createdAt)} · {run.displayTitle}
                     </div>
                 </div>
-                <RowActions label={`${run.workflowName} on ${run.headBranch}`}>
+                <RowActions label={t("mc.remote.runOn", { workflow: run.workflowName, branch: run.headBranch })}>
                     <RowAction
                         icon="fa-solid fa-file-lines"
-                        label={logOpen ? "Hide the log" : "Logs"}
+                        label={logOpen ? t("mc.remote.hideLog") : t("mc.ci.logs")}
                         expanded={logOpen}
                         onClick={toggleLog}
                         testId="ci-row-logs"
@@ -362,14 +368,16 @@ function RunRow({ run, dir, onRefresh }: { run: WorkflowRun; dir: string; onRefr
                     <RowAction
                         buttonRef={rerunRef}
                         icon="fa-solid fa-rotate-right"
-                        label={active ? "Rerun (once the run ends)" : failed ? "Rerun the failed jobs" : "Rerun"}
+                        label={
+                            active ? t("mc.remote.rerunLater") : failed ? t("mc.remote.rerunFailed") : t("mc.ci.rerun")
+                        }
                         disabled={active}
                         onClick={() => setConfirming(true)}
                         testId="ci-row-rerun"
                     />
                     <RowAction
                         icon="fa-brands fa-github"
-                        label="Open on GitHub"
+                        label={t("mc.remote.openOnGithub")}
                         onClick={() => open(run.url)}
                         testId="ci-row-github"
                     />
@@ -377,8 +385,11 @@ function RunRow({ run, dir, onRefresh }: { run: WorkflowRun; dir: string; onRefr
             </div>
             {confirming ? (
                 <RerunConfirm
-                    question={`Run ${failed ? "the failed jobs of " : ""}${run.workflowName} on ${run.headBranch} again on GitHub?`}
-                    confirmLabel={failed ? "Rerun failed jobs" : "Rerun"}
+                    question={t(failed ? "mc.remote.rerunFailedQuestion" : "mc.remote.rerunQuestion", {
+                        workflow: run.workflowName,
+                        branch: run.headBranch,
+                    })}
+                    confirmLabel={failed ? t("mc.remote.rerunFailedShort") : t("mc.ci.rerun")}
                     busy={busy}
                     error={error}
                     onConfirm={rerun}
@@ -395,15 +406,16 @@ function RunRow({ run, dir, onRefresh }: { run: WorkflowRun; dir: string; onRefr
 }
 
 function RecentRunsBlock({ github, dir, onRefresh }: { github: MissionGithub; dir: string; onRefresh: () => void }) {
+    const t = useT();
     const runs = github?.runs;
     return (
         <section className="flex flex-col gap-2">
-            <BlockHeader title="Recent jobs" hint="hover a job for its log, a rerun or GitHub" />
+            <BlockHeader title={t("mc.remote.recentTitle")} hint={t("mc.remote.recentHint")} />
             {github?.errors?.runs ? <Problem text={github.errors.runs} /> : null}
             <div className="overflow-hidden rounded-4 border border-border">
                 {github == null ? <Placeholder rows={4} /> : null}
                 {github != null && (runs ?? []).length === 0 && !github.errors?.runs ? (
-                    <p className="p-3 text-13 leading-5 text-muted">No recent job.</p>
+                    <p className="p-3 text-13 leading-5 text-muted">{t("mc.remote.noRecent")}</p>
                 ) : null}
                 {(runs ?? []).map((run) => (
                     <RunRow key={run.databaseId} run={run} dir={dir} onRefresh={onRefresh} />
@@ -441,11 +453,7 @@ export function RemoteCiTab({
     );
 }
 
-const KindLabels: Record<RegistryKind, string> = {
-    planned: "planned",
-    rc: "release candidate",
-    public: "public",
-};
+const KindLabels: Record<RegistryKind, string> = labelRecord("mc.registry.kind", ["planned", "rc", "public"]);
 
 const KindIcons: Record<RegistryKind, string> = {
     planned: "fa-map-pin text-muted",
@@ -457,6 +465,7 @@ const RowButton =
     "flex shrink-0 cursor-pointer items-center gap-1 rounded-6 border border-border px-1.5 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary";
 
 function RegistryLine({ row, repoUrl, github }: { row: RegistryRow; repoUrl: string; github: MissionGithub }) {
+    const t = useT();
     const [notes, setNotes] = useState(false);
     const link =
         row.kind === "planned"
@@ -483,33 +492,39 @@ function RegistryLine({ row, repoUrl, github }: { row: RegistryRow; repoUrl: str
                 </span>
                 <span className="rounded-4 border border-border px-1 text-11 text-muted">{KindLabels[row.kind]}</span>
                 {row.github?.latest ? (
-                    <span className="rounded-4 bg-accent/20 px-1 text-11 text-primary">latest</span>
+                    <span className="rounded-4 bg-accent/20 px-1 text-11 text-primary">{t("mc.registry.latest")}</span>
                 ) : null}
                 {row.github?.draft ? (
-                    <span className="rounded-4 border border-warning/50 px-1 text-11 text-warning">draft</span>
+                    <span className="rounded-4 border border-warning/50 px-1 text-11 text-warning">
+                        {t("mc.registry.draft")}
+                    </span>
                 ) : null}
                 {row.kind !== "planned" && !row.github && github?.state === "ok" ? (
-                    <span className="text-11 text-muted">tag only</span>
+                    <span className="text-11 text-muted">{t("mc.registry.tagOnly")}</span>
                 ) : null}
                 {row.builds.map((b) => (
                     <span
                         key={b}
                         className="flex items-center gap-1 rounded-4 border border-border px-1 text-11 text-secondary"
-                        title={`A local ${b} build was made from this tag's commit`}
+                        title={t("mc.registry.builtTitle", { build: b })}
                     >
                         <i className="fa fa-solid fa-hammer text-11 text-muted" />
-                        {b} built
+                        {t("mc.registry.built", { build: b })}
                     </span>
                 ))}
                 {row.milestone ? (
                     <span className="text-11 text-muted" title={row.milestone.title}>
-                        {total === 0 ? "milestone with no issue" : `${row.milestone.closed} of ${total} issues closed`}
+                        {total === 0
+                            ? t("mc.registry.noIssue")
+                            : t("mc.registry.issuesClosed", { closed: row.milestone.closed, total })}
                     </span>
                 ) : null}
                 <span className="ml-auto flex items-center gap-1.5">
                     {row.date ? (
                         <span className="text-12 text-muted" title={formatWhen(row.date)}>
-                            {row.kind === "planned" ? `due ${timeAgo(row.date)}` : timeAgo(row.date)}
+                            {row.kind === "planned"
+                                ? t("mc.registry.due", { when: timeAgo(row.date) })
+                                : timeAgo(row.date)}
                         </span>
                     ) : null}
                     {row.notes ? (
@@ -519,7 +534,7 @@ function RegistryLine({ row, repoUrl, github }: { row: RegistryRow; repoUrl: str
                             aria-expanded={notes}
                             onClick={() => setNotes(!notes)}
                         >
-                            {notes ? "Hide notes" : "Notes"}
+                            {notes ? t("mc.registry.hideNotes") : t("mc.registry.notes")}
                         </button>
                     ) : null}
                     {link ? (
@@ -527,10 +542,12 @@ function RegistryLine({ row, repoUrl, github }: { row: RegistryRow; repoUrl: str
                             type="button"
                             className={RowButton}
                             onClick={() => open(link)}
-                            title={row.kind === "planned" ? "Open the milestone" : "Open the release page"}
+                            title={
+                                row.kind === "planned" ? t("mc.registry.openMilestone") : t("mc.registry.openRelease")
+                            }
                         >
                             <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
-                            Open
+                            {t("common.open")}
                         </button>
                     ) : null}
                 </span>
@@ -555,15 +572,16 @@ export function CdTab({
     pipeline: PipelineReport;
     runs: RunRecord[];
 }) {
+    const t = useT();
     const registry = useMemo(() => tagRegistry(git, github, runs), [git, github, runs]);
     const repoUrl = github?.url || git?.remoteurl;
     const builds = pipeline?.valid ? (pipeline.pipeline?.builds ?? []) : [];
     return (
         <div className="flex flex-col gap-5">
             <section className="flex flex-col gap-2">
-                <BlockHeader title="Local builds" hint="gold and other builds made on this machine, with their logs" />
+                <BlockHeader title={t("mc.registry.localBuilds")} hint={t("mc.registry.localBuildsHint")} />
                 {builds.length === 0 ? (
-                    <Notice text="No local build declared: they appear here once the project's pipeline declares one." />
+                    <Notice text={t("mc.registry.noBuildDeclared")} />
                 ) : (
                     <div className="overflow-hidden rounded-4 border border-border">
                         <RecentBuilds runs={runs} />
@@ -571,14 +589,11 @@ export function CdTab({
                 )}
             </section>
             <section className="flex flex-col gap-2">
-                <BlockHeader
-                    title="Tag registry"
-                    hint="every version tag, and the versions planned in a milestone · newest first"
-                />
+                <BlockHeader title={t("mc.registry.title")} hint={t("mc.registry.hint")} />
                 {githubStateMessage(github) ? <Notice text={githubStateMessage(github)} /> : null}
                 <div className="overflow-hidden rounded-4 border border-border">
                     {registry.length === 0 ? (
-                        <p className="p-3 text-13 leading-5 text-muted">No version tagged yet.</p>
+                        <p className="p-3 text-13 leading-5 text-muted">{t("mc.registry.noTag")}</p>
                     ) : null}
                     {registry.map((row) => (
                         <RegistryLine key={`${row.kind}:${row.tag}`} row={row} repoUrl={repoUrl} github={github} />

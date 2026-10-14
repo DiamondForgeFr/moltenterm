@@ -7,11 +7,13 @@
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { getOverrideConfigAtom } from "@/app/store/global";
 import { atom, useAtomValue } from "jotai";
+import { useT } from "../i18n/i18n";
 import { CiState } from "./ci-model";
 import { LineMap } from "./line-map";
 import { MoltentermLineMapView } from "./line-map-model";
 import { useCiState, useReleaseSession } from "./mission-client";
 import { ActiveProject, MissionFrame, MissionHeader } from "./mission-frame";
+import { tAtom } from "./mission-i18n";
 import { MissionSnapshot } from "./mission-model";
 
 export { MoltentermLineMapView };
@@ -21,7 +23,7 @@ export class LineMapViewModel implements ViewModel {
     blockId: string;
     nodeModel: BlockNodeModel;
     viewIcon = atom("timeline");
-    viewName = atom("Line map");
+    viewName = tAtom("mc.lineMap.viewName");
     noPadding = atom(true);
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
@@ -43,8 +45,9 @@ export function ciRunningBranch(ci: CiState): string {
 }
 
 function LineMapFullView({ blockId }: ViewComponentProps<LineMapViewModel>) {
+    const t = useT();
     return (
-        <MissionFrame title="The line map">
+        <MissionFrame title={t("mc.lineMap.frameTitle")}>
             {({ project, snapshot, refresh }) => (
                 <LineMapFullContent
                     key={project.dir}

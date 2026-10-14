@@ -8,6 +8,7 @@
 // (NFR-MC-004).
 
 import { cn } from "@/util/util";
+import { t, useT } from "../i18n/i18n";
 import { formatWhen, NextReleaseView, ReleaseBar, ReleasesView, ReleaseView } from "../project/overview-cards-model";
 
 const BarClasses: Record<ReleaseBar["key"], string> = {
@@ -18,7 +19,7 @@ const BarClasses: Record<ReleaseBar["key"], string> = {
 
 export function daysSince(iso: string, now = Date.now()): string {
     const days = Math.round((now - new Date(iso).getTime()) / 86_400_000);
-    return days <= 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
+    return days <= 0 ? t("mc.time.today") : days === 1 ? t("mc.time.yesterday") : t("mc.time.daysAgo", { days });
 }
 
 function Bar({ bar, index }: { bar: ReleaseBar; index: number }) {
@@ -47,6 +48,7 @@ function Waiting({ rows }: { rows: number }) {
 }
 
 export function NextPublicRelease({ view }: { view: NextReleaseView }) {
+    const t = useT();
     if (view == null) {
         return <Waiting rows={3} />;
     }
@@ -61,16 +63,18 @@ export function NextPublicRelease({ view }: { view: NextReleaseView }) {
                     <span className="font-mono text-secondary tabular-nums" data-testid="release-pending">
                         {view.total}
                     </span>{" "}
-                    {view.total === 1 ? "change" : "changes"} {view.scope}{" "}
+                    {view.total === 1 ? t("mc.release.change") : t("mc.release.changes")} {view.scope}{" "}
                 </p>
             </div>
             <div className="mt-auto" data-testid="release-milestone">
                 {milestone ? (
                     <div
                         className="flex items-center gap-2 text-12 text-secondary"
-                        title={`${milestone.closed} closed, ${milestone.open} open`}
+                        title={t("mc.release.milestoneCounts", { closed: milestone.closed, open: milestone.open })}
                     >
-                        <span className="max-w-[45%] shrink-0 truncate">Milestone {milestone.title}</span>
+                        <span className="max-w-[45%] shrink-0 truncate">
+                            {t("mc.release.milestone", { title: milestone.title })}
+                        </span>
                         <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-hover">
                             <div
                                 className="molten-bar h-full rounded-full bg-success"
@@ -78,7 +82,7 @@ export function NextPublicRelease({ view }: { view: NextReleaseView }) {
                             />
                         </div>
                         <span className="shrink-0 font-mono text-11 whitespace-nowrap tabular-nums">
-                            {milestone.percent} % · {milestone.open} open
+                            {t("mc.release.milestonePercent", { percent: milestone.percent, open: milestone.open })}
                         </span>
                     </div>
                 ) : (
@@ -105,13 +109,14 @@ function ReleaseTitle({ release }: { release: ReleaseView }) {
 }
 
 export function ReleaseHistory({ view }: { view: ReleasesView }) {
+    const t = useT();
     if (view == null) {
         return <Waiting rows={2} />;
     }
     return (
         <div className="flex flex-col gap-3" data-testid="release-history">
             <div className="flex flex-col gap-1" data-testid="release-rc">
-                <span className="text-12 text-muted">Last release candidate</span>
+                <span className="text-12 text-muted">{t("mc.release.lastRc")}</span>
                 {view.rc ? (
                     <>
                         <ReleaseTitle release={view.rc} />
@@ -120,21 +125,21 @@ export function ReleaseHistory({ view }: { view: ReleasesView }) {
                                 {view.rc.excerpt}
                             </p>
                         ) : (
-                            <p className="text-12 text-muted">No notes found for this tag.</p>
+                            <p className="text-12 text-muted">{t("mc.release.noNotes")}</p>
                         )}
                     </>
                 ) : (
-                    <p className="text-13 text-secondary">No release candidate yet.</p>
+                    <p className="text-13 text-secondary">{t("mc.release.noRc")}</p>
                 )}
             </div>
             <div className="h-px bg-border" />
             <div className="flex flex-col gap-1" data-testid="release-public">
-                <span className="text-12 text-muted">Last public release</span>
+                <span className="text-12 text-muted">{t("mc.release.lastPublic")}</span>
                 {view.public ? (
                     <ReleaseTitle release={view.public} />
                 ) : (
                     <p className="text-13">
-                        <span className="font-semibold text-primary">None yet.</span>{" "}
+                        <span className="font-semibold text-primary">{t("mc.release.noneYet")}</span>{" "}
                         <span className="text-secondary">{view.firstPublic}</span>
                     </p>
                 )}

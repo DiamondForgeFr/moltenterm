@@ -5,6 +5,8 @@
 // why it is stuck when it is. Everything is derived from the facts wavesrv reads (pkg/molten/mission/release_facts.go)
 // and from the steps the pipeline declares per phase; MoltenTerm only orders them and shows their state.
 
+import { t } from "../i18n/i18n";
+import { labelRecord } from "./mission-i18n";
 import { PipelineReleaseStep, ReleasePhase } from "./mission-model";
 import { ReleaseChannel, ReleaseSession, releaseStepPhases } from "./release-model";
 
@@ -103,19 +105,18 @@ export type ReleaseRun = {
 // must match ReleasePreparationStepId in pkg/molten/mission/release.go: no declared step id can start with "@".
 export const PreparationStep = "@preparation";
 
-export const PhaseTitles: Record<ReleasePhase, string> = {
-    prepare: "Prepare",
-    cut: "Cut",
-    build: "Build",
-    publish: "Publish",
-    back: "Back to the trunk",
-};
-
+export const PhaseTitles: Record<ReleasePhase, string> = labelRecord("mc.releaseRun.phase", [
+    "prepare",
+    "cut",
+    "build",
+    "publish",
+    "back",
+]);
 const FailedConclusions = new Set(["failure", "cancelled", "timed_out", "startup_failure"]);
 
 const stepTitle = (step: PipelineReleaseStep) => step.title || step.id;
 
-const lastWords = (fact: ReleaseStepFact) => fact.tail[fact.tail.length - 1] ?? "no message";
+const lastWords = (fact: ReleaseStepFact) => fact.tail[fact.tail.length - 1] ?? t("mc.releaseRun.noMessage");
 
 // A step that ended badly, or stopped without saying how it ended.
 const broke = (fact: ReleaseStepFact) => fact != null && !fact.running && fact.state !== "success";
@@ -181,7 +182,12 @@ function confirmOf(step: PipelineReleaseStep, facts: ReleaseFacts): string {
 }
 
 function runAgain(step: PipelineReleaseStep, facts: ReleaseFacts): PhaseAction {
-    return { kind: "step", step: step.id, label: `Run “${stepTitle(step)}” again`, confirm: confirmOf(step, facts) };
+    return {
+        kind: "step",
+        step: step.id,
+        label: t("mc.releaseRun.runAgain", { step: stepTitle(step) }),
+        confirm: confirmOf(step, facts),
+    };
 }
 
 function runStep(step: PipelineReleaseStep, facts: ReleaseFacts): PhaseAction {
@@ -200,11 +206,11 @@ function stepsPhase(base: Phase, steps: PipelineReleaseStep[], facts: ReleaseFac
         return {
             ...base,
             status: "failed",
-            expect: "Fix it, then run it again.",
+            expect: t("mc.releaseRun.fixRunAgain"),
             cause:
                 fact.state === "lost"
-                    ? `“${stepTitle(seq.failed)}” stopped without a word (the machine slept?).`
-                    : `“${stepTitle(seq.failed)}” failed: ${lastWords(fact)}`,
+                    ? t("mc.releaseRun.stepLost", { step: stepTitle(seq.failed) })
+                    : t("mc.releaseRun.stepFailed", { step: stepTitle(seq.failed), words: lastWords(fact) }),
             action: runAgain(seq.failed, facts),
             redo: before ? runAgain(before, facts) : undefined,
             log: fact,
@@ -214,7 +220,7 @@ function stepsPhase(base: Phase, steps: PipelineReleaseStep[], facts: ReleaseFac
         return {
             ...base,
             status: "waiting",
-            expect: `Next: ${stepTitle(seq.next)}.`,
+            expect: t("mc.releaseRun.next", { step: stepTitle(seq.next) }),
             action: runStep(seq.next, facts),
         };
     }
@@ -224,34 +230,39 @@ function stepsPhase(base: Phase, steps: PipelineReleaseStep[], facts: ReleaseFac
 function prepare(facts: ReleaseFacts, steps: PipelineReleaseStep[]): Phase {
     const base: Phase = { id: "prepare", title: PhaseTitles.prepare, status: "done", expect: "", links: [] };
     if (facts.tagexists) {
-        return { ...base, expect: "Prepared." };
+        return { ...base, expect: t("mc.releaseRun.prepared") };
     }
     if (steps.length === 0) {
-        return { ...base, expect: "The pipeline declares nothing to prepare." };
+        return { ...base, expect: t("mc.releaseRun.nothingToPrepare") };
     }
-    const retry: PhaseAction = { kind: "prepare", label: "Retry the preparation" };
+    const retry: PhaseAction = { kind: "prepare", label: t("mc.releaseRun.retryPreparation") };
     const fact = facts.preparation;
     if (fact?.running) {
         const at = steps.find((s) => s.id === fact.phases[fact.phases.length - 1]);
-        return { ...base, status: "running", expect: `${at ? stepTitle(at) : "Preparing"}…`, log: fact };
+        return {
+            ...base,
+            status: "running",
+            expect: `${at ? stepTitle(at) : t("mc.releaseRun.preparing")}…`,
+            log: fact,
+        };
     }
     if (broke(fact)) {
         return {
             ...base,
             status: "failed",
-            expect: "Fix it, then retry the preparation.",
+            expect: t("mc.releaseRun.fixRetryPreparation"),
             cause:
                 fact.state === "lost"
-                    ? "The preparation stopped without a word (the machine slept?)."
-                    : `The preparation failed: ${lastWords(fact)}`,
+                    ? t("mc.releaseRun.preparationLost")
+                    : t("mc.releaseRun.preparationFailed", { words: lastWords(fact) }),
             action: retry,
             log: fact,
         };
     }
     if (fact?.state === "success") {
-        return { ...base, expect: steps.map(stepTitle).join(", ") + ": done." };
+        return { ...base, expect: t("mc.releaseRun.stepsDone", { steps: steps.map(stepTitle).join(", ") }) };
     }
-    return { ...base, status: "waiting", expect: "The preparation did not run: start it again.", action: retry };
+    return { ...base, status: "waiting", expect: t("mc.releaseRun.preparationNotRun"), action: retry };
 }
 
 function cut(
@@ -263,16 +274,21 @@ function cut(
 ): Phase {
     const base: Phase = { id: "cut", title: PhaseTitles.cut, status: "todo", expect: "", links: [] };
     if (facts.tagexists) {
-        return { ...base, status: "done", expect: `${tag} is tagged.` };
+        return { ...base, status: "done", expect: t("mc.releaseRun.tagged", { tag }) };
     }
     if (!ready) {
-        return { ...base, expect: "Waits for the preparation." };
+        return { ...base, expect: t("mc.releaseRun.waitsPreparation") };
     }
     if (notesStep && facts.steps[notesStep.id]?.running) {
-        return { ...base, status: "running", expect: "Rewriting the public notes…", log: facts.steps[notesStep.id] };
+        return {
+            ...base,
+            status: "running",
+            expect: t("mc.releaseRun.rewritingNotes"),
+            log: facts.steps[notesStep.id],
+        };
     }
     if (steps.length === 0) {
-        return { ...base, status: "waiting", expect: `Cut ${tag} at the terminal: the pipeline declares no cut step.` };
+        return { ...base, status: "waiting", expect: t("mc.releaseRun.cutAtTerminal", { tag }) };
     }
     const phase = stepsPhase(base, steps, facts);
     if (phase == null) {
@@ -280,8 +296,8 @@ function cut(
         return {
             ...base,
             status: "failed",
-            expect: "Run the cut again, or cut at the terminal.",
-            cause: `The cut steps ran, but ${tag} is not on origin.`,
+            expect: t("mc.releaseRun.cutAgain"),
+            cause: t("mc.releaseRun.cutNotOnOrigin", { tag }),
             action: runAgain(last, facts),
         };
     }
@@ -296,38 +312,35 @@ function cut(
     if (!declared && !inferred) {
         return phase;
     }
-    const confirm =
-        declared ?? `“${action.label}” may push ${tag}: once pushed, the tag is public and cannot be taken back.`;
+    const confirm = declared ?? t("mc.releaseRun.mayPush", { step: action.label, tag });
     return {
         ...phase,
-        action: { ...action, label: declared ? `Cut ${tag}` : action.label, confirm },
-        expect: facts.notes
-            ? "Read the public notes, fix them if needed, then cut."
-            : `Then cut: ${tag} becomes public once pushed.`,
+        action: { ...action, label: declared ? t("mc.releaseRun.cutTag", { tag }) : action.label, confirm },
+        expect: facts.notes ? t("mc.releaseRun.readNotes") : t("mc.releaseRun.thenCut", { tag }),
     };
 }
 
 function build(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[]): Phase {
     const base: Phase = { id: "build", title: PhaseTitles.build, status: "todo", expect: "", links: [] };
     if (!facts.tagexists) {
-        return { ...base, expect: "Starts once the tag is pushed." };
+        return { ...base, expect: t("mc.releaseRun.startsOnTag") };
     }
     if (steps.length > 0) {
-        return stepsPhase(base, steps, facts) ?? { ...base, status: "done", expect: "Built." };
+        return stepsPhase(base, steps, facts) ?? { ...base, status: "done", expect: t("mc.builds.built") };
     }
     if (facts.nogithub) {
-        return { ...base, status: "done", expect: "Nothing to follow: not on GitHub, and no build step declared." };
+        return { ...base, status: "done", expect: t("mc.releaseRun.noBuildToFollow") };
     }
     const runs = facts.runs ?? [];
     const links = runs.map((r) => ({ label: r.workflowName, url: r.url }));
     if (runs.length === 0) {
         if (facts.release) {
-            return { ...base, status: "done", expect: "No workflow ran for the tag on GitHub." };
+            return { ...base, status: "done", expect: t("mc.releaseRun.noWorkflow") };
         }
         if (facts.githuberror) {
-            return { ...base, status: "waiting", expect: "GitHub could not be read.", cause: facts.githuberror };
+            return { ...base, status: "waiting", expect: t("mc.releaseRun.githubUnread"), cause: facts.githuberror };
         }
-        return { ...base, status: "running", expect: `Waiting for a GitHub run started by ${tag}…` };
+        return { ...base, status: "running", expect: t("mc.releaseRun.waitingRun", { tag }) };
     }
     const newest = new Map<string, ReleaseGhRun>();
     for (const run of runs) {
@@ -340,59 +353,61 @@ function build(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[]): 
     if (latest.some((r) => r.status !== "completed")) {
         const jobs = facts.jobs ?? [];
         const done = jobs.filter((j) => j.status === "completed").length;
-        return { ...base, links, status: "running", expect: `${done}/${jobs.length || "?"} jobs done.` };
+        return {
+            ...base,
+            links,
+            status: "running",
+            expect: t("mc.releaseRun.jobsDone", { done, total: jobs.length || "?" }),
+        };
     }
     const red = latest.filter((r) => FailedConclusions.has(r.conclusion));
     if (red.length === 0) {
-        return { ...base, links, status: "done", expect: "Built on GitHub." };
+        return { ...base, links, status: "done", expect: t("mc.releaseRun.builtOnGithub") };
     }
     const failedJobs = (facts.jobs ?? []).filter((j) => FailedConclusions.has(j.conclusion)).map((j) => j.name);
     return {
         ...base,
         links,
         status: "failed",
-        expect: "Rerun the failed jobs, or fix and cut again.",
+        expect: t("mc.releaseRun.rerunOrFix"),
         cause: failedJobs.length
-            ? `Failed: ${failedJobs.join(", ")}.`
-            : `${red.map((r) => r.workflowName).join(", ")} ended in “${red[0].conclusion}”.`,
-        action: { kind: "rerun", label: "Rerun the failed jobs" },
+            ? t("mc.releaseRun.failedJobs", { jobs: failedJobs.join(", ") })
+            : t("mc.releaseRun.endedIn", {
+                  workflows: red.map((r) => r.workflowName).join(", "),
+                  conclusion: red[0].conclusion,
+              }),
+        action: { kind: "rerun", label: t("mc.remote.rerunFailed") },
     };
 }
 
 function publish(facts: ReleaseFacts, channel: ReleaseChannel, steps: PipelineReleaseStep[], built: boolean): Phase {
     const release = facts.release;
-    const links = release ? [{ label: "The release", url: release.url }] : [];
+    const links = release ? [{ label: t("mc.releaseRun.theRelease"), url: release.url }] : [];
     const base: Phase = { id: "publish", title: PhaseTitles.publish, status: "todo", expect: "", links };
     if (!built) {
-        return { ...base, expect: "Waits for the build." };
+        return { ...base, expect: t("mc.releaseRun.waitsBuild") };
     }
     if (!release && steps.length > 0) {
         // Published by the project's own steps, not as a GitHub release.
-        return stepsPhase(base, steps, facts) ?? { ...base, status: "done", expect: "Published." };
+        return stepsPhase(base, steps, facts) ?? { ...base, status: "done", expect: t("mc.releaseRun.published") };
     }
     if (!release && facts.nogithub) {
-        return { ...base, status: "done", expect: "Nothing to follow: not on GitHub, and no publish step declared." };
+        return { ...base, status: "done", expect: t("mc.releaseRun.noPublishToFollow") };
     }
     if (!release) {
         if (facts.githuberror) {
-            return { ...base, status: "waiting", expect: "GitHub could not be read.", cause: facts.githuberror };
+            return { ...base, status: "waiting", expect: t("mc.releaseRun.githubUnread"), cause: facts.githuberror };
         }
-        return { ...base, status: "running", expect: `Waiting for the GitHub release of ${facts.tag}…` };
+        return { ...base, status: "running", expect: t("mc.releaseRun.waitingRelease", { tag: facts.tag }) };
     }
     if (release.isDraft) {
         return {
             ...base,
             status: "waiting",
-            expect:
-                channel === "public"
-                    ? "Publish the draft on GitHub (link below): at that moment it goes to every user."
-                    : "Publish the draft on GitHub (link below).",
+            expect: channel === "public" ? t("mc.releaseRun.publishDraftPublic") : t("mc.releaseRun.publishDraft"),
         };
     }
-    const said =
-        channel === "rc"
-            ? "Published as a prerelease: offered to nobody, installable by hand."
-            : "Published: offered to all users.";
+    const said = channel === "rc" ? t("mc.releaseRun.publishedRc") : t("mc.releaseRun.publishedPublic");
     const phase = stepsPhase(base, steps, facts);
     if (phase == null) {
         return { ...base, status: "done", expect: said };
@@ -401,24 +416,34 @@ function publish(facts: ReleaseFacts, channel: ReleaseChannel, steps: PipelineRe
 }
 
 function back(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[], published: boolean): Phase {
-    const trunk = facts.trunk || "the trunk";
-    const links = facts.backpr ? [{ label: `PR #${facts.backpr.number}`, url: facts.backpr.url }] : [];
+    const trunk = facts.trunk || t("mc.builds.theTrunk");
+    const links = facts.backpr
+        ? [{ label: t("mc.releaseRun.pr", { number: facts.backpr.number }), url: facts.backpr.url }]
+        : [];
     const base: Phase = { id: "back", title: PhaseTitles.back, status: "todo", expect: "", links };
     if (facts.tagexists && facts.ontrunk) {
-        return { ...base, status: "done", expect: `The release is back on ${trunk}.` };
+        return { ...base, status: "done", expect: t("mc.releaseRun.backOn", { trunk }) };
     }
     if (!facts.tagexists) {
-        return { ...base, expect: "After the cut." };
+        return { ...base, expect: t("mc.releaseRun.afterCut") };
     }
     if (facts.backpr) {
-        return { ...base, status: "waiting", expect: `Merge PR #${facts.backpr.number} into ${trunk}.` };
+        return {
+            ...base,
+            status: "waiting",
+            expect: t("mc.releaseRun.mergePr", { number: facts.backpr.number, trunk }),
+        };
     }
     if (steps.length === 0) {
-        return { ...base, status: published ? "waiting" : "todo", expect: `Bring ${tag} back to ${trunk}.` };
+        return {
+            ...base,
+            status: published ? "waiting" : "todo",
+            expect: t("mc.releaseRun.bringBack", { tag, trunk }),
+        };
     }
     const phase = stepsPhase(base, steps, facts);
     if (phase == null) {
-        return { ...base, status: "waiting", expect: `Waiting for ${tag} to reach ${trunk}.` };
+        return { ...base, status: "waiting", expect: t("mc.releaseRun.waitingReach", { tag, trunk }) };
     }
     // Possible from the tag on, but only the next thing to do once the release is out.
     return phase.status === "waiting" && !published ? { ...phase, status: "todo" } : phase;

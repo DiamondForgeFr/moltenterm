@@ -8,6 +8,7 @@
 import { cn } from "@/util/util";
 import { CiStatus, CiStatusLabels } from "./ci-model";
 import { CheckState } from "./github";
+import { labelRecord } from "./mission-i18n";
 
 export type CiIconState = "success" | "failure" | "running" | "queued" | "neutral" | "warning";
 
@@ -20,14 +21,14 @@ export const CiIconClasses: Record<CiIconState, string> = {
     warning: "fa-triangle-exclamation text-warning",
 };
 
-export const CiIconLabels: Record<CiIconState, string> = {
-    success: "passed",
-    failure: "failed",
-    running: "running",
-    queued: "queued",
-    neutral: "skipped or cancelled",
-    warning: "needs attention",
-};
+export const CiIconLabels: Record<CiIconState, string> = labelRecord("mc.ci.icon", [
+    "success",
+    "failure",
+    "running",
+    "queued",
+    "neutral",
+    "warning",
+]);
 
 const LocalStates: Record<CiStatus, CiIconState> = {
     success: "success",

@@ -4,6 +4,7 @@
 // What the Build local menu says (FR-MC-012): mirrors BuildsFacts in pkg/molten/mission/builds.go. Kept apart from the
 // components so the wording can be tested without the app.
 
+import { getLocale, t } from "../i18n/i18n";
 import { CiVerdictStatus } from "./ci-model";
 
 export type BuildManifest = {
@@ -40,7 +41,7 @@ export function relativeAge(iso: string, now: number): string {
     if (!(then > 0)) {
         return "";
     }
-    const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+    const rtf = new Intl.RelativeTimeFormat(getLocale(), { numeric: "auto" });
     const minutes = Math.round((then - now) / 60_000);
     if (Math.abs(minutes) < 60) {
         return rtf.format(minutes, "minute");
@@ -54,25 +55,26 @@ export function relativeAge(iso: string, now: number): string {
 
 export function lastBuildLine(last: BuildManifest, now: number): string {
     if (last == null) {
-        return "Never built";
+        return t("mc.builds.neverBuilt");
     }
     const age = last.builtAt ? relativeAge(last.builtAt, now) : "";
-    return `Last: ${age ? `${age} · ` : ""}${last.commit.slice(0, 7)}`;
+    const commit = last.commit.slice(0, 7);
+    return age ? t("mc.builds.lastAge", { age, commit }) : t("mc.builds.last", { commit });
 }
 
 // What the CI says about the trunk, for a build the CI gates. A red job runs again before the build, which stops only
 // if it fails again.
 export function ciLine(facts: BuildsFacts): string {
-    const trunk = facts?.trunk || "the trunk";
+    const trunk = facts?.trunk || t("mc.builds.theTrunk");
     switch (facts?.ci?.status) {
         case "success":
-            return `CI green on ${trunk}.`;
+            return t("mc.builds.ciGreen", { trunk });
         case "failure":
-            return `CI red on ${trunk} (${(facts.ci.failed ?? []).join(", ")}): it runs again first, and the build stops if it fails.`;
+            return t("mc.builds.ciRed", { trunk, jobs: (facts.ci.failed ?? []).join(", ") });
         case "running":
-            return `The local CI is running on ${trunk}.`;
+            return t("mc.builds.ciRunning", { trunk });
     }
-    return `The local CI will run first on ${trunk}.`;
+    return t("mc.builds.ciFirst", { trunk });
 }
 
 export function buildCardTitle(projectName: string, build: Pick<BuildFacts, "id" | "title">): string {
@@ -128,22 +130,24 @@ export function buildRunView(run: BuildRunInput, declared: BuildPhaseDef[], mani
         }
         return { id: def.id, title: phaseTitle(def), status };
     });
-    const at = defs[current] ? phaseTitle(defs[current]) : "the build";
+    const at = defs[current] ? phaseTitle(defs[current]) : t("mc.builds.theBuild");
     const delivered = deliveredBy(run, manifest);
     let line = defs[current]?.text ?? "";
     if (done) {
         line = delivered
-            ? `Delivered: ${delivered.productName ?? ""} ${delivered.version ?? ""}, commit ${delivered.commit.slice(0, 7)}, ${(delivered.notes ?? []).length} commit(s) since the previous one.`.replace(
-                  /\s+/g,
-                  " "
-              )
-            : "Built.";
+            ? t("mc.builds.delivered", {
+                  product: delivered.productName ?? "",
+                  version: delivered.version ?? "",
+                  commit: delivered.commit.slice(0, 7),
+                  count: (delivered.notes ?? []).length,
+              }).replace(/\s+/g, " ")
+            : t("mc.builds.built");
     } else if (run.state === "failure") {
-        line = `Failed during “${at}”. The end of the log says why.`;
+        line = t("mc.builds.failedDuring", { phase: at });
     } else if (run.state === "lost") {
-        line = `Interrupted during “${at}”: its process is gone without an exit code.`;
+        line = t("mc.builds.lostDuring", { phase: at });
     } else if (run.state === "cancelled") {
-        line = `Cancelled during “${at}”.`;
+        line = t("mc.builds.cancelledDuring", { phase: at });
     }
     return { phases, line, delivered, showLog: !done };
 }

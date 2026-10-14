@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
+import { t, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-button";
 import { DeployRevision, DeployTarget, isProductionLike, revisionText } from "./deploy-model";
@@ -33,20 +34,21 @@ export function requestDeploy(
 
 export function confirmReason(target: DeployTarget): string {
     if (isProductionLike(target.environment)) {
-        return `${target.environment} is named like production.`;
+        return t("mc.deploy.productionLike", { env: target.environment });
     }
-    return `The pipeline asks before every deploy to ${target.environment}.`;
+    return t("mc.deploy.pipelineAsks", { env: target.environment });
 }
 
 export function DeployConfirmBody({ target, revision }: { target: DeployTarget; revision: DeployRevision }) {
+    const t = useT();
     return (
         <>
             <p>
-                <span className="text-secondary">{target.title}</span> deploys{" "}
+                <span className="text-secondary">{target.title}</span> {t("mc.deploy.deploys")}{" "}
                 <code className="text-primary" data-testid="deploy-confirm-revision">
                     {revisionText(revision)}
                 </code>{" "}
-                to <span className="font-semibold text-primary">{target.environment}</span>.
+                {t("mc.deploy.to")} <span className="font-semibold text-primary">{target.environment}</span>.
             </p>
             <p className="text-muted">{confirmReason(target)}</p>
         </>
@@ -64,19 +66,20 @@ function DeployConfirm({
     onDeploy: () => void;
     onCancel: () => void;
 }) {
+    const t = useT();
     useEscape(true, onCancel);
     return (
         <DialogFrame
             role="deploy-confirm"
-            title={`Deploy to ${target.environment}?`}
+            title={t("mc.deploy.confirmTitle", { env: target.environment })}
             trapFocus
             buttons={
                 <>
                     <button type="button" className={PlainButton} onClick={onCancel} autoFocus>
-                        Cancel
+                        {t("common.cancel")}
                     </button>
                     <button type="button" className={ConfirmButton} onClick={onDeploy}>
-                        Deploy to {target.environment}
+                        {t("mc.deploy.deployTo", { env: target.environment })}
                         <MoltenWave />
                     </button>
                 </>
@@ -108,8 +111,9 @@ export function useConfirmedDeploy(revision: DeployRevision, run: (stepId: strin
 }
 
 function LastDeploy({ target }: { target: DeployTarget }) {
+    const t = useT();
     if (target.last == null) {
-        return <span className="text-11 text-muted">Not deployed yet</span>;
+        return <span className="text-11 text-muted">{t("mc.deploy.notDeployed")}</span>;
     }
     return (
         <span className="flex items-center gap-1.5 text-11 text-muted">
@@ -134,20 +138,21 @@ export function DeployMenuView({
     onChoose: (target: DeployTarget) => void;
     onShowRun: () => void;
 }) {
+    const t = useT();
     const [anchor, setAnchor] = useState<HTMLDivElement>(null);
     if (targets.length === 0) {
         return null;
     }
-    const running = targets.find((t) => t.last?.state === "running");
+    const running = targets.find((target) => target.last?.state === "running");
     if (running != null) {
         return (
             <button type="button" onClick={onShowRun} className={ActionRunningClass} data-testid="deploy-to">
                 <RunningDot />
-                Deploying to {running.environment}…
+                {t("mc.deploy.deploying", { env: running.environment })}
             </button>
         );
     }
-    const busyTitle = busy ? "Another project step is running: one runs at a time" : undefined;
+    const busyTitle = busy ? t("mc.deploy.busy") : undefined;
     if (targets.length === 1) {
         const target = targets[0];
         return (
@@ -160,7 +165,7 @@ export function DeployMenuView({
                 data-testid="deploy-to"
             >
                 <i className="fa fa-solid fa-cloud-arrow-up text-11" />
-                Deploy to {target.environment}
+                {t("mc.deploy.deployTo", { env: target.environment })}
             </button>
         );
     }
@@ -176,14 +181,14 @@ export function DeployMenuView({
                 data-testid="deploy-to"
             >
                 <i className="fa fa-solid fa-cloud-arrow-up text-11" />
-                Deploy to…
+                {t("mc.deploy.deployToMenu")}
             </button>
             {open ? (
                 <MenuPopover
                     anchor={anchor}
                     onClose={() => setOpen(false)}
                     className="flex w-72 flex-col gap-1.5"
-                    ariaLabel="Deploy to"
+                    ariaLabel={t("mc.deploy.deployToLabel")}
                 >
                     {targets.map((target) => (
                         <button
@@ -200,7 +205,7 @@ export function DeployMenuView({
                                 <span className="text-13 leading-5 font-medium text-primary">{target.environment}</span>
                                 {target.confirm ? (
                                     <span className="text-11 text-warning" title={confirmReason(target)}>
-                                        asks first
+                                        {t("mc.deploy.asksFirst")}
                                     </span>
                                 ) : null}
                             </span>

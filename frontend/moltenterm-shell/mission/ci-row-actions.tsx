@@ -8,6 +8,7 @@
 
 import { cn } from "@/util/util";
 import { useEffect, useRef } from "react";
+import { useT } from "../i18n/i18n";
 
 export const RowActionsClass =
     "pointer-events-none flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-120 ease-mt group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100";
@@ -83,6 +84,7 @@ export function RerunConfirm({
     onConfirm: () => void;
     onCancel: () => void;
 }) {
+    const t = useT();
     const cancelRef = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         cancelRef.current?.focus();
@@ -108,7 +110,7 @@ export function RerunConfirm({
                 onClick={onCancel}
                 disabled={busy}
             >
-                Cancel
+                {t("common.cancel")}
             </button>
             <button
                 type="button"
@@ -118,7 +120,7 @@ export function RerunConfirm({
                 aria-busy={busy}
                 data-testid="ci-rerun-confirm-go"
             >
-                {busy ? "Starting…" : confirmLabel}
+                {busy ? t("mc.common.starting") : confirmLabel}
             </button>
             {error ? (
                 <span className="basis-full text-12 text-danger" role="alert">

@@ -6,6 +6,7 @@
 
 import { cn, fireAndForget } from "@/util/util";
 import { useState } from "react";
+import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { BlockHeader } from "./cicd-panels";
 import { useConfirmedDeploy } from "./deploy-menu";
@@ -58,6 +59,7 @@ function StepRow({
     onRun: () => void;
     stacked?: boolean;
 }) {
+    const t = useT();
     const [logMode, setLogMode] = useState<RunLogMode>("auto");
     const running = last?.state === "running";
     const full = logMode === "full";
@@ -72,11 +74,11 @@ function StepRow({
     const logButtons = last ? (
         <>
             <button type="button" className={PlainButton} onClick={() => setLogMode(full ? "hidden" : "full")}>
-                {full ? "Less" : "Log"}
+                {full ? t("mc.run.less") : t("mc.run.log")}
             </button>
             {showLog && !full ? (
                 <button type="button" className={PlainButton} onClick={hide}>
-                    Hide
+                    {t("mc.run.hide")}
                 </button>
             ) : null}
         </>
@@ -87,7 +89,7 @@ function StepRow({
             className={PlainButton}
             onClick={() => fireAndForget(() => missionCancel(last.dir, last.id))}
         >
-            Cancel
+            {t("common.cancel")}
         </button>
     ) : (
         <button
@@ -96,7 +98,7 @@ function StepRow({
             onClick={onRun}
             className="molten-btn cursor-pointer rounded-6 px-2 py-1 text-12 disabled:cursor-default disabled:opacity-50"
         >
-            Run
+            {t("mc.run.run")}
             <MoltenWave />
         </button>
     );
@@ -113,7 +115,9 @@ function StepRow({
                     {last ? <RunStateBadge state={last.state} /> : null}
                 </div>
                 <div className="flex items-center gap-1.5">
-                    <span className="min-w-0 flex-1 truncate text-12 text-muted">{last ? when : "Not run yet"}</span>
+                    <span className="min-w-0 flex-1 truncate text-12 text-muted">
+                        {last ? when : t("mc.run.notRunYet")}
+                    </span>
                     {logButtons}
                     {runButton}
                 </div>
@@ -159,6 +163,7 @@ export function AdapterSteps({
     // What a deploy takes, named when a step's environment asks first (#559).
     git?: MissionGit;
 }) {
+    const t = useT();
     const { start, prompt, error, clearError } = useStartRun(dir, projectName);
     const { deploy, dialog } = useConfirmedDeploy(deployRevision(git), (stepId) => start("step", stepId));
     const steps = (pipeline?.steps ?? []).filter((s) => s.section === section);
@@ -168,7 +173,7 @@ export function AdapterSteps({
     const anyRunning = (runs ?? []).some((r) => r.kind === "step" && r.state === "running");
     return (
         <section className="flex flex-col gap-2">
-            {bare ? null : <BlockHeader title="Project steps" hint="declared by the project's pipeline" />}
+            {bare ? null : <BlockHeader title={t("mc.steps.title")} hint={t("mc.steps.hint")} />}
             <div className={cn("overflow-hidden", !bare && "rounded-4 border border-border")}>
                 {steps.map((step) => (
                     <StepRow

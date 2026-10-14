@@ -4,6 +4,7 @@
 // The Project header's Deploy to shortcut (#559): the environments a project's cd steps deploy to, which of them ask
 // before running, and what a deploy takes (the branch checked out in the project, where every step runs).
 
+import { t } from "../i18n/i18n";
 import { MissionGit, PipelineAdapterStep, PipelineDef, RunRecord } from "./mission-model";
 
 const ProductionWords = new Set(["prod", "production", "live"]);
@@ -54,9 +55,11 @@ export function deployRevision(git: MissionGit): DeployRevision {
 
 export function revisionText(revision: DeployRevision): string {
     if (!revision.branch) {
-        return "the commit checked out in the project (no branch)";
+        return t("mc.deploy.revisionNoBranch");
     }
-    return revision.commit ? `${revision.branch} at ${revision.commit}` : revision.branch;
+    return revision.commit
+        ? t("mc.deploy.revisionAt", { branch: revision.branch, commit: revision.commit })
+        : revision.branch;
 }
 
 // One step runs at a time (the CD tab's rule): any step under way holds the others.
