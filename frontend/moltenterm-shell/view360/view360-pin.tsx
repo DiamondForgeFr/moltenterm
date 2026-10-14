@@ -11,6 +11,7 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { cn } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { memo } from "react";
+import { useLocale } from "../i18n/i18n";
 import { acceleratorById, formatShortcutById } from "../shortcuts/format";
 import { PinText } from "./pin-text";
 import type { PanelPlacement, View360Model } from "./view360-model";
@@ -100,6 +101,7 @@ export function usePanelPlacement(blockId: string): PanelPlacement {
 }
 
 export const PinHeaderButton = memo(({ blockId }: { blockId: string }) => {
+    useLocale();
     const placement = usePanelPlacement(blockId);
     if (placement == null || placement === "first") {
         return null;
