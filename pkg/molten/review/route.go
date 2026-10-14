@@ -20,12 +20,15 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
+	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
+	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
+	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
 // The Review tab reaches wavesrv on a leaf of its router answering plain command names, like the review sessions:
@@ -98,6 +101,8 @@ type Service struct {
 	merger  *Merger
 	// cleaner: the cleanup after the merge (FR-REV-013); nil in the tests that do not need it.
 	cleaner *Cleaner
+	// handoff: what `molten review` asks of the terminal's window (FR-REV-014).
+	handoff HandoffEnv
 	// discuss sends a comment to the PR's review session (FR-REV-009); reviewsession.Discuss outside the tests.
 	discuss func(ctx context.Context, req mcpreview.DiscussRequest) (mcpreview.AskResult, error)
 	// translate asks the PR's review session for the translations (FR-REV-010); reviewsession.Translate outside the
@@ -188,6 +193,7 @@ func Start() {
 			DataDir:    wavebase.GetWaveDataDir(),
 		})
 		SetPostMerge(service)
+		service.handoff = defaultHandoffEnv()
 		service.discuss = reviewsession.Discuss
 		service.translate = reviewsession.Translate
 		service.publishSetting = func() string {
@@ -242,6 +248,39 @@ func (s *Service) SessionPosted(update mcpreview.Update) {
 	}
 	if err != nil {
 		log.Printf("%s %s#%d: %s could not be kept: %v\n", logPrefix, k.Repo, k.Number, what, err)
+	}
+}
+
+func defaultHandoffEnv() HandoffEnv {
+	return HandoffEnv{
+		VerifyToken: func(token string) (string, error) {
+			rpcCtx, err := wshutil.ValidateAndExtractRpcContextFromToken(token)
+			if err != nil {
+				return "", err
+			}
+			if rpcCtx == nil || rpcCtx.BlockId == "" || rpcCtx.IsRouter {
+				return "", fmt.Errorf("the token is not a terminal's")
+			}
+			return rpcCtx.BlockId, nil
+		},
+		BlockIsLocal: func(ctx context.Context, blockId string) bool {
+			block, err := wstore.DBGet[*waveobj.Block](ctx, blockId)
+			return err == nil && block != nil && conncontroller.IsLocalConnName(block.Meta.GetString(waveobj.MetaKey_Connection, ""))
+		},
+		WorkspaceOf: func(ctx context.Context, blockId string) (string, error) {
+			tabId, err := wstore.DBFindTabForBlockId(ctx, blockId)
+			if err != nil {
+				return "", err
+			}
+			return wstore.DBFindWorkspaceForTabId(ctx, tabId)
+		},
+		AgentRunning: func(blockId string) bool {
+			run, ok := attention.AgentRun(blockId)
+			return ok && run.Running
+		},
+		Publish: func(workspaceId string, h Handoff) {
+			wps.Broker.Publish(wps.WaveEvent{Event: HandoffEvent, Scopes: []string{workspaceId}, Data: h})
+		},
 	}
 }
 
@@ -364,6 +403,22 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return s.store.Get(req)
+	case MergePlanShownCommand:
+		req, err := decode[PrKey](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.merger.Shown(req)
+	case HandoffCommand:
+		// The terminal only asks: the window opens the tab or the sheet, and the developer's click there does the rest.
+		if !isTerminalSource(source) {
+			return nil, fmt.Errorf("review handoffs come from a local MoltenTerm terminal")
+		}
+		req, err := decode[HandoffRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return RunHandoff(ctx, s.handoff, req)
 	}
 	// What changes the store, a worktree or the tabs is the Review tab's: a terminal, where an agent may run, cannot.
 	if !isWindowSource(source) {
