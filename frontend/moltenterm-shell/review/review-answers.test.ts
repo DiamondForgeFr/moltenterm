@@ -7,8 +7,10 @@ import {
     answerKey,
     answerMarkerLines,
     answersOnSide,
+    citedLine,
     groupAnswers,
     PrAnswersKey,
+    worktreeFilePath,
 } from "./review-answers";
 import type { ReviewExplanation } from "./review-client";
 import { answerHover } from "./review-diff-actions";
@@ -81,5 +83,23 @@ describe("answers on lines (FR-REV-006)", () => {
         const hover = answerHover([answer("e1", 1, lines(3, 5), { question: "Pourquoi *ce* verrou ?" })]);
         expect(hover).toContain("lines 3–5");
         expect(hover).toContain("Pourquoi \\*ce\\* verrou ?");
+    });
+
+    it("reads the path:line an answer cites, and nothing else", () => {
+        expect(citedLine("pkg/lock.go:12")).toEqual({ path: "pkg/lock.go", line: 12 });
+        expect(citedLine("./main.go:3-5")).toEqual({ path: "main.go", line: 3 });
+        expect(citedLine("ticket #585")).toBeNull();
+        expect(citedLine(".kilocode/rules/rules.md")).toBeNull();
+        expect(citedLine("commit 1a2b3c4: feat(#584): queue")).toBeNull();
+        expect(citedLine("../x.go:1")).toBeNull();
+        expect(citedLine("https://example.com/a.go:3")).toBeNull();
+    });
+
+    it("opens a cited file of the worktree, never outside it", () => {
+        expect(worktreeFilePath("/w/review-7/", "./pkg/lock.go")).toBe("/w/review-7/pkg/lock.go");
+        expect(worktreeFilePath("/w/review-7", "pkg/lock.go")).toBe("/w/review-7/pkg/lock.go");
+        expect(worktreeFilePath("/w/review-7", "../etc/passwd")).toBeNull();
+        expect(worktreeFilePath("/w/review-7", "/etc/passwd")).toBeNull();
+        expect(worktreeFilePath("", "pkg/lock.go")).toBeNull();
     });
 });

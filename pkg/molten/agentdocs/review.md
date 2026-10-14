@@ -66,19 +66,80 @@ risks.
 A prompt starting with "Review question" is the developer's question from Ask the AI, on selected lines or on the
 whole PR. MoltenTerm types it only when you are idle, so answer each one fully before the next arrives.
 
-1. Read `review_selection`: the anchor of the lines, their text and the whole question. Then read the code around
+1. Read `review_selection`: the anchor of the lines, their text, the whole question and the `depth` the developer
+   chose (quick or detailed; the typed line says "detailed answer" when it is detailed). Then read the code around
    them in the worktree (the function, its callers, what it calls), not only the diff, so the answer holds for the
    whole code.
-2. Answer in `developerlanguage`, in this terminal, briefly.
+2. Answer in `developerlanguage`, in this terminal, following the explanation contract below in that depth.
 3. Post the same answer with `review_post_explanation`: the anchor exactly as `review_selection` gave it (none for a
-   question on the whole PR), the developer's question in `question`, the answer in `markdown`, `depth` quick
-   unless the developer asks for detail, and the `sources` the reasons come from. MoltenTerm shows it as a card on
-   those lines. Keep the card's id from the tool's answer.
+   question on the whole PR), the developer's question in `question`, the technique's name in `technique`, the
+   answer in `markdown`, the `depth` you answered in, the `principles` you named, the other uses in `related` and the
+   `sources`. MoltenTerm shows it as a card on those lines. Keep the card's id from the tool's answer.
 
 The developer may follow up in this terminal. A follow-up about the same lines is posted with the same anchor: pass
 the earlier card's id as `explanationid` when the follow-up corrects or completes that answer (the card is
 replaced), or post a new card with the same anchor when it is another question about those lines. A follow-up about
 other lines names them: post it with their own anchor (path, side RIGHT for the head or LEFT for the base, lines).
+A follow-up keeps the depth of the last question unless the developer asks for another ("more detail", "shorter").
+
+## Explanations
+
+An explanation teaches the codebase: the developer should come away knowing the technique the lines use, why it was
+chosen here, what else could have been done, and the development principle the lines show. Every claim rests on a
+line of the worktree or on a source you name.
+
+### The sections, in this order
+
+Use these as short bold labels (or headings in detailed depth), in `developerlanguage`:
+
+1. **What the lines do**: one or two sentences, about these lines in their context.
+2. **Technique**: the technique or pattern by its usual name (for example a defer-unlock helper, a singleton model
+   with Jotai atoms, an adapter, a state machine, an early return, a guarded queue), and how these lines apply it.
+   Put the same short name in `technique`.
+3. **Why here**: the reason, citing where it is written: the ticket (`#N`), the plan, an SRS page, a code comment
+   (`path:line`), a commit message (its short hash and subject, from `git log` in the worktree), or a project rule
+   (`CLAUDE.md`, `.kilocode/rules/rules.md`, `UPSTREAM.md`, `MANIFESTO.md`, with the rule's words). When none of them
+   says why, write "no recorded reason", then give your own reading only if it helps, labelled as your reading.
+4. **Alternatives**: what else would work for this code, and the trade-off of each against the choice made (what it
+   would gain, what it would cost here).
+5. **Elsewhere in the code**: other places of the codebase that use the same technique, found by searching the
+   worktree (`rg`, `grep`), as links `[path:line](path#Lline)`, and the same places in `related` as `path:line` or
+   `path:start-end`. Give only places you opened and checked; say "none found" when the search finds none.
+6. **Principle**: when the lines illustrate or break a recognised principle: SOLID (name the letter), separation of
+   concerns, clean or hexagonal architecture, DRY, KISS, YAGNI, the Law of Demeter, composition over inheritance,
+   testability, or the project's own rules (`CLAUDE.md`, `.kilocode/rules/rules.md`, the MOLTENTERM-PATCH markers
+   and the ledger of `UPSTREAM.md`). Name the principle, then show:
+   - what in these lines shows it, quoting or pointing at the line;
+   - why it helps here;
+   - what the code would look like if it were violated, as a short sketch;
+   - when the lines trade the principle off on purpose, say so, with the reason the ticket, plan or comments give,
+     or "no recorded reason".
+
+   Put each principle you name in `principles`. Skip this section when no principle clearly applies: never force one.
+
+7. **Sources**: the answer ends with its sources list: the lines you read (`path:line`), and the ticket, plan, SRS
+   page, commit, code comment or project rule each reason comes from. Put the same list in `sources`; MoltenTerm
+   refuses an answer without sources.
+
+### Facts only
+
+- No principle without a concrete line of the PR or the worktree that shows it.
+- No reason without its source; a reason you infer is marked as your reading ("my reading: …").
+- No other use you did not open; no line number you did not check. MoltenTerm refuses a `related` entry whose file or
+  line does not exist in the worktree.
+- A deliberate trade-off is said as such, with its reason when the ticket, the plan or a comment gives one.
+
+### Depth
+
+- **Quick** (the default): about 8 lines at most. What the lines do and the technique in one or two sentences, the
+  reason with its source, the alternatives in one line, at most one principle (only with its concrete line), then
+  the sources. Skip "Elsewhere in the code" unless one place says it all. MoltenTerm refuses a quick answer that names
+  more than one principle.
+- **Detailed**: every section, with "Elsewhere in the code" searched, several principles where they apply, and for
+  each a short example of what the violation would look like.
+
+No lecturing: teach what these lines show, not the general theory. A principle is named because these lines show it,
+never as a reminder.
 
 ## Review comments
 

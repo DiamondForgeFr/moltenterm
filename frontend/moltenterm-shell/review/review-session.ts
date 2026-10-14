@@ -29,6 +29,9 @@ const CallTimeoutMs = 10_000;
 // Typing waits for the agent's terminal.
 const BriefTimeoutMs = 20_000;
 
+// The depth of an answer (FR-REV-007 AC7, AC8): quick by default, detailed when the developer asks.
+export type ReviewDepth = "quick" | "detailed";
+
 export type ReviewAnchor = {
     path: string;
     side: "RIGHT" | "LEFT";
@@ -96,6 +99,7 @@ export type ReviewQueuedQuestion = {
     anchor?: ReviewAnchor;
     text?: string;
     question: string;
+    depth?: ReviewDepth;
     queuedat: number;
 };
 
@@ -112,7 +116,8 @@ export type ReviewPost = {
     text?: string;
     question?: string;
     anchor?: ReviewAnchor;
-    depth?: "quick" | "detailed";
+    technique?: string;
+    depth?: ReviewDepth;
     sources?: string[];
     related?: string[];
     principles?: string[];
@@ -188,9 +193,10 @@ export function askReviewSession(
     key: ReviewSessionKey,
     anchor: ReviewAnchor,
     text: string,
-    question: string
+    question: string,
+    depth: ReviewDepth
 ): Promise<ReviewAskResult> {
-    return call(ReviewAskCommand, { ...key, anchor: anchor ?? undefined, text: text || undefined, question });
+    return call(ReviewAskCommand, { ...key, anchor: anchor ?? undefined, text: text || undefined, question, depth });
 }
 
 // cancelReviewQuestion removes a queued question before it is typed.

@@ -3848,7 +3848,11 @@
             "queuedNext": "Queued: it is sent when your agent is idle, and its answer shows under this box.",
             "queuedBehindOne": "Queued behind 1 other question: each is sent when your agent is idle.",
             "queuedBehind": "Queued behind {count} other questions: each is sent when your agent is idle.",
-            "queuedSent": "Sent to the review session from the queue: its answer shows under this box."
+            "queuedSent": "Sent to the review session from the queue: its answer shows under this box.",
+            "depthGroup": "Answer depth",
+            "depthHint": "Applies to your next questions.",
+            "depthQuickHint": "About 8 lines: the technique, its reason, one principle at most.",
+            "depthDetailedHint": "Every section: alternatives, other uses in the code, principles with what a violation looks like."
         },
         "briefing": {
             "justNow": "just now",
@@ -4192,16 +4196,18 @@
             "depthQuick": "Quick",
             "depthDetailed": "Detailed",
             "updated": "Updated",
-            "sources": "Sources: {list}",
             "related": "Also in the code:",
-            "principles": "Principles: {list}",
             "queueTitle": "Waiting for your agent",
             "queueTitleCount": "Waiting for your agent ({count})",
             "queueHint": "Each one is sent when the agent is idle, in this order.",
             "removeQuestion": "Remove this question",
             "hoverTitle": "AI answer",
             "hoverTitleMany": "AI answers ({count})",
-            "hoverHint": "Click to show it in the AI panel."
+            "hoverHint": "Click to show it in the AI panel.",
+            "sourcesTitle": "Sources",
+            "techniqueHint": "The technique or pattern these lines use",
+            "principleHint": "A principle these lines show",
+            "openLine": "Open the file at this line"
         }
     }
 }

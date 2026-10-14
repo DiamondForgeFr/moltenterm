@@ -120,12 +120,17 @@ const (
 	ErrTextNeeded      = "text must not be empty"
 	ErrAnchorNeeded    = "anchor must be {path, side: RIGHT or LEFT, line, startline?}"
 	ErrDepth           = "depth must be quick or detailed"
-	ErrKind            = "kind must be comment or change"
-	ErrIdNeeded        = "the id is required"
-	ErrTooLarge        = "the text is too large (64 KB at most)"
-	ErrNotDiscussed    = "commentid must be a comment the developer discussed in this session (review_selection names it)"
-	ErrLineNotInFile   = "the anchor's lines are not in that side of the file (see review_diff)"
-	ErrNotToTranslate  = "commentid must be one of the items MoltenTerm asked you to translate (review_context's translate)"
+	ErrQuickPrinciples = "a quick answer names one principle at most: keep the one these lines show best, or answer in detailed depth"
+	ErrSourcesNeeded   = "sources must list what the answer comes from: the lines read (path:line), and the ticket, plan, " +
+		"SRS page, commit, code comment or project rule that gives the reason"
+	ErrRelatedFormat  = "each related entry is path:line or path:start-end, a file of the worktree relative to its root: %q"
+	ErrRelatedMissing = "related %q: the worktree has no such file or line; search the worktree and give a line that exists"
+	ErrKind           = "kind must be comment or change"
+	ErrIdNeeded       = "the id is required"
+	ErrTooLarge       = "the text is too large (64 KB at most)"
+	ErrNotDiscussed   = "commentid must be a comment the developer discussed in this session (review_selection names it)"
+	ErrLineNotInFile  = "the anchor's lines are not in that side of the file (see review_diff)"
+	ErrNotToTranslate = "commentid must be one of the items MoltenTerm asked you to translate (review_context's translate)"
 )
 
 // HelloRequest opens the MCP server's connection to its session. Token is the terminal's WAVETERM_JWT (wavesrv takes
@@ -270,6 +275,7 @@ type QueuedQuestion struct {
 	Anchor   *Anchor `json:"anchor,omitempty"`
 	Text     string  `json:"text,omitempty"`
 	Question string  `json:"question"`
+	Depth    string  `json:"depth,omitempty"`
 	QueuedAt int64   `json:"queuedat"`
 }
 
@@ -290,6 +296,8 @@ type SelectionRequest struct {
 	Text   string  `json:"text,omitempty"`
 	// Question: the developer's question on the selection (Ask the AI), whole even when the typed line could not hold it.
 	Question string `json:"question,omitempty"`
+	// Depth: the depth the developer asked the answer in (FR-REV-007 AC8).
+	Depth string `json:"depth,omitempty"`
 	// Comment: the review comment the developer discusses (FR-REV-009), on the selection's lines.
 	Comment *CommentRef `json:"comment,omitempty"`
 }
@@ -349,6 +357,8 @@ type AskRequest struct {
 	Anchor   *Anchor `json:"anchor,omitempty"`
 	Text     string  `json:"text,omitempty"`
 	Question string  `json:"question"`
+	// Depth: the answer's depth the developer chose (FR-REV-007 AC8), quick or detailed; empty is quick.
+	Depth string `json:"depth,omitempty"`
 }
 
 // AskResult: Sent, the line was typed (Submitted: with Enter; otherwise it waits in the agent's prompt behind a draft
@@ -380,7 +390,9 @@ type Post struct {
 	Markdown string `json:"markdown,omitempty"`
 	Text     string `json:"text,omitempty"`
 	// Question: the developer's question an explanation answers (FR-REV-006).
-	Question      string   `json:"question,omitempty"`
+	Question string `json:"question,omitempty"`
+	// Technique: the name of the technique or pattern an explanation teaches (FR-REV-007 AC1), the card's title.
+	Technique     string   `json:"technique,omitempty"`
 	Anchor        *Anchor  `json:"anchor,omitempty"`
 	Depth         string   `json:"depth,omitempty"`
 	Sources       []string `json:"sources,omitempty"`

@@ -8,7 +8,7 @@
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { ReviewCleanupResult, ReviewCleanupStepResult } from "./review-cleanup";
-import { ReviewAnchor, reviewScope } from "./review-session";
+import { ReviewAnchor, ReviewDepth, reviewScope } from "./review-session";
 
 // must match pkg/molten/review/route.go
 export const ReviewRoute = "molten:review";
@@ -178,9 +178,11 @@ export type ReviewBriefing = { markdown: string; headoid?: string; agent?: strin
 export type ReviewExplanation = {
     id: string;
     question?: string;
+    // FR-REV-007 AC1: the technique the answer teaches, the card's title.
+    technique?: string;
     markdown: string;
     anchor?: ReviewAnchor;
-    depth?: "quick" | "detailed";
+    depth?: ReviewDepth;
     sources?: string[];
     related?: string[];
     principles?: string[];

@@ -20,7 +20,8 @@ import { getLocale, I18nModel, t } from "../i18n/i18n";
 import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
 import { ReviewsAnswer } from "../reviews/reviews-model";
 import { TabActivity, whileShown } from "../tab-activity";
-import { answerKey } from "./review-answers";
+import { openFileInPreview } from "../term-copy/term-copy";
+import { answerKey, worktreeFilePath } from "./review-answers";
 import { confirmAgentWorktree, ReviewWorktreeRisk } from "./review-cleanup";
 import {
     discussReviewComment,
@@ -84,6 +85,7 @@ import {
     ReviewAnchor,
     ReviewAskResult,
     ReviewBriefResult,
+    ReviewDepth,
     ReviewSessionInfo,
     setReviewSessionHead,
     startReviewSession,
@@ -240,6 +242,8 @@ export abstract class ReviewTabModel implements ViewModel {
     askAtom = atom(null) as PrimitiveAtom<ReviewAsk>;
     // FR-REV-006: the answer group a gutter marker asked the AI panel to show.
     answerFocusAtom = atom(null) as PrimitiveAtom<ReviewAnswerFocus>;
+    // FR-REV-007 AC8: the depth of the next answers, quick by default.
+    depthAtom = atom("quick") as PrimitiveAtom<ReviewDepth>;
 
     treeAtom: Atom<TreeNode[]>;
     orderedFilesAtom: Atom<ReviewFile[]>;
@@ -597,6 +601,22 @@ export abstract class ReviewTabModel implements ViewModel {
         return true;
     }
 
+    // openCodeLink opens a path:line an answer cites (FR-REV-007 AC4): in the diff when the PR changes the file, else
+    // the worktree's file at that line, in a preview next to the Review tab; false when there is no worktree to read.
+    openCodeLink(link: FileLink): boolean {
+        if (this.revealFile(link)) {
+            return true;
+        }
+        const session = globalStore.get(this.aiAtom).session;
+        const worktree = session?.worktree || globalStore.get(this.worktreeAtom).worktree?.worktree;
+        const path = worktreeFilePath(worktree, link.path);
+        if (path == null) {
+            return false;
+        }
+        fireAndForget(() => openFileInPreview({ path, line: link.line, conn: "" }, this.blockId));
+        return true;
+    }
+
     revealPending(diff: MonacoTypes.editor.IStandaloneDiffEditor) {
         const reveal = this.pendingReveal;
         if (reveal == null || reveal.path !== globalStore.get(this.selectedAtom)) {
@@ -755,7 +775,13 @@ export abstract class ReviewTabModel implements ViewModel {
                 const ai = globalStore.get(this.aiAtom);
                 throw new Error(ai.message || t("review.ai.notRunning"));
             }
-            const result = await askReviewSession({ id: session.id }, ask.anchor, ask.text, question.trim());
+            const result = await askReviewSession(
+                { id: session.id },
+                ask.anchor,
+                ask.text,
+                question.trim(),
+                globalStore.get(this.depthAtom)
+            );
             globalStore.set(this.askAtom, (cur) => ({ ...cur, sending: false, result }));
             return result.sent || !!result.queued;
         } catch (e) {

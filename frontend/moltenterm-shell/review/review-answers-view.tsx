@@ -11,7 +11,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
-import { AnswerGroup, groupAnswers, PrAnswersKey } from "./review-answers";
+import { AnswerGroup, citedLine, groupAnswers, PrAnswersKey } from "./review-answers";
 import { ReviewExplanation } from "./review-client";
 import { parseFileLink } from "./review-model";
 import { anchorLabel } from "./review-selection";
@@ -88,8 +88,15 @@ function QueuedRow({
         >
             <span className="text-11 text-muted">{place}.</span>
             <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate font-mono text-11 text-muted">
-                    {question.anchor ? anchorLabel(question.anchor) : t("review.answers.wholePr")}
+                <span className="flex items-center gap-1.5">
+                    <span className="min-w-0 truncate font-mono text-11 text-muted">
+                        {question.anchor ? anchorLabel(question.anchor) : t("review.answers.wholePr")}
+                    </span>
+                    {question.depth === "detailed" ? (
+                        <span className="shrink-0 rounded-4 border border-border px-1 text-10 text-muted">
+                            {t("review.answers.depthDetailed")}
+                        </span>
+                    ) : null}
                 </span>
                 <span className="line-clamp-2 whitespace-pre-wrap">{question.question}</span>
             </div>
@@ -145,7 +152,7 @@ function AnswerGroupCard({ model, group, focusSeq }: { model: ReviewTabModel; gr
         }
         e.preventDefault();
         e.stopPropagation();
-        model.revealFile(link);
+        model.openCodeLink(link);
     };
     return (
         <article
@@ -215,6 +222,7 @@ function AnswerBody({
                     <span className="whitespace-pre-wrap text-secondary">{answer.question}</span>
                 </div>
             ) : null}
+            <AnswerHeading answer={answer} />
             <div
                 className={cn(
                     "min-w-0",
@@ -230,44 +238,92 @@ function AnswerBody({
     );
 }
 
+// AnswerHeading: the technique the answer teaches (AC1), its depth, and the principles it names (AC5), above the text.
+function AnswerHeading({ answer }: { answer: ReviewExplanation }) {
+    const t = useT();
+    const principles = (answer.principles ?? []).filter((p) => p.trim() !== "");
+    const technique = answer.technique?.trim();
+    return (
+        <div className="flex flex-wrap items-center gap-1.5" data-testid="review-answer-heading">
+            {technique ? (
+                <span
+                    className="min-w-0 font-semibold text-primary"
+                    title={t("review.answers.techniqueHint")}
+                    data-testid="review-answer-technique"
+                >
+                    {technique}
+                </span>
+            ) : null}
+            {answer.depth ? (
+                <span
+                    className="rounded-4 border border-border px-1 text-10 text-muted"
+                    data-testid="review-answer-depth"
+                >
+                    {DepthKeys[answer.depth] ? t(DepthKeys[answer.depth]) : answer.depth}
+                </span>
+            ) : null}
+            {answer.updatedat ? <span className="text-10 text-muted">{t("review.answers.updated")}</span> : null}
+            {principles.map((p) => (
+                <span
+                    key={p}
+                    className="rounded-4 bg-accent/10 px-1 text-10 text-accent"
+                    title={t("review.answers.principleHint")}
+                    data-testid="review-answer-principle"
+                >
+                    {p}
+                </span>
+            ))}
+        </div>
+    );
+}
+
+// CodeRef is a path:line an answer cites: it opens the file at the line, in the diff or from the worktree (AC4).
+function CodeRef({ model, text }: { model: ReviewTabModel; text: string }) {
+    const t = useT();
+    const link = citedLine(text);
+    if (link == null) {
+        return <span className="break-words">{text}</span>;
+    }
+    return (
+        <button
+            type="button"
+            className="cursor-pointer text-left font-mono break-all text-secondary hover:text-primary hover:underline"
+            onClick={() => model.openCodeLink(link)}
+            title={t("review.answers.openLine")}
+            data-testid="review-answer-coderef"
+        >
+            {text}
+        </button>
+    );
+}
+
+// AnswerFooter: where else the code uses the technique, then the sources, last (AC4, AC8).
 function AnswerFooter({ model, answer }: { model: ReviewTabModel; answer: ReviewExplanation }) {
     const t = useT();
     const related = (answer.related ?? []).filter((r) => r.trim() !== "");
     const sources = (answer.sources ?? []).filter((s) => s.trim() !== "");
-    const principles = (answer.principles ?? []).filter((p) => p.trim() !== "");
     return (
         <div className="flex flex-col gap-1 text-11 text-muted">
-            <div className="flex flex-wrap items-center gap-1.5">
-                {answer.depth ? (
-                    <span className="rounded-4 border border-border px-1 text-10">
-                        {DepthKeys[answer.depth] ? t(DepthKeys[answer.depth]) : answer.depth}
-                    </span>
-                ) : null}
-                {answer.updatedat ? <span>{t("review.answers.updated")}</span> : null}
-                {principles.length > 0 ? (
-                    <span>{t("review.answers.principles", { list: principles.join(", ") })}</span>
-                ) : null}
-            </div>
             {related.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5" data-testid="review-answer-related">
                     <span>{t("review.answers.related")}</span>
-                    {related.map((r) => {
-                        const link = parseFileLink(r);
-                        return (
-                            <button
-                                key={r}
-                                type="button"
-                                className="cursor-pointer font-mono text-secondary hover:text-primary disabled:cursor-default"
-                                disabled={link == null}
-                                onClick={() => link != null && model.revealFile(link)}
-                            >
-                                {r}
-                            </button>
-                        );
-                    })}
+                    {related.map((r) => (
+                        <CodeRef key={r} model={model} text={r} />
+                    ))}
                 </div>
             ) : null}
-            {sources.length > 0 ? <div>{t("review.answers.sources", { list: sources.join(" · ") })}</div> : null}
+            {sources.length > 0 ? (
+                <div className="flex flex-col gap-0.5" data-testid="review-answer-sources">
+                    <span className="text-10 font-medium uppercase">{t("review.answers.sourcesTitle")}</span>
+                    <ul className="flex list-disc flex-col gap-0.5 pl-4">
+                        {sources.map((s) => (
+                            <li key={s}>
+                                <CodeRef model={model} text={s} />
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            ) : null}
         </div>
     );
 }

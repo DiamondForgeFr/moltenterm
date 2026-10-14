@@ -503,7 +503,7 @@ func TestOutputTools(t *testing.T) {
 	ok := []struct{ tool, args string }{
 		{mcpreview.ToolPostBriefing, `{"markdown":"first"}`},
 		{mcpreview.ToolPostBriefing, `{"markdown":"second"}`},
-		{mcpreview.ToolPostExplanation, `{"anchor":` + anchor + `,"markdown":"why","depth":"detailed","principles":["KISS"]}`},
+		{mcpreview.ToolPostExplanation, `{"anchor":` + anchor + `,"markdown":"why","depth":"detailed","principles":["KISS"],"sources":["main.go:4"]}`},
 		{mcpreview.ToolProposeComment, `{"anchor":` + anchor + `,"kind":"change","text":"rename"}`},
 	}
 	for _, c := range ok {
