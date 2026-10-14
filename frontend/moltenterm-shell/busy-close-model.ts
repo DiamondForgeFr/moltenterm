@@ -6,7 +6,7 @@
 // controller status, the shell integration's runtime info (as the update dialog's terminal summary does) and the agent
 // states. Kept apart from the store and the dialog so the rule can be tested without the app.
 
-import { AgentStateInfo, agentStateLabel, AgentStateName } from "./agent-state-model";
+import { agentLabel, AgentStateInfo, agentStateLabel, AgentStateName } from "./agent-state-model";
 
 // window, quit, delete and switch are asked by Electron main (FR-SHELL-062, busy-close-main.ts).
 export type BusyCloseAction = "pane" | "replace" | "tab" | "window" | "quit" | "delete" | "switch";
@@ -51,7 +51,7 @@ function agentItem(src: RunningSource): RunningItem {
     return {
         blockId: src.blockId,
         kind: "agent",
-        label: agent.agentname || agent.agent || "An agent",
+        label: agentLabel(agent, "An agent"),
         state: agent.state ?? "idle",
         workspace: src.workspace,
         tab: src.tab,

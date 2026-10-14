@@ -6,7 +6,7 @@
 // says when a command is refused. wavesrv holds the authoritative tables and checks every action against them; this
 // copy gives the labels and the order. Nothing is greyed out: a refusal explains itself.
 
-import { AgentStateInfo, agentStateLabel } from "../agent-state-model";
+import { agentCallName, agentLabel, AgentStateInfo, agentStateLabel } from "../agent-state-model";
 import {
     PanelActionResult,
     PanelChoice,
@@ -339,7 +339,7 @@ export function agentSection(
     return {
         id: "agent",
         kind: "agent",
-        title: `Agent · ${agentName(agent)}`,
+        title: `Agent · ${agentLabel(agent)}`,
         state,
         stateTone: agent.state === "waiting" || agent.state === "error" ? "warning" : "muted",
         items,
@@ -351,7 +351,7 @@ export function agentSuggestions(agent: AgentStateInfo): PanelSuggestion[] {
     if (!hasAgentCommands(agent) || agent.state !== "waiting") {
         return [];
     }
-    const question = (agent.message ?? "").trim() || `${agentName(agent)} is waiting for your answer`;
+    const question = (agent.message ?? "").trim() || `${agentCallName(agent)} is waiting for your answer`;
     return [
         {
             id: "agent:question",

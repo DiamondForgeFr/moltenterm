@@ -5,7 +5,7 @@
 // once, the connection only when remote), then at most one Pill. Kept apart from the components so the choice of the
 // pill and the context can be tested without the app.
 
-import type { AgentStateInfo } from "../agent-state-model";
+import { agentCallName, agentLabel, type AgentStateInfo } from "../agent-state-model";
 import type { TreeMarker } from "../worktree-model";
 
 export const QuestionMaxChars = 48;
@@ -58,7 +58,7 @@ export function waitingPill(agent: AgentStateInfo): HeaderPillSpec {
     if (agent?.state !== "waiting") {
         return null;
     }
-    const name = agent.agentname || agent.agent || "The agent";
+    const name = agentCallName(agent, "The agent");
     const question = (agent.message ?? "").replace(/\s+/g, " ").trim();
     // FR-SHELL-052 validation rule: with no text from the Notification hook, the pill says Waiting.
     const label = question ? truncateQuestion(question) : "Waiting";
@@ -76,7 +76,7 @@ export function agentErrorPill(agent: AgentStateInfo): HeaderPillSpec {
     if (agent?.state !== "error") {
         return null;
     }
-    const name = agent.agentname || agent.agent || "The agent";
+    const name = agentCallName(agent, "The agent");
     const message = (agent.message ?? "").replace(/\s+/g, " ").trim();
     return {
         kind: "error",
@@ -230,7 +230,7 @@ export function termContextParts(input: {
 // The title of a terminal's header: the agent running in it, else the panel's own title, else "Terminal".
 export function termHeaderTitle(agent: AgentStateInfo, frameTitle: string, viewName: string): string {
     if (agent != null) {
-        return agent.agentname || agent.agent || "Agent";
+        return agentLabel(agent);
     }
     return frameTitle || viewName || "Terminal";
 }
