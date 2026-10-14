@@ -31,6 +31,9 @@ var claudeQuietTypes = map[string]bool{
 	"pr-link": true, "frame-link": true, "queue-operation": true, "tag": true,
 }
 
+// An agent id names a file: letters, digits, dashes and underscores only.
+var claudeAgentIdRegex = regexp.MustCompile(`^[A-Za-z0-9_-]{1,100}$`)
+
 type ClaudeAdapter struct {
 	roots []string
 }
@@ -74,6 +77,19 @@ func (a *ClaudeAdapter) ValidLayout(rel string) bool {
 		return false
 	}
 	return parts[0] != "" && !strings.HasPrefix(parts[1], ".") && strings.HasSuffix(parts[1], ".jsonl")
+}
+
+// SubagentWritten reads when a sub-agent last wrote <slug>/<session>/subagents/agent-<id>.jsonl.
+func (a *ClaudeAdapter) SubagentWritten(sessionPath string, agentId string) int64 {
+	if !claudeAgentIdRegex.MatchString(agentId) || !strings.HasSuffix(sessionPath, ".jsonl") {
+		return 0
+	}
+	dir := strings.TrimSuffix(sessionPath, ".jsonl")
+	info, err := os.Stat(filepath.Join(dir, "subagents", "agent-"+agentId+".jsonl"))
+	if err != nil || !info.Mode().IsRegular() {
+		return 0
+	}
+	return info.ModTime().UnixMilli()
 }
 
 func (a *ClaudeAdapter) projectDirs(root string, cwd string) []string {
@@ -207,6 +223,13 @@ func (a *ClaudeAdapter) Parse(rec map[string]any, s *Session) bool {
 	case "attachment":
 		a.parseAttachment(obj(rec, "attachment"), s)
 		return true
+	case "queue-operation":
+		// A background agent's end is queued for the main agent: it may reach it as a queued command (an
+		// attachment) rather than as a message of the user, so the queue tells it first.
+		if str(rec, "operation") == "enqueue" {
+			a.parseNotifications(str(rec, "content"), s)
+		}
+		return true
 	case "ai-title":
 		s.SetSessionName(str(rec, "aiTitle"), false)
 		return true
@@ -258,6 +281,7 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 			s.ResolveTool(id)
 			result := obj(rec, "toolUseResult")
 			s.SubagentResult(id, str(result, "status") == "async_launched", boolean(block, "is_error"), str(result, "resolvedModel"))
+			s.SetSubagentId(id, str(result, "agentId"))
 		case "text":
 			text := str(block, "text")
 			if a.parseNotifications(text, s) {
@@ -412,6 +436,11 @@ func taskIndex(v any) (int, bool) {
 // Task reminders repeat the task list as Claude Code sees it.
 func (a *ClaudeAdapter) parseAttachment(att map[string]any, s *Session) {
 	switch str(att, "type") {
+	case "queued_command":
+		if prompt, ok := att["prompt"].(string); ok {
+			a.parseNotifications(prompt, s)
+		}
+		return
 	case "task_reminder", "todo_reminder":
 	default:
 		return

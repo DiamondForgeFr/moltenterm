@@ -74,6 +74,19 @@ export type CompanionCandidate = {
     // current: the session this terminal's companion shows; elsewhere: another terminal's companion guessed it.
     current?: boolean;
     elsewhere?: boolean;
+    // earlier: a session this terminal showed before its current one (#600).
+    earlier?: boolean;
+    // live: the session the agent runs now, while the companion shows an earlier one.
+    live?: boolean;
+};
+
+// A session the terminal showed before the one it shows now (/clear, a resume, another run of the agent).
+export type CompanionEarlierSession = {
+    path: string;
+    title?: string;
+    command?: string;
+    started?: number;
+    until?: number;
 };
 
 // must match pkg/molten/companion/manager.go and guess.go
@@ -92,6 +105,9 @@ export type CompanionSession = {
     // last named (#555).
     name?: string;
     branch?: string;
+    // earlier: the user chose an earlier session of the terminal; the agent runs a newer one (#600).
+    earlier?: boolean;
+    livepath?: string;
 };
 
 // must match pkg/molten/companion/topics.go
@@ -105,7 +121,8 @@ export type CompanionTopic = {
     files?: number;
     prs?: CompanionPRLink[];
 };
-export type SubagentState = "running" | "done" | "failed" | "stopped";
+// quiet: a background agent whose end was never recorded and that wrote nothing for long: not shown as at work.
+export type SubagentState = "running" | "done" | "failed" | "stopped" | "quiet";
 export type CompanionSubagent = {
     id: string;
     description?: string;
@@ -140,7 +157,59 @@ export type CompanionView = {
     topics?: CompanionTopic[];
     subagents?: CompanionSubagent[];
     activity?: CompanionActivity;
+    // The terminal's earlier sessions, newest first, the one shown left out (#600).
+    earlier?: CompanionEarlierSession[];
 };
+
+// The session a transcript path names: its file name without .jsonl (Claude Code's and Codex's session ids end it).
+export function sessionKey(path: string): string {
+    const name = (path ?? "").split(/[\\/]/).pop() ?? "";
+    return name.replace(/\.jsonl$/, "");
+}
+
+// current: the agent's session now (shown, or left for an earlier one); earlier: one the terminal moved on from.
+export type SessionRelation = "current" | "earlier" | "other" | "";
+
+// How a transcript relates to the terminal the companion follows: the agent's session now, one the terminal showed
+// before, or another one (another terminal's, or one this companion never followed). Paths are compared by session
+// id, since one may be a symlink's spelling of the other.
+export function sessionRelation(path: string, view: CompanionView): SessionRelation {
+    const key = sessionKey(path);
+    if (!key || view == null) {
+        return "";
+    }
+    const session = view.session;
+    if (session?.earlier && sessionKey(session.livepath) === key) {
+        return "current";
+    }
+    if (session != null && sessionKey(session.path) === key) {
+        return session.earlier ? "earlier" : "current";
+    }
+    if ((view.earlier ?? []).some((e) => sessionKey(e.path) === key)) {
+        return "earlier";
+    }
+    return "other";
+}
+
+export type HistoryGroup = {
+    key: "current" | "live" | "earlier" | "other";
+    label: string;
+    sessions: CompanionCandidate[];
+};
+
+// The history (#600): the session shown first, the agent's own when an earlier one shows, the terminal's earlier
+// sessions, then the folder's others.
+export function historyGroups(sessions: CompanionCandidate[]): HistoryGroup[] {
+    const list = sessions ?? [];
+    const rest = list.filter((c) => !c.current && !c.live);
+    const groups: HistoryGroup[] = [
+        { key: "current", label: "Shown now", sessions: list.filter((c) => c.current) },
+        { key: "live", label: "The agent's session now", sessions: list.filter((c) => !c.current && c.live) },
+        { key: "earlier", label: "Earlier in this terminal", sessions: rest.filter((c) => c.earlier) },
+        { key: "other", label: "Other sessions of this folder", sessions: rest.filter((c) => !c.earlier) },
+    ];
+    return groups.filter((g) => g.sessions.length > 0);
+}
 
 export type CompanionIntegrationItem = { kind: string; name: string; reason?: string };
 

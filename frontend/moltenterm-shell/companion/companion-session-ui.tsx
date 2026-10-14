@@ -12,6 +12,7 @@ import {
     CompanionSession,
     CompanionView,
     guessHint,
+    historyGroups,
     isIntegrated,
     linkLabel,
     relativeTime,
@@ -47,9 +48,10 @@ export function SessionHistoryList({
                     <i className="fa fa-solid fa-arrow-left" />
                 </button>
                 <div>
-                    <div className="text-13 leading-5 font-medium text-primary">Sessions of this folder</div>
+                    <div className="text-13 leading-5 font-medium text-primary">Sessions of this terminal</div>
                     <div className="text-12 text-secondary">
-                        Written since this terminal's agent started. Choose the one this terminal runs.
+                        Its earlier sessions first, then the folder&apos;s others written since its agent started.
+                        Choose the one to show.
                     </div>
                 </div>
             </div>
@@ -57,38 +59,62 @@ export function SessionHistoryList({
             {sessions != null && sessions.length === 0 ? (
                 <div className="text-12 text-muted">No session of this folder was written since the agent started.</div>
             ) : null}
-            {(sessions ?? []).map((c) => (
-                <button
-                    key={c.path}
-                    type="button"
-                    onClick={() => onPick(c.path)}
-                    className={cn(
-                        "flex cursor-pointer flex-col items-start gap-0.5 rounded-6 border px-3 py-2 text-left hover:bg-hover",
-                        c.current ? "border-accent/60" : "border-border"
-                    )}
-                    data-testid={c.current ? "companion-history-current" : "companion-history-item"}
+            {historyGroups(sessions).map((group) => (
+                <div
+                    key={group.key}
+                    className="flex flex-col gap-1.5"
+                    data-testid={`companion-history-${group.key}-group`}
                 >
-                    <span className="flex w-full items-start gap-2">
-                        <span className="line-clamp-2 min-w-0 flex-1 text-12 text-primary">{candidateTitle(c)}</span>
-                        {c.current ? (
-                            <span className="shrink-0 rounded-4 bg-accent/15 px-1.5 text-11 font-medium text-accent">
-                                This terminal
-                            </span>
-                        ) : null}
-                    </span>
-                    <span className="text-11 text-muted">
-                        {[
-                            c.started ? `started ${relativeTime(c.started, now)}` : "",
-                            c.modified ? `updated ${relativeTime(c.modified, now)}` : "",
-                            c.elsewhere ? "guessed by another terminal" : "",
-                        ]
-                            .filter((s) => !!s)
-                            .join(" · ")}
-                    </span>
-                </button>
+                    {group.key === "current" ? null : (
+                        <div className="text-11 font-medium text-muted uppercase">{group.label}</div>
+                    )}
+                    {group.sessions.map((c) => (
+                        <HistoryItem key={c.path} c={c} now={now} onPick={onPick} />
+                    ))}
+                </div>
             ))}
             {error ? <div className="text-12 text-error">{error}</div> : null}
         </div>
+    );
+}
+
+function HistoryItem({ c, now, onPick }: { c: CompanionCandidate; now: number; onPick: (path: string) => void }) {
+    return (
+        <button
+            type="button"
+            onClick={() => onPick(c.path)}
+            className={cn(
+                "flex cursor-pointer flex-col items-start gap-0.5 rounded-6 border px-3 py-2 text-left hover:bg-hover",
+                c.current ? "border-accent/60" : "border-border"
+            )}
+            data-testid={
+                c.current
+                    ? "companion-history-current"
+                    : c.live
+                      ? "companion-history-live"
+                      : c.earlier
+                        ? "companion-history-earlier"
+                        : "companion-history-item"
+            }
+        >
+            <span className="flex w-full items-start gap-2">
+                <span className="line-clamp-2 min-w-0 flex-1 text-12 text-primary">{candidateTitle(c)}</span>
+                {c.current ? (
+                    <span className="shrink-0 rounded-4 bg-accent/15 px-1.5 text-11 font-medium text-accent">
+                        This terminal
+                    </span>
+                ) : null}
+            </span>
+            <span className="text-11 text-muted">
+                {[
+                    c.started ? `started ${relativeTime(c.started, now)}` : "",
+                    c.modified ? `updated ${relativeTime(c.modified, now)}` : "",
+                    c.elsewhere ? "guessed by another terminal" : "",
+                ]
+                    .filter((s) => !!s)
+                    .join(" · ")}
+            </span>
+        </button>
     );
 }
 
@@ -99,6 +125,7 @@ export function SessionBar({
     modelEffort,
     onHistory,
     onIntegration,
+    onBackToCurrent,
 }: {
     view: CompanionView;
     // name: the agent's label, with the session's first name ("[Jérôme] Claude Code", FR-CONT-014).
@@ -107,9 +134,12 @@ export function SessionBar({
     modelEffort?: string;
     onHistory: () => void;
     onIntegration?: () => void;
+    // Leaves an earlier session the user chose for the one the agent runs (#600).
+    onBackToCurrent?: () => void;
 }) {
     const session = view.session;
     const started = startedLabel(session?.started, Date.now());
+    const earlierCount = view.earlier?.length ?? 0;
     return (
         <div
             className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5 text-11 text-muted"
@@ -130,6 +160,21 @@ export function SessionBar({
                 {linkLabel(session)}
             </span>
             <div className="ml-auto flex shrink-0 items-center gap-2">
+                {session?.earlier ? (
+                    <span className="flex items-center gap-1.5" data-testid="companion-earlier">
+                        <span className="rounded-4 border border-border px-1.5 text-secondary">Earlier session</span>
+                        {onBackToCurrent != null ? (
+                            <button
+                                type="button"
+                                onClick={onBackToCurrent}
+                                className="cursor-pointer text-accent hover:underline"
+                                data-testid="companion-back-to-current"
+                            >
+                                Back to current
+                            </button>
+                        ) : null}
+                    </span>
+                ) : null}
                 {view.ended ? <span className="text-warning">Agent exited · last session</span> : null}
                 {view.status === "loading" ? <span>Reading…</span> : null}
                 {onIntegration != null && isIntegrated(view) ? (
@@ -140,11 +185,20 @@ export function SessionBar({
                     type="button"
                     onClick={onHistory}
                     aria-label="Session history"
-                    title="Session history: choose this terminal's session"
-                    className="-my-0.5 cursor-pointer rounded-6 px-1 py-0.5 text-secondary hover:bg-hover hover:text-primary"
+                    title={
+                        earlierCount > 0
+                            ? `Session history: ${earlierCount} earlier session${earlierCount === 1 ? "" : "s"} in this terminal`
+                            : "Session history: choose this terminal's session"
+                    }
+                    className="-my-0.5 flex cursor-pointer items-center gap-1 rounded-6 px-1 py-0.5 text-secondary hover:bg-hover hover:text-primary"
                     data-testid="companion-history-open"
                 >
                     <i className="fa fa-solid fa-clock-rotate-left" />
+                    {earlierCount > 0 ? (
+                        <span className="text-11 tabular-nums" data-testid="companion-earlier-count">
+                            {earlierCount}
+                        </span>
+                    ) : null}
                 </button>
             </div>
         </div>
