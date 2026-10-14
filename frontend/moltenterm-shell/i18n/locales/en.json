@@ -824,6 +824,10 @@
                     "always": "Always",
                     "never": "Never"
                 }
+            },
+            "review:publishlanguage": {
+                "label": "Publication language",
+                "description": "Language of review comments on GitHub when the project names none; empty: from its PRs and README."
             }
         },
         "title": "Settings",
@@ -4116,7 +4120,66 @@
             "noneStaged": "No comment is staged: stage drafts or accept proposals first",
             "title": "Show the staged comments in the AI panel (publishing on GitHub is not available yet)",
             "label": "Publish review ({count})",
-            "checkAndPost": "Check the translations, then post one GitHub review with the staged comments"
+            "checkAndPost": "Check the translations, then post one GitHub review with the staged comments",
+            "sheet": {
+                "title": "Publish review #{num}",
+                "subtitle": "One GitHub review in {lang}, on head {head}",
+                "language": "Publication language",
+                "languageSource": {
+                    "project": "from the project's .saasfoundry.json",
+                    "setting": "from the review:publishlanguage setting",
+                    "detected": "detected from the project's pull requests and README",
+                    "default": "the default: the project declares none and its history says too little"
+                },
+                "readingLanguage": "Reading the publication language…",
+                "original": "Your text",
+                "translation": "Published in {lang}",
+                "asIs": "Already in {lang}: published as written",
+                "translationPlaceholder": "Your agent's translation shows here; you can also write it.",
+                "summary": "Review summary (optional)",
+                "summaryPlaceholder": "A few words for the author, shown above the comments",
+                "summaryTranslationPlaceholder": "The summary's translation",
+                "editedByYou": "edited by you",
+                "lineComment": "Line comment",
+                "fileComment": "File comment",
+                "outdated": "Outdated: posted as a file comment quoting its lines",
+                "fileLevel": "File-level: posted as a file comment quoting its lines",
+                "translateAgain": "Translate again",
+                "translateAgainTitle": "Ask your agent again for every translation you did not edit",
+                "translate": "Translate",
+                "translatingOne": "Your agent is translating {n} text…",
+                "translatingOther": "Your agent is translating {n} texts…",
+                "translateBusy": "Your agent is busy: nothing was asked. Translate again when it is idle.",
+                "translateTyped": "The request waits in your agent's prompt behind your draft: send it there.",
+                "noSession": "No review session: write the translations, or post as written.",
+                "nothingToTranslate": "Every text is in the publication language.",
+                "missingOne": "{n} text is not in {lang} yet.",
+                "missingOther": "{n} texts are not in {lang} yet.",
+                "cancel": "Cancel",
+                "close": "Close",
+                "postAsWritten": "Post as written",
+                "postAsWrittenTitle": "Publish your texts without translation",
+                "post": "Post review",
+                "postTitle": "Post one GitHub review with these comments; nothing is posted before this click",
+                "postAgain": "Post the rest",
+                "postAgainTitle": "Post only what GitHub does not have yet; the review is not posted twice",
+                "posting": "Posting the review on GitHub…",
+                "published": "Review posted on GitHub",
+                "partial": "Review posted on GitHub, but some comments are not",
+                "failed": "The review could not be posted",
+                "openOnGithub": "Open the review on GitHub",
+                "nothing": "No comment is staged.",
+                "note": {
+                    "filelevel": "posted as a file comment",
+                    "outdated": "outdated: posted as a file comment quoting its lines",
+                    "otherhead": "made on another head: posted as a file comment",
+                    "outsidediff": "outside the diff: posted as a file comment",
+                    "refused": "GitHub refused its lines: re-posted as a file comment",
+                    "late": "staged after the review was posted: posted as a file comment",
+                    "notinpr": "its file left the pull request: quoted in the review's text",
+                    "failed": "not posted"
+                }
+            }
         },
         "answers": {
             "title": "Questions and answers",

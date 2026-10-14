@@ -931,6 +931,10 @@
                     "always": "Toujours",
                     "never": "Jamais"
                 }
+            },
+            "review:publishlanguage": {
+                "label": "Langue de publication",
+                "description": "Langue des commentaires de revue sur GitHub quand le projet n'en désigne aucune ; vide : d'après ses PR et son README."
             }
         },
         "mods": {
@@ -4116,7 +4120,66 @@
             "noneStaged": "Aucun commentaire prêt : marquez des brouillons prêts ou acceptez des propositions d'abord",
             "title": "Afficher les commentaires prêts dans le panneau IA (la publication sur GitHub n'est pas encore disponible)",
             "label": "Publier la revue ({count})",
-            "checkAndPost": "Vérifiez les traductions, puis publiez une revue GitHub avec les commentaires prêts"
+            "checkAndPost": "Vérifiez les traductions, puis publiez une revue GitHub avec les commentaires prêts",
+            "sheet": {
+                "title": "Publier la revue #{num}",
+                "subtitle": "Une revue GitHub en {lang}, sur le head {head}",
+                "language": "Langue de publication",
+                "languageSource": {
+                    "project": "d'après le .saasfoundry.json du projet",
+                    "setting": "d'après le réglage review:publishlanguage",
+                    "detected": "détectée d'après les pull requests et le README du projet",
+                    "default": "par défaut : le projet n'en déclare aucune et son historique en dit trop peu"
+                },
+                "readingLanguage": "Lecture de la langue de publication…",
+                "original": "Votre texte",
+                "translation": "Publié en {lang}",
+                "asIs": "Déjà en {lang} : publié tel quel",
+                "translationPlaceholder": "La traduction de votre agent s'affiche ici ; vous pouvez aussi l'écrire.",
+                "summary": "Résumé de la revue (facultatif)",
+                "summaryPlaceholder": "Quelques mots pour l'auteur, affichés au-dessus des commentaires",
+                "summaryTranslationPlaceholder": "La traduction du résumé",
+                "editedByYou": "modifié par vous",
+                "lineComment": "Commentaire de ligne",
+                "fileComment": "Commentaire de fichier",
+                "outdated": "Obsolète : publié comme commentaire de fichier citant ses lignes",
+                "fileLevel": "Sur le fichier : publié comme commentaire de fichier citant ses lignes",
+                "translateAgain": "Traduire à nouveau",
+                "translateAgainTitle": "Redemander à votre agent chaque traduction que vous n'avez pas modifiée",
+                "translate": "Traduire",
+                "translatingOne": "Votre agent traduit {n} texte…",
+                "translatingOther": "Votre agent traduit {n} textes…",
+                "translateBusy": "Votre agent est occupé : rien n'a été demandé. Traduisez à nouveau quand il sera libre.",
+                "translateTyped": "La demande attend dans l'invite de votre agent, derrière votre brouillon : envoyez-la là-bas.",
+                "noSession": "Aucune session de revue : écrivez les traductions, ou publiez tel quel.",
+                "nothingToTranslate": "Chaque texte est dans la langue de publication.",
+                "missingOne": "{n} texte n'est pas encore en {lang}.",
+                "missingOther": "{n} textes ne sont pas encore en {lang}.",
+                "cancel": "Annuler",
+                "close": "Fermer",
+                "postAsWritten": "Publier tel quel",
+                "postAsWrittenTitle": "Publier vos textes sans traduction",
+                "post": "Publier la revue",
+                "postTitle": "Publier une revue GitHub avec ces commentaires ; rien n'est publié avant ce clic",
+                "postAgain": "Publier le reste",
+                "postAgainTitle": "Publier seulement ce que GitHub n'a pas encore ; la revue n'est pas publiée deux fois",
+                "posting": "Publication de la revue sur GitHub…",
+                "published": "Revue publiée sur GitHub",
+                "partial": "Revue publiée sur GitHub, mais certains commentaires ne le sont pas",
+                "failed": "La revue n'a pas pu être publiée",
+                "openOnGithub": "Ouvrir la revue sur GitHub",
+                "nothing": "Aucun commentaire n'est prêt.",
+                "note": {
+                    "filelevel": "publié comme commentaire de fichier",
+                    "outdated": "obsolète : publié comme commentaire de fichier citant ses lignes",
+                    "otherhead": "fait sur un autre head : publié comme commentaire de fichier",
+                    "outsidediff": "hors du diff : publié comme commentaire de fichier",
+                    "refused": "GitHub a refusé ses lignes : republié comme commentaire de fichier",
+                    "late": "prêt après la publication de la revue : publié comme commentaire de fichier",
+                    "notinpr": "son fichier a quitté la pull request : cité dans le texte de la revue",
+                    "failed": "non publié"
+                }
+            }
         },
         "answers": {
             "title": "Questions et réponses",
