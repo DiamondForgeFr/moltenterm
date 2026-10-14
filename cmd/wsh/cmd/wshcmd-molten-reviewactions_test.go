@@ -96,13 +96,13 @@ func TestFormatMoltenReviewShowAndPublishPlan(t *testing.T) {
 
 func TestFormatMoltenReviewPlanAndOutcome(t *testing.T) {
 	plan := moltenReviewPlan{Title: "x", HeadRef: "feature/5-x", BaseRef: "develop", HeadOid: "abcdef0123", CanMerge: true, CreatedAt: 10,
-		Checks:   []moltenReviewCheck{{Label: "CI passed", State: "ok"}, {Label: "Comments published", State: "warn", Detail: "2 unpublished"}},
+		Checks:   []moltenReviewCheck{{Label: "CI passed", State: "ok"}, {Id: "comments", Label: "Comments published", State: "warn", Detail: "2 unpublished"}},
 		Steps:    []moltenReviewCheck{{Label: "Rebase and merge into develop", Detail: "Bound to head abcdef0"}},
 		Cleanup:  []moltenReviewCleanupStep{{Id: "pr", State: "planned"}},
-		Warnings: []string{"2 comments are not published"}}
+		Warnings: []string{"comments"}}
 	out := formatMoltenReviewPlan(12, plan)
 	for _, want := range []string{"Validate PR #12", "feature/5-x into develop, head abcdef0", "ok   CI passed", "warn Comments published: 2 unpublished",
-		"1. Rebase and merge into develop (Bound to head abcdef0)", "planned  PR merged", "warning: 2 comments are not published"} {
+		"1. Rebase and merge into develop (Bound to head abcdef0)", "planned  PR merged", "warning: Comments published (the sheet asks you to confirm it before Merge)"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("plan: missing %q in:\n%s", want, out)
 		}
