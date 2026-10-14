@@ -1505,7 +1505,8 @@
             "escape": "Fermer une boîte de dialogue ou la recherche",
             "palette-right": "Ouvrir l'entrée de la palette à droite",
             "carpet-previous": "Panneau précédent sur le tapis (vue 360)",
-            "carpet-next": "Panneau suivant sur le tapis (vue 360)"
+            "carpet-next": "Panneau suivant sur le tapis (vue 360)",
+            "pin-panel": "Épingler le panneau dans la zone fixe, ou le désépingler"
         }
     },
     "tips": {
@@ -3496,6 +3497,16 @@
             "untitled": "Panneau",
             "morePanelsOne": "+1 panneau",
             "morePanels": "+{count} panneaux"
+        },
+        "pin": {
+            "pinBeside": "Épingler à côté",
+            "pinStacked": "Épingler dans la première colonne",
+            "unpin": "Désépingler",
+            "pinButton": "Épingler dans la zone fixe",
+            "unpinButton": "Désépingler, retour sur le tapis",
+            "pinnedBadge": "épinglé",
+            "refusedTitle": "Pas de place pour épingler à côté",
+            "refusedMessage": "La zone fixe occupe au plus la moitié de la fenêtre. Désépinglez un panneau, élargissez la fenêtre ou épinglez-le dans la première colonne."
         }
     },
     "termcopy": {

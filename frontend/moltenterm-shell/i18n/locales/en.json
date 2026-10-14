@@ -1505,7 +1505,8 @@
             "escape": "Close a dialog or the search",
             "palette-right": "Open the palette's entry to the right",
             "carpet-previous": "Previous panel on the carpet (360 view)",
-            "carpet-next": "Next panel on the carpet (360 view)"
+            "carpet-next": "Next panel on the carpet (360 view)",
+            "pin-panel": "Pin the panel to the fixed zone, or unpin it"
         }
     },
     "tips": {
@@ -3496,6 +3497,16 @@
             "untitled": "Panel",
             "morePanelsOne": "+1 panel",
             "morePanels": "+{count} panels"
+        },
+        "pin": {
+            "pinBeside": "Pin beside",
+            "pinStacked": "Pin in the first column",
+            "unpin": "Unpin",
+            "pinButton": "Pin to the fixed zone",
+            "unpinButton": "Unpin, back to the carpet",
+            "pinnedBadge": "pinned",
+            "refusedTitle": "No room to pin beside",
+            "refusedMessage": "The fixed zone takes at most half of the window. Unpin a panel, widen the window, or pin it in the first column."
         }
     },
     "termcopy": {
