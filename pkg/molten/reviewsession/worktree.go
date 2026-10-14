@@ -110,6 +110,21 @@ func resolveHead(ctx context.Context, git GitRunner, projectDir string, headRef 
 	return "", fmt.Errorf("the branch %s was not found in the project or on origin", headRef)
 }
 
+// ResolveHead is resolveHead for the Review tab's diff (pkg/molten/review).
+func ResolveHead(ctx context.Context, git GitRunner, projectDir string, headRef string, headOid string) (string, error) {
+	return resolveHead(ctx, git, projectDir, headRef, headOid)
+}
+
+// ValidRef is validRef for the Review tab's diff.
+func ValidRef(ref string) bool {
+	return validRef(ref)
+}
+
+// IsOid tells whether s is a full commit or blob id.
+func IsOid(s string) bool {
+	return oidPattern.MatchString(s)
+}
+
 // ResolveWorktree returns the folder the session runs in and what it is (mcpreview.WorktreeAgent or WorktreeReview).
 func ResolveWorktree(ctx context.Context, git GitRunner, dataDir string, projectDir string, number int, headRef string, headOid string) (string, string, error) {
 	out, err := git(ctx, projectDir, "worktree", "list", "--porcelain")

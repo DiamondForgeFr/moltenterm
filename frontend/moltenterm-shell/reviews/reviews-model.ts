@@ -32,6 +32,8 @@ export type ReviewPr = {
     url: string;
     branch: string;
     base: string;
+    headoid?: string;
+    baseoid?: string;
     author?: string;
     draft?: boolean;
     createdat: string;
@@ -223,6 +225,12 @@ export function nextRow(rows: readonly ReviewPr[], current: number, key: string)
             return rows[rows.length - 1].number;
     }
     return current;
+}
+
+// The owner/name of a PR's GitHub URL (https://github.com/owner/name/pull/12), "" when it is not one.
+export function repoOfPrUrl(url: string): string {
+    const m = /^https:\/\/[^/]+\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/pull\/\d+/.exec(url ?? "");
+    return m ? m[1] : "";
 }
 
 // Whether Mission Control's Pull requests waiting block offers Review on a PR: the ones the Reviews view lists.

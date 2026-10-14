@@ -122,9 +122,11 @@ type DiffViewerProps = {
     language?: string;
     path: string;
     options: MonacoTypes.editor.IDiffEditorOptions;
+    // MOLTENTERM-PATCH (#580): the diff editor for the Review tab (selection, gutter decorations); returns its cleanup.
+    onMount?: (diff: MonacoTypes.editor.IStandaloneDiffEditor, monacoApi: typeof monaco) => () => void;
 };
 
-export function MonacoDiffViewer({ original, modified, language, path, options }: DiffViewerProps) {
+export function MonacoDiffViewer({ original, modified, language, path, options, onMount }: DiffViewerProps) {
     const divRef = useRef<HTMLDivElement>(null);
     const diffRef = useRef<MonacoTypes.editor.IStandaloneDiffEditor | null>(null);
 
@@ -145,8 +147,10 @@ export function MonacoDiffViewer({ original, modified, language, path, options }
         diffRef.current = diff;
 
         diff.setModel({ original: originalModel, modified: modifiedModel });
+        const onUnmount = onMount?.(diff, monaco); // MOLTENTERM-PATCH (#580)
 
         return () => {
+            onUnmount?.(); // MOLTENTERM-PATCH (#580)
             diff.setModel(null);
             diff.dispose();
             originalModel.dispose();

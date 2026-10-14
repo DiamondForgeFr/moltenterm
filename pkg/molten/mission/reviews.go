@@ -104,11 +104,14 @@ type ReviewReport struct {
 }
 
 type ReviewPr struct {
-	Number      int    `json:"number"`
-	Title       string `json:"title"`
-	Url         string `json:"url"`
-	Branch      string `json:"branch"`
-	Base        string `json:"base"`
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	Url    string `json:"url"`
+	Branch string `json:"branch"`
+	Base   string `json:"base"`
+	// The head commit and the base branch's tip as GitHub has them (the Review tab's diff, FR-REV-002).
+	HeadOid     string `json:"headoid,omitempty"`
+	BaseOid     string `json:"baseoid,omitempty"`
 	Author      string `json:"author,omitempty"`
 	Draft       bool   `json:"draft,omitempty"`
 	CreatedAt   string `json:"createdat"`
@@ -161,6 +164,8 @@ type ghReviewPr struct {
 	Url               string `json:"url"`
 	HeadRefName       string `json:"headRefName"`
 	BaseRefName       string `json:"baseRefName"`
+	HeadRefOid        string `json:"headRefOid"`
+	BaseRefOid        string `json:"baseRefOid"`
 	IsDraft           bool   `json:"isDraft"`
 	IsCrossRepository bool   `json:"isCrossRepository"`
 	CreatedAt         string `json:"createdAt"`
@@ -344,6 +349,8 @@ func makeReviewPr(pr ghReviewPr, ticketRes []*regexp.Regexp) ReviewPr {
 		Url:        pr.Url,
 		Branch:     pr.HeadRefName,
 		Base:       pr.BaseRefName,
+		HeadOid:    pr.HeadRefOid,
+		BaseOid:    pr.BaseRefOid,
 		Author:     pr.Author.Login,
 		Draft:      pr.IsDraft,
 		CreatedAt:  pr.CreatedAt,

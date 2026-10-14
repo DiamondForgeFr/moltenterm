@@ -14,9 +14,10 @@ import { pathBaseName } from "./workspace-project";
 
 export const DefaultTabIcon = "square";
 export const DefaultAgentGlyph = "robot";
-// The CI/CD and Reviews views' types, repeated here so this file stays free of the views' React code.
+// The CI/CD, Reviews and Review views' types, repeated here so this file stays free of the views' React code.
 const CicdView = "molten-cicd";
 const ReviewsView = "molten-reviews";
+const ReviewView = "molten-review";
 
 type ViewFacts = { icon: string; title: string };
 
@@ -30,6 +31,7 @@ const Views: Record<string, ViewFacts> = {
     [MoltentermLineMapView]: { icon: "train-subway", title: "Line map" },
     [CicdView]: { icon: "list-check", title: "CI/CD" },
     [ReviewsView]: { icon: "code-pull-request", title: "Reviews" },
+    [ReviewView]: { icon: "code-compare", title: "Review" },
     [MoltentermCompanionView]: { icon: "book-open", title: "Companion" },
     sysinfo: { icon: "chart-line", title: "System" },
     launcher: { icon: "shapes", title: "Launcher" },
