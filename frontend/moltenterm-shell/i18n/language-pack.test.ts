@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { afterEach, describe, expect, it } from "vitest";
-import { availableLanguageCodes, flattenKeys, shippedDictionary, translate } from "./i18n-core";
+import { availableLanguageCodes, flattenKeys, onLanguagesChange, shippedDictionary, translate } from "./i18n-core";
 import { checkLanguagePack, isLanguageCode } from "./language-pack";
 import { noticeDue } from "./language-pack-notice";
 import { i18nCheck, i18nExport, i18nStatus, untranslatedCount } from "./language-pack-tools";
@@ -103,6 +103,18 @@ describe("language pack registry (DS-I18N-008)", () => {
         expect(translate("es", "common.close")).toBe("A");
         expect(packs.shadowed).toEqual([{ modId: "b", code: "es", by: "a" }]);
         expect(packs.activePacks().map((p) => p.modId)).toEqual(["a"]);
+    });
+
+    it("replaces a changed pack in one change: its language never goes missing", () => {
+        const packs = languagePacks();
+        const pack = { modId: "lang-es", code: "es", name: "Español", dict: { common: { close: "Cerrar" } } };
+        packs.apply([pack]);
+        const seen: boolean[] = [];
+        const off = onLanguagesChange(() => seen.push(availableLanguageCodes().includes("es")));
+        packs.apply([{ ...pack, dict: { common: { close: "Cierra" } } }]);
+        off();
+        expect(seen).toEqual([true]);
+        expect(translate("es", "common.close")).toBe("Cierra");
     });
 
     it("keeps an unchanged pack registered across a reload", () => {
