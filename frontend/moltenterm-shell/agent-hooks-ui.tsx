@@ -14,6 +14,7 @@ import { AgentHookOffers } from "./agent-hooks-store";
 import { AgentStates } from "./agent-state-store";
 import { DialogFrame, useEscape } from "./dialog-frame";
 import { useProposalRequest } from "./header/header-proposals";
+import { useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import { openFileInPreview } from "./term-copy/term-copy";
 
@@ -56,6 +57,7 @@ function AgentHookOfferDialog({
     onClose: () => void;
     onDismiss: () => void;
 }) {
+    const t = useT();
     const [copied, setCopied] = useState(false);
     const timer = useRef<ReturnType<typeof setTimeout>>(null);
     useEscape(true, onClose);
@@ -77,31 +79,29 @@ function AgentHookOfferDialog({
     return (
         <DialogFrame
             role="molten-hook-offer-dialog"
-            title={`Precise states for ${name}`}
-            subtitle="MoltenTerm never edits your agent's settings: you add this yourself."
+            title={t("agent.hooks.title", { name })}
+            subtitle={t("agent.hooks.subtitle")}
             wide
             buttons={
                 <>
                     <button type="button" className={PlainButton} onClick={onDismiss}>
-                        Don't offer again
+                        {t("agent.hooks.dontOffer")}
                     </button>
                     <button type="button" className={PlainButton} onClick={onClose}>
-                        Close
+                        {t("common.close")}
                     </button>
                     <button type="button" className={CopyButton} onClick={copy} autoFocus>
                         <i className={`fa fa-solid ${copied ? "fa-check" : "fa-copy"} mr-1.5`} />
-                        {copied ? "Copied" : "Copy"}
+                        {copied ? t("agent.hooks.copied") : t("agent.hooks.copy")}
                         <MoltenWave />
                     </button>
                 </>
             }
         >
-            <p className="text-secondary">
-                Without hooks, MoltenTerm only sees when {name}'s output comes: working while it streams, idle once it
-                is quiet. With them, the pane shows {offer.brings}.
-            </p>
+            <p className="text-secondary">{t("agent.hooks.intro", { name, brings: offer.brings })}</p>
             <p>
-                Add this to <code className="font-mono text-primary">{offer.file}</code>, {offer.also}:
+                {t("agent.hooks.addTo")} <code className="font-mono text-primary">{offer.file}</code>
+                {t("agent.hooks.also", { also: offer.also })}
             </p>
             <pre
                 className="max-h-64 overflow-auto rounded-4 border border-border bg-black/30 px-2 py-1.5 font-mono text-11 leading-relaxed whitespace-pre text-secondary select-text"
@@ -110,9 +110,9 @@ function AgentHookOfferDialog({
                 {offer.snippet}
             </pre>
             <p className="text-muted">
-                Start {name} again after the change. Once its hooks report, this offer goes away.{" "}
+                {t("agent.hooks.restart", { name })}{" "}
                 <button type="button" className="cursor-pointer text-accent hover:underline" onClick={openGuide}>
-                    Read the agent states guide
+                    {t("agent.hooks.guide")}
                 </button>
             </p>
         </DialogFrame>

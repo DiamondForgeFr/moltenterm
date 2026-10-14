@@ -12,6 +12,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
+import { t } from "./i18n/i18n";
 import {
     applyKeepAwakeState,
     cleanSleepPolicy,
@@ -101,7 +102,7 @@ export class KeepAwakeModel {
         registerNotificationGesture(SleepPolicyGesture, async (args) => {
             const policy = cleanSleepPolicy(args?.policy);
             if (policy == null) {
-                return { ok: false, error: "Unknown sleep policy." };
+                return { ok: false, error: t("keepawake.unknownPolicy") };
             }
             await this.setPolicy(policy);
             return { ok: true, resolve: true };

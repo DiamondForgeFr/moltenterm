@@ -10,11 +10,14 @@ import { atom, Atom, useAtomValue } from "jotai";
 import { useMemo } from "react";
 import { AgentStateDotClasses, AgentStateInfo, agentStateTitle } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
+import { useLocale } from "./i18n/i18n";
 import { useWorkingBeat } from "./working-beat";
 
 export function AgentStateDot({ info, className }: { info: AgentStateInfo; className?: string }) {
     const working = info?.state === "working";
     useWorkingBeat(working);
+    // The title is built by the model with t(): reading the language re-renders the dot when it changes.
+    useLocale();
     if (info == null) {
         return null;
     }

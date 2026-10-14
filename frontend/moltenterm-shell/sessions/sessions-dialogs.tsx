@@ -7,21 +7,23 @@
 import { cn, makeIconClass } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
+import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { SegmentedControl } from "../segmented-control";
 import {
     BulkAction,
+    bulkCommandLabel,
     BulkCommands,
     bulkConfirmText,
     BulkItem,
     bulkItems,
-    BulkKindLabels,
+    bulkKindLabel,
     BulkOptions,
     BulkResult,
     BulkResultKind,
     bulkSummary,
     busyNote,
-    RestartModes,
+    restartModes,
 } from "./sessions-bulk";
 import {
     agentCell,
@@ -46,8 +48,8 @@ function DialogButtons({
     busy,
     onKeep,
     onConfirm,
-    keepLabel = "Keep it",
-    busyLabel = "Ending…",
+    keepLabel,
+    busyLabel,
     destructive = true,
 }: {
     confirm: string;
@@ -58,6 +60,7 @@ function DialogButtons({
     busyLabel?: string;
     destructive?: boolean;
 }) {
+    const t = useT();
     const keepRef = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         keepRef.current?.focus();
@@ -65,7 +68,7 @@ function DialogButtons({
     return (
         <>
             <button ref={keepRef} type="button" className={PlainButton} onClick={onKeep} disabled={busy}>
-                {keepLabel}
+                {keepLabel ?? t("sessions.dialog.keepIt")}
             </button>
             <button
                 type="button"
@@ -74,7 +77,7 @@ function DialogButtons({
                 disabled={busy}
                 aria-busy={busy}
             >
-                {busy ? busyLabel : confirm}
+                {busy ? (busyLabel ?? t("sessions.bulk.end.running")) : confirm}
                 <MoltenWave />
             </button>
         </>
@@ -94,6 +97,7 @@ export function EndSessionDialog({
     onKeep: () => void;
     onEnd: () => Promise<void>;
 }) {
+    const t = useT();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
     const text = endConfirmText(session, home, now);
@@ -118,13 +122,11 @@ export function EndSessionDialog({
             {text.warning ? <div className="text-warning">{text.warning}</div> : null}
             {session.command && session.command !== sessionWhat(session) ? (
                 <div className="text-secondary">
-                    Running: <span className="font-mono">{session.command}</span>
+                    {t("sessions.dialog.running")} <span className="font-mono">{session.command}</span>
                 </div>
             ) : null}
             <div className="text-secondary">
-                {session.shown
-                    ? "Its pane stays, with the ended shell; close it when you no longer need what it shows."
-                    : "It has no pane: what it printed since goes with it."}
+                {session.shown ? t("sessions.dialog.paneStays") : t("sessions.dialog.noPane")}
             </div>
             {error ? <div className="text-error">{error}</div> : null}
         </DialogFrame>
@@ -142,6 +144,7 @@ export function CleanupDialog({
     onKeep: () => void;
     onEnd: () => Promise<void>;
 }) {
+    const t = useT();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
     const text = cleanupConfirmText(sessions);
@@ -164,7 +167,7 @@ export function CleanupDialog({
             wide
             buttons={<DialogButtons confirm={text.confirm} busy={busy} onKeep={onKeep} onConfirm={confirm} />}
         >
-            <ul className="flex flex-col gap-1.5" aria-label="Sessions to end">
+            <ul className="flex flex-col gap-1.5" aria-label={t("sessions.dialog.toEnd")}>
                 {sessions.map((s) => {
                     const folder = displayFolder(s, home);
                     const note = endRunningNote(s);
@@ -178,7 +181,7 @@ export function CleanupDialog({
                                     </span>
                                 ) : null}
                                 <span className="ml-auto shrink-0 text-muted">
-                                    {s.connection || "local"} · {reasonLabel(s.reason)}
+                                    {s.connection || t("sessions.local")} · {reasonLabel(s.reason)}
                                 </span>
                             </div>
                             {note ? <div className="text-muted">{note}</div> : null}
@@ -205,24 +208,25 @@ const ResultTones: Record<BulkResultKind, string> = {
 
 // The state of a row is told by its icon's shape and its label, never by colour alone (NFR-SHELL-026).
 function ResultMark({ result, running }: { result: BulkResult; running: boolean }) {
+    const t = useT();
     if (result == null) {
         return running ? (
             <i
                 className={cn(makeIconClass("spinner", true), "w-4 shrink-0 animate-spin text-muted")}
-                aria-label="Running"
+                aria-label={t("sessions.dialog.runningMark")}
             />
         ) : (
             <i
                 className={cn(makeIconClass("circle", true), "w-4 shrink-0 text-11 text-muted opacity-50")}
-                aria-label="Waiting"
+                aria-label={t("sessions.dialog.waitingMark")}
             />
         );
     }
     return (
         <i
             className={cn(makeIconClass(ResultIcons[result.kind], true), "w-4 shrink-0", ResultTones[result.kind])}
-            aria-label={BulkKindLabels[result.kind]}
-            title={BulkKindLabels[result.kind]}
+            aria-label={bulkKindLabel(result.kind)}
+            title={bulkKindLabel(result.kind)}
         />
     );
 }
@@ -234,13 +238,14 @@ function firstPending(items: BulkItem[], results: Record<string, BulkResult>): s
 }
 
 function ResultsButtons({ onClose }: { onClose: () => void }) {
+    const t = useT();
     const ref = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         ref.current?.focus();
     }, []);
     return (
         <button ref={ref} type="button" className={PlainButton} onClick={onClose}>
-            Close
+            {t("common.close")}
         </button>
     );
 }
@@ -263,6 +268,7 @@ export function BulkDialog({
     onUnseen?: (results: BulkResult[]) => void;
     run: (items: BulkItem[], opts: BulkOptions, onResult: (r: BulkResult) => void) => Promise<BulkResult[]>;
 }) {
+    const t = useT();
     const [phase, setPhase] = useState<BulkPhase>("confirm");
     const [commandId, setCommandId] = useState<string>(BulkCommands[0]?.id);
     const [mode, setMode] = useState<string>("");
@@ -308,7 +314,7 @@ export function BulkDialog({
                 confirm={text.confirm}
                 busy={phase === "running" || reachable === 0}
                 busyLabel={phase === "running" ? text.running : text.confirm}
-                keepLabel={action === "end" ? "Keep them" : "Cancel"}
+                keepLabel={action === "end" ? t("sessions.dialog.keepThem") : t("common.cancel")}
                 destructive={action === "end"}
                 onKeep={close}
                 onConfirm={() => void confirm()}
@@ -319,19 +325,19 @@ export function BulkDialog({
         <DialogFrame
             role={`molten-session-bulk-${action}`}
             title={summary ? summary.title : text.title}
-            subtitle={summary ? summary.detail || "Every session is done." : text.subtitle}
+            subtitle={summary ? summary.detail || t("sessions.dialog.allDone") : text.subtitle}
             wide
             trapFocus
             buttons={buttons}
         >
             {action === "send" && phase === "confirm" ? (
                 <div className="flex flex-col gap-1.5">
-                    <span className="text-secondary">Command</span>
+                    <span className="text-secondary">{t("sessions.dialog.command")}</span>
                     <SegmentedControl
-                        label="Command"
+                        label={t("sessions.dialog.command")}
                         segments={BulkCommands.map((c) => ({
                             value: c.id,
-                            label: c.label,
+                            label: bulkCommandLabel(c),
                             title: [...new Set(Object.values(c.actions).map((a) => a.command))].join(" · "),
                         }))}
                         selected={commandId}
@@ -342,22 +348,24 @@ export function BulkDialog({
             ) : null}
             {action === "restart" && phase === "confirm" && hasClaude ? (
                 <div className="flex flex-col gap-1.5">
-                    <span className="text-secondary">Claude Code permission mode</span>
+                    <span className="text-secondary">{t("sessions.dialog.permissionMode")}</span>
                     <SegmentedControl
-                        label="Claude Code permission mode"
-                        segments={RestartModes.map((m) => ({ value: m.id || "keep", label: m.label }))}
+                        label={t("sessions.dialog.permissionMode")}
+                        segments={restartModes().map((m) => ({ value: m.id || "keep", label: m.label }))}
                         selected={mode || "keep"}
                         onSelect={(v) => setMode(v === "keep" ? "" : v)}
                         className="flex-wrap"
                     />
                     {mode === "bypassPermissions" ? (
-                        <span className="text-warning">
-                            Claude Code runs commands and edits files without asking in these sessions.
-                        </span>
+                        <span className="text-warning">{t("sessions.dialog.bypassWarning")}</span>
                     ) : null}
                 </div>
             ) : null}
-            <ul className="flex flex-col gap-1.5" aria-label="Selected sessions" data-testid="bulk-sessions">
+            <ul
+                className="flex flex-col gap-1.5"
+                aria-label={t("sessions.dialog.selected")}
+                data-testid="bulk-sessions"
+            >
                 {items.map((item) => {
                     const s = item.session;
                     const folder = displayFolder(s, home);
@@ -373,7 +381,9 @@ export function BulkDialog({
                                             "w-4 shrink-0",
                                             item.skip ? "text-muted" : "text-secondary"
                                         )}
-                                        aria-label={item.skip ? "Left out" : "Included"}
+                                        aria-label={
+                                            item.skip ? t("sessions.dialog.leftOut") : t("sessions.dialog.included")
+                                        }
                                     />
                                 ) : (
                                     <ResultMark result={result} running={pending === s.id} />
@@ -391,7 +401,7 @@ export function BulkDialog({
                                     </span>
                                 ) : null}
                                 <span className="ml-auto shrink-0 text-muted">
-                                    {s.workspacename || "Not in a pane"}
+                                    {s.workspacename || t("sessions.notInPaneTitle")}
                                 </span>
                             </div>
                             {result ? (
@@ -399,7 +409,7 @@ export function BulkDialog({
                                     className={cn("pl-6", result.kind === "failed" ? "text-error" : "text-secondary")}
                                     data-bulk-result={result.kind}
                                 >
-                                    {BulkKindLabels[result.kind]}: {result.message}
+                                    {bulkKindLabel(result.kind)}: {result.message}
                                 </div>
                             ) : note ? (
                                 <div className="pl-6 text-muted">{note}</div>

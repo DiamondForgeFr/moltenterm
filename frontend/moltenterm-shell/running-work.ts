@@ -11,6 +11,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
+import { t } from "./i18n/i18n";
 import { ciCancel, missionCancel, MissionCiEvent, MissionRouteId, MissionRunEvent } from "./mission/mission-client";
 import { TabActivity, whileShown } from "./tab-activity";
 import { GoldUpdateModel } from "./update/update-store";
@@ -113,7 +114,7 @@ export function useRunningWork(): WorkItem[] {
         return items;
     }
     return [
-        { id: UpdateWorkId, kind: "update", dir: "", title: "Updating MoltenTerm", startedat: 0, progress: -1 },
+        { id: UpdateWorkId, kind: "update", dir: "", title: t("agent.updating"), startedat: 0, progress: -1 },
         ...items,
     ];
 }

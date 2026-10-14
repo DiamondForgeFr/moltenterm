@@ -693,7 +693,7 @@ func TestClaudeCredentialPlace(t *testing.T) {
 	if p.service != "Claude Code-credentials" || p.account != "alice" || p.file != "/home/u/.claude/.credentials.json" {
 		t.Errorf("default: %+v", p)
 	}
-	if got := p.storeName(true); got != `the macOS Keychain ("Claude Code-credentials") or ~/.claude/.credentials.json` {
+	if got := p.storeName(true); got != `the system keychain ("Claude Code-credentials") or ~/.claude/.credentials.json` {
 		t.Errorf("store on macOS: %s", got)
 	}
 	if got := p.storeName(false); got != "~/.claude/.credentials.json" {

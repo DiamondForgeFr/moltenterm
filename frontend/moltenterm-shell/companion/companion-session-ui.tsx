@@ -5,6 +5,7 @@
 // (title, start time, how it was linked, history button), the hint of a guessed link, and the history list.
 
 import { cn } from "@/util/util";
+import { useT } from "../i18n/i18n";
 import { IntegratedBadge } from "./companion-integration";
 import {
     candidateTitle,
@@ -34,30 +35,30 @@ export function SessionHistoryList({
     onPick: (path: string) => void;
     onClose: () => void;
 }) {
+    const t = useT();
     return (
         <div className="flex h-full w-full flex-col gap-3 overflow-y-auto p-4" data-testid="companion-history">
             <div className="flex items-start gap-2">
                 <button
                     type="button"
                     onClick={onClose}
-                    aria-label="Back to the session"
-                    title="Back to the session"
+                    aria-label={t("companion.history.back")}
+                    title={t("companion.history.back")}
                     className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
                     data-testid="companion-history-back"
                 >
                     <i className="fa fa-solid fa-arrow-left" />
                 </button>
                 <div>
-                    <div className="text-13 leading-5 font-medium text-primary">Sessions of this terminal</div>
-                    <div className="text-12 text-secondary">
-                        Its earlier sessions first, then the folder&apos;s others written since its agent started.
-                        Choose the one to show.
-                    </div>
+                    <div className="text-13 leading-5 font-medium text-primary">{t("companion.history.title")}</div>
+                    <div className="text-12 text-secondary">{t("companion.history.hint")}</div>
                 </div>
             </div>
-            {sessions == null && error == null ? <div className="text-12 text-muted">Loading…</div> : null}
+            {sessions == null && error == null ? (
+                <div className="text-12 text-muted">{t("companion.loading")}</div>
+            ) : null}
             {sessions != null && sessions.length === 0 ? (
-                <div className="text-12 text-muted">No session of this folder was written since the agent started.</div>
+                <div className="text-12 text-muted">{t("companion.history.empty")}</div>
             ) : null}
             {historyGroups(sessions).map((group) => (
                 <div
@@ -79,6 +80,7 @@ export function SessionHistoryList({
 }
 
 function HistoryItem({ c, now, onPick }: { c: CompanionCandidate; now: number; onPick: (path: string) => void }) {
+    const t = useT();
     return (
         <button
             type="button"
@@ -101,15 +103,15 @@ function HistoryItem({ c, now, onPick }: { c: CompanionCandidate; now: number; o
                 <span className="line-clamp-2 min-w-0 flex-1 text-12 text-primary">{candidateTitle(c)}</span>
                 {c.current ? (
                     <span className="shrink-0 rounded-4 bg-accent/15 px-1.5 text-11 font-medium text-accent">
-                        This terminal
+                        {t("companion.history.thisTerminal")}
                     </span>
                 ) : null}
             </span>
             <span className="text-11 text-muted">
                 {[
-                    c.started ? `started ${relativeTime(c.started, now)}` : "",
-                    c.modified ? `updated ${relativeTime(c.modified, now)}` : "",
-                    c.elsewhere ? "guessed by another terminal" : "",
+                    c.started ? t("companion.history.startedAgo", { ago: relativeTime(c.started, now) }) : "",
+                    c.modified ? t("companion.history.updatedAgo", { ago: relativeTime(c.modified, now) }) : "",
+                    c.elsewhere ? t("companion.history.elsewhere") : "",
                 ]
                     .filter((s) => !!s)
                     .join(" · ")}
@@ -137,6 +139,7 @@ export function SessionBar({
     // Leaves an earlier session the user chose for the one the agent runs (#600).
     onBackToCurrent?: () => void;
 }) {
+    const t = useT();
     const session = view.session;
     const started = startedLabel(session?.started, Date.now());
     const earlierCount = view.earlier?.length ?? 0;
@@ -162,7 +165,9 @@ export function SessionBar({
             <div className="ml-auto flex shrink-0 items-center gap-2">
                 {session?.earlier ? (
                     <span className="flex items-center gap-1.5" data-testid="companion-earlier">
-                        <span className="rounded-4 border border-border px-1.5 text-secondary">Earlier session</span>
+                        <span className="rounded-4 border border-border px-1.5 text-secondary">
+                            {t("companion.bar.earlierSession")}
+                        </span>
                         {onBackToCurrent != null ? (
                             <button
                                 type="button"
@@ -170,13 +175,13 @@ export function SessionBar({
                                 className="cursor-pointer text-accent hover:underline"
                                 data-testid="companion-back-to-current"
                             >
-                                Back to current
+                                {t("companion.bar.backToCurrent")}
                             </button>
                         ) : null}
                     </span>
                 ) : null}
-                {view.ended ? <span className="text-warning">Agent exited · last session</span> : null}
-                {view.status === "loading" ? <span>Reading…</span> : null}
+                {view.ended ? <span className="text-warning">{t("companion.bar.ended")}</span> : null}
+                {view.status === "loading" ? <span>{t("companion.bar.reading")}</span> : null}
                 {onIntegration != null && isIntegrated(view) ? (
                     <IntegratedBadge onOpen={onIntegration} className="-my-0.5" />
                 ) : null}
@@ -184,11 +189,18 @@ export function SessionBar({
                 <button
                     type="button"
                     onClick={onHistory}
-                    aria-label="Session history"
+                    aria-label={t("companion.bar.history")}
                     title={
                         earlierCount > 0
-                            ? `Session history: ${earlierCount} earlier session${earlierCount === 1 ? "" : "s"} in this terminal`
-                            : "Session history: choose this terminal's session"
+                            ? t(
+                                  earlierCount === 1
+                                      ? "companion.bar.historyEarlierOne"
+                                      : "companion.bar.historyEarlierOther",
+                                  {
+                                      count: earlierCount,
+                                  }
+                              )
+                            : t("companion.bar.historyChoose")
                     }
                     className="-my-0.5 flex cursor-pointer items-center gap-1 rounded-6 px-1 py-0.5 text-secondary hover:bg-hover hover:text-primary"
                     data-testid="companion-history-open"
@@ -207,6 +219,7 @@ export function SessionBar({
 
 // A guessed session says how it was chosen and offers the history.
 export function GuessNotice({ session, onHistory }: { session: CompanionSession; onHistory: () => void }) {
+    const t = useT();
     const hint = guessHint(session);
     if (hint == null) {
         return null;
@@ -220,7 +233,7 @@ export function GuessNotice({ session, onHistory }: { session: CompanionSession;
                 className="shrink-0 cursor-pointer text-accent hover:underline"
                 data-testid="companion-guess-change"
             >
-                Not this session?
+                {t("companion.guess.notThis")}
             </button>
         </div>
     );

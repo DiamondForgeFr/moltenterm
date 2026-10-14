@@ -43,9 +43,9 @@ describe("keep-awake model", () => {
     });
 
     it("names the coffee bud for its state (FR-SHELL-023-AC8)", () => {
-        expect(railCoffeeLabel("Notulia", false, "darwin")).toBe("Keep the Mac awake while Notulia works");
-        expect(railCoffeeLabel("Notulia", true, "darwin")).toBe("Stop keeping the Mac awake for Notulia");
-        expect(railCoffeeLabel("Notulia", false, "linux")).toBe("Keep the computer awake while Notulia works");
+        expect(railCoffeeLabel("Notulia", false, "darwin")).toBe("Keep this computer awake while Notulia works");
+        expect(railCoffeeLabel("Notulia", true, "darwin")).toBe("Stop keeping this computer awake for Notulia");
+        expect(railCoffeeLabel("Notulia", false, "linux")).toBe("Keep this computer awake while Notulia works");
         expect(coffeeSupported("darwin")).toBe(true);
         expect(coffeeSupported("linux")).toBe(true);
         expect(coffeeSupported("win32")).toBe(false);
@@ -58,7 +58,7 @@ describe("keep-awake model", () => {
         expect(coffeeCondition(grace, 1_000)).toBe("ending in 1:59");
         expect(formatCountdown(10_000, 20_000)).toBe("0:00");
         expect(formatCountdown(65_500, 0)).toBe("1:06");
-        expect(coffeeTooltip(working, "A", "darwin", 0)).toBe("Keeping the Mac awake until the work in A ends");
+        expect(coffeeTooltip(working, "A", "darwin", 0)).toBe("Keeping this computer awake until the work in A ends");
         expect(coffeeTooltip(grace, "A", "darwin", 60_000)).toContain("ending in 1:00");
     });
 
@@ -71,7 +71,7 @@ describe("keep-awake model", () => {
         };
         expect(coffeeReason(background)).toBe("Claude Code: background work, Command: go test ./...");
         expect(coffeeTooltip(background, "A", "darwin", 0)).toBe(
-            "Keeping the Mac awake until the work in A ends\nNow: Claude Code: background work, Command: go test ./..."
+            "Keeping this computer awake until the work in A ends\nNow: Claude Code: background work, Command: go test ./..."
         );
         // In its grace nothing runs: no reason, even a stale one.
         const grace = { ...background, working: false, endsat: 120_000 };
@@ -84,13 +84,13 @@ describe("keep-awake model", () => {
             policyreasons: ["Claude Code: background work"],
         });
         expect(policyHoldingLine(holding, "darwin", 0)).toBe(
-            "Holding the Mac awake while work runs (Claude Code: background work)"
+            "Holding this computer awake while work runs (Claude Code: background work)"
         );
         expect(policyHoldingLine(state({ policyholding: true, policyworking: true }), "linux", 0)).toBe(
-            "Holding the computer awake while work runs"
+            "Holding this computer awake while work runs"
         );
         expect(policyHoldingLine(state({ policyholding: true, policyendsat: 60_000 }), "darwin", 0)).toBe(
-            "Holding the Mac awake, ending in 1:00"
+            "Holding this computer awake, ending in 1:00"
         );
         expect(policyHoldingLine(state({}), "darwin", 0)).toBe("");
     });

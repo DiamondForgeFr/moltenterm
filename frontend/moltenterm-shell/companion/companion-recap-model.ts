@@ -6,6 +6,7 @@
 // line the data cannot support is left out. Pure, so it is tested without a window.
 
 import { agentLabel, AgentStateInfo, agentStateLabel } from "../agent-state-model";
+import { t } from "../i18n/i18n";
 import { CompanionSubagent, CompanionTopic, CompanionView, relativeTime } from "./companion-model";
 import { modelDisplayName, ProportionHint, proportionHint } from "./companion-proportion";
 
@@ -20,26 +21,28 @@ export function branchTicket(branch: string): string {
 
 export type TopicRow = { key: string; text: string; facts: string[]; title: string };
 
-function plural(n: number, word: string): string {
-    return `${n} ${word}${n === 1 ? "" : "s"}`;
-}
-
 // Each topic is the user's own prompt; its facts are the ticket of its branch, the files it changed, the PRs it
 // opened and when it was last worked on.
 export function topicRows(topics: CompanionTopic[], now: number): TopicRow[] {
-    return (topics ?? []).map((t, i) => {
-        const ticket = branchTicket(t.branch);
+    return (topics ?? []).map((topic, i) => {
+        const ticket = branchTicket(topic.branch);
         const facts = [
             ticket,
-            t.files > 0 ? plural(t.files, "file") : "",
-            ...(t.prs ?? []).map((pr) => `PR #${pr.number}`),
-            relativeTime(t.last || t.at, now),
+            topic.files > 0
+                ? t(topic.files === 1 ? "companion.topics.filesOne" : "companion.topics.filesOther", {
+                      count: topic.files,
+                  })
+                : "",
+            ...(topic.prs ?? []).map((pr) => `PR #${pr.number}`),
+            relativeTime(topic.last || topic.at, now),
         ].filter((s) => !!s);
         return {
-            key: `${t.at ?? 0}:${i}`,
-            text: t.text,
+            key: `${topic.at ?? 0}:${i}`,
+            text: topic.text,
             facts,
-            title: [t.text, t.branch ? `Branch: ${t.branch}` : ""].filter((s) => !!s).join("\n"),
+            title: [topic.text, topic.branch ? t("companion.branch", { branch: topic.branch }) : ""]
+                .filter((s) => !!s)
+                .join("\n"),
         };
     });
 }
@@ -72,7 +75,7 @@ function activityLine(view: CompanionView): string {
     if (a == null || !a.tool) {
         return "";
     }
-    return a.target ? `Now: ${a.tool} · ${a.target}` : `Now: ${a.tool}`;
+    return t("companion.agents.now", { what: a.target ? `${a.tool} · ${a.target}` : a.tool });
 }
 
 // An agent's model and effort: the model's id (for the proportion) and how a row names it.
@@ -94,7 +97,7 @@ function configLabel(modelName: string, effort: string, inherited: boolean): str
     if (!effort) {
         return modelName;
     }
-    return inherited ? `${modelName} · ${effort} (inherited)` : `${modelName} · ${effort}`;
+    return inherited ? t("companion.agents.configInherited", { model: modelName, effort }) : `${modelName} · ${effort}`;
 }
 
 type TicketFacts = Pick<AgentRow, "ticket" | "complexity" | "hint">;
@@ -117,13 +120,13 @@ export function mainAgentRow(view: CompanionView, agentState: AgentStateInfo): A
     const ended = view?.ended === true;
     const state: AgentRowState = ended ? "exited" : ((agentState?.state as AgentRowState) ?? "idle");
     const lines: string[] = [];
-    const task = (view?.todos ?? []).find((t) => t.status === "in_progress");
+    const task = (view?.todos ?? []).find((todo) => todo.status === "in_progress");
     if (task) {
-        lines.push(`Task: ${task.text}`);
+        lines.push(t("companion.agents.task", { text: task.text }));
     }
     const topic = view?.topics?.[0];
     if (topic && !task) {
-        lines.push(`Topic: ${topic.text}`);
+        lines.push(t("companion.agents.topic", { text: topic.text }));
     }
     if (state === "working") {
         const now = activityLine(view);
@@ -137,7 +140,7 @@ export function mainAgentRow(view: CompanionView, agentState: AgentStateInfo): A
         main: true,
         name: agentState?.firstname ? agentLabel(agentState) : view?.agentname || agentState?.agentname || "Agent",
         state,
-        stateLabel: ended ? "exited" : agentStateLabel(state),
+        stateLabel: ended ? t("companion.agents.exited") : agentStateLabel(state),
         config: ended ? "" : configLabel(me.modelName, me.effort, false),
         lines: lines.slice(0, MaxWorkLines),
         ...(ended ? {} : ticketFacts(view?.session?.ticket, view?.session?.complexity, me.model, me.effort)),
@@ -160,7 +163,11 @@ function stillRunning(sub: CompanionSubagent, view: CompanionView, agentState: A
 // A sub-agent's model and effort: its own, else its parent's, marked inherited (#601).
 export function subagentRow(sub: CompanionSubagent, now: number, parent?: ModelEffort): AgentRow {
     const started = relativeTime(sub.started, now);
-    const what = [sub.kind, sub.background ? "background" : "", started ? `started ${started}` : ""].filter((s) => !!s);
+    const what = [
+        sub.kind,
+        sub.background ? t("companion.agents.background") : "",
+        started ? t("companion.started", { time: started }) : "",
+    ].filter((s) => !!s);
     const ownModel = modelDisplayName(sub.model) ? (sub.model ?? "").trim() : "";
     const model = ownModel || parent?.model || "";
     const modelName = ownModel ? modelDisplayName(ownModel) : parent?.modelName || "";
@@ -169,16 +176,16 @@ export function subagentRow(sub: CompanionSubagent, now: number, parent?: ModelE
     const inheritedModel = !ownModel && !!modelName;
     const inheritedEffort = !ownEffort && !!effort;
     const titleParts = [
-        model ? `Model: ${model}${inheritedModel ? " (its parent's)" : ""}` : "",
-        effort ? `Effort: ${effort}${inheritedEffort ? " (its parent's)" : ""}` : "",
-        sub.branch ? `Branch: ${sub.branch}` : "",
+        model ? t(inheritedModel ? "companion.agents.modelParent" : "agent.modelTitle", { model }) : "",
+        effort ? t(inheritedEffort ? "companion.agents.effortParent" : "agent.effortTitle", { effort }) : "",
+        sub.branch ? t("companion.branch", { branch: sub.branch }) : "",
     ].filter((s) => !!s);
     return {
         id: sub.id,
         main: false,
-        name: sub.description || sub.kind || "Sub-agent",
+        name: sub.description || sub.kind || t("companion.agents.subagent"),
         state: "running",
-        stateLabel: "running",
+        stateLabel: t("companion.agents.running"),
         config: configLabel(modelName, effort, inheritedEffort),
         configTitle: titleParts.join("\n"),
         lines: what.length > 0 ? [what.join(" · ")] : [],
@@ -206,7 +213,10 @@ export function agentsView(view: CompanionView, agentState: AgentStateInfo, now:
 }
 
 export function finishedLabel(finished: number, failed: number): string {
-    return [finished > 0 ? `${finished} finished` : "", failed > 0 ? `${failed} failed` : ""]
+    return [
+        finished > 0 ? t("companion.agents.finished", { count: finished }) : "",
+        failed > 0 ? t("companion.agents.failed", { count: failed }) : "",
+    ]
         .filter((s) => !!s)
         .join(" · ");
 }

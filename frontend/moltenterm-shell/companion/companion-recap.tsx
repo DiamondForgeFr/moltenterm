@@ -6,25 +6,25 @@
 
 import { cn } from "@/util/util";
 import { AgentStateDotClasses, AgentStateInfo } from "../agent-state-model";
+import { useT } from "../i18n/i18n";
 import { CompanionView } from "./companion-model";
 import { AgentRow, agentsView, finishedLabel, topicRows } from "./companion-recap-model";
 import { SectionTitle } from "./companion-section";
 
 export function RecentTopicsSection({ view, now }: { view: CompanionView; now: number }) {
+    const t = useT();
     const rows = topicRows(view.topics, now);
     const name = view.session?.name;
     return (
-        <section aria-label="Recent topics" data-testid="companion-topics">
-            <SectionTitle>Recent topics</SectionTitle>
+        <section aria-label={t("companion.topics.title")} data-testid="companion-topics">
+            <SectionTitle>{t("companion.topics.title")}</SectionTitle>
             {name ? (
                 <div className="truncate px-3 pb-1 text-12 text-secondary" title={name} data-testid="companion-name">
                     {name}
                 </div>
             ) : null}
             {rows.length === 0 ? (
-                <div className="px-3 text-12 text-muted">
-                    No topic yet: a prompt shows here once the agent works on it.
-                </div>
+                <div className="px-3 text-12 text-muted">{t("companion.topics.empty")}</div>
             ) : (
                 <ol className="flex flex-col gap-1.5 px-3">
                     {rows.map((row) => (
@@ -50,10 +50,11 @@ const RowDotClasses: Record<string, string> = {
 // The ticket the agent works on and its complexity, with a calm hint when its model and effort look out of proportion
 // with it (#601): a check for the developer, never a warning that blocks.
 function TicketLine({ row }: { row: AgentRow }) {
+    const t = useT();
     return (
         <div className="flex min-w-0 items-center gap-2 pl-4 text-11" data-testid="companion-agent-ticket">
             <span className="shrink-0 text-secondary tabular-nums">
-                {row.ticket} · complexity: {row.complexity}
+                {t("companion.agents.ticketComplexity", { ticket: row.ticket, complexity: row.complexity })}
             </span>
             {row.hint ? (
                 <span
@@ -123,12 +124,13 @@ export function AgentsSection({
     agentState: AgentStateInfo;
     now: number;
 }) {
+    const t = useT();
     const agents = agentsView(view, agentState, now);
     const ended = finishedLabel(agents.finished, agents.failed);
     return (
-        <section aria-label="Agents at work" data-testid="companion-agents">
+        <section aria-label={t("companion.agents.title")} data-testid="companion-agents">
             <SectionTitle right={ended ? <span className="text-11 text-muted">{ended}</span> : null}>
-                Agents at work
+                {t("companion.agents.title")}
             </SectionTitle>
             <ul className="flex flex-col gap-1.5 px-3">
                 {agents.rows.map((row) => (

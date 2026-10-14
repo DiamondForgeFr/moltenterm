@@ -5,6 +5,8 @@
 // `complexity: bug|low|medium|complex`, read by wavesrv, pkg/molten/companion/tickets.go) against the agent's model and
 // effort. A hint only: nothing blocks, nothing asks. Pure, so the table is unit tested.
 
+import { t } from "../i18n/i18n";
+
 export type Complexity = "bug" | "low" | "medium" | "complex";
 
 // must match pkg/molten/companion/tickets.go
@@ -115,17 +117,17 @@ export function proportionHint(model: string, effort: string, complexity: string
         return null;
     }
     const name = modelDisplayName(model) || model;
-    const pair = `${name} at ${effort.trim().toLowerCase()} effort`;
+    const pair = t("companion.proportion.pair", { model: name, effort: effort.trim().toLowerCase() });
     if (kind === "over") {
         return {
             kind,
-            label: `More than a ${complexity} ticket needs`,
-            title: `${pair} is more than a ${complexity}-complexity ticket needs: a smaller model or a lower effort may do.`,
+            label: t("companion.proportion.overLabel", { complexity }),
+            title: t("companion.proportion.overTitle", { pair, complexity }),
         };
     }
     return {
         kind,
-        label: `Less than a ${complexity} ticket needs`,
-        title: `${pair} is less than a ${complexity}-complexity ticket needs: a larger model or a higher effort may fit better.`,
+        label: t("companion.proportion.underLabel", { complexity }),
+        title: t("companion.proportion.underTitle", { pair, complexity }),
     };
 }

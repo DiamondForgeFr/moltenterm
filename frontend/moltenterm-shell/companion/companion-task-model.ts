@@ -4,6 +4,7 @@
 // The workspace task checkpoint (FR-CONT-007, DS-CONT-008): what wavesrv keeps of a workspace's task
 // (pkg/molten/agentcontinuity/checkpoint), and the pure rules of the companion's "Workspace task" section.
 
+import { t } from "../i18n/i18n";
 import { CompanionView, sessionRelation } from "./companion-model";
 
 // must match pkg/molten/agenttask.go
@@ -64,11 +65,11 @@ export function authorLabel(owner: string, transcript?: TaskTranscript): string 
         return "";
     }
     if (owner === OwnerUser) {
-        return "you";
+        return t("companion.task.you");
     }
     if (owner === OwnerAuto) {
         const name = agentName(transcript?.agent);
-        return name ? `MoltenTerm, from ${name}` : "MoltenTerm";
+        return name ? t("companion.task.autoFrom", { name }) : "MoltenTerm";
     }
     const agent = owner.split(":")[0];
     return agentName(agent);
@@ -151,10 +152,10 @@ export function taskSummary(view: TaskView): TaskSummary {
     };
 }
 
-const SessionLabels: Record<string, string> = {
-    current: "the current session",
-    earlier: "an earlier session of this terminal",
-    other: "another session",
+const SessionLabelKeys: Record<string, string> = {
+    current: "companion.task.sessionCurrent",
+    earlier: "companion.task.sessionEarlier",
+    other: "companion.task.sessionOther",
 };
 
 // Which session last wrote the task, as the companion knows the terminal's sessions (#600); "" when the task names
@@ -164,14 +165,15 @@ export function taskSessionLabel(view: TaskView, companion: CompanionView): stri
     if (!path) {
         return "";
     }
-    return SessionLabels[sessionRelation(path, companion)] ?? "";
+    const key = SessionLabelKeys[sessionRelation(path, companion)];
+    return key ? t(key) : "";
 }
 
 export function redactionLabel(count: number): string {
     if (!count) {
         return "";
     }
-    return count === 1 ? "1 secret redacted" : `${count} secrets redacted`;
+    return t(count === 1 ? "companion.task.redactedOne" : "companion.task.redactedOther", { count });
 }
 
 // A newer read replaces the one shown; an older answer arriving late does not.
