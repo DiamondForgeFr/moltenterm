@@ -6,6 +6,7 @@
 // wavesrv's handoff route. Only a window may answer: wavesrv refuses an answer from a terminal.
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { t } from "./i18n/i18n";
 import { NotificationGestureResult } from "./notifications-store";
 
 // must match pkg/molten/handoffwire/handoffwire.go
@@ -32,7 +33,7 @@ export function readHandoffAnswer(args: Record<string, any>): AgentHandoffAnswer
 export async function answerAgentHandoff(args: Record<string, any>): Promise<NotificationGestureResult> {
     const answer = readHandoffAnswer(args);
     if (answer == null) {
-        return { ok: false, error: "This handoff request cannot be read." };
+        return { ok: false, error: t("agent.handoffUnreadable") };
     }
     try {
         await TabRpcClient.wshRpcCall(AgentHandoffAnswerCommand, answer, {

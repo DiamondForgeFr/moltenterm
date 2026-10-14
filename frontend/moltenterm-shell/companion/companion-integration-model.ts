@@ -5,6 +5,7 @@
 // launcher added and left alone, and the settings that turn it off (agent:integrate, agent:integrateoff), read at
 // the agent's next launch.
 
+import { t } from "../i18n/i18n";
 import { CompanionIntegration } from "./companion-model";
 
 export const IntegrateKey = "agent:integrate";
@@ -46,9 +47,9 @@ export function turnOnForAgent(settings: Record<string, unknown>, agent: string)
 export function integrationSettingText(setting: IntegrationSetting, agentName: string): string {
     switch (setting) {
         case "alloff":
-            return "Turned off for every agent from the next launch. This session keeps it until it ends.";
+            return t("companion.integration.allOff");
         case "agentoff":
-            return `Turned off for ${agentName} from the next launch. This session keeps it until it ends.`;
+            return t("companion.integration.agentOff", { name: agentName });
         default:
             return null;
     }

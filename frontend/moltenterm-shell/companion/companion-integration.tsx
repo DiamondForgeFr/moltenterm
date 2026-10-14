@@ -11,6 +11,7 @@ import { useAtomValue } from "jotai";
 import { useState } from "react";
 import { AgentHookOffers } from "../agent-hooks-store";
 import { writeSettings } from "../command-panel/bindings";
+import { useT } from "../i18n/i18n";
 import { openFileInPreview } from "../term-copy/term-copy";
 import {
     integrationSetting,
@@ -27,11 +28,12 @@ const PlainButton =
     "cursor-pointer rounded-6 border border-border px-2.5 py-1 text-12 text-secondary hover:bg-hover hover:text-primary";
 
 export function IntegratedBadge({ onOpen, className }: { onOpen: () => void; className?: string }) {
+    const t = useT();
     return (
         <button
             type="button"
             onClick={onOpen}
-            title="What MoltenTerm added to this run, and how to turn it off"
+            title={t("companion.integration.badgeTitle")}
             className={cn(
                 "cursor-pointer rounded-6 px-1 py-0.5 text-11 whitespace-nowrap text-secondary hover:bg-hover hover:text-primary",
                 className
@@ -39,7 +41,7 @@ export function IntegratedBadge({ onOpen, className }: { onOpen: () => void; cla
             data-testid="companion-integrated"
         >
             <i className="fa fa-solid fa-plug mr-1 text-11" aria-hidden />
-            Integrated by MoltenTerm
+            {t("companion.integration.title")}
         </button>
     );
 }
@@ -66,6 +68,7 @@ export function IntegrationDetails({
     target: string;
     onClose: () => void;
 }) {
+    const t = useT();
     const settings = useAtomValue(atoms.settingsAtom) as Record<string, unknown>;
     const [error, setError] = useState<string>(null);
     const integration = view.integration;
@@ -98,36 +101,39 @@ export function IntegrationDetails({
                 <button
                     type="button"
                     onClick={onClose}
-                    aria-label="Back to the session"
-                    title="Back to the session"
+                    aria-label={t("companion.history.back")}
+                    title={t("companion.history.back")}
                     className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
                     data-testid="companion-integration-back"
                 >
                     <i className="fa fa-solid fa-arrow-left" />
                 </button>
                 <div>
-                    <div className="text-13 leading-5 font-medium text-primary">Integrated by MoltenTerm</div>
-                    <div className="text-12 text-secondary">
-                        Added to this run of {name} only, through its own per-run options. Your files are not edited.
-                    </div>
+                    <div className="text-13 leading-5 font-medium text-primary">{t("companion.integration.title")}</div>
+                    <div className="text-12 text-secondary">{t("companion.integration.hint", { name })}</div>
                 </div>
             </div>
             {integration?.added?.length ? (
                 <div className="flex flex-col gap-1.5">
-                    <div className="text-11 font-semibold tracking-wide text-muted uppercase">Added</div>
+                    <div className="text-11 font-semibold tracking-wide text-muted uppercase">
+                        {t("companion.integration.added")}
+                    </div>
                     <ItemList items={integration.added} testId="companion-integration-added" />
                 </div>
             ) : null}
             {integration?.skipped?.length ? (
                 <div className="flex flex-col gap-1.5">
-                    <div className="text-11 font-semibold tracking-wide text-muted uppercase">Left alone</div>
+                    <div className="text-11 font-semibold tracking-wide text-muted uppercase">
+                        {t("companion.integration.skipped")}
+                    </div>
                     <ItemList items={integration.skipped} testId="companion-integration-skipped" />
                 </div>
             ) : null}
             <div className="flex flex-col gap-1 text-11 text-muted">
                 {integration?.realpath ? (
                     <div>
-                        Runs <span className="font-mono break-all">{integration.realpath}</span>
+                        {t("companion.integration.runs")}{" "}
+                        <span className="font-mono break-all">{integration.realpath}</span>
                     </div>
                 ) : null}
                 {via.map((v) => (
@@ -142,9 +148,7 @@ export function IntegrationDetails({
                         {settingText}
                     </div>
                 ) : (
-                    <div className="text-12 text-secondary">
-                        Turning it off applies from the next launch; this session keeps it until it ends.
-                    </div>
+                    <div className="text-12 text-secondary">{t("companion.integration.nextLaunch")}</div>
                 )}
                 <div className="flex flex-wrap items-center gap-2">
                     {setting === "on" ? (
@@ -155,7 +159,7 @@ export function IntegrationDetails({
                                 onClick={() => write(turnOffForAgent(settings, agent))}
                                 data-testid="companion-integration-turnoff-agent"
                             >
-                                Turn off for {name}
+                                {t("companion.integration.turnOffAgent", { name })}
                             </button>
                             <button
                                 type="button"
@@ -163,7 +167,7 @@ export function IntegrationDetails({
                                 onClick={() => write(turnOffForEveryAgent())}
                                 data-testid="companion-integration-turnoff-all"
                             >
-                                Turn off for every agent
+                                {t("companion.integration.turnOffAll")}
                             </button>
                         </>
                     ) : (
@@ -173,7 +177,7 @@ export function IntegrationDetails({
                             onClick={() => write(turnOnForAgent(settings, agent))}
                             data-testid="companion-integration-turnon"
                         >
-                            Turn back on
+                            {t("companion.integration.turnOn")}
                         </button>
                     )}
                     <button
@@ -182,7 +186,7 @@ export function IntegrationDetails({
                         onClick={openGuide}
                         data-testid="companion-integration-guide"
                     >
-                        Open the guide
+                        {t("companion.integration.guide")}
                     </button>
                 </div>
                 {error ? <div className="text-12 text-error">{error}</div> : null}

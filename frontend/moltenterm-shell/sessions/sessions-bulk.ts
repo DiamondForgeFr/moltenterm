@@ -15,6 +15,7 @@ import {
     InterruptAction,
     permissionModeLabel,
 } from "../command-panel/agent-commands";
+import { t } from "../i18n/i18n";
 import { DurableSession, endRunningNote, SessionEndResult } from "./sessions-model";
 
 // must match pkg/molten/termupdate/restart.go
@@ -43,8 +44,13 @@ export type BulkResult = { id: string; kind: BulkResultKind; message: string };
 export type BulkItem = { session: DurableSession; skip?: string };
 
 // One command offered to a mixed selection: per agent, the action of its table (New conversation is /clear in
-// Claude Code, /new in Codex).
-export type BulkCommand = { id: string; label: string; actions: Record<string, { action: string; command: string }> };
+// Claude Code, /new in Codex). label is the English identity the agents' tables share; labelKey is what is shown.
+export type BulkCommand = {
+    id: string;
+    label: string;
+    labelKey: string;
+    actions: Record<string, { action: string; command: string }>;
+};
 
 // Commands that open a picker or end the agent are left to each pane: in bulk they would leave several agents
 // waiting on a menu, and Quit is what End does.
@@ -52,7 +58,9 @@ const NotInBulk = new Set(["model", "resume", "copy", "quit"]);
 
 export const BulkCommands: BulkCommand[] = buildBulkCommands({ claude: ClaudeCommands, codex: CodexCommands });
 
-function buildBulkCommands(tables: Record<string, { action: string; label: string; command: string }[]>) {
+function buildBulkCommands(
+    tables: Record<string, { action: string; label: string; labelKey: string; command: string }[]>
+) {
     const byLabel = new Map<string, BulkCommand>();
     for (const [agent, defs] of Object.entries(tables)) {
         for (const def of defs) {
@@ -61,7 +69,7 @@ function buildBulkCommands(tables: Record<string, { action: string; label: strin
             }
             let cmd = byLabel.get(def.label);
             if (cmd == null) {
-                cmd = { id: def.action, label: def.label, actions: {} };
+                cmd = { id: def.action, label: def.label, labelKey: def.labelKey, actions: {} };
                 byLabel.set(def.label, cmd);
             }
             cmd.actions[agent] = { action: def.action, command: def.command };
@@ -70,32 +78,39 @@ function buildBulkCommands(tables: Record<string, { action: string; label: strin
     return [...byLabel.values()];
 }
 
-// The permission modes a restart can pass to Claude Code ("" keeps the user's default).
-export const RestartModes: { id: string; label: string }[] = [
-    { id: "", label: "Keep the default" },
-    { id: "default", label: permissionModeLabel("default") },
-    { id: "acceptEdits", label: permissionModeLabel("acceptEdits") },
-    { id: "plan", label: permissionModeLabel("plan") },
-    { id: "bypassPermissions", label: permissionModeLabel("bypassPermissions") },
-];
+// The shown name of a bulk command, in the interface language.
+export function bulkCommandLabel(command: BulkCommand): string {
+    return command?.labelKey ? t(command.labelKey) : (command?.label ?? "");
+}
+
+// The permission modes a restart can pass to Claude Code ("" keeps the user's default), labelled when shown.
+export function restartModes(): { id: string; label: string }[] {
+    return [
+        { id: "", label: t("sessions.bulk.keepDefault") },
+        ...["default", "acceptEdits", "plan", "bypassPermissions"].map((id) => ({
+            id,
+            label: permissionModeLabel(id),
+        })),
+    ];
+}
 
 function agentLabel(s: DurableSession): string {
-    return s.agentname || s.agent || "The agent";
+    return s.agentname || s.agent || t("sessions.bulk.theAgent");
 }
 
 // Why an agent action (restart, send) cannot reach a session, "" when it can.
 function agentSkip(s: DurableSession): string {
     if (!s.agent) {
-        return "Not a coding agent";
+        return t("sessions.bulk.skip.notAgent");
     }
     if (s.connection) {
-        return `Runs on ${s.connection}: only local agents`;
+        return t("sessions.bulk.skip.remote", { connection: s.connection });
     }
     if (!s.shown || !s.blockid) {
-        return "Not in a pane: open it first";
+        return t("sessions.bulk.skip.notInPane");
     }
     if (s.reason === "olderversion") {
-        return "Started by an older MoltenTerm";
+        return t("sessions.bulk.skip.olderVersion");
     }
     return "";
 }
@@ -103,7 +118,7 @@ function agentSkip(s: DurableSession): string {
 export function bulkSkip(action: BulkAction, s: DurableSession, command?: BulkCommand): string {
     switch (action) {
         case "end":
-            return s.canend ? "" : "Cannot be ended now";
+            return s.canend ? "" : t("sessions.bulk.skip.cannotEnd");
         case "restart":
             return agentSkip(s);
         case "send": {
@@ -112,7 +127,7 @@ export function bulkSkip(action: BulkAction, s: DurableSession, command?: BulkCo
                 return skip;
             }
             if (command != null && command.actions[s.agent] == null) {
-                return `${agentLabel(s)} has no ${command.label} command`;
+                return t("sessions.bulk.skip.noCommand", { agent: agentLabel(s), command: bulkCommandLabel(command) });
             }
             return "";
         }
@@ -138,16 +153,17 @@ export function busyNote(action: BulkAction, s: DurableSession, command?: BulkCo
     }
     const interrupt = action === "send" && command?.id === InterruptAction;
     if (s.agentstate === "working" && !interrupt) {
-        return "working now: skipped unless its turn ends first";
+        return t("sessions.bulk.busyWorking");
     }
     if (s.agentstate === "waiting") {
-        return "waiting for you: skipped unless answered first";
+        return t("sessions.bulk.busyWaiting");
     }
     return "";
 }
 
-function plural(n: number, word: string): string {
-    return `${n} ${word}${n === 1 ? "" : "s"}`;
+// A count with its words: key.one or key.other, with {count}.
+function plural(n: number, key: string): string {
+    return t(n === 1 ? `${key}.one` : `${key}.other`, { count: n });
 }
 
 export type BulkConfirmText = { title: string; subtitle: string; confirm: string; running: string };
@@ -155,39 +171,43 @@ export type BulkConfirmText = { title: string; subtitle: string; confirm: string
 export function bulkConfirmText(action: BulkAction, items: BulkItem[], command?: BulkCommand): BulkConfirmText {
     const n = items.filter((i) => !i.skip).length;
     const skipped = items.length - n;
-    const skipText =
-        skipped > 0 ? ` ${plural(skipped, "selected session")} ${skipped === 1 ? "is" : "are"} left out.` : "";
+    const skipText = skipped > 0 ? ` ${plural(skipped, "sessions.bulk.leftOut")}` : "";
+    const sessions = plural(n, "sessions.count.sessions");
+    const agents = plural(n, "sessions.count.agents");
     switch (action) {
         case "end":
             return {
-                title: `End ${plural(n, "session")}?`,
-                subtitle: `Ending a session stops what runs in it.${skipText}`,
-                confirm: `End ${plural(n, "session")}`,
-                running: "Ending…",
+                title: t("sessions.bulk.end.title", { sessions }),
+                subtitle: `${t("sessions.bulk.end.subtitle")}${skipText}`,
+                confirm: t("sessions.bulk.end.confirm", { sessions }),
+                running: t("sessions.bulk.end.running"),
             };
         case "restart":
             return {
-                title: `Restart ${plural(n, "agent")} with the current settings?`,
-                subtitle: `Each agent exits and resumes the same conversation in its pane.${skipText}`,
-                confirm: `Restart ${plural(n, "agent")}`,
-                running: "Restarting…",
+                title: t("sessions.bulk.restart.title", { agents }),
+                subtitle: `${t("sessions.bulk.restart.subtitle")}${skipText}`,
+                confirm: t("sessions.bulk.restart.confirm", { agents }),
+                running: t("sessions.bulk.restart.running"),
             };
         case "send":
             return {
-                title: `Send ${command?.label ?? "a command"} to ${plural(n, "agent")}?`,
+                title: t("sessions.bulk.send.title", {
+                    command: command != null ? bulkCommandLabel(command) : t("sessions.bulk.send.aCommand"),
+                    agents,
+                }),
                 subtitle:
-                    command?.id === InterruptAction
-                        ? `Each agent gets its interrupt key once.${skipText}`
-                        : `Each agent gets the command once; an unsent message in its prompt is cleared.${skipText}`,
-                confirm: `Send to ${plural(n, "agent")}`,
-                running: "Sending…",
+                    (command?.id === InterruptAction
+                        ? t("sessions.bulk.send.subtitleInterrupt")
+                        : t("sessions.bulk.send.subtitle")) + skipText,
+                confirm: t("sessions.bulk.send.confirm", { agents }),
+                running: t("sessions.bulk.send.running"),
             };
     }
 }
 
 export function restartResult(id: string, out: AgentRestartOutcome): BulkResult {
     if (out == null) {
-        return { id, kind: "failed", message: "MoltenTerm could not reach the terminal." };
+        return { id, kind: "failed", message: t("sessions.bulk.unreachable") };
     }
     switch (out.status) {
         case "restarted":
@@ -196,12 +216,12 @@ export function restartResult(id: string, out: AgentRestartOutcome): BulkResult 
         case "busy":
             return { id, kind: "skipped", message: out.message };
     }
-    return { id, kind: "failed", message: out.message || "The agent was not restarted." };
+    return { id, kind: "failed", message: out.message || t("sessions.bulk.notRestarted") };
 }
 
 export function sendResult(id: string, out: AgentInputResult): BulkResult {
     if (out == null) {
-        return { id, kind: "failed", message: "MoltenTerm could not reach the terminal." };
+        return { id, kind: "failed", message: t("sessions.bulk.unreachable") };
     }
     if (out.result === "sent") {
         return { id, kind: "done", message: out.message };
@@ -212,14 +232,14 @@ export function sendResult(id: string, out: AgentInputResult): BulkResult {
         case "busy":
             return { id, kind: "skipped", message: out.message };
     }
-    return { id, kind: "failed", message: out.message || "Nothing was typed." };
+    return { id, kind: "failed", message: out.message || t("sessions.bulk.nothingTyped") };
 }
 
 export function endResult(id: string, res: SessionEndResult): BulkResult {
     if (res?.pending) {
-        return { id, kind: "done", message: "Ends once its host is back." };
+        return { id, kind: "done", message: t("sessions.bulk.endsLater") };
     }
-    return { id, kind: "done", message: "Ended." };
+    return { id, kind: "done", message: t("sessions.bulk.ended") };
 }
 
 export function errorResult(id: string, e: any): BulkResult {
@@ -260,7 +280,7 @@ export async function runBulkItem(
                 const out = await runners.restart({ blockid: s.blockid, agent: s.agent, mode });
                 const result = restartResult(s.id, out);
                 if (result.kind === "done" && opts.mode && s.agent !== "claude") {
-                    result.message += ` ${agentLabel(s)} kept its own permission settings.`;
+                    result.message += ` ${t("sessions.bulk.keptOwnMode", { agent: agentLabel(s) })}`;
                 }
                 return result;
             }
@@ -279,7 +299,7 @@ export async function runBulkItem(
     } catch (e) {
         return errorResult(s.id, e);
     }
-    return { id: s.id, kind: "failed", message: "Unknown action." };
+    return { id: s.id, kind: "failed", message: t("sessions.bulk.unknownAction") };
 }
 
 // Sessions run one after the other: two restarts never type at once, and the results arrive in the list's order.
@@ -299,7 +319,9 @@ export async function runBulk(
     return rtn;
 }
 
-export const BulkKindLabels: Record<BulkResultKind, string> = { done: "Done", skipped: "Skipped", failed: "Failed" };
+export function bulkKindLabel(kind: BulkResultKind): string {
+    return t(`sessions.bulk.kind.${kind}`);
+}
 
 export function bulkSummary(
     action: BulkAction,
@@ -308,16 +330,18 @@ export function bulkSummary(
     const done = results.filter((r) => r.kind === "done").length;
     const skipped = results.filter((r) => r.kind === "skipped").length;
     const failed = results.filter((r) => r.kind === "failed").length;
-    const verb = action === "end" ? "Ended" : action === "restart" ? "Restarted" : "Sent to";
     const parts = [];
     if (skipped > 0) {
-        parts.push(`${skipped} skipped`);
+        parts.push(t("sessions.bulk.skippedCount", { count: skipped }));
     }
     if (failed > 0) {
-        parts.push(`${failed} failed`);
+        parts.push(t("sessions.bulk.failedCount", { count: failed }));
     }
     return {
-        title: `${verb} ${done} of ${plural(results.length, "session")}`,
+        title: t(`sessions.bulk.summary.${action}`, {
+            done,
+            sessions: plural(results.length, "sessions.count.sessions"),
+        }),
         detail: parts.join(" · "),
         tone: failed > 0 ? "failed" : skipped > 0 ? "skipped" : "done",
     };

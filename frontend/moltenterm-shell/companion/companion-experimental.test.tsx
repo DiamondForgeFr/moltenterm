@@ -7,7 +7,7 @@ import { ExperimentalRow, PlanUsageBody } from "./companion-gauges";
 import {
     CompanionUsageInfo,
     creditsText,
-    ExperimentalLabel,
+    experimentalLabel,
     experimentalStatement,
     experimentalView,
     gaugesView,
@@ -102,7 +102,7 @@ describe("experimental source row", () => {
         expect(html).toContain("Extra usage: $12.50 of $50.00");
         expect(html).toContain("From the Claude Code status line and Anthropic usage endpoint");
         expect(html).toContain('data-testid="companion-plan-usage-experimental" data-state="on"');
-        expect(html).toContain(ExperimentalLabel);
+        expect(html).toContain(experimentalLabel());
         expect(html).toContain("Turn off");
         expect(html).not.toContain("Model limits unavailable");
     });

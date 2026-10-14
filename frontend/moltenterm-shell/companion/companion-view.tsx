@@ -18,6 +18,7 @@ import { memo, useEffect, useMemo, useState } from "react";
 import { agentLabel } from "../agent-state-model";
 import { useBlockAgentState } from "../agent-state-ui";
 import { EmptyState, EmptyStateAction } from "../empty-state";
+import { I18nModel, t as translate, useT } from "../i18n/i18n";
 import { always, TabActivity, whileShown } from "../tab-activity";
 import { attachCompanion, companionAgent, startCompanionAgent, tabAttachCandidates } from "./companion-attach";
 import { FilesSection } from "./companion-files";
@@ -72,7 +73,10 @@ export class CompanionViewModel implements ViewModel {
     blockId: string;
     nodeModel: BlockNodeModel;
     viewIcon = atom("book-open");
-    viewName = atom("Companion");
+    viewName = atom((get) => {
+        get(I18nModel.getInstance().localeAtom);
+        return translate("companion.viewName");
+    });
     noPadding = atom(true);
     // The folder's sessions to pick from, opened by Choose from the folder's sessions, the session bar or the command
     // panel's Linked session (FR-SHELL-049).
@@ -207,6 +211,7 @@ function useCompanion(target: string): {
 }
 
 function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
+    const t = useT();
     const target = useAtomValue(model.targetAtom);
     const agentState = useBlockAgentState(target);
     const terminal = useAtomValueSafe(target ? getWaveObjectAtom<Block>(makeORef("block", target)) : null);
@@ -230,19 +235,22 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         setIntegrationOpen(false);
     }, [target, view?.agent]);
     const startAction: EmptyStateAction = {
-        label: `Start ${agent.name} here`,
-        busyLabel: "Starting…",
+        label: t("companion.startHere", { name: agent.name }),
+        busyLabel: t("companion.starting"),
         busy: actions.busy,
-        onClick: () => actions.run(`${agent.name} did not start.`, () => startCompanionAgent(model.blockId, target)),
+        onClick: () =>
+            actions.run(t("companion.didNotStart", { name: agent.name }), () =>
+                startCompanionAgent(model.blockId, target)
+            ),
         testId: "companion-start-agent",
     };
     const attachAction: EmptyStateAction = {
-        label: "Attach to a terminal",
+        label: t("companion.attach"),
         menu: true,
         disabled: actions.busy,
         onClick: (e) =>
             showAttachMenu(e, target, (id) =>
-                actions.run("The companion could not attach.", () => attachCompanion(model.blockId, id))
+                actions.run(t("companion.attachFailed"), () => attachCompanion(model.blockId, id))
             ),
         testId: "companion-attach",
     };
@@ -250,8 +258,8 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         return (
             <EmptyState
                 icon="link-slash"
-                title="No terminal"
-                hint={`Attach this companion to a terminal to follow its agent, or start ${agent.name} here.`}
+                title={t("companion.noTerminal")}
+                hint={t("companion.noTerminalHint", { name: agent.name })}
                 primary={attachAction}
                 secondary={startAction}
                 alert={actions.alert}
@@ -264,8 +272,8 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         return (
             <EmptyState
                 icon="triangle-exclamation"
-                title="The companion is not available"
-                hint="MoltenTerm could not reach it. It tries again every 15 seconds."
+                title={t("companion.unavailable")}
+                hint={t("companion.unavailableHint")}
                 details={error}
             />
         );
@@ -298,7 +306,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 title={message.title}
                 hint={message.detail}
                 primary={startAction}
-                secondary={{ ...attachAction, label: "Attach to another terminal" }}
+                secondary={{ ...attachAction, label: t("companion.attachOther") }}
                 alert={actions.alert}
                 details={actions.raw}
                 testId="companion-noagent"
@@ -315,7 +323,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 secondary={
                     view?.status === "searching"
                         ? {
-                              label: "Choose from the folder's sessions",
+                              label: t("companion.chooseSession"),
                               onClick: () => setHistory(true),
                               testId: "companion-history-open",
                           }
@@ -433,7 +441,7 @@ function showAttachMenu(e: React.MouseEvent<HTMLButtonElement>, current: string,
     const candidates = tabAttachCandidates(current);
     const items: ContextMenuItem[] =
         candidates.length === 0
-            ? [{ label: "No terminal in this tab", enabled: false }]
+            ? [{ label: translate("companion.noTerminalInTab"), enabled: false }]
             : candidates.map((c) => ({
                   label: c.label,
                   type: c.current ? "checkbox" : "normal",
@@ -516,6 +524,7 @@ function IntegrationNotice({ view, className }: { view: CompanionView; className
 }
 
 function PermissionCard({ pending, agentState }: { pending: CompanionToolCall[]; agentState: string }) {
+    const t = useT();
     const request = permissionRequest(pending, agentState);
     if (request == null) {
         return null;
@@ -526,14 +535,14 @@ function PermissionCard({ pending, agentState }: { pending: CompanionToolCall[];
             data-testid="companion-permission"
         >
             <div className="mb-1 text-12 font-medium text-warning">
-                Permission request · <span className="font-mono">{request.tool}</span>
+                {t("companion.permissionRequest")} · <span className="font-mono">{request.tool}</span>
             </div>
             {request.args ? (
                 <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-11 text-secondary">
                     {formatArgs(request.args)}
                 </pre>
             ) : null}
-            <div className="mt-1 text-11 text-muted">Answer it in the terminal.</div>
+            <div className="mt-1 text-11 text-muted">{t("companion.answerInTerminal")}</div>
         </div>
     );
 }
@@ -568,6 +577,7 @@ function NavButton({
 
 // The latest answer follows the session; browsing back pins an earlier one until "Latest".
 function AnswerSection({ target, view }: { target: string; view: CompanionView }) {
+    const t = useT();
     const [pinned, setPinned] = useState<number>(null);
     const [earlier, setEarlier] = useState<CompanionAnswer>(null);
     const [error, setError] = useState<string>(null);
@@ -613,8 +623,8 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
     if (latest == null) {
         return (
             <>
-                <SectionTitle>Answer</SectionTitle>
-                <div className="px-3 text-12 text-muted">No answer yet in this session.</div>
+                <SectionTitle>{t("companion.answer.title")}</SectionTitle>
+                <div className="px-3 text-12 text-muted">{t("companion.answer.none")}</div>
             </>
         );
     }
@@ -624,7 +634,7 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
                 right={
                     <>
                         <NavButton
-                            label="Earlier answer"
+                            label={t("companion.answer.earlier")}
                             icon="chevron-left"
                             disabled={pos <= 0}
                             onClick={() => go(-1)}
@@ -633,7 +643,7 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
                             {pos + 1} / {answers.length}
                         </span>
                         <NavButton
-                            label="Later answer"
+                            label={t("companion.answer.later")}
                             icon="chevron-right"
                             disabled={pos < 0 || pos >= answers.length - 1}
                             onClick={() => go(1)}
@@ -644,21 +654,25 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
                                 onClick={() => setPinned(null)}
                                 className="cursor-pointer rounded-6 px-1.5 py-0.5 text-11 text-accent hover:bg-hover"
                             >
-                                Latest
+                                {t("companion.answer.latestButton")}
                             </button>
                         ) : null}
                         <CopyButton
-                            title="Copy the answer as markdown"
+                            title={t("companion.answer.copy")}
                             onClick={() => fireAndForget(() => navigator.clipboard.writeText(shown?.markdown ?? ""))}
                         />
                     </>
                 }
             >
-                {pinned == null ? "Latest answer" : "Earlier answer"}
+                {pinned == null ? t("companion.answer.latest") : t("companion.answer.earlier")}
             </SectionTitle>
             {error ? <div className="px-3 text-12 text-error">{error}</div> : null}
             <div className="px-3" data-testid="companion-answer">
-                {shown ? <AnswerMarkdown markdown={markdown} /> : <div className="text-12 text-muted">Loading…</div>}
+                {shown ? (
+                    <AnswerMarkdown markdown={markdown} />
+                ) : (
+                    <div className="text-12 text-muted">{t("companion.loading")}</div>
+                )}
             </div>
         </>
     );
@@ -676,6 +690,7 @@ const TodoIcons: Record<string, string> = {
 };
 
 function TodoSection({ todos }: { todos: CompanionTodo[] }) {
+    const t = useT();
     if (todos == null || todos.length === 0) {
         return null;
     }
@@ -683,14 +698,14 @@ function TodoSection({ todos }: { todos: CompanionTodo[] }) {
     return (
         <>
             <SectionTitle right={<span className="text-11 text-muted tabular-nums">{`${done} / ${total}`}</span>}>
-                Tasks
+                {t("companion.tasks")}
             </SectionTitle>
             <ul className="flex flex-col gap-1 px-3" data-testid="companion-todos">
-                {todos.map((t, i) => (
+                {todos.map((todo, i) => (
                     <li key={i} className="flex items-start gap-2 text-12">
-                        <i className={cn("mt-0.5 fa-fw", TodoIcons[t.status] ?? TodoIcons.pending)} />
-                        <span className={cn(t.status === "completed" ? "text-muted line-through" : "text-primary")}>
-                            {t.text}
+                        <i className={cn("mt-0.5 fa-fw", TodoIcons[todo.status] ?? TodoIcons.pending)} />
+                        <span className={cn(todo.status === "completed" ? "text-muted line-through" : "text-primary")}>
+                            {todo.text}
                         </span>
                     </li>
                 ))}

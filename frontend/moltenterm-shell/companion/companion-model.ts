@@ -4,6 +4,8 @@
 // The agent companion (FR-SHELL-018, DS-SHELL-019): what wavesrv reads of the agent session of a terminal
 // (pkg/molten/companion), and the pure rules of its view. Pure, so they are tested without a window.
 
+import { getLocale, t } from "../i18n/i18n";
+
 // must match pkg/molten/agentcompanion.go
 export const CompanionRoute = "molten:companion";
 export const CompanionEvent = "molten:companion";
@@ -214,10 +216,10 @@ export function historyGroups(sessions: CompanionCandidate[]): HistoryGroup[] {
     const list = sessions ?? [];
     const rest = list.filter((c) => !c.current && !c.live);
     const groups: HistoryGroup[] = [
-        { key: "current", label: "Shown now", sessions: list.filter((c) => c.current) },
-        { key: "live", label: "The agent's session now", sessions: list.filter((c) => !c.current && c.live) },
-        { key: "earlier", label: "Earlier in this terminal", sessions: rest.filter((c) => c.earlier) },
-        { key: "other", label: "Other sessions of this folder", sessions: rest.filter((c) => !c.earlier) },
+        { key: "current", label: t("companion.history.current"), sessions: list.filter((c) => c.current) },
+        { key: "live", label: t("companion.history.live"), sessions: list.filter((c) => !c.current && c.live) },
+        { key: "earlier", label: t("companion.history.earlier"), sessions: rest.filter((c) => c.earlier) },
+        { key: "other", label: t("companion.history.other"), sessions: rest.filter((c) => !c.earlier) },
     ];
     return groups.filter((g) => g.sessions.length > 0);
 }
@@ -296,7 +298,7 @@ export function needsLatest(view: CompanionView): boolean {
 // The message a companion without a session shows, or null when the session shows.
 // raw is the backend's own text, shown only under Details (FR-SHELL-053).
 export function statusMessage(view: CompanionView): { title: string; detail?: string; raw?: string } {
-    const name = view?.agentname || "This agent";
+    const name = view?.agentname || t("companion.status.thisAgent");
     switch (view?.status) {
         case null:
         case undefined:
@@ -304,37 +306,40 @@ export function statusMessage(view: CompanionView): { title: string; detail?: st
             if (view?.session != null) {
                 return null;
             }
-            return { title: "Reading the session…" };
+            return { title: t("companion.status.loading") };
         case "noagent":
             return {
-                title: "No agent runs in this terminal",
-                detail: "Start Claude Code here, or attach the companion to another terminal.",
+                title: t("companion.status.noAgent"),
+                detail: t("companion.status.noAgentDetail"),
             };
         case "unsupportedagent":
-            return { title: `No companion for ${name}`, detail: "The companion reads Claude Code and Codex sessions." };
+            return {
+                title: t("companion.status.unsupportedAgent", { name }),
+                detail: t("companion.status.unsupportedAgentDetail"),
+            };
         case "remote":
             return {
-                title: "No companion for a remote terminal",
-                detail: "The agent's session lives on the remote machine.",
+                title: t("companion.status.remote"),
+                detail: t("companion.status.remoteDetail"),
             };
         case "searching":
             return {
-                title: `Waiting for the ${name} session`,
+                title: t("companion.status.searching", { name }),
                 detail:
                     view.message ||
                     (linksItsSession(view)
-                        ? "MoltenTerm's integration links it as soon as the agent starts its session."
-                        : "It shows once the agent writes its first message, or at once with a SessionStart hook (molten docs, agent-states.md)."),
+                        ? t("companion.status.searchingIntegrated")
+                        : t("companion.status.searchingDetail")),
             };
         case "unsupportedformat":
             return {
-                title: "Unsupported session format",
-                detail: `${view.message || name} writes its transcript in a format this version of MoltenTerm does not read. The terminal is not affected.`,
+                title: t("companion.status.unsupportedFormat"),
+                detail: t("companion.status.unsupportedFormatDetail", { name: view.message || name }),
             };
         case "error":
             return {
-                title: "The companion stopped",
-                detail: "It could not read the agent's session. The terminal is not affected.",
+                title: t("companion.status.error"),
+                detail: t("companion.status.errorDetail"),
                 raw: view.message,
             };
     }
@@ -351,7 +356,10 @@ export function usageAction(view: CompanionView): { url: string; title: string }
     if (view.status === "noagent" || view.status === "unsupportedagent") {
         return null;
     }
-    return { url: page.pageurl, title: `Open ${page.pagename || "usage page"}` };
+    return {
+        url: page.pageurl,
+        title: page.pagename ? t("companion.usage.open", { page: page.pagename }) : t("companion.usage.openDefault"),
+    };
 }
 
 // A pending call is a permission request when the transcript says so (Codex's approval requests), or when the
@@ -447,30 +455,30 @@ export function relativeTime(at: number, now: number): string {
     }
     const s = Math.max(0, Math.round((now - at) / 1000));
     if (s < 60) {
-        return "just now";
+        return t("companion.time.justNow");
     }
     const m = Math.round(s / 60);
     if (m < 60) {
-        return `${m} min ago`;
+        return t("companion.time.minutesAgo", { count: m });
     }
     const h = Math.round(m / 60);
     if (h < 24) {
-        return `${h} h ago`;
+        return t("companion.time.hoursAgo", { count: h });
     }
-    return `${Math.round(h / 24)} d ago`;
+    return t("companion.time.daysAgo", { count: Math.round(h / 24) });
 }
 
 // How the session was linked, as the session bar says it.
 export function linkLabel(session: CompanionSession): string {
     switch (session?.linkedby) {
         case "hook":
-            return "linked by the agent's hook";
+            return t("companion.link.hook");
         case "picked":
-            return "picked";
+            return t("companion.link.picked");
         case "guessed":
-            return "guessed";
+            return t("companion.link.guessed");
     }
-    return "found by folder";
+    return t("companion.link.folder");
 }
 
 // The one-line reason of a guessed link (DS-SHELL-060), or null for any other link.
@@ -480,11 +488,11 @@ export function guessHint(session: CompanionSession): string {
     }
     switch (session.guess) {
         case "started":
-            return "Guessed: the session that started after this terminal's agent.";
+            return t("companion.guess.started");
         case "activity":
-            return "Guessed: the session written while this terminal's agent worked.";
+            return t("companion.guess.activity");
     }
-    return "Guessed: the most recently updated session of this folder.";
+    return t("companion.guess.recent");
 }
 
 function clockTime(at: number): string {
@@ -498,9 +506,11 @@ export function startedLabel(at: number, now: number): string {
     }
     const day = new Date(at);
     if (day.toDateString() === new Date(now).toDateString()) {
-        return `started ${clockTime(at)}`;
+        return t("companion.started", { time: clockTime(at) });
     }
-    return `started ${day.toLocaleDateString([], { day: "numeric", month: "short" })} ${clockTime(at)}`;
+    return t("companion.started", {
+        time: `${day.toLocaleDateString(getLocale(), { day: "numeric", month: "short" })} ${clockTime(at)}`,
+    });
 }
 
 // The linked session's name, as in the history: its first real prompt, else its first command (FR-SHELL-039).
@@ -523,8 +533,8 @@ export function sessionTooltipLine(session: CompanionSession, now: number): stri
         return null;
     }
     const started = startedLabel(session.started, now);
-    const guessed = session.linkedby === "guessed" ? " (guessed)" : "";
-    return `Session: ${sessionTitle(session)}${started ? ` · ${started}` : ""}${guessed}`;
+    const guessed = session.linkedby === "guessed" ? ` ${t("companion.guessedSuffix")}` : "";
+    return `${t("companion.sessionLine", { title: sessionTitle(session) })}${started ? ` · ${started}` : ""}${guessed}`;
 }
 
 export function candidateTitle(c: CompanionCandidate): string {
@@ -532,7 +542,7 @@ export function candidateTitle(c: CompanionCandidate): string {
         return c.prompt;
     }
     if (!c.command) {
-        return "(no prompt yet)";
+        return t("companion.noPromptYet");
     }
     if (!c.started) {
         return c.command;

@@ -5,6 +5,8 @@
 // (pkg/molten/attention/agentstate.go); the windows show them in the pane header, on the tab and on the workspace
 // icon of the rail. Kept apart from the components so the rules can be tested without the app.
 
+import { t } from "./i18n/i18n";
+
 // must match pkg/molten/agentstate.go
 export const AgentStateEvent = "molten:agentstate";
 export const AgentStatesRoute = "molten:agents";
@@ -94,16 +96,11 @@ export function agentStatesOfWorkspace(data: AgentStatesData, workspaceId: strin
     return Object.values(data.states).filter((s) => s.workspaceid === workspaceId);
 }
 
-const StateLabels: Record<string, string> = {
-    working: "working",
-    waiting: "waiting for you",
-    done: "done",
-    error: "error",
-    idle: "idle",
-};
+const StateNames = ["working", "waiting", "done", "error", "idle"];
 
 export function agentStateLabel(state: string): string {
-    return StateLabels[state] ?? state ?? "";
+    if (StateNames.includes(state)) return t(`agent.state.${state}`);
+    return state ?? "";
 }
 
 // The dot's colour per state, as class strings (the theme's tokens). Working is a ring, like the tab's mark, so it
@@ -134,7 +131,7 @@ export function agentStateTitle(info: AgentStateInfo): string {
         return "";
     }
     const name = agentLabel(info);
-    const line = `${name}: ${agentStateLabel(info.state)}`;
+    const line = t("agent.stateLine", { name, state: agentStateLabel(info.state) });
     return info.message ? `${line}\n${info.message}` : line;
 }
 
@@ -169,7 +166,7 @@ export function agentModelTitle(info: AgentStateInfo): string {
     }
     const model =
         info.model && info.modelname && info.model !== info.modelname ? `${info.modelname} (${info.model})` : label;
-    return [`Model: ${model}`, "Click to change the model"].join("\n");
+    return [t("agent.modelTitle", { model }), t("agent.modelClick")].join("\n");
 }
 
 export function agentEffortTitle(info: AgentStateInfo): string {
@@ -177,7 +174,7 @@ export function agentEffortTitle(info: AgentStateInfo): string {
     if (!effort) {
         return "";
     }
-    return [`Effort: ${effort}`, "Click to change the effort level"].join("\n");
+    return [t("agent.effortTitle", { effort }), t("agent.effortClick")].join("\n");
 }
 
 // What the header says next to the agent: project and branch, when the pane's folder is known.

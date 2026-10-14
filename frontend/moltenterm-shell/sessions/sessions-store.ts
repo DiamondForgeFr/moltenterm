@@ -10,6 +10,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
+import { t } from "../i18n/i18n";
 import { registerNotificationGesture } from "../notifications-store";
 import { openMoltentermView } from "../open-view";
 import { showPane } from "./pane-focus";
@@ -123,7 +124,7 @@ export class DurableSessions {
         registerNotificationGesture(ShowSessionGesture, async (args) => {
             const id = typeof args?.id === "string" ? args.id : "";
             if (!id) {
-                return { ok: false, error: "No session given." };
+                return { ok: false, error: t("sessions.noSessionGiven") };
             }
             const loc = await this.show(id);
             if (loc != null && !loc.created) {

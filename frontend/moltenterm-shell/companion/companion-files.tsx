@@ -8,6 +8,7 @@
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
+import { useT } from "../i18n/i18n";
 import { filterFiles } from "./companion-files-model";
 import {
     CompanionDiff,
@@ -31,10 +32,10 @@ function diffCall(target: string, path: string): Promise<CompanionDiff> {
     );
 }
 
-const KindLabels: Record<string, { text: string; className: string; title: string }> = {
-    add: { text: "A", className: "text-success", title: "Added" },
-    update: { text: "M", className: "text-warning", title: "Modified" },
-    delete: { text: "D", className: "text-error", title: "Deleted" },
+const KindLabels: Record<string, { text: string; className: string; titleKey: string }> = {
+    add: { text: "A", className: "text-success", titleKey: "companion.files.added" },
+    update: { text: "M", className: "text-warning", titleKey: "companion.files.modified" },
+    delete: { text: "D", className: "text-error", titleKey: "companion.files.deleted" },
 };
 
 export function FilesSection({
@@ -48,6 +49,7 @@ export function FilesSection({
     files: CompanionFile[];
     folder: string;
 }) {
+    const t = useT();
     const [listOpen, setListOpen] = useCompanionPref("filesopen");
     const [query, setQuery] = useState("");
     const [open, setOpen] = useState<string>(null);
@@ -86,7 +88,7 @@ export function FilesSection({
         }
     };
     return (
-        <section aria-label="Files changed" className="pb-3" data-testid="companion-files-section">
+        <section aria-label={t("companion.files.title")} className="pb-3" data-testid="companion-files-section">
             <button
                 type="button"
                 onClick={toggleList}
@@ -101,13 +103,15 @@ export function FilesSection({
                     )}
                     aria-hidden="true"
                 />
-                <span className="text-11 font-semibold tracking-wide text-muted uppercase">Files changed</span>
+                <span className="text-11 font-semibold tracking-wide text-muted uppercase">
+                    {t("companion.files.title")}
+                </span>
                 <span className="ml-auto text-11 text-muted tabular-nums" data-testid="companion-files-count">
                     {count}
                 </span>
             </button>
             {!listOpen ? null : count === 0 ? (
-                <div className="px-3 text-12 text-muted">No file changed in this session yet.</div>
+                <div className="px-3 text-12 text-muted">{t("companion.files.none")}</div>
             ) : (
                 <>
                     <div className="px-3 pb-1">
@@ -117,15 +121,15 @@ export function FilesSection({
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             onKeyDown={onKeyDown}
-                            placeholder="Filter files"
-                            aria-label="Filter the changed files"
+                            placeholder={t("companion.files.filter")}
+                            aria-label={t("companion.files.filterLabel")}
                             spellCheck={false}
                             className="w-full rounded-4 border border-border bg-transparent px-2 py-1 font-mono text-12 text-primary outline-none placeholder:text-muted focus:border-accent/70"
                             data-testid="companion-files-filter"
                         />
                     </div>
                     {shown.length === 0 ? (
-                        <div className="px-3 text-12 text-muted">No changed file matches.</div>
+                        <div className="px-3 text-12 text-muted">{t("companion.files.noMatch")}</div>
                     ) : (
                         <ul ref={listRef} className="flex flex-col px-1" data-testid="companion-files">
                             {shown.map((f) => (
@@ -162,6 +166,7 @@ function FileRow({
     open: boolean;
     onToggle: () => void;
 }) {
+    const t = useT();
     const kind = KindLabels[file.kind] ?? KindLabels.update;
     // The preview opens at the line the first change of the file starts.
     const openAtChange = () =>
@@ -193,7 +198,7 @@ function FileRow({
                     />
                     <span
                         className={cn("w-3 shrink-0 font-mono text-11 font-semibold", kind.className)}
-                        title={kind.title}
+                        title={t(kind.titleKey)}
                     >
                         {kind.text}
                     </span>
@@ -208,8 +213,8 @@ function FileRow({
                         type="button"
                         onClick={openAtChange}
                         className="cursor-pointer rounded-6 px-1 text-11 text-secondary hover:text-primary"
-                        title="Open in the preview"
-                        aria-label={`Open ${file.path} in the preview`}
+                        title={t("companion.files.open")}
+                        aria-label={t("companion.files.openPath", { path: file.path })}
                     >
                         <i className="fa fa-solid fa-arrow-up-right-from-square" />
                     </button>
@@ -222,6 +227,7 @@ function FileRow({
 
 // The diff is fetched when opened, and again when the agent edits the file once more.
 function FileDiffView({ target, path, edits }: { target: string; path: string; edits: number }) {
+    const t = useT();
     const [diff, setDiff] = useState<CompanionDiff>(null);
     const [error, setError] = useState<string>(null);
     useEffect(() => {
@@ -247,7 +253,7 @@ function FileDiffView({ target, path, edits }: { target: string; path: string; e
         return <div className="px-3 text-12 text-error">{error}</div>;
     }
     if (diff == null) {
-        return <div className="px-3 text-12 text-muted">Loading…</div>;
+        return <div className="px-3 text-12 text-muted">{t("companion.loading")}</div>;
     }
     const lines = diff.diff ? diff.diff.replace(/\n$/, "").split("\n") : [];
     return (
@@ -255,8 +261,12 @@ function FileDiffView({ target, path, edits }: { target: string; path: string; e
             className="mx-2 mb-2 overflow-x-auto rounded-4 border border-border bg-black/20"
             data-testid="companion-diff"
         >
-            {diff.truncated ? <div className="px-2 py-1 text-11 text-muted">Earlier edits are not kept.</div> : null}
-            {lines.length === 0 ? <div className="px-2 py-1 text-11 text-muted">No diff recorded.</div> : null}
+            {diff.truncated ? (
+                <div className="px-2 py-1 text-11 text-muted">{t("companion.files.truncated")}</div>
+            ) : null}
+            {lines.length === 0 ? (
+                <div className="px-2 py-1 text-11 text-muted">{t("companion.files.noDiff")}</div>
+            ) : null}
             <pre className="m-0 py-1 font-mono text-11 leading-[1.45]">
                 {lines.map((line, i) => (
                     <div key={i} className={cn("px-2 whitespace-pre", DiffLineClasses[diffLineKind(line)])}>

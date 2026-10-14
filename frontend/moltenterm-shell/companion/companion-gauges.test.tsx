@@ -15,7 +15,6 @@ import {
     usageFor,
     usageReadFor,
     usageReasonText,
-    UsageReasonTexts,
     usageStale,
     UsageStaleMs,
 } from "./companion-gauges-model";
@@ -115,7 +114,7 @@ describe("plan usage rules", () => {
         expect(view.kind === "enabled" && view.rows.map((r) => r.id)).toEqual(["week"]);
         expect(gaugesView(enabled, now + 4 * 24 * Hour)).toEqual({
             kind: "unavailable",
-            reason: UsageReasonTexts.expired,
+            reason: usageReasonText("expired"),
         });
     });
 
@@ -134,7 +133,7 @@ describe("plan usage rules", () => {
         });
         expect(gaugesView({ ...enabled, gauges: "unavailable", reason: "bogus" as any }, now)).toEqual({
             kind: "unavailable",
-            reason: UsageReasonTexts.failed,
+            reason: usageReasonText("failed"),
         });
         const view = gaugesView(enabled, now);
         expect(view.kind === "enabled" && [view.source, view.age]).toEqual([
@@ -322,7 +321,7 @@ describe("Codex plan usage", () => {
     it("gives Codex's own reasons", () => {
         expect(usageReasonText("waiting", "codex")).toBe("Waiting for Codex: the limits come with its next response");
         expect(usageReasonText("noplan", "codex")).toBe("Codex reports no plan limits for this sign-in");
-        expect(usageReasonText("format", "codex")).toBe(UsageReasonTexts.format);
+        expect(usageReasonText("format", "codex")).toBe(usageReasonText("format"));
         expect(usageReasonText("noplan", "claude")).toBe("Not on a Pro or Max plan");
         const html = markup({ ...codex, gauges: "unavailable", reason: "waiting", snapshot: undefined });
         expect(html).toContain('title="Waiting for Codex: the limits come with its next response"');

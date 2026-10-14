@@ -93,7 +93,7 @@ func (p claudeCredentialPlace) storeName(useKeychain bool) string {
 		file = "~" + file[len(p.home):]
 	}
 	if useKeychain {
-		return `the macOS Keychain ("` + p.service + `") or ` + file
+		return `the system keychain ("` + p.service + `") or ` + file
 	}
 	return file
 }
