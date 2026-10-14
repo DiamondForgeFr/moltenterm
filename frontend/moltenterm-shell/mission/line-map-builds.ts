@@ -7,6 +7,7 @@
 
 import { BuildFacts, BuildManifest } from "./builds-model";
 import type { LineMapStation } from "./line-map-model";
+import { labelRecord } from "./mission-i18n";
 import { RawCommit } from "./mission-model";
 
 // How far the build's commit stands from the window and the lines: on develop or on main inside the window, before
@@ -39,7 +40,7 @@ export type BuildMarker = {
     behindCapped: boolean;
 };
 
-const FlavorLabels: Record<string, string> = { gold: "Gold", rc: "RC local" };
+const FlavorLabels: Record<string, string> = labelRecord("mc.builds.flavor", ["gold", "rc"]);
 
 export function flavorOf(build: Pick<LocalBuild, "id" | "kind">): string {
     return build.kind || build.id;

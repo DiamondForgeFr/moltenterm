@@ -15,6 +15,7 @@ import { atoms, openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
+import { t as translate, useLocale, useT } from "../i18n/i18n";
 import { checkWebUrl } from "../project/project-model";
 import { ciVerdictView } from "../status-bar-model";
 import { filterBranches } from "../widget-options";
@@ -238,29 +239,46 @@ function itemUrl(item: MapItem, model: LineMapModel): string {
 function itemLabel(item: MapItem, model: LineMapModel): string {
     switch (item.kind) {
         case "station":
-            return `${item.station.name}, ${item.station.kind === "rc" ? "release candidate" : "public release"}, ${formatDay(item.station.at)}`;
+            return translate("mc.lineMap.label.station", {
+                name: item.station.name,
+                kind: item.station.kind === "rc" ? translate("mc.lineMap.rc") : translate("mc.lineMap.publicRelease"),
+                day: formatDay(item.station.at),
+            });
         case "branch":
-            return `${item.g.branch.name}, ${item.g.branch.state === "open" ? "in progress" : "merged"}`;
+            return translate("mc.lineMap.label.branch", {
+                name: item.g.branch.name,
+                state:
+                    item.g.branch.state === "open"
+                        ? translate("mc.lineMap.inProgress")
+                        : translate("mc.lineMap.merged"),
+            });
         case "commit":
-            return `Commit ${item.commit.sha.slice(0, 7)}: ${item.commit.subject}`;
+            return translate("mc.lineMap.label.commit", {
+                sha: item.commit.sha.slice(0, 7),
+                subject: item.commit.subject,
+            });
         case "head":
-            return `${model.trunk} now`;
+            return translate("mc.lineMap.label.head", { trunk: model.trunk });
         case "build":
-            return `${item.marker.label} build, commit ${item.marker.commit.slice(0, 7)}`;
+            return translate("mc.lineMap.label.build", {
+                label: item.marker.label,
+                commit: item.marker.commit.slice(0, 7),
+            });
         case "earlier":
-            return `${model.earlier.length} earlier versions`;
+            return translate("mc.lineMap.label.earlier", { count: model.earlier.length });
         case "terminus":
-            return "Next public release";
+            return translate("mc.lineMap.label.terminus");
         case "day":
-            return `${item.commits.length} commits on ${formatDay(item.day)}`;
+            return translate("mc.lineMap.label.day", { count: item.commits.length, day: formatDay(item.day) });
         case "hidden":
-            return `${item.branches.length} more open branches`;
+            return translate("mc.lineMap.label.hidden", { count: item.branches.length });
     }
 }
 
 const DayListed = 12;
 
 function DayDetail({ day, commits, model }: { day: number; commits: readonly LineMapCommit[]; model: LineMapModel }) {
+    const t = useT();
     const tickets = new Set(commits.map((c) => readableSubject(c.subject).ticket).filter(Boolean));
     const newestFirst = [...commits].reverse();
     return (
@@ -268,8 +286,15 @@ function DayDetail({ day, commits, model }: { day: number; commits: readonly Lin
             <div className="font-semibold text-primary">
                 {formatDay(day)}
                 <span className="ml-1.5 font-normal text-muted">
-                    · {commits.length} commit{commits.length === 1 ? "" : "s"} on {model.trunk}
-                    {tickets.size ? `, ${tickets.size} ticket${tickets.size === 1 ? "" : "s"}` : ""}
+                    ·{" "}
+                    {t(commits.length === 1 ? "mc.lineMap.commitOn" : "mc.lineMap.commitsOn", {
+                        count: commits.length,
+                        trunk: model.trunk,
+                    })}
+                    {tickets.size
+                        ? ", " +
+                          t(tickets.size === 1 ? "mc.lineMap.ticket" : "mc.lineMap.tickets", { count: tickets.size })
+                        : ""}
                 </span>
             </div>
             <div className="flex flex-col gap-0.5 border-t border-border pt-1.5">
@@ -279,7 +304,9 @@ function DayDetail({ day, commits, model }: { day: number; commits: readonly Lin
                     </div>
                 ))}
                 {commits.length > DayListed ? (
-                    <span className="text-muted">and {commits.length - DayListed} more</span>
+                    <span className="text-muted">
+                        {t("mc.releaseMenu.andMore", { count: commits.length - DayListed })}
+                    </span>
                 ) : null}
             </div>
         </>
@@ -287,27 +314,33 @@ function DayDetail({ day, commits, model }: { day: number; commits: readonly Lin
 }
 
 function HiddenDetail({ branches }: { branches: readonly LineMapBranch[] }) {
+    const t = useT();
     return (
         <>
             <div className="font-semibold text-primary">
-                {branches.length} more open branch{branches.length === 1 ? "" : "es"}
+                {branches.length === 1
+                    ? t("mc.lineMap.moreBranch")
+                    : t("mc.lineMap.moreBranches", { count: branches.length })}
             </div>
             <div className="flex flex-col gap-0.5 border-t border-border pt-1.5">
                 {branches.slice(0, DayListed).map((b) => (
                     <div key={b.id} className="flex min-w-0 items-baseline gap-2">
                         <span className="min-w-0 truncate font-mono text-11 text-primary">{b.name}</span>
                         <span className="ml-auto shrink-0 text-muted">
-                            {b.count}
-                            {b.countCapped ? "+" : ""} commit{b.count === 1 ? "" : "s"}
+                            {t(b.count === 1 && !b.countCapped ? "mc.lineMap.commit" : "mc.lineMap.commits", {
+                                count: `${b.count}${b.countCapped ? "+" : ""}`,
+                            })}
                             {b.prNumber ? ` · PR #${b.prNumber}` : ""}
                         </span>
                     </div>
                 ))}
                 {branches.length > DayListed ? (
-                    <span className="text-muted">and {branches.length - DayListed} more</span>
+                    <span className="text-muted">
+                        {t("mc.releaseMenu.andMore", { count: branches.length - DayListed })}
+                    </span>
                 ) : null}
             </div>
-            <div className="pt-1 text-11 text-muted">Full size shows them on their own lanes.</div>
+            <div className="pt-1 text-11 text-muted">{t("mc.lineMap.fullSizeLanes")}</div>
         </>
     );
 }
@@ -323,6 +356,7 @@ function Subject({ subject }: { subject: string }) {
 }
 
 function CommitLines({ commits }: { commits: readonly LineMapCommit[] }) {
+    const t = useT();
     if (commits.length === 0) {
         return null;
     }
@@ -335,36 +369,40 @@ function CommitLines({ commits }: { commits: readonly LineMapCommit[] }) {
                 </div>
             ))}
             {commits.length > CommitsListed ? (
-                <span className="text-muted">and {commits.length - CommitsListed} more</span>
+                <span className="text-muted">
+                    {t("mc.releaseMenu.andMore", { count: commits.length - CommitsListed })}
+                </span>
             ) : null}
         </div>
     );
 }
 
 function Hint({ url, what }: { url: string; what: string }) {
+    const t = useT();
     return (
         <div className="pt-1 text-11 text-muted">
-            {url ? `Click to open ${what} on GitHub.` : "Not on GitHub: the detail comes from git alone."}
+            {url ? t("mc.lineMap.clickToOpen", { what }) : t("mc.lineMap.notOnGithub")}
         </div>
     );
 }
 
 function StationDetail({ s }: { s: LineMapStation }) {
+    const t = useT();
     const notes = s.notes ? plainText(s.notes).trim() : "";
     return (
         <>
             <div className="font-semibold text-primary">
                 {s.name}
                 <span className="ml-1.5 font-normal text-muted">
-                    · {s.kind === "rc" ? "release candidate" : "public release"}
+                    · {s.kind === "rc" ? t("mc.lineMap.rc") : t("mc.lineMap.publicRelease")}
                 </span>
             </div>
             <div className="text-secondary">
-                Tagged {formatWhen(s.date)} ({timeAgo(s.date)})
+                {t("mc.lineMap.tagged", { when: formatWhen(s.date), ago: timeAgo(s.date) })}
             </div>
             {s.source ? (
                 <div className="flex min-w-0 items-baseline gap-1.5 text-secondary">
-                    <span className="shrink-0 text-muted">from develop</span>
+                    <span className="shrink-0 text-muted">{t("mc.lineMap.fromDevelop")}</span>
                     <code className="shrink-0 text-11 text-muted">{s.source.sha.slice(0, 7)}</code>
                     <Subject subject={s.source.subject} />
                 </div>
@@ -374,38 +412,48 @@ function StationDetail({ s }: { s: LineMapStation }) {
                     {notes.slice(0, 600)}
                 </div>
             ) : (
-                <div className="text-muted">No notes for this version.</div>
+                <div className="text-muted">{t("mc.lineMap.noNotes")}</div>
             )}
-            <Hint url={s.url} what="this version" />
+            <Hint url={s.url} what={t("mc.lineMap.what.version")} />
         </>
     );
 }
 
 function BranchDetail({ b }: { b: GeometryBranch["branch"] }) {
+    const t = useT();
     const verdict = ciVerdictView(b.ci);
-    const count = `${b.count}${b.countCapped ? "+" : ""} commit${b.count === 1 ? "" : "s"}`;
+    const count = t(b.count === 1 && !b.countCapped ? "mc.lineMap.commit" : "mc.lineMap.commits", {
+        count: `${b.count}${b.countCapped ? "+" : ""}`,
+    });
     return (
         <>
             <div className="font-semibold break-all text-primary">
                 {b.name}
-                <span className="ml-1.5 font-normal text-muted">· {b.state === "open" ? "in progress" : "merged"}</span>
+                <span className="ml-1.5 font-normal text-muted">
+                    · {b.state === "open" ? t("mc.lineMap.inProgress") : t("mc.lineMap.merged")}
+                </span>
             </div>
             <div className="text-secondary">
                 {b.state === "open"
-                    ? `${count} ahead of develop`
-                    : `${count} · merged ${formatWhen(new Date(b.merge).toISOString())}`}
+                    ? t("mc.lineMap.aheadOfDevelop", { count })
+                    : t("mc.lineMap.mergedAt", { count, when: formatWhen(new Date(b.merge).toISOString()) })}
             </div>
             <div className="text-muted">
                 {b.forkKnown
-                    ? `Left develop ${formatWhen(new Date(b.fork).toISOString())}`
-                    : "Where it left develop is not known: git's history read stops before it."}
+                    ? t("mc.lineMap.leftDevelop", { when: formatWhen(new Date(b.fork).toISOString()) })
+                    : t("mc.lineMap.forkUnknown")}
             </div>
             {b.pr ? (
                 <div className="text-secondary">
                     PR #{b.pr.number}
-                    {b.pr.draft ? " (draft)" : ""} · {b.pr.merge.label}
+                    {b.pr.draft ? " " + t("mc.lineMap.draft") : ""} · {b.pr.merge.label}
                     {b.pr.checks.passed + b.pr.checks.failed + b.pr.checks.pending > 0
-                        ? ` · checks ${b.pr.checks.passed} passed, ${b.pr.checks.failed} failed, ${b.pr.checks.pending} pending`
+                        ? " · " +
+                          t("mc.lineMap.checks", {
+                              passed: b.pr.checks.passed,
+                              failed: b.pr.checks.failed,
+                              pending: b.pr.checks.pending,
+                          })
                         : ""}
                 </div>
             ) : b.prNumber ? (
@@ -414,16 +462,26 @@ function BranchDetail({ b }: { b: GeometryBranch["branch"] }) {
             {verdict ? (
                 <div className="flex items-center gap-1.5 text-secondary">
                     <i className={cn("fa fa-solid text-11", verdict.iconClass)} />
-                    Local CI: {verdict.label}
+                    {t("mc.lineMap.localCi", { verdict: verdict.label })}
                 </div>
             ) : null}
             <CommitLines commits={b.commits} />
-            <Hint url={b.url} what={b.prNumber ? "its pull request" : b.ticket ? "its ticket" : "it"} />
+            <Hint
+                url={b.url}
+                what={
+                    b.prNumber
+                        ? t("mc.lineMap.what.pr")
+                        : b.ticket
+                          ? t("mc.lineMap.what.ticket")
+                          : t("mc.lineMap.what.it")
+                }
+            />
         </>
     );
 }
 
 function BuildDetail({ m, model }: { m: BuildMarker; model: LineMapModel }) {
+    const t = useT();
     const manifest = m.build.manifest;
     const where = m.build.artifact ?? "";
     return (
@@ -431,7 +489,7 @@ function BuildDetail({ m, model }: { m: BuildMarker; model: LineMapModel }) {
             <div className="font-semibold text-primary">
                 {m.label}
                 <span className="ml-1.5 font-normal text-muted">
-                    · build {manifest.buildId ?? manifest.version ?? m.build.id}
+                    · {t("mc.lineMap.buildId", { id: manifest.buildId ?? manifest.version ?? m.build.id })}
                 </span>
             </div>
             <div className="flex min-w-0 items-baseline gap-1.5 text-secondary">
@@ -439,28 +497,34 @@ function BuildDetail({ m, model }: { m: BuildMarker; model: LineMapModel }) {
                 {m.subject ? (
                     <Subject subject={m.subject} />
                 ) : (
-                    <span className="text-muted">not in the history read</span>
+                    <span className="text-muted">{t("mc.lineMap.notInHistory")}</span>
                 )}
             </div>
             {manifest.builtAt ? (
                 <div className="text-secondary">
-                    Built {formatWhen(manifest.builtAt)} ({timeAgo(manifest.builtAt)})
+                    {t("mc.lineMap.builtAt", { when: formatWhen(manifest.builtAt), ago: timeAgo(manifest.builtAt) })}
                 </div>
             ) : null}
-            {where ? <div className="min-w-0 break-all text-muted">Delivered to {where}</div> : null}
+            {where ? (
+                <div className="min-w-0 break-all text-muted">{t("mc.lineMap.deliveredTo", { where })}</div>
+            ) : null}
             <div className="text-secondary">
                 {m.behind == null
-                    ? `Where it stands on ${model.trunk} is not known: its commit is not in the history read.`
+                    ? t("mc.lineMap.standsUnknown", { trunk: model.trunk })
                     : m.behind === 0
-                      ? `Up to date with ${model.trunk}.`
-                      : `${m.behind}${m.behindCapped ? "+" : ""} commit${m.behind === 1 ? "" : "s"} on ${model.trunk} since.`}
+                      ? t("mc.lineMap.upToDate", { trunk: model.trunk })
+                      : t(m.behind === 1 && !m.behindCapped ? "mc.lineMap.commitSince" : "mc.lineMap.commitsSince", {
+                            count: `${m.behind}${m.behindCapped ? "+" : ""}`,
+                            trunk: model.trunk,
+                        })}
             </div>
-            {m.tag ? <div className="text-muted">Made from {m.tag}.</div> : null}
+            {m.tag ? <div className="text-muted">{t("mc.lineMap.madeFrom", { tag: m.tag })}</div> : null}
         </>
     );
 }
 
 function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; trunkCi: string }) {
+    const t = useT();
     switch (item.kind) {
         case "station":
             return <StationDetail s={item.station} />;
@@ -476,27 +540,42 @@ function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; 
                         <Subject subject={item.commit.subject} />
                     </div>
                     <div className="text-secondary">
-                        On {model.trunk} · {formatWhen(item.commit.date)}
+                        {t("mc.lineMap.onTrunk", { trunk: model.trunk, when: formatWhen(item.commit.date) })}
                     </div>
-                    <Hint url={commitUrl(model, item.commit.sha)} what="this commit" />
+                    <Hint url={commitUrl(model, item.commit.sha)} what={t("mc.lineMap.what.commit")} />
                 </>
             );
         case "head": {
             const verdict = ciVerdictView(trunkCi);
             return (
                 <>
-                    <div className="font-semibold text-primary">{model.trunk} · now</div>
+                    <div className="font-semibold text-primary">
+                        {t("mc.lineMap.label.head", { trunk: model.trunk })}
+                    </div>
                     {model.head ? (
                         <div className="flex min-w-0 items-baseline gap-1.5 text-secondary">
                             <code className="shrink-0 text-11 text-muted">{model.head.sha.slice(0, 7)}</code>
                             <Subject subject={model.head.subject} />
                         </div>
                     ) : null}
-                    {model.head ? <div className="text-muted">Last commit {timeAgo(model.head.date)}</div> : null}
-                    <div className="text-secondary">Local CI: {verdict ? verdict.label : "not known yet"}</div>
+                    {model.head ? (
+                        <div className="text-muted">
+                            {t("mc.lineMap.lastCommit", { when: timeAgo(model.head.date) })}
+                        </div>
+                    ) : null}
                     <div className="text-secondary">
-                        {model.terminus.waiting} change{model.terminus.waiting === 1 ? "" : "s"} waiting for{" "}
-                        {model.release ?? "a release"}
+                        {t("mc.lineMap.localCi", { verdict: verdict ? verdict.label : t("mc.lineMap.notKnownYet") })}
+                    </div>
+                    <div className="text-secondary">
+                        {t(
+                            model.terminus.waiting === 1
+                                ? "mc.lineMap.changeWaitingFor"
+                                : "mc.lineMap.changesWaitingFor",
+                            {
+                                count: model.terminus.waiting,
+                                release: model.release ?? t("mc.lineMap.aRelease"),
+                            }
+                        )}
                     </div>
                 </>
             );
@@ -505,7 +584,9 @@ function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; 
             return (
                 <>
                     <div className="font-semibold text-primary">
-                        {model.earlier.length} version{model.earlier.length === 1 ? "" : "s"} before the window
+                        {t(model.earlier.length === 1 ? "mc.lineMap.versionBefore" : "mc.lineMap.versionsBefore", {
+                            count: model.earlier.length,
+                        })}
                     </div>
                     {model.earlier.slice(0, EarlierListed).map((s) => (
                         <div key={s.name} className="flex items-baseline gap-2">
@@ -516,19 +597,27 @@ function Detail({ item, model, trunkCi }: { item: MapItem; model: LineMapModel; 
                         </div>
                     ))}
                     {model.earlier.length > EarlierListed ? (
-                        <div className="text-muted">and {model.earlier.length - EarlierListed} more</div>
+                        <div className="text-muted">
+                            {t("mc.releaseMenu.andMore", { count: model.earlier.length - EarlierListed })}
+                        </div>
                     ) : null}
-                    <div className="pt-1 text-11 text-muted">A longer window shows them on the line.</div>
+                    <div className="pt-1 text-11 text-muted">{t("mc.lineMap.longerWindow")}</div>
                 </>
             );
         case "terminus":
             return (
                 <>
-                    <div className="font-semibold text-primary">{model.terminus.tag ?? "Next"} · public release</div>
+                    <div className="font-semibold text-primary">
+                        {model.terminus.tag ?? t("mc.lineMap.nextTitle")} · {t("mc.lineMap.publicRelease")}
+                    </div>
                     <div className="text-secondary">{model.terminus.note}</div>
                     {model.terminus.state === "nothing" ? null : (
                         <div className="text-muted">
-                            {`${model.terminus.waiting} change${model.terminus.waiting === 1 ? "" : "s"} on ${model.trunk} not yet on ${model.release ?? "a release"}.`}
+                            {t(model.terminus.waiting === 1 ? "mc.lineMap.changeNotYet" : "mc.lineMap.changesNotYet", {
+                                count: model.terminus.waiting,
+                                trunk: model.trunk,
+                                release: model.release ?? t("mc.lineMap.aRelease"),
+                            })}
                         </div>
                     )}
                 </>
@@ -549,8 +638,13 @@ function WindowChoice({
     choices: readonly number[];
     onChange: (days: number) => void;
 }) {
+    const t = useT();
     return (
-        <div className="flex overflow-hidden rounded-4 border border-border" role="group" aria-label="Time window">
+        <div
+            className="flex overflow-hidden rounded-4 border border-border"
+            role="group"
+            aria-label={t("mc.lineMap.timeWindow")}
+        >
             {choices.map((d) => (
                 <button
                     key={d}
@@ -561,9 +655,9 @@ function WindowChoice({
                         "cursor-pointer px-1.5 py-0.5 text-11 tabular-nums transition-colors duration-120 ease-mt",
                         d === days ? "bg-hover text-primary" : "text-muted hover:bg-hover hover:text-secondary"
                     )}
-                    title={`Show the last ${d} days`}
+                    title={t("mc.lineMap.showLastDays", { days: d })}
                 >
-                    {d}d
+                    {t("mc.lineMap.daysShort", { days: d })}
                 </button>
             ))}
         </div>
@@ -571,6 +665,7 @@ function WindowChoice({
 }
 
 function Legend() {
+    const t = useT();
     const item = "inline-flex items-center gap-2";
     const swatch = "flex w-[18px] shrink-0 justify-center";
     return (
@@ -579,49 +674,49 @@ function Legend() {
                 <span className={swatch}>
                     <span className="h-[5px] w-[18px] rounded-full bg-accent" />
                 </span>
-                develop
+                {t("mc.lineMap.legend.develop")}
             </span>
             <span className={item}>
                 <span className={swatch}>
                     <span className="h-1 w-[18px] rounded-full bg-primary opacity-40" />
                 </span>
-                main
+                {t("mc.lineMap.legend.main")}
             </span>
             <span className={item}>
                 <span className={swatch}>
                     <span className="h-2.5 w-[3px] rounded-4 bg-primary opacity-50" />
                 </span>
-                landed on develop
+                {t("mc.lineMap.legend.landed")}
             </span>
             <span className={item}>
                 <span className={swatch}>
                     <span className="h-[3px] w-[18px] rounded-full bg-muted" />
                 </span>
-                merged branch
+                {t("mc.lineMap.legend.merged")}
             </span>
             <span className={item}>
                 <span className={swatch}>
                     <span className="h-[3px] w-[18px] rounded-full bg-accent-200" />
                 </span>
-                branch in progress
+                {t("mc.lineMap.legend.inProgress")}
             </span>
             <span className={item}>
                 <span className={swatch}>
                     <span className="h-2.5 w-2.5 rounded-full border-2 border-primary" />
                 </span>
-                release candidate
+                {t("mc.lineMap.legend.rc")}
             </span>
             <span className={item}>
                 <span className={swatch}>
                     <span className="h-3.5 w-3.5 rounded-full border-[3px] border-accent" />
                 </span>
-                public release
+                {t("mc.lineMap.legend.public")}
             </span>
             <span className={item}>
                 <span className={swatch}>
                     <span className="h-2.5 w-[18px] rounded-full border border-success/60 bg-success/20" />
                 </span>
-                local build
+                {t("mc.lineMap.legend.build")}
             </span>
         </div>
     );
@@ -630,6 +725,7 @@ function Legend() {
 // The legend behind a ghost button (FR-SHELL-057 AC2): a popover under it, closed by Escape, a click outside or the
 // button again, the focus staying on the button.
 function LegendButton() {
+    const t = useT();
     const [open, setOpen] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const closedAt = useRef(0);
@@ -653,11 +749,11 @@ function LegendButton() {
                 aria-expanded={open}
                 aria-haspopup="dialog"
                 className="molten-btn-ghost flex h-6 cursor-pointer items-center gap-1.5 rounded-6 px-2 text-11 text-secondary hover:bg-hover hover:text-primary"
-                title="What the marks mean"
+                title={t("mc.lineMap.legendTitle")}
                 data-testid="line-map-legend-button"
             >
                 <i className="fa fa-solid fa-circle-info text-11" aria-hidden />
-                Legend
+                {t("mc.lineMap.legendButton")}
             </button>
             {open && buttonRef.current ? (
                 <MenuPopover
@@ -665,7 +761,7 @@ function LegendButton() {
                     onClose={close}
                     placement="bottom-end"
                     role="dialog"
-                    ariaLabel="Line map legend"
+                    ariaLabel={t("mc.lineMap.legendLabel")}
                     className="w-56 p-3"
                 >
                     <Legend />
@@ -740,6 +836,7 @@ function useInnerSize(ref: React.RefObject<HTMLDivElement>): { width: number; he
 
 // Hidden under reduced motion: there is no sequence to replay (AC6).
 export function ReplayButton({ reduced, onReplay }: { reduced: boolean; onReplay: () => void }) {
+    const t = useT();
     if (reduced) {
         return null;
     }
@@ -748,11 +845,11 @@ export function ReplayButton({ reduced, onReplay }: { reduced: boolean; onReplay
             type="button"
             onClick={onReplay}
             className="flex cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-0.5 text-11 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary"
-            title="Play the map's drawing again"
+            title={t("mc.lineMap.replayTitle")}
             data-testid="line-map-replay"
         >
             <i className="fa fa-solid fa-rotate-left text-11" />
-            Replay
+            {t("mc.lineMap.replay")}
         </button>
     );
 }
@@ -822,6 +919,9 @@ export function LineMap({
     animation = true,
     branchFilter,
 }: LineMapProps) {
+    const t = useT();
+    // The model and its layout carry words: they are built again in a new interface language.
+    const locale = useLocale();
     const [days, setDays] = useLineMapDays(dir, full, blockId);
     const box = useRef<HTMLDivElement>(null);
     const inner = useInnerSize(box);
@@ -869,7 +969,7 @@ export function LineMap({
             days,
         });
         return { ...built, branches: filterBranches(built.branches, branchFilter) };
-    }, [git, prs, releases, ci, release, milestones, builds, now, days, branchFilter]);
+    }, [git, prs, releases, ci, release, milestones, builds, now, days, branchFilter, locale]);
     // A detail opened on a mark the new data no longer has would float detached, with old figures.
     useEffect(() => setHover(null), [model]);
     useEffect(
@@ -977,13 +1077,13 @@ export function LineMap({
     return (
         <section
             className={cn("flex min-w-0 flex-col", full ? "h-full gap-1.5" : "gap-2")}
-            aria-label="Line map"
+            aria-label={t("mc.lineMap.viewName")}
             data-testid="line-map"
         >
             <style>{Styles + MotionStyles}</style>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <span className="text-11 font-medium tracking-wide text-secondary uppercase">
-                    Line · last {days} days
+                    {t("mc.lineMap.header", { days })}
                 </span>
                 <LegendButton />
                 <span className="flex-1" />
@@ -994,10 +1094,10 @@ export function LineMap({
                         type="button"
                         onClick={onFullSize}
                         className="flex cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-0.5 text-11 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary"
-                        title="Open the line map in its own block, over a wider window"
+                        title={t("mc.lineMap.fullSizeTitle")}
                     >
                         <i className="fa fa-solid fa-up-right-and-down-left-from-center text-11" />
-                        Full size
+                        {t("mc.lineMap.fullSize")}
                     </button>
                 ) : null}
             </div>
@@ -1138,6 +1238,7 @@ function BranchMark({ g, hit, geo }: { g: GeometryBranch; hit: HitProps; geo: Li
 
 // The running CI as a static badge by develop's head: under reduced motion the glints cannot say it (AC6).
 function CiBadge({ geo }: { geo: LineMapGeometry }) {
+    const t = useT();
     // "CI running" at 10 px monospace, after the dot, with room on both sides.
     const w = 90;
     const h = 18;
@@ -1148,7 +1249,7 @@ function CiBadge({ geo }: { geo: LineMapGeometry }) {
             <rect x={x} y={y} width={w} height={h} rx={h / 2} />
             <circle cx={x + 10} cy={y + h / 2} r={3} />
             <text x={x + 18} y={y + h / 2 + 3.5}>
-                CI running
+                {t("mc.lineMap.ciRunning")}
             </text>
         </g>
     );
@@ -1177,7 +1278,7 @@ export const MapSvg = memo(function MapSvg({
                 height={geo.height}
                 viewBox={`0 0 ${geo.width} ${geo.height}`}
                 role="group"
-                aria-label={`Line map of the last ${model.days} days`}
+                aria-label={translate("mc.lineMap.svgLabel", { days: model.days })}
                 data-ci={trunkCi}
                 data-single={geo.single ? "true" : undefined}
             >

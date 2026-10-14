@@ -10,6 +10,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ScrimClass } from "../dialog-frame";
+import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { TabActivity, whileShown } from "../tab-activity";
 import { pathParent } from "../workspace-project";
@@ -42,6 +43,7 @@ export function TrustPrompt({
     onTrust: () => void;
     onCancel: () => void;
 }) {
+    const t = useT();
     return createPortal(
         <div
             className={cn("fixed inset-0 z-[9600] flex items-center justify-center", ScrimClass)}
@@ -52,10 +54,10 @@ export function TrustPrompt({
                 className="flex max-h-[80vh] w-[560px] max-w-[calc(100vw-32px)] flex-col rounded-10 border border-border bg-surface-3 shadow-e3"
             >
                 <div className="border-b border-border px-4 py-3">
-                    <div className="text-13 leading-5 font-semibold">Run {projectName}'s commands?</div>
-                    <div className="mt-0.5 text-12 text-muted">
-                        MoltenTerm runs them in {dir}, with your rights. It asks again whenever they change.
+                    <div className="text-13 leading-5 font-semibold">
+                        {t("mc.trust.title", { project: projectName })}
                     </div>
+                    <div className="mt-0.5 text-12 text-muted">{t("mc.trust.body", { dir })}</div>
                 </div>
                 <div className="min-h-0 flex-1 overflow-auto px-4 py-2">
                     {info.commands.map((c) => (
@@ -75,14 +77,14 @@ export function TrustPrompt({
                 </div>
                 <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
                     <button type="button" onClick={onCancel} className={PlainButton}>
-                        Cancel
+                        {t("common.cancel")}
                     </button>
                     <button
                         type="button"
                         onClick={onTrust}
                         className="molten-btn cursor-pointer rounded-6 px-3 py-1 text-12"
                     >
-                        Trust and run
+                        {t("mc.trust.trustAndRun")}
                         <MoltenWave />
                     </button>
                 </div>
@@ -146,8 +148,9 @@ function openPath(path: string) {
     getApi().openNativePath(path);
 }
 
-// The artifact a build produced: opened (an app starts), or shown in the Finder through its folder.
+// The artifact a build produced: opened (an app starts), or shown in the system's file manager through its folder.
 export function ArtifactActions({ run }: { run: RunRecord }) {
+    const t = useT();
     if (!run.artifact || run.state !== "success") {
         return null;
     }
@@ -155,11 +158,11 @@ export function ArtifactActions({ run }: { run: RunRecord }) {
         <>
             <button type="button" onClick={() => openPath(run.artifact)} className={PlainButton} title={run.artifact}>
                 <i className="fa fa-solid fa-play mr-1 text-11" />
-                Open
+                {t("common.open")}
             </button>
             <button type="button" onClick={() => openPath(pathParent(run.artifact))} className={PlainButton}>
                 <i className="fa fa-solid fa-folder-open mr-1 text-11" />
-                Show in Finder
+                {t("mc.builds.showInFolder")}
             </button>
         </>
     );
@@ -254,7 +257,7 @@ export function useDeliveredManifest(dir: string, run: RunRecord): BuildManifest
 }
 
 // The local build panel (FR-MC-013), as Notulia's: the build's declared phases as a stepper, what the current one does,
-// what was delivered or why it stopped, then Show in Finder, Retry and Close; Cancel while it runs.
+// what was delivered or why it stopped, then Show in folder, Retry and Close; Cancel while it runs.
 export function BuildRunCard({
     run,
     projectName,
@@ -268,6 +271,7 @@ export function BuildRunCard({
     manifest: BuildManifest;
     onRetry?: () => void;
 }) {
+    const t = useT();
     const log = useRunLog(run);
     const [full, setFull] = useState(false);
     const view = buildRunView(run, phases, manifest);
@@ -281,12 +285,12 @@ export function BuildRunCard({
         >
             <div className="mb-3 flex items-center gap-1.5 text-11 font-medium tracking-wide text-muted uppercase">
                 <i className="fa fa-solid fa-hammer text-yellow-400" />
-                Build local
+                {t("mc.builds.buildLocal")}
                 <span className="ml-auto rounded-full border border-border px-2 py-0.5 tracking-normal text-primary normal-case">
                     {buildCardTitle(projectName, { id: run.stepid, title: run.title })}
                 </span>
             </div>
-            <ol className="flex items-start gap-2" aria-label="Phases of the local build">
+            <ol className="flex items-start gap-2" aria-label={t("mc.builds.phasesLabel")}>
                 {view.phases.map((p, i) => (
                     <li key={p.id} className="flex flex-1 items-center gap-2 last:flex-none">
                         <div className="flex flex-col items-center gap-1">
@@ -325,16 +329,16 @@ export function BuildRunCard({
                         onClick={() => fireAndForget(() => missionCancel(run.dir, run.id))}
                         className={PlainButton}
                     >
-                        Cancel
+                        {t("common.cancel")}
                     </button>
                 ) : null}
                 <button type="button" onClick={() => setFull(!full)} className={cn(PlainButton, "mr-auto")}>
-                    {full ? "Less" : "Whole log"}
+                    {full ? t("mc.run.less") : t("mc.run.wholeLog")}
                 </button>
                 {view.delivered && run.artifact ? (
                     <button type="button" onClick={() => openPath(pathParent(run.artifact))} className={PlainButton}>
                         <i className="fa fa-solid fa-folder-open mr-1 text-11" />
-                        Show in Finder
+                        {t("mc.builds.showInFolder")}
                     </button>
                 ) : null}
                 {run.state !== "running" && run.state !== "success" && onRetry ? (
@@ -343,7 +347,7 @@ export function BuildRunCard({
                         onClick={onRetry}
                         className="molten-btn cursor-pointer rounded-6 px-2 py-1 text-12"
                     >
-                        Retry
+                        {t("mc.run.retry")}
                         <MoltenWave />
                     </button>
                 ) : null}
@@ -353,7 +357,7 @@ export function BuildRunCard({
                         onClick={() => fireAndForget(() => missionClose(run.dir, run.id))}
                         className={PlainButton}
                     >
-                        Close
+                        {t("common.close")}
                     </button>
                 ) : null}
             </div>
@@ -362,13 +366,10 @@ export function BuildRunCard({
 }
 
 export function RecentBuilds({ runs }: { runs: RunRecord[] }) {
+    const t = useT();
     const builds = (runs ?? []).filter((r) => r.kind === "build").slice(0, 10);
     if (builds.length === 0) {
-        return (
-            <p className="p-3 text-13 leading-5 text-muted">
-                No local build yet: start one from Project › Build local.
-            </p>
-        );
+        return <p className="p-3 text-13 leading-5 text-muted">{t("mc.builds.noLocalBuild")}</p>;
     }
     return (
         <>
@@ -380,15 +381,17 @@ export function RecentBuilds({ runs }: { runs: RunRecord[] }) {
 }
 
 function BuildLog({ run }: { run: RunRecord }) {
+    const t = useT();
     const lines = logTail(useRunLog(run), 2000);
     return (
         <pre className="mt-2 max-h-[50vh] overflow-auto rounded-6 border border-border bg-black/30 px-2 py-1.5 font-mono text-11 leading-relaxed whitespace-pre-wrap text-secondary">
-            {lines.length === 0 ? "(no output)" : lines.join("\n")}
+            {lines.length === 0 ? t("mc.run.noOutput") : lines.join("\n")}
         </pre>
     );
 }
 
 function BuildHistoryRow({ run }: { run: RunRecord }) {
+    const t = useT();
     const [log, setLog] = useState(false);
     return (
         <div className="border-b border-border px-3 py-2 last:border-b-0" data-testid="build-history-row">
@@ -398,14 +401,14 @@ function BuildHistoryRow({ run }: { run: RunRecord }) {
                     {run.title}
                 </span>
                 {run.commit ? (
-                    <code className="text-11 text-muted" title={`Built from ${run.commit}`}>
+                    <code className="text-11 text-muted" title={t("mc.builds.builtFromCommit", { commit: run.commit })}>
                         {run.commit.slice(0, 7)}
                     </code>
                 ) : null}
                 <span className="text-12 text-muted">{timeAgo(new Date(run.startedat).toISOString())}</span>
                 <ArtifactActions run={run} />
                 <button type="button" onClick={() => setLog(!log)} className={PlainButton} aria-expanded={log}>
-                    {log ? "Less" : "Log"}
+                    {log ? t("mc.run.less") : t("mc.run.log")}
                 </button>
             </div>
             {log ? <BuildLog run={run} /> : null}

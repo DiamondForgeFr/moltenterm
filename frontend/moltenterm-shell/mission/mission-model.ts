@@ -4,8 +4,10 @@
 // What the collector in wavesrv answers (pkg/molten/mission), and its translation into the shapes the ported Notulia
 // modules read. Kept apart from the components so the rules can be tested without the app.
 
+import { t } from "../i18n/i18n";
 import { DefaultTagPrefix } from "../releases/versions";
 import { GithubRelease, Milestone, PullRequest, WorkflowRun } from "./github";
+import { labelRecord } from "./mission-i18n";
 
 export type RawCommit = {
     sha: string;
@@ -210,34 +212,36 @@ export function toTreeData(git: MissionGit): TreeData {
 export function githubStateMessage(github: MissionGithub): string {
     switch (github?.state) {
         case "nogh":
-            return "GitHub CLI (gh) is not installed: install it to see pull requests and runs.";
+            return t("mc.github.state.nogh");
         case "loggedout":
-            return "gh is logged out: run gh auth login in a terminal.";
+            return t("mc.github.state.loggedout");
         case "norepo":
-            return "This project has no GitHub remote.";
+            return t("mc.github.state.norepo");
         case "error":
-            return `GitHub could not be read: ${github.message ?? "unknown error"}`;
+            return t("mc.github.state.error", {
+                message: github.message ?? t("mc.common.unknownError"),
+            });
     }
     return null;
 }
 
 export function formatAge(at: number, now: number): string {
     if (!at) {
-        return "never";
+        return t("mc.time.never");
     }
     const seconds = Math.max(0, Math.round((now - at) / 1000));
     if (seconds < 45) {
-        return "just now";
+        return t("mc.time.justNow");
     }
     const minutes = Math.round(seconds / 60);
     if (minutes < 60) {
-        return `${minutes} min ago`;
+        return t("mc.time.minAgo", { count: minutes });
     }
     const hours = Math.round(minutes / 60);
     if (hours < 24) {
-        return `${hours} h ago`;
+        return t("mc.time.hAgo", { count: hours });
     }
-    return `${Math.round(hours / 24)} d ago`;
+    return t("mc.time.dAgo", { count: Math.round(hours / 24) });
 }
 
 // The open pull requests by branch, so a limb of the tree can show its PR.
@@ -330,13 +334,13 @@ export type RunResult = { run?: RunRecord; untrusted?: UntrustedInfo };
 
 export type LogChunk = { text: string; size: number };
 
-export const RunStateLabels: Record<RunState, string> = {
-    running: "running",
-    success: "succeeded",
-    failure: "failed",
-    cancelled: "cancelled",
-    lost: "interrupted",
-};
+export const RunStateLabels: Record<RunState, string> = labelRecord("mc.run.state", [
+    "running",
+    "success",
+    "failure",
+    "cancelled",
+    "lost",
+]);
 
 // Puts a record from the event bus into the list the panel shows, newest first.
 export function upsertRun(runs: readonly RunRecord[], run: RunRecord): RunRecord[] {

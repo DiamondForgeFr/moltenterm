@@ -5,8 +5,10 @@
 // rail order, with its state as the collector last read it, the stale flags and their Sync. It shows no other action:
 // each member's Run CI, Build local, Release and Clean branches stay in its own workspace.
 
+import { getLocale, t } from "../i18n/i18n";
 import { dependencyLabel } from "./dep-sync-model";
 import { DependencyState, GroupMember, isFlaggedDependency, ProjectGroup } from "./group-model";
+import { labelRecord } from "./mission-i18n";
 
 export type StripTone = "ok" | "bad" | "running" | "muted";
 
@@ -81,34 +83,40 @@ export function memberTarget(member: GroupMember, current: boolean): string {
 }
 
 function localCiFact(trunkci: string, trunk: string): StripFact {
-    const label = "Local CI";
-    const title = `The local CI on the head of ${trunk}`;
+    const label = t("mc.strip.localCi");
+    const title = t("mc.strip.localCiTitle", { trunk });
     switch (trunkci) {
         case "success":
-            return { key: "localci", label, value: "passed", tone: "ok", title };
+            return { key: "localci", label, value: t("mc.strip.passed"), tone: "ok", title };
         case "failure":
-            return { key: "localci", label, value: "failed", tone: "bad", title };
+            return { key: "localci", label, value: t("mc.strip.failed"), tone: "bad", title };
         case "running":
-            return { key: "localci", label, value: "running", tone: "running", title };
+            return { key: "localci", label, value: t("mc.strip.running"), tone: "running", title };
         case "missing":
-            return { key: "localci", label, value: "no verdict", tone: "muted", title };
+            return { key: "localci", label, value: t("mc.strip.noVerdict"), tone: "muted", title };
         default:
-            return { key: "localci", label, value: "none", tone: "muted", title: "No local CI declared" };
+            return {
+                key: "localci",
+                label,
+                value: t("mc.strip.none"),
+                tone: "muted",
+                title: t("mc.strip.noLocalCi"),
+            };
     }
 }
 
 function remoteCiFact(remoteci: string, trunk: string): StripFact {
-    const label = "GitHub CI";
-    const title = `GitHub's runs on ${trunk}`;
+    const label = t("mc.strip.githubCi");
+    const title = t("mc.strip.githubCiTitle", { trunk });
     switch (remoteci) {
         case "success":
-            return { key: "remoteci", label, value: "passed", tone: "ok", title };
+            return { key: "remoteci", label, value: t("mc.strip.passed"), tone: "ok", title };
         case "failure":
-            return { key: "remoteci", label, value: "failed", tone: "bad", title };
+            return { key: "remoteci", label, value: t("mc.strip.failed"), tone: "bad", title };
         case "running":
-            return { key: "remoteci", label, value: "running", tone: "running", title };
+            return { key: "remoteci", label, value: t("mc.strip.running"), tone: "running", title };
         default:
-            return { key: "remoteci", label, value: "unknown", tone: "muted", title };
+            return { key: "remoteci", label, value: t("mc.strip.unknown"), tone: "muted", title };
     }
 }
 
@@ -120,45 +128,44 @@ const BuildTones: Record<string, StripTone> = {
     cancelled: "muted",
 };
 
-const BuildWords: Record<string, string> = {
-    success: "passed",
-    failure: "failed",
-    lost: "lost",
-    running: "running",
-    cancelled: "cancelled",
-};
+const BuildWords = labelRecord("mc.strip.build", ["success", "failure", "lost", "running", "cancelled"]) as Record<
+    string,
+    string
+>;
 
 function buildFact(build: string, buildId: string, buildAt: number, now: number): StripFact {
+    const label = t("mc.strip.lastBuild");
     if (!build) {
-        return { key: "build", label: "Last build", value: "none yet", tone: "muted" };
+        return { key: "build", label, value: t("mc.strip.noneYet"), tone: "muted" };
     }
     const word = BuildWords[build] ?? build;
     const when = buildAt ? ` ${shortAgo(buildAt, now)}` : "";
     return {
         key: "build",
-        label: "Last build",
+        label,
         value: `${buildId ? buildId + " " : ""}${word}${when}`,
         tone: BuildTones[build] ?? "muted",
-        title: buildAt ? `Started ${new Date(buildAt).toLocaleString()}` : undefined,
+        title: buildAt ? t("mc.strip.started", { when: new Date(buildAt).toLocaleString(getLocale()) }) : undefined,
     };
 }
 
 function releaseFact(lastTag: string, releaseTag: string): StripFact {
+    const label = t("mc.strip.release");
     if (!lastTag && !releaseTag) {
-        return { key: "release", label: "Release", value: "none yet", tone: "muted" };
+        return { key: "release", label, value: t("mc.strip.noneYet"), tone: "muted" };
     }
     if (!lastTag || lastTag === releaseTag) {
-        return { key: "release", label: "Release", value: releaseTag, tone: "ok", title: "The last public release" };
+        return { key: "release", label, value: releaseTag, tone: "ok", title: t("mc.strip.lastPublic") };
     }
     if (!releaseTag) {
-        return { key: "release", label: "Release", value: lastTag, tone: "ok", title: "The newest release tag" };
+        return { key: "release", label, value: lastTag, tone: "ok", title: t("mc.strip.newestTag") };
     }
     return {
         key: "release",
-        label: "Release",
-        value: `${lastTag} · public ${releaseTag}`,
+        label,
+        value: t("mc.strip.tagAndPublic", { tag: lastTag, public: releaseTag }),
         tone: "ok",
-        title: `The newest release tag is ${lastTag}; the last public release is ${releaseTag}`,
+        title: t("mc.strip.tagAndPublicTitle", { tag: lastTag, public: releaseTag }),
     };
 }
 
@@ -166,16 +173,16 @@ function releaseFact(lastTag: string, releaseTag: string): StripFact {
 export function shortAgo(at: number, now: number): string {
     const minutes = Math.max(0, Math.round((now - at) / 60_000));
     if (minutes < 1) {
-        return "just now";
+        return t("mc.time.justNow");
     }
     if (minutes < 60) {
-        return `${minutes} min ago`;
+        return t("mc.time.minAgo", { count: minutes });
     }
     const hours = Math.round(minutes / 60);
     if (hours < 48) {
-        return `${hours} h ago`;
+        return t("mc.time.hAgo", { count: hours });
     }
-    return `${Math.round(hours / 24)} d ago`;
+    return t("mc.time.dAgo", { count: Math.round(hours / 24) });
 }
 
 function unique(values: string[]): string[] {
@@ -188,10 +195,15 @@ export function stripDependency(member: GroupMember, dep: DependencyState): Stri
     const paths = unique(dep.changed?.length ? dep.changed : dep.paths);
     const commits = dep.commits ?? [];
     const uncommitted = dep.uncommitted ?? [];
+    const behindKey = dep.synced
+        ? branch
+            ? "mc.strip.behindOn"
+            : "mc.strip.behind"
+        : branch
+          ? "mc.strip.behindOnNever"
+          : "mc.strip.behindNever";
     const title =
-        dep.state === "uncommitted"
-            ? `Synced with ${source}, not committed`
-            : `Behind ${source}${branch ? ` on ${branch}` : ""}${dep.synced ? "" : ": never synced"}`;
+        dep.state === "uncommitted" ? t("mc.strip.syncedNotCommitted", { source }) : t(behindKey, { source, branch });
     return {
         key: `${dep.index}:${dep.project}`,
         source,
@@ -221,27 +233,30 @@ export function lastSyncNote(dep: DependencyState): string {
     if (dep?.lastsync?.state === "running") {
         return label;
     }
-    return label.startsWith("stale, ") ? label.slice("stale, ".length) : "";
+    const stale = t("mc.depSync.label.stale") + ", ";
+    return label.startsWith(stale) ? label.slice(stale.length) : "";
 }
 
-const UnresolvedWords: Record<string, string> = {
-    sourcenotfound: "source not found",
-    branchnotfound: "branch not found",
-    invalid: "invalid declaration",
-    error: "could not be read",
+const UnresolvedWords = labelRecord("mc.depSync.label", ["sourceNotFound", "branchNotFound", "invalid", "error"]);
+
+const UnresolvedKeys: Record<string, keyof typeof UnresolvedWords> = {
+    sourcenotfound: "sourceNotFound",
+    branchnotfound: "branchNotFound",
+    invalid: "invalid",
+    error: "error",
 };
 
 function unresolvedLine(dep: DependencyState): string {
-    const word = UnresolvedWords[dep.state];
-    if (!word) {
+    const key = UnresolvedKeys[dep.state];
+    if (!key) {
         return null;
     }
-    return `${dep.sourcename || dep.project}: ${word}`;
+    return `${dep.sourcename || dep.project}: ${UnresolvedWords[key]}`;
 }
 
 export function stripMember(member: GroupMember, current: boolean, now: number): StripMember {
     const state = member.state ?? {};
-    const trunk = state.trunk || "the trunk";
+    const trunk = state.trunk || t("mc.builds.theTrunk");
     const deps = state.deps ?? [];
     const rtn: StripMember = {
         member,
@@ -254,12 +269,12 @@ export function stripMember(member: GroupMember, current: boolean, now: number):
         unresolved: deps.map(unresolvedLine).filter((line) => line != null),
     };
     if (state.missing) {
-        rtn.note = "Its folder is missing";
+        rtn.note = t("mc.strip.folderMissing");
         rtn.noteTone = "bad";
         return rtn;
     }
     if (!state.collectedat) {
-        rtn.note = "Not read yet: Mission Control reads it once its workspace has been open";
+        rtn.note = t("mc.strip.notRead");
     } else {
         rtn.facts.push(localCiFact(state.trunkci, trunk), remoteCiFact(state.remoteci, trunk));
     }

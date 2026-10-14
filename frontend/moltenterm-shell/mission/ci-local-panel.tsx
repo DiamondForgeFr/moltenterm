@@ -7,6 +7,7 @@
 import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { TabActivity, whileShown } from "../tab-activity";
 import { LocalCiIcon } from "./ci-icon";
@@ -28,6 +29,7 @@ import { BlockHeader, Notice, Problem } from "./cicd-panels";
 import { ciCancel, ciLog, ciRun, missionTrust, useCiState } from "./mission-client";
 import { UntrustedInfo } from "./mission-model";
 import { TrustPrompt } from "./runs-view";
+import { dateLocale } from "./time-format";
 
 const LogPollMs = 1500;
 const MaxLogChars = 512 * 1024;
@@ -40,7 +42,12 @@ function StatusIcon({ status }: { status: CiStatus }) {
 }
 
 function formatRunDate(ms: number): string {
-    return new Date(ms).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    return new Date(ms).toLocaleString(dateLocale(), {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
 }
 
 // A job's log, read from where the last read stopped, every 1.5 s while the job runs.
@@ -81,6 +88,7 @@ function useCiLog(dir: string, run: CiRunRecord, job: string, running: boolean):
 }
 
 function LogPane({ text, paneRef }: { text: string; paneRef: React.RefObject<HTMLPreElement> }) {
+    const t = useT();
     const ref = paneRef;
     const atBottom = useRef(true);
     const segments = useMemo(() => parseAnsi(text), [text]);
@@ -94,7 +102,7 @@ function LogPane({ text, paneRef }: { text: string; paneRef: React.RefObject<HTM
         <pre
             ref={ref}
             tabIndex={0}
-            aria-label="Job log"
+            aria-label={t("mc.ciLocal.jobLog")}
             onScroll={(e) => {
                 const el = e.currentTarget;
                 atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
@@ -102,7 +110,7 @@ function LogPane({ text, paneRef }: { text: string; paneRef: React.RefObject<HTM
             className="max-h-[50vh] min-h-32 overflow-auto rounded-4 bg-black/50 p-2 font-mono text-11 leading-snug whitespace-pre-wrap text-[#e5e7eb]"
         >
             {text === ""
-                ? "(no output yet)"
+                ? t("mc.ciLocal.noOutputYet")
                 : segments.map((s, i) => (
                       <span
                           key={i}
@@ -158,6 +166,7 @@ function RunDetail({
     now: number;
     logRef: React.RefObject<HTMLPreElement>;
 }) {
+    const t = useT();
     const [picked, setPicked] = useState<string>(null);
     useEffect(() => setPicked(null), [run.id]);
     const job = defaultCiJob(run, picked);
@@ -168,11 +177,11 @@ function RunDetail({
         <div className="flex min-w-0 flex-col gap-2">
             <div>
                 <div className="text-13 leading-5 font-medium">
-                    {run.branch || "no branch"} @ {shortSha(run.sha)}
+                    {run.branch || t("mc.ciLocal.noBranch")} @ {shortSha(run.sha)}
                 </div>
                 <div className="text-11 text-muted">
-                    {formatRunDate(run.startedat)} · {formatCiDuration(ciRunDuration(run, now))} · tree{" "}
-                    {shortSha(run.tree)} · {run.id}
+                    {formatRunDate(run.startedat)} · {formatCiDuration(ciRunDuration(run, now))} ·{" "}
+                    {t("mc.ciLocal.tree")} {shortSha(run.tree)} · {run.id}
                 </div>
             </div>
             {run.error ? <Problem text={run.error} /> : null}
@@ -185,7 +194,7 @@ function RunDetail({
                         job === CiPrepareJob ? "border-accent text-primary" : "border-border text-muted hover:bg-hover"
                     )}
                 >
-                    Prepare
+                    {t("mc.ciLocal.prepare")}
                 </button>
                 {run.jobs.map((j) => (
                     <JobChip
@@ -223,12 +232,13 @@ function RunRow({
     onLogs: () => void;
     onRerun: () => Promise<void>;
 }) {
+    const t = useT();
     const [confirming, setConfirming] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
     const rerunRef = useRef<HTMLButtonElement>(null);
     const jobs = run.only?.length ? run.only.join(", ") : run.jobs.map((j) => j.name).join(", ");
-    const branch = run.branch || "no branch";
+    const branch = run.branch || t("mc.ciLocal.noBranch");
     const commit = github && run.sha ? `${github}/commit/${run.sha}` : null;
     const closeConfirm = () => {
         setConfirming(false);
@@ -272,19 +282,24 @@ function RunRow({
                         </span>
                     </span>
                 </button>
-                <RowActions label={`Local CI run on ${branch}`}>
-                    <RowAction icon="fa-solid fa-file-lines" label="Logs" onClick={onLogs} testId="ci-row-logs" />
+                <RowActions label={t("mc.ciLocal.runOn", { branch })}>
+                    <RowAction
+                        icon="fa-solid fa-file-lines"
+                        label={t("mc.ci.logs")}
+                        onClick={onLogs}
+                        testId="ci-row-logs"
+                    />
                     <RowAction
                         buttonRef={rerunRef}
                         icon="fa-solid fa-rotate-right"
-                        label={canRerun ? "Rerun" : "Rerun (once the run under way ends)"}
+                        label={canRerun ? t("mc.ci.rerun") : t("mc.ci.rerunLater")}
                         disabled={!canRerun || !run.branch}
                         onClick={() => setConfirming(true)}
                         testId="ci-row-rerun"
                     />
                     <RowAction
                         icon="fa-brands fa-github"
-                        label={commit ? "Open the commit on GitHub" : "Not on GitHub"}
+                        label={commit ? t("mc.ci.openCommit") : t("mc.ci.notOnGithub")}
                         disabled={commit == null}
                         onClick={() => commit && fireAndForget(() => openLink(commit))}
                         testId="ci-row-github"
@@ -293,8 +308,8 @@ function RunRow({
             </div>
             {confirming ? (
                 <RerunConfirm
-                    question={`Run the local CI on ${branch} again? Only what is not green yet runs.`}
-                    confirmLabel="Rerun"
+                    question={t("mc.ciLocal.rerunQuestion", { branch })}
+                    confirmLabel={t("mc.ci.rerun")}
                     busy={busy}
                     error={error}
                     onConfirm={rerun}
@@ -306,6 +321,7 @@ function RunRow({
 }
 
 export function LocalCiRunner({ dir, projectName, github }: { dir: string; projectName: string; github?: string }) {
+    const t = useT();
     const { state, reload } = useCiState(dir);
     const [branch, setBranch] = useState<string>(null);
     const [force, setForce] = useState(false);
@@ -328,7 +344,7 @@ export function LocalCiRunner({ dir, projectName, github }: { dir: string; proje
         }
     }, [state?.current]);
     if (state == null) {
-        return <Notice text="Reading the local CI…" />;
+        return <Notice text={t("mc.ciLocal.reading")} />;
     }
     const shown = state.runs.find((r) => r.id === selected) ?? running ?? state.runs[0];
     // A run the project's commands are not trusted for yet opens the trust prompt, which starts it once trusted.
@@ -376,15 +392,12 @@ export function LocalCiRunner({ dir, projectName, github }: { dir: string; proje
     const branches = state.branches ?? [];
     return (
         <section className="flex flex-col gap-2">
-            <BlockHeader
-                title="Local CI"
-                hint="molten ci run · verdicts kept per code, only what is not green reruns"
-            />
+            <BlockHeader title={t("mc.cicd.localCi")} hint={t("mc.ciLocal.hint")} />
             <div className="flex flex-wrap items-center gap-2">
                 <select
                     value={branch ?? ""}
                     onChange={(e) => setBranch(e.target.value)}
-                    aria-label="Branch"
+                    aria-label={t("mc.ciLocal.branch")}
                     className="max-w-[260px] cursor-pointer rounded-6 border border-border bg-transparent px-1.5 py-1 text-12 text-secondary"
                 >
                     {branches.length === 0 ? <option value="">HEAD</option> : null}
@@ -397,7 +410,7 @@ export function LocalCiRunner({ dir, projectName, github }: { dir: string; proje
                 </select>
                 <label className="flex cursor-pointer items-center gap-1.5 text-12 text-secondary">
                     <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
-                    Run all again
+                    {t("mc.ciLocal.runAll")}
                 </label>
                 <button
                     type="button"
@@ -408,10 +421,10 @@ export function LocalCiRunner({ dir, projectName, github }: { dir: string; proje
                     {running != null ? (
                         <>
                             <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1 text-11" />
-                            Running…
+                            {t("mc.ciLocal.running")}
                         </>
                     ) : (
-                        "Run"
+                        t("mc.run.run")
                     )}
                     <MoltenWave />
                 </button>
@@ -426,13 +439,13 @@ export function LocalCiRunner({ dir, projectName, github }: { dir: string; proje
                         }
                         className={PlainButton}
                     >
-                        Cancel
+                        {t("common.cancel")}
                     </button>
                 ) : null}
             </div>
             {error ? <Problem text={error} /> : null}
             {state.runs.length === 0 ? (
-                <Notice text="No run yet: start one above, or run molten ci run in a terminal of the project." />
+                <Notice text={t("mc.ciLocal.noRun")} />
             ) : (
                 <div className="grid min-w-0 gap-3 @2xl:grid-cols-[320px_minmax(0,1fr)]">
                     <div className="max-h-[60vh] overflow-y-auto rounded-4 border border-border">

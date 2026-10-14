@@ -9,6 +9,7 @@
 import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useState } from "react";
+import { useLocale, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { TabActivity, whileShown } from "../tab-activity";
 import {
@@ -20,6 +21,7 @@ import {
     releaseRunStep,
     useReleaseFacts,
 } from "./mission-client";
+import { labelRecord } from "./mission-i18n";
 import { latestRun, PipelineDef, ReleasePhase, RunRecord, UntrustedInfo } from "./mission-model";
 import { ReleaseSession } from "./release-model";
 import { Phase, PhaseAction, PhaseStatus, PreparationStep, ReleaseGhJob, ReleaseRun, releaseRun } from "./release-run";
@@ -33,21 +35,21 @@ const NodeClasses: Record<PhaseStatus, string> = {
     todo: "border-border bg-transparent text-muted",
 };
 
-const Says: Record<PhaseStatus, string> = {
-    done: "done",
-    running: "running",
-    waiting: "your turn",
-    failed: "failed",
-    todo: "to come",
-};
+const Says: Record<PhaseStatus, string> = labelRecord("mc.releaseRun.says", [
+    "done",
+    "running",
+    "waiting",
+    "failed",
+    "todo",
+]);
 
-const ShortTitles: Record<ReleasePhase, string> = {
-    prepare: "Prepare",
-    cut: "Cut",
-    build: "Build",
-    publish: "Publish",
-    back: "Back",
-};
+const ShortTitles: Record<ReleasePhase, string> = labelRecord("mc.releaseRun.short", [
+    "prepare",
+    "cut",
+    "build",
+    "publish",
+    "back",
+]);
 
 const PlainButton =
     "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
@@ -139,6 +141,7 @@ function ActionButton({
     // A secondary way forward, beside the phase's own action.
     plain?: boolean;
 }) {
+    const t = useT();
     const [confirming, setConfirming] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
@@ -166,7 +169,7 @@ function ActionButton({
             <div className="flex justify-end gap-2">
                 {confirming ? (
                     <button type="button" className={PlainButton} onClick={() => setConfirming(false)}>
-                        Cancel
+                        {t("common.cancel")}
                     </button>
                 ) : null}
                 <button
@@ -176,7 +179,7 @@ function ActionButton({
                     onClick={() => (confirm && !confirming ? setConfirming(true) : go())}
                 >
                     {busy ? <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-11" /> : null}
-                    {confirming ? "Confirm" : action.label}
+                    {confirming ? t("common.confirm") : action.label}
                     {plain ? null : <MoltenWave />}
                 </button>
             </div>
@@ -194,6 +197,7 @@ function NotesEditor({
     rewrite: PhaseAction;
     onDirty: (dirty: boolean) => void;
 }) {
+    const t = useT();
     const [text, setText] = useState<string>(null);
     const [saved, setSaved] = useState<string>(null);
     const [busy, setBusy] = useState(false);
@@ -216,7 +220,7 @@ function NotesEditor({
     }
     return (
         <div className="mt-3 flex flex-col gap-2">
-            <div className="text-11 text-muted">Public notes: what the release page says</div>
+            <div className="text-11 text-muted">{t("mc.releaseRun.publicNotes")}</div>
             <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
@@ -241,7 +245,7 @@ function NotesEditor({
                             })
                         }
                     >
-                        Rewrite
+                        {t("mc.releaseRun.rewrite")}
                     </button>
                 ) : null}
                 <button
@@ -263,7 +267,7 @@ function NotesEditor({
                         })
                     }
                 >
-                    Save
+                    {t("common.save")}
                 </button>
             </div>
             {error ? <p className="text-right text-12 text-error">{error}</p> : null}
@@ -282,6 +286,7 @@ function Detail({
     jobs: ReleaseGhJob[];
     actions: ReleasePanelActions;
 }) {
+    const t = useT();
     const [notesDirty, setNotesDirty] = useState(false);
     const editing = phase.id === "cut" && run.editNotes;
     const rewrite: PhaseAction = run.notesStep
@@ -333,7 +338,7 @@ function Detail({
             ) : null}
             {phase.action ? (
                 editing && notesDirty ? (
-                    <p className="mt-3 text-right text-12 text-muted">Save the notes before cutting.</p>
+                    <p className="mt-3 text-right text-12 text-muted">{t("mc.releaseRun.saveBeforeCut")}</p>
                 ) : (
                     <>
                         <ActionButton key={phase.action.label} action={phase.action} actions={actions} />
@@ -365,6 +370,7 @@ export function ReleaseRunPanel({
     // followed.
     onAbandon?: () => void;
 }) {
+    const t = useT();
     const [picked, setPicked] = useState<ReleasePhase>(null);
     const [confirming, setConfirming] = useState(false);
     const shown = run.phases.find((p) => p.id === (picked ?? run.current)) ?? run.phases[run.phases.length - 1];
@@ -375,12 +381,12 @@ export function ReleaseRunPanel({
         >
             <div className="mb-3 flex items-center gap-1.5 text-11 font-medium tracking-wide text-muted uppercase">
                 <i className="fa fa-solid fa-tower-broadcast text-accent" />
-                Release in flight
+                {t("mc.releaseRun.inFlight")}
                 <span className="ml-auto rounded-full border border-border px-2 py-0.5 font-mono tracking-normal text-primary normal-case">
-                    {run.tag} · {run.channel === "rc" ? "internal" : "public"}
+                    {run.tag} · {run.channel === "rc" ? t("mc.releaseRun.internal") : t("mc.releaseRun.publicChannel")}
                 </span>
             </div>
-            <ol className="flex items-start gap-1" aria-label="Phases of the release">
+            <ol className="flex items-start gap-1" aria-label={t("mc.releaseRun.phasesLabel")}>
                 {run.phases.map((p, i) => (
                     <li key={p.id} className="flex flex-1 items-center gap-1 last:flex-none">
                         <div className="flex flex-col items-center gap-1">
@@ -422,16 +428,16 @@ export function ReleaseRunPanel({
                 <div className="mt-3 flex items-center justify-end gap-2 text-11">
                     {confirming ? (
                         <>
-                            <span className="text-muted">Stop following {run.tag}? Nothing pushed is undone.</span>
+                            <span className="text-muted">{t("mc.releaseRun.stopFollowing", { tag: run.tag })}</span>
                             <button type="button" className={PlainButton} onClick={() => setConfirming(false)}>
-                                No
+                                {t("mc.releaseRun.no")}
                             </button>
                             <button
                                 type="button"
                                 className="cursor-pointer rounded-6 border border-error/50 px-2 py-1 text-12 text-error hover:bg-error/10"
                                 onClick={onAbandon}
                             >
-                                Abandon
+                                {t("mc.releaseRun.abandon")}
                             </button>
                         </>
                     ) : (
@@ -440,7 +446,7 @@ export function ReleaseRunPanel({
                             className="cursor-pointer rounded-6 px-2 py-1 text-muted hover:text-primary"
                             onClick={() => setConfirming(true)}
                         >
-                            Abandon this release
+                            {t("mc.releaseRun.abandonRelease")}
                         </button>
                     )}
                 </div>
@@ -471,7 +477,8 @@ export function ReleaseRunSection({
     const [pending, setPending] = useState<{ action: PhaseAction; info: UntrustedInfo }>(null);
     const [error, setError] = useState<string>(null);
     const steps = facts?.channel === "public" ? pipeline?.release?.public : pipeline?.release?.rc;
-    const run = useMemo(() => releaseRun(facts, steps ?? []), [facts, steps]);
+    const locale = useLocale();
+    const run = useMemo(() => releaseRun(facts, steps ?? []), [facts, steps, locale]);
     const tag = run?.tag;
     const actions = useMemo<ReleasePanelActions>(
         () => ({

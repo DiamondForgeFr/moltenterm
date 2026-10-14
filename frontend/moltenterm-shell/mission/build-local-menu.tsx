@@ -8,6 +8,7 @@
 import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
+import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { pathParent } from "../workspace-project";
 import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-button";
@@ -36,6 +37,7 @@ export function BuildLocalMenu({
     onBuild: (buildId: string) => Promise<string>;
     onShowRun: () => void;
 }) {
+    const t = useT();
     const [open, setOpen] = useState(false);
     const [facts, setFacts] = useState<BuildsFacts>(null);
     const [fetching, setFetching] = useState(false);
@@ -78,7 +80,7 @@ export function BuildLocalMenu({
         return (
             <button type="button" onClick={onShowRun} className={ActionRunningClass}>
                 <RunningDot />
-                Build {running.title}…
+                {t("mc.builds.running", { title: running.title })}
             </button>
         );
     }
@@ -109,12 +111,12 @@ export function BuildLocalMenu({
         <div ref={setAnchor} className="relative">
             <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={ActionSecondaryClass}>
                 <i className="fa fa-solid fa-hammer text-11" />
-                Build local
+                {t("mc.builds.buildLocal")}
             </button>
             {open ? (
                 <MenuPopover anchor={anchor} onClose={() => setOpen(false)} className="flex w-80 flex-col gap-2">
                     {builds.length === 0 && !fetching ? (
-                        <div className="text-12 text-muted">The pipeline declares no build (builds).</div>
+                        <div className="text-12 text-muted">{t("mc.builds.noBuild")}</div>
                     ) : null}
                     {builds.map((build) => (
                         <div key={build.id} className="relative">
@@ -144,8 +146,10 @@ export function BuildLocalMenu({
                             {build.last ? (
                                 <button
                                     type="button"
-                                    title="Show in Finder"
-                                    aria-label={`Show ${buildCardTitle(projectName, build)} in Finder`}
+                                    title={t("mc.builds.showInFolder")}
+                                    aria-label={t("mc.builds.showBuildInFolder", {
+                                        build: buildCardTitle(projectName, build),
+                                    })}
                                     onClick={() => revealBuild(build)}
                                     className="absolute right-1.5 bottom-1.5 cursor-pointer rounded-6 p-1 text-muted transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary"
                                 >
@@ -158,10 +162,7 @@ export function BuildLocalMenu({
                         {fetching ? (
                             <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mt-0.5 text-11" />
                         ) : null}
-                        <span>
-                            Built from {facts?.trunk || "the trunk"} as it is on GitHub, in a separate worktree, then
-                            delivered to the local builds folder.
-                        </span>
+                        <span>{t("mc.builds.builtFrom", { trunk: facts?.trunk || t("mc.builds.theTrunk") })}</span>
                     </div>
                     <button
                         type="button"
@@ -172,11 +173,11 @@ export function BuildLocalMenu({
                         {busy ? (
                             <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-11" />
                         ) : null}
-                        {chosen ? `Build ${chosen.title || chosen.id}` : "Choose a build"}
+                        {chosen ? t("mc.builds.buildOne", { title: chosen.title || chosen.id }) : t("mc.builds.choose")}
                         <MoltenWave />
                     </button>
                     {facts?.fetcherror ? (
-                        <div className="text-11 text-warning">Fetching failed: building the last fetched trunk.</div>
+                        <div className="text-11 text-warning">{t("mc.builds.fetchFailed")}</div>
                     ) : null}
                     {error ? <div className="text-12 text-error">{error}</div> : null}
                 </MenuPopover>

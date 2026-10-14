@@ -4,6 +4,7 @@
 // The rules of Sync (FR-MC-030) that every Sync button shares: how a sync's end reads, what the notification's action
 // reports, and the words of the stale flag. The calls themselves are in dep-sync.tsx.
 
+import { t } from "../i18n/i18n";
 import type { NotificationGestureResult } from "../notifications-store";
 import { DependencyState } from "./group-model";
 import { DepSyncOutcome, RunRecord } from "./mission-model";
@@ -35,9 +36,29 @@ export function depSyncResultOf(run: RunRecord, tail: string[]): DepSyncResult {
     if (run.state === "success") {
         return { ok: true, outcome: run.outcome, run };
     }
-    const how = run.exit != null ? `${run.state === "failure" ? "failed" : run.state} (exit ${run.exit})` : run.state;
+    const state = runStateWord(run.state);
+    const how = run.exit != null ? t("mc.depSync.howExit", { state, exit: run.exit }) : state;
     const lines = (tail ?? []).join(" · ");
-    return { ok: false, run, error: lines ? `the sync ${how}: ${lines}` : `the sync ${how}` };
+    return {
+        ok: false,
+        run,
+        error: lines ? t("mc.depSync.syncFailedLines", { how, lines }) : t("mc.depSync.syncFailed", { how }),
+    };
+}
+
+// A run's state in words ("failed", "cancelled"...); an unknown state shows as it is.
+function runStateWord(state: string): string {
+    switch (state) {
+        case "failure":
+            return t("mc.depSync.state.failure");
+        case "cancelled":
+            return t("mc.depSync.state.cancelled");
+        case "lost":
+            return t("mc.depSync.state.lost");
+        case "running":
+            return t("mc.depSync.state.running");
+    }
+    return state;
 }
 
 // What the notification's Sync reports: a sync that changed nothing resolves the notification at once; changed
@@ -58,13 +79,13 @@ export function dependencyLabel(dep: DependencyState): string {
         return "";
     }
     if (dep.lastsync?.state === "running") {
-        return "syncing…";
+        return t("mc.depSync.label.syncing");
     }
     switch (dep.state) {
         case "insync":
-            return dep.acknowledged ? "in sync, no change" : "in sync";
+            return dep.acknowledged ? t("mc.depSync.label.inSyncNoChange") : t("mc.depSync.label.inSync");
         case "uncommitted":
-            return "synced, not committed";
+            return t("mc.depSync.label.uncommitted");
         case "stale": {
             // A failure older than the source's change is not about it.
             const last = dep.lastsync;
@@ -72,21 +93,21 @@ export function dependencyLabel(dep: DependencyState): string {
             const failed =
                 last != null && last.state !== "success" && (changedAt == null || last.startedat >= changedAt);
             if (!failed) {
-                return "stale";
+                return t("mc.depSync.label.stale");
             }
             if (last.state === "failure" && last.exit != null) {
-                return `stale, last sync failed (exit ${last.exit})`;
+                return t("mc.depSync.label.staleFailedExit", { exit: last.exit });
             }
-            return `stale, last sync ${last.state === "lost" ? "interrupted" : last.state}`;
+            return t("mc.depSync.label.staleLast", { state: runStateWord(last.state) });
         }
         case "sourcenotfound":
-            return "source not found";
+            return t("mc.depSync.label.sourceNotFound");
         case "branchnotfound":
-            return "branch not found";
+            return t("mc.depSync.label.branchNotFound");
         case "invalid":
-            return "invalid declaration";
+            return t("mc.depSync.label.invalid");
         case "error":
-            return "could not be read";
+            return t("mc.depSync.label.error");
     }
     return dep.state;
 }
@@ -94,13 +115,13 @@ export function dependencyLabel(dep: DependencyState): string {
 // Why a dependency offers no Sync button; null when it does (AC6: none without a declared sync).
 export function syncBlocker(dep: DependencyState): string {
     if (dep == null) {
-        return "no dependency";
+        return t("mc.depSync.blocker.none");
     }
     if (!dep.sync) {
-        return "no sync command is declared";
+        return t("mc.depSync.blocker.noCommand");
     }
     if (dep.lastsync?.state === "running") {
-        return "a sync is running";
+        return t("mc.depSync.blocker.running");
     }
     switch (dep.state) {
         case "sourcenotfound":
