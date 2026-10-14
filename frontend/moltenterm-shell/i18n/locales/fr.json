@@ -1503,7 +1503,9 @@
             "command-panel": "Les commandes du panneau actif",
             "shortcuts": "Raccourcis clavier",
             "escape": "Fermer une boîte de dialogue ou la recherche",
-            "palette-right": "Ouvrir l'entrée de la palette à droite"
+            "palette-right": "Ouvrir l'entrée de la palette à droite",
+            "carpet-previous": "Panneau précédent sur le tapis (vue 360)",
+            "carpet-next": "Panneau suivant sur le tapis (vue 360)"
         }
     },
     "tips": {
@@ -3482,6 +3484,18 @@
             "pillText": "Trop étroit pour être lu",
             "pillAction": "Passer en vue 360",
             "pillClose": "Masquer jusqu'à l'ajout d'un panneau"
+        },
+        "radar": {
+            "label": "Panneaux sur le tapis",
+            "inView": "visible",
+            "offLeft": "hors écran à gauche",
+            "offRight": "hors écran à droite",
+            "clickToGo": "cliquez pour y aller",
+            "answer": "attend votre réponse",
+            "notification": "une notification attend",
+            "untitled": "Panneau",
+            "morePanelsOne": "+1 panneau",
+            "morePanels": "+{count} panneaux"
         }
     },
     "termcopy": {
@@ -3815,7 +3829,11 @@
             "sent": "Envoyée à la session de revue : la réponse arrive dans son terminal.",
             "typed": "Tapée dans l'invite de l'agent après votre brouillon : appuyez sur Entrée dans son terminal pour l'envoyer.",
             "notTyped": "La question n'a pas pu être tapée.",
-            "kept": "Votre question est conservée : renvoyez-la quand l'agent sera libre."
+            "kept": "Votre question est conservée : renvoyez-la quand l'agent sera libre.",
+            "queuedNext": "En file : elle est envoyée quand votre agent est disponible, et sa réponse s'affiche sous ce cadre.",
+            "queuedBehindOne": "En file derrière 1 autre question : chacune est envoyée quand votre agent est disponible.",
+            "queuedBehind": "En file derrière {count} autres questions : chacune est envoyée quand votre agent est disponible.",
+            "queuedSent": "Envoyée à la session de revue depuis la file : sa réponse s'affiche sous ce cadre."
         },
         "briefing": {
             "justNow": "à l'instant",
@@ -4088,6 +4106,28 @@
             "title": "Afficher les commentaires prêts dans le panneau IA (la publication sur GitHub n'est pas encore disponible)",
             "label": "Publier la revue ({count})",
             "checkAndPost": "Vérifiez les traductions, puis publiez une revue GitHub avec les commentaires prêts"
+        },
+        "answers": {
+            "title": "Questions et réponses",
+            "empty": "Sélectionnez des lignes et demandez à l'IA : les réponses s'affichent ici, et une étincelle marque leurs lignes dans le diff.",
+            "wholePr": "Toute la PR",
+            "earlierHead": "Tête précédente",
+            "earlierHeadHint": "Répondu sur une tête précédente de la PR : les lignes ont pu changer depuis.",
+            "showLines": "Afficher ces lignes dans le diff",
+            "youAsked": "Votre question",
+            "depthQuick": "Rapide",
+            "depthDetailed": "Détaillée",
+            "updated": "Mise à jour",
+            "sources": "Sources : {list}",
+            "related": "Aussi dans le code :",
+            "principles": "Principes : {list}",
+            "queueTitle": "En attente de votre agent",
+            "queueTitleCount": "En attente de votre agent ({count})",
+            "queueHint": "Chacune est envoyée quand l'agent est disponible, dans cet ordre.",
+            "removeQuestion": "Retirer cette question",
+            "hoverTitle": "Réponse de l'IA",
+            "hoverTitleMany": "Réponses de l'IA ({count})",
+            "hoverHint": "Cliquez pour l'afficher dans le panneau IA."
         }
     }
 }

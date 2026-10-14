@@ -1503,7 +1503,9 @@
             "command-panel": "The focused panel's commands",
             "shortcuts": "Keyboard shortcuts",
             "escape": "Close a dialog or the search",
-            "palette-right": "Open the palette's entry to the right"
+            "palette-right": "Open the palette's entry to the right",
+            "carpet-previous": "Previous panel on the carpet (360 view)",
+            "carpet-next": "Next panel on the carpet (360 view)"
         }
     },
     "tips": {
@@ -3482,6 +3484,18 @@
             "pillText": "Too tight to read",
             "pillAction": "Switch to 360",
             "pillClose": "Hide until a panel is added"
+        },
+        "radar": {
+            "label": "Panels on the carpet",
+            "inView": "in view",
+            "offLeft": "off-screen to the left",
+            "offRight": "off-screen to the right",
+            "clickToGo": "click to go there",
+            "answer": "waiting for your answer",
+            "notification": "a notification is waiting",
+            "untitled": "Panel",
+            "morePanelsOne": "+1 panel",
+            "morePanels": "+{count} panels"
         }
     },
     "termcopy": {
@@ -3815,7 +3829,11 @@
             "sent": "Sent to the review session: the answer comes in its terminal.",
             "typed": "Typed in the agent's prompt after your draft there: press Enter in its terminal to send it.",
             "notTyped": "The question could not be typed.",
-            "kept": "Your question is kept: send it again when the agent is idle."
+            "kept": "Your question is kept: send it again when the agent is idle.",
+            "queuedNext": "Queued: it is sent when your agent is idle, and its answer shows under this box.",
+            "queuedBehindOne": "Queued behind 1 other question: each is sent when your agent is idle.",
+            "queuedBehind": "Queued behind {count} other questions: each is sent when your agent is idle.",
+            "queuedSent": "Sent to the review session from the queue: its answer shows under this box."
         },
         "briefing": {
             "justNow": "just now",
@@ -4088,6 +4106,28 @@
             "title": "Show the staged comments in the AI panel (publishing on GitHub is not available yet)",
             "label": "Publish review ({count})",
             "checkAndPost": "Check the translations, then post one GitHub review with the staged comments"
+        },
+        "answers": {
+            "title": "Questions and answers",
+            "empty": "Select lines and Ask the AI: the answers show here, and a spark marks their lines in the diff.",
+            "wholePr": "The whole PR",
+            "earlierHead": "Earlier head",
+            "earlierHeadHint": "Answered on an earlier head of the PR: the lines may have changed since.",
+            "showLines": "Show these lines in the diff",
+            "youAsked": "You asked",
+            "depthQuick": "Quick",
+            "depthDetailed": "Detailed",
+            "updated": "Updated",
+            "sources": "Sources: {list}",
+            "related": "Also in the code:",
+            "principles": "Principles: {list}",
+            "queueTitle": "Waiting for your agent",
+            "queueTitleCount": "Waiting for your agent ({count})",
+            "queueHint": "Each one is sent when the agent is idle, in this order.",
+            "removeQuestion": "Remove this question",
+            "hoverTitle": "AI answer",
+            "hoverTitleMany": "AI answers ({count})",
+            "hoverHint": "Click to show it in the AI panel."
         }
     }
 }

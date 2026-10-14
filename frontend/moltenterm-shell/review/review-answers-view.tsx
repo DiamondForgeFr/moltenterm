@@ -10,6 +10,7 @@ import { Markdown } from "@/app/element/markdown";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useT } from "../i18n/i18n";
 import { AnswerGroup, groupAnswers, PrAnswersKey } from "./review-answers";
 import { ReviewExplanation } from "./review-client";
 import { parseFileLink } from "./review-model";
@@ -19,26 +20,15 @@ import type { ReviewTabModel } from "./review-tab-model";
 
 import "./review.css";
 
-// UI strings, one per constant (interface translation keys come later, #623).
-const AnswersTitle = "Questions and answers";
-const AnswersEmpty = "Select lines and Ask the AI: the answers show here, and a spark marks their lines in the diff.";
-const WholePrLabel = "The whole PR";
-const EarlierHeadLabel = "Earlier head";
-const EarlierHeadHint = "Answered on an earlier head of the PR: the lines may have changed since.";
-const ShowLinesHint = "Show these lines in the diff";
-const QuestionLabel = "You asked";
-const DepthLabels: Record<string, string> = { quick: "Quick", detailed: "Detailed" };
-const UpdatedLabel = "Updated";
-const SourcesLabel = "Sources";
-const RelatedLabel = "Also in the code";
-const PrinciplesLabel = "Principles";
-const QueueTitle = "Waiting for your agent";
-const QueueHint = "Each one is sent when the agent is idle, in this order.";
-const RemoveQuestionLabel = "Remove this question";
+const DepthKeys: Record<string, string> = {
+    quick: "review.answers.depthQuick",
+    detailed: "review.answers.depthDetailed",
+};
 const FocusMs = 2000;
 
 // QuestionQueue lists the questions waiting for the agent (AC4), with what holds the queue.
 export function QuestionQueue({ model }: { model: ReviewTabModel }) {
+    const t = useT();
     const ai = useAtomValue(model.aiAtom);
     const [error, setError] = useState<string>(null);
     const questions = ai.session?.questions ?? [];
@@ -47,14 +37,18 @@ export function QuestionQueue({ model }: { model: ReviewTabModel }) {
         return null;
     }
     return (
-        <section className="flex flex-col gap-1.5" aria-label={QueueTitle} data-testid="review-question-queue">
+        <section
+            className="flex flex-col gap-1.5"
+            aria-label={t("review.answers.queueTitle")}
+            data-testid="review-question-queue"
+        >
             {questions.length > 0 ? (
                 <>
                     <div className="flex items-center gap-1.5 font-medium">
                         <i className="fa fa-solid fa-hourglass-half text-11 text-warning" />
-                        {QueueTitle} ({questions.length})
+                        {t("review.answers.queueTitleCount", { count: questions.length })}
                     </div>
-                    <div className="text-11 text-muted">{QueueHint}</div>
+                    <div className="text-11 text-muted">{t("review.answers.queueHint")}</div>
                     <ol className="flex flex-col gap-1">
                         {questions.map((q, i) => (
                             <QueuedRow
@@ -86,6 +80,7 @@ function QueuedRow({
     place: number;
     onRemove: () => void;
 }) {
+    const t = useT();
     return (
         <li
             className="flex items-start gap-1.5 rounded-4 border border-border px-2 py-1"
@@ -94,7 +89,7 @@ function QueuedRow({
             <span className="text-11 text-muted">{place}.</span>
             <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate font-mono text-11 text-muted">
-                    {question.anchor ? anchorLabel(question.anchor) : WholePrLabel}
+                    {question.anchor ? anchorLabel(question.anchor) : t("review.answers.wholePr")}
                 </span>
                 <span className="line-clamp-2 whitespace-pre-wrap">{question.question}</span>
             </div>
@@ -102,8 +97,8 @@ function QueuedRow({
                 type="button"
                 className="cursor-pointer px-1 text-muted hover:text-error"
                 onClick={onRemove}
-                title={RemoveQuestionLabel}
-                aria-label={RemoveQuestionLabel}
+                title={t("review.answers.removeQuestion")}
+                aria-label={t("review.answers.removeQuestion")}
                 data-testid="review-queued-remove"
             >
                 <i className="fa fa-solid fa-xmark text-11" />
@@ -114,14 +109,15 @@ function QueuedRow({
 
 // AnswersSection is the agent's answers, grouped by their lines, the latest activity first.
 export function AnswersSection({ model }: { model: ReviewTabModel }) {
+    const t = useT();
     const state = useAtomValue(model.stateAtom);
     const head = useAtomValue(model.headAtom);
     const focus = useAtomValue(model.answerFocusAtom);
     const groups = useMemo(() => groupAnswers(state?.explanations, head), [state?.explanations, head]);
     return (
-        <section className="flex flex-col gap-2" aria-label={AnswersTitle} data-testid="review-answers">
-            <div className="text-13 font-semibold">{AnswersTitle}</div>
-            {groups.length === 0 ? <p className="text-muted">{AnswersEmpty}</p> : null}
+        <section className="flex flex-col gap-2" aria-label={t("review.answers.title")} data-testid="review-answers">
+            <div className="text-13 font-semibold">{t("review.answers.title")}</div>
+            {groups.length === 0 ? <p className="text-muted">{t("review.answers.empty")}</p> : null}
             {groups.map((g) => (
                 <AnswerGroupCard key={g.key} model={model} group={g} focusSeq={focus?.key === g.key ? focus.seq : 0} />
             ))}
@@ -130,6 +126,7 @@ export function AnswersSection({ model }: { model: ReviewTabModel }) {
 }
 
 function AnswerGroupCard({ model, group, focusSeq }: { model: ReviewTabModel; group: AnswerGroup; focusSeq: number }) {
+    const t = useT();
     const ref = useRef<HTMLElement>(null);
     const [focused, setFocused] = useState(false);
     useEffect(() => {
@@ -163,13 +160,13 @@ function AnswerGroupCard({ model, group, focusSeq }: { model: ReviewTabModel; gr
             <div className="flex items-center gap-1.5">
                 <i className="fa fa-solid fa-sparkles text-11 text-accent" />
                 {group.key === PrAnswersKey ? (
-                    <span className="min-w-0 truncate font-medium">{WholePrLabel}</span>
+                    <span className="min-w-0 truncate font-medium">{t("review.answers.wholePr")}</span>
                 ) : (
                     <button
                         type="button"
                         className="min-w-0 cursor-pointer truncate text-left font-mono text-11 text-secondary hover:text-primary"
                         onClick={() => model.revealAnchor(group.anchor)}
-                        title={ShowLinesHint}
+                        title={t("review.answers.showLines")}
                         data-testid="review-answer-anchor"
                     >
                         {anchorLabel(group.anchor)}
@@ -178,9 +175,9 @@ function AnswerGroupCard({ model, group, focusSeq }: { model: ReviewTabModel; gr
                 {group.stale ? (
                     <span
                         className="ml-auto shrink-0 rounded-4 border border-warning/50 px-1 text-10 text-warning"
-                        title={EarlierHeadHint}
+                        title={t("review.answers.earlierHeadHint")}
                     >
-                        {EarlierHeadLabel}
+                        {t("review.answers.earlierHead")}
                     </span>
                 ) : null}
             </div>
@@ -205,6 +202,7 @@ function AnswerBody({
     answer: ReviewExplanation;
     onClickCapture: (e: React.MouseEvent) => void;
 }) {
+    const t = useT();
     return (
         <div
             className="flex flex-col gap-1.5 border-t border-border/50 pt-2"
@@ -213,7 +211,7 @@ function AnswerBody({
         >
             {answer.question ? (
                 <div className="flex flex-col gap-0.5" data-testid="review-answer-question">
-                    <span className="text-10 font-medium text-muted uppercase">{QuestionLabel}</span>
+                    <span className="text-10 font-medium text-muted uppercase">{t("review.answers.youAsked")}</span>
                     <span className="whitespace-pre-wrap text-secondary">{answer.question}</span>
                 </div>
             ) : null}
@@ -233,6 +231,7 @@ function AnswerBody({
 }
 
 function AnswerFooter({ model, answer }: { model: ReviewTabModel; answer: ReviewExplanation }) {
+    const t = useT();
     const related = (answer.related ?? []).filter((r) => r.trim() !== "");
     const sources = (answer.sources ?? []).filter((s) => s.trim() !== "");
     const principles = (answer.principles ?? []).filter((p) => p.trim() !== "");
@@ -241,19 +240,17 @@ function AnswerFooter({ model, answer }: { model: ReviewTabModel; answer: Review
             <div className="flex flex-wrap items-center gap-1.5">
                 {answer.depth ? (
                     <span className="rounded-4 border border-border px-1 text-10">
-                        {DepthLabels[answer.depth] ?? answer.depth}
+                        {DepthKeys[answer.depth] ? t(DepthKeys[answer.depth]) : answer.depth}
                     </span>
                 ) : null}
-                {answer.updatedat ? <span>{UpdatedLabel}</span> : null}
+                {answer.updatedat ? <span>{t("review.answers.updated")}</span> : null}
                 {principles.length > 0 ? (
-                    <span>
-                        {PrinciplesLabel}: {principles.join(", ")}
-                    </span>
+                    <span>{t("review.answers.principles", { list: principles.join(", ") })}</span>
                 ) : null}
             </div>
             {related.length > 0 ? (
                 <div className="flex flex-wrap items-center gap-1">
-                    <span>{RelatedLabel}:</span>
+                    <span>{t("review.answers.related")}</span>
                     {related.map((r) => {
                         const link = parseFileLink(r);
                         return (
@@ -270,11 +267,7 @@ function AnswerFooter({ model, answer }: { model: ReviewTabModel; answer: Review
                     })}
                 </div>
             ) : null}
-            {sources.length > 0 ? (
-                <div>
-                    {SourcesLabel}: {sources.join(" · ")}
-                </div>
-            ) : null}
+            {sources.length > 0 ? <div>{t("review.answers.sources", { list: sources.join(" · ") })}</div> : null}
         </div>
     );
 }

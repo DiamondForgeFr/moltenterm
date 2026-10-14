@@ -10,6 +10,7 @@ import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { CSSProperties, memo, useMemo, useRef, useState } from "react";
+import { useLocale } from "../i18n/i18n";
 import { CarpetLayout, CarpetScrubberPx } from "./carpet-model";
 import { buildRadarTicks, radarHint, radarPitchPx, RadarText, RadarTick, radarToContentX } from "./radar-model";
 import { makeRadarFactsAtom, radarColumns } from "./radar-store";
@@ -65,13 +66,15 @@ function TickButton({
 
 export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: LayoutModel; layout: CarpetLayout }) => {
     const view360 = layoutModel.moltenView360;
+    const locale = useLocale();
     const visibleIds = useAtomValue(view360.visibleColumnIdsAtom);
     const rootNode = layoutModel.treeState?.rootNode;
     const columns = useMemo(() => radarColumns(rootNode, layout), [rootNode, layout]);
     const blockKey = columns.flatMap((c) => c.leaves.map((l) => l.blockId)).join(",");
     const factsAtom = useMemo(() => makeRadarFactsAtom(blockKey ? blockKey.split(",") : []), [blockKey]);
     const facts = useAtomValue(factsAtom);
-    const ticks = useMemo(() => buildRadarTicks(columns, facts, visibleIds), [columns, facts, visibleIds]);
+    // The locale is a dependency: tick titles carry translated text ("Panel", "+2 panels").
+    const ticks = useMemo(() => buildRadarTicks(columns, facts, visibleIds), [columns, facts, visibleIds, locale]);
     const [hover, setHover] = useState<Hover>(null);
     const [dragging, setDragging] = useState(false);
     const rowRef = useRef<HTMLDivElement>(null);
