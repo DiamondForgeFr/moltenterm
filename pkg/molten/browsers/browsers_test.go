@@ -4,7 +4,9 @@
 package browsers
 
 import (
+	"bytes"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -231,6 +233,31 @@ func TestOpenerFallsBack(t *testing.T) {
 	route = o.Open(OpenRequest{Url: "https://example.com", Engine: "installed"})
 	if route.Engine != EngineApp || !strings.Contains(route.Fallback, "Gone cannot be found at") || len(*calls) != 0 {
 		t.Fatalf("missing path: %#v %#v", route, *calls)
+	}
+}
+
+// #664: the log keeps the scheme and the host of a handed-off page, never its path, query, fragment or credentials,
+// including when the browser's error repeats the address.
+func TestOpenerLogsHostOnly(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	page := "https://user:pw@claude.ai:8443/oauth/callback?code=SECRETCODE#state=SECRETSTATE"
+	o, _, _ := makeTestOpener(t, Settings{Sites: map[string]string{"claude.ai": "brave"}}, errors.New("cannot open "+page))
+	route := o.Open(OpenRequest{Url: page})
+	logged := buf.String()
+	for _, secret := range []string{"SECRETCODE", "SECRETSTATE", "/oauth", "pw@", "user:"} {
+		if strings.Contains(logged, secret) || strings.Contains(route.Fallback, secret) {
+			t.Errorf("%q leaked: log %q, fallback %q", secret, logged, route.Fallback)
+		}
+	}
+	if !strings.Contains(logged, "https://claude.ai") {
+		t.Errorf("log %q: want the scheme and host", logged)
+	}
+	for in, want := range map[string]string{"": "(no page)", "file:///Users/me/a.html": "file:", "::": "(unreadable address)"} {
+		if got := logSafeUrl(in); got != want {
+			t.Errorf("logSafeUrl(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 
