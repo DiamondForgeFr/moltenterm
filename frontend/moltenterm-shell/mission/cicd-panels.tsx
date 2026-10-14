@@ -5,10 +5,10 @@
 // (GithubPanels.tsx): open pull requests with their checks, scheduled workflows with their next runs, recent runs. CD
 // holds the local builds with their logs and the full tag registry. Summaries and actions live in Project (DS-MC-012).
 
-import { openWebLink } from "@/moltenterm-shell/open-web-link";
 import { cn, fireAndForget } from "@/util/util";
 import { useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
+import { openWebLink } from "../open-web-link";
 import { isReviewable } from "../reviews/reviews-model";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { checkIconState, CiIcon, CiIconLabels, githubRunIconState } from "./ci-icon";

@@ -13,7 +13,7 @@ import { OptMagnifyButton } from "@/app/block/blockutil";
 import { Button } from "@/app/element/button";
 import { IconButton } from "@/app/element/iconbutton";
 import { ContextMenuModel } from "@/app/store/contextmenu";
-import { atoms, getApi, getSettingsKeyAtom, refocusNode } from "@/app/store/global";
+import { atoms, getApi, getSettingsKeyAtom, openLink as openInterfaceLink, refocusNode } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
 import * as WOS from "@/app/store/wos";
@@ -129,6 +129,7 @@ import "./browser.css";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
+import { isSiteAsk, SitePermissionBar, SitePermissionModel } from "./site-permission-bar";
 
 export { MoltentermBrowserView };
 
@@ -173,6 +174,7 @@ export class BrowserViewModel implements ViewModel {
     engines = BrowserEngineModel.getInstance();
     // Sign-in refusals per tab (FR-BRW-003).
     signIn = new BrowserSignInModel();
+    sitePermissions = new SitePermissionModel();
     // Load state and favicon per tab (#210).
     loads = new BrowserLoadModel();
     // The page that failed to load per tab, drawn as MoltenTerm's error page (FR-SHELL-051).
@@ -282,6 +284,7 @@ export class BrowserViewModel implements ViewModel {
         this.webviews.delete(id);
         this.lifecycle.forget(id);
         this.signIn.forget(id);
+        this.sitePermissions.forgetTab(id);
         this.loads.forget(id);
         this.errors.forget(id);
         this.choices.forget(id);
@@ -349,7 +352,7 @@ export class BrowserViewModel implements ViewModel {
     openLink(url: string): void {
         const target = pageOpenTarget(url);
         if (target === WindowOpenSystem) {
-            getApi().openExternal(url);
+            fireAndForget(() => openInterfaceLink(url));
             return;
         }
         if (target !== WindowOpenTab) {
@@ -713,6 +716,7 @@ export class BrowserViewModel implements ViewModel {
         this.webviews.delete(id);
         this.lifecycle.forget(id);
         this.signIn.forget(id);
+        this.sitePermissions.forgetTab(id);
         this.loads.forget(id);
         this.errors.forget(id);
         this.choices.forget(id);
@@ -1130,6 +1134,14 @@ function TabWebview({
         };
         // A popup this tab opened was refused by its sign-in provider (emain/moltenterm-popups.ts closed it).
         const onSignInRefused = (e: any) => model.signIn.notePopupRefused(tab.id, e.detail, webview.getURL());
+        // A page asks for the camera, the microphone, the location or notifications (emain/moltenterm-site-permissions.ts,
+        // #663); handling the event tells the preload the panel shows the question.
+        const onSitePermission = (e: any) => {
+            if (!isSiteAsk(e.detail)) return;
+            e.preventDefault();
+            model.sitePermissions.add(tab.id, e.detail);
+        };
+        const onSitePermissionDone = (e: any) => model.sitePermissions.remove(e.detail?.requestid);
         const onTitle = (e: any) => model.setState(updateTab(model.state(), tab.id, { title: e.title }));
         // emain turns window.open and target=_blank into this event (emain/preload.ts dispatches it to this webview).
         const onNewWindow = (e: any) => {
@@ -1209,6 +1221,8 @@ function TabWebview({
         webview.addEventListener("page-title-updated", onTitle);
         webview.addEventListener("new-window", onNewWindow);
         webview.addEventListener("moltenterm-signin-refused", onSignInRefused);
+        webview.addEventListener("moltenterm-site-permission", onSitePermission);
+        window.addEventListener("moltenterm-site-permission-done", onSitePermissionDone);
         webview.addEventListener("focus", onFocus);
         webview.addEventListener("blur", onBlur);
         webview.addEventListener("dom-ready", onDomReady);
@@ -1235,6 +1249,8 @@ function TabWebview({
             webview.removeEventListener("page-title-updated", onTitle);
             webview.removeEventListener("new-window", onNewWindow);
             webview.removeEventListener("moltenterm-signin-refused", onSignInRefused);
+            webview.removeEventListener("moltenterm-site-permission", onSitePermission);
+            window.removeEventListener("moltenterm-site-permission-done", onSitePermissionDone);
             webview.removeEventListener("focus", onFocus);
             webview.removeEventListener("blur", onBlur);
             webview.removeEventListener("dom-ready", onDomReady);
@@ -1919,6 +1935,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                 }
                 onDismiss={() => model.dismissChoice(state.activeId)}
             />
+            <SitePermissionBar permissions={model.sitePermissions} tabId={state.activeId} />
             <AgentPermissionBar agents={model.agents} tabId={state.activeId} />
             <AgentControlBar agents={model.agents} tabId={state.activeId} />
             <div className="relative min-h-0 flex-1">

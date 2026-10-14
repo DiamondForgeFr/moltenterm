@@ -155,6 +155,8 @@ type SettingsType struct {
 	BrowserSites     map[string]string `json:"browser:sites,omitempty" jsonschema_description:"Per-site engine, host (subdomains included) to app, installed or a browser id"`
 	// MOLTENTERM-PATCH (#301): site permissions of the agents in the browser panel (FR-BRW-009, pkg/molten/browseragent).
 	BrowserAgentSites map[string]string `json:"browser:agentsites,omitempty" jsonschema_description:"Sites agents may use in the browser panel: a site (registrable domain, or host:port for localhost and IP addresses) to allow or block; set from the panel's permission bar, Block wins"`
+	// MOLTENTERM-PATCH (#663): what pages of the browser panel may use (camera, microphone, location, notifications).
+	BrowserSitePermissions map[string]map[string]string `json:"browser:sitepermissions,omitempty" jsonschema_description:"What each site in the browser panel may use: a host (with its port) to a map of camera, microphone, location or notifications to allow or block; set from the panel's permission bar"`
 
 	AutoUpdateClear         bool    `json:"autoupdate:*,omitempty"`
 	AutoUpdateEnabled       bool    `json:"autoupdate:enabled,omitempty"`
@@ -927,6 +929,20 @@ func convertConfigList(val any, ctype reflect.Type) (any, bool) {
 	return rtn.Interface(), true
 }
 
+// MOLTENTERM-PATCH (#663): convertConfigMap turns a decoded JSON object into the setting's map type through a JSON
+// round trip, so nested maps convert too; ok is false when the object does not fit the type.
+func convertConfigMap(val any, ctype reflect.Type) (any, bool) {
+	barr, err := json.Marshal(val)
+	if err != nil {
+		return nil, false
+	}
+	ptr := reflect.New(ctype)
+	if err := json.Unmarshal(barr, ptr.Interface()); err != nil {
+		return nil, false
+	}
+	return ptr.Elem().Interface(), true
+}
+
 func SetBaseConfigValue(toMerge waveobj.MetaMapType) error {
 	m, cerrs := ReadWaveHomeConfigFile(SettingsFile)
 	if len(cerrs) > 0 {
@@ -955,6 +971,12 @@ func SetBaseConfigValue(toMerge waveobj.MetaMapType) error {
 			// MOLTENTERM-PATCH (#322): a list from JSON ([]any of strings) is accepted for a []string setting.
 			if rtype != ctype && ctype.Kind() == reflect.Slice && rtype.Kind() == reflect.Slice {
 				if converted, ok := convertConfigList(val, ctype); ok {
+					val, rtype = converted, ctype
+				}
+			}
+			// MOLTENTERM-PATCH (#663): an object from JSON (map[string]any) is accepted for a map setting.
+			if rtype != ctype && ctype.Kind() == reflect.Map && rtype.Kind() == reflect.Map {
+				if converted, ok := convertConfigMap(val, ctype); ok {
 					val, rtype = converted, ctype
 				}
 			}

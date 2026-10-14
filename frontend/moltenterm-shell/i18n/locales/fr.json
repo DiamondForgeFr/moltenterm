@@ -735,6 +735,10 @@
                 "label": "Navigateur par site",
                 "description": "Les sites qui s'ouvrent toujours dans le navigateur de MoltenTerm ou dans celui installé."
             },
+            "browser:sitepermissions": {
+                "label": "Autorisations des sites",
+                "description": "Ce que chaque site peut utiliser : caméra, micro, position, notifications."
+            },
             "browser:agentsites": {
                 "label": "Permissions des agents par site",
                 "description": "Les sites que les agents peuvent utiliser ou qui leur sont interdits dans le panneau navigateur."
@@ -1674,6 +1678,20 @@
             "siteDetail": "Il pourra lire les pages de ce site et y agir, avec vos connexions.",
             "allowOnce": "Autoriser une fois",
             "always": "Toujours pour ce site",
+            "block": "Bloquer"
+        },
+        "sitePermission": {
+            "aria": "Demande d'autorisation d'un site",
+            "title": "{site} veut {what}",
+            "detail": "Votre réponse est retenue pour ce site.",
+            "what": {
+                "camera": "utiliser votre caméra",
+                "microphone": "utiliser votre micro",
+                "cameraMicrophone": "utiliser votre caméra et votre micro",
+                "location": "connaître votre position",
+                "notifications": "afficher des notifications"
+            },
+            "allow": "Autoriser",
             "block": "Bloquer"
         },
         "engine": {
