@@ -207,35 +207,49 @@ export function nextSelection(before: string[], after: string[], gone: string): 
     return after[0] ?? null;
 }
 
+const AgeNowSec = 5;
+
+function ageSeconds(fromMs: number, nowMs: number): number {
+    return Math.max(0, Math.floor((nowMs - fromMs) / 1000));
+}
+
+function isNow(fromMs: number, nowMs: number): boolean {
+    return !!fromMs && ageSeconds(fromMs, nowMs) < AgeNowSec;
+}
+
 export function formatAge(fromMs: number, nowMs: number): string {
     if (!fromMs) {
         return "";
     }
-    const sec = Math.max(0, Math.floor((nowMs - fromMs) / 1000));
-    if (sec < 5) {
-        return "now";
+    const sec = ageSeconds(fromMs, nowMs);
+    if (sec < AgeNowSec) {
+        return t("sessions.age.now");
     }
     if (sec < 60) {
-        return `${sec} s`;
+        return t("sessions.age.seconds", { count: sec });
     }
     const min = Math.floor(sec / 60);
     if (min < 60) {
-        return `${min} min`;
+        return t("sessions.age.minutes", { count: min });
     }
     const hours = Math.floor(min / 60);
     if (hours < 24) {
         const rest = min % 60;
-        return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+        return rest === 0
+            ? t("sessions.age.hours", { count: hours })
+            : t("sessions.age.hoursMinutes", { hours, minutes: rest });
     }
     return t("sessions.age.days", { count: Math.floor(hours / 24) });
 }
 
 export function outputText(s: DurableSession, nowMs: number): string {
-    const age = formatAge(s.lastoutputat, nowMs);
-    if (!age) {
+    if (!s.lastoutputat) {
         return "";
     }
-    return age === "now" ? t("sessions.outputNow") : t("sessions.outputAgo", { age });
+    if (isNow(s.lastoutputat, nowMs)) {
+        return t("sessions.outputNow");
+    }
+    return t("sessions.outputAgo", { age: formatAge(s.lastoutputat, nowMs) });
 }
 
 export function tildePath(path: string, home: string): string {
@@ -344,11 +358,13 @@ export function agentCell(s: DurableSession): AgentCell {
 // Last active: the last output, else the start.
 export function lastActive(s: DurableSession, nowMs: number): string {
     const at = s.lastoutputat || s.startedat;
-    const age = formatAge(at, nowMs);
-    if (!age) {
+    if (!at) {
         return "";
     }
-    return age === "now" ? t("sessions.now") : t("sessions.ago", { age });
+    if (isNow(at, nowMs)) {
+        return t("sessions.now");
+    }
+    return t("sessions.ago", { age: formatAge(at, nowMs) });
 }
 
 export type ConnChip = { label: string; state: SessionConnState; title: string };

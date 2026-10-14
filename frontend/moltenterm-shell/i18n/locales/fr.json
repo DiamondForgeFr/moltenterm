@@ -3283,7 +3283,9 @@
             "didNotOpen": "{name} ne s'est pas ouvert",
             "workspaceDidNotOpen": "Cet espace de travail ne s'est pas ouvert",
             "noAnswer": "Sa vue n'a pas répondu à temps, même après un nouvel essai.",
-            "reload": "Recharger"
+            "reload": "Recharger",
+            "workspace": "Espace de travail",
+            "openingName": "Ouverture de {name}"
         },
         "emptyState": {
             "details": "Détails"
@@ -3885,6 +3887,11 @@
         "notInPaneTitle": "Hors panneau",
         "notInPane": "hors panneau",
         "age": {
+            "now": "maintenant",
+            "seconds": "{count} s",
+            "minutes": "{count} min",
+            "hours": "{count} h",
+            "hoursMinutes": "{hours} h {minutes} min",
             "days": "{count} j"
         },
         "outputNow": "sortie à l'instant",

@@ -3283,7 +3283,9 @@
             "didNotOpen": "{name} did not open",
             "workspaceDidNotOpen": "This workspace did not open",
             "noAnswer": "Its view did not answer in time, even after a retry.",
-            "reload": "Reload"
+            "reload": "Reload",
+            "workspace": "Workspace",
+            "openingName": "Opening {name}"
         },
         "emptyState": {
             "details": "Details"
@@ -3885,6 +3887,11 @@
         "notInPaneTitle": "Not in a pane",
         "notInPane": "not in a pane",
         "age": {
+            "now": "now",
+            "seconds": "{count} s",
+            "minutes": "{count} min",
+            "hours": "{count} h",
+            "hoursMinutes": "{hours} h {minutes} min",
             "days": "{count} d"
         },
         "outputNow": "output just now",
