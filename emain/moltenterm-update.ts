@@ -31,6 +31,7 @@ import {
 } from "../frontend/util/moltenterm-gold";
 import { setUserConfirmedQuit } from "./emain-activity";
 import { getWaveDataDir } from "./emain-platform";
+import { checkGoldSignature, ownGoldRequirement } from "./moltenterm-gold-signature";
 import { initMoltentermReleaseFeed } from "./moltenterm-release-feed";
 
 const execFileAsync = promisify(execFile);
@@ -38,11 +39,17 @@ const execFileAsync = promisify(execFile);
 // Seconds the swap waits for the new build to stay open before keeping it.
 const SwapGraceSeconds = 15;
 
-function goldDir(): string {
-    if (process.env.MOLTENTERM_GOLD_DIR) {
-        return process.env.MOLTENTERM_GOLD_DIR;
+// MOLTENTERM_GOLD_DIR is for the delivery script and tests of unpackaged builds: an installed gold never reads it, so
+// no process can point the update at a folder of its own (#663).
+export function goldDir(packaged: boolean, env: NodeJS.ProcessEnv, home: string): string {
+    if (!packaged && env.MOLTENTERM_GOLD_DIR) {
+        return env.MOLTENTERM_GOLD_DIR;
     }
-    return path.join(os.homedir(), "Library", "Application Support", "Moltenterm Local Builds", GoldFolderName);
+    return path.join(home, "Library", "Application Support", "Moltenterm Local Builds", GoldFolderName);
+}
+
+function currentGoldDir(): string {
+    return goldDir(electron.app.isPackaged, process.env, os.homedir());
 }
 
 function updateDir(): string {
@@ -54,7 +61,7 @@ function statusFile(): string {
 }
 
 async function readManifest(): Promise<any> {
-    const file = path.join(goldDir(), "manifest.json");
+    const file = path.join(currentGoldDir(), "manifest.json");
     const stat = await fs.promises.stat(file);
     if (stat.size > GoldMaxManifestBytes) {
         throw new Error("manifest too large");
@@ -71,8 +78,9 @@ async function plistValue(app: string, key: string): Promise<string> {
     return stdout.trim();
 }
 
-// The bundle must be the build the manifest announces: same identifier, and its bundle version is the build id.
-async function verifyBundle(app: string, buildId: number): Promise<string> {
+// The bundle must be the build the manifest announces: same identifier, and its bundle version is the build id; and
+// it must be signed by the identity of the running gold (#663), checked with codesign against requirement.
+async function verifyBundle(app: string, buildId: number, requirement: string): Promise<string> {
     try {
         if ((await plistValue(app, "CFBundleIdentifier")) !== GoldIdentifier) {
             return "the app is not MoltenTerm";
@@ -83,7 +91,15 @@ async function verifyBundle(app: string, buildId: number): Promise<string> {
     } catch (e) {
         return `the app cannot be read (${e?.message ?? e})`;
     }
-    return null;
+    return checkGoldSignature(app, requirement);
+}
+
+function installedBundle(): string {
+    const installed = appBundleOf(process.execPath);
+    if (installed == null) {
+        throw new Error("MoltenTerm does not run from an app bundle");
+    }
+    return installed;
 }
 
 export async function checkGoldUpdate(ownBuildId: number): Promise<GoldCheck> {
@@ -103,7 +119,13 @@ export async function checkGoldUpdate(ownBuildId: number): Promise<GoldCheck> {
     if (!check.available) {
         return check;
     }
-    const problem = await verifyBundle(path.join(goldDir(), GoldAppName), check.manifest.buildId);
+    let problem: string;
+    try {
+        const requirement = await ownGoldRequirement(installedBundle());
+        problem = await verifyBundle(path.join(currentGoldDir(), GoldAppName), check.manifest.buildId, requirement);
+    } catch (e) {
+        problem = e?.message ?? String(e);
+    }
     if (problem) {
         console.log("[gold-update] refused:", problem);
         return { available: false, manifest: check.manifest, reason: problem };
@@ -111,11 +133,13 @@ export async function checkGoldUpdate(ownBuildId: number): Promise<GoldCheck> {
     return check;
 }
 
-const SwapScript = `#!/bin/sh
+export const SwapScript = `#!/bin/sh
 # Swaps the Moltenterm app bundle once the running app has quit (#64). Arguments: pid staged installed target reopen
 # buildId status. target is where the new build goes: the installed app's place, renamed MoltenTerm Gold.app when it
-# still had the old name (#191).
-pid="$1"; staged="$2"; installed="$3"; target="$4"; reopen="$5"; build="$6"; status="$7"
+# still had the old name (#191). requirement is the running gold's designated requirement (#663): the staged copy sits
+# in a folder the user's processes can write, so it is verified once more right before the swap, and only a verified
+# bundle loses its quarantine.
+pid="$1"; staged="$2"; installed="$3"; target="$4"; reopen="$5"; build="$6"; status="$7"; requirement="$8"
 grace="\${MOLTENTERM_SWAP_GRACE:-${SwapGraceSeconds}}"
 # Tests start the binary directly so the reopened app keeps their isolated profile; users get a normal launch.
 reopen_app() {
@@ -133,6 +157,12 @@ while kill -0 "$pid" 2>/dev/null; do
     if [ "$i" -gt 240 ]; then echo "failed: MoltenTerm did not quit" > "$status"; exit 1; fi
     sleep 0.5
 done
+if [ -z "$requirement" ] || ! /usr/bin/codesign --verify --deep --strict -R "=$requirement" "$staged"; then
+    rm -rf "$staged"
+    echo "failed: the new build's signature did not verify" > "$status"
+    [ "$reopen" = 1 ] && reopen_app "$installed"
+    exit 1
+fi
 aside="$installed.previous-$$"
 if ! mv "$installed" "$aside"; then echo "failed: the installed app could not be moved aside" > "$status"; exit 1; fi
 if ! mv "$staged" "$target"; then
@@ -160,7 +190,7 @@ echo "rolledback $build" > "$status"
 reopen_app "$installed"
 `;
 
-type PendingSwap = { staged: string; installed: string; target: string; buildId: number };
+type PendingSwap = { staged: string; installed: string; target: string; buildId: number; requirement: string };
 
 let pendingOnQuit: PendingSwap = null;
 
@@ -181,6 +211,7 @@ function startSwap(swap: PendingSwap, reopen: boolean) {
             reopen ? "1" : "0",
             String(swap.buildId),
             statusFile(),
+            swap.requirement,
         ],
         { detached: true, stdio: ["ignore", log, log] }
     );
@@ -189,15 +220,13 @@ function startSwap(swap: PendingSwap, reopen: boolean) {
 }
 
 async function stage(buildId: number): Promise<PendingSwap> {
-    const installed = appBundleOf(process.execPath);
-    if (installed == null) {
-        throw new Error("MoltenTerm does not run from an app bundle");
-    }
+    const installed = installedBundle();
     if (installed.includes("/AppTranslocation/")) {
         throw new Error("MoltenTerm runs from a translocated copy: move it to Applications first");
     }
-    const source = path.join(goldDir(), GoldAppName);
-    const problem = await verifyBundle(source, buildId);
+    const requirement = await ownGoldRequirement(installed);
+    const source = path.join(currentGoldDir(), GoldAppName);
+    const problem = await verifyBundle(source, buildId, requirement);
     if (problem) {
         throw new Error(problem);
     }
@@ -205,15 +234,17 @@ async function stage(buildId: number): Promise<PendingSwap> {
     await fs.promises.rm(dir, { recursive: true, force: true });
     await fs.promises.mkdir(dir, { recursive: true });
     const staged = path.join(dir, GoldAppName);
+    // ditto keeps the quarantine attribute: only the swap script removes it, after verifying the staged copy again.
     await execFileAsync("/usr/bin/ditto", [source, staged]);
-    const stagedProblem = await verifyBundle(staged, buildId);
+    const stagedProblem = await verifyBundle(staged, buildId, requirement);
     if (stagedProblem) {
+        await fs.promises.rm(dir, { recursive: true, force: true });
         throw new Error(stagedProblem);
     }
     // Never over another app already at the new name.
     const renamed = goldInstallTarget(installed);
     const target = renamed !== installed && fs.existsSync(renamed) ? installed : renamed;
-    return { staged, installed, target, buildId };
+    return { staged, installed, target, buildId, requirement };
 }
 
 export async function applyGoldUpdate(buildId: number, when: GoldApplyWhen): Promise<GoldApplyResult> {

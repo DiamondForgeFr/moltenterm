@@ -82,6 +82,17 @@ self-signed, valid ten years, and its private key never leaves the login keychai
 other standalone app. Check a gold with `codesign -d -r- "/Applications/MoltenTerm Gold.app"`. The first signed gold
 replaces an ad hoc one, so its grants must be given once more; they hold from then on.
 
+**What an installed gold accepts as an update (#663).** The gold folder is writable by any process of the user, so the
+installed gold takes a new build only when `codesign --verify --deep --strict -R=<its own designated requirement>`
+passes on the bundle in the gold folder and again on the staged copy (`emain/moltenterm-gold-signature.ts`): the same
+identifier and the same "MoltenTerm Local" certificate leaf, every nested helper sealed. An ad hoc signature names no
+identity and is refused. The swap script verifies the staged copy once more right before swapping, and only then
+removes its quarantine. An installed gold ignores `MOLTENTERM_GOLD_DIR` (it is for the delivery script and unpackaged
+test runs). Consequences: a gold signed ad hoc refuses every update; install one gold signed with the local identity
+by hand (build it after running `scripts/moltenterm-local-signing-identity.sh`, then copy it from the gold folder to
+`/Applications`), and updates flow from then on. Recreating the identity (a new certificate) is the same: the next gold
+is installed by hand once.
+
 **The gold and releases on one Mac (#509).** A release keeps the product's identity: bundle identifier
 `fr.diamondforge.moltenterm`, data in `~/Library/Application Support/moltenterm`, configuration in
 `~/.config/moltenterm`. The gold has its own, as dev builds do: `fr.diamondforge.moltenterm.gold` (`-c.appId` in the

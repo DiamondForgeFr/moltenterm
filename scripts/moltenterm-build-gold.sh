@@ -42,7 +42,8 @@ if MOLTENTERM_SIGNING_IDENTITY="$SIGNING_IDENTITY" ./scripts/moltenterm-local-si
 else
     MAC_IDENTITY=-
     echo "⚠ warning: no valid code-signing identity \"$SIGNING_IDENTITY\": this gold is signed ad hoc, and macOS will" >&2
-    echo "  forget the permissions given to the previous one. Run scripts/moltenterm-local-signing-identity.sh once." >&2
+    echo "  forget the permissions given to the previous one; an installed gold also refuses it as an update (#663)." >&2
+    echo "  Run scripts/moltenterm-local-signing-identity.sh once." >&2
 fi
 
 task build:backend
