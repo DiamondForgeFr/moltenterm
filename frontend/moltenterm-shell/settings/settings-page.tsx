@@ -8,11 +8,12 @@
 import { cn } from "@/util/util";
 import { BlockRows, SectionBlock, SuiteIcon } from "../suite/suite";
 
-// The centred column; a wide pane leaves room on both sides instead of pushing everything to the left. The side
-// padding leaves room for the blocks' corner icons.
+// The centred reading column: 800 px of content at most (#658, the width of a Notulia settings block), so a row's
+// control or "Selected" stays within reach of its label on a wide window. The side padding leaves room for the
+// blocks' corner icons.
 export function PageColumn({ children, className }: { children: React.ReactNode; className?: string }) {
     return (
-        <div className={cn("mx-auto flex w-full max-w-[760px] flex-col px-8 pt-6 pb-12 @max-w600:px-5", className)}>
+        <div className={cn("mx-auto flex w-full max-w-[864px] flex-col px-8 pt-6 pb-12 @max-w600:px-5", className)}>
             {children}
         </div>
     );
