@@ -12,6 +12,7 @@ import { WaveConfigView } from "@/app/view/waveconfig/waveconfig";
 import type { WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
 import { useAtomValue } from "jotai";
 import { memo } from "react";
+import { useT } from "../i18n/i18n";
 import { SettingsScreen } from "./settings-screen";
 
 // Back to the screen: the editor's unsaved changes are confirmed first, then the block forgets its file.
@@ -36,6 +37,7 @@ export function openConfigFile(model: WaveConfigViewModel, path: string) {
 
 export const MoltentermSettingsView = memo((props: ViewComponentProps<WaveConfigViewModel>) => {
     const { blockId, model } = props;
+    const t = useT();
     const selectedFile = useAtomValue(model.selectedFileAtom);
     const metaFile = useAtomValue(model.env.getBlockMetaKeyAtom(blockId, "file"));
     // Secrets are a section of the screen since #534: a block opened on the "secrets" file shows it there.
@@ -61,9 +63,9 @@ export const MoltentermSettingsView = memo((props: ViewComponentProps<WaveConfig
                     className="molten-btn-ghost inline-flex h-row cursor-pointer items-center gap-1.5 rounded-6 px-2 text-12"
                 >
                     <i className="fa fa-solid fa-chevron-left text-11" aria-hidden />
-                    Settings
+                    {t("settings.title")}
                 </button>
-                <span className="text-12 text-muted">JSON files</span>
+                <span className="text-12 text-muted">{t("settings.files.title")}</span>
             </div>
             <div className="relative min-h-0 flex-1">
                 <WaveConfigView {...props} />

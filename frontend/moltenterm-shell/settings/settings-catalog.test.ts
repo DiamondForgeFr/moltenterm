@@ -7,14 +7,20 @@ vi.mock("../workspace-project", () => ({ ProjectMetaKey: "molten:project", Works
 
 import builtinDefaults from "../../../pkg/wconfig/defaultconfig/settings.json";
 import settingsSchema from "../../../schema/settings.json";
+import { translate } from "../i18n/i18n-core";
 import {
     buildCatalog,
     clampSetting,
     groupEntries,
+    groupSlug,
     isChanged,
     jsonSummary,
+    localizeCatalog,
+    localizeSection,
+    localizeSettingEntry,
     searchSettings,
     sectionEntries,
+    sectionTitle,
     SettingEntry,
     settingsCatalog,
     SettingsSchema,
@@ -208,5 +214,56 @@ describe("values", () => {
         expect(jsonSummary(undefined)).toBe("Not set");
         expect(jsonSummary({ "a.com": "app", "b.com": "installed" })).toBe("2 entries");
         expect(jsonSummary(["-l"])).toBe("1 item");
+    });
+});
+
+describe("settings in the interface language (FR-I18N-001)", () => {
+    const fr = (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars);
+
+    it("translates every shown row, its group, its options and the sections", () => {
+        const all = localizeCatalog([...WorkspaceSettings, ...catalog()], fr);
+        const quit = all.find((e) => e.key === "app:confirmquit");
+        expect(quit.label).toBe("Confirmer avant de quitter");
+        expect(quit.group).toBe("Quitter et fermer");
+        const sleep = all.find((e) => e.key === "power:sleeppolicy");
+        expect(sleep.unsetLabel).toBe("Demander la première fois");
+        expect(sleep.options.find((o) => o.value === "letsleep").label).toBe("Jamais");
+        expect(all.find((e) => e.key === "molten:folder").group).toBe("Cet espace de travail");
+        const english = new Map([...WorkspaceSettings, ...catalog()].map((e) => [e.key, e]));
+        const sameWord = ["Shell", "Minimap", "Zoom", "Git Bash"];
+        const untranslated = all.filter((e) => e.label === english.get(e.key).label && !sameWord.includes(e.label));
+        expect(untranslated.map((e) => e.key)).toEqual([]);
+        expect(
+            localizeSection(
+                SettingsSections.find((s) => s.id === "advanced"),
+                fr
+            ).title
+        ).toBe("Avancé");
+        expect(sectionTitle("keyboard", fr)).toBe("Clavier");
+        expect(searchSettings(all, "quitter")[0].key).toBe("app:confirmquit");
+        expect(jsonSummary(["a", "b"], fr)).toBe("2 éléments");
+    });
+
+    it("keeps the metadata's English for a setting the dictionaries do not know yet", () => {
+        const fresh: SettingEntry = {
+            key: "new:thing",
+            section: "general",
+            group: "Brand new group",
+            label: "Brand new",
+            description: "Not translated yet.",
+            control: "select",
+            options: [{ value: "a", label: "Alpha" }],
+            unsetLabel: "Nothing",
+            scope: "global",
+            order: 0,
+        };
+        expect(localizeSettingEntry(fresh, fr)).toMatchObject({
+            group: "Brand new group",
+            label: "Brand new",
+            description: "Not translated yet.",
+            unsetLabel: "Nothing",
+            options: [{ value: "a", label: "Alpha" }],
+        });
+        expect(groupSlug("Quitting and closing")).toBe("quittingAndClosing");
     });
 });

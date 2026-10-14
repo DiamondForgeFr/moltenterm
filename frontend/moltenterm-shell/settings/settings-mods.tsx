@@ -16,27 +16,24 @@ import {
 } from "../../molten/molten-budget";
 import { MoltenHost, MoltenModStatus } from "../../molten/molten-host";
 import { EmptyState } from "../empty-state";
+import { TFunction, t as translateNow, useT } from "../i18n/i18n";
 
-const StateLabels: Record<string, string> = {
-    active: "Running",
-    pending: "Loads when this tab shows",
-    loading: "Loading",
-    disabled: "Off",
-    untrusted: "Not trusted",
-    safemode: "Off (safe mode)",
-    failed: "Stopped",
-    refused: "Refused",
-};
+// The states with a label of their own, under settings.mods.state.
+const KnownStates = new Set(["active", "pending", "loading", "disabled", "untrusted", "safemode", "failed", "refused"]);
 
-export function formatModUsage(usage: MoltenModUsage): string {
+export function formatModUsage(usage: MoltenModUsage, t: TFunction = translateNow): string {
     if (usage == null) {
         return "";
     }
-    const parts = [`${usage.cpupct.toFixed(1)} % CPU idle`];
-    parts.push(usage.timers === 1 ? "1 timer" : `${usage.timers} timers`);
-    parts.push(`activation ${Math.round(usage.activatems)} ms`);
+    const parts = [t("settings.mods.usage.cpu", { pct: usage.cpupct.toFixed(1) })];
+    parts.push(
+        usage.timers === 1
+            ? t("settings.mods.usage.timers.one")
+            : t("settings.mods.usage.timers.other", { count: usage.timers })
+    );
+    parts.push(t("settings.mods.usage.activation", { ms: Math.round(usage.activatems) }));
     if (usage.heapmb != null) {
-        parts.push(`${usage.heapmb.toFixed(1)} MB at activation`);
+        parts.push(t("settings.mods.usage.heap", { mb: usage.heapmb.toFixed(1) }));
     }
     return parts.join(" · ");
 }
@@ -53,6 +50,7 @@ function Pill({ children, className, title }: { children: React.ReactNode; class
 }
 
 const ModRow = memo(({ mod }: { mod: MoltenModStatus }) => {
+    const t = useT();
     const failed = mod.state === "failed" || mod.state === "refused";
     const over = mod.usage?.over;
     return (
@@ -60,19 +58,19 @@ const ModRow = memo(({ mod }: { mod: MoltenModStatus }) => {
             <div className="flex min-w-0 items-center gap-2">
                 <span className="truncate text-12 font-medium text-primary">{mod.name ?? mod.id}</span>
                 <span className="truncate font-mono text-11 text-muted">{mod.id}</span>
-                {mod.builtin ? <Pill className="bg-surface-2 text-secondary">Built-in</Pill> : null}
+                {mod.builtin ? <Pill className="bg-surface-2 text-secondary">{t("settings.mods.builtin")}</Pill> : null}
                 {mod.background ? (
-                    <Pill className="bg-surface-2 text-secondary" title="Keeps running while its tab is hidden">
-                        Background
+                    <Pill className="bg-surface-2 text-secondary" title={t("settings.mods.backgroundTitle")}>
+                        {t("settings.mods.background")}
                     </Pill>
                 ) : null}
                 {over ? (
                     <Pill className="bg-warning/10 text-warning" title={mod.usage.reason}>
-                        Over budget
+                        {t("settings.mods.overBudget")}
                     </Pill>
                 ) : null}
                 <span className={cn("ml-auto shrink-0 text-11", failed ? "text-error" : "text-muted")}>
-                    {StateLabels[mod.state] ?? mod.state}
+                    {KnownStates.has(mod.state) ? t(`settings.mods.state.${mod.state}`) : mod.state}
                 </span>
             </div>
             {mod.commands.length > 0 ? (
@@ -83,7 +81,7 @@ const ModRow = memo(({ mod }: { mod: MoltenModStatus }) => {
             {mod.error ? <div className="text-12 text-error">{mod.error}</div> : null}
             {mod.usage != null ? (
                 <div className={cn("text-11", over ? "text-warning" : "text-muted")} data-mod-usage>
-                    {formatModUsage(mod.usage)}
+                    {formatModUsage(mod.usage, t)}
                 </div>
             ) : null}
             {over ? <div className="text-11 text-warning">{mod.usage.reason}</div> : null}
@@ -94,25 +92,29 @@ const ModRow = memo(({ mod }: { mod: MoltenModStatus }) => {
 ModRow.displayName = "ModRow";
 
 export function ModsSection() {
+    const t = useT();
     const host = MoltenHost.getInstance();
     const mods = useAtomValue(host.modsAtom);
     useEffect(() => {
         host.checkBudgets();
     }, [host]);
     return (
-        <section aria-label="Mods" className="flex flex-col">
+        <section aria-label={t("settings.mods.label")} className="flex flex-col">
             <p className="px-2 pt-2 text-12 text-muted">
-                Each mod's cost in this tab: idle CPU over the last {MoltenBudgetWindowMs / 1000} s and the memory its
-                activation took. The budget is {MoltenBudgetCpuPct} % CPU and {MoltenBudgetMemoryMB} MB. Turn a mod off
-                with <span className="font-mono">molten mod disable &lt;id&gt;</span>.
+                {t("settings.mods.intro", {
+                    seconds: MoltenBudgetWindowMs / 1000,
+                    cpu: MoltenBudgetCpuPct,
+                    mb: MoltenBudgetMemoryMB,
+                })}{" "}
+                {t("settings.mods.disableHint")} <span className="font-mono">molten mod disable &lt;id&gt;</span>.
             </p>
             {mods.length === 0 ? (
                 <EmptyState
                     compact
                     className="pt-6"
                     icon="puzzle-piece"
-                    title="No mods"
-                    hint="Ask your coding agent for one with /morph."
+                    title={t("settings.mods.none")}
+                    hint={t("settings.mods.noneHint")}
                 />
             ) : (
                 <div className="pt-3">

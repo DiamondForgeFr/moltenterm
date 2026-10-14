@@ -18,6 +18,8 @@ import { writeSettings } from "../command-panel/bindings";
 import "../command-panel/command-panel.css";
 import { themeOptions } from "../command-panel/providers/terminal";
 import { EmptyState } from "../empty-state";
+import { I18nModel, useT } from "../i18n/i18n";
+import { languageName } from "../i18n/i18n-core";
 import { platformShortcuts } from "../shortcuts/registry";
 import { filterShortcuts } from "../shortcuts/shortcuts-search";
 import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
@@ -34,6 +36,8 @@ import {
     groupEntries,
     isChanged,
     jsonSummary,
+    localizeCatalog,
+    localizeSection,
     searchSettings,
     sectionEntries,
     sectionTitle,
@@ -60,22 +64,25 @@ export type SettingsScreenProps = {
     initialSection?: SettingsSectionId;
 };
 
-// The files' one-liners where Wave gives none.
-const FileDescriptions: Record<string, string> = {
-    "settings.json": "Every setting of this screen, and the ones it does not show.",
-    "connections.json": "SSH hosts and their options.",
-    "widgets.json": "The custom tools of the rail.",
-    "backgrounds.json": "The backgrounds tabs can use.",
-    secrets: "Values kept in the system's keychain.",
+// The files' one-liners where Wave gives none, as keys under settings.files.
+const FileDescriptionKeys: Record<string, string> = {
+    "settings.json": "settings.files.settings.description",
+    "connections.json": "settings.files.connections.description",
+    "widgets.json": "settings.files.widgets.description",
+    "backgrounds.json": "settings.files.backgrounds.description",
+    secrets: "settings.files.secrets.description",
 };
 
 // Wave's file names in sentence case (DS-SHELL-079).
-const FileNames: Record<string, string> = {
-    "backgrounds.json": "Tab backgrounds",
+const FileNameKeys: Record<string, string> = {
+    "backgrounds.json": "settings.files.backgrounds.name",
 };
 
 // An empty field says what empty means: a number the app picks itself, a text nobody set.
-const PlaceholderFor: Partial<Record<string, string>> = { number: "Auto", text: "Not set" };
+const PlaceholderKeyFor: Partial<Record<string, string>> = { number: "settings.auto", text: "settings.notSet" };
+
+// The select filled with the interface languages (settingsmeta.OptionsLanguages).
+const LanguagesOptions = "languages";
 
 const InputClass =
     "h-row rounded-4 border border-line-strong bg-transparent px-2 text-12 text-primary outline-none placeholder:text-muted focus:border-accent";
@@ -157,6 +164,7 @@ function Select({
     options: SettingOption[];
     onSet: (v: unknown) => void;
 }) {
+    const t = useT();
     const current = value == null ? "" : String(value);
     const list = [...options];
     if (current !== "" && !list.some((o) => o.value === current)) {
@@ -170,7 +178,7 @@ function Select({
             className={cn(InputClass, "max-w-56 cursor-pointer bg-surface-2 pr-1")}
         >
             {entry.unsetLabel != null || current === "" ? (
-                <option value="">{entry.unsetLabel ?? "Default"}</option>
+                <option value="">{entry.unsetLabel ?? t("settings.default")}</option>
             ) : null}
             {list.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -241,6 +249,7 @@ function TextField({
 }
 
 function NumberField({ entry, value, onSet }: { entry: SettingEntry; value: unknown; onSet: (v: unknown) => void }) {
+    const t = useT();
     return (
         <span className="inline-flex items-center gap-1.5">
             <TextField
@@ -249,7 +258,7 @@ function NumberField({ entry, value, onSet }: { entry: SettingEntry; value: unkn
                 onSet={onSet}
                 parse={(raw) => clampSetting(entry, raw)}
                 className="w-20 text-right tabular-nums"
-                placeholder={entry.defaultValue != null ? String(entry.defaultValue) : PlaceholderFor[entry.control]}
+                placeholder={entry.defaultValue != null ? String(entry.defaultValue) : t(PlaceholderKeyFor.number)}
             />
             {entry.unit ? <span className="text-12 text-muted">{entry.unit}</span> : null}
         </span>
@@ -346,11 +355,25 @@ function Control({
     onSet: (v: unknown) => void;
     onOpenJson: () => void;
 }) {
+    const t = useT();
+    const languages = useAtomValue(I18nModel.getInstance().languagesAtom, { store: globalStore });
+    const systemLocale = useAtomValue(I18nModel.getInstance().systemLocaleAtom, { store: globalStore });
     const shown = effectiveSetting(entry, value);
     switch (entry.control) {
         case "toggle":
             return <Toggle entry={entry} on={!!shown} onSet={onSet} />;
-        case "select":
+        case "select": {
+            if (entry.optionsFrom === LanguagesOptions) {
+                // Each language in its own name; the empty choice follows the OS and stores nothing (FR-I18N-001).
+                return (
+                    <Select
+                        entry={{ ...entry, unsetLabel: t("language.system", { name: languageName(systemLocale) }) }}
+                        value={shown}
+                        options={languages.map((l) => ({ value: l.code, label: l.name }))}
+                        onSet={onSet}
+                    />
+                );
+            }
             return (
                 <Select
                     entry={entry}
@@ -359,6 +382,7 @@ function Control({
                     onSet={onSet}
                 />
             );
+        }
         case "number":
             return <NumberField entry={entry} value={value} onSet={onSet} />;
         case "slider":
@@ -370,9 +394,7 @@ function Control({
                     value={value}
                     onSet={onSet}
                     className="w-72"
-                    placeholder={
-                        entry.defaultValue != null ? String(entry.defaultValue) : PlaceholderFor[entry.control]
-                    }
+                    placeholder={entry.defaultValue != null ? String(entry.defaultValue) : t(PlaceholderKeyFor.text)}
                 />
             );
         case "path":
@@ -382,7 +404,7 @@ function Control({
                     value={value}
                     onSet={onSet}
                     className="w-64 font-mono text-11"
-                    placeholder="Not set"
+                    placeholder={t("settings.notSet")}
                 />
             );
         case "multi":
@@ -390,9 +412,9 @@ function Control({
         default:
             return (
                 <span className="inline-flex items-center gap-2">
-                    <span className="text-12 text-muted">{jsonSummary(value)}</span>
+                    <span className="text-12 text-muted">{jsonSummary(value, t)}</span>
                     <button type="button" className={GhostButton} onClick={onOpenJson}>
-                        Edit in JSON
+                        {t("settings.editInJson")}
                     </button>
                 </span>
             );
@@ -400,14 +422,15 @@ function Control({
 }
 
 function WorkspacePill({ name }: { name: string }) {
+    const t = useT();
     return (
         <span
             className="molten-cmdpanel-scope inline-flex h-5 max-w-40 shrink-0 items-center gap-1 rounded-full px-2 text-11"
-            title={`Applies to the workspace ${name} only`}
+            title={t("settings.workspacePill.title", { name })}
         >
             <i className="fa fa-solid fa-layer-group text-11" aria-hidden />
             <span className="truncate">{name}</span>
-            <span className="sr-only">workspace only</span>
+            <span className="sr-only">{t("settings.workspacePill.srOnly")}</span>
         </span>
     );
 }
@@ -423,19 +446,17 @@ type RowProps = {
 };
 
 const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlighted, onOpenJson }: RowProps) => {
-    const [error, setError] = useState<string>(null);
+    const t = useT();
+    const [errorKey, setErrorKey] = useState<string>(null);
     const changed = isChanged(entry, value);
+    const error = errorKey != null ? t(errorKey) : null;
     const set = async (v: unknown) => {
-        setError(null);
+        setErrorKey(null);
         try {
             await writeValue(entry, v);
         } catch (e) {
             console.error("settings: write failed", entry.key, e);
-            setError(
-                entry.scope === "workspace"
-                    ? "This folder could not be used. Check that it exists."
-                    : "This value was not saved. Check settings.json under Advanced."
-            );
+            setErrorKey(entry.scope === "workspace" ? "settings.error.folder" : "settings.error.notSaved");
         }
     };
     return (
@@ -470,8 +491,8 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
                     <button
                         type="button"
                         className={cn(GhostButton, "px-1.5")}
-                        aria-label={`Reset ${entry.label}`}
-                        title="Reset to the default"
+                        aria-label={t("settings.reset.label", { label: entry.label })}
+                        title={t("settings.reset.title")}
                         onClick={() => fireAndForget(() => set(null))}
                     >
                         <i className="fa fa-solid fa-rotate-left text-icon-14" aria-hidden />
@@ -488,8 +509,9 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
 SettingRow.displayName = "SettingRow";
 
 function FileRows({ files, onOpenFile }: { files: SettingsFile[]; onOpenFile: (path: string) => void }) {
+    const t = useT();
     return (
-        <PageCard title="JSON files" hint="Edited in place, checked before they are saved.">
+        <PageCard title={t("settings.files.title")} hint={t("settings.files.hint")}>
             {files
                 .filter((f) => f.path !== "secrets")
                 .map((f) => (
@@ -501,18 +523,20 @@ function FileRows({ files, onOpenFile }: { files: SettingsFile[]; onOpenFile: (p
                         <div className="min-w-0 flex-1">
                             <div className="flex min-w-0 items-baseline gap-2">
                                 <span className="truncate text-12 font-medium text-primary">
-                                    {FileNames[f.path] ?? f.name}
+                                    {FileNameKeys[f.path] != null ? t(FileNameKeys[f.path]) : f.name}
                                 </span>
                                 {f.path !== "secrets" ? (
                                     <span className="truncate font-mono text-11 text-muted">{f.path}</span>
                                 ) : null}
                             </div>
                             <div className="truncate text-12 text-muted">
-                                {FileDescriptions[f.path] ?? f.description ?? ""}
+                                {FileDescriptionKeys[f.path] != null
+                                    ? t(FileDescriptionKeys[f.path])
+                                    : (f.description ?? "")}
                             </div>
                         </div>
                         <button type="button" className={GhostButton} onClick={() => onOpenFile(f.path)}>
-                            Open
+                            {t("common.open")}
                             <i className="fa fa-solid fa-arrow-right text-11" aria-hidden />
                         </button>
                     </div>
@@ -522,10 +546,11 @@ function FileRows({ files, onOpenFile }: { files: SettingsFile[]; onOpenFile: (p
 }
 
 function KeyboardShortcuts() {
+    const t = useT();
     const mac = isMacOS();
     const sections = useMemo(() => filterShortcuts(platformShortcuts(mac), "", mac), [mac]);
     return (
-        <PageCard title="Shortcuts" hint="Every key MoltenTerm answers, by area.">
+        <PageCard title={t("settings.shortcuts.title")} hint={t("settings.shortcuts.hint")}>
             <div className="flex flex-col gap-3 px-4 py-3">
                 <ShortcutSections
                     sections={sections}
@@ -538,6 +563,7 @@ function KeyboardShortcuts() {
 }
 
 export function SettingsScreen({ blockId, files, onOpenFile, model, initialSection }: SettingsScreenProps) {
+    const t = useT();
     const settings = useAtomValue(atoms.settingsAtom) as Record<string, unknown>;
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const workspace = useAtomValue(atoms.workspace);
@@ -551,14 +577,17 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     const searchRef = useRef<HTMLInputElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
 
-    const catalog = useMemo(() => settingsCatalog(platformName()), []);
+    // Rebuilt when the language changes, so the rows and the search speak the shown language.
+    const catalog = useMemo(() => localizeCatalog(settingsCatalog(platformName()), t), [t]);
+    const sections = useMemo(() => SettingsSections.map((s) => localizeSection(s, t)), [t]);
+    const currentSection = sections.find((s) => s.id === section);
     const themes = useMemo(
         () => themeOptions(fullConfig?.termthemes).map((o) => ({ value: String(o.value), label: o.label })),
         [fullConfig?.termthemes]
     );
     const results = useMemo(() => searchSettings(catalog, query), [catalog, query]);
     const searching = query.trim() !== "";
-    const workspaceName = workspace?.name || "This workspace";
+    const workspaceName = workspace?.name || t("settings.thisWorkspace");
     const rowId = (key: string) => `molten-setting-${blockId}-${key.replace(/[^a-z0-9]/gi, "-")}`;
     const openSettingsJson = () => onOpenFile("settings.json");
 
@@ -587,8 +616,8 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
         });
         setHighlight(jumpTo);
         setJumpTo(null);
-        const t = setTimeout(() => setHighlight(null), 1600);
-        return () => clearTimeout(t);
+        const timer = setTimeout(() => setHighlight(null), 1600);
+        return () => clearTimeout(timer);
     }, [jumpTo]);
 
     const jump = (entry: SettingEntry) => {
@@ -629,10 +658,10 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     return (
         <div className="@container flex h-full w-full min-h-0 bg-surface-1 text-primary" onKeyDown={onRootKey}>
             <nav
-                aria-label="Settings sections"
+                aria-label={t("settings.sectionsLabel")}
                 className="flex w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line p-2 @max-w600:w-12"
             >
-                {SettingsSections.map((s) => {
+                {sections.map((s) => {
                     const current = !searching && s.id === section;
                     return (
                         <button
@@ -671,8 +700,8 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                             aria-expanded={searching}
                             aria-controls={`molten-settings-results-${blockId}`}
                             aria-activedescendant={activeId}
-                            aria-label="Search settings"
-                            placeholder="Search settings"
+                            aria-label={t("settings.search.label")}
+                            placeholder={t("settings.search.label")}
                             value={query}
                             spellCheck={false}
                             onChange={(e) => setQuery(e.target.value)}
@@ -686,19 +715,21 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                 compact
                                 className="pt-10"
                                 icon="magnifying-glass"
-                                title={`No setting matches "${query.trim()}"`}
-                                hint="Try another word, or edit the JSON files under Advanced."
-                                secondary={{ label: "Clear the search", onClick: () => setQuery("") }}
+                                title={t("settings.search.none", { query: query.trim() })}
+                                hint={t("settings.search.noneHint")}
+                                secondary={{ label: t("settings.search.clear"), onClick: () => setQuery("") }}
                             />
                         ) : (
                             <>
                                 <div className="px-2 pt-4 pb-1 text-11 text-muted" aria-live="polite">
-                                    {results.length === 1 ? "1 setting" : `${results.length} settings`}
+                                    {results.length === 1
+                                        ? t("settings.search.count.one")
+                                        : t("settings.search.count.other", { count: results.length })}
                                 </div>
                                 <ul
                                     id={`molten-settings-results-${blockId}`}
                                     role="listbox"
-                                    aria-label="Matching settings"
+                                    aria-label={t("settings.search.results")}
                                     className="flex flex-col"
                                 >
                                     {results.map((entry, i) => (
@@ -726,7 +757,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                                 <div className="truncate text-12 text-muted">{entry.description}</div>
                                             </div>
                                             <span className="shrink-0 text-11 text-muted">
-                                                {sectionTitle(entry.section)}
+                                                {sectionTitle(entry.section, t)}
                                             </span>
                                         </li>
                                     ))}
@@ -737,9 +768,9 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                         <>
                             <div className="pt-6">
                                 <PageHeader
-                                    title={sectionTitle(section)}
-                                    description={SettingsSections.find((s) => s.id === section)?.description}
-                                    icon={SettingsSections.find((s) => s.id === section)?.icon}
+                                    title={currentSection?.title ?? section}
+                                    description={currentSection?.description}
+                                    icon={currentSection?.icon}
                                 />
                             </div>
                             {section === "advanced" ? <FileRows files={files} onOpenFile={onOpenFile} /> : null}
@@ -765,7 +796,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                 model != null ? (
                                     <SecretsSection model={model} />
                                 ) : (
-                                    <p className="pt-6 text-12 text-muted">Secrets open from the Settings pane.</p>
+                                    <p className="pt-6 text-12 text-muted">{t("settings.secretsElsewhere")}</p>
                                 )
                             ) : null}
                         </>
