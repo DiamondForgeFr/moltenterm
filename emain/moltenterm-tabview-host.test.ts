@@ -5,7 +5,7 @@
 // backend, fake renderers and a fake electron (trimmed from moltenterm-window-queue.test.ts, which stays as the
 // characterization of #449, #450 and #454). Times are virtual.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 type FakeWs = { oid: string; name: string; icon: string; tabids: string[]; activetabid: string };
 
@@ -303,6 +303,22 @@ async function setup(settings: Record<string, unknown> = {}) {
     h.settings = settings;
     h.silentBoot = false;
     h.silentRender = false;
+    const mod = await loadModules();
+    h.tabviewModule.ensureHotSpareTab({ settings: h.settings });
+    starter = addWorkspace("Starter");
+    starterTab = starter.activetabid;
+    h.windowWs = starter.oid;
+    const created = mod.createBrowserWindow(
+        { oid: "win-1", workspaceid: starter.oid, pos: { x: 0, y: 0 }, winsize: { width: 1200, height: 800 } },
+        { settings: h.settings },
+        { unamePlatform: "darwin", isPrimaryStartupWindow: true }
+    );
+    await vi.advanceTimersByTimeAsync(2000);
+    win = await created;
+    expect(h.onScreen()).toBe(starterTab);
+}
+
+async function loadModules(): Promise<any> {
     vi.doMock("electron", () => ({
         app: { getAppMetrics: (): any[] => [] },
         BaseWindow: FakeBaseWindow,
@@ -367,19 +383,20 @@ async function setup(settings: Record<string, unknown> = {}) {
     h.tabviewModule = await import("./emain-tabview");
     const mod: any = await import("./emain-window");
     h.hostModule = await import("./moltenterm-tabview-host");
-    h.tabviewModule.ensureHotSpareTab({ settings: h.settings });
-    starter = addWorkspace("Starter");
-    starterTab = starter.activetabid;
-    h.windowWs = starter.oid;
-    const created = mod.createBrowserWindow(
-        { oid: "win-1", workspaceid: starter.oid, pos: { x: 0, y: 0 }, winsize: { width: 1200, height: 800 } },
-        { settings: h.settings },
-        { unamePlatform: "darwin", isPrimaryStartupWindow: true }
-    );
-    await vi.advanceTimersByTimeAsync(2000);
-    win = await created;
-    expect(h.onScreen()).toBe(starterTab);
+    return mod;
 }
+
+// Loads the module graph once before the tests, under a generous bound that only limits a failing run: each test's
+// setup() then re-evaluates modules already transformed, instead of the first test paying for that within its own
+// 5 s timeout on a loaded machine (#651).
+beforeAll(async () => {
+    vi.useFakeTimers();
+    try {
+        await loadModules();
+    } finally {
+        vi.useRealTimers();
+    }
+}, 60_000);
 
 function ipc(channel: string, ...args: any[]) {
     return h.ipc.get(channel)({ sender: { id: win.activeTabView.webContents.id } }, ...args);

@@ -4,6 +4,7 @@
 package mission
 
 import (
+	"sync"
 	"testing"
 	"time"
 )
@@ -14,7 +15,8 @@ func TestRunningWorkAcrossProjects(t *testing.T) {
 		t.Fatalf("nothing runs: %+v", work)
 	}
 	rec := trustAndStart(t, r, dir, "gold")
-	deadline := time.Now().Add(10 * time.Second)
+	// Generous: it only bounds a failing run, a passing one goes on as soon as the build reports its phase (#651).
+	deadline := time.Now().Add(time.Minute)
 	var work []WorkItem
 	for time.Now().Before(deadline) {
 		work = RunningWork(r, nil)
@@ -29,9 +31,40 @@ func TestRunningWorkAcrossProjects(t *testing.T) {
 	if err := r.Cancel(dir, rec.Id); err != nil {
 		t.Fatal(err)
 	}
-	waitRun(t, r, dir, rec.Id)
+	if done := waitRun(t, r, dir, rec.Id); done.State != RunStateCancelled {
+		t.Fatalf("the cancel stops the build: %+v", done)
+	}
 	if work := RunningWork(r, nil); len(work) != 0 {
 		t.Fatalf("stopped work leaves the list: %+v", work)
+	}
+}
+
+// A cancel that arrives right as the build command starts, before its preparation has ended, used to be recorded for
+// the preparation and then forgotten: the build ran to its end (#651). Publishing that record is the moment to hit.
+func TestCancelAsTheBuildCommandStarts(t *testing.T) {
+	r, dir := makeRunsFixture(t, `{"id":"gold","run":"sleep 300"}`)
+	var once sync.Once
+	cancelled := make(chan error, 1)
+	r.publish = func(rec RunRecord) {
+		if rec.Pid <= 0 || rec.Preparing {
+			return
+		}
+		once.Do(func() {
+			t.Cleanup(func() { killRunGroup(rec.Pid) })
+			cancelled <- r.Cancel(rec.Dir, rec.Id)
+		})
+	}
+	rec := trustAndStart(t, r, dir, "gold")
+	select {
+	case err := <-cancelled:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Minute):
+		t.Fatal("the build command never started")
+	}
+	if done := waitRun(t, r, dir, rec.Id); done.State != RunStateCancelled {
+		t.Fatalf("the cancel stops the build: %+v", done)
 	}
 }
 

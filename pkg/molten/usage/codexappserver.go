@@ -26,14 +26,16 @@ import (
 
 const (
 	codexAppServerTimeout = 10 * time.Second
-	// After stdin closes, the app-server gets this long to exit before its process group is killed.
-	codexAppServerExitGrace = 2 * time.Second
-	codexMaxLineBytes       = 1024 * 1024
-	codexMaxOutputBytes     = 4 * 1024 * 1024
+	codexMaxLineBytes     = 1024 * 1024
+	codexMaxOutputBytes   = 4 * 1024 * 1024
 
 	codexInitializeId = 0
 	codexRateLimitsId = 1
 )
+
+// After stdin closes, the app-server gets this long to exit before its process group is killed. A variable so that a
+// test can make the grace longer than any test bound: a run that wrongly waits for it then shows as a hang (#651).
+var codexAppServerExitGrace = 2 * time.Second
 
 type codexRpcMessage struct {
 	Id     json.RawMessage `json:"id,omitempty"`

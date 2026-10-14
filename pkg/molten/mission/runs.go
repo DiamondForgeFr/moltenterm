@@ -573,6 +573,13 @@ func (r *Runs) Cancel(dir string, runId string) error {
 	if r.askCancelWhilePreparing(rec.Id) {
 		return nil
 	}
+	// A build whose preparation ended since the first read: its record now names the process to stop (#651).
+	if rec, err = r.readRecord(dir, runId); err != nil {
+		return err
+	}
+	if rec.State != RunStateRunning {
+		return nil
+	}
 	rec.Cancelled = true
 	if err := r.writeRecord(rec); err != nil {
 		return err

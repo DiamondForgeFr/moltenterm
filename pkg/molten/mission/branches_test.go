@@ -83,6 +83,7 @@ func makeBranchesFixture(t *testing.T, gh func(dir string, args []string) ([]byt
 	gitIn(t, dir, "worktree", "add", "-q", filepath.Join(t.TempDir(), "wt"), "feature/4-worktree")
 	data := t.TempDir()
 	r := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
+	t.Cleanup(func() { waitRunsIdle(t, r) })
 	r.git = func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
 		if name == "gh" {
 			return gh(d, args)

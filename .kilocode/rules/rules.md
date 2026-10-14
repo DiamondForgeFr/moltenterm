@@ -211,3 +211,13 @@ Also when adding content to the end of files prefer to use the new append_file t
 
 No need to run a `go build` or a `go run` to just check if the Go code compiles. VSCode's errors/problems cover this well.
 If there are no Go errors in VSCode you can assume the code compiles fine.
+
+### Load-proof tests (Moltenterm, MOLTENTERM-PATCH #651)
+
+Tests run in parallel on loaded machines (CI, full local runs): a test must pass however slow the machine is, and fail only when its behaviour breaks.
+
+- **No wall-clock assertions.** Check what happened, not how long it took. Example: the fake `codex` writes `$FAKE_LOG.eof` once its stdin closes and the test checks that file, instead of `took < codexAppServerExitGrace`. When "does not wait" is the behaviour, make the wait longer than any bound, so a wrong wait shows as a hang (`TestRunCodexAppServerErrors`).
+- **No fixed sleeps.** Wait for a signal, or poll a condition. A deadline only bounds a failing run: make it generous (30 s to 1 min). Example: `waitRun` polls the run's state with a 1 min deadline.
+- **Wait for background work before cleanup.** A goroutine or process still writing in a `t.TempDir` makes its removal fail with "directory not empty". Register the wait with `t.Cleanup` after the temp folders, since cleanups run in reverse order. Example: `t.Cleanup(func() { waitRunsIdle(t, r) })` in the `pkg/molten/mission` fixtures.
+- **Top-level imports in vitest.** A test's 5 s timeout must not pay for loading a module graph. Import statically: it loads while the file is collected, which has no timeout. When each test needs fresh modules (`vi.resetModules()`), still load the graph once first (a static import, or a `beforeAll` with a generous timeout when `vi.doMock` must run before). Example: `frontend/moltenterm-shell/busy-close-guard.test.ts`.
+- **Prove it** before calling a test fixed: 50 Go runs (`go test -count=50 -run '^TestX$' ./pkg/...`) or 30 vitest runs while a loop keeps `go test -count=1 ./...` running, then break the guarded behaviour once and see the test fail.
