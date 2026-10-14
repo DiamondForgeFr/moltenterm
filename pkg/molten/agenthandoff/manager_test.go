@@ -392,6 +392,57 @@ func TestBriefFilesLinksAndSnapshots(t *testing.T) {
 	}
 }
 
+// #664: a file that may hold secrets is never quoted, whether it is in the receiver's project, outside every project
+// or behind a link; the brief says why.
+func TestBriefNeverQuotesSecrets(t *testing.T) {
+	m, env, projA, projB := makeFixture(t)
+	answerWith(m, env, DecisionOnce)
+	home := t.TempDir()
+	write := func(path string, content string) string {
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	envB := write(filepath.Join(projB, ".env"), "SECRET_ENV_B=1\n")
+	aws := write(filepath.Join(home, ".aws", "credentials"), "[default]\nSECRET_AWS=1\n")
+	gitCreds := write(filepath.Join(home, ".git-credentials"), "https://u:SECRET_GIT@github.com\n")
+	tfvars := write(filepath.Join(projA, "prod.tfvars"), "SECRET_TF=1\n")
+	kube := write(filepath.Join(home, ".kube", "config"), "SECRET_KUBE=1\n")
+	link := filepath.Join(projA, "notes.txt")
+	if err := os.Symlink(envB, link); err != nil {
+		t.Fatal(err)
+	}
+	plain := write(filepath.Join(projA, "plain.txt"), "visible line\n")
+	var files []FileRef
+	for _, p := range []string{envB, aws, gitCreds, tfvars, kube, link, plain} {
+		files = append(files, FileRef{Path: p, Lines: "1-40"})
+	}
+	res, err := m.Send(context.Background(), SendRequest{Token: "tokA", To: "Jérôme", Brief: Brief{Goal: "Check the config", Files: files}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(res.BriefPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	md := string(data)
+	for _, secret := range []string{"SECRET_ENV_B", "SECRET_AWS", "SECRET_GIT", "SECRET_TF", "SECRET_KUBE"} {
+		if strings.Contains(md, secret) {
+			t.Errorf("%s quoted:\n%s", secret, md)
+		}
+	}
+	if n := strings.Count(md, "Lines 1-40 not quoted: it may hold secrets."); n != 6 {
+		t.Errorf("%d refusals, want 6:\n%s", n, md)
+	}
+	if !strings.Contains(md, "visible line") {
+		t.Errorf("an ordinary file was not quoted:\n%s", md)
+	}
+}
+
 func TestCleanBriefRefusals(t *testing.T) {
 	cases := []Brief{
 		{},
