@@ -339,6 +339,23 @@ func TestRestartPutsANewWorktreeBesideTheOthers(t *testing.T) {
 	}
 }
 
+func TestRestartLeavesTheReviewWorktreeOutOfTheConvention(t *testing.T) {
+	f := makeRestartFixture(t)
+	f.publishRound()
+	// The data folder reached through a symlink, as /tmp is on macOS: git lists the real path of the review worktree.
+	link := filepath.Join(f.root, "data-link")
+	if err := os.Symlink(f.dataDir, link); err != nil {
+		t.Fatal(err)
+	}
+	f.r.env.DataDir = link
+	review := filepath.Join(f.dataDir, "molten", "worktrees", "app-x", "review-9")
+	f.git(f.dir, "worktree", "add", "--quiet", "--detach", review, "develop")
+	res := f.restart()
+	if res.Status != RestartStarted || filepath.Base(res.Worktree) != "work-9" {
+		t.Errorf("worktree %s (%+v)", res.Worktree, res)
+	}
+}
+
 func TestRestartFollowsTheProjectsConventionsAndSkill(t *testing.T) {
 	f := makeRestartFixture(t)
 	f.publishRound()
