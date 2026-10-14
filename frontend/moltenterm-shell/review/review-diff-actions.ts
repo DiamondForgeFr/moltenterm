@@ -45,7 +45,8 @@ function escapeMarkdown(text: string): string {
 export function commentHover(comment: ReviewComment): string {
     const where =
         comment.subject === "file" ? "file-level, quoting " + linesLabel(comment.anchor) : linesLabel(comment.anchor);
-    return `**${CommentStateLabels[comment.state] ?? comment.state} comment** · ${where}\n\n${escapeMarkdown(comment.original.text)}`;
+    const what = comment.kind === "change" ? "change request" : "comment";
+    return `**${CommentStateLabels[comment.state] ?? comment.state} ${what}** · ${where}\n\n${escapeMarkdown(comment.original.text)}`;
 }
 
 export function attachDiffActions(

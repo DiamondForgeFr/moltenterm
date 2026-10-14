@@ -6,7 +6,15 @@
 // selection inside one hunk of its side can carry a line comment; elsewhere Comment is a file-level comment quoting
 // the lines, and Ask the AI works everywhere.
 
-import { ReviewComment, ReviewCommentState, ReviewHunk, ReviewState } from "./review-client";
+import {
+    ReviewComment,
+    ReviewCommentAction,
+    ReviewCommentKind,
+    ReviewCommentMessage,
+    ReviewCommentState,
+    ReviewHunk,
+    ReviewState,
+} from "./review-client";
 import { ReviewAnchor } from "./review-session";
 
 export type ReviewSide = "LEFT" | "RIGHT";
@@ -122,7 +130,106 @@ export const CommentStateLabels: Record<ReviewCommentState, string> = {
     translated: "Translated",
     published: "Published",
     dropped: "Dropped",
+    proposed: "Proposal",
 };
+
+export const CommentKindLabels: Record<ReviewCommentKind, string> = {
+    comment: "Comment",
+    change: "Change request",
+};
+
+// What a comment's history entries say, by event (FR-REV-009 AC5).
+export const CommentEventLabels: Record<string, string> = {
+    created: "Written",
+    proposed: "Proposed by the agent",
+    edited: "Edited",
+    kind: "Kind changed",
+    staged: "Staged",
+    unstaged: "Unstaged",
+    dropped: "Dropped",
+    restored: "Restored",
+    accepted: "Proposal accepted",
+    rewritten: "Agent's rewrite used",
+    translated: "Translated",
+    published: "Published",
+};
+
+// commentActions: what the developer can do with a comment in its state (FR-REV-009 AC1, AC3). Published comments
+// stay as they are; a proposal is accepted (it becomes staged) or dropped.
+export function commentActions(comment: ReviewComment): ReviewCommentAction[] {
+    switch (comment.state) {
+        case "draft":
+            return ["stage", "drop"];
+        case "staged":
+        case "translated":
+            return ["unstage", "drop"];
+        case "proposed":
+            return ["accept", "drop"];
+        case "dropped":
+            return ["restore"];
+    }
+    return [];
+}
+
+// canEdit: the text and kind change until the comment is published or dropped.
+export function canEdit(comment: ReviewComment): boolean {
+    return comment.state !== "published" && comment.state !== "dropped";
+}
+
+// canDiscuss: the comments the developer can still send to the review session.
+export function canDiscuss(comment: ReviewComment): boolean {
+    return canEdit(comment);
+}
+
+// isStaged: the comments the next publication takes (FR-REV-010).
+export function isStaged(comment: ReviewComment): boolean {
+    return comment.state === "staged" || comment.state === "translated";
+}
+
+export function stagedCount(state: ReviewState): number {
+    return (state?.comments ?? []).filter(isStaged).length;
+}
+
+export type CommentGroups = {
+    proposals: ReviewComment[];
+    staged: ReviewComment[];
+    drafts: ReviewComment[];
+    dropped: ReviewComment[];
+};
+
+// groupComments sorts the PR's open comments for the AI panel: the agent's proposals, the staged ones, the drafts, and
+// the dropped ones (kept, restorable). Published comments belong to their round.
+export function groupComments(state: ReviewState): CommentGroups {
+    const rtn: CommentGroups = { proposals: [], staged: [], drafts: [], dropped: [] };
+    const sorted = [...(state?.comments ?? [])].sort(
+        (a, b) =>
+            a.anchor.path.localeCompare(b.anchor.path) ||
+            (a.anchor.startline ?? a.anchor.line) - (b.anchor.startline ?? b.anchor.line)
+    );
+    for (const c of sorted) {
+        if (c.state === "proposed") {
+            rtn.proposals.push(c);
+        } else if (isStaged(c)) {
+            rtn.staged.push(c);
+        } else if (c.state === "draft") {
+            rtn.drafts.push(c);
+        } else if (c.state === "dropped") {
+            rtn.dropped.push(c);
+        }
+    }
+    return rtn;
+}
+
+// pendingRewrite: the latest rewrite the agent proposed that the developer has not used or ignored yet.
+export function pendingRewrite(comment: ReviewComment): ReviewCommentMessage {
+    const discussion = comment.discussion ?? [];
+    for (let i = discussion.length - 1; i >= 0; i--) {
+        if (discussion[i].rewritestate === "proposed") {
+            return discussion[i];
+        }
+    }
+    return null;
+}
 
 // commentsOfFile: the file's comments, in line order, without the dropped ones.
 export function commentsOfFile(state: ReviewState, path: string): ReviewComment[] {

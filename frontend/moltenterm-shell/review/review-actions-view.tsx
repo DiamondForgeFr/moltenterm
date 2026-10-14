@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The line selection's views (FR-REV-003): the actions next to the selected lines, the inline comment box, the file's
-// comments under its header (line, file-level and outdated ones, with their state), and Ask the AI's box in the AI
-// panel. Every text shown here is the developer's or the diff's, rendered as text.
+// comments under its header (line, file-level and outdated ones, with their state, review-comments-view.tsx), and Ask
+// the AI's box in the AI panel. Every text shown here is the developer's or the diff's, rendered as text.
 
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { MoltenWave } from "../molten-button";
-import { ReviewComment } from "./review-client";
-import { anchorLabel, commentsOfFile, CommentStateLabels, linesLabel, sideLabel } from "./review-selection";
+import { ReviewCommentKind } from "./review-client";
+import { CommentCard, KindToggle } from "./review-comments-view";
+import { anchorLabel, commentsOfFile, linesLabel, sideLabel } from "./review-selection";
 import type { ReviewComposer, ReviewTabModel } from "./review-tab-model";
 
 import "./review.css";
@@ -91,6 +92,7 @@ function CommentBox({
     left: number;
 }) {
     const [text, setText] = useState(composer.text);
+    const [kind, setKind] = useState<ReviewCommentKind>(composer.kind ?? "comment");
     const ref = useRef<HTMLTextAreaElement>(null);
     useEffect(() => {
         ref.current?.focus();
@@ -99,7 +101,7 @@ function CommentBox({
         if (text.trim() === "" || composer.saving) {
             return;
         }
-        fireAndForget(() => model.saveComment(composer, text));
+        fireAndForget(() => model.saveComment(composer, text, kind));
     };
     const onKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Escape") {
@@ -130,13 +132,18 @@ function CommentBox({
             {composer.filereason && !composer.id ? (
                 <div className="text-11 text-muted">{composer.filereason}</div>
             ) : null}
+            <KindToggle value={kind} onChange={setKind} />
             <textarea
                 ref={ref}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={onKeyDown}
                 rows={4}
-                placeholder="Your comment, in your language"
+                placeholder={
+                    kind === "change"
+                        ? "What should be reworked, in your language"
+                        : "Your comment or question for the author, in your language"
+                }
                 className="w-full resize-y rounded-4 border border-border bg-background px-2 py-1.5 text-12 text-primary outline-none focus:border-accent/60"
                 data-testid="review-comment-text"
             />
@@ -193,109 +200,11 @@ export function CommentsStrip({ model, path }: { model: ReviewTabModel; path: st
             {open ? (
                 <ul className="flex flex-col">
                     {comments.map((c) => (
-                        <CommentRow key={c.id} model={model} comment={c} />
+                        <CommentCard key={c.id} model={model} comment={c} />
                     ))}
                 </ul>
             ) : null}
         </div>
-    );
-}
-
-function CommentRow({ model, comment }: { model: ReviewTabModel; comment: ReviewComment }) {
-    const [editing, setEditing] = useState(false);
-    const [text, setText] = useState(comment.original.text);
-    const [error, setError] = useState<string>(null);
-    const editable = comment.state !== "published" && comment.state !== "dropped";
-    const where = `${sideLabel(comment.anchor.side)} · ${linesLabel(comment.anchor)}`;
-    const save = () => {
-        fireAndForget(async () => {
-            const err = await model.updateCommentText(comment, text);
-            setError(err);
-            if (err == null) {
-                setEditing(false);
-            }
-        });
-    };
-    return (
-        <li
-            className="flex flex-col gap-1 border-t border-border/50 px-3 py-1.5"
-            data-testid="review-comment-row"
-            data-state={comment.state}
-            data-outdated={comment.outdated ? "true" : undefined}
-        >
-            <div className="flex items-center gap-1.5">
-                <span className={cn("rounded-4 px-1 text-10 font-medium", `molten-review-badge-${comment.state}`)}>
-                    {CommentStateLabels[comment.state] ?? comment.state}
-                </span>
-                {comment.outdated ? (
-                    <span className="rounded-4 border border-warning/50 px-1 text-10 text-warning">Outdated</span>
-                ) : null}
-                <button
-                    type="button"
-                    className="min-w-0 cursor-pointer truncate text-left text-muted hover:text-primary disabled:cursor-default disabled:hover:text-muted"
-                    onClick={() => model.revealComment(comment)}
-                    disabled={comment.outdated}
-                    title={comment.outdated ? "Its lines are not in the head shown any more" : "Show the lines"}
-                >
-                    {comment.subject === "file" ? `File-level, quoting ${where}` : where}
-                </button>
-                {editable && !editing ? (
-                    <span className="ml-auto flex shrink-0 gap-1">
-                        <button
-                            type="button"
-                            className="cursor-pointer px-1 text-muted hover:text-primary"
-                            onClick={() => setEditing(true)}
-                            title="Edit the comment"
-                            aria-label="Edit the comment"
-                        >
-                            <i className="fa fa-solid fa-pen text-11" />
-                        </button>
-                        <button
-                            type="button"
-                            className="cursor-pointer px-1 text-muted hover:text-error"
-                            onClick={() => fireAndForget(async () => setError(await model.deleteComment(comment)))}
-                            title="Delete the comment"
-                            aria-label="Delete the comment"
-                            data-testid="review-comment-delete"
-                        >
-                            <i className="fa fa-solid fa-trash text-11" />
-                        </button>
-                    </span>
-                ) : null}
-            </div>
-            {comment.outdated || comment.subject === "file" ? (
-                <pre className="max-h-24 overflow-auto rounded-4 bg-panel px-2 py-1 font-mono text-11 whitespace-pre-wrap text-muted">
-                    {comment.anchor.excerpt}
-                </pre>
-            ) : null}
-            {editing ? (
-                <div className="flex flex-col gap-1">
-                    <textarea
-                        value={text}
-                        onChange={(e) => setText(e.target.value)}
-                        rows={3}
-                        className="w-full resize-y rounded-4 border border-border bg-background px-2 py-1 text-12 outline-none focus:border-accent/60"
-                    />
-                    <div className="flex justify-end gap-1.5">
-                        <button type="button" className={SmallButton} onClick={() => setEditing(false)}>
-                            Cancel
-                        </button>
-                        <button
-                            type="button"
-                            className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
-                            disabled={text.trim() === ""}
-                            onClick={save}
-                        >
-                            Save
-                            <MoltenWave />
-                        </button>
-                    </div>
-                </div>
-            ) : (
-                <div className="whitespace-pre-wrap text-primary">{comment.original.text}</div>
-            )}
-            {error ? <div className="text-11 text-error">{error}</div> : null}
-        </li>
     );
 }
 

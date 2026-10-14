@@ -93,12 +93,23 @@ func Tools() []mcpbrowser.ToolDef {
 				"principles": stringList("The development principles the lines illustrate or break."),
 			}, []string{"anchor", "markdown"})),
 		outputTool(ToolProposeComment, "Propose a review comment",
-			"Proposes a review comment on lines of the PR. The developer accepts or drops it; nothing is published.",
+			"Proposes a review comment on lines of the PR's head shown in review_context. It appears as a proposal in "+
+				"the developer's AI panel; it becomes one of their comments only when they accept it. Nothing is published.",
 			objectSchema(map[string]any{
 				"anchor": anchorSchema("The lines the comment is about."),
-				"kind":   map[string]any{"type": "string", "enum": []string{KindComment, KindChange}},
-				"text":   stringProp("The comment, in the developer's language."),
+				"kind": map[string]any{"type": "string", "enum": []string{KindComment, KindChange},
+					"description": "comment: a remark or question for the PR's author; change: a change request."},
+				"text": stringProp("The comment, in the developer's language."),
 			}, []string{"anchor", "text"})),
+		outputTool(ToolReplyComment, "Reply on a discussed comment",
+			"Answers the developer about the review comment they discussed (review_selection gives it with its lines). "+
+				"The reply shows under the comment; a rewrite, when you propose one, is offered to the developer, who "+
+				"uses it or ignores it. Nothing is published.",
+			objectSchema(map[string]any{
+				"commentid": stringProp("The comment's id, from review_selection."),
+				"markdown":  stringProp("Your answer, in the developer's language."),
+				"rewrite":   stringProp("Optional: the whole comment rewritten, in the developer's language."),
+			}, []string{"commentid", "markdown"})),
 		outputTool(ToolSetTranslation, "Give a comment's translation",
 			"Gives the translation of a staged comment into the publication language. Nothing is published: the "+
 				"developer reviews it and publishes with a click in MoltenTerm.",
@@ -116,7 +127,8 @@ func Tools() []mcpbrowser.ToolDef {
 const ServerInstructions = "MoltenTerm review: you review one pull request for the developer, read-only, in a worktree " +
 	"of its head. Read it with review_context, review_files, review_diff and review_selection, and the whole code in " +
 	"the worktree; post into the developer's AI panel with review_post_briefing and review_post_explanation; propose " +
-	"comments with review_propose_comment and translations with review_set_translation. Nothing you do publishes, " +
+	"comments with review_propose_comment, answer on a discussed comment with review_reply_comment, and give " +
+	"translations with review_set_translation. Nothing you do publishes, " +
 	"approves or merges: the developer does that with MoltenTerm's buttons. " + untrustedHint
 
 // Spec is `molten mcp review`.

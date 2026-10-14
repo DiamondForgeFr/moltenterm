@@ -68,6 +68,8 @@ type session struct {
 	message string
 
 	selection *mcpreview.SelectionRequest
+	// discussed: the comments the developer discussed in this session, the only ones the agent may reply on.
+	discussed map[string]bool
 	posts     []mcpreview.Post
 	nextPost  int
 	// baseOid: the merge base of the head with the base branch, read once per head.

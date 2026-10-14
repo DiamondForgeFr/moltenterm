@@ -57,6 +57,7 @@ const (
 	ToolProposeComment  = "review_propose_comment"
 	ToolSetTranslation  = "review_set_translation"
 	ToolKeepNote        = "review_keep_note"
+	ToolReplyComment    = "review_reply_comment"
 )
 
 // What a session's terminal is doing.
@@ -88,6 +89,8 @@ const (
 	PostProposal    = "proposal"
 	PostTranslation = "translation"
 	PostKeepNote    = "keepnote"
+	// Reply: the agent's answer on a comment the developer discussed (FR-REV-009).
+	PostReply = "reply"
 )
 
 const (
@@ -118,6 +121,8 @@ const (
 	ErrKind            = "kind must be comment or change"
 	ErrIdNeeded        = "the id is required"
 	ErrTooLarge        = "the text is too large (64 KB at most)"
+	ErrNotDiscussed    = "commentid must be a comment the developer discussed in this session (review_selection names it)"
+	ErrLineNotInFile   = "the anchor's lines are not in that side of the file (see review_diff)"
 )
 
 // HelloRequest opens the MCP server's connection to its session. Token is the terminal's WAVETERM_JWT (wavesrv takes
@@ -268,6 +273,32 @@ type SelectionRequest struct {
 	Text   string  `json:"text,omitempty"`
 	// Question: the developer's question on the selection (Ask the AI), whole even when the typed line could not hold it.
 	Question string `json:"question,omitempty"`
+	// Comment: the review comment the developer discusses (FR-REV-009), on the selection's lines.
+	Comment *CommentRef `json:"comment,omitempty"`
+}
+
+// CommentRef is a review comment as the session's agent sees it when the developer discusses it.
+type CommentRef struct {
+	Id string `json:"id"`
+	// Kind: comment (a remark or question for the PR's author) or change (a change request).
+	Kind string `json:"kind"`
+	// Subject: line (a comment on the lines) or file (a file-level comment quoting them).
+	Subject  string `json:"subject,omitempty"`
+	State    string `json:"state,omitempty"`
+	Text     string `json:"text"`
+	Lang     string `json:"lang,omitempty"`
+	Outdated bool   `json:"outdated,omitempty"`
+}
+
+// DiscussRequest is Discuss on a comment (FR-REV-009): the comment and its lines become the session's selection and
+// one line is typed into the agent's terminal; the answer is an AskResult. wavesrv's review service, which keeps the
+// comments, sends it in process (reviewsession.Discuss): windows go through the review route.
+type DiscussRequest struct {
+	SessionKey
+	Anchor  *Anchor    `json:"anchor"`
+	Comment CommentRef `json:"comment"`
+	// Message: the developer's words about the comment; empty, the agent is asked for its opinion.
+	Message string `json:"message,omitempty"`
 }
 
 // AskRequest is Ask the AI (FR-REV-003): the selection becomes the session's (review_selection) and the question is
@@ -309,6 +340,9 @@ type Post struct {
 	// HeadOid: the head the session reviewed when the agent posted; Agent: the agent's id.
 	HeadOid string `json:"headoid,omitempty"`
 	Agent   string `json:"agent,omitempty"`
+	// A proposal's subject (line inside a hunk, else file) and language, filled by MoltenTerm (FR-REV-009).
+	Subject string `json:"subject,omitempty"`
+	Lang    string `json:"lang,omitempty"`
 }
 
 type PostsResult struct {

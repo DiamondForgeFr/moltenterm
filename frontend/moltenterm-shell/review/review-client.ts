@@ -26,12 +26,16 @@ const MergeCommand = "moltenreviewmerge";
 const MergeCancelCommand = "moltenreviewmergecancel";
 const AiPaneCommand = "moltenreviewaipane";
 const CommentCommand = "moltenreviewcomment";
-const UncommentCommand = "moltenreviewcommentdelete";
+const CommentStateCommand = "moltenreviewcommentstate";
+const RewriteCommand = "moltenreviewcommentrewrite";
+const DiscussCommand = "moltenreviewcommentdiscuss";
 const RelocateCommand = "moltenreviewrelocate";
 
 // A file list or a compare may fetch the PR's branches; a worktree may be created.
 const GitTimeoutMs = 95_000;
 const CallTimeoutMs = 15_000;
+// Typing waits for the agent's terminal.
+const DiscussTimeoutMs = 25_000;
 
 // must match pkg/molten/review/diff.go
 export type ReviewFileStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "typechanged" | "submodule";
@@ -278,10 +282,35 @@ export function reviewMergeCancel(repo: string, num: number): Promise<void> {
     return call(MergeCancelCommand, { repo, number: num });
 }
 
-// must match pkg/molten/review/comments.go
+// must match pkg/molten/review/comments.go and drafting.go
 export type ReviewCommentSubject = "line" | "file";
-export type ReviewCommentState = "draft" | "staged" | "translated" | "published" | "dropped";
+// proposed: a comment the review session's agent proposed, the developer's only once accepted (FR-REV-009).
+export type ReviewCommentState = "draft" | "staged" | "translated" | "published" | "dropped" | "proposed";
+export type ReviewCommentKind = "comment" | "change";
 export type ReviewCommentText = { lang?: string; text: string };
+export type ReviewCommentAction = "stage" | "unstage" | "drop" | "restore" | "accept";
+
+// One entry of a comment's history: the state after it, and the text when it changed (FR-REV-009 AC5).
+export type ReviewCommentEvent = {
+    at: number;
+    event: string;
+    state: ReviewCommentState;
+    kind?: ReviewCommentKind;
+    text?: string;
+    by: string;
+};
+
+// One message of a comment's discussion with the review session: the developer's, or the agent's reply (markdown)
+// with an optional rewrite of the comment.
+export type ReviewCommentMessage = {
+    id: string;
+    at: number;
+    by: "developer" | "agent";
+    text?: string;
+    rewrite?: string;
+    rewritestate?: "proposed" | "accepted" | "ignored";
+    agent?: string;
+};
 
 export type ReviewComment = {
     id: string;
@@ -289,24 +318,29 @@ export type ReviewComment = {
     anchor: ReviewAnchor;
     // line: a GitHub line comment on the anchor; file: a file-level comment quoting the anchor's excerpt.
     subject: ReviewCommentSubject;
-    kind: "comment" | "change";
+    // comment: a remark or question for the PR's author; change: a change request.
+    kind: ReviewCommentKind;
     state: ReviewCommentState;
+    // The developer's text, in their language; translation: its version in the publication language (FR-REV-010).
     original: ReviewCommentText;
     translation?: ReviewCommentText;
     githubcommentid?: number;
+    // developer, agent (a proposal) or agent-proposal-accepted.
     author: string;
     // The lines are not in the head shown any more; the comment keeps its excerpt.
     outdated?: boolean;
     createdat: number;
     updatedat?: number;
+    history?: ReviewCommentEvent[];
+    discussion?: ReviewCommentMessage[];
 };
 
 export type ReviewCommentRequest = {
-    // Set: changes that comment's text; otherwise a new draft on the anchor.
+    // Set: changes that comment's text (and kind); otherwise a new draft on the anchor.
     id?: string;
     anchor?: ReviewAnchor;
     subject?: ReviewCommentSubject;
-    kind?: "comment" | "change";
+    kind?: ReviewCommentKind;
     text: string;
     lang?: string;
 };
@@ -315,8 +349,46 @@ export function saveReviewComment(repo: string, num: number, req: ReviewCommentR
     return call(CommentCommand, { repo, number: num, ...req });
 }
 
-export function deleteReviewComment(repo: string, num: number, id: string): Promise<ReviewState> {
-    return call(UncommentCommand, { repo, number: num, id });
+// setReviewCommentState stages, unstages, drops, restores or accepts (a proposal) a comment (FR-REV-009).
+export function setReviewCommentState(
+    repo: string,
+    num: number,
+    id: string,
+    action: ReviewCommentAction
+): Promise<ReviewState> {
+    return call(CommentStateCommand, { repo, number: num, id, action });
+}
+
+// useReviewRewrite takes (accept) or ignores the rewrite an agent's reply proposed.
+export function useReviewRewrite(
+    repo: string,
+    num: number,
+    id: string,
+    messageid: string,
+    accept: boolean
+): Promise<ReviewState> {
+    return call(RewriteCommand, { repo, number: num, id, messageid, accept });
+}
+
+// sent: typed into the agent's prompt (submitted: with Enter), state: the store with the developer's message. busy:
+// the agent works or waits for an answer, nothing was typed.
+export type ReviewDiscussResult = {
+    sent: boolean;
+    submitted?: boolean;
+    busy?: boolean;
+    line?: string;
+    message?: string;
+    state?: ReviewState;
+};
+
+// discussReviewComment sends a comment and its lines to the PR's review session, with the developer's message.
+export function discussReviewComment(
+    repo: string,
+    num: number,
+    id: string,
+    message: string
+): Promise<ReviewDiscussResult> {
+    return call(DiscussCommand, { repo, number: num, id, message: message || undefined }, DiscussTimeoutMs);
 }
 
 // relocateReviewComments moves the comments made on other heads to the head shown, or marks them outdated.

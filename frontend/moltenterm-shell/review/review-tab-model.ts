@@ -21,13 +21,16 @@ import { ReviewsAnswer } from "../reviews/reviews-model";
 import { TabActivity, whileShown } from "../tab-activity";
 import { confirmAgentWorktree, ReviewWorktreeRisk } from "./review-cleanup";
 import {
-    deleteReviewComment,
+    discussReviewComment,
     openReviewAiPane,
     relocateReviewComments,
     ReviewBriefing,
     ReviewComment,
+    ReviewCommentAction,
+    ReviewCommentKind,
     ReviewCommentSubject,
     reviewCompare,
+    ReviewDiscussResult,
     ReviewFile,
     reviewFile,
     ReviewFileResult,
@@ -44,9 +47,11 @@ import {
     ReviewWorktree,
     reviewWorktree,
     saveReviewComment,
+    setReviewCommentState,
     setReviewShown,
     setReviewViewed,
     subscribeReviewState,
+    useReviewRewrite,
 } from "./review-client";
 import { attachDiffActions, DiffActions } from "./review-diff-actions";
 import { mergeRunning } from "./review-merge";
@@ -61,7 +66,7 @@ import {
     treeFiles,
     TreeNode,
 } from "./review-model";
-import { developerLanguage, ReviewSelection } from "./review-selection";
+import { developerLanguage, ReviewSelection, stagedCount } from "./review-selection";
 import {
     askReviewBriefing,
     askReviewSession,
@@ -117,11 +122,16 @@ export type ReviewComposer = {
     id?: string;
     anchor: ReviewAnchor;
     subject: ReviewCommentSubject;
+    // comment: a remark or question for the author; change: a change request (FR-REV-009 AC1).
+    kind: ReviewCommentKind;
     filereason?: string;
     text: string;
     saving?: boolean;
     error?: string;
 };
+
+// What Discuss on a comment did: sent (the reply comes under the comment), or why not.
+export type ReviewDiscussOutcome = { result?: ReviewDiscussResult; error?: string };
 
 // Ask the AI's box in the AI panel: the selection it is about (none: the PR) and what sending did.
 export type ReviewAsk = {
@@ -201,6 +211,8 @@ export abstract class ReviewTabModel implements ViewModel {
     orderedFilesAtom: Atom<ReviewFile[]>;
     viewedCountAtom: Atom<number>;
     briefingAtom: Atom<ReviewBriefing>;
+    // The comments the next publication takes (Publish review's count, FR-REV-009 AC4).
+    stagedCountAtom: Atom<number>;
     // The AI panel's block in this tab, null when it is closed (DS-REV-012).
     aiPaneIdAtom: Atom<string>;
 
@@ -235,6 +247,7 @@ export abstract class ReviewTabModel implements ViewModel {
             return (get(this.filesAtom)?.files ?? []).filter((f) => isViewed(state, f)).length;
         });
         this.briefingAtom = atom((get) => get(this.stateAtom)?.briefing ?? null);
+        this.stagedCountAtom = atom((get) => stagedCount(get(this.stateAtom)));
         this.aiPaneIdAtom = atom((get) => {
             const pr = get(this.prAtom);
             const tabId = get(atoms.staticTabId);
@@ -723,6 +736,7 @@ export abstract class ReviewTabModel implements ViewModel {
         globalStore.set(this.composerAtom, {
             anchor: sel.anchor,
             subject: sel.linecomment ? "line" : "file",
+            kind: "comment",
             filereason: sel.filereason,
             text: "",
         });
@@ -733,6 +747,7 @@ export abstract class ReviewTabModel implements ViewModel {
             id: comment.id,
             anchor: comment.anchor,
             subject: comment.subject,
+            kind: comment.kind,
             text: comment.original.text,
         });
     }
@@ -741,14 +756,15 @@ export abstract class ReviewTabModel implements ViewModel {
         globalStore.set(this.composerAtom, null);
     }
 
-    async saveComment(composer: ReviewComposer, text: string): Promise<boolean> {
+    async saveComment(composer: ReviewComposer, text: string, kind: ReviewCommentKind): Promise<boolean> {
         const pr = this.pr();
-        globalStore.set(this.composerAtom, { ...composer, text, saving: true, error: null });
+        globalStore.set(this.composerAtom, { ...composer, text, kind, saving: true, error: null });
         try {
             const state = await saveReviewComment(pr.repo, pr.number, {
                 id: composer.id,
                 anchor: composer.id ? undefined : composer.anchor,
                 subject: composer.id ? undefined : composer.subject,
+                kind,
                 text,
                 lang: composer.id ? undefined : developerLanguage(navigator.language),
             });
@@ -758,17 +774,17 @@ export abstract class ReviewTabModel implements ViewModel {
             return true;
         } catch (e) {
             globalStore.set(this.composerAtom, (cur) =>
-                cur ? { ...cur, text, saving: false, error: String(e?.message ?? e) } : cur
+                cur ? { ...cur, text, kind, saving: false, error: String(e?.message ?? e) } : cur
             );
             return false;
         }
     }
 
-    // A comment's own text changes from the comments list (its anchor stays).
-    async updateCommentText(comment: ReviewComment, text: string): Promise<string> {
+    // A comment's own text and kind change from the comments lists (its anchor stays).
+    async updateComment(comment: ReviewComment, text: string, kind: ReviewCommentKind): Promise<string> {
         const pr = this.pr();
         try {
-            const state = await saveReviewComment(pr.repo, pr.number, { id: comment.id, text });
+            const state = await saveReviewComment(pr.repo, pr.number, { id: comment.id, text, kind });
             globalStore.set(this.stateAtom, state);
             return null;
         } catch (e) {
@@ -776,17 +792,54 @@ export abstract class ReviewTabModel implements ViewModel {
         }
     }
 
-    async deleteComment(comment: ReviewComment): Promise<string> {
+    // commentAction stages, unstages, drops, restores or accepts (a proposal) a comment (FR-REV-009 AC1, AC3). A dropped
+    // comment stays in the store with its history.
+    async commentAction(comment: ReviewComment, action: ReviewCommentAction): Promise<string> {
         const pr = this.pr();
         try {
-            const state = await deleteReviewComment(pr.repo, pr.number, comment.id);
+            const state = await setReviewCommentState(pr.repo, pr.number, comment.id, action);
             globalStore.set(this.stateAtom, state);
-            if (globalStore.get(this.composerAtom)?.id === comment.id) {
+            if (action === "drop" && globalStore.get(this.composerAtom)?.id === comment.id) {
                 globalStore.set(this.composerAtom, null);
             }
             return null;
         } catch (e) {
             return String(e?.message ?? e);
+        }
+    }
+
+    // useRewrite takes or ignores the rewrite the agent proposed in a reply (AC2).
+    async useRewrite(comment: ReviewComment, messageId: string, accept: boolean): Promise<string> {
+        const pr = this.pr();
+        try {
+            const state = await useReviewRewrite(pr.repo, pr.number, comment.id, messageId, accept);
+            globalStore.set(this.stateAtom, state);
+            return null;
+        } catch (e) {
+            return String(e?.message ?? e);
+        }
+    }
+
+    // discussComment is Discuss (AC2): the comment and its lines go to the review session, started first (with the
+    // AI panel) when it is not running; the agent's reply comes under the comment.
+    async discussComment(comment: ReviewComment, message: string): Promise<ReviewDiscussOutcome> {
+        const pr = this.pr();
+        try {
+            if (globalStore.get(this.aiAtom).session == null) {
+                await this.openAi();
+            }
+            if (globalStore.get(this.aiAtom).session == null) {
+                const ai = globalStore.get(this.aiAtom);
+                return { error: ai.message || "The review session is not running." };
+            }
+            const result = await discussReviewComment(pr.repo, pr.number, comment.id, message.trim());
+            if (result.state != null) {
+                globalStore.set(this.stateAtom, result.state);
+            }
+            return { result };
+        } catch (e) {
+            console.log(`[review] ${pr.repo}#${pr.number}: the comment could not be discussed`, e);
+            return { error: String(e?.message ?? e) };
         }
     }
 
@@ -822,6 +875,15 @@ export abstract class ReviewTabModel implements ViewModel {
         const status = session.state === "failed" ? "failed" : session.state === "starting" ? "starting" : "running";
         globalStore.set(this.aiAtom, (ai) => ({ ...ai, status, session, message: session.message }));
         fireAndForget(() => this.syncSessionHead());
+    }
+
+    // openPublish is Publish review: the staged comments, in the AI panel. Posting them on GitHub after the developer's
+    // click is FR-REV-010's.
+    async openPublish() {
+        if (globalStore.get(this.aiPaneIdAtom) != null) {
+            return;
+        }
+        await this.openAi();
     }
 
     // The AI panel (DS-REV-012) is a pane of its own right of this block, the session's terminal split under it, so the
