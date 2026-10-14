@@ -63,7 +63,7 @@ describe("pending state (FR-PERF-004, DS-PERF-005)", () => {
     it("says it is still opening while it retries", () => {
         renderOverlay();
         api.onPending({ phase: "retrying", workspaceName: "Client A" });
-        expect(renderOverlay()).toContain("Still opening. Your machine is busy.");
+        expect(renderOverlay()).toContain("Still opening. This computer is busy.");
     });
 
     it("offers Reload and Dismiss after the second failure", () => {

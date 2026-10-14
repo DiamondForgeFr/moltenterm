@@ -7,6 +7,7 @@
 
 import { useAtomValue } from "jotai";
 import { useLayoutEffect, useState } from "react";
+import { useT } from "./i18n/i18n";
 import { RailConnectModel, railConnectHint } from "./rail-connect";
 
 type Place = { top: number; left: number };
@@ -21,6 +22,7 @@ function bannerPlace(nav: HTMLElement): Place {
 }
 
 export function RailConnectBanner({ navRef, name }: { navRef: React.RefObject<HTMLElement>; name: string }) {
+    const t = useT();
     const model = RailConnectModel.getInstance();
     const target = useAtomValue(model.targetAtom);
     const message = useAtomValue(model.messageAtom);
@@ -63,7 +65,7 @@ export function RailConnectBanner({ navRef, name }: { navRef: React.RefObject<HT
                     className="molten-btn-ghost pointer-events-auto cursor-pointer rounded-6 px-2 py-0.5 text-12"
                     onClick={() => model.end()}
                 >
-                    Cancel
+                    {t("common.cancel")}
                 </button>
             ) : null}
         </div>

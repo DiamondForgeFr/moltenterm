@@ -6,6 +6,7 @@
 // no identifier, stack or stderr reaches the title or the hint (DS-SHELL-079).
 
 import { cn } from "@/util/util";
+import { useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 
 export type EmptyStateAction = {
@@ -119,6 +120,7 @@ export function EmptyState({
 
 // The disclosure keeps its native keyboard behaviour (Enter and Space on the summary).
 export function EmptyStateDetails({ text }: { text: string }) {
+    const t = useT();
     return (
         <details className="group mt-2 w-full text-left" data-testid="empty-state-details">
             <summary className="mx-auto flex w-fit cursor-pointer list-none items-center gap-1 rounded-4 px-1.5 py-0.5 text-11 text-muted hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden">
@@ -126,7 +128,7 @@ export function EmptyStateDetails({ text }: { text: string }) {
                     className="fa fa-solid fa-chevron-right text-11 transition-transform duration-120 ease-mt group-open:rotate-90"
                     aria-hidden
                 />
-                Details
+                {t("shell.emptyState.details")}
             </summary>
             <pre className="mt-2 max-h-40 overflow-auto rounded-4 border border-line bg-surface-2 p-2 font-mono text-11 leading-4 break-words whitespace-pre-wrap text-secondary select-text">
                 {text}

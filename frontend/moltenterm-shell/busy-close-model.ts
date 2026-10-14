@@ -7,6 +7,7 @@
 // states. Kept apart from the store and the dialog so the rule can be tested without the app.
 
 import { agentLabel, AgentStateInfo, agentStateLabel, AgentStateName } from "./agent-state-model";
+import { t } from "./i18n/i18n";
 
 // window, quit, delete and switch are asked by Electron main (FR-SHELL-062, busy-close-main.ts).
 export type BusyCloseAction = "pane" | "replace" | "tab" | "window" | "quit" | "delete" | "switch";
@@ -41,8 +42,6 @@ export type RunningItem = {
 
 export const MaxRunningRows = 8;
 
-const AnyCommand = "a command";
-
 // Stopping a working agent loses its turn, a waiting one what it asked: the riskiest come first.
 const AgentRisk: Record<string, number> = { working: 0, waiting: 1, done: 2, idle: 3, error: 4 };
 
@@ -51,7 +50,7 @@ function agentItem(src: RunningSource): RunningItem {
     return {
         blockId: src.blockId,
         kind: "agent",
-        label: agentLabel(agent, "An agent"),
+        label: agentLabel(agent, t("shell.busy.anAgent")),
         state: agent.state ?? "idle",
         workspace: src.workspace,
         tab: src.tab,
@@ -62,7 +61,7 @@ function commandItem(src: RunningSource, command: string): RunningItem {
     return {
         blockId: src.blockId,
         kind: "command",
-        label: (command ?? "").trim() || AnyCommand,
+        label: (command ?? "").trim() || t("shell.busy.aCommand"),
         workspace: src.workspace,
         tab: src.tab,
     };
@@ -121,7 +120,7 @@ export function visibleRunning(items: RunningItem[], max = MaxRunningRows): { sh
 
 export function runningStateText(item: RunningItem): string {
     if (item.kind === "command") {
-        return "running";
+        return t("shell.busy.running");
     }
     return agentStateLabel(item.state);
 }
@@ -132,57 +131,59 @@ export function runningPlace(item: RunningItem): string {
 
 export type BusyCloseText = { title: string; subtitle: string; confirm: string };
 
-const UnsavedWorkspace = "Unsaved workspace";
-
 // name: the tab's for a tab, the app's for a quit, the workspace's for a delete. quits: a window close that quits the
 // app (the last window on Linux and Windows).
 export function busyCloseText(action: BusyCloseAction, name?: string, quits?: boolean): BusyCloseText {
     if (action === "window") {
         return {
-            title: "Close this window?",
-            subtitle: quits
-                ? "Closing the last window quits, which stops what runs in these terminals."
-                : "Its unsaved workspace is deleted with it, which stops what runs in its terminals.",
-            confirm: "Close anyway",
+            title: t("shell.busy.window.title"),
+            subtitle: t(quits ? "shell.busy.window.quits" : "shell.busy.window.deletes"),
+            confirm: t("shell.busy.closeAnyway"),
         };
     }
     if (action === "quit") {
         return {
-            title: name ? `Quit ${name}?` : "Quit?",
-            subtitle: "Quitting stops what runs in these terminals.",
-            confirm: "Quit anyway",
+            title: name ? t("shell.busy.quit.titleNamed", { name }) : t("shell.busy.quit.title"),
+            subtitle: t("shell.busy.quit.subtitle"),
+            confirm: t("shell.busy.quit.confirm"),
         };
     }
     if (action === "delete") {
         return {
-            title: `Delete the workspace “${name || UnsavedWorkspace}”?`,
-            subtitle: "Deleting it closes its tabs and stops what runs in its terminals.",
-            confirm: "Delete anyway",
+            title: t("shell.busy.delete.title", { name: name || t("rail.unsavedWorkspace") }),
+            subtitle: t("shell.busy.delete.subtitle"),
+            confirm: t("shell.busy.delete.confirm"),
         };
     }
     if (action === "switch") {
         return {
-            title: "Leave this unsaved workspace?",
-            subtitle: "Switching away deletes it, which stops what runs in its terminals.",
-            confirm: "Switch anyway",
+            title: t("shell.busy.switch.title"),
+            subtitle: t("shell.busy.switch.subtitle"),
+            confirm: t("shell.busy.switch.confirm"),
         };
     }
     const tabName = name;
     if (action === "replace") {
         return {
-            title: "Replace this terminal?",
-            subtitle: "Replacing it stops what runs in it.",
-            confirm: "Replace anyway",
+            title: t("shell.busy.replace.title"),
+            subtitle: t("shell.busy.replace.subtitle"),
+            confirm: t("shell.busy.replace.confirm"),
         };
     }
     if (action === "tab") {
-        const title = tabName ? `Close the tab “${tabName}”?` : "Close this tab?";
-        return { title, subtitle: "Closing it stops what runs in its terminals.", confirm: "Close anyway" };
+        const title = tabName ? t("shell.busy.tab.titleNamed", { name: tabName }) : t("shell.busy.tab.title");
+        return { title, subtitle: t("shell.busy.tab.subtitle"), confirm: t("shell.busy.closeAnyway") };
     }
-    return { title: "Close this terminal?", subtitle: "Closing it stops what runs in it.", confirm: "Close anyway" };
+    return {
+        title: t("shell.busy.pane.title"),
+        subtitle: t("shell.busy.pane.subtitle"),
+        confirm: t("shell.busy.closeAnyway"),
+    };
 }
 
-export const KeptHeading = "Durable sessions keep running:";
+export function keptHeading(): string {
+    return t("shell.busy.kept");
+}
 
 // A quit stops the non-durable terminals; durable sessions (FR-SHELL-020) survive it and are named as kept. The
 // terminals of a workspace deleted by the same action stop, durable or not (stopping).

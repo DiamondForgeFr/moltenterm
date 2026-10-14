@@ -7,6 +7,7 @@
 
 import { MoltentermBrowserView } from "./browser/browser-model";
 import { MoltentermCompanionView } from "./companion/companion-model";
+import { t } from "./i18n/i18n";
 import { MoltentermLineMapView } from "./mission/line-map-model";
 import { MoltentermProjectView } from "./project/project-model";
 import { MoltentermSessionsView } from "./sessions/sessions-model";
@@ -19,26 +20,27 @@ const CicdView = "molten-cicd";
 const ReviewsView = "molten-reviews";
 const ReviewView = "molten-review";
 
+// title is a dictionary key.
 type ViewFacts = { icon: string; title: string };
 
 const Views: Record<string, ViewFacts> = {
-    term: { icon: "terminal", title: "Terminal" },
-    preview: { icon: "folder-open", title: "Files" },
-    web: { icon: "globe", title: "Web" },
-    [MoltentermBrowserView]: { icon: "globe", title: "Browser" },
-    [MoltentermProjectView]: { icon: "gauge", title: "Project" },
-    [MoltentermSessionsView]: { icon: "layer-group", title: "Sessions" },
-    [MoltentermLineMapView]: { icon: "train-subway", title: "Line map" },
-    [CicdView]: { icon: "list-check", title: "CI/CD" },
-    [ReviewsView]: { icon: "code-pull-request", title: "Reviews" },
-    [ReviewView]: { icon: "code-compare", title: "Review" },
-    [MoltentermCompanionView]: { icon: "book-open", title: "Companion" },
-    sysinfo: { icon: "chart-line", title: "System" },
-    launcher: { icon: "shapes", title: "Launcher" },
-    waveconfig: { icon: "gear", title: "Settings" },
-    help: { icon: "circle-question", title: "Help" },
-    processviewer: { icon: "microchip", title: "Processes" },
-    codeeditor: { icon: "file-lines", title: "Editor" },
+    term: { icon: "terminal", title: "tabs.views.terminal" },
+    preview: { icon: "folder-open", title: "tabs.views.files" },
+    web: { icon: "globe", title: "tabs.views.web" },
+    [MoltentermBrowserView]: { icon: "globe", title: "tabs.views.browser" },
+    [MoltentermProjectView]: { icon: "gauge", title: "tabs.views.project" },
+    [MoltentermSessionsView]: { icon: "layer-group", title: "tabs.views.sessions" },
+    [MoltentermLineMapView]: { icon: "train-subway", title: "tabs.views.lineMap" },
+    [CicdView]: { icon: "list-check", title: "tabs.views.cicd" },
+    [ReviewsView]: { icon: "code-pull-request", title: "tabs.views.reviews" },
+    [ReviewView]: { icon: "code-compare", title: "tabs.views.review" },
+    [MoltentermCompanionView]: { icon: "book-open", title: "tabs.views.companion" },
+    sysinfo: { icon: "chart-line", title: "tabs.views.system" },
+    launcher: { icon: "shapes", title: "tabs.views.launcher" },
+    waveconfig: { icon: "gear", title: "tabs.views.settings" },
+    help: { icon: "circle-question", title: "tabs.views.help" },
+    processviewer: { icon: "microchip", title: "tabs.views.processes" },
+    codeeditor: { icon: "file-lines", title: "tabs.views.editor" },
 };
 
 export type PanelMeta = {
@@ -81,20 +83,21 @@ export function panelTitle(meta: PanelMeta, homeDir = ""): string {
     }
     const view = meta.view ?? "";
     const facts = Views[view];
+    const viewTitle = facts ? t(facts.title) : "";
     if (view === "term") {
         const remote = meta.connection && meta.connection !== "local" ? meta.connection : "";
         const cwd = (meta["cmd:cwd"] ?? "").replace(/[/\\]+$/, "");
         const home = (homeDir ?? "").replace(/[/\\]+$/, "");
         const folder = !remote && home && cwd === home ? "~" : pathBaseName(cwd);
-        return folder || remote || facts.title;
+        return folder || remote || viewTitle;
     }
     if (view === "preview") {
-        return pathBaseName(meta.file ?? "") || facts.title;
+        return pathBaseName(meta.file ?? "") || viewTitle;
     }
     if (view === "web" || view === MoltentermBrowserView) {
-        return hostOf(meta.url ?? "") || facts.title;
+        return hostOf(meta.url ?? "") || viewTitle;
     }
-    return facts?.title ?? capitalize(view);
+    return viewTitle || capitalize(view);
 }
 
 // The name the tab shows: the user's, else its first panel's title, else Wave's own.

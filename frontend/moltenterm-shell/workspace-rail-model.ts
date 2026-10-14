@@ -4,6 +4,8 @@
 // The entries of the workspace rail (FR-SHELL-001), from Wave's workspace list. Kept apart from the component so the
 // rules can be tested without the app.
 
+import { t } from "./i18n/i18n";
+
 export type WorkspaceRailSource = { workspace: Workspace; windowId: string };
 
 export type WorkspaceRailEntry = {
@@ -25,7 +27,7 @@ export function isSavedWorkspace(ws: Workspace): boolean {
 function toEntry(ws: Workspace, windowId: string, activeId: string): WorkspaceRailEntry {
     return {
         id: ws.oid,
-        name: ws.name || "Unsaved workspace",
+        name: ws.name || t("rail.unsavedWorkspace"),
         icon: ws.icon,
         color: ws.color,
         saved: isSavedWorkspace(ws),

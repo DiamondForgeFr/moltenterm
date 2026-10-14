@@ -5,6 +5,7 @@
 // and for how long, and what each subject may say. Pure, so the rules can be read and tested apart from the timers
 // and the store that apply them. Mirrored in pkg/molten/notifications.go for what wavesrv publishes.
 
+import { t } from "./i18n/i18n";
 import {
     MoltentermNotification,
     MoltentermNotificationKind,
@@ -28,22 +29,43 @@ export type Delivery = "notify" | "quiet" | "off";
 
 export type NotificationSubject = "agents" | "builds" | "ci" | "releases" | "updates" | "mods" | "dependencies";
 
-// must match NotificationSubjects in pkg/molten/notifications.go
+// must match NotificationSubjects in pkg/molten/notifications.go. labelKey is a dictionary key.
 export const NotificationSubjects: {
     id: NotificationSubject;
-    label: string;
+    labelKey: string;
     sources: MoltentermNotificationSource[];
 }[] = [
-    { id: "agents", label: "Agents", sources: ["agent"] },
-    { id: "builds", label: "Local builds", sources: ["build"] },
-    { id: "ci", label: "CI", sources: ["ci"] },
-    { id: "releases", label: "Releases", sources: ["release"] },
-    { id: "updates", label: "MoltenTerm updates", sources: ["moltenterm"] },
-    { id: "mods", label: "Mods", sources: ["mod"] },
-    { id: "dependencies", label: "Dependencies", sources: ["deps"] },
+    { id: "agents", labelKey: "notif.subjects.agents", sources: ["agent"] },
+    { id: "builds", labelKey: "notif.subjects.builds", sources: ["build"] },
+    { id: "ci", labelKey: "notif.subjects.ci", sources: ["ci"] },
+    { id: "releases", labelKey: "notif.subjects.releases", sources: ["release"] },
+    { id: "updates", labelKey: "notif.subjects.updates", sources: ["moltenterm"] },
+    { id: "mods", labelKey: "notif.subjects.mods", sources: ["mod"] },
+    { id: "dependencies", labelKey: "notif.subjects.dependencies", sources: ["deps"] },
 ];
 
-export const DeliveryLabels: Record<Delivery, string> = { notify: "Notify", quiet: "Quiet", off: "Off" };
+// Dictionary keys of the delivery choices.
+export const DeliveryLabels: Record<Delivery, string> = {
+    notify: "notif.delivery.notify",
+    quiet: "notif.delivery.quiet",
+    off: "notif.delivery.off",
+};
+
+const SourceLabels: Record<MoltentermNotificationSource, string> = {
+    agent: "notif.source.agent",
+    mod: "notif.source.mod",
+    moltenterm: "notif.source.moltenterm",
+    build: "notif.source.build",
+    ci: "notif.source.ci",
+    release: "notif.source.release",
+    deps: "notif.source.deps",
+};
+
+// The source as a row shows it; an unknown one as stored.
+export function notificationSourceLabel(source: string): string {
+    const key = SourceLabels[source as MoltentermNotificationSource];
+    return key ? t(key) : source;
+}
 
 // must match NotificationPrefsMetaKey in pkg/molten/notifications.go
 export const NotificationPrefsMetaKey = "molten:notifprefs";

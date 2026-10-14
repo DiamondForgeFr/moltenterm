@@ -21,6 +21,7 @@ import {
 } from "@floating-ui/react";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
+import { useT } from "./i18n/i18n";
 import { makeViewInActiveTabAtom, toggleMoltentermView } from "./open-view";
 import { railCustomWidgets, railWidgetTooltip, splitRailWidgets } from "./rail-tools-model";
 import { MoltentermReviewsView } from "./reviews/reviews-model";
@@ -217,6 +218,7 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
     const fullConfig = useAtomValue(env.atoms.fullConfigAtom);
     const hasConfigErrors = useAtomValue(env.atoms.hasConfigErrors);
     const workspaceId = useAtomValue(env.atoms.workspaceId);
+    const t = useT();
     const [open, setOpen] = useState<Flyout>(null);
     const [anchors, setAnchors] = useState<Partial<Record<Flyout, HTMLElement>>>({});
 
@@ -235,7 +237,7 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
         env.showContextMenu(
             [
                 {
-                    label: "Edit widgets.json",
+                    label: t("rail.tools.editWidgets"),
                     icon: "pen",
                     click: () =>
                         fireAndForget(() =>
@@ -251,14 +253,14 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
         <div
             role="toolbar"
             aria-orientation="vertical"
-            aria-label="Tools"
+            aria-label={t("rail.tools.label")}
             onContextMenu={onContextMenu}
             className="molten-rail-tools mt-auto flex w-full shrink-0 flex-col items-center gap-0.5 border-t border-border pt-2"
         >
             <SessionsToolButton onHover={onHover} />
             <ViewToggleButton
                 view={MoltentermReviewsView}
-                label="Reviews · pull requests waiting for your review"
+                label={t("rail.tools.reviews")}
                 icon="code-pull-request"
                 onHover={onHover}
                 open={() => ReviewsModel.getInstance().openReviews()}
@@ -275,7 +277,7 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
             ))}
             {overflow.length > 0 ? (
                 <ToolButton
-                    label={`${overflow.length} more widgets`}
+                    label={t("rail.tools.moreWidgets", { count: overflow.length })}
                     onHover={onHover}
                     onClick={() => toggle("more")}
                     buttonRef={anchorRef("more")}
@@ -286,7 +288,7 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
             ) : null}
             {showApps ? (
                 <ToolButton
-                    label="Apps"
+                    label={t("rail.tools.apps")}
                     onHover={onHover}
                     onClick={() => toggle("apps")}
                     buttonRef={anchorRef("apps")}
@@ -297,14 +299,14 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
             ) : null}
             <ViewToggleButton
                 view={MoltentermTipsView}
-                label="Tips"
+                label={t("rail.tools.tips")}
                 icon="lightbulb"
                 onHover={onHover}
                 open={() => env.createBlock({ meta: { view: MoltentermTipsView } }, false, true)}
             />
             <ViewToggleButton
                 view={SettingsView}
-                label={hasConfigErrors ? "Settings · config errors" : "Settings"}
+                label={t(hasConfigErrors ? "rail.tools.settingsErrors" : "rail.tools.settings")}
                 icon="gear"
                 onHover={onHover}
                 open={() => env.createBlock({ meta: { view: SettingsView } }, false, true)}
@@ -312,7 +314,7 @@ export function RailTools({ onHover }: { onHover: RailHover }) {
                 {hasConfigErrors ? (
                     <span
                         className="absolute top-1 right-1.5 h-2 w-2 rounded-full bg-error ring-2 ring-[var(--color-background)]"
-                        aria-label="Config errors"
+                        aria-label={t("rail.tools.configErrors")}
                     />
                 ) : null}
             </ViewToggleButton>

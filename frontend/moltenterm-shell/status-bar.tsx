@@ -13,6 +13,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { readBuildInfo, readRuntimeChannel } from "./build/current-build";
+import { useLocale, useT } from "./i18n/i18n";
 import { KeepAwakeStatusItem } from "./keepawake-ui";
 import { MoltentermCicdView } from "./mission/cicd-view";
 import { openMoltentermView } from "./open-view";
@@ -29,8 +30,8 @@ import {
     StatusBarChannel,
     statusBarFolder,
 } from "./status-bar-model";
-import { GoldUpdateButton } from "./update/update-dialog";
 import { ReleaseUpdateButton } from "./update/release-update-ui";
+import { GoldUpdateButton } from "./update/update-dialog";
 import { folderIconSource, WorkspaceIcon } from "./workspace-icon";
 import { WorkspaceIconSource, workspaceIconSource } from "./workspace-icon-model";
 import { readWorkspaceProject } from "./workspace-project";
@@ -70,6 +71,7 @@ function linkedIconSource(ws: Workspace, folderLogo: string): WorkspaceIconSourc
 }
 
 function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: TreeMarker }) {
+    const t = useT();
     const openView = (view: string) => fireAndForget(() => openMoltentermView(view));
     return (
         <span className="flex min-w-0 items-center gap-2">
@@ -99,7 +101,7 @@ function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: 
                 <button
                     type="button"
                     className={ItemButton}
-                    title={`${pane.ci.label} on this code\nOpen CI/CD`}
+                    title={t("status.ci.title", { label: pane.ci.label })}
                     onClick={() => openView(MoltentermCicdView)}
                 >
                     <i className={cn("fa fa-solid text-11", pane.ci.iconClass)} />
@@ -110,7 +112,7 @@ function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: 
                 <button
                     type="button"
                     className={ItemButton}
-                    title={`${pane.pr.draft ? "Draft pull request" : "Pull request"}: ${pane.pr.title}`}
+                    title={t(pane.pr.draft ? "status.pr.draft" : "status.pr.open", { title: pane.pr.title })}
                     onClick={() => fireAndForget(() => openLink(pane.pr.url))}
                 >
                     <i className="fa fa-solid fa-code-pull-request text-11" />#{pane.pr.number}
@@ -121,6 +123,8 @@ function PaneSection({ pane, ws, tree }: { pane: PaneView; ws: Workspace; tree: 
 }
 
 export function StatusBar() {
+    const t = useT();
+    const locale = useLocale();
     const view = useMemo(() => {
         const api = getApi();
         return makeStatusBarView(readBuildInfo(), {
@@ -128,7 +132,7 @@ export function StatusBar() {
             runtimeChannel: readRuntimeChannel(),
             version: api.getAboutModalDetails()?.version ?? "",
         });
-    }, []);
+    }, [locale]);
     const ws = useAtomValue(atoms.workspace);
     const focusedAtom = useMemo(() => getLayoutModelForStaticTab()?.focusedNode ?? NoFocusedNode, []);
     const focused = useAtomValue(focusedAtom);
@@ -154,8 +158,8 @@ export function StatusBar() {
                 <ReleaseUpdateButton />
                 <button
                     type="button"
-                    title={`${view.tooltip}\n\nRelease notes`}
-                    aria-label={`${view.badge}: release notes`}
+                    title={`${view.tooltip}\n\n${t("status.build.releaseNotes")}`}
+                    aria-label={t("status.build.badgeLabel", { badge: view.badge })}
                     data-testid="build-badge"
                     onClick={() => ReleaseNotesModel.getInstance().open()}
                     className={cn(

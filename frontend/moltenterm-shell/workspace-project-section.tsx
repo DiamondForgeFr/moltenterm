@@ -7,6 +7,7 @@
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
+import { useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import {
     checkPathInside,
@@ -28,15 +29,16 @@ const LinkButtonClass =
     "cursor-pointer rounded-6 px-2 py-1 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary";
 
 function ProjectStatusLine({ facts }: { facts: ProjectFacts }) {
+    const t = useT();
     if (facts == null) {
         return null;
     }
     if (!facts.exists) {
-        return <div className="text-12 text-warning">The folder no longer exists: link the project again.</div>;
+        return <div className="text-12 text-warning">{t("workspace.project.folderGone")}</div>;
     }
     return (
         <div className="text-12 text-muted">
-            {facts.hasPipeline ? "Pipeline ready" : "No pipeline yet"}
+            {t(facts.hasPipeline ? "workspace.project.pipelineReady" : "workspace.project.noPipeline")}
             {facts.harness ? ` · ${facts.harness}` : ""}
         </div>
     );
@@ -44,6 +46,7 @@ function ProjectStatusLine({ facts }: { facts: ProjectFacts }) {
 
 // Where the workspace's new terminals, tabs and file explorer start (FR-SHELL-009).
 export function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
+    const t = useT();
     const folder = effectiveWorkspaceFolder(ws);
     const stored = readWorkspaceFolder(ws);
     const projectDir = readWorkspaceProject(ws).dir;
@@ -52,7 +55,7 @@ export function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
         fireAndForget(async () => {
             const dir = await chooseMoltentermPath({
                 kind: "folder",
-                title: "Workspace folder",
+                title: t("workspace.project.folderDialog"),
                 defaultPath: folder || projectDir || undefined,
             });
             if (dir) {
@@ -64,36 +67,35 @@ export function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <div className="min-w-0 flex-1 basis-40">
                     <div className={cn("truncate text-13 leading-5", folder ? "" : "text-muted")}>
-                        {folder ? pathBaseName(folder) || folder : "Not set yet"}
+                        {folder ? pathBaseName(folder) || folder : t("workspace.project.notSetYet")}
                     </div>
                     <div className="truncate text-12 text-muted" title={folder}>
-                        {folder || "Set by the next folder your terminal goes to"}
+                        {folder || t("workspace.project.setByNext")}
                     </div>
                 </div>
                 <button type="button" onClick={change} className={LinkButtonClass}>
-                    Change…
+                    {t("workspace.project.change")}
                 </button>
                 {stored ? (
                     <button
                         type="button"
-                        title="Forget it: the next folder your terminal goes to is used"
+                        title={t("workspace.project.forgetFolder")}
                         onClick={() => fireAndForget(() => setWorkspaceFolder(ws.oid, null))}
                         className={LinkButtonClass}
                     >
-                        Reset
+                        {t("workspace.project.reset")}
                     </button>
                 ) : null}
             </div>
             <div className="mt-1 text-12 text-muted">
-                {outsideProject
-                    ? "Outside the project: new panels start at its root."
-                    : "New terminals, tabs and files start here."}
+                {t(outsideProject ? "workspace.project.outsideProject" : "workspace.project.startsHere")}
             </div>
         </div>
     );
 }
 
 export function WorkspaceProjectBlock({ ws }: { ws: Workspace }) {
+    const t = useT();
     const project = readWorkspaceProject(ws);
     const [facts, setFacts] = useState<ProjectFacts>(null);
     const [error, setError] = useState<string>(null);
@@ -123,7 +125,7 @@ export function WorkspaceProjectBlock({ ws }: { ws: Workspace }) {
             setError(null);
             const folder = await chooseMoltentermPath({
                 kind: "folder",
-                title: "Link a project",
+                title: t("workspace.project.linkDialog"),
                 defaultPath: project.dir || undefined,
             });
             if (!folder) {
@@ -132,20 +134,20 @@ export function WorkspaceProjectBlock({ ws }: { ws: Workspace }) {
             try {
                 await linkWorkspaceProject(ws, folder);
             } catch (e) {
-                setError(`Could not link the project: ${e?.message ?? e}`);
+                setError(t("workspace.project.linkFailed", { error: e?.message ?? String(e) }));
             }
         });
     return (
         <div className="molten-workspace-project min-w-0 text-left">
             {project.dir === "" ? (
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="min-w-0 text-12 text-muted">Mission Control shows the linked project.</span>
+                    <span className="min-w-0 text-12 text-muted">{t("workspace.project.mcShowsLinked")}</span>
                     <button
                         type="button"
                         onClick={link}
                         className="molten-btn shrink-0 cursor-pointer rounded-6 px-2 py-1 text-12"
                     >
-                        Link a project…
+                        {t("workspace.project.linkProject")}
                         <MoltenWave />
                     </button>
                 </div>
@@ -159,14 +161,14 @@ export function WorkspaceProjectBlock({ ws }: { ws: Workspace }) {
                             </div>
                         </div>
                         <button type="button" onClick={link} className={LinkButtonClass}>
-                            Change…
+                            {t("workspace.project.change")}
                         </button>
                         <button
                             type="button"
                             onClick={() => fireAndForget(() => unlinkWorkspaceProject(ws.oid))}
                             className={LinkButtonClass}
                         >
-                            Unlink
+                            {t("workspace.project.unlink")}
                         </button>
                     </div>
                     <ProjectStatusLine facts={facts} />
