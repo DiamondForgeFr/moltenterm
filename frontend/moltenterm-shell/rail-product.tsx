@@ -18,6 +18,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { mostUrgentAgentState } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
 import { AgentStateDot } from "./agent-state-ui";
+import { useT } from "./i18n/i18n";
 import { ProductCoffeeDrop } from "./keepawake-ui";
 import { productGridEntries, productIconEntry, RailProductUnit, UnitMoves, worstLabel } from "./rail-groups";
 import { RailTray, showRailMenu, useRailTrayHost } from "./rail-tray";
@@ -65,6 +66,7 @@ function RenameField({
     onSave: (name: string) => void;
     onCancel: () => void;
 }) {
+    const t = useT();
     const [value, setValue] = useState(initial);
     const [place, setPlace] = useState<{ top: number; left: number }>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -90,9 +92,9 @@ function RenameField({
         >
             <input
                 ref={inputRef}
-                aria-label="Group name (empty: the first workspace's name)"
+                aria-label={t("rail.group.nameLabel")}
                 value={value}
-                placeholder="Name of the first workspace"
+                placeholder={t("rail.group.namePlaceholder")}
                 onChange={(e) => setValue(e.target.value)}
                 onKeyDown={(e) => {
                     e.stopPropagation();
@@ -212,6 +214,7 @@ export function RailProduct({
     // Its workspaces, as rail items; the rail passes them only while it is expanded.
     children: React.ReactNode;
 }) {
+    const t = useT();
     const ref = useRef<HTMLButtonElement>(null);
     const color = useGroupColor(unit);
     const { isOpen, hostProps } = useRailTrayHost(unit.id, true);
@@ -220,7 +223,7 @@ export function RailProduct({
     const memberActive = unit.entries.some((e) => e.active);
     const showActive = collapsed && memberActive;
     const workspaceIds = unit.entries.map((e) => e.id);
-    const kindLabel = unit.local != null ? "group" : "product";
+    const kindKey = unit.local != null ? "rail.group.groupOf" : "rail.group.productOf";
     const onClick = () => {
         if (takeSuppressedClick()) {
             return;
@@ -285,7 +288,7 @@ export function RailProduct({
                     ref={ref}
                     type="button"
                     tabIndex={nav.tabIndex}
-                    aria-label={`${name}, ${kindLabel} of ${unit.entries.length} workspaces${unread > 0 ? `, ${unread} unread` : ""}`}
+                    aria-label={`${t(kindKey, { name, count: unit.entries.length })}${unread > 0 ? `, ${t("rail.unread", { count: unread })}` : ""}`}
                     aria-expanded={!collapsed}
                     aria-current={showActive ? "true" : undefined}
                     data-rail-product={unit.key}
@@ -342,7 +345,7 @@ export function RailProduct({
                 ) : null}
             </div>
             {collapsed ? null : (
-                <div className="molten-rail-members" role="group" aria-label={`Workspaces of ${name}`}>
+                <div className="molten-rail-members" role="group" aria-label={t("rail.group.workspacesOf", { name })}>
                     {children}
                 </div>
             )}

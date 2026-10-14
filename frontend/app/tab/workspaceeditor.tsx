@@ -1,7 +1,7 @@
 import { fireAndForget, makeIconClass } from "@/util/util";
 import clsx from "clsx";
 import { memo, useEffect, useRef, useState } from "react";
-import { LastWorkspaceReason } from "../../moltenterm-shell/workspace-reset-model"; // MOLTENTERM-PATCH (#222)
+import { lastWorkspaceReason } from "../../moltenterm-shell/workspace-reset-model"; // MOLTENTERM-PATCH (#222, #623)
 import { Button } from "../element/button";
 import { Input } from "../element/input";
 import { WorkspaceService } from "../store/services";
@@ -123,7 +123,7 @@ const WorkspaceEditorComponent = ({
                     <Button className="ghost red text-[12px] bold" onClick={onResetWorkspace}>
                         Reset workspace…
                     </Button>
-                    <div className="text-[11px] text-muted">{LastWorkspaceReason}</div>
+                    <div className="text-[11px] text-muted">{lastWorkspaceReason()}</div>
                 </div>
             ) : (
                 <div className="delete-ws-btn-wrapper">

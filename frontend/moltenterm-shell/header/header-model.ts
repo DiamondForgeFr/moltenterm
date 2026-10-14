@@ -6,6 +6,7 @@
 // pill and the context can be tested without the app.
 
 import { agentCallName, agentLabel, type AgentStateInfo } from "../agent-state-model";
+import { t } from "../i18n/i18n";
 import type { TreeMarker } from "../worktree-model";
 
 export const QuestionMaxChars = 48;
@@ -58,17 +59,17 @@ export function waitingPill(agent: AgentStateInfo): HeaderPillSpec {
     if (agent?.state !== "waiting") {
         return null;
     }
-    const name = agentCallName(agent, "The agent");
+    const name = agentCallName(agent, t("shell.header.theAgent"));
     const question = (agent.message ?? "").replace(/\s+/g, " ").trim();
     // FR-SHELL-052 validation rule: with no text from the Notification hook, the pill says Waiting.
-    const label = question ? truncateQuestion(question) : "Waiting";
+    const label = question ? truncateQuestion(question) : t("shell.header.waiting");
     return {
         kind: "waiting",
         tone: "warning",
         label,
-        title: question ? `${name} asks: ${question}` : `${name} is waiting for you`,
+        title: question ? t("shell.header.asks", { name, question }) : t("shell.header.waitingForYou", { name }),
         dot: true,
-        action: "Go",
+        action: t("shell.header.go"),
     };
 }
 
@@ -76,13 +77,13 @@ export function agentErrorPill(agent: AgentStateInfo): HeaderPillSpec {
     if (agent?.state !== "error") {
         return null;
     }
-    const name = agentCallName(agent, "The agent");
+    const name = agentCallName(agent, t("shell.header.theAgent"));
     const message = (agent.message ?? "").replace(/\s+/g, " ").trim();
     return {
         kind: "error",
         tone: "danger",
-        label: message ? truncateQuestion(message) : "Error",
-        title: message ? `${name}: ${message}` : `${name} stopped on an error`,
+        label: message ? truncateQuestion(message) : t("shell.header.error"),
+        title: message ? `${name}: ${message}` : t("shell.header.stoppedOnError", { name }),
         dot: true,
     };
 }
@@ -94,10 +95,10 @@ export function missingWorktreePill(marker: TreeMarker): HeaderPillSpec {
     return {
         kind: "missingworktree",
         tone: "danger",
-        label: "Missing worktree",
+        label: t("shell.header.missingWorktree"),
         title: marker.title,
         icon: marker.icon,
-        action: "Unlink",
+        action: t("shell.header.unlink"),
     };
 }
 
@@ -108,8 +109,8 @@ export function multiInputPill(on: boolean): HeaderPillSpec {
     return {
         kind: "multiinput",
         tone: "warning",
-        label: "Multi input",
-        title: "Input is sent to all the terminals of this tab (click to stop)",
+        label: t("shell.header.multiInput"),
+        title: t("shell.header.multiInputTitle"),
         icon: "keyboard",
     };
 }
@@ -123,39 +124,55 @@ export function remotePill(connection: string, isLocal: boolean, status: RemoteC
         return null;
     }
     if (status?.status === "connecting") {
-        return { kind: "remote", tone: "neutral", label: "Connecting", title: `Connecting to ${connection}` };
+        return {
+            kind: "remote",
+            tone: "neutral",
+            label: t("shell.header.connecting"),
+            title: t("shell.header.connectingTo", { connection }),
+        };
     }
     if (status?.status === "error") {
         const why = status.error ? ` (${status.error})` : "";
         return {
             kind: "remote",
             tone: "danger",
-            label: "Can't connect",
-            title: `Error connecting to ${connection}${why}`,
+            label: t("shell.header.cantConnect"),
+            title: t("shell.header.errorConnecting", { connection }) + why,
         };
     }
     if (!status?.connected) {
-        return { kind: "remote", tone: "neutral", label: "Disconnected", title: `Disconnected from ${connection}` };
+        return {
+            kind: "remote",
+            tone: "neutral",
+            label: t("shell.header.disconnected"),
+            title: t("shell.header.disconnectedFrom", { connection }),
+        };
     }
     if (status.connhealthstatus === "degraded" || status.connhealthstatus === "stalled") {
-        const label = status.connhealthstatus === "degraded" ? "Degraded" : "Stalled";
-        return { kind: "remote", tone: "warning", label, title: `Connection ${label.toLowerCase()}: ${connection}` };
+        const degraded = status.connhealthstatus === "degraded";
+        return {
+            kind: "remote",
+            tone: "warning",
+            label: t(degraded ? "shell.header.degraded" : "shell.header.stalled"),
+            title: t(degraded ? "shell.header.connectionDegraded" : "shell.header.connectionStalled", { connection }),
+        };
     }
     if (status.status === "connected" && !status.wshenabled) {
         return {
             kind: "remote",
             tone: "neutral",
-            label: "No wsh",
-            title: `wsh is not installed for ${connection}`,
+            label: t("shell.header.noWsh"),
+            title: t("shell.header.noWshTitle", { connection }),
         };
     }
     return null;
 }
 
+// Dictionary keys.
 const DurableStates: Record<string, { label: string; title: string }> = {
-    disconnected: { label: "Detached", title: "Durable session, detached: the shell keeps running." },
-    init: { label: "Starting", title: "Durable session, starting." },
-    done: { label: "Session ended", title: "Durable session, ended." },
+    disconnected: { label: "shell.header.durable.detached", title: "shell.header.durable.detachedTitle" },
+    init: { label: "shell.header.durable.starting", title: "shell.header.durable.startingTitle" },
+    done: { label: "shell.header.durable.ended", title: "shell.header.durable.endedTitle" },
 };
 
 // The durability itself is set in the command panel's MoltenTerm section. Local terminals are durable by default
@@ -169,8 +186,8 @@ export function durablePill(configured: boolean, jobStatus: string): HeaderPillS
     return {
         kind: "durable",
         tone: "neutral",
-        label: state.label,
-        title: `${state.title}\nClick for the session's options.`,
+        label: t(state.label),
+        title: `${t(state.title)}\n${t("shell.header.durable.clickForOptions")}`,
         icon: "shield",
     };
 }
@@ -232,5 +249,5 @@ export function termHeaderTitle(agent: AgentStateInfo, frameTitle: string, viewN
     if (agent != null) {
         return agentLabel(agent);
     }
-    return frameTitle || viewName || "Terminal";
+    return frameTitle || viewName || t("shell.header.terminal");
 }

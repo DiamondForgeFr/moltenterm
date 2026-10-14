@@ -13,7 +13,7 @@ import { useEffect, useRef } from "react";
 import { AgentStateDotClasses } from "./agent-state-model";
 import {
     busyCloseText,
-    KeptHeading,
+    keptHeading,
     RunningItem,
     runningPlace,
     runningStateText,
@@ -21,6 +21,7 @@ import {
 } from "./busy-close-model";
 import { BusyCloseRequest, BusyCloseRequestAtom } from "./busy-close-store";
 import { DialogFrame, useEscape } from "./dialog-frame";
+import { useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 
 export const DangerButton = "molten-btn molten-btn-destructive cursor-pointer rounded-6 px-3 py-1.5 text-12";
@@ -62,6 +63,7 @@ function RunningRow({ item }: { item: RunningItem }) {
 
 // The running list, also shown inside the worktree, reset and tab dialogs.
 export function RunningList({ items, heading }: { items: RunningItem[]; heading?: string }) {
+    const t = useT();
     if (items == null || items.length === 0) {
         return null;
     }
@@ -69,12 +71,12 @@ export function RunningList({ items, heading }: { items: RunningItem[]; heading?
     return (
         <div className="flex flex-col gap-1" data-role="molten-running-list">
             {heading ? <div className="text-secondary">{heading}</div> : null}
-            <ul className="flex flex-col" aria-label="What would stop">
+            <ul className="flex flex-col" aria-label={t("shell.busy.whatWouldStop")}>
                 {shown.map((item) => (
                     <RunningRow key={item.blockId} item={item} />
                 ))}
             </ul>
-            {more > 0 ? <div className="text-muted">and {more} more</div> : null}
+            {more > 0 ? <div className="text-muted">{t("shell.busy.andMore", { count: more })}</div> : null}
         </div>
     );
 }
@@ -94,6 +96,7 @@ export function useRestoreFocus() {
 }
 
 function BusyCloseDialog({ request }: { request: BusyCloseRequest }) {
+    const t = useT();
     const text = busyCloseText(request.action, request.tabName ?? request.name, request.quits);
     const cancelRef = useRef<HTMLButtonElement>(null);
     const blockAtom = request.blockId
@@ -123,7 +126,7 @@ function BusyCloseDialog({ request }: { request: BusyCloseRequest }) {
             buttons={
                 <>
                     <button ref={cancelRef} type="button" className={PlainButton} onClick={() => request.answer(false)}>
-                        Cancel
+                        {t("common.cancel")}
                     </button>
                     <button type="button" className={DangerButton} onClick={() => request.answer(true)}>
                         {text.confirm}
@@ -133,7 +136,7 @@ function BusyCloseDialog({ request }: { request: BusyCloseRequest }) {
             }
         >
             <RunningList items={request.running} />
-            <RunningList items={request.kept} heading={KeptHeading} />
+            <RunningList items={request.kept} heading={keptHeading()} />
         </DialogFrame>
     );
 }

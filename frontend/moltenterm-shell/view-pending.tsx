@@ -9,6 +9,7 @@
 import { getApi, globalStore } from "@/app/store/global";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { EmptyState } from "./empty-state";
+import { useT } from "./i18n/i18n";
 
 export type ViewPendingPhase = "loading" | "retrying" | "failed";
 
@@ -58,9 +59,10 @@ export class ViewPendingModel {
     }
 }
 
+// Dictionary keys.
 const Captions: Record<ViewPendingPhase, string> = {
-    loading: "Opening…",
-    retrying: "Still opening. Your machine is busy.",
+    loading: "shell.pending.opening",
+    retrying: "shell.pending.stillOpening",
     failed: "",
 };
 
@@ -72,14 +74,27 @@ type PendingSurfaceProps = {
 };
 
 export function PendingSurface({ phase, workspaceName, onReload, onDismiss }: PendingSurfaceProps) {
+    const t = useT();
     if (phase === "failed") {
         return (
             <EmptyState
                 icon="hourglass-end"
-                title={workspaceName ? `${workspaceName} did not open` : "This workspace did not open"}
-                hint="Its view did not answer in time, even after a retry."
-                primary={onReload ? { label: "Reload", onClick: onReload, testId: "view-pending-reload" } : null}
-                secondary={onDismiss ? { label: "Dismiss", onClick: onDismiss, testId: "view-pending-dismiss" } : null}
+                title={
+                    workspaceName
+                        ? t("shell.pending.didNotOpen", { name: workspaceName })
+                        : t("shell.pending.workspaceDidNotOpen")
+                }
+                hint={t("shell.pending.noAnswer")}
+                primary={
+                    onReload
+                        ? { label: t("shell.pending.reload"), onClick: onReload, testId: "view-pending-reload" }
+                        : null
+                }
+                secondary={
+                    onDismiss
+                        ? { label: t("common.dismiss"), onClick: onDismiss, testId: "view-pending-dismiss" }
+                        : null
+                }
                 testId="view-pending-failed"
             />
         );
@@ -100,7 +115,7 @@ export function PendingSurface({ phase, workspaceName, onReload, onDismiss }: Pe
                 <div className="molten-view-pending-line" aria-hidden>
                     <span />
                 </div>
-                <p className="text-12 leading-[18px] text-muted">{Captions[phase]}</p>
+                <p className="text-12 leading-[18px] text-muted">{Captions[phase] ? t(Captions[phase]) : ""}</p>
             </div>
         </div>
     );

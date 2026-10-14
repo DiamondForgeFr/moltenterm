@@ -26,6 +26,7 @@ import { openCommandPanel } from "../command-panel/command-panel-store";
 import { sessionTooltipLine } from "../companion/companion-model";
 import { toggleCompanion } from "../companion/companion-open";
 import { CompanionSessions } from "../companion/companion-session-store";
+import { useT } from "../i18n/i18n";
 import { usePaneStatus } from "../pane-status";
 import { formatShortcutById } from "../shortcuts/format";
 import { blockFolder, makePaneView } from "../status-bar-model";
@@ -124,6 +125,7 @@ function useTermTree(blockId: string) {
 // Called once by the header; both the lead and the pill draw from it.
 export function useMoltenHeader(input: MoltenHeaderInput): MoltenHeaderState {
     const { blockId, viewModel, preview, termHeader, manageConnection, connection } = input;
+    const t = useT();
     const termModel = viewModel as TermViewModelLike;
     const agent = useBlockAgentState(termHeader && !preview ? blockId : null);
     const tree = useTermTree(termHeader && !preview ? blockId : null);
@@ -141,8 +143,8 @@ export function useMoltenHeader(input: MoltenHeaderInput): MoltenHeaderState {
                   agentStateTitle(agent),
                   sessionTooltipLine(companionSession, Date.now()),
                   tree.folder,
-                  local && input.localHostName ? `on ${input.localHostName}` : "",
-                  `Click for the agent companion (${companionShortcutLabel()})`,
+                  local && input.localHostName ? t("shell.header.onHost", { host: input.localHostName }) : "",
+                  t("shell.header.clickForCompanion", { shortcut: companionShortcutLabel() }),
               ]
                   .filter((s) => !!s)
                   .join("\n")
@@ -180,7 +182,11 @@ export function useMoltenHeader(input: MoltenHeaderInput): MoltenHeaderState {
         local,
         remoteConnection: manageConnection && !local ? connection : "",
         remoteTitle:
-            manageConnection && !local ? (pill?.kind === "remote" ? pill.title : `Connected to ${connection}`) : "",
+            manageConnection && !local
+                ? pill?.kind === "remote"
+                    ? pill.title
+                    : t("shell.header.connectedTo", { connection })
+                : "",
         context,
         model: agentModelPart(agent),
         modelTitle: agentModelTitle(agent),
@@ -228,6 +234,7 @@ export function MoltenHeaderLead({
     connBtnRef,
     preIcon,
 }: LeadProps) {
+    const t = useT();
     const localSwitch = manageConnection && state.local && !state.preview && iconName != null;
     const icon = localSwitch ? (
         <div
@@ -235,8 +242,12 @@ export function MoltenHeaderLead({
             role="button"
             tabIndex={0}
             className="block-frame-view-icon molten-header-icon-switch cursor-pointer rounded-4 hover:bg-hover"
-            title={`Connected to Local Machine${localHostName ? ` (${localHostName})` : ""}\nClick to switch connection`}
-            aria-label="Switch connection"
+            title={`${
+                localHostName
+                    ? t("shell.header.connectedLocalHost", { host: localHostName })
+                    : t("shell.header.connectedLocal")
+            }\n${t("shell.header.clickToSwitch")}`}
+            aria-label={t("shell.header.switchConnection")}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
                 e.stopPropagation();
@@ -299,7 +310,7 @@ export function MoltenHeaderLead({
                             role="button"
                             tabIndex={0}
                             className="molten-header-context-part molten-header-link cursor-pointer px-1"
-                            title={`${state.remoteTitle}\nClick to switch connection`}
+                            title={`${state.remoteTitle}\n${t("shell.header.clickToSwitch")}`}
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -334,6 +345,7 @@ function stopMultiInput(viewModel: ViewModel) {
 
 // The one pill, at the end of the context (before the end buttons), so it never moves the title or the context.
 export function MoltenHeaderPill({ state, viewModel }: { state: MoltenHeaderState; viewModel: ViewModel }) {
+    const t = useT();
     const pill = state.pill;
     if (pill == null || state.preview) {
         return null;
@@ -345,11 +357,11 @@ export function MoltenHeaderPill({ state, viewModel }: { state: MoltenHeaderStat
     switch (pill.kind) {
         case "waiting":
             onAction = () => refocusNode(blockId);
-            actionLabel = "Go to the terminal";
+            actionLabel = t("notif.goToTerminal");
             break;
         case "missingworktree":
             onAction = () => unlinkWorktree(blockId);
-            actionLabel = "Unlink this terminal from the missing worktree";
+            actionLabel = t("shell.header.unlinkMissing");
             break;
         case "multiinput":
             onClick = () => stopMultiInput(viewModel);

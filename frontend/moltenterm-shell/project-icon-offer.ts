@@ -8,6 +8,7 @@
 
 import { getWebServerEndpoint } from "@/util/endpoints";
 import { fireAndForget } from "@/util/util";
+import { t } from "./i18n/i18n";
 import { ToastInput } from "./toast-model";
 import { dismissToast, showToast } from "./toast-store";
 import { logoUrl, pathBaseName } from "./workspace-project";
@@ -50,12 +51,14 @@ export function makeIconOffer(input: IconOfferInput): ToastInput {
         id,
         kind: "info",
         stays: true,
-        title: `Use ${name}'s logo?`,
-        message: input.workspaceName ? `As the icon of ${input.workspaceName}` : "As this workspace's icon",
+        title: t("shell.iconOffer.title", { name }),
+        message: input.workspaceName
+            ? t("shell.iconOffer.asIconOf", { name: input.workspaceName })
+            : t("shell.iconOffer.asThisIcon"),
         thumbnail: input.thumbnailUrl(logo),
         actions: [
-            { id: "use", label: "Use this icon", run: () => answer(true) },
-            { id: "dismiss", label: "Dismiss", run: () => answer(false) },
+            { id: "use", label: t("shell.iconOffer.use"), run: () => answer(true) },
+            { id: "dismiss", label: t("common.dismiss"), run: () => answer(false) },
         ],
         onDismiss: (reason) => {
             if (reason === "user") {

@@ -5,29 +5,32 @@
 // tested without the app: the name check, what the icon and colour controls are called, how the arrow keys move in
 // their radio groups, and the double-click handed over between two tab views.
 
-import { LastWorkspaceReason } from "./workspace-reset-model";
+import { t } from "./i18n/i18n";
+import { lastWorkspaceReason } from "./workspace-reset-model";
 
-export const EmptyNameError = "A workspace needs a name. The previous name is kept.";
+export function emptyNameError(): string {
+    return t("workspace.edit.emptyName");
+}
 
 // The names of wavesrv's colours (pkg/wcore/workspace.go, WorkspaceColors): a swatch is announced by its name, never by
-// its colour alone (NFR-SHELL-014).
+// its colour alone (NFR-SHELL-014). Values are dictionary keys.
 const ColourNames: Record<string, string> = {
-    "#ff7c0d": "Orange",
-    "#00ffdb": "Teal",
-    "#429dff": "Blue",
-    "#bf55ec": "Purple",
-    "#ff453a": "Red",
-    "#58c142": "Green",
-    "#ffe900": "Yellow",
+    "#ff7c0d": "workspace.colours.orange",
+    "#00ffdb": "workspace.colours.teal",
+    "#429dff": "workspace.colours.blue",
+    "#bf55ec": "workspace.colours.purple",
+    "#ff453a": "workspace.colours.red",
+    "#58c142": "workspace.colours.green",
+    "#ffe900": "workspace.colours.yellow",
 };
 
 const IconNames: Record<string, string> = {
-    "custom@wave-logo-solid": "Wave",
-    "solid@cloud": "Cloud",
-    "layer-group": "Layers",
-    "chart-line": "Chart",
-    "graduation-cap": "Graduation cap",
-    "mug-hot": "Hot mug",
+    "custom@wave-logo-solid": "workspace.icons.wave",
+    "solid@cloud": "workspace.icons.cloud",
+    "layer-group": "workspace.icons.layers",
+    "chart-line": "workspace.icons.chart",
+    "graduation-cap": "workspace.icons.graduationCap",
+    "mug-hot": "workspace.icons.hotMug",
 };
 
 // The name to save, or null when the field is empty: the previous name then stays saved.
@@ -38,18 +41,19 @@ export function checkWorkspaceName(draft: string): string {
 
 export function colourName(colour: string): string {
     if (!colour) {
-        return "No colour";
+        return t("workspace.colours.none");
     }
-    return ColourNames[colour.toLowerCase()] ?? colour;
+    const key = ColourNames[colour.toLowerCase()];
+    return key ? t(key) : colour;
 }
 
 export function iconName(icon: string): string {
     if (!icon) {
-        return "No icon";
+        return t("workspace.icons.none");
     }
     const known = IconNames[icon];
     if (known) {
-        return known;
+        return t(known);
     }
     const bare = icon.replace(/^[a-z]+@/, "").replace(/-/g, " ");
     return bare.charAt(0).toUpperCase() + bare.slice(1);
@@ -62,11 +66,11 @@ export function dangerAction(closable: boolean): DangerAction {
     if (closable) {
         return {
             kind: "delete",
-            label: "Delete workspace",
-            text: "Closes its tabs and panes. You land on another workspace.",
+            label: t("workspace.edit.deleteLabel"),
+            text: t("workspace.edit.deleteText"),
         };
     }
-    return { kind: "reset", label: "Reset workspace…", text: `${LastWorkspaceReason}.` };
+    return { kind: "reset", label: t("workspace.edit.resetLabel"), text: `${lastWorkspaceReason()}.` };
 }
 
 // The option a key moves to in a radio group of count options (WAI-ARIA radio group: the arrows move and select, and

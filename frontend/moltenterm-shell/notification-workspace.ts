@@ -4,6 +4,7 @@
 // The workspace an item of the notification center belongs to (#282), as the row shows it at the start of its meta
 // line. Kept apart from the component so the rules can be tested without the app.
 
+import { t } from "./i18n/i18n";
 import { workspaceIconSource } from "./workspace-icon-model";
 import { pathBaseName, readWorkspaceProject } from "./workspace-project";
 
@@ -22,6 +23,7 @@ export type WorkspaceLabel = {
     missing: boolean;
 };
 
+// English; the label shows t("notif.workspace.deleted").
 export const MissingWorkspaceName = "Deleted workspace";
 
 // null for an item without a workspace: it shows nothing extra.
@@ -37,7 +39,7 @@ export function workspaceLabel(
     if (ws == null) {
         return {
             id: workspaceId,
-            name: MissingWorkspaceName,
+            name: t("notif.workspace.deleted"),
             project: "",
             icon: "",
             color: "",
@@ -49,7 +51,7 @@ export function workspaceLabel(
     }
     const dir = readWorkspaceProject(ws).dir;
     const { logo, image } = workspaceIconSource(ws);
-    const name = ws.name || "Unsaved workspace";
+    const name = ws.name || t("rail.unsavedWorkspace");
     const projectFolder = pathBaseName(dir);
     return {
         id: workspaceId,

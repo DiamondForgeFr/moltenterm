@@ -6,6 +6,7 @@
 // stay set underneath, so an image that is removed or fails to show steps down without an error. Kept apart from the
 // component so the rules can be tested without the app. pkg/molten/workspaceicon.go mirrors the order.
 
+import { t } from "./i18n/i18n";
 import { ProjectLogoMetaKey } from "./workspace-project";
 
 // must match the keys in pkg/molten/workspaceicon.go
@@ -87,7 +88,7 @@ export function hasImportedIcon(ws: Workspace): boolean {
 // What a screen reader hears after the icon and colour names.
 export function iconKindLabel(kind: WorkspaceIconKind): string {
     if (kind === "imported") {
-        return "imported image";
+        return t("workspace.iconKind.imported");
     }
-    return kind === "logo" ? "project logo" : "";
+    return kind === "logo" ? t("workspace.iconKind.logo") : "";
 }

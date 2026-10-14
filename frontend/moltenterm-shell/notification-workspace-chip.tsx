@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { cn } from "@/util/util";
+import { useT } from "./i18n/i18n";
 import { WorkspaceLabel, workspaceLabelText } from "./notification-workspace";
 import { WorkspaceIcon } from "./workspace-icon";
 
@@ -9,6 +10,7 @@ import { WorkspaceIcon } from "./workspace-icon";
 // workspace's colour, on a faint tint drawn with an inline style: the panel's text colours stay on the name, so no
 // accent foreground lands on a tint (#244). In a narrow popover the name truncates and the badge never does.
 export function WorkspaceChip({ label, onGo }: { label: WorkspaceLabel; onGo: () => void }) {
+    const t = useT();
     const text = workspaceLabelText(label);
     const content = (
         <>
@@ -51,8 +53,8 @@ export function WorkspaceChip({ label, onGo }: { label: WorkspaceLabel; onGo: ()
     return (
         <button
             type="button"
-            title={label.current ? text : `Go to ${text}`}
-            aria-label={label.current ? `Workspace ${text}` : `Go to workspace ${text}`}
+            title={label.current ? text : t("notif.workspace.goTo", { name: text })}
+            aria-label={t(label.current ? "notif.workspace.label" : "notif.workspace.goToLabel", { name: text })}
             data-testid="workspace-chip"
             data-current={label.current ? "true" : undefined}
             onClick={(e) => {

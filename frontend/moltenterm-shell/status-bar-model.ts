@@ -7,6 +7,7 @@
 
 import { BuildChannel, makeBuildIdentity } from "./build/build-identity";
 import type { MoltentermBuildInfo } from "./build/build-info";
+import { t } from "./i18n/i18n";
 import {
     checkAbsolutePath,
     checkPathInside,
@@ -35,11 +36,14 @@ export function makeStatusBarView(
 ): StatusBarView {
     const identity = makeBuildIdentity(build, opts);
     const tooltipLines = [
-        `MoltenTerm ${identity.version || "(unknown version)"}, based on Wave Terminal ${identity.waveBase}`,
+        t("status.build.identity", {
+            version: identity.version || t("status.build.unknownVersion"),
+            wave: identity.waveBase,
+        }),
         identity.buildLine,
     ];
     if (build?.builtAt) {
-        tooltipLines.push(`built ${build.builtAt}`);
+        tooltipLines.push(t("status.build.builtAt", { date: build.builtAt }));
     }
     if (identity.commitLine) {
         tooltipLines.push(identity.commitLine);
@@ -111,10 +115,11 @@ export function statusBarFolder(meta: PaneBlockMeta, ws: Workspace): StatusBarFo
 export type CiVerdictView = { status: string; label: string; iconClass: string };
 
 // No run on this code ("missing") says nothing worth the room: the segment shows once a run exists (FR-SHELL-055).
+// Dictionary keys.
 const CiVerdictLabels: Record<string, string> = {
-    success: "CI passed",
-    failure: "CI failed",
-    running: "CI running",
+    success: "status.ci.passed",
+    failure: "status.ci.failed",
+    running: "status.ci.running",
 };
 
 // The same marks as the CI/CD panel (ci-local-panel.tsx).
@@ -126,7 +131,7 @@ const CiVerdictIcons: Record<string, string> = {
 
 export function ciVerdictView(status: string): CiVerdictView {
     return status && CiVerdictLabels[status]
-        ? { status, label: CiVerdictLabels[status], iconClass: CiVerdictIcons[status] }
+        ? { status, label: t(CiVerdictLabels[status]), iconClass: CiVerdictIcons[status] }
         : null;
 }
 
@@ -159,16 +164,30 @@ export function makePaneView(folder: string, state: PaneState, ws: Workspace): P
     const branch = state?.branch || (state?.detached ? shortSha(state.sha) : "");
     const branchLines: string[] = [];
     if (branch !== "") {
-        branchLines.push(state.detached ? `detached at ${shortSha(state.sha)}` : `${branch} at ${shortSha(state.sha)}`);
+        branchLines.push(
+            state.detached
+                ? t("status.branch.detachedAt", { sha: shortSha(state.sha) })
+                : t("status.branch.at", { branch, sha: shortSha(state.sha) })
+        );
         if (state.upstream) {
-            branchLines.push(`${state.ahead ?? 0} ahead, ${state.behind ?? 0} behind ${state.upstream}`);
+            branchLines.push(
+                t("status.branch.aheadBehind", {
+                    ahead: state.ahead ?? 0,
+                    behind: state.behind ?? 0,
+                    upstream: state.upstream,
+                })
+            );
         } else if ((state.ahead ?? 0) > 0) {
-            branchLines.push(`${state.ahead} commit${state.ahead === 1 ? "" : "s"} on no remote`);
+            branchLines.push(
+                t(state.ahead === 1 ? "status.branch.noRemote.one" : "status.branch.noRemote.other", {
+                    count: state.ahead,
+                })
+            );
         }
         if (state.dirty) {
-            branchLines.push("uncommitted changes");
+            branchLines.push(t("status.branch.uncommitted"));
         }
-        branchLines.push("Open the Project tab");
+        branchLines.push(t("status.branch.openProjectTab"));
     }
     const ci = ciVerdictView(state?.ci);
     return {

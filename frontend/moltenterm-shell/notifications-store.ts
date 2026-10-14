@@ -14,6 +14,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
+import { t } from "./i18n/i18n";
 import {
     Delivery,
     deliveryOf,
@@ -255,21 +256,24 @@ export class MoltentermNotifications {
         }
         const gesture = gestures.get(action.gesture);
         if (gesture == null) {
-            this.setError(entry.id, UnknownGestureError);
+            this.setError(entry.id, t("notif.action.unavailable"));
             return;
         }
         this.setRunning(runKey, true);
         try {
             const result = await gesture(action.args ?? {});
             if (!result?.ok) {
-                this.setError(entry.id, `The action failed: ${result?.error ?? "unknown error"}`);
+                this.setError(
+                    entry.id,
+                    t("notif.action.failed", { error: result?.error ?? t("notif.action.unknownError") })
+                );
                 return;
             }
             if (result.resolve && entry.key) {
                 this.resolve(entry.key);
             }
         } catch (e) {
-            this.setError(entry.id, `The action failed: ${e?.message ?? e}`);
+            this.setError(entry.id, t("notif.action.failed", { error: e?.message ?? String(e) }));
         } finally {
             this.setRunning(runKey, false);
         }

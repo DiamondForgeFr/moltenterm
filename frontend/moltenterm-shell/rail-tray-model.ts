@@ -9,6 +9,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
+import { t } from "./i18n/i18n";
 
 // The pointer's intent: a tray opens once the pointer rests this long on its item.
 export const RailTrayDwellMs = 250;
@@ -230,11 +231,11 @@ export function railTabStop(keys: string[], last: string, active: string): strin
 }
 
 export function railMoreLabel(name: string): string {
-    return `More actions for ${name}`;
+    return t("rail.moreActionsFor", { name });
 }
 
 export function railEditLabel(name: string): string {
-    return `Edit ${name}`;
+    return t("rail.editName", { name });
 }
 
 export type RailWorkspaceMenu = {
@@ -250,16 +251,20 @@ export type RailWorkspaceMenu = {
     remove: { enabled: boolean; reason?: string; onDelete: () => void };
 };
 
-// The MenuHost draws the Group heading and the separator before the destructive pair (FR-SHELL-054).
-export const RailGroupSection = "Group";
+// The MenuHost draws the Group heading and the separator before the destructive pair (FR-SHELL-054). Menus are built on
+// each open, so the heading is in the current language.
+export function railGroupSection(): string {
+    return t("rail.menu.groupSection");
+}
 
 // More (DS-SHELL-081): Edit first, reachable while the coffee's mug holds its place in the tray; then the Project tab
 // and the coffee, the Group section, and the destructive pair last. The last workspace's Delete stays, disabled with
 // its reason (#222): the reason is the answer to "why can't I delete it".
 export function railWorkspaceMenu(menu: RailWorkspaceMenu): ContextMenuItem[] {
-    const items: ContextMenuItem[] = [{ label: "Edit workspace…", icon: "pen", click: menu.onEdit }];
+    const RailGroupSection = railGroupSection();
+    const items: ContextMenuItem[] = [{ label: t("rail.menu.editWorkspace"), icon: "pen", click: menu.onEdit }];
     if (menu.onProjectTab != null) {
-        items.push({ label: "Open Project tab", icon: "folder-open", click: menu.onProjectTab });
+        items.push({ label: t("rail.menu.openProjectTab"), icon: "folder-open", click: menu.onProjectTab });
     }
     if (menu.coffee != null) {
         items.push({
@@ -272,14 +277,14 @@ export function railWorkspaceMenu(menu: RailWorkspaceMenu): ContextMenuItem[] {
     }
     if (menu.group != null) {
         items.push({
-            label: menu.group.connecting ? "Stop grouping" : "Group with…",
+            label: t(menu.group.connecting ? "rail.menu.stopGrouping" : "rail.menu.groupWith"),
             icon: "link",
             section: RailGroupSection,
             click: menu.group.onGroupWith,
         });
         if (menu.group.onRemove != null) {
             items.push({
-                label: "Remove from group",
+                label: t("rail.menu.removeFromGroup"),
                 icon: "link-slash",
                 section: RailGroupSection,
                 click: menu.group.onRemove,
@@ -288,9 +293,9 @@ export function railWorkspaceMenu(menu: RailWorkspaceMenu): ContextMenuItem[] {
     }
     items.push(
         { type: "separator" },
-        { label: "Reset workspace…", icon: "rotate-left", click: menu.onReset },
+        { label: t("rail.menu.resetWorkspace"), icon: "rotate-left", click: menu.onReset },
         {
-            label: "Delete workspace…",
+            label: t("rail.menu.deleteWorkspace"),
             icon: "trash",
             destructive: true,
             enabled: menu.remove.enabled,
@@ -309,9 +314,10 @@ export type RailGroupMenu = {
 };
 
 export function railGroupMenu(menu: RailGroupMenu): ContextMenuItem[] {
+    const RailGroupSection = railGroupSection();
     const items: ContextMenuItem[] = [
         {
-            label: menu.collapsed ? "Expand" : "Collapse",
+            label: t(menu.collapsed ? "rail.menu.expand" : "rail.menu.collapse"),
             icon: menu.collapsed ? "chevron-down" : "chevron-up",
             click: menu.onToggle,
         },
@@ -321,13 +327,13 @@ export function railGroupMenu(menu: RailGroupMenu): ContextMenuItem[] {
     }
     items.push(
         {
-            label: menu.local.connecting ? "Stop grouping" : "Add workspaces…",
+            label: t(menu.local.connecting ? "rail.menu.stopGrouping" : "rail.menu.addWorkspaces"),
             icon: "link",
             section: RailGroupSection,
             click: menu.local.onGroupWith,
         },
-        { label: "Rename group…", icon: "pen", section: RailGroupSection, click: menu.local.onRename },
-        { label: "Ungroup", icon: "layer-group", section: RailGroupSection, click: menu.local.onUngroup }
+        { label: t("rail.menu.renameGroup"), icon: "pen", section: RailGroupSection, click: menu.local.onRename },
+        { label: t("rail.menu.ungroup"), icon: "layer-group", section: RailGroupSection, click: menu.local.onUngroup }
     );
     return items;
 }

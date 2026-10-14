@@ -6,6 +6,7 @@
 // where its notification stays unread. Each kind has its own tone: done green, waiting amber, error red, information
 // neutral. Kept apart from the components so the rules can be tested without the app.
 
+import { t } from "./i18n/i18n";
 import { displayActions, MoltentermNotification, MoltentermNotificationKind } from "./notifications-model";
 
 export const MaxToasts = 3;
@@ -20,16 +21,18 @@ export type ToastTone = "done" | "waiting" | "error" | "info";
 
 export type ToastToneView = { tone: ToastTone; label: string; colorClass: string; icon: string };
 
-// The tone is never told by colour alone: each has its own icon, and screen readers hear its label.
+// The tone is never told by colour alone: each has its own icon, and screen readers hear its label (a dictionary key
+// here, translated by toneOf).
 export const ToastTones: Record<MoltentermNotificationKind, ToastToneView> = {
-    success: { tone: "done", label: "Done", colorClass: "text-success", icon: "circle-check" },
-    warning: { tone: "waiting", label: "Waiting", colorClass: "text-warning", icon: "triangle-exclamation" },
-    error: { tone: "error", label: "Error", colorClass: "text-error", icon: "circle-exclamation" },
-    info: { tone: "info", label: "Information", colorClass: "text-secondary", icon: "circle-info" },
+    success: { tone: "done", label: "notif.tone.done", colorClass: "text-success", icon: "circle-check" },
+    warning: { tone: "waiting", label: "notif.tone.waiting", colorClass: "text-warning", icon: "triangle-exclamation" },
+    error: { tone: "error", label: "notif.tone.error", colorClass: "text-error", icon: "circle-exclamation" },
+    info: { tone: "info", label: "notif.tone.info", colorClass: "text-secondary", icon: "circle-info" },
 };
 
 export function toneOf(kind: MoltentermNotificationKind): ToastToneView {
-    return ToastTones[kind] ?? ToastTones.info;
+    const view = ToastTones[kind] ?? ToastTones.info;
+    return { ...view, label: t(view.label) };
 }
 
 export type ToastDismissReason = "user" | "timeout" | "collapsed" | "gone";

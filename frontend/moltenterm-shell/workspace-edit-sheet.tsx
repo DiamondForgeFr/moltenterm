@@ -14,6 +14,7 @@ import { useAtomValue } from "jotai";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { accentForeground, parseColor } from "./accent";
 import { DialogFrame, useEscape } from "./dialog-frame";
+import { t as translateNow, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import { Segment, SegmentedControl } from "./segmented-control";
 import { listenWorkspaceMenu, pickUpWorkspaceEdit, WorkspaceEditModel } from "./workspace-edit";
@@ -21,7 +22,7 @@ import {
     checkWorkspaceName,
     colourName,
     dangerAction,
-    EmptyNameError,
+    emptyNameError,
     iconName,
     moveRadio,
     radioTabStop,
@@ -43,8 +44,7 @@ const SecondaryButtonClass =
     "shrink-0 cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
 const GhostButtonClass =
     "shrink-0 cursor-pointer rounded-6 px-2 py-0.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
-const NoDroppedFileText = "Drop an image file from your disk";
-const ImportFailedText = "The image could not be imported";
+
 const FocusRingClass =
     "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
@@ -182,7 +182,7 @@ function useIconDrop(onPath: (path: string) => void, onRefused: (text: string) =
                 path = "";
             }
             if (!path) {
-                onRefused(NoDroppedFileText);
+                onRefused(translateNow("workspace.edit.noDroppedFile"));
                 return;
             }
             onPath(path);
@@ -193,6 +193,7 @@ function useIconDrop(onPath: (path: string) => void, onRefused: (text: string) =
 
 // Asked before a project image replaces the imported one (FR-SHELL-031 AC7): the imported copy would be deleted.
 function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+    const t = useT();
     const confirmRef = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         confirmRef.current?.focus();
@@ -200,12 +201,12 @@ function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; o
     return (
         <div
             role="group"
-            aria-label="Replace the imported image"
+            aria-label={t("workspace.edit.replaceImage")}
             data-role="replace-image-confirm"
             className="flex flex-wrap items-center gap-2 rounded-4 border border-border px-2 py-1.5"
         >
             <span className="min-w-0 flex-1 basis-48 text-12 text-secondary">
-                Replace the imported image? Its copy is deleted.
+                {t("workspace.edit.replaceImageQuestion")}
             </span>
             <button
                 ref={confirmRef}
@@ -213,11 +214,11 @@ function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; o
                 onClick={onConfirm}
                 className="molten-btn molten-btn-warning shrink-0 cursor-pointer rounded-6 px-2 py-1 text-12"
             >
-                Replace
+                {t("workspace.edit.replace")}
                 <MoltenWave />
             </button>
             <button type="button" onClick={onCancel} className={cn(SecondaryButtonClass, FocusRingClass)}>
-                Cancel
+                {t("common.cancel")}
             </button>
         </div>
     );
@@ -248,6 +249,7 @@ export function ImagePane({
     onPick: () => void;
     onLogo: (logo: string) => void;
 }) {
+    const t = useT();
     const imported = hasImportedIcon(ws);
     const source = workspaceIconSource(ws);
     const current = imported ? "" : source.logo;
@@ -268,7 +270,7 @@ export function ImagePane({
                         key={logo}
                         type="button"
                         aria-pressed={logo === current}
-                        aria-label={`Project image ${pathBaseName(logo)}`}
+                        aria-label={t("workspace.edit.projectImage", { name: pathBaseName(logo) })}
                         title={logo}
                         data-image-kind="project"
                         onClick={() => onLogo(logo)}
@@ -284,8 +286,8 @@ export function ImagePane({
                 {imported ? (
                     <span
                         role="img"
-                        aria-label="Imported image, in use"
-                        title="Imported image"
+                        aria-label={t("workspace.edit.importedInUse")}
+                        title={t("workspace.edit.importedImage")}
                         data-image-kind="imported"
                         className={cn(ImageTileClass, "cursor-default border-accent bg-accent/10")}
                     >
@@ -296,8 +298,8 @@ export function ImagePane({
                     type="button"
                     disabled={busy}
                     onClick={onPick}
-                    aria-label={imported ? "Replace the imported image…" : "Import an image…"}
-                    title={imported ? "Replace the imported image…" : "Import an image…"}
+                    aria-label={t(imported ? "workspace.edit.replaceImported" : "workspace.edit.importImage")}
+                    title={t(imported ? "workspace.edit.replaceImported" : "workspace.edit.importImage")}
                     data-action="import-image"
                     className={cn(
                         ImageTileClass,
@@ -317,9 +319,7 @@ export function ImagePane({
                         {result.text}
                     </span>
                 ) : (
-                    <span className="text-muted">
-                        {over ? "Drop to use this image" : "Or drop a PNG, JPG, WebP, SVG or ICO (1 MB) here"}
-                    </span>
+                    <span className="text-muted">{t(over ? "workspace.edit.dropToUse" : "workspace.edit.orDrop")}</span>
                 )}
             </div>
         </div>
@@ -335,13 +335,18 @@ function RailBadgePreview({
     over: boolean;
     dropHandlers: React.HTMLAttributes<HTMLDivElement>;
 }) {
+    const t = useT();
     const source = workspaceIconSource(ws);
     const kind = iconKindLabel(source.image ? "imported" : source.logo ? "logo" : "builtin");
     return (
         <div className="flex shrink-0 flex-col items-center gap-1" {...dropHandlers}>
             <div
                 role="img"
-                aria-label={`Rail badge: ${iconName(ws.icon)}, ${colourName(ws.color)}${kind ? `, ${kind}` : ""}`}
+                aria-label={t(kind ? "workspace.edit.railBadgeKind" : "workspace.edit.railBadge", {
+                    icon: iconName(ws.icon),
+                    colour: colourName(ws.color),
+                    kind,
+                })}
                 data-role="rail-preview"
                 className={cn(
                     RailBadgeClass,
@@ -352,7 +357,7 @@ function RailBadgePreview({
                 <WorkspaceIcon source={source} />
             </div>
             <div className="text-11 text-muted" aria-hidden>
-                In the rail
+                {t("workspace.edit.inTheRail")}
             </div>
         </div>
     );
@@ -361,8 +366,8 @@ function RailBadgePreview({
 type IconMode = "symbol" | "image";
 
 const IconModes: Segment<IconMode>[] = [
-    { value: "symbol", label: "Symbol" },
-    { value: "image", label: "Image" },
+    { value: "symbol", label: "workspace.edit.symbol" },
+    { value: "image", label: "workspace.edit.image" },
 ];
 
 // The side the Icon field opens on: Image while an image shows in the rail.
@@ -371,6 +376,7 @@ export function initialIconMode(ws: Workspace): IconMode {
 }
 
 function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObject<HTMLInputElement> }) {
+    const t = useT();
     const nameId = useId();
     const errorId = useId();
     const iconLabelId = useId();
@@ -435,7 +441,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                 setResult(await fn());
             } catch (e) {
                 console.log("workspace icon:", e);
-                setResult({ ok: false, text: ImportFailedText });
+                setResult({ ok: false, text: translateNow("workspace.edit.importFailed") });
             } finally {
                 setBusy(false);
             }
@@ -445,12 +451,17 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
         setMode("image");
         runIconChange(async () => {
             const refusal = await WorkspaceService.ImportWorkspaceIcon(ws.oid, path);
-            return refusal ? { ok: false, text: refusal } : { ok: true, text: `Imported ${pathBaseName(path)}` };
+            return refusal
+                ? { ok: false, text: refusal }
+                : { ok: true, text: translateNow("workspace.edit.imported", { name: pathBaseName(path) }) };
         });
     };
     const pick = () =>
         fireAndForget(async () => {
-            const path = await chooseMoltentermPath({ kind: "workspaceicon", title: "Workspace icon" });
+            const path = await chooseMoltentermPath({
+                kind: "workspaceicon",
+                title: translateNow("workspace.edit.iconDialogTitle"),
+            });
             if (path) {
                 importPath(path);
             }
@@ -467,7 +478,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
             if (source.logo) {
                 await setWorkspaceLogo(ws.oid, null);
             }
-            return { ok: true, text: "Back to the symbol" };
+            return { ok: true, text: translateNow("workspace.edit.backToSymbol") };
         });
     const chooseLogo = (logo: string) => {
         if (imported) {
@@ -483,7 +494,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
         runIconChange(async () => {
             await WorkspaceService.RemoveWorkspaceIcon(ws.oid);
             await setWorkspaceLogo(ws.oid, logo);
-            return { ok: true, text: `Using ${pathBaseName(logo)}` };
+            return { ok: true, text: translateNow("workspace.edit.using", { name: pathBaseName(logo) }) };
         });
     };
     const drop = useIconDrop(importPath, (text) => {
@@ -491,12 +502,12 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
         setResult({ ok: false, text });
     });
     return (
-        <Section title="Identity" first>
+        <Section title={t("workspace.edit.identity")} first>
             <div className="flex min-w-0 items-start gap-3">
                 <RailBadgePreview ws={ws} over={drop.over} dropHandlers={drop.handlers} />
                 <div className="min-w-0 flex-1">
                     <label htmlFor={nameId} className={cn(FieldLabelClass, "flex")}>
-                        Name
+                        {t("workspace.edit.name")}
                     </label>
                     <input
                         id={nameId}
@@ -513,7 +524,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                         )}
                     />
                     <div id={errorId} aria-live="polite" className="mt-1 min-h-4 text-12 text-error">
-                        {invalid ? EmptyNameError : ""}
+                        {invalid ? emptyNameError() : ""}
                     </div>
                 </div>
             </div>
@@ -521,11 +532,11 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                 <div className="min-w-0" role="group" aria-labelledby={iconLabelId} data-role="icon-field">
                     <div className="mb-1.5 flex items-center justify-between gap-2">
                         <div id={iconLabelId} className="text-12 text-secondary">
-                            Icon
+                            {t("workspace.edit.icon")}
                         </div>
                         <SegmentedControl<IconMode>
-                            label="Icon kind"
-                            segments={IconModes}
+                            label={t("workspace.edit.iconKind")}
+                            segments={IconModes.map((s) => ({ ...s, label: t(s.label) }))}
                             selected={mode}
                             onSelect={(next) => setMode(next)}
                         />
@@ -534,7 +545,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                         <div className="flex min-w-0 flex-col gap-1.5">
                             {showsImage ? (
                                 <div className="flex flex-wrap items-center gap-2 text-12 text-muted">
-                                    <span className="min-w-0 flex-1">The rail shows an image instead.</span>
+                                    <span className="min-w-0 flex-1">{t("workspace.edit.railShowsImage")}</span>
                                     <button
                                         type="button"
                                         disabled={busy}
@@ -542,7 +553,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                                         data-action="use-symbol"
                                         className={cn(GhostButtonClass, FocusRingClass)}
                                     >
-                                        Use the symbol
+                                        {t("workspace.edit.useSymbol")}
                                     </button>
                                 </div>
                             ) : null}
@@ -586,9 +597,10 @@ export function IconChoices({
     color: string;
     onSelect: (icon: string) => void;
 }) {
+    const t = useT();
     return (
         <RadioGrid
-            label="Symbol"
+            label={t("workspace.edit.symbol")}
             hideLabel
             options={icons}
             selected={selected}
@@ -626,9 +638,10 @@ export function ColourChoices({
     selected: string;
     onSelect: (color: string) => void;
 }) {
+    const t = useT();
     return (
         <RadioGrid
-            label="Colour"
+            label={t("workspace.edit.colour")}
             options={colors}
             selected={selected}
             onSelect={onSelect}
@@ -662,6 +675,7 @@ export function ColourChoices({
 }
 
 export function DangerSection({ ws, closable, onClose }: { ws: Workspace; closable: boolean; onClose: () => void }) {
+    const t = useT();
     const action = dangerAction(closable);
     // The sheet closes first: Delete asks in a native box, Reset in its own dialog (#222).
     const run = () => {
@@ -673,7 +687,7 @@ export function DangerSection({ ws, closable, onClose }: { ws: Workspace; closab
         }
     };
     return (
-        <Section title="Danger zone">
+        <Section title={t("workspace.edit.dangerZone")}>
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 flex-1 basis-48 text-12 text-muted">{action.text}</div>
                 <button
@@ -698,6 +712,7 @@ export function WorkspaceEditSheet({
     closable: boolean;
     onClose: () => void;
 }) {
+    const t = useT();
     const [ws] = useWaveObjectValue<Workspace>(makeORef("workspace", workspaceId));
     const nameRef = useRef<HTMLInputElement>(null);
     const loaded = ws != null;
@@ -715,7 +730,7 @@ export function WorkspaceEditSheet({
     return (
         <DialogFrame
             role="workspace-edit"
-            title="Workspace"
+            title={t("workspace.edit.title")}
             subtitle={effectiveWorkspaceFolder(ws) || undefined}
             subtitleClass="font-mono text-11"
             widthClass="w-[560px]"
@@ -727,16 +742,16 @@ export function WorkspaceEditSheet({
                     className="molten-btn cursor-pointer rounded-6 px-4 py-1.5 text-12"
                     onClick={onClose}
                 >
-                    Done
+                    {t("workspace.edit.done")}
                     <MoltenWave />
                 </button>
             }
         >
             <IdentitySection ws={ws} nameRef={nameRef} />
-            <Section title="Project">
+            <Section title={t("workspace.edit.project")}>
                 <WorkspaceProjectBlock ws={ws} />
             </Section>
-            <Section title="Folder">
+            <Section title={t("workspace.edit.folder")}>
                 <WorkspaceFolderLine ws={ws} />
             </Section>
             <DangerSection ws={ws} closable={closable} onClose={onClose} />

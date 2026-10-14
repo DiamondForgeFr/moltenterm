@@ -5,7 +5,15 @@
 // is reset instead (one new tab). wavesrv enforces the same rule (pkg/wcore/moltenterm_workspace.go); this side decides
 // what the rail and the editor offer.
 
+import { t } from "./i18n/i18n";
+
+// English, for Wave's workspace editor until it routes the text through a key; MoltenTerm code calls
+// lastWorkspaceReason().
 export const LastWorkspaceReason = "The only workspace: reset it instead";
+
+export function lastWorkspaceReason(): string {
+    return t("workspace.reset.lastReason");
+}
 
 // entries are every workspace the rail shows, the unsaved one of this window included. A window that shows an unsaved
 // workspace is not in that list, so the rule may refuse a close wavesrv would accept, never the reverse.
@@ -13,15 +21,14 @@ export function canCloseWorkspace(entries: { id: string }[], workspaceId: string
     return (entries ?? []).some((e) => e?.id && e.id !== workspaceId);
 }
 
-function plural(n: number, one: string, many: string): string {
-    return `${n} ${n === 1 ? one : many}`;
-}
-
 // What the reset confirmation says is lost.
 export function resetLossText(tabCount: number, paneCount: number): string {
-    const tabs = plural(tabCount, "tab", "tabs");
+    const tabs = t(tabCount === 1 ? "workspace.reset.tabs.one" : "workspace.reset.tabs.other", { count: tabCount });
     if (paneCount === 0) {
-        return `Its ${tabs} will be closed.`;
+        return t("workspace.reset.lossTabs", { tabs });
     }
-    return `Its ${tabs} and the ${plural(paneCount, "pane", "panes")} they hold will be closed: their terminals and agents stop and the layout is lost.`;
+    const panes = t(paneCount === 1 ? "workspace.reset.panes.one" : "workspace.reset.panes.other", {
+        count: paneCount,
+    });
+    return t("workspace.reset.lossTabsPanes", { tabs, panes });
 }

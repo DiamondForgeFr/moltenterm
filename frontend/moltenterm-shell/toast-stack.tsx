@@ -9,6 +9,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { useT } from "./i18n/i18n";
 import { InlineCodeText, plainInlineText } from "./inline-code";
 import { Toast, ToastDismissMs, toneOf } from "./toast-model";
 import { Toasts } from "./toast-store";
@@ -20,6 +21,7 @@ const OtherActionClass =
     "molten-btn-ghost h-6 cursor-pointer rounded-6 px-2 text-12 text-secondary hover:text-primary disabled:opacity-60";
 
 function ToastItem({ toast }: { toast: Toast }) {
+    const t = useT();
     const model = Toasts.getInstance();
     const tone = toneOf(toast.kind);
     const [running, setRunning] = useState<string>(null);
@@ -131,7 +133,7 @@ function ToastItem({ toast }: { toast: Toast }) {
                                 onClick={() => run(action.id, action.run)}
                                 className={i === 0 ? FirstActionClass : OtherActionClass}
                             >
-                                {running === action.id ? "Running…" : action.label}
+                                {running === action.id ? t("notif.center.running") : action.label}
                             </button>
                         ))}
                     </div>
@@ -139,8 +141,8 @@ function ToastItem({ toast }: { toast: Toast }) {
             </div>
             <button
                 type="button"
-                aria-label="Dismiss"
-                title="Dismiss"
+                aria-label={t("common.dismiss")}
+                title={t("common.dismiss")}
                 onClick={() => model.dismiss(toast.id, "user")}
                 className="molten-btn-ghost -mt-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-muted hover:text-primary"
             >
@@ -151,13 +153,14 @@ function ToastItem({ toast }: { toast: Toast }) {
 }
 
 export function ToastStack({ onOpenCenter }: { onOpenCenter: () => void }) {
+    const t = useT();
     const model = Toasts.getInstance();
     const stack = useAtomValue(model.stackAtom, { store: globalStore });
     const collapsed = useAtomValue(model.collapsedAtom, { store: globalStore });
     return (
         <div
             data-testid="toast-stack"
-            aria-label="Notifications"
+            aria-label={t("notif.center.title")}
             className="molten-toast-stack pointer-events-none fixed right-4 bottom-10 z-[9400] flex w-[360px] max-w-[calc(100vw-32px)] flex-col items-stretch gap-2"
         >
             {collapsed > 0 && stack.length > 0 ? (
@@ -166,7 +169,7 @@ export function ToastStack({ onOpenCenter }: { onOpenCenter: () => void }) {
                     onClick={onOpenCenter}
                     className="molten-btn-ghost pointer-events-auto cursor-pointer self-end rounded-6 px-2 py-0.5 text-11 text-muted hover:text-primary"
                 >
-                    {collapsed} more in Notifications
+                    {t("notif.toast.moreInCenter", { count: collapsed })}
                 </button>
             ) : null}
             {stack.map((toast) => (

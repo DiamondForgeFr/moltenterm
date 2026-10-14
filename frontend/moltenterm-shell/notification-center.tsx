@@ -15,6 +15,7 @@ import { Component, ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AgentHandoffGesture, answerAgentHandoff } from "./agent-handoff";
 import { startHandoffSystemNotifications } from "./handoff-system-notify";
+import { t as translateNow, useT } from "./i18n/i18n";
 import { InlineCodeText } from "./inline-code";
 import { DepSyncHost } from "./mission/dep-sync";
 import {
@@ -22,6 +23,7 @@ import {
     Delivery,
     DeliveryLabels,
     MaxRenderedRows,
+    notificationSourceLabel,
     NotificationSubject,
     NotificationSubjects,
     subjectOf,
@@ -61,7 +63,7 @@ function registerBuiltInGestures(): () => void {
     const unregister = [
         registerNotificationGesture("path:reveal", async (args) => {
             if (typeof args.path !== "string" || args.path === "") {
-                return { ok: false, error: "no path to show" };
+                return { ok: false, error: translateNow("notif.center.noPath") };
             }
             getApi().openNativePath(pathParent(args.path) || args.path);
             return { ok: true };
@@ -101,6 +103,7 @@ function NotificationRow({
     const anyRunning = actions.some((a) => running[`${entry.id}:${a.id}`]);
     const hasOrigin = !!(entry.workspaceid || entry.tabid || entry.blockid);
     const subject = subjectOf(entry.source);
+    const t = useT();
     return (
         <div
             className={cn(
@@ -125,8 +128,8 @@ function NotificationRow({
                     {!archived ? (
                         <button
                             type="button"
-                            title="Archive this notification"
-                            aria-label="Archive this notification"
+                            title={t("notif.center.archiveOne")}
+                            aria-label={t("notif.center.archiveOne")}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onArchive();
@@ -151,11 +154,11 @@ function NotificationRow({
                     ) : null}
                     {resolved ? (
                         <>
-                            <span className="shrink-0">✓ Resolved</span>
+                            <span className="shrink-0">✓ {t("notif.center.resolved")}</span>
                             <span>·</span>
                         </>
                     ) : null}
-                    <span className="shrink-0">{entry.source}</span>
+                    <span className="shrink-0">{notificationSourceLabel(entry.source)}</span>
                     <span>·</span>
                     <span className="shrink-0 tabular-nums">{formatAge(entry.updated, now)}</span>
                     {entry.kind === "info" && subject != null && !archived ? (
@@ -167,7 +170,7 @@ function NotificationRow({
                             }}
                             className="ml-auto cursor-pointer rounded-6 px-1 text-muted opacity-0 group-hover:opacity-100 hover:text-primary focus-visible:opacity-100"
                         >
-                            Don't tell me again…
+                            {t("notif.center.silence")}
                         </button>
                     ) : null}
                 </div>
@@ -184,7 +187,7 @@ function NotificationRow({
                                 }}
                                 className={i === 0 ? MainActionClass : OtherActionClass}
                             >
-                                {running[`${entry.id}:${action.id}`] ? "Running…" : action.label}
+                                {running[`${entry.id}:${action.id}`] ? t("notif.center.running") : action.label}
                             </button>
                         ))}
                     </div>
@@ -211,7 +214,7 @@ class RowBoundary extends Component<{ children: ReactNode }, { failed: boolean }
         if (this.state.failed) {
             return (
                 <div className="border-b border-border px-3 py-2 text-12 text-muted">
-                    This notification could not be shown.
+                    {translateNow("notif.center.rowFailed")}
                 </div>
             );
         }
@@ -251,6 +254,7 @@ function ProgressRing({ progress }: { progress: number }) {
 }
 
 function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; now: number }) {
+    const t = useT();
     const [confirming, setConfirming] = useState(false);
     const [error, setError] = useState<string>(null);
     const measured = item.progress >= 0;
@@ -270,7 +274,7 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
                         onClick={() => setConfirming(true)}
                         className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
                     >
-                        Stop
+                        {t("notif.work.stop")}
                     </button>
                 ) : null}
             </div>
@@ -298,17 +302,19 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
                 ) : null}
                 {item.detail ? <span className="min-w-0 truncate">{item.detail}</span> : null}
                 {item.detail && elapsed ? <span>·</span> : null}
-                {elapsed ? <span className="shrink-0 tabular-nums">started {elapsed}</span> : null}
+                {elapsed ? <span className="shrink-0 tabular-nums">{t("notif.work.started", { elapsed })}</span> : null}
             </div>
             {confirming ? (
                 <div className="mt-1.5 flex items-center justify-end gap-2 text-12">
-                    <span className="mr-auto text-secondary">Stop {item.title}?</span>
+                    <span className="mr-auto text-secondary">
+                        {t("notif.work.stopQuestion", { title: item.title })}
+                    </span>
                     <button
                         type="button"
                         onClick={() => setConfirming(false)}
                         className="cursor-pointer rounded-6 px-1.5 py-0.5 text-secondary hover:bg-hover hover:text-primary"
                     >
-                        Keep it
+                        {t("notif.work.keepIt")}
                     </button>
                     <button
                         type="button"
@@ -324,7 +330,7 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
                         }
                         className="cursor-pointer rounded-6 border border-error/50 px-1.5 py-0.5 text-error hover:bg-error/10"
                     >
-                        Stop
+                        {t("notif.work.stop")}
                     </button>
                 </div>
             ) : null}
@@ -334,11 +340,12 @@ function WorkRow({ item, label, now }: { item: WorkItem; label: WorkspaceLabel; 
 }
 
 function SettingsView({ highlight }: { highlight: NotificationSubject }) {
+    const t = useT();
     const model = MoltentermNotifications.getInstance();
     const prefs = useAtomValue(model.prefsAtom, { store: globalStore });
     return (
         <div className="flex flex-col gap-1 px-3 py-2" data-testid="notification-settings">
-            <div className="pb-1 text-12 text-secondary">What each subject may tell. Errors are always told.</div>
+            <div className="pb-1 text-12 text-secondary">{t("notif.settings.intro")}</div>
             {NotificationSubjects.map((subject) => {
                 const chosen = prefs[subject.id] ?? "notify";
                 return (
@@ -349,10 +356,10 @@ function SettingsView({ highlight }: { highlight: NotificationSubject }) {
                             highlight === subject.id && "bg-accent/10 ring-1 ring-accent/40"
                         )}
                     >
-                        <span className="min-w-0 flex-1 truncate text-primary">{subject.label}</span>
+                        <span className="min-w-0 flex-1 truncate text-primary">{t(subject.labelKey)}</span>
                         <div
                             role="radiogroup"
-                            aria-label={subject.label}
+                            aria-label={t(subject.labelKey)}
                             className="flex rounded-4 border border-border p-0.5"
                         >
                             {(["notify", "quiet", "off"] as Delivery[]).map((delivery) => (
@@ -367,21 +374,20 @@ function SettingsView({ highlight }: { highlight: NotificationSubject }) {
                                         chosen === delivery ? "bg-hover text-primary" : "text-muted hover:text-primary"
                                     )}
                                 >
-                                    {DeliveryLabels[delivery]}
+                                    {t(DeliveryLabels[delivery])}
                                 </button>
                             ))}
                         </div>
                     </div>
                 );
             })}
-            <div className="pt-1 text-11 text-muted">
-                Quiet keeps the message here, already read: no badge and no toast. Off does not keep it.
-            </div>
+            <div className="pt-1 text-11 text-muted">{t("notif.settings.footer")}</div>
         </div>
     );
 }
 
 export function NotificationCenter() {
+    const t = useT();
     const model = MoltentermNotifications.getInstance();
     const entries = useAtomValue(model.entriesAtom, { store: globalStore });
     const listed = useAtomValue(model.shownEntriesAtom, { store: globalStore });
@@ -485,11 +491,11 @@ export function NotificationCenter() {
 
     const bellLabel = [
         unread > 0
-            ? `Notifications, ${unread} unread`
+            ? t("notif.center.bellUnread", { count: unread })
             : open > 0
-              ? `Notifications, ${open} still open`
-              : "Notifications",
-        work.length > 0 ? `${work.length} running` : null,
+              ? t("notif.center.bellOpen", { count: open })
+              : t("notif.center.title"),
+        work.length > 0 ? t("notif.center.bellRunning", { count: work.length }) : null,
     ]
         .filter(Boolean)
         .join(" · ");
@@ -553,7 +559,7 @@ export function NotificationCenter() {
                                       tab === "active" ? "text-primary" : "text-muted hover:text-secondary"
                                   )}
                               >
-                                  Notifications
+                                  {t("notif.center.title")}
                               </button>
                               {archived.length > 0 ? (
                                   <button
@@ -566,18 +572,18 @@ export function NotificationCenter() {
                                               : "text-muted hover:text-secondary"
                                       )}
                                   >
-                                      Archived
+                                      {t("notif.center.archived")}
                                   </button>
                               ) : null}
                               <span className="flex-1" />
                               {tab === "archived" ? (
                                   <button
                                       type="button"
-                                      title="Deletes the archived notifications for good."
+                                      title={t("notif.center.clearTitle")}
                                       onClick={() => model.clearArchive()}
                                       className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
                                   >
-                                      Clear
+                                      {t("notif.center.clear")}
                                   </button>
                               ) : tab === "active" && unread > 0 ? (
                                   <button
@@ -585,13 +591,13 @@ export function NotificationCenter() {
                                       onClick={() => model.markAllRead()}
                                       className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
                                   >
-                                      Mark all as read
+                                      {t("notif.center.markAllRead")}
                                   </button>
                               ) : null}
                               <button
                                   type="button"
-                                  title="What each subject may tell"
-                                  aria-label="Notification settings"
+                                  title={t("notif.center.settingsTitle")}
+                                  aria-label={t("notif.center.settingsLabel")}
                                   onClick={() => {
                                       setHighlight(null);
                                       setTab(tab === "settings" ? "active" : "settings");
@@ -609,7 +615,7 @@ export function NotificationCenter() {
                               {showWork ? (
                                   <div className="border-b border-border">
                                       <div className="px-3 pt-2 text-11 font-medium tracking-wide text-muted uppercase">
-                                          Running
+                                          {t("notif.center.runningHeading")}
                                       </div>
                                       {work.map((item) => (
                                           <WorkRow
@@ -627,7 +633,7 @@ export function NotificationCenter() {
                               ) : null}
                               {tab !== "settings" && shown.length === 0 && !showWork ? (
                                   <div className="px-3 py-6 text-center text-secondary">
-                                      {tab === "archived" ? "Nothing archived." : "Nothing needs your attention."}
+                                      {t(tab === "archived" ? "notif.center.emptyArchived" : "notif.center.empty")}
                                   </div>
                               ) : null}
                               {tab !== "settings"
@@ -664,7 +670,9 @@ export function NotificationCenter() {
                                     ))
                                   : null}
                               {tab !== "settings" && hidden > 0 ? (
-                                  <div className="px-3 py-2 text-center text-12 text-muted">+{hidden} more</div>
+                                  <div className="px-3 py-2 text-center text-12 text-muted">
+                                      {t("notif.center.more", { count: hidden })}
+                                  </div>
                               ) : null}
                           </div>
                       </div>,
