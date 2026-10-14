@@ -4,6 +4,7 @@
 // Reopening the last closed pane or tab (#512): names shared with pkg/molten/reopen, and the toast that says what came
 // back.
 
+import { t } from "../i18n/i18n";
 import { MoltentermNotificationKind } from "../notifications-model";
 
 export const ReopenRoute = "molten:reopen";
@@ -32,17 +33,19 @@ function displayPath(path: string, home: string): string {
 
 export function reopenToast(result: ReopenResult, home?: string): ReopenToast {
     if (!result?.reopened) {
-        return { kind: "info", title: "Nothing to reopen" };
+        return { kind: "info", title: t("reopen.nothing") };
     }
     // A pane's name comes worded (pkg/molten/reopen PaneName: "the terminal", or its own title).
-    const title = result.kind === "tab" ? `Reopened the tab “${result.name}”` : `Reopened ${result.name}`;
+    const title =
+        result.kind === "tab" ? t("reopen.tab", { name: result.name }) : t("reopen.pane", { name: result.name });
     if (!result.freshshell) {
         return { kind: "success", title };
     }
-    const where = result.cwd ? ` in ${displayPath(result.cwd, home)}` : "";
     return {
         kind: "success",
         title,
-        message: `A new shell started${where}: the closed one cannot be brought back.`,
+        message: result.cwd
+            ? t("reopen.freshShellIn", { path: displayPath(result.cwd, home) })
+            : t("reopen.freshShell"),
     };
 }

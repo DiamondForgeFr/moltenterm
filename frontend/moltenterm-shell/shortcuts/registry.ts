@@ -8,6 +8,8 @@
 
 import { isMacOS } from "@/util/platformutil";
 import { PinText } from "../view360/pin-text";
+import { t } from "../i18n/i18n";
+import { hasKey } from "../i18n/i18n-core";
 
 export type ShortcutCategory =
     | "Panels"
@@ -338,6 +340,18 @@ export const Shortcuts: Shortcut[] = [
         keys: "Tab",
     },
 ];
+
+// The label and category the sheet shows, in the interface language: the registry keeps its English text as data
+// (ids and categories are compared), translated where shown.
+export function shortcutDisplayLabel(s: Shortcut): string {
+    const key = `shortcuts.items.${s.id}`;
+    return hasKey(key) ? t(key) : s.label;
+}
+
+export function shortcutCategoryLabel(category: ShortcutCategory): string {
+    const key = `shortcuts.categories.${category.toLowerCase().replace(/[^a-z]+/g, "")}`;
+    return hasKey(key) ? t(key) : category;
+}
 
 export function findShortcut(id: string): Shortcut {
     return Shortcuts.find((s) => s.id === id);

@@ -10,19 +10,13 @@ import { getApi, getSettingsKeyAtom, openLink } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
+import { t } from "../i18n/i18n";
 import {
     addMoltentermNotification,
     registerNotificationGesture,
     resolveMoltentermNotification,
 } from "../notifications-store";
-import {
-    isSafeReleaseUrl,
-    notesAsText,
-    ReleaseCheck,
-    releaseFeedEnabled,
-    releaseNotificationTitle,
-    ReleaseOffer,
-} from "./release-feed";
+import { isSafeReleaseUrl, notesAsText, ReleaseCheck, releaseFeedEnabled, ReleaseOffer } from "./release-feed";
 
 export const ReleaseNotifySettingKey = "moltenterm:releasenotify";
 const ReleaseDownloadGesture = "release:download";
@@ -143,9 +137,16 @@ export class ReleaseUpdateModel {
             source: "moltenterm",
             global: true,
             kind: "info",
-            title: releaseNotificationTitle(offer),
-            message: notesAsText(offer.notes) || "See its notes on the release page.",
-            actions: [{ id: "download", label: "Download", kind: "gesture", gesture: ReleaseDownloadGesture }],
+            title: t("update.release.title", { version: offer.version }),
+            message: notesAsText(offer.notes) || t("update.release.seeNotes"),
+            actions: [
+                {
+                    id: "download",
+                    label: t("update.release.download"),
+                    kind: "gesture",
+                    gesture: ReleaseDownloadGesture,
+                },
+            ],
         });
     }
 }

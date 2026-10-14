@@ -5,6 +5,7 @@
 // Alt; and as Electron accelerators, so the native menus show the same keys.
 
 import { isMacOS } from "@/util/platformutil";
+import { t } from "../i18n/i18n";
 import { findShortcut, Shortcut } from "./registry";
 
 const MacModifierOrder = ["Ctrl", "Option", "Alt", "Shift", "Cmd", "Meta"];
@@ -114,7 +115,7 @@ export function formatKeys(keys: string, mac = isMacOS()): string {
 export function formatShortcut(s: Shortcut, mac = isMacOS()): string {
     let rtn = formatKeys(s.keys, mac);
     if (s.then?.length) {
-        rtn += " then " + s.then.map((k) => keyLabel(k, mac)).join(" ");
+        rtn += ` ${t("shortcuts.then")} ` + s.then.map((k) => keyLabel(k, mac)).join(" ");
     }
     return rtn;
 }

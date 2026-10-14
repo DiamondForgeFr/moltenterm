@@ -5,6 +5,7 @@
 // the trunk, the ticker of those changes and the trunk the Run CI button runs on. Computed from what the core already
 // hands every card (no new git or GitHub call), and kept apart from the component so it can be tested without the app.
 
+import { getLocale, t } from "../i18n/i18n";
 import { CiState } from "../mission/ci-model";
 import { Milestone, milestoneKey } from "../mission/github";
 import { MissionGit, PipelineDef, RawCommit, toTreeData } from "../mission/mission-model";
@@ -30,6 +31,9 @@ export type NextStation = {
     urgent?: boolean;
     // "Due Oct 13 (milestone 1.0.0)" when the chip shows the schedule.
     chiptitle?: string;
+    // The bump level and the commits' reason of a derived station, so a dated one can word its note again.
+    level?: string;
+    reason?: string;
 };
 
 export type WaitingCounts = {
@@ -69,17 +73,17 @@ export function nextStation(
     return scheduledStation(station, stationSchedule(station, milestones, git.tagprefix, now));
 }
 
-const DecisionNote = "First public release: the number is a choice, pick it in the Release menu.";
-
 function scheduledStation(station: NextStation, schedule: StationSchedule): NextStation {
     if (!schedule?.chip) {
         return station;
     }
     let note = station.note;
     if (station.state === "decision") {
-        note = DecisionNote;
+        note = t("project.station.decisionNote");
     } else if (station.state === "derived" && station.chip) {
-        note = station.note.replace(/^Derived from the commits/, `A ${station.chip} release, derived from the commits`);
+        note = station.reason
+            ? t("project.station.levelDerivedReason", { level: station.chip, reason: station.reason })
+            : t("project.station.levelDerived", { level: station.chip });
     }
     return { ...station, chip: schedule.chip, urgent: schedule.urgent, chiptitle: schedule.title, note };
 }
@@ -98,29 +102,35 @@ function plainStation(git: MissionGit, session: ReleaseSession): NextStation {
         return {
             tag: session.tag,
             state: decided ? "chosen" : "derived",
-            chip: decided ? "chosen" : (next.level ?? null),
+            chip: decided ? t("project.station.chosen") : levelLabel(next.level),
             note: decided
-                ? `Chosen in the Release menu; the public release ${session.tag} is on its way.`
-                : `The public release ${session.tag} is on its way.`,
+                ? t("project.station.chosenNote", { tag: session.tag })
+                : t("project.station.onItsWay", { tag: session.tag }),
         };
     }
     if (next.how === "nothing" || !next.version) {
-        return { tag: null, state: "nothing", chip: null, note: next.reason || "Nothing to release yet." };
+        return { tag: null, state: "nothing", chip: null, note: next.reason || t("project.station.nothing") };
     }
     if (next.how === "decision") {
         return {
             tag: prefix + next.version,
             state: "decision",
-            chip: "to decide",
-            note: next.reason || "A choice, not a calculation: pick the number in the Release menu.",
+            chip: t("project.station.toDecide"),
+            note: next.reason || t("project.station.choice"),
         };
     }
     return {
         tag: prefix + next.version,
         state: "derived",
-        chip: next.level ?? null,
-        note: next.reason ? `Derived from the commits: ${next.reason}.` : "Derived from the commits.",
+        chip: levelLabel(next.level),
+        note: next.reason ? t("project.station.derivedReason", { reason: next.reason }) : t("project.station.derived"),
+        level: next.level,
+        reason: next.reason,
     };
+}
+
+function levelLabel(level: string): string {
+    return level ? t(`project.station.levels.${level}`) : null;
 }
 
 export type StationSchedule = {
@@ -147,7 +157,11 @@ function shortDate(iso: string): string {
         return "";
     }
     // GitHub stores a due date as a day: read it in UTC so that no time zone moves it to the day before.
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    return d.toLocaleDateString(getLocale() === "en" ? "en-US" : getLocale(), {
+        month: "short",
+        day: "numeric",
+        timeZone: "UTC",
+    });
 }
 
 function utcDay(iso: string): string {
@@ -166,17 +180,19 @@ function daysUntil(iso: string, now: number): number {
 }
 
 function relativeDue(days: number, date: string): string {
-    const plural = (n: number) => `${n} day${n === 1 ? "" : "s"}`;
+    const plural = (n: number) => (n === 1 ? t("project.schedule.oneDay") : t("project.schedule.days", { count: n }));
     if (days < 0) {
-        return `overdue by ${plural(-days)}`;
+        return t("project.schedule.overdue", { days: plural(-days) });
     }
     if (days === 0) {
-        return "due today";
+        return t("project.schedule.today");
     }
     if (days === 1) {
-        return "due tomorrow";
+        return t("project.schedule.tomorrow");
     }
-    return days <= RelativeDaysMax ? `due in ${plural(days)}` : `due ${date}`;
+    return days <= RelativeDaysMax
+        ? t("project.schedule.dueIn", { days: plural(days) })
+        : t("project.schedule.due", { date });
 }
 
 // The milestone of the station's version: its title names it ("1.2.0", "v1.2.0") or its line ("v1" for 1.x.y). No
@@ -233,11 +249,11 @@ export function stationSchedule(
     const due = current?.due_on ? shortDate(current.due_on) : "";
     const days = due ? daysUntil(current.due_on, now) : null;
     const rtn: StationSchedule = {
-        due: due ? `due ${due}` : null,
+        due: due ? t("project.schedule.due", { date: due }) : null,
         overdue: due !== "" && days < 0,
         chip: due ? relativeDue(days, due) : null,
         urgent: due !== "" && days <= 0,
-        title: due ? `Due ${due} (milestone ${current.title})` : null,
+        title: due ? t("project.schedule.title", { date: due, milestone: current.title }) : null,
         then: null,
     };
     if (next != null) {
@@ -245,9 +261,9 @@ export function stationSchedule(
         const tag = /^\d+\.\d+\.\d+$/.test(key) ? (prefix || DefaultTagPrefix) + key : next.title;
         const date = next.due_on ? shortDate(next.due_on) : "";
         rtn.then = {
-            label: `then ${tag}${date ? ` · ${date}` : ""}`,
+            label: date ? t("project.schedule.thenDated", { tag, date }) : t("project.schedule.then", { tag }),
             url: next.html_url,
-            title: `Open the milestone ${next.title} on GitHub`,
+            title: t("project.schedule.openMilestone", { milestone: next.title }),
         };
     }
     return rtn.due == null && rtn.then == null ? null : rtn;
@@ -266,14 +282,16 @@ export function waitingCounts(git: MissionGit): WaitingCounts {
     for (const c of commits) {
         counts[commitKind(c.subject)]++;
     }
-    const trunk = git.trunk || "the trunk";
-    const changes = commits.length === 1 ? "change" : "changes";
-    let scope = `${changes}, not yet on ${git.release}`;
+    const trunk = git.trunk || t("project.theTrunk");
+    const one = commits.length === 1;
+    let scope = t(one ? "project.waiting.notYetOnOne" : "project.waiting.notYetOn", { release: git.release });
     if (isSingleBranch(git)) {
-        scope = git.lastpublic ? `${changes} since ${git.lastpublic}` : `${changes}, no public release yet`;
+        scope = git.lastpublic
+            ? t(one ? "project.waiting.sinceOne" : "project.waiting.since", { tag: git.lastpublic })
+            : t(one ? "project.waiting.noPublicOne" : "project.waiting.noPublic");
     }
     return {
-        title: `Waiting on ${trunk}`,
+        title: t("project.waiting.title", { trunk }),
         total: commits.length,
         features: counts.feat,
         fixes: counts.fix,
@@ -286,11 +304,11 @@ export function countsLine(counts: WaitingCounts): string {
     if (counts == null) {
         return "";
     }
-    const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+    const plural = (n: number, one: string, many: string) => t(n === 1 ? one : many, { count: n });
     return [
-        plural(counts.features, "feature", "features"),
-        plural(counts.fixes, "fix", "fixes"),
-        `${counts.other} other`,
+        plural(counts.features, "project.counts.featureOne", "project.counts.features"),
+        plural(counts.fixes, "project.counts.fixOne", "project.counts.fixes"),
+        t("project.counts.other", { count: counts.other }),
     ].join(" · ");
 }
 
@@ -326,11 +344,11 @@ export function runCiTarget(git: MissionGit, pipeline: PipelineDef, ci: CiState)
     const onTrunk = running != null && running.branch === branch;
     let disabled: string = null;
     if (!branch) {
-        disabled = "The project's trunk is not known yet.";
+        disabled = t("project.runCi.noTrunk");
     } else if ((pipeline?.ci?.jobs ?? []).length === 0) {
-        disabled = "The pipeline declares no CI job.";
+        disabled = t("project.runCi.noJob");
     } else if (ci?.running && !onTrunk) {
-        disabled = `A CI run is already on its way${running?.branch ? ` on ${running.branch}` : ""}.`;
+        disabled = running?.branch ? t("project.runCi.busyOn", { branch: running.branch }) : t("project.runCi.busy");
     }
     return { branch, running: onTrunk, disabled };
 }

@@ -5,11 +5,21 @@
 // shortcut registry.
 
 import { fireAndForget } from "@/util/util";
+import { t } from "../i18n/i18n";
 import { acceleratorById } from "../shortcuts/format";
 import { splitPanel } from "./split";
 
+// The English labels identify the split items; the menus show splitRightLabel() and splitDownLabel().
 export const SplitRightLabel = "Split right";
 export const SplitDownLabel = "Split down";
+
+export function splitRightLabel(): string {
+    return t("split.right");
+}
+
+export function splitDownLabel(): string {
+    return t("split.down");
+}
 // Distinct glyphs (FR-SHELL-054, DS-SHELL-095): the columns icon, and the same icon turned into rows (Font Awesome
 // Free has no rows glyph). Every menu, the command panel and the header's split buttons use these.
 export const SplitRightIcon = "table-columns";
@@ -21,7 +31,8 @@ export function withoutSplitItems(items: ContextMenuItem[]): ContextMenuItem[] {
     if (items == null) {
         return items;
     }
-    const kept = items.filter((item) => item.label !== SplitRightLabel && item.label !== SplitDownLabel);
+    const labels = [SplitRightLabel, SplitDownLabel, splitRightLabel(), splitDownLabel()];
+    const kept = items.filter((item) => !labels.includes(item.label));
     while (kept.length > 0 && kept[0].type === "separator") {
         kept.shift();
     }
@@ -31,14 +42,14 @@ export function withoutSplitItems(items: ContextMenuItem[]): ContextMenuItem[] {
 export function splitMenuItems(blockId: string, section = PanelSection): ContextMenuItem[] {
     return [
         {
-            label: SplitRightLabel,
+            label: splitRightLabel(),
             icon: SplitRightIcon,
             section,
             accelerator: acceleratorById("split-right"),
             click: () => fireAndForget(() => splitPanel(blockId, "right")),
         },
         {
-            label: SplitDownLabel,
+            label: splitDownLabel(),
             icon: SplitDownIcon,
             section,
             accelerator: acceleratorById("split-down"),

@@ -8,8 +8,9 @@ import { globalRefocusWithTimeout } from "@/app/store/keymodel";
 import { isMacOS } from "@/util/platformutil";
 import { useMemo, useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
+import { t as translate, useLocale, useT } from "../i18n/i18n";
 import { keyCaps } from "./format";
-import { platformShortcuts, Shortcut } from "./registry";
+import { platformShortcuts, Shortcut, shortcutCategoryLabel, shortcutDisplayLabel } from "./registry";
 import { closeShortcutsSheet, ShortcutsSheetModalName } from "./shortcuts-keys";
 import { filterShortcuts } from "./shortcuts-search";
 
@@ -37,7 +38,7 @@ function ShortcutKeys({ shortcut, mac }: { shortcut: Shortcut; mac: boolean }) {
             <Caps keys={shortcut.keys} mac={mac} />
             {shortcut.then?.length ? (
                 <>
-                    <span>then</span>
+                    <span>{translate("shortcuts.then")}</span>
                     {shortcut.then.map((k) => (
                         <Caps key={k} keys={k} mac={mac} />
                     ))}
@@ -45,7 +46,7 @@ function ShortcutKeys({ shortcut, mac }: { shortcut: Shortcut; mac: boolean }) {
             ) : null}
             {(shortcut.alt ?? []).map((k) => (
                 <span key={k} className="inline-flex items-center gap-1">
-                    <span>or</span>
+                    <span>{translate("shortcuts.or")}</span>
                     <Caps keys={k} mac={mac} />
                 </span>
             ))}
@@ -63,12 +64,13 @@ export function ShortcutSections({
     mac: boolean;
     headingClass?: string;
 }) {
+    useLocale();
     return (
         <>
             {sections.map((section) => (
-                <section key={section.category} aria-label={section.category}>
+                <section key={section.category} aria-label={shortcutCategoryLabel(section.category)}>
                     <h3 className={headingClass ?? "pb-1 text-11 font-semibold tracking-wide text-muted"}>
-                        {section.category}
+                        {shortcutCategoryLabel(section.category)}
                     </h3>
                     <ul className="flex flex-col">
                         {section.shortcuts.map((s) => (
@@ -77,7 +79,9 @@ export function ShortcutSections({
                                 data-shortcut={s.id}
                                 className="flex items-center justify-between gap-3 border-b border-border/40 py-1 last:border-b-0"
                             >
-                                <span className="min-w-0 truncate text-13 text-secondary">{s.label}</span>
+                                <span className="min-w-0 truncate text-13 text-secondary">
+                                    {shortcutDisplayLabel(s)}
+                                </span>
                                 <ShortcutKeys shortcut={s} mac={mac} />
                             </li>
                         ))}
@@ -89,9 +93,10 @@ export function ShortcutSections({
 }
 
 export function MoltentermShortcutsSheet() {
+    const t = useT();
     const [query, setQuery] = useState("");
     const mac = isMacOS();
-    const sections = useMemo(() => filterShortcuts(platformShortcuts(mac), query, mac), [query, mac]);
+    const sections = useMemo(() => filterShortcuts(platformShortcuts(mac), query, mac), [query, mac, t]);
     const close = () => {
         closeShortcutsSheet();
         globalRefocusWithTimeout(10);
@@ -100,14 +105,14 @@ export function MoltentermShortcutsSheet() {
     return (
         <DialogFrame
             role="shortcuts-sheet"
-            title="Keyboard shortcuts"
-            subtitle={mac ? undefined : "Alt plays the part of ⌘ on this system"}
+            title={t("shortcuts.sheet.title")}
+            subtitle={mac ? undefined : t("shortcuts.sheet.altSubtitle")}
             widthClass="w-[640px]"
             trapFocus={true}
             onBackdrop={close}
             buttons={
                 <button type="button" className={PlainButton} onClick={close}>
-                    Close
+                    {t("common.close")}
                 </button>
             }
         >
@@ -116,12 +121,14 @@ export function MoltentermShortcutsSheet() {
                 value={query}
                 autoFocus
                 spellCheck={false}
-                placeholder="Search shortcuts…"
-                aria-label="Search shortcuts"
+                placeholder={t("shortcuts.sheet.searchPlaceholder")}
+                aria-label={t("shortcuts.sheet.searchAria")}
                 onChange={(e) => setQuery(e.target.value)}
                 className="w-full rounded-4 border border-border bg-transparent px-2.5 py-1.5 text-13 leading-5 text-primary outline-none placeholder:text-muted focus:border-accent"
             />
-            {sections.length === 0 ? <div className="py-2 text-muted">Nothing matches "{query}"</div> : null}
+            {sections.length === 0 ? (
+                <div className="py-2 text-muted">{t("shortcuts.sheet.noMatch", { query })}</div>
+            ) : null}
             <ShortcutSections sections={sections} mac={mac} />
         </DialogFrame>
     );

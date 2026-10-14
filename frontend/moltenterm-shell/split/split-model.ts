@@ -4,6 +4,8 @@
 // Split any panel, then choose its content (FR-SHELL-042, DS-SHELL-064): the rules, pure so they are tested without
 // the app. split.ts carries them out on the layout.
 
+import { t } from "../i18n/i18n";
+
 export type SplitDirection = "right" | "down" | "left" | "up";
 
 // The block meta key of a new panel's picker: the panel it was split from (DS-SHELL-066).
@@ -122,8 +124,8 @@ export function pickerPopoverRect(
 
 // The edge handle's name and tooltip (DS-SHELL-083): the keys come from the shortcut registry, so a rebinding shows.
 export function splitHandleText(edge: "right" | "down", keys: string): { label: string; tip: string } {
-    const label = edge === "right" ? "Split right" : "Split down";
-    return { label, tip: [keys ? `${label} ${keys}` : label, "drag to size"].join(" · ") };
+    const label = edge === "right" ? t("split.right") : t("split.down");
+    return { label, tip: [keys ? `${label} ${keys}` : label, t("split.dragToSize")].join(" · ") };
 }
 
 // The edge handle shows only where a split would fit and nothing else claims the pointer (DS-SHELL-065).

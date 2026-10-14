@@ -11,6 +11,8 @@ import { ErrorBoundary } from "@/app/element/errorboundary";
 import { fireAndForget } from "@/util/util";
 import { atom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { I18nModel, t, useLocale, useT } from "../i18n/i18n";
+import { hasKey } from "../i18n/i18n-core";
 import { Notice, Problem } from "../mission/cicd-panels";
 import { MoltentermCicdView } from "../mission/cicd-view";
 import {
@@ -43,7 +45,10 @@ export class ProjectViewModel implements ViewModel {
     blockId: string;
     nodeModel: BlockNodeModel;
     viewIcon = atom("gauge");
-    viewName = atom("Project");
+    viewName = atom((get) => {
+        get(I18nModel.getInstance().localeAtom);
+        return t("project.viewName");
+    });
     noPadding = atom(true);
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
@@ -57,8 +62,9 @@ export class ProjectViewModel implements ViewModel {
 }
 
 function ProjectView({ blockId }: ViewComponentProps<ProjectViewModel>) {
+    const t = useT();
     return (
-        <MissionFrame title="The Project tab">
+        <MissionFrame title={t("project.frameTitle")}>
             {({ project, snapshot, refresh }) => (
                 <ProjectContent
                     key={project.dir}
@@ -73,19 +79,27 @@ function ProjectView({ blockId }: ViewComponentProps<ProjectViewModel>) {
 }
 
 function CardFailed({ error, title }: { error?: Error; title: string }) {
-    return <Problem text={`${title} could not be shown: ${error?.message ?? "unknown error"}`} />;
+    const t = useT();
+    return <Problem text={t("project.cardFailed", { title, error: error?.message ?? t("project.unknownError") })} />;
+}
+
+// A built-in card's title in the interface language (project.cards.<id>); a mod's card keeps its own title.
+function cardTitle(card: ProjectCard<ProjectCardProps>): string {
+    const key = `project.cards.${card.id}`;
+    return hasKey(key) ? t(key) : card.title;
 }
 
 function CardBody({ card, props }: { card: ProjectCard<ProjectCardProps>; props: ProjectCardProps }) {
     const Component = card.component;
     return (
-        <ErrorBoundary fallback={<CardFailed title={card.title} />}>
+        <ErrorBoundary fallback={<CardFailed title={cardTitle(card)} />}>
             <Component {...props} />
         </ErrorBoundary>
     );
 }
 
 function CardSlot({ card, props }: { card: ProjectCard<ProjectCardProps>; props: ProjectCardProps }) {
+    useLocale();
     if (card.bare) {
         return (
             <div className="min-w-0" data-card={card.id}>
@@ -98,7 +112,7 @@ function CardSlot({ card, props }: { card: ProjectCard<ProjectCardProps>; props:
             className="flex min-w-0 flex-col gap-3 overflow-visible rounded-6 border border-border bg-panel px-4 py-3.5"
             data-card={card.id}
         >
-            <h2 className="text-11 font-semibold tracking-[0.14em] text-muted uppercase">{card.title}</h2>
+            <h2 className="text-11 font-semibold tracking-[0.14em] text-muted uppercase">{cardTitle(card)}</h2>
             <div className="flex min-h-0 flex-1 flex-col">
                 <CardBody card={card} props={props} />
             </div>
@@ -117,6 +131,7 @@ function ProjectContent({
     snapshot: MissionSnapshot;
     refresh: () => void;
 }) {
+    const t = useT();
     const dir = project.dir;
     const projectName = project.facts?.name ?? pathBaseName(dir);
     const runs = useMissionRuns(dir);
@@ -201,7 +216,7 @@ function ProjectContent({
                     type="button"
                     onClick={() => fireAndForget(() => openMoltentermView(MoltentermCicdView))}
                     className="flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
-                    title="Open the CI/CD panel beside this view: history, detail and logs"
+                    title={t("project.openCicdTitle")}
                 >
                     <i className="fa fa-solid fa-list-check text-11" />
                     CI/CD
@@ -210,7 +225,7 @@ function ProjectContent({
             <div ref={rootRef} className="flex min-h-0 flex-1 flex-col overflow-auto" data-testid="project-view">
                 {regions.header.length > 0 ? (
                     <section
-                        aria-label="Project header"
+                        aria-label={t("project.headerAria")}
                         className="flex flex-col border-b border-border bg-panel"
                         data-slot="header"
                     >
@@ -234,14 +249,12 @@ function ProjectContent({
                                 }}
                                 className="cursor-pointer text-12 text-muted hover:text-primary"
                             >
-                                Dismiss
+                                {t("common.dismiss")}
                             </button>
                         </div>
                     ) : null}
                     {snapshot?.git?.fetcherror ? (
-                        <Notice
-                            text={`Showing the local state: fetching from the remote failed (${snapshot.git.fetcherror}).`}
-                        />
+                        <Notice text={t("project.fetchFailed", { error: snapshot.git.fetcherror })} />
                     ) : null}
                     {regions.map.length > 0 ? (
                         <div className="flex flex-col gap-3" data-slot="map">

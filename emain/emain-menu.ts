@@ -4,7 +4,7 @@
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import * as electron from "electron";
-import { MenuRoleLabels } from "../frontend/moltenterm-shell/menu/menu-model"; // MOLTENTERM-PATCH (#371)
+import { MenuRoleKeys, MenuRoleLabels } from "../frontend/moltenterm-shell/menu/menu-model"; // MOLTENTERM-PATCH (#371, #623)
 import { fireAndForget } from "../frontend/util/util";
 import { focusedBuilderWindow, getBuilderWindowById } from "./emain-builder";
 import { openBuilderWindow } from "./emain-ipc";
@@ -457,7 +457,10 @@ function convertMenuDefArrToMenu(
     const menuItems: electron.MenuItem[] = [];
     for (const menuDef of menuDefArr) {
         const menuItemTemplate: electron.MenuItemConstructorOptions = {
-            label: menuDef.label ?? MenuRoleLabels[menuDef.role],
+            // MOLTENTERM-PATCH (#623): an edit role's label in the interface language
+            label:
+                menuDef.label ??
+                (MenuRoleKeys[menuDef.role] ? mt(MenuRoleKeys[menuDef.role]) : MenuRoleLabels[menuDef.role]),
             type: menuDef.type === "header" ? "normal" : menuDef.type,
             visible: menuDef.visible,
             click: () => {

@@ -5,13 +5,28 @@
 // keywords or the keys as shown ("split", "⌘D", "alt+d").
 
 import { formatShortcut } from "./format";
-import { Shortcut, ShortcutCategories, ShortcutCategory } from "./registry";
+import {
+    Shortcut,
+    ShortcutCategories,
+    ShortcutCategory,
+    shortcutCategoryLabel,
+    shortcutDisplayLabel,
+} from "./registry";
 
 export type ShortcutSection = { category: ShortcutCategory; shortcuts: Shortcut[] };
 
 function haystack(s: Shortcut, mac: boolean): string {
     const keys = [formatShortcut(s, mac), ...(s.alt ?? [])].join(" ");
-    return [s.label, s.category, ...(s.keywords ?? []), keys].join(" ").toLowerCase();
+    return [
+        s.label,
+        shortcutDisplayLabel(s),
+        s.category,
+        shortcutCategoryLabel(s.category),
+        ...(s.keywords ?? []),
+        keys,
+    ]
+        .join(" ")
+        .toLowerCase();
 }
 
 export function filterShortcuts(list: Shortcut[], query: string, mac: boolean): ShortcutSection[] {

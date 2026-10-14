@@ -14,6 +14,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { GoldApplyResult, GoldApplyWhen, GoldCheck, GoldManifest, GoldSwapStatus } from "@/util/moltenterm-gold";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
+import { t } from "../i18n/i18n";
 import {
     addMoltentermNotification,
     registerNotificationGesture,
@@ -137,8 +138,8 @@ export class GoldUpdateModel {
             source: "moltenterm",
             global: true,
             kind: "success",
-            title: `MoltenTerm updated (build ${own})`,
-            message: "Your configuration and workspaces are as you left them.",
+            title: t("update.notify.updatedTitle", { build: own }),
+            message: t("update.notify.updatedMessage"),
         });
     }
 
@@ -159,9 +160,16 @@ export class GoldUpdateModel {
                     source: "moltenterm",
                     global: true,
                     kind: "info",
-                    title: `A new MoltenTerm gold is ready (${updateLabel(offer)})`,
-                    message: `${offer.notes.length} change(s). Review them, then update now or when you quit.`,
-                    actions: [{ id: "review", label: "Update…", kind: "gesture", gesture: UpdateReviewGesture }],
+                    title: t("update.notify.readyTitle", { label: updateLabel(offer) }),
+                    message: t("update.notify.readyMessage", { count: offer.notes.length }),
+                    actions: [
+                        {
+                            id: "review",
+                            label: t("update.notify.review"),
+                            kind: "gesture",
+                            gesture: UpdateReviewGesture,
+                        },
+                    ],
                 });
             }
         });
@@ -182,15 +190,15 @@ export class GoldUpdateModel {
                 source: "moltenterm",
                 global: true,
                 kind: "warning",
-                title: `The new gold did not start: MoltenTerm went back to the previous one`,
-                message: `Build ${status.buildId} will not be offered again; a newer gold will.`,
+                title: t("update.notify.rolledBackTitle"),
+                message: t("update.notify.rolledBackMessage", { build: status.buildId }),
             });
         } else {
             addMoltentermNotification({
                 source: "moltenterm",
                 global: true,
                 kind: "error",
-                title: "The update could not be installed",
+                title: t("update.notify.failedTitle"),
                 message: status.detail,
             });
         }
@@ -246,7 +254,7 @@ export async function readTerminals(): Promise<TerminalSummary> {
             }
             const tabIndex = workspace?.tabids?.indexOf(block.tabid) ?? -1;
             sources.push({
-                workspace: workspace?.name || "Unsaved workspace",
+                workspace: workspace?.name || t("update.unsavedWorkspace"),
                 tab: tabIndex >= 0 ? `T${tabIndex + 1}` : "",
                 shellState: rtInfo?.["shell:state"] ?? "",
                 lastCommand: rtInfo?.["shell:lastcmd"] ?? "",

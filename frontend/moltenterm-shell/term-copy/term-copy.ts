@@ -16,6 +16,7 @@ import { PLATFORM, PlatformMacOS } from "@/util/platformutil";
 import { fireAndForget, isBlank, makeConnRoute } from "@/util/util";
 import type { IBufferLine, IDisposable, ILink, Terminal } from "@xterm/xterm";
 import { AgentStates } from "../agent-state-store";
+import { t } from "../i18n/i18n";
 import { agentCopyProfile, AgentCopyProfile, GenericCopyProfile } from "./agent-copy-profiles";
 import { cleanCopy, CopyLine, CopySelection, textColumns } from "./clean-copy";
 import { FileRef, findFileRefs, parseFileRef } from "./file-links";
@@ -339,7 +340,7 @@ export function otherTermBlocks(fromBlockId: string): { blockId: string; label: 
                 .split("/")
                 .filter((s: string) => s !== "")
                 .pop() ?? "";
-        const name = agent?.agentname || agent?.agent || block.meta["frame:title"] || "Terminal";
+        const name = agent?.agentname || agent?.agent || block.meta["frame:title"] || t("termcopy.terminal");
         rtn.push({ blockId, label: folder ? `${name} · ${folder} (#${n})` : `${name} (#${n})` });
     }
     return rtn;
@@ -380,23 +381,23 @@ export function termCopyMenuItems(termWrap: TermWrap): ContextMenuItem[] {
     const plain = plainSelectionText(termWrap);
     const agent = termAgentId(termWrap) !== "";
     const items: ContextMenuItem[] = [
-        { label: "Copy", icon: "copy", click: () => copyText(agent ? clean : plain) },
+        { label: t("termcopy.copy"), icon: "copy", click: () => copyText(agent ? clean : plain) },
         agent
-            ? { label: "Copy plain", icon: "align-left", click: () => copyText(plain) }
-            : { label: "Copy clean", icon: "broom", click: () => copyText(clean) },
+            ? { label: t("termcopy.copyPlain"), icon: "align-left", click: () => copyText(plain) }
+            : { label: t("termcopy.copyClean"), icon: "broom", click: () => copyText(clean) },
     ];
     const ref = parseFileRef(plain);
     const others = otherTermBlocks(termWrap.blockId);
     if (others.length > 0) {
         items.push({
-            label: "Send to pane",
+            label: t("termcopy.sendToPane"),
             icon: "share",
             submenu: others.map((o) => ({ label: o.label, click: () => sendTextToTerm(clean, o.blockId) })),
         });
     }
     if (ref != null) {
         items.push({
-            label: "Open file",
+            label: t("termcopy.openFile"),
             icon: "file-lines",
             click: () =>
                 fireAndForget(async () => {
@@ -418,7 +419,7 @@ export function termFileLinkMenuItems(termWrap: TermWrap): ContextMenuItem[] {
     const name = link.path.split("/").pop() + (link.line ? `:${link.line}` : "");
     return [
         {
-            label: `Open ${name}`,
+            label: t("termcopy.openNamed", { name }),
             icon: "file-lines",
             section: TermLinkSection,
             click: () => fireAndForget(() => openFileInPreview(link, termWrap.blockId)),

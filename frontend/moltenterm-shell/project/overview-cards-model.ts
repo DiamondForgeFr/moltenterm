@@ -4,6 +4,7 @@
 // What the Project overview's four cards show (FR-MC-024, DS-MC-012), computed from what the core already hands every
 // card: no new git or GitHub call. Kept apart from the components so the rules can be tested without the app.
 
+import { getLocale, t } from "../i18n/i18n";
 import { branchCi, CiState, CiStatusLabels } from "../mission/ci-model";
 import { Milestone, milestoneKey, plainText } from "../mission/github";
 import { GithubState, MissionGit, RawCommit, RawTag, RunRecord, RunStateLabels } from "../mission/mission-model";
@@ -62,7 +63,14 @@ export function releaseBars(commits: readonly RawCommit[]): { total: number; bar
         count: counts[key],
         share: total === 0 ? 0 : counts[key] / total,
     });
-    return { total, bars: [bar("feat", "features"), bar("fix", "fixes"), bar("other", "the rest")] };
+    return {
+        total,
+        bars: [
+            bar("feat", t("project.overview.bars.features")),
+            bar("fix", t("project.overview.bars.fixes")),
+            bar("other", t("project.overview.bars.rest")),
+        ],
+    };
 }
 
 // The milestone of the next version: its title names the version ("1.2.0", "v1.2.0") or its line ("v1" for 1.x.y);
@@ -106,12 +114,12 @@ export function milestoneView(m: Milestone): MilestoneView {
 
 function milestoneNote(githubState: GithubState): string {
     if (githubState == null) {
-        return "Milestone progress shows once GitHub has been read.";
+        return t("project.overview.milestone.notRead");
     }
     if (githubState !== "ok") {
-        return "Milestone progress needs the project on GitHub.";
+        return t("project.overview.milestone.needsGithub");
     }
-    return "No open milestone on GitHub.";
+    return t("project.overview.milestone.none");
 }
 
 // What waits for the next public release: on the trunk and not yet on the release branch, or, on a single-branch
@@ -136,9 +144,9 @@ export function nextReleaseView(
     const { total, bars } = releaseBars(pendingCommits(git));
     const scope = singleBranch
         ? git.lastpublic
-            ? `since ${git.lastpublic}`
-            : "on " + (git.trunk || "the trunk")
-        : `on ${git.trunk}, not yet on ${git.release}`;
+            ? t("project.overview.scope.since", { tag: git.lastpublic })
+            : t("project.overview.scope.on", { branch: git.trunk || t("project.theTrunk") })
+        : t("project.overview.scope.notYetOn", { trunk: git.trunk, release: git.release });
     const m = milestoneView(pickMilestone(milestones, next.version));
     return {
         scope,
@@ -179,7 +187,10 @@ export function releasesView(state: ReleaseState, tagPrefix = "v"): ReleasesView
     return {
         rc,
         public: pub,
-        firstPublic: pub == null && state.next.version ? `${tagPrefix}${state.next.version} will be the first.` : "",
+        firstPublic:
+            pub == null && state.next.version
+                ? t("project.overview.firstPublic", { tag: `${tagPrefix}${state.next.version}` })
+                : "",
     };
 }
 
@@ -189,9 +200,9 @@ export function agoText(at: number, now = Date.now()): string {
     }
     const minutes = Math.round((now - at) / 60_000);
     if (minutes < 1) {
-        return "just now";
+        return t("project.justNow");
     }
-    const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+    const rtf = new Intl.RelativeTimeFormat(getLocale(), { numeric: "auto" });
     if (minutes < 60) {
         return rtf.format(-minutes, "minute");
     }
@@ -203,7 +214,10 @@ export function agoText(at: number, now = Date.now()): string {
 }
 
 export function formatWhen(iso: string): string {
-    return new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+    return new Date(iso).toLocaleString(getLocale() === "en" ? "en-GB" : getLocale(), {
+        dateStyle: "medium",
+        timeStyle: "short",
+    });
 }
 
 export function clockElapsed(ms: number): string {
@@ -234,16 +248,16 @@ export function trunkCiLine(ci: CiState, trunk: string, now = Date.now()): NowLi
     if (!trunk) {
         return null;
     }
-    const label = `CI on ${trunk}`;
+    const label = t("project.now.ciOn", { branch: trunk });
     const status = branchCi(ci, trunk);
     const { running, last } = status;
     if (status.source === "running") {
         const done = running.jobs.filter((j) => j.status === "success").length;
         return {
             label,
-            text: `running · ${clockElapsed(now - running.startedat)}`,
+            text: t("project.now.running", { elapsed: clockElapsed(now - running.startedat) }),
             tone: "running",
-            title: `${done} of ${running.jobs.length} jobs done`,
+            title: t("project.now.jobsDone", { done, total: running.jobs.length }),
         };
     }
     // The status bar reads the CI's verdict on the checked-out code: a run of an older trunk commit says nothing about
@@ -259,19 +273,24 @@ export function trunkCiLine(ci: CiState, trunk: string, now = Date.now()): NowLi
     if (status.source === "verdict") {
         return {
             label,
-            text: status.status === "success" ? "passed" : status.status === "failure" ? "failed" : "running",
+            text:
+                status.status === "success"
+                    ? t("project.now.passed")
+                    : status.status === "failure"
+                      ? t("project.now.failed")
+                      : t("project.now.runningShort"),
             tone: ciTone(status.status),
         };
     }
     if (last) {
         return {
             label,
-            text: "not run on the latest commit",
+            text: t("project.now.notRunLatest"),
             tone: "neutral",
-            title: `Last run, on ${(last.sha ?? "").slice(0, 7)}: ${lastText}`,
+            title: t("project.now.lastRun", { sha: (last.sha ?? "").slice(0, 7), text: lastText }),
         };
     }
-    return { label, text: "not run", tone: "neutral" };
+    return { label, text: t("project.now.notRun"), tone: "neutral" };
 }
 
 function runTone(state: string): CardTone {
@@ -289,7 +308,7 @@ function runTone(state: string): CardTone {
 
 export function lastBuildLine(build: RunRecord, now = Date.now()): NowLine {
     if (build == null) {
-        return { label: "No local build yet", text: "", tone: "neutral" };
+        return { label: t("project.now.noBuild"), text: "", tone: "neutral" };
     }
     const label = build.title || build.stepid;
     const state = RunStateLabels[build.state] ?? build.state;
@@ -301,6 +320,6 @@ export function lastBuildLine(build: RunRecord, now = Date.now()): NowLine {
         label,
         text,
         tone: runTone(build.state),
-        title: build.commit ? `Commit ${build.commit.slice(0, 7)}` : null,
+        title: build.commit ? t("project.now.commit", { sha: build.commit.slice(0, 7) }) : null,
     };
 }

@@ -8,6 +8,7 @@ import { atoms, getApi, globalStore } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { isMacOS } from "@/util/platformutil";
+import { t } from "../i18n/i18n";
 import { showToast } from "../toast-store";
 import {
     ReopenDropCommand,
@@ -96,7 +97,7 @@ export async function reopenLastClosed(): Promise<void> {
     } catch (e) {
         showToast({
             kind: "error",
-            title: "The last closed pane could not be reopened",
+            title: t("reopen.failed"),
             message: String(e?.message ?? e),
         });
     } finally {
