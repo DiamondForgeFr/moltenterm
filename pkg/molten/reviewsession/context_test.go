@@ -244,7 +244,12 @@ func TestSetHeadAndBrief(t *testing.T) {
 	if err != nil || res.Status != mcpreview.BriefBusy || !strings.Contains(res.Message, "working") {
 		t.Errorf("busy %+v: %v", res, err)
 	}
-	f.busy = false
+	f.busy, f.draft = false, true
+	if res, _ = ls.m.Brief(ctx, mcpreview.SessionKey{Id: ls.id}); res.Status != mcpreview.BriefTyped || !strings.Contains(res.Message, "press Enter") {
+		t.Errorf("typed after a draft %+v", res)
+	}
+	f.draft = false
+	f.prompts[ls.blockId] = f.prompts[ls.blockId][:1]
 	res, _ = ls.m.Brief(ctx, mcpreview.SessionKey{Id: ls.id})
 	if res.Status != mcpreview.BriefAsked || !strings.Contains(f.prompts[ls.blockId][1], "brief this pull request") {
 		t.Errorf("ask again %+v %q", res, f.prompts[ls.blockId])

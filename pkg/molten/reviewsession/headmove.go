@@ -73,12 +73,22 @@ func (m *Manager) askBriefing(ctx context.Context, s *session, moved bool) mcpre
 		return mcpreview.BriefResult{Status: mcpreview.BriefFailed, Message: "MoltenTerm cannot type in the review terminal."}
 	}
 	rec := m.recOf(s)
-	sent, retry, message := m.env.TypePrompt(ctx, s.blockId, mcpreview.BriefingPrompt(rec.HeadOid, moved))
+	out := m.env.TypePrompt(ctx, s.blockId, mcpreview.BriefingPrompt(rec.HeadOid, moved))
 	switch {
-	case sent:
+	case out.Sent && out.Submitted:
 		return mcpreview.BriefResult{Status: mcpreview.BriefAsked}
-	case retry:
-		return mcpreview.BriefResult{Status: mcpreview.BriefBusy, Message: message}
+	case out.Sent:
+		return mcpreview.BriefResult{Status: mcpreview.BriefTyped, Message: "The request is in your agent's prompt, after what you were typing there: press Enter in its terminal to send it."}
+	case out.Retry:
+		return mcpreview.BriefResult{Status: mcpreview.BriefBusy, Message: out.Message}
 	}
-	return mcpreview.BriefResult{Status: mcpreview.BriefFailed, Message: message}
+	return mcpreview.BriefResult{Status: mcpreview.BriefFailed, Message: out.Message}
+}
+
+// TypeOutcome is what typing a prompt into the agent did; Retry: nothing was typed, try again once the agent is idle.
+type TypeOutcome struct {
+	Sent      bool
+	Submitted bool
+	Retry     bool
+	Message   string
 }

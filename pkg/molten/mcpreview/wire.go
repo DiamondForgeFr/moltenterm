@@ -188,6 +188,8 @@ type SetHeadRequest struct {
 // What asking the agent for a briefing did.
 const (
 	BriefAsked = "asked"
+	// Typed: the prompt was typed without Enter, after an unsent draft of the developer's.
+	BriefTyped = "typed"
 	// Busy: the agent is working or waiting for an answer, or another program is in the foreground; nothing was typed.
 	BriefBusy   = "busy"
 	BriefFailed = "failed"

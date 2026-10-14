@@ -148,6 +148,10 @@ function BriefingCard({ review, ai }: { review: ReviewTabModel; ai: ReviewAiStat
             <p className="text-warning" data-testid="review-briefing-busy">
                 {ask.message || "Your agent is busy."} Ask again once it is idle.
             </p>
+        ) : ask.status === "typed" ? (
+            <p className="text-warning" data-testid="review-briefing-typed">
+                {ask.message}
+            </p>
         ) : ask.status === "failed" ? (
             <p className="text-error">{ask.message || "The briefing could not be asked for."}</p>
         ) : null;
@@ -202,7 +206,15 @@ function BriefingCard({ review, ai }: { review: ReviewTabModel; ai: ReviewAiStat
                 </p>
             ) : null}
             {askNote}
-            <div className="min-w-0" onClickCapture={onClickCapture} data-testid="review-briefing-body">
+            <div
+                className={cn(
+                    "min-w-0",
+                    // A card in a narrow pane: section headings at the body's scale, without the document rules.
+                    "[&_.heading]:!mt-3 [&_.heading]:!border-b-0 [&_.heading]:!pt-0 [&_.heading]:!pb-0 [&_.heading]:!text-13 [&_.heading]:!font-semibold"
+                )}
+                onClickCapture={onClickCapture}
+                data-testid="review-briefing-body"
+            >
                 <Markdown
                     text={briefing.markdown}
                     scrollable={false}

@@ -170,6 +170,7 @@ type fakeWave struct {
 	ghCalls  [][]string
 	prompts  map[string][]string
 	busy     bool
+	draft    bool
 	saved    map[string]any
 	readFile map[string][]byte
 }
@@ -265,14 +266,14 @@ func (f *fakeWave) env(repo testRepo, data string) Env {
 			}
 			return []byte(answer), nil
 		},
-		TypePrompt: func(ctx context.Context, blockId string, line string) (bool, bool, string) {
+		TypePrompt: func(ctx context.Context, blockId string, line string) TypeOutcome {
 			f.lock.Lock()
 			defer f.lock.Unlock()
 			if f.busy {
-				return false, true, "Claude Code is working: nothing was typed."
+				return TypeOutcome{Retry: true, Message: "Claude Code is working: nothing was typed."}
 			}
 			f.prompts[blockId] = append(f.prompts[blockId], line)
-			return true, false, ""
+			return TypeOutcome{Sent: true, Submitted: !f.draft}
 		},
 		SaveRecord: func(ctx context.Context, blockId string, rec any) error {
 			f.lock.Lock()

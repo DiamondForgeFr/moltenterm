@@ -55,8 +55,9 @@ export type ReviewStartRequest = {
     afterblockid?: string;
 };
 
-// asked: the prompt was typed; busy: the agent works or waits, nothing was typed.
-export type ReviewBriefResult = { status: "asked" | "busy" | "failed"; message?: string };
+// asked: the prompt was sent; typed: typed without Enter after a draft of the developer's; busy: the agent works or
+// waits, nothing was typed.
+export type ReviewBriefResult = { status: "asked" | "typed" | "busy" | "failed"; message?: string };
 
 export type ReviewSessionKey = { id?: string; repo?: string; number?: number };
 
