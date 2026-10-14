@@ -124,6 +124,11 @@ export type ReviewRestartStatus = "started" | "sent" | "typed" | "busy" | "noage
 
 export type ReviewRestartResult = {
     status: ReviewRestartStatus;
+    // Why the round was not handed over (busy or failed): restart.go's RestartReason… codes.
+    reason?: string;
+    agentstate?: string;
+    branch?: string;
+    // wavesrv's English detail.
     message?: string;
     round?: string;
     worktree?: string;

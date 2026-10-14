@@ -41,6 +41,19 @@ const (
 	RestartNoAgent = "noagent"
 	RestartFailed  = "failed"
 
+	// Why a restart did not hand the round over, for the window to say in the interface language; Message stays the
+	// English detail (a git or terminal error). Must match frontend/moltenterm-shell/review/review-restart.ts.
+	RestartReasonNoRound      = "noround"
+	RestartReasonInFlight     = "inflight"
+	RestartReasonAgentBusy    = "agentbusy"
+	RestartReasonNotReady     = "notready"
+	RestartReasonMainCheckout = "maincheckout"
+	RestartReasonWorktree     = "worktree"
+	RestartReasonBrief        = "brief"
+	RestartReasonTerminal     = "terminal"
+	RestartReasonNotStarted   = "notstarted"
+	RestartReasonNotTyped     = "nottyped"
+
 	// Typing waits for a new terminal's first prompt; a worktree may be created, after a fetch.
 	restartTimeout = 2 * time.Minute
 
@@ -66,9 +79,14 @@ type RestartRequest struct {
 }
 
 type RestartResult struct {
-	Status  string `json:"status"`
-	Message string `json:"message,omitempty"`
-	Round   string `json:"round,omitempty"`
+	Status string `json:"status"`
+	// Reason: RestartReason…, when the round was not handed over (busy or failed).
+	Reason string `json:"reason,omitempty"`
+	// AgentState: the busy agent's state (working or waiting).
+	AgentState string `json:"agentstate,omitempty"`
+	Branch     string `json:"branch,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Round      string `json:"round,omitempty"`
 	// Worktree: the folder the agent works in; WorktreeCreated: MoltenTerm made it for this restart.
 	Worktree        string `json:"worktree,omitempty"`
 	WorktreeCreated bool   `json:"worktreecreated,omitempty"`
@@ -240,6 +258,15 @@ func pathExists(path string) bool {
 	return err == nil
 }
 
+// mainCheckoutError: the branch is checked out in the project's main folder.
+type mainCheckoutError struct {
+	msg string
+}
+
+func (e *mainCheckoutError) Error() string {
+	return e.msg
+}
+
 // agentTree finds or makes the linked worktree on the PR's branch. The main checkout is never used: when it has the
 // branch checked out, git cannot check it out a second time, and Restart work says so instead of working there.
 func (r *Restarter) agentTree(ctx context.Context, req RestartRequest) (string, bool, error) {
@@ -253,8 +280,8 @@ func (r *Restarter) agentTree(ctx context.Context, req RestartRequest) (string, 
 			continue
 		}
 		if i == 0 {
-			return "", false, fmt.Errorf("%s is checked out in the project's main folder (%s), where Restart work never works: "+
-				"switch that folder to another branch, then restart the work", req.HeadRef, e.path)
+			return "", false, &mainCheckoutError{fmt.Sprintf("%s is checked out in the project's main folder (%s), where Restart work never works: "+
+				"switch that folder to another branch, then restart the work", req.HeadRef, e.path)}
 		}
 		if info, err := os.Stat(e.path); err == nil && info.IsDir() {
 			return e.path, false, nil
@@ -337,7 +364,7 @@ func (r *Restarter) Restart(ctx context.Context, req RestartRequest) (RestartRes
 		return RestartResult{}, err
 	}
 	if !r.claim(req.PrKey) {
-		return RestartResult{Status: RestartBusy, Message: "Restart work is already on its way for this PR."}, nil
+		return RestartResult{Status: RestartBusy, Reason: RestartReasonInFlight, Message: "Restart work is already on its way for this PR."}, nil
 	}
 	defer r.release(req.PrKey)
 	state, err := r.store.Get(req.PrKey)
@@ -346,18 +373,23 @@ func (r *Restarter) Restart(ctx context.Context, req RestartRequest) (RestartRes
 	}
 	round, roundNumber := lastPublishedRound(state.Rounds)
 	if round == nil {
-		return RestartResult{}, errors.New("no review round is published yet: publish your comments first, then restart the work")
+		return RestartResult{Status: RestartFailed, Reason: RestartReasonNoRound, Message: "no review round is published yet: publish your comments first, then restart the work"}, nil
 	}
 	roundId := round.Id
 	tree, created, err := r.agentTree(ctx, req)
 	if err != nil {
-		return RestartResult{Status: RestartFailed, Message: err.Error(), Round: roundId}, nil
+		reason := RestartReasonWorktree
+		var main *mainCheckoutError
+		if errors.As(err, &main) {
+			reason = RestartReasonMainCheckout
+		}
+		return RestartResult{Status: RestartFailed, Reason: reason, Branch: req.HeadRef, Message: err.Error(), Round: roundId}, nil
 	}
 	result := RestartResult{Round: roundId, Worktree: tree, WorktreeCreated: created}
 	ticket := restartTicket(req)
 	briefPath, err := r.writeBrief(state, *round, roundNumber, req, tree, ticket)
 	if err != nil {
-		result.Status, result.Message = RestartFailed, fmt.Sprintf("the brief could not be written: %v", err)
+		result.Status, result.Reason, result.Message = RestartFailed, RestartReasonBrief, fmt.Sprintf("the brief could not be written: %v", err)
 		return result, nil
 	}
 	result.BriefPath = briefPath
@@ -402,7 +434,7 @@ func (r *Restarter) startAgent(ctx context.Context, req RestartRequest, tree str
 		return false
 	}
 	if r.env.OpenTerminal == nil {
-		result.Status, result.Message = RestartFailed, "MoltenTerm cannot open terminals yet: try again in a moment."
+		result.Status, result.Reason, result.Message = RestartFailed, RestartReasonTerminal, "MoltenTerm cannot open terminals yet: try again in a moment."
 		return false
 	}
 	command := reviewsession.CommandLine(agent, []string{"--", line})
@@ -415,7 +447,7 @@ func (r *Restarter) startAgent(ctx context.Context, req RestartRequest, tree str
 	blockId, err := r.env.OpenTerminal(ctx, req.TabId, req.AfterBlockId, meta, command)
 	result.BlockId, result.Agent, result.AgentName = blockId, agent, molten.AgentDisplayName(agent)
 	if err != nil {
-		result.Status = RestartFailed
+		result.Status, result.Reason = RestartFailed, RestartReasonNotStarted
 		result.Message = fmt.Sprintf("The agent was not started (%v). Start it in the new terminal with: %s", err, command)
 		return blockId != ""
 	}
@@ -443,6 +475,7 @@ func (r *Restarter) reuseAgent(ctx context.Context, tree string, line string, re
 		if run.State == molten.AgentStateWorking || run.State == molten.AgentStateWaiting {
 			// Two agents in one worktree would undo each other's work.
 			result.Status, result.BlockId, result.Agent, result.AgentName = RestartBusy, t.BlockId, run.Agent, name
+			result.Reason, result.AgentState = RestartReasonAgentBusy, run.State
 			result.Message = fmt.Sprintf("%s is %s in %s: restart the work once it is done.", name, stateWords(run.State), tree)
 			return true
 		}
@@ -456,7 +489,7 @@ func (r *Restarter) reuseAgent(ctx context.Context, tree string, line string, re
 	name := molten.AgentDisplayName(run.Agent)
 	result.BlockId, result.Agent, result.AgentName = run.BlockId, run.Agent, name
 	if r.env.TypePrompt == nil {
-		result.Status, result.Message = RestartFailed, "MoltenTerm cannot type in terminals yet: nothing was sent."
+		result.Status, result.Reason, result.Message = RestartFailed, RestartReasonTerminal, "MoltenTerm cannot type in terminals yet: nothing was sent."
 		return true
 	}
 	out := r.env.TypePrompt(ctx, run.BlockId, line)
@@ -470,9 +503,9 @@ func (r *Restarter) reuseAgent(ctx context.Context, tree string, line string, re
 		result.Message = fmt.Sprintf("Typed in %s's prompt, after what was already there: press Enter in its terminal to send it.", name)
 		return true
 	case out.Retry:
-		result.Status = RestartBusy
+		result.Status, result.Reason = RestartBusy, RestartReasonNotReady
 	default:
-		result.Status = RestartFailed
+		result.Status, result.Reason = RestartFailed, RestartReasonNotTyped
 	}
 	result.Message = out.Message
 	return true
