@@ -192,15 +192,18 @@ function ReviewsList({ dir, answer }: { dir: string; answer: ReviewsAnswer }) {
     }, [selected, draftsOpen]);
     const open = (pr: ReviewPr) => fireAndForget(() => model.openPullRequestReview(dir, pr));
     const onKeyDown = (e: React.KeyboardEvent) => {
+        // The focused row wins over the state: focus moves before React renders the selection it sets.
+        const focused = Number((e.target as HTMLElement).closest?.("[data-pr]")?.getAttribute("data-pr"));
+        const current = focused || selected;
         if (RowKeys.has(e.key)) {
             e.preventDefault();
-            const next = nextRow(rows, selected, e.key);
+            const next = nextRow(rows, current, e.key);
             setSelected(next);
             listRef.current?.querySelector<HTMLElement>(`[data-pr="${next}"]`)?.focus();
             return;
         }
         if (e.key === "Enter") {
-            const pr = rows.find((r) => r.number === selected);
+            const pr = rows.find((r) => r.number === current);
             if (pr != null) {
                 e.preventDefault();
                 open(pr);
