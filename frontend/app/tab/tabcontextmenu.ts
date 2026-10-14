@@ -7,6 +7,7 @@ import { fireAndForget } from "@/util/util";
 import { DeveloperSection } from "../../moltenterm-shell/menu/menu-model"; // MOLTENTERM-PATCH (#408)
 import { reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
 import { acceleratorById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
+import { setTabView360, View360MetaKey } from "../../moltenterm-shell/view360/view360-meta"; // MOLTENTERM-PATCH (#614)
 import { makeORef } from "../store/wos";
 import type { TabEnv } from "./tab";
 
@@ -82,6 +83,14 @@ export function buildTabContextMenu(
         })),
     ];
     menu.push({ label: "Flag tab", type: "submenu", submenu: flagSubmenu, icon: "flag" });
+    // MOLTENTERM-PATCH (#614): the tab's 360 view (fixed first column, the other panels on a scrolling carpet)
+    const view360On = globalStore.get(getOrefMetaKeyAtom(tabORef, View360MetaKey as keyof MetaType)) === true;
+    menu.push({
+        label: "360 view",
+        type: "checkbox",
+        checked: view360On,
+        click: () => fireAndForget(() => setTabView360(id, !view360On)),
+    });
     const fullConfig = globalStore.get(env.atoms.fullConfigAtom);
     const backgrounds = fullConfig?.backgrounds ?? {};
     const bgKeys = Object.keys(backgrounds).filter((k) => backgrounds[k] != null);

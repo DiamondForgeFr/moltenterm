@@ -39,7 +39,7 @@ import {
 // A second drag recorded before the first write came back builds on the first, not on the stale meta.
 let unconfirmed: PanelSizes = null;
 
-function currentPanelSizes(): PanelSizes {
+export function currentPanelSizes(): PanelSizes {
     if (unconfirmed != null) {
         return unconfirmed;
     }
@@ -68,7 +68,15 @@ function writePanelSizes(sizes: PanelSizes): void {
     });
 }
 
-function cachedBlockView(blockId: string): string {
+// A carpet column dragged in 360 view (#614): its kind's remembered width, shared with the normal layout's memory.
+export function rememberPanelWidth(kind: string, px: number): void {
+    if (!kind) {
+        return;
+    }
+    writePanelSizes(rememberPanelSize(currentPanelSizes(), kind, "width", px));
+}
+
+export function cachedBlockView(blockId: string): string {
     if (!blockId) {
         return null;
     }

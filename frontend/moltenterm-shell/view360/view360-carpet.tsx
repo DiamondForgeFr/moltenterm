@@ -1,0 +1,170 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+// The carpet's surface and chrome in 360 view (FR-SHELL-065, DS-SHELL-115), drawn by the tile layout around its
+// panels: the surface under them, then the edge fades, the fixed zone's grip and a minimal scrollbar above them.
+
+import type { LayoutModel } from "@/layout/lib/layoutModel";
+import { cn } from "@/util/util";
+import { useAtomValue } from "jotai";
+import { CSSProperties, memo, useEffect, useRef, useState } from "react";
+import { CarpetLayout, CarpetMarginPx, CarpetScrollVar, CarpetScrubberPx, Rect } from "./carpet-model";
+import "./view360.css";
+
+const ScrollbarInsetPx = 8;
+const MinThumbPx = 32;
+const LinePx = 16;
+
+function rectStyle(rect: Rect): CSSProperties {
+    return {
+        transform: `translate3d(${rect.left}px, ${rect.top}px, 0)`,
+        width: rect.width,
+        height: rect.height,
+    };
+}
+
+export const View360Underlay = memo(({ layoutModel }: { layoutModel: LayoutModel }) => {
+    const layout = useAtomValue(layoutModel.moltenView360.layoutAtom);
+    if (layout == null) {
+        return null;
+    }
+    return (
+        <div className="mt-carpet-surface" style={rectStyle(layout.surface)} data-testid="mt-carpet">
+            <span className="mt-carpet-label">carpet</span>
+            {layout.columns.length === 0 && <span className="mt-carpet-empty">Panels you open are laid here</span>}
+        </div>
+    );
+});
+View360Underlay.displayName = "View360Underlay";
+
+function CarpetScrollbar({ layoutModel, layout }: { layoutModel: LayoutModel; layout: CarpetLayout }) {
+    const [dragging, setDragging] = useState(false);
+    const dragRef = useRef<{ pointerId: number; startX: number; startScroll: number }>(null);
+    const view360 = layoutModel.moltenView360;
+    const track: Rect = {
+        top: layout.surface.top + layout.surface.height - CarpetScrubberPx / 2 - 3,
+        left: layout.viewport.left + ScrollbarInsetPx,
+        width: Math.max(0, layout.viewport.width - 2 * ScrollbarInsetPx),
+        height: 6,
+    };
+    const thumbWidth = Math.max(MinThumbPx, (layout.viewport.width / Math.max(1, layout.contentWidth)) * track.width);
+    const travel = Math.max(0, track.width - thumbWidth);
+    const ratio = layout.maxScroll > 0 ? travel / layout.maxScroll : 0;
+    const thumbStyle: CSSProperties = {
+        width: thumbWidth,
+        transform: `translate3d(calc(var(${CarpetScrollVar}, 0px) * ${ratio}), 0, 0)`,
+    };
+
+    const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+        e.stopPropagation();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        dragRef.current = { pointerId: e.pointerId, startX: e.clientX, startScroll: view360.scrollLeft };
+        setDragging(true);
+    };
+    const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+        const drag = dragRef.current;
+        if (drag == null || drag.pointerId !== e.pointerId || !(ratio > 0)) {
+            return;
+        }
+        view360.scrollTo(drag.startScroll + (e.clientX - drag.startX) / ratio);
+    };
+    const onPointerUp = () => {
+        dragRef.current = null;
+        setDragging(false);
+    };
+    const onTrackPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (e.target !== e.currentTarget) {
+            return;
+        }
+        const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
+        const thumbLeft = view360.scrollLeft * ratio;
+        const page = layout.viewport.width * 0.85;
+        view360.scrollTo(view360.scrollLeft + (x < thumbLeft ? -page : page));
+    };
+
+    return (
+        <div className="mt-carpet-scrollbar" style={rectStyle(track)} onPointerDown={onTrackPointerDown}>
+            <div
+                className={cn("mt-carpet-thumb", dragging && "dragging")}
+                style={thumbStyle}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onLostPointerCapture={onPointerUp}
+            />
+        </div>
+    );
+}
+
+export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel }) => {
+    const view360 = layoutModel.moltenView360;
+    const layout = useAtomValue(view360.layoutAtom);
+    const active = layout != null;
+
+    // Trackpad horizontal scroll and Shift + wheel over the carpet scroll it; vertical scroll stays with the panels.
+    useEffect(() => {
+        if (!active) {
+            return;
+        }
+        const root = layoutModel.displayContainerRef.current?.parentElement;
+        if (root == null) {
+            return;
+        }
+        const onWheel = (e: WheelEvent) => {
+            const current = view360.layout;
+            if (current == null || current.maxScroll <= 0) {
+                return;
+            }
+            const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+            if (!horizontal && !e.shiftKey) {
+                return;
+            }
+            const bounds = root.getBoundingClientRect();
+            const x = e.clientX - bounds.left;
+            if (x < current.surface.left || x > current.surface.left + current.surface.width) {
+                return;
+            }
+            const unit = e.deltaMode === 1 ? LinePx : e.deltaMode === 2 ? current.viewport.width : 1;
+            const delta = horizontal ? e.deltaX : e.deltaY || e.deltaX;
+            e.preventDefault();
+            e.stopPropagation();
+            view360.scrollBy(delta * unit);
+        };
+        root.addEventListener("wheel", onWheel, { capture: true, passive: false });
+        return () => root.removeEventListener("wheel", onWheel, { capture: true });
+    }, [active, layoutModel, view360]);
+
+    if (layout == null) {
+        return null;
+    }
+    const surface = layout.surface;
+    const fadeTop = layout.viewport.top;
+    const fadeHeight = layout.viewport.height;
+    return (
+        <div className="mt-carpet-chrome">
+            {layout.fixedNodeId != null && (
+                <div
+                    className="mt-fixed-grip"
+                    style={{
+                        transform: `translate3d(${layout.fixed.width + CarpetMarginPx / 2 - 2}px, ${layout.fixed.height / 2 - 18}px, 0)`,
+                    }}
+                />
+            )}
+            <div
+                className="mt-carpet-fade mt-carpet-fade-left"
+                style={rectStyle({ top: fadeTop, left: surface.left, width: 28, height: fadeHeight })}
+            />
+            <div
+                className="mt-carpet-fade mt-carpet-fade-right"
+                style={rectStyle({
+                    top: fadeTop,
+                    left: surface.left + surface.width - 28,
+                    width: 28,
+                    height: fadeHeight,
+                })}
+            />
+            {layout.maxScroll > 0 && <CarpetScrollbar layoutModel={layoutModel} layout={layout} />}
+        </div>
+    );
+});
+View360Overlay.displayName = "View360Overlay";
