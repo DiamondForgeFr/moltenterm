@@ -88,5 +88,893 @@
         },
         "chooseFolder": "Choose",
         "images": "Images"
+    },
+    "wave": {
+        "tab": {
+            "rename": "Rename tab",
+            "copyId": "Copy tab id",
+            "flag": "Flag tab",
+            "flagNone": "None",
+            "flagGreen": "Green",
+            "flagTeal": "Teal",
+            "flagBlue": "Blue",
+            "flagPurple": "Purple",
+            "flagRed": "Red",
+            "flagOrange": "Orange",
+            "flagYellow": "Yellow",
+            "view360": "360 view",
+            "backgrounds": "Backgrounds",
+            "backgroundDefault": "Default",
+            "sectionTabBar": "Tab bar",
+            "tabBarPosition": "Tab bar position",
+            "tabBarTop": "Top",
+            "tabBarLeft": "Left",
+            "reopenClosed": "Reopen closed",
+            "close": "Close tab",
+            "add": "Add Tab",
+            "new": "New Tab"
+        },
+        "block": {
+            "commandsAndOptions": "Commands and options ({shortcut})",
+            "suggestionsAndOptions": "Suggestions, commands and options ({shortcut})",
+            "addToLayout": "Add to Layout",
+            "magnify": "Magnify",
+            "unmagnify": "Minimize",
+            "noView": "(No View)",
+            "viewTerminal": "Terminal",
+            "viewPreview": "Preview",
+            "viewWeb": "Web",
+            "viewHelp": "Help",
+            "viewTips": "Tips",
+            "viewProcesses": "Processes"
+        },
+        "conn": {
+            "stalledTitle": "Connection Stalled",
+            "stalled": "Connection to \"{name}\" is stalled",
+            "noActivityFor": " (no activity for {elapsed})",
+            "disconnect": "Disconnect",
+            "disconnected": "Disconnected from \"{name}\"",
+            "connecting": "Connecting to \"{name}\"...",
+            "reconnect": "Reconnect",
+            "copy": "Copy",
+            "alwaysDisableWsh": "always disable wsh"
+        },
+        "term": {
+            "openUrl": "Open URL",
+            "openUrlHost": "Open URL ({host})",
+            "openUrlExternal": "Open URL in external browser",
+            "saveSession": "Save session as…",
+            "saveSessionFailed": "Failed to save session scrollback: {error}",
+            "saveSessionEmpty": "No scrollback content to save.",
+            "unknownError": "An unknown error occurred",
+            "default": "Default",
+            "defaultFontSize": "Default ({size}px)",
+            "defaultValue": "Default ({value})",
+            "themes": "Themes",
+            "fontSize": "Font size",
+            "cursor": "Cursor",
+            "cursorBlock": "Block",
+            "cursorBlockBlink": "Block (Blinking)",
+            "cursorBar": "Bar",
+            "cursorBarBlink": "Bar (Blinking)",
+            "cursorUnderline": "Underline",
+            "cursorUnderlineBlink": "Underline (Blinking)",
+            "transparency": "Transparency",
+            "transparentBackground": "Transparent Background",
+            "noTransparency": "No Transparency",
+            "advanced": "Advanced",
+            "fileBrowser": "File Browser",
+            "bracketedPaste": "Allow Bracketed Paste Mode",
+            "forceRestart": "Force Restart Controller",
+            "clearOnRestart": "Clear Output On Restart",
+            "runOnStartup": "Run On Startup",
+            "debugConnection": "Debug Connection",
+            "debugInfo": "Info",
+            "debugVerbose": "Verbose",
+            "durability": "Session Durability",
+            "restartStandard": "Restart Session in Standard Mode",
+            "restartDurable": "Restart Session in Durable Mode",
+            "closeToolbar": "Close Toolbar",
+            "switchToTerminal": "Switch back to Terminal",
+            "restartingCommand": "Restarting Command",
+            "commandSucceeded": "Command Exited Successfully",
+            "exitCode": "Exit Code: {code}"
+        },
+        "workspace": {
+            "switch": "Switch workspace",
+            "open": "Open workspace",
+            "create": "Create new workspace",
+            "save": "Save workspace",
+            "edit": "Edit workspace"
+        }
+    },
+    "menu": {
+        "contextMenu": "Context menu",
+        "saveImage": "Save image",
+        "roles": {
+            "undo": "Undo",
+            "redo": "Redo",
+            "cut": "Cut",
+            "copy": "Copy",
+            "paste": "Paste",
+            "pasteAndMatchStyle": "Paste and match style",
+            "delete": "Delete",
+            "selectAll": "Select all"
+        },
+        "sections": {
+            "developer": "Developer",
+            "group": "Group",
+            "panel": "Panel",
+            "link": "Link"
+        }
+    },
+    "palette": {
+        "ariaPalette": "Command palette",
+        "ariaSearch": "Search the command palette",
+        "placeholder": "Open an agent, a panel, a folder…",
+        "footer": {
+            "choose": "choose",
+            "open": "open",
+            "openHere": "open here",
+            "openRight": "open to the right",
+            "close": "close",
+            "cancelSplit": "cancel the split",
+            "clear": "clear"
+        },
+        "groups": {
+            "agents": "Agents",
+            "panels": "Panels",
+            "folders": "Recent folders",
+            "actions": "Workspace",
+            "panel": "This panel",
+            "agentsIn": "Agents in {folder}"
+        },
+        "panelNames": {
+            "terminal": "Terminal",
+            "files": "Files",
+            "browser": "Browser",
+            "cicd": "CI/CD",
+            "reviews": "Reviews",
+            "sysinfo": "System info",
+            "processes": "Processes"
+        },
+        "actions": {
+            "projectTab": "Project tab",
+            "projectTabDetail": "where the project stands: agents, branches, CI, releases, actions",
+            "newTab": "New tab",
+            "reopenClosed": "Reopen the last closed pane or tab",
+            "newWorkspace": "New workspace",
+            "editWorkspace": "Edit workspace…",
+            "editWorkspaceDetail": "name, icon, colour, project, folder",
+            "switchTo": "Switch to {name}",
+            "gettingStarted": "Getting started",
+            "gettingStartedDetail": "your agent, a first morph, your project",
+            "sessions": "Sessions",
+            "sessionsDetail": "terminals and agents still running, local and SSH",
+            "settings": "Settings",
+            "shortcuts": "Keyboard shortcuts",
+            "agentCopy": "Copy {agent}'s last answer",
+            "agentCopyDetail": "type {command} in {agent}, it reaches the clipboard through OSC 52",
+            "openInBrowser": "Open in {browser}",
+            "openInBrowserDetail": "the browser panel's page, with your sessions and extensions",
+            "updateTerminals": "Update outdated terminals"
+        },
+        "panels": {
+            "missionControl": "Mission Control",
+            "missionControlDetail": "the project overview",
+            "noProject": "no project linked yet",
+            "lineMap": "Line map",
+            "lineMapDetail": "the project's branches as lines",
+            "companion": "Companion",
+            "companionDetail": "the agent of this terminal",
+            "sessions": "Sessions",
+            "sessionsDetail": "terminals and agents still running"
+        }
+    },
+    "termupdate": {
+        "title": {
+            "agentStarted": "Started before the update: {agent} runs without MoltenTerm's browser and hooks.",
+            "olderShell": "This shell was started by an older MoltenTerm: agents started here miss MoltenTerm's browser and hooks.",
+            "olderEnv": "This shell still has an older MoltenTerm environment.",
+            "agentAction": "Update terminal restarts {agent} in a fresh shell, on the same conversation.",
+            "shellAction": "Update terminal replaces the shell in the same folder; the scrollback stays."
+        },
+        "detail": {
+            "one": "1 terminal started before MoltenTerm's update",
+            "other": "{count} terminals started before MoltenTerm's update"
+        },
+        "summary": {
+            "updatedOne": "1 terminal updated",
+            "updatedOther": "{count} terminals updated",
+            "updatedNone": "No terminal updated",
+            "couldNotUpdate": "it could not be updated",
+            "leftOne": "1 terminal was left as it is",
+            "leftOther": "{count} terminals were left as they are",
+            "leftMessage": "{lead}: {reasons}"
+        },
+        "agentRunsInOne": "{agent} runs in one of them: use Update terminal in its header to restart {agent} on its conversation.",
+        "failedUpdate": "The terminal could not be updated: {error}",
+        "failedCheck": "The terminal could not be checked: {error}",
+        "theAgent": "the agent",
+        "dialog": {
+            "title": "Restart {agent}?",
+            "subtitle": "It was started before MoltenTerm's update, without its browser and hooks.",
+            "restart": "Restart {agent}",
+            "body": "MoltenTerm types {agent}'s exit command, waits for it to exit, starts a fresh shell in the same folder and starts {agent} again on the same conversation, with MoltenTerm's integration.",
+            "note": "Before that, Escape answers No to a question {agent} may be asking and an unsent draft in its input is cleared. Nothing is killed: if {agent} does not exit, it keeps running."
+        },
+        "result": {
+            "updated": "Terminal updated",
+            "notNow": "Not now",
+            "notUpdated": "Terminal not updated"
+        }
+    },
+    "settings": {
+        "groups": {
+            "app": "App",
+            "keys": "Keys",
+            "quittingAndClosing": "Quitting and closing",
+            "panels": "Panels",
+            "look": "Look",
+            "terminal": "Terminal",
+            "shell": "Shell",
+            "behaviour": "Behaviour",
+            "companion": "Companion",
+            "integration": "Integration",
+            "codeReview": "Code review",
+            "language": "Language",
+            "agents": "Agents",
+            "lineMap": "Line map",
+            "ciCd": "CI/CD",
+            "filesAndEditor": "Files and editor",
+            "text": "Text",
+            "openingPages": "Opening pages",
+            "browserPanel": "Browser panel",
+            "power": "Power",
+            "window": "Window",
+            "updates": "Updates",
+            "startup": "Startup",
+            "magnifiedPanel": "Magnified panel",
+            "connections": "Connections",
+            "debugging": "Debugging",
+            "appBuilder": "App builder",
+            "thisWorkspace": "This workspace",
+            "otherSettings": "Other settings"
+        },
+        "items": {
+            "app:nativecontextmenu": {
+                "label": "System context menus",
+                "description": "Use the system's context menus instead of MoltenTerm's."
+            },
+            "app:globalhotkey": {
+                "label": "Global shortcut",
+                "description": "A system-wide shortcut that brings MoltenTerm to the front."
+            },
+            "app:defaultnewblock": {
+                "label": "New tab content",
+                "description": "The view a new tab starts with, such as term."
+            },
+            "app:showoverlayblocknums": {
+                "label": "Panel numbers",
+                "description": "Show each panel's number while its shortcut keys are held."
+            },
+            "app:ctrlvpaste": {
+                "label": "Ctrl+V pastes",
+                "description": "Ctrl+V pastes in terminals instead of reaching the program."
+            },
+            "app:confirmquit": {
+                "label": "Confirm before quitting",
+                "description": "Ask before quitting MoltenTerm."
+            },
+            "app:disablectrlshiftarrows": {
+                "label": "No Ctrl+Shift+arrow navigation",
+                "description": "Ctrl+Shift+arrows reach the program instead of moving between panels."
+            },
+            "app:disablectrlshiftdisplay": {
+                "label": "No panel numbers on Ctrl+Shift",
+                "description": "Holding Ctrl+Shift does not show the panels' numbers."
+            },
+            "app:focusfollowscursor": {
+                "label": "Focus follows the pointer",
+                "description": "Focus the panel under the pointer without a click.",
+                "options": {
+                    "off": "Off",
+                    "on": "On",
+                    "term": "Terminals only"
+                }
+            },
+            "app:tabbar": {
+                "label": "Tab bar position",
+                "description": "Where the tab bar sits.",
+                "options": {
+                    "top": "Top",
+                    "left": "Left"
+                }
+            },
+            "app:tilelauncher": {
+                "label": "Tile launcher in empty panes",
+                "description": "An empty pane shows the tile launcher instead of the command palette."
+            },
+            "feature:waveappbuilder": {
+                "label": "App builder",
+                "description": "Show the Apps tool in the rail outside development builds."
+            },
+            "term:fontsize": {
+                "label": "Font size",
+                "description": "The text size of terminals."
+            },
+            "term:fontfamily": {
+                "label": "Font",
+                "description": "A monospace font installed on this computer, such as Hack."
+            },
+            "term:theme": {
+                "label": "Theme",
+                "description": "The colours of every terminal without a theme of its own."
+            },
+            "term:disablewebgl": {
+                "label": "No WebGL in terminals",
+                "description": "Draw terminals without WebGL, slower but safer on some GPUs."
+            },
+            "term:localshellpath": {
+                "label": "Shell",
+                "description": "The shell local terminals start, such as /bin/zsh; empty uses your login shell."
+            },
+            "term:localshellopts": {
+                "label": "Shell arguments",
+                "description": "The arguments passed to the local shell."
+            },
+            "term:gitbashpath": {
+                "label": "Git Bash",
+                "description": "Where Git Bash is installed."
+            },
+            "term:scrollback": {
+                "label": "Scrollback",
+                "description": "How many lines of output a terminal keeps."
+            },
+            "term:copyonselect": {
+                "label": "Copy on select",
+                "description": "Selecting text copies it."
+            },
+            "term:transparency": {
+                "label": "Transparency",
+                "description": "How much of the window's background shows through a terminal."
+            },
+            "term:allowbracketedpaste": {
+                "label": "Bracketed paste",
+                "description": "Programs can tell pasted text from typed text."
+            },
+            "term:shiftenternewline": {
+                "label": "Shift+Enter inserts a line",
+                "description": "Shift+Enter sends a new line instead of Enter."
+            },
+            "term:macoptionismeta": {
+                "label": "Option is Meta",
+                "description": "The Option key sends Meta to terminal programs instead of typing symbols."
+            },
+            "term:cursor": {
+                "label": "Cursor",
+                "description": "The shape of the terminal cursor.",
+                "options": {
+                    "block": "Block",
+                    "bar": "Bar",
+                    "underline": "Underline"
+                }
+            },
+            "term:cursorblink": {
+                "label": "Blinking cursor",
+                "description": "The cursor blinks."
+            },
+            "term:bellsound": {
+                "label": "Bell sound",
+                "description": "Play a sound when a program rings the bell."
+            },
+            "term:bellindicator": {
+                "label": "Bell indicator",
+                "description": "Mark the tab when a program rings the bell."
+            },
+            "term:osc52": {
+                "label": "Clipboard access",
+                "description": "When programs in a terminal may write to the clipboard (OSC 52).",
+                "options": {
+                    "always": "Always",
+                    "focus": "When the terminal is focused"
+                }
+            },
+            "term:durable": {
+                "label": "Durable sessions",
+                "description": "New terminals keep running when MoltenTerm quits or updates."
+            },
+            "term:showsplitbuttons": {
+                "label": "Split buttons in headers",
+                "description": "Show split buttons in terminal headers."
+            },
+            "term:trimtrailingwhitespace": {
+                "label": "Trim copied lines",
+                "description": "Copying drops the spaces at the end of each line."
+            },
+            "agent:sessionroots": {
+                "label": "More session folders",
+                "description": "Extra configuration folders per agent whose sessions the companion reads."
+            },
+            "agent:integrate": {
+                "label": "Agent integration",
+                "description": "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited."
+            },
+            "agent:integrateoff": {
+                "label": "Without integration",
+                "description": "Agents started without the integration while the others keep it.",
+                "options": {
+                    "claude": "Claude Code",
+                    "codex": "Codex"
+                }
+            },
+            "review:language": {
+                "label": "Review language",
+                "description": "Language of the review briefing and answers (fr, French...); empty: the interface language."
+            },
+            "app:language": {
+                "label": "Interface language",
+                "description": "The language of menus, panels and dialogs. Applies at once.",
+                "unset": "Same as the system"
+            },
+            "companion:usagegauges": {
+                "label": "Plan usage",
+                "description": "The agents whose plan usage the companion shows.",
+                "options": {
+                    "claude": "Claude Code",
+                    "codex": "Codex"
+                }
+            },
+            "companion:usageclaudeoauth": {
+                "label": "Claude Code limits (experimental)",
+                "description": "Read Claude Code's limits from Anthropic's undocumented endpoint with its own sign-in."
+            },
+            "linemap:animation": {
+                "label": "Animate the line map",
+                "description": "Play the load sequence and the moving trains; reduced motion turns it off."
+            },
+            "cicd:runs": {
+                "label": "Runs shown",
+                "description": "Which runs a CI/CD panel shows first.",
+                "options": {
+                    "local": "Local CI",
+                    "remote": "Remote CI",
+                    "cd": "CD"
+                }
+            },
+            "editor:minimapenabled": {
+                "label": "Minimap",
+                "description": "Show the code overview on the editor's right edge."
+            },
+            "editor:stickyscrollenabled": {
+                "label": "Sticky scroll",
+                "description": "Keep the enclosing scopes at the top of the editor while scrolling."
+            },
+            "editor:wordwrap": {
+                "label": "Wrap long lines",
+                "description": "The editor wraps lines wider than the panel."
+            },
+            "editor:fontsize": {
+                "label": "Editor text size",
+                "description": "The text size of file views and the editor."
+            },
+            "editor:inlinediff": {
+                "label": "Inline diffs",
+                "description": "Show diffs in one column instead of side by side."
+            },
+            "web:openlinksinternally": {
+                "label": "Open links in MoltenTerm",
+                "description": "Links clicked in a terminal or a page open in a browser panel."
+            },
+            "web:defaulturl": {
+                "label": "Home page",
+                "description": "The page a new browser panel opens."
+            },
+            "web:defaultsearch": {
+                "label": "Search engine",
+                "description": "The search URL, with {query} where the words go."
+            },
+            "browser:installed": {
+                "label": "Installed browser",
+                "description": "The Chromium browser pages are handed off to.",
+                "unset": "First one found",
+                "options": {
+                    "chrome": "Chrome",
+                    "brave": "Brave",
+                    "edge": "Edge",
+                    "arc": "Arc",
+                    "vivaldi": "Vivaldi",
+                    "opera": "Opera",
+                    "chromium": "Chromium"
+                }
+            },
+            "browser:default": {
+                "label": "Open web pages in",
+                "description": "Where links and web pages open by default.",
+                "unset": "Ask for each site",
+                "options": {
+                    "app": "MoltenTerm's browser",
+                    "installed": "The installed browser"
+                }
+            },
+            "browser:sites": {
+                "label": "Per-site browser",
+                "description": "Sites that always open in MoltenTerm's browser or the installed one."
+            },
+            "browser:agentsites": {
+                "label": "Agent site permissions",
+                "description": "Sites agents may use or are blocked from in the browser panel."
+            },
+            "markdown:fontsize": {
+                "label": "Markdown text size",
+                "description": "The body text size of rendered Markdown."
+            },
+            "markdown:fixedfontsize": {
+                "label": "Markdown code size",
+                "description": "The text size of code in rendered Markdown."
+            },
+            "preview:showhiddenfiles": {
+                "label": "Show hidden files",
+                "description": "File views list dotfiles."
+            },
+            "preview:defaultsort": {
+                "label": "Sort files by",
+                "description": "The order of a file view's list.",
+                "options": {
+                    "name": "Name",
+                    "modtime": "Last modified"
+                }
+            },
+            "tab:preset": {
+                "label": "Tab preset",
+                "description": "The preset new tabs start from."
+            },
+            "tab:confirmclose": {
+                "label": "Confirm before closing a tab",
+                "description": "Ask before closing a tab."
+            },
+            "tab:background": {
+                "label": "Tab background",
+                "description": "The background new tabs get, from backgrounds.json."
+            },
+            "tab:holdtoclose": {
+                "label": "Hold to close a tab",
+                "description": "A tab's close button closes it after a press-and-hold, not a single click."
+            },
+            "tab:holdtoclosems": {
+                "label": "Hold duration",
+                "description": "How long the close button is held before the tab closes."
+            },
+            "power:sleeppolicy": {
+                "label": "Keep the computer awake",
+                "description": "Whether terminals may keep the computer awake (caffeinate, systemd-inhibit).",
+                "unset": "Ask the first time",
+                "options": {
+                    "allow": "When a terminal asks",
+                    "untilworkends": "Until work ends",
+                    "letsleep": "Never"
+                }
+            },
+            "moltenterm:tabviewpriority": {
+                "label": "Load tabs at full priority",
+                "description": "Workspaces being opened load at the priority of the one on screen, so a busy machine cannot starve them."
+            },
+            "moltenterm:tabviewbudget": {
+                "label": "Limit hidden workspaces",
+                "description": "Workspaces not on screen are hidden and only the most recent stay loaded; others reload when shown."
+            },
+            "moltenterm:hiddentabviews": {
+                "label": "Hidden workspaces kept loaded",
+                "description": "How many workspaces not on screen stay loaded, so that coming back to them is instant."
+            },
+            "moltenterm:hiddentabviewsmb": {
+                "label": "Memory for hidden workspaces",
+                "description": "Past this, the least recently used hidden workspace is unloaded."
+            },
+            "moltenterm:tabviewhost": {
+                "label": "Open tabs when ready",
+                "description": "A new tab replaces the one on screen once it has rendered, with a pending state if it is slow."
+            },
+            "moltenterm:hiddenpagefreeze": {
+                "label": "Pause hidden pages",
+                "description": "A page not on screen stops running until shown, unless an agent drives it or it plays audio."
+            },
+            "moltenterm:hiddenpagediscardmin": {
+                "label": "Unload hidden pages after",
+                "description": "A page not on screen this long is unloaded, then reloads when shown; 0 keeps pages loaded."
+            },
+            "moltenterm:releasenotify": {
+                "label": "Tell me about new releases",
+                "description": "Once a day at most, ask GitHub for a newer release and show its notes with a download link."
+            },
+            "moltenterm:confirmbusyclose": {
+                "label": "Ask before stopping what runs",
+                "description": "Closing a pane or a tab in which an agent or a command runs asks first and names what would stop."
+            },
+            "window:fullscreenonlaunch": {
+                "label": "Full screen at launch",
+                "description": "Open windows in full screen."
+            },
+            "window:transparent": {
+                "label": "Transparent window",
+                "description": "Let the desktop show through the window's background."
+            },
+            "window:blur": {
+                "label": "Blur behind the window",
+                "description": "Blur the desktop behind a transparent window."
+            },
+            "window:opacity": {
+                "label": "Window opacity",
+                "description": "How opaque a transparent or blurred window is."
+            },
+            "window:bgcolor": {
+                "label": "Window background",
+                "description": "A CSS colour behind the panels, such as #1f1f1f."
+            },
+            "window:reducedmotion": {
+                "label": "Reduce motion",
+                "description": "Turn off animations, as the system's reduced motion setting does."
+            },
+            "window:tilegapsize": {
+                "label": "Gap between panels",
+                "description": "The space between the panels of a tab."
+            },
+            "window:showmenubar": {
+                "label": "Menu bar",
+                "description": "Show the menu bar in the window."
+            },
+            "window:nativetitlebar": {
+                "label": "Native title bar",
+                "description": "Use the system's title bar."
+            },
+            "window:disablehardwareacceleration": {
+                "label": "No hardware acceleration",
+                "description": "Draw without the GPU; takes effect at the next launch."
+            },
+            "window:maxtabcachesize": {
+                "label": "Tabs kept in memory",
+                "description": "How many tabs stay loaded in the background."
+            },
+            "window:magnifiedblockopacity": {
+                "label": "Backdrop opacity",
+                "description": "How much the panels behind a magnified panel fade."
+            },
+            "window:magnifiedblocksize": {
+                "label": "Magnified size",
+                "description": "How much of the tab a magnified panel covers."
+            },
+            "window:magnifiedblockblurprimarypx": {
+                "label": "Magnified backdrop blur",
+                "description": "The blur behind a magnified panel."
+            },
+            "window:magnifiedblockblursecondarypx": {
+                "label": "Secondary backdrop blur",
+                "description": "The blur behind the other layers of a magnified panel."
+            },
+            "window:confirmclose": {
+                "label": "Confirm before closing a window",
+                "description": "Ask before closing a window that holds several tabs."
+            },
+            "window:savelastwindow": {
+                "label": "Reopen the last window",
+                "description": "Closing the last window keeps it, so it opens again at the next launch."
+            },
+            "window:dimensions": {
+                "label": "New window size",
+                "description": "The size of new windows, such as 1400x900."
+            },
+            "window:zoom": {
+                "label": "Zoom",
+                "description": "The zoom of the window's content; ⌘+ and ⌘- change it."
+            },
+            "conn:askbeforewshinstall": {
+                "label": "Ask before installing it",
+                "description": "Ask before installing the helper on a new host."
+            },
+            "conn:wshenabled": {
+                "label": "Shell integration on remotes",
+                "description": "Install MoltenTerm's helper on SSH hosts, for file views and folder tracking."
+            },
+            "conn:localhostdisplayname": {
+                "label": "Name of this computer",
+                "description": "How the local connection is named in headers and menus."
+            },
+            "debug:pprofport": {
+                "label": "Profiler port",
+                "description": "Serve Go's pprof on this port."
+            },
+            "debug:pprofmemprofilerate": {
+                "label": "Memory profile rate",
+                "description": "Go's memory profile sampling rate."
+            },
+            "debug:webglstatus": {
+                "label": "WebGL status",
+                "description": "Show whether each terminal draws with WebGL."
+            },
+            "tsunami:scaffoldpath": {
+                "label": "Scaffold path",
+                "description": "Where the app builder's scaffold lives."
+            },
+            "tsunami:sdkreplacepath": {
+                "label": "SDK replace path",
+                "description": "A local SDK used in place of the published one."
+            },
+            "tsunami:sdkversion": {
+                "label": "SDK version",
+                "description": "The SDK version apps build against."
+            },
+            "tsunami:gopath": {
+                "label": "Go binary",
+                "description": "The Go binary apps build with."
+            },
+            "molten:folder": {
+                "label": "Working folder",
+                "description": "Where this workspace's new terminals and file views start."
+            },
+            "molten:project": {
+                "label": "Project folder",
+                "description": "The project this workspace is linked to, for Mission Control."
+            }
+        },
+        "title": "Settings",
+        "default": "Default",
+        "auto": "Auto",
+        "notSet": "Not set",
+        "editInJson": "Edit in JSON",
+        "thisWorkspace": "This workspace",
+        "sectionsLabel": "Settings sections",
+        "secretsElsewhere": "Secrets open from the Settings pane.",
+        "count": {
+            "items": {
+                "one": "1 item",
+                "other": "{count} items"
+            },
+            "entries": {
+                "one": "1 entry",
+                "other": "{count} entries"
+            }
+        },
+        "workspacePill": {
+            "title": "Applies to the workspace {name} only",
+            "srOnly": "workspace only"
+        },
+        "error": {
+            "folder": "This folder could not be used. Check that it exists.",
+            "notSaved": "This value was not saved. Check settings.json under Advanced."
+        },
+        "reset": {
+            "label": "Reset {label}",
+            "title": "Reset to the default"
+        },
+        "files": {
+            "title": "JSON files",
+            "hint": "Edited in place, checked before they are saved.",
+            "settings": {
+                "description": "Every setting of this screen, and the ones it does not show."
+            },
+            "connections": {
+                "description": "SSH hosts and their options."
+            },
+            "widgets": {
+                "description": "The custom tools of the rail."
+            },
+            "backgrounds": {
+                "name": "Tab backgrounds",
+                "description": "The backgrounds tabs can use."
+            },
+            "secrets": {
+                "description": "Values kept in the system's keychain."
+            }
+        },
+        "shortcuts": {
+            "title": "Shortcuts",
+            "hint": "Every key MoltenTerm answers, by area."
+        },
+        "search": {
+            "label": "Search settings",
+            "none": "No setting matches \"{query}\"",
+            "noneHint": "Try another word, or edit the JSON files under Advanced.",
+            "clear": "Clear the search",
+            "count": {
+                "one": "1 setting",
+                "other": "{count} settings"
+            },
+            "results": "Matching settings"
+        },
+        "sections": {
+            "general": {
+                "title": "General",
+                "description": "This workspace, quitting and closing, startup, panels and files."
+            },
+            "appearance": {
+                "title": "Appearance",
+                "description": "The window, its text and the magnified panel."
+            },
+            "terminal": {
+                "title": "Terminal",
+                "description": "How terminals look and behave, their shell and connections."
+            },
+            "agents": {
+                "title": "Agents",
+                "description": "The agent companion, and what MoltenTerm adds when an agent starts in its terminals."
+            },
+            "browser": {
+                "title": "Browser",
+                "description": "The browser panel, how pages open, and the browser agents use."
+            },
+            "mission": {
+                "title": "Mission Control",
+                "description": "Mission Control's CI/CD and line map."
+            },
+            "keyboard": {
+                "title": "Keyboard",
+                "description": "Keys and every shortcut."
+            },
+            "mods": {
+                "title": "Mods",
+                "description": "The mods this window runs and what each costs."
+            },
+            "secrets": {
+                "title": "Secrets",
+                "description": "Values stored in your system's secret store, for connections and commands. Never shown unless you ask."
+            },
+            "advanced": {
+                "title": "Advanced",
+                "description": "Window and app internals, debugging, and the JSON files behind every setting."
+            }
+        },
+        "mods": {
+            "label": "Mods",
+            "intro": "Each mod's cost in this tab: idle CPU over the last {seconds} s and the memory its activation took. The budget is {cpu} % CPU and {mb} MB.",
+            "disableHint": "Turn a mod off with",
+            "none": "No mods",
+            "noneHint": "Ask your coding agent for one with /morph.",
+            "builtin": "Built-in",
+            "background": "Background",
+            "backgroundTitle": "Keeps running while its tab is hidden",
+            "overBudget": "Over budget",
+            "state": {
+                "active": "Running",
+                "pending": "Loads when this tab shows",
+                "loading": "Loading",
+                "disabled": "Off",
+                "untrusted": "Not trusted",
+                "safemode": "Off (safe mode)",
+                "failed": "Stopped",
+                "refused": "Refused"
+            },
+            "usage": {
+                "cpu": "{pct} % CPU idle",
+                "timers": {
+                    "one": "1 timer",
+                    "other": "{count} timers"
+                },
+                "activation": "activation {ms} ms",
+                "heap": "{mb} MB at activation"
+            }
+        },
+        "secrets": {
+            "new": {
+                "title": "New secret",
+                "hint": "A letter first, then letters, digits and underscores.",
+                "add": "Add secret"
+            },
+            "name": "Name",
+            "value": "Value",
+            "detail": {
+                "hint": "Saving replaces the stored value.",
+                "placeholder": "Type a new value",
+                "hidden": "The stored value stays hidden until you show it.",
+                "show": "Show value",
+                "deleteName": "Delete {name}",
+                "keep": "Keep it",
+                "delete": "Delete…"
+            },
+            "stored": "Stored secrets",
+            "loading": "Loading secrets…",
+            "none": "No secret yet.",
+            "edit": "Edit",
+            "addOne": "Add a secret"
+        }
     }
 }

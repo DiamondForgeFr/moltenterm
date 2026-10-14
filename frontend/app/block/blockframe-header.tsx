@@ -31,6 +31,7 @@ import {
     useMoltenHeader,
     withoutHeaderPills,
 } from "../../moltenterm-shell/header/panel-header";
+import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { formatShortcutById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
 import { splitPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { SplitDownLabel, SplitRightLabel } from "../../moltenterm-shell/split/split-menu"; // MOLTENTERM-PATCH (#370)
@@ -116,6 +117,7 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
     const numLeafs = jotai.useAtomValue(nodeModel.numLeafs);
     const magnifyDisabled = numLeafs <= 1;
     const showSplitButtons = jotai.useAtomValue(blockEnv.getSettingsKeyAtom("term:showsplitbuttons"));
+    const t = useT(); // MOLTENTERM-PATCH (#623)
     // MOLTENTERM-PATCH (#406): a terminal's proposals wait in the command panel; its trigger carries a dot meanwhile
     const hasProposal = useHeaderHasProposal(blockId, termHeader);
 
@@ -153,7 +155,10 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
     const settingsDecl: IconButtonDecl = {
         elemtype: "iconbutton",
         icon: "sliders",
-        title: `${hasProposal ? "Suggestions, commands" : "Commands"} and options (${formatShortcutById("command-panel")})`,
+        // MOLTENTERM-PATCH (#623)
+        title: t(hasProposal ? "wave.block.suggestionsAndOptions" : "wave.block.commandsAndOptions", {
+            shortcut: formatShortcutById("command-panel"),
+        }),
         click: (e) =>
             openCommandPanelFromTrigger(
                 blockId,
@@ -171,7 +176,7 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
         const addToLayoutDecl: IconButtonDecl = {
             elemtype: "iconbutton",
             icon: "circle-plus",
-            title: "Add to Layout",
+            title: t("wave.block.addToLayout"), // MOLTENTERM-PATCH (#623)
             click: () => {
                 nodeModel.addEphemeralNodeToLayout();
             },
@@ -194,7 +199,7 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
     const closeDecl: IconButtonDecl = {
         elemtype: "iconbutton",
         icon: "xmark-large",
-        title: "Close",
+        title: t("common.close"), // MOLTENTERM-PATCH (#623)
         click: () => uxCloseBlock(nodeModel.blockId),
     };
     endIconsElem.push(<IconButton key="close" decl={closeDecl} className="block-frame-default-close" />);
