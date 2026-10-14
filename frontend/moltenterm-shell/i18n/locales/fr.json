@@ -17,7 +17,8 @@
         "on": "Activé",
         "off": "Désactivé",
         "open": "Ouvrir",
-        "confirm": "Confirmer"
+        "confirm": "Confirmer",
+        "selected": "Sélectionné"
     },
     "i18n": {
         "unknownLanguage": {

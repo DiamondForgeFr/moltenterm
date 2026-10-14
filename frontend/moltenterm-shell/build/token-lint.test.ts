@@ -70,6 +70,10 @@ describe("design tokens lint (FR-SHELL-044 AC1, TC-SHELL-093)", () => {
         ["transition: opacity var(--mt-duration-base) var(--mt-ease), width 0.6s ease;", 1],
         ["transition-duration: 200ms;", 1],
         ["--mt-text-12: 12px;", 0],
+        ["font-size: var(--df-text-chip);", 0],
+        ["font-size: var(--df-chip-height);", 1],
+        ["font-weight: var(--df-weight-semibold);", 0],
+        ["transition: opacity var(--df-duration-fade) ease;", 0],
     ])("CSS %s → %i finding(s)", (decl, count) => {
         expect(lintCss("x.css", `.a { ${decl} }`)).toHaveLength(count);
     });

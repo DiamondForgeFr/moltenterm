@@ -96,7 +96,7 @@ function TipsView(_props: ViewComponentProps<TipsViewModel>) {
                     ))}
                 </PageCard>
                 <PageCard title={t("tips.shortcuts.title")} hint={t("tips.shortcuts.hint")}>
-                    <div className="flex flex-col gap-3 px-4 py-3">
+                    <div className="flex flex-col gap-3 px-5 py-3">
                         <ShortcutSections
                             sections={sections}
                             mac={mac}

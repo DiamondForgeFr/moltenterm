@@ -11,21 +11,22 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { suiteIcon } from "../suite/suite-icons";
 import { PageCard, PageRowClass } from "./settings-page";
 
 const InputClass =
     "h-row rounded-4 border border-line-strong bg-transparent px-2 text-12 text-primary outline-none placeholder:text-muted focus:border-accent";
 const ValueClass =
     "min-h-[96px] w-full rounded-4 border border-line-strong bg-transparent px-2 py-1.5 font-mono text-12 text-primary outline-none placeholder:text-muted focus:border-accent";
-const SecondaryButton = "molten-btn-secondary cursor-pointer rounded-6 px-3 py-1.5 text-12 disabled:opacity-50";
-const PrimaryButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12 font-medium disabled:opacity-50";
+const SecondaryButton = "molten-btn-secondary cursor-pointer rounded-4 px-3 py-1.5 text-12 disabled:opacity-50";
+const PrimaryButton = "molten-btn cursor-pointer rounded-4 px-3 py-1.5 text-12 font-medium disabled:opacity-50";
 
 function Notice({ text, tone }: { text: string; tone: "error" | "warning" }) {
     return (
         <div
             role="alert"
             className={cn(
-                "flex items-center gap-2 rounded-6 border px-3 py-2 text-12",
+                "flex items-center gap-2 rounded-4 border px-3 py-2 text-12",
                 tone === "error" ? "border-error/40 text-danger" : "border-warning/40 text-warning"
             )}
         >
@@ -48,8 +49,12 @@ function AddSecret({ model, busy }: { model: WaveConfigViewModel; busy: boolean 
     const setName = useSetAtom(model.newSecretNameAtom);
     const setValue = useSetAtom(model.newSecretValueAtom);
     return (
-        <PageCard title={t("settings.secrets.new.title")} hint={t("settings.secrets.new.hint")}>
-            <div className="flex flex-col gap-3 px-4 py-3">
+        <PageCard
+            title={t("settings.secrets.new.title")}
+            icon={suiteIcon("secrets")}
+            hint={t("settings.secrets.new.hint")}
+        >
+            <div className="flex flex-col gap-3 px-5 py-3">
                 <label className="flex flex-col gap-1 text-12 text-secondary">
                     {t("settings.secrets.name")}
                     <input
@@ -98,8 +103,8 @@ function SecretDetail({ model, name, busy }: { model: WaveConfigViewModel; name:
     const setValue = useSetAtom(model.secretValueAtom);
     const [confirmDelete, setConfirmDelete] = useState(false);
     return (
-        <PageCard title={name} hint={t("settings.secrets.detail.hint")}>
-            <div className="flex flex-col gap-3 px-4 py-3">
+        <PageCard title={name} titleCase="as-is" icon={suiteIcon("secrets")} hint={t("settings.secrets.detail.hint")}>
+            <div className="flex flex-col gap-3 px-5 py-3">
                 <textarea
                     ref={(ref) => {
                         model.secretValueRef = ref;
@@ -137,7 +142,7 @@ function SecretDetail({ model, name, busy }: { model: WaveConfigViewModel; name:
                             <button
                                 type="button"
                                 disabled={busy}
-                                className="molten-btn molten-btn-destructive cursor-pointer rounded-6 px-3 py-1.5 text-12 font-medium"
+                                className="molten-btn molten-btn-destructive cursor-pointer rounded-4 px-3 py-1.5 text-12 font-medium"
                                 onClick={() => fireAndForget(() => model.deleteSecret())}
                             >
                                 {t("settings.secrets.detail.deleteName", { name })}
@@ -151,7 +156,7 @@ function SecretDetail({ model, name, busy }: { model: WaveConfigViewModel; name:
                         <button
                             type="button"
                             disabled={busy}
-                            className="molten-btn-ghost cursor-pointer rounded-6 px-2 py-1.5 text-12 text-danger"
+                            className="molten-btn-ghost cursor-pointer rounded-4 px-2 py-1.5 text-12 text-danger"
                             onClick={() => setConfirmDelete(true)}
                         >
                             <i className="fa fa-solid fa-trash mr-1.5 text-11" aria-hidden />
@@ -212,9 +217,24 @@ export function SecretsSection({ model }: { model: WaveConfigViewModel }) {
                 title={t("settings.secrets.stored")}
                 hint={sorted.length === 0 ? null : `${sorted.length}`}
                 label={t("settings.secrets.stored")}
+                icon={suiteIcon("secrets")}
+                footer={
+                    !adding ? (
+                        <button
+                            type="button"
+                            className={PrimaryButton}
+                            onClick={() => model.startAddingSecret()}
+                            data-testid="secret-add"
+                        >
+                            <i className="fa fa-solid fa-plus mr-1.5 text-11" aria-hidden />
+                            {t("settings.secrets.addOne")}
+                            <MoltenWave />
+                        </button>
+                    ) : null
+                }
             >
                 {sorted.length === 0 ? (
-                    <div className="flex items-center gap-3 px-4 py-4 text-12 text-muted">
+                    <div className="flex items-center gap-3 px-5 py-4 text-12 text-muted">
                         <i className="fa fa-solid fa-key text-icon-14" aria-hidden />
                         {busy ? t("settings.secrets.loading") : t("settings.secrets.none")}
                     </div>
@@ -225,7 +245,7 @@ export function SecretsSection({ model }: { model: WaveConfigViewModel }) {
                             <span className="min-w-0 flex-1 truncate font-mono text-12 text-primary">{name}</span>
                             <button
                                 type="button"
-                                className="molten-btn-ghost cursor-pointer rounded-6 px-2 py-1 text-12"
+                                className="molten-btn-ghost cursor-pointer rounded-4 px-2 py-1 text-12"
                                 onClick={() => fireAndForget(() => model.viewSecret(name))}
                             >
                                 {t("settings.secrets.edit")}
@@ -234,20 +254,6 @@ export function SecretsSection({ model }: { model: WaveConfigViewModel }) {
                     ))
                 )}
             </PageCard>
-            {!adding ? (
-                <div className="pt-4">
-                    <button
-                        type="button"
-                        className={PrimaryButton}
-                        onClick={() => model.startAddingSecret()}
-                        data-testid="secret-add"
-                    >
-                        <i className="fa fa-solid fa-plus mr-1.5 text-11" aria-hidden />
-                        {t("settings.secrets.addOne")}
-                        <MoltenWave />
-                    </button>
-                </div>
-            ) : null}
         </div>
     );
 }

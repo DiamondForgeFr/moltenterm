@@ -424,3 +424,35 @@ export function jsonSummary(value: unknown, tr: TFunction = t): string {
     }
     return String(value);
 }
+
+// A short exclusive choice reads as option rows, like Notulia's (#658): every choice in sight, the current one marked
+// "Selected". A longer list (terminal themes, the installed browsers) stays a menu.
+export const MaxChoiceRows = 4;
+
+export type SettingChoice = { value: string; label: string };
+
+// The choices a setting shows as option rows, or null for a menu. The empty value is the unset choice (the system's
+// language, a setting's own "unset" label).
+export function settingChoices(
+    entry: SettingEntry,
+    languages: { code: string; name: string }[],
+    systemLanguageLabel: string
+): SettingChoice[] {
+    if (entry.control !== "select") {
+        return null;
+    }
+    if (entry.optionsFrom === "languages") {
+        if (languages.length > MaxChoiceRows - 1) {
+            return null;
+        }
+        return [{ value: "", label: systemLanguageLabel }, ...languages.map((l) => ({ value: l.code, label: l.name }))];
+    }
+    if (entry.optionsFrom != null || entry.options == null) {
+        return null;
+    }
+    const list = entry.options.map((o) => ({ value: o.value, label: o.label }));
+    if (entry.unsetLabel != null) {
+        list.unshift({ value: "", label: entry.unsetLabel });
+    }
+    return list.length <= MaxChoiceRows ? list : null;
+}

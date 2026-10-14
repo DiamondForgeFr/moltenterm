@@ -7,6 +7,7 @@
 import { cn } from "@/util/util";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { GlowRing } from "./suite/suite";
 
 // The overlay rule (FR-SHELL-054, DS-SHELL-096): every modal dims the app with this scrim (tokens.css) and no surface
 // draws its own; command surfaces (palette, command panel, menus, popovers) have none, only shadow-command.
@@ -71,6 +72,7 @@ export function DialogFrame({
     widthClass,
     trapFocus,
     onBackdrop,
+    suite,
     children,
     buttons,
 }: {
@@ -85,6 +87,9 @@ export function DialogFrame({
     trapFocus?: boolean;
     // A press outside the dialog, for a dialog whose close loses nothing.
     onBackdrop?: () => void;
+    // The DiamondForge suite frame (#658): low corners, the turning light around it, and room for its section blocks'
+    // chips and corner icons.
+    suite?: boolean;
     children: React.ReactNode;
     buttons: React.ReactNode;
 }) {
@@ -141,7 +146,8 @@ export function DialogFrame({
                 aria-label={title}
                 onKeyDown={trapFocus ? keepFocusInside : undefined}
                 className={cn(
-                    "flex max-h-[calc(100vh-64px)] max-w-[calc(100vw-32px)] flex-col rounded-10 border border-border bg-surface-3 shadow-e3",
+                    "flex max-h-[calc(100vh-64px)] max-w-[calc(100vw-32px)] flex-col border border-border bg-surface-3 shadow-e3",
+                    suite ? "relative rounded-4" : "rounded-10",
                     widthClass ?? (wide ? "w-[600px]" : "w-[500px]")
                 )}
             >
@@ -153,7 +159,15 @@ export function DialogFrame({
                         </div>
                     ) : null}
                 </div>
-                <div className="flex min-h-0 flex-col gap-3 overflow-auto px-4 py-3 text-12">{children}</div>
+                {suite ? <GlowRing on /> : null}
+                <div
+                    className={cn(
+                        "flex min-h-0 flex-col overflow-auto text-12",
+                        suite ? "px-6 pt-1 pb-6" : "gap-3 px-4 py-3"
+                    )}
+                >
+                    {children}
+                </div>
                 <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">{buttons}</div>
             </div>
         </div>,
