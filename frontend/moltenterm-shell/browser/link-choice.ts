@@ -4,6 +4,7 @@
 // Links MoltenTerm's own interface opens (FR-BRW-006): where they go (DS-BRW-006) and when the first link to a site asks
 // which engine to use (DS-BRW-007). Pure functions; browser-routing and the browser panel apply them.
 
+import { isWebLink } from "@/util/moltenterm-web-link";
 import { BrowserList, EngineInstalled, InstalledBrowser, siteEngine, siteOf } from "./browser-engine";
 
 export const LinkTargetPanel = "panel";
@@ -12,19 +13,11 @@ export const LinkTargetOS = "os";
 // must match CustomBrowserId in pkg/molten/browsers/browsers.go
 const CustomBrowserId = "custom";
 
-export function isWebUrl(url: string): boolean {
-    try {
-        const u = new URL(url);
-        return (u.protocol === "http:" || u.protocol === "https:") && u.hostname !== "";
-    } catch {
-        return false;
-    }
-}
-
-// Only web pages go to the browser panel: other schemes (mailto:, app schemes) keep the OS handler, so the panel never
-// runs an unknown protocol. web:openlinksinternally false restores Wave's behaviour for web pages too.
+// Only web pages go to the browser panel: other schemes (mailto:, app schemes) go to the system through emain's
+// scheme rule (emain/moltenterm-external-links.ts), so the panel never runs an unknown protocol.
+// web:openlinksinternally false restores Wave's behaviour for web pages too.
 export function interfaceLinkTarget(url: string, openInternally: boolean, forceInternally: boolean): string {
-    if (!isWebUrl(url)) {
+    if (!isWebLink(url)) {
         return LinkTargetOS;
     }
     return forceInternally || openInternally ? LinkTargetPanel : LinkTargetOS;

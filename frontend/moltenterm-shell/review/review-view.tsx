@@ -6,7 +6,8 @@
 // of its own (review-ai-view.tsx) where the review session's cards show above the agent's own terminal. The diff is
 // read-only text: nothing from it is executed.
 
-import { openLink, useOverrideConfigAtom } from "@/app/store/global";
+import { useOverrideConfigAtom } from "@/app/store/global";
+import { openWebLink } from "@/moltenterm-shell/open-web-link";
 import { boundNumber, cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
@@ -135,7 +136,7 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
                         <button
                             type="button"
                             className={ToolbarButton}
-                            onClick={() => fireAndForget(() => openLink(pr.url))}
+                            onClick={() => fireAndForget(() => openWebLink(pr.url))}
                             title={t("review.view.openGithub")}
                         >
                             <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />

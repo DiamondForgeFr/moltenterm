@@ -6,7 +6,7 @@
 // before the failed one is offered again beside it); the cut says what cannot be taken back before it lands, and
 // while it waits its public notes are read and edited here.
 
-import { openLink } from "@/app/store/global";
+import { openWebLink } from "@/moltenterm-shell/open-web-link";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useT } from "../i18n/i18n";
@@ -328,7 +328,7 @@ function Detail({
                             href={link.url}
                             onClick={(e) => {
                                 e.preventDefault();
-                                fireAndForget(() => openLink(link.url));
+                                fireAndForget(() => openWebLink(link.url));
                             }}
                             className="inline-flex cursor-pointer items-center gap-1 rounded-6 border border-border px-2 py-1 text-11 text-secondary hover:bg-hover hover:text-primary"
                         >

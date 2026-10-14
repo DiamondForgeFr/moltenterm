@@ -100,7 +100,12 @@
             "filter": "Fichiers texte"
         },
         "chooseFolder": "Choisir",
-        "images": "Images"
+        "images": "Images",
+        "openExternal": {
+            "message": "Ouvrir ce lien avec une autre application ?",
+            "detail": "{url}\n\nCe n'est pas une page web : l'application associée aux liens « {scheme} » va le traiter. Ne l'ouvrez que si vous faites confiance à sa provenance.",
+            "open": "Ouvrir"
+        }
     },
     "wave": {
         "tab": {

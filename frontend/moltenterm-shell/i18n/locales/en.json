@@ -100,7 +100,12 @@
             "filter": "Text Files"
         },
         "chooseFolder": "Choose",
-        "images": "Images"
+        "images": "Images",
+        "openExternal": {
+            "message": "Open this link with another app?",
+            "detail": "{url}\n\nThis is not a web page: the app registered for \"{scheme}\" links will handle it. Open it only if you trust where it comes from.",
+            "open": "Open"
+        }
     },
     "wave": {
         "tab": {
