@@ -43,6 +43,7 @@ import { TabActivity } from "../tab-activity";
 import { isShowing } from "../tab-activity-model";
 import { PanelMeta, panelTitle } from "../tab-identity";
 import { showToast } from "../toast-store";
+import { isOffCarpet, offCarpetAtom, setKeepLive } from "../view360/offcarpet-model";
 import { PinHeaderButton } from "../view360/view360-pin";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
@@ -1033,7 +1034,8 @@ export class BrowserViewModel implements ViewModel {
         } catch {
             return;
         }
-        if (current !== webContentsId || this.isTabShown(id) || this.isAgentDriven(id)) {
+        // A panel off-screen on the carpet is never unloaded (#618).
+        if (current !== webContentsId || this.isTabShown(id) || this.isAgentDriven(id) || isOffCarpet(this.blockId)) {
             return;
         }
         this.lifecycle.discard(id, scroll);
@@ -1061,24 +1063,28 @@ function TabWebview({
     tab,
     active,
     shown,
+    offCarpet,
 }: {
     model: BrowserViewModel;
     tab: BrowserTab;
     active: boolean;
     shown: boolean;
+    offCarpet: boolean;
 }) {
     const ref = useRef<WebviewTag>(null);
     const shownRef = useRef(shown);
     shownRef.current = shown;
-    // The main process freezes and discards hidden pages (#459); a webview throws before its first dom-ready, which
-    // reports it then.
+    const offCarpetRef = useRef(offCarpet);
+    offCarpetRef.current = offCarpet;
+    // The main process freezes and discards hidden pages (#459), and never discards one off-screen on the carpet
+    // (#618); a webview throws before its first dom-ready, which reports it then.
     useEffect(() => {
         try {
-            reportWebviewShown(model.blockId, tab.id, ref.current?.getWebContentsId(), shown);
+            reportWebviewShown(model.blockId, tab.id, ref.current?.getWebContentsId(), shown, offCarpet);
         } catch {
             // not attached yet: dom-ready reports it
         }
-    }, [model, tab.id, shown]);
+    }, [model, tab.id, shown, offCarpet]);
     // The src is set once: later navigation happens inside the page, and re-rendering with a new src would reload it.
     const [initialUrl] = useState(tab.url);
     // MOLTENTERM-PATCH (#371): hidden mounted tabs are never valid edit/image targets.
@@ -1165,7 +1171,13 @@ function TabWebview({
             webview.dataset.webcontentsid = String(webview.getWebContentsId());
             registerWebview(model.blockId, tab.id, webview.getWebContentsId());
             getApi().setContextMenuGuest?.(webview.getWebContentsId(), model.state().activeId === tab.id);
-            reportWebviewShown(model.blockId, tab.id, webview.getWebContentsId(), shownRef.current);
+            reportWebviewShown(
+                model.blockId,
+                tab.id,
+                webview.getWebContentsId(),
+                shownRef.current,
+                offCarpetRef.current
+            );
         };
         // A page reloaded after a discard gets its scroll position back once loaded.
         const onFinishLoad = () => {
@@ -1846,15 +1858,22 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const discarded = useAtomValue(model.lifecycle.discardedAtom);
     const restoring = useAtomValue(model.lifecycle.restoringAtom);
     const agentTabs = useAtomValue(model.agents.tabsAtom);
+    const offCarpet = useAtomValue(offCarpetAtom(model.blockId));
     const viewShown = isShowing(activity);
     const blockMeta = block?.meta;
     useEffect(() => {
         for (const id of Object.keys(discarded)) {
-            if (shouldRestore(id === state.activeId, viewShown, agentTabs[id] != null)) {
+            if (shouldRestore(id === state.activeId, viewShown && !offCarpet, agentTabs[id] != null)) {
                 model.lifecycle.restore(id);
             }
         }
-    }, [model, discarded, state.activeId, viewShown, agentTabs]);
+    }, [model, discarded, state.activeId, viewShown, offCarpet, agentTabs]);
+    // A page an agent drives keeps running off-screen on the carpet (#618).
+    const agentDriven = Object.keys(agentTabs).length > 0;
+    useEffect(() => {
+        setKeepLive(model.blockId, agentDriven);
+        return () => setKeepLive(model.blockId, false);
+    }, [model, agentDriven]);
     useEffect(() => {
         fireAndForget(() => model.engines.ensureLoaded());
     }, [model, installedSetting, defaultSetting, sitesSetting]);
@@ -1903,6 +1922,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                             tab={tab}
                             active={tab.id === state.activeId}
                             shown={viewShown && tab.id === state.activeId}
+                            offCarpet={offCarpet}
                         />
                     )
                 )}

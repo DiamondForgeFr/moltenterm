@@ -291,3 +291,63 @@ describe("hidden page lifecycle (#459)", () => {
         expect(await s.tracker.hasUnsavedWork(99)).toBe(true);
     });
 });
+
+describe("a page off-screen on the carpet (#618)", () => {
+    let s: ReturnType<typeof setup>;
+    beforeEach(() => {
+        s = setup();
+    });
+    const discards = () => s.calls.filter((c) => c.startsWith("discard"));
+
+    it("is frozen like a hidden page but never discarded while on the carpet", async () => {
+        s.page(1);
+        s.tracker.report(1, false, true);
+        await s.clock.advance(FreezeDelayMs);
+        expect(s.calls).toEqual(["freeze 1"]);
+        await s.clock.advance(60 * Min);
+        expect(s.calls).toEqual(["freeze 1"]);
+        s.tracker.report(1, true);
+        expect(s.calls).toEqual(["freeze 1", "thaw 1"]);
+    });
+
+    it("follows moltenterm:hiddenpagefreeze", async () => {
+        s = setup({ freeze: false });
+        s.page(1);
+        s.tracker.report(1, false, true);
+        await s.clock.advance(60 * Min);
+        expect(s.calls).toEqual([]);
+    });
+
+    it("starts the discard delay when it leaves the carpet still hidden, and stops it when laid back", async () => {
+        s.page(1);
+        s.tracker.report(1, false, true);
+        await s.clock.advance(30 * Min);
+        s.tracker.report(1, false, false);
+        await s.clock.advance(10 * Min - 1);
+        expect(discards()).toEqual([]);
+        s.tracker.report(1, false, true);
+        await s.clock.advance(30 * Min);
+        expect(discards()).toEqual([]);
+        s.tracker.report(1, false, false);
+        await s.clock.advance(10 * Min);
+        expect(discards()).toEqual(["discard 1 0,120"]);
+    });
+
+    it("drops the discard timer of a hidden page that goes off-screen on the carpet", async () => {
+        s.page(1);
+        s.tracker.report(1, false);
+        await s.clock.advance(5 * Min);
+        s.tracker.report(1, false, true);
+        await s.clock.advance(30 * Min);
+        expect(discards()).toEqual([]);
+    });
+
+    it("arms no discard timer on a settings change while on the carpet", async () => {
+        s.page(1);
+        s.tracker.report(1, false, true);
+        s.config.discardMs = 1 * Min;
+        s.tracker.noteConfigChanged();
+        await s.clock.advance(30 * Min);
+        expect(discards()).toEqual([]);
+    });
+});

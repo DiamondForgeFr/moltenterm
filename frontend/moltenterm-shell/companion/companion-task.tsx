@@ -17,7 +17,8 @@ import { fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { TabActivity, whileShown } from "../tab-activity";
+import { whileShown } from "../tab-activity";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { CompanionView, relativeTime } from "./companion-model";
 import {
     newerTask,
@@ -72,6 +73,7 @@ function useWorkspaceTask(target: string): { view: TaskView; error: string; setV
     const [view, setViewState] = useState<TaskView>(null);
     const [error, setError] = useState<string>(null);
     const [reload, setReload] = useState(0);
+    const panelId = usePanelBlockId();
     const setView = (next: TaskView) => setViewState((cur) => newerTask(cur, next));
     useEffect(() => {
         if (!target) {
@@ -117,8 +119,8 @@ function useWorkspaceTask(target: string): { view: TaskView; error: string; setV
         if (!target) {
             return;
         }
-        return TabActivity.getInstance().every(whileShown(RefreshMs), () => setReload((n) => n + 1), "companion-task");
-    }, [target]);
+        return everyInPanel(panelId, whileShown(RefreshMs), () => setReload((n) => n + 1), "companion-task");
+    }, [target, panelId]);
     return { view, error, setView };
 }
 

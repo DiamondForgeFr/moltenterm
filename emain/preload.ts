@@ -117,9 +117,14 @@ contextBridge.exposeInMainWorld("api", {
     moltentermGetWindowActivity: () => ipcRenderer.sendSync("moltenterm-window-activity-get"),
     onMoltentermWindowActivity: (callback) =>
         ipcRenderer.on("moltenterm-window-activity", (_event, activity) => callback(activity)),
-    // MOLTENTERM-PATCH (#459): hidden browser pages frozen and discarded (emain/moltenterm-webview-lifecycle.ts)
-    moltentermWebviewShown: (blockId: string, browserTabId: string, webContentsId: number, shown: boolean) =>
-        ipcRenderer.send("moltenterm-webview-shown", blockId, browserTabId, webContentsId, shown),
+    // MOLTENTERM-PATCH (#459, #618): hidden browser pages frozen and discarded (emain/moltenterm-webview-lifecycle.ts)
+    moltentermWebviewShown: (
+        blockId: string,
+        browserTabId: string,
+        webContentsId: number,
+        shown: boolean,
+        offCarpet?: boolean
+    ) => ipcRenderer.send("moltenterm-webview-shown", blockId, browserTabId, webContentsId, shown, offCarpet === true),
     onMoltentermWebviewDiscard: (
         callback: (blockId: string, browserTabId: string, webContentsId: number, scroll: any) => void
     ) => {

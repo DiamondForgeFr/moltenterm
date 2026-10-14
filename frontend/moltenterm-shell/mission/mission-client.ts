@@ -8,7 +8,8 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { useCallback, useEffect, useState } from "react";
-import { TabActivity, whileShown } from "../tab-activity";
+import { whileShown } from "../tab-activity";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { BuildsFacts } from "./builds-model";
 import { CiRunRecord, CiState, upsertCiRun } from "./ci-model";
 import {
@@ -175,6 +176,7 @@ export type MissionState = {
 export function useMissionSnapshot(dir: string): MissionState {
     const [snapshot, setSnapshot] = useState<MissionSnapshot>(null);
     const [error, setError] = useState<string>(null);
+    const panelId = usePanelBlockId();
     const ask = useCallback(
         (fn: (dir: string) => Promise<MissionSnapshot>) => {
             if (!dir) {
@@ -211,16 +213,12 @@ export function useMissionSnapshot(dir: string): MissionState {
             },
         });
         ask((d) => missionGet(d));
-        const stop = TabActivity.getInstance().every(
-            whileShown(MissionPollMs),
-            () => ask((d) => missionGet(d)),
-            "mission"
-        );
+        const stop = everyInPanel(panelId, whileShown(MissionPollMs), () => ask((d) => missionGet(d)), "mission");
         return () => {
             unsubscribe();
             stop();
         };
-    }, [dir, ask]);
+    }, [dir, ask, panelId]);
     const refresh = useCallback(() => ask(missionRefresh), [ask]);
     return { snapshot, error, refresh };
 }
@@ -387,6 +385,7 @@ const ReleaseSessionPollMs = 30000;
 // The release on its way, read again every half minute and whenever the caller asks (after a start, a run's end).
 export function useReleaseSession(dir: string): { session: ReleaseSession; reload: () => void } {
     const [session, setSession] = useState<ReleaseSession>(null);
+    const panelId = usePanelBlockId();
     const load = useCallback(() => {
         if (!dir) {
             return;
@@ -402,8 +401,8 @@ export function useReleaseSession(dir: string): { session: ReleaseSession; reloa
     useEffect(() => {
         setSession(null);
         load();
-        return TabActivity.getInstance().every(whileShown(ReleaseSessionPollMs), load, "mission-release-session");
-    }, [load]);
+        return everyInPanel(panelId, whileShown(ReleaseSessionPollMs), load, "mission-release-session");
+    }, [load, panelId]);
     return { session, reload: load };
 }
 
@@ -442,6 +441,7 @@ export function releaseMilestone(dir: string, version: string): Promise<ReleaseM
 export function useReleaseFacts(dir: string, bump: string): { facts: ReleaseFacts; reload: () => void } {
     const [facts, setFacts] = useState<ReleaseFacts>(null);
     const [tick, setTick] = useState(0);
+    const panelId = usePanelBlockId();
     const reload = useCallback(() => setTick((t) => t + 1), []);
     useEffect(() => {
         setFacts(null);
@@ -468,12 +468,13 @@ export function useReleaseFacts(dir: string, bump: string): { facts: ReleaseFact
     const followed = !!facts?.tag;
     useEffect(
         () =>
-            TabActivity.getInstance().every(
+            everyInPanel(
+                panelId,
                 whileShown(followed ? ReleaseFactsPollMs : ReleaseIdlePollMs),
                 reload,
                 "mission-release-facts"
             ),
-        [followed, reload]
+        [followed, reload, panelId]
     );
     return { facts, reload };
 }

@@ -15,7 +15,8 @@ import { DialogFrame, useEscape } from "../dialog-frame";
 import { EmptyState, EmptyStateDetails } from "../empty-state";
 import { t, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { TabActivity, whileShown } from "../tab-activity";
+import { whileShown } from "../tab-activity";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { chooseMoltentermPath, linkWorkspaceProject, ProjectFacts, readProjectFacts } from "../workspace-project-store";
 import { FolderEntry, gitProblem, sortFolderEntries } from "./git-problem";
@@ -157,9 +158,10 @@ export function MissionHeader({
 }) {
     const t = useT();
     const [now, setNow] = useState(Date.now());
+    const panelId = usePanelBlockId();
     useEffect(() => {
-        return TabActivity.getInstance().every(whileShown(30000), () => setNow(Date.now()), "clock");
-    }, []);
+        return everyInPanel(panelId, whileShown(30000), () => setNow(Date.now()), "clock");
+    }, [panelId]);
     const name = project.facts?.name ?? pathBaseName(project.dir);
     const at = Math.max(snapshot?.gitat ?? 0, snapshot?.githubat ?? 0);
     return (

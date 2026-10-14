@@ -12,7 +12,8 @@ import { createPortal } from "react-dom";
 import { ScrimClass } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { TabActivity, whileShown } from "../tab-activity";
+import { whileShown } from "../tab-activity";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { pathParent } from "../workspace-project";
 import { buildCardTitle, BuildManifest, BuildPhaseDef, BuildPhaseStatus, buildRunView } from "./builds-model";
 import { missionBuilds, missionCancel, missionClose, missionLog, missionRun, missionTrust } from "./mission-client";
@@ -172,6 +173,7 @@ export function ArtifactActions({ run }: { run: RunRecord }) {
 export function useRunLog(run: RunRecord): string {
     const [text, setText] = useState("");
     const offset = useRef(0);
+    const panelId = usePanelBlockId();
     useEffect(() => {
         setText("");
         offset.current = 0;
@@ -193,12 +195,12 @@ export function useRunLog(run: RunRecord): string {
                 cancelled = true;
             };
         }
-        const stop = TabActivity.getInstance().every(whileShown(1000), read, "run-log");
+        const stop = everyInPanel(panelId, whileShown(1000), read, "run-log");
         return () => {
             cancelled = true;
             stop();
         };
-    }, [run.id, run.state, run.logsize]);
+    }, [run.id, run.state, run.logsize, panelId]);
     return text;
 }
 

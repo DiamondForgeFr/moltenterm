@@ -22,8 +22,9 @@ import { AgentInputs } from "../command-panel/agent-input-store";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useT } from "../i18n/i18n";
 import { sessionRowDragProps } from "../split/drop-zones";
-import { TabActivity, whileShown } from "../tab-activity";
+import { whileShown } from "../tab-activity";
 import { showToast } from "../toast-store";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
     filterSessions,
     SessionsAgentMetaKey,
@@ -644,10 +645,11 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     const prevOrder = useRef<string[]>([]);
     const focusWanted = useRef(false);
     const home = getHomeDir();
+    const panelId = usePanelBlockId();
 
     useEffect(() => {
-        return TabActivity.getInstance().every(whileShown(AgeRefreshMs), () => setNow(Date.now()), "clock");
-    }, []);
+        return everyInPanel(panelId, whileShown(AgeRefreshMs), () => setNow(Date.now()), "clock");
+    }, [panelId]);
 
     const allSessions = data?.sessions ?? [];
     const filters = { agent: agentFilter, folder: folderFilter, state: stateFilter };
