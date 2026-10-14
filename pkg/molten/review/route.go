@@ -5,21 +5,17 @@ package review
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -68,8 +64,7 @@ const (
 )
 
 const (
-	logPrefix      = "molten: review:"
-	routeQueueSize = 64
+	logPrefix = "molten: review:"
 	// A file list or a compare may fetch the PR's branches; a worktree may be created.
 	gitTimeout     = 90 * time.Second
 	controlTimeout = 15 * time.Second
@@ -207,8 +202,7 @@ func Start() {
 		service.publishSetting = func() string {
 			return wconfig.GetWatcher().GetFullConfig().Settings.ReviewPublishLanguage
 		}
-		link := &routeLink{service: service, output: make(chan []byte, routeQueueSize), localSource: localSourceOnLink}
-		if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId); err != nil {
+		if _, err := localroute.Register(wshutil.DefaultRouter, (&routeLink{service: service}).route()); err != nil {
 			log.Printf("%s route not started: %v\n", logPrefix, err)
 			return
 		}
@@ -300,81 +294,51 @@ func agentStateOf(blockId string) string {
 	return run.State
 }
 
-func localSourceOnLink(source string, ingressLinkId baseds.LinkId) bool {
-	return localroute.OnLink(wshutil.DefaultRouter, source, ingressLinkId)
-}
-
 type routeLink struct {
 	service *Service
-	output  chan []byte
-	// localSource tells whether a request's source is a local terminal or a window on the link it came in on.
-	localSource func(source string, ingressLinkId baseds.LinkId) bool
 }
 
-func (l *routeLink) GetPeerInfo() string {
-	return RouteId
-}
-
-func (l *routeLink) RecvRpcMessage() ([]byte, bool) {
-	msg, ok := <-l.output
-	return msg, ok
-}
-
-func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debugStr string) bool {
-	var req wshutil.RpcMessage
-	if err := json.Unmarshal(msg, &req); err != nil {
-		return true
+// route: what reads a review answers the windows and local terminals (`molten review`), a handoff comes from a local
+// terminal only (the window opens the tab or the sheet, and the developer's click there does the rest), and what
+// changes the store, a worktree or the tabs is the Review tab's: a terminal, where an agent may run, cannot. A remote
+// host never reads or changes a review (FR-REV-014 AC4, #662).
+func (l *routeLink) route() localroute.Route {
+	return localroute.Route{
+		Id: RouteId,
+		Policy: localroute.Policy{
+			Default: localroute.AllowWindow,
+			Commands: map[string]string{
+				FilesCommand:          localroute.AllowLocal,
+				FileCommand:           localroute.AllowLocal,
+				CompareCommand:        localroute.AllowLocal,
+				StateCommand:          localroute.AllowLocal,
+				MergePlanShownCommand: localroute.AllowLocal,
+				NotesCommand:          localroute.AllowLocal,
+				HandoffCommand:        localroute.AllowLocalTerminal,
+			},
+			Refusals: map[string]string{HandoffCommand: "review handoffs come from a local MoltenTerm terminal"},
+		},
+		Handler: func(ctx context.Context, command string, _ localroute.Caller, data any) (any, error) {
+			ctx, cancel := context.WithTimeout(ctx, commandTimeout(command))
+			defer cancel()
+			return l.handle(ctx, command, data)
+		},
 	}
-	if req.Command == "" || req.ReqId == "" {
-		return true
-	}
-	// Source checks take the router's lock, which is held while it calls SendRpcMessage.
-	go l.answer(req, ingressLinkId)
-	return true
 }
 
-func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) {
-	defer func() {
-		panichandler.PanicHandler("molten:review:route", recover())
-	}()
-	timeout := controlTimeout
-	switch req.Command {
+func commandTimeout(command string) time.Duration {
+	switch command {
 	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand, RelocateCommand, DiscussCommand,
 		PublishInfoCommand, TranslateCommand, NoteFileCommand:
-		timeout = gitTimeout
+		return gitTimeout
 	case PublishCommand:
-		timeout = publishTimeout
+		return publishTimeout
 	case CleanupCommand:
-		timeout = cleanupTimeout
+		return cleanupTimeout
 	case RestartCommand:
-		timeout = restartTimeout
+		return restartTimeout
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	source := req.Source
-	if l.localSource == nil || !l.localSource(source, ingressLinkId) {
-		source = ""
-	}
-	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := l.handle(ctx, req.Command, source, req.Data)
-	if err != nil {
-		resp.Error = err.Error()
-	} else {
-		resp.Data = data
-	}
-	out, err := json.Marshal(resp)
-	if err != nil {
-		return
-	}
-	l.output <- out
-}
-
-func isWindowSource(source string) bool {
-	return strings.HasPrefix(source, wshutil.RoutePrefix_Tab)
-}
-
-func isTerminalSource(source string) bool {
-	return strings.HasPrefix(source, wshutil.RoutePrefix_Proc)
+	return controlTimeout
 }
 
 func decode[T any](data any) (T, error) {
@@ -383,10 +347,7 @@ func decode[T any](data any) (T, error) {
 	return rtn, err
 }
 
-func (l *routeLink) handle(ctx context.Context, command string, source string, data any) (any, error) {
-	if !isWindowSource(source) && !isTerminalSource(source) {
-		return nil, fmt.Errorf("reviews are answered to MoltenTerm's windows and local terminals only")
-	}
+func (l *routeLink) handle(ctx context.Context, command string, data any) (any, error) {
 	s := l.service
 	switch command {
 	case FilesCommand:
@@ -420,10 +381,6 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 		}
 		return s.merger.Shown(req)
 	case HandoffCommand:
-		// The terminal only asks: the window opens the tab or the sheet, and the developer's click there does the rest.
-		if !isTerminalSource(source) {
-			return nil, fmt.Errorf("review handoffs come from a local MoltenTerm terminal")
-		}
 		req, err := decode[HandoffRequest](data)
 		if err != nil {
 			return nil, err
@@ -435,10 +392,6 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return s.store.GetNotes(req.Repo)
-	}
-	// What changes the store, a worktree or the tabs is the Review tab's: a terminal, where an agent may run, cannot.
-	if !isWindowSource(source) {
-		return nil, fmt.Errorf("reviews are changed from a MoltenTerm window")
 	}
 	switch command {
 	case OpenCommand:

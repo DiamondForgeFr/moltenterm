@@ -12,10 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
-	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
-	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
 // Regressions from the adversarial review of #178.
@@ -152,15 +149,5 @@ func TestUpdaterAppliesTriggersInOrder(t *testing.T) {
 	order := u.takePending("ws-1")
 	if len(order) != 2 || order[0] != "z-later-id" || order[1] != "a-earlier-id" {
 		t.Fatalf("panes are applied in trigger order: %v", order)
-	}
-}
-
-func TestRouteRefusesUnstampedSources(t *testing.T) {
-	s, _ := makeTestStore(t)
-	l := &routeLink{store: s, output: make(chan []byte, 1), localSource: func(string, baseds.LinkId) bool { return false }}
-	l.answer(wshutil.RpcMessage{Command: molten.TaskReadCommand, ReqId: "r1", Source: "tab:x", Data: map[string]any{"workspaceid": "ws-1"}}, 7)
-	out := string(<-l.output)
-	if !strings.Contains(out, "local terminals only") {
-		t.Fatalf("a source not on its link must be refused: %s", out)
 	}
 }

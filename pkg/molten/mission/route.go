@@ -5,24 +5,19 @@ package mission
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
 // The panels reach the collector through a leaf of wavesrv's router answering plain command names, so Mission Control
 // declares nothing in pkg/wshrpc, the package upstream changes most (the molten command does the same towards tabs).
-
-const routeQueueSize = 64
 
 type routeLink struct {
 	collector *Collector
@@ -32,9 +27,6 @@ type routeLink struct {
 	worktrees *Worktrees
 	groups    *Groups
 	reviews   *Reviews
-	output    chan []byte
-	// localSource tells whether a request's source is a local terminal or a window on the link it came in on.
-	localSource func(source string, ingressLinkId baseds.LinkId) bool
 }
 
 type ciLogRequest struct {
@@ -91,53 +83,6 @@ func (l *routeLink) handleCi(command string, data any) (any, error) {
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
 
-func (l *routeLink) GetPeerInfo() string {
-	return RouteId
-}
-
-func (l *routeLink) RecvRpcMessage() ([]byte, bool) {
-	msg, ok := <-l.output
-	return msg, ok
-}
-
-func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debugStr string) bool {
-	var req wshutil.RpcMessage
-	if err := json.Unmarshal(msg, &req); err != nil {
-		return true
-	}
-	if req.Command == "" || req.ReqId == "" {
-		return true
-	}
-	go l.answer(req, ingressLinkId)
-	return true
-}
-
-func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) {
-	defer func() {
-		panichandler.PanicHandler("molten:mission:route", recover())
-	}()
-	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	var data any
-	var err error
-	// FR-REV-014 AC4: the review list is answered to local terminals and windows only, never to a remote shell's wsh.
-	// Source checks take the router's lock, which is why this runs here and not in SendRpcMessage.
-	if req.Command == ReviewsCommand && (l.localSource == nil || !l.localSource(req.Source, ingressLinkId)) {
-		err = fmt.Errorf("the reviews are answered to MoltenTerm's windows and local terminals only")
-	} else {
-		data, err = l.handle(req.Command, req.Source, req.Data)
-	}
-	if err != nil {
-		resp.Error = err.Error()
-	} else {
-		resp.Data = data
-	}
-	out, err := json.Marshal(resp)
-	if err != nil {
-		return
-	}
-	l.output <- out
-}
-
 type runIdRequest struct {
 	Dir   string `json:"dir"`
 	RunId string `json:"runid"`
@@ -149,13 +94,7 @@ type trustRequest struct {
 	Hash string `json:"hash"`
 }
 
-// isWindowSource tells a request from a MoltenTerm window apart from one sent by a terminal: the router stamps the
-// source of every link that has a route of its own (wsh in a shell), so a terminal cannot pass for a tab.
-func isWindowSource(source string) bool {
-	return strings.HasPrefix(source, wshutil.RoutePrefix_Tab)
-}
-
-func (l *routeLink) handleRun(command string, source string, data any) (any, error) {
+func (l *routeLink) handleRun(command string, data any) (any, error) {
 	switch command {
 	case RunCommand:
 		var req RunRequest
@@ -227,18 +166,12 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 		}
 		return l.runs.PlanBranches(req.Dir)
 	case BranchesCleanCommand:
-		if !isWindowSource(source) {
-			return nil, fmt.Errorf("branches can only be deleted from a MoltenTerm window")
-		}
 		var req BranchesCleanRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
 		return l.runs.CleanBranches(req)
 	case BranchesAutoDeleteCmd:
-		if !isWindowSource(source) {
-			return nil, fmt.Errorf("the repository setting can only be changed from a MoltenTerm window")
-		}
 		var req BranchesAutoDeleteRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
@@ -275,9 +208,6 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 		}
 		return l.runs.ReadLog(req.Dir, req.RunId, req.From)
 	case TrustCommand:
-		if !isWindowSource(source) {
-			return nil, fmt.Errorf("a project's commands can only be trusted from a MoltenTerm window")
-		}
 		var req trustRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
@@ -287,7 +217,7 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
 
-func (l *routeLink) handleGithubRun(command string, source string, data any) (any, error) {
+func (l *routeLink) handleGithubRun(command string, data any) (any, error) {
 	var req GithubRunRequest
 	if err := utilfn.ReUnmarshal(&req, data); err != nil {
 		return nil, err
@@ -295,24 +225,16 @@ func (l *routeLink) handleGithubRun(command string, source string, data any) (an
 	if command == GithubRunLogCommand {
 		return l.collector.ReadGithubRunLog(req)
 	}
-	// Starting jobs on GitHub is the user's decision, confirmed in a window; an agent runs gh itself.
-	if !isWindowSource(source) {
-		return nil, fmt.Errorf("a GitHub run can only be started again from a MoltenTerm window")
-	}
 	return nil, l.collector.RerunGithubRun(req)
 }
 
-func handleJobs(command string, source string, data any) (any, error) {
+func handleJobs(command string, data any) (any, error) {
 	if command == JobsCommand {
 		var req JobsRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
 		return ReadCiCatalogue(req.Dir)
-	}
-	// Typing into an agent's prompt is the user's click in a window; an agent asks another one itself.
-	if !isWindowSource(source) {
-		return nil, fmt.Errorf("an agent can only be asked to describe a job from a MoltenTerm window")
 	}
 	var req JobDescribeRequest
 	if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -323,7 +245,7 @@ func handleJobs(command string, source string, data any) (any, error) {
 	return DescribeJob(ctx, req)
 }
 
-func (l *routeLink) handle(command string, source string, data any) (any, error) {
+func (l *routeLink) handle(command string, data any) (any, error) {
 	if command == SpawnsCommand {
 		return spawns.Snapshot(), nil
 	}
@@ -335,10 +257,6 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 		return l.panes.Get(req)
 	}
 	if command == ProjectTabCommand {
-		// Tabs are the windows' business: a terminal does not add one to a workspace.
-		if !isWindowSource(source) {
-			return nil, fmt.Errorf("the Project tab can only be opened from a MoltenTerm window")
-		}
 		var req ProjectTabRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
@@ -374,13 +292,9 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 		return l.groups.Sync(req)
 	}
 	if command == WorktreePlanCommand || command == WorktreeRemoveCommand {
-		return l.handleWorktree(command, source, data)
+		return l.handleWorktree(command, data)
 	}
 	if command == GitInitCommand {
-		// Creating a repository is the user's decision, confirmed in a window; an agent runs git init itself.
-		if !isWindowSource(source) {
-			return nil, fmt.Errorf("git can only be initialized here from a MoltenTerm window")
-		}
 		var req GitInitRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
@@ -388,16 +302,16 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 		return l.collector.InitGit(req)
 	}
 	if command == GithubRunLogCommand || command == GithubRunRerunCommand {
-		return l.handleGithubRun(command, source, data)
+		return l.handleGithubRun(command, data)
 	}
 	if command == JobsCommand || command == JobDescribeCommand {
-		return handleJobs(command, source, data)
+		return handleJobs(command, data)
 	}
 	if strings.HasPrefix(command, "moltenmissionci") {
 		return l.handleCi(command, data)
 	}
 	if command != GetCommand && command != RefreshCommand {
-		return l.handleRun(command, source, data)
+		return l.handleRun(command, data)
 	}
 	var req GetRequest
 	if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -419,17 +333,13 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
 
-func (l *routeLink) handleWorktree(command string, source string, data any) (any, error) {
+func (l *routeLink) handleWorktree(command string, data any) (any, error) {
 	if command == WorktreePlanCommand {
 		var req WorktreeRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
 		return l.worktrees.Plan(req)
-	}
-	// An agent in a terminal links a worktree on its own, but only the user, from a window, removes one.
-	if !isWindowSource(source) {
-		return nil, fmt.Errorf("a worktree can only be removed from a MoltenTerm window")
 	}
 	var req WorktreeRemoveRequest
 	if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -438,11 +348,44 @@ func (l *routeLink) handleWorktree(command string, source string, data any) (any
 	return l.worktrees.Remove(req)
 }
 
+// windowCommands are the user's decisions, confirmed in a window: an agent in a terminal runs gh, git or a worktree
+// removal itself, and never trusts a project's commands, publishes a release or types into another agent's prompt
+// through MoltenTerm.
+var windowCommands = map[string]string{
+	TrustCommand:          "a project's commands can only be trusted from a MoltenTerm window",
+	BranchesCleanCommand:  "branches can only be deleted from a MoltenTerm window",
+	BranchesAutoDeleteCmd: "the repository setting can only be changed from a MoltenTerm window",
+	GitInitCommand:        "a repository can only be initialized here from a MoltenTerm window",
+	GithubRunRerunCommand: "a GitHub run can only be started again from a MoltenTerm window",
+	JobDescribeCommand:    "an agent can only be asked to describe a job from a MoltenTerm window",
+	WorktreeRemoveCommand: "a worktree can only be removed from a MoltenTerm window",
+	ProjectTabCommand:     "the Project tab can only be opened from a MoltenTerm window",
+	ReleaseStartCommand:   "a release is started from a MoltenTerm window",
+	ReleaseStepCommand:    "a release step is run from a MoltenTerm window",
+	ReleaseRerunCommand:   "a release's jobs are run again from a MoltenTerm window",
+	ReleaseSaveCommand:    "release notes are saved from a MoltenTerm window",
+}
+
+// route: everything else answers the windows and local terminals (`molten ci`, `molten project`, `molten review`),
+// never a remote host: running a project's commands, its CI or a release step on this computer is not a remote host's
+// call, nor is reading the reviews (FR-REV-014 AC4) (#662).
+func (l *routeLink) route() localroute.Route {
+	policy := localroute.Policy{Default: localroute.AllowLocal, Commands: map[string]string{}, Refusals: map[string]string{}}
+	for command, refusal := range windowCommands {
+		policy.Commands[command] = localroute.AllowWindow
+		policy.Refusals[command] = refusal
+	}
+	return localroute.Route{
+		Id:     RouteId,
+		Policy: policy,
+		Handler: func(_ context.Context, command string, _ localroute.Caller, data any) (any, error) {
+			return l.handle(command, data)
+		},
+	}
+}
+
 func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews) error {
-	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews, output: make(chan []byte, routeQueueSize),
-		localSource: func(source string, ingressLinkId baseds.LinkId) bool {
-			return localroute.OnLink(wshutil.DefaultRouter, source, ingressLinkId)
-		}}
-	_, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId)
+	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews}
+	_, err := localroute.Register(wshutil.DefaultRouter, link.route())
 	return err
 }

@@ -4,8 +4,12 @@
 package panelmove
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
 
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
@@ -80,11 +84,21 @@ func TestCheckRequest(t *testing.T) {
 }
 
 func TestOnlyWindowsMovePanels(t *testing.T) {
-	link := &routeLink{move: nil}
-	if _, err := link.handle(MoveCommand, "proc:abc", map[string]any{"fromtabid": "a", "totabid": "b"}); err == nil {
-		t.Fatal("a terminal cannot move panels")
+	e := routetest.Make(t)
+	moved := false
+	link, err := localroute.MakeLink(e.Router, route(func(context.Context, MoveRequest) (MoveResult, error) {
+		moved = true
+		return MoveResult{}, nil
+	}))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := link.handle("other", "tab:abc", nil); err == nil {
+	req := map[string]any{"fromtabid": "a", "totabid": "b"}
+	routetest.MustRefuse(t, link, e.NonWindows(), MoveCommand, req)
+	if moved {
+		t.Fatal("a caller other than a window moved a panel")
+	}
+	if _, errStr := routetest.Ask(t, link, e.Window(), "other", nil); errStr == "" {
 		t.Fatal("unknown command answered")
 	}
 }

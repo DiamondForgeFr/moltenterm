@@ -139,12 +139,3 @@ func TestGrouping(t *testing.T) {
 func mv(workspaceId string, targetId string, place string) MoveRequest {
 	return MoveRequest{WorkspaceId: workspaceId, TargetId: targetId, Place: place}
 }
-
-func TestIsWindowSource(t *testing.T) {
-	if !isWindowSource("tab:1234") {
-		t.Fatalf("a tab is a window")
-	}
-	if isWindowSource("conn:local") || isWindowSource("") {
-		t.Fatalf("a terminal is not a window")
-	}
-}

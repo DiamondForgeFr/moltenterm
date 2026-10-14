@@ -5,14 +5,12 @@ package railorder
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
@@ -21,7 +19,6 @@ import (
 // The windows reach the rail order through a leaf of wavesrv's router answering plain command names, like the first
 // run (pkg/molten/onboarding/route.go): nothing is declared in pkg/wshrpc, the package upstream changes most.
 
-const routeQueueSize = 64
 const routeTimeout = 5 * time.Second
 
 // Store reads and writes the rail; wcore provides it, since the order sorts Wave's workspace list. Apply runs a change
@@ -142,68 +139,19 @@ func nextReconcile() (ProductMap, bool) {
 	return next, true
 }
 
-type routeLink struct {
-	store  Store
-	output chan []byte
-}
-
-func (l *routeLink) GetPeerInfo() string {
-	return RouteId
-}
-
-func (l *routeLink) RecvRpcMessage() ([]byte, bool) {
-	msg, ok := <-l.output
-	return msg, ok
-}
-
-func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debugStr string) bool {
-	var req wshutil.RpcMessage
-	if err := json.Unmarshal(msg, &req); err != nil {
-		return true
-	}
-	if req.Command == "" || req.ReqId == "" {
-		return true
-	}
-	go l.answer(req, ingressLinkId)
-	return true
-}
-
-func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) {
-	defer func() {
-		panichandler.PanicHandler("molten:railorder:route", recover())
-	}()
-	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	terminal := isTerminalSource(req.Source) && wshutil.DefaultRouter.IsLeafSource(ingressLinkId, req.Source)
-	data, err := l.handle(req.Command, req.Source, terminal, req.Data)
-	if err != nil {
-		resp.Error = err.Error()
-	} else {
-		resp.Data = data
-	}
-	out, err := json.Marshal(resp)
-	if err != nil {
-		return
-	}
-	l.output <- out
-}
-
-// The router stamps the source of every leaf link that has a route of its own, so a local terminal cannot pass for a
-// window.
-func isWindowSource(source string) bool {
-	return strings.HasPrefix(source, wshutil.RoutePrefix_Tab)
-}
-
-// wsh in one of MoltenTerm's local terminals (`molten rail group`, FR-MC-032-AC10), as `molten session` (#159). A
-// remote connection's wsh carries a "proc:" source too: the route also checks that the request came in through that
-// terminal's own link (IsLeafSource), not through a connection's router link.
-func isTerminalSource(source string) bool {
-	return strings.HasPrefix(source, wshutil.RoutePrefix_Proc)
-}
-
 func decode[T any](data any) (T, error) {
 	var req T
 	err := utilfn.ReUnmarshal(&req, data)
 	return req, err
+}
+
+type routeLink struct {
+	store Store
+}
+
+// route: the windows, and `molten rail group` in a local terminal (FR-MC-032-AC10); never a remote host.
+func (l *routeLink) route() localroute.Route {
+	return localroute.Route{Id: RouteId, Policy: localroute.Policy{Default: localroute.AllowLocal}, Handler: l.handle}
 }
 
 func (l *routeLink) apply(ctx context.Context, change func(Rail) (Rail, error)) (any, error) {
@@ -214,11 +162,8 @@ func (l *routeLink) apply(ctx context.Context, change func(Rail) (Rail, error)) 
 	return rail.List(), nil
 }
 
-func (l *routeLink) handle(command string, source string, localTerminal bool, data any) (any, error) {
-	if !isWindowSource(source) && !localTerminal {
-		return nil, fmt.Errorf("the rail order answers MoltenTerm windows and local terminals only")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), routeTimeout)
+func (l *routeLink) handle(ctx context.Context, command string, _ localroute.Caller, data any) (any, error) {
+	ctx, cancel := context.WithTimeout(ctx, routeTimeout)
 	defer cancel()
 	switch command {
 	case MoveCommand:
@@ -267,8 +212,7 @@ func (l *routeLink) handle(command string, source string, localTerminal bool, da
 
 // StartRoute registers the route; wavesrv calls it once.
 func StartRoute(store Store) {
-	link := &routeLink{store: store, output: make(chan []byte, routeQueueSize)}
-	if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId); err != nil {
+	if _, err := localroute.Register(wshutil.DefaultRouter, (&routeLink{store: store}).route()); err != nil {
 		log.Printf("molten: rail order route not started: %v\n", err)
 	}
 }

@@ -461,14 +461,87 @@ func (r *Runs) ReadReleaseNotes(dir string, tag string) (ReleaseNotes, error) {
 	return ReleaseNotes{Path: path, Text: string(data)}, nil
 }
 
-// SaveReleaseNotes writes the public notes as edited, before the cut.
+// SaveReleaseNotes writes the public notes as edited, before the cut. A repository can commit its notes file, or a
+// folder on its path, as a symbolic link (notes/v1.md -> ~/.zshrc): the notes are only written over a regular file
+// whose folder resolves inside the project or one of its repository's worktrees, and replaced by a rename, which never
+// follows a link (#662).
 func (r *Runs) SaveReleaseNotes(dir string, tag string, text string) error {
 	path, err := r.releaseNotesPath(dir, tag)
+	if err != nil {
+		return err
+	}
+	info, err := r.checkNotesTarget(dir, path)
 	if err != nil {
 		return err
 	}
 	if !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}
-	return os.WriteFile(path, []byte(text), 0644)
+	return replaceFile(path, []byte(text), info.Mode().Perm())
+}
+
+func (r *Runs) checkNotesTarget(dir string, path string) (os.FileInfo, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file: release notes are not written through a link", path)
+	}
+	parent, err := filepath.EvalSymlinks(filepath.Dir(path))
+	if err != nil {
+		return nil, err
+	}
+	for _, root := range r.notesRoots(dir) {
+		if pathWithin(root, parent) {
+			return info, nil
+		}
+	}
+	return nil, fmt.Errorf("%s is outside the project: release notes are not written there", path)
+}
+
+// notesRoots: the project and its repository's worktrees, links resolved.
+func (r *Runs) notesRoots(dir string) []string {
+	ctx, cancel := context.WithTimeout(context.Background(), releaseFactsTimeout)
+	defer cancel()
+	roots := []string{dir}
+	g := &gitReader{ctx: ctx, run: r.git, dir: dir}
+	for _, line := range g.lines("worktree", "list", "--porcelain") {
+		if worktree, ok := strings.CutPrefix(line, "worktree "); ok {
+			roots = append(roots, worktree)
+		}
+	}
+	var resolved []string
+	for _, root := range roots {
+		if real, err := filepath.EvalSymlinks(root); err == nil {
+			resolved = append(resolved, real)
+		}
+	}
+	return resolved
+}
+
+func pathWithin(root string, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	return err == nil && !filepath.IsAbs(rel) && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// replaceFile writes beside path, then renames over it: a link put in its place meanwhile is replaced, not followed.
+func replaceFile(path string, data []byte, perm os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(perm); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }

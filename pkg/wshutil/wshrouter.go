@@ -63,6 +63,9 @@ type linkMeta struct {
 	linkKind      string
 	sourceRouteId string
 	client        AbstractRpcClient
+	// MOLTENTERM-PATCH (#662): who is on the link, for the molten routes' caller checks (moltenterm_linksource.go).
+	isWindow bool
+	blockId  string
 }
 
 func (lm *linkMeta) Name() string {
