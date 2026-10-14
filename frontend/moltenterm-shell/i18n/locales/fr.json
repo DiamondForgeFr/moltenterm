@@ -4472,6 +4472,26 @@
                 "nottyped": "Les commentaires n'ont pas pu être envoyés à {agent} : {message}",
                 "failed": "La relance du travail a échoué : {message}"
             }
+        },
+        "notes": {
+            "title": "Notes",
+            "keep": "Garder",
+            "keepHint": "Garder cette explication dans les notes du projet, dans la vue Reviews. Les notes restent dans MoltenTerm, jamais dans le projet.",
+            "kept": "Gardée",
+            "keptHint": "Gardée dans les notes du projet sous « {title} »",
+            "keptWhen": "gardée {when}",
+            "filter": "Filtrer les notes",
+            "empty": "Gardez une explication de l'IA depuis un onglet Review : elle reste ici, pour ce projet, après le merge de la PR.",
+            "noMatch": "Aucune note ne correspond au filtre.",
+            "readFailed": "Les notes n'ont pas pu être lues : {error}",
+            "rename": "Renommer",
+            "titleLabel": "Titre de la note",
+            "save": "Enregistrer",
+            "cancel": "Annuler",
+            "delete": "Supprimer",
+            "deleteConfirm": "Supprimer cette note ?",
+            "byAgent": "Expliquée par {agent}",
+            "openLine": "Ouvrir le fichier à cette ligne, tel qu'après le merge de la PR ou sur la branche de base"
         }
     }
 }

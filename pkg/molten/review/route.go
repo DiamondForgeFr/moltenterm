@@ -98,7 +98,9 @@ type Service struct {
 	git     reviewsession.GitRunner
 	dataDir string
 	publish func(k PrKey, state State)
-	merger  *Merger
+	// publishNotes: a project's notes changed (FR-REV-008); nil in the tests that do not need it.
+	publishNotes func(notes Notes)
+	merger       *Merger
 	// cleaner: the cleanup after the merge (FR-REV-013); nil in the tests that do not need it.
 	cleaner *Cleaner
 	// handoff: what `molten review` asks of the terminal's window (FR-REV-014).
@@ -195,6 +197,9 @@ func Start() {
 			DataDir:    wavebase.GetWaveDataDir(),
 		})
 		service.restarter = MakeRestarter(service.store, liveRestartEnv(git))
+		service.publishNotes = func(notes Notes) {
+			wps.Broker.Publish(wps.WaveEvent{Event: NotesEvent, Scopes: []string{NotesScope(notes.Repo)}, Data: notes})
+		}
 		SetPostMerge(service)
 		service.handoff = defaultHandoffEnv()
 		service.discuss = reviewsession.Discuss
@@ -335,7 +340,7 @@ func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) 
 	timeout := controlTimeout
 	switch req.Command {
 	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand, RelocateCommand, DiscussCommand,
-		PublishInfoCommand, TranslateCommand:
+		PublishInfoCommand, TranslateCommand, NoteFileCommand:
 		timeout = gitTimeout
 	case PublishCommand:
 		timeout = publishTimeout
@@ -424,6 +429,12 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return RunHandoff(ctx, s.handoff, req)
+	case NotesCommand:
+		req, err := decode[NotesRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.store.GetNotes(req.Repo)
 	}
 	// What changes the store, a worktree or the tabs is the Review tab's: a terminal, where an agent may run, cannot.
 	if !isWindowSource(source) {
@@ -554,6 +565,30 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return s.Restart(ctx, req)
+	case NoteKeepCommand:
+		req, err := decode[NoteKeepRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.notesChanged(s.store.KeepNote(req))
+	case NoteRenameCommand:
+		req, err := decode[NoteRenameRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.notesChanged(s.store.RenameNote(req))
+	case NoteDeleteCommand:
+		req, err := decode[NoteDeleteRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.notesChanged(s.store.DeleteNote(req))
+	case NoteFileCommand:
+		req, err := decode[NoteFileRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.NoteFile(ctx, req)
 	}
 	return nil, fmt.Errorf("unknown review command %q", command)
 }

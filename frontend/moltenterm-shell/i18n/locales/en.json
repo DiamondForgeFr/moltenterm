@@ -4472,6 +4472,26 @@
                 "nottyped": "The comments could not be sent to {agent}: {message}",
                 "failed": "Restart work failed: {message}"
             }
+        },
+        "notes": {
+            "title": "Notes",
+            "keep": "Keep",
+            "keepHint": "Keep this explanation in the project's notes, in the Reviews view. Notes stay in MoltenTerm, never in the project.",
+            "kept": "Kept",
+            "keptHint": "Kept in the project's notes as \"{title}\"",
+            "keptWhen": "kept {when}",
+            "filter": "Filter the notes",
+            "empty": "Keep an AI explanation from a Review tab: it stays here, for this project, after the PR is merged.",
+            "noMatch": "No note matches the filter.",
+            "readFailed": "The notes could not be read: {error}",
+            "rename": "Rename",
+            "titleLabel": "Note title",
+            "save": "Save",
+            "cancel": "Cancel",
+            "delete": "Delete",
+            "deleteConfirm": "Delete this note?",
+            "byAgent": "Explained by {agent}",
+            "openLine": "Open the file at this line, as of the merged PR or the base branch"
         }
     }
 }

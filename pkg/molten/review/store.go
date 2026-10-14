@@ -135,13 +135,7 @@ func (s *Store) fileOf(k PrKey) string {
 }
 
 func (s *Store) prLock(k PrKey) *sync.Mutex {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	key := s.fileOf(k)
-	if s.locks[key] == nil {
-		s.locks[key] = &sync.Mutex{}
-	}
-	return s.locks[key]
+	return s.fileLock(s.fileOf(k))
 }
 
 func (s *Store) read(k PrKey) (State, error) {

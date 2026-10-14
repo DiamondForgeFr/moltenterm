@@ -14,6 +14,7 @@ import { useT } from "../i18n/i18n";
 import { AnswerGroup, citedLine, groupAnswers, PrAnswersKey } from "./review-answers";
 import { ReviewExplanation } from "./review-client";
 import { parseFileLink } from "./review-model";
+import { keepReviewNote, keptNoteOf, useReviewNotes } from "./review-notes";
 import { anchorLabel } from "./review-selection";
 import { ReviewQueuedQuestion } from "./review-session";
 import type { ReviewTabModel } from "./review-tab-model";
@@ -120,19 +121,39 @@ export function AnswersSection({ model }: { model: ReviewTabModel }) {
     const state = useAtomValue(model.stateAtom);
     const head = useAtomValue(model.headAtom);
     const focus = useAtomValue(model.answerFocusAtom);
+    const pr = useAtomValue(model.prAtom);
+    const notes = useReviewNotes(pr?.repo);
     const groups = useMemo(() => groupAnswers(state?.explanations, head), [state?.explanations, head]);
     return (
         <section className="flex flex-col gap-2" aria-label={t("review.answers.title")} data-testid="review-answers">
             <div className="text-13 font-semibold">{t("review.answers.title")}</div>
             {groups.length === 0 ? <p className="text-muted">{t("review.answers.empty")}</p> : null}
             {groups.map((g) => (
-                <AnswerGroupCard key={g.key} model={model} group={g} focusSeq={focus?.key === g.key ? focus.seq : 0} />
+                <AnswerGroupCard
+                    key={g.key}
+                    model={model}
+                    group={g}
+                    focusSeq={focus?.key === g.key ? focus.seq : 0}
+                    notes={notes}
+                />
             ))}
         </section>
     );
 }
 
-function AnswerGroupCard({ model, group, focusSeq }: { model: ReviewTabModel; group: AnswerGroup; focusSeq: number }) {
+type NotesHandle = ReturnType<typeof useReviewNotes>;
+
+function AnswerGroupCard({
+    model,
+    group,
+    focusSeq,
+    notes,
+}: {
+    model: ReviewTabModel;
+    group: AnswerGroup;
+    focusSeq: number;
+    notes: NotesHandle;
+}) {
     const t = useT();
     const ref = useRef<HTMLElement>(null);
     const [focused, setFocused] = useState(false);
@@ -194,7 +215,13 @@ function AnswerGroupCard({ model, group, focusSeq }: { model: ReviewTabModel; gr
                 </pre>
             ) : null}
             {group.answers.map((answer) => (
-                <AnswerBody key={answer.id} model={model} answer={answer} onClickCapture={onClickCapture} />
+                <AnswerBody
+                    key={answer.id}
+                    model={model}
+                    answer={answer}
+                    onClickCapture={onClickCapture}
+                    notes={notes}
+                />
             ))}
         </article>
     );
@@ -204,10 +231,12 @@ function AnswerBody({
     model,
     answer,
     onClickCapture,
+    notes,
 }: {
     model: ReviewTabModel;
     answer: ReviewExplanation;
     onClickCapture: (e: React.MouseEvent) => void;
+    notes: NotesHandle;
 }) {
     const t = useT();
     return (
@@ -234,6 +263,67 @@ function AnswerBody({
                 <Markdown text={answer.markdown} scrollable={false} fontSizeOverride={12} fixedFontSizeOverride={11} />
             </div>
             <AnswerFooter model={model} answer={answer} />
+            <KeepButton model={model} answer={answer} notes={notes} />
+        </div>
+    );
+}
+
+// KeepButton keeps the answer as a note of the project (FR-REV-008 AC1), listed in the Reviews view's Notes.
+function KeepButton({ model, answer, notes }: { model: ReviewTabModel; answer: ReviewExplanation; notes: NotesHandle }) {
+    const t = useT();
+    const pr = useAtomValue(model.prAtom);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string>(null);
+    const kept = keptNoteOf(notes.notes?.notes, pr?.number, answer.id);
+    if (pr == null) {
+        return null;
+    }
+    const keep = () =>
+        fireAndForget(async () => {
+            setBusy(true);
+            setError(null);
+            try {
+                notes.set(
+                    await keepReviewNote({
+                        repo: pr.repo,
+                        number: pr.number,
+                        explanationid: answer.id,
+                        prtitle: pr.title,
+                        prurl: pr.url,
+                        baseref: pr.baseref,
+                    })
+                );
+            } catch (e) {
+                setError(String(e?.message ?? e));
+            } finally {
+                setBusy(false);
+            }
+        });
+    return (
+        <div className="flex items-center gap-2 text-11">
+            {kept ? (
+                <span
+                    className="flex items-center gap-1 text-success"
+                    title={t("review.notes.keptHint", { title: kept.title })}
+                    data-testid="review-answer-kept"
+                >
+                    <i className="fa fa-solid fa-bookmark text-10" />
+                    {t("review.notes.kept")}
+                </span>
+            ) : (
+                <button
+                    type="button"
+                    className="flex cursor-pointer items-center gap-1 rounded-4 border border-border px-1.5 py-0.5 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50"
+                    onClick={keep}
+                    disabled={busy || notes.notes == null}
+                    title={t("review.notes.keepHint")}
+                    data-testid="review-answer-keep"
+                >
+                    <i className="fa fa-regular fa-bookmark text-10" />
+                    {t("review.notes.keep")}
+                </button>
+            )}
+            {error ? <span className="text-error">{error}</span> : null}
         </div>
     );
 }

@@ -33,6 +33,7 @@ import {
     reviewsEmptyState,
     Tone,
 } from "./reviews-model";
+import { NotesSection } from "./reviews-notes-view";
 import { ReviewsModel } from "./reviews-store";
 
 export { MoltentermReviewsView };
@@ -78,16 +79,26 @@ export class ReviewsViewModel implements ViewModel {
     }
 }
 
-function ReviewsView() {
+function ReviewsView({ model }: ViewComponentProps<ReviewsViewModel>) {
     const t = useT();
     return (
         <MissionFrame title={t("reviews.viewName")}>
-            {({ project, snapshot }) => <ReviewsContent project={project} snapshot={snapshot} />}
+            {({ project, snapshot }) => (
+                <ReviewsContent project={project} snapshot={snapshot} blockId={model.blockId} />
+            )}
         </MissionFrame>
     );
 }
 
-function ReviewsContent({ project, snapshot }: { project: ActiveProject; snapshot: MissionSnapshot }) {
+function ReviewsContent({
+    project,
+    snapshot,
+    blockId,
+}: {
+    project: ActiveProject;
+    snapshot: MissionSnapshot;
+    blockId: string;
+}) {
     const t = useT();
     const { answer, error, refresh } = useReviews(project.dir, snapshot);
     const headerSnapshot = useMemo(
@@ -106,7 +117,7 @@ function ReviewsContent({ project, snapshot }: { project: ActiveProject; snapsho
                     </span>
                 ) : null}
             </MissionHeader>
-            <ReviewsBody dir={project.dir} answer={answer} error={error} refresh={refresh} />
+            <ReviewsBody dir={project.dir} answer={answer} error={error} refresh={refresh} blockId={blockId} />
         </>
     );
 }
@@ -116,11 +127,13 @@ function ReviewsBody({
     answer,
     error,
     refresh,
+    blockId,
 }: {
     dir: string;
     answer: ReviewsAnswer;
     error: string;
     refresh: () => void;
+    blockId: string;
 }) {
     const t = useT();
     if (answer == null && error) {
@@ -150,7 +163,7 @@ function ReviewsBody({
             />
         );
     }
-    return <ReviewsList dir={dir} answer={answer} />;
+    return <ReviewsList dir={dir} answer={answer} blockId={blockId} />;
 }
 
 function Loading() {
@@ -166,7 +179,7 @@ function Loading() {
     );
 }
 
-function ReviewsList({ dir, answer }: { dir: string; answer: ReviewsAnswer }) {
+function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAnswer; blockId: string }) {
     const t = useT();
     const model = ReviewsModel.getInstance();
     const focus = useAtomValue(model.focusAtom);
@@ -287,6 +300,7 @@ function ReviewsList({ dir, answer }: { dir: string; answer: ReviewsAnswer }) {
                     ) : null}
                 </section>
             ) : null}
+            {answer.repo ? <NotesSection dir={dir} repo={answer.repo} blockId={blockId} /> : null}
         </div>
     );
 }
