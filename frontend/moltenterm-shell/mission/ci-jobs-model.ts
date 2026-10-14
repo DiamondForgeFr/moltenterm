@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The CI/CD panel's Jobs tab (#637): the project's CI jobs, what each is for and when it runs, in plain words. wavesrv
-// parses the files (pkg/molten/mission/cijobs.go); these rules turn its facts into sentences, apart from the
-// components so they can be tested without the app. Nothing here makes a description up: a job's text is its file's.
+// parses the files (pkg/molten/mission/cijobs.go); these rules turn its facts into sentences of the interface
+// language (mc.jobs.* keys), apart from the components so they can be tested without the app. Nothing here makes a
+// description up: a job's text is its file's.
 
+import { t } from "../i18n/i18n";
 import { describeCron, parseCron, WorkflowRun } from "./github";
 
 // must match pkg/molten/mission/cijobs.go
@@ -66,89 +68,75 @@ export type CiCatalogue = { dir: string; workflows: CatalogueWorkflow[]; local?:
 
 export type JobDescribeResult = { sent: boolean; submitted?: boolean; message: string };
 
-// The UI's strings, one constant each until the translation keys (#623) land.
-export const JobsText = {
-    tab: "Jobs",
-    remoteTitle: "Remote CI / CD",
-    remoteHint: "GitHub Actions workflows, read from .github/workflows",
-    localTitle: "Local CI",
-    localHint: "the pipeline's ci.jobs, by lane, in order",
-    noWorkflows: "The project has no GitHub Actions workflow (.github/workflows).",
-    noLocal: "The pipeline declares no local CI job (ci.jobs).",
-    noDescription: "No description",
-    ask: "Ask the agent to describe it",
-    askNoAgent: "No coding agent in this workspace: start one to ask it.",
-    askPick: "Which agent writes it?",
-    whenLabel: "When",
-    afterLabel: "After",
-    onlyIfLabel: "Only if",
-    lastLabel: "Last run",
-    openFile: "Open the file at this job",
-    lane: "Lane",
-    loading: "Reading the CI files…",
-    unreadable: "Unreadable file",
-    reusable: "Calls",
-    runsLabel: "Runs",
-    githubStatuses: "; each verdict also shows on GitHub as local-<job>",
-};
+// Pull request activities with a sentence of their own (mc.jobs.prType.*); others show their GitHub name.
+const PullRequestTypes = [
+    "opened",
+    "synchronize",
+    "reopened",
+    "ready_for_review",
+    "converted_to_draft",
+    "closed",
+    "edited",
+    "labeled",
+    "unlabeled",
+    "assigned",
+    "review_requested",
+    "auto_merge_enabled",
+];
 
-const PullRequestTypeWords: Record<string, string> = {
-    opened: "opened",
-    synchronize: "updated with new commits",
-    reopened: "reopened",
-    ready_for_review: "marked ready for review",
-    converted_to_draft: "returned to draft",
-    closed: "closed (merged or not)",
-    edited: "edited",
-    labeled: "labelled",
-    unlabeled: "unlabelled",
-    assigned: "assigned",
-    review_requested: "given a reviewer",
-    auto_merge_enabled: "set to merge automatically",
-};
+// Events with a sentence of their own (mc.jobs.event.*).
+const KnownEvents = [
+    "workflow_call",
+    "release",
+    "merge_group",
+    "issues",
+    "issue_comment",
+    "pull_request_review",
+    "pull_request_review_comment",
+    "create",
+    "delete",
+    "deployment",
+    "deployment_status",
+    "repository_dispatch",
+    "page_build",
+    "check_run",
+    "check_suite",
+    "status",
+    "discussion",
+    "fork",
+    "watch",
+];
 
-const EventWords: Record<string, string> = {
-    push: "On every push",
-    pull_request: "On pull requests",
-    pull_request_target: "On pull requests, with the repository's own permissions",
-    workflow_dispatch: "By hand (Run workflow on GitHub)",
-    workflow_call: "When another workflow calls it",
-    workflow_run: "After another workflow runs",
-    schedule: "On a schedule",
-    release: "On releases",
-    merge_group: "In the merge queue",
-    issues: "On issues",
-    issue_comment: "On issue and pull request comments",
-    pull_request_review: "On pull request reviews",
-    pull_request_review_comment: "On pull request review comments",
-    create: "When a branch or tag is created",
-    delete: "When a branch or tag is deleted",
-    deployment: "On deployments",
-    deployment_status: "When a deployment's state changes",
-    repository_dispatch: "When an outside service asks for it",
-    page_build: "When GitHub Pages builds",
-    check_run: "On check runs",
-    check_suite: "On check suites",
-    status: "When a commit status changes",
-    discussion: "On discussions",
-    fork: "When the repository is forked",
-    watch: "When the repository is starred",
-};
+// Events a condition names (mc.jobs.eventName.*).
+const NamedEvents = [
+    "pull_request",
+    "pull_request_target",
+    "push",
+    "schedule",
+    "workflow_dispatch",
+    "workflow_call",
+    "workflow_run",
+    "release",
+    "merge_group",
+];
 
-function list(items: readonly string[]): string {
-    const quoted = (items ?? []).filter(Boolean);
-    if (quoted.length <= 1) {
-        return quoted.join("");
-    }
-    return `${quoted.slice(0, -1).join(", ")} or ${quoted[quoted.length - 1]}`;
-}
+const Results = ["success", "failure", "cancelled", "skipped"];
+const StatusFunctions = ["always", "success", "failure", "cancelled"];
 
-function andList(items: readonly string[]): string {
+function joined(items: readonly string[], key: "or" | "and"): string {
     const all = (items ?? []).filter(Boolean);
     if (all.length <= 1) {
         return all.join("");
     }
-    return `${all.slice(0, -1).join(", ")} and ${all[all.length - 1]}`;
+    return t(`mc.jobs.list.${key}`, { first: all.slice(0, -1).join(", "), last: all[all.length - 1] });
+}
+
+function orList(items: readonly string[]): string {
+    return joined(items, "or");
+}
+
+function andList(items: readonly string[]): string {
+    return joined(items, "and");
 }
 
 function pad(n: number): string {
@@ -164,23 +152,22 @@ export function cronWords(expression: string): string {
     }
     const [min, hour, dom, month, dow] = parts;
     const every = (field: string) => /^\*\/(\d+)$/.exec(field)?.[1];
-    if (every(min) && hour === "*" && dom === "*" && month === "*" && dow === "*") {
-        return `every ${every(min)} minutes`;
+    const restAny = dom === "*" && month === "*" && dow === "*";
+    if (every(min) && hour === "*" && restAny) {
+        return t("mc.jobs.cron.everyMinutes", { n: every(min) });
     }
-    if (min === "*" && hour === "*" && dom === "*" && month === "*" && dow === "*") {
-        return "every minute";
+    if (min === "*" && hour === "*" && restAny) {
+        return t("mc.jobs.cron.everyMinute");
     }
-    if (cron.minutes.length === 1 && hour === "*" && dom === "*" && month === "*" && dow === "*") {
-        return `every hour at minute ${cron.minutes[0]}`;
+    if (cron.minutes.length === 1 && hour === "*" && restAny) {
+        return t("mc.jobs.cron.everyHour", { minute: cron.minutes[0] });
     }
-    if (cron.minutes.length === 1 && every(hour) && dom === "*" && month === "*" && dow === "*") {
-        return `every ${every(hour)} hours at minute ${cron.minutes[0]} (UTC)`;
+    if (cron.minutes.length === 1 && every(hour) && restAny) {
+        return t("mc.jobs.cron.everyHours", { n: every(hour), minute: cron.minutes[0] });
     }
     if (cron.minutes.length === 1 && cron.hours.length === 1 && cron.days?.length === 1 && dow === "*") {
         const at = `${pad(cron.hours[0])}:${pad(cron.minutes[0])} UTC`;
-        return month === "*"
-            ? `on day ${cron.days[0]} of every month at ${at}`
-            : `on day ${cron.days[0]} of some months at ${at}`;
+        return t(month === "*" ? "mc.jobs.cron.monthDay" : "mc.jobs.cron.someMonthsDay", { day: cron.days[0], at });
     }
     return describeCron(expression);
 }
@@ -188,27 +175,28 @@ export function cronWords(expression: string): string {
 function filterWords(trigger: WorkflowTrigger): string[] {
     const out: string[] = [];
     if (trigger.paths?.length) {
-        out.push(`only when ${list(trigger.paths)} change`);
+        out.push(t("mc.jobs.trigger.paths", { paths: orList(trigger.paths) }));
     }
     if (trigger.pathsignore?.length) {
-        out.push(`unless only ${list(trigger.pathsignore)} change`);
+        out.push(t("mc.jobs.trigger.pathsIgnore", { paths: orList(trigger.pathsignore) }));
     }
     return out;
 }
 
-function refWords(trigger: WorkflowTrigger, to: string): string[] {
+// side: push names the branches pushed to, pr the branches pull requests target.
+function refWords(trigger: WorkflowTrigger, side: "push" | "pr" | "other"): string[] {
     const out: string[] = [];
     if (trigger.branches?.length) {
-        out.push(`${to} ${list(trigger.branches)}`);
+        out.push(t(`mc.jobs.ref.${side}.to`, { branches: orList(trigger.branches) }));
     }
     if (trigger.branchesignore?.length) {
-        out.push(`except ${to} ${list(trigger.branchesignore)}`);
+        out.push(t(`mc.jobs.ref.${side}.exceptTo`, { branches: orList(trigger.branchesignore) }));
     }
     if (trigger.tags?.length) {
-        out.push(`of tags ${list(trigger.tags)}`);
+        out.push(t("mc.jobs.ref.tags", { tags: orList(trigger.tags) }));
     }
     if (trigger.tagsignore?.length) {
-        out.push(`except tags ${list(trigger.tagsignore)}`);
+        out.push(t("mc.jobs.ref.exceptTags", { tags: orList(trigger.tagsignore) }));
     }
     return out;
 }
@@ -222,43 +210,54 @@ export function triggerWords(trigger: WorkflowTrigger): string {
     const event = trigger?.event ?? "";
     switch (event) {
         case "push": {
-            const refs = refWords(trigger, "to");
-            const head = refs.length ? `On push ${refs.join(", ")}` : "On every push";
+            const refs = refWords(trigger, "push");
+            const head = refs.length
+                ? t("mc.jobs.trigger.pushRefs", { refs: refs.join(", ") })
+                : t("mc.jobs.trigger.pushAny");
             return sentence(head, filterWords(trigger));
         }
         case "pull_request":
         case "pull_request_target": {
-            const refs = refWords(trigger, "to");
-            let head = refs.length ? `On pull requests ${refs.join(", ")}` : "On pull requests";
+            const refs = refWords(trigger, "pr");
+            let head = refs.length
+                ? t("mc.jobs.trigger.prRefs", { refs: refs.join(", ") })
+                : t("mc.jobs.trigger.prAny");
             if (event === "pull_request_target") {
-                head += ", with the repository's own permissions";
+                head = t("mc.jobs.trigger.prTarget", { head });
             }
             const parts: string[] = [];
             if (trigger.types?.length) {
-                parts.push(`when ${list(trigger.types.map((t) => PullRequestTypeWords[t] ?? t))}`);
+                const types = trigger.types.map((ty) =>
+                    PullRequestTypes.includes(ty) ? t(`mc.jobs.prType.${ty}`) : ty
+                );
+                parts.push(t("mc.jobs.trigger.prTypes", { types: orList(types) }));
             }
             return sentence(head, [...parts, ...filterWords(trigger)]);
         }
         case "schedule":
             return trigger.crons?.length
-                ? `On a schedule: ${trigger.crons.map(cronWords).join("; ")}`
-                : "On a schedule";
+                ? t("mc.jobs.trigger.scheduleCrons", { crons: trigger.crons.map(cronWords).join("; ") })
+                : t("mc.jobs.trigger.schedule");
         case "workflow_dispatch":
             return trigger.inputs?.length
-                ? `By hand (Run workflow on GitHub), asking for ${andList(trigger.inputs)}`
-                : EventWords.workflow_dispatch;
+                ? t("mc.jobs.trigger.dispatchInputs", { inputs: andList(trigger.inputs) })
+                : t("mc.jobs.trigger.dispatch");
         case "workflow_call":
             return trigger.inputs?.length
-                ? `When another workflow calls it, with ${andList(trigger.inputs)}`
-                : EventWords.workflow_call;
+                ? t("mc.jobs.trigger.callInputs", { inputs: andList(trigger.inputs) })
+                : t("mc.jobs.event.workflow_call");
         case "workflow_run": {
-            const what = trigger.workflows?.length ? `the workflow ${list(trigger.workflows)}` : "another workflow";
-            return trigger.types?.length ? `After ${what} is ${list(trigger.types)}` : `After ${what} runs`;
+            const what = trigger.workflows?.length
+                ? t("mc.jobs.trigger.theWorkflow", { names: orList(trigger.workflows) })
+                : t("mc.jobs.trigger.anotherWorkflow");
+            return trigger.types?.length
+                ? t("mc.jobs.trigger.runTypes", { what, types: orList(trigger.types) })
+                : t("mc.jobs.trigger.run", { what });
         }
     }
-    const head = EventWords[event] ?? `On the ${event} event`;
-    const parts = trigger.types?.length ? [`when ${list(trigger.types)}`] : [];
-    return sentence(head, [...parts, ...refWords(trigger, "on"), ...filterWords(trigger)]);
+    const head = KnownEvents.includes(event) ? t(`mc.jobs.event.${event}`) : t("mc.jobs.event.other", { event });
+    const parts = trigger.types?.length ? [t("mc.jobs.trigger.types", { types: orList(trigger.types) })] : [];
+    return sentence(head, [...parts, ...refWords(trigger, "other"), ...filterWords(trigger)]);
 }
 
 // ---- if: conditions ----
@@ -453,32 +452,6 @@ function parseExpression(text: string): Expr {
     }
 }
 
-const EventNameWords: Record<string, string> = {
-    pull_request: "a pull request",
-    pull_request_target: "a pull request",
-    push: "a push",
-    schedule: "the schedule",
-    workflow_dispatch: "a run started by hand",
-    workflow_call: "a call from another workflow",
-    workflow_run: "another workflow's run",
-    release: "a release",
-    merge_group: "the merge queue",
-};
-
-const StatusWords: Record<string, string> = {
-    always: "always, even when an earlier job failed or the run was cancelled",
-    success: "when the jobs before it succeeded",
-    failure: "when a job before it failed",
-    cancelled: "when the run was cancelled",
-};
-
-const ResultWords: Record<string, string> = {
-    success: "succeeded",
-    failure: "failed",
-    cancelled: "was cancelled",
-    skipped: "was skipped",
-};
-
 function refText(path: string): string {
     return path.replace(/^github\./, "");
 }
@@ -487,13 +460,28 @@ function litText(expr: Expr): string {
     if (expr?.kind !== "lit") {
         return null;
     }
-    return expr.value == null ? "empty" : String(expr.value);
+    return expr.value == null ? t("mc.jobs.if.empty") : String(expr.value);
 }
 
-type Words = { text: string; negated?: string };
+type Words = { text: string; negated: string };
 
 function isRef(expr: Expr, path: string): boolean {
     return expr?.kind === "ref" && expr.path === path;
+}
+
+// A pair of sentences: mc.jobs.if.<key> and its negation mc.jobs.if.<key>Not.
+function pair(key: string, vars?: Record<string, string | number>): Words {
+    return { text: t(`mc.jobs.if.${key}`, vars), negated: t(`mc.jobs.if.${key}Not`, vars) };
+}
+
+function flip(words: Words): Words {
+    return { text: words.negated, negated: words.text };
+}
+
+function eventName(value: string): string {
+    return NamedEvents.includes(value)
+        ? t(`mc.jobs.eventName.${value}`)
+        : t("mc.jobs.eventName.other", { event: value });
 }
 
 // What a value test says, true or negated. null: no plain words for it.
@@ -501,129 +489,108 @@ function compareWords(left: Expr, op: string, right: Expr): Words {
     if (left?.kind === "lit" && right?.kind !== "lit") {
         return compareWords(right, op, left);
     }
-    const value = litText(right);
-    const eq = op === "==";
     if (op !== "==" && op !== "!=") {
         return null;
     }
-    const pick = (yes: string, no: string): Words => (eq ? { text: yes, negated: no } : { text: no, negated: yes });
+    const value = litText(right);
+    const eq = op === "==";
+    const pick = (words: Words): Words => (eq ? words : flip(words));
     if (isRef(left, "github.event_name") && value != null) {
-        const what = EventNameWords[value] ?? `the ${value} event`;
-        return pick(`on ${what}`, `not on ${what}`);
+        return pick(pair("event", { what: eventName(value) }));
     }
     if (isRef(left, "github.event.pull_request.draft") && right?.kind === "lit" && typeof right.value === "boolean") {
-        return right.value === eq
-            ? { text: "the pull request is a draft", negated: "the pull request is not a draft" }
-            : { text: "the pull request is not a draft", negated: "the pull request is a draft" };
+        return right.value === eq ? pair("draft") : flip(pair("draft"));
     }
     if (isRef(left, "github.event.pull_request.merged") && right?.kind === "lit" && typeof right.value === "boolean") {
-        return right.value === eq
-            ? { text: "the pull request was merged", negated: "the pull request was not merged" }
-            : { text: "the pull request was not merged", negated: "the pull request was merged" };
+        return right.value === eq ? pair("merged") : flip(pair("merged"));
     }
     if (isRef(left, "github.event.action") && value != null) {
-        return pick(`the event is "${value}"`, `the event is not "${value}"`);
+        return pick(pair("action", { value }));
     }
     if (isRef(left, "github.ref") && value != null) {
         const branch = /^refs\/heads\/(.+)$/.exec(value)?.[1];
         const tag = /^refs\/tags\/(.+)$/.exec(value)?.[1];
         if (branch) {
-            return pick(`on the branch ${branch}`, `not on the branch ${branch}`);
+            return pick(pair("branch", { name: branch }));
         }
         if (tag) {
-            return pick(`on the tag ${tag}`, `not on the tag ${tag}`);
+            return pick(pair("tag", { name: tag }));
         }
     }
-    if (
-        (isRef(left, "github.ref_name") || isRef(left, "github.head_ref") || isRef(left, "github.base_ref")) &&
-        value != null
-    ) {
-        const which = left.kind === "ref" && left.path === "github.base_ref" ? "the pull request targets" : "on";
-        return pick(`${which} ${value}`, `not ${which} ${value}`);
+    if ((isRef(left, "github.ref_name") || isRef(left, "github.head_ref")) && value != null) {
+        return pick(pair("refName", { value }));
+    }
+    if (isRef(left, "github.base_ref") && value != null) {
+        return pick(pair("baseRef", { value }));
     }
     if (isRef(left, "github.event.pull_request.head.repo.full_name") && isRef(right, "github.repository")) {
-        return pick("the pull request comes from this repository, not a fork", "the pull request comes from a fork");
+        return pick(pair("sameRepo"));
     }
     if (isRef(left, "github.repository") && value != null) {
-        return pick(`in the repository ${value} (not its forks)`, `outside the repository ${value}`);
+        return pick(pair("repo", { value }));
     }
-    if (left?.kind === "ref") {
-        const output = /^needs\.([\w-]+)\.outputs\.([\w-]+)$/.exec(left.path);
-        if (output && value != null) {
-            return pick(`${output[1]}'s ${output[2]} is "${value}"`, `${output[1]}'s ${output[2]} is not "${value}"`);
-        }
-        const result = /^needs\.([\w-]+)\.result$/.exec(left.path);
-        if (result && value != null && ResultWords[value]) {
-            return pick(`${result[1]} ${ResultWords[value]}`, `${result[1]} did not end as ${value}`);
-        }
-        const input = /^(?:inputs|github\.event\.inputs)\.([\w-]+)$/.exec(left.path);
-        if (input && value != null) {
-            return pick(`the input ${input[1]} is "${value}"`, `the input ${input[1]} is not "${value}"`);
-        }
-        if (value != null) {
-            return pick(`${refText(left.path)} is "${value}"`, `${refText(left.path)} is not "${value}"`);
-        }
+    if (left?.kind !== "ref" || value == null) {
+        return null;
     }
-    return null;
+    const output = /^needs\.([\w-]+)\.outputs\.([\w-]+)$/.exec(left.path);
+    if (output) {
+        return pick(pair("output", { job: output[1], output: output[2], value }));
+    }
+    const result = /^needs\.([\w-]+)\.result$/.exec(left.path);
+    if (result && Results.includes(value)) {
+        return pick({
+            text: t(`mc.jobs.if.result.${value}`, { job: result[1] }),
+            negated: t("mc.jobs.if.resultNot", { job: result[1], value }),
+        });
+    }
+    const input = /^(?:inputs|github\.event\.inputs)\.([\w-]+)$/.exec(left.path);
+    if (input) {
+        return pick(pair("input", { name: input[1], value }));
+    }
+    return pick(pair("equals", { ref: refText(left.path), value }));
 }
 
 function callWords(expr: Expr & { kind: "call" }): Words {
-    if (StatusWords[expr.name] && expr.args.length === 0) {
-        return { text: StatusWords[expr.name], negated: `not ${StatusWords[expr.name]}` };
+    if (StatusFunctions.includes(expr.name) && expr.args.length === 0) {
+        return pair(`status.${expr.name}`);
     }
     const [a, b] = expr.args;
     const value = litText(b);
-    if (expr.name === "startswith" && value != null) {
-        if (isRef(a, "github.ref") && value.startsWith("refs/tags/")) {
-            const rest = value.slice("refs/tags/".length);
-            const text = rest ? `on a tag starting with ${rest}` : "on a tag";
-            return { text, negated: `not ${text}` };
+    if (expr.name === "startswith" && value != null && a?.kind === "ref") {
+        if (a.path === "github.ref" && value.startsWith("refs/tags/")) {
+            const prefix = value.slice("refs/tags/".length);
+            return prefix ? pair("tagPrefix", { prefix }) : pair("anyTag");
         }
-        if (isRef(a, "github.ref") && value.startsWith("refs/heads/")) {
-            const rest = value.slice("refs/heads/".length);
-            const text = rest ? `on a branch starting with ${rest}` : "on a branch";
-            return { text, negated: `not ${text}` };
+        if (a.path === "github.ref" && value.startsWith("refs/heads/")) {
+            const prefix = value.slice("refs/heads/".length);
+            return prefix ? pair("branchPrefix", { prefix }) : pair("anyBranch");
         }
-        if (a?.kind === "ref") {
-            return {
-                text: `${refText(a.path)} starts with "${value}"`,
-                negated: `${refText(a.path)} does not start with "${value}"`,
-            };
-        }
+        return pair("startsWith", { ref: refText(a.path), value });
     }
     if (expr.name === "contains" && value != null && a?.kind === "ref") {
         if (/^github\.event\.pull_request\.labels\.\*\.name$/.test(a.path)) {
-            return {
-                text: `the pull request has the label ${value}`,
-                negated: `the pull request does not have the label ${value}`,
-            };
+            return pair("label", { value });
         }
         if (a.path === "github.event.head_commit.message") {
-            return {
-                text: `the commit message contains "${value}"`,
-                negated: `the commit message does not contain "${value}"`,
-            };
+            return pair("commitMessage", { value });
         }
-        return {
-            text: `${refText(a.path)} contains "${value}"`,
-            negated: `${refText(a.path)} does not contain "${value}"`,
-        };
+        return pair("contains", { ref: refText(a.path), value });
     }
     return null;
 }
 
 function refWordsOf(expr: Expr & { kind: "ref" }): Words {
     if (expr.path === "github.event.pull_request.draft") {
-        return { text: "the pull request is a draft", negated: "the pull request is not a draft" };
+        return pair("draft");
     }
     if (expr.path === "github.event.pull_request.merged") {
-        return { text: "the pull request was merged", negated: "the pull request was not merged" };
+        return pair("merged");
     }
     const input = /^(?:inputs|github\.event\.inputs)\.([\w-]+)$/.exec(expr.path);
     if (input) {
-        return { text: `the input ${input[1]} is set`, negated: `the input ${input[1]} is not set` };
+        return pair("inputSet", { name: input[1] });
     }
-    return { text: `${refText(expr.path)} is set`, negated: `${refText(expr.path)} is not set` };
+    return pair("set", { ref: refText(expr.path) });
 }
 
 // "not a pull request, or not a draft" is how a workflow skips draft pull requests.
@@ -642,19 +609,25 @@ function isDraftSkip(expr: Expr): boolean {
     return (notPr(expr.left) && notDraft(expr.right)) || (notPr(expr.right) && notDraft(expr.left));
 }
 
+function group(text: string, nested: boolean): string {
+    return nested ? `(${text})` : text;
+}
+
 function words(expr: Expr, nested: boolean): Words {
     switch (expr.kind) {
         case "or": {
             if (isDraftSkip(expr)) {
-                return { text: "except on draft pull requests", negated: "only on draft pull requests" };
+                return pair("draftSkip");
             }
             const l = words(expr.left, true);
             const r = words(expr.right, true);
             if (l == null || r == null) {
                 return null;
             }
-            const text = `${l.text}, or ${r.text}`;
-            return { text: nested ? `(${text})` : text, negated: `neither ${l.text} nor ${r.text}` };
+            return {
+                text: group(t("mc.jobs.if.or", { a: l.text, b: r.text }), nested),
+                negated: t("mc.jobs.if.nor", { a: l.text, b: r.text }),
+            };
         }
         case "and": {
             const l = words(expr.left, true);
@@ -662,12 +635,12 @@ function words(expr: Expr, nested: boolean): Words {
             if (l == null || r == null) {
                 return null;
             }
-            const text = `${l.text} and ${r.text}`;
-            return { text: nested ? `(${text})` : text, negated: `not (${text})` };
+            const text = t("mc.jobs.if.and", { a: l.text, b: r.text });
+            return { text: group(text, nested), negated: t("mc.jobs.if.notAll", { text }) };
         }
         case "not": {
             const inner = words(expr.expr, true);
-            return inner == null ? null : { text: inner.negated ?? `not ${inner.text}`, negated: inner.text };
+            return inner == null ? null : flip(inner);
         }
         case "cmp":
             return compareWords(expr.left, expr.op, expr.right);
@@ -676,11 +649,7 @@ function words(expr: Expr, nested: boolean): Words {
         case "ref":
             return refWordsOf(expr);
         case "lit":
-            return expr.value === true
-                ? { text: "always", negated: "never" }
-                : expr.value === false
-                  ? { text: "never", negated: "always" }
-                  : null;
+            return expr.value === true ? pair("always") : expr.value === false ? flip(pair("always")) : null;
     }
     return null;
 }
@@ -694,8 +663,7 @@ export function conditionWords(condition: string): string {
     if (expr == null) {
         return null;
     }
-    const out = words(expr, false);
-    return out?.text ?? null;
+    return words(expr, false)?.text ?? null;
 }
 
 // A job's name as GitHub shows it, its expressions (a matrix value) read as their last word.
@@ -707,7 +675,7 @@ export function jobLabel(job: CatalogueJob): string {
     return name.replace(/\$\{\{\s*([^}]*?)\s*\}\}/g, (_, inner: string) => inner.split(".").pop() || "…");
 }
 
-// "After Release tag and macOS": the jobs it waits for, by the names the workflow gives them.
+// "Release tag and macOS": the jobs it waits for, by the names the workflow gives them.
 export function needsWords(needs: readonly string[], jobs: readonly CatalogueJob[]): string {
     if (!needs?.length) {
         return null;
@@ -718,11 +686,11 @@ export function needsWords(needs: readonly string[], jobs: readonly CatalogueJob
 
 // When a local CI job runs: there is no event, only who starts the local CI.
 export function localWhenWords(local: CatalogueLocal): string {
-    const parts = ["Each time you or an agent run the local CI (Run CI, or molten ci run)"];
-    if (local?.verifybuilds?.length) {
-        parts.push(`before the ${andList(local.verifybuilds)} build`);
+    const when = t("mc.jobs.local.when");
+    if (!local?.verifybuilds?.length) {
+        return when;
     }
-    return parts.join(", and ");
+    return t("mc.jobs.local.whenBuilds", { when, builds: andList(local.verifybuilds) });
 }
 
 export function localAfterWords(job: CatalogueLocalJob, local: CatalogueLocal): string {
@@ -730,7 +698,7 @@ export function localAfterWords(job: CatalogueLocalJob, local: CatalogueLocal): 
     if (before.length === 0) {
         return null;
     }
-    return `${andList(before.map((j) => j.title || j.name))}, in the ${job.lane} lane (a failure stops the rest of the lane)`;
+    return t("mc.jobs.local.after", { jobs: andList(before.map((j) => j.title || j.name)), lane: job.lane });
 }
 
 // The last run of a workflow among the recent ones gh listed, matched by the workflow's name.
@@ -750,16 +718,13 @@ export function lastWorkflowRun(runs: readonly WorkflowRun[], workflow: Catalogu
 
 export function describeOutcome(result: JobDescribeResult, agentName: string): { ok: boolean; text: string } {
     if (result == null) {
-        return { ok: false, text: "Nothing was sent: MoltenTerm could not reach the agent." };
+        return { ok: false, text: t("mc.jobs.outcome.unreachable") };
     }
     if (!result.sent) {
-        return { ok: false, text: result.message || "Nothing was sent." };
+        return { ok: false, text: result.message || t("mc.jobs.outcome.nothingSent") };
     }
     if (result.submitted) {
-        return { ok: true, text: `Sent to ${agentName}: the description will come as a change to review.` };
+        return { ok: true, text: t("mc.jobs.outcome.sent", { agent: agentName }) };
     }
-    return {
-        ok: true,
-        text: `Typed in ${agentName}'s prompt after your draft there: press Enter in its terminal to send it.`,
-    };
+    return { ok: true, text: t("mc.jobs.outcome.typed", { agent: agentName }) };
 }

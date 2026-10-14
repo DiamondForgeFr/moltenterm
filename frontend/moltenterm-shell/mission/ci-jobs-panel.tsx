@@ -13,6 +13,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { agentCallName, agentLabel, AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { useT } from "../i18n/i18n";
 import { workspaceAgents } from "../project/project-model";
 import { openFileInPreview } from "../term-copy/term-copy";
 import { CiIcon, githubRunIconState, LocalCiIcon } from "./ci-icon";
@@ -26,7 +27,6 @@ import {
     describeOutcome,
     JobDescribeResult,
     jobLabel,
-    JobsText,
     lastWorkflowRun,
     localAfterWords,
     localWhenWords,
@@ -73,6 +73,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 }
 
 function AskAgent({ dir, target, agents }: { dir: string; target: DescribeTarget; agents: AgentStateInfo[] }) {
+    const t = useT();
     const [outcome, setOutcome] = useState<{ ok: boolean; text: string }>(null);
     const [busy, setBusy] = useState(false);
     const [anchor, setAnchor] = useState<HTMLElement>(null);
@@ -98,7 +99,7 @@ function AskAgent({ dir, target, agents }: { dir: string; target: DescribeTarget
                 ref={buttonRef}
                 type="button"
                 disabled={noAgent || busy}
-                title={noAgent ? JobsText.askNoAgent : undefined}
+                title={noAgent ? t("mc.jobs.ui.askNoAgent") : undefined}
                 onClick={(e) => {
                     e.stopPropagation();
                     if (agents.length === 1) {
@@ -111,7 +112,7 @@ function AskAgent({ dir, target, agents }: { dir: string; target: DescribeTarget
                 data-testid="ci-job-ask"
             >
                 <i className={cn("fa fa-solid text-11", busy ? "fa-spinner fa-spin" : "fa-wand-magic-sparkles")} />
-                {JobsText.ask}
+                {t("mc.jobs.ui.ask")}
             </button>
             {outcome ? (
                 <span className={cn("text-11", outcome.ok ? "text-success" : "text-warning")} role="status">
@@ -123,9 +124,9 @@ function AskAgent({ dir, target, agents }: { dir: string; target: DescribeTarget
                     anchor={anchor}
                     onClose={() => setAnchor(null)}
                     className="flex w-72 flex-col gap-1"
-                    ariaLabel={JobsText.askPick}
+                    ariaLabel={t("mc.jobs.ui.askPick")}
                 >
-                    <div className="px-1 text-11 text-muted">{JobsText.askPick}</div>
+                    <div className="px-1 text-11 text-muted">{t("mc.jobs.ui.askPick")}</div>
                     {agents.map((agent) => (
                         <button
                             key={agent.blockid}
@@ -156,12 +157,13 @@ function JobHead({
     status?: React.ReactNode;
     onOpen: () => void;
 }) {
+    const t = useT();
     return (
         <div className="flex items-center justify-between gap-2">
             <button
                 type="button"
                 onClick={onOpen}
-                title={JobsText.openFile}
+                title={t("mc.jobs.ui.openFile")}
                 className="flex min-w-0 cursor-pointer items-center gap-2 text-left text-13 leading-5 font-medium text-primary hover:underline"
                 data-testid="ci-job-open"
             >
@@ -173,8 +175,8 @@ function JobHead({
                 <button
                     type="button"
                     onClick={onOpen}
-                    aria-label={JobsText.openFile}
-                    title={JobsText.openFile}
+                    aria-label={t("mc.jobs.ui.openFile")}
+                    title={t("mc.jobs.ui.openFile")}
                     className="molten-btn-ghost flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-muted hover:bg-surface-2 hover:text-primary"
                 >
                     <i className="fa fa-solid fa-file-code text-11" aria-hidden />
@@ -185,12 +187,13 @@ function JobHead({
 }
 
 function Description({ text, ask }: { text: string; ask: React.ReactNode }) {
+    const t = useT();
     if (text) {
         return <div className="text-12 leading-5 whitespace-pre-line text-secondary">{text}</div>;
     }
     return (
         <div className="flex flex-col gap-1">
-            <span className="text-12 text-muted italic">{JobsText.noDescription}</span>
+            <span className="text-12 text-muted italic">{t("mc.jobs.ui.noDescription")}</span>
             {ask}
         </div>
     );
@@ -209,6 +212,7 @@ function WorkflowJob({
     agents: AgentStateInfo[];
     blockId: string;
 }) {
+    const t = useT();
     const condition = job.if ? conditionWords(job.if) : null;
     const after = needsWords(job.needs, workflow.jobs);
     return (
@@ -224,14 +228,14 @@ function WorkflowJob({
                     />
                 }
             />
-            {after ? <Fact label={JobsText.afterLabel}>{after}</Fact> : null}
+            {after ? <Fact label={t("mc.jobs.ui.afterLabel")}>{after}</Fact> : null}
             {job.if ? (
-                <Fact label={JobsText.onlyIfLabel}>
+                <Fact label={t("mc.jobs.ui.onlyIfLabel")}>
                     {condition ?? <code className="text-11">{stripExpression(job.if)}</code>}
                 </Fact>
             ) : null}
             {job.uses ? (
-                <Fact label={JobsText.reusable}>
+                <Fact label={t("mc.jobs.ui.reusable")}>
                     <code className="text-11">{job.uses}</code>
                 </Fact>
             ) : null}
@@ -252,6 +256,7 @@ function WorkflowBlock({
     agents: AgentStateInfo[];
     blockId: string;
 }) {
+    const t = useT();
     const last = lastWorkflowRun(snapshot?.github?.runs, workflow);
     return (
         <div className="overflow-hidden rounded-4 border border-border" data-testid="ci-workflow">
@@ -260,7 +265,7 @@ function WorkflowBlock({
                     <button
                         type="button"
                         onClick={() => openAt(workflow.path, 1, blockId)}
-                        title={JobsText.openFile}
+                        title={t("mc.jobs.ui.openFile")}
                         className="flex min-w-0 cursor-pointer items-center gap-2 text-left text-13 leading-5 font-semibold text-primary hover:underline"
                     >
                         <i className="fa fa-solid fa-cloud text-11 text-muted" />
@@ -272,19 +277,19 @@ function WorkflowBlock({
                             type="button"
                             onClick={() => fireAndForget(() => openLink(last.url))}
                             className="flex shrink-0 cursor-pointer items-center gap-1 text-12 text-muted hover:text-primary"
-                            title={`${JobsText.lastLabel}: ${last.displayTitle ?? ""}`}
+                            title={t("mc.jobs.ui.lastRunTitle", { title: last.displayTitle ?? "" })}
                         >
                             <CiIcon state={githubRunIconState(last.status, last.conclusion)} />
-                            {JobsText.lastLabel.toLowerCase()} {timeAgo(last.createdAt)}
+                            {t("mc.jobs.ui.lastRun", { when: timeAgo(last.createdAt) })}
                         </button>
                     ) : null}
                 </div>
                 {workflow.description ? (
                     <div className="text-12 leading-5 whitespace-pre-line text-secondary">{workflow.description}</div>
                 ) : null}
-                {workflow.error ? <Problem text={`${JobsText.unreadable}: ${workflow.error}`} /> : null}
+                {workflow.error ? <Problem text={t("mc.jobs.ui.unreadable", { error: workflow.error })} /> : null}
                 {workflow.triggers.length > 0 ? (
-                    <Fact label={JobsText.whenLabel}>
+                    <Fact label={t("mc.jobs.ui.whenLabel")}>
                         <ul className="flex flex-col">
                             {workflow.triggers.map((t, i) => (
                                 <li key={`${t.event}-${i}`}>{triggerWords(t)}</li>
@@ -324,6 +329,7 @@ function LocalBlock({
     agents: AgentStateInfo[];
     blockId: string;
 }) {
+    const t = useT();
     const { state } = useCiState(dir);
     const statuses = useMemo(() => lastLocalStatuses(state?.runs), [state?.runs]);
     const lanes = useMemo(() => {
@@ -340,14 +346,14 @@ function LocalBlock({
     }, [local.jobs]);
     return (
         <div className="flex flex-col gap-2">
-            <Fact label={JobsText.whenLabel}>
+            <Fact label={t("mc.jobs.ui.whenLabel")}>
                 {localWhenWords(local)}
-                {local.statuses === "github" ? JobsText.githubStatuses : ""}
+                {local.statuses === "github" ? t("mc.jobs.ui.githubStatuses") : ""}
             </Fact>
             {lanes.map(({ lane, jobs }) => (
                 <div key={lane} className="overflow-hidden rounded-4 border border-border" data-testid="ci-lane">
                     <div className="border-b border-border bg-hover/40 px-3 py-1.5 text-12 font-semibold text-secondary">
-                        {JobsText.lane} {lane}
+                        {t("mc.jobs.ui.lane", { lane })}
                     </div>
                     {jobs.map((job) => {
                         const status = statuses.get(job.name);
@@ -370,9 +376,9 @@ function LocalBlock({
                                         <AskAgent dir={dir} target={{ kind: "local", job: job.name }} agents={agents} />
                                     }
                                 />
-                                {after ? <Fact label={JobsText.afterLabel}>{after}</Fact> : null}
+                                {after ? <Fact label={t("mc.jobs.ui.afterLabel")}>{after}</Fact> : null}
                                 {job.run ? (
-                                    <Fact label={JobsText.runsLabel}>
+                                    <Fact label={t("mc.jobs.ui.runsLabel")}>
                                         <code className="text-11 break-all">{job.run}</code>
                                     </Fact>
                                 ) : null}
@@ -396,6 +402,7 @@ export function CiJobsTab({
     blockId: string;
     workspaceId: string;
 }) {
+    const t = useT();
     const [catalogue, setCatalogue] = useState<CiCatalogue>(null);
     const [error, setError] = useState<string>(null);
     const stamp = snapshot?.workflowsstamp ?? "";
@@ -428,17 +435,17 @@ export function CiJobsTab({
         return <Problem text={error} />;
     }
     if (catalogue == null) {
-        return <Notice text={JobsText.loading} />;
+        return <Notice text={t("mc.jobs.ui.loading")} />;
     }
     const undescribed =
         catalogue.workflows.some((wf) => wf.jobs.some((j) => !j.description)) ||
         (catalogue.local?.jobs ?? []).some((j) => !j.description);
     return (
         <div className="flex flex-col gap-5" data-testid="ci-jobs">
-            {undescribed && agents.length === 0 ? <Notice text={JobsText.askNoAgent} /> : null}
+            {undescribed && agents.length === 0 ? <Notice text={t("mc.jobs.ui.askNoAgent")} /> : null}
             <section className="flex flex-col gap-2">
-                <BlockHeader title={JobsText.remoteTitle} hint={JobsText.remoteHint} />
-                {catalogue.workflows.length === 0 ? <Notice text={JobsText.noWorkflows} /> : null}
+                <BlockHeader title={t("mc.jobs.ui.remoteTitle")} hint={t("mc.jobs.ui.remoteHint")} />
+                {catalogue.workflows.length === 0 ? <Notice text={t("mc.jobs.ui.noWorkflows")} /> : null}
                 {catalogue.workflows.map((wf) => (
                     <WorkflowBlock
                         key={wf.file}
@@ -451,9 +458,9 @@ export function CiJobsTab({
                 ))}
             </section>
             <section className="flex flex-col gap-2">
-                <BlockHeader title={JobsText.localTitle} hint={JobsText.localHint} />
+                <BlockHeader title={t("mc.jobs.ui.localTitle")} hint={t("mc.jobs.ui.localHint")} />
                 {catalogue.local == null || catalogue.local.jobs.length === 0 ? (
-                    <Notice text={JobsText.noLocal} />
+                    <Notice text={t("mc.jobs.ui.noLocal")} />
                 ) : (
                     <LocalBlock dir={dir} local={catalogue.local} agents={agents} blockId={blockId} />
                 )}

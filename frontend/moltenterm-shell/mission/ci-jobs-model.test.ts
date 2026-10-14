@@ -1,7 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { I18nModel } from "../i18n/i18n";
 import {
     CatalogueJob,
     CatalogueLocal,
@@ -131,7 +132,7 @@ describe("conditionWords", () => {
             "the pull request has the label deploy"
         );
         expect(conditionWords("needs.build.result == 'success'")).toBe("build succeeded");
-        expect(conditionWords("!cancelled()")).toBe("not when the run was cancelled");
+        expect(conditionWords("!cancelled()")).toBe("when the run was not cancelled");
     });
 
     it("gives up on what it cannot read", () => {
@@ -139,6 +140,33 @@ describe("conditionWords", () => {
         expect(conditionWords("github.event.number > 3")).toBeNull();
         expect(conditionWords("fromJSON(needs.a.outputs.list)[0]")).toBeNull();
         expect(conditionWords("'unterminated")).toBeNull();
+    });
+});
+
+describe("in French", () => {
+    beforeAll(() => I18nModel.getInstance().setLanguageSetting("fr"));
+    afterAll(() => I18nModel.getInstance().setLanguageSetting("en"));
+
+    it("reads triggers, crons and conditions in French", () => {
+        expect(Fixtures.nightly.map(triggerWords)).toEqual([
+            "Planifié : tous les jours à 02:30 UTC; chaque lundi à 06:00 UTC",
+            "À la main (Run workflow sur GitHub), en demandant suite et dry",
+        ]);
+        expect(Fixtures.paths.map(triggerWords)).toEqual([
+            "Au push sur develop, des tags v*, seulement quand docs/** ou mkdocs.yml changent",
+            "Sur les pull requests sauf vers gh-pages, quand elles sont ouvertes, mises à jour par de nouveaux commits ou marquées prêtes pour la revue, sauf si seuls **/*.png changent",
+            "Après le workflow CI (état : completed)",
+        ]);
+        expect(cronWords("*/15 * * * *")).toBe("toutes les 15 minutes");
+        expect(cronWords("0 4 1 * *")).toBe("le 1 de chaque mois à 04:00 UTC");
+        expect(conditionWords("github.event_name != 'pull_request' || !github.event.pull_request.draft")).toBe(
+            "sauf sur les pull requests en brouillon"
+        );
+        expect(conditionWords("needs.meta.outputs.mode != 'check'")).toBe("mode de meta ne vaut pas « check »");
+        expect(conditionWords("github.ref == 'refs/heads/develop' && github.event_name == 'push'")).toBe(
+            "sur la branche develop et sur un push"
+        );
+        expect(needsWords(["a", "b", "c"], [])).toBe("a, b et c");
     });
 });
 
