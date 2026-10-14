@@ -84,14 +84,38 @@ export function WorkspaceIcon({ source, className }: { source: WorkspaceIconSour
             />
         );
     }
-    // The workspace's colour at its glyph tone (tokens.css), readable on every surface whatever the colour.
+    // The workspace's colour at its glyph tone (tokens.css), readable on every surface whatever the colour; a gradient
+    // at the same tone, stop by stop.
+    const stops = source?.stops?.length > 1 && resolved.color ? source.stops : null;
     return (
         <i
-            className={cn(makeIconClass(resolved.icon, false), resolved.color && "molten-glyph-tone", className)}
-            style={resolved.color ? ({ "--mt-glyph-color": resolved.color } as React.CSSProperties) : undefined}
+            className={cn(
+                makeIconClass(resolved.icon, false),
+                resolved.color && "molten-glyph-tone",
+                stops && "molten-glyph-gradient",
+                className
+            )}
+            style={resolved.color ? glyphStyle(resolved.color, stops) : undefined}
             data-icon-kind="builtin"
         />
     );
+}
+
+function glyphStyle(color: string, stops: string[]): React.CSSProperties {
+    if (stops == null) {
+        return { "--mt-glyph-color": color } as React.CSSProperties;
+    }
+    return {
+        "--mt-glyph-color": stops[0],
+        "--mt-glyph-mid": stops.length > 2 ? stops[1] : `color-mix(in srgb, ${stops[0]} 50%, ${stops[1]})`,
+        "--mt-glyph-end": stops[stops.length - 1],
+    } as React.CSSProperties;
+}
+
+// The URL a workspace's image (imported, or its project's logo) is read from; "" when it shows its symbol.
+export function workspaceImageUrl(source: WorkspaceIconSource): string {
+    const resolved = resolveWorkspaceIcon(source, getDataDir());
+    return resolved.kind === "builtin" ? "" : logoUrl(getWebServerEndpoint(), resolved.path);
 }
 
 // A badge for a folder that is not a workspace (a project's logo, or a folder glyph).

@@ -83,6 +83,19 @@
     color: color-mix(in srgb, var(--mt-accent) 70%, var(--mt-text-main));
 }
 
+/* A workspace with a gradient (#657, accent.ts sets the attribute): the active tab's icon is painted with it. */
+:root[data-mt-accent-gradient] .tab.molten-tab.active .molten-tab-icon {
+    background-image: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--mt-accent) 70%, var(--mt-text-main)),
+        color-mix(in srgb, var(--mt-accent-mid) 70%, var(--mt-text-main)),
+        color-mix(in srgb, var(--mt-accent-end) 70%, var(--mt-text-main))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
 .tab.molten-tab .close.molten-hold-close {
     right: 5px;
 }

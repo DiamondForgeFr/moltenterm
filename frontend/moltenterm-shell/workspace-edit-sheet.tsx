@@ -12,11 +12,20 @@ import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
-import { accentForeground, parseColor } from "./accent";
+import { workspaceColourStops } from "./accent";
 import { DialogFrame, useEscape } from "./dialog-frame";
 import { t as translateNow, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import { Segment, SegmentedControl } from "./segmented-control";
+import {
+    colourChoiceCss,
+    colourChoiceForeground,
+    colourStops,
+    logoColourChoices,
+    parseCustomColour,
+    PresetColourChoices,
+    PresetGradientChoices,
+} from "./workspace-colour";
 import { listenWorkspaceMenu, pickUpWorkspaceEdit, WorkspaceEditModel } from "./workspace-edit";
 import {
     checkWorkspaceName,
@@ -28,11 +37,17 @@ import {
     radioTabStop,
     WorkspaceEditIntentKey,
 } from "./workspace-edit-model";
-import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
+import { RailBadgeClass, WorkspaceIcon, workspaceImageUrl } from "./workspace-icon";
 import { hasImportedIcon, iconKindLabel, workspaceIconSource } from "./workspace-icon-model";
+import { logoPalette } from "./workspace-logo-palette";
 import { effectiveWorkspaceFolder, pathBaseName, readWorkspaceProject } from "./workspace-project";
 import { WorkspaceFolderLine, WorkspaceProjectBlock } from "./workspace-project-section";
-import { chooseMoltentermPath, findProjectLogos, setWorkspaceLogo } from "./workspace-project-store";
+import {
+    chooseMoltentermPath,
+    findProjectLogos,
+    setWorkspaceGradient,
+    setWorkspaceLogo,
+} from "./workspace-project-store";
 import { askResetWorkspace } from "./workspace-reset";
 import { canCloseWorkspace } from "./workspace-reset-model";
 
@@ -68,6 +83,7 @@ function Section({ title, first, children }: { title: string; first?: boolean; c
 function RadioGrid({
     label,
     hideLabel,
+    labelClass,
     options,
     selected,
     onSelect,
@@ -76,6 +92,7 @@ function RadioGrid({
     label: string;
     // Named for screen readers only, where the field above already names it on screen.
     hideLabel?: boolean;
+    labelClass?: string;
     options: string[];
     selected: string;
     onSelect: (value: string) => void;
@@ -97,7 +114,7 @@ function RadioGrid({
     };
     return (
         <div className="min-w-0">
-            <div id={labelId} className={hideLabel ? "sr-only" : FieldLabelClass}>
+            <div id={labelId} className={hideLabel ? "sr-only" : (labelClass ?? FieldLabelClass)}>
                 {label}
             </div>
             <div
@@ -344,7 +361,7 @@ function RailBadgePreview({
                 role="img"
                 aria-label={t(kind ? "workspace.edit.railBadgeKind" : "workspace.edit.railBadge", {
                     icon: iconName(ws.icon),
-                    colour: colourName(ws.color),
+                    colour: colourName(workspaceColourStops(ws).join(",") || ws.color),
                     kind,
                 })}
                 data-role="rail-preview"
@@ -381,7 +398,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
     const errorId = useId();
     const iconLabelId = useId();
     const [draft, setDraft] = useState<string>(null);
-    const [choices, setChoices] = useState<{ icons: string[]; colors: string[] }>({ icons: [], colors: [] });
+    const [icons, setIcons] = useState<string[]>([]);
     const [mode, setMode] = useState<IconMode>(() => initialIconMode(ws));
     const [logos, setLogos] = useState<string[]>([]);
     const [pendingLogo, setPendingLogo] = useState<string>(null);
@@ -389,9 +406,9 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
     useEffect(() => {
         let live = true;
         fireAndForget(async () => {
-            const [icons, colors] = await Promise.all([WorkspaceService.GetIcons(), WorkspaceService.GetColors()]);
+            const found = await WorkspaceService.GetIcons();
             if (live) {
-                setChoices({ icons: icons ?? [], colors: colors ?? [] });
+                setIcons(found ?? []);
             }
         });
         return () => {
@@ -422,6 +439,25 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
             WorkspaceService.UpdateWorkspace(ws.oid, saved, next.icon ?? ws.icon, next.color ?? ws.color, false)
         );
     };
+    // The gradient's stops go first: they count only once `color` is their first stop, so no surface ever shows a
+    // gradient with the previous colour's first stop.
+    const saveColour = (choice: string) => {
+        const stops = colourStops(choice);
+        if (stops.length === 0) {
+            return;
+        }
+        fireAndForget(async () => {
+            await setWorkspaceGradient(ws.oid, stops.length > 1 ? stops.join(",") : null);
+            await WorkspaceService.UpdateWorkspace(
+                ws.oid,
+                checkWorkspaceName(name) ?? ws.name,
+                ws.icon,
+                stops[0],
+                false
+            );
+        });
+    };
+    const logoColours = useLogoColours(ws);
     const onName = (value: string) => {
         setDraft(value);
         if (checkWorkspaceName(value) != null) {
@@ -558,7 +594,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                                 </div>
                             ) : null}
                             <IconChoices
-                                icons={choices.icons}
+                                icons={icons}
                                 selected={ws.icon}
                                 color={ws.color}
                                 onSelect={(icon) => save({ icon })}
@@ -580,7 +616,11 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                         <ReplaceImageConfirm onConfirm={confirmLogo} onCancel={() => setPendingLogo(null)} />
                     ) : null}
                 </div>
-                <ColourChoices colors={choices.colors} selected={ws.color} onSelect={(color) => save({ color })} />
+                <ColourField
+                    selected={workspaceColourStops(ws).join(",")}
+                    logoColours={logoColours}
+                    onSelect={saveColour}
+                />
             </div>
         </Section>
     );
@@ -629,48 +669,228 @@ export function IconChoices({
     );
 }
 
+const SwatchClass = "m-0.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-12";
+const SwatchCheckedClass = "ring-2 ring-primary ring-offset-2 ring-offset-modalbg";
+const ColourGroupLabelClass = "mb-1 text-11 text-muted";
+
+// A row of swatches: flat colours and gradients alike (a choice is "#a" or "#a,#b[,#c]", workspace-colour.ts).
 export function ColourChoices({
     colors,
     selected,
     onSelect,
+    label,
+    names,
 }: {
     colors: string[];
     selected: string;
     onSelect: (color: string) => void;
+    // A sub-group of the Colour field is named in a smaller label; alone, the row is the Colour field.
+    label?: string;
+    names?: Record<string, string>;
 }) {
     const t = useT();
+    const selectedChoice = colourStops(selected).join(",");
     return (
         <RadioGrid
-            label={t("workspace.edit.colour")}
+            label={label ?? t("workspace.edit.colour")}
+            labelClass={label ? ColourGroupLabelClass : undefined}
             options={colors}
-            selected={selected}
+            selected={colors.find((c) => colourStops(c).join(",") === selectedChoice) ?? selected}
             onSelect={onSelect}
-            renderOption={(color, checked, tabIndex) => (
-                <button
-                    type="button"
-                    role="radio"
-                    aria-checked={checked}
-                    aria-label={colourName(color)}
-                    title={colourName(color)}
-                    tabIndex={tabIndex}
-                    onClick={() => onSelect(color)}
+            renderOption={(color, checked, tabIndex) => {
+                const name = names?.[color] ?? colourName(color);
+                return (
+                    <button
+                        type="button"
+                        role="radio"
+                        aria-checked={checked}
+                        aria-label={name}
+                        title={name}
+                        tabIndex={tabIndex}
+                        onClick={() => onSelect(color)}
+                        data-colour={color}
+                        className={cn(SwatchClass, FocusRingClass, checked && SwatchCheckedClass)}
+                        style={{ background: colourChoiceCss(color) }}
+                    >
+                        {checked ? (
+                            <i
+                                className="fa fa-solid fa-check"
+                                style={{ color: colourChoiceForeground(color) }}
+                                aria-hidden
+                            />
+                        ) : null}
+                    </button>
+                );
+            }}
+        />
+    );
+}
+
+// The colours of the workspace's image (imported, or its project's logo), once read; none while it shows a symbol.
+function useLogoColours(ws: Workspace): string[] {
+    const url = workspaceImageUrl(workspaceIconSource(ws));
+    const [found, setFound] = useState<{ url: string; colours: string[] }>(null);
+    useEffect(() => {
+        if (!url) {
+            return;
+        }
+        let live = true;
+        logoPalette(url).then((colours) => {
+            if (live) {
+                setFound({ url, colours });
+            }
+        });
+        return () => {
+            live = false;
+        };
+    }, [url]);
+    return found?.url === url ? found.colours : [];
+}
+
+// A custom colour (#657): the colour picker, or a hex value typed in. The picker reports every move of its cursor;
+// only where it rests is saved.
+function CustomColour({ custom, base, onSelect }: { custom: string; base: string; onSelect: (c: string) => void }) {
+    const t = useT();
+    const hexId = useId();
+    const [draft, setDraft] = useState<string>(null);
+    const [picking, setPicking] = useState<string>(null);
+    const timer = useRef<ReturnType<typeof setTimeout>>(null);
+    useEffect(() => () => clearTimeout(timer.current), []);
+    const shown = picking ?? custom;
+    const onPick = (value: string) => {
+        setPicking(value);
+        clearTimeout(timer.current);
+        timer.current = setTimeout(() => {
+            setPicking(null);
+            const colour = parseCustomColour(value);
+            if (colour) {
+                onSelect(colour);
+            }
+        }, 250);
+    };
+    const commit = () => {
+        const colour = parseCustomColour(draft ?? "");
+        setDraft(null);
+        if (colour && colour !== custom) {
+            onSelect(colour);
+        }
+    };
+    const onHex = (value: string) => {
+        setDraft(value);
+        const colour = parseCustomColour(value);
+        // A 3-digit value is the start of a 6-digit one while typing: it is taken on Enter or when the field is left.
+        if (colour && value.replace("#", "").trim().length === 6) {
+            onSelect(colour);
+        }
+    };
+    return (
+        <div className="min-w-0" data-role="custom-colour">
+            <div className={ColourGroupLabelClass}>{t("workspace.edit.customColour")}</div>
+            <div className="flex items-center gap-2">
+                <label
+                    title={t("workspace.edit.pickColour")}
                     className={cn(
-                        "m-0.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-12",
-                        FocusRingClass,
-                        checked && "ring-2 ring-primary ring-offset-2 ring-offset-modalbg"
+                        SwatchClass,
+                        "relative focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary",
+                        custom && SwatchCheckedClass
                     )}
-                    style={{ backgroundColor: color }}
+                    style={{
+                        background:
+                            shown || "conic-gradient(#ff453a, #ffe900, #58c142, #00ffdb, #429dff, #bf55ec, #ff453a)",
+                    }}
                 >
-                    {checked ? (
+                    <input
+                        type="color"
+                        aria-label={t("workspace.edit.pickColour")}
+                        value={shown || base || "#ff7c0d"}
+                        onChange={(e) => onPick(e.target.value)}
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    />
+                    {custom ? (
                         <i
-                            className="fa fa-solid fa-check"
-                            style={{ color: accentForeground(parseColor(color) ?? { r: 0, g: 0, b: 0 }) }}
+                            className="fa fa-solid fa-check pointer-events-none"
+                            style={{ color: colourChoiceForeground(shown) }}
                             aria-hidden
                         />
                     ) : null}
-                </button>
-            )}
-        />
+                </label>
+                <label htmlFor={hexId} className="sr-only">
+                    {t("workspace.edit.hexColour")}
+                </label>
+                <input
+                    id={hexId}
+                    type="text"
+                    spellCheck={false}
+                    maxLength={7}
+                    placeholder="#RRGGBB"
+                    value={draft ?? custom}
+                    onChange={(e) => onHex(e.target.value)}
+                    onBlur={commit}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                            commit();
+                        }
+                    }}
+                    className="w-24 min-w-0 rounded-4 border border-border bg-transparent px-2 py-1 font-mono text-12 text-primary outline-none focus:border-accent"
+                />
+            </div>
+        </div>
+    );
+}
+
+// The Colour field (#657): the logo's colours and gradients first when the workspace shows an image, then the presets,
+// the gradients and a custom colour. Each row is its own radio group; the chosen colour is checked in the row it is in.
+export function ColourField({
+    selected,
+    logoColours,
+    onSelect,
+}: {
+    selected: string;
+    logoColours: string[];
+    onSelect: (choice: string) => void;
+}) {
+    const t = useT();
+    const labelId = useId();
+    const logo = logoColourChoices(logoColours);
+    const logoNames: Record<string, string> = {};
+    logo.forEach((choice) => {
+        const stops = colourStops(choice);
+        logoNames[choice] =
+            stops.length === 1
+                ? t("workspace.colours.logoColour", { colour: stops[0] })
+                : t("workspace.colours.logoGradient", { colours: stops.join(", ") });
+    });
+    const known = [...logo, ...PresetColourChoices, ...PresetGradientChoices];
+    const stops = colourStops(selected);
+    const custom = stops.length === 1 && !known.includes(stops[0]) ? stops[0] : "";
+    return (
+        <div role="group" aria-labelledby={labelId} data-role="colour-field" className="flex min-w-0 flex-col gap-2">
+            <div id={labelId} className="text-12 text-secondary">
+                {t("workspace.edit.colour")}
+            </div>
+            {logo.length > 0 ? (
+                <ColourChoices
+                    label={t("workspace.edit.fromLogo")}
+                    colors={logo}
+                    names={logoNames}
+                    selected={selected}
+                    onSelect={onSelect}
+                />
+            ) : null}
+            <ColourChoices
+                label={t("workspace.edit.presetColours")}
+                colors={PresetColourChoices}
+                selected={selected}
+                onSelect={onSelect}
+            />
+            <ColourChoices
+                label={t("workspace.edit.gradients")}
+                colors={PresetGradientChoices}
+                selected={selected}
+                onSelect={onSelect}
+            />
+            <CustomColour custom={custom} base={stops[0]} onSelect={onSelect} />
+        </div>
     );
 }
 

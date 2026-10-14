@@ -133,6 +133,20 @@
     color: var(--mt-glyph-tone);
 }
 
+/* A workspace with a gradient (#657): its glyph is painted with it, each stop at the glyph tone; `color` stays the
+   first stop's tone for anything that reads it. */
+.molten-glyph-gradient {
+    background-image: linear-gradient(
+        135deg,
+        var(--mt-glyph-tone),
+        color-mix(in srgb, var(--mt-glyph-mid) 50%, var(--mt-text-main)),
+        color-mix(in srgb, var(--mt-glyph-end) 50%, var(--mt-text-main))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
 @theme inline {
     /* The line heights of the Tailwind sizes they mostly replace (text-xs, text-base, text-xl), so a migrated row
        keeps its height; text-11, text-13 and text-32 inherit theirs, like the arbitrary sizes they replace (a former

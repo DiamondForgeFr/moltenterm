@@ -62,16 +62,87 @@ export function mixColor(a: Rgb, b: Rgb, pct: number): Rgb {
     return { r: mix(a.r, b.r), g: mix(a.g, b.g), b: mix(a.b, b.b) };
 }
 
+// Black or white, whichever has the better worst case over every stop of a gradient: text drawn across it stays
+// readable wherever it lands.
+export function gradientForeground(stops: Rgb[]): string {
+    const usable = (stops ?? []).filter((s) => s != null);
+    if (usable.length === 0) {
+        return "#000000";
+    }
+    const black = { r: 0, g: 0, b: 0 };
+    const white = { r: 255, g: 255, b: 255 };
+    const worst = (fg: Rgb) => Math.min(...usable.map((s) => contrastRatio(s, fg)));
+    return worst(black) >= worst(white) ? "#000000" : "#ffffff";
+}
+
+export function toHex({ r, g, b }: Rgb): string {
+    return (
+        "#" +
+        [r, g, b]
+            .map((c) =>
+                Math.max(0, Math.min(255, Math.round(c)))
+                    .toString(16)
+                    .padStart(2, "0")
+            )
+            .join("")
+    );
+}
+
+// A workspace's colour (#657): `color` keeps a flat colour, the first stop of a gradient, which every surface that
+// knows only `color` (Wave's switcher included) shows; the gradient's stops live in this meta key, as "#a,#b[,#c]".
+// The gradient counts only while its first stop is `color`: a colour set elsewhere, which leaves the key behind, wins.
+export const WorkspaceGradientMetaKey = "molten:workspacegradient";
+export const MaxGradientStops = 3;
+
+// "#a" or "#a,#b[,#c]" as lowercase #rrggbb stops, or "" when a stop is not a hex colour.
+export function normaliseColourChoice(choice: string): string {
+    if (typeof choice !== "string" || choice.trim() === "") {
+        return "";
+    }
+    const parts = choice.split(",").map((s) => s.trim());
+    if (parts.length > MaxGradientStops || parts.some((p) => !/^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(p))) {
+        return "";
+    }
+    return parts.map((p) => toHex(parseColor(p))).join(",");
+}
+
+// The stops a workspace shows: one for a flat colour, 2-3 for a gradient, none without a colour.
+export function workspaceColourStops(ws: { color?: string; meta?: unknown }): string[] {
+    const color = normaliseColourChoice(ws?.color ?? "").split(",")[0];
+    if (!color) {
+        return [];
+    }
+    const raw = (ws?.meta as Record<string, unknown>)?.[WorkspaceGradientMetaKey];
+    const gradient = normaliseColourChoice(typeof raw === "string" ? raw : "").split(",");
+    return gradient.length > 1 && gradient[0] === color ? gradient : [color];
+}
+
 type StyleTarget = { setProperty(name: string, value: string): void };
 
-export function applyAccent(color: string, style: StyleTarget): void {
+function rgbCss({ r, g, b }: Rgb): string {
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
+// --mt-accent is the first stop, which every thin line and every fill behind text uses, with --mt-accent-fg picked on
+// it; --mt-accent-mid and --mt-accent-end complete the gradient where one is drawn (the same colour when it is flat).
+export function applyAccent(color: string, style: StyleTarget, stops: string[] = []): void {
     const rgb = parseColor(color) ?? parseColor(MoltentermDefaultAccent);
-    style.setProperty("--mt-accent", `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`);
+    const rest = stops.length > 1 && parseColor(stops[0]) != null ? stops.slice(1).map(parseColor) : [];
+    const end = rest[rest.length - 1] ?? rgb;
+    const mid = rest.length > 1 ? rest[0] : mixColor(rgb, end, 50);
+    style.setProperty("--mt-accent", rgbCss(rgb));
+    style.setProperty("--mt-accent-mid", rgbCss(mid));
+    style.setProperty("--mt-accent-end", rgbCss(end));
     style.setProperty("--mt-accent-fg", accentForeground(rgb));
 }
 
 export function startMoltentermAccent(workspaceAtom: Atom<Workspace>): void {
-    const apply = () => applyAccent(globalStore.get(workspaceAtom)?.color, document.documentElement.style);
+    const apply = () => {
+        const ws = globalStore.get(workspaceAtom);
+        const stops = workspaceColourStops(ws);
+        applyAccent(stops[0] ?? ws?.color, document.documentElement.style, stops);
+        document.documentElement.toggleAttribute("data-mt-accent-gradient", stops.length > 1);
+    };
     apply();
     globalStore.sub(workspaceAtom, apply);
 }
