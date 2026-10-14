@@ -310,7 +310,7 @@ const coffeeApprovalName = "Coffee approvals"
 
 // planClaudeHooks adds the state hooks, the session link and the coffee approvals' PermissionRequest hook
 // (FR-SHELL-063), except what the user's files already wire to MoltenTerm.
-func planClaudeHooks(managed settingsSource, sources []settingsSource, plan *LaunchPlan) []plannedHook {
+func planClaudeHooks(managed settingsSource, sources []settingsSource, review bool, plan *LaunchPlan) []plannedHook {
 	if only, _ := managed.boolKey("allowManagedHooksOnly"); only {
 		reason := "your organization's managed settings allow only their own hooks"
 		plan.Skipped = append(plan.Skipped,
@@ -320,6 +320,10 @@ func planClaudeHooks(managed settingsSource, sources []settingsSource, plan *Lau
 		return nil
 	}
 	hooks := planClaudeStateHooks(managed, sources, plan)
+	if review {
+		plan.Skipped = append(plan.Skipped, molten.IntegrationItem{Kind: molten.IntegrationCoffeeApproval, Name: coffeeApprovalName, Reason: ReasonReviewSession})
+		return hooks
+	}
 	all := append([]settingsSource{managed}, sources...)
 	if where := hookWhere(all, molten.ClaudePermissionHookEvent, molten.IsAgentPermissionHookCommand); where != "" {
 		// The user's own copy answers the prompts just the same: the run is reported as covered, by their hook.
@@ -419,7 +423,7 @@ func (claudeAdapter) Plan(ctx LaunchContext) (LaunchPlan, error) {
 		plan.StepAside = "disableAllHooks is on in " + where + ": Claude Code runs no hooks and no status line"
 		return plan, nil
 	}
-	hooks := planClaudeHooks(managed, sources, &plan)
+	hooks := planClaudeHooks(managed, sources, isReviewSession(ctx), &plan)
 	statusLine := planClaudeStatusLine(managed, sources, &plan)
 	if len(hooks) > 0 || statusLine != nil {
 		data, err := claudeSettingsJSON(flag, hooks, statusLine)

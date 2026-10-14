@@ -53,7 +53,9 @@ func (s *service) permission(ctx context.Context, req PermissionRequest) Permiss
 		return PermissionAnswer{}
 	}
 	info, found := s.locateBlock(ctx, req.BlockId)
-	if !found || info.Remote {
+	// A review session reads untrusted PR content: its requests always go to the developer (#505 R1), even when a
+	// hook of the developer's own settings asks.
+	if !found || info.Remote || info.Review {
 		return PermissionAnswer{}
 	}
 	// The hook ran, so the agent runs it: Codex only does once the developer trusted it.
@@ -115,6 +117,9 @@ func (s *service) sessions(ctx context.Context, wsIds []string) []AutoApproveSes
 		}
 		report, hasReport := attention.AgentIntegration(run.BlockId)
 		approved, reason := SessionApproval(run.Agent, info.Remote, report, hasReport, s.hooks.ran(run.Agent))
+		if info.Review {
+			approved, reason = false, ReasonReviewSession
+		}
 		rtn = append(rtn, AutoApproveSession{
 			WorkspaceId: info.WorkspaceId, BlockId: run.BlockId, TabName: s.tabName(ctx, run.BlockId), Agent: run.Agent,
 			AgentName: molten.AgentLabel(run.FirstName, run.Agent), Approved: approved, Reason: reason,
