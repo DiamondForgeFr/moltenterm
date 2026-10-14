@@ -9,6 +9,7 @@ import {
     readPanelSizes,
     rememberedPanelPx,
     rememberPanelSize,
+    shareRoom,
     sizesForRememberedPanel,
 } from "./panel-size-model";
 
@@ -75,6 +76,20 @@ describe("size memory", () => {
     });
 });
 
+describe("shareRoom", () => {
+    it("shares in proportion when every share is above the minimum", () => {
+        expect(shareRoom([1, 3], 1000, 100)).toEqual([250, 750]);
+    });
+
+    it("raises a short share to the minimum and shares the rest", () => {
+        expect(shareRoom([1, 9], 1000, 320)).toEqual([320, 680]);
+    });
+
+    it("shares evenly when the room is below the minimums", () => {
+        expect(shareRoom([1, 9], 400, 320)).toEqual([200, 200]);
+    });
+});
+
 describe("sizesForRememberedPanel", () => {
     it("gives a reopened companion its remembered width beside the terminal", () => {
         const sizes = [10, 10];
@@ -118,9 +133,9 @@ describe("sizesForRememberedPanel", () => {
             ],
             2,
             200,
-            ratioOf([30, 10, 10], 1000)
+            ratioOf([30, 10, 10], 2000)
         );
-        expect(toPx(next, 1000)).toEqual([600, 200, 200]);
+        expect(toPx(next, 2000)).toEqual([1350, 450, 200]);
     });
 
     it("clamps a size that does not fit so the terminal keeps its minimum", () => {
@@ -134,6 +149,23 @@ describe("sizesForRememberedPanel", () => {
             ratioOf([10, 10], 800)
         );
         expect(toPx(next, 800)).toEqual([MinFillPx, 800 - MinFillPx]);
+    });
+
+    it("keeps every filling sibling at its minimum when clamped, not a proportional sliver", () => {
+        // terminal 300px, other panel 450px, group 1200px; a new panel remembered at 5000px
+        const sizes = [300, 450, 1200, 10];
+        const next = sizesForRememberedPanel(
+            [
+                { size: 300, fill: true },
+                { size: 450, fill: false },
+                { size: 1200, fill: true },
+                { size: 10, fill: false },
+            ],
+            3,
+            5000,
+            ratioOf(sizes, 1960)
+        );
+        expect(toPx(next, 1960)).toEqual([MinFillPx, 450, MinFillPx, 1960 - 450 - 2 * MinFillPx]);
     });
 
     it("leaves the remembered value untouched by the clamp", () => {
