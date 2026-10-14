@@ -14,6 +14,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
+	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
 // `molten review` (FR-REV-001, FR-REV-014): the pull requests waiting for review, the same list as the Reviews view,
@@ -143,6 +144,15 @@ func moltenReviewOpenView() error {
 	tabId := getTabIdFromEnv()
 	if tabId == "" {
 		return fmt.Errorf("molten must run in a MoltenTerm terminal to open the Reviews view (WAVETERM_TABID is not set)")
+	}
+	// A Reviews view already in the tab takes the focus, as the rail's button does.
+	if blocks, err := wshclient.BlocksListCommand(RpcClient, wshrpc.BlocksListRequest{}, nil); err == nil {
+		for _, b := range blocks {
+			if b.TabId != tabId || b.Meta.GetString(waveobj.MetaKey_View, "") != moltenReviewsView {
+				continue
+			}
+			return wshclient.SetBlockFocusCommand(RpcClient, b.BlockId, &wshrpc.RpcOpts{Route: wshutil.MakeTabRouteId(tabId)})
+		}
 	}
 	_, err := wshclient.CreateBlockCommand(RpcClient, wshrpc.CommandCreateBlockData{
 		TabId:    tabId,
