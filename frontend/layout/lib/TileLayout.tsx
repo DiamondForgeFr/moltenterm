@@ -396,6 +396,8 @@ const OverlayNode = memo(({ node, layoutModel }: OverlayNodeProps) => {
                         const containerRect = layoutModel.displayContainerRef.current.getBoundingClientRect();
                         offset.x -= containerRect.x;
                         offset.y -= containerRect.y;
+                        // MOLTENTERM-PATCH (#617): a panel on the scrolled carpet is drawn shifted from its rect
+                        offset.x += layoutModel.moltenView360?.pointerScrollFor(node.id) ?? 0;
                         layoutModel.treeReducer({
                             type: LayoutTreeActionType.ComputeMove,
                             nodeId: node.id,

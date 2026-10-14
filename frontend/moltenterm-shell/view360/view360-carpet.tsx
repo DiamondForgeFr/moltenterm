@@ -2,19 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The carpet's surface and chrome in 360 view (FR-SHELL-065, DS-SHELL-115), drawn by the tile layout around its
-// panels: the surface under them, then the edge fades, the fixed zone's grip and a minimal scrollbar above them.
+// panels: the surface under them, then the edge fades, the fixed zone's grip and the radar scrubber (#617) above them.
 
 import type { LayoutModel } from "@/layout/lib/layoutModel";
-import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { CSSProperties, memo, useEffect, useRef, useState } from "react";
+import { CSSProperties, memo, useEffect, useState } from "react";
 import { MoltenWave } from "../molten-button";
-import { CarpetLayout, CarpetMarginPx, CarpetScrollVar, CarpetScrubberPx, Rect } from "./carpet-model";
+import { CarpetMarginPx, Rect } from "./carpet-model";
+import { View360Radar } from "./view360-radar";
 import { View360Text } from "./view360-text";
 import "./view360.css";
 
-const ScrollbarInsetPx = 8;
-const MinThumbPx = 32;
 const LinePx = 16;
 
 function rectStyle(rect: Rect): CSSProperties {
@@ -42,65 +40,6 @@ export const View360Underlay = memo(({ layoutModel }: { layoutModel: LayoutModel
     );
 });
 View360Underlay.displayName = "View360Underlay";
-
-function CarpetScrollbar({ layoutModel, layout }: { layoutModel: LayoutModel; layout: CarpetLayout }) {
-    const [dragging, setDragging] = useState(false);
-    const dragRef = useRef<{ pointerId: number; startX: number; startScroll: number }>(null);
-    const view360 = layoutModel.moltenView360;
-    const track: Rect = {
-        top: layout.surface.top + layout.surface.height - CarpetScrubberPx / 2 - 3,
-        left: layout.viewport.left + ScrollbarInsetPx,
-        width: Math.max(0, layout.viewport.width - 2 * ScrollbarInsetPx),
-        height: 6,
-    };
-    const thumbWidth = Math.max(MinThumbPx, (layout.viewport.width / Math.max(1, layout.contentWidth)) * track.width);
-    const travel = Math.max(0, track.width - thumbWidth);
-    const ratio = layout.maxScroll > 0 ? travel / layout.maxScroll : 0;
-    const thumbStyle: CSSProperties = {
-        width: thumbWidth,
-        transform: `translate3d(calc(var(${CarpetScrollVar}, 0px) * ${ratio}), 0, 0)`,
-    };
-
-    const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-        e.stopPropagation();
-        e.currentTarget.setPointerCapture(e.pointerId);
-        dragRef.current = { pointerId: e.pointerId, startX: e.clientX, startScroll: view360.scrollLeft };
-        setDragging(true);
-    };
-    const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-        const drag = dragRef.current;
-        if (drag == null || drag.pointerId !== e.pointerId || !(ratio > 0)) {
-            return;
-        }
-        view360.scrollTo(drag.startScroll + (e.clientX - drag.startX) / ratio);
-    };
-    const onPointerUp = () => {
-        dragRef.current = null;
-        setDragging(false);
-    };
-    const onTrackPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-        if (e.target !== e.currentTarget) {
-            return;
-        }
-        const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
-        const thumbLeft = view360.scrollLeft * ratio;
-        const page = layout.viewport.width * 0.85;
-        view360.scrollTo(view360.scrollLeft + (x < thumbLeft ? -page : page));
-    };
-
-    return (
-        <div className="mt-carpet-scrollbar" style={rectStyle(track)} onPointerDown={onTrackPointerDown}>
-            <div
-                className={cn("mt-carpet-thumb", dragging && "dragging")}
-                style={thumbStyle}
-                onPointerDown={onPointerDown}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-                onLostPointerCapture={onPointerUp}
-            />
-        </div>
-    );
-}
 
 // "Too tight to read" (FR-SHELL-066-AC5, DS-SHELL-117): when the developer refused the 360 view and a column is under
 // its readable minimum, a pill floats at the bottom centre of the tab; nothing is resized or closed.
@@ -204,7 +143,7 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
                     height: fadeHeight,
                 })}
             />
-            {layout.maxScroll > 0 && <CarpetScrollbar layoutModel={layoutModel} layout={layout} />}
+            <View360Radar layoutModel={layoutModel} layout={layout} />
         </div>
     );
 });

@@ -108,32 +108,6 @@
     pointer-events: none;
 }
 
-/* A minimal scrollbar in the room reserved for the scrubber (#617). */
-.mt-carpet-scrollbar {
-    position: absolute;
-    top: 0;
-    left: 0;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--mt-neutral-line) 6%, transparent);
-    pointer-events: auto;
-}
-
-.mt-carpet-thumb {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--mt-neutral-line) 30%, transparent);
-    cursor: pointer;
-    transition: background-color var(--mt-duration-fast) var(--mt-ease);
-}
-
-.mt-carpet-thumb:hover,
-.mt-carpet-thumb.dragging {
-    background: color-mix(in srgb, var(--mt-accent) 55%, transparent);
-}
-
 /* The tab bar's "360" toggle (FR-SHELL-066, DS-SHELL-117): calm when off, the accent when on, a small "A" while the
    tab follows the automatic setting. */
 .mt-v360-toggle {
