@@ -4,7 +4,7 @@
 // Characterization of a window's action queue (#449, FR-PERF-003): the real emain-window.ts and emain-tabview.ts run
 // against a fake backend, fake tab view renderers and a fake electron. Times are virtual (fake timers).
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 type FakeWs = { oid: string; name: string; icon: string; tabids: string[]; activetabid: string };
 
@@ -458,6 +458,35 @@ async function setup(opts: { isDev?: boolean; settings?: Record<string, unknown>
     h.silentBoot = opts.silentStart ?? false;
     h.silentRender = false;
     h.settings = opts.settings ?? {};
+    await loadModules();
+    h.tabviewModule.ensureHotSpareTab({ settings: h.settings });
+    const ws = h.backend.addWorkspace("Starter");
+    h.backend.windows.set("win-1", { oid: "win-1", workspaceid: ws.oid });
+    const waveWindow = {
+        oid: "win-1",
+        workspaceid: ws.oid,
+        pos: { x: 0, y: 0 },
+        winsize: { width: 1200, height: 800 },
+    };
+    const created = mod.createBrowserWindow(
+        waveWindow,
+        { settings: h.settings },
+        {
+            unamePlatform: "darwin",
+            isPrimaryStartupWindow: true,
+        }
+    );
+    if (opts.silentStart) {
+        h.startup = created;
+        return ws;
+    }
+    await vi.advanceTimersByTimeAsync(2000);
+    win = await created;
+    expect(h.onScreen()).toBe(ws.activetabid);
+    return ws;
+}
+
+async function loadModules() {
     vi.doMock("electron", () => ({
         app: { getAppMetrics: (): any[] => [] },
         BaseWindow: FakeBaseWindow,
@@ -537,32 +566,19 @@ async function setup(opts: { isDev?: boolean; settings?: Record<string, unknown>
     h.tabviewModule = await import("./emain-tabview");
     mod = await import("./emain-window");
     h.priorityModule = await import("./moltenterm-tabview-priority");
-    h.tabviewModule.ensureHotSpareTab({ settings: h.settings });
-    const ws = h.backend.addWorkspace("Starter");
-    h.backend.windows.set("win-1", { oid: "win-1", workspaceid: ws.oid });
-    const waveWindow = {
-        oid: "win-1",
-        workspaceid: ws.oid,
-        pos: { x: 0, y: 0 },
-        winsize: { width: 1200, height: 800 },
-    };
-    const created = mod.createBrowserWindow(
-        waveWindow,
-        { settings: h.settings },
-        {
-            unamePlatform: "darwin",
-            isPrimaryStartupWindow: true,
-        }
-    );
-    if (opts.silentStart) {
-        h.startup = created;
-        return ws;
-    }
-    await vi.advanceTimersByTimeAsync(2000);
-    win = await created;
-    expect(h.onScreen()).toBe(ws.activetabid);
-    return ws;
 }
+
+// Loads the module graph once before the tests, under a generous bound that only limits a failing run: each test's
+// setup() then re-evaluates modules already transformed, instead of the first test paying for that within its own
+// 5 s timeout on a loaded machine (#651).
+beforeAll(async () => {
+    vi.useFakeTimers();
+    try {
+        await loadModules();
+    } finally {
+        vi.useRealTimers();
+    }
+}, 60_000);
 
 function senderEvent() {
     return { sender: { id: win.activeTabView.webContents.id } };

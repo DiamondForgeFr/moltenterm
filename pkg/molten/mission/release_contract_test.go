@@ -59,6 +59,7 @@ func makeNotuliaFixture(t *testing.T, variant string) (*Runs, string) {
 	dir := filepath.Join(base, "fixture")
 	data := t.TempDir()
 	r := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
+	t.Cleanup(func() { waitRunsIdle(t, r) })
 	r.git = offGithub
 	return r, dir
 }

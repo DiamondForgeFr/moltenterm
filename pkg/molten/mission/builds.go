@@ -63,6 +63,17 @@ func (r *Runs) askCancelWhilePreparing(runId string) bool {
 	return true
 }
 
+// endPreparing ends a build's preparation once its record names the build's process, and says whether a cancel was
+// asked meanwhile. A cancel asked later finds that process in the record (#651).
+func (r *Runs) endPreparing(runId string) bool {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	asked := r.cancelAsked[runId]
+	delete(r.preparing, runId)
+	delete(r.cancelAsked, runId)
+	return asked
+}
+
 func (r *Runs) checkCancelAsked(runId string) bool {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -358,9 +369,10 @@ func (r *Runs) launchBuild(b *buildLog, tree string, build molten.PipelineBuild)
 	}
 	b.rec.Pid = cmd.Process.Pid
 	b.rec.Preparing = false
-	b.rec.Cancelled = b.rec.Cancelled || b.cancelled()
 	r.writeRecord(*b.rec)
-	if b.rec.Cancelled {
+	if r.endPreparing(b.rec.Id) || b.rec.Cancelled {
+		b.rec.Cancelled = true
+		r.writeRecord(*b.rec)
 		stopRunGroup(b.rec.Pid)
 	}
 	go cmd.Wait()

@@ -48,7 +48,8 @@ func runsBusy(r *Runs) int {
 	return len(r.watching) + len(r.preparing)
 }
 
-// waitRunsIdle waits until no run is being prepared or followed: then nothing of r writes in the temp folders.
+// waitRunsIdle waits until no run is being prepared or followed: then nothing of r writes in the temp folders. Every
+// fixture that makes its own Runs registers it with t.Cleanup after its last t.TempDir (#651).
 func waitRunsIdle(t *testing.T, r *Runs) {
 	t.Helper()
 	deadline := time.Now().Add(time.Minute)
@@ -267,6 +268,7 @@ func TestBuildVerifiesWithTheLocalCiFirst(t *testing.T) {
 	data := t.TempDir()
 	trust := MakeTrustStore(filepath.Join(data, TrustFileName))
 	r := MakeRuns(filepath.Join(data, "runs"), trust, nil)
+	t.Cleanup(func() { waitRunsIdle(t, r) })
 	r.git = plainRunner
 	r.UseCi(MakeCi(filepath.Join(data, "ci"), trust, plainRunner, nil))
 	failed := waitRun(t, r, dir, trustAndStart(t, r, dir, "gold").Id)

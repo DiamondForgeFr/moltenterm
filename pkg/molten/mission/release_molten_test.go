@@ -131,6 +131,7 @@ func makeMoltentermFixture(t *testing.T) (*Runs, string, string) {
 
 	runsData := t.TempDir()
 	r := MakeRuns(filepath.Join(runsData, "runs"), MakeTrustStore(filepath.Join(runsData, TrustFileName)), nil)
+	t.Cleanup(func() { waitRunsIdle(t, r) })
 	r.git = offGithub
 	return r, dir, origin
 }

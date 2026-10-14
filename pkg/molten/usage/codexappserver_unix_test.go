@@ -26,7 +26,7 @@ while IFS= read -r line; do
   printf '%s\n' "$line" >> "$FAKE_LOG"
   case "$line" in
     *'"method":"initialize"'*)
-      if [ "$FAKE_MODE" = hang ]; then sleep 30 & echo $! > "$FAKE_LOG.child"; wait; fi
+      if [ "$FAKE_MODE" = hang ]; then sleep 600 & echo $! > "$FAKE_LOG.child"; wait; fi
       printf '{"method":"account/updated","params":{}}\nnot json\n{"id":0,"result":{"userAgent":"fake","codexHome":"/nowhere","platformFamily":"unix","platformOs":"macos"}}\n' ;;
     *'"method":"account/rateLimits/read"'*)
       if [ "$FAKE_MODE" = error ]; then
@@ -118,22 +118,38 @@ func TestRunCodexAppServerErrors(t *testing.T) {
 		t.Error("no executable")
 	}
 
+	// No duration is measured: with a grace longer than the bound below, a run that waited for it would hang there,
+	// while a run that kills at once returns right after its timeout, however loaded the machine (#651).
+	saved := codexAppServerExitGrace
+	codexAppServerExitGrace = time.Hour
+	defer func() { codexAppServerExitGrace = saved }()
 	env, log := fakeCodexEnv(t, "hang", "")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	start := time.Now()
-	if _, err := runCodexAppServer(ctx, fakeCodexExe, env); err == nil {
-		t.Error("a hung app-server fails the read")
-	}
-	if took := time.Since(start); took > time.Second+codexAppServerExitGrace/2 {
-		t.Errorf("past its timeout the app-server gets no grace: %v", took)
+	ended := make(chan error, 1)
+	go func() {
+		_, err := runCodexAppServer(ctx, fakeCodexExe, env)
+		ended <- err
+	}()
+	select {
+	case err := <-ended:
+		if err == nil {
+			t.Error("a hung app-server fails the read")
+		}
+	case <-time.After(time.Minute):
+		if data, err := os.ReadFile(log + ".child"); err == nil {
+			child, _ := strconv.Atoi(strings.TrimSpace(string(data)))
+			syscall.Kill(child, syscall.SIGKILL)
+		}
+		t.Fatal("past its timeout the app-server gets no grace: the run still waits for it")
 	}
 	data, err := os.ReadFile(log + ".child")
 	if err != nil {
 		t.Fatal(err)
 	}
 	child, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-	deadline := time.Now().Add(2 * time.Second)
+	// Generous: it only bounds a failing run. The child sleeps far longer, so its own end cannot pass for the kill.
+	deadline := time.Now().Add(time.Minute)
 	for {
 		if err := syscall.Kill(child, 0); errors.Is(err, syscall.ESRCH) {
 			break
