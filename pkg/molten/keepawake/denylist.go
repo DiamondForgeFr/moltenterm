@@ -21,8 +21,11 @@ const (
 	reasonForcePush  = "force push or deletion of a main branch: "
 	reasonCredential = "reads or writes a credential file: "
 	reasonKeychain   = "reads the keychain"
+	reasonOpaque     = "runs a command the rules cannot read: "
 	// What a reason shows of the path or the branch.
 	maxReasonDetail = 120
+	// How many shells deep (bash -c 'eval …') a command is read again; past it, the command stays with the person.
+	maxShellDepth = 4
 )
 
 // The tools whose request is a question to the person: approving it would answer it with nothing.
@@ -36,7 +39,34 @@ var fileInputKeys = []string{"file_path", "path", "notebook_path"}
 var mainBranches = map[string]bool{"main": true, "master": true, "develop": true, "trunk": true}
 
 // Programs that run the next word as the command.
-var commandWrappers = map[string]bool{"sudo": true, "env": true, "command": true, "nice": true, "nohup": true, "time": true, "exec": true, "doas": true}
+var commandWrappers = map[string]bool{"sudo": true, "env": true, "command": true, "nice": true, "nohup": true, "time": true,
+	"exec": true, "doas": true, "timeout": true, "caffeinate": true, "stdbuf": true}
+
+// The wrappers' options that take the next word as their value (sudo -u root rm …, nice -n 5 rm …).
+var wrapperValueOptions = map[string]map[string]bool{
+	"sudo":       {"-u": true, "-g": true, "-C": true, "-D": true, "-h": true, "-p": true, "-U": true, "-r": true, "-t": true, "-T": true},
+	"doas":       {"-u": true, "-C": true},
+	"env":        {"-u": true, "-C": true, "-P": true},
+	"nice":       {"-n": true},
+	"timeout":    {"-s": true, "-k": true, "--signal": true, "--kill-after": true},
+	"caffeinate": {"-t": true, "-w": true},
+	"stdbuf":     {"-i": true, "-o": true, "-e": true},
+}
+
+// The wrappers whose first operand is a value, not the command (timeout 60 rm …).
+var wrapperLeadingOperand = map[string]bool{"timeout": true}
+
+// Shells whose -c argument is a command line of its own.
+var inlineShells = map[string]bool{"sh": true, "bash": true, "zsh": true, "fish": true, "dash": true, "ksh": true}
+
+// The shells' options that take the next word as their value (bash -o pipefail -c '…').
+var shellValueOptions = map[string]bool{"-o": true, "+o": true, "-O": true, "+O": true, "--rcfile": true, "--init-file": true}
+
+// Interpreters whose -c / -e argument is a program the rules cannot read.
+var inlineInterpreters = map[string]bool{"node": true, "nodejs": true, "perl": true, "ruby": true}
+
+// find's actions that delete or run another program.
+var findActions = map[string]bool{"-delete": true, "-exec": true, "-execdir": true, "-ok": true, "-okdir": true}
 
 // git's options that take the next word as their value.
 var gitValueOptions = map[string]bool{"-C": true, "-c": true, "--git-dir": true, "--work-tree": true, "--namespace": true, "--exec-path": true}
@@ -225,49 +255,192 @@ func indexRune(runes []rune, from int, r rune) int {
 }
 
 func commandDenyReason(line string, c PermissionCheck) string {
+	return scriptDenyReason(line, c, c.Cwd, true, 0)
+}
+
+// scriptDenyReason reads one command line; depth counts the shells (sh -c, eval) it was found in. A command line
+// given to a shell is one quoted word: it is read again by the same rules, as the shell would run it.
+func scriptDenyReason(line string, c PermissionCheck, cwd string, cwdKnown bool, depth int) string {
+	if depth > maxShellDepth {
+		return reasonOpaque + "shells nested too deep"
+	}
 	cmds, ok := splitCommands(line)
 	if !ok {
-		// Unreadable: every word is checked, and any rm or git push in it is taken at its worst.
+		// Unreadable: every word is checked, and any command the rules know in it is taken at its worst.
 		var words []shellWord
 		for _, f := range strings.Fields(line) {
 			words = append(words, shellWord{text: strings.Trim(f, `'"`), dynamic: strings.ContainsAny(f, "$`")})
 		}
 		cmds = [][]shellWord{words}
 		for i := 1; i < len(words); i++ {
-			switch path.Base(words[i].text) {
-			case "rm", "git", "security":
+			if watchedCommand(path.Base(words[i].text)) {
 				cmds = append(cmds, words[i:])
 			}
 		}
 	}
-	cwd, cwdKnown := c.Cwd, true
 	for _, words := range cmds {
 		for _, w := range words {
-			if isCredentialPath(strings.TrimLeft(w.text, "<>&0123456789"), c.Home) {
-				return reasonCredential + clipDetail(w.text)
+			if p := credentialInWord(w.text, c.Home); p != "" {
+				return reasonCredential + clipDetail(p)
 			}
 		}
 		words = stripWrappers(words)
 		if len(words) == 0 {
 			continue
 		}
+		// Inside a shell's command line, a command whose name is an expansion ($CMD, $(…)) is anything at all.
+		if depth > 0 && words[0].dynamic {
+			return reasonOpaque + clipDetail(words[0].text)
+		}
 		name := path.Base(words[0].text)
-		switch name {
-		case "cd":
+		switch {
+		case name == "cd":
 			cwd, cwdKnown = changeDir(cwd, cwdKnown, words[1:], c.Home)
-		case "security":
+		case name == "security":
 			return reasonKeychain
-		case "rm":
+		case name == "rm":
 			if target := removeTarget(words[1:], cwd, cwdKnown, c); target != "" {
 				return reasonRemove + clipDetail(target)
 			}
-		case "git":
+		case name == "git":
 			if branch := forcePushTarget(words[1:], cwd, cwdKnown, c); branch != "" {
 				return reasonForcePush + clipDetail(branch)
+			}
+		case inlineShells[name]:
+			if script, ok := shellScript(words[1:]); ok {
+				if reason := scriptDenyReason(script.text, c, cwd, cwdKnown, depth+1); reason != "" {
+					return reason
+				}
+			}
+		case name == "eval":
+			texts := make([]string, 0, len(words)-1)
+			for _, w := range words[1:] {
+				texts = append(texts, w.text)
+			}
+			if reason := scriptDenyReason(strings.Join(texts, " "), c, cwd, cwdKnown, depth+1); reason != "" {
+				return reason
+			}
+		case name == "xargs":
+			// xargs runs its command on words it reads at run time: the rules cannot see them.
+			return reasonOpaque + "xargs"
+		case name == "find":
+			for _, w := range words[1:] {
+				if findActions[w.text] {
+					return reasonOpaque + "find " + w.text
+				}
+			}
+		case isInterpreter(name):
+			if opt := inlineProgramOption(name, words[1:]); opt != "" {
+				return reasonOpaque + name + " " + opt
 			}
 		}
 	}
 	return ""
+}
+
+// watchedCommand: the commands an unreadable line is searched for.
+func watchedCommand(name string) bool {
+	switch name {
+	case "rm", "git", "security", "eval", "xargs", "find":
+		return true
+	}
+	return inlineShells[name] || isInterpreter(name)
+}
+
+// shellScript returns the command line of `sh -c '…'` (also -ec, -lc…), ok false when the shell runs a script file
+// or reads its standard input.
+func shellScript(args []shellWord) (shellWord, bool) {
+	inline := false
+	for i := 0; i < len(args); i++ {
+		a := args[i].text
+		if a == "--" {
+			continue
+		}
+		if shellValueOptions[a] {
+			i++
+			continue
+		}
+		// fish's long form: --command='…' or --command '…'.
+		if strings.HasPrefix(a, "--command=") {
+			return shellWord{text: strings.TrimPrefix(a, "--command="), dynamic: args[i].dynamic}, true
+		}
+		if a == "--command" {
+			inline = true
+			continue
+		}
+		if strings.HasPrefix(a, "--") {
+			continue
+		}
+		if (strings.HasPrefix(a, "-") || strings.HasPrefix(a, "+")) && len(a) > 1 {
+			inline = inline || strings.ContainsRune(a[1:], 'c')
+			continue
+		}
+		if inline {
+			return args[i], true
+		}
+		return shellWord{}, false
+	}
+	return shellWord{}, false
+}
+
+func isInterpreter(name string) bool {
+	return inlineInterpreters[name] || strings.HasPrefix(name, "python")
+}
+
+// inlineProgramOption returns the option that gives an interpreter its program on the command line (python -c,
+// node -e / -p, perl -e / -E, ruby -e), "" when it runs a file.
+func inlineProgramOption(name string, args []shellWord) string {
+	letters := "eEp"
+	if strings.HasPrefix(name, "python") {
+		letters = "c"
+	}
+	for _, a := range args {
+		t := a.text
+		switch {
+		case t == "--":
+			return ""
+		case t == "--eval" || t == "--print" || strings.HasPrefix(t, "--eval=") || strings.HasPrefix(t, "--print="):
+			return t
+		case strings.HasPrefix(t, "--"):
+		case strings.HasPrefix(t, "-") && len(t) > 1:
+			if strings.ContainsAny(t[1:], letters) {
+				return t
+			}
+		default:
+			return ""
+		}
+	}
+	return ""
+}
+
+// credentialInWord returns the credential path a word names, "". A word with spaces is a quoted string (a message,
+// a script): each token in it that looks like a path is checked, so `ssh host 'cat ~/.ssh/id_rsa'` asks while
+// `git commit -m 'fix .env loading'` does not.
+func credentialInWord(word string, home string) string {
+	if !strings.ContainsAny(word, " \t\n") {
+		if isCredentialPath(trimRedirect(word), home) {
+			return word
+		}
+		return ""
+	}
+	for _, token := range strings.Fields(word) {
+		token = strings.Trim(token, `'"();|&`)
+		if !strings.Contains(token, "/") && !strings.HasPrefix(token, "~") {
+			continue
+		}
+		if isCredentialPath(trimRedirect(token), home) {
+			return token
+		}
+	}
+	return ""
+}
+
+// trimRedirect drops a redirection (<, 2>, &>), the @ of curl's -d @file and an option's name (--file=…).
+func trimRedirect(word string) string {
+	if eq := strings.LastIndexByte(word, '='); eq >= 0 && strings.HasPrefix(word, "-") {
+		word = word[eq+1:]
+	}
+	return strings.TrimLeft(word, "<>&@0123456789")
 }
 
 // stripWrappers drops leading assignments (FOO=bar) and the programs that run the next word (sudo, env…), with their
@@ -279,11 +452,19 @@ func stripWrappers(words []shellWord) []shellWord {
 			words = words[1:]
 			continue
 		}
-		if !commandWrappers[path.Base(w)] {
+		name := path.Base(w)
+		if !commandWrappers[name] {
 			return words
 		}
 		words = words[1:]
 		for len(words) > 0 && strings.HasPrefix(words[0].text, "-") {
+			opt := words[0].text
+			words = words[1:]
+			if wrapperValueOptions[name][opt] && len(words) > 0 {
+				words = words[1:]
+			}
+		}
+		if wrapperLeadingOperand[name] && len(words) > 0 {
 			words = words[1:]
 		}
 	}
@@ -506,7 +687,7 @@ var envExampleSuffixes = []string{".example", ".sample", ".template", ".dist"}
 
 // isCredentialPath tells whether a path names a credential file or folder (DS-SHELL-111).
 func isCredentialPath(p string, home string) bool {
-	if p == "" || strings.ContainsAny(p, " \t\n") {
+	if p == "" {
 		return false
 	}
 	p = strings.ToLower("/" + strings.TrimPrefix(expandHome(p, home), "/"))
