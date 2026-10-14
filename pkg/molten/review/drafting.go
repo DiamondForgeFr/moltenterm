@@ -115,8 +115,16 @@ func addEvent(c *Comment, at int64, event string, by string, text string) {
 	}
 }
 
+// addMessage keeps the discussion in time order: the agent's reply may be kept before the developer's message that
+// asked for it, which is only stored once Discuss returned.
 func addMessage(c *Comment, msg CommentMessage) {
-	c.Discussion = append(c.Discussion, msg)
+	i := len(c.Discussion)
+	for i > 0 && c.Discussion[i-1].At > msg.At {
+		i--
+	}
+	c.Discussion = append(c.Discussion, CommentMessage{})
+	copy(c.Discussion[i+1:], c.Discussion[i:])
+	c.Discussion[i] = msg
 	if len(c.Discussion) > maxDiscussion {
 		c.Discussion = c.Discussion[len(c.Discussion)-maxDiscussion:]
 	}
@@ -246,14 +254,14 @@ func (s *Store) UseRewrite(req RewriteRequest) (State, bool, error) {
 	return state, changed, err
 }
 
-// AddDeveloperMessage keeps the developer's message once Discuss reached the session.
-func (s *Store) AddDeveloperMessage(k PrKey, id string, text string) (State, bool, error) {
+// AddDeveloperMessage keeps the developer's message once Discuss reached the session, at the time it was sent.
+func (s *Store) AddDeveloperMessage(k PrKey, id string, text string, at int64) (State, bool, error) {
 	return s.update(k, func(state *State) bool {
 		c := findComment(state, id)
 		if c == nil {
 			return false
 		}
-		addMessage(c, CommentMessage{Id: uuid.NewString(), At: s.now().UnixMilli(), By: MessageByDeveloper, Text: text})
+		addMessage(c, CommentMessage{Id: uuid.NewString(), At: at, By: MessageByDeveloper, Text: text})
 		return true
 	})
 }
@@ -343,6 +351,7 @@ func (s *Service) Discuss(ctx context.Context, req DiscussRequest) (DiscussResul
 		return DiscussResult{}, fmt.Errorf("MoltenTerm cannot reach the review session")
 	}
 	anchor := c.Anchor
+	sentAt := s.store.now().UnixMilli()
 	result, err := s.discuss(ctx, mcpreview.DiscussRequest{
 		SessionKey: mcpreview.SessionKey{Repo: req.Repo, Number: req.Number},
 		Anchor:     &anchor,
@@ -359,7 +368,7 @@ func (s *Service) Discuss(ctx context.Context, req DiscussRequest) (DiscussResul
 	if !result.Sent {
 		return rtn, nil
 	}
-	next, err := s.changed(s.store.AddDeveloperMessage(req.PrKey, req.Id, message))
+	next, err := s.changed(s.store.AddDeveloperMessage(req.PrKey, req.Id, message, sentAt))
 	if err == nil {
 		rtn.State = &next
 	}
