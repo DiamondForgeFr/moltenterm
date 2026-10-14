@@ -7,8 +7,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InlineCodeText, splitInlineCode } from "./inline-code";
 import { displayActions, GoToTerminalLabel, MoltentermNotification } from "./notifications-model";
 import {
+    checkQuestion,
     goneNotificationToasts,
     makeToast,
+    MaxToastAnswers,
     MaxToasts,
     notificationToastId,
     pushToast,
@@ -235,5 +237,30 @@ describe("Go to the terminal (FR-SHELL-055 AC4)", () => {
             "Approve",
         ]);
         expect(displayActions({ ...waiting, actions: [stored] }).map((a) => a.id)).toEqual(["go"]);
+    });
+});
+
+describe("a question's answers in a toast (#595)", () => {
+    const answer = (id: string, gesture = "molten:agenthandoff") => ({
+        id,
+        label: id,
+        kind: "gesture" as const,
+        gesture,
+        args: { decision: id },
+    });
+
+    it("shows all three answers of one gesture", () => {
+        const question = entry("q", { kind: "warning", actions: [answer("once"), answer("always"), answer("block")] });
+        expect(checkQuestion(question)).toBe(true);
+        expect(toastActionsOf(question).map((a) => a.id)).toEqual(["once", "always", "block"]);
+        const shown = makeToast({ title: "q", question: true, actions: toastActionsOf(question).map((a) => ({ id: a.id, label: a.label, run: () => {} })) }, "q");
+        expect(shown.actions).toHaveLength(MaxToastAnswers);
+    });
+
+    it("keeps two buttons for actions that are not one question's answers", () => {
+        const mixed = entry("m", { actions: [answer("a"), answer("b", "other"), answer("c")] });
+        expect(checkQuestion(mixed)).toBe(false);
+        expect(toastActionsOf(mixed)).toHaveLength(2);
+        expect(checkQuestion(entry("two", { actions: [answer("a"), answer("b")] }))).toBe(false);
     });
 });

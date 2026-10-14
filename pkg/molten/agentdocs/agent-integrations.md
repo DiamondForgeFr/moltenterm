@@ -16,6 +16,11 @@ your settings files are only read, and what is added lives in MoltenTerm's data 
 | Claude Code | Agent state hooks (working, waiting, done), the session link (`SessionStart`), the status line relay around your own status line (for the plan usage gauges), the coffee approvals hook, the MoltenTerm browser server | `--settings <file>` and `--mcp-config <file>`, added before your arguments |
 | Codex | A notify wrapper that runs your own `notify` first, then reports done and links the session; the MoltenTerm browser server; the coffee approvals hook, which Codex runs once you trust it in `/hooks` | `-c notify=...`, `-c mcp_servers.molten-browser...` and `-c hooks.PermissionRequest=...`, added before your arguments |
 
+The MoltenTerm browser server also carries `list_agents` and `send_to_agent`: tell an agent "send this to Jérôme"
+and it hands its work to the agent of that first name with a brief (goal, context, files, links) written in
+MoltenTerm's data folder, after you allow it. Its instructions tell the agent its own first name. From a shell, the
+same is `molten agent list --active` and `molten agent send <name> --goal "..."`.
+
 What you already have is left alone and listed as such: your own hooks for a state, your own `SessionStart` hook
 running `molten agent session`, your own `-c notify=...`, your own `molten-browser` server, `--strict-mcp-config`.
 Claude Code with `disableAllHooks` gets nothing.

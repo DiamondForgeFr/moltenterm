@@ -10,6 +10,9 @@ import { displayActions, MoltentermNotification, MoltentermNotificationKind } fr
 
 export const MaxToasts = 3;
 export const MaxToastActions = 2;
+// A question's answers all show, so none of them hides in the center (the handoff approval's Allow once, Always for
+// this pair and Block, #595).
+export const MaxToastAnswers = 3;
 // Information leaves by itself after this, unless pointed at or focused; what waits for a gesture stays.
 export const ToastDismissMs = 6000;
 
@@ -50,6 +53,8 @@ export type ToastInput = {
     onDismiss?: (reason: ToastDismissReason) => void;
     // The notification this toast shows, if any.
     notificationId?: string;
+    // The actions are the answers to one question: up to MaxToastAnswers show.
+    question?: boolean;
 };
 
 export type Toast = ToastInput & {
@@ -69,7 +74,7 @@ export function makeToast(input: ToastInput, id: string): Toast {
         ...input,
         id: input.id ?? id,
         kind,
-        actions: (input.actions ?? []).slice(0, MaxToastActions),
+        actions: (input.actions ?? []).slice(0, input.question ? MaxToastAnswers : MaxToastActions),
         stays: input.stays ?? checkStays(kind),
     };
 }
@@ -91,9 +96,20 @@ export function notificationToastId(notificationId: string): string {
     return `notif:${notificationId}`;
 }
 
-// A notification's buttons in a toast: Go to the terminal first for a waiting agent, two at most.
+// A notification asks a question when each of its buttons gives an answer to the same gesture (the keep-awake policy,
+// the handoff approval).
+export function checkQuestion(entry: MoltentermNotification): boolean {
+    const actions = displayActions(entry);
+    return (
+        actions.length > MaxToastActions &&
+        actions.every((a) => a.kind === "gesture" && a.gesture != null && a.gesture === actions[0].gesture)
+    );
+}
+
+// A notification's buttons in a toast: Go to the terminal first for a waiting agent, two at most, except a question's
+// answers.
 export function toastActionsOf(entry: MoltentermNotification) {
-    return displayActions(entry).slice(0, MaxToastActions);
+    return displayActions(entry).slice(0, checkQuestion(entry) ? MaxToastAnswers : MaxToastActions);
 }
 
 // A toast of a notification goes once the notification no longer asks to be read: read here or in another window,

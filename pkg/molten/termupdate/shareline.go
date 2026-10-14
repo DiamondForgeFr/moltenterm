@@ -49,6 +49,17 @@ func TypeShareLine(ctx context.Context, blockId string, line string) AgentInputR
 	return u.TypeLine(ctx, blockId, line)
 }
 
+// TypeHandoffLine types the prompt of a handoff between agents (FR-CONT-015, DS-CONT-029) through the same guarded path,
+// and submits it with Enter when no unsent draft of the user's may be in the prompt: a draft would be sent with it.
+// Submitted tells which happened.
+func TypeHandoffLine(ctx context.Context, blockId string, line string) AgentInputResult {
+	u := getRunningUpdater()
+	if u == nil {
+		return refused(InputReasonUnavailable, "MoltenTerm cannot type in terminals yet: nothing was typed.")
+	}
+	return u.typeLine(ctx, blockId, line, true)
+}
+
 // cleanTypedLine keeps one printable line: no control character can end the paste, add a newline or press a key.
 func cleanTypedLine(line string) string {
 	return strings.TrimSpace(strings.Map(func(r rune) rune {
@@ -63,6 +74,11 @@ func cleanTypedLine(line string) string {
 // neither working nor waiting for an answer, which the line would interrupt or answer. A draft the user typed stays:
 // the line is added after it.
 func (u *Updater) TypeLine(ctx context.Context, blockId string, line string) AgentInputResult {
+	return u.typeLine(ctx, blockId, line, false)
+}
+
+// typeLine types the line; submit: press Enter after it when the prompt holds no draft the user may still be writing.
+func (u *Updater) typeLine(ctx context.Context, blockId string, line string, submit bool) AgentInputResult {
 	line = cleanTypedLine(line)
 	if line == "" || len(line) > maxTypedLine {
 		return refused(InputReasonUnknownAction, "There is no line to type: nothing was typed.")
@@ -106,12 +122,23 @@ func (u *Updater) TypeLine(ctx context.Context, blockId string, line string) Age
 			return base(refused(InputReasonWorking, fmt.Sprintf("%s is working: wait for its turn to end.", name)))
 		}
 	}
-	sent, err := u.sendToForegroundAgent(blockId, st.agent, st.shell.Pid, []string{pasteStart + line + pasteEnd})
+	steps := []string{pasteStart + line + pasteEnd}
+	enter := submit && !u.inputState(blockId).Draft
+	if enter {
+		steps = append(steps, "\r")
+	}
+	sent, err := u.sendToForegroundAgent(blockId, st.agent, st.shell.Pid, steps)
 	if err != nil {
 		return base(refused(InputReasonUnavailable, fmt.Sprintf("The terminal did not take the input: %v", err)))
 	}
 	if !sent {
 		return base(refused(InputReasonNotForeground, fmt.Sprintf("%s is no longer the program in the foreground: nothing was typed.", name)))
+	}
+	if enter {
+		return base(AgentInputResult{Result: InputSent, Submitted: true, Message: fmt.Sprintf("Sent to %s.", name)})
+	}
+	if submit {
+		return base(AgentInputResult{Result: InputSent, Message: fmt.Sprintf("Typed in %s's prompt without Enter: the user may have an unsent message there.", name)})
 	}
 	return base(AgentInputResult{Result: InputSent, Message: fmt.Sprintf("Typed in %s's prompt: add what to do and press Enter.", name)})
 }

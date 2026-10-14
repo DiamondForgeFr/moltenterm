@@ -102,9 +102,15 @@ type ServerSpec struct {
 	Tools        []ToolDef
 }
 
-// BrowserSpec is `molten mcp browser`.
+// BrowserSpec is `molten mcp browser`: the browser's tools, and the handoff tools (FR-CONT-015).
 func BrowserSpec() ServerSpec {
-	return ServerSpec{Name: ServerName, Title: "MoltenTerm browser", Instructions: ServerInstructions, Tools: Tools()}
+	tools := append(Tools(), AgentTools()...)
+	return ServerSpec{Name: ServerName, Title: "MoltenTerm browser", Instructions: ServerInstructions + AgentInstructions(""), Tools: tools}
+}
+
+// InstructionsBackend is a backend that completes the server's instructions once started (the agent's first name).
+type InstructionsBackend interface {
+	Instructions(base string) string
 }
 
 func (spec ServerSpec) hasTool(name string) bool {
@@ -295,11 +301,15 @@ func (s *Server) handleInitialize(ctx context.Context, msg inMessage) {
 		return
 	}
 	s.start(ctx, ClientInfo{Name: params.ClientInfo.Name, Version: params.ClientInfo.Version})
+	instructions := s.spec.Instructions
+	if ib, ok := s.backend.(InstructionsBackend); ok {
+		instructions = ib.Instructions(instructions)
+	}
 	s.writeResult(msg.Id, map[string]any{
 		"protocolVersion": negotiateVersion(params.ProtocolVersion),
 		"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
 		"serverInfo":      map[string]any{"name": s.spec.Name, "title": s.spec.Title, "version": s.Version},
-		"instructions":    s.spec.Instructions,
+		"instructions":    instructions,
 	})
 }
 

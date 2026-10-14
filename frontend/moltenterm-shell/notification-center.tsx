@@ -13,6 +13,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { Component, ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { AgentHandoffGesture, answerAgentHandoff } from "./agent-handoff";
 import { InlineCodeText } from "./inline-code";
 import { DepSyncHost } from "./mission/dep-sync";
 import {
@@ -64,6 +65,7 @@ function registerBuiltInGestures(): () => void {
             getApi().openNativePath(pathParent(args.path) || args.path);
             return { ok: true };
         }),
+        registerNotificationGesture(AgentHandoffGesture, answerAgentHandoff),
     ];
     return () => unregister.forEach((fn) => fn());
 }
