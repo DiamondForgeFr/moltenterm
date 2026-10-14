@@ -71,6 +71,8 @@ const (
 	ConfigKey_ReviewLanguage                 = "review:language"
 	ConfigKey_ReviewPublishLanguage          = "review:publishlanguage"
 
+	ConfigKey_AppLanguage                    = "app:language"
+
 	ConfigKey_CompanionUsageGauges           = "companion:usagegauges"
 	ConfigKey_CompanionUsageClaudeOAuth      = "companion:usageclaudeoauth"
 

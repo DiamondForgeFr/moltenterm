@@ -26,6 +26,7 @@ import { readinessDeadlineMs, WindowActionQueue } from "./moltenterm-action-queu
 // window's actions run in emain/moltenterm-window-actions.ts
 import { askDeleteStops, askSwitchStops, askWindowCloseStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
 import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
+import { mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623): dialogs in the interface language
 import {
     activeWindowTabView,
     closeWindowTabViews,
@@ -320,10 +321,9 @@ export class WaveBrowserWindow extends BaseWindow {
                         if (isNonEmptyUnsavedWorkspace(workspace)) {
                             const choice = dialog.showMessageBoxSync(this, {
                                 type: "question",
-                                buttons: ["Cancel", "Close Window"],
-                                title: "Confirm",
-                                message:
-                                    "Window has unsaved tabs, closing window will delete existing tabs.\n\nContinue?",
+                                buttons: [mt("common.cancel"), mt("dialog.closeWindow.button")], // MOLTENTERM-PATCH (#623)
+                                title: mt("common.confirm"),
+                                message: mt("dialog.closeWindow.message"),
                             });
                             if (choice === 0) {
                                 return;
@@ -582,9 +582,9 @@ ipcMain.handle("close-tab", async (event, workspaceId: string, tabId: string, co
             type: "question",
             defaultId: 1, // Enter activates "Close Tab"
             cancelId: 0, // Esc activates "Cancel"
-            buttons: ["Cancel", "Close Tab"],
-            title: "Confirm",
-            message: "Are you sure you want to close this tab?",
+            buttons: [mt("common.cancel"), mt("dialog.closeTab.button")], // MOLTENTERM-PATCH (#623)
+            title: mt("common.confirm"),
+            message: mt("dialog.closeTab.message"),
         });
         if (choice === 0) {
             return false;
@@ -648,9 +648,9 @@ ipcMain.on("delete-workspace", (event, workspaceId) => {
         if (busy !== BusyOutcomeClose) {
             const choice = dialog.showMessageBoxSync(this, {
                 type: "question",
-                buttons: ["Cancel", "Delete Workspace"],
-                title: "Confirm",
-                message: `Deleting workspace will also delete its contents.\n\nContinue?`,
+                buttons: [mt("common.cancel"), mt("dialog.deleteWorkspace.button")], // MOLTENTERM-PATCH (#623)
+                title: mt("common.confirm"),
+                message: mt("dialog.deleteWorkspace.message"),
             });
             if (choice === 0) {
                 console.log("user cancelled workspace delete", workspaceId, ww?.waveWindowId);

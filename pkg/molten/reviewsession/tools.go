@@ -146,7 +146,7 @@ func (m *Manager) recOf(s *session) record {
 	return s.rec
 }
 
-// developerLanguage: the review:language setting, else the OS locale, else English (FR-REV-005 AC3).
+// developerLanguage: the review:language setting, else the interface language, else English (FR-REV-005 AC3, DS-I18N-006).
 func (m *Manager) developerLanguage() string {
 	if m.env.Language != nil {
 		if lang := strings.TrimSpace(m.env.Language()); lang != "" {

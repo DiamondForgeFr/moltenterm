@@ -20,6 +20,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/agentdocs"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/i18nlang"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
@@ -151,7 +152,9 @@ func liveEnv(hooks Hooks) Env {
 			}
 			return data
 		},
-		Locale: osLocale,
+		Locale: func() string {
+			return i18nlang.Resolve(wconfig.GetWatcher().GetFullConfig().Settings.AppLanguage, i18nlang.SystemLocale(), osLocale)
+		},
 		Language: func() string {
 			return wconfig.GetWatcher().GetFullConfig().Settings.ReviewLanguage
 		},
@@ -184,7 +187,8 @@ func liveEnv(hooks Hooks) Env {
 	}
 }
 
-// osLocale is the language of the OS locale (LC_ALL, LC_MESSAGES, LANG: fr_FR.UTF-8 is fr), "" when none says.
+// osLocale is the language of the OS locale (LC_ALL, LC_MESSAGES, LANG: fr_FR.UTF-8 is fr), "" when none says: the
+// last resort when Electron main gave no system language (wavesrv started on its own).
 func osLocale() string {
 	for _, name := range []string{"LC_ALL", "LC_MESSAGES", "LANG"} {
 		value := os.Getenv(name)

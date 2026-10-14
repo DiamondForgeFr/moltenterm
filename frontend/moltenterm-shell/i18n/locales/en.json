@@ -1,0 +1,92 @@
+{
+    "language": {
+        "name": "English",
+        "system": "Same as the system ({name})"
+    },
+    "common": {
+        "cancel": "Cancel",
+        "close": "Close",
+        "ok": "OK",
+        "save": "Save",
+        "delete": "Delete",
+        "dismiss": "Dismiss",
+        "learnMore": "Learn More",
+        "on": "On",
+        "off": "Off",
+        "open": "Open",
+        "confirm": "Confirm"
+    },
+    "i18n": {
+        "unknownLanguage": {
+            "title": "Unknown interface language \"{value}\"",
+            "message": "app:language names no installed language, so MoltenTerm follows the system's. Choose a language in Settings."
+        }
+    },
+    "appMenu": {
+        "about": "About {app}",
+        "gettingStarted": "Getting Started",
+        "safeModeRestart": "Restart in Safe Mode",
+        "safeModeLeave": "Restart Normally",
+        "services": "Services",
+        "hide": "Hide {app}",
+        "hideOthers": "Hide Others",
+        "quit": "Quit {app}",
+        "file": "File",
+        "newWindow": "New Window",
+        "closeWindow": "Close Window",
+        "newBuilderWindow": "New WaveApp Builder Window",
+        "edit": "Edit",
+        "undo": "Undo",
+        "redo": "Redo",
+        "cut": "Cut",
+        "copy": "Copy",
+        "paste": "Paste",
+        "pasteAndMatchStyle": "Paste and Match Style",
+        "delete": "Delete",
+        "selectAll": "Select All",
+        "view": "View",
+        "reloadWindow": "Reload Window",
+        "reloadTab": "Reload Tab",
+        "relaunchAllWindows": "Relaunch All Windows",
+        "clearTabCache": "Clear Tab Cache",
+        "toggleDevTools": "Toggle DevTools",
+        "resetZoom": "Reset Zoom",
+        "zoomIn": "Zoom In",
+        "zoomOut": "Zoom Out",
+        "fullScreenOnLaunch": "Launch On Full Screen",
+        "toggleFullScreen": "Toggle Full Screen",
+        "toggleWidgetsBar": "Toggle Widgets Bar",
+        "workspace": "Workspace",
+        "createWorkspace": "Create Workspace",
+        "editWorkspace": "Edit Workspace…",
+        "window": "Window",
+        "minimize": "Minimize",
+        "zoom": "Zoom",
+        "front": "Bring All to Front"
+    },
+    "dialog": {
+        "confirmQuit": {
+            "title": "Confirm Quit",
+            "message": "Are you sure you want to quit {app}?",
+            "quit": "Quit"
+        },
+        "closeWindow": {
+            "message": "Window has unsaved tabs, closing window will delete existing tabs.\n\nContinue?",
+            "button": "Close Window"
+        },
+        "closeTab": {
+            "message": "Are you sure you want to close this tab?",
+            "button": "Close Tab"
+        },
+        "deleteWorkspace": {
+            "message": "Deleting workspace will also delete its contents.\n\nContinue?",
+            "button": "Delete Workspace"
+        },
+        "saveScrollback": {
+            "title": "Save Scrollback",
+            "filter": "Text Files"
+        },
+        "chooseFolder": "Choose",
+        "images": "Images"
+    }
+}

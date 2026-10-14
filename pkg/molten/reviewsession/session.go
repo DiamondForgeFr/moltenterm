@@ -148,7 +148,7 @@ type Env struct {
 	Publish      func(scope string, update mcpreview.Update)
 	// ReadFile reads a file of the project (.saasfoundry.json), nil when absent.
 	ReadFile func(path string) []byte
-	// Locale is the developer's language (the OS locale), e.g. "fr".
+	// Locale is the interface language (app:language resolved, DS-I18N-006), e.g. "fr".
 	Locale func() string
 	// Language is the review:language setting, "" when unset (then Locale decides).
 	Language func() string

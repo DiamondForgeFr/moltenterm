@@ -52,6 +52,14 @@ It has a TypeScript/React frontend and a Go backend. They talk together over `ws
 - For accent buttons, use "bg-accent/80 text-primary rounded hover:bg-accent transition-colors cursor-pointer" (if you do "bg-accent hover:bg-accent/80" it looks weird as on hover the button gets darker instead of lighter)
   - **Moltenterm (MOLTENTERM-PATCH #145):** this replaces the line above. A call-to-action button takes the class `molten-btn` (add `molten-btn-destructive` or `molten-btn-warning` for those) with sizes only from Tailwind (e.g. `"molten-btn cursor-pointer rounded px-3 py-1.5 text-xs"`, no `bg-*`, `text-*` colour or `hover:bg-*`), and `<MoltenWave />` from `frontend/moltenterm-shell/molten-button.tsx` as its last child. Wave's `Button` does this itself: no class or the `green` class gives the molten primary. Secondary actions stay calm (bordered or ghost). The style lives in `frontend/moltenterm-shell/molten-button.css`.
 
+### Interface languages (Moltenterm, MOLTENTERM-PATCH #623, #628)
+
+- Every user-facing string goes through a key (FR-I18N-001, NFR-I18N-001): components call `const t = useT()`, models, menus and anything outside React call `t(key, vars)` (both from `frontend/moltenterm-shell/i18n/i18n.ts`), Electron main calls `mt(key, vars)` (`emain/moltenterm-i18n.ts`). Never a literal UI string in new code.
+- Keys live in `frontend/moltenterm-shell/i18n/locales/en.json` (the reference) and `fr.json`, nested by surface (`settings.*`, `mc.*`, `review.*`, `wave.*`...). Add each key to both files with the same `{name}` placeholders: `npx vitest run frontend/moltenterm-shell/i18n` fails otherwise, and when the code asks for a key en.json lacks.
+- Resolve at render or call time, never into a module-level constant: the language changes without a restart. Keep keys as data (`labelKey`) and translate where the text is shown.
+- Interpolated values are text, never HTML. The output of `molten` and `wsh` stays English (agents parse it).
+- UI text never names the machine or the OS (Mac, macOS, Finder, Windows Explorer): say "this computer", "Show in folder", "the system keychain". Shortcut glyphs adapt per platform (⌘ / Ctrl), and a feature that only exists on one platform may say so (allow-list in `frontend/moltenterm-shell/i18n/neutral-words.test.ts`).
+
 ### RPC System
 
 To define a new RPC call, add the new definition to `pkg/wshrpc/wshrpctypes.go` including any input/output data that is required. After modifying wshrpctypes.go run `task generate` to generate the client APIs.

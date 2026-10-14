@@ -54,6 +54,9 @@ export type MoltenHostEnv = {
     readTextFile(path: string): Promise<string>;
     importModule(source: string, sourceName: string): Promise<any>;
     writeClipboard(text: string): Promise<void>;
+    // The interface language and its changes (FR-I18N-001, DS-I18N-005); English and no change without them.
+    getLocale?: () => string;
+    onLocaleChange?: (handler: (locale: string) => void) => () => void;
     builtins?: MoltenBuiltinMod[];
     // The clock of the budget and of the mods' timers; performance.now and the window's timers by default.
     clock?: MoltenTimerClock;
@@ -805,6 +808,8 @@ export class MoltenHost {
                     modId
                 ),
             writeClipboard: (text: string) => this.env.writeClipboard(text),
+            getLocale: () => this.env.getLocale?.() ?? "en",
+            onLocaleChange: (handler: (locale: string) => void) => this.env.onLocaleChange?.(handler) ?? (() => {}),
         };
     }
 

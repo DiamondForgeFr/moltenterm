@@ -1,0 +1,92 @@
+{
+    "language": {
+        "name": "Français",
+        "system": "Comme le système ({name})"
+    },
+    "common": {
+        "cancel": "Annuler",
+        "close": "Fermer",
+        "ok": "OK",
+        "save": "Enregistrer",
+        "delete": "Supprimer",
+        "dismiss": "Ignorer",
+        "learnMore": "En savoir plus",
+        "on": "Activé",
+        "off": "Désactivé",
+        "open": "Ouvrir",
+        "confirm": "Confirmer"
+    },
+    "i18n": {
+        "unknownLanguage": {
+            "title": "Langue d'interface inconnue « {value} »",
+            "message": "app:language ne désigne aucune langue installée : MoltenTerm suit celle du système. Choisissez une langue dans les Réglages."
+        }
+    },
+    "appMenu": {
+        "about": "À propos de {app}",
+        "gettingStarted": "Premiers pas",
+        "safeModeRestart": "Redémarrer en mode sans échec",
+        "safeModeLeave": "Redémarrer normalement",
+        "services": "Services",
+        "hide": "Masquer {app}",
+        "hideOthers": "Masquer les autres",
+        "quit": "Quitter {app}",
+        "file": "Fichier",
+        "newWindow": "Nouvelle fenêtre",
+        "closeWindow": "Fermer la fenêtre",
+        "newBuilderWindow": "Nouvelle fenêtre WaveApp Builder",
+        "edit": "Édition",
+        "undo": "Annuler",
+        "redo": "Rétablir",
+        "cut": "Couper",
+        "copy": "Copier",
+        "paste": "Coller",
+        "pasteAndMatchStyle": "Coller et adapter le style",
+        "delete": "Supprimer",
+        "selectAll": "Tout sélectionner",
+        "view": "Présentation",
+        "reloadWindow": "Recharger la fenêtre",
+        "reloadTab": "Recharger l'onglet",
+        "relaunchAllWindows": "Relancer toutes les fenêtres",
+        "clearTabCache": "Vider le cache des onglets",
+        "toggleDevTools": "Afficher/masquer les DevTools",
+        "resetZoom": "Taille réelle",
+        "zoomIn": "Agrandir",
+        "zoomOut": "Réduire",
+        "fullScreenOnLaunch": "Plein écran au lancement",
+        "toggleFullScreen": "Activer/désactiver le plein écran",
+        "toggleWidgetsBar": "Afficher/masquer la barre des widgets",
+        "workspace": "Espace de travail",
+        "createWorkspace": "Créer un espace de travail",
+        "editWorkspace": "Modifier l'espace de travail…",
+        "window": "Fenêtre",
+        "minimize": "Placer dans le Dock",
+        "zoom": "Zoom",
+        "front": "Tout ramener au premier plan"
+    },
+    "dialog": {
+        "confirmQuit": {
+            "title": "Confirmer",
+            "message": "Voulez-vous vraiment quitter {app} ?",
+            "quit": "Quitter"
+        },
+        "closeWindow": {
+            "message": "La fenêtre contient des onglets non enregistrés : la fermer supprimera ses onglets.\n\nContinuer ?",
+            "button": "Fermer la fenêtre"
+        },
+        "closeTab": {
+            "message": "Voulez-vous vraiment fermer cet onglet ?",
+            "button": "Fermer l'onglet"
+        },
+        "deleteWorkspace": {
+            "message": "Supprimer l'espace de travail supprime aussi son contenu.\n\nContinuer ?",
+            "button": "Supprimer l'espace de travail"
+        },
+        "saveScrollback": {
+            "title": "Enregistrer l'historique",
+            "filter": "Fichiers texte"
+        },
+        "chooseFolder": "Choisir",
+        "images": "Images"
+    }
+}

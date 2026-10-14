@@ -11,10 +11,11 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MoltentermSafeModeVarName } from "@/util/moltenterm-safemode";
 import { base64ToString, fireAndForget } from "@/util/util";
+import { getLocale, I18nModel } from "../moltenterm-shell/i18n/i18n";
 import { addMoltentermNotification } from "../moltenterm-shell/notifications-store";
 import { TabActivity, whileShown } from "../moltenterm-shell/tab-activity";
 import { isShowing } from "../moltenterm-shell/tab-activity-model";
-import { MoltenBudgetCheckMs, modIdForScript } from "./molten-budget";
+import { modIdForScript, MoltenBudgetCheckMs } from "./molten-budget";
 import { MoltenBuiltinMods } from "./molten-builtins";
 import { MoltenDirEntry, MoltenHost, MoltenHostEnv, MoltenRunRequest } from "./molten-host";
 import { MoltenManifestFileName, parseMoltenManifest } from "./molten-manifest";
@@ -76,6 +77,8 @@ function makeMoltenHostEnv(): MoltenHostEnv {
         readTextFile,
         importModule,
         writeClipboard: (text: string) => navigator.clipboard.writeText(text),
+        getLocale,
+        onLocaleChange: (handler: (locale: string) => void) => I18nModel.getInstance().onLocaleChange(handler),
         builtins: MoltenBuiltinMods,
         heapUsedMB: () => {
             const used = (performance as any).memory?.usedJSHeapSize;
@@ -153,7 +156,10 @@ export function startMoltenHost(): void {
         return { results };
     };
     // partsonly: the mod is trusted already and has gained a Claude Code part, which is asked about alone.
-    client[`handle_${MoltenTrustPromptRpcCommand}`] = async (_rh: unknown, req: { id?: string; partsonly?: boolean }) => {
+    client[`handle_${MoltenTrustPromptRpcCommand}`] = async (
+        _rh: unknown,
+        req: { id?: string; partsonly?: boolean }
+    ) => {
         const id = req?.id ?? "";
         const path = `${env.modsDir}/${id}`;
         const manifestText = await env.readTextFile(`${path}/${MoltenManifestFileName}`);
