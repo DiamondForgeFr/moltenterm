@@ -89,8 +89,8 @@ func (m *Manager) Translate(ctx context.Context, req mcpreview.TranslateRequest)
 	kept.Items = append([]mcpreview.TranslateItem(nil), req.Items...)
 	m.setTranslation(s, &kept)
 	line := TranslateLine(req)
-	out := m.env.TypePrompt(ctx, s.blockId, line)
-	return mcpreview.AskResult{Sent: out.Sent, Submitted: out.Submitted, Busy: out.Retry, Line: line, Message: out.Message}, nil
+	out := m.typeLine(ctx, s, line)
+	return mcpreview.AskResult{Sent: out.Sent, Submitted: out.Submitted, Busy: out.Retry && !out.Starting, Starting: out.Starting, Line: line, Message: out.Message}, nil
 }
 
 func (m *Manager) setTranslation(s *session, req *mcpreview.TranslateRequest) {

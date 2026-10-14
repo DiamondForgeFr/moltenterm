@@ -175,7 +175,8 @@ func liveEnv(hooks Hooks) Env {
 			}
 			return TypeOutcome{Message: out.Message}
 		},
-		AgentRun: attention.AgentRun,
+		AgentRun:    attention.AgentRun,
+		AgentHooked: attention.AgentStatesPrecise,
 		SaveRecord: func(ctx context.Context, blockId string, rec any) error {
 			oref := waveobj.MakeORef(waveobj.OType_Block, blockId)
 			if err := wstore.UpdateObjectMeta(ctx, oref, waveobj.MetaMapType{mcpreview.SessionMetaKey: rec}, false); err != nil {

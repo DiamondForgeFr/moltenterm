@@ -4006,6 +4006,23 @@
         }
     },
     "review": {
+        "ready": {
+            "waiting": {
+                "question": "{agent} is starting: your question is sent once it is ready.",
+                "comment": "{agent} is starting: your comment is sent once it is ready.",
+                "translation": "{agent} is starting: your translation request is sent once it is ready."
+            },
+            "ended": {
+                "question": "The review session ended before its agent was ready: your question was not sent.",
+                "comment": "The review session ended before its agent was ready: your comment was not sent.",
+                "translation": "The review session ended before its agent was ready: your translation request was not sent."
+            },
+            "notReady": {
+                "question": "The agent was still not ready after {seconds} s: your question was not sent. Try again.",
+                "comment": "The agent was still not ready after {seconds} s: your comment was not sent. Try again.",
+                "translation": "The agent was still not ready after {seconds} s: your translation request was not sent. Try again."
+            }
+        },
         "ai": {
             "viewName": "AI panel",
             "viewNamePr": "AI panel · #{number}",

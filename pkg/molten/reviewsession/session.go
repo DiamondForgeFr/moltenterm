@@ -74,7 +74,7 @@ type session struct {
 	// translation: the latest translation request (FR-REV-010), the only items review_set_translation takes.
 	translation *mcpreview.TranslateRequest
 	posts       []mcpreview.Post
-	nextPost  int
+	nextPost    int
 	// postPrefix makes the posts' ids unique across sessions and restarts, as the review store keeps them.
 	postPrefix string
 	// The questions waiting for the agent to be idle (questions.go).
@@ -89,6 +89,8 @@ type session struct {
 	baseOid string
 	// sources: the PR's sources for review_context, read once per head (context.go).
 	sources *prSources
+	// connectedAt: when the agent's review tools first connected (ready.go).
+	connectedAt time.Time
 }
 
 func (s *session) key() string {
@@ -164,6 +166,9 @@ type Env struct {
 	// AgentRun is the agent's run in a terminal as its state hooks report it (working, waiting, idle…); false when
 	// MoltenTerm has no record of one.
 	AgentRun func(blockId string) (molten.AgentRunInfo, bool)
+	// AgentHooked tells whether the agent of a terminal reported its state through its hooks, so its prompt can be read
+	// (ready.go); nil: the manager types without waiting for a starting agent.
+	AgentHooked func(blockId string) bool
 	// Sleep waits between two looks at a busy agent (questions.go); tests make it instant.
 	Sleep func(d time.Duration)
 }
@@ -631,6 +636,7 @@ func (m *Manager) Hello(ctx context.Context, source string, req mcpreview.HelloR
 	}
 	c := &conn{id: uuid.NewString(), source: source, sessionId: s.rec.Id}
 	m.addConn(c)
+	m.markConnected(s)
 	log.Printf("%s %s#%d tools connected (%s)\n", logPrefix, s.rec.Repo, s.rec.Number, req.ClientName)
 	m.publish(s, false)
 	return mcpreview.HelloResult{ConnId: c.id, Repo: s.rec.Repo, Number: s.rec.Number}, nil

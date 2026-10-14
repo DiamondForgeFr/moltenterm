@@ -72,7 +72,8 @@ func AskLine(anchor *mcpreview.Anchor, question string, depth string) string {
 }
 
 // Ask types the question into the session's terminal with its selection's reference; while the agent is busy, or
-// while other questions wait, it is queued and typed once the agent is idle (FR-REV-006 AC4, questions.go).
+// while other questions wait, it is queued and typed once the agent is idle (FR-REV-006 AC4, questions.go). While the
+// agent is starting, it is neither typed nor queued: the result says Starting and the Review tab sends it again (#638).
 func (m *Manager) Ask(ctx context.Context, req mcpreview.AskRequest) (mcpreview.AskResult, error) {
 	m.ensureLoaded(ctx)
 	question := strings.TrimSpace(req.Question)
@@ -102,6 +103,9 @@ func (m *Manager) Ask(ctx context.Context, req mcpreview.AskRequest) (mcpreview.
 	busy := ""
 	if !m.hasQuestions(s) {
 		out := m.deliverQuestion(ctx, s, q)
+		if out.Starting {
+			return mcpreview.AskResult{Starting: true, Line: line, Message: out.Message}, nil
+		}
 		if !out.Retry {
 			if out.Sent && m.clearQueueNote(s) {
 				m.publish(s, false)
@@ -126,7 +130,7 @@ func (m *Manager) deliverQuestion(ctx context.Context, s *session, q mcpreview.Q
 	sel := &mcpreview.SelectionRequest{SessionKey: mcpreview.SessionKey{Id: s.rec.Id}, Anchor: q.Anchor, Text: q.Text,
 		Question: q.Question, Depth: normalDepth(q.Depth)}
 	previous := m.swapSelection(s, sel)
-	out := m.env.TypePrompt(ctx, s.blockId, AskLine(q.Anchor, q.Question, q.Depth))
+	out := m.typeLine(ctx, s, AskLine(q.Anchor, q.Question, q.Depth))
 	if !out.Sent {
 		m.restoreSelection(s, sel, previous)
 	}

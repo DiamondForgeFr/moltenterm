@@ -252,16 +252,29 @@ function AiStatus({
     onShowTerminal: () => void;
 }) {
     const t = useT();
+    const agentName = ai.session?.agentname ?? t("review.ai.yourAgent");
+    const waiting = ai.waiting ? (
+        <p className="text-muted">
+            <i className="fa fa-solid fa-hourglass-half mr-1.5 text-11" />
+            {t(`review.ready.waiting.${ai.waiting}`, { agent: agentName })}
+        </p>
+    ) : null;
     switch (ai.status) {
         case "starting":
-            return <p className="text-muted">{t("review.ai.starting")}</p>;
+            return (
+                <div className="flex flex-col gap-1.5">
+                    <p className="text-muted">{t("review.ai.starting")}</p>
+                    {waiting}
+                </div>
+            );
         case "running":
             return (
                 <div className="flex flex-col gap-1.5">
                     <p>
-                        {t("review.ai.running", { agent: ai.session?.agentname ?? t("review.ai.yourAgent") })}
+                        {t("review.ai.running", { agent: agentName })}
                         {ai.session?.connected ? "" : " " + t("review.ai.toolsConnect")}
                     </p>
+                    {waiting}
                     {ai.message ? <p className="text-warning">{ai.message}</p> : null}
                     <button type="button" className={SecondaryButton} onClick={onShowTerminal}>
                         <i className="fa fa-solid fa-terminal text-11" />

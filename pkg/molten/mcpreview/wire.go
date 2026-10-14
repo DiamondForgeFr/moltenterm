@@ -365,9 +365,11 @@ type AskRequest struct {
 // of the developer's). Queued: the agent is working or waiting for an answer, or other questions wait before this
 // one: it is typed once the agent is idle (Position: 1 for the next one). Message says what happened in words.
 type AskResult struct {
-	Sent       bool   `json:"sent"`
-	Submitted  bool   `json:"submitted,omitempty"`
-	Busy       bool   `json:"busy,omitempty"`
+	Sent      bool `json:"sent"`
+	Submitted bool `json:"submitted,omitempty"`
+	Busy      bool `json:"busy,omitempty"`
+	// Starting: the session's agent is starting; nothing was typed or queued, send again once it is ready (#638).
+	Starting   bool   `json:"starting,omitempty"`
 	Queued     bool   `json:"queued,omitempty"`
 	QuestionId string `json:"questionid,omitempty"`
 	Position   int    `json:"position,omitempty"`

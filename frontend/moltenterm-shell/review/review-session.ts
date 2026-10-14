@@ -175,11 +175,13 @@ export function askReviewBriefing(key: ReviewSessionKey): Promise<ReviewBriefRes
 }
 
 // sent: typed into the agent's prompt (submitted: with Enter). queued: the agent works or waits for an answer (busy),
-// or other questions wait: it is typed once the agent is idle (position 1: next).
+// or other questions wait: it is typed once the agent is idle (position 1: next). starting: the agent was not
+// ready, nothing was typed or queued (review-ready.ts sends again).
 export type ReviewAskResult = {
     sent: boolean;
     submitted?: boolean;
     busy?: boolean;
+    starting?: boolean;
     queued?: boolean;
     questionid?: string;
     position?: number;
