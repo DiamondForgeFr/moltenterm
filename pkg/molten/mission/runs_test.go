@@ -36,12 +36,35 @@ func makeRunsFixture(t *testing.T, builds string) (*Runs, string) {
 	data := t.TempDir()
 	r := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, TrustFileName)), nil)
 	r.git = plainRunner
+	// Registered after both temp folders, so it runs before their removal: a run a test started and did not wait for
+	// still writes its record, its log and its build tree, and the removal then fails with "directory not empty" (#643).
+	t.Cleanup(func() { waitRunsIdle(t, r) })
 	return r, dir
+}
+
+func runsBusy(r *Runs) int {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	return len(r.watching) + len(r.preparing)
+}
+
+// waitRunsIdle waits until no run is being prepared or followed: then nothing of r writes in the temp folders.
+func waitRunsIdle(t *testing.T, r *Runs) {
+	t.Helper()
+	deadline := time.Now().Add(time.Minute)
+	for runsBusy(r) > 0 {
+		if time.Now().After(deadline) {
+			t.Errorf("runs still going a minute after the test: %d", runsBusy(r))
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func waitRun(t *testing.T, r *Runs, dir string, runId string) RunRecord {
 	t.Helper()
-	deadline := time.Now().Add(15 * time.Second)
+	// Generous: it only bounds a failing run, a passing one returns as soon as the run ends (#643).
+	deadline := time.Now().Add(time.Minute)
 	for time.Now().Before(deadline) {
 		for _, rec := range r.List(dir) {
 			if rec.Id == runId && rec.State != RunStateRunning {

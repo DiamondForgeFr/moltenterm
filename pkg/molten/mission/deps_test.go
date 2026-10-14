@@ -399,22 +399,74 @@ func TestDependencyCost(t *testing.T) {
 	}
 	depGit(t, f.app, f.clock.tick(), "reset", "-q", "--hard", "develop")
 	dep := siteDependency()
-	f.evaluate(t, dep)
-	// The best of three: the bound is the check's own cost, not a busy test machine's.
-	var got DependencyState
-	took := time.Hour
-	for range 3 {
-		start := time.Now()
-		got = f.evaluate(t, dep)
-		took = min(took, time.Since(start))
+	// The cost is what one evaluation asks of git, not its wall time, which a loaded machine stretches at will (#643).
+	var cost depCost
+	// The cheapest of three: the scheduler's noise only ever adds CPU time.
+	for i := range 3 {
+		var this depCost
+		got := EvaluateDependency(context.Background(), this.runner(), &f.group, f.site, "notulia-website", 0, dep, time.Now(), nil)
+		if got.State != DepStateStale || !got.MoreCommits || len(got.Commits) != maxDepCommits {
+			t.Fatalf("never synced against 100 registry commits: %+v, %d commits", got.State, len(got.Commits))
+		}
+		if i == 0 || this.cpu < cost.cpu {
+			cost = this
+		}
 	}
-	if got.State != DepStateStale || !got.MoreCommits {
-		t.Fatalf("never synced against 100 registry commits: %+v", got.State)
+	// The reference, measured on the same machine at the same moment: git reading every commit of the history with the
+	// files it changed. The capped reads walk about a fifth of it.
+	var walk depCost
+	if _, err := walk.runner()(context.Background(), f.app, "git", "log", "--name-only", "--format=%H%x09%ct%x09%s", "develop"); err != nil {
+		t.Fatal(err)
 	}
-	if took > 200*time.Millisecond {
-		t.Fatalf("one dependency took %v on %d commits", took, commits)
+	t.Logf("one dependency on %d commits: %d git commands, %d commits read, %v of git CPU (a whole walk: %v)", commits, cost.commands,
+		cost.maxCommits, cost.cpu, walk.cpu)
+	// A constant number of commands: none per commit of the history.
+	if cost.commands > 10 {
+		t.Errorf("one dependency ran %d git commands on %d commits", cost.commands, commits)
 	}
-	t.Logf("one dependency on %d commits: %v", commits, took)
+	// Every history read is capped: the 101 registry commits are never all listed.
+	if cost.maxCommits > maxDepCommits+1 {
+		t.Errorf("one git command listed %d commits on %d commits", cost.maxCommits, commits)
+	}
+	// CPU time, not wall time, against a whole walk of the history measured under the same load.
+	if cost.cpu > walk.cpu {
+		t.Errorf("one dependency cost git %v of CPU on %d commits, more than a whole walk of the history (%v)", cost.cpu, commits, walk.cpu)
+	}
+}
+
+// depCost counts what an evaluation asks of git: the commands, the most commits one of them lists, and their CPU time.
+type depCost struct {
+	commands   int
+	maxCommits int
+	cpu        time.Duration
+}
+
+func (c *depCost) runner() Runner {
+	return func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
+		cmd := exec.CommandContext(ctx, name, args...)
+		cmd.Dir = dir
+		out, err := cmd.Output()
+		c.commands++
+		if cmd.ProcessState != nil {
+			c.cpu += cmd.ProcessState.UserTime() + cmd.ProcessState.SystemTime()
+		}
+		c.maxCommits = max(c.maxCommits, commitsListed(out))
+		if err != nil {
+			return out, fmt.Errorf("%s %v: %w", name, args, err)
+		}
+		return out, nil
+	}
+}
+
+// commitsListed counts the commits a git output names: a line of the dependency formats, or a bare hash (rev-list).
+func commitsListed(out []byte) int {
+	n := 0
+	for _, line := range strings.FieldsFunc(string(out), func(r rune) bool { return r == '\n' || r == '\x00' }) {
+		if _, ok := parseDepCommit(line); ok || depShaRegex.MatchString(strings.TrimSpace(line)) {
+			n++
+		}
+	}
+	return n
 }
 
 // While none of the commits a dependency read moved, a refresh reads no history again: only the worktree of a flagged
