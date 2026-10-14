@@ -4,16 +4,18 @@
 // The last page: each step with its state, a way back to the ones left, and Close.
 
 import { cn } from "@/util/util";
+import { useT } from "../moltenterm-shell/i18n/i18n";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { FirstRunPage, OnboardingState, stepPage, stepStatus } from "./onboarding-state";
 import { ShownFirstRunSteps } from "./onboarding-steps";
 
 function StatusMark({ status }: { status: string }) {
+    const t = useT();
     if (status === "done") {
         return (
             <span className="flex items-center gap-1.5 text-12 text-secondary">
                 <i className="fa-solid fa-circle-check text-[var(--mt-state-done)]" aria-hidden />
-                Done
+                {t("onboarding.status.doneTitle")}
             </span>
         );
     }
@@ -21,14 +23,14 @@ function StatusMark({ status }: { status: string }) {
         return (
             <span className="flex items-center gap-1.5 text-12 text-muted">
                 <i className="fa-solid fa-circle-minus" aria-hidden />
-                Skipped
+                {t("onboarding.status.skippedTitle")}
             </span>
         );
     }
     return (
         <span className="flex items-center gap-1.5 text-12 text-muted">
             <i className="fa-regular fa-circle" aria-hidden />
-            Not done
+            {t("onboarding.status.notDoneTitle")}
         </span>
     );
 }
@@ -44,17 +46,16 @@ export function OnboardingSummary({
     onGo: (page: FirstRunPage) => void;
     onClose: () => void;
 }) {
+    const t = useT();
     const allDone = ShownFirstRunSteps.every((step) => stepStatus(state, step.id) === "done");
     return (
         <div className="mx-auto flex w-full max-w-[560px] flex-col gap-5">
             <div className="flex flex-col gap-1">
                 <h2 className="text-20 leading-6 font-semibold text-primary">
-                    {allDone ? "You're set" : "Almost there"}
+                    {t(allDone ? "onboarding.summary.doneTitle" : "onboarding.summary.leftTitle")}
                 </h2>
                 <p className="text-13 leading-5 text-secondary">
-                    {allDone
-                        ? "MoltenTerm knows your agent, has taken a first shape and works in your project."
-                        : "The steps you left wait for you. Getting started stays in the app menu and the command palette."}
+                    {allDone ? t("onboarding.summary.doneText") : t("onboarding.summary.leftText")}
                 </p>
             </div>
             <ul className="flex flex-col divide-y divide-border rounded-4 border border-border">
@@ -63,9 +64,9 @@ export function OnboardingSummary({
                     return (
                         <li key={step.id} className="flex items-center gap-3 px-3 py-2.5">
                             <div className="flex min-w-0 flex-1 flex-col">
-                                <span className="text-13 font-medium text-primary">{step.title}</span>
-                                <span className="truncate text-12 text-muted" title={step.summary}>
-                                    {step.summary}
+                                <span className="text-13 font-medium text-primary">{t(step.titleKey)}</span>
+                                <span className="truncate text-12 text-muted" title={t(step.summaryKey)}>
+                                    {t(step.summaryKey)}
                                 </span>
                             </div>
                             <StatusMark status={status} />
@@ -75,7 +76,7 @@ export function OnboardingSummary({
                                     onClick={() => onGo(stepPage(step.id))}
                                     className="molten-btn-secondary cursor-pointer rounded-6 px-2 py-1 text-12"
                                 >
-                                    Open
+                                    {t("common.open")}
                                 </button>
                             ) : null}
                         </li>
@@ -89,7 +90,7 @@ export function OnboardingSummary({
                     onClick={onClose}
                     className={cn("molten-btn rounded-6 px-4 py-2 text-13 font-semibold", busy && "opacity-60")}
                 >
-                    Close
+                    {t("common.close")}
                     <MoltenWave />
                 </button>
             </div>

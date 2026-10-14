@@ -5,42 +5,37 @@
 // commitment. Everything is bundled: no remote font, image or request until the user clicks a link (NFR-ONB-002).
 
 import Logo from "@/app/asset/logo.svg";
-import { MoltentermRepoUrl, MoltentermTagline } from "@/util/moltenterm-identity";
+import { MoltentermRepoUrl } from "@/util/moltenterm-identity";
 import { cn } from "@/util/util";
+import { useT } from "../moltenterm-shell/i18n/i18n";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { ShownFirstRunSteps } from "./onboarding-steps";
 
 export const MoltentermLicenseUrl = `${MoltentermRepoUrl}/blob/main/LICENSE`;
 export const MoltentermPrivacyUrl = `${MoltentermRepoUrl}/blob/main/PRIVACY.md`;
 
-const Points: { icon: string; title: string; text: React.ReactNode }[] = [
-    {
-        icon: "terminal",
-        title: "Bring your own agent.",
-        text: "MoltenTerm ships no AI. Claude Code, Codex, Gemini CLI or any CLI agent runs in it, with your own account.",
-    },
-    {
-        icon: "wand-magic-sparkles",
-        title: "Reshaped by your agent.",
-        text: (
-            <>
-                Ask it with <code className="font-mono text-12 text-primary">/morph</code> for a panel, a command or a
-                layout: it writes a mod, MoltenTerm loads it,{" "}
-                <code className="font-mono text-12 text-primary">molten undo</code> takes it back.
-            </>
-        ),
-    },
-    {
-        icon: "clock-rotate-left",
-        title: "Sessions that survive.",
-        text: "Terminals and agents keep running when MoltenTerm quits or updates.",
-    },
-    {
-        icon: "lock",
-        title: "No telemetry, no account.",
-        text: "MoltenTerm sends no usage data and connects only for what you ask.",
-    },
+// Keys of onboarding.welcome.points.<id>.title / .text (FR-I18N-001).
+const Points: { id: string; icon: string }[] = [
+    { id: "agent", icon: "terminal" },
+    { id: "morph", icon: "wand-magic-sparkles" },
+    { id: "sessions", icon: "clock-rotate-left" },
+    { id: "privacy", icon: "lock" },
 ];
+
+// The commands a point names, set in code wherever its translation puts their placeholder.
+const PointCode: Record<string, string> = { morph: "/morph", undo: "molten undo" };
+
+function withCode(text: string): React.ReactNode[] {
+    return text.split(/\{(morph|undo)\}/).map((part, i) =>
+        i % 2 === 1 ? (
+            <code key={i} className="font-mono text-12 text-primary">
+                {PointCode[part]}
+            </code>
+        ) : (
+            part
+        )
+    );
+}
 
 const linkClassName = "cursor-pointer text-secondary underline decoration-border underline-offset-2 hover:text-primary";
 
@@ -53,6 +48,7 @@ export function OnboardingWelcome({
     onStart: () => void;
     onSkip: () => void;
 }) {
+    const t = useT();
     return (
         <div className="mx-auto flex w-full max-w-[560px] flex-col gap-6">
             <div className="flex flex-col gap-3">
@@ -60,8 +56,8 @@ export function OnboardingWelcome({
                     <Logo />
                 </div>
                 <div className="flex flex-col gap-1">
-                    <h1 className="text-20 leading-7 font-semibold text-primary">Welcome to MoltenTerm</h1>
-                    <p className="text-13 text-secondary">{MoltentermTagline}</p>
+                    <h1 className="text-20 leading-7 font-semibold text-primary">{t("onboarding.welcome.title")}</h1>
+                    <p className="text-13 text-secondary">{t("onboarding.welcome.tagline")}</p>
                 </div>
             </div>
             <ul className="flex flex-col gap-4">
@@ -72,7 +68,10 @@ export function OnboardingWelcome({
                             aria-hidden
                         />
                         <p className="text-13 leading-5 text-secondary">
-                            <span className="font-semibold text-primary">{point.title}</span> {point.text}
+                            <span className="font-semibold text-primary">
+                                {t(`onboarding.welcome.points.${point.id}.title`)}
+                            </span>{" "}
+                            {withCode(t(`onboarding.welcome.points.${point.id}.text`))}
                         </p>
                     </li>
                 ))}
@@ -84,11 +83,13 @@ export function OnboardingWelcome({
                     onClick={onStart}
                     className={cn("molten-btn rounded-6 px-4 py-2 text-13 font-semibold", busy && "opacity-60")}
                 >
-                    Set up MoltenTerm
+                    {t("onboarding.welcome.start")}
                     <MoltenWave />
                 </button>
                 <span className="text-12 text-muted">
-                    {ShownFirstRunSteps.length === 1 ? "1 short step" : `${ShownFirstRunSteps.length} short steps`}
+                    {ShownFirstRunSteps.length === 1
+                        ? t("onboarding.welcome.stepsOne")
+                        : t("onboarding.welcome.stepsOther", { count: ShownFirstRunSteps.length })}
                 </span>
                 <button
                     type="button"
@@ -96,17 +97,17 @@ export function OnboardingWelcome({
                     onClick={onSkip}
                     className="molten-btn-ghost ml-auto cursor-pointer rounded-6 px-3 py-2 text-13 text-secondary hover:text-primary"
                 >
-                    Skip setup
+                    {t("onboarding.welcome.skip")}
                 </button>
             </div>
             <footer className="flex flex-col gap-1 border-t border-border pt-4 text-12 text-muted">
-                <p>Open source under the Apache License 2.0, built on Wave Terminal.</p>
+                <p>{t("onboarding.welcome.license")}</p>
                 <p className="flex gap-3">
                     <a href={MoltentermLicenseUrl} target="_blank" rel="noopener" className={linkClassName}>
-                        Licence
+                        {t("onboarding.welcome.licenceLink")}
                     </a>
                     <a href={MoltentermPrivacyUrl} target="_blank" rel="noopener" className={linkClassName}>
-                        Privacy
+                        {t("onboarding.welcome.privacyLink")}
                     </a>
                 </p>
             </footer>

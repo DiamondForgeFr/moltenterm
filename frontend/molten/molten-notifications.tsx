@@ -8,6 +8,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { createRoot } from "react-dom/client";
+import { useT } from "../moltenterm-shell/i18n/i18n";
 import { MoltenBoxes } from "./molten-boxes";
 import type { MoltenHost, MoltenNotificationEntry } from "./molten-host";
 import { MoltenTrustDialog } from "./molten-trust";
@@ -20,6 +21,7 @@ const KindBorder: Record<MoltenNotificationEntry["kind"], string> = {
 };
 
 function MoltenNotificationCard({ host, entry }: { host: MoltenHost; entry: MoltenNotificationEntry }) {
+    const t = useT();
     return (
         <div
             role={entry.kind === "error" ? "alert" : "status"}
@@ -36,7 +38,7 @@ function MoltenNotificationCard({ host, entry }: { host: MoltenHost; entry: Molt
             </div>
             <button
                 type="button"
-                aria-label="Close"
+                aria-label={t("common.close")}
                 className="cursor-pointer rounded px-1 text-secondary hover:bg-hover hover:text-primary"
                 onClick={() => host.dismissNotification(entry.id)}
             >
@@ -63,17 +65,15 @@ export function MoltenNotifications({ host }: { host: MoltenHost }) {
 // Safe mode must be impossible to miss: the user started without mods to repair them, and a normal start is needed
 // to get them back.
 function MoltenSafeModeBanner() {
+    const t = useT();
     return (
         <div
             role="status"
             className="pointer-events-auto fixed top-12 left-1/2 z-[10000] max-w-[calc(100vw-32px)] -translate-x-1/2 rounded border border-warning/60 bg-modalbg px-3 py-2 text-sm text-primary shadow-lg"
         >
             <i className="fa fa-solid fa-life-ring mr-2 text-warning" />
-            <span className="font-semibold">Safe mode: no mod is loaded.</span>{" "}
-            <span className="text-secondary">
-                Repair with molten mod disable, molten mod remove or molten undo, then choose Restart Normally in the
-                app menu.
-            </span>
+            <span className="font-semibold">{t("molten.safeMode.title")}</span>{" "}
+            <span className="text-secondary">{t("molten.safeMode.message")}</span>
         </div>
     );
 }

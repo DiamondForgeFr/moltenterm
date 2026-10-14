@@ -12,6 +12,7 @@ import { WorkspaceService } from "@/app/store/services";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
+import { useT } from "../moltenterm-shell/i18n/i18n";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { focusMoltentermView } from "../moltenterm-shell/open-view";
 import { MoltentermSessionsView } from "../moltenterm-shell/sessions/sessions-model";
@@ -26,7 +27,7 @@ import {
 } from "../moltenterm-shell/workspace-project-store";
 import { ChosenAgentKey, genericAgent, OnboardingAgents } from "./onboarding-agent-model";
 import { listOnboardingAgents, scanProjectCandidates } from "./onboarding-client";
-import { Code, CopyLine, StepText } from "./onboarding-parts";
+import { Code, CopyLine, StepText, withCodes } from "./onboarding-parts";
 import {
     pipelineCall,
     ProjectCandidate,
@@ -89,29 +90,25 @@ function CandidateList({
 }
 
 function MissionControlOffer({ facts, call }: { facts: FolderFacts; call: string }) {
+    const t = useT();
     if (facts == null) {
         return null;
     }
     if (!facts.repo) {
-        return (
-            <StepText className="text-12 text-muted">
-                This folder is not a git repository: Mission Control follows git projects.
-            </StepText>
-        );
+        return <StepText className="text-12 text-muted">{t("onboarding.project.notRepo")}</StepText>;
     }
     if (facts.hasPipeline) {
         return (
             <StepText testId="first-run-pipeline-linked">
                 <i className="fa-solid fa-circle-check mr-1.5 text-[var(--mt-state-done)]" aria-hidden />
-                {facts.name} is already connected to Mission Control (<Code>.molten/project.json</Code>).
+                {withCodes(t("onboarding.project.connected", { name: facts.name }), { file: ".molten/project.json" })}
             </StepText>
         );
     }
     return (
         <div className="flex flex-col gap-1.5" data-testid="first-run-pipeline-offer">
             <StepText>
-                Connect {facts.name} to Mission Control: in your agent, started in this folder, ask for{" "}
-                <Code>.molten/project.json</Code> (it reuses the project&apos;s scripts and CI) with:
+                {withCodes(t("onboarding.project.connect", { name: facts.name }), { file: ".molten/project.json" })}
             </StepText>
             <CopyLine text={call} />
         </div>
@@ -127,13 +124,11 @@ async function openSessions(ctx: FirstRunStepContext): Promise<void> {
 }
 
 function SessionsPanel({ ctx }: { ctx: FirstRunStepContext }) {
+    const t = useT();
     return (
         <div className="flex flex-col gap-2 rounded-4 border border-border px-3 py-2.5">
-            <SectionTitle>Your sessions survive</SectionTitle>
-            <StepText>
-                Terminals and the agents in them keep running when MoltenTerm quits or updates. When you come back, they
-                are where you left them, and Sessions lists every one still running, local or over SSH.
-            </StepText>
+            <SectionTitle>{t("onboarding.project.sessionsTitle")}</SectionTitle>
+            <StepText>{t("onboarding.project.sessionsText")}</StepText>
             <div>
                 <button
                     type="button"
@@ -141,7 +136,7 @@ function SessionsPanel({ ctx }: { ctx: FirstRunStepContext }) {
                     className="molten-btn-secondary cursor-pointer rounded-6 px-3 py-1.5 text-12"
                     data-testid="first-run-open-sessions"
                 >
-                    Open Sessions
+                    {t("onboarding.project.openSessions")}
                 </button>
             </div>
         </div>
@@ -149,6 +144,7 @@ function SessionsPanel({ ctx }: { ctx: FirstRunStepContext }) {
 }
 
 export function ProjectStep({ ctx }: { ctx: FirstRunStepContext }) {
+    const t = useT();
     const ws = useAtomValue(atoms.workspace);
     const [scanned, setScanned] = useState<ProjectCandidate[]>(null);
     const [agents, setAgents] = useState<OnboardingAgents>(null);
@@ -211,7 +207,7 @@ export function ProjectStep({ ctx }: { ctx: FirstRunStepContext }) {
         run(async () => {
             const path = await chooseMoltentermPath({
                 kind: "folder",
-                title: "Your project folder",
+                title: t("onboarding.project.folderTitle"),
                 defaultPath: folder || undefined,
             });
             if (path) {
@@ -232,11 +228,8 @@ export function ProjectStep({ ctx }: { ctx: FirstRunStepContext }) {
     return (
         <div className="flex flex-col gap-5" data-testid="first-run-project">
             <div className="flex flex-col gap-2">
-                <SectionTitle>Your project folder</SectionTitle>
-                <StepText>
-                    This workspace takes its name, a colour and its terminals&apos; folder from your project. A git
-                    repository is also linked, so the Project tab shows where it stands.
-                </StepText>
+                <SectionTitle>{t("onboarding.project.folderTitle")}</SectionTitle>
+                <StepText>{t("onboarding.project.folderText")}</StepText>
                 {folder ? (
                     <StepText testId="first-run-project-folder">
                         <i className="fa-solid fa-folder mr-1.5 text-muted" aria-hidden />
@@ -247,7 +240,7 @@ export function ProjectStep({ ctx }: { ctx: FirstRunStepContext }) {
                                 onClick={() => openWorkspaceEditor(ws.oid)}
                                 className="ml-2 cursor-pointer text-12 text-accent hover:underline"
                             >
-                                Edit workspace
+                                {t("onboarding.project.editWorkspace")}
                             </button>
                         ) : null}
                     </StepText>
@@ -265,7 +258,7 @@ export function ProjectStep({ ctx }: { ctx: FirstRunStepContext }) {
                         onClick={() => fireAndForget(choose)}
                         className="molten-btn-secondary cursor-pointer rounded-6 px-3 py-1.5 text-12"
                     >
-                        Choose a folder…
+                        {t("onboarding.project.chooseFolder")}
                     </button>
                     {scanned == null ? (
                         <button
@@ -275,10 +268,10 @@ export function ProjectStep({ ctx }: { ctx: FirstRunStepContext }) {
                             className="molten-btn-ghost cursor-pointer rounded-6 px-3 py-1.5 text-12"
                             data-testid="first-run-scan-projects"
                         >
-                            Find my git repositories
+                            {t("onboarding.project.scan")}
                         </button>
                     ) : scanned.length === 0 ? (
-                        <span className="text-12 text-muted">No git repository two levels under your home folder.</span>
+                        <span className="text-12 text-muted">{t("onboarding.project.scanEmpty")}</span>
                     ) : null}
                 </div>
             </div>
@@ -297,7 +290,7 @@ export function ProjectStep({ ctx }: { ctx: FirstRunStepContext }) {
                     className="molten-btn cursor-pointer rounded-6 px-4 py-1.5 text-12 font-medium"
                     data-testid="first-run-project-done"
                 >
-                    {folder ? "Done" : "Choose a folder first"}
+                    {t(folder ? "onboarding.project.done" : "onboarding.project.chooseFirst")}
                     <MoltenWave />
                 </button>
             </div>

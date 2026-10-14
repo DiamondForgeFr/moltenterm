@@ -11,6 +11,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
+import { t } from "../moltenterm-shell/i18n/i18n";
 import {
     makeMoltenApi,
     MoltenApiBackend,
@@ -192,7 +193,7 @@ const DefaultClock: MoltenTimerClock = {
 };
 
 function conflictTitle(e: MoltenCommandConflictError): string {
-    return `Mods "${e.holder}" and "${e.claimant}" both register "${e.command}"`;
+    return t("molten.notify.conflict", { holder: e.holder, claimant: e.claimant, command: e.command });
 }
 
 function errorMessage(e: unknown): string {
@@ -360,7 +361,7 @@ export class MoltenHost {
             state = await this.readState();
             trusted = await this.readTrusted();
         } catch (e) {
-            this.notify({ title: "Mods could not be read", message: errorMessage(e), kind: "error" });
+            this.notify({ title: t("molten.notify.unreadable"), message: errorMessage(e), kind: "error" });
             return;
         }
         const builtins = this.env.builtins ?? [];
@@ -416,8 +417,8 @@ export class MoltenHost {
         await this.loadMod(builtin.id, path, async (name) => builtin.files[name] ?? null, true);
         if (shadowed) {
             this.notify({
-                title: `Mod folder "${builtin.id}" ignored`,
-                message: `"${builtin.id}" is a built-in mod; rename the folder in ${this.env.modsDir} to load it.`,
+                title: t("molten.notify.shadowedTitle", { id: builtin.id }),
+                message: t("molten.notify.shadowedMessage", { id: builtin.id, dir: this.env.modsDir }),
                 kind: "warning",
             });
         }
@@ -766,8 +767,8 @@ export class MoltenHost {
             const id = runtime.status.id;
             console.warn(`[molten:${id}] over budget: ${usage.reason}`);
             this.notify({
-                title: `Mod "${id}" is over its budget`,
-                message: `${usage.reason}. Settings > Mods shows its numbers; molten mod disable ${id} turns it off.`,
+                title: t("molten.notify.overBudgetTitle", { id }),
+                message: t("molten.notify.overBudgetMessage", { reason: usage.reason, id }),
                 kind: "warning",
             });
         }
@@ -852,7 +853,9 @@ export class MoltenHost {
         this.publish();
         console.error(`[molten:${runtime.status.id}] ${state}: ${error}`);
         this.notify({
-            title: title ?? `Mod "${runtime.status.id}" ${state === "refused" ? "was refused" : "stopped"}`,
+            title:
+                title ??
+                t(state === "refused" ? "molten.notify.refused" : "molten.notify.stopped", { id: runtime.status.id }),
             message: error,
             kind: state === "refused" ? "warning" : "error",
         });

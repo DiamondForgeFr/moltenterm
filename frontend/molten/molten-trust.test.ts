@@ -3,7 +3,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MoltenClaudeCodePartWarning, MoltenTrustModel, MoltenTrustRequest, moltenTrustWording } from "./molten-trust";
+import { moltenClaudeCodePartWarning, MoltenTrustModel, MoltenTrustRequest, moltenTrustWording } from "./molten-trust";
 
 function request(id: string): MoltenTrustRequest {
     return { id, name: id, version: "1.0.0", description: "", capabilities: [], path: `/cfg/mods/${id}` };
@@ -64,7 +64,7 @@ describe("moltenTrustWording", () => {
     it("tells that a Claude Code part runs inside Claude Code", () => {
         const wording = moltenTrustWording({ ...request("band"), claudeCodePart: part });
         expect(wording.title).toBe("Trust the mod “band”?");
-        expect(wording.intro).toContain(MoltenClaudeCodePartWarning);
+        expect(wording.intro).toContain(moltenClaudeCodePartWarning());
     });
 
     it("asks about the part alone for a mod trusted before it had one", () => {

@@ -4,6 +4,8 @@
 // The first run's record (FR-ONB-001, DS-ONB-001): the client meta "molten:onboarding", written by wavesrv only
 // (pkg/molten/onboarding) and read here. Pure selectors, so the panel's page logic is tested without a window.
 
+import { t } from "../moltenterm-shell/i18n/i18n";
+
 // must match pkg/molten/onboarding/state.go
 export const OnboardingMetaKey = "molten:onboarding";
 export const OnboardingPageMetaKey = "molten:onboarding:page";
@@ -179,9 +181,9 @@ export function panelPage(
 export function progressLabel(page: FirstRunPage, ids: readonly FirstRunStepId[] = FirstRunStepIds): string {
     const step = pageStep(page);
     if (step == null) {
-        return page === "summary" ? "All steps" : "Welcome";
+        return t(page === "summary" ? "onboarding.progress.all" : "onboarding.progress.welcome");
     }
-    return `Step ${ids.indexOf(step) + 1} of ${ids.length}`;
+    return t("onboarding.progress.step", { n: ids.indexOf(step) + 1, total: ids.length });
 }
 
 // Whether the first run still waits for the user (the window docks the panel when wavesrv could not).
