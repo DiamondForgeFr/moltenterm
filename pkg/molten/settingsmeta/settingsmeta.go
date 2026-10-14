@@ -121,6 +121,7 @@ var settings = []Setting{
 	{Key: "editor:inlinediff", Section: SectionGeneral, Group: "Files and editor", Label: "Inline diffs", Description: "Show diffs in one column instead of side by side.", Control: ControlToggle},
 
 	// Appearance
+	{Key: "moltenterm:view360", Section: SectionAppearance, Group: "360 view", Label: "360 view", Description: "When a tab fixes its first column and lays the others on a sideways carpet. The tab's 360 toggle wins.", Control: ControlSelect, Options: []Option{{Value: "auto", Label: "Automatic"}, {Value: "always", Label: "Always"}, {Value: "never", Label: "Never"}}},
 	{Key: "window:reducedmotion", Section: SectionAppearance, Group: "Window", Label: "Reduce motion", Description: "Turn off animations, as the system's reduced motion setting does.", Control: ControlToggle},
 	{Key: "window:tilegapsize", Section: SectionAppearance, Group: "Window", Label: "Gap between panels", Description: "The space between the panels of a tab.", Control: ControlNumber, Range: rng(0, 20, 1), Unit: "px"},
 	{Key: "window:transparent", Section: SectionAppearance, Group: "Window", Label: "Transparent window", Description: "Let the desktop show through the window's background.", Control: ControlToggle},

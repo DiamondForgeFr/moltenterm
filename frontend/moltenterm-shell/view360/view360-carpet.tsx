@@ -8,7 +8,9 @@ import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { CSSProperties, memo, useEffect, useRef, useState } from "react";
+import { MoltenWave } from "../molten-button";
 import { CarpetLayout, CarpetMarginPx, CarpetScrollVar, CarpetScrubberPx, Rect } from "./carpet-model";
+import { View360Text } from "./view360-text";
 import "./view360.css";
 
 const ScrollbarInsetPx = 8;
@@ -25,6 +27,9 @@ function rectStyle(rect: Rect): CSSProperties {
 
 export const View360Underlay = memo(({ layoutModel }: { layoutModel: LayoutModel }) => {
     const layout = useAtomValue(layoutModel.moltenView360.layoutAtom);
+    // The automatic switch's glow on the carpet edge (DS-SHELL-117), only for a switch made while it is drawn.
+    const signal = useAtomValue(layoutModel.moltenView360.signalAtom);
+    const [mountSignal] = useState(signal);
     if (layout == null) {
         return null;
     }
@@ -32,6 +37,7 @@ export const View360Underlay = memo(({ layoutModel }: { layoutModel: LayoutModel
         <div className="mt-carpet-surface" style={rectStyle(layout.surface)} data-testid="mt-carpet">
             <span className="mt-carpet-label">carpet</span>
             {layout.columns.length === 0 && <span className="mt-carpet-empty">Panels you open are laid here</span>}
+            {signal !== mountSignal && <span key={signal} className="mt-carpet-glow" aria-hidden="true" />}
         </div>
     );
 });
@@ -96,6 +102,41 @@ function CarpetScrollbar({ layoutModel, layout }: { layoutModel: LayoutModel; la
     );
 }
 
+// "Too tight to read" (FR-SHELL-066-AC5, DS-SHELL-117): when the developer refused the 360 view and a column is under
+// its readable minimum, a pill floats at the bottom centre of the tab; nothing is resized or closed.
+function TightPill({ layoutModel }: { layoutModel: LayoutModel }) {
+    const view360 = layoutModel.moltenView360;
+    const show = useAtomValue(view360.pillAtom);
+    if (!show) {
+        return null;
+    }
+    return (
+        <div className="mt-tight-pill" role="status" data-testid="mt-tight-pill">
+            <span className="mt-tight-pill-dot" aria-hidden="true" />
+            <span className="mt-tight-pill-text">{View360Text.pillText}</span>
+            <button
+                type="button"
+                className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => view360.setManual(true)}
+            >
+                {View360Text.pillAction}
+                <MoltenWave />
+            </button>
+            <button
+                type="button"
+                className="mt-tight-pill-close cursor-pointer"
+                title={View360Text.pillClose}
+                aria-label={View360Text.pillClose}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => view360.dismissPill()}
+            >
+                <i className="fa fa-solid fa-xmark" aria-hidden="true" />
+            </button>
+        </div>
+    );
+}
+
 export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel }) => {
     const view360 = layoutModel.moltenView360;
     const layout = useAtomValue(view360.layoutAtom);
@@ -135,7 +176,7 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
     }, [active, layoutModel, view360]);
 
     if (layout == null) {
-        return null;
+        return <TightPill layoutModel={layoutModel} />;
     }
     const surface = layout.surface;
     const fadeTop = layout.viewport.top;
