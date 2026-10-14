@@ -32,6 +32,8 @@ type Round struct {
 	GithubReviewId int64  `json:"githubreviewid,omitempty"`
 	GithubUrl      string `json:"githuburl,omitempty"`
 	RestartedAt    int64  `json:"restartedat,omitempty"`
+	// Lang: the language the round was published in (FR-REV-010).
+	Lang string `json:"lang,omitempty"`
 }
 
 // Since is the "since last round" diff the tab offers after the head moved (AC5).
@@ -72,6 +74,10 @@ type State struct {
 	Merge *MergeRecord `json:"merge,omitempty"`
 	// Cleanup: what the last cleanup after the merge did (FR-REV-013).
 	Cleanup *CleanupResult `json:"cleanup,omitempty"`
+	// Summary: the next review's optional summary and its translation (FR-REV-010, publish.go).
+	Summary *Summary `json:"summary,omitempty"`
+	// Publish: the last Post review's progress and outcome.
+	Publish *PublishRecord `json:"publish,omitempty"`
 }
 
 type PrKey struct {

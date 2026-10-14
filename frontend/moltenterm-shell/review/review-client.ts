@@ -30,12 +30,19 @@ const CommentStateCommand = "moltenreviewcommentstate";
 const RewriteCommand = "moltenreviewcommentrewrite";
 const DiscussCommand = "moltenreviewcommentdiscuss";
 const RelocateCommand = "moltenreviewrelocate";
+const PublishInfoCommand = "moltenreviewpublishinfo";
+const TranslateCommand = "moltenreviewtranslate";
+const TranslationCommand = "moltenreviewtranslation";
+const SummaryCommand = "moltenreviewsummary";
+const PublishCommand = "moltenreviewpublish";
 
 // A file list or a compare may fetch the PR's branches; a worktree may be created.
 const GitTimeoutMs = 95_000;
 const CallTimeoutMs = 15_000;
 // Typing waits for the agent's terminal.
 const DiscussTimeoutMs = 25_000;
+// Post review lists, posts and checks on GitHub (pkg/molten/review/route.go's publishTimeout, plus a margin).
+const PublishTimeoutMs = 245_000;
 
 // must match pkg/molten/review/diff.go
 export type ReviewFileStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "typechanged" | "submodule";
@@ -101,6 +108,8 @@ export type ReviewRound = {
     githubreviewid?: number;
     githuburl?: string;
     restartedat?: number;
+    // The language the round was published in (FR-REV-010).
+    lang?: string;
 };
 
 export type ReviewSince = { from: string; to: string; published?: boolean };
@@ -196,6 +205,9 @@ export type ReviewState = {
     comments?: ReviewComment[];
     updatedat?: number;
     merge?: ReviewMergeRecord;
+    // The next review's summary and the last Post review's outcome (FR-REV-010).
+    summary?: ReviewSummary;
+    publish?: ReviewPublishRecord;
 };
 
 // The PR a Review tab shows, kept in its block's meta (PrMetaKey).
@@ -305,7 +317,8 @@ export type ReviewCommentSubject = "line" | "file";
 // proposed: a comment the review session's agent proposed, the developer's only once accepted (FR-REV-009).
 export type ReviewCommentState = "draft" | "staged" | "translated" | "published" | "dropped" | "proposed";
 export type ReviewCommentKind = "comment" | "change";
-export type ReviewCommentText = { lang?: string; text: string };
+// editedbyuser: a translation the developer wrote or changed, which the agent never replaces.
+export type ReviewCommentText = { lang?: string; text: string; editedbyuser?: boolean };
 export type ReviewCommentAction = "stage" | "unstage" | "drop" | "restore" | "accept";
 
 // One entry of a comment's history: the state after it, and the text when it changed (FR-REV-009 AC5).
@@ -343,6 +356,9 @@ export type ReviewComment = {
     original: ReviewCommentText;
     translation?: ReviewCommentText;
     githubcommentid?: number;
+    // How GitHub got it (line or file comment, review: a section of the review's body) and why not as a line comment.
+    publishedas?: "line" | "file" | "review";
+    publishnote?: ReviewPublishNoteKind;
     // developer, agent (a proposal) or agent-proposal-accepted.
     author: string;
     // The lines are not in the head shown any more; the comment keeps its excerpt.
@@ -418,6 +434,76 @@ export function relocateReviewComments(req: {
     baseoid: string;
 }): Promise<ReviewState> {
     return call(RelocateCommand, req, GitTimeoutMs);
+}
+
+// must match pkg/molten/review/publish.go and translation.go (FR-REV-010)
+export type ReviewPublishNoteKind =
+    | "filelevel"
+    | "outdated"
+    | "otherhead"
+    | "outsidediff"
+    | "refused"
+    | "late"
+    | "notinpr"
+    | "failed";
+export type ReviewPublishNote = { commentid: string; note: ReviewPublishNoteKind; message?: string };
+export type ReviewPublishState = "publishing" | "published" | "partial" | "failed";
+export type ReviewPublishRecord = {
+    roundid: string;
+    state: ReviewPublishState;
+    lang: string;
+    aswritten?: boolean;
+    headoid: string;
+    reviewid?: number;
+    url?: string;
+    message?: string;
+    notes?: ReviewPublishNote[];
+    startedat: number;
+    endedat?: number;
+};
+export type ReviewSummary = { original: ReviewCommentText; translation?: ReviewCommentText };
+// The publication language and where it came from (pkg/molten/reviewlang).
+export type ReviewLanguage = { lang: string; name: string; source: "project" | "setting" | "detected" | "default" };
+export type ReviewTranslateResult = ReviewDiscussResult & { language: ReviewLanguage; count: number };
+// The review summary's id in a translation (mcpreview.SummaryId).
+export const ReviewSummaryId = "summary";
+
+export function reviewPublishInfo(dir: string, repo: string, num: number): Promise<ReviewLanguage> {
+    return call(PublishInfoCommand, { dir, repo, number: num }, GitTimeoutMs);
+}
+
+// translateReview asks the PR's review session to translate the staged comments not yet in the publication language;
+// all asks again for those the agent already translated (never the developer's own).
+export function translateReview(dir: string, repo: string, num: number, all: boolean): Promise<ReviewTranslateResult> {
+    return call(TranslateCommand, { dir, repo, number: num, all: all || undefined }, GitTimeoutMs);
+}
+
+// setReviewTranslation keeps the developer's translation of a comment or of the summary (ReviewSummaryId); empty
+// clears it.
+export function setReviewTranslation(
+    repo: string,
+    num: number,
+    id: string,
+    text: string,
+    lang: string
+): Promise<ReviewState> {
+    return call(TranslationCommand, { repo, number: num, id, text, lang });
+}
+
+export function setReviewSummary(repo: string, num: number, text: string, lang: string): Promise<ReviewState> {
+    return call(SummaryCommand, { repo, number: num, text, lang });
+}
+
+// publishReview is the developer's click on Post review (aswritten: Post as written); the store says what was posted.
+export function publishReview(req: {
+    repo: string;
+    number: number;
+    dir: string;
+    headoid: string;
+    baseoid?: string;
+    aswritten?: boolean;
+}): Promise<ReviewState> {
+    return call(PublishCommand, req, PublishTimeoutMs);
 }
 
 // subscribeReviewState follows a PR's review store (another window, the CLI); returns the unsubscribe function.

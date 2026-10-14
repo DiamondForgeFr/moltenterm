@@ -89,6 +89,8 @@ func InHunk(hunks []Hunk, side string, start int, end int) bool {
 type CommentText struct {
 	Lang string `json:"lang,omitempty"`
 	Text string `json:"text"`
+	// EditedByUser: a translation the developer wrote or changed; the agent's later translations never replace it.
+	EditedByUser bool `json:"editedbyuser,omitempty"`
 }
 
 // Comment is one review comment (DS-REV-007). Subject: SubjectLine (a GitHub line comment) or SubjectFile (a
@@ -107,12 +109,16 @@ type Comment struct {
 	Original        CommentText      `json:"original"`
 	Translation     *CommentText     `json:"translation,omitempty"`
 	GithubCommentId int64            `json:"githubcommentid,omitempty"`
-	Author          string           `json:"author"`
-	Outdated        bool             `json:"outdated,omitempty"`
-	CreatedAt       int64            `json:"createdat"`
-	UpdatedAt       int64            `json:"updatedat,omitempty"`
-	History         []CommentEvent   `json:"history,omitempty"`
-	Discussion      []CommentMessage `json:"discussion,omitempty"`
+	// PublishedAs: how GitHub got it (SubjectLine or SubjectFile, FR-REV-010); PublishNote: why a line comment went
+	// file-level (Note…).
+	PublishedAs string           `json:"publishedas,omitempty"`
+	PublishNote string           `json:"publishnote,omitempty"`
+	Author      string           `json:"author"`
+	Outdated    bool             `json:"outdated,omitempty"`
+	CreatedAt   int64            `json:"createdat"`
+	UpdatedAt   int64            `json:"updatedat,omitempty"`
+	History     []CommentEvent   `json:"history,omitempty"`
+	Discussion  []CommentMessage `json:"discussion,omitempty"`
 }
 
 // CommentRequest saves a comment: a new one (no Id) with its anchor, or the text (and kind) of an existing one.

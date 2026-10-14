@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
@@ -53,6 +55,13 @@ const (
 	RewriteCommand      = "moltenreviewcommentrewrite"
 	DiscussCommand      = "moltenreviewcommentdiscuss"
 	RelocateCommand     = "moltenreviewrelocate"
+	// Publish review (FR-REV-010): the language, the translations, the summary and the post are a MoltenTerm window's
+	// only; no agent tool reaches them (NFR-REV-003).
+	PublishInfoCommand = "moltenreviewpublishinfo"
+	TranslateCommand   = "moltenreviewtranslate"
+	TranslationCommand = "moltenreviewtranslation"
+	SummaryCommand     = "moltenreviewsummary"
+	PublishCommand     = "moltenreviewpublish"
 )
 
 const (
@@ -61,6 +70,8 @@ const (
 	// A file list or a compare may fetch the PR's branches; a worktree may be created.
 	gitTimeout     = 90 * time.Second
 	controlTimeout = 15 * time.Second
+	// Post review lists, posts and checks on GitHub, one call per file comment.
+	publishTimeout = 4 * time.Minute
 )
 
 type WorktreeRequest struct {
@@ -89,14 +100,36 @@ type Service struct {
 	cleaner *Cleaner
 	// discuss sends a comment to the PR's review session (FR-REV-009); reviewsession.Discuss outside the tests.
 	discuss func(ctx context.Context, req mcpreview.DiscussRequest) (mcpreview.AskResult, error)
+	// translate asks the PR's review session for the translations (FR-REV-010); reviewsession.Translate outside the
+	// tests.
+	translate func(ctx context.Context, req mcpreview.TranslateRequest) (mcpreview.AskResult, error)
+	// gh: the developer's gh for Post review and the publication language (FR-REV-010).
+	gh GhRunner
+	// publishSetting: the review:publishlanguage setting; readFile reads a project file (nil when absent).
+	publishSetting func() string
+	readFile       func(path string) []byte
+	languages      languageCache
 
 	lock      sync.Mutex
 	treeLocks map[string]*sync.Mutex
+	// publishing: the PRs whose review is being posted.
+	publishing map[PrKey]bool
 }
 
 func MakeService(dataDir string, git reviewsession.GitRunner, publish func(k PrKey, state State)) *Service {
 	store := MakeStore(dataDir)
-	return &Service{differ: MakeDiffer(git), store: store, git: git, dataDir: dataDir, publish: publish, merger: MakeMerger(store, ExecGh, publish), treeLocks: map[string]*sync.Mutex{}}
+	return &Service{
+		differ: MakeDiffer(git), store: store, git: git, dataDir: dataDir, publish: publish,
+		merger: MakeMerger(store, ExecGh, publish), gh: ExecGh, readFile: readProjectFile, treeLocks: map[string]*sync.Mutex{},
+	}
+}
+
+func readProjectFile(path string) []byte {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	return data
 }
 
 func (s *Service) treeLock(key string) *sync.Mutex {
@@ -156,6 +189,10 @@ func Start() {
 		})
 		SetPostMerge(service)
 		service.discuss = reviewsession.Discuss
+		service.translate = reviewsession.Translate
+		service.publishSetting = func() string {
+			return wconfig.GetWatcher().GetFullConfig().Settings.ReviewPublishLanguage
+		}
 		link := &routeLink{service: service, output: make(chan []byte, routeQueueSize), localSource: localSourceOnLink}
 		if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId); err != nil {
 			log.Printf("%s route not started: %v\n", logPrefix, err)
@@ -197,6 +234,9 @@ func (s *Service) SessionPosted(update mcpreview.Update) {
 	case mcpreview.PostExplanation:
 		what = "the explanation"
 		_, err = s.changed(s.store.SetExplanation(k, explanationOf(*post)))
+	case mcpreview.PostTranslation:
+		what = "the translation"
+		_, err = s.changed(s.store.SetTranslation(k, post.CommentId, post.Text, post.Lang, false))
 	default:
 		return
 	}
@@ -252,8 +292,11 @@ func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) 
 	}()
 	timeout := controlTimeout
 	switch req.Command {
-	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand, RelocateCommand, DiscussCommand:
+	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand, RelocateCommand, DiscussCommand,
+		PublishInfoCommand, TranslateCommand:
 		timeout = gitTimeout
+	case PublishCommand:
+		timeout = publishTimeout
 	case CleanupCommand:
 		timeout = cleanupTimeout
 	}
@@ -413,6 +456,37 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return s.changed(s.Relocate(ctx, req))
+	case PublishInfoCommand:
+		req, err := decode[PublishInfoRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.PublishInfo(ctx, req)
+	case TranslateCommand:
+		req, err := decode[TranslateRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.Translate(ctx, req)
+	case TranslationCommand:
+		req, err := decode[TranslationRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.changed(s.store.SetTranslation(req.PrKey, req.Id, req.Text, req.Lang, true))
+	case SummaryCommand:
+		req, err := decode[SummaryRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.changed(s.store.SetSummary(req))
+	case PublishCommand:
+		// NFR-REV-003: GitHub gets the review only on the developer's click in the Publish sheet.
+		req, err := decode[PublishRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.Publish(ctx, req)
 	}
 	return nil, fmt.Errorf("unknown review command %q", command)
 }

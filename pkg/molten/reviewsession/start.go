@@ -155,6 +155,9 @@ func liveEnv(hooks Hooks) Env {
 		Language: func() string {
 			return wconfig.GetWatcher().GetFullConfig().Settings.ReviewLanguage
 		},
+		PublishLanguage: func() string {
+			return wconfig.GetWatcher().GetFullConfig().Settings.ReviewPublishLanguage
+		},
 		Gh: func(ctx context.Context, dir string, args ...string) ([]byte, error) {
 			return mission.ExecRunner(ctx, dir, "gh", args...)
 		},

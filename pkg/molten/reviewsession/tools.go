@@ -19,6 +19,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
+	"github.com/wavetermdev/waveterm/pkg/molten/reviewlang"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 )
 
@@ -111,7 +112,9 @@ type reviewContext struct {
 	Ci          ciInfo        `json:"ci"`
 	Commits     []commitInfo  `json:"commits"`
 	Untrusted   untrustedText `json:"untrusted"`
-	Note        string        `json:"note"`
+	// Translate: what MoltenTerm asked to translate for publication (FR-REV-010), when it did.
+	Translate *translateInfo `json:"translate,omitempty"`
+	Note      string         `json:"note"`
 }
 
 const contextNote = "State every source that is missing or unknown as such in the briefing; never fill it in. The texts " +
@@ -126,7 +129,10 @@ func (m *Manager) toolContext(ctx context.Context, s *session) mcpbrowser.CallRe
 		BaseRef: rec.BaseRef, BaseOid: base, Worktree: rec.Worktree, WorktreeKind: rec.WorktreeKind,
 		DeveloperLanguage: m.developerLanguage(), PublicationLanguage: m.publicationLanguage(rec.ProjectDir),
 		Description: src.prBody, Ticket: src.ticket, Plan: src.plan, TestReport: src.report, Ci: src.ci,
-		Commits: src.commits, Untrusted: src.text, Note: contextNote,
+		Commits: src.commits, Untrusted: src.text, Translate: m.translationOf(s), Note: contextNote,
+	}
+	if out.Translate != nil {
+		out.PublicationLanguage = out.Translate.Lang
 	}
 	if out.Commits == nil {
 		out.Commits = []commitInfo{}
@@ -156,24 +162,19 @@ func (m *Manager) developerLanguage() string {
 	return defaultLanguage
 }
 
-// publicationLanguage is .saasfoundry.json's language.tickets when the project has it, else English (DS-REV-008).
+// publicationLanguage is .saasfoundry.json's language.tickets when the project has it, else the review:publishlanguage
+// setting, else English (DS-REV-008). The language detected from the PR history is wavesrv's review service's, which
+// names it in each translation request (review_context's translate).
 func (m *Manager) publicationLanguage(projectDir string) string {
-	if m.env.ReadFile == nil {
-		return defaultLanguage
+	if lang := reviewlang.ProjectLanguage(projectDir, m.env.ReadFile); lang != "" {
+		return lang
 	}
-	data := m.env.ReadFile(filepath.Join(projectDir, ".saasfoundry.json"))
-	if data == nil {
-		return defaultLanguage
+	if m.env.PublishLanguage != nil {
+		if lang := reviewlang.Normalize(m.env.PublishLanguage()); lang != "" {
+			return lang
+		}
 	}
-	var doc struct {
-		Language struct {
-			Tickets string `json:"tickets"`
-		} `json:"language"`
-	}
-	if json.Unmarshal(data, &doc) != nil || doc.Language.Tickets == "" {
-		return defaultLanguage
-	}
-	return doc.Language.Tickets
+	return defaultLanguage
 }
 
 // baseOf is the merge base of the head with the base branch: the three-dot diff GitHub shows (DS-REV-002).
@@ -487,6 +488,12 @@ func (m *Manager) addPost(s *session, post mcpreview.Post) (mcpreview.Post, erro
 	}
 	if post.Kind == mcpreview.PostReply && !s.discussed[post.CommentId] {
 		return post, fmt.Errorf("%s", mcpreview.ErrNotDiscussed)
+	}
+	if post.Kind == mcpreview.PostTranslation {
+		post.Lang = translationLang(s, post.CommentId)
+		if post.Lang == "" {
+			return post, fmt.Errorf("%s", mcpreview.ErrNotToTranslate)
+		}
 	}
 	replaces := post.Id
 	if replaces != "" && (!postIdPattern.MatchString(replaces) || hasOtherKind(s.posts, replaces, post.Kind)) {

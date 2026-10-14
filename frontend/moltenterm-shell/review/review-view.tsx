@@ -30,6 +30,7 @@ import {
     StatusLetters,
     TreeNode,
 } from "./review-model";
+import { PublishSheet } from "./review-publish-sheet";
 import { commentCounts } from "./review-selection";
 import { ReviewFileView, ReviewTabModel } from "./review-tab-model";
 import { ValidateButton, ValidateSheet } from "./review-validate";
@@ -70,6 +71,7 @@ export function ReviewView({ model }: ViewComponentProps<ReviewViewModel>) {
                 <DiffPanel model={model} />
             </div>
             <ValidateSheet model={model} />
+            <PublishSheet model={model} />
         </div>
     );
 }
@@ -195,20 +197,21 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
     );
 }
 
-// PublishButton carries the count of staged comments (FR-REV-009 AC4). Publishing them as one GitHub review is
-// FR-REV-010's; until then it shows them in the AI panel.
+// PublishButton carries the count of staged comments (FR-REV-009 AC4) and opens the Publish sheet (FR-REV-010).
 function PublishButton({ model }: { model: ReviewViewModel }) {
     const staged = useAtomValue(model.stagedCountAtom);
+    const record = useAtomValue(model.stateAtom)?.publish;
+    const unfinished = record?.state === "partial" || record?.state === "failed";
     return (
         <button
             type="button"
             className={ToolbarButton}
-            disabled={staged === 0}
+            disabled={staged === 0 && !unfinished}
             onClick={() => fireAndForget(() => model.openPublish())}
             title={
-                staged === 0
+                staged === 0 && !unfinished
                     ? "No comment is staged: stage drafts or accept proposals first"
-                    : "Show the staged comments in the AI panel (publishing on GitHub is not available yet)"
+                    : "Check the translations, then post one GitHub review with the staged comments"
             }
             data-testid="review-publish"
             data-count={staged}

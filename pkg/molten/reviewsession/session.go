@@ -71,7 +71,9 @@ type session struct {
 	selection *mcpreview.SelectionRequest
 	// discussed: the comments the developer discussed in this session, the only ones the agent may reply on.
 	discussed map[string]bool
-	posts     []mcpreview.Post
+	// translation: the latest translation request (FR-REV-010), the only items review_set_translation takes.
+	translation *mcpreview.TranslateRequest
+	posts       []mcpreview.Post
 	nextPost  int
 	// postPrefix makes the posts' ids unique across sessions and restarts, as the review store keeps them.
 	postPrefix string
@@ -150,6 +152,8 @@ type Env struct {
 	Locale func() string
 	// Language is the review:language setting, "" when unset (then Locale decides).
 	Language func() string
+	// PublishLanguage is the review:publishlanguage setting, "" when unset (FR-REV-010).
+	PublishLanguage func() string
 	// Gh runs the developer's gh (the PR's sources, read-only).
 	Gh GhRunner
 	// TypePrompt types a prompt into the agent of a terminal, only when the agent is its foreground program and neither

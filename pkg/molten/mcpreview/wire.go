@@ -125,6 +125,7 @@ const (
 	ErrTooLarge        = "the text is too large (64 KB at most)"
 	ErrNotDiscussed    = "commentid must be a comment the developer discussed in this session (review_selection names it)"
 	ErrLineNotInFile   = "the anchor's lines are not in that side of the file (see review_diff)"
+	ErrNotToTranslate  = "commentid must be one of the items MoltenTerm asked you to translate (review_context's translate)"
 )
 
 // HelloRequest opens the MCP server's connection to its session. Token is the terminal's WAVETERM_JWT (wavesrv takes
@@ -315,6 +316,30 @@ type DiscussRequest struct {
 	Comment CommentRef `json:"comment"`
 	// Message: the developer's words about the comment; empty, the agent is asked for its opinion.
 	Message string `json:"message,omitempty"`
+}
+
+// SummaryId names the review's summary in a translation request and in review_set_translation (FR-REV-010).
+const SummaryId = "summary"
+
+// TranslateItem is one text to translate for publication: a staged comment (Id is its id) or the review's summary
+// (SummaryId).
+type TranslateItem struct {
+	Id string `json:"id"`
+	// Kind: comment or change; Where: the lines it lands on, for the agent's context.
+	Kind  string `json:"kind,omitempty"`
+	Where string `json:"where,omitempty"`
+	Text  string `json:"text"`
+	Lang  string `json:"lang,omitempty"`
+}
+
+// TranslateRequest asks the session's agent to translate the staged comments into the publication language
+// (DS-REV-008): the items become review_context's translate, and one line is typed into the agent's terminal; the
+// answer is an AskResult. wavesrv's review service sends it in process (reviewsession.Translate).
+type TranslateRequest struct {
+	SessionKey
+	Lang     string          `json:"lang"`
+	LangName string          `json:"langname,omitempty"`
+	Items    []TranslateItem `json:"items"`
 }
 
 // AskRequest is Ask the AI (FR-REV-003): the selection becomes the session's (review_selection) and the question is

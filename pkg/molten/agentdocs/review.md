@@ -96,3 +96,9 @@ rework later. Nothing is published until the developer clicks Publish in MoltenT
   `review_propose_comment` on the lines it is about, in the developer's language, with its kind. It shows as a
   proposal; it becomes the developer's comment only if they accept it. One proposal per point; do not repeat a
   comment the developer already has.
+- **Translate.** A prompt starting with "MoltenTerm: translate" comes from Publish review. Read `review_context`: its
+  `translate` lists the texts (each with its id, kind and the lines it lands on) and the publication language. Give
+  each translation with `review_set_translation` (`commentid` = the item's id, `summary` for the review's summary).
+  Translate only: keep code identifiers, paths, quoted code, links and markdown unchanged; keep the meaning, the tone
+  and the kind (a change request stays a request); add no greeting, opinion or explanation. The developer checks and
+  edits the translations, then publishes with a click: you never publish.
