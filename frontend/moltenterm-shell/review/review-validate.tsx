@@ -271,7 +271,7 @@ function PlanBody({
                     ))}
                 </ol>
             </section>
-            {plan.cleanup.length > 0 ? (
+            {plan.cleanup.length > 0 && !locked ? (
                 <section data-testid="validate-cleanup-plan">
                     <div className="mb-1.5 font-medium text-muted">Then the cleanup</div>
                     <CleanupSteps steps={plan.cleanup} />

@@ -52,6 +52,7 @@ const (
 	CleanupWorkflowCliPath = ".claude/skills/sf-workflow/workflow-cli.sh"
 
 	cleanupTimeout           = 5 * time.Minute
+	cleanupFetchRetry        = 2 * time.Second
 	cleanupOtherPrsLimit     = "100"
 	cleanupMergeStateDirty   = "DIRTY"
 	cleanupPrStateMerged     = "MERGED"
@@ -314,12 +315,23 @@ func (r *cleanupRun) readPr() error {
 	if r.wanted(CleanupStepPr) {
 		r.add(done(CleanupStepPr, fmt.Sprintf("PR #%d is merged into %s", r.req.Number, r.pr.BaseRefName)))
 	}
-	if _, err := r.git(r.dir, "fetch", "--quiet", "--prune", "origin"); err != nil {
+	if err := r.fetch(); err != nil {
 		if step := r.result.Step(CleanupStepPr); step != nil {
 			step.Message += "; the fetch failed: " + err.Error()
 		}
 	}
 	return nil
+}
+
+// fetch tries twice: right after Validate's merge, the Review tab's refresh fetches the same repository, and git
+// refuses a fetch whose refs another one is updating ("cannot lock ref").
+func (r *cleanupRun) fetch() error {
+	_, err := r.git(r.dir, "fetch", "--quiet", "--prune", "origin")
+	if err == nil || !sleepCtx(r.ctx, cleanupFetchRetry) {
+		return err
+	}
+	_, err = r.git(r.dir, "fetch", "--quiet", "--prune", "origin")
+	return err
 }
 
 func (r *cleanupRun) closeTicket() CleanupStepResult {
