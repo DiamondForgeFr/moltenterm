@@ -58,3 +58,21 @@
     color: var(--color-secondary);
     background: color-mix(in srgb, var(--color-secondary) 15%, transparent);
 }
+
+/* The agent's answers to the developer's questions (FR-REV-006): a four-point spark in the gutter, apart from the
+   comments' tabs, on the first line of the lines they are about. */
+.molten-review-answer::before {
+    content: "";
+    display: block;
+    width: 11px;
+    height: 11px;
+    margin: 4px auto 0;
+    background: var(--color-accent);
+    clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+}
+
+/* An answer group the gutter's marker brought into view. */
+.molten-review-answer-focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 40%, transparent);
+}

@@ -5,8 +5,9 @@
 // under it, so the cards the agent posts sit above the agent's own terminal. It shows the session's state and the PR's
 // briefing (FR-REV-005): what changed, why, the risks and the files to look at first (links that open the file in the
 // diff at the line), what was tested and its gaps. The briefing is kept in the review store and shown again when the
-// PR is reopened. Its markdown is the agent's: rendered, never executed. Below it, the PR's review comments
-// (FR-REV-009): the agent's proposals, the staged comments and the drafts, with their discussion.
+// PR is reopened. Its markdown is the agent's: rendered, never executed. Under it, the questions waiting for the agent
+// and its answers on their lines (FR-REV-006, review-answers-view.tsx), then the PR's review comments (FR-REV-009):
+// the agent's proposals, the staged comments and the drafts, with their discussion.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { Markdown } from "@/app/element/markdown";
@@ -19,6 +20,7 @@ import { EmptyState } from "../empty-state";
 import { MoltenWave } from "../molten-button";
 import { TabActivity, whileShown } from "../tab-activity";
 import { AskBox } from "./review-actions-view";
+import { AnswersSection, QuestionQueue } from "./review-answers-view";
 import { ReviewPrInfo, ReviewPrMetaKey } from "./review-client";
 import { CommentsPanel } from "./review-comments-view";
 import { briefingNote, MoltentermReviewAiView, parseFileLink, reviewKey } from "./review-model";
@@ -99,9 +101,11 @@ function AiPanel({ review }: { review: ReviewTabModel }) {
         >
             <AiStatus ai={ai} onRetry={() => fireAndForget(() => review.openAi())} onShowTerminal={focusTerminal} />
             <AskBox model={review} />
+            <QuestionQueue model={review} />
             <section className="flex flex-col gap-2" data-slot="review-cards" aria-label="Briefing and explanations">
                 <BriefingCard review={review} ai={ai} />
             </section>
+            <AnswersSection model={review} />
             <CommentsPanel model={review} />
             <div className="mt-auto text-11 text-muted" title={worktree.worktree?.worktree ?? worktree.error}>
                 {worktree.state === "ready"

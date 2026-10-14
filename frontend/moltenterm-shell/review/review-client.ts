@@ -164,11 +164,29 @@ export type ReviewMergeRecord = {
 // The review session's latest briefing (FR-REV-005); headoid: the head the agent briefed.
 export type ReviewBriefing = { markdown: string; headoid?: string; agent?: string; at: number };
 
+// The agent's answer to a question of the developer's (FR-REV-006), on its lines (no anchor: on the whole PR).
+// must match Explanation in pkg/molten/review/explanations.go
+export type ReviewExplanation = {
+    id: string;
+    question?: string;
+    markdown: string;
+    anchor?: ReviewAnchor;
+    depth?: "quick" | "detailed";
+    sources?: string[];
+    related?: string[];
+    principles?: string[];
+    headoid?: string;
+    agent?: string;
+    at: number;
+    updatedat?: number;
+};
+
 // must match State in pkg/molten/review/store.go
 export type ReviewState = {
     repo: string;
     number: number;
     briefing?: ReviewBriefing;
+    explanations?: ReviewExplanation[];
     viewed: Record<string, string>;
     lasthead?: string;
     since?: ReviewSince;
