@@ -15,12 +15,15 @@ import { atom, PrimitiveAtom } from "jotai";
 import { AgentStateInfo } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
 import { BusyCloseAction, RunningItem, runningOf, RunningSource } from "./busy-close-model";
+import { t } from "./i18n/i18n";
 import { tabDisplayName } from "./tab-identity";
 
 export const ConfirmBusyCloseKey = "moltenterm:confirmbusyclose";
 export const ReadTimeoutMs = 1500;
 
-const UnsavedWorkspaceName = "Unsaved workspace";
+function unsavedWorkspaceName(): string {
+    return t("rail.unsavedWorkspace");
+}
 
 export type ClosingTerminal = { blockId: string; meta?: Record<string, any>; tabId?: string };
 
@@ -83,9 +86,9 @@ async function readTabName(tabId: string): Promise<string> {
 
 export function currentWorkspaceName(): string {
     try {
-        return globalStore.get(atoms.workspace)?.name || UnsavedWorkspaceName;
+        return globalStore.get(atoms.workspace)?.name || unsavedWorkspaceName();
     } catch {
-        return UnsavedWorkspaceName;
+        return unsavedWorkspaceName();
     }
 }
 
@@ -174,7 +177,7 @@ export async function readWorkspaceRunning(workspaceId: string, workspaceName: s
         entries = [];
     }
     const terminals = entries.map((e) => ({ blockId: e.blockid, meta: e.meta, tabId: e.tabid }));
-    return readRunning(terminals, workspaceName || UnsavedWorkspaceName);
+    return readRunning(terminals, workspaceName || unsavedWorkspaceName());
 }
 
 export type BusyCloseRequest = {

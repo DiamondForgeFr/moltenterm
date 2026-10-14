@@ -1,0 +1,86 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* Review comments in the diff's gutter (FR-REV-003): Monaco takes class names for its decorations, so their look lives
+   here. The colour says the state: draft (warning), staged and translated (accent), published (success). */
+
+.molten-review-draft {
+    --molten-review-state: var(--color-warning);
+}
+.molten-review-staged,
+.molten-review-translated {
+    --molten-review-state: var(--color-accent);
+}
+.molten-review-published {
+    --molten-review-state: var(--color-success);
+}
+/* FR-REV-009: an agent's proposal, not the developer's until accepted. */
+.molten-review-proposed {
+    --molten-review-state: var(--color-secondary);
+}
+.molten-review-range.molten-review-proposed {
+    border-left-style: dashed;
+}
+
+.molten-review-range {
+    border-left: 3px solid var(--molten-review-state);
+    margin-left: 3px;
+}
+
+.molten-review-glyph {
+    cursor: pointer;
+}
+.molten-review-glyph::before {
+    content: "";
+    display: block;
+    width: 9px;
+    height: 9px;
+    margin: 5px auto 0;
+    border-radius: var(--mt-radius-4) var(--mt-radius-4) var(--mt-radius-4) 0;
+    background: var(--molten-review-state);
+}
+
+.molten-review-badge-draft {
+    color: var(--color-warning);
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+}
+.molten-review-badge-staged,
+.molten-review-badge-translated {
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+.molten-review-badge-published {
+    color: var(--color-success);
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+}
+.molten-review-badge-proposed,
+.molten-review-badge-dropped {
+    color: var(--color-secondary);
+    background: color-mix(in srgb, var(--color-secondary) 15%, transparent);
+}
+
+/* The agent's answers to the developer's questions (FR-REV-006): a four-point spark in the gutter, apart from the
+   comments' tabs, on the first line of the lines they are about. */
+.molten-review-answer::before {
+    content: "";
+    display: block;
+    width: 11px;
+    height: 11px;
+    margin: 4px auto 0;
+    background: var(--color-accent);
+    clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+}
+
+/* The AI panel's tile does not animate its size (#644). When the review session's terminal is split under it, the new
+   tile shows at its place at once while Wave's layout shrinks the panel's tile over --animation-time-s: the panel,
+   painted above the terminal, drew its long content over it until the end of the transition, or until the next frame
+   when the window was not drawing. Snapping the panel to its new size keeps it inside its pane from the first frame. */
+.tile-layout.animate .tile-node:has(.molten-review-ai) {
+    transition-property: none;
+}
+
+/* An answer group the gutter's marker brought into view. */
+.molten-review-answer-focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 40%, transparent);
+}

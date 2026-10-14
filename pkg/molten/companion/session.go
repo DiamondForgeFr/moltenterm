@@ -142,6 +142,20 @@ type Session struct {
 	firstCommand string
 	// lean: no diff is kept (a reader that only needs which files changed).
 	lean bool
+	// The recap (#555, topics.go): the agent's own name of the session, the topics, the PRs already attached to one,
+	// the sub-agents and the main agent's latest call.
+	name       string
+	customName bool
+	branch     string
+	topics     []*topic
+	prsSeen    map[int]bool
+	subagents  []*subagent
+	activity   *ActivityInfo
+	// The main agent's model and effort as its latest records say them, and the ticket it works on (#601,
+	// tickets.go).
+	model  string
+	effort string
+	ticket ticketRef
 }
 
 func MakeSession() *Session {
@@ -201,6 +215,7 @@ func (s *Session) AddPrompt(text string, at int64) {
 		first := p
 		s.firstPrompt = &first
 	}
+	s.startTopic(text, at)
 	s.prompts = append(s.prompts, p)
 	if len(s.prompts) > MaxPrompts {
 		s.prompts = append([]Prompt(nil), s.prompts[len(s.prompts)-MaxPrompts:]...)
@@ -334,6 +349,7 @@ func (s *Session) AddToolCall(id string, tool string, args string, at int64) {
 	if cur.hasText {
 		cur.toolSinceText = true
 	}
+	s.topicTool(at)
 	if id == "" {
 		s.touch()
 		return
@@ -468,6 +484,7 @@ func (s *Session) AddFileEdit(path string, kind string, diff string, at int64) {
 	fc.at = at
 	fc.seq = s.fileSeq
 	fc.edits++
+	s.topicFile(path, at)
 	added, removed := countDiff(diff)
 	fc.added += added
 	fc.removed += removed

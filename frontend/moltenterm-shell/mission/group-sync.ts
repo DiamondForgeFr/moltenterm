@@ -6,6 +6,7 @@
 // The code that runs a sync (FR-MC-030, mission/dep-sync.tsx) registers that gesture, trust prompt included; until it
 // does, this answers what the notification center answers for an action it does not know.
 
+import { t } from "../i18n/i18n";
 import { notificationGesture, NotificationGestureResult, UnknownGestureError } from "../notifications-store";
 import { SyncArgs } from "./group-strip-model";
 
@@ -18,7 +19,7 @@ export async function startDependencySync(args: SyncArgs): Promise<NotificationG
         return { ok: false, error: UnknownGestureError };
     }
     try {
-        return (await gesture({ ...args })) ?? { ok: false, error: "unknown error" };
+        return (await gesture({ ...args })) ?? { ok: false, error: t("mc.common.unknownError") };
     } catch (e) {
         return { ok: false, error: String(e?.message ?? e) };
     }

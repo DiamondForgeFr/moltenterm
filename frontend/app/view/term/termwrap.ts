@@ -38,6 +38,7 @@ import {
     shouldReleaseHiddenWebgl,
     ShowRepaintFollowUpMs,
 } from "../../../moltenterm-shell/term-visibility/term-visibility"; // MOLTENTERM-PATCH (#290, #454)
+import { isOffCarpet, offCarpetAtom } from "../../../moltenterm-shell/view360/offcarpet-model"; // MOLTENTERM-PATCH (#618)
 import {
     handleOsc16162Command,
     handleOsc52Command,
@@ -343,6 +344,14 @@ export class TermWrap {
         this.toDispose.push({
             dispose: () => document.removeEventListener("visibilitychange", visibilityHandler),
         });
+        // MOLTENTERM-PATCH (#618): off-screen on the carpet counts as hidden; back on it, the same full repaint
+        const offCarpet = offCarpetAtom(this.blockId);
+        const unsubOffCarpet = globalStore.sub(offCarpet, () => {
+            if (!globalStore.get(offCarpet)) {
+                this.handleShownAgain();
+            }
+        });
+        this.toDispose.push({ dispose: unsubOffCarpet });
         const pasteHandler = this.pasteHandler.bind(this);
         this.connectElem.addEventListener("paste", pasteHandler, true);
         this.toDispose.push({
@@ -603,7 +612,7 @@ export class TermWrap {
         // MOLTENTERM-PATCH (#290): the PTY never gets a size the user did not choose (see term-visibility.ts)
         const proposed = this.fitAddon.proposeDimensions();
         const decision = decideResize({
-            hidden: document.visibilityState !== "visible",
+            hidden: document.visibilityState !== "visible" || isOffCarpet(this.blockId), // MOLTENTERM-PATCH (#618)
             hasSized: this.hasResized,
             elemWidth: this.connectElem.clientWidth,
             elemHeight: this.connectElem.clientHeight,
@@ -643,6 +652,14 @@ export class TermWrap {
             return;
         }
         this.restoreWebglAfterHidden(); // MOLTENTERM-PATCH (#454)
+        this.handleShownAgain(); // MOLTENTERM-PATCH (#618)
+    }
+
+    // MOLTENTERM-PATCH (#290, #618): the document shown again, or the terminal back in view on the carpet
+    handleShownAgain() {
+        if (this.isDisposed || document.visibilityState !== "visible" || isOffCarpet(this.blockId)) {
+            return;
+        }
         this.handleResize();
         window.requestAnimationFrame(() => this.repaintAll());
         setTimeout(() => this.repaintAll(), ShowRepaintFollowUpMs);

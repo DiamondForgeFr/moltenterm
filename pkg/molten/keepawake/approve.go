@@ -139,6 +139,9 @@ func (k *Keeper) approvalsState(state *State) {
 // ReasonCodexHookUntrusted: Codex runs MoltenTerm's hook only once the developer trusted it (FR-SHELL-064-AC3).
 const ReasonCodexHookUntrusted = "approved once you trust MoltenTerm's hook: type /hooks in Codex and trust molten agent permission"
 
+// ReasonReviewSession: a review session's requests are never answered (FR-REV-004 AC3, #505 R1).
+const ReasonReviewSession = "a review session is read-only: its requests always ask you"
+
 // SessionApproval says whether a terminal's agent gets its prompts answered while a coffee holds, and why not.
 // hookRan: the agent's hook reached wavesrv since it started, so the agent runs it (Codex runs it only once trusted).
 func SessionApproval(agent string, remote bool, report molten.AgentIntegrationReport, hasReport bool, hookRan bool) (bool, string) {

@@ -8,9 +8,11 @@
 import {
     agentSection,
     agentSuggestions,
+    EffortAction,
     feedbackFor,
     hasAgentCommands,
     InterruptAction,
+    ModelAction,
     PermissionModeAction,
 } from "../agent-commands";
 import { AgentInputs } from "../agent-input-store";
@@ -19,13 +21,15 @@ import { CommandProvider, PanelActionResult, PanelContext, PanelSection } from "
 async function runAgentCommand(
     ctx: PanelContext,
     action: string,
-    opts: { mode?: string; confirmedDraft?: boolean } = {}
+    opts: { mode?: string; effort?: string; model?: string; confirmedDraft?: boolean } = {}
 ): Promise<PanelActionResult> {
     const result = await AgentInputs.getInstance().send({
         blockid: ctx.blockId,
         agent: ctx.agent?.agent,
         action,
         mode: opts.mode || undefined,
+        effort: opts.effort || undefined,
+        model: opts.model || undefined,
         confirmeddraft: opts.confirmedDraft || undefined,
     });
     return feedbackFor(
@@ -34,6 +38,7 @@ async function runAgentCommand(
         {
             interrupt: () => runAgentCommand(ctx, InterruptAction),
             confirmDraft: () => runAgentCommand(ctx, action, { ...opts, confirmedDraft: true }),
+            openModel: () => runAgentCommand(ctx, ModelAction),
         },
         { mode: opts.mode }
     );
@@ -44,6 +49,8 @@ export function agentProviderSections(ctx: PanelContext): PanelSection[] {
     const section = agentSection(ctx.agent, info, {
         run: (action) => runAgentCommand(ctx, action),
         setMode: (mode) => runAgentCommand(ctx, PermissionModeAction, { mode }),
+        setEffort: (effort) => runAgentCommand(ctx, EffortAction, { effort }),
+        setModel: (model) => runAgentCommand(ctx, ModelAction, { model }),
     });
     return section ? [section] : [];
 }

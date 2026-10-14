@@ -15,7 +15,13 @@ export type PageScroll = { x: number; y: number };
 type DiscardHandler = (browserTabId: string, webContentsId: number, scroll: PageScroll) => void;
 
 type LifecycleElectronApi = {
-    moltentermWebviewShown?: (blockId: string, browserTabId: string, webContentsId: number, shown: boolean) => void;
+    moltentermWebviewShown?: (
+        blockId: string,
+        browserTabId: string,
+        webContentsId: number,
+        shown: boolean,
+        offCarpet?: boolean
+    ) => void;
     onMoltentermWebviewDiscard?: (
         callback: (blockId: string, browserTabId: string, webContentsId: number, scroll: PageScroll) => void
     ) => () => void;
@@ -38,11 +44,19 @@ function listen() {
     });
 }
 
-export function reportWebviewShown(blockId: string, browserTabId: string, webContentsId: number, shown: boolean) {
+// offCarpet: the panel is off-screen on the carpet of a tab in 360 view (#618): the page is hidden but never
+// discarded while it stays there, whether or not the tab view shows.
+export function reportWebviewShown(
+    blockId: string,
+    browserTabId: string,
+    webContentsId: number,
+    shown: boolean,
+    offCarpet = false
+) {
     if (webContentsId == null) {
         return;
     }
-    lifecycleApi().moltentermWebviewShown?.(blockId, browserTabId, webContentsId, shown);
+    lifecycleApi().moltentermWebviewShown?.(blockId, browserTabId, webContentsId, shown && !offCarpet, offCarpet);
 }
 
 // The scroll position to give back, clamped to sane values (it comes from the page).

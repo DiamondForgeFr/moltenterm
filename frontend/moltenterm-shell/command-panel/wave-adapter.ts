@@ -6,11 +6,14 @@
 // items a choice sub-page, any other submenu a sub-page of items (never a cascade), a plain item an action. Split
 // items are dropped (the footer has them) and the developer items move to the Developer section from any depth.
 
+import { t } from "../i18n/i18n";
 import { menuLabel, shortcutLabel } from "../menu/menu-model";
 import { PanelChoiceOption, PanelItem } from "./panel-types";
 
-// split-menu.ts's labels, repeated so the adapter stays free of the stores split.ts loads.
+// split-menu.ts's labels and icons, repeated so the adapter stays free of the stores split.ts loads; the icons still
+// match once the labels are translated.
 const SplitLabels = new Set(["Split right", "Split down"]);
+const SplitIcons = new Set(["table-columns", "table-columns fa-rotate-270"]);
 
 // Labels Wave uses for items only a developer needs (the audit's "shown to everyone" list).
 export const DeveloperLabelPatterns: RegExp[] = [
@@ -69,7 +72,7 @@ function convert(item: ContextMenuItem, prefix: string, ids: Ids, developer: Pan
         return null;
     }
     const label = menuLabel(item);
-    if (SplitLabels.has(label)) {
+    if (SplitLabels.has(label) || SplitIcons.has(item.icon)) {
         return null;
     }
     const id = uniqueId(ids, `${prefix}${slug(label)}`);
@@ -93,8 +96,8 @@ function convert(item: ContextMenuItem, prefix: string, ids: Ids, developer: Pan
                 run: child.click,
             }));
             // Wave's On / Off submenus are a switch.
-            const on = options.find((o) => o.label === "On");
-            const off = options.find((o) => o.label === "Off");
+            const on = options.find((o) => o.label === "On" || o.label === t("common.on"));
+            const off = options.find((o) => o.label === "Off" || o.label === t("common.off"));
             if (options.length === 2 && on != null && off != null && on.run != null && off.run != null) {
                 return {
                     ...base,

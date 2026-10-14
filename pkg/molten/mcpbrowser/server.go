@@ -93,8 +93,38 @@ type mcpToolResult struct {
 	IsError bool         `json:"isError,omitempty"`
 }
 
+// ServerSpec is what tells MoltenTerm's stdio MCP servers apart: the browser here, the review session's tools in
+// pkg/molten/mcpreview. The protocol, the cancellation and the backend plumbing are the same.
+type ServerSpec struct {
+	Name         string
+	Title        string
+	Instructions string
+	Tools        []ToolDef
+}
+
+// BrowserSpec is `molten mcp browser`: the browser's tools, and the handoff tools (FR-CONT-015).
+func BrowserSpec() ServerSpec {
+	tools := append(Tools(), AgentTools()...)
+	return ServerSpec{Name: ServerName, Title: "MoltenTerm browser", Instructions: ServerInstructions + AgentInstructions(""), Tools: tools}
+}
+
+// InstructionsBackend is a backend that completes the server's instructions once started (the agent's first name).
+type InstructionsBackend interface {
+	Instructions(base string) string
+}
+
+func (spec ServerSpec) hasTool(name string) bool {
+	for _, t := range spec.Tools {
+		if t.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 type Server struct {
 	Version string
+	spec    ServerSpec
 	backend Backend
 	in      io.Reader
 	out     io.Writer
@@ -115,7 +145,11 @@ type inflightCall struct {
 }
 
 func MakeServer(backend Backend, in io.Reader, out io.Writer, version string) *Server {
-	return &Server{Version: version, backend: backend, in: in, out: out, inflight: make(map[string]*inflightCall)}
+	return MakeSpecServer(BrowserSpec(), backend, in, out, version)
+}
+
+func MakeSpecServer(spec ServerSpec, backend Backend, in io.Reader, out io.Writer, version string) *Server {
+	return &Server{Version: version, spec: spec, backend: backend, in: in, out: out, inflight: make(map[string]*inflightCall)}
 }
 
 // Serve reads messages until stdin closes (the agent quit or dropped the server), then cancels the calls in flight,
@@ -203,7 +237,7 @@ func (s *Server) handleLine(ctx context.Context, line []byte) {
 	case "ping":
 		s.writeResult(msg.Id, map[string]any{})
 	case "tools/list":
-		s.writeResult(msg.Id, map[string]any{"tools": Tools()})
+		s.writeResult(msg.Id, map[string]any{"tools": s.spec.Tools})
 	case "tools/call":
 		s.handleToolCall(ctx, msg)
 	default:
@@ -267,11 +301,15 @@ func (s *Server) handleInitialize(ctx context.Context, msg inMessage) {
 		return
 	}
 	s.start(ctx, ClientInfo{Name: params.ClientInfo.Name, Version: params.ClientInfo.Version})
+	instructions := s.spec.Instructions
+	if ib, ok := s.backend.(InstructionsBackend); ok {
+		instructions = ib.Instructions(instructions)
+	}
 	s.writeResult(msg.Id, map[string]any{
 		"protocolVersion": negotiateVersion(params.ProtocolVersion),
 		"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
-		"serverInfo":      map[string]any{"name": ServerName, "title": "MoltenTerm browser", "version": s.Version},
-		"instructions":    ServerInstructions,
+		"serverInfo":      map[string]any{"name": s.spec.Name, "title": s.spec.Title, "version": s.Version},
+		"instructions":    instructions,
 	})
 }
 
@@ -301,7 +339,7 @@ func (s *Server) handleToolCall(ctx context.Context, msg inMessage) {
 		s.writeError(msg.Id, CodeInvalidParams, "invalid tools/call params")
 		return
 	}
-	if !ToolNames()[params.Name] {
+	if !s.spec.hasTool(params.Name) {
 		s.writeError(msg.Id, CodeInvalidParams, fmt.Sprintf("unknown tool: %s", params.Name))
 		return
 	}

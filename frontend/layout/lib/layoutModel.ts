@@ -57,6 +57,14 @@ import {
     TileLayoutContents,
 } from "./types";
 import { getCenter, navigateDirectionToOffset, setTransform } from "./utils";
+// MOLTENTERM-PATCH (#606): side panels remember the size they were dragged to and reopen at it
+import {
+    addedBlockId,
+    applyRememberedPanelSizes,
+    recordDraggedPanelSizes,
+} from "../../moltenterm-shell/panel-size/panel-size-store";
+// MOLTENTERM-PATCH (#614): 360 view, the first column fixed and the others on a carpet that scrolls horizontally
+import { View360Model } from "../../moltenterm-shell/view360/view360-model";
 
 interface ResizeContext {
     handleId: string;
@@ -200,6 +208,10 @@ export class LayoutModel {
      * The currently magnified node.
      */
     magnifiedNodeId: string;
+    // MOLTENTERM-PATCH (#606): blocks added since the last updateTree, sized from memory once their parent has a size
+    moltenAddedBlockIds: string[] = [];
+    // MOLTENTERM-PATCH (#614): the 360 view (fixed zone + carpet) of this tab
+    moltenView360: View360Model;
     /**
      * Atom for the magnified node ID (derived from local tree state)
      */
@@ -350,6 +362,9 @@ export class LayoutModel {
             const pendingAction = get(this.pendingTreeAction.throttledValueAtom);
             return this.getPlaceholderTransform(pendingAction);
         });
+
+        // MOLTENTERM-PATCH (#614): the tab's 360 view, asked by updateTree where the root's columns are drawn
+        this.moltenView360 = new View360Model(this, tabAtom);
 
         this.initializeFromWaveObject();
     }
@@ -632,6 +647,19 @@ export class LayoutModel {
      * @param action The action to perform.
      */
     treeReducer(action: LayoutTreeAction, setState = true) {
+        // MOLTENTERM-PATCH (#614): in 360 view a panel opened any way is laid at the end of the carpet
+        const moltenLaid = this.moltenView360?.rewriteAction(action, this.treeState.rootNode) ?? action;
+        if (moltenLaid !== action) {
+            action = moltenLaid;
+            if ((action as LayoutTreeSplitHorizontalAction).focused) {
+                FocusManager.getInstance().requestNodeFocus();
+            }
+        }
+        // MOLTENTERM-PATCH (#606): note the block an insert or split adds
+        const moltenAdded = addedBlockId(action);
+        if (moltenAdded) {
+            this.moltenAddedBlockIds.push(moltenAdded);
+        }
         switch (action.type) {
             case LayoutTreeActionType.ComputeMove:
                 this.setter(
@@ -766,6 +794,14 @@ export class LayoutModel {
                     boundingRect,
                     resizeAction
                 );
+            // MOLTENTERM-PATCH (#615): the 360 view's mode decides first (automatic, always, never, the tab's choice)
+            this.moltenView360?.evaluate(this.treeState.rootNode, boundingRect);
+            // MOLTENTERM-PATCH (#614): in 360 view the tree is balanced first, so the columns placed are the final ones
+            if (balanceTree && this.moltenView360?.active) {
+                this.treeState.rootNode = balanceNode(this.treeState.rootNode);
+                balanceTree = false;
+            }
+            this.moltenView360?.computeLayout(this.treeState.rootNode, boundingRect);
             if (balanceTree) this.treeState.rootNode = balanceNode(this.treeState.rootNode, callback);
             else walkNodes(this.treeState.rootNode, callback);
 
@@ -791,6 +827,14 @@ export class LayoutModel {
             );
             this.setter(this.leafOrder, this.treeState.leafOrder);
             this.setter(this.additionalProps, newAdditionalProps);
+            // MOLTENTERM-PATCH (#606): the added blocks now have a parent with a pixel size
+            if (this.moltenAddedBlockIds.length) {
+                const added = this.moltenAddedBlockIds;
+                this.moltenAddedBlockIds = [];
+                applyRememberedPanelSizes(this, added);
+                // MOLTENTERM-PATCH (#614): the carpet scrolls to a panel just laid on it
+                this.moltenView360?.onBlocksAdded(added);
+            }
         }
     }
 
@@ -845,7 +889,12 @@ export class LayoutModel {
         const additionalProps: LayoutNodeAdditionalProps =
             node.id in additionalPropsMap ? additionalPropsMap[node.id] : { treeKey: "0" };
 
-        const nodeRect: Dimensions = node.id === this.treeState.rootNode.id ? boundingRect : additionalProps.rect;
+        // MOLTENTERM-PATCH (#614): in 360 view the root's columns are drawn where the carpet layout puts them
+        const moltenIsRoot = node.id === this.treeState.rootNode.id;
+        const moltenView360 = this.moltenView360?.layout != null ? this.moltenView360 : null;
+        const nodeRect: Dimensions = moltenIsRoot
+            ? (moltenView360?.rootRect(node) ?? boundingRect)
+            : additionalProps.rect;
         const nodeIsRow = node.flexDirection === FlexDirection.Row;
         const nodePixels = nodeIsRow ? nodeRect.width : nodeRect.height;
         const totalChildrenSize = node.children.reduce((acc, child) => acc + getNodeSize(child), 0);
@@ -855,17 +904,24 @@ export class LayoutModel {
         const resizeHandles: ResizeHandleProps[] = [];
         node.children.forEach((child, i) => {
             const childSize = getNodeSize(child);
-            const rect: Dimensions = {
+            const moltenChild = moltenIsRoot ? moltenView360?.rootChild(child.id) : null;
+            const rect: Dimensions = moltenChild?.rect ?? {
                 top: !nodeIsRow && lastChildRect ? lastChildRect.top + lastChildRect.height : nodeRect.top,
                 left: nodeIsRow && lastChildRect ? lastChildRect.left + lastChildRect.width : nodeRect.left,
                 width: nodeIsRow ? childSize / pixelToSizeRatio : nodeRect.width,
                 height: nodeIsRow ? nodeRect.height : childSize / pixelToSizeRatio,
             };
-            const transform = setTransform(rect);
+            const moltenCarpet = moltenView360 != null && (moltenChild?.carpet || !!additionalProps.moltenCarpet);
+            const transform = moltenCarpet
+                ? moltenView360.carpetTransform(rect, setTransform(rect))
+                : setTransform(rect);
             additionalPropsMap[child.id] = {
                 rect,
                 transform,
                 treeKey: additionalProps.treeKey + i,
+                moltenCarpet,
+                // MOLTENTERM-PATCH (#616): a column pinned to the fixed zone, and every panel inside it
+                moltenPinned: moltenView360 != null && (moltenChild?.pinned || !!additionalProps.moltenPinned),
             };
 
             // We only want the resize handles in between nodes, this ensures we have n-1 handles.
@@ -882,11 +938,16 @@ export class LayoutModel {
                     width: nodeIsRow ? resizeHandleSizePx : lastChildRect.width,
                     height: nodeIsRow ? lastChildRect.height : resizeHandleSizePx,
                 };
+                const moltenHandleTransform = setTransform(resizeHandleDimensions, true, false);
                 resizeHandles.push({
                     id: `${node.id}-${resizeHandleIndex}`,
                     parentNodeId: node.id,
                     parentIndex: resizeHandleIndex,
-                    transform: setTransform(resizeHandleDimensions, true, false),
+                    // MOLTENTERM-PATCH (#614): a handle inside a carpet column scrolls with it
+                    transform:
+                        moltenView360 != null && additionalProps.moltenCarpet
+                            ? moltenView360.carpetTransform(resizeHandleDimensions, moltenHandleTransform)
+                            : moltenHandleTransform,
                     flexDirection: node.flexDirection,
                     centerPx:
                         (nodeIsRow ? resizeHandleDimensions.left : resizeHandleDimensions.top) + halfResizeHandleSizePx,
@@ -899,7 +960,11 @@ export class LayoutModel {
             ...additionalProps,
             ...(node.data?.blockId ? { rect: nodeRect } : {}),
             pixelToSizeRatio,
-            resizeHandles,
+            // MOLTENTERM-PATCH (#614): the root's handles in 360 view size the fixed zone and the carpet columns
+            resizeHandles:
+                moltenIsRoot && moltenView360 != null
+                    ? moltenView360.rootResizeHandles(node, resizeHandleSizePx, resizeHandles)
+                    : resizeHandles,
         };
     }
 
@@ -1026,7 +1091,14 @@ export class LayoutModel {
                                 }
                             }
 
-                            return setTransform(placeholderDimensions);
+                            // MOLTENTERM-PATCH (#617): over a panel on the scrolled carpet, the placeholder follows the scroll
+                            return (
+                                this.moltenView360?.placeholderTransform(
+                                    targetNode.id,
+                                    placeholderDimensions,
+                                    setTransform(placeholderDimensions)
+                                ) ?? setTransform(placeholderDimensions)
+                            );
                         }
                     }
                     break;
@@ -1042,7 +1114,14 @@ export class LayoutModel {
                         width: targetBoundingRect.width,
                     };
 
-                    return setTransform(placeholderDimensions);
+                    // MOLTENTERM-PATCH (#617): over a panel on the scrolled carpet, the placeholder follows the scroll
+                    return (
+                        this.moltenView360?.placeholderTransform(
+                            targetNodeId,
+                            placeholderDimensions,
+                            setTransform(placeholderDimensions)
+                        ) ?? setTransform(placeholderDimensions)
+                    );
                 }
                 default:
                     // No-op
@@ -1431,6 +1510,12 @@ export class LayoutModel {
      * @param y The Y coordinate of the pointer device, in CSS pixels.
      */
     onResizeMove(resizeHandle: ResizeHandleProps, x: number, y: number) {
+        // MOLTENTERM-PATCH (#614): the root's handles in 360 view set widths, not tree sizes; a handle on the
+        // carpet is drawn scrolled, so the pointer is taken back to the layout's coordinates
+        if (this.moltenView360?.onResizeMove(resizeHandle, x)) {
+            return;
+        }
+        x += this.moltenView360?.pointerOffsetFor(resizeHandle.parentNodeId) ?? 0;
         const parentIsRow = resizeHandle.flexDirection === FlexDirection.Row;
 
         // If the resize context is out of date, update it and save it for future events.
@@ -1499,7 +1584,20 @@ export class LayoutModel {
      * Callback to end the current resize operation and commit its pending action.
      */
     onResizeEnd() {
+        // MOLTENTERM-PATCH (#614): a fixed zone or carpet column drag keeps its width
+        if (this.moltenView360?.onResizeEnd()) {
+            return;
+        }
         if (this.resizeContext) {
+            // MOLTENTERM-PATCH (#606): remember the size the drag gave to the side panels it moved
+            const moltenPending = this.getter(this.pendingTreeAction.currentValueAtom);
+            if (moltenPending?.type === LayoutTreeActionType.ResizeNode) {
+                recordDraggedPanelSizes(
+                    this,
+                    moltenPending as LayoutTreeResizeNodeAction,
+                    this.resizeContext.pixelToSizeRatio
+                );
+            }
             this.resizeContext = undefined;
             this.treeReducer({ type: LayoutTreeActionType.CommitPendingAction });
         }

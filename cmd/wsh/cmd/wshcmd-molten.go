@@ -56,6 +56,8 @@ const (
 	MoltenTrustAnswerTrusted  = "trusted"
 	MoltenTrustAnswerDeclined = "declined"
 	MoltenTrustAnswerTimeout  = "timeout"
+	// What `molten mod enable` reports for a data-only mod, which asks for no trust (FR-I18N-002).
+	MoltenTrustDataOnly = "data"
 	// What `molten mod enable` reports when only the Claude Code part was asked about (FR-MORPH-010).
 	MoltenTrustAnswerPartTrusted  = "part-trusted"
 	MoltenTrustAnswerPartDeclined = "part-declined"
@@ -73,6 +75,10 @@ type MoltenModStatus struct {
 	// Keeps its timers running while its tab view is hidden (FR-PERF-014).
 	Background bool            `json:"background,omitempty"`
 	Usage      *MoltenModUsage `json:"usage,omitempty"`
+	// A data-only mod and the language codes it gives (FR-I18N-002); what loading ignored.
+	DataOnly  bool     `json:"dataonly,omitempty"`
+	Languages []string `json:"languages,omitempty"`
+	Warnings  []string `json:"warnings,omitempty"`
 	// Filled by molten from the files, not by the tab: the agent parts the mod carries (FR-MORPH-010).
 	Agents map[string]MoltenPartStatus `json:"agents,omitempty"`
 }
@@ -210,7 +216,7 @@ var moltenAgentCmd = &cobra.Command{
 
 var moltenAgentListCmd = &cobra.Command{
 	Use:     "list",
-	Short:   "list the coding agents: installed, version, briefing, models and capabilities, and where the molten guides are installed",
+	Short:   "list the agents running now by first name (--active for those only), then the coding agents: installed, version, briefing, models and capabilities, and where the molten guides are installed",
 	Args:    cobra.NoArgs,
 	RunE:    moltenWrap(moltenAgentListRun),
 	PreRunE: preRunSetupRpcClient,
@@ -540,6 +546,9 @@ func formatMoltenModList(list *MoltenModList) string {
 			version = "-"
 		}
 		commands := strings.Join(mod.Commands, ",")
+		if len(mod.Languages) > 0 {
+			commands = "languages: " + strings.Join(mod.Languages, ",")
+		}
 		if commands == "" {
 			commands = "-"
 		}
@@ -581,6 +590,9 @@ func moltenModNewRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	id := args[0]
+	if moltenNewLanguage != "" {
+		return moltenNewLanguagePackRun(configDir, id)
+	}
 	claudeCodeVersion := ""
 	if moltenNewClaudeCode || moltenNewClaudeCodeVersion != "" {
 		claudeCodeVersion, err = moltenNewPartVersion(moltenNewClaudeCodeVersion)
@@ -694,9 +706,14 @@ func moltenModToggle(id string, enable bool) error {
 		if _, err := os.Stat(filepath.Join(dir, MoltenManifestFileName)); err != nil {
 			return fmt.Errorf("mod %q has no %s", id, MoltenManifestFileName)
 		}
-		trustState, err = moltenEnsureTrusted(id)
-		if err != nil {
-			return err
+		// A language pack runs no code: nothing to trust (FR-I18N-002, NFR-I18N-005).
+		if manifest, readErr := moltenReadTemplateManifest(id); readErr == nil && manifest.isDataOnly() {
+			trustState = MoltenTrustDataOnly
+		} else {
+			trustState, err = moltenEnsureTrusted(id)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	changed, err := moltenSetEnabled(configDir, id, enable)
@@ -1020,6 +1037,18 @@ func moltenAgentEnv() (molten.AgentEnv, error) {
 }
 
 func moltenAgentListRun(cmd *cobra.Command, args []string) error {
+	// The agents running now, by first name (FR-CONT-015): first, since they are who an agent hands work to.
+	active, activeErr := moltenActiveAgents()
+	if moltenAgentListActive {
+		if activeErr != nil {
+			return activeErr
+		}
+		if moltenJson {
+			return moltenWriteJson(active)
+		}
+		WriteStdout("%s", formatMoltenActiveAgents(active))
+		return nil
+	}
 	env, err := moltenAgentEnv()
 	if err != nil {
 		return err
@@ -1030,9 +1059,17 @@ func moltenAgentListRun(cmd *cobra.Command, args []string) error {
 	}
 	listings := moltenAgentListings(env)
 	if moltenJson {
-		return moltenWriteJson(MoltenAgentList{Agents: listings, Guides: statuses})
+		rtn := MoltenAgentList{Agents: listings, Guides: statuses}
+		if activeErr == nil {
+			rtn.Active = active.Agents
+		}
+		return moltenWriteJson(rtn)
 	}
-	WriteStdout("%s\nMolten guides:\n%s", formatMoltenAgentListings(listings), formatMoltenAgents(statuses))
+	activeText := ""
+	if activeErr == nil {
+		activeText = "Running now:\n" + formatMoltenActiveAgents(active) + "\n"
+	}
+	WriteStdout("%s%s\nMolten guides:\n%s", activeText, formatMoltenAgentListings(listings), formatMoltenAgents(statuses))
 	return nil
 }
 
@@ -1323,6 +1360,7 @@ func moltenHelpRun(cmd *cobra.Command, args []string) error {
 
 var moltenBuiltinHelp = [][2]string{
 	{"mod new <id> [--claude-code]", "create a mod from a template (disabled until enabled), with a Claude Code part"},
+	{"mod new <id> --language <code>", "create a language pack: data only, no code, no trust prompt"},
 	{"mod list", "list the mods of this tab and their state, and their Claude Code parts"},
 	{"mod validate [id...]", "check mods without running them"},
 	{"mod enable <id>", "enable a mod in every tab (asks you to trust it first)"},
@@ -1332,6 +1370,9 @@ var moltenBuiltinHelp = [][2]string{
 	{"undo", "restore the mods as they were before the last change (repeat to go further back)"},
 	{"history", "list the recorded changes to the mods"},
 	{"docs", "write the offline mod documentation and print its folder"},
+	{"i18n export [--lang <code>] [--missing]", "the English interface strings; --lang the current translation; --missing those still to translate"},
+	{"i18n check <file> [--lang <code>]", "check a language pack's dictionary as MoltenTerm loads it"},
+	{"i18n status", "the interface languages and how many strings each lacks"},
 	{"agent list", "the coding agents (installed, version, capabilities) and where the molten guides are installed"},
 	{"agent install <agent>", "install /morph, /molten-pipeline and /molten-bug for a coding agent"},
 	{"agent remove <agent>", "remove the molten guides from a coding agent, and stop installing them at start"},

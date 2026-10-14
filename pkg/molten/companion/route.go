@@ -35,6 +35,8 @@ const blockReadTimeout = 2 * time.Second
 type blockRequest struct {
 	BlockId string `json:"blockid"`
 	ViewId  string `json:"viewid"`
+	// Refresh: the view opens or shows, or its refresh interval came: look again now (#600).
+	Refresh bool `json:"refresh,omitempty"`
 }
 
 type pickRequest struct {
@@ -122,7 +124,11 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
-		return l.m.Open(req.BlockId, req.ViewId)
+		view, err := l.m.Open(req.BlockId, req.ViewId)
+		if err == nil && req.Refresh {
+			l.m.Refresh(req.BlockId)
+		}
+		return view, err
 	case molten.CompanionCloseCommand:
 		var req blockRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -242,9 +248,11 @@ func Start() {
 	})
 	m := MakeManager()
 	m.runOf = attention.AgentRun
+	m.setSettings = attention.SetAgentSettings
 	m.integrationOf = attention.AgentIntegration
 	m.allRuns = attention.AgentRuns
 	m.blockInfo = readBlockInfo
+	m.ticketLabels = GhIssueLabels
 	m.publish = publishView
 	m.publishUsage = publishUsage
 	m.writeGauges = writeGaugesSetting

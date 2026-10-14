@@ -12,55 +12,74 @@ import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
-import { accentForeground, parseColor } from "./accent";
+import { workspaceColourStops } from "./accent";
 import { DialogFrame, useEscape } from "./dialog-frame";
+import { t as translateNow, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
-import { Segment, SegmentedControl } from "./segmented-control";
+import { SectionBlock, ToggleGroup, ToggleOption } from "./suite/suite";
+import { suiteIcon, SuiteIconName } from "./suite/suite-icons";
+import {
+    colourChoiceCss,
+    colourChoiceForeground,
+    colourStops,
+    logoColourChoices,
+    parseCustomColour,
+    PresetColourChoices,
+    PresetGradientChoices,
+} from "./workspace-colour";
 import { listenWorkspaceMenu, pickUpWorkspaceEdit, WorkspaceEditModel } from "./workspace-edit";
 import {
     checkWorkspaceName,
     colourName,
     dangerAction,
-    EmptyNameError,
+    emptyNameError,
     iconName,
     moveRadio,
     radioTabStop,
     WorkspaceEditIntentKey,
 } from "./workspace-edit-model";
-import { RailBadgeClass, WorkspaceIcon } from "./workspace-icon";
+import { RailBadgeClass, WorkspaceIcon, workspaceImageUrl } from "./workspace-icon";
 import { hasImportedIcon, iconKindLabel, workspaceIconSource } from "./workspace-icon-model";
+import { logoPalette } from "./workspace-logo-palette";
 import { effectiveWorkspaceFolder, pathBaseName, readWorkspaceProject } from "./workspace-project";
 import { WorkspaceFolderLine, WorkspaceProjectBlock } from "./workspace-project-section";
-import { chooseMoltentermPath, findProjectLogos, setWorkspaceLogo } from "./workspace-project-store";
+import {
+    chooseMoltentermPath,
+    findProjectLogos,
+    setWorkspaceGradient,
+    setWorkspaceLogo,
+} from "./workspace-project-store";
 import { askResetWorkspace } from "./workspace-reset";
 import { canCloseWorkspace } from "./workspace-reset-model";
 
-const SectionHeadingClass = "mb-2 text-12 font-semibold tracking-wide text-secondary uppercase";
 const FieldLabelClass = "mb-1 text-12 text-secondary";
 const DangerButtonClass =
-    "shrink-0 cursor-pointer rounded-6 border border-error px-3 py-1.5 text-12 text-primary transition-colors duration-120 ease-mt hover:bg-error/15";
+    "shrink-0 cursor-pointer rounded-3 border border-error px-3 py-1.5 text-12 text-primary transition-colors duration-120 ease-mt hover:bg-error/15";
 const SecondaryButtonClass =
-    "shrink-0 cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
+    "shrink-0 cursor-pointer rounded-3 border border-border px-3 py-1.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
 const GhostButtonClass =
-    "shrink-0 cursor-pointer rounded-6 px-2 py-0.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
-const NoDroppedFileText = "Drop an image file from your disk";
-const ImportFailedText = "The image could not be imported";
+    "shrink-0 cursor-pointer rounded-3 px-2 py-0.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
+
 const FocusRingClass =
     "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
-function Section({ title, first, children }: { title: string; first?: boolean; children: React.ReactNode }) {
-    const id = useId();
+// Each section is a DiamondForge suite block (#658): its name in the chip on the top border, its icon on the corner.
+function Section({
+    title,
+    concept,
+    tone,
+    children,
+}: {
+    title: string;
+    // The suite concept whose Lucide icon sits on the corner (suite/suite-icons.ts), not a Font Awesome name.
+    concept: SuiteIconName;
+    tone?: "danger";
+    children: React.ReactNode;
+}) {
     return (
-        <section
-            aria-labelledby={id}
-            data-section={title}
-            className={cn("min-w-0", !first && "border-t border-border pt-3")}
-        >
-            <h3 id={id} className={SectionHeadingClass}>
-                {title}
-            </h3>
+        <SectionBlock title={title} icon={suiteIcon(concept)} tone={tone} data-section={title} className="min-w-0">
             {children}
-        </section>
+        </SectionBlock>
     );
 }
 
@@ -68,6 +87,7 @@ function Section({ title, first, children }: { title: string; first?: boolean; c
 function RadioGrid({
     label,
     hideLabel,
+    labelClass,
     options,
     selected,
     onSelect,
@@ -76,6 +96,7 @@ function RadioGrid({
     label: string;
     // Named for screen readers only, where the field above already names it on screen.
     hideLabel?: boolean;
+    labelClass?: string;
     options: string[];
     selected: string;
     onSelect: (value: string) => void;
@@ -97,7 +118,7 @@ function RadioGrid({
     };
     return (
         <div className="min-w-0">
-            <div id={labelId} className={hideLabel ? "sr-only" : FieldLabelClass}>
+            <div id={labelId} className={hideLabel ? "sr-only" : (labelClass ?? FieldLabelClass)}>
                 {label}
             </div>
             <div
@@ -182,7 +203,7 @@ function useIconDrop(onPath: (path: string) => void, onRefused: (text: string) =
                 path = "";
             }
             if (!path) {
-                onRefused(NoDroppedFileText);
+                onRefused(translateNow("workspace.edit.noDroppedFile"));
                 return;
             }
             onPath(path);
@@ -193,6 +214,7 @@ function useIconDrop(onPath: (path: string) => void, onRefused: (text: string) =
 
 // Asked before a project image replaces the imported one (FR-SHELL-031 AC7): the imported copy would be deleted.
 function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+    const t = useT();
     const confirmRef = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         confirmRef.current?.focus();
@@ -200,31 +222,31 @@ function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; o
     return (
         <div
             role="group"
-            aria-label="Replace the imported image"
+            aria-label={t("workspace.edit.replaceImage")}
             data-role="replace-image-confirm"
             className="flex flex-wrap items-center gap-2 rounded-4 border border-border px-2 py-1.5"
         >
             <span className="min-w-0 flex-1 basis-48 text-12 text-secondary">
-                Replace the imported image? Its copy is deleted.
+                {t("workspace.edit.replaceImageQuestion")}
             </span>
             <button
                 ref={confirmRef}
                 type="button"
                 onClick={onConfirm}
-                className="molten-btn molten-btn-warning shrink-0 cursor-pointer rounded-6 px-2 py-1 text-12"
+                className="molten-btn molten-btn-warning shrink-0 cursor-pointer rounded-3 px-2 py-1 text-12"
             >
-                Replace
+                {t("workspace.edit.replace")}
                 <MoltenWave />
             </button>
             <button type="button" onClick={onCancel} className={cn(SecondaryButtonClass, FocusRingClass)}>
-                Cancel
+                {t("common.cancel")}
             </button>
         </div>
     );
 }
 
 const ImageTileClass =
-    "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-6 border text-icon-20 transition-colors duration-120 ease-mt motion-reduce:transition-none";
+    "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-3 border text-icon-20 transition-colors duration-120 ease-mt motion-reduce:transition-none";
 
 // The Image side of the Icon field (DS-SHELL-101): the project's images first, then the imported one, then the tile
 // that imports another (a pick or a drop; wavesrv checks and copies the file, FR-SHELL-031). The result is one line,
@@ -248,6 +270,7 @@ export function ImagePane({
     onPick: () => void;
     onLogo: (logo: string) => void;
 }) {
+    const t = useT();
     const imported = hasImportedIcon(ws);
     const source = workspaceIconSource(ws);
     const current = imported ? "" : source.logo;
@@ -259,7 +282,7 @@ export function ImagePane({
                 data-role="icon-drop"
                 data-over={over ? "true" : undefined}
                 className={cn(
-                    "-m-1 flex flex-wrap items-center gap-1.5 rounded-6 p-1 transition-colors duration-120 ease-mt motion-reduce:transition-none",
+                    "-m-1 flex flex-wrap items-center gap-1.5 rounded-3 p-1 transition-colors duration-120 ease-mt motion-reduce:transition-none",
                     over && "bg-accent/10 outline outline-1 outline-accent outline-dashed"
                 )}
             >
@@ -268,7 +291,7 @@ export function ImagePane({
                         key={logo}
                         type="button"
                         aria-pressed={logo === current}
-                        aria-label={`Project image ${pathBaseName(logo)}`}
+                        aria-label={t("workspace.edit.projectImage", { name: pathBaseName(logo) })}
                         title={logo}
                         data-image-kind="project"
                         onClick={() => onLogo(logo)}
@@ -284,8 +307,8 @@ export function ImagePane({
                 {imported ? (
                     <span
                         role="img"
-                        aria-label="Imported image, in use"
-                        title="Imported image"
+                        aria-label={t("workspace.edit.importedInUse")}
+                        title={t("workspace.edit.importedImage")}
                         data-image-kind="imported"
                         className={cn(ImageTileClass, "cursor-default border-accent bg-accent/10")}
                     >
@@ -296,8 +319,8 @@ export function ImagePane({
                     type="button"
                     disabled={busy}
                     onClick={onPick}
-                    aria-label={imported ? "Replace the imported image…" : "Import an image…"}
-                    title={imported ? "Replace the imported image…" : "Import an image…"}
+                    aria-label={t(imported ? "workspace.edit.replaceImported" : "workspace.edit.importImage")}
+                    title={t(imported ? "workspace.edit.replaceImported" : "workspace.edit.importImage")}
                     data-action="import-image"
                     className={cn(
                         ImageTileClass,
@@ -317,9 +340,7 @@ export function ImagePane({
                         {result.text}
                     </span>
                 ) : (
-                    <span className="text-muted">
-                        {over ? "Drop to use this image" : "Or drop a PNG, JPG, WebP, SVG or ICO (1 MB) here"}
-                    </span>
+                    <span className="text-muted">{t(over ? "workspace.edit.dropToUse" : "workspace.edit.orDrop")}</span>
                 )}
             </div>
         </div>
@@ -335,13 +356,18 @@ function RailBadgePreview({
     over: boolean;
     dropHandlers: React.HTMLAttributes<HTMLDivElement>;
 }) {
+    const t = useT();
     const source = workspaceIconSource(ws);
     const kind = iconKindLabel(source.image ? "imported" : source.logo ? "logo" : "builtin");
     return (
         <div className="flex shrink-0 flex-col items-center gap-1" {...dropHandlers}>
             <div
                 role="img"
-                aria-label={`Rail badge: ${iconName(ws.icon)}, ${colourName(ws.color)}${kind ? `, ${kind}` : ""}`}
+                aria-label={t(kind ? "workspace.edit.railBadgeKind" : "workspace.edit.railBadge", {
+                    icon: iconName(ws.icon),
+                    colour: colourName(workspaceColourStops(ws).join(",") || ws.color),
+                    kind,
+                })}
                 data-role="rail-preview"
                 className={cn(
                     RailBadgeClass,
@@ -352,7 +378,7 @@ function RailBadgePreview({
                 <WorkspaceIcon source={source} />
             </div>
             <div className="text-11 text-muted" aria-hidden>
-                In the rail
+                {t("workspace.edit.inTheRail")}
             </div>
         </div>
     );
@@ -360,9 +386,9 @@ function RailBadgePreview({
 
 type IconMode = "symbol" | "image";
 
-const IconModes: Segment<IconMode>[] = [
-    { value: "symbol", label: "Symbol" },
-    { value: "image", label: "Image" },
+const IconModes: ToggleOption<IconMode>[] = [
+    { value: "symbol", label: "workspace.edit.symbol" },
+    { value: "image", label: "workspace.edit.image" },
 ];
 
 // The side the Icon field opens on: Image while an image shows in the rail.
@@ -371,11 +397,12 @@ export function initialIconMode(ws: Workspace): IconMode {
 }
 
 function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObject<HTMLInputElement> }) {
+    const t = useT();
     const nameId = useId();
     const errorId = useId();
     const iconLabelId = useId();
     const [draft, setDraft] = useState<string>(null);
-    const [choices, setChoices] = useState<{ icons: string[]; colors: string[] }>({ icons: [], colors: [] });
+    const [icons, setIcons] = useState<string[]>([]);
     const [mode, setMode] = useState<IconMode>(() => initialIconMode(ws));
     const [logos, setLogos] = useState<string[]>([]);
     const [pendingLogo, setPendingLogo] = useState<string>(null);
@@ -383,9 +410,9 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
     useEffect(() => {
         let live = true;
         fireAndForget(async () => {
-            const [icons, colors] = await Promise.all([WorkspaceService.GetIcons(), WorkspaceService.GetColors()]);
+            const found = await WorkspaceService.GetIcons();
             if (live) {
-                setChoices({ icons: icons ?? [], colors: colors ?? [] });
+                setIcons(found ?? []);
             }
         });
         return () => {
@@ -416,6 +443,25 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
             WorkspaceService.UpdateWorkspace(ws.oid, saved, next.icon ?? ws.icon, next.color ?? ws.color, false)
         );
     };
+    // The gradient's stops go first: they count only once `color` is their first stop, so no surface ever shows a
+    // gradient with the previous colour's first stop.
+    const saveColour = (choice: string) => {
+        const stops = colourStops(choice);
+        if (stops.length === 0) {
+            return;
+        }
+        fireAndForget(async () => {
+            await setWorkspaceGradient(ws.oid, stops.length > 1 ? stops.join(",") : null);
+            await WorkspaceService.UpdateWorkspace(
+                ws.oid,
+                checkWorkspaceName(name) ?? ws.name,
+                ws.icon,
+                stops[0],
+                false
+            );
+        });
+    };
+    const logoColours = useLogoColours(ws);
     const onName = (value: string) => {
         setDraft(value);
         if (checkWorkspaceName(value) != null) {
@@ -435,7 +481,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                 setResult(await fn());
             } catch (e) {
                 console.log("workspace icon:", e);
-                setResult({ ok: false, text: ImportFailedText });
+                setResult({ ok: false, text: translateNow("workspace.edit.importFailed") });
             } finally {
                 setBusy(false);
             }
@@ -445,12 +491,17 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
         setMode("image");
         runIconChange(async () => {
             const refusal = await WorkspaceService.ImportWorkspaceIcon(ws.oid, path);
-            return refusal ? { ok: false, text: refusal } : { ok: true, text: `Imported ${pathBaseName(path)}` };
+            return refusal
+                ? { ok: false, text: refusal }
+                : { ok: true, text: translateNow("workspace.edit.imported", { name: pathBaseName(path) }) };
         });
     };
     const pick = () =>
         fireAndForget(async () => {
-            const path = await chooseMoltentermPath({ kind: "workspaceicon", title: "Workspace icon" });
+            const path = await chooseMoltentermPath({
+                kind: "workspaceicon",
+                title: translateNow("workspace.edit.iconDialogTitle"),
+            });
             if (path) {
                 importPath(path);
             }
@@ -467,7 +518,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
             if (source.logo) {
                 await setWorkspaceLogo(ws.oid, null);
             }
-            return { ok: true, text: "Back to the symbol" };
+            return { ok: true, text: translateNow("workspace.edit.backToSymbol") };
         });
     const chooseLogo = (logo: string) => {
         if (imported) {
@@ -483,7 +534,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
         runIconChange(async () => {
             await WorkspaceService.RemoveWorkspaceIcon(ws.oid);
             await setWorkspaceLogo(ws.oid, logo);
-            return { ok: true, text: `Using ${pathBaseName(logo)}` };
+            return { ok: true, text: translateNow("workspace.edit.using", { name: pathBaseName(logo) }) };
         });
     };
     const drop = useIconDrop(importPath, (text) => {
@@ -491,12 +542,12 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
         setResult({ ok: false, text });
     });
     return (
-        <Section title="Identity" first>
+        <Section title={t("workspace.edit.identity")} concept="identity">
             <div className="flex min-w-0 items-start gap-3">
                 <RailBadgePreview ws={ws} over={drop.over} dropHandlers={drop.handlers} />
                 <div className="min-w-0 flex-1">
                     <label htmlFor={nameId} className={cn(FieldLabelClass, "flex")}>
-                        Name
+                        {t("workspace.edit.name")}
                     </label>
                     <input
                         id={nameId}
@@ -513,7 +564,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                         )}
                     />
                     <div id={errorId} aria-live="polite" className="mt-1 min-h-4 text-12 text-error">
-                        {invalid ? EmptyNameError : ""}
+                        {invalid ? emptyNameError() : ""}
                     </div>
                 </div>
             </div>
@@ -521,11 +572,11 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                 <div className="min-w-0" role="group" aria-labelledby={iconLabelId} data-role="icon-field">
                     <div className="mb-1.5 flex items-center justify-between gap-2">
                         <div id={iconLabelId} className="text-12 text-secondary">
-                            Icon
+                            {t("workspace.edit.icon")}
                         </div>
-                        <SegmentedControl<IconMode>
-                            label="Icon kind"
-                            segments={IconModes}
+                        <ToggleGroup<IconMode>
+                            label={t("workspace.edit.iconKind")}
+                            options={IconModes.map((s) => ({ ...s, label: t(s.label) }))}
                             selected={mode}
                             onSelect={(next) => setMode(next)}
                         />
@@ -534,7 +585,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                         <div className="flex min-w-0 flex-col gap-1.5">
                             {showsImage ? (
                                 <div className="flex flex-wrap items-center gap-2 text-12 text-muted">
-                                    <span className="min-w-0 flex-1">The rail shows an image instead.</span>
+                                    <span className="min-w-0 flex-1">{t("workspace.edit.railShowsImage")}</span>
                                     <button
                                         type="button"
                                         disabled={busy}
@@ -542,12 +593,12 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                                         data-action="use-symbol"
                                         className={cn(GhostButtonClass, FocusRingClass)}
                                     >
-                                        Use the symbol
+                                        {t("workspace.edit.useSymbol")}
                                     </button>
                                 </div>
                             ) : null}
                             <IconChoices
-                                icons={choices.icons}
+                                icons={icons}
                                 selected={ws.icon}
                                 color={ws.color}
                                 onSelect={(icon) => save({ icon })}
@@ -569,7 +620,11 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                         <ReplaceImageConfirm onConfirm={confirmLogo} onCancel={() => setPendingLogo(null)} />
                     ) : null}
                 </div>
-                <ColourChoices colors={choices.colors} selected={ws.color} onSelect={(color) => save({ color })} />
+                <ColourField
+                    selected={workspaceColourStops(ws).join(",")}
+                    logoColours={logoColours}
+                    onSelect={saveColour}
+                />
             </div>
         </Section>
     );
@@ -586,9 +641,10 @@ export function IconChoices({
     color: string;
     onSelect: (icon: string) => void;
 }) {
+    const t = useT();
     return (
         <RadioGrid
-            label="Symbol"
+            label={t("workspace.edit.symbol")}
             hideLabel
             options={icons}
             selected={selected}
@@ -603,7 +659,7 @@ export function IconChoices({
                     tabIndex={tabIndex}
                     onClick={() => onSelect(icon)}
                     className={cn(
-                        "flex h-8 w-8 cursor-pointer items-center justify-center rounded-6 border text-icon-16 transition-colors duration-120 ease-mt motion-reduce:transition-none",
+                        "flex h-8 w-8 cursor-pointer items-center justify-center rounded-3 border text-icon-16 transition-colors duration-120 ease-mt motion-reduce:transition-none",
                         FocusRingClass,
                         checked
                             ? "border-accent bg-accent/10 text-primary"
@@ -617,51 +673,233 @@ export function IconChoices({
     );
 }
 
+const SwatchClass = "m-0.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-12";
+const SwatchCheckedClass = "ring-2 ring-primary ring-offset-2 ring-offset-modalbg";
+const ColourGroupLabelClass = "mb-1 text-11 text-muted";
+
+// A row of swatches: flat colours and gradients alike (a choice is "#a" or "#a,#b[,#c]", workspace-colour.ts).
 export function ColourChoices({
     colors,
     selected,
     onSelect,
+    label,
+    names,
 }: {
     colors: string[];
     selected: string;
     onSelect: (color: string) => void;
+    // A sub-group of the Colour field is named in a smaller label; alone, the row is the Colour field.
+    label?: string;
+    names?: Record<string, string>;
 }) {
+    const t = useT();
+    const selectedChoice = colourStops(selected).join(",");
     return (
         <RadioGrid
-            label="Colour"
+            label={label ?? t("workspace.edit.colour")}
+            labelClass={label ? ColourGroupLabelClass : undefined}
             options={colors}
-            selected={selected}
+            selected={colors.find((c) => colourStops(c).join(",") === selectedChoice) ?? selected}
             onSelect={onSelect}
-            renderOption={(color, checked, tabIndex) => (
-                <button
-                    type="button"
-                    role="radio"
-                    aria-checked={checked}
-                    aria-label={colourName(color)}
-                    title={colourName(color)}
-                    tabIndex={tabIndex}
-                    onClick={() => onSelect(color)}
-                    className={cn(
-                        "m-0.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-12",
-                        FocusRingClass,
-                        checked && "ring-2 ring-primary ring-offset-2 ring-offset-modalbg"
-                    )}
-                    style={{ backgroundColor: color }}
-                >
-                    {checked ? (
-                        <i
-                            className="fa fa-solid fa-check"
-                            style={{ color: accentForeground(parseColor(color) ?? { r: 0, g: 0, b: 0 }) }}
-                            aria-hidden
-                        />
-                    ) : null}
-                </button>
-            )}
+            renderOption={(color, checked, tabIndex) => {
+                const name = names?.[color] ?? colourName(color);
+                return (
+                    <button
+                        type="button"
+                        role="radio"
+                        aria-checked={checked}
+                        aria-label={name}
+                        title={name}
+                        tabIndex={tabIndex}
+                        onClick={() => onSelect(color)}
+                        data-colour={color}
+                        className={cn(SwatchClass, FocusRingClass, checked && SwatchCheckedClass)}
+                        style={{ background: colourChoiceCss(color) }}
+                    >
+                        {checked ? (
+                            <i
+                                className="fa fa-solid fa-check"
+                                style={{ color: colourChoiceForeground(color) }}
+                                aria-hidden
+                            />
+                        ) : null}
+                    </button>
+                );
+            }}
         />
     );
 }
 
+// The colours of the workspace's image (imported, or its project's logo), once read; none while it shows a symbol.
+function useLogoColours(ws: Workspace): string[] {
+    const url = workspaceImageUrl(workspaceIconSource(ws));
+    const [found, setFound] = useState<{ url: string; colours: string[] }>(null);
+    useEffect(() => {
+        if (!url) {
+            return;
+        }
+        let live = true;
+        logoPalette(url).then((colours) => {
+            if (live) {
+                setFound({ url, colours });
+            }
+        });
+        return () => {
+            live = false;
+        };
+    }, [url]);
+    return found?.url === url ? found.colours : [];
+}
+
+// A custom colour (#657): the colour picker, or a hex value typed in. The picker reports every move of its cursor;
+// only where it rests is saved.
+function CustomColour({ custom, base, onSelect }: { custom: string; base: string; onSelect: (c: string) => void }) {
+    const t = useT();
+    const hexId = useId();
+    const [draft, setDraft] = useState<string>(null);
+    const [picking, setPicking] = useState<string>(null);
+    const timer = useRef<ReturnType<typeof setTimeout>>(null);
+    useEffect(() => () => clearTimeout(timer.current), []);
+    const shown = picking ?? custom;
+    const onPick = (value: string) => {
+        setPicking(value);
+        clearTimeout(timer.current);
+        timer.current = setTimeout(() => {
+            setPicking(null);
+            const colour = parseCustomColour(value);
+            if (colour) {
+                onSelect(colour);
+            }
+        }, 250);
+    };
+    const commit = () => {
+        const colour = parseCustomColour(draft ?? "");
+        setDraft(null);
+        if (colour && colour !== custom) {
+            onSelect(colour);
+        }
+    };
+    const onHex = (value: string) => {
+        setDraft(value);
+        const colour = parseCustomColour(value);
+        // A 3-digit value is the start of a 6-digit one while typing: it is taken on Enter or when the field is left.
+        if (colour && value.replace("#", "").trim().length === 6) {
+            onSelect(colour);
+        }
+    };
+    return (
+        <div className="min-w-0" data-role="custom-colour">
+            <div className={ColourGroupLabelClass}>{t("workspace.edit.customColour")}</div>
+            <div className="flex items-center gap-2">
+                <label
+                    title={t("workspace.edit.pickColour")}
+                    className={cn(
+                        SwatchClass,
+                        "relative focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary",
+                        custom && SwatchCheckedClass
+                    )}
+                    style={{
+                        background:
+                            shown || "conic-gradient(#ff453a, #ffe900, #58c142, #00ffdb, #429dff, #bf55ec, #ff453a)",
+                    }}
+                >
+                    <input
+                        type="color"
+                        aria-label={t("workspace.edit.pickColour")}
+                        value={shown || base || "#ff7c0d"}
+                        onChange={(e) => onPick(e.target.value)}
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    />
+                    {custom ? (
+                        <i
+                            className="fa fa-solid fa-check pointer-events-none"
+                            style={{ color: colourChoiceForeground(shown) }}
+                            aria-hidden
+                        />
+                    ) : null}
+                </label>
+                <label htmlFor={hexId} className="sr-only">
+                    {t("workspace.edit.hexColour")}
+                </label>
+                <input
+                    id={hexId}
+                    type="text"
+                    spellCheck={false}
+                    maxLength={7}
+                    placeholder="#RRGGBB"
+                    value={draft ?? custom}
+                    onChange={(e) => onHex(e.target.value)}
+                    onBlur={commit}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                            commit();
+                        }
+                    }}
+                    className="w-24 min-w-0 rounded-4 border border-border bg-transparent px-2 py-1 font-mono text-12 text-primary outline-none focus:border-accent"
+                />
+            </div>
+        </div>
+    );
+}
+
+// The Colour field (#657): the logo's colours and gradients first when the workspace shows an image, then the presets,
+// the gradients and a custom colour. Each row is its own radio group; the chosen colour is checked in the row it is in.
+export function ColourField({
+    selected,
+    logoColours,
+    onSelect,
+}: {
+    selected: string;
+    logoColours: string[];
+    onSelect: (choice: string) => void;
+}) {
+    const t = useT();
+    const labelId = useId();
+    const logo = logoColourChoices(logoColours);
+    const logoNames: Record<string, string> = {};
+    logo.forEach((choice) => {
+        const stops = colourStops(choice);
+        logoNames[choice] =
+            stops.length === 1
+                ? t("workspace.colours.logoColour", { colour: stops[0] })
+                : t("workspace.colours.logoGradient", { colours: stops.join(", ") });
+    });
+    const known = [...logo, ...PresetColourChoices, ...PresetGradientChoices];
+    const stops = colourStops(selected);
+    const custom = stops.length === 1 && !known.includes(stops[0]) ? stops[0] : "";
+    return (
+        <div role="group" aria-labelledby={labelId} data-role="colour-field" className="flex min-w-0 flex-col gap-2">
+            <div id={labelId} className="text-12 text-secondary">
+                {t("workspace.edit.colour")}
+            </div>
+            {logo.length > 0 ? (
+                <ColourChoices
+                    label={t("workspace.edit.fromLogo")}
+                    colors={logo}
+                    names={logoNames}
+                    selected={selected}
+                    onSelect={onSelect}
+                />
+            ) : null}
+            <ColourChoices
+                label={t("workspace.edit.presetColours")}
+                colors={PresetColourChoices}
+                selected={selected}
+                onSelect={onSelect}
+            />
+            <ColourChoices
+                label={t("workspace.edit.gradients")}
+                colors={PresetGradientChoices}
+                selected={selected}
+                onSelect={onSelect}
+            />
+            <CustomColour custom={custom} base={stops[0]} onSelect={onSelect} />
+        </div>
+    );
+}
+
 export function DangerSection({ ws, closable, onClose }: { ws: Workspace; closable: boolean; onClose: () => void }) {
+    const t = useT();
     const action = dangerAction(closable);
     // The sheet closes first: Delete asks in a native box, Reset in its own dialog (#222).
     const run = () => {
@@ -673,7 +911,7 @@ export function DangerSection({ ws, closable, onClose }: { ws: Workspace; closab
         }
     };
     return (
-        <Section title="Danger zone">
+        <Section title={t("workspace.edit.dangerZone")} concept="danger" tone="danger">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 flex-1 basis-48 text-12 text-muted">{action.text}</div>
                 <button
@@ -698,6 +936,7 @@ export function WorkspaceEditSheet({
     closable: boolean;
     onClose: () => void;
 }) {
+    const t = useT();
     const [ws] = useWaveObjectValue<Workspace>(makeORef("workspace", workspaceId));
     const nameRef = useRef<HTMLInputElement>(null);
     const loaded = ws != null;
@@ -715,28 +954,29 @@ export function WorkspaceEditSheet({
     return (
         <DialogFrame
             role="workspace-edit"
-            title="Workspace"
+            title={t("workspace.edit.title")}
             subtitle={effectiveWorkspaceFolder(ws) || undefined}
             subtitleClass="font-mono text-11"
-            widthClass="w-[560px]"
+            widthClass="w-fit max-w-[min(560px,calc(100vw-32px))]"
             trapFocus
+            suite
             onBackdrop={onClose}
             buttons={
                 <button
                     type="button"
-                    className="molten-btn cursor-pointer rounded-6 px-4 py-1.5 text-12"
+                    className="molten-btn cursor-pointer rounded-3 px-4 py-1.5 text-12"
                     onClick={onClose}
                 >
-                    Done
+                    {t("workspace.edit.done")}
                     <MoltenWave />
                 </button>
             }
         >
             <IdentitySection ws={ws} nameRef={nameRef} />
-            <Section title="Project">
+            <Section title={t("workspace.edit.project")} concept="project">
                 <WorkspaceProjectBlock ws={ws} />
             </Section>
-            <Section title="Folder">
+            <Section title={t("workspace.edit.folder")} concept="folder">
                 <WorkspaceFolderLine ws={ws} />
             </Section>
             <DangerSection ws={ws} closable={closable} onClose={onClose} />

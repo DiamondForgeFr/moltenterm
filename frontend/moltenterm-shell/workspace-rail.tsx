@@ -21,7 +21,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { agentStateTitle } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
 import { AgentRailDot } from "./agent-state-ui";
-import { coffeeCondition, coffeeSupported, coffeeTooltip, computerName, railCoffeeLabel } from "./keepawake-model";
+import { useT } from "./i18n/i18n";
+import { coffeeCondition, coffeeSupported, coffeeTooltip, railCoffeeLabel } from "./keepawake-model";
 import { KeepAwakeModel } from "./keepawake-store";
 import { RailCoffeeDrop, usePlatform } from "./keepawake-ui";
 import { unreadByWorkspace } from "./notifications-model";
@@ -61,6 +62,7 @@ import {
 import { RailConnectState, RailDropToGroup, RailProduct, WorstDot } from "./rail-product";
 import { RailTools } from "./rail-tools";
 import { installRailTrayExits, RailTray, RailTrayPrimary, showRailMenu, useRailTrayHost } from "./rail-tray";
+import { installReviewHandoff } from "./reviews/reviews-handoff";
 import {
     railEditLabel,
     railMoreLabel,
@@ -80,7 +82,7 @@ import { RailDragScope, useRailDrag } from "./workspace-rail-dnd";
 import { railMoveKey } from "./workspace-rail-drag";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
 import { askResetWorkspace, WorkspaceResetHost } from "./workspace-reset";
-import { canCloseWorkspace, LastWorkspaceReason } from "./workspace-reset-model";
+import { canCloseWorkspace, lastWorkspaceReason } from "./workspace-reset-model";
 import { WorktreeCloseHost } from "./worktree-close";
 
 export async function loadWorkspaceSources(): Promise<WorkspaceRailSource[]> {
@@ -171,6 +173,7 @@ function RailButton({
     // In connect mode, a click on a workspace groups it with the target; true when the click was taken.
     connectClick: (workspaceId: string) => boolean;
 }) {
+    const t = useT();
     const ref = useRef<HTMLButtonElement>(null);
     // Read live: the icon can change from the editor or from molten while the rail's list is not refreshed.
     const [workspace] = useWaveObjectValue<Workspace>(makeORef("workspace", entry.id));
@@ -233,7 +236,7 @@ function RailButton({
             onEdit: edit,
             coffee: coffeeSupported(platform)
                 ? {
-                      label: `Keep ${computerName(platform)} awake while it works`,
+                      label: t("rail.keepAwakeWhileWorking"),
                       on: coffee != null,
                       onToggle: () => setCoffee(coffee == null),
                   }
@@ -251,7 +254,7 @@ function RailButton({
             onReset: () => askResetWorkspace(entry.id),
             remove: {
                 enabled: closable,
-                reason: LastWorkspaceReason,
+                reason: lastWorkspaceReason(),
                 onDelete: () => getApi().deleteWorkspace(entry.id),
             },
         });
@@ -277,7 +280,8 @@ function RailButton({
     };
     const dragging = moves.dragOffsetY != null;
     const connect = grouping?.connect;
-    const coffeeText = coffee != null ? ` · kept awake ${coffeeCondition(coffee, Date.now())}` : "";
+    const coffeeText =
+        coffee != null ? ` · ${t("rail.keptAwake", { condition: coffeeCondition(coffee, Date.now()) })}` : "";
     const stateText = (member?.stateText ? ` · ${member.stateText}` : "") + coffeeText;
     const size = member != null ? RailMemberPx : RailItemPx;
     const primary: RailTrayPrimary =
@@ -292,7 +296,7 @@ function RailButton({
             : { kind: "edit", label: railEditLabel(entry.name), onActivate: edit };
     const dot =
         unread > 0
-            ? { className: "bg-primary", label: `${unread} unread` }
+            ? { className: "bg-primary", label: t("rail.unread", { count: unread }) }
             : agent?.state === "waiting"
               ? { className: "bg-[var(--mt-state-waiting)]", label: agentStateTitle(agent) }
               : undefined;
@@ -310,7 +314,7 @@ function RailButton({
                 ref={ref}
                 type="button"
                 tabIndex={nav.tabIndex}
-                aria-label={`${entry.saved ? entry.name : "Unsaved workspace"}${stateText}${unread > 0 ? `, ${unread} unread` : ""}`}
+                aria-label={`${entry.saved ? entry.name : t("rail.unsavedWorkspace")}${stateText}${unread > 0 ? `, ${t("rail.unread", { count: unread })}` : ""}`}
                 aria-current={entry.active ? "true" : undefined}
                 data-workspace-id={entry.id}
                 data-rail-nav={nav.key}
@@ -324,7 +328,7 @@ function RailButton({
                         return;
                     }
                     const rect = e.currentTarget.getBoundingClientRect();
-                    onHover("Unsaved workspace: click to save it", {
+                    onHover(t("rail.unsavedClickToSave"), {
                         top: rect.top + rect.height / 2,
                         left: rect.right + 8,
                     });
@@ -378,6 +382,7 @@ function RailButton({
 }
 
 export function WorkspaceRail() {
+    const t = useT();
     const active = useAtomValue(atoms.workspace);
     const [sources, setSources] = useState<WorkspaceRailSource[]>([]);
     const [tooltip, setTooltip] = useState<{ label: string; anchor: Anchor }>(null);
@@ -396,6 +401,8 @@ export function WorkspaceRail() {
     useEffect(refresh, [active?.oid, active?.name, active?.icon, active?.color, refresh]);
     // A workspace switch folds the tray (FR-SHELL-045-AC4).
     useEffect(() => RailTrayModel.getInstance().closeAll(), [active?.oid]);
+    // `molten review open|publish|merge` in a terminal of this workspace (FR-REV-014); the rail lives once per window.
+    useEffect(() => installReviewHandoff(active?.oid), [active?.oid]);
 
     const entries = makeWorkspaceRailEntries(sources, active);
     const navRef = useRef<HTMLElement>(null);
@@ -728,7 +735,7 @@ export function WorkspaceRail() {
                                   const name = cleanGroupName(value);
                                   if (name == null) {
                                       connectModel.showMessage(
-                                          `A group name is at most ${MaxGroupNameLength} characters.`,
+                                          t("rail.groupNameTooLong", { max: MaxGroupNameLength }),
                                           localAnchor
                                       );
                                       return;
@@ -767,7 +774,7 @@ export function WorkspaceRail() {
     return (
         <nav
             ref={navRef}
-            aria-label="Workspaces"
+            aria-label={t("rail.workspaces")}
             onKeyDown={onNavKeyDown}
             className="molten-workspace-rail relative flex h-full w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border py-2"
         >
@@ -788,13 +795,13 @@ export function WorkspaceRail() {
             ) : null}
             <button
                 type="button"
-                aria-label="Create workspace"
+                aria-label={t("rail.createWorkspace")}
                 className="mt-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-6 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary"
                 onClick={() => getApi().createWorkspace()}
                 onMouseEnter={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     setTooltip({
-                        label: "Create workspace",
+                        label: t("rail.createWorkspace"),
                         anchor: { top: rect.top + rect.height / 2, left: rect.right + 8 },
                     });
                 }}

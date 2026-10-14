@@ -5,6 +5,7 @@
 // tree a terminal works in, when the link is offered, and the plan shown before a worktree is removed. Kept apart from
 // the components so the rules can be tested without the app.
 
+import { t } from "./i18n/i18n";
 import type { PaneState } from "./status-bar-model";
 import { pathBaseName } from "./workspace-project";
 
@@ -80,27 +81,27 @@ export function treeMarker(state: PaneState, link: string): TreeMarker {
         if (state?.linked?.missing) {
             return {
                 kind: "missing",
-                label: "missing worktree",
+                label: t("worktree.missingLabel"),
                 branch: "",
                 path: link,
                 linked: true,
                 outside: false,
                 colorClass: MissingColor,
                 icon: MissingWorktreeIcon,
-                title: `Missing worktree: ${link} was removed outside MoltenTerm.\nClick to unlink this terminal.`,
+                title: t("worktree.missingTitle", { path: link }),
             };
         }
         const branch = state?.linked?.branch ?? "";
         // wavesrv compares the paths with symlinks resolved (/tmp is /private/tmp on macOS).
         const outside = state?.linked != null && !state.linked.inside;
-        const lines = [`Worktree ${name}${branch ? ` on ${branch}` : ""}, linked to this terminal`, link];
+        const lines = [branch ? t("worktree.linkedOn", { name, branch }) : t("worktree.linked", { name }), link];
         if (outside && state?.dir) {
-            lines.push(`This terminal is now in ${state.dir}, outside its worktree.`);
+            lines.push(t("worktree.outside", { dir: state.dir }));
         }
         if (state?.linked?.dirty) {
-            lines.push("uncommitted changes");
+            lines.push(t("worktree.dirty"));
         }
-        lines.push("Closing the terminal offers to remove the worktree.");
+        lines.push(t("worktree.closeOffers"));
         return {
             kind: "worktree",
             label: name,
@@ -126,9 +127,9 @@ export function treeMarker(state: PaneState, link: string): TreeMarker {
             colorClass: worktreeColor(state.root),
             icon: WorktreeIcon,
             title: [
-                `Worktree ${name}${branch ? ` on ${branch}` : ""}, not linked to this terminal`,
+                branch ? t("worktree.notLinkedOn", { name, branch }) : t("worktree.notLinked", { name }),
                 state.root,
-                state.project ? `of ${state.project}` : "",
+                state.project ? t("worktree.ofProject", { project: state.project }) : "",
             ]
                 .filter((s) => s)
                 .join("\n"),
@@ -138,14 +139,16 @@ export function treeMarker(state: PaneState, link: string): TreeMarker {
         const branch = branchOf(state);
         return {
             kind: "main",
-            label: "main tree",
+            label: t("worktree.mainLabel"),
             branch,
             path: state.root,
             linked: false,
             outside: false,
             colorClass: MainTreeColor,
             icon: MainTreeIcon,
-            title: [`Main tree, no worktree${branch ? ` (${branch})` : ""}`, state.root].join("\n"),
+            title: [branch ? t("worktree.mainTitleBranch", { branch }) : t("worktree.mainTitle"), state.root].join(
+                "\n"
+            ),
         };
     }
     return null;
@@ -173,13 +176,13 @@ export function treeTooltipLine(marker: TreeMarker): string {
         return "";
     }
     if (marker.kind === "missing") {
-        return `missing worktree (${marker.path})`;
+        return t("worktree.lineMissing", { path: marker.path });
     }
     const branch = marker.branch ? ` · ${marker.branch}` : "";
     if (marker.kind === "main") {
-        return `main tree${branch}`;
+        return `${t("worktree.mainLabel")}${branch}`;
     }
-    return `worktree ${marker.label}${branch}${marker.linked ? "" : " (not linked)"}`;
+    return `${t("worktree.lineWorktree", { name: marker.label })}${branch}${marker.linked ? "" : ` ${t("worktree.notLinkedSuffix")}`}`;
 }
 
 export function tabTreesTooltip(lines: string[]): string {
@@ -187,7 +190,7 @@ export function tabTreesTooltip(lines: string[]): string {
     if (shown.length === 0) {
         return "";
     }
-    return ["Trees:", ...shown.map((l) => `• ${l}`)].join("\n");
+    return [t("worktree.trees"), ...shown.map((l) => `• ${l}`)].join("\n");
 }
 
 // must match WorktreePlan and WorktreeRemoveResult in pkg/molten/mission/worktree.go
@@ -266,8 +269,9 @@ export type ClosePlanView = {
     blockedReason: string;
 };
 
-function plural(n: number, one: string, many: string): string {
-    return `${n} ${n === 1 ? one : many}`;
+// A count with its words: key.one or key.other, with {count}.
+function plural(n: number, key: string): string {
+    return t(n === 1 ? `${key}.one` : `${key}.other`, { count: n });
 }
 
 export function closePlanView(plan: WorktreePlan): ClosePlanView {
@@ -277,38 +281,47 @@ export function closePlanView(plan: WorktreePlan): ClosePlanView {
     const shared = terminals.length > 0;
     const commitsAtRisk = unpushedAtRisk(plan);
     const atRisk = changes > 0 || commitsAtRisk || (plan.ignoredfilecount ?? 0) > 0 || shared;
-    const branch = plan.branch || (plan.detached ? `detached at ${(plan.sha ?? "").slice(0, 7)}` : "");
+    const branch =
+        plan.branch || (plan.detached ? t("worktree.plan.detachedAt", { sha: (plan.sha ?? "").slice(0, 7) }) : "");
     let mergedLine = "";
     if (plan.branch) {
         if (plan.protected) {
-            mergedLine = `${plan.branch} is a long-lived branch: it is kept`;
+            mergedLine = t("worktree.plan.longLived", { branch: plan.branch });
         } else if (plan.merged == null) {
             mergedLine = plan.trunk
-                ? `could not tell whether ${plan.branch} is merged into ${plan.trunk}`
-                : "no trunk to compare with";
+                ? t("worktree.plan.mergedUnknown", { branch: plan.branch, trunk: plan.trunk })
+                : t("worktree.plan.noTrunk");
         } else {
-            mergedLine = plan.merged ? `merged: its content is on ${plan.trunk}` : `not merged into ${plan.trunk}`;
+            mergedLine = plan.merged
+                ? t("worktree.plan.merged", { trunk: plan.trunk })
+                : t("worktree.plan.notMerged", { trunk: plan.trunk });
         }
     }
-    let unpushedLine = "no unpushed commits";
+    let unpushedLine = t("worktree.plan.noUnpushed");
     if (unpushed < 0) {
-        unpushedLine = "git could not count the unpushed commits";
+        unpushedLine = t("worktree.plan.unpushedUnknown");
     } else if (unpushed > 0) {
+        const commits = plural(unpushed, "worktree.plan.commits");
         if (plan.detached) {
-            unpushedLine = `${plural(unpushed, "commit", "commits")} on no branch: lost with the worktree`;
+            unpushedLine = t("worktree.plan.unpushedDetached", { commits });
         } else if (plan.noremote) {
-            unpushedLine = `${plural(unpushed, "commit", "commits")} on no other branch (no remote)`;
+            unpushedLine = t("worktree.plan.unpushedNoRemote", { commits });
         } else {
-            unpushedLine = `${plural(unpushed, "commit", "commits")} on no remote`;
+            unpushedLine = t("worktree.plan.unpushed", { commits });
         }
         if (!commitsAtRisk && !plan.detached) {
-            unpushedLine += `, content already on ${plan.trunk}`;
+            unpushedLine += t("worktree.plan.alreadyOnTrunk", { trunk: plan.trunk });
         }
     }
     const terminalsLine = shared
-        ? `Also used by ${plural(terminals.length, "other terminal", "other terminals")}: ${terminals
-              .map((t) => [t.workspace, t.tab].filter((s) => s).join(" › ") || "a terminal")
-              .join(", ")}`
+        ? t("worktree.plan.alsoUsedBy", {
+              terminals: plural(terminals.length, "worktree.plan.otherTerminals"),
+              list: terminals
+                  .map(
+                      (term) => [term.workspace, term.tab].filter((s) => s).join(" › ") || t("worktree.plan.aTerminal")
+                  )
+                  .join(", "),
+          })
         : "";
     return {
         atRisk,
@@ -316,21 +329,23 @@ export function closePlanView(plan: WorktreePlan): ClosePlanView {
         shared,
         defaultChoice: shared ? "keep" : "remove",
         branchLine: branch,
-        changesLine:
-            changes > 0 ? `${plural(changes, "uncommitted change", "uncommitted changes")}` : "no uncommitted changes",
+        changesLine: changes > 0 ? plural(changes, "worktree.plan.changes") : t("worktree.plan.noChanges"),
         unpushedLine,
         mergedLine,
         ignoredLine:
             (plan.ignoredcount ?? 0) > 0
-                ? `${plural(plan.ignoredcount, "ignored entry", "ignored entries")} removed too: ${plan.ignored.join(", ")}${plan.ignoredcount > plan.ignored.length ? ", …" : ""}`
+                ? t("worktree.plan.ignoredRemoved", {
+                      entries: plural(plan.ignoredcount, "worktree.plan.ignored"),
+                      list: `${plan.ignored.join(", ")}${plan.ignoredcount > plan.ignored.length ? ", …" : ""}`,
+                  })
                 : "",
         terminalsLine,
         canDeleteBranch: !!plan.branch && !plan.protected && plan.merged === true,
         canRemove: !plan.locked && !plan.missing && !plan.refused,
         blockedReason: plan.locked
-            ? "The worktree is locked (git worktree lock): MoltenTerm keeps it."
+            ? t("worktree.plan.locked")
             : plan.refused
-              ? `MoltenTerm does not remove this folder: ${plan.refused}.`
+              ? t("worktree.plan.refused", { reason: plan.refused })
               : "",
     };
 }

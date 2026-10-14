@@ -52,6 +52,14 @@ It has a TypeScript/React frontend and a Go backend. They talk together over `ws
 - For accent buttons, use "bg-accent/80 text-primary rounded hover:bg-accent transition-colors cursor-pointer" (if you do "bg-accent hover:bg-accent/80" it looks weird as on hover the button gets darker instead of lighter)
   - **Moltenterm (MOLTENTERM-PATCH #145):** this replaces the line above. A call-to-action button takes the class `molten-btn` (add `molten-btn-destructive` or `molten-btn-warning` for those) with sizes only from Tailwind (e.g. `"molten-btn cursor-pointer rounded px-3 py-1.5 text-xs"`, no `bg-*`, `text-*` colour or `hover:bg-*`), and `<MoltenWave />` from `frontend/moltenterm-shell/molten-button.tsx` as its last child. Wave's `Button` does this itself: no class or the `green` class gives the molten primary. Secondary actions stay calm (bordered or ghost). The style lives in `frontend/moltenterm-shell/molten-button.css`.
 
+### Interface languages (Moltenterm, MOLTENTERM-PATCH #623, #628)
+
+- Every user-facing string goes through a key (FR-I18N-001, NFR-I18N-001): components call `const t = useT()`, models, menus and anything outside React call `t(key, vars)` (both from `frontend/moltenterm-shell/i18n/i18n.ts`), Electron main calls `mt(key, vars)` (`emain/moltenterm-i18n.ts`). Never a literal UI string in new code.
+- Keys live in `frontend/moltenterm-shell/i18n/locales/en.json` (the reference) and `fr.json`, nested by surface (`settings.*`, `mc.*`, `review.*`, `wave.*`...). Add each key to both files with the same `{name}` placeholders: `npx vitest run frontend/moltenterm-shell/i18n` fails otherwise, and when the code asks for a key en.json lacks.
+- Resolve at render or call time, never into a module-level constant: the language changes without a restart. Keep keys as data (`labelKey`) and translate where the text is shown.
+- Interpolated values are text, never HTML. The output of `molten` and `wsh` stays English (agents parse it).
+- UI text never names the machine or the OS (Mac, macOS, Finder, Windows Explorer): say "this computer", "Show in folder", "the system keychain". Shortcut glyphs adapt per platform (⌘ / Ctrl), and a feature that only exists on one platform may say so (allow-list in `frontend/moltenterm-shell/i18n/neutral-words.test.ts`).
+
 ### RPC System
 
 To define a new RPC call, add the new definition to `pkg/wshrpc/wshrpctypes.go` including any input/output data that is required. After modifying wshrpctypes.go run `task generate` to generate the client APIs.
@@ -203,3 +211,13 @@ Also when adding content to the end of files prefer to use the new append_file t
 
 No need to run a `go build` or a `go run` to just check if the Go code compiles. VSCode's errors/problems cover this well.
 If there are no Go errors in VSCode you can assume the code compiles fine.
+
+### Load-proof tests (Moltenterm, MOLTENTERM-PATCH #651)
+
+Tests run in parallel on loaded machines (CI, full local runs): a test must pass however slow the machine is, and fail only when its behaviour breaks.
+
+- **No wall-clock assertions.** Check what happened, not how long it took. Example: the fake `codex` writes `$FAKE_LOG.eof` once its stdin closes and the test checks that file, instead of `took < codexAppServerExitGrace`. When "does not wait" is the behaviour, make the wait longer than any bound, so a wrong wait shows as a hang (`TestRunCodexAppServerErrors`).
+- **No fixed sleeps.** Wait for a signal, or poll a condition. A deadline only bounds a failing run: make it generous (30 s to 1 min). Example: `waitRun` polls the run's state with a 1 min deadline.
+- **Wait for background work before cleanup.** A goroutine or process still writing in a `t.TempDir` makes its removal fail with "directory not empty". Register the wait with `t.Cleanup` after the temp folders, since cleanups run in reverse order. Example: `t.Cleanup(func() { waitRunsIdle(t, r) })` in the `pkg/molten/mission` fixtures.
+- **Top-level imports in vitest.** A test's 5 s timeout must not pay for loading a module graph. Import statically: it loads while the file is collected, which has no timeout. When each test needs fresh modules (`vi.resetModules()`), still load the graph once first (a static import, or a `beforeAll` with a generous timeout when `vi.doMock` must run before). Example: `frontend/moltenterm-shell/busy-close-guard.test.ts`.
+- **Prove it** before calling a test fixed: 50 Go runs (`go test -count=50 -run '^TestX$' ./pkg/...`) or 30 vitest runs while a loop keeps `go test -count=1 ./...` running, then break the guarded behaviour once and see the test fail.

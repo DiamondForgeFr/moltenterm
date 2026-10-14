@@ -5,6 +5,8 @@
 // DS-SHELL-063): the sleep policy, the coffees of the rail, the blocks the shims reported. wavesrv decides
 // (pkg/molten/keepawake); this file holds the rules the views need, apart from the components so they can be tested.
 
+import { t } from "./i18n/i18n";
+
 export const KeepAwakeRoute = "molten:keepawake";
 export const KeepAwakeEvent = "molten:keepawake";
 export const KeepAwakeStateCommand = "keepawakestate";
@@ -126,19 +128,20 @@ export function coffeeSupported(platform: string): boolean {
     return platform === "darwin" || platform === "linux";
 }
 
-export function computerName(platform: string): string {
-    return platform === "darwin" ? "the Mac" : "the computer";
+// Never the machine's brand (#628): "this computer" on every platform. platform is kept for the callers.
+export function computerName(_platform?: string): string {
+    return t("keepawake.computer");
 }
 
 export function coffeeOf(state: KeepAwakeState, workspaceId: string): KeepAwakeCoffee {
     return state.coffees.find((c) => c.workspaceid === workspaceId) ?? null;
 }
 
-export function railCoffeeLabel(name: string, on: boolean, platform: string): string {
+export function railCoffeeLabel(name: string, on: boolean, _platform: string): string {
     if (on) {
-        return `Stop keeping ${computerName(platform)} awake for ${name}`;
+        return t("keepawake.railStop", { name });
     }
-    return `Keep ${computerName(platform)} awake while ${name} works`;
+    return t("keepawake.railStart", { name });
 }
 
 // m:ss, never below 0:00.
@@ -153,9 +156,9 @@ export function formatCountdown(endsAt: number, now: number): string {
 // otherwise (DS-SHELL-063).
 export function coffeeCondition(coffee: KeepAwakeCoffee, now: number): string {
     if (coffee.working || !coffee.endsat) {
-        return "until its work ends";
+        return t("keepawake.untilWorkEnds");
     }
-    return `ending in ${formatCountdown(coffee.endsat, now)}`;
+    return t("keepawake.endingIn", { time: formatCountdown(coffee.endsat, now) });
 }
 
 // Why the computer is kept awake, in one line: the reasons wavesrv sent, joined (#493).
@@ -170,12 +173,12 @@ export function coffeeReason(coffee: KeepAwakeCoffee): string {
 
 // The coffee bud's tooltip while on (DS-SHELL-062), and the one line the rail item adds.
 export function coffeeTooltip(coffee: KeepAwakeCoffee, name: string, platform: string, now: number): string {
-    const base = `Keeping ${computerName(platform)} awake until the work in ${name} ends`;
+    const base = t("keepawake.tooltip", { name });
     if (coffee.working || !coffee.endsat) {
         const why = coffeeReason(coffee);
-        return why ? `${base}\nNow: ${why}` : base;
+        return why ? `${base}\n${t("keepawake.now", { why })}` : base;
     }
-    return `${base}\nNothing runs there now: ending in ${formatCountdown(coffee.endsat, now)}`;
+    return `${base}\n${t("keepawake.nothingRuns", { time: formatCountdown(coffee.endsat, now) })}`;
 }
 
 // What the policy holds right now, in a few words; "" while it holds nothing.
@@ -185,9 +188,9 @@ export function policyHoldingLine(state: KeepAwakeState, platform: string, now: 
     }
     if (state.policyworking || !state.policyendsat) {
         const why = state.policyworking ? reasonsText(state.policyreasons) : "";
-        return `Holding ${computerName(platform)} awake while work runs${why ? ` (${why})` : ""}`;
+        return why ? t("keepawake.holdingWhy", { why }) : t("keepawake.holding");
     }
-    return `Holding ${computerName(platform)} awake, ending in ${formatCountdown(state.policyendsat, now)}`;
+    return t("keepawake.holdingEnding", { time: formatCountdown(state.policyendsat, now) });
 }
 
 export function attemptAlive(attempt: KeepAwakeAttempt): boolean {
@@ -210,7 +213,7 @@ export type KeepAwakeSession = {
 
 function sessionLabel(tabname: string, workspacename: string): string {
     const parts = [tabname, workspacename].filter((p) => p);
-    return parts.length > 0 ? parts.join(" · ") : "A terminal";
+    return parts.length > 0 ? parts.join(" · ") : t("keepawake.aTerminal");
 }
 
 // The sessions the list shows: those with a reported block, then those with an override and no block now.
@@ -248,27 +251,23 @@ export function keepAwakeSessions(state: KeepAwakeState): KeepAwakeSession[] {
 export type SleepPolicyChoice = { policy: SleepPolicy; label: string; detail: string };
 
 // The popover's one sentence (DS-SHELL-101): the segmented control of the policies completes it.
-export function sleepPolicySentence(platform: string): string {
-    return `Keep ${platform === "darwin" ? "this Mac" : "this computer"} awake when a terminal asks`;
+export function sleepPolicySentence(_platform: string): string {
+    return t("keepawake.policySentence");
 }
 
 // The labels answer that sentence; each detail is its segment's tooltip.
-export function sleepPolicyChoices(platform: string): SleepPolicyChoice[] {
-    const it = computerName(platform);
+export function sleepPolicyChoices(_platform: string): SleepPolicyChoice[] {
     return [
-        { policy: "allow", label: "Always", detail: "Terminals' blocks go through." },
+        { policy: "allow", label: t("keepawake.policy.allow"), detail: t("keepawake.policy.allowDetail") },
         {
             policy: "untilworkends",
-            label: "Until work ends",
-            detail:
-                `MoltenTerm keeps ${it} awake while work runs (an agent working, or still busy with background ` +
-                "subagents or commands after its turn; a foreground command that is not an idle shell; a Mission " +
-                "Control run), and 2 minutes more. An agent waiting for input with nothing running is not work.",
+            label: t("keepawake.policy.untilWorkEnds"),
+            detail: t("keepawake.policy.untilWorkEndsDetail"),
         },
         {
             policy: "letsleep",
-            label: "Never",
-            detail: `Terminals' blocks are stopped; ${it} sleeps as planned and the work goes on after wake.`,
+            label: t("keepawake.policy.letSleep"),
+            detail: t("keepawake.policy.letSleepDetail"),
         },
     ];
 }
@@ -286,14 +285,19 @@ export function describeAttempt(attempt: KeepAwakeAttempt): string {
 }
 
 // The coffee approvals (FR-SHELL-063, DS-SHELL-112): which agent sessions a coffee answers for, and its decisions.
-export const ApprovalLogText = "molten/coffee-approvals.jsonl in MoltenTerm's data folder";
+export function approvalLogText(): string {
+    return t("keepawake.approvalLog", { path: "molten/coffee-approvals.jsonl" });
+}
 
 export function coffeeSessions(state: KeepAwakeState, workspaceId: string): KeepAwakeAutoApprove[] {
     return (state.autoapprove ?? []).filter((s) => s.workspaceid === workspaceId);
 }
 
 export function sessionWhere(session: KeepAwakeAutoApprove): string {
-    return `${session.agentname || session.agent} in ${session.tabname || "a terminal"}`;
+    return t("keepawake.sessionWhere", {
+        agent: session.agentname || session.agent,
+        where: session.tabname || t("keepawake.aTerminalLower"),
+    });
 }
 
 // The lines the coffee bud's tooltip adds: who gets approved, who still asks and why.
@@ -303,10 +307,11 @@ export function coffeeApprovalLines(state: KeepAwakeState, workspaceId: string):
     const asking = sessions.filter((s) => !s.approved);
     const lines: string[] = [];
     if (approved.length > 0) {
-        lines.push(`Approves the agents' requests: ${approved.map(sessionWhere).join(", ")}`);
+        lines.push(t("keepawake.approves", { sessions: approved.map(sessionWhere).join(", ") }));
     }
     for (const s of asking) {
-        lines.push(`Still asks: ${sessionWhere(s)}${s.reason ? ` (${s.reason})` : ""}`);
+        const where = `${sessionWhere(s)}${s.reason ? ` (${s.reason})` : ""}`;
+        lines.push(t("keepawake.stillAsks", { where }));
     }
     return lines;
 }
@@ -329,10 +334,10 @@ export function approvalSummary(approvals: KeepAwakeApproval[]): string {
     const { approved, asked } = approvalCounts(approvals);
     const parts: string[] = [];
     if (approved > 0) {
-        parts.push(`${approved} approved`);
+        parts.push(t("keepawake.approvedCount", { count: approved }));
     }
     if (asked > 0) {
-        parts.push(`${asked} left to you`);
+        parts.push(t("keepawake.askedCount", { count: asked }));
     }
     return parts.join(" · ");
 }

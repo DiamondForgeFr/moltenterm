@@ -20,9 +20,11 @@ import { agentStateLabel } from "../agent-state-model";
 import { AgentStateDot } from "../agent-state-ui";
 import { AgentInputs } from "../command-panel/agent-input-store";
 import { EmptyState } from "../empty-state";
+import { I18nModel, t as translate, useT } from "../i18n/i18n";
 import { sessionRowDragProps } from "../split/drop-zones";
-import { TabActivity, whileShown } from "../tab-activity";
+import { whileShown } from "../tab-activity";
 import { showToast } from "../toast-store";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
     filterSessions,
     SessionsAgentMetaKey,
@@ -115,7 +117,10 @@ export class SessionsViewModel implements ViewModel {
     blockId: string;
     nodeModel: BlockNodeModel;
     viewIcon = atom("layer-group");
-    viewName = atom("Sessions");
+    viewName = atom((get) => {
+        get(I18nModel.getInstance().localeAtom);
+        return translate("sessions.title");
+    });
     noPadding = atom(true);
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
@@ -165,6 +170,7 @@ function ConnectionChip({ session }: { session: DurableSession }) {
 }
 
 function WorktreeMark({ session }: { session: DurableSession }) {
+    const t = useT();
     const wt = session.worktree;
     if (wt == null) {
         return null;
@@ -175,7 +181,11 @@ function WorktreeMark({ session }: { session: DurableSession }) {
                 "inline-flex max-w-[9rem] min-w-0 shrink items-center gap-1 rounded-4 border px-1.5 text-11 leading-[16px]",
                 worktreeColor(wt.path)
             )}
-            title={`Worktree ${wt.path}${wt.branch ? ` on ${wt.branch}` : ""}`}
+            title={
+                wt.branch
+                    ? t("sessions.view.worktreeOn", { path: wt.path, branch: wt.branch })
+                    : t("sessions.view.worktree", { path: wt.path })
+            }
         >
             <i className={cn("fa fa-solid shrink-0 text-11", `fa-${WorktreeIcon}`)} />
             <span className="truncate">{wt.branch || wt.path.split("/").pop()}</span>
@@ -184,6 +194,7 @@ function WorktreeMark({ session }: { session: DurableSession }) {
 }
 
 function AgentCellView({ session }: { session: DurableSession }) {
+    useT();
     const cell = agentCell(session);
     if (cell.kind === "agent") {
         return (
@@ -285,6 +296,7 @@ function SessionRow({
     onEnd: () => void;
     onReconnect: () => void;
 }) {
+    const t = useT();
     const name = sessionName(session, home);
     const folder = displayFolder(session, home);
     const active = lastActive(session, now);
@@ -292,7 +304,7 @@ function SessionRow({
     const output = outputText(session, now);
     const tabIndex = focused ? 0 : -1;
     const showTitle = session.canshow ? undefined : reasonTitle(session.reason);
-    const activeTitle = [up ? `Up ${up}` : "", output].filter((p) => !!p).join(" · ");
+    const activeTitle = [up ? t("sessions.view.upTitle", { age: up }) : "", output].filter((p) => !!p).join(" · ");
     return (
         <div
             ref={rowRef}
@@ -319,7 +331,7 @@ function SessionRow({
             <div role="cell" className="flex items-center justify-center">
                 <Check
                     state={checked ? "all" : "none"}
-                    label={`Select ${name}, ${sessionWhat(session)}`}
+                    label={t("sessions.view.selectRow", { name, what: sessionWhat(session) })}
                     onToggle={onCheck}
                     tabIndex={tabIndex}
                 />
@@ -365,7 +377,7 @@ function SessionRow({
                             onReconnect();
                         }}
                     >
-                        Reconnect
+                        {t("sessions.view.reconnect")}
                     </button>
                 ) : null}
                 <button
@@ -392,7 +404,7 @@ function SessionRow({
                         onEnd();
                     }}
                 >
-                    End…
+                    {t("sessions.view.end")}
                 </button>
             </div>
             <div
@@ -423,12 +435,17 @@ function GroupHeader({
     onCheckAll: () => void;
     onCleanup: () => void;
 }) {
+    const t = useT();
     const hidden = group.id === HiddenGroupId;
     const endable = group.sessions.filter((s) => s.canend).length;
     return (
         <div role="row" className={cn(RowGrid, "group h-9")}>
             <div role="cell" className="flex items-center justify-center">
-                <Check state={checks} label={`Select every session of ${group.title}`} onToggle={onCheckAll} />
+                <Check
+                    state={checks}
+                    label={t("sessions.view.selectGroup", { group: group.title })}
+                    onToggle={onCheckAll}
+                />
             </div>
             <div role="cell" className="col-[2/-1] flex min-w-0 items-center gap-2">
                 {hidden ? (
@@ -446,12 +463,12 @@ function GroupHeader({
                 </span>
                 {group.current ? (
                     <span className="shrink-0 rounded-4 bg-accent/15 px-1.5 text-11 leading-[16px] text-accent">
-                        This workspace
+                        {t("sessions.view.thisWorkspace")}
                     </span>
                 ) : null}
                 {hidden && endable > 0 ? (
                     <button type="button" className={cn(RowDangerButton, "mr-1 ml-auto")} onClick={onCleanup}>
-                        End all ({endable})…
+                        {t("sessions.view.endAll", { count: endable })}
                     </button>
                 ) : null}
             </div>
@@ -460,6 +477,7 @@ function GroupHeader({
 }
 
 function TableHeader({ checks, onCheckAll }: { checks: CheckState; onCheckAll: () => void }) {
+    const t = useT();
     const head = "text-11 font-medium text-muted";
     return (
         <div
@@ -467,22 +485,22 @@ function TableHeader({ checks, onCheckAll }: { checks: CheckState; onCheckAll: (
             className={cn(RowGrid, "group sticky top-0 z-[1] mb-1 h-8 border-b border-border bg-surface-1")}
         >
             <div role="columnheader" className="flex items-center justify-center">
-                <Check state={checks} label="Select every session" onToggle={onCheckAll} />
+                <Check state={checks} label={t("sessions.view.selectAll")} onToggle={onCheckAll} />
             </div>
             <div role="columnheader" className={head}>
-                Name
+                {t("sessions.view.colName")}
             </div>
             <div role="columnheader" className="hidden @2xl:block">
-                <span className="sr-only">Actions</span>
+                <span className="sr-only">{t("sessions.view.colActions")}</span>
             </div>
             <div role="columnheader" className={cn(FolderCell, head)}>
-                Folder
+                {t("sessions.view.colFolder")}
             </div>
             <div role="columnheader" className={head}>
-                Agent
+                {t("sessions.view.colAgent")}
             </div>
             <div role="columnheader" className={cn(head, "pr-2 text-right")}>
-                Last active
+                {t("sessions.view.colLastActive")}
             </div>
         </div>
     );
@@ -499,39 +517,40 @@ function SelectionBar({
     onAction: (action: BulkAction) => void;
     onClear: () => void;
 }) {
+    const t = useT();
     const reach = (action: BulkAction) => bulkItems(action, sessions).filter((i) => !i.skip).length;
     const agents = reach("restart");
     const endable = reach("end");
     return (
         <div
             role="toolbar"
-            aria-label="Selected sessions"
+            aria-label={t("sessions.dialog.selected")}
             data-testid="sessions-selection-bar"
             className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-6 border border-accent/40 bg-surface-2 px-2 py-1.5 shadow-e1"
         >
             <span className="px-1 text-12 font-medium whitespace-nowrap text-primary" aria-live="polite">
-                {count} selected
+                {t("sessions.view.selectedCount", { count })}
             </span>
             <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
             <button
                 type="button"
                 className={BarButton}
                 disabled={agents === 0}
-                title={agents === 0 ? "No selected session runs a local coding agent in a pane." : undefined}
+                title={agents === 0 ? t("sessions.view.noAgentSelected") : undefined}
                 onClick={() => onAction("send")}
             >
                 <i className={cn(makeIconClass("terminal", true), "mr-1.5 text-11")} />
-                Send a command…
+                {t("sessions.view.sendCommand")}
             </button>
             <button
                 type="button"
                 className={BarButton}
                 disabled={agents === 0}
-                title={agents === 0 ? "No selected session runs a local coding agent in a pane." : undefined}
+                title={agents === 0 ? t("sessions.view.noAgentSelected") : undefined}
                 onClick={() => onAction("restart")}
             >
                 <i className={cn(makeIconClass("rotate-right", true), "mr-1.5 text-11")} />
-                Restart with current settings…
+                {t("sessions.view.restart")}
             </button>
             <button
                 type="button"
@@ -540,14 +559,14 @@ function SelectionBar({
                 onClick={() => onAction("end")}
             >
                 <i className={cn(makeIconClass("power-off", true), "mr-1.5 text-11")} />
-                End…
+                {t("sessions.view.end")}
             </button>
             <button
                 type="button"
                 className="molten-btn-ghost ml-auto cursor-pointer rounded-6 px-2 py-1 text-12"
                 onClick={onClear}
             >
-                Clear
+                {t("sessions.view.clear")}
             </button>
         </div>
     );
@@ -561,13 +580,14 @@ function startTerminal(sessionsBlockId: string) {
 }
 
 function SessionsEmpty({ blockId }: { blockId: string }) {
+    const t = useT();
     return (
         <EmptyState
             icon="layer-group"
-            title="No sessions running"
-            hint="Terminals keep running when MoltenTerm quits, and they show up here."
+            title={t("sessions.view.emptyTitle")}
+            hint={t("sessions.view.emptyHint")}
             primary={{
-                label: "Start a terminal",
+                label: t("sessions.view.startTerminal"),
                 onClick: () => startTerminal(blockId),
                 testId: "sessions-start-terminal",
             }}
@@ -579,6 +599,7 @@ function SessionsEmpty({ blockId }: { blockId: string }) {
 
 // Filters set from the command panel (FR-SHELL-049) hide every running session: the list says so and clears them.
 function SessionsFilteredOut({ blockId }: { blockId: string }) {
+    const t = useT();
     const clear = () =>
         fireAndForget(() =>
             RpcApi.SetMetaCommand(TabRpcClient, {
@@ -593,9 +614,9 @@ function SessionsFilteredOut({ blockId }: { blockId: string }) {
     return (
         <EmptyState
             icon="filter"
-            title="No session matches the filters"
-            hint="The filters of this panel hide every running session."
-            primary={{ label: "Clear the filters", onClick: clear, testId: "sessions-clear-filters" }}
+            title={t("sessions.view.filteredTitle")}
+            hint={t("sessions.view.filteredHint")}
+            primary={{ label: t("sessions.view.clearFilters"), onClick: clear, testId: "sessions-clear-filters" }}
             className="flex-1"
             testId="sessions-filtered-out"
         />
@@ -605,6 +626,7 @@ function SessionsFilteredOut({ blockId }: { blockId: string }) {
 const ToastKinds = { done: "success", skipped: "warning", failed: "error" } as const;
 
 function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
+    const t = useT();
     const store = DurableSessions.getInstance();
     const data = useAtomValue(store.dataAtom);
     const workspace = useAtomValue(atoms.workspace);
@@ -623,10 +645,11 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
     const prevOrder = useRef<string[]>([]);
     const focusWanted = useRef(false);
     const home = getHomeDir();
+    const panelId = usePanelBlockId();
 
     useEffect(() => {
-        return TabActivity.getInstance().every(whileShown(AgeRefreshMs), () => setNow(Date.now()), "clock");
-    }, []);
+        return everyInPanel(panelId, whileShown(AgeRefreshMs), () => setNow(Date.now()), "clock");
+    }, [panelId]);
 
     const allSessions = data?.sessions ?? [];
     const filters = { agent: agentFilter, folder: folderFilter, state: stateFilter };
@@ -746,7 +769,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
         if (!s.canshow) {
             return;
         }
-        void run(s.id, s.shown ? "showing…" : "opening…", async () => {
+        void run(s.id, s.shown ? t("sessions.view.showing") : t("sessions.view.opening"), async () => {
             const loc = await store.show(s.id);
             if (loc != null && !loc.created) {
                 showPane(loc);
@@ -758,7 +781,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
         if (!canReconnect(s)) {
             return;
         }
-        void run(s.id, "reconnecting…", () => store.reconnect(s.id));
+        void run(s.id, t("sessions.view.reconnecting"), () => store.reconnect(s.id));
     };
 
     const askEnd = (s: DurableSession) => {
@@ -890,11 +913,11 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                     )}
                 >
                     <span className="shrink-0 text-12 whitespace-nowrap text-secondary" aria-live="polite">
-                        {data == null ? "Loading sessions…" : sessionsSummary(data)}
+                        {data == null ? t("sessions.view.loading") : sessionsSummary(data)}
                     </span>
                     {filtered && sessions.length > 0 ? (
                         <span className="shrink-0 text-12 whitespace-nowrap text-muted" data-testid="sessions-filtered">
-                            {sessions.length} shown
+                            {t("sessions.view.shownCount", { count: sessions.length })}
                         </span>
                     ) : null}
                     {notice ? (
@@ -928,7 +951,7 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                     <div
                         ref={listRef}
                         role="table"
-                        aria-label="Durable sessions"
+                        aria-label={t("sessions.view.tableLabel")}
                         aria-multiselectable="true"
                         data-testid="sessions-table"
                         className={cn(
@@ -997,7 +1020,10 @@ function SessionsView({ blockId }: ViewComponentProps<SessionsViewModel>) {
                         const res = await store.end(endSession.id);
                         if (res?.pending) {
                             setNotice({
-                                text: `${sessionWhat(endSession)} ends once ${endSession.connection} is back.`,
+                                text: t("sessions.view.endsLater", {
+                                    what: sessionWhat(endSession),
+                                    connection: endSession.connection,
+                                }),
                             });
                         }
                         closeDialog();

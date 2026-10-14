@@ -10,10 +10,11 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
 import { announceHoldHint } from "./hold-to-confirm";
+import { t } from "./i18n/i18n";
 
 // The banner under the tab bar (DS-SHELL-081); the name is the target's, a workspace's or a group's.
 export function railConnectHint(name: string): string {
-    return `Click a workspace to group it with ${name || "this workspace"}. Esc to cancel.`;
+    return t("rail.connect.hint", { name: name || t("rail.connect.thisWorkspace") });
 }
 
 export const RailConnectMessageMs = 4000;

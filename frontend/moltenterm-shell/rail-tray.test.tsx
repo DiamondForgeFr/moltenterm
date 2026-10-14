@@ -60,7 +60,7 @@ describe("the tray (FR-SHELL-045-AC2, DS-SHELL-080)", () => {
         const html = renderTray({
             primary: {
                 kind: "coffee",
-                label: "Stop keeping the Mac awake for Client A",
+                label: "Stop keeping this computer awake for Client A",
                 pressed: true,
                 onActivate: () => {},
             },

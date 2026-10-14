@@ -1,7 +1,7 @@
 # MoltenTerm mods
 
-`molten docs` prints the folder holding this page, the `morph.md` guide for coding agents and complete
-example mods, all matching the installed version.
+`molten docs` prints the folder holding this page, the `morph.md` guide for coding agents, the guides of the
+preconfigured morphs (`language-pack.md`) and complete example mods, all matching the installed version.
 
 A mod changes MoltenTerm from the outside: it is a folder in the configuration directory that MoltenTerm loads when a
 tab opens. Mods only see `MoltenApi`, described below, and never Wave's internal modules. This page documents API
@@ -79,13 +79,47 @@ that already runs with the user's rights, such as a hostile agent, from writing 
 | `version`      | yes      | The mod's own version, free text (semantic versioning recommended)                            |
 | `description`  | no       | One sentence shown to the user                                                                |
 | `apiVersion`   | yes      | `1`. Any other value is refused, with a message naming the supported versions                 |
-| `main`         | yes      | Path of the module inside the folder, ending in `.js` or `.mjs`; no `.` or `..` segment       |
+| `main`         | yes (no for a language pack) | Path of the module inside the folder, ending in `.js` or `.mjs`; no `.` or `..` segment |
 | `capabilities` | no       | List of strings declaring what the mod uses, shown when the user is asked to trust it (#21); `background` keeps its timers running in hidden tabs (see Cost and budget) |
 | `agents`       | no       | The mod's Claude Code part: `{"claude-code": {"folder", "targetVersion"}}`; see `claude-code-parts.md` |
+| `languages`    | no       | Makes the mod a language pack: `[{"code", "name", "file"}]`; see Language packs below          |
 
 A mod may also carry a **Claude Code part**, a Claude Code plugin folder that runs inside the Claude Code sessions
 started in MoltenTerm terminals (a band above the prompt, hooks on tool calls…). `claude-code-parts.md`, next to this
 page, documents it, with the complete example `examples/test-band/`.
+
+## Language packs
+
+A mod whose `mod.json` declares `languages` is a language pack: it holds data only and runs no code. Each entry
+names a language code (BCP 47, optionally with a region: `es`, `pt-br`), the language's own name as the picker shows it
+(`Español`) and a JSON dictionary inside the folder (`locales/es.json`), shaped like MoltenTerm's English one: nested
+objects of strings addressed by dotted keys. A pack has no `main` and no `agents`: a manifest with both `languages`
+and `main` is refused (put code in a separate mod).
+
+- **No trust prompt.** MoltenTerm reads the files as JSON and never evaluates them; their texts are shown as plain
+  text, never as HTML. `molten mod enable` enables a pack at once. History, `molten undo` and safe mode apply as to any
+  mod; in safe mode no pack loads.
+- **A new code** adds a language: it appears in Settings > General > Language and `app:language` accepts its code.
+  A key the pack lacks, or leaves empty, shows English.
+- **A shipped code** (`en`, `fr`) overrides only the keys the pack holds; disabling the pack or `molten undo` brings
+  the shipped texts back.
+- **Checked at load.** Each key's `{placeholders}` must be the same as English's: a pack where one key differs is
+  refused whole (`molten mod list` shows it `refused`, naming the key and the placeholder) and none of it applies.
+  Keys English does not know are ignored with a warning.
+- **Two packs for one code:** the most recently enabled is used; the other is reported.
+- After an update adds strings, MoltenTerm says how many are not translated in a pack's language and offers the
+  `/morph` request that completes it.
+
+`language-pack.md`, next to this page, is the guide a coding agent follows to write one. The `molten i18n` commands
+help:
+
+```
+molten mod new <id> --language <code> [--language-name <own name>]   # a pack with an empty dictionary
+molten i18n export [--lang <code>] [--missing] [--json]   # English reference; --lang current translation;
+                                                          # --missing only the keys still to translate (in English)
+molten i18n check <file> [--lang <code>]   # the check MoltenTerm applies at load; exit 1 when refused
+molten i18n status                         # each language, where it comes from, how many strings it lacks
+```
 
 ## `main`
 
@@ -120,7 +154,15 @@ export function activate(api) {
   is `{ icon, label, run }`: `icon` is a Font Awesome name such as `copy`, and `run` may return a short message shown
   on the button for a moment, such as `"Copied"`. A box is declarative, so a mod never depends on React.
 - `api.clipboard.writeText(text)`: copies text to the system clipboard.
+- `api.locale`: the interface language's code (`en`, `fr`, or an installed language), read live: the `app:language`
+  setting, else the OS preferred language MoltenTerm speaks. A mod ships its own strings (MoltenTerm does not
+  translate them) and falls back to English for a language it lacks.
+- `api.onLocaleChange(handler)`: calls `handler(locale)` with the new code each time the interface language changes,
+  without a restart. Use it to redraw text that stays on screen; text built at each call can read `api.locale` instead.
 - `api.log.info|warn|error(...)`: writes to the tab's developer console, prefixed with the mod id.
+
+Output a command handler returns stays English whatever the interface language: coding agents parse `molten`'s
+output.
 
 Every `register` and `show` returns a function that undoes it. MoltenTerm calls them all, in reverse order, when the
 mod stops.
@@ -194,14 +236,21 @@ molten copy [--title <title>] <text…>
 
 The command shows the text in a box next to the terminal it ran in, with a copy button that copies exactly the text
 (several lines, any Unicode; one trailing newline from a pipe is dropped). Coding agents use it for every piece of
-text the user has to copy: a token, a command, a URL.
+text the user has to copy: a token, a command, a URL. The box speaks the interface language (`api.locale`, English
+for a language the mod lacks); the command's own output stays English.
 
 ```js
+export const Strings = {
+    en: { title: "Copy", copy: "Copy", copied: "Copied" },
+    fr: { title: "Copier", copy: "Copier", copied: "Copié" },
+};
+
 export function activate(api) {
     api.commands.register(
         "copy",
         ({ args, stdin, blockId }) => {
-            const { title, text: argText } = parseCopyArgs(args); // --title anywhere, "--" ends the options
+            const strings = Strings[api.locale] ?? Strings.en; // read at each call: a language change applies at once
+            const { title, text: argText } = parseCopyArgs(args, strings.title); // --title anywhere, "--" ends the options
             const text = argText !== "" ? argText : textFromStdin(stdin); // drops one trailing newline
             if (text === "") {
                 return { output: "molten copy: nothing to copy: give a text or pipe one", exitCode: 1 };
@@ -214,10 +263,10 @@ export function activate(api) {
                 actions: [
                     {
                         icon: "copy",
-                        label: "Copy",
+                        label: strings.copy,
                         run: async () => {
                             await api.clipboard.writeText(text);
-                            return "Copied";
+                            return strings.copied;
                         },
                     },
                 ],
@@ -244,6 +293,7 @@ command accepts `--json` and exits non-zero on failure; with `--json` an error i
 ```
 molten mod new <id> [--name <name>] [--description <text>]   # a working mod from a template, disabled
 molten mod new <id> --claude-code [--claude-code-version X.Y.Z]   # the same, with a Claude Code part
+molten mod new <id> --language <code> [--language-name <name>]   # a language pack (data only)
 molten mod validate [<id>…]   # manifest, API version, syntax: file:line:column of each problem; runs no code
                               # (and claude plugin validate on a Claude Code part; warnings never fail)
 molten mod enable <id>        # in every open tab; asks you to trust the mod first

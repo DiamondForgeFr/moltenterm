@@ -4,7 +4,7 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { CompanionCandidate, CompanionView } from "./companion-model";
+import { CompanionCandidate, CompanionView, historyGroups, sessionRelation } from "./companion-model";
 import { CompanionSessions } from "./companion-session-store";
 import { GuessNotice, SessionBar, SessionHistoryList } from "./companion-session-ui";
 
@@ -47,6 +47,14 @@ describe("the companion's session bar (DS-SHELL-060)", () => {
         expect(html).not.toContain(">guessed<");
     });
 
+    it("shows the model and effort beside the agent, and nothing when unknown (#549)", () => {
+        const html = renderToStaticMarkup(<SessionBar view={guessed} modelEffort="Opus · high" onHistory={noop} />);
+        expect(html).toContain('data-testid="companion-model-effort">Opus · high<');
+        expect(renderToStaticMarkup(<SessionBar view={guessed} onHistory={noop} />)).not.toContain(
+            "companion-model-effort"
+        );
+    });
+
     it("explains a guess and offers another session, never for a hook link", () => {
         const html = renderToStaticMarkup(<GuessNotice session={guessed.session} onHistory={noop} />);
         expect(html).toContain("started after this terminal");
@@ -87,6 +95,78 @@ describe("the session history", () => {
             <SessionHistoryList sessions={[]} error={null} now={now} onPick={noop} onClose={noop} />
         );
         expect(html).toContain("No session of this folder");
+    });
+});
+
+describe("a terminal's sessions over time (#600)", () => {
+    const view: CompanionView = {
+        ...guessed,
+        session: { path: "/p/c.jsonl", linkedby: "hook", title: "after the clear", started: now - 60_000 },
+        earlier: [
+            { path: "/p/b.jsonl", title: "before the clear", started: now - 7_200_000 },
+            { path: "/p/a.jsonl", title: "first run" },
+        ],
+    };
+
+    it("counts the earlier sessions on the history button, nothing when there are none", () => {
+        const html = renderToStaticMarkup(<SessionBar view={view} onHistory={noop} />);
+        expect(html).toContain('data-testid="companion-earlier-count">2<');
+        expect(html).toContain("2 earlier sessions in this terminal");
+        expect(html).not.toContain("Earlier session<");
+        expect(renderToStaticMarkup(<SessionBar view={guessed} onHistory={noop} />)).not.toContain(
+            "companion-earlier-count"
+        );
+    });
+
+    it("flags an earlier session the user chose and offers the way back", () => {
+        const earlier = { ...view, session: { ...view.session, linkedby: "picked" as const, earlier: true } };
+        const html = renderToStaticMarkup(<SessionBar view={earlier} onHistory={noop} onBackToCurrent={noop} />);
+        expect(html).toContain("Earlier session");
+        expect(html).toContain('data-testid="companion-back-to-current"');
+    });
+
+    it("tells the session shown, an earlier one and another apart, by session id", () => {
+        expect(sessionRelation("/real/p/c.jsonl", view)).toBe("current");
+        expect(sessionRelation("/p/b.jsonl", view)).toBe("earlier");
+        expect(sessionRelation("/p/z.jsonl", view)).toBe("other");
+        expect(sessionRelation("", view)).toBe("");
+        expect(sessionRelation("/p/c.jsonl", { ...view, session: { ...view.session, earlier: true } })).toBe("earlier");
+    });
+
+    it("groups the history: the session shown, the terminal's earlier ones, the folder's others", () => {
+        const list: CompanionCandidate[] = [
+            { path: "/p/c.jsonl", prompt: "after the clear", current: true },
+            { path: "/p/b.jsonl", prompt: "before the clear", earlier: true },
+            { path: "/p/x.jsonl", prompt: "another pane's work" },
+        ];
+        expect(historyGroups(list).map((g) => g.key)).toEqual(["current", "earlier", "other"]);
+        const html = renderToStaticMarkup(
+            <SessionHistoryList sessions={list} error={null} now={now} onPick={noop} onClose={noop} />
+        );
+        expect(html.indexOf("Earlier in this terminal")).toBeLessThan(html.indexOf("Other sessions of this folder"));
+        expect(html.indexOf("before the clear")).toBeLessThan(html.indexOf("another pane&#x27;s work"));
+        expect(html).toContain('data-testid="companion-history-earlier"');
+        expect(historyGroups([{ path: "/p/x.jsonl" }]).map((g) => g.key)).toEqual(["other"]);
+    });
+
+    it("keeps the agent's own session apart while an earlier one shows", () => {
+        const shown = {
+            ...view,
+            session: { ...view.session, path: "/p/b.jsonl", earlier: true, livepath: "/p/c.jsonl" },
+        };
+        expect(sessionRelation("/p/c.jsonl", shown)).toBe("current");
+        expect(sessionRelation("/p/b.jsonl", shown)).toBe("earlier");
+        const list: CompanionCandidate[] = [
+            { path: "/p/b.jsonl", prompt: "before the clear", current: true, earlier: true },
+            { path: "/p/c.jsonl", prompt: "after the clear", live: true },
+            { path: "/p/a.jsonl", prompt: "first run", earlier: true },
+        ];
+        expect(historyGroups(list).map((g) => g.key)).toEqual(["current", "live", "earlier"]);
+        const html = renderToStaticMarkup(
+            <SessionHistoryList sessions={list} error={null} now={now} onPick={noop} onClose={noop} />
+        );
+        expect(html).toContain("The agent&#x27;s session now");
+        expect(html).toContain('data-testid="companion-history-live"');
     });
 });
 

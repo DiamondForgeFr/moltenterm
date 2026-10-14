@@ -9,6 +9,8 @@
 
 import builtinDefaults from "../../../pkg/wconfig/defaultconfig/settings.json";
 import settingsSchema from "../../../schema/settings.json";
+import { t, TFunction } from "../i18n/i18n";
+import { hasKey } from "../i18n/i18n-core";
 import { ProjectMetaKey, WorkspaceFolderMetaKey } from "../workspace-project";
 
 export type SettingsSectionId =
@@ -40,7 +42,7 @@ export const SettingsSections: SettingsSection[] = [
         id: "appearance",
         title: "Appearance",
         icon: "palette",
-        description: "The window, its text and the magnified panel.",
+        description: "The window, the 360 view, its text and the magnified panel.",
     },
     {
         id: "terminal",
@@ -248,6 +250,51 @@ export function settingsCatalog(platform: string): SettingEntry[] {
     return cached;
 }
 
+// The interface language's text of a key, or the English text the metadata carries when the dictionaries do not know
+// the key yet (a setting added in Go shows before it is translated).
+function translatedOr(tr: TFunction, key: string, fallback: string): string {
+    return hasKey(key) ? tr(key) : fallback;
+}
+
+// The group's key: the English group in camelCase ("Quitting and closing" is quittingAndClosing).
+export function groupSlug(group: string): string {
+    const words = (group ?? "")
+        .replace(/[^A-Za-z0-9]+/g, " ")
+        .trim()
+        .split(/\s+/)
+        .filter((w) => w !== "");
+    return words.map((w, i) => (i === 0 ? w.toLowerCase() : w[0].toUpperCase() + w.slice(1).toLowerCase())).join("");
+}
+
+// A row in the interface language: settings.items.<key>.* and settings.groups.<slug>, with the metadata's English for
+// a key the dictionaries lack (FR-I18N-001).
+export function localizeSettingEntry(entry: SettingEntry, tr: TFunction): SettingEntry {
+    const base = `settings.items.${entry.key}`;
+    return {
+        ...entry,
+        group: translatedOr(tr, `settings.groups.${groupSlug(entry.group)}`, entry.group),
+        label: translatedOr(tr, `${base}.label`, entry.label),
+        description: translatedOr(tr, `${base}.description`, entry.description),
+        unsetLabel: entry.unsetLabel != null ? translatedOr(tr, `${base}.unset`, entry.unsetLabel) : undefined,
+        options: entry.options?.map((o) => ({
+            value: o.value,
+            label: translatedOr(tr, `${base}.options.${o.value}`, o.label),
+        })),
+    };
+}
+
+export function localizeCatalog(entries: SettingEntry[], tr: TFunction): SettingEntry[] {
+    return entries.map((e) => localizeSettingEntry(e, tr));
+}
+
+export function localizeSection(section: SettingsSection, tr: TFunction): SettingsSection {
+    return {
+        ...section,
+        title: translatedOr(tr, `settings.sections.${section.id}.title`, section.title),
+        description: translatedOr(tr, `settings.sections.${section.id}.description`, section.description),
+    };
+}
+
 export function sectionEntries(entries: SettingEntry[], section: SettingsSectionId): SettingEntry[] {
     return entries.filter((e) => e.section === section).sort((a, b) => a.order - b.order);
 }
@@ -266,8 +313,9 @@ export function groupEntries(entries: SettingEntry[]): { group: string; entries:
     return groups;
 }
 
-export function sectionTitle(id: SettingsSectionId): string {
-    return SettingsSections.find((s) => s.id === id)?.title ?? id;
+export function sectionTitle(id: SettingsSectionId, tr: TFunction = t): string {
+    const section = SettingsSections.find((s) => s.id === id);
+    return section != null ? localizeSection(section, tr).title : id;
 }
 
 function normalize(text: string): string {
@@ -359,16 +407,52 @@ export function clampSetting(entry: SettingEntry, raw: string): number {
 }
 
 // The short summary of an object or list the screen does not edit ("3 sites").
-export function jsonSummary(value: unknown): string {
+export function jsonSummary(value: unknown, tr: TFunction = t): string {
     if (value == null) {
-        return "Not set";
+        return tr("settings.notSet");
     }
     if (Array.isArray(value)) {
-        return value.length === 0 ? "Not set" : value.length === 1 ? "1 item" : `${value.length} items`;
+        if (value.length === 0) return tr("settings.notSet");
+        return value.length === 1
+            ? tr("settings.count.items.one")
+            : tr("settings.count.items.other", { count: value.length });
     }
     if (typeof value === "object") {
         const n = Object.keys(value).length;
-        return n === 0 ? "Not set" : n === 1 ? "1 entry" : `${n} entries`;
+        if (n === 0) return tr("settings.notSet");
+        return n === 1 ? tr("settings.count.entries.one") : tr("settings.count.entries.other", { count: n });
     }
     return String(value);
+}
+
+// A short exclusive choice reads as option rows, like Notulia's (#658): every choice in sight, the current one marked
+// "Selected". A longer list (terminal themes, the installed browsers) stays a menu.
+export const MaxChoiceRows = 4;
+
+export type SettingChoice = { value: string; label: string };
+
+// The choices a setting shows as option rows, or null for a menu. The empty value is the unset choice (the system's
+// language, a setting's own "unset" label).
+export function settingChoices(
+    entry: SettingEntry,
+    languages: { code: string; name: string }[],
+    systemLanguageLabel: string
+): SettingChoice[] {
+    if (entry.control !== "select") {
+        return null;
+    }
+    if (entry.optionsFrom === "languages") {
+        if (languages.length > MaxChoiceRows - 1) {
+            return null;
+        }
+        return [{ value: "", label: systemLanguageLabel }, ...languages.map((l) => ({ value: l.code, label: l.name }))];
+    }
+    if (entry.optionsFrom != null || entry.options == null) {
+        return null;
+    }
+    const list = entry.options.map((o) => ({ value: o.value, label: o.label }));
+    if (entry.unsetLabel != null) {
+        list.unshift({ value: "", label: entry.unsetLabel });
+    }
+    return list.length <= MaxChoiceRows ? list : null;
 }

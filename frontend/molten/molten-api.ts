@@ -59,6 +59,11 @@ export type MoltenBoxOptions = {
 export type MoltenApi = {
     apiVersion: number;
     mod: { id: string; name: string; version: string };
+    // The interface language's code ("en", "fr", or an installed language), read live (FR-I18N-001, DS-I18N-005). A mod
+    // ships its own strings: MoltenTerm does not translate a mod's text.
+    readonly locale: string;
+    // Called with the new code each time the interface language changes; stopping the mod removes the handler.
+    onLocaleChange(handler: (locale: string) => void): MoltenDisposer;
     commands: {
         register(name: string, handler: MoltenCommandHandler, opts?: MoltenCommandOptions): MoltenDisposer;
     };
@@ -88,6 +93,8 @@ export type MoltenApiBackend = {
     showNotification(opts: MoltenNotificationOptions): MoltenDisposer;
     showBox(opts: MoltenBoxOptions): MoltenDisposer;
     writeClipboard(text: string): Promise<void>;
+    getLocale(): string;
+    onLocaleChange(handler: (locale: string) => void): MoltenDisposer;
 };
 
 export function validateMoltenCommandName(name: unknown): string {
@@ -134,6 +141,27 @@ export function makeMoltenApi(manifest: MoltenModManifest, backend: MoltenApiBac
     return Object.freeze({
         apiVersion: MoltenApiVersion,
         mod: Object.freeze({ id: manifest.id, name: manifest.name, version: manifest.version }),
+        get locale(): string {
+            return backend.getLocale();
+        },
+        onLocaleChange(handler: (locale: string) => void): MoltenDisposer {
+            ensureRunning();
+            if (typeof handler !== "function") {
+                throw new Error("onLocaleChange: the handler must be a function");
+            }
+            return backend.track(
+                backend.onLocaleChange((locale) => {
+                    if (backend.isStopped()) {
+                        return;
+                    }
+                    try {
+                        handler(locale);
+                    } catch (e) {
+                        backend.fail(e);
+                    }
+                })
+            );
+        },
         commands: Object.freeze({
             register(name: string, handler: MoltenCommandHandler, opts?: MoltenCommandOptions): MoltenDisposer {
                 ensureRunning();

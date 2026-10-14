@@ -17,7 +17,7 @@ import (
 // Claude Code's status line relay (FR-SHELL-027, DS-SHELL-031): Claude Code runs the user's status line command with
 // its session's JSON on stdin, whose documented rate_limits object gives the plan's 5-hour and 7-day windows
 // (https://code.claude.com/docs/en/statusline). `molten agent statusline -- <command>` runs that command unchanged and
-// hands only those windows to the pane's companion. MoltenTerm shows the settings to paste and never writes them.
+// hands only those windows, and the session's model and effort level for the pane header (#549), to wavesrv. MoltenTerm shows the settings to paste and never writes them.
 // The relay's types and its reading of the input live in pkg/molten/agenthook, which the small molten program links
 // without the rest of MoltenTerm (FR-PERF-012).
 

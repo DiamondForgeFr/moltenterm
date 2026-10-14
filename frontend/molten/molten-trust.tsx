@@ -9,6 +9,7 @@ import { Modal } from "@/app/modals/modal";
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect } from "react";
+import { t, useLocale } from "../moltenterm-shell/i18n/i18n";
 import { MoltenAgentPart } from "./molten-manifest";
 
 export const MoltenTrustTimeoutMs = 5 * 60 * 1000;
@@ -28,33 +29,27 @@ export type MoltenTrustRequest = {
     partsOnly?: boolean;
 };
 
-export const MoltenClaudeCodePartWarning =
-    "It also carries a Claude Code part that runs inside Claude Code, in every Claude Code session you start in a " +
-    "MoltenTerm terminal, with your rights: it can change what Claude Code shows and does, read files and run commands.";
+export function moltenClaudeCodePartWarning(): string {
+    return t("molten.trust.partWarning");
+}
 
 // The words of the prompt, apart from the dialog, so that each case can be checked.
 export function moltenTrustWording(req: MoltenTrustRequest): { title: string; intro: string; okLabel: string } {
     if (req.partsOnly && req.claudeCodePart != null) {
         return {
-            title: `Trust the Claude Code part of “${req.name}”?`,
-            intro:
-                "A coding agent asked to enable this mod, which you trusted before it had a Claude Code part. The part " +
-                "runs inside Claude Code, in every Claude Code session you start in a MoltenTerm terminal, with your " +
-                "rights: it can change what Claude Code shows and does, read files and run commands. Declining keeps " +
-                "the rest of the mod running.",
-            okLabel: "Trust the part",
+            title: t("molten.trust.partTitle", { name: req.name }),
+            intro: t("molten.trust.partIntro"),
+            okLabel: t("molten.trust.partOk"),
         };
     }
-    let intro =
-        "A coding agent asked to enable this mod. It runs inside MoltenTerm with your rights: it can read and change " +
-        "your files and run commands.";
+    let intro = t("molten.trust.intro");
     if (req.claudeCodePart != null) {
-        intro += " " + MoltenClaudeCodePartWarning;
+        intro += " " + moltenClaudeCodePartWarning();
     }
     return {
-        title: `Trust the mod “${req.name}”?`,
-        intro: intro + " Trust it only if you know where it comes from.",
-        okLabel: "Trust and enable",
+        title: t("molten.trust.title", { name: req.name }),
+        intro: intro + " " + t("molten.trust.introEnd"),
+        okLabel: t("molten.trust.ok"),
     };
 }
 
@@ -139,6 +134,8 @@ function TrustField({ label, children }: { label: string; children: React.ReactN
 export function MoltenTrustDialog() {
     const model = MoltenTrustModel.getInstance();
     const pending = useAtomValue(model.currentAtom, { store: globalStore });
+    // The prompt's words come from t(): rendering again on a language change keeps them current.
+    useLocale();
     useEffect(() => {
         if (pending == null) {
             return;
@@ -165,7 +162,7 @@ export function MoltenTrustDialog() {
         <Modal
             className="molten-trust"
             okLabel={wording.okLabel}
-            cancelLabel="Don't trust"
+            cancelLabel={t("molten.trust.cancel")}
             onOk={() => model.answer("trusted")}
             onCancel={() => model.answer("declined")}
             onClose={() => model.answer("declined")}
@@ -174,26 +171,24 @@ export function MoltenTrustDialog() {
                 <div className="text-lg font-semibold">{wording.title}</div>
                 <div className="text-secondary">{wording.intro}</div>
                 <div className="flex flex-col gap-1">
-                    <TrustField label="Mod">
+                    <TrustField label={t("molten.trust.fieldMod")}>
                         {req.id} {req.version}
                     </TrustField>
-                    <TrustField label="Description">{req.description || "—"}</TrustField>
-                    <TrustField label="Capabilities">
-                        {req.capabilities.length > 0 ? req.capabilities.join(", ") : "none declared"}
+                    <TrustField label={t("molten.trust.fieldDescription")}>{req.description || "—"}</TrustField>
+                    <TrustField label={t("molten.trust.fieldCapabilities")}>
+                        {req.capabilities.length > 0 ? req.capabilities.join(", ") : t("molten.trust.noCapabilities")}
                     </TrustField>
-                    <TrustField label="Folder">
+                    <TrustField label={t("molten.trust.fieldFolder")}>
                         <span className="font-mono text-xs">{req.path}</span>
                     </TrustField>
                     {part != null ? (
-                        <TrustField label="Claude Code part">
-                            <span className="font-mono text-xs">{part.folder}</span>, written for Claude Code{" "}
-                            {part.targetVersion}
+                        <TrustField label={t("molten.trust.fieldPart")}>
+                            <span className="font-mono text-xs">{part.folder}</span>
+                            {t("molten.trust.partWrittenFor", { version: part.targetVersion })}
                         </TrustField>
                     ) : null}
                 </div>
-                <div className="text-secondary">
-                    The agent can keep editing it without asking again. Undo with molten mod untrust {req.id}.
-                </div>
+                <div className="text-secondary">{t("molten.trust.footer", { id: req.id })}</div>
             </div>
         </Modal>
     );

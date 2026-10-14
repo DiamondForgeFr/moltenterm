@@ -18,7 +18,7 @@ import { useWorkingBeat } from "./working-beat";
 
 let homeDir: string = null;
 
-function getHomeDir(): string {
+export function getHomeDir(): string {
     if (homeDir == null) {
         try {
             homeDir = getApi()?.getHomeDir?.() ?? "";

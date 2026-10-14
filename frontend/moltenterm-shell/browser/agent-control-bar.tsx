@@ -9,9 +9,11 @@ import { Button } from "@/app/element/button";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
+import { useT } from "../i18n/i18n";
 import { ActionCueMs, activeCue, BrowserAgentModel, controlBarView, permissionBarView } from "./browser-agent";
 
 export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; tabId: string }) {
+    const t = useT();
     const tabs = useAtomValue(agents.tabsAtom);
     const view = controlBarView(tabs[tabId]);
     // The site permission bar takes this slot while the agent waits for the user's answer.
@@ -21,7 +23,7 @@ export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; 
     return (
         <div
             role="region"
-            aria-label="Agent control"
+            aria-label={t("browser.agent.controlAria")}
             className="molten-browser-agentbar flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-border px-2 py-1.5 text-12"
         >
             <i
@@ -37,7 +39,7 @@ export function AgentControlBar({ agents, tabId }: { agents: BrowserAgentModel; 
             </div>
             {view.viewport ? (
                 <span
-                    title="The agent emulates this viewport size; the page returns to the panel's size when its control ends"
+                    title={t("browser.agent.viewportTitle")}
                     className="shrink-0 rounded-4 border border-border px-1.5 py-px font-mono text-11 text-secondary"
                 >
                     {view.viewport}

@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"runtime"
 	"sort"
 	"strconv"
 	"sync"
@@ -81,12 +80,9 @@ func MakeKeeper(env Env) *Keeper {
 	return &Keeper{env: env, coffees: map[string]*coffeeRec{}, overrides: map[string]*Override{}}
 }
 
-// computerName is what the messages call the computer: the coffee is about a Mac first (DS-SHELL-062).
+// computerName is what the messages call the computer: never the machine brand or the OS (#628).
 func computerName() string {
-	if runtime.GOOS == "darwin" {
-		return "the Mac"
-	}
-	return "the computer"
+	return "this computer"
 }
 
 func (k *Keeper) policyNow() string {

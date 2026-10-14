@@ -214,6 +214,10 @@ func (m *Manager) resolveTab(ctx context.Context, s sessionInfo, loc BlockLocati
 		return resolvedTab{}, mcpbrowser.ErrNotYourTab
 	}
 	if info.state == TabStateStopped {
+		// The user took a shared tab back: it is no longer in the session's scope (FR-BRW-011 AC4).
+		if info.origin == OriginShared {
+			return resolvedTab{}, mcpbrowser.ErrNotYourTab
+		}
 		return resolvedTab{}, mcpbrowser.ErrStopped
 	}
 	if acting && info.state == TabStateTakenOver {
@@ -242,6 +246,10 @@ func (m *Manager) resolveTab(ctx context.Context, s sessionInfo, loc BlockLocati
 	}
 	if page.Engine != "" {
 		return resolvedTab{}, mcpbrowser.ErrOtherEngine
+	}
+	if acting && !info.engaged {
+		m.engageTab(s.id, tabId)
+		info.engaged = true
 	}
 	return resolvedTab{info: info, panel: panel, page: page}, ""
 }
@@ -302,7 +310,7 @@ func (m *Manager) readTabs(ctx context.Context, s sessionInfo, loc BlockLocation
 				return
 			}
 			page := resolved.page
-			if resolved.info.state == TabStateActive && resolved.info.confirmed {
+			if resolved.info.state == TabStateActive && resolved.info.confirmed && resolved.info.engaged {
 				if live, ok := m.livePage(ctx, s, info.id, resolved.info.key); ok {
 					page = live
 				}

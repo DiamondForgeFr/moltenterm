@@ -12,6 +12,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
+import { t } from "../i18n/i18n";
 
 // must match pkg/molten/mcpbrowser/wire.go
 export const BrowserAgentRouteId = "molten:browseragent";
@@ -20,11 +21,16 @@ export const BrowserAgentStateCommand = "moltenbrowseragentstate";
 export const BrowserAgentStateEvent = "molten:browseragent";
 export const BrowserAgentAnswerCommand = "moltenbrowseragentanswer";
 export const BrowserAgentSiteCommand = "moltenbrowseragentsite";
+export const BrowserAgentListCommand = "moltenbrowseragentlist";
+export const BrowserAgentShareCommand = "moltenbrowseragentshare";
+export const BrowserAgentShareTellCommand = "moltenbrowseragentsharetell";
 
 // must match TabStateActive, TabStateTakenOver and the Control* actions in pkg/molten/browseragent/env.go
 export const AgentStateActive = "active";
 export const AgentStateTakenOver = "takenover";
 export type AgentControlAction = "stop" | "takeover" | "giveback";
+// must match OriginShared in pkg/molten/browseragent/env.go
+export const OriginShared = "shared";
 // must match the Decision* constants in pkg/molten/browseragent/env.go
 export type PermissionDecision = "once" | "always" | "block" | "dismiss" | "allow" | "deny";
 // must match PromptSite and PromptAction in pkg/molten/browseragent/env.go
@@ -34,6 +40,9 @@ export type AgentSiteDecision = "allow" | "block";
 
 const ControlTimeoutMs = 5000;
 const SnapshotTimeoutMs = 5000;
+const ShareTellTimeoutMs = 15000;
+// The share menu waits this long for the connected agents before it opens without them.
+const ListTimeoutMs = 1500;
 // A cue shows where the agent just acted, then fades out.
 export const ActionCueMs = 1500;
 
@@ -58,7 +67,14 @@ export type AgentTab = {
     cue?: AgentActionCue;
     permission?: AgentPermission;
     viewport?: AgentViewport;
+    // A tab the user shared shows its badge alone until the agent acts on it (FR-BRW-011).
+    engaged?: boolean;
 };
+
+// must match ShareResult, ShareTellResult and SessionEntry in pkg/molten/browseragent/share.go
+export type ShareResult = { result: "shared" | "move"; agentname?: string; holder?: string };
+export type ShareTellResult = { sent: boolean; message: string };
+export type AgentSession = { sessionid: string; blockid: string; agentname: string };
 
 export type PanelAgentState = { blockid: string; tabs: AgentTab[] };
 
@@ -98,7 +114,7 @@ export function readPanelAgentState(state: PanelAgentState): AgentTabs {
 }
 
 export function agentName(tab: AgentTab): string {
-    return tab?.agentname?.trim() || "An agent";
+    return tab?.agentname?.trim() || t("browser.agent.anAgent");
 }
 
 // The bar of a controlled tab, or null when no agent controls it (DS-BRW-011).
@@ -111,24 +127,24 @@ export function controlBarView(tab: AgentTab): ControlBarView {
     if (tab.state === AgentStateTakenOver) {
         return {
             takenOver: true,
-            title: "You took over",
-            detail: `${name} waits until you give the tab back.`,
+            title: t("browser.agent.tookOver"),
+            detail: t("browser.agent.waitsGiveBack", { name }),
             viewport,
             buttons: [
-                { label: "Give back", action: "giveback", primary: true },
-                { label: "Stop", action: "stop", primary: false },
+                { label: t("browser.agent.giveBack"), action: "giveback", primary: true },
+                { label: t("browser.agent.stop"), action: "stop", primary: false },
             ],
         };
     }
-    if (tab.state !== AgentStateActive) {
+    if (tab.state !== AgentStateActive || (tab.origin === OriginShared && !tab.engaged)) {
         return null;
     }
     return {
         takenOver: false,
-        title: `${name} is controlling this tab`,
+        title: t("browser.agent.controlling", { name }),
         detail: tab.action ?? "",
         viewport,
-        buttons: [{ label: "Stop", action: "stop", primary: false }],
+        buttons: [{ label: t("browser.agent.stop"), action: "stop", primary: false }],
     };
 }
 
@@ -158,12 +174,14 @@ export function permissionBarView(tab: AgentTab): PermissionBarView {
         return {
             requestId: tab.permission.requestid,
             site,
-            title: site ? `${agentName(tab)} wants to ${what} on ${site}` : `${agentName(tab)} wants to ${what}`,
-            detail: "Allow this once, or deny it.",
+            title: site
+                ? t("browser.permission.actionOnSite", { name: agentName(tab), action: what, site })
+                : t("browser.permission.action", { name: agentName(tab), action: what }),
+            detail: t("browser.permission.actionDetail"),
             escape: "deny",
             buttons: [
-                { label: "Deny", decision: "deny", primary: false },
-                { label: "Allow", decision: "allow", primary: true },
+                { label: t("browser.permission.deny"), decision: "deny", primary: false },
+                { label: t("browser.permission.allow"), decision: "allow", primary: true },
             ],
         };
     }
@@ -174,13 +192,13 @@ export function permissionBarView(tab: AgentTab): PermissionBarView {
     return {
         requestId: tab.permission.requestid,
         site,
-        title: `Let ${agentName(tab)} use ${site}?`,
-        detail: "It can read and act on this site's pages, with your sign-ins.",
+        title: t("browser.permission.siteTitle", { name: agentName(tab), site }),
+        detail: t("browser.permission.siteDetail"),
         escape: "dismiss",
         buttons: [
-            { label: "Allow once", decision: "once", primary: false },
-            { label: "Always for this site", decision: "always", primary: true },
-            { label: "Block", decision: "block", primary: false },
+            { label: t("browser.permission.allowOnce"), decision: "once", primary: false },
+            { label: t("browser.permission.always"), decision: "always", primary: true },
+            { label: t("browser.permission.block"), decision: "block", primary: false },
         ],
     };
 }
@@ -299,6 +317,8 @@ export function activeCue(tab: AgentTab, now: number): AgentActionCue {
 export class BrowserAgentModel {
     blockId: string;
     tabsAtom = atom({}) as PrimitiveAtom<AgentTabs>;
+    // The agents of the panel's tab connected to MoltenTerm's browser, as last listed (FR-BRW-011).
+    sessionsAtom = atom([]) as PrimitiveAtom<AgentSession[]>;
     unsubscribe: () => void = null;
     // A snapshot must not overwrite an event or a user action that arrived while it was in flight.
     stateVersion = 0;
@@ -388,6 +408,47 @@ export class BrowserAgentModel {
                 await this.loadSnapshot(true);
             }
         });
+    }
+
+    // The agents of the panel's tab connected to MoltenTerm's browser (FR-BRW-011, #594).
+    async listSessions(): Promise<AgentSession[]> {
+        const res: { sessions: AgentSession[] } = await TabRpcClient.wshRpcCall(
+            BrowserAgentListCommand,
+            { blockid: this.blockId },
+            { route: BrowserAgentRouteId, timeout: ListTimeoutMs }
+        );
+        const sessions = res?.sessions ?? [];
+        globalStore.set(this.sessionsAtom, sessions);
+        return sessions;
+    }
+
+    // The toolbar button reads the last list; a session has no event of its own, so the list is read again when the
+    // agent states change and when the pointer reaches the button.
+    refreshSessions(): void {
+        fireAndForget(async () => {
+            try {
+                await this.listSessions();
+            } catch {
+                // wavesrv still starting: the next refresh brings them.
+            }
+        });
+    }
+
+    async share(browserTabId: string, sessionId: string, move: boolean): Promise<ShareResult> {
+        return await TabRpcClient.wshRpcCall(
+            BrowserAgentShareCommand,
+            { blockid: this.blockId, browsertabid: browserTabId, sessionid: sessionId, move },
+            { route: BrowserAgentRouteId, timeout: ControlTimeoutMs }
+        );
+    }
+
+    // wavesrv builds the line from the panel's tab and types it: the window sends no text.
+    async shareTell(browserTabId: string): Promise<ShareTellResult> {
+        return await TabRpcClient.wshRpcCall(
+            BrowserAgentShareTellCommand,
+            { blockid: this.blockId, browsertabid: browserTabId },
+            { route: BrowserAgentRouteId, timeout: ShareTellTimeoutMs }
+        );
     }
 
     dispose(): void {

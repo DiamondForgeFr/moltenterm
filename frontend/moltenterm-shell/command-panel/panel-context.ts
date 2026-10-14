@@ -9,29 +9,35 @@ import * as WOS from "@/app/store/wos";
 import { isLocalConnName } from "@/util/util";
 import { AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { t } from "../i18n/i18n";
 import { PanelContext } from "./panel-types";
 
-// The panel kinds' names, and their plural for the kind scope ("All terminals").
-const PanelKinds: Record<string, { name: string; plural: string }> = {
-    term: { name: "Terminal", plural: "terminals" },
-    preview: { name: "Preview", plural: "previews" },
-    web: { name: "Web", plural: "web panels" },
-    help: { name: "Help", plural: "help panels" },
-    sysinfo: { name: "System info", plural: "system info panels" },
-    cpuplot: { name: "System info", plural: "system info panels" },
-    processviewer: { name: "Processes", plural: "process panels" },
-    tsunami: { name: "App", plural: "apps" },
-    "molten-browser": { name: "Browser", plural: "browser panels" },
-    "molten-companion": { name: "Companion", plural: "companions" },
-    "molten-linemap": { name: "Line map", plural: "line maps" },
-    "molten-cicd": { name: "CI/CD", plural: "CI/CD panels" },
-    "molten-project": { name: "Project", plural: "project panels" },
-    "molten-timeline": { name: "Project", plural: "project panels" },
-    "molten-sessions": { name: "Sessions", plural: "sessions panels" },
+// The panel kinds' names, and their plural for the kind scope ("All terminals"): keys under cmdpanel.kinds.<kind>.
+const PanelKinds: Record<string, string> = {
+    term: "term",
+    preview: "preview",
+    web: "web",
+    help: "help",
+    sysinfo: "sysinfo",
+    cpuplot: "sysinfo",
+    processviewer: "processes",
+    tsunami: "app",
+    "molten-browser": "browser",
+    "molten-companion": "companion",
+    "molten-linemap": "linemap",
+    "molten-cicd": "cicd",
+    "molten-reviews": "reviews",
+    "molten-project": "project",
+    "molten-timeline": "project",
+    "molten-sessions": "sessions",
 };
 
 export function panelKind(view: string): { name: string; plural: string } {
-    return PanelKinds[view] ?? { name: view || "Panel", plural: "panels of this kind" };
+    const kind = PanelKinds[view];
+    if (kind == null) {
+        return { name: view || t("cmdpanel.kinds.other.name"), plural: t("cmdpanel.kinds.other.plural") };
+    }
+    return { name: t(`cmdpanel.kinds.${kind}.name`), plural: t(`cmdpanel.kinds.${kind}.plural`) };
 }
 
 // The capabilities a panel has (DS-SHELL-086): providers declare the ones they need.
@@ -97,6 +103,6 @@ export function makePanelContext(blockId: string): PanelContext {
             waveMenu: typeof viewModel?.getSettingsMenuItems === "function",
         }),
         kindLabel: kind.plural,
-        panelName: PanelKinds[view]?.name ?? viewModelName(viewModel) ?? kind.name,
+        panelName: PanelKinds[view] != null ? kind.name : (viewModelName(viewModel) ?? kind.name),
     };
 }

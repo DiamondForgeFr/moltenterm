@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { useWaveEnv, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import {
     ExpandableMenu,
@@ -17,11 +18,11 @@ import { atom, PrimitiveAtom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { splitAtom } from "jotai/utils";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { CSSProperties, forwardRef, useCallback, useEffect } from "react";
-import { askResetWorkspace } from "../../moltenterm-shell/workspace-reset"; // MOLTENTERM-PATCH (#222)
+import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { openWorkspaceEditor } from "../../moltenterm-shell/workspace-edit"; // MOLTENTERM-PATCH (#294)
+import { askResetWorkspace } from "../../moltenterm-shell/workspace-reset"; // MOLTENTERM-PATCH (#222)
 import WorkspaceSVG from "../asset/workspace.svg";
 import { IconButton } from "../element/iconbutton";
-import { globalStore } from "@/app/store/jotaiStore";
 import { makeORef } from "../store/wos";
 import { waveEventSubscribeSingle } from "../store/wps";
 import { WorkspaceEditor } from "./workspaceeditor";
@@ -56,6 +57,7 @@ const WorkspaceSwitcher = forwardRef<HTMLDivElement>((_, ref) => {
     const setWorkspaceList = useSetAtom(workspaceMapAtom);
     const activeWorkspace = useAtomValueSafe(env.atoms.workspace);
     const workspaceList = useAtomValue(workspaceSplitAtom);
+    const t = useT(); // MOLTENTERM-PATCH (#623)
     const setEditingWorkspace = useSetAtom(editingWorkspaceAtom);
 
     const updateWorkspaceList = useCallback(async () => {
@@ -127,7 +129,9 @@ const WorkspaceSwitcher = forwardRef<HTMLDivElement>((_, ref) => {
                 <span className="workspace-icon">{workspaceIcon}</span>
             </PopoverButton>
             <PopoverContent className="workspace-switcher-content">
-                <div className="title">{isActiveWorkspaceSaved ? "Switch workspace" : "Open workspace"}</div>
+                <div className="title">
+                    {t(isActiveWorkspaceSaved ? "wave.workspace.switch" : "wave.workspace.open")}
+                </div>
                 <OverlayScrollbarsComponent className={"scrollable"} options={{ scrollbars: { autoHide: "leave" } }}>
                     <ExpandableMenu noIndent singleOpen>
                         {workspaceList.map((entry, i) => (
@@ -148,14 +152,14 @@ const WorkspaceSwitcher = forwardRef<HTMLDivElement>((_, ref) => {
                             <ExpandableMenuItemLeftElement>
                                 <i className="fa-sharp fa-solid fa-plus"></i>
                             </ExpandableMenuItemLeftElement>
-                            <div className="content">Create new workspace</div>
+                            <div className="content">{t("wave.workspace.create")}</div>
                         </ExpandableMenuItem>
                     ) : (
                         <ExpandableMenuItem onClick={() => saveWorkspace()}>
                             <ExpandableMenuItemLeftElement>
                                 <i className="fa-sharp fa-solid fa-floppy-disk"></i>
                             </ExpandableMenuItemLeftElement>
-                            <div className="content">Save workspace</div>
+                            <div className="content">{t("wave.workspace.save")}</div>
                         </ExpandableMenuItem>
                     )}
                 </div>
@@ -177,6 +181,7 @@ const WorkspaceSwitcherItem = ({
     const activeWorkspace = useAtomValueSafe(env.atoms.workspace);
     const [workspaceEntry, setWorkspaceEntry] = useAtom(entryAtom);
     const editingWorkspace = useAtomValue(editingWorkspaceAtom); // MOLTENTERM-PATCH (#294): the sheet edits
+    const t = useT(); // MOLTENTERM-PATCH (#623)
 
     const workspace = workspaceEntry.workspace;
     const isCurrentWorkspace = activeWorkspace.oid === workspace.oid;
@@ -201,7 +206,7 @@ const WorkspaceSwitcherItem = ({
         elemtype: "iconbutton",
         className: "edit",
         icon: "pencil",
-        title: "Edit workspace",
+        title: t("wave.workspace.edit"), // MOLTENTERM-PATCH (#623)
         click: (e) => {
             e.stopPropagation();
             // MOLTENTERM-PATCH (#294): MoltenTerm's edit sheet in place of the inline editor; the popover closes first

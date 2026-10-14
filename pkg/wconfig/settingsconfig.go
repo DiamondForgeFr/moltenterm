@@ -123,6 +123,13 @@ type SettingsType struct {
 	AgentIntegrate    *bool    `json:"agent:integrate,omitempty" jsonschema_description:"Add MoltenTerm's integration (state hooks, session link, status line relay, browser server) to claude and codex started in a local terminal, for that run only; nothing of yours is edited. Default true; false turns it off for every agent from the next launch"`
 	AgentIntegrateOff []string `json:"agent:integrateoff,omitempty" jsonschema_description:"Agents (claude, codex) started without MoltenTerm's integration, from the next launch; the others keep it"`
 
+	// MOLTENTERM-PATCH (#583, #623): the language the review session talks and briefs in (FR-REV-005, pkg/molten/reviewsession).
+	ReviewLanguage string `json:"review:language,omitempty" jsonschema_description:"The language of the code review session's briefing and answers, as a language name or code (fr, French, en...); unset, the interface language (app:language)"`
+	// MOLTENTERM-PATCH (#588): the language review comments are published in on GitHub when the project declares none (FR-REV-010).
+	ReviewPublishLanguage string `json:"review:publishlanguage,omitempty" jsonschema_description:"The language review comments are published in on GitHub (en, English, fr...) when the project's .saasfoundry.json declares none; unset, detected from the project's pull requests and README, else English"`
+	// MOLTENTERM-PATCH (#623): the interface language (FR-I18N-001, frontend/moltenterm-shell/i18n).
+	AppLanguage string `json:"app:language,omitempty" jsonschema_description:"The interface language: system (the OS preferred languages, the default), en, fr or an installed language"`
+
 	// MOLTENTERM-PATCH (#261): the coding agents whose plan usage gauges the agent companion shows (FR-SHELL-027, pkg/molten/usage).
 	CompanionUsageGauges []string `json:"companion:usagegauges,omitempty" jsonschema_description:"Coding agents (claude, codex) whose plan usage gauges the agent companion shows; empty shows none. Set from the companion's Show plan usage"`
 	// MOLTENTERM-PATCH (#262): Claude Code's experimental plan usage source, off unless confirmed in the companion (FR-SHELL-028).
@@ -193,6 +200,9 @@ type SettingsType struct {
 
 	// MOLTENTERM-PATCH (#489): a close that would stop what runs in a terminal asks first (FR-SHELL-061, frontend/moltenterm-shell/busy-close*.ts).
 	MoltentermConfirmBusyClose *bool `json:"moltenterm:confirmbusyclose,omitempty" jsonschema_description:"Closing a pane, a tab or replacing a terminal in which something runs (a coding agent, even idle, or a command other than the shell) asks first and names what would stop; false closes at once as before (the worktree and Sessions confirmations still ask)"`
+
+	// MOLTENTERM-PATCH (#615): when a tab switches to 360 view (FR-SHELL-066, frontend/moltenterm-shell/view360/view360-decision.ts).
+	MoltentermView360 string `json:"moltenterm:view360,omitempty" jsonschema:"enum=auto,enum=always,enum=never" jsonschema_description:"When a tab with several columns shows in 360 view (its first column fixed, the other panels on a carpet that scrolls sideways). auto: when a panel would fall under its readable width, back when everything fits again. always: every tab with several columns. never: panels squeeze, and a pill says when one is too tight to read. A tab's own 360 toggle wins over this setting"`
 
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`

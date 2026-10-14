@@ -47,6 +47,8 @@ type BlockInfo struct {
 	Remote bool
 	// Cmd: a block's own command (meta cmd), for a cmd block.
 	Cmd string
+	// Review: the terminal of a review session (FR-REV-004), whose requests coffee mode never answers.
+	Review bool
 }
 
 // WorkSources are what the rule reads, injected so tests need no wavesrv.

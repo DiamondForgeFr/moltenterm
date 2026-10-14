@@ -63,7 +63,7 @@ func buildNotice(rec RunRecord, manifest *BuildManifest, projectName string, now
 				shortSha(delivered.Commit), len(delivered.Notes))
 		}
 		if rec.Artifact != "" {
-			reveal := molten.NotificationAction{Id: "reveal", Label: "Show in Finder", Kind: "gesture", Gesture: revealPathGesture,
+			reveal := molten.NotificationAction{Id: "reveal", Label: "Show in folder", Kind: "gesture", Gesture: revealPathGesture,
 				Args: map[string]any{"path": filepath.Clean(rec.Artifact)}, Lasting: true}
 			input.Actions = []molten.NotificationAction{reveal, open}
 		}

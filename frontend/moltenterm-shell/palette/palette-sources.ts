@@ -6,6 +6,7 @@
 // the app.
 
 import { CompanionTargetMetaKey, MoltentermCompanionView } from "../companion/companion-model";
+import { t } from "../i18n/i18n";
 import { MoltentermLineMapView } from "../mission/line-map-model";
 import { MoltentermProjectView } from "../project/project-model";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
@@ -23,13 +24,14 @@ export const DefaultAgentIcon = "robot";
 export const MaxRecentFolders = 8;
 
 // Wave's widget labels are lowercase words made for small tiles; the palette names the built-in panels in full.
-const PanelNames: Record<string, string> = {
-    "defwidget@terminal": "Terminal",
-    "defwidget@files": "Files",
-    "defwidget@web": "Browser",
-    "defwidget@cicd": "CI/CD",
-    "defwidget@sysinfo": "System info",
-    "defwidget@processviewer": "Processes",
+const PanelNameKeys: Record<string, string> = {
+    "defwidget@terminal": "palette.panelNames.terminal",
+    "defwidget@files": "palette.panelNames.files",
+    "defwidget@web": "palette.panelNames.browser",
+    "defwidget@cicd": "palette.panelNames.cicd",
+    "defwidget@reviews": "palette.panelNames.reviews",
+    "defwidget@sysinfo": "palette.panelNames.sysinfo",
+    "defwidget@processviewer": "palette.panelNames.processes",
 };
 
 export type PaletteWorkspace = {
@@ -177,7 +179,7 @@ export function panelEntries(widgets: { [key: string]: WidgetConfigType }, works
         .map(([key, w]) => ({
             id: `panel:${key}`,
             group: "panels" as PaletteGroupId,
-            label: PanelNames[key] ?? (w.label || key),
+            label: PanelNameKeys[key] != null ? t(PanelNameKeys[key]) : w.label || key,
             detail: w.description || undefined,
             icon: w.icon || "browser",
             color: w.color || undefined,
@@ -226,8 +228,8 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         rtn.push({
             id: "action:projecttab",
             group: "actions",
-            label: "Project tab",
-            detail: "where the project stands: agents, branches, CI, releases, actions",
+            label: t("palette.actions.projectTab"),
+            detail: t("palette.actions.projectTabDetail"),
             icon: "gauge",
             keywords: ["mission control", "dashboard", "project", "home"],
             run: { kind: "projecttab" },
@@ -237,7 +239,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         {
             id: "action:newtab",
             group: "actions",
-            label: "New tab",
+            label: t("palette.actions.newTab"),
             icon: "plus",
             hint: "⌘T",
             run: { kind: "newtab" },
@@ -245,7 +247,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         {
             id: "action:reopenclosed",
             group: "actions",
-            label: "Reopen the last closed pane or tab",
+            label: t("palette.actions.reopenClosed"),
             icon: "rotate-left",
             hint: "⇧⌘T",
             keywords: ["undo close", "restore", "closed tab", "closed panel"],
@@ -254,15 +256,15 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         {
             id: "action:newworkspace",
             group: "actions",
-            label: "New workspace",
+            label: t("palette.actions.newWorkspace"),
             icon: "layer-group",
             run: { kind: "newworkspace" },
         },
         {
             id: "action:editworkspace",
             group: "actions",
-            label: "Edit workspace…",
-            detail: "name, icon, colour, project, folder",
+            label: t("palette.actions.editWorkspace"),
+            detail: t("palette.actions.editWorkspaceDetail"),
             icon: "pencil",
             keywords: ["workspace", "rename", "icon", "colour", "color", "settings", "delete", "reset"],
             run: { kind: "editworkspace" },
@@ -275,7 +277,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
         rtn.push({
             id: `action:switch:${ws.id}`,
             group: "actions",
-            label: `Switch to ${ws.name}`,
+            label: t("palette.actions.switchTo", { name: ws.name }),
             icon: ws.icon || "circle",
             color: ws.color || undefined,
             badge: { icon: ws.icon || "circle", color: ws.color ?? "", image: ws.image ?? "", logo: ws.logo ?? "" },
@@ -286,8 +288,8 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
     rtn.push({
         id: "action:gettingstarted",
         group: "actions",
-        label: "Getting started",
-        detail: "your agent, a first morph, your project",
+        label: t("palette.actions.gettingStarted"),
+        detail: t("palette.actions.gettingStartedDetail"),
         icon: "compass",
         keywords: ["onboarding", "setup", "welcome", "tour", "first run"],
         run: { kind: "gettingstarted" },
@@ -295,8 +297,8 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
     rtn.push({
         id: "action:sessions",
         group: "actions",
-        label: "Sessions",
-        detail: "terminals and agents still running, local and SSH",
+        label: t("palette.actions.sessions"),
+        detail: t("palette.actions.sessionsDetail"),
         icon: "layer-group",
         keywords: ["sessions", "durable", "running", "agents", "ssh", "detached", "jobs", "processes"],
         run: { kind: "sessions" },
@@ -304,7 +306,7 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
     rtn.push({
         id: "action:settings",
         group: "actions",
-        label: "Settings",
+        label: t("palette.actions.settings"),
         icon: "gear",
         cli: "wsh editconfig",
         keywords: ["config", "preferences"],
@@ -319,7 +321,7 @@ export function shortcutsEntry(hint?: string): PaletteEntry {
     return {
         id: "action:shortcuts",
         group: "actions",
-        label: "Keyboard shortcuts",
+        label: t("palette.actions.shortcuts"),
         icon: "keyboard",
         hint: hint || undefined,
         keywords: ["keys", "keybindings", "hotkeys", "help", "cheat sheet"],
@@ -332,6 +334,7 @@ export function shortcutsEntry(hint?: string): PaletteEntry {
 const PickerKeywords: Record<string, string[]> = {
     [MoltentermProjectView]: ["mission", "dashboard", "branches", "git", "ci"],
     "molten-browser": ["web", "page", "url"],
+    "molten-reviews": ["pull request", "pr", "review", "github"],
     [MoltentermSessionsView]: ["history", "resume"],
     [MoltentermCompanionView]: ["agent", "usage"],
 };
@@ -370,8 +373,8 @@ export function pickerPanelEntries(
         {
             id: "panel:missioncontrol",
             group: "panels",
-            label: "Mission Control",
-            detail: projectLinked ? "the project overview" : "no project linked yet",
+            label: t("palette.panels.missionControl"),
+            detail: t(projectLinked ? "palette.panels.missionControlDetail" : "palette.panels.noProject"),
             icon: "gauge",
             keywords: ["project", "overview"],
             run: { kind: "widget", blockdef: { meta: { view: MoltentermProjectView } } },
@@ -379,8 +382,8 @@ export function pickerPanelEntries(
         {
             id: "panel:linemap",
             group: "panels",
-            label: "Line map",
-            detail: projectLinked ? "the project's branches as lines" : "no project linked yet",
+            label: t("palette.panels.lineMap"),
+            detail: t(projectLinked ? "palette.panels.lineMapDetail" : "palette.panels.noProject"),
             icon: "train-subway",
             keywords: ["commits", "graph", "metro"],
             run: { kind: "widget", blockdef: { meta: { view: MoltentermLineMapView } } },
@@ -390,8 +393,8 @@ export function pickerPanelEntries(
         panels.push({
             id: "panel:companion",
             group: "panels",
-            label: "Companion",
-            detail: "the agent of this terminal",
+            label: t("palette.panels.companion"),
+            detail: t("palette.panels.companionDetail"),
             icon: "book-open",
             shortcut: source.companionKeys || undefined,
             keywords: ["agent", "companion"],
@@ -406,8 +409,8 @@ export function pickerPanelEntries(
     panels.push({
         id: "panel:sessions",
         group: "panels",
-        label: "Sessions",
-        detail: "terminals and agents still running",
+        label: t("palette.panels.sessions"),
+        detail: t("palette.panels.sessionsDetail"),
         icon: "layer-group",
         keywords: ["durable", "running", "ssh"],
         run: { kind: "widget", blockdef: { meta: { view: MoltentermSessionsView } } },
@@ -442,8 +445,8 @@ export function agentCopyEntries(): PaletteEntry[] {
     return AgentCopyProfiles.filter((p) => !!p.copyCommand).map((p) => ({
         id: `action:agentcopy:${p.id}`,
         group: "actions",
-        label: `Copy ${p.name}'s last answer`,
-        detail: `type ${p.copyCommand} in ${p.name}, it reaches the clipboard through OSC 52`,
+        label: t("palette.actions.agentCopy", { agent: p.name }),
+        detail: t("palette.actions.agentCopyDetail", { command: p.copyCommand, agent: p.name }),
         icon: "copy",
         hint: p.copyCommand,
         keywords: ["clipboard", "copy", "osc 52", p.id],
@@ -460,8 +463,8 @@ export function browserEntries(browser: { id: string; name: string }, hasBrowser
         {
             id: "action:openinbrowser",
             group: "actions",
-            label: `Open in ${browser.name}`,
-            detail: "the browser panel's page, with your sessions and extensions",
+            label: t("palette.actions.openInBrowser", { browser: browser.name }),
+            detail: t("palette.actions.openInBrowserDetail"),
             icon: "arrow-up-right-from-square",
             cli: `molten open <url> --browser ${browser.id === "custom" ? "installed" : browser.id}`,
             keywords: ["browser", "web", "hand off", "external", browser.id],
@@ -479,7 +482,7 @@ export function termUpdateEntries(count: number): PaletteEntry[] {
         {
             id: "action:updateterminals",
             group: "actions",
-            label: "Update outdated terminals",
+            label: t("palette.actions.updateTerminals"),
             detail: updateAllDetail(count),
             icon: "arrows-rotate",
             keywords: ["update", "refresh", "restart", "outdated", "shell", "terminal", "path", "launcher"],
@@ -511,7 +514,7 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
 }
 
 export function paletteGroupTitles(folder: string, home: string): Partial<Record<PaletteGroupId, string>> {
-    return folder ? { agents: `Agents in ${tildePath(folder, home)}` } : {};
+    return folder ? { agents: t("palette.groups.agentsIn", { folder: tildePath(folder, home) }) } : {};
 }
 
 // The workspace's folder history, newest first, as stored in its meta (FR-SHELL-009).

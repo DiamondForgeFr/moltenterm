@@ -19,6 +19,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
+	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -151,7 +152,7 @@ func (waveEnv) AgentName(blockId string) string {
 	if !ok || !run.Running || run.Agent == "" {
 		return ""
 	}
-	return molten.AgentDisplayName(run.Agent)
+	return molten.AgentCallName(run.FirstName, run.Agent)
 }
 
 func (waveEnv) OpenTab(ctx context.Context, req OpenTabRequest) (string, error) {
@@ -274,6 +275,11 @@ func (waveEnv) SetAgentSite(site string, decision string) error {
 		return wconfig.SetBaseConfigValue(waveobj.MetaMapType{wconfig.ConfigKey_BrowserAgentSites: nil})
 	}
 	return wconfig.SetBaseConfigValue(waveobj.MetaMapType{wconfig.ConfigKey_BrowserAgentSites: sites})
+}
+
+func (waveEnv) TypeLine(ctx context.Context, blockId string, line string) TypeLineResult {
+	out := termupdate.TypeShareLine(ctx, blockId, line)
+	return TypeLineResult{Sent: out.Result == termupdate.InputSent, Message: out.Message}
 }
 
 func (waveEnv) Publish(state PanelState) {

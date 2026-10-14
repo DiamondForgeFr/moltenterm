@@ -29,9 +29,12 @@ const MoltenTemplateMainFileName = "main.js"
 var moltenModIdRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
 
 // Enabled lists the user's mods that run; Disabled lists the built-in mods turned off (they run by default).
+// EnabledAt records when each enabled mod was last enabled (RFC 3339): when two language packs give the same
+// language, the most recently enabled wins (FR-I18N-002).
 type MoltenState struct {
-	Enabled  []string `json:"enabled"`
-	Disabled []string `json:"disabled,omitempty"`
+	Enabled   []string          `json:"enabled"`
+	Disabled  []string          `json:"disabled,omitempty"`
+	EnabledAt map[string]string `json:"enabledat,omitempty"`
 }
 
 // Trust is recorded per mod id (FR-MORPH-004), so an agent keeps editing a trusted mod without a prompt on every
@@ -54,10 +57,24 @@ type MoltenTemplateManifest struct {
 	Version      string   `json:"version"`
 	Description  string   `json:"description"`
 	ApiVersion   int      `json:"apiVersion"`
-	Main         string   `json:"main"`
-	Capabilities []string `json:"capabilities"`
+	Main         string   `json:"main,omitempty"`
+	Capabilities []string `json:"capabilities,omitempty"`
 	// Only `molten mod new --claude-code` writes it (FR-MORPH-010).
 	Agents map[string]agentparts.ClaudeCodePart `json:"agents,omitempty"`
+	// A language pack's languages (FR-I18N-002); such a mod has no main and runs no code.
+	Languages []MoltenLanguageEntry `json:"languages,omitempty"`
+}
+
+// must match MoltenLanguageEntry in frontend/molten/molten-manifest.ts
+type MoltenLanguageEntry struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+	File string `json:"file"`
+}
+
+// A data-only mod brings data and no code, so it needs no trust (must match isDataOnlyMod in molten-manifest.ts).
+func (m MoltenTemplateManifest) isDataOnly() bool {
+	return m.Main == "" && len(m.Languages) > 0
 }
 
 func moltenModsDir(configDir string) string {
@@ -116,7 +133,17 @@ func moltenWriteState(path string, state MoltenState) error {
 	if len(disabled) == 0 {
 		disabled = nil
 	}
-	return moltenWriteJsonFile(path, MoltenState{Enabled: moltenSortedUnique(state.Enabled), Disabled: disabled})
+	enabled := moltenSortedUnique(state.Enabled)
+	var enabledAt map[string]string
+	for _, id := range enabled {
+		if stamp, ok := state.EnabledAt[id]; ok {
+			if enabledAt == nil {
+				enabledAt = map[string]string{}
+			}
+			enabledAt[id] = stamp
+		}
+	}
+	return moltenWriteJsonFile(path, MoltenState{Enabled: enabled, Disabled: disabled, EnabledAt: enabledAt})
 }
 
 func moltenListWith(ids []string, id string, present bool) ([]string, bool) {
@@ -254,6 +281,10 @@ func moltenIsEnabled(state MoltenState, id string) bool {
 }
 
 func moltenSetEnabled(configDir string, id string, enabled bool) (bool, error) {
+	return moltenSetEnabledAt(configDir, id, enabled, time.Now())
+}
+
+func moltenSetEnabledAt(configDir string, id string, enabled bool, now time.Time) (bool, error) {
 	statePath := moltenStateFile(configDir)
 	state, err := moltenReadState(statePath)
 	if err != nil {
@@ -263,6 +294,12 @@ func moltenSetEnabled(configDir string, id string, enabled bool) (bool, error) {
 	state.Enabled, changed = moltenListWith(state.Enabled, id, enabled)
 	if !changed {
 		return false, nil
+	}
+	if enabled {
+		if state.EnabledAt == nil {
+			state.EnabledAt = map[string]string{}
+		}
+		state.EnabledAt[id] = now.UTC().Format(time.RFC3339Nano)
 	}
 	return true, moltenWriteState(statePath, state)
 }

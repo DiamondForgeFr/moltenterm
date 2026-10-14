@@ -10,6 +10,7 @@
 import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useCallback, useMemo, useState } from "react";
+import { useLocale, useT } from "../i18n/i18n";
 import { RunningDot } from "../mission/action-button";
 import { StripDependency, StripMember, stripMembers, StripTone, SyncArgs } from "../mission/group-strip-model";
 import { startDependencySync } from "../mission/group-sync";
@@ -40,6 +41,7 @@ function Dot({ tone }: { tone: StripTone }) {
 }
 
 function MemberHeader({ entry, onSwitch }: { entry: StripMember; onSwitch: (workspaceId: string) => void }) {
+    const t = useT();
     const name = entry.member.name;
     if (entry.current) {
         return (
@@ -49,7 +51,7 @@ function MemberHeader({ entry, onSwitch }: { entry: StripMember; onSwitch: (work
                     className="shrink-0 rounded-4 border border-accent/50 px-1.5 py-px text-11 font-semibold tracking-wide text-accent uppercase"
                     data-testid="group-strip-current"
                 >
-                    This workspace
+                    {t("project.group.thisWorkspace")}
                 </span>
             </div>
         );
@@ -63,7 +65,9 @@ function MemberHeader({ entry, onSwitch }: { entry: StripMember; onSwitch: (work
             type="button"
             onClick={() => onSwitch(entry.target)}
             className="group/member flex min-w-0 cursor-pointer items-center gap-2 text-left"
-            title={`Switch to its workspace${workspace?.name ? ` (${workspace.name})` : ""}`}
+            title={
+                workspace?.name ? t("project.group.switchNamed", { name: workspace.name }) : t("project.group.switch")
+            }
             data-testid="group-strip-switch"
         >
             <span className="truncate text-13 leading-5 font-semibold text-primary group-hover/member:underline">
@@ -83,6 +87,7 @@ function DependencyFlag({
     status: SyncStatus;
     onSync: (args: SyncArgs) => void;
 }) {
+    const t = useT();
     return (
         <div
             className="flex flex-col gap-1.5 rounded-4 border border-warning/40 bg-warning/10 px-2.5 py-2 text-12"
@@ -97,7 +102,9 @@ function DependencyFlag({
             {dep.paths.length > 0 ? (
                 <div className="font-mono text-11 break-all text-secondary">
                     {dep.paths.join(", ")}
-                    {dep.morePaths > 0 ? <span className="text-muted"> +{dep.morePaths} more</span> : null}
+                    {dep.morePaths > 0 ? (
+                        <span className="text-muted"> {t("project.group.more", { count: dep.morePaths })}</span>
+                    ) : null}
                 </div>
             ) : null}
             {dep.commits.length > 0 ? (
@@ -105,9 +112,9 @@ function DependencyFlag({
                     {dep.commits.map((c) => (
                         <li key={c.sha} className="flex min-w-0 gap-1.5">
                             <span className="shrink-0 font-mono text-muted">{c.sha}</span>
-                            {c.tickets.map((t) => (
-                                <span key={t} className="shrink-0 text-[var(--mt-accent)]">
-                                    #{t}
+                            {c.tickets.map((ticket) => (
+                                <span key={ticket} className="shrink-0 text-[var(--mt-accent)]">
+                                    #{ticket}
                                 </span>
                             ))}
                             <span className="min-w-0 truncate" title={c.subject}>
@@ -117,15 +124,19 @@ function DependencyFlag({
                     ))}
                     {dep.moreCommits > 0 || dep.moreCommitsCapped ? (
                         <li className="text-muted">
-                            {dep.moreCommits > 0 ? `+${dep.moreCommits} more` : "and older commits"}
+                            {dep.moreCommits > 0
+                                ? t("project.group.more", { count: dep.moreCommits })
+                                : t("project.group.olderCommits")}
                         </li>
                     ) : null}
                 </ul>
             ) : null}
             {dep.uncommitted.length > 0 ? (
                 <div className="text-11 text-secondary">
-                    Not committed: <span className="font-mono">{dep.uncommitted.join(", ")}</span>
-                    {dep.moreUncommitted > 0 ? <span className="text-muted"> +{dep.moreUncommitted} more</span> : null}
+                    {t("project.group.notCommitted")} <span className="font-mono">{dep.uncommitted.join(", ")}</span>
+                    {dep.moreUncommitted > 0 ? (
+                        <span className="text-muted"> {t("project.group.more", { count: dep.moreUncommitted })}</span>
+                    ) : null}
                 </div>
             ) : null}
             {dep.sync ? (
@@ -135,7 +146,11 @@ function DependencyFlag({
                         className="molten-btn flex cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-1 text-12 font-medium disabled:cursor-default disabled:opacity-50"
                         disabled={status?.running || dep.syncing}
                         onClick={() => onSync(dep.sync)}
-                        title={`Run the declared sync command with ${dep.source}${dep.branch ? `'s ${dep.branch}` : ""}`}
+                        title={
+                            dep.branch
+                                ? t("project.group.syncTitleBranch", { source: dep.source, branch: dep.branch })
+                                : t("project.group.syncTitle", { source: dep.source })
+                        }
                         data-testid="group-strip-sync"
                     >
                         {status?.running || dep.syncing ? (
@@ -143,7 +158,7 @@ function DependencyFlag({
                         ) : (
                             <i className="fa fa-solid fa-rotate text-11" />
                         )}
-                        Sync
+                        {t("project.group.sync")}
                         <MoltenWave />
                     </button>
                     {status?.error ? (
@@ -158,7 +173,7 @@ function DependencyFlag({
                     ) : null}
                 </div>
             ) : (
-                <div className="text-11 text-muted">No sync command is declared for this dependency.</div>
+                <div className="text-11 text-muted">{t("project.group.noSync")}</div>
             )}
         </div>
     );
@@ -175,6 +190,7 @@ function MemberEntry({
     onSwitch: (workspaceId: string) => void;
     onSync: (args: SyncArgs) => void;
 }) {
+    const t = useT();
     return (
         <li
             className={cn(
@@ -215,7 +231,7 @@ function MemberEntry({
                 />
             ))}
             {entry.unresolved.length > 0 ? (
-                <div className="text-11 text-muted" title="These dependencies are never flagged">
+                <div className="text-11 text-muted" title={t("project.group.unresolvedTitle")}>
                     {entry.unresolved.join(" · ")}
                 </div>
             ) : null}
@@ -240,19 +256,26 @@ export function GroupStripView({
     onSwitch: (workspaceId: string) => void;
     onSync: (args: SyncArgs) => void;
 }) {
+    const t = useT();
     if (members.length === 0) {
         return null;
     }
     return (
         <section
-            aria-label={`The ${name} product`}
+            aria-label={t("project.group.aria", { name })}
             className="flex flex-col gap-2 border-b border-border px-4 py-3 @min-[42rem]:px-6"
             data-testid="group-strip"
         >
             <div className="flex items-baseline gap-2">
-                <span className="text-11 font-semibold tracking-[0.14em] text-muted uppercase">Product</span>
+                <span className="text-11 font-semibold tracking-[0.14em] text-muted uppercase">
+                    {t("project.group.product")}
+                </span>
                 <span className="text-13 font-semibold text-primary">{name}</span>
-                <span className="text-11 text-muted">{members.length} repositories</span>
+                <span className="text-11 text-muted">
+                    {members.length === 1
+                        ? t("project.group.repositoryOne")
+                        : t("project.group.repositories", { count: members.length })}
+                </span>
             </div>
             <ul className="flex items-start gap-2 overflow-x-auto pb-0.5">
                 {members.map((entry) => (
@@ -271,10 +294,11 @@ export function GroupStripView({
 
 export function GroupStrip({ project, group }: ProjectCardProps) {
     const [syncs, setSyncs] = useState<Record<string, SyncStatus>>({});
+    const locale = useLocale();
     const workspaceId = project.workspace?.oid;
     const members = useMemo(
         () => (group == null ? [] : stripMembers(group, workspaceId, project.dir, Date.now())),
-        [group, workspaceId, project.dir]
+        [group, workspaceId, project.dir, locale]
     );
     const onSwitch = useCallback((target: string) => getApi().switchWorkspace(target), []);
     const onSync = useCallback(

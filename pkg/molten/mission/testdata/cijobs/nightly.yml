@@ -1,0 +1,47 @@
+# Copyright 2026, Example
+# SPDX-License-Identifier: Apache-2.0
+
+# Runs the slow end-to-end suite every night and on demand.
+# It also cleans the caches once a week.
+#
+#   e2e      the browser tests
+#   cleanup  the caches
+
+name: Nightly
+
+on:
+    schedule:
+        - cron: "30 2 * * *"
+        - cron: "0 6 * * 1"
+    workflow_dispatch:
+        inputs:
+            suite:
+                description: "Which suite"
+                default: all
+            dry:
+                type: boolean
+
+jobs:
+    # Builds the app once for the suites below.
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        steps:
+            - run: make build
+            # a step comment that belongs to the build job
+
+    e2e:
+        # The browser tests, against the build.
+        name: End-to-end
+        needs: build
+        if: github.event_name == 'schedule' || inputs.suite == 'all'
+        runs-on: ubuntu-latest
+        steps:
+            - run: make e2e
+
+    cleanup:
+        needs: [build, e2e]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+            - run: make clean

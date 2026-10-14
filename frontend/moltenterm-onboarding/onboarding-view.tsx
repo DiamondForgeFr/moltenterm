@@ -15,6 +15,7 @@ import { getActiveTabModel } from "@/app/store/tab-model";
 import * as WOS from "@/app/store/wos";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useMemo } from "react";
+import { I18nModel, t, useT } from "../moltenterm-shell/i18n/i18n";
 import { MoltenWave } from "../moltenterm-shell/molten-button";
 import { onboardingUpdate, OnboardingUpdate, setPanelPage } from "./onboarding-client";
 import { openBesidePanel } from "./onboarding-open";
@@ -44,7 +45,10 @@ export class OnboardingViewModel implements ViewModel {
     blockId: string;
     nodeModel: BlockNodeModel;
     viewIcon = atom("compass");
-    viewName = atom("Getting started");
+    viewName = atom((get) => {
+        get(I18nModel.getInstance().localeAtom);
+        return t("onboarding.viewName");
+    });
     noPadding = atom(true);
     busyAtom = atom(false) as PrimitiveAtom<boolean>;
     errorAtom = atom(null) as PrimitiveAtom<string>;
@@ -140,19 +144,25 @@ export class OnboardingViewModel implements ViewModel {
 }
 
 function StepFailed({ error }: { error?: Error }) {
-    return <p className="text-13 text-error">This step could not be shown: {error?.message ?? "unknown error"}</p>;
+    const t = useT();
+    return (
+        <p className="text-13 text-error">
+            {t("onboarding.stepFailed", { error: error?.message ?? t("onboarding.unknownError") })}
+        </p>
+    );
 }
 
 function StepPage({ model, step, state }: { model: OnboardingViewModel; step: FirstRunStep; state: OnboardingState }) {
+    const t = useT();
     const ctx = useMemo(() => model.stepContext(step, state), [model, step, state]);
     const Component = step.component;
     return (
         <div className="mx-auto flex w-full max-w-[560px] flex-col gap-4">
             <div className="flex flex-col gap-1">
                 <span className="text-12 text-muted">{progressLabel(`step:${step.id}`, ShownStepIds)}</span>
-                <h2 className="text-20 leading-6 font-semibold text-primary">{step.title}</h2>
+                <h2 className="text-20 leading-6 font-semibold text-primary">{t(step.titleKey)}</h2>
                 {/* A placeholder's own text already says what the step is about. */}
-                {step.placeholder ? null : <p className="text-13 leading-5 text-secondary">{step.summary}</p>}
+                {step.placeholder ? null : <p className="text-13 leading-5 text-secondary">{t(step.summaryKey)}</p>}
             </div>
             <ErrorBoundary key={step.id} fallback={<StepFailed />}>
                 <Component ctx={ctx} />
@@ -162,6 +172,7 @@ function StepPage({ model, step, state }: { model: OnboardingViewModel; step: Fi
 }
 
 function StepFooter({ model, step, busy }: { model: OnboardingViewModel; step: FirstRunStep; busy: boolean }) {
+    const t = useT();
     return (
         <div className="flex items-center gap-2 border-t border-border px-5 py-3">
             <button
@@ -170,7 +181,7 @@ function StepFooter({ model, step, busy }: { model: OnboardingViewModel; step: F
                 onClick={() => model.leave()}
                 className="molten-btn-ghost cursor-pointer rounded-6 px-2 py-1.5 text-12 text-muted hover:text-primary"
             >
-                Leave setup
+                {t("onboarding.footer.leave")}
             </button>
             {step.placeholder ? (
                 <button
@@ -180,7 +191,7 @@ function StepFooter({ model, step, busy }: { model: OnboardingViewModel; step: F
                     className="molten-btn ml-auto cursor-pointer rounded-6 px-4 py-1.5 text-12 font-medium"
                     data-testid="first-run-next"
                 >
-                    Next
+                    {t("onboarding.footer.next")}
                     <MoltenWave />
                 </button>
             ) : (
@@ -190,7 +201,7 @@ function StepFooter({ model, step, busy }: { model: OnboardingViewModel; step: F
                     onClick={() => model.run(() => model.moveOn(step.id, "skipped"))}
                     className="molten-btn-secondary ml-auto cursor-pointer rounded-6 px-3 py-1.5 text-12"
                 >
-                    Skip this step
+                    {t("onboarding.footer.skip")}
                 </button>
             )}
         </div>

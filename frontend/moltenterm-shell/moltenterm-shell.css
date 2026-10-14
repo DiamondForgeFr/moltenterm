@@ -87,6 +87,13 @@
     width: 3px;
     border-radius: 0 var(--mt-radius-4) var(--mt-radius-4) 0;
     background-color: var(--mt-accent);
+    /* The workspace's gradient, top to bottom (#657); one colour when it has none. */
+    background-image: linear-gradient(
+        to bottom,
+        var(--mt-accent),
+        var(--mt-accent-mid, var(--mt-accent)),
+        var(--mt-accent-end, var(--mt-accent))
+    );
     pointer-events: none;
 }
 

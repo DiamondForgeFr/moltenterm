@@ -6,6 +6,8 @@
 // key by key, so windows adding at the same time never overwrite each other; a null value deletes a key.
 // pkg/molten/notifications.go applies the same rules for what wavesrv publishes: keep both in step.
 
+import { t } from "./i18n/i18n";
+
 export const NotificationKeyPrefix = "molten:notif:";
 export const MaxNotifications = 500;
 // Closed notifications (resolved, archived, or read without a key) are kept this long, and this many per key.
@@ -146,6 +148,7 @@ export function visibleActions(entry: MoltentermNotification): NotificationActio
 }
 
 export const GoToTerminalActionId = "goto-terminal";
+// The English label; the action shows t("notif.goToTerminal").
 export const GoToTerminalLabel = "Go to the terminal";
 
 // An agent waiting for an answer, or stopped on an error, is answered in its terminal (FR-SHELL-055): its notification
@@ -167,7 +170,7 @@ export function displayActions(entry: MoltentermNotification): NotificationActio
     }
     const goTo: NotificationAction = {
         id: GoToTerminalActionId,
-        label: GoToTerminalLabel,
+        label: t("notif.goToTerminal"),
         kind: "open",
         workspaceid: entry.workspaceid,
         tabid: entry.tabid,
@@ -408,15 +411,15 @@ export function clearArchiveUpdate(entries: MoltentermNotification[]): MetaUpdat
 export function formatAge(time: number, now: number): string {
     const seconds = Math.max(0, Math.round((now - time) / 1000));
     if (seconds < 60) {
-        return "now";
+        return t("notif.age.now");
     }
     const minutes = Math.round(seconds / 60);
     if (minutes < 60) {
-        return `${minutes} min`;
+        return t("notif.age.minutes", { count: minutes });
     }
     const hours = Math.round(minutes / 60);
     if (hours < 24) {
-        return `${hours} h`;
+        return t("notif.age.hours", { count: hours });
     }
-    return `${Math.round(hours / 24)} d`;
+    return t("notif.age.days", { count: Math.round(hours / 24) });
 }

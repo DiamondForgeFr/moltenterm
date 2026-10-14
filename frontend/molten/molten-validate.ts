@@ -5,7 +5,9 @@
 // has not trusted yet (FR-MORPH-004).
 
 import { parse } from "acorn";
-import { MoltenManifestFileName, parseMoltenManifest } from "./molten-manifest";
+import { shippedDictionary } from "../moltenterm-shell/i18n/i18n-core";
+import { checkLanguagePack } from "../moltenterm-shell/i18n/language-pack";
+import { isDataOnlyMod, MoltenLanguageEntry, MoltenManifestFileName, parseMoltenManifest } from "./molten-manifest";
 
 // must match MoltenValidationProblem in cmd/wsh/cmd/wshcmd-molten.go
 export type MoltenValidationProblem = {
@@ -122,10 +124,16 @@ export async function validateMoltenMod(
         }
         return fail([{ file: MoltenManifestFileName, ...location, message: parsed.error }]);
     }
+    if (isDataOnlyMod(parsed.manifest)) {
+        const problems = await validateLanguageFiles(dir, parsed.manifest.languages, readTextFile);
+        return { id, ok: !problems.some((p) => p.severity !== "warning"), problems };
+    }
     const main = parsed.manifest.main;
     const source = await readTextFile(`${dir}/${main}`);
     const problems =
-        source == null ? [{ file: main, message: `main file "${main}" not found` }] : validateMoltenSource(main, source);
+        source == null
+            ? [{ file: main, message: `main file "${main}" not found` }]
+            : validateMoltenSource(main, source);
     const result: MoltenValidationResult = { id, ok: false, problems };
     const part = parsed.manifest.agents?.["claude-code"];
     if (part != null) {
@@ -136,6 +144,35 @@ export async function validateMoltenMod(
     }
     result.ok = !problems.some((p) => p.severity !== "warning");
     return result;
+}
+
+// A language pack's dictionaries, with the check the host applies at load (DS-I18N-010).
+export async function validateLanguageFiles(
+    dir: string,
+    languages: MoltenLanguageEntry[],
+    readTextFile: MoltenValidateReader
+): Promise<MoltenValidationProblem[]> {
+    const problems: MoltenValidationProblem[] = [];
+    for (const language of languages ?? []) {
+        const file = language.file;
+        const text = await readTextFile(`${dir}/${file}`);
+        if (text == null) {
+            problems.push({ file, message: `language file "${file}" not found` });
+            continue;
+        }
+        let data: unknown;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            const message = String(e?.message ?? e);
+            problems.push({ file, ...jsonErrorLocation(text, message), message: `not valid JSON: ${message}` });
+            continue;
+        }
+        const check = checkLanguagePack(language.code, data, shippedDictionary("en"));
+        problems.push(...check.errors.map((p) => ({ file, message: p.message })));
+        problems.push(...check.warnings.map((p) => ({ file, message: p.message, severity: "warning" as const })));
+    }
+    return problems;
 }
 
 // The Claude Code part is checked here as far as reading files goes; `molten` then runs `claude plugin validate`,

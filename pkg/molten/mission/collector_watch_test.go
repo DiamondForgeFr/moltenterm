@@ -144,43 +144,63 @@ func TestCollectorRereadsOnChangeOnlyForAView(t *testing.T) {
 		c.RepoChanged(root)
 		changed <- root
 	})
+	// Generous timeouts: they only bound a failing run, a passing one never waits for them (#621).
 	wait := func(what string) Snapshot {
 		t.Helper()
 		select {
 		case s := <-published:
 			return s
-		case <-time.After(5 * time.Second):
+		case <-time.After(30 * time.Second):
 			t.Fatalf("no refresh: %s", what)
 		}
 		return Snapshot{}
+	}
+	// A loaded machine can split one git command's writes into several watch events, each re-read for a view: the
+	// snapshots before the one on branch are not failures.
+	waitBranch := func(what string, branch string) Snapshot {
+		t.Helper()
+		for {
+			if s := wait(what); s.Git != nil && s.Git.Current == branch {
+				return s
+			}
+		}
+	}
+	refreshing := func() bool {
+		c.lock.Lock()
+		defer c.lock.Unlock()
+		state := c.projects[dir]
+		return state != nil && state.refreshing
 	}
 	c.Warm(dir)
 	wait("first passive read")
 	if gitReads.Load() != 1 {
 		t.Fatalf("first read: %d", gitReads.Load())
 	}
-	// Passive only: a change waits for the next request.
+	// Passive only: a change waits for the next request. The watch calls RepoChanged before it signals changed, so
+	// a refresh it would start is already marked; no sleep has to guess how long the scheduler takes.
 	gitRun(t, dir, "checkout", "-q", "-b", "feature/9-new")
-	<-changed
-	time.Sleep(100 * time.Millisecond)
-	if gitReads.Load() != 1 {
-		t.Fatalf("a change re-read a project no view looks at: %d", gitReads.Load())
+	select {
+	case <-changed:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the watch saw no change")
+	}
+	if refreshing() || gitReads.Load() != 1 {
+		t.Fatalf("a change re-read a project no view looks at: %d reads, refreshing %v", gitReads.Load(), refreshing())
 	}
 	c.Warm(dir)
-	snap := wait("passive read after a change")
-	if snap.Git == nil || snap.Git.Current != "feature/9-new" || gitReads.Load() != 2 {
-		t.Fatalf("passive after change: %d reads, %+v", gitReads.Load(), snap.Git)
+	waitBranch("passive read after a change", "feature/9-new")
+	if gitReads.Load() < 2 {
+		t.Fatalf("passive after change: %d reads", gitReads.Load())
 	}
-	// A view asked: the next change is read at once.
+	// A view asked: the next change is read with no further request, the only way a snapshot on develop can come.
 	if s, _ := c.Get(dir, time.Minute, false); s.Refreshing {
 		wait("view request")
 	}
 	before := gitReads.Load()
-	started := time.Now()
 	gitRun(t, dir, "checkout", "-q", "develop")
-	snap = wait("view after a change")
-	if snap.Git.Current != "develop" || gitReads.Load() != before+1 || time.Since(started) > time.Second {
-		t.Fatalf("view after change: %d reads, %s, in %s", gitReads.Load()-before, snap.Git.Current, time.Since(started))
+	waitBranch("view after a change", "develop")
+	if gitReads.Load() <= before {
+		t.Fatalf("view after change: %d reads", gitReads.Load()-before)
 	}
 }
 

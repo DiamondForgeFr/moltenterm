@@ -20,7 +20,7 @@ import {
     WebviewLifecycleTracker,
 } from "./moltenterm-webview-lifecycle-policy";
 
-// Sent by the panel: (blockId, browserTabId, webContentsId, shown).
+// Sent by the panel: (blockId, browserTabId, webContentsId, shown, offCarpet).
 export const WebviewShownChannel = "moltenterm-webview-shown";
 // Sent to the panel: drop this tab's webview, keeping its tab (blockId, browserTabId, webContentsId, scroll).
 export const WebviewDiscardChannel = "moltenterm-webview-discard";
@@ -199,7 +199,8 @@ function onShown(
     blockId: unknown,
     browserTabId: unknown,
     webContentsId: unknown,
-    shown: unknown
+    shown: unknown,
+    offCarpet?: unknown
 ) {
     if (typeof blockId !== "string" || typeof browserTabId !== "string" || typeof webContentsId !== "number") {
         return;
@@ -216,7 +217,7 @@ function onShown(
         });
     }
     targets.set(wc.id, { blockId, browserTabId, hostId: event.sender.id });
-    getTracker().report(wc.id, shown === true);
+    getTracker().report(wc.id, shown === true, offCarpet === true);
 }
 
 export function noteWebviewLifecycleSettings(settings: Record<string, unknown>) {

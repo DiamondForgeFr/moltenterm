@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Mission Control's CI/CD workshop (FR-MC-025), modelled on Notulia's Dev › CI: CI local, CI remote and CD tabs for the
-// active workspace's project, with history, detail and logs only. The actions and summaries live in Project
+// active workspace's project, with history, detail and logs only, and a Jobs tab listing every CI job (#637). The actions and summaries live in Project
 // (DS-MC-012); the header links back to it.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
@@ -10,6 +10,7 @@ import { getOverrideConfigAtom } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
+import { useT } from "../i18n/i18n";
 import { focusMoltentermView } from "../open-view";
 import { githubBase } from "../project/next-station-model";
 import { MoltentermProjectView } from "../project/project-model";
@@ -17,18 +18,21 @@ import { openProjectOverview } from "../project/project-tab";
 import { cicdRuns, CicdRunsKey } from "../widget-options";
 import { pathBaseName } from "../workspace-project";
 import { AdapterSteps } from "./adapter-steps";
+import { CiJobsTab } from "./ci-jobs-panel";
 import { LocalCiRunner } from "./ci-local-panel";
 import { BlockHeader, CdTab, Notice, RemoteCiTab } from "./cicd-panels";
 import { useMissionRuns } from "./mission-client";
 import { ActiveProject, MissionFrame, MissionHeader, PipelineBanner } from "./mission-frame";
+import { tAtom } from "./mission-i18n";
 import { MissionSnapshot, PipelineReport } from "./mission-model";
 
 export const MoltentermCicdView = "molten-cicd";
 
 const Tabs = [
-    { id: "local", label: "CI local", icon: "laptop-code" },
-    { id: "remote", label: "CI remote", icon: "cloud" },
-    { id: "cd", label: "CD", icon: "box" },
+    { id: "local", labelKey: "mc.cicd.tab.local", icon: "laptop-code" },
+    { id: "remote", labelKey: "mc.cicd.tab.remote", icon: "cloud" },
+    { id: "cd", labelKey: "mc.cicd.tab.cd", icon: "box" },
+    { id: "jobs", labelKey: "mc.cicd.tab.jobs", icon: "list-check" },
 ] as const;
 
 type TabId = (typeof Tabs)[number]["id"];
@@ -38,7 +42,7 @@ export class CicdViewModel implements ViewModel {
     blockId: string;
     nodeModel: BlockNodeModel;
     viewIcon = atom("list-check");
-    viewName = atom("CI/CD");
+    viewName = tAtom("mc.cicd.viewName");
     noPadding = atom(true);
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
@@ -52,6 +56,7 @@ export class CicdViewModel implements ViewModel {
 }
 
 function LocalCiTab({ project, report, github }: { project: ActiveProject; report: PipelineReport; github: string }) {
+    const t = useT();
     const pipeline = report?.valid ? report.pipeline : null;
     const projectName = project.facts?.name ?? pathBaseName(project.dir);
     return (
@@ -59,13 +64,13 @@ function LocalCiTab({ project, report, github }: { project: ActiveProject; repor
             <PipelineBanner dir={project.dir} report={report} />
             {pipeline == null ? (
                 <section className="flex flex-col gap-2">
-                    <BlockHeader title="Local CI" hint="the project's own checks, on this machine" />
-                    <Notice text="Local CI runs the jobs the pipeline declares; connect the pipeline first." />
+                    <BlockHeader title={t("mc.cicd.localCi")} hint={t("mc.cicd.localCiHint")} />
+                    <Notice text={t("mc.cicd.connectFirst")} />
                 </section>
             ) : (pipeline.ci?.jobs ?? []).length === 0 ? (
                 <section className="flex flex-col gap-2">
-                    <BlockHeader title="Local CI" hint="the project's own checks, on this machine" />
-                    <Notice text="The pipeline declares no CI job (ci.jobs)." />
+                    <BlockHeader title={t("mc.cicd.localCi")} hint={t("mc.cicd.localCiHint")} />
+                    <Notice text={t("mc.cicd.noJob")} />
                 </section>
             ) : (
                 <LocalCiRunner dir={project.dir} projectName={projectName} github={github} />
@@ -73,7 +78,7 @@ function LocalCiTab({ project, report, github }: { project: ActiveProject; repor
             {report?.warnings?.length ? (
                 <div className="text-11 text-muted">
                     {report.warnings.map((w) => (
-                        <div key={w}>warning: {w}</div>
+                        <div key={w}>{t("mc.cicd.warning", { warning: w })}</div>
                     ))}
                 </div>
             ) : null}
@@ -90,72 +95,91 @@ async function showProject() {
 }
 
 function ProjectLink() {
+    const t = useT();
     return (
         <button
             type="button"
             onClick={() => fireAndForget(showProject)}
             className="flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
-            title="Open Project: Run CI on develop, Build local, Release, Clean branches and the release summary live there"
+            title={t("mc.cicd.projectLinkTitle")}
         >
             <i className="fa fa-solid fa-diagram-project text-11" />
-            Project
+            {t("mc.cicd.project")}
         </button>
     );
 }
 
 function CicdView({ blockId }: ViewComponentProps<CicdViewModel>) {
+    const t = useT();
     // The runs the command panel chose (This panel, else All CI/CD panels) open the tab; a click on a tab stays local.
     const runs = cicdRuns(useAtomValue(getOverrideConfigAtom(blockId, CicdRunsKey as keyof SettingsType)));
     const [tab, setTab] = useState<TabId>(runs);
     useEffect(() => setTab(runs), [runs]);
     return (
-        <MissionFrame title="CI/CD">
+        <MissionFrame title={t("mc.cicd.frameTitle")}>
             {({ project, snapshot, refresh }) => (
-                <CicdContent project={project} snapshot={snapshot} refresh={refresh} tab={tab} setTab={setTab} />
+                <CicdContent
+                    blockId={blockId}
+                    project={project}
+                    snapshot={snapshot}
+                    refresh={refresh}
+                    tab={tab}
+                    setTab={setTab}
+                />
             )}
         </MissionFrame>
     );
 }
 
 function CicdContent({
+    blockId,
     project,
     snapshot,
     refresh,
     tab,
     setTab,
 }: {
+    blockId: string;
     project: ActiveProject;
     snapshot: MissionSnapshot;
     refresh: () => void;
     tab: TabId;
     setTab: (tab: TabId) => void;
 }) {
+    const t = useT();
     const runs = useMissionRuns(project.dir);
     const report = snapshot?.pipeline;
     const pipeline = report?.valid ? report.pipeline : null;
     const projectName = project.facts?.name ?? pathBaseName(project.dir);
     const steps = (section: "cilocal" | "ciremote" | "cd") => (
-        <AdapterSteps dir={project.dir} projectName={projectName} pipeline={pipeline} runs={runs} section={section} />
+        <AdapterSteps
+            dir={project.dir}
+            projectName={projectName}
+            pipeline={pipeline}
+            runs={runs}
+            section={section}
+            git={snapshot?.git}
+        />
     );
     return (
         <>
             <MissionHeader project={project} snapshot={snapshot} onRefresh={refresh}>
                 <ProjectLink />
                 <div role="tablist" className="flex items-center gap-0.5 rounded-4 border border-border p-0.5">
-                    {Tabs.map((t) => (
+                    {Tabs.map((entry) => (
                         <button
-                            key={t.id}
+                            key={entry.id}
                             type="button"
                             role="tab"
-                            aria-selected={tab === t.id}
-                            onClick={() => setTab(t.id)}
+                            aria-selected={tab === entry.id}
+                            onClick={() => setTab(entry.id)}
                             className={cn(
-                                "flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-0.5 text-12 transition-colors duration-120 ease-mt",
-                                tab === t.id ? "bg-hover text-primary" : "text-muted hover:text-primary"
+                                "flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-0.5 text-12 whitespace-nowrap transition-colors duration-120 ease-mt",
+                                tab === entry.id ? "bg-hover text-primary" : "text-muted hover:text-primary"
                             )}
                         >
-                            <i className={cn("fa fa-solid text-11", `fa-${t.icon}`)} />
-                            {t.label}
+                            <i className={cn("fa fa-solid text-11", `fa-${entry.icon}`)} />
+                            {t(entry.labelKey)}
                         </button>
                     ))}
                 </div>
@@ -174,6 +198,7 @@ function CicdContent({
                     <RemoteCiTab
                         github={snapshot?.github}
                         trunk={snapshot?.git?.trunk}
+                        prTarget={snapshot?.prtarget}
                         dir={project.dir}
                         onRefresh={refresh}
                     />
@@ -182,6 +207,14 @@ function CicdContent({
                     <CdTab git={snapshot?.git} github={snapshot?.github} pipeline={snapshot?.pipeline} runs={runs} />
                 ) : null}
                 {tab === "cd" ? steps("cd") : null}
+                {tab === "jobs" ? (
+                    <CiJobsTab
+                        dir={project.dir}
+                        snapshot={snapshot}
+                        blockId={blockId}
+                        workspaceId={project.workspace?.oid}
+                    />
+                ) : null}
             </div>
         </>
     );

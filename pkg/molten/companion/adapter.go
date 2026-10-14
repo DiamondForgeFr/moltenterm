@@ -6,8 +6,10 @@ package companion
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,6 +51,35 @@ type SessionFinder interface {
 	IsSubagent(path string) bool
 }
 
+// SettingsReader is an adapter whose agent writes its run's model and effort level only in its transcript (#549).
+type SettingsReader interface {
+	// ReadSettings reads them from the end of a transcript; false when it holds none.
+	ReadSettings(path string) (molten.AgentSettings, bool)
+}
+
+// SubagentWriter is an adapter whose background agents write transcripts of their own, next to their session's:
+// when one was last written tells whether the agent still works when its end was never recorded.
+type SubagentWriter interface {
+	// SubagentWritten: when the agent last wrote its transcript, in Unix milliseconds; 0 when it has none.
+	SubagentWritten(sessionPath string, agentId string) int64
+}
+
+// SubagentReader is an adapter whose sub-agents' own transcripts say their model, effort and branch (#601).
+type SubagentReader interface {
+	// SubagentIds maps the calls that started sub-agents to the agents' ids, for the agents whose call result did not
+	// give it yet (a foreground agent's comes with its end).
+	SubagentIds(sessionPath string) map[string]string
+	// ReadSubagent reads the latest facts of a sub-agent's transcript; false when it has none.
+	ReadSubagent(sessionPath string, agentId string) (SubagentFacts, bool)
+}
+
+// SubagentFacts is what a sub-agent's own transcript last says of it.
+type SubagentFacts struct {
+	Model  string
+	Effort string
+	Branch string
+}
+
 // Candidate is a session discovery found for a block.
 type Candidate struct {
 	Path     string `json:"path"`
@@ -63,7 +94,11 @@ type Candidate struct {
 	Current bool `json:"current,omitempty"`
 	// Elsewhere: another terminal's companion shows it as a guess; picking it here takes it.
 	Elsewhere bool `json:"elsewhere,omitempty"`
-	cwd       string
+	// Earlier: a session this terminal showed before its current one (#600).
+	Earlier bool `json:"earlier,omitempty"`
+	// Live: the session the agent runs now, while the companion shows an earlier one.
+	Live bool `json:"live,omitempty"`
+	cwd  string
 }
 
 func homeDir() string {
@@ -123,6 +158,45 @@ func ValidateSessionPath(a Adapter, path string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("the session transcript is not under %s's session folder", a.Id())
+}
+
+// ValidateReportedSessionPath is ValidateSessionPath for a hook's report, which may come before the transcript exists:
+// Claude Code runs SessionStart (after /clear too) before it writes the new session's first record. A missing file
+// is accepted when its folder passes the same checks; pending then tells the companion to wait for it.
+func ValidateReportedSessionPath(a Adapter, path string) (resolved string, pending bool, err error) {
+	resolved, err = ValidateSessionPath(a, path)
+	if err == nil {
+		return resolved, false, nil
+	}
+	if path == "" || len(path) > MaxPathBytes || strings.ContainsRune(path, 0) || !filepath.IsAbs(path) || !strings.HasSuffix(path, ".jsonl") {
+		return "", false, err
+	}
+	clean := filepath.Clean(path)
+	if _, statErr := os.Lstat(clean); !errors.Is(statErr, fs.ErrNotExist) {
+		return "", false, err
+	}
+	dir, err := filepath.EvalSymlinks(filepath.Dir(clean))
+	if err != nil {
+		return "", false, fmt.Errorf("session folder not found")
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return "", false, fmt.Errorf("session folder not found")
+	}
+	resolved = filepath.Join(dir, filepath.Base(clean))
+	for _, root := range a.Roots() {
+		realRoot, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			continue
+		}
+		rel, err := filepath.Rel(realRoot, resolved)
+		if err != nil || rel == "." || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+			continue
+		}
+		if a.ValidLayout(filepath.ToSlash(rel)) {
+			return resolved, true, nil
+		}
+	}
+	return "", false, fmt.Errorf("the session transcript is not under %s's session folder", a.Id())
 }
 
 // samePath compares two folders, symlinks resolved when they exist (/tmp and /private/tmp on macOS).

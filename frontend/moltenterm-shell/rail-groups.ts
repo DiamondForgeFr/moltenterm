@@ -8,6 +8,7 @@
 // Local groups (FR-MC-032) are units too, drawn as products; unlike a project product's, their members may leave them
 // by a move outside the group (railorder Rail.Move).
 
+import { t } from "./i18n/i18n";
 import { GroupMember, GroupMemberState, GroupWorst, isProductGroup, ProjectGroup } from "./mission/group-model";
 import { isLocalKey, localGroupName, localKey, LocalRailGroup } from "./rail-local-groups";
 import { RailMove } from "./workspace-order";
@@ -350,47 +351,47 @@ export function productGridEntries(unit: RailProductUnit, max = 4): WorkspaceRai
 // What a member's state says on hover, from the collector's summary (DS-MC-017).
 export function memberStateText(state: GroupMemberState): string {
     if (state == null) {
-        return "no state yet";
+        return t("rail.member.noState");
     }
     if (state.missing) {
-        return "folder missing";
+        return t("rail.member.folderMissing");
     }
-    const trunk = state.trunk || "the trunk";
+    const trunk = state.trunk || t("rail.member.theTrunk");
     const parts: string[] = [];
     if (state.trunkci === "failure") {
-        parts.push(`local CI failed on ${trunk}`);
+        parts.push(t("rail.member.localCiFailed", { trunk }));
     }
     if (state.remoteci === "failure") {
-        parts.push(`GitHub CI failed on ${trunk}`);
+        parts.push(t("rail.member.remoteCiFailed", { trunk }));
     }
     if (state.build === "failure") {
-        parts.push("last build failed");
+        parts.push(t("rail.member.buildFailed"));
     }
     for (const dep of state.deps ?? []) {
         if (dep.state === "stale") {
-            parts.push(`stale dependency on ${dep.sourcename || dep.project}`);
+            parts.push(t("rail.member.staleDependency", { name: dep.sourcename || dep.project }));
         } else if (dep.state === "uncommitted") {
-            parts.push(`${dep.sourcename || dep.project} synced, not committed`);
+            parts.push(t("rail.member.syncedNotCommitted", { name: dep.sourcename || dep.project }));
         }
     }
     if (parts.length > 0) {
         return parts.join(", ");
     }
     if (state.trunkci === "running" || state.remoteci === "running" || state.build === "running") {
-        return "running";
+        return t("rail.member.running");
     }
     if (!state.collectedat && !state.trunkci && !state.remoteci && !state.build) {
-        return "not read yet";
+        return t("rail.member.notReadYet");
     }
-    return "OK";
+    return t("rail.member.ok");
 }
 
 export function worstLabel(worst: string): string {
     if (worst === "red") {
-        return "CI or build failed";
+        return t("rail.member.worstRed");
     }
     if (worst === "amber") {
-        return "stale dependency";
+        return t("rail.member.worstAmber");
     }
     return "";
 }

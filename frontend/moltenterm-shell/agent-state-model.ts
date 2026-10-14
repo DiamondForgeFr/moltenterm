@@ -5,6 +5,8 @@
 // (pkg/molten/attention/agentstate.go); the windows show them in the pane header, on the tab and on the workspace
 // icon of the rail. Kept apart from the components so the rules can be tested without the app.
 
+import { t } from "./i18n/i18n";
+
 // must match pkg/molten/agentstate.go
 export const AgentStateEvent = "molten:agentstate";
 export const AgentStatesRoute = "molten:agents";
@@ -19,11 +21,17 @@ export type AgentStateInfo = {
     workspaceid?: string;
     agent?: string;
     agentname?: string;
+    // The session's first name, unique among the app's active agents (FR-CONT-014).
+    firstname?: string;
     state?: AgentStateName;
     message?: string;
     since?: number;
     version: number;
     hooked?: boolean;
+    // The run's model and effort level as the agent last reported them (#549), absent when unknown.
+    model?: string;
+    modelname?: string;
+    effort?: string;
     cleared?: boolean;
 };
 
@@ -88,16 +96,11 @@ export function agentStatesOfWorkspace(data: AgentStatesData, workspaceId: strin
     return Object.values(data.states).filter((s) => s.workspaceid === workspaceId);
 }
 
-const StateLabels: Record<string, string> = {
-    working: "working",
-    waiting: "waiting for you",
-    done: "done",
-    error: "error",
-    idle: "idle",
-};
+const StateNames = ["working", "waiting", "done", "error", "idle"];
 
 export function agentStateLabel(state: string): string {
-    return StateLabels[state] ?? state ?? "";
+    if (StateNames.includes(state)) return t(`agent.state.${state}`);
+    return state ?? "";
 }
 
 // The dot's colour per state, as class strings (the theme's tokens). Working is a ring, like the tab's mark, so it
@@ -110,13 +113,68 @@ export const AgentStateDotClasses: Record<string, string> = {
     idle: "bg-secondary",
 };
 
+// How a list or a title names a session's agent (FR-CONT-014): "[Jérôme] Claude Code", the agent's name alone without
+// a first name. Must match AgentLabel in pkg/molten/agentstate.go.
+export function agentLabel(info: AgentStateInfo, fallback = "Agent"): string {
+    const kind = info?.agentname || info?.agent || fallback;
+    const first = (info?.firstname ?? "").trim();
+    return first ? `[${first}] ${kind}` : kind;
+}
+
+// How a sentence names a session's agent: its first name, else the agent's name ("Shared with Jérôme").
+export function agentCallName(info: AgentStateInfo, fallback = "Agent"): string {
+    return (info?.firstname ?? "").trim() || info?.agentname || info?.agent || fallback;
+}
+
 export function agentStateTitle(info: AgentStateInfo): string {
     if (info == null) {
         return "";
     }
-    const name = info.agentname || info.agent || "Agent";
-    const line = `${name}: ${agentStateLabel(info.state)}`;
+    const name = agentLabel(info);
+    const line = t("agent.stateLine", { name, state: agentStateLabel(info.state) });
     return info.message ? `${line}\n${info.message}` : line;
+}
+
+// The model and effort the header and the companion show beside the agent ("Opus · high", #549): only what the agent
+// reported, so an unknown effort shows the model alone and an unknown model nothing.
+export function agentModelEffortLabel(info: AgentStateInfo): string {
+    const model = (info?.modelname || info?.model || "").trim();
+    if (!model) {
+        return "";
+    }
+    const effort = (info?.effort ?? "").trim();
+    return effort ? `${model} · ${effort}` : model;
+}
+
+// The header's two click targets (#573): the model, which opens the Model choice, and the effort, which opens Effort;
+// "" for a part the agent did not report.
+export function agentModelPart(info: AgentStateInfo): string {
+    return (info?.modelname || info?.model || "").trim();
+}
+
+export function agentEffortPart(info: AgentStateInfo): string {
+    if (!agentModelPart(info)) {
+        return "";
+    }
+    return (info?.effort ?? "").trim();
+}
+
+export function agentModelTitle(info: AgentStateInfo): string {
+    const label = agentModelPart(info);
+    if (!label) {
+        return "";
+    }
+    const model =
+        info.model && info.modelname && info.model !== info.modelname ? `${info.modelname} (${info.model})` : label;
+    return [t("agent.modelTitle", { model }), t("agent.modelClick")].join("\n");
+}
+
+export function agentEffortTitle(info: AgentStateInfo): string {
+    const effort = agentEffortPart(info);
+    if (!effort) {
+        return "";
+    }
+    return [t("agent.effortTitle", { effort }), t("agent.effortClick")].join("\n");
 }
 
 // What the header says next to the agent: project and branch, when the pane's folder is known.
@@ -124,5 +182,5 @@ export function agentHeaderParts(info: AgentStateInfo, projectName: string, bran
     if (info == null) {
         return [];
     }
-    return [info.agentname || info.agent || "Agent", projectName, branch].filter((s) => !!s);
+    return [agentLabel(info), projectName, branch].filter((s) => !!s);
 }

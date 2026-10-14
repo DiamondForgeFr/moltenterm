@@ -10,6 +10,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect } from "react";
+import { t } from "../i18n/i18n";
 import { NotificationGestureResult, registerNotificationGesture } from "../notifications-store";
 import { always, TabActivity } from "../tab-activity";
 import { pathBaseName } from "../workspace-project";
@@ -82,7 +83,7 @@ export class DepSyncModel {
     async sync(dir: string, target: DepSyncTarget): Promise<DepSyncResult> {
         const key = depSyncKey(dir, target);
         if (globalStore.get(this.runningAtom)[key]) {
-            return { ok: false, error: "this sync is already running" };
+            return { ok: false, error: t("mc.depSync.error.alreadyRunning") };
         }
         const project = target?.sourcename || target?.project;
         this.setRunning(key, true);
@@ -90,16 +91,16 @@ export class DepSyncModel {
             let started = await missionDepSync(dir, project, target?.index);
             if (started?.untrusted) {
                 if (!(await this.askTrust(dir, started.untrusted))) {
-                    return { ok: false, cancelled: true, error: "the commands were not trusted: the sync did not run" };
+                    return { ok: false, cancelled: true, error: t("mc.depSync.error.notTrusted") };
                 }
                 await missionTrust(dir, started.untrusted.hash);
                 started = await missionDepSync(dir, project, target?.index);
                 if (started?.untrusted) {
-                    return { ok: false, error: "the project's commands changed meanwhile: press Sync again" };
+                    return { ok: false, error: t("mc.depSync.error.changed") };
                 }
             }
             if (started?.run == null) {
-                return { ok: false, error: "the sync did not start" };
+                return { ok: false, error: t("mc.depSync.error.notStarted") };
             }
             const ended = await waitForRunEnd(dir, started.run.id);
             const tail = ended.state === "success" ? [] : await readLogTail(dir, ended.id);
@@ -199,7 +200,7 @@ export function waitForRunEnd(dir: string, runId: string): Promise<RunRecord> {
 
 async function depSyncGesture(args: Record<string, any>): Promise<NotificationGestureResult> {
     if (typeof args.dir !== "string" || args.dir === "") {
-        return { ok: false, error: "no project to sync" };
+        return { ok: false, error: t("mc.depSync.error.noProject") };
     }
     const target: DepSyncTarget = {
         project: typeof args.project === "string" ? args.project : undefined,

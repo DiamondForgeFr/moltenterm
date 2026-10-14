@@ -13,7 +13,7 @@ import { OptMagnifyButton } from "@/app/block/blockutil";
 import { Button } from "@/app/element/button";
 import { IconButton } from "@/app/element/iconbutton";
 import { ContextMenuModel } from "@/app/store/contextmenu";
-import { getApi, getSettingsKeyAtom, refocusNode } from "@/app/store/global";
+import { atoms, getApi, getSettingsKeyAtom, refocusNode } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
 import * as WOS from "@/app/store/wos";
@@ -26,23 +26,39 @@ import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { agentStatesOfWorkspace } from "../agent-state-model";
+import { AgentStates } from "../agent-state-store";
 import { openHeaderCommandPanel } from "../command-panel/block-menus";
 import { openCommandPanelFromTrigger } from "../command-panel/command-panel-store";
 import type { BrowserCommandState } from "../command-panel/providers/browser";
+import { Pill } from "../header/pill";
+import { I18nModel, t, useLocale, useT } from "../i18n/i18n";
+import { translate } from "../i18n/i18n-core";
 import { guestEditMenu, guestMenuEvent } from "../menu/guest-menu";
+import { openSettingsSection } from "../settings/settings-open";
 import { formatShortcutById } from "../shortcuts/format";
 import { splitPanel } from "../split/split";
 import { splitMenuItems } from "../split/split-menu";
+import { TabActivity } from "../tab-activity";
+import { isShowing } from "../tab-activity-model";
+import { PanelMeta, panelTitle } from "../tab-identity";
+import { showToast } from "../toast-store";
+import { isOffCarpet, offCarpetAtom, setKeepLive } from "../view360/offcarpet-model";
+import { PinHeaderButton } from "../view360/view360-pin";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import {
     AgentControlAction,
+    agentName,
+    AgentSession,
     agentSiteDecision,
+    AgentTab,
     AgentTabs,
     BrowserAgentModel,
     controlBarView,
     permissionBarView,
     setAgentSite,
+    ShareResult,
 } from "./browser-agent";
 import {
     browserActivate,
@@ -62,6 +78,13 @@ import {
 } from "./browser-engine";
 import { BrowserErrorModel, isPageFailure } from "./browser-error";
 import { BrowserErrorPage } from "./browser-error-page";
+import {
+    BrowserLifecycleModel,
+    PageScroll,
+    reportWebviewShown,
+    scrollScript,
+    shouldRestore,
+} from "./browser-lifecycle";
 import { BrowserLoadModel, reloadAction, runReload, TabLoad } from "./browser-loading";
 import {
     activateTab,
@@ -89,15 +112,23 @@ import {
 } from "./browser-model";
 import type { SignInBar } from "./browser-popup";
 import { noteBrowserPanelFocus } from "./browser-routing";
+import {
+    isSharedTab,
+    moveQuestion,
+    noAgentReason,
+    ofTab,
+    ShareAgent,
+    shareAgents,
+    shareLabel,
+    shareMenuItems,
+    unshareableReason,
+} from "./browser-share";
 import { dropOnTab, DropTarget, overTab, startTabDrag, tabDropIndex, TabDropIndicator } from "./browser-tab-drag";
 import { browserTabMenu } from "./browser-tab-menu";
 import "./browser.css";
-import { BrowserLifecycleModel, PageScroll, reportWebviewShown, scrollScript, shouldRestore } from "./browser-lifecycle";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
-import { TabActivity } from "../tab-activity";
-import { isShowing } from "../tab-activity-model";
 
 export { MoltentermBrowserView };
 
@@ -126,10 +157,12 @@ export class BrowserViewModel implements ViewModel {
     // header used; the narrower interface leaves them out, so they are read as optional.
     layoutNode: Partial<NodeModel>;
     viewIcon = atom("globe");
-    viewName = atom("Browser");
+    viewName = atom((get) => translate(get(I18nModel.getInstance().localeAtom), "browser.viewName"));
     noPadding = atom(true);
     noHeader = atom(true);
     stateAtom: PrimitiveAtom<BrowserState>;
+    // The panes of the workspace tab holding this panel: Share with agent offers only their agents (#594).
+    tabBlockIdsAtom: Atom<string[]>;
     webviews = new Map<string, WebviewTag>();
     urlInputRef: React.RefObject<HTMLInputElement> = { current: null };
     persistTimer: ReturnType<typeof setTimeout> = null;
@@ -152,9 +185,12 @@ export class BrowserViewModel implements ViewModel {
     // Hidden pages frozen and discarded by the main process (#459).
     lifecycle: BrowserLifecycleModel;
 
-    constructor({ blockId, nodeModel }: ViewModelInitType) {
+    constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.blockId = blockId;
         this.nodeModel = nodeModel;
+        this.tabBlockIdsAtom = atom((get) =>
+            tabModel != null ? ((get(tabModel.tabAtom) as Tab)?.blockids ?? []) : []
+        );
         this.layoutNode = nodeModel as Partial<NodeModel>;
         this.blockAtom = makeBlockAtom(blockId);
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
@@ -225,7 +261,7 @@ export class BrowserViewModel implements ViewModel {
         try {
             return await call();
         } catch (e) {
-            return { engine: EngineApp, fallback: `the installed browser could not be reached (${e})` };
+            return { engine: EngineApp, fallback: t("browser.notice.unreachable", { error: String(e) }) };
         }
     }
 
@@ -284,7 +320,7 @@ export class BrowserViewModel implements ViewModel {
         try {
             await browserSetSite(site, engine);
         } catch (e) {
-            this.showNotice(`The site choice could not be saved: ${e}`);
+            this.showNotice(t("browser.notice.siteChoiceNotSaved", { error: String(e) }));
         }
     }
 
@@ -382,7 +418,7 @@ export class BrowserViewModel implements ViewModel {
                 }
                 await browserSetSite(site, chosen.id === "custom" ? EngineInstalled : chosen.id);
             } catch (e) {
-                this.showNotice(`The site choice could not be saved: ${e}`);
+                this.showNotice(t("browser.notice.siteChoiceNotSaved", { error: String(e) }));
             }
         });
     }
@@ -399,13 +435,21 @@ export class BrowserViewModel implements ViewModel {
         const site = routed.site || siteOf(tab.url);
         const menu: ContextMenuItem[] = tab.engine
             ? [
-                  { label: `Bring ${name} forward`, icon: "eye", click: () => this.bringForward(tab.id) },
-                  { label: `Reopen in ${name}`, icon: "rotate-right", click: () => this.reopenInBrowser(tab.id) },
-                  { label: "Open in MoltenTerm", icon: "window-maximize", click: () => this.openHere(tab.id) },
+                  {
+                      label: t("browser.menu.bringForward", { browser: name }),
+                      icon: "eye",
+                      click: () => this.bringForward(tab.id),
+                  },
+                  {
+                      label: t("browser.menu.reopenIn", { browser: name }),
+                      icon: "rotate-right",
+                      click: () => this.reopenInBrowser(tab.id),
+                  },
+                  { label: t("browser.menu.openHere"), icon: "window-maximize", click: () => this.openHere(tab.id) },
               ]
             : [
                   {
-                      label: `Open in ${name}`,
+                      label: t("browser.choice.openIn", { browser: name }),
                       icon: "arrow-up-right-from-square",
                       click: () => fireAndForget(() => this.handOffTab(tab.id)),
                   },
@@ -414,7 +458,9 @@ export class BrowserViewModel implements ViewModel {
         if (site != null) {
             const always = routed.engine !== "" && routed.engine !== EngineApp;
             menu.push({
-                label: `Always open in ${always ? engineName(routed.engine, list) : chosen.name}`,
+                label: t("browser.menu.alwaysOpenIn", {
+                    browser: always ? engineName(routed.engine, list) : chosen.name,
+                }),
                 type: "checkbox",
                 checked: always,
                 icon: "thumbtack",
@@ -438,11 +484,11 @@ export class BrowserViewModel implements ViewModel {
         if (decided == null) {
             return [];
         }
-        const verb = decided.decision === "block" ? "blocked" : "allowed";
+
         return [
             {
-                label: "Forget the agents' decision",
-                sublabel: `Agents are ${verb} here`,
+                label: t("browser.menu.forgetDecision"),
+                sublabel: t(decided.decision === "block" ? "browser.menu.agentsBlocked" : "browser.menu.agentsAllowed"),
                 icon: "robot",
                 section: decided.site,
                 click: () =>
@@ -450,7 +496,7 @@ export class BrowserViewModel implements ViewModel {
                         try {
                             await setAgentSite(decided.site, "");
                         } catch (err) {
-                            this.showNotice(`The agents' decision could not be forgotten: ${err}`);
+                            this.showNotice(t("browser.notice.decisionNotForgotten", { error: String(err) }));
                         }
                     }),
             },
@@ -468,17 +514,17 @@ export class BrowserViewModel implements ViewModel {
     showLinkMenu(url: string, event?: React.MouseEvent): void {
         const chosen = this.engines.chosen();
         const menu: ContextMenuItem[] = [
-            { label: "Open link in new tab", icon: "plus", click: () => this.newTab(url) },
+            { label: t("browser.menu.openLinkNewTab"), icon: "plus", click: () => this.newTab(url) },
         ];
         if (chosen != null && siteOf(url) != null) {
             menu.push({
-                label: `Open link in ${chosen.name}`,
+                label: t("browser.menu.openLinkIn", { browser: chosen.name }),
                 icon: "arrow-up-right-from-square",
                 click: () => fireAndForget(() => this.handOffLink(url)),
             });
         }
         menu.push({
-            label: "Copy link address",
+            label: t("browser.menu.copyLinkAddress"),
             icon: "link",
             click: () => fireAndForget(() => navigator.clipboard.writeText(url)),
         });
@@ -720,14 +766,121 @@ export class BrowserViewModel implements ViewModel {
 
     showTabMenu(e: React.MouseEvent, tab: BrowserTab): void {
         e.preventDefault();
-        const menu = browserTabMenu(this.state(), tab, {
-            reloadTab: (id) => this.reloadTab(id),
-            duplicateTab: (id) => this.duplicateTab(id),
-            copyTabLink: (id) => this.copyTabLink(id),
-            closeTab: (id) => this.closeTab(id),
-            closeOtherTabs: (id) => this.closeOtherTabs(id),
+        fireAndForget(async () => {
+            const share = await this.shareItems(tab);
+            const menu = browserTabMenu(
+                this.state(),
+                tab,
+                {
+                    reloadTab: (id) => this.reloadTab(id),
+                    duplicateTab: (id) => this.duplicateTab(id),
+                    copyTabLink: (id) => this.copyTabLink(id),
+                    closeTab: (id) => this.closeTab(id),
+                    closeOtherTabs: (id) => this.closeOtherTabs(id),
+                },
+                share
+            );
+            ContextMenuModel.getInstance().showContextMenu(menu, e);
         });
-        ContextMenuModel.getInstance().showContextMenu(menu, e);
+    }
+
+    // The toolbar's Share with agent button opens the same entries as the tab menu (FR-BRW-011 AC1).
+    showShareMenu(e: React.MouseEvent, tab: BrowserTab): void {
+        e.preventDefault();
+        fireAndForget(async () => {
+            const menu = await this.shareItems(tab);
+            ContextMenuModel.getInstance().showContextMenu(menu, e);
+        });
+    }
+
+    // The agents of this panel's tab (the agent states the companion and the command panel read) joined with the agents
+    // connected to MoltenTerm's browser, read when a menu opens.
+    async loadShareAgents(): Promise<ShareAgent[]> {
+        let sessions: AgentSession[] = [];
+        try {
+            sessions = await this.agents.listSessions();
+        } catch (e) {
+            console.log("browser share: no agent sessions", e);
+        }
+        const tabBlockIds = globalStore.get(this.tabBlockIdsAtom);
+        sessions = ofTab(sessions, tabBlockIds);
+        const workspaceId = globalStore.get(atoms.workspace)?.oid;
+        const states = ofTab(
+            agentStatesOfWorkspace(globalStore.get(AgentStates.getInstance().dataAtom), workspaceId),
+            tabBlockIds
+        );
+        const blockIds = [...new Set([...states.map((s) => s.blockid), ...sessions.map((s) => s.blockid)])];
+        const metas = new Map<string, MetaType>();
+        await Promise.all(
+            blockIds.map(async (id) => {
+                try {
+                    metas.set(id, (await WOS.loadAndPinWaveObject<Block>(makeORef("block", id)))?.meta);
+                } catch {
+                    // A pane that just closed has no title.
+                }
+            })
+        );
+        return shareAgents(states, sessions, (id) => panelTitle(metas.get(id) as PanelMeta));
+    }
+
+    async shareItems(tab: BrowserTab): Promise<ContextMenuItem[]> {
+        if (tab == null) {
+            return [];
+        }
+        const agents = tab.engine ? [] : await this.loadShareAgents();
+        const engineLabel = tab.engine ? engineName(tab.engine, globalStore.get(this.engines.listAtom)) : "";
+        return shareMenuItems(tab, this.agents.tabs()[tab.id] ?? null, agents, engineLabel, {
+            share: (agent, tell) => this.shareTab(tab.id, agent, tell, false),
+            stopSharing: () => this.controlAgent(tab.id, "stop"),
+            openAgentSettings: () => fireAndForget(() => openSettingsSection("agents")),
+        });
+    }
+
+    // Sharing a tab another agent holds asks first (AC5); Share and tell then types the line wavesrv builds (AC6).
+    shareTab(id: string, agent: ShareAgent, tell: boolean, move: boolean): void {
+        fireAndForget(async () => {
+            let res: ShareResult;
+            try {
+                res = await this.agents.share(id, agent.sessionId, move);
+            } catch (e) {
+                this.showNotice(t("browser.notice.shareFailed", { error: errorText(e) }));
+                return;
+            }
+            if (res?.result === "move") {
+                const holder = res.holder || t("browser.share.anotherAgent");
+                const question = moveQuestion(holder, agent.agentName);
+                showToast({
+                    id: `molten-share-move-${this.blockId}-${id}`,
+                    kind: "info",
+                    title: question.title,
+                    message: question.message,
+                    stays: true,
+                    actions: [
+                        { id: "move", label: t("browser.share.move"), run: () => this.shareTab(id, agent, tell, true) },
+                        { id: "keep", label: t("browser.share.keepWith", { holder }), run: () => {} },
+                    ],
+                });
+                return;
+            }
+            if (tell) {
+                await this.tellAgent(id, agent);
+            }
+        });
+    }
+
+    async tellAgent(id: string, agent: ShareAgent): Promise<void> {
+        try {
+            const res = await this.agents.shareTell(id);
+            showToast({
+                kind: res?.sent ? "info" : "warning",
+                title: t(res?.sent ? "browser.share.shared" : "browser.share.sharedNothingTyped", {
+                    name: agent.agentName,
+                }),
+                message: res?.message ?? "",
+            });
+        } catch (e) {
+            this.showNotice(t("browser.notice.tellFailed", { error: errorText(e) }));
+        }
     }
 
     showTab(id: string): void {
@@ -776,7 +929,7 @@ export class BrowserViewModel implements ViewModel {
             try {
                 await setAgentSite(site, "");
             } catch (err) {
-                this.showNotice(`The agents' decision could not be forgotten: ${err}`);
+                this.showNotice(t("browser.notice.decisionNotForgotten", { error: String(err) }));
             }
         });
     }
@@ -866,8 +1019,9 @@ export class BrowserViewModel implements ViewModel {
         return this.state().activeId === id && isShowing(TabActivity.getInstance().state());
     }
 
+    // A tab shared with an agent stays loaded before the agent acts on it, so the agent finds its page.
     isAgentDriven(id: string): boolean {
-        return controlBarView(this.agents.tabs()[id]) != null;
+        return this.agents.tabs()[id] != null;
     }
 
     // The main process asks to drop a hidden page (#459); the panel checks again that the page is the same one and
@@ -880,7 +1034,8 @@ export class BrowserViewModel implements ViewModel {
         } catch {
             return;
         }
-        if (current !== webContentsId || this.isTabShown(id) || this.isAgentDriven(id)) {
+        // A panel off-screen on the carpet is never unloaded (#618).
+        if (current !== webContentsId || this.isTabShown(id) || this.isAgentDriven(id) || isOffCarpet(this.blockId)) {
             return;
         }
         this.lifecycle.discard(id, scroll);
@@ -895,6 +1050,10 @@ export class BrowserViewModel implements ViewModel {
     }
 }
 
+function errorText(e: unknown): string {
+    return e instanceof Error ? e.message : String(e);
+}
+
 function makeBlockAtom(blockId: string): Atom<Block> {
     return WOS.getWaveObjectAtom<Block>(makeORef("block", blockId));
 }
@@ -904,24 +1063,28 @@ function TabWebview({
     tab,
     active,
     shown,
+    offCarpet,
 }: {
     model: BrowserViewModel;
     tab: BrowserTab;
     active: boolean;
     shown: boolean;
+    offCarpet: boolean;
 }) {
     const ref = useRef<WebviewTag>(null);
     const shownRef = useRef(shown);
     shownRef.current = shown;
-    // The main process freezes and discards hidden pages (#459); a webview throws before its first dom-ready, which
-    // reports it then.
+    const offCarpetRef = useRef(offCarpet);
+    offCarpetRef.current = offCarpet;
+    // The main process freezes and discards hidden pages (#459), and never discards one off-screen on the carpet
+    // (#618); a webview throws before its first dom-ready, which reports it then.
     useEffect(() => {
         try {
-            reportWebviewShown(model.blockId, tab.id, ref.current?.getWebContentsId(), shown);
+            reportWebviewShown(model.blockId, tab.id, ref.current?.getWebContentsId(), shown, offCarpet);
         } catch {
             // not attached yet: dom-ready reports it
         }
-    }, [model, tab.id, shown]);
+    }, [model, tab.id, shown, offCarpet]);
     // The src is set once: later navigation happens inside the page, and re-rendering with a new src would reload it.
     const [initialUrl] = useState(tab.url);
     // MOLTENTERM-PATCH (#371): hidden mounted tabs are never valid edit/image targets.
@@ -1008,7 +1171,13 @@ function TabWebview({
             webview.dataset.webcontentsid = String(webview.getWebContentsId());
             registerWebview(model.blockId, tab.id, webview.getWebContentsId());
             getApi().setContextMenuGuest?.(webview.getWebContentsId(), model.state().activeId === tab.id);
-            reportWebviewShown(model.blockId, tab.id, webview.getWebContentsId(), shownRef.current);
+            reportWebviewShown(
+                model.blockId,
+                tab.id,
+                webview.getWebContentsId(),
+                shownRef.current,
+                offCarpetRef.current
+            );
         };
         // A page reloaded after a discard gets its scroll position back once loaded.
         const onFinishLoad = () => {
@@ -1081,6 +1250,7 @@ function TabWebview({
 // The tab strip draws the app's tabs at 28 px (FR-SHELL-051, DS-SHELL-092, DS-SHELL-098): 14 px icon, a left 12/500
 // name, a quiet fill on the active tab, the close control on hover or focus only (browser.css).
 function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: BrowserState }) {
+    const t = useT();
     const [dragId, setDragId] = useState<string>(null);
     const [dropTarget, setDropTarget] = useState<DropTarget>(null);
     const list = useAtomValue(model.engines.listAtom);
@@ -1154,7 +1324,11 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                             e.stopPropagation();
                             model.showTabMenu(e, tab);
                         }}
-                        title={tab.engine ? `${tab.url}\nOpened in ${engineName(tab.engine, list)}` : tab.url}
+                        title={
+                            tab.engine
+                                ? `${tab.url}\n${t("browser.tabs.openedIn", { browser: engineName(tab.engine, list) })}`
+                                : tab.url
+                        }
                         data-tabid={tab.id}
                         data-engine={tab.engine ?? EngineApp}
                         className={cn(
@@ -1170,20 +1344,22 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
                         <div className="molten-browser-tab-inner">
                             {tab.engine ? (
                                 <i
-                                    aria-label={`Opened in ${engineName(tab.engine, list)}`}
+                                    aria-label={t("browser.tabs.openedIn", { browser: engineName(tab.engine, list) })}
                                     className={cn(browserIconClass(tab.engine), "molten-browser-tab-icon text-accent")}
                                 />
                             ) : (
                                 <TabIcon load={loads[tab.id]} failed={errors[tab.id]?.error != null} />
                             )}
-                            <span className="molten-browser-tab-name">{browserTabTitle(tab) || "New tab"}</span>
-                            <AgentTabMarker agentTabs={agentTabs} tabId={tab.id} />
+                            <span className="molten-browser-tab-name">
+                                {browserTabTitle(tab) || t("browser.tabs.newTab")}
+                            </span>
+                            <AgentTabMarker model={model} agentTabs={agentTabs} tabId={tab.id} />
                         </div>
                         {state.tabs.length > 1 ? (
                             <button
                                 type="button"
-                                aria-label="Close tab"
-                                title="Close tab"
+                                aria-label={t("browser.tabs.closeTab")}
+                                title={t("browser.tabs.closeTab")}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     model.closeTab(tab.id);
@@ -1198,8 +1374,8 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
             </div>
             <button
                 type="button"
-                aria-label="New tab"
-                title="New tab (Cmd+T)"
+                aria-label={t("browser.tabs.newTab")}
+                title={t("browser.tabs.newTabTitle", { shortcut: "Cmd+T" })}
                 onClick={() => model.newTab()}
                 className="ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
             >
@@ -1217,12 +1393,17 @@ function BrowserTabStrip({ model, state }: { model: BrowserViewModel; state: Bro
 }
 
 // A tab an agent controls carries its mark, so the user sees it even when the tab is not shown.
-function AgentTabMarker({ agentTabs, tabId }: { agentTabs: AgentTabs; tabId: string }) {
-    const view = controlBarView(agentTabs[tabId]);
+function AgentTabMarker({ model, agentTabs, tabId }: { model: BrowserViewModel; agentTabs: AgentTabs; tabId: string }) {
+    useLocale();
+    const agentTab = agentTabs[tabId];
+    if (isSharedTab(agentTab)) {
+        return <SharedTabBadge model={model} agentTab={agentTab} tabId={tabId} />;
+    }
+    const view = controlBarView(agentTab);
     if (view == null) {
         return null;
     }
-    const asking = permissionBarView(agentTabs[tabId]);
+    const asking = permissionBarView(agentTab);
     if (asking != null) {
         return (
             <i
@@ -1243,15 +1424,43 @@ function AgentTabMarker({ agentTabs, tabId }: { agentTabs: AgentTabs; tabId: str
     );
 }
 
+// A tab the user shared carries a calm badge with the agent's name (FR-BRW-011 AC3); a click on it stops sharing (AC4).
+function SharedTabBadge({ model, agentTab, tabId }: { model: BrowserViewModel; agentTab: AgentTab; tabId: string }) {
+    const t = useT();
+    const name = agentName(agentTab);
+    const asking = permissionBarView(agentTab);
+    return (
+        <>
+            {asking != null ? (
+                <i
+                    role="img"
+                    aria-label={asking.title}
+                    title={asking.title}
+                    className="fa fa-solid fa-circle-question shrink-0 text-11 text-[var(--mt-state-waiting)]"
+                />
+            ) : null}
+            <Pill
+                label={name}
+                icon="share-nodes"
+                title={t("browser.share.badgeTitle", { name })}
+                className="molten-browser-share-badge"
+                testId="browser-share-badge"
+                onClick={() => model.controlAgent(tabId, "stop")}
+            />
+        </>
+    );
+}
+
 // A tab's favicon, or a spinner in the working colour while its page loads; a page that failed shows a warning.
 function TabIcon({ load, failed }: { load: TabLoad; failed: boolean }) {
+    const t = useT();
     const [broken, setBroken] = useState<string>(null);
     if (load?.loading) {
         return (
             <span className="molten-browser-tab-icon flex items-center justify-center">
                 <span
                     role="progressbar"
-                    aria-label="Loading"
+                    aria-label={t("browser.tabs.loading")}
                     className="molten-browser-tab-spinner h-3 w-3 animate-spin rounded-full border-[1.5px] border-[var(--mt-state-working)] border-t-transparent motion-reduce:animate-none"
                 />
             </span>
@@ -1260,7 +1469,7 @@ function TabIcon({ load, failed }: { load: TabLoad; failed: boolean }) {
     if (failed) {
         return (
             <i
-                aria-label="The page did not load"
+                aria-label={t("browser.tabs.failed")}
                 className="fa fa-solid fa-triangle-exclamation molten-browser-tab-icon"
             />
         );
@@ -1282,6 +1491,7 @@ function TabIcon({ load, failed }: { load: TabLoad; failed: boolean }) {
 // The header's end buttons (DS-SHELL-092): the command panel trigger, magnify and close, at full opacity
 // (browser.css), as every panel's header draws them.
 function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
+    const t = useT();
     const node = model.layoutNode;
     const magnified = useAtomValue(model.nodeModel.isMagnified);
     const ephemeral = useAtomValueSafe(node.isEphemeral);
@@ -1289,23 +1499,24 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
     const addToLayout: IconButtonDecl = {
         elemtype: "iconbutton",
         icon: "circle-plus",
-        title: "Add to Layout",
+        title: t("browser.panel.addToLayout"),
         click: () => node.addEphemeralNodeToLayout?.(),
     };
     const close: IconButtonDecl = {
         elemtype: "iconbutton",
         icon: "xmark-large",
-        title: "Close",
+        title: t("common.close"),
         click: () => uxCloseBlock(model.blockId),
     };
     const commands: IconButtonDecl = {
         elemtype: "iconbutton",
         icon: "sliders",
-        title: `Commands and options (${formatShortcutById("command-panel")})`,
+        title: t("browser.panel.commands", { shortcut: formatShortcutById("command-panel") }),
         click: (e) => openCommandPanelFromTrigger(model.blockId, (e.target as Element)?.closest?.("button")),
     };
     return (
         <div className="molten-browser-panel-buttons flex h-full shrink-0 items-center gap-0.5 px-1.5">
+            <PinHeaderButton blockId={model.blockId} />
             <span data-role="command-panel-trigger" className="flex">
                 <IconButton decl={commands} />
             </span>
@@ -1324,6 +1535,7 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
 }
 
 function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: BrowserState }) {
+    const t = useT();
     const active = state.tabs.find((t) => t.id === state.activeId);
     const [draft, setDraft] = useState(active?.url ?? "");
     const [editing, setEditing] = useState(false);
@@ -1350,21 +1562,21 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
         <div className="relative flex h-8 shrink-0 items-center gap-1 border-b border-border px-1">
             {navButton(
                 "arrow-left",
-                "Back",
+                t("browser.nav.back"),
                 () => model.activeWebview()?.canGoBack() && model.activeWebview().goBack()
             )}
             {navButton(
                 "arrow-right",
-                "Forward",
+                t("browser.nav.forward"),
                 () => model.activeWebview()?.canGoForward() && model.activeWebview().goForward()
             )}
             {loading
-                ? navButton("xmark", "Stop", () => model.reloadActive(false), "Stop loading this page")
+                ? navButton("xmark", t("browser.nav.stop"), () => model.reloadActive(false), t("browser.nav.stopTitle"))
                 : navButton(
                       "rotate-right",
-                      "Reload",
+                      t("browser.nav.reload"),
                       (e) => model.reloadActive(e.shiftKey),
-                      "Reload (Cmd+R)\nShift-click or Cmd+Shift+R: reload ignoring the cache"
+                      t("browser.nav.reloadTitle", { shortcut: "Cmd+R", hardShortcut: "Cmd+Shift+R" })
                   )}
             <input
                 ref={model.urlInputRef}
@@ -1393,11 +1605,12 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 }}
                 className="h-6 min-w-0 flex-1 rounded-4 border border-border bg-transparent px-2 text-12 text-primary outline-none focus:border-accent"
             />
+            <ShareButton model={model} tab={active} />
             <EngineButton model={model} tab={active} />
             {loading ? (
                 <div
                     role="progressbar"
-                    aria-label="Loading the page"
+                    aria-label={t("browser.nav.loadingPage")}
                     className="molten-browser-progress pointer-events-none absolute inset-x-0 -bottom-px h-0.5 overflow-hidden"
                 >
                     <div className="molten-browser-progress-bar h-full w-1/3 bg-[var(--mt-state-working)]" />
@@ -1407,9 +1620,56 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
     );
 }
 
+// Share with agent in the toolbar (FR-BRW-011 AC1): disabled with its reason when no agent runs in the panel's tab
+// (#594) or the page is not in MoltenTerm's engine (AC2, AC8).
+function ShareButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+    useLocale();
+    const agentData = useAtomValue(AgentStates.getInstance().dataAtom);
+    const workspace = useAtomValue(atoms.workspace);
+    const list = useAtomValue(model.engines.listAtom);
+    const sessions = useAtomValue(model.agents.sessionsAtom);
+    const tabBlockIds = useAtomValue(model.tabBlockIdsAtom);
+    useEffect(() => {
+        model.agents.refreshSessions();
+    }, [model, agentData, tabBlockIds]);
+    if (tab == null) {
+        return null;
+    }
+    const running = ofTab(agentStatesOfWorkspace(agentData, workspace?.oid), tabBlockIds).filter(
+        (s) => s.agent || s.agentname
+    );
+    const reason = tab.engine
+        ? unshareableReason(tab, engineName(tab.engine, list))
+        : running.length === 0 && ofTab(sessions, tabBlockIds).length === 0
+          ? noAgentReason()
+          : "";
+    return (
+        <button
+            type="button"
+            aria-label={shareLabel()}
+            aria-disabled={reason ? true : undefined}
+            title={reason || shareLabel()}
+            onMouseEnter={() => model.agents.refreshSessions()}
+            onClick={(e) => {
+                if (!reason) {
+                    model.showShareMenu(e, tab);
+                }
+            }}
+            data-testid="browser-share-button"
+            className={cn(
+                "flex h-6 w-6 shrink-0 items-center justify-center rounded-6 text-secondary",
+                reason ? "opacity-40" : "cursor-pointer hover:bg-hover hover:text-primary"
+            )}
+        >
+            <i className="fa fa-solid fa-share-nodes text-12" />
+        </button>
+    );
+}
+
 // "Open in <browser>" (FR-BRW-002): one click hands the page off; the caret holds the per-site choice. Hidden when no
 // Chromium browser is installed, and on a handed-off entry, whose page offers the way back.
 function EngineButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+    const t = useT();
     const list = useAtomValue(model.engines.listAtom);
     const sites = useAtomValue(getSettingsKeyAtom("browser:sites"));
     const agentSites = useAtomValue(getSettingsKeyAtom("browser:agentsites"));
@@ -1422,15 +1682,15 @@ function EngineButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab
     }
     const routed = siteEngine(sites, tab.url);
     const always = routed.engine !== "" && routed.engine !== EngineApp;
-    const label = tab.engine ? "Open in MoltenTerm" : `Open in ${chosen.name}`;
+    const label = tab.engine ? t("browser.menu.openHere") : t("browser.choice.openIn", { browser: chosen.name });
     return (
         <div className="molten-browser-engine flex h-6 shrink-0 items-center rounded-4 border border-border text-12 text-secondary">
             <button
                 type="button"
                 title={
                     tab.engine
-                        ? "Show this page in MoltenTerm's panel"
-                        : `Open this page in ${chosen.name}, with your sessions and extensions`
+                        ? t("browser.engine.showHereTitle")
+                        : t("browser.choice.handOffTitle", { browser: chosen.name })
                 }
                 onClick={() => (tab.engine ? model.openHere(tab.id) : fireAndForget(() => model.handOffTab(tab.id)))}
                 className="flex h-full cursor-pointer items-center gap-1.5 rounded-l-6 px-2 hover:bg-hover hover:text-primary"
@@ -1446,8 +1706,15 @@ function EngineButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab
             </button>
             <button
                 type="button"
-                aria-label="Browser options"
-                title={always ? `${routed.site} always opens in ${engineName(routed.engine, list)}` : "Browser options"}
+                aria-label={t("browser.engine.options")}
+                title={
+                    always
+                        ? t("browser.engine.alwaysOpens", {
+                              site: routed.site,
+                              browser: engineName(routed.engine, list),
+                          })
+                        : t("browser.engine.options")
+                }
                 onClick={(e) => model.showEngineMenu(e, tab)}
                 className="flex h-full cursor-pointer items-center rounded-r-6 border-l border-border px-1.5 hover:bg-hover hover:text-primary"
             >
@@ -1459,11 +1726,12 @@ function EngineButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab
 
 // Without an installed browser there is no engine button: the agents' site decision keeps a caret of its own.
 function AgentSiteButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+    const t = useT();
     return (
         <button
             type="button"
-            aria-label="Agent site permission"
-            title="Agent site permission"
+            aria-label={t("browser.engine.agentSitePermission")}
+            title={t("browser.engine.agentSitePermission")}
             onClick={(e) => model.showAgentSiteMenu(e, tab)}
             className="molten-browser-engine flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-6 border border-border px-1.5 text-12 text-secondary hover:bg-hover hover:text-primary"
         >
@@ -1474,6 +1742,7 @@ function AgentSiteButton({ model, tab }: { model: BrowserViewModel; tab: Browser
 }
 
 function BrowserNotice({ model }: { model: BrowserViewModel }) {
+    const t = useT();
     const notice = useAtomValue(model.noticeAtom);
     if (!notice) {
         return null;
@@ -1487,7 +1756,7 @@ function BrowserNotice({ model }: { model: BrowserViewModel }) {
             <span className="min-w-0 flex-1">{notice}</span>
             <button
                 type="button"
-                aria-label="Dismiss"
+                aria-label={t("common.dismiss")}
                 onClick={() => model.dismissNotice()}
                 className="shrink-0 cursor-pointer rounded-6 px-1 text-secondary hover:bg-hover hover:text-primary"
             >
@@ -1499,6 +1768,7 @@ function BrowserNotice({ model }: { model: BrowserViewModel }) {
 
 // What a handed-off entry shows: the page lives in the installed browser, with the ways back.
 function HandoffPage({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+    const t = useT();
     const list = useAtomValue(model.engines.listAtom);
     const sites = useAtomValue(getSettingsKeyAtom("browser:sites"));
     const name = engineName(tab.engine, list);
@@ -1508,24 +1778,24 @@ function HandoffPage({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
         <div className="molten-browser-handoff absolute inset-0 flex items-center justify-center overflow-auto p-6">
             <div className="flex max-w-[460px] flex-col items-center gap-3 text-center">
                 <i className={cn(browserIconClass(tab.engine), "text-icon-20 text-accent")} />
-                <div className="text-13 leading-5 text-primary">Opened in {name}</div>
+                <div className="text-13 leading-5 text-primary">{t("browser.tabs.openedIn", { browser: name })}</div>
                 {tab.title ? <div className="max-w-full truncate text-12 text-primary">{tab.title}</div> : null}
                 <div className="max-w-full truncate text-12 text-secondary" title={tab.url}>
                     {tab.url}
                 </div>
                 <div className="text-12 text-muted">
-                    {name} keeps your sessions, passwords and extensions for this page.
-                    {always ? ` ${routed.site} always opens there.` : ""}
+                    {t("browser.handoff.keeps", { browser: name })}
+                    {always ? " " + t("browser.handoff.alwaysThere", { site: routed.site }) : ""}
                 </div>
                 <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
                     <Button className="!h-7 !px-3 !text-12" onClick={() => model.bringForward(tab.id)}>
-                        Bring {name} forward
+                        {t("browser.menu.bringForward", { browser: name })}
                     </Button>
                     <Button className="outlined grey !h-7 !px-3 !text-12" onClick={() => model.reopenInBrowser(tab.id)}>
-                        Reopen the page
+                        {t("browser.handoff.reopen")}
                     </Button>
                     <Button className="ghost grey !h-7 !px-3 !text-12" onClick={() => model.openHere(tab.id)}>
-                        Open in MoltenTerm
+                        {t("browser.menu.openHere")}
                     </Button>
                 </div>
             </div>
@@ -1535,6 +1805,7 @@ function HandoffPage({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
 
 // A discarded page coming back (#459): its tab's favicon and title over the reloading webview, until it has loaded.
 function ReloadingPlaceholder({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+    const t = useT();
     const loads = useAtomValue(model.loads.loadsAtom);
     if (tab == null || tab.engine) {
         return null;
@@ -1552,7 +1823,7 @@ function ReloadingPlaceholder({ model, tab }: { model: BrowserViewModel; tab: Br
                     <i className="fa fa-solid fa-globe text-icon-20 text-secondary" />
                 )}
                 {tab.title ? <div className="max-w-full truncate text-12 text-primary">{tab.title}</div> : null}
-                <div className="text-12 text-muted">Reloading the page…</div>
+                <div className="text-12 text-muted">{t("browser.reloading")}</div>
             </div>
         </div>
     );
@@ -1587,15 +1858,22 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const discarded = useAtomValue(model.lifecycle.discardedAtom);
     const restoring = useAtomValue(model.lifecycle.restoringAtom);
     const agentTabs = useAtomValue(model.agents.tabsAtom);
+    const offCarpet = useAtomValue(offCarpetAtom(model.blockId));
     const viewShown = isShowing(activity);
     const blockMeta = block?.meta;
     useEffect(() => {
         for (const id of Object.keys(discarded)) {
-            if (shouldRestore(id === state.activeId, viewShown, controlBarView(agentTabs[id]) != null)) {
+            if (shouldRestore(id === state.activeId, viewShown && !offCarpet, agentTabs[id] != null)) {
                 model.lifecycle.restore(id);
             }
         }
-    }, [model, discarded, state.activeId, viewShown, agentTabs]);
+    }, [model, discarded, state.activeId, viewShown, offCarpet, agentTabs]);
+    // A page an agent drives keeps running off-screen on the carpet (#618).
+    const agentDriven = Object.keys(agentTabs).length > 0;
+    useEffect(() => {
+        setKeepLive(model.blockId, agentDriven);
+        return () => setKeepLive(model.blockId, false);
+    }, [model, agentDriven]);
     useEffect(() => {
         fireAndForget(() => model.engines.ensureLoaded());
     }, [model, installedSetting, defaultSetting, sitesSetting]);
@@ -1644,6 +1922,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                             tab={tab}
                             active={tab.id === state.activeId}
                             shown={viewShown && tab.id === state.activeId}
+                            offCarpet={offCarpet}
                         />
                     )
                 )}

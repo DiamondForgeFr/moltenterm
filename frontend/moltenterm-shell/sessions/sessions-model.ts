@@ -5,6 +5,9 @@
 // the list (pkg/molten/sessions) and publishes it when it changes; the Sessions view, the rail's badge and Welcome
 // back (#157) read it. Kept apart from the components so the rules can be tested without the app.
 
+import { agentStateLabel } from "../agent-state-model";
+import { t } from "../i18n/i18n";
+
 export const MoltentermSessionsView = "molten-sessions";
 
 // must match pkg/molten/durablesession.go
@@ -72,28 +75,15 @@ export function applySessions(current: DurableSessionsData, next: DurableSession
     return { ...next, sessions: next.sessions ?? [] };
 }
 
-const ReasonLabels: Record<string, string> = {
-    detached: "detached",
-    panegone: "pane closed",
-    replaced: "replaced in its pane",
-    olderversion: "older version",
-    ending: "ending",
-};
-
-const ReasonTitles: Record<string, string> = {
-    detached: "Detached from its pane: it keeps running with no pane showing it.",
-    panegone: "Its pane was closed while MoltenTerm was stopping: it kept running.",
-    replaced: "Another session took its pane: it kept running.",
-    olderversion: "Started by an older MoltenTerm: it can only be ended.",
-    ending: "Being ended: its host was unreachable, it ends once the host is back.",
-};
+// sessions.reason.<reason>.label and .title.
+const Reasons = ["detached", "panegone", "replaced", "olderversion", "ending"];
 
 export function reasonLabel(reason: string): string {
-    return ReasonLabels[reason] ?? reason ?? "";
+    return Reasons.includes(reason) ? t(`sessions.reason.${reason}.label`) : (reason ?? "");
 }
 
 export function reasonTitle(reason: string): string {
-    return ReasonTitles[reason] ?? "";
+    return Reasons.includes(reason) ? t(`sessions.reason.${reason}.title`) : "";
 }
 
 // Agents first by how much they need the user, then the commands.
@@ -138,7 +128,7 @@ export function groupSessions(list: DurableSession[], currentWorkspaceId: string
         if (group == null) {
             group = {
                 id: key,
-                title: s.workspacename || "Workspace",
+                title: s.workspacename || t("sessions.workspace"),
                 color: s.workspacecolor,
                 current: key === currentWorkspaceId,
                 sessions: [],
@@ -150,7 +140,7 @@ export function groupSessions(list: DurableSession[], currentWorkspaceId: string
     }
     const rtn: SessionGroup[] = [];
     if (hidden.length > 0) {
-        rtn.push({ id: HiddenGroupId, title: "Not in a pane", sessions: sortSessions(hidden) });
+        rtn.push({ id: HiddenGroupId, title: t("sessions.notInPaneTitle"), sessions: sortSessions(hidden) });
     }
     const groups = [...byWs.values()].sort((a, b) => a.order - b.order);
     for (const { order: _order, ...group } of groups) {
@@ -237,7 +227,7 @@ export function formatAge(fromMs: number, nowMs: number): string {
         const rest = min % 60;
         return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
     }
-    return `${Math.floor(hours / 24)} d`;
+    return t("sessions.age.days", { count: Math.floor(hours / 24) });
 }
 
 export function outputText(s: DurableSession, nowMs: number): string {
@@ -245,7 +235,7 @@ export function outputText(s: DurableSession, nowMs: number): string {
     if (!age) {
         return "";
     }
-    return age === "now" ? "output just now" : `output ${age} ago`;
+    return age === "now" ? t("sessions.outputNow") : t("sessions.outputAgo", { age });
 }
 
 export function tildePath(path: string, home: string): string {
@@ -280,7 +270,7 @@ export function displayFolder(s: DurableSession, home: string): string {
 }
 
 export function sessionWhat(s: DurableSession): string {
-    return s.agentname || s.agent || s.command || "this session";
+    return s.agentname || s.agent || s.command || t("sessions.thisSession");
 }
 
 // The Sessions table (FR-SHELL-058, DS-SHELL-100): a row is named by its place (the tab when it has a name of its
@@ -300,10 +290,10 @@ export function atPrompt(s: DurableSession): boolean {
 // name the agent or the command each session runs, so the note only says what a working or waiting agent loses.
 export function endRunningNote(s: DurableSession): string {
     if (s.agent && s.agentstate === "working") {
-        return "working: its current task stops";
+        return t("sessions.endNote.working");
     }
     if (s.agent && s.agentstate === "waiting") {
-        return "waiting for you: what it asked is lost";
+        return t("sessions.endNote.waiting");
     }
     return "";
 }
@@ -333,9 +323,9 @@ export function sessionName(s: DurableSession, home: string): string {
     }
     const folder = displayFolder(s, home);
     if (folder === "~") {
-        return "Home";
+        return t("sessions.home");
     }
-    return baseName(folder) || runningCommand(s) || "Terminal";
+    return baseName(folder) || runningCommand(s) || t("sessions.terminal");
 }
 
 export type AgentCell = { label: string; kind: "agent" | "command" | "shell" };
@@ -348,7 +338,7 @@ export function agentCell(s: DurableSession): AgentCell {
     if (cmd) {
         return { label: cmd, kind: "command" };
     }
-    return { label: "Shell", kind: "shell" };
+    return { label: t("sessions.shell"), kind: "shell" };
 }
 
 // Last active: the last output, else the start.
@@ -358,28 +348,28 @@ export function lastActive(s: DurableSession, nowMs: number): string {
     if (!age) {
         return "";
     }
-    return age === "now" ? "now" : `${age} ago`;
+    return age === "now" ? t("sessions.now") : t("sessions.ago", { age });
 }
 
 export type ConnChip = { label: string; state: SessionConnState; title: string };
 
 export function connChip(s: DurableSession): ConnChip {
     if (!s.connection) {
-        return { label: "local", state: s.connstate, title: connStateLabel(s) };
+        return { label: t("sessions.local"), state: s.connstate, title: connStateLabel(s) };
     }
     return { label: s.connection, state: s.connstate, title: connStateLabel(s) };
 }
 
 export function connStateLabel(s: DurableSession): string {
-    const where = s.connection || "This Mac";
+    const where = s.connection || t("sessions.thisComputer");
     switch (s.connstate) {
         case "connected":
-            return `${where}: connected`;
+            return t("sessions.conn.connected", { where });
         case "reconnecting":
-            return `${where}: reconnecting…`;
+            return t("sessions.conn.reconnecting", { where });
     }
     const err = s.connerror ? `\n${s.connerror}` : "";
-    return `${where}: disconnected${err}`;
+    return `${t("sessions.conn.disconnected", { where })}${err}`;
 }
 
 export function canReconnect(s: DurableSession): boolean {
@@ -387,12 +377,12 @@ export function canReconnect(s: DurableSession): boolean {
 }
 
 export function showLabel(s: DurableSession): string {
-    return s.shown ? "Show" : "Open in a pane";
+    return s.shown ? t("sessions.show") : t("sessions.openInPane");
 }
 
 export function placeText(s: DurableSession): string {
     if (!s.shown) {
-        return "not in a pane";
+        return t("sessions.notInPane");
     }
     return s.workspacename ? `${s.workspacename}${s.tabname ? ` › ${s.tabname}` : ""}` : "";
 }
@@ -403,41 +393,44 @@ export function endConfirmText(s: DurableSession, home: string, nowMs: number): 
     const folder = displayFolder(s, home);
     const what = sessionWhat(s);
     const up = formatAge(s.startedat, nowMs);
-    const subtitle = [placeText(s), s.connection || "local", up ? `up ${up}` : ""].filter((p) => !!p).join(" · ");
+    const subtitle = [placeText(s), s.connection || t("sessions.local"), up ? t("sessions.up", { age: up }) : ""]
+        .filter((p) => !!p)
+        .join(" · ");
     let warning: string;
     if (s.agent && s.agentstate === "working") {
-        warning = `${what} is working: its current task stops.`;
+        warning = t("sessions.end.warningWorking", { what });
     } else if (s.agent && s.agentstate === "waiting") {
-        warning = `${what} is waiting for you: what it was asking is lost.`;
+        warning = t("sessions.end.warningWaiting", { what });
     }
     return {
-        title: folder ? `End ${what} in ${folder}?` : `End ${what}?`,
+        title: folder ? t("sessions.end.titleIn", { what, folder }) : t("sessions.end.title", { what }),
         subtitle,
         warning,
-        confirm: "End session",
+        confirm: t("sessions.end.confirm"),
     };
 }
 
-function plural(n: number, word: string): string {
-    return `${n} ${word}${n === 1 ? "" : "s"}`;
+// A count with its words: key.one or key.other, with {count}.
+function plural(n: number, key: string): string {
+    return t(n === 1 ? `${key}.one` : `${key}.other`, { count: n });
 }
 
 export function cleanupConfirmText(list: DurableSession[]): ConfirmText {
     const n = list.length;
     return {
-        title: `End ${plural(n, "session")} not in a pane?`,
-        subtitle: "They run with no pane showing them. Ending them stops what runs in them.",
-        confirm: `End ${plural(n, "session")}`,
+        title: t("sessions.cleanup.title", { sessions: plural(n, "sessions.count.sessions") }),
+        subtitle: t("sessions.cleanup.subtitle"),
+        confirm: t("sessions.cleanup.confirm", { sessions: plural(n, "sessions.count.sessions") }),
     };
 }
 
 export function cleanupResultText(res: SessionsCleanupResult): string {
-    const parts = [`Ended ${res?.ended?.length ?? 0}`];
+    const parts = [t("sessions.cleanup.ended", { count: res?.ended?.length ?? 0 })];
     if (res?.skipped?.length) {
-        parts.push(`${res.skipped.length} skipped (shown in a pane or gone since)`);
+        parts.push(t("sessions.cleanup.skipped", { count: res.skipped.length }));
     }
     if (res?.failed?.length) {
-        parts.push(`${res.failed.length} ending once their host is back`);
+        parts.push(t("sessions.cleanup.failed", { count: res.failed.length }));
     }
     return parts.join(" · ");
 }
@@ -450,17 +443,17 @@ export function railBadge(data: DurableSessionsData): RailBadge {
     const waiting = agents.filter((s) => s.agentstate === "waiting").length;
     const errors = agents.filter((s) => s.agentstate === "error").length;
     const tone = waiting > 0 ? "waiting" : errors > 0 ? "error" : "accent";
-    let label = "Sessions";
+    let label = t("sessions.title");
     if (agents.length > 0) {
-        label += ` · ${plural(agents.length, "agent")} running`;
+        label += ` · ${t("sessions.badge.running", { what: plural(agents.length, "sessions.count.agents") })}`;
         if (waiting > 0) {
-            label += `, ${waiting} waiting`;
+            label += `, ${t("sessions.badge.waiting", { count: waiting })}`;
         }
         if (errors > 0) {
-            label += `, ${errors} with an error`;
+            label += `, ${t("sessions.badge.errors", { count: errors })}`;
         }
     } else if (list.length > 0) {
-        label += ` · ${plural(list.length, "session")} running`;
+        label += ` · ${t("sessions.badge.running", { what: plural(list.length, "sessions.count.sessions") })}`;
     }
     return { count: agents.length, tone, label };
 }
@@ -468,12 +461,12 @@ export function railBadge(data: DurableSessionsData): RailBadge {
 export function sessionsSummary(data: DurableSessionsData): string {
     const n = data?.sessions?.length ?? 0;
     if (n === 0) {
-        return "No session running";
+        return t("sessions.noneRunning");
     }
     const hidden = data.sessions.filter((s) => !s.shown).length;
-    const parts = [plural(n, "session"), `${plural(data.runningagents ?? 0, "agent")}`];
+    const parts = [plural(n, "sessions.count.sessions"), plural(data.runningagents ?? 0, "sessions.count.agents")];
     if (hidden > 0) {
-        parts.push(`${hidden} not in a pane`);
+        parts.push(t("sessions.hiddenCount", { count: hidden }));
     }
     return parts.join(" · ");
 }
@@ -482,21 +475,23 @@ export function sessionsSummary(data: DurableSessionsData): string {
 export function rowAriaLabel(s: DurableSession, home: string, nowMs: number): string {
     const parts = [sessionWhat(s)];
     if (s.agent && s.agentstate) {
-        parts.push(s.agentstate === "waiting" ? "waiting for you" : s.agentstate);
+        parts.push(agentStateLabel(s.agentstate));
     }
     if (s.agent && s.command && s.command !== s.agentname) {
         parts.push(s.command);
     }
-    parts.push(s.connection ? `on ${s.connection}, ${s.connstate}` : "local");
+    parts.push(
+        s.connection ? t("sessions.aria.on", { connection: s.connection, state: s.connstate }) : t("sessions.local")
+    );
     const folder = displayFolder(s, home);
     if (folder) {
-        parts.push(`in ${folder}`);
+        parts.push(t("sessions.aria.in", { folder }));
     }
     if (s.worktree?.branch) {
-        parts.push(`branch ${s.worktree.branch}`);
+        parts.push(t("sessions.aria.branch", { branch: s.worktree.branch }));
     }
     if (s.startedat) {
-        parts.push(`up ${formatAge(s.startedat, nowMs)}`);
+        parts.push(t("sessions.up", { age: formatAge(s.startedat, nowMs) }));
     }
     parts.push(outputText(s, nowMs));
     if (s.reason) {

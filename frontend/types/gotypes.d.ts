@@ -1431,6 +1431,9 @@ declare global {
         "agent:sessionroots"?: {[key: string]: string[]};
         "agent:integrate"?: boolean;
         "agent:integrateoff"?: string[];
+        "review:language"?: string;
+        "review:publishlanguage"?: string;
+        "app:language"?: string;
         "companion:usagegauges"?: string[];
         "companion:usageclaudeoauth"?: boolean;
         "linemap:animation"?: boolean;
@@ -1472,6 +1475,7 @@ declare global {
         "moltenterm:hiddenpagediscardmin"?: number;
         "moltenterm:releasenotify"?: boolean;
         "moltenterm:confirmbusyclose"?: boolean;
+        "moltenterm:view360"?: string;
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;
         "window:*"?: boolean;

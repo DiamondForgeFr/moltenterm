@@ -5,6 +5,7 @@
 // global shortcut. This file holds the rules (fuzzy match, grouping, keyboard) as pure functions, tested without the
 // app; palette-sources.ts builds the entries and palette-actions.ts runs them.
 
+import { t } from "../i18n/i18n";
 import type { WorkspaceIconSource } from "../workspace-icon-model";
 
 // "panel": the focused panel's command panel items (FR-SHELL-047), listed only while a query is typed.
@@ -196,18 +197,18 @@ export function filterPalette(
                 .map((r) => r.entry);
         }
         if (kept.length > 0) {
-            sections.push({ group, title: titles[group] ?? DefaultGroupTitles[group], entries: kept });
+            sections.push({ group, title: titles[group] ?? t(DefaultGroupTitleKeys[group]), entries: kept });
         }
     }
     return sections;
 }
 
-export const DefaultGroupTitles: Record<PaletteGroupId, string> = {
-    agents: "Agents",
-    panels: "Panels",
-    folders: "Recent folders",
-    actions: "Workspace",
-    panel: "This panel",
+export const DefaultGroupTitleKeys: Record<PaletteGroupId, string> = {
+    agents: "palette.groups.agents",
+    panels: "palette.groups.panels",
+    folders: "palette.groups.folders",
+    actions: "palette.groups.actions",
+    panel: "palette.groups.panel",
 };
 
 export function flattenSections(sections: PaletteSection[]): PaletteEntry[] {

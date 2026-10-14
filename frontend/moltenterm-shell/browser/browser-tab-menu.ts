@@ -5,6 +5,7 @@
 // others, shown by the MenuHost like every MoltenTerm menu, with the icons of the command panel's rows for the same
 // actions (FR-SHELL-054).
 
+import { t } from "../i18n/i18n";
 import { BrowserState, BrowserTab } from "./browser-model";
 
 export type BrowserTabActions = {
@@ -18,23 +19,32 @@ export type BrowserTabActions = {
 // Unavailable actions are absent, not disabled (FR-SHELL-049), as in the command panel: a page handed off to the
 // installed browser has no Reload, a tab without an address no Copy link, and the last tab (it closes with its panel,
 // Cmd+W) neither Close nor Close others.
-export function browserTabMenu(state: BrowserState, tab: BrowserTab, actions: BrowserTabActions): ContextMenuItem[] {
+// shareItems: Share with agent and its entries (FR-BRW-011, browser-share.ts), after the tab's own actions.
+export function browserTabMenu(
+    state: BrowserState,
+    tab: BrowserTab,
+    actions: BrowserTabActions,
+    shareItems: ContextMenuItem[] = []
+): ContextMenuItem[] {
     if (tab == null) {
         return [];
     }
     const menu: ContextMenuItem[] = [];
     if (!tab.engine) {
-        menu.push({ label: "Reload", icon: "rotate-right", click: () => actions.reloadTab(tab.id) });
+        menu.push({ label: t("browser.tabMenu.reload"), icon: "rotate-right", click: () => actions.reloadTab(tab.id) });
     }
-    menu.push({ label: "Duplicate", icon: "clone", click: () => actions.duplicateTab(tab.id) });
+    menu.push({ label: t("browser.tabMenu.duplicate"), icon: "clone", click: () => actions.duplicateTab(tab.id) });
     if (tab.url) {
-        menu.push({ label: "Copy link", icon: "link", click: () => actions.copyTabLink(tab.id) });
+        menu.push({ label: t("browser.tabMenu.copyLink"), icon: "link", click: () => actions.copyTabLink(tab.id) });
+    }
+    if (shareItems.length > 0) {
+        menu.push({ type: "separator" }, ...shareItems);
     }
     if (state.tabs.length > 1) {
         menu.push(
             { type: "separator" },
-            { label: "Close", icon: "xmark", click: () => actions.closeTab(tab.id) },
-            { label: "Close others", icon: "xmark", click: () => actions.closeOtherTabs(tab.id) }
+            { label: t("browser.tabMenu.close"), icon: "xmark", click: () => actions.closeTab(tab.id) },
+            { label: t("browser.tabMenu.closeOthers"), icon: "xmark", click: () => actions.closeOtherTabs(tab.id) }
         );
     }
     return menu;

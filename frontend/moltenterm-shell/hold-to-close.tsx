@@ -32,12 +32,14 @@ import {
     resolveHoldSettings,
     useHoldSettings,
 } from "./hold-to-confirm";
+import { t, useT } from "./i18n/i18n";
 
 export const HoldToCloseMinMs = HoldMinMs;
 export const HoldToCloseMaxMs = HoldMaxMs;
 export const HoldToCloseDefaultMs = HoldDefaultMs;
 export const HoldToCloseHintMs = HoldHintMs;
 export const HoldToCloseReducedSteps = HoldReducedSteps;
+// English; the button shows shell.hold.closeLabel and shell.hold.closeHint in the interface language.
 export const HoldToCloseLabel = "Close tab, hold to confirm";
 export const HoldToCloseHint = "Hold to close";
 
@@ -58,8 +60,8 @@ export const useHoldToCloseSettings = useHoldSettings;
 export const HoldToCloseRing = HoldRing;
 export const HoldToCloseTint = HoldTint;
 
-export function announceHoldToCloseHint(text: string = HoldToCloseHint) {
-    announceHoldHint(text);
+export function announceHoldToCloseHint(text?: string) {
+    announceHoldHint(text ?? t("shell.hold.closeHint"));
 }
 
 // The × is a 6 px stroke centred in the 16 px disc, so its butt ends stay 2 px inside the ring's inner edge (radius 6.5).
@@ -86,22 +88,25 @@ type HoldToCloseButtonProps = {
 };
 
 export const HoldToCloseButton = forwardRef<HTMLButtonElement, HoldToCloseButtonProps>(
-    ({ onClose, className, plainTitle, plainLabel, as, onMouseDown }, ref) => (
-        <HoldToConfirmButton
-            ref={ref}
-            onConfirm={(event) => onClose(event)}
-            label={HoldToCloseLabel}
-            hint={HoldToCloseHint}
-            title={HoldToCloseHint}
-            glyph={<HoldToCloseGlyph />}
-            className={cn("molten-hold-close", className)}
-            plainTitle={plainTitle}
-            plainLabel={plainLabel}
-            testId="tab-close"
-            as={as}
-            onMouseDown={onMouseDown}
-        />
-    )
+    ({ onClose, className, plainTitle, plainLabel, as, onMouseDown }, ref) => {
+        const t = useT();
+        return (
+            <HoldToConfirmButton
+                ref={ref}
+                onConfirm={(event) => onClose(event)}
+                label={t("shell.hold.closeLabel")}
+                hint={t("shell.hold.closeHint")}
+                title={t("shell.hold.closeHint")}
+                glyph={<HoldToCloseGlyph />}
+                className={cn("molten-hold-close", className)}
+                plainTitle={plainTitle}
+                plainLabel={plainLabel}
+                testId="tab-close"
+                as={as}
+                onMouseDown={onMouseDown}
+            />
+        );
+    }
 );
 
 HoldToCloseButton.displayName = "HoldToCloseButton";

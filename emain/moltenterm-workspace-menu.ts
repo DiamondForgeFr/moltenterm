@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as electron from "electron";
+import { mt } from "./moltenterm-i18n";
 
 // The renderer opens the workspace edit sheet (frontend/moltenterm-shell/workspace-edit.ts) when it receives this.
 export const MoltentermEditWorkspaceChannel = "moltenterm-edit-workspace";
@@ -15,7 +16,7 @@ export function makeMoltentermEditWorkspaceMenuItem(
 ): electron.MenuItemConstructorOptions {
     return {
         id: MoltentermEditWorkspaceMenuId,
-        label: "Edit Workspace…",
+        label: mt("appMenu.editWorkspace"),
         click: (_, window) => {
             const target = targetOf(window);
             if (target == null || target.isDestroyed()) {

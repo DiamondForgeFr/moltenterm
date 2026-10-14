@@ -101,6 +101,9 @@ func (m *Manager) LinkedSession(blockId string) (string, string, bool) {
 		}
 	}
 	if report, ok := m.report(blockId); ok && report.agent == run.Agent && !report.at.Before(time.UnixMilli(run.Started).Add(-reportSlack)) {
+		if report.pending {
+			return "", "", false
+		}
 		return report.agent, report.path, true
 	}
 	if pick, ok := m.pick(blockId); ok && pick.agent == run.Agent && pick.started == run.Started {
@@ -148,7 +151,8 @@ func (m *Manager) discoverLinked(blockId string, run molten.AgentRunInfo) (strin
 func (w *watcher) linkedPath() (string, string) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
-	if w.linkedBy == LinkGuessed {
+	if w.linkedBy == LinkGuessed || w.earlier {
+		// An earlier session the user looks at is not the one the agent runs: the hook's report tells that one.
 		return w.agent, ""
 	}
 	return w.agent, w.path

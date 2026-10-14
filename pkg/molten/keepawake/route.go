@@ -16,6 +16,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -172,6 +173,7 @@ func readBlockInfo(ctx context.Context, blockId string) (BlockInfo, bool) {
 		WorkspaceId: wsId,
 		Remote:      !isLocalConn(block.Meta.GetString(waveobj.MetaKey_Connection, "")),
 		Cmd:         block.Meta.GetString(waveobj.MetaKey_Cmd, ""),
+		Review:      block.Meta[mcpreview.SessionMetaKey] != nil,
 	}, true
 }
 

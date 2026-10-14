@@ -22,6 +22,7 @@ import clsx from "clsx";
 import { useAtomValue } from "jotai";
 import { memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { focusHandoffActive } from "../../moltenterm-shell/browser/focus-handoff"; // MOLTENTERM-PATCH (#268)
+import { offCarpetAtom, PanelBlockIdContext } from "../../moltenterm-shell/view360/offcarpet-model"; // MOLTENTERM-PATCH (#618)
 import "./block.scss";
 import { BlockEnv } from "./blockenv";
 import { BlockFrame } from "./blockframe";
@@ -102,6 +103,7 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
     const focusFollowsCursorMode = useAtomValue(waveEnv.getSettingsKeyAtom("app:focusfollowscursor")) ?? "off";
     const innerRect = useDebouncedNodeInnerRect(nodeModel);
     const noPadding = useAtomValueSafe(viewModel.noPadding);
+    const offCarpet = useAtomValue(offCarpetAtom(nodeModel.blockId)); // MOLTENTERM-PATCH (#618)
 
     useEffect(() => {
         return () => {
@@ -264,12 +266,16 @@ const BlockFull = memo(({ nodeModel, viewModel }: FullBlockProps) => {
             </div>
             <div
                 key="content"
-                className={clsx("block-content", { "block-no-padding": noPadding })}
+                // MOLTENTERM-PATCH (#618): a panel off-screen on the carpet is not rendered (view360-offcarpet.css)
+                className={clsx("block-content", { "block-no-padding": noPadding, "mt-offcarpet": offCarpet })}
                 ref={contentRef}
                 style={blockContentStyle}
             >
                 <ErrorBoundary>
-                    <Suspense fallback={<CenteredDiv>Loading...</CenteredDiv>}>{viewElem}</Suspense>
+                    {/* MOLTENTERM-PATCH (#618): the view's hooks find their panel (offcarpet-model.ts) */}
+                    <PanelBlockIdContext.Provider value={nodeModel.blockId}>
+                        <Suspense fallback={<CenteredDiv>Loading...</CenteredDiv>}>{viewElem}</Suspense>
+                    </PanelBlockIdContext.Provider>
                 </ErrorBoundary>
             </div>
         </BlockFrame>

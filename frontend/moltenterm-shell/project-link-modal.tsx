@@ -15,6 +15,7 @@ import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { ScrimClass } from "./dialog-frame";
+import { useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import { hasDefaultName, nextProjectOffer, ProjectOffer, readDismissed, withDismissed } from "./project-detect";
 import { offerProjectIcon } from "./project-icon-offer";
@@ -50,6 +51,7 @@ function TerminalFolder({ blockId, onFolder }: { blockId: string; onFolder: (cwd
 }
 
 function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Workspace; onClose: () => void }) {
+    const t = useT();
     const [name, setName] = useState(pathBaseName(offer.dir));
     const [rename, setRename] = useState(hasDefaultName(ws.name));
     const [busy, setBusy] = useState(false);
@@ -97,33 +99,32 @@ function ProjectLinkModal({ offer, ws, onClose }: { offer: ProjectOffer; ws: Wor
             <div
                 role="dialog"
                 aria-modal="true"
-                aria-label={`Link this workspace to ${name}?`}
+                aria-label={t("workspace.link.title", { name })}
                 className="flex w-[460px] flex-col rounded-10 border border-border bg-surface-3 shadow-e3"
             >
                 <div className="border-b border-border px-4 py-3">
-                    <div className="text-13 leading-5 font-semibold">{`Link this workspace to ${name}?`}</div>
+                    <div className="text-13 leading-5 font-semibold">{t("workspace.link.title", { name })}</div>
                     <div className="mt-0.5 truncate text-12 text-muted" title={offer.dir}>
                         {offer.dir}
                     </div>
                 </div>
                 <div className="flex flex-col gap-3 px-4 py-3 text-12">
-                    <div className="text-secondary">
-                        A terminal of this workspace is in this project. Linked, the workspace shows it in Mission
-                        Control (Project, CI/CD).
-                    </div>
+                    <div className="text-secondary">{t("workspace.link.intro")}</div>
                     <label className="flex cursor-pointer items-center gap-2 text-secondary">
                         <input type="checkbox" checked={rename} onChange={(e) => setRename(e.target.checked)} />
-                        Name the workspace “{name}”
-                        {ws.name ? <span className="text-muted">(now “{ws.name}”)</span> : null}
+                        {t("workspace.link.rename", { name })}
+                        {ws.name ? (
+                            <span className="text-muted">{t("workspace.link.now", { name: ws.name })}</span>
+                        ) : null}
                     </label>
                     {error ? <div className="text-error">{error}</div> : null}
                 </div>
                 <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
                     <button type="button" disabled={busy} onClick={decline} className={PlainButton}>
-                        Not now
+                        {t("workspace.link.notNow")}
                     </button>
                     <button type="button" disabled={busy} onClick={accept} className={AccentButton}>
-                        Link the project
+                        {t("workspace.link.link")}
                         <MoltenWave />
                     </button>
                 </div>

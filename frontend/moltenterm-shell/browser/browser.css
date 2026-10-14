@@ -141,3 +141,10 @@ body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-close,
 .molten-browser-panel-buttons .wave-iconbutton.disabled {
     opacity: 0.45 !important;
 }
+
+/* A tab shared with an agent (FR-BRW-011): the Pill keeps the agent's name readable, the page name gives way first. */
+.molten-browser-tab .molten-pill.molten-browser-share-badge {
+    flex-shrink: 0;
+    max-width: 96px;
+    height: 18px;
+}

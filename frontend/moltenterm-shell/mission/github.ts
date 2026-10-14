@@ -5,6 +5,9 @@
 // requests with their checks (GitHub's jobs and local-* statuses side by side), recent runs, and scheduled workflows
 // with their next runs. The panel only looks: merging stays on GitHub, one click away.
 
+import { t } from "../i18n/i18n";
+import { labelRecord } from "./mission-i18n";
+
 export type CheckState = "success" | "failure" | "pending" | "neutral";
 
 // One entry of `gh pr list --json statusCheckRollup`: a check run (a GitHub job) or a status context.
@@ -24,6 +27,8 @@ export type PullRequest = {
     headRefName: string;
     baseRefName: string;
     isDraft: boolean;
+    isCrossRepository?: boolean;
+    author?: { login: string };
     createdAt: string;
     updatedAt: string;
     url: string;
@@ -113,30 +118,30 @@ export function summarizeChecks(rollup: readonly RollupEntry[]): CheckSummary[] 
 export function mergeStateLabel(state: string, base: string): { label: string; tone: CheckState } {
     switch ((state ?? "").toUpperCase()) {
         case "CLEAN":
-            return { label: "ready to merge", tone: "success" };
+            return { label: t("mc.github.merge.clean"), tone: "success" };
         case "HAS_HOOKS":
-            return { label: "ready (hooks)", tone: "success" };
+            return { label: t("mc.github.merge.hasHooks"), tone: "success" };
         case "BLOCKED":
-            return { label: "blocked: required checks", tone: "failure" };
+            return { label: t("mc.github.merge.blocked"), tone: "failure" };
         case "DIRTY":
-            return { label: `conflicts with ${base}`, tone: "failure" };
+            return { label: t("mc.github.merge.dirty", { base }), tone: "failure" };
         case "BEHIND":
-            return { label: `behind ${base}`, tone: "pending" };
+            return { label: t("mc.github.merge.behind", { base }), tone: "pending" };
         case "UNSTABLE":
-            return { label: "checks failing", tone: "failure" };
+            return { label: t("mc.github.merge.unstable"), tone: "failure" };
         case "DRAFT":
-            return { label: "draft", tone: "neutral" };
+            return { label: t("mc.github.merge.draft"), tone: "neutral" };
     }
-    return { label: "state being computed", tone: "pending" };
+    return { label: t("mc.github.merge.computing"), tone: "pending" };
 }
 
-const EventLabels: Record<string, string> = {
-    schedule: "scheduled",
-    pull_request: "PR",
-    push: "push",
-    workflow_dispatch: "manual",
-    release: "release",
-};
+const EventLabels: Record<string, string> = labelRecord("mc.github.event", [
+    "schedule",
+    "pull_request",
+    "push",
+    "workflow_dispatch",
+    "release",
+]);
 
 export function eventLabel(event: string): string {
     return EventLabels[event] ?? event;
@@ -312,24 +317,28 @@ export function nextRuns(expression: string, from: Date, count: number): Date[] 
     return runs;
 }
 
-const DayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DayKeys = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+function dayName(day: number): string {
+    return t(`mc.github.day.${DayKeys[day]}`);
+}
 
 export function describeCron(expression: string): string {
     const cron = parseCron(expression);
     if (!cron || cron.minutes.length !== 1 || cron.hours.length !== 1 || cron.months.length !== 12 || cron.days) {
-        return `cron "${expression}"`;
+        return t("mc.github.cron.raw", { expression });
     }
     const at = `${String(cron.hours[0]).padStart(2, "0")}:${String(cron.minutes[0]).padStart(2, "0")} UTC`;
     const days = cron.weekdays;
     let when: string;
     if (!days) {
-        when = "every day";
+        when = t("mc.github.cron.everyDay");
     } else if (days.join() === "1,2,3,4,5") {
-        when = "Monday to Friday";
+        when = t("mc.github.cron.weekdays");
     } else if (days.length === 1) {
-        when = `every ${DayNames[days[0]]}`;
+        when = t("mc.github.cron.everyOne", { day: dayName(days[0]) });
     } else {
-        when = "on " + days.map((d) => DayNames[d]).join(", ");
+        when = t("mc.github.cron.on", { days: days.map(dayName).join(", ") });
     }
-    return `${when} at ${at}`;
+    return t("mc.github.cron.at", { when, at });
 }

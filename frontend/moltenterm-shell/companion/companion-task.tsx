@@ -15,9 +15,11 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
+import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { TabActivity, whileShown } from "../tab-activity";
-import { relativeTime } from "./companion-model";
+import { whileShown } from "../tab-activity";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
+import { CompanionView, relativeTime } from "./companion-model";
 import {
     newerTask,
     redactionLabel,
@@ -25,6 +27,7 @@ import {
     TaskEvent,
     TaskReadCommand,
     TaskRoute,
+    taskSessionLabel,
     taskSummary,
     TaskView,
 } from "./companion-task-model";
@@ -70,6 +73,7 @@ function useWorkspaceTask(target: string): { view: TaskView; error: string; setV
     const [view, setViewState] = useState<TaskView>(null);
     const [error, setError] = useState<string>(null);
     const [reload, setReload] = useState(0);
+    const panelId = usePanelBlockId();
     const setView = (next: TaskView) => setViewState((cur) => newerTask(cur, next));
     useEffect(() => {
         if (!target) {
@@ -115,12 +119,21 @@ function useWorkspaceTask(target: string): { view: TaskView; error: string; setV
         if (!target) {
             return;
         }
-        return TabActivity.getInstance().every(whileShown(RefreshMs), () => setReload((n) => n + 1), "companion-task");
-    }, [target]);
+        return everyInPanel(panelId, whileShown(RefreshMs), () => setReload((n) => n + 1), "companion-task");
+    }, [target, panelId]);
     return { view, error, setView };
 }
 
-export function WorkspaceTaskSection({ target, companionId }: { target: string; companionId: string }) {
+export function WorkspaceTaskSection({
+    target,
+    companionId,
+    companion,
+}: {
+    target: string;
+    companionId: string;
+    companion?: CompanionView;
+}) {
+    const t = useT();
     const { view, error, setView } = useWorkspaceTask(target);
     const [confirming, setConfirming] = useState(false);
     const [actionError, setActionError] = useState<string>(null);
@@ -130,7 +143,7 @@ export function WorkspaceTaskSection({ target, companionId }: { target: string; 
         }
         return (
             <TaskFrame>
-                <div className="px-3 pb-3 text-12 text-muted">The workspace task is not available: {error}</div>
+                <div className="px-3 pb-3 text-12 text-muted">{t("companion.task.unavailable", { error })}</div>
             </TaskFrame>
         );
     }
@@ -159,9 +172,10 @@ export function WorkspaceTaskSection({ target, companionId }: { target: string; 
     return (
         <WorkspaceTaskCard
             view={view}
+            session={taskSessionLabel(view, companion)}
             now={Date.now()}
             confirming={confirming}
-            actionError={actionError ?? (error ? `Not refreshed: ${error}` : null)}
+            actionError={actionError ?? (error ? t("companion.task.notRefreshed", { error }) : null)}
             onOpen={() => open(false)}
             onEdit={() => open(true)}
             onAskClear={() => setConfirming(true)}
@@ -173,6 +187,8 @@ export function WorkspaceTaskSection({ target, companionId }: { target: string; 
 
 export type WorkspaceTaskCardProps = {
     view: TaskView;
+    // Which session of the terminal last wrote the task (#600), "" when unknown.
+    session?: string;
     now: number;
     confirming: boolean;
     actionError: string;
@@ -185,6 +201,7 @@ export type WorkspaceTaskCardProps = {
 
 export function WorkspaceTaskCard({
     view,
+    session,
     now,
     confirming,
     actionError,
@@ -194,6 +211,7 @@ export function WorkspaceTaskCard({
     onCancelClear,
     onClear,
 }: WorkspaceTaskCardProps) {
+    const t = useT();
     const summary = taskSummary(view);
     const updated = relativeTime(view.updated, now);
     return (
@@ -201,16 +219,14 @@ export function WorkspaceTaskCard({
             right={
                 updated ? (
                     <span className="text-11 text-muted" title={new Date(view.updated).toLocaleString()}>
-                        {`updated ${updated}`}
+                        {t("companion.history.updatedAgo", { ago: updated })}
                     </span>
                 ) : null
             }
         >
             <div className="flex flex-col gap-1.5 px-3 pb-3 text-12" data-testid="companion-task">
                 {summary.empty ? (
-                    <div className="text-muted">
-                        No task recorded yet: it fills in at the end of the agent&apos;s next turn.
-                    </div>
+                    <div className="text-muted">{t("companion.task.empty")}</div>
                 ) : (
                     <>
                         {summary.goal ? (
@@ -218,25 +234,42 @@ export function WorkspaceTaskCard({
                                 {summary.goal}
                             </div>
                         ) : (
-                            <div className="text-muted">No goal yet.</div>
+                            <div className="text-muted">{t("companion.task.noGoal")}</div>
                         )}
                         <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-11 text-secondary">
                             {summary.ticket ? <span>{summary.ticket}</span> : null}
                             {summary.plan.total > 0 ? (
-                                <span className="tabular-nums">{`Plan ${summary.plan.done} / ${summary.plan.total}`}</span>
+                                <span className="tabular-nums">
+                                    {t("companion.task.plan", { done: summary.plan.done, total: summary.plan.total })}
+                                </span>
                             ) : null}
                             {summary.files > 0 ? (
-                                <span className="tabular-nums">{`${summary.files} file${summary.files === 1 ? "" : "s"}`}</span>
+                                <span className="tabular-nums">
+                                    {t(
+                                        summary.files === 1
+                                            ? "companion.topics.filesOne"
+                                            : "companion.topics.filesOther",
+                                        {
+                                            count: summary.files,
+                                        }
+                                    )}
+                                </span>
                             ) : null}
                         </div>
                         {summary.next ? (
                             <div className="text-11 text-secondary">
-                                <span className="text-muted">Next: </span>
+                                <span className="text-muted">{t("companion.task.next")} </span>
                                 {summary.next}
                             </div>
                         ) : null}
                         <div className="flex flex-wrap gap-x-3 text-11 text-muted">
-                            {summary.by ? <span>{`by ${summary.by}`}</span> : null}
+                            {summary.by ? (
+                                <span data-testid="companion-task-by">
+                                    {[t("companion.task.by", { who: summary.by }), session]
+                                        .filter((s) => !!s)
+                                        .join(" · ")}
+                                </span>
+                            ) : null}
                             {summary.redactions > 0 ? (
                                 <span data-testid="companion-task-redactions">
                                     <i className="fa fa-solid fa-shield-halved mr-1" />
@@ -244,23 +277,28 @@ export function WorkspaceTaskCard({
                                 </span>
                             ) : null}
                             {summary.versions > 0 ? (
-                                <span>{`${summary.versions} earlier version${summary.versions === 1 ? "" : "s"}`}</span>
+                                <span>
+                                    {t(
+                                        summary.versions === 1
+                                            ? "companion.task.versionsOne"
+                                            : "companion.task.versionsOther",
+                                        { count: summary.versions }
+                                    )}
+                                </span>
                             ) : null}
                         </div>
                     </>
                 )}
                 {confirming ? (
                     <div className="mt-1 flex flex-col gap-1.5 rounded-4 border border-border p-2">
-                        <div className="text-secondary">
-                            Start a new task? The current checkpoint stays in the history (molten task history).
-                        </div>
+                        <div className="text-secondary">{t("companion.task.confirmClear")}</div>
                         <div className="flex gap-2">
                             <button type="button" className={DangerButton} onClick={onClear}>
-                                Start a new task
+                                {t("companion.task.newTask")}
                                 <MoltenWave />
                             </button>
                             <button type="button" className={PlainButton} onClick={onCancelClear}>
-                                Cancel
+                                {t("common.cancel")}
                             </button>
                         </div>
                     </div>
@@ -268,15 +306,15 @@ export function WorkspaceTaskCard({
                     <div className="mt-1 flex gap-2">
                         {view.exists ? (
                             <button type="button" className={PlainButton} onClick={onOpen}>
-                                Open
+                                {t("common.open")}
                             </button>
                         ) : null}
                         <button type="button" className={PlainButton} onClick={onEdit}>
-                            Edit
+                            {t("companion.task.edit")}
                         </button>
                         {view.exists && !summary.empty ? (
                             <button type="button" className={PlainButton} onClick={onAskClear}>
-                                Clear…
+                                {t("companion.task.clear")}
                             </button>
                         ) : null}
                     </div>
@@ -288,10 +326,13 @@ export function WorkspaceTaskCard({
 }
 
 function TaskFrame({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
+    const t = useT();
     return (
         <>
             <div className="flex items-center gap-2 px-3 pt-3 pb-1">
-                <div className="text-11 font-semibold tracking-wide text-muted uppercase">Workspace task</div>
+                <div className="text-11 font-semibold tracking-wide text-muted uppercase">
+                    {t("companion.task.title")}
+                </div>
                 <div className="ml-auto flex items-center gap-1">{right}</div>
             </div>
             {children}

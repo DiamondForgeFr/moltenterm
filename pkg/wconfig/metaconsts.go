@@ -68,6 +68,11 @@ const (
 	ConfigKey_AgentIntegrate                 = "agent:integrate"
 	ConfigKey_AgentIntegrateOff              = "agent:integrateoff"
 
+	ConfigKey_ReviewLanguage                 = "review:language"
+	ConfigKey_ReviewPublishLanguage          = "review:publishlanguage"
+
+	ConfigKey_AppLanguage                    = "app:language"
+
 	ConfigKey_CompanionUsageGauges           = "companion:usagegauges"
 	ConfigKey_CompanionUsageClaudeOAuth      = "companion:usageclaudeoauth"
 
@@ -120,6 +125,7 @@ const (
 	ConfigKey_MoltentermHiddenPageDiscardMin = "moltenterm:hiddenpagediscardmin"
 	ConfigKey_MoltentermReleaseNotify        = "moltenterm:releasenotify"
 	ConfigKey_MoltentermConfirmBusyClose     = "moltenterm:confirmbusyclose"
+	ConfigKey_MoltentermView360              = "moltenterm:view360"
 
 	ConfigKey_WidgetClear                    = "widget:*"
 	ConfigKey_WidgetShowHelp                 = "widget:showhelp"

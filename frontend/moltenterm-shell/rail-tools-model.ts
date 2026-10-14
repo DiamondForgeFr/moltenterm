@@ -5,6 +5,7 @@
 // the rules can be tested without the app.
 
 import { shouldIncludeWidgetForWorkspace } from "@/app/workspace/widgetfilter";
+import { t } from "./i18n/i18n";
 
 // Wave's built-in widgets carry this key prefix; the launcher behind the add-panel button already offers them.
 export const DefaultWidgetPrefix = "defwidget@";
@@ -42,5 +43,5 @@ export function splitRailWidgets(
 }
 
 export function railWidgetTooltip(widget: WidgetConfigType): string {
-    return widget.description || widget.label || "Widget";
+    return widget.description || widget.label || t("rail.tools.widget");
 }

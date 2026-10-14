@@ -1,6 +1,9 @@
 import { base64ToString } from "@/util/util";
 import { describe, expect, it, vi } from "vitest";
 import { DefaultMockFilesystem } from "./mockfilesystem";
+// MOLTENTERM-PATCH(#643): a static import, loaded while the file is collected, which has no timeout. A dynamic import in
+// the first test spent that test's 5 s timeout on the module graph alone on a loaded machine. vi.mock is hoisted above it.
+import { makeMockWaveEnv } from "./mockwaveenv";
 
 const { showPreviewContextMenu } = vi.hoisted(() => ({
     showPreviewContextMenu: vi.fn(),
@@ -11,8 +14,7 @@ vi.mock("../preview-contextmenu", () => ({
 }));
 
 describe("makeMockWaveEnv", () => {
-    it("uses the preview context menu by default", async () => {
-        const { makeMockWaveEnv } = await import("./mockwaveenv");
+    it("uses the preview context menu by default", () => {
         const env = makeMockWaveEnv();
         const menu = [{ label: "Open" }];
         const event = { stopPropagation: vi.fn() } as any;
@@ -29,7 +31,6 @@ describe("makeMockWaveEnv", () => {
     });
 
     it("implements file info, read, list, and join commands", async () => {
-        const { makeMockWaveEnv } = await import("./mockwaveenv");
         const env = makeMockWaveEnv();
 
         const bashrcInfo = await env.rpc.FileInfoCommand(null as any, {
@@ -70,7 +71,6 @@ describe("makeMockWaveEnv", () => {
     });
 
     it("implements file list and read stream commands", async () => {
-        const { makeMockWaveEnv } = await import("./mockwaveenv");
         const env = makeMockWaveEnv();
 
         const listPackets: CommandRemoteListEntriesRtnData[] = [];
@@ -85,7 +85,6 @@ describe("makeMockWaveEnv", () => {
     });
 
     it("implements secrets commands with in-memory storage", async () => {
-        const { makeMockWaveEnv } = await import("./mockwaveenv");
         const env = makeMockWaveEnv({ platform: "linux" });
 
         await env.rpc.SetSecretsCommand(

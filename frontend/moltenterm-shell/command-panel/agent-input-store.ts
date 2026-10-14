@@ -25,7 +25,7 @@ export class AgentInputs {
     private static instance: AgentInputs = null;
 
     infos = new Map<string, { info: AgentInputInfo; at: number }>();
-    inflight = new Set<string>();
+    inflight = new Map<string, Promise<void>>();
 
     private constructor() {}
 
@@ -45,12 +45,22 @@ export class AgentInputs {
         return known?.info ?? null;
     }
 
-    refresh(blockId: string) {
-        if (this.inflight.has(blockId)) {
+    // Fresh facts before the panel opens on one of the section's choices (the header's model and effort, #573), so it
+    // opens with its options and the current one selected; never waits longer than a moment.
+    async ready(blockId: string, maxWaitMs = 400): Promise<void> {
+        const known = this.infos.get(blockId);
+        if (known != null && Date.now() - known.at <= InfoFreshMs) {
             return;
         }
-        this.inflight.add(blockId);
-        TabRpcClient.wshRpcCall(
+        await Promise.race([this.refresh(blockId), new Promise((resolve) => setTimeout(resolve, maxWaitMs))]);
+    }
+
+    refresh(blockId: string): Promise<void> {
+        const pending = this.inflight.get(blockId);
+        if (pending != null) {
+            return pending;
+        }
+        const read = TabRpcClient.wshRpcCall(
             AgentInputInfoCommand,
             { blockid: blockId },
             { route: AgentInputRoute, timeout: InfoTimeoutMs }
@@ -64,6 +74,8 @@ export class AgentInputs {
             })
             .catch((e) => console.error("agent input info", blockId, e))
             .finally(() => this.inflight.delete(blockId));
+        this.inflight.set(blockId, read);
+        return read;
     }
 
     async send(req: AgentInputRequest): Promise<AgentInputResult> {
@@ -72,7 +84,12 @@ export class AgentInputs {
                 route: AgentInputRoute,
                 timeout: InputTimeoutMs,
             });
-            if (result?.mode != null || req.action === "permissionmode") {
+            if (
+                result?.mode != null ||
+                req.action === "permissionmode" ||
+                req.action === "effort" ||
+                req.action === "model"
+            ) {
                 this.infos.delete(req.blockid);
                 this.refresh(req.blockid);
             }

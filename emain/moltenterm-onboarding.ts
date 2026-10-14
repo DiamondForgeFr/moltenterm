@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as electron from "electron";
+import { mt } from "./moltenterm-i18n";
 
 // The renderer opens Getting started (frontend/moltenterm-onboarding/onboarding-host.ts) when it receives this.
 export const MoltentermGettingStartedChannel = "moltenterm-getting-started";
@@ -14,7 +15,7 @@ export function makeMoltentermGettingStartedMenuItem(
 ): electron.MenuItemConstructorOptions {
     return {
         id: MoltentermGettingStartedMenuId,
-        label: "Getting Started",
+        label: mt("appMenu.gettingStarted"),
         click: (_, window) => {
             const target = targetOf(window);
             if (target == null || target.isDestroyed()) {

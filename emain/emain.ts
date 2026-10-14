@@ -60,8 +60,10 @@ import { installBackgroundMode } from "./moltenterm-background"; // MOLTENTERM-P
 import { initBusyCloseReplies } from "./moltenterm-busy-close"; // MOLTENTERM-PATCH (#490)
 import { askQuitStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
 import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
+import { exportSystemLanguageToEnv, initMoltentermI18n, initMoltentermI18nIpc, mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
 import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-PATCH (#276)
 import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
+import { initMoltentermSystemNotify } from "./moltenterm-system-notify"; // MOLTENTERM-PATCH (#605)
 import { initMoltentermTabActivity } from "./moltenterm-tab-activity"; // MOLTENTERM-PATCH (#455)
 import { initMoltentermTabViewBudget } from "./moltenterm-tabview-budget-live"; // MOLTENTERM-PATCH (#454)
 import { configureAutoUpdater, updater } from "./updater";
@@ -292,9 +294,10 @@ electronApp.on("before-quit", (e) => {
             if (busy !== BusyOutcomeClose && confirmQuit) {
                 const choice = electron.dialog.showMessageBoxSync(null, {
                     type: "question",
-                    buttons: ["Cancel", "Quit"],
-                    title: "Confirm Quit",
-                    message: `Are you sure you want to quit ${electron.app.getName()}?`, // MOLTENTERM-PATCH (#6, #191): the gold's own name
+                    // MOLTENTERM-PATCH (#623): in the interface language
+                    buttons: [mt("common.cancel"), mt("dialog.confirmQuit.quit")],
+                    title: mt("dialog.confirmQuit.title"),
+                    message: mt("dialog.confirmQuit.message", { app: electron.app.getName() }), // MOLTENTERM-PATCH (#6, #191): the gold's own name
                     defaultId: 0,
                     cancelId: 0,
                 });
@@ -408,6 +411,7 @@ async function appMain() {
         console.log("second-instance event, argv:", argv, "workingDirectory:", workingDirectory);
         fireAndForget(createNewWaveWindow);
     });
+    exportSystemLanguageToEnv(); // MOLTENTERM-PATCH (#623): review:language's default in wavesrv follows the interface language
     try {
         await runWaveSrv(handleWSEvent);
     } catch (e) {
@@ -420,6 +424,8 @@ async function appMain() {
     initIpcHandlers();
     initBusyCloseReplies(electron.ipcMain); // MOLTENTERM-PATCH (#490): the renderers' answers to FR-SHELL-062's asks
     initMoltentermTabActivity(); // MOLTENTERM-PATCH (#455): window state for the tab activity model, before any window
+    initMoltentermSystemNotify(); // MOLTENTERM-PATCH (#605): system notifications while no window is in front
+    initMoltentermI18nIpc(); // MOLTENTERM-PATCH (#623): the OS languages for the renderers, their resolved language
 
     await sleep(10); // wait a bit for wavesrv to be ready
     try {
@@ -431,6 +437,7 @@ async function appMain() {
         console.log("error initializing wshrpc", e);
     }
     const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+    initMoltentermI18n(fullConfig); // MOLTENTERM-PATCH (#623): menus and dialogs follow app:language, live
     checkIfRunningUnderARM64Translation(fullConfig);
     if (fullConfig?.settings?.["app:confirmquit"] != null) {
         confirmQuit = fullConfig.settings["app:confirmquit"];

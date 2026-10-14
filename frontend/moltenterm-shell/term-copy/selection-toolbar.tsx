@@ -8,6 +8,7 @@ import { ContextMenuModel } from "@/app/store/contextmenu";
 import type { TermWrap } from "@/app/view/term/termwrap";
 import { fireAndForget, useAtomValueSafe } from "@/util/util";
 import * as React from "react";
+import { useT } from "../i18n/i18n";
 import { parseFileRef } from "./file-links";
 import {
     cleanSelectionText,
@@ -63,6 +64,7 @@ export const TermSelectionToolbar = React.memo(function TermSelectionToolbar({
     termWrap: TermWrap;
     containerRef: React.RefObject<HTMLDivElement>;
 }) {
+    const t = useT();
     const [bar, setBar] = React.useState<BarState>(null);
     const [copied, setCopied] = React.useState(false);
     const seqRef = React.useRef(0);
@@ -172,22 +174,17 @@ export const TermSelectionToolbar = React.memo(function TermSelectionToolbar({
             onMouseDown={keepSelection}
             onContextMenu={keepSelection}
         >
-            <button
-                type="button"
-                className={buttonClass}
-                onClick={onCopy}
-                title="Copy without the agent's padding and gutters"
-            >
-                {copied ? "Copied" : "Copy clean"}
+            <button type="button" className={buttonClass} onClick={onCopy} title={t("termcopy.toolbar.cleanTitle")}>
+                {copied ? t("termcopy.toolbar.copied") : t("termcopy.copyClean")}
             </button>
             {bar.file != null && (
                 <button type="button" className={buttonClass} onClick={onOpen} title={bar.file.path}>
-                    Open
+                    {t("common.open")}
                 </button>
             )}
             {bar.canSend && (
-                <button type="button" className={buttonClass} onClick={onSend} title="Paste into another terminal">
-                    Send to…
+                <button type="button" className={buttonClass} onClick={onSend} title={t("termcopy.toolbar.sendTitle")}>
+                    {t("termcopy.toolbar.sendTo")}
                 </button>
             )}
         </div>

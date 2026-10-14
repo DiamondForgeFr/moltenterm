@@ -18,9 +18,13 @@ import "embed"
 // includes it ({{LOCAL_CI_RULE}}), and the briefing a run appends for an agent (#180) takes it from here.
 // claude-code-parts.md and examples/test-band/ document the Claude Code part of a mod (FR-MORPH-010); `all:` keeps
 // the part's `.claude-plugin/` folder, which embed would skip as hidden.
+// language-pack.md is the first preconfigured morph: translate MoltenTerm or change its texts (FR-I18N-002).
+// review.md is the guide a review session's agent gets as its system prompt (FR-REV-004, DS-REV-006).
 //
-//go:embed mod-format.md morph.md molten-pipeline.md molten-bug.md local-ci-rule.md pipeline-format.md agent-states.md agent-integrations.md worktrees.md claude-code-parts.md all:examples
+//go:embed mod-format.md morph.md language-pack.md molten-pipeline.md molten-bug.md local-ci-rule.md pipeline-format.md agent-states.md agent-integrations.md worktrees.md claude-code-parts.md review.md all:examples
 var Files embed.FS
+
+const ReviewGuideFile = "review.md"
 
 const GuideFile = "morph.md"
 const PipelineGuideFile = "molten-pipeline.md"

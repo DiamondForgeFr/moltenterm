@@ -9,9 +9,20 @@
 //
 // Coding agents use it for every piece of text the user has to copy: a token, a command, a URL.
 
+// The box speaks the interface language (api.locale); a mod ships its own strings and falls back to English. The
+// command's output stays English: agents parse molten's output.
+export const Strings = {
+    en: { title: "Copy", copy: "Copy", copied: "Copied" },
+    fr: { title: "Copier", copy: "Copier", copied: "Copié" },
+};
+
+export function stringsFor(locale) {
+    return Strings[locale] ?? Strings.en;
+}
+
 // `--title` may come anywhere before the text; `--` ends the options, so a text may start with "--".
-export function parseCopyArgs(args) {
-    let title = "Copy";
+export function parseCopyArgs(args, defaultTitle = Strings.en.title) {
+    let title = defaultTitle;
     const words = [];
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
@@ -50,7 +61,10 @@ export function activate(api) {
     api.commands.register(
         "copy",
         ({ args, stdin, blockId }) => {
-            const { title, text: argText } = parseCopyArgs(args);
+            // Read at each call, so a language change applies to the next box; a mod whose text stays on screen
+            // redraws it from api.onLocaleChange(handler) instead.
+            const strings = stringsFor(api.locale);
+            const { title, text: argText } = parseCopyArgs(args, strings.title);
             const text = argText !== "" ? argText : textFromStdin(stdin);
             if (text === "") {
                 return { output: "molten copy: nothing to copy: give a text or pipe one", exitCode: 1 };
@@ -63,10 +77,10 @@ export function activate(api) {
                 actions: [
                     {
                         icon: "copy",
-                        label: "Copy",
+                        label: strings.copy,
                         run: async () => {
                             await api.clipboard.writeText(text);
-                            return "Copied";
+                            return strings.copied;
                         },
                     },
                 ],

@@ -6,6 +6,7 @@
 // develop the one below; branches hang under develop in lanes; stations sit on main with their labels slanted above
 // it. Pure and tested: the component only draws what this returns.
 
+import { t } from "../i18n/i18n";
 import { BuildMarker } from "./line-map-builds";
 import { LineMapBranch, LineMapCommit, LineMapModel, LineMapStation } from "./line-map-model";
 import { formatDay } from "./time-format";
@@ -251,7 +252,8 @@ export type LineMapGeometry = {
     // The part of the window before the history read: shaded, with its date.
     unread: { x1: number; x2: number; label: string };
     head: Point;
-    terminus: Point & { r: number; title: string; sub: string; status: string; textX: number };
+    // urgent: the status is a due date that has come or passed, in the warning colour as the header's chip.
+    terminus: Point & { r: number; title: string; sub: string; status: string; textX: number; urgent: boolean };
 };
 
 function truncate(text: string, max: number): string {
@@ -262,20 +264,25 @@ export function tickStep(pxPerDay: number): number {
     return TickSteps.find((s) => s * pxPerDay >= MinTickSpacing) ?? TickSteps[TickSteps.length - 1];
 }
 
-// The terminus reads "v<next> · public release", then where it stands: the Project header's chip ("to decide", the
-// bump level, "chosen"), with what waits for it when the number follows from the commits.
+// The terminus reads "v<next> · public release", then where it stands: the Project header's chip (the due date, or
+// "to decide", the bump level, "chosen"), with what waits for it when the number follows from the commits.
 export function terminusText(model: LineMapModel): { title: string; sub: string; status: string } {
-    const t = model.terminus;
-    const title = t.tag ?? "next";
-    const sub = "public release";
-    if (t.state === "nothing" || !t.tag) {
-        return { title, sub, status: "nothing to release yet" };
+    const term = model.terminus;
+    const title = term.tag ?? t("mc.lineMap.next");
+    const sub = t("mc.lineMap.publicRelease");
+    if (term.state === "nothing" || !term.tag) {
+        return { title, sub, status: t("mc.lineMap.nothingToRelease") };
     }
-    if (t.state !== "derived") {
-        return { title, sub, status: t.chip };
+    if (term.state !== "derived") {
+        return { title, sub, status: term.chip };
     }
-    const waiting = t.waiting === 0 ? "all on main" : `${t.waiting} change${t.waiting === 1 ? "" : "s"} waiting`;
-    return { title, sub, status: t.chip ? `${t.chip} · ${waiting}` : waiting };
+    const waiting =
+        term.waiting === 0
+            ? t("mc.lineMap.allOnMain")
+            : term.waiting === 1
+              ? t("mc.lineMap.oneWaiting")
+              : t("mc.lineMap.waiting", { count: term.waiting });
+    return { title, sub, status: term.chip ? `${term.chip} · ${waiting}` : waiting };
 }
 
 function labelHeight(name: string, date: string): number {
@@ -386,13 +393,15 @@ export function buildText(m: BuildMarker): string {
         case "main":
             return m.label;
         case "unknown":
-            return `${m.label} · commit not found`;
+            return t("mc.lineMap.buildNotFound", { label: m.label });
     }
     if (m.behind == null) {
-        return `${m.label} ← before the window`;
+        return t("mc.lineMap.buildBefore", { label: m.label });
     }
     const count = `${m.behind}${m.behindCapped ? "+" : ""}`;
-    return `${m.label} ← ${count} commit${m.behind === 1 && !m.behindCapped ? "" : "s"} behind`;
+    return m.behind === 1 && !m.behindCapped
+        ? t("mc.lineMap.buildBehindOne", { label: m.label })
+        : t("mc.lineMap.buildBehind", { label: m.label, count });
 }
 
 // The builds' pills and chips. Those on develop (and the chips) stand above it, those on main under it; a pill that
@@ -478,7 +487,7 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
     const candidates = placed.map(({ s, x }) => ({ x, kind: s.kind, latest: s.latest, at: s.at }));
     const slantedLabels = chooseLabels(candidates);
     const labelTexts = placed.map(({ s }) => ({ name: truncate(s.name, MaxStationLabel), date: formatDay(s.at) }));
-    const earlierText = earlierCount ? `${earlierCount} earlier` : "";
+    const earlierText = earlierCount ? t("mc.lineMap.earlier", { count: earlierCount }) : "";
     const tallest = Math.max(
         40,
         ...labelTexts.filter((_, i) => slantedLabels[i]).map((t) => labelHeight(t.name, t.date)),
@@ -591,10 +600,10 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
 
     const pxPerDay = (nowX - left) / Math.max(1, model.days);
     const step = tickStep(pxPerDay);
-    const ticks: LineMapGeometry["ticks"] = [{ x: nowX, label: "now", now: true }];
+    const ticks: LineMapGeometry["ticks"] = [{ x: nowX, label: t("mc.lineMap.now"), now: true }];
     for (let k = 1; model.now - k * step * Day >= model.start - 60_000; k++) {
-        const t = model.now - k * step * Day;
-        ticks.push({ x: xOf(t), label: formatDay(t), now: false });
+        const at = model.now - k * step * Day;
+        ticks.push({ x: xOf(at), label: formatDay(at), now: false });
     }
     ticks.reverse();
 
@@ -625,7 +634,10 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
         hidden: hiddenOpen.length
             ? {
                   branches: hiddenOpen,
-                  text: `+${hiddenOpen.length} open branch${hiddenOpen.length === 1 ? "" : "es"}`,
+                  text:
+                      hiddenOpen.length === 1
+                          ? t("mc.lineMap.hiddenBranch")
+                          : t("mc.lineMap.hiddenBranches", { count: hiddenOpen.length }),
                   x: nowX + 12,
                   y: hiddenY + 4,
               }
@@ -645,7 +657,11 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
         landed: landedMarks(model.commits, xOf, pxPerDay, nowX - left, devY),
         unread:
             model.historyFrom != null
-                ? { x1: left, x2: xOf(model.historyFrom), label: `history read from ${formatDay(model.historyFrom)}` }
+                ? {
+                      x1: left,
+                      x2: xOf(model.historyFrom),
+                      label: t("mc.lineMap.historyFrom", { day: formatDay(model.historyFrom) }),
+                  }
                 : null,
         head: { x: nowX, y: devY },
         terminus: {
@@ -656,6 +672,7 @@ export function layoutLineMap(model: LineMapModel, o: LineMapGeometryOptions): L
             sub,
             status,
             textX: termX + TerminusRadius + 10,
+            urgent: model.terminus.state !== "nothing" && model.terminus.urgent === true,
         },
     };
 }

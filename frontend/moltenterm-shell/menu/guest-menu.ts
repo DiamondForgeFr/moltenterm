@@ -1,7 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// The icon column holds a glyph for every edit role (FR-SHELL-054); the role's label comes from MenuRoleLabels.
+import { t } from "../i18n/i18n";
+
+// The icon column holds a glyph for every edit role (FR-SHELL-054); the role's label comes from MenuRoleKeys.
 const RoleIcons: Record<string, string> = {
     undo: "rotate-left",
     redo: "rotate-right",
@@ -30,7 +32,7 @@ export function guestEditMenu(params: GuestContextMenu, saveImage: (token: strin
         );
     else if (params.selectionText) menu.push(role("copy"));
     if (params.imageToken)
-        menu.push({ label: "Save image", icon: "download", click: () => saveImage(params.imageToken) });
+        menu.push({ label: t("menu.saveImage"), icon: "download", click: () => saveImage(params.imageToken) });
     return menu;
 }
 export function guestMenuEvent(params: GuestContextMenu, webview: HTMLElement): React.MouseEvent {

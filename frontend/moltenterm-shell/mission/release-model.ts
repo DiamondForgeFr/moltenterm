@@ -5,6 +5,7 @@
 // next version, and the next public release, derived from the tags and the commits, or asked for when it is a choice.
 // Kept apart from the component so the rules can be tested without the app.
 
+import { t } from "../i18n/i18n";
 import {
     DefaultTagPrefix,
     formatVersion,
@@ -93,15 +94,21 @@ export type MilestoneWarning = {
 
 export function milestoneWarning(version: string, milestone: ReleaseMilestone): MilestoneWarning {
     if (milestone == null) {
-        return { text: `No open milestone for ${version}.`, warn: false, issues: [], more: 0 };
+        return { text: t("mc.releaseMenu.noMilestone", { version }), warn: false, issues: [], more: 0 };
     }
     const issues = milestone.issues ?? [];
     if (issues.length === 0) {
-        return { text: `Ships milestone ${milestone.title}: no issue left open.`, warn: false, issues: [], more: 0 };
+        return {
+            text: t("mc.releaseMenu.milestoneClear", { title: milestone.title }),
+            warn: false,
+            issues: [],
+            more: 0,
+        };
     }
-    const count = issues.length === 1 ? "1 open issue" : `${issues.length} open issues`;
+    const count =
+        issues.length === 1 ? t("mc.releaseMenu.openIssue") : t("mc.releaseMenu.openIssues", { count: issues.length });
     return {
-        text: `Ships milestone ${milestone.title}, with ${count}. They are reported; the release can still go ahead.`,
+        text: t("mc.releaseMenu.milestoneOpen", { title: milestone.title, count }),
         warn: true,
         issues: issues.slice(0, MaxListedMilestoneIssues),
         more: Math.max(0, issues.length - MaxListedMilestoneIssues),
@@ -139,7 +146,7 @@ export function preparationSteps(steps: readonly PipelineReleaseStep[]): Pipelin
 export function releaseNote(steps: readonly PipelineReleaseStep[]): string {
     const prepare = preparationSteps(steps).map((s) => s.title || s.id);
     const start = prepare.length
-        ? `The preparation starts right away: ${prepare.join(", ")}.`
-        : "Nothing runs right away: the pipeline declares no preparation.";
-    return `${start} Each next step will wait for your click in the Project tab.`;
+        ? t("mc.releaseMenu.prepareNow", { steps: prepare.join(", ") })
+        : t("mc.releaseMenu.prepareNone");
+    return t("mc.releaseMenu.note", { start });
 }

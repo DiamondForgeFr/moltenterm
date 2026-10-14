@@ -11,10 +11,14 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MoltentermSafeModeVarName } from "@/util/moltenterm-safemode";
 import { base64ToString, fireAndForget } from "@/util/util";
+import { getLocale, I18nModel } from "../moltenterm-shell/i18n/i18n";
+import { startLanguagePackNotice } from "../moltenterm-shell/i18n/language-pack-notice";
+import { i18nCheck, i18nExport, i18nStatus } from "../moltenterm-shell/i18n/language-pack-tools";
+import { languagePacks } from "../moltenterm-shell/i18n/language-packs";
 import { addMoltentermNotification } from "../moltenterm-shell/notifications-store";
 import { TabActivity, whileShown } from "../moltenterm-shell/tab-activity";
 import { isShowing } from "../moltenterm-shell/tab-activity-model";
-import { MoltenBudgetCheckMs, modIdForScript } from "./molten-budget";
+import { modIdForScript, MoltenBudgetCheckMs } from "./molten-budget";
 import { MoltenBuiltinMods } from "./molten-builtins";
 import { MoltenDirEntry, MoltenHost, MoltenHostEnv, MoltenRunRequest } from "./molten-host";
 import { MoltenManifestFileName, parseMoltenManifest } from "./molten-manifest";
@@ -28,6 +32,10 @@ export const MoltenModListRpcCommand = "moltenmodlist";
 export const MoltenModValidateRpcCommand = "moltenmodvalidate";
 export const MoltenRunRpcCommand = "moltenrun";
 export const MoltenTrustPromptRpcCommand = "moltentrustprompt";
+// `molten i18n export | check | status` (FR-I18N-002, DS-I18N-009).
+export const MoltenI18nExportRpcCommand = "molteni18nexport";
+export const MoltenI18nCheckRpcCommand = "molteni18ncheck";
+export const MoltenI18nStatusRpcCommand = "molteni18nstatus";
 
 // Published by `molten mod enable|disable|remove` with `{ids}`. It is not declared in pkg/wps, so that Wave's event
 // list stays unpatched; the broker routes any event name.
@@ -76,7 +84,10 @@ function makeMoltenHostEnv(): MoltenHostEnv {
         readTextFile,
         importModule,
         writeClipboard: (text: string) => navigator.clipboard.writeText(text),
+        getLocale,
+        onLocaleChange: (handler: (locale: string) => void) => I18nModel.getInstance().onLocaleChange(handler),
         builtins: MoltenBuiltinMods,
+        applyLanguagePacks: (packs) => languagePacks().apply(packs),
         heapUsedMB: () => {
             const used = (performance as any).memory?.usedJSHeapSize;
             return typeof used === "number" ? used / (1024 * 1024) : null;
@@ -153,7 +164,10 @@ export function startMoltenHost(): void {
         return { results };
     };
     // partsonly: the mod is trusted already and has gained a Claude Code part, which is asked about alone.
-    client[`handle_${MoltenTrustPromptRpcCommand}`] = async (_rh: unknown, req: { id?: string; partsonly?: boolean }) => {
+    client[`handle_${MoltenTrustPromptRpcCommand}`] = async (
+        _rh: unknown,
+        req: { id?: string; partsonly?: boolean }
+    ) => {
         const id = req?.id ?? "";
         const path = `${env.modsDir}/${id}`;
         const manifestText = await env.readTextFile(`${path}/${MoltenManifestFileName}`);
@@ -177,6 +191,19 @@ export function startMoltenHost(): void {
         });
         return { answer };
     };
+    client[`handle_${MoltenI18nExportRpcCommand}`] = (_rh: unknown, req: { lang?: string; missing?: boolean }) =>
+        i18nExport(req?.lang ?? "", !!req?.missing);
+    client[`handle_${MoltenI18nCheckRpcCommand}`] = (_rh: unknown, req: { code?: string; text?: string }) =>
+        i18nCheck(req?.code ?? "", req?.text ?? "");
+    client[`handle_${MoltenI18nStatusRpcCommand}`] = async () => {
+        await waitLoadedAtMost(host, ListWaitMs);
+        const refused = host
+            .snapshot()
+            .filter((m) => m.dataonly && (m.state === "refused" || m.state === "failed"))
+            .map((m) => ({ id: m.id, state: m.state, error: m.error ?? "" }));
+        return i18nStatus(getLocale(), refused);
+    };
+    startLanguagePackNotice();
     waveEventSubscribeSingle({
         eventType: MoltenModsChangedEvent as WaveEventName,
         handler: (event) => {

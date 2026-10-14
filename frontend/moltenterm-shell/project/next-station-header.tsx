@@ -2,15 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The Project overview's header band (FR-MC-021), a passenger information screen: the next station and its state,
-// what waits on the trunk, Mission Control's only copy of the actions (Run CI on develop, Build local, Release, Clean
-// branches), and a fixed list of the latest pending changes. What it shows comes from next-station-model.ts.
+// what waits on the trunk, Mission Control's only copy of the actions (Run CI on develop, Build local, Release, Deploy
+// to, Clean branches), and a fixed list of the latest pending changes. What it shows comes from next-station-model.ts.
 
 import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useMemo } from "react";
+import { useLocale, useT } from "../i18n/i18n";
 import { ActionPrimaryClass, RunningDot } from "../mission/action-button";
 import { BranchCleanupButton } from "../mission/branch-cleanup";
 import { BuildLocalMenu } from "../mission/build-local-menu";
+import { DeployMenu } from "../mission/deploy-menu";
+import { deployRevision, deployTargets, stepRunning } from "../mission/deploy-model";
 import { latestRun } from "../mission/mission-model";
 import { ReleaseMenu } from "../mission/release-menu";
 import { MoltenWave } from "../molten-button";
@@ -18,6 +21,7 @@ import { WorkspaceIcon } from "../workspace-icon";
 import { WorkspaceIconSource, workspaceIconSource } from "../workspace-icon-model";
 import {
     countsLine,
+    NextStation,
     nextStation,
     NextStationState,
     runCiTarget,
@@ -31,13 +35,23 @@ import { ProjectCardProps } from "./project-context";
 
 const LatestShown = 3;
 
+const WarningChipClass = "border-warning/50 bg-warning/10 text-warning";
+
 // Only a decision asks for something: it gets the warning tone, the other states stay calm.
 const ChipClass: Record<NextStationState, string> = {
-    decision: "border-warning/50 bg-warning/10 text-warning",
+    decision: WarningChipClass,
     chosen: "border-accent/50 bg-[color-mix(in_srgb,var(--mt-accent)_10%,transparent)] text-primary",
     derived: "border-border text-secondary",
     nothing: "border-border text-muted",
 };
+
+// A chip that shows the due date asks for attention only once the day has come or passed.
+function chipClass(station: NextStation): string {
+    if (station.chiptitle == null) {
+        return ChipClass[station.state];
+    }
+    return station.urgent ? WarningChipClass : ChipClass.derived;
+}
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
     return <span className="text-11 font-semibold tracking-[0.14em] text-muted uppercase">{children}</span>;
@@ -66,18 +80,11 @@ function ProjectBadge({ name, source }: { name: string; source: WorkspaceIconSou
     );
 }
 
-// The station's due date and the milestone after it, beside the version: small and muted, so the band keeps its look.
+// The milestone after the station's, beside the version: small and muted, so the band keeps its look. The station's
+// own due date is in the chip.
 function StationScheduleText({ schedule }: { schedule: StationSchedule }) {
     return (
         <span className="flex items-baseline gap-2 text-12 text-muted" data-testid="next-station-schedule">
-            {schedule.due ? (
-                <span
-                    className={cn(schedule.overdue && "text-warning")}
-                    title={schedule.overdue ? "Overdue" : undefined}
-                >
-                    {schedule.due}
-                </span>
-            ) : null}
             {schedule.then ? (
                 // A button, not a link: Wave's link colour would make the line louder than the band around it.
                 <button
@@ -106,16 +113,17 @@ function ChangeText({ item }: { item: TickerItem }) {
 // The latest changes waiting on the trunk, newest first, as a fixed list (FR-SHELL-057, DS-SHELL-099): nothing moves
 // by itself; the Waiting count above says how many there are in all.
 function LatestChanges({ items, trunk, total }: { items: TickerItem[]; trunk: string; total: number }) {
+    const t = useT();
     const shown = items.slice(0, LatestShown);
     // The items stop at the ticker cap; the Waiting count above holds them all.
     const more = Math.max(total ?? 0, items.length) - shown.length;
     return (
         <section
-            aria-label={`Latest changes waiting on ${trunk}`}
+            aria-label={t("project.latest.aria", { trunk })}
             className="flex flex-col gap-1 border-t border-border bg-background/60 px-4 py-2 @min-[42rem]:px-6"
             data-testid="next-station-latest"
         >
-            <Eyebrow>Latest on {trunk}</Eyebrow>
+            <Eyebrow>{t("project.latest.heading", { trunk })}</Eyebrow>
             <ul className="flex min-w-0 flex-col text-12 text-secondary">
                 {shown.map((item) => (
                     <li key={item.key} className="flex h-6 min-w-0 items-center">
@@ -127,7 +135,7 @@ function LatestChanges({ items, trunk, total }: { items: TickerItem[]; trunk: st
                                     fireAndForget(() => openLink(item.url));
                                 }}
                                 className="min-w-0 cursor-pointer truncate rounded-4 hover:text-primary"
-                                title={`Open #${item.ticket} on GitHub`}
+                                title={t("project.latest.openTicket", { ticket: item.ticket })}
                             >
                                 <ChangeText item={item} />
                             </a>
@@ -141,7 +149,7 @@ function LatestChanges({ items, trunk, total }: { items: TickerItem[]; trunk: st
             </ul>
             {more > 0 ? (
                 <span className="text-11 text-muted">
-                    and {more} more change{more === 1 ? "" : "s"}
+                    {more === 1 ? t("project.latest.moreOne") : t("project.latest.more", { count: more })}
                 </span>
             ) : null}
         </section>
@@ -159,17 +167,20 @@ export function NextStationHeader({
     reloadRelease,
     refresh,
     startBuild,
+    startStep,
     runCi,
     showRuns,
 }: ProjectCardProps) {
+    const t = useT();
+    const locale = useLocale();
     const git = snapshot?.git;
-    const station = useMemo(() => nextStation(git, release), [git, release]);
     const milestones = snapshot?.github?.milestones;
+    const station = useMemo(() => nextStation(git, release, milestones), [git, release, milestones, locale]);
     const schedule = useMemo(
         () => stationSchedule(station, milestones, git?.tagprefix),
         [station, milestones, git?.tagprefix]
     );
-    const counts = useMemo(() => waitingCounts(git), [git]);
+    const counts = useMemo(() => waitingCounts(git), [git, locale]);
     const items = useMemo(() => tickerItems(git), [git]);
     const target = runCiTarget(git, pipeline, ci);
     const lastBuild = latestRun(runs, "build");
@@ -182,30 +193,31 @@ export function NextStationHeader({
                 <div className="flex min-w-0 items-center gap-x-7 gap-y-4 @max-[30rem]:flex-wrap">
                     <ProjectBadge name={projectName} source={iconSource} />
                     <div className="flex min-w-0 flex-col gap-0.5" data-testid="next-station-version">
-                        <Eyebrow>Next station</Eyebrow>
+                        <Eyebrow>{t("project.station.heading")}</Eyebrow>
                         <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
                             <span className="text-32 leading-none font-semibold tracking-tight text-primary">
-                                {station?.tag ?? (station ? "Nothing yet" : "…")}
+                                {station?.tag ?? (station ? t("project.station.nothingYet") : "…")}
                             </span>
                             {station?.chip ? (
                                 <span
                                     className={cn(
                                         "rounded-4 border px-2 py-0.5 text-12 font-semibold",
-                                        ChipClass[station.state]
+                                        chipClass(station)
                                     )}
+                                    title={station.chiptitle}
                                     data-testid="next-station-state"
                                 >
                                     {station.chip}
                                 </span>
                             ) : null}
-                            {schedule ? <StationScheduleText schedule={schedule} /> : null}
+                            {schedule?.then ? <StationScheduleText schedule={schedule} /> : null}
                         </div>
-                        <span className="text-13 text-secondary">{station?.note ?? "Reading the history…"}</span>
+                        <span className="text-13 text-secondary">{station?.note ?? t("project.station.reading")}</span>
                     </div>
                 </div>
                 <div className="hidden w-px self-stretch bg-border @min-[42rem]:block" aria-hidden />
                 <div className="flex min-w-0 flex-col gap-0.5" data-testid="next-station-waiting">
-                    <Eyebrow>{counts?.title ?? `Waiting on ${trunk}`}</Eyebrow>
+                    <Eyebrow>{counts?.title ?? t("project.waiting.title", { trunk })}</Eyebrow>
                     <div className="flex items-baseline gap-2.5">
                         <span className="text-32 leading-none font-semibold text-[var(--mt-accent)] tabular-nums">
                             {counts?.total ?? "…"}
@@ -225,10 +237,10 @@ export function NextStationHeader({
                             type="button"
                             className={ActionPrimaryClass}
                             onClick={showRuns}
-                            title={`The local CI runs on ${target.branch}: show it`}
+                            title={t("project.runCi.runningTitle", { branch: target.branch })}
                         >
                             <RunningDot className="text-current" />
-                            CI on {target.branch}…
+                            {t("project.runCi.running", { branch: target.branch })}
                             <MoltenWave />
                         </button>
                     ) : (
@@ -237,10 +249,10 @@ export function NextStationHeader({
                             className={ActionPrimaryClass}
                             disabled={target.disabled != null}
                             onClick={() => runCi(target.branch)}
-                            title={target.disabled ?? `Run the local CI on ${target.branch}, whatever is checked out`}
+                            title={target.disabled ?? t("project.runCi.title", { branch: target.branch })}
                         >
                             <i className="fa fa-solid fa-play text-11" />
-                            Run CI on {target.branch || trunk}
+                            {t("project.runCi.button", { branch: target.branch || trunk })}
                             <MoltenWave />
                         </button>
                     )}
@@ -267,10 +279,17 @@ export function NextStationHeader({
                             onShowRelease={showRuns}
                         />
                     ) : null}
+                    <DeployMenu
+                        targets={deployTargets(pipeline, runs)}
+                        revision={deployRevision(git)}
+                        busy={stepRunning(runs)}
+                        onRun={startStep}
+                        onShowRun={showRuns}
+                    />
                     <BranchCleanupButton dir={project.dir} onCleaned={refresh} />
                     {pipeline ? null : (
                         <p className="basis-full text-11 text-muted @min-[64rem]:text-right">
-                            Build local and Release appear once the pipeline is connected.
+                            {t("project.noPipelineActions")}
                         </p>
                     )}
                 </div>

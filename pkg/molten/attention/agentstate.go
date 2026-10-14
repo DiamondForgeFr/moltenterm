@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentnames"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -139,6 +140,10 @@ type agentRecord struct {
 	pidStart int64
 	// fromActivity: the working state came from the pane's output activity (agentactivity.go), which also ends it.
 	fromActivity bool
+	// settings: the run's model and effort level as the agent reported them (#549); a new record starts without.
+	settings molten.AgentSettings
+	// firstName: the pane's agent name (FR-CONT-014), held from the names allocator while the record lives.
+	firstName string
 }
 
 type noticeMark struct {
@@ -170,6 +175,10 @@ type agentStates struct {
 	notify  func(blockId string, signal AttentionSignal, kind string)
 	// procs: the process-tree watcher (procwatch.go), told when commands start and end; nil in tests.
 	procs *procWatcher
+	// names: the first names of the app's active agents, one per block with a record (FR-CONT-014). onNamed is told,
+	// with the lock held, when a block gets a name it did not have last (to remember it in the block's meta).
+	names   *agentnames.Allocator
+	onNamed func(blockId string, name string)
 }
 
 func makeAgentStates() *agentStates {
@@ -179,6 +188,7 @@ func makeAgentStates() *agentStates {
 		notices:      map[string]noticeMark{},
 		panes:        map[string]*paneActivity{},
 		hookedAgents: map[string]bool{},
+		names:        agentnames.MakeAllocator(agentnames.Names),
 		wake:         make(chan struct{}, 1),
 		now:          time.Now,
 		locate:       locateBlock,
@@ -199,6 +209,9 @@ func makeDefaultAgentStates() *agentStates {
 	}
 	a.onRunEnd = func(blockId string) {
 		defaultIntegrationReports.forget(blockId)
+	}
+	a.onNamed = func(blockId string, name string) {
+		go rememberAgentName(a, blockId)
 	}
 	a.integratedRun = func(blockId string, run agentRunRecord) bool {
 		rep, ok := defaultIntegrationReports.current(blockId, run, true)
@@ -241,11 +254,23 @@ func (a *agentStates) setStateLocked(blockId string, rec *agentRecord, state str
 	return true
 }
 
+// putRecordLocked stores a block's new agent record with the block's first name: the one its agent holds when the
+// record replaces another (a new run in the same pane keeps it), else one from the allocator.
+func (a *agentStates) putRecordLocked(blockId string, rec *agentRecord) {
+	name, fresh := a.names.Take(blockId)
+	rec.firstName = name
+	a.records[blockId] = rec
+	if fresh && a.onNamed != nil {
+		a.onNamed(blockId, name)
+	}
+}
+
 func (a *agentStates) removeLocked(blockId string) {
 	if a.records[blockId] == nil {
 		return
 	}
 	delete(a.records, blockId)
+	a.names.Release(blockId)
 	a.markDirtyLocked(blockId)
 	if a.onRunEnd != nil {
 		a.onRunEnd(blockId)
@@ -272,7 +297,7 @@ func (a *agentStates) applyShellMark(blockId string, mark ShellMark) {
 			return
 		}
 		now := a.now().UnixMilli()
-		a.records[blockId] = &agentRecord{agent: agent, state: molten.AgentStateIdle, since: now, started: now, running: true, source: sourceCommand}
+		a.putRecordLocked(blockId, &agentRecord{agent: agent, state: molten.AgentStateIdle, since: now, started: now, running: true, source: sourceCommand})
 		a.markDirtyLocked(blockId)
 	case ShellMarkDone:
 		if rec == nil || !rec.running {
@@ -339,7 +364,7 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 			return nil, "", fmt.Errorf("no agent is known in this terminal: name it with --agent")
 		}
 		rec = &agentRecord{agent: req.Agent, running: true, started: a.now().UnixMilli(), source: sourceHook}
-		a.records[req.BlockId] = rec
+		a.putRecordLocked(req.BlockId, rec)
 	}
 	rec.running = true
 	previous := rec.state
@@ -349,6 +374,7 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		rec.located = false
 		rec.source = sourceHook
 		rec.pid, rec.pidStart = 0, 0
+		rec.settings = molten.AgentSettings{}
 		a.markDirtyLocked(req.BlockId)
 	}
 	if !req.TurnEnd {
@@ -367,7 +393,7 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 	if !a.allowNoticeLocked(req.BlockId, noticeFromHook) {
 		return nil, "", nil
 	}
-	name := molten.AgentDisplayName(rec.agent)
+	name := molten.AgentCallName(rec.firstName, rec.agent)
 	if req.State == molten.AgentStateWaiting {
 		return &AttentionSignal{Title: name + " is waiting for you", Message: message}, "warning", nil
 	}
@@ -405,6 +431,7 @@ func (a *agentStates) forgetRecord(blockId string) {
 	delete(a.notices, blockId)
 	delete(a.panes, blockId)
 	a.removeLocked(blockId)
+	a.names.Forget(blockId)
 }
 
 // processAgent applies what the process tree says of a terminal (procwatch.go). found: the agent running in its
@@ -433,7 +460,7 @@ func (a *agentStates) processAgent(blockId string, found molten.AgentProcess, ok
 	if started <= 0 || started > now {
 		started = now
 	}
-	a.records[blockId] = &agentRecord{agent: found.Agent, state: molten.AgentStateIdle, since: now, started: started, running: true, source: sourceProcess, pid: found.Pid, pidStart: found.StartMs}
+	a.putRecordLocked(blockId, &agentRecord{agent: found.Agent, state: molten.AgentStateIdle, since: now, started: started, running: true, source: sourceProcess, pid: found.Pid, pidStart: found.StartMs})
 	a.markDirtyLocked(blockId)
 }
 
@@ -444,12 +471,42 @@ func (a *agentStates) infoLocked(blockId string, rec *agentRecord) molten.AgentS
 		WorkspaceId: rec.wsId,
 		Agent:       rec.agent,
 		AgentName:   molten.AgentDisplayName(rec.agent),
+		FirstName:   rec.firstName,
 		State:       rec.state,
 		Message:     rec.message,
 		Since:       rec.since,
 		Version:     rec.version,
 		Hooked:      a.hookedAgents[rec.agent],
+		Model:       rec.settings.Model,
+		ModelName:   rec.settings.ModelName,
+		Effort:      rec.settings.Effort,
 	}
+}
+
+// setSettings records what an agent reports of its run's model and effort (#549) for the block's running agent of
+// that id; a report for another agent, or a block without one, changes nothing.
+func (a *agentStates) setSettings(blockId string, agent string, settings molten.AgentSettings) bool {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	rec := a.records[blockId]
+	if rec == nil || !rec.running || rec.agent != agent || rec.settings == settings {
+		return false
+	}
+	rec.settings = settings
+	a.markDirtyLocked(blockId)
+	return true
+}
+
+// clearEffort forgets the run's effort level: MoltenTerm just changed it and the agent has not reported the new one.
+func (a *agentStates) clearEffort(blockId string, agent string) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	rec := a.records[blockId]
+	if rec == nil || rec.agent != agent || rec.settings.Effort == "" {
+		return
+	}
+	rec.settings.Effort = ""
+	a.markDirtyLocked(blockId)
 }
 
 // agentHookedLocked notes the first report of an agent's hooks: every terminal running it is published again, so
@@ -660,7 +717,7 @@ func (a *agentStates) runOf(blockId string) (molten.AgentRunInfo, bool) {
 	if rec == nil {
 		return molten.AgentRunInfo{}, false
 	}
-	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart}, true
+	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName}, true
 }
 
 func (a *agentStates) allRuns() []molten.AgentRunInfo {
@@ -668,9 +725,19 @@ func (a *agentStates) allRuns() []molten.AgentRunInfo {
 	defer a.lock.Unlock()
 	rtn := make([]molten.AgentRunInfo, 0, len(a.records))
 	for blockId, rec := range a.records {
-		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart})
+		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, FirstName: rec.firstName})
 	}
 	return rtn
+}
+
+// SetAgentSettings records the model and effort level a block's agent reports for its run (#549).
+func SetAgentSettings(blockId string, agent string, settings molten.AgentSettings) {
+	defaultAgentStates.setSettings(blockId, agent, settings)
+}
+
+// ClearAgentEffort forgets a block's effort level until its agent reports it again (#549).
+func ClearAgentEffort(blockId string, agent string) {
+	defaultAgentStates.clearEffort(blockId, agent)
 }
 
 func AgentStatesSnapshot() []molten.AgentStateInfo {
@@ -689,6 +756,7 @@ var startOnce sync.Once
 // StartAgentStates starts the publisher; wavesrv calls it once at startup.
 func StartAgentStates() {
 	startOnce.Do(func() {
+		loadAgentNames(defaultAgentStates)
 		go defaultAgentStates.run()
 		go defaultAgentStates.runSettle()
 		defaultProcWatcher.locator = getShellLocator()

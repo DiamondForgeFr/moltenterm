@@ -6,6 +6,7 @@ import { cn } from "@/util/util";
 import clsx from "clsx";
 import { forwardRef } from "react";
 import ReactDOM from "react-dom";
+import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 
 import "./modal.scss";
 
@@ -92,21 +93,22 @@ interface ModalFooterProps {
 const ModalFooter = ({
     onCancel,
     onOk,
-    cancelLabel = "Cancel",
-    okLabel = "Ok",
+    cancelLabel, // MOLTENTERM-PATCH (#623): the defaults below are keys
+    okLabel,
     okDisabled,
     cancelDisabled,
 }: ModalFooterProps) => {
+    const t = useT(); // MOLTENTERM-PATCH (#623)
     return (
         <footer className="modal-footer">
             {onCancel && (
                 <Button className="grey ghost" onClick={onCancel} disabled={cancelDisabled}>
-                    {cancelLabel}
+                    {cancelLabel ?? t("common.cancel")}
                 </Button>
             )}
             {onOk && (
                 <Button onClick={onOk} disabled={okDisabled}>
-                    {okLabel}
+                    {okLabel ?? t("common.ok")}
                 </Button>
             )}
         </footer>

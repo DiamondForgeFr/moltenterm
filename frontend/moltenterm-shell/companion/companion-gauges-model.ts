@@ -4,6 +4,7 @@
 // The plan usage gauges of the agent companion (FR-SHELL-027, DS-SHELL-030): what wavesrv reads of an agent's plan
 // limits (pkg/molten/usage) and the pure rules of their section. Pure, so they are tested without a window.
 
+import { getLocale, t } from "../i18n/i18n";
 import { relativeTime } from "./companion-model";
 
 // must match pkg/molten/usage/usage.go and pkg/molten/companion/usage.go
@@ -56,41 +57,47 @@ export type CompanionUsageInfo = {
     refreshms?: number;
 };
 
-// The plain words of an unavailable source, shown as the muted line's tooltip.
-export const UsageReasonTexts: Record<UsageReason, string> = {
-    notsetup: "Status line not set up",
-    waiting: "Waiting for Claude Code's status line: it gives the limits after its next response",
-    noplan: "Not on a Pro or Max plan",
-    format: "Source changed: this version of MoltenTerm cannot read it",
-    expired: "The limits were reset: new values come with the next response",
-    failed: "The source could not be read",
-    signedout: "Claude Code is not signed in: sign in from Claude Code, MoltenTerm never asks",
-    tokenexpired: "Claude Code's sign-in has expired: Claude Code renews it the next time it runs",
-    denied: "Anthropic refused Claude Code's sign-in token",
-    ratelimited: "Anthropic asked to wait: MoltenTerm asks again later",
-    offline: "Anthropic's usage endpoint could not be reached",
-};
+// The plain words of an unavailable source, shown as the muted line's tooltip (companion.gauges.reason.*).
+export const UsageReasons: UsageReason[] = [
+    "notsetup",
+    "waiting",
+    "noplan",
+    "format",
+    "expired",
+    "failed",
+    "signedout",
+    "tokenexpired",
+    "denied",
+    "ratelimited",
+    "offline",
+];
 
 // Codex's sources are its session log and its app-server (FR-SHELL-029): their own words where Claude Code's differ.
-const AgentReasonTexts: Record<string, Partial<Record<UsageReason, string>>> = {
-    codex: {
-        waiting: "Waiting for Codex: the limits come with its next response",
-        noplan: "Codex reports no plan limits for this sign-in",
-        expired: "The limits were reset: new values come with Codex's next response",
-    },
+const AgentReasons: Record<string, UsageReason[]> = {
+    codex: ["waiting", "noplan", "expired"],
 };
 
 export function usageReasonText(reason: string, agent?: string): string {
-    return (
-        AgentReasonTexts[agent]?.[reason as UsageReason] ??
-        UsageReasonTexts[reason as UsageReason] ??
-        UsageReasonTexts.failed
-    );
+    if (AgentReasons[agent]?.includes(reason as UsageReason)) {
+        return t(`companion.gauges.reason.${agent}.${reason}`);
+    }
+    const known = UsageReasons.includes(reason as UsageReason) ? reason : "failed";
+    return t(`companion.gauges.reason.${known}`);
 }
 
 export type GaugeLevel = "normal" | "warning" | "error";
 
-export type GaugeRow = { id: string; label: string; percent: string; bar: number; level: GaugeLevel; resets: string };
+// percentShort and resetsShort: the compact line's words ("23.5 %", "in 2 h").
+export type GaugeRow = {
+    id: string;
+    label: string;
+    percent: string;
+    percentShort: string;
+    bar: number;
+    level: GaugeLevel;
+    resets: string;
+    resetsShort: string;
+};
 
 export type GaugesView =
     | { kind: "hidden" }
@@ -111,11 +118,17 @@ export function gaugeLevel(percent: number): GaugeLevel {
 
 // Shown as given, to one decimal at most; only the bar is clamped.
 export function gaugePercent(percent: number): string {
-    return `${Math.round(percent * 10) / 10} % used`;
+    return t("companion.gauges.percentUsed", { percent: Math.round(percent * 10) / 10 });
 }
 
-const WeekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MonthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function weekdayName(d: Date): string {
+    return d.toLocaleDateString(getLocale(), { weekday: "short" });
+}
+
+function monthName(d: Date): string {
+    return d.toLocaleDateString(getLocale(), { month: "short" });
+}
+
 const HourMs = 3600 * 1000;
 
 function clockTime(d: Date): string {
@@ -125,24 +138,35 @@ function clockTime(d: Date): string {
 // "Resets in 2 h 14 min" under 24 h; beyond, the weekday and time, with the date when the weekday alone could mean
 // this week's or next week's.
 export function resetText(resetsAt: number, now: number): string {
+    return resetWords(resetsAt, now, false);
+}
+
+// The compact line's reset: "in 2 h 14 min", "Fri 10:00".
+export function resetShortText(resetsAt: number, now: number): string {
+    return resetWords(resetsAt, now, true);
+}
+
+function resetWords(resetsAt: number, now: number, short: boolean): string {
     const ms = (resetsAt || 0) - now;
     if (!resetsAt || ms <= 0) {
         return "";
     }
     const mins = Math.ceil(ms / 60000);
+    const inDelay = (delay: string) => t(short ? "companion.gauges.inDelay" : "companion.gauges.resetsIn", { delay });
+    const at = (when: string) => (short ? when : t("companion.gauges.resetsAt", { when }));
     if (mins < 60) {
-        return `Resets in ${mins} min`;
+        return inDelay(`${mins} min`);
     }
     if (ms < 24 * HourMs) {
         const h = Math.floor(mins / 60);
         const m = mins % 60;
-        return m === 0 ? `Resets in ${h} h` : `Resets in ${h} h ${m} min`;
+        return inDelay(m === 0 ? `${h} h` : `${h} h ${m} min`);
     }
     const d = new Date(resetsAt);
     if (ms < 6 * 24 * HourMs) {
-        return `Resets ${WeekdayNames[d.getDay()]} ${clockTime(d)}`;
+        return at(`${weekdayName(d)} ${clockTime(d)}`);
     }
-    return `Resets ${WeekdayNames[d.getDay()]} ${d.getDate()} ${MonthNames[d.getMonth()]}, ${clockTime(d)}`;
+    return at(`${weekdayName(d)} ${d.getDate()} ${monthName(d)}, ${clockTime(d)}`);
 }
 
 // A window past its reset no longer holds: it is dropped between two reports, as wavesrv drops it.
@@ -153,9 +177,11 @@ export function gaugeRows(snapshot: UsageSnapshot, now: number): GaugeRow[] {
             id: w.id,
             label: w.label || w.id,
             percent: gaugePercent(w.usedpercent),
+            percentShort: `${Math.round(w.usedpercent * 10) / 10} %`,
             bar: Math.min(100, Math.max(0, w.usedpercent)),
             level: gaugeLevel(w.usedpercent),
             resets: resetText(w.resetsat, now),
+            resetsShort: resetShortText(w.resetsat, now),
         }));
 }
 
@@ -175,32 +201,36 @@ export function creditsText(credits: UsageCredits): string {
         return "";
     }
     if (credits.unlimited) {
-        return "Credits: unlimited";
+        return t("companion.gauges.creditsUnlimited");
     }
     if (credits.balance != null && credits.balance !== "") {
         const n = Number(credits.balance);
         const balance = Number.isFinite(n) ? String(Math.round(n * 100) / 100) : credits.balance;
-        return `Credits: ${balance} left`;
+        return t("companion.gauges.creditsLeft", { balance });
     }
     if (!credits.limit && !credits.used) {
-        return "Credits available";
+        return t("companion.gauges.creditsAvailable");
     }
-    return `Extra usage: ${creditAmount(credits.used, credits.unit)} of ${creditAmount(credits.limit, credits.unit)}`;
+    return t("companion.gauges.extraUsage", {
+        used: creditAmount(credits.used, credits.unit),
+        limit: creditAmount(credits.limit, credits.unit),
+    });
 }
 
 export type ExperimentalView = { kind: "none" } | { kind: "off"; statement: string } | { kind: "on"; reason: string };
 
-export const ExperimentalLabel = "Experimental · undocumented source";
-export const ExperimentalExplanation =
-    "Also reads each model's weekly limit and extra usage credits from an undocumented Anthropic endpoint.";
+export function experimentalLabel(): string {
+    return t("companion.gauges.experimentalLabel");
+}
+
+export function experimentalExplanation(): string {
+    return t("companion.gauges.experimentalExplanation");
+}
 
 // The confirmation of FR-SHELL-028-AC1, naming where the token is read.
 export function experimentalStatement(store: string): string {
-    const where = store || "where Claude Code keeps it";
-    return (
-        `MoltenTerm will read your Claude Code sign-in token from ${where} to ask Anthropic for your plan usage. ` +
-        "The token stays in memory, is never saved or sent anywhere else. Undocumented: it may stop working."
-    );
+    const where = store || t("companion.gauges.tokenWhereDefault");
+    return t("companion.gauges.experimentalStatement", { where });
 }
 
 // The experimental source's row: offered while the gauges are on, its reason when it gives nothing.
@@ -242,7 +272,7 @@ export function gaugesView(info: CompanionUsageInfo, now: number): GaugesView {
         kind: "enabled",
         rows,
         source: info.sourcename ?? "",
-        age: at ? `Updated ${relativeTime(at, now)}` : "",
+        age: at ? t("companion.gauges.updated", { ago: relativeTime(at, now) }) : "",
         credits,
     };
 }

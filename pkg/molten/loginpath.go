@@ -22,10 +22,18 @@ const loginPathTimeout = 8 * time.Second
 var loginPathOnce sync.Once
 var loginPath string
 
+// LoginPathEnv replaces the login shell's PATH: a test instance names its fake gh and agents there, since the login
+// shell would put the real ones back in front of the PATH it was given.
+const LoginPathEnv = "MOLTENTERM_LOGIN_PATH"
+
 // A Moltenterm opened from the Finder gets a bare PATH; git, gh, the project's tools and the coding agents are found
 // through the user's login shell, read once.
 func LoginPath() string {
 	loginPathOnce.Do(func() {
+		if override := os.Getenv(LoginPathEnv); override != "" {
+			loginPath = override
+			return
+		}
 		loginPath = os.Getenv("PATH")
 		if runtime.GOOS == "windows" {
 			return

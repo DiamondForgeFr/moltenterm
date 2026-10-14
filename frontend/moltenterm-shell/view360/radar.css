@@ -1,0 +1,165 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* The radar scrubber of the carpet (FR-SHELL-068, DS-SHELL-119): short ticks centred at the bottom of the carpet, the
+   ones in view taller and brighter inside a dark pill, the one needing attention orange with a glow that pulses. The
+   pulse animates only the glow's opacity, so it stays on the compositor. */
+
+.mt-radar {
+    --mt-radar-attention: #f97316;
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.mt-radar-ticks {
+    display: flex;
+    align-items: center;
+    pointer-events: auto;
+}
+
+.mt-radar-pill {
+    display: flex;
+    align-items: center;
+    padding: 3px 8px;
+    margin: 0 2px;
+    /* 9999px: the build caps every smaller radius to the shell's scale (cap-radius.ts). */
+    border-radius: 9999px;
+    background: #1c1c1e;
+    border: 1px solid #2e2e30;
+    cursor: grab;
+    transition: border-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-radar-pill:hover {
+    border-color: #3a3a3d;
+}
+
+.mt-radar-pill.dragging {
+    cursor: grabbing;
+    border-color: color-mix(in srgb, var(--mt-accent) 45%, #2e2e30);
+}
+
+.mt-radar-hit {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 16px;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: none;
+    outline: none;
+}
+
+.mt-radar-tick {
+    position: relative;
+    display: block;
+    width: 2px;
+    height: 10px;
+    border-radius: 9999px;
+    background: var(--mt-radar-color);
+    opacity: 0.4;
+    transition:
+        height var(--mt-duration-fast) var(--mt-ease),
+        opacity var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-radar-hit[data-visible] .mt-radar-tick {
+    height: 14px;
+    opacity: 1;
+}
+
+.mt-radar-hit:hover .mt-radar-tick,
+.mt-radar-hit:focus-visible .mt-radar-tick {
+    height: 14px;
+    opacity: 1;
+}
+
+.mt-radar-hit:focus-visible {
+    outline: 1px solid color-mix(in srgb, var(--mt-accent) 70%, transparent);
+    outline-offset: -2px;
+    border-radius: var(--mt-radius-4);
+}
+
+.mt-radar-hit[data-attention] .mt-radar-tick {
+    height: 14px;
+    opacity: 1;
+    background: var(--mt-radar-attention);
+}
+
+.mt-radar-hit[data-attention] .mt-radar-tick::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    box-shadow:
+        0 0 0 3px rgb(249 115 22 / 0.25),
+        0 0 10px rgb(249 115 22 / 0.7);
+    animation: mt-radar-pulse var(--mt-duration-loop) ease-in-out infinite;
+}
+
+@keyframes mt-radar-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.25;
+    }
+}
+
+/* Standing still, the glow stays on. */
+@media (prefers-reduced-motion: reduce) {
+    .mt-radar-hit[data-attention] .mt-radar-tick::after {
+        animation: none;
+    }
+}
+
+.prefers-reduced-motion .mt-radar-hit[data-attention] .mt-radar-tick::after {
+    animation: none;
+}
+
+.mt-radar-card {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    padding: 9px 11px;
+    border-radius: var(--mt-radius-10);
+    background: #1c1c1e;
+    border: 1px solid #333336;
+    box-shadow: 0 10px 24px rgb(0 0 0 / 0.6);
+    font-family: var(--mt-ui-font);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.mt-radar-card[data-attention] {
+    border-color: #9a3412;
+}
+
+.mt-radar-card b {
+    display: block;
+    margin-bottom: 4px;
+    overflow: hidden;
+    color: #f5f5f4;
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-medium);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-radar-card i {
+    display: block;
+    color: #a8a29e;
+    font-size: var(--mt-text-11);
+    font-style: normal;
+}
+
+.mt-radar-card[data-attention] i {
+    color: #fdba74;
+}

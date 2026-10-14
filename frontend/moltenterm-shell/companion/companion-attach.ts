@@ -12,6 +12,7 @@ import { getActiveTabModel } from "@/app/store/tab-model";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { t } from "../i18n/i18n";
 import { AgentBlockDef, typeCommandWhenReady } from "../palette/palette-actions";
 import { readAgentPresets } from "../palette/palette-sources";
 import { pathBaseName } from "../workspace-project";
@@ -35,7 +36,7 @@ export function attachCandidates(blocks: Block[], current: string): AttachCandid
         const where = conn && conn !== "local" ? `${folder} · ${conn}` : folder;
         rtn.push({
             blockId: block.oid,
-            label: `Terminal ${rtn.length + 1} · ${where}`,
+            label: t("companion.attachTerminal", { n: rtn.length + 1, where }),
             current: block.oid === current,
         });
     }

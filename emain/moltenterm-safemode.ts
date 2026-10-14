@@ -3,6 +3,7 @@
 
 import * as electron from "electron";
 import { MoltentermSafeModeArg, MoltentermSafeModeVarName } from "../frontend/util/moltenterm-safemode";
+import { mt } from "./moltenterm-i18n";
 
 // Runs when the module loads, before wavesrv and the windows start: they read safe mode from the environment
 // (renderers through the get-env IPC), so the relaunch argument is turned into the variable here.
@@ -28,7 +29,7 @@ function relaunchMoltenterm(safeMode: boolean) {
 
 export function makeMoltentermSafeModeMenuItem(): electron.MenuItemConstructorOptions {
     if (isMoltentermSafeMode()) {
-        return { label: "Restart Normally", click: () => relaunchMoltenterm(false) };
+        return { label: mt("appMenu.safeModeLeave"), click: () => relaunchMoltenterm(false) };
     }
-    return { label: "Restart in Safe Mode", click: () => relaunchMoltenterm(true) };
+    return { label: mt("appMenu.safeModeRestart"), click: () => relaunchMoltenterm(true) };
 }

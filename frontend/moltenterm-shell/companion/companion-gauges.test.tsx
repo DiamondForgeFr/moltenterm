@@ -15,7 +15,6 @@ import {
     usageFor,
     usageReadFor,
     usageReasonText,
-    UsageReasonTexts,
     usageStale,
     UsageStaleMs,
 } from "./companion-gauges-model";
@@ -115,7 +114,7 @@ describe("plan usage rules", () => {
         expect(view.kind === "enabled" && view.rows.map((r) => r.id)).toEqual(["week"]);
         expect(gaugesView(enabled, now + 4 * 24 * Hour)).toEqual({
             kind: "unavailable",
-            reason: UsageReasonTexts.expired,
+            reason: usageReasonText("expired"),
         });
     });
 
@@ -134,7 +133,7 @@ describe("plan usage rules", () => {
         });
         expect(gaugesView({ ...enabled, gauges: "unavailable", reason: "bogus" as any }, now)).toEqual({
             kind: "unavailable",
-            reason: UsageReasonTexts.failed,
+            reason: usageReasonText("failed"),
         });
         const view = gaugesView(enabled, now);
         expect(view.kind === "enabled" && [view.source, view.age]).toEqual([
@@ -187,6 +186,47 @@ describe("plan usage section", () => {
         expect(html).toMatch(/bg-warning[^"]*" style="width:82%/);
         expect(html).toContain('aria-label="Refresh plan usage"');
         expect(html).toContain(">Hide</button>");
+    });
+
+    it("is one line per limit in its compact form, the details a click away (#555)", () => {
+        const onDetails = vi.fn();
+        const html = renderToStaticMarkup(
+            <PlanUsageBody view={gaugesView(enabled, now)} {...noop} compact onDetails={onDetails} />
+        );
+        expect(html).toContain('data-compact="true"');
+        expect(html.match(/data-testid="companion-gauge"/g)).toHaveLength(2);
+        expect(html).toContain(">23.5 %<");
+        expect(html).toContain(">in 2 h 14 min<");
+        expect(html).toContain(">Fri 10:00<");
+        expect(html).toContain("From the Claude Code status line · Updated 3 min ago");
+        expect(html).toContain('aria-label="Plan usage details"');
+        expect(html).not.toContain("Experimental");
+        expect(html).not.toContain(">Hide</button>");
+        const full = renderToStaticMarkup(
+            <PlanUsageBody view={gaugesView(enabled, now)} {...noop} compact={false} onDetails={onDetails} />
+        );
+        expect(full).toContain('aria-label="Compact plan usage"');
+        expect(full).toContain(">Hide</button>");
+    });
+
+    it("keeps the limits beyond two and the credits in the details", () => {
+        const many: CompanionUsageInfo = {
+            ...enabled,
+            snapshot: {
+                ...enabled.snapshot,
+                windows: [
+                    ...enabled.snapshot.windows,
+                    { id: "opus", label: "Opus this week", usedpercent: 10, resetsat: now + 3 * 24 * Hour },
+                ],
+                credits: { enabled: true, used: 5, limit: 50, unit: "USD" },
+            },
+        };
+        const html = renderToStaticMarkup(
+            <PlanUsageBody view={gaugesView(many, now)} {...noop} compact onDetails={() => {}} />
+        );
+        expect(html.match(/data-testid="companion-gauge"/g)).toHaveLength(2);
+        expect(html).not.toContain("Opus this week");
+        expect(html).toContain(">+2<");
     });
 
     it("collapses to one muted line on failure, with the reason as tooltip and Hide kept", () => {
@@ -281,7 +321,7 @@ describe("Codex plan usage", () => {
     it("gives Codex's own reasons", () => {
         expect(usageReasonText("waiting", "codex")).toBe("Waiting for Codex: the limits come with its next response");
         expect(usageReasonText("noplan", "codex")).toBe("Codex reports no plan limits for this sign-in");
-        expect(usageReasonText("format", "codex")).toBe(UsageReasonTexts.format);
+        expect(usageReasonText("format", "codex")).toBe(usageReasonText("format"));
         expect(usageReasonText("noplan", "claude")).toBe("Not on a Pro or Max plan");
         const html = markup({ ...codex, gauges: "unavailable", reason: "waiting", snapshot: undefined });
         expect(html).toContain('title="Waiting for Codex: the limits come with its next response"');

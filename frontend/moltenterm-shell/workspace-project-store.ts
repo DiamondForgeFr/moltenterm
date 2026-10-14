@@ -12,11 +12,12 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { MoltentermChoosePathOpts } from "@/util/moltenterm-dialogs";
 import { base64ToString } from "@/util/util";
+import { WorkspaceGradientMetaKey } from "./accent";
 import { pushRecentFolder } from "./palette/palette-sources";
 import { ProjectDismissedMetaKey, projectOfGitFile } from "./project-detect";
 import {
-    linkUpdate,
     declaredProjectIcon,
+    linkUpdate,
     logoProbeOrder,
     MaxProjectLogos,
     pathParent,
@@ -142,7 +143,10 @@ async function readReadme(dir: string): Promise<string> {
 
 // The images that could stand for the project, best first (same rules as molten project logo).
 export async function findProjectLogos(dir: string): Promise<string[]> {
-    const [readme, pipeline] = await Promise.all([readReadme(dir), readJson(projectFilePath(dir, ProjectPipelineFile))]);
+    const [readme, pipeline] = await Promise.all([
+        readReadme(dir),
+        readJson(projectFilePath(dir, ProjectPipelineFile)),
+    ]);
     const order = logoProbeOrder(readmeFirstImage(readme), declaredProjectIcon(pipeline));
     const paths = order.map((rel) => projectFilePath(dir, rel)).filter((p) => p != null);
     const infos = await Promise.all(paths.map((p) => statPath(p)));
@@ -182,6 +186,11 @@ export async function setWorkspaceFolder(workspaceId: string, folder: string): P
 
 export async function setWorkspaceLogo(workspaceId: string, logo: string): Promise<void> {
     await setWorkspaceMeta(workspaceId, { [ProjectLogoMetaKey]: logo || null });
+}
+
+// A gradient's stops ("#a,#b[,#c]", accent.ts), or null for a flat colour.
+export async function setWorkspaceGradient(workspaceId: string, gradient: string): Promise<void> {
+    await setWorkspaceMeta(workspaceId, { [WorkspaceGradientMetaKey]: gradient || null });
 }
 
 // The offer of the project's logo is made once per linked project (#77): remembered whatever the answer.

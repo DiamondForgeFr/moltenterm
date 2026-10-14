@@ -7,6 +7,7 @@
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
+import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-button";
 import { MenuPopover } from "./menu-popover";
@@ -45,6 +46,7 @@ export function ReleaseMenu({
     onStarted: () => void;
     onShowRelease: () => void;
 }) {
+    const t = useT();
     const [open, setOpen] = useState(false);
     const [plan, setPlan] = useState<ReleasePlan>(null);
     const [choice, setChoice] = useState<ReleaseChannel>(null);
@@ -71,7 +73,7 @@ export function ReleaseMenu({
                     return;
                 }
                 if (snap?.git == null) {
-                    setError(snap?.giterror || "The project's git history could not be read.");
+                    setError(snap?.giterror || t("mc.releaseMenu.noHistory"));
                     return;
                 }
                 const tree = toTreeData(snap.git);
@@ -79,7 +81,7 @@ export function ReleaseMenu({
                 const state = releaseState(tree.tags, snap.git.ahead ?? [], snap.git.sincepublic ?? [], rules);
                 const next = releasePlan(
                     state,
-                    tree.tags.map((t) => t.name),
+                    tree.tags.map((tagRef) => tagRef.name),
                     rules
                 );
                 setPlan(next);
@@ -130,7 +132,7 @@ export function ReleaseMenu({
         return (
             <button type="button" onClick={onShowRelease} className={ActionRunningClass}>
                 <RunningDot />
-                Release {session.tag}
+                {t("mc.releaseMenu.running", { tag: session.tag })}
             </button>
         );
     }
@@ -170,20 +172,20 @@ export function ReleaseMenu({
         });
     const publicTitle =
         plan?.publicVersion && !plan.publicIsDecision
-            ? `Public release ${plan.prefix}${plan.publicVersion}`
-            : "Public release";
+            ? t("mc.releaseMenu.publicTitle", { tag: plan.prefix + plan.publicVersion })
+            : t("mc.releaseMenu.public");
     return (
         <div ref={setAnchor} className="relative">
             <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={ActionSecondaryClass}>
                 <i className="fa fa-solid fa-rocket text-11" />
-                Release
+                {t("mc.releaseMenu.release")}
             </button>
             {open ? (
                 <MenuPopover anchor={anchor} onClose={() => setOpen(false)} className="flex w-80 flex-col gap-2">
                     {plan == null && error == null ? (
                         <div className="flex items-center gap-2 py-2 text-12 text-muted">
                             <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
-                            Computing the numbers…
+                            {t("mc.releaseMenu.computing")}
                         </div>
                     ) : null}
                     {plan != null ? (
@@ -200,12 +202,10 @@ export function ReleaseMenu({
                                 )}
                             >
                                 <div className="text-13 leading-5 font-medium text-primary">
-                                    Release candidate {plan.rc ?? ""}
+                                    {t("mc.releaseMenu.rcTitle", { tag: plan.rc ?? "" })}
                                 </div>
                                 <div className="text-11 text-muted">
-                                    {rcSteps.length
-                                        ? "Internal: offered to nobody, installable by hand."
-                                        : "The pipeline declares no release.rc steps."}
+                                    {rcSteps.length ? t("mc.releaseMenu.rcHint") : t("mc.releaseMenu.noRcSteps")}
                                 </div>
                             </button>
                             <button
@@ -222,15 +222,15 @@ export function ReleaseMenu({
                                 <div className="text-13 leading-5 font-medium text-primary">{publicTitle}</div>
                                 <div className="text-11 text-muted">
                                     {publicSteps.length === 0
-                                        ? "The pipeline declares no release.public steps."
+                                        ? t("mc.releaseMenu.noPublicSteps")
                                         : plan.publicVersion
-                                          ? "Goes to all users on publication."
+                                          ? t("mc.releaseMenu.publicHint")
                                           : plan.reason}
                                 </div>
                             </button>
                             {choice === "public" && plan.publicIsDecision ? (
                                 <label className="flex flex-col gap-1 text-11 text-muted">
-                                    The first public release's number: a choice, not a calculation
+                                    {t("mc.releaseMenu.firstNumber")}
                                     <input
                                         value={version}
                                         onChange={(e) => setVersion(e.target.value.trim())}
@@ -259,7 +259,7 @@ export function ReleaseMenu({
                                 {busy ? (
                                     <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin mr-1.5 text-11" />
                                 ) : null}
-                                {tag ? `Start ${tag}` : "Choose a release"}
+                                {tag ? t("mc.releaseMenu.start", { tag }) : t("mc.releaseMenu.choose")}
                                 <MoltenWave />
                             </button>
                         </>
@@ -281,8 +281,9 @@ export function ReleaseMenu({
 }
 
 function MilestoneNote({ warning, error }: { warning: MilestoneWarning; error: string }) {
+    const t = useT();
     if (error) {
-        return <div className="text-11 text-muted">The milestone could not be read: {error}</div>;
+        return <div className="text-11 text-muted">{t("mc.releaseMenu.milestoneError", { error })}</div>;
     }
     return (
         <div
@@ -304,7 +305,9 @@ function MilestoneNote({ warning, error }: { warning: MilestoneWarning; error: s
                             #{issue.number} {issue.title}
                         </li>
                     ))}
-                    {warning.more ? <li className="text-muted">and {warning.more} more</li> : null}
+                    {warning.more ? (
+                        <li className="text-muted">{t("mc.releaseMenu.andMore", { count: warning.more })}</li>
+                    ) : null}
                 </ul>
             ) : null}
         </div>

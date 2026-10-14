@@ -36,6 +36,9 @@ type fakeEnv struct {
 	siteWrites []string
 	// cdpFn plays the page for the reading tools; without it only Page.getNavigationHistory answers.
 	cdpFn func(key TabKey, method string, params any) (json.RawMessage, error)
+	// typed: the lines typed into terminals ("block: line"); typeRefusal makes TypeLine refuse with it.
+	typed       []string
+	typeRefusal string
 }
 
 func makeFakeEnv() *fakeEnv {
@@ -212,6 +215,16 @@ func (e *fakeEnv) SetControl(key TabKey, controlled bool) {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 	e.control[key] = controlled
+}
+
+func (e *fakeEnv) TypeLine(ctx context.Context, blockId string, line string) TypeLineResult {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	if e.typeRefusal != "" {
+		return TypeLineResult{Message: e.typeRefusal}
+	}
+	e.typed = append(e.typed, blockId+": "+line)
+	return TypeLineResult{Sent: true, Message: "typed"}
 }
 
 func (e *fakeEnv) Publish(state PanelState) {

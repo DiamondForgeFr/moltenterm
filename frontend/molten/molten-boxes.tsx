@@ -9,6 +9,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
+import { useT } from "../moltenterm-shell/i18n/i18n";
 import { TabActivity, whileShown } from "../moltenterm-shell/tab-activity";
 import type { MoltenBoxAction } from "./molten-api";
 import type { MoltenBoxEntry, MoltenHost } from "./molten-host";
@@ -38,6 +39,7 @@ function sameAnchor(a: Anchor, b: Anchor): boolean {
 }
 
 function BoxActionButton({ action }: { action: MoltenBoxAction }) {
+    const t = useT();
     const [feedback, setFeedback] = useState<string>(null);
     useEffect(() => {
         if (feedback == null) {
@@ -51,7 +53,7 @@ function BoxActionButton({ action }: { action: MoltenBoxAction }) {
             const message = await action.run();
             setFeedback(typeof message === "string" && message !== "" ? message : null);
         } catch (e) {
-            setFeedback("Failed");
+            setFeedback(t("molten.box.failed"));
         }
     };
     return (
@@ -72,10 +74,11 @@ function BoxActionButton({ action }: { action: MoltenBoxAction }) {
 }
 
 function MoltenBox({ host, box }: { host: MoltenHost; box: MoltenBoxEntry }) {
+    const t = useT();
     return (
         <div
             role="dialog"
-            aria-label={box.title ?? "Box"}
+            aria-label={box.title ?? t("molten.box.label")}
             tabIndex={-1}
             onKeyDown={(e) => {
                 if (e.key !== "Escape") {
@@ -94,8 +97,8 @@ function MoltenBox({ host, box }: { host: MoltenHost; box: MoltenBoxEntry }) {
                 ))}
                 <button
                     type="button"
-                    title="Close (Escape)"
-                    aria-label="Close"
+                    title={t("molten.box.closeTitle")}
+                    aria-label={t("common.close")}
                     className="cursor-pointer rounded px-1.5 py-0.5 text-secondary hover:bg-hover hover:text-primary"
                     onClick={() => host.dismissBox(box.id)}
                 >

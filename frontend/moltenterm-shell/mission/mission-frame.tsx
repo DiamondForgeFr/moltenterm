@@ -13,8 +13,10 @@ import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { EmptyState, EmptyStateDetails } from "../empty-state";
+import { t, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { TabActivity, whileShown } from "../tab-activity";
+import { whileShown } from "../tab-activity";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { pathBaseName, readWorkspaceProject } from "../workspace-project";
 import { chooseMoltentermPath, linkWorkspaceProject, ProjectFacts, readProjectFacts } from "../workspace-project-store";
 import { FolderEntry, gitProblem, sortFolderEntries } from "./git-problem";
@@ -48,7 +50,7 @@ export function useActiveProject(): ActiveProject {
 
 function linkProject(workspace: Workspace) {
     fireAndForget(async () => {
-        const folder = await chooseMoltentermPath({ kind: "folder", title: "Link a project" });
+        const folder = await chooseMoltentermPath({ kind: "folder", title: t("mc.frame.linkProjectTitle") });
         if (folder) {
             await linkWorkspaceProject(workspace, folder);
         }
@@ -59,6 +61,7 @@ const PlainButton =
     "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary";
 
 export function CopyButton({ text, label }: { text: string; label: string }) {
+    const t = useT();
     const [copied, setCopied] = useState(false);
     const copy = () =>
         fireAndForget(async () => {
@@ -69,7 +72,7 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
     return (
         <button type="button" onClick={copy} className={PlainButton}>
             <i className={cn("fa fa-solid mr-1.5", copied ? "fa-check" : "fa-copy")} />
-            {copied ? "Copied" : label}
+            {copied ? t("mc.frame.copied") : label}
         </button>
     );
 }
@@ -80,6 +83,7 @@ function openProjectTerminal(dir: string) {
 
 // A project without a valid pipeline still shows its history; the banner says how the user's agent connects it.
 export function PipelineBanner({ dir, report }: { dir: string; report: PipelineReport }) {
+    const t = useT();
     const stage = pipelineStage(report);
     if (stage === "loading" || stage === "valid") {
         return null;
@@ -100,22 +104,19 @@ export function PipelineBanner({ dir, report }: { dir: string; report: PipelineR
             />
             <div className="min-w-0 flex-1 text-12">
                 <div className="font-semibold text-primary">
-                    {invalid ? "The pipeline has problems" : "Connect the pipeline"}
+                    {invalid ? t("mc.frame.pipelineProblems") : t("mc.frame.connectPipeline")}
                 </div>
                 {invalid ? (
                     <ul className="mt-1 flex flex-col gap-0.5 font-mono text-11 text-secondary">
                         {report.errors.slice(0, 5).map((e) => (
                             <li key={e}>• {e}</li>
                         ))}
-                        {report.errors.length > 5 ? <li>… and {report.errors.length - 5} more</li> : null}
+                        {report.errors.length > 5 ? (
+                            <li>… {t("mc.releaseMenu.andMore", { count: report.errors.length - 5 })}</li>
+                        ) : null}
                     </ul>
                 ) : (
-                    <div className="mt-0.5 text-secondary">
-                        Mission Control runs this project's own CI, builds and releases once they are described in
-                        .molten/project.json. Your coding agent connects what the project already has and creates what
-                        is missing, following the project's workflow: open a terminal in the project, start your agent
-                        and type the command below.
-                    </div>
+                    <div className="mt-0.5 text-secondary">{t("mc.frame.connectBody")}</div>
                 )}
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-11 text-muted">
                     {PipelineInvocations.map((i) => (
@@ -125,15 +126,19 @@ export function PipelineBanner({ dir, report }: { dir: string; report: PipelineR
                     ))}
                 </div>
                 <div className="mt-1 text-11 text-muted">
-                    Command not found in your agent? Run <code>molten agent install &lt;agent&gt;</code> once.
-                    {invalid ? " Check again with molten project validate." : ""}
+                    {t("mc.frame.notFoundBefore")} <code>molten agent install &lt;agent&gt;</code>{" "}
+                    {t("mc.frame.notFoundAfter")}
+                    {invalid ? " " + t("mc.frame.checkAgain") : ""}
                 </div>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1.5">
-                <CopyButton text="/molten-pipeline" label="Copy /molten-pipeline" />
+                <CopyButton
+                    text="/molten-pipeline"
+                    label={t("mc.frame.copyCommand", { command: "/molten-pipeline" })}
+                />
                 <button type="button" onClick={() => openProjectTerminal(dir)} className={PlainButton}>
                     <i className="fa fa-solid fa-terminal mr-1.5" />
-                    Open a terminal here
+                    {t("mc.frame.openTerminal")}
                 </button>
             </div>
         </div>
@@ -151,10 +156,12 @@ export function MissionHeader({
     onRefresh: () => void;
     children?: React.ReactNode;
 }) {
+    const t = useT();
     const [now, setNow] = useState(Date.now());
+    const panelId = usePanelBlockId();
     useEffect(() => {
-        return TabActivity.getInstance().every(whileShown(30000), () => setNow(Date.now()), "clock");
-    }, []);
+        return everyInPanel(panelId, whileShown(30000), () => setNow(Date.now()), "clock");
+    }, [panelId]);
     const name = project.facts?.name ?? pathBaseName(project.dir);
     const at = Math.max(snapshot?.gitat ?? 0, snapshot?.githubat ?? 0);
     return (
@@ -168,12 +175,14 @@ export function MissionHeader({
             <div className="ml-auto flex items-center gap-2">
                 {children}
                 <span className="text-11 text-muted">
-                    {snapshot?.refreshing ? "refreshing…" : `updated ${formatAge(at, now)}`}
+                    {snapshot?.refreshing
+                        ? t("mc.frame.refreshing")
+                        : t("mc.frame.updated", { when: formatAge(at, now) })}
                 </span>
                 <button
                     type="button"
-                    aria-label="Refresh"
-                    title="Refresh (fetches from the remote)"
+                    aria-label={t("mc.frame.refresh")}
+                    title={t("mc.frame.refreshTitle")}
                     onClick={onRefresh}
                     className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
                 >
@@ -194,6 +203,7 @@ export function MissionFrame({
     title: string;
     children: (props: { project: ActiveProject; snapshot: MissionSnapshot; refresh: () => void }) => React.ReactNode;
 }) {
+    const t = useT();
     const project = useActiveProject();
     const { snapshot, error, refresh } = useMissionSnapshot(project.dir);
     if (project.workspace == null) {
@@ -203,9 +213,9 @@ export function MissionFrame({
         return (
             <EmptyState
                 icon="link"
-                title="Link this workspace to its project"
-                hint={`${title} shows the project of the active workspace. Link a folder here, or run molten project link in a terminal of the project.`}
-                primary={{ label: "Link a project…", onClick: () => linkProject(project.workspace) }}
+                title={t("mc.frame.linkTitle")}
+                hint={t("mc.frame.linkHint", { title })}
+                primary={{ label: t("mc.frame.linkButton"), onClick: () => linkProject(project.workspace) }}
             />
         );
     }
@@ -213,9 +223,9 @@ export function MissionFrame({
         return (
             <EmptyState
                 icon="folder-open"
-                title="The project's folder is gone"
-                hint={`${project.dir} no longer exists. Link the workspace to the project's new place.`}
-                primary={{ label: "Link a project…", onClick: () => linkProject(project.workspace) }}
+                title={t("mc.frame.goneTitle")}
+                hint={t("mc.frame.goneHint", { dir: project.dir })}
+                primary={{ label: t("mc.frame.linkButton"), onClick: () => linkProject(project.workspace) }}
             />
         );
     }
@@ -223,9 +233,9 @@ export function MissionFrame({
         return (
             <EmptyState
                 icon="triangle-exclamation"
-                title="Mission Control could not answer"
-                hint="MoltenTerm could not read this project. Try again in a moment."
-                primary={{ label: "Try again", onClick: refresh }}
+                title={t("mc.frame.errorTitle")}
+                hint={t("mc.frame.errorHint")}
+                primary={{ label: t("mc.frame.tryAgain"), onClick: refresh }}
                 details={error}
             />
         );
@@ -244,6 +254,7 @@ const FolderGlanceMax = 12;
 
 // The reduced project view of a folder without git history: what is in it, so the user recognises the folder.
 function FolderGlance({ dir }: { dir: string }) {
+    const t = useT();
     const [entries, setEntries] = useState<FolderEntry[]>(null);
     useEffect(() => {
         setEntries(null);
@@ -279,9 +290,9 @@ function FolderGlance({ dir }: { dir: string }) {
                 {dir}
             </div>
             {entries == null ? null : entries.length === 0 ? (
-                <div className="mt-2 text-12 text-muted">This folder is empty.</div>
+                <div className="mt-2 text-12 text-muted">{t("mc.frame.folderEmpty")}</div>
             ) : (
-                <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1" aria-label="Files in the folder">
+                <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1" aria-label={t("mc.frame.filesInFolder")}>
                     {shown.map((e) => (
                         <li key={e.name} className="flex min-w-0 items-center gap-1.5 text-12 text-secondary">
                             <i
@@ -296,7 +307,9 @@ function FolderGlance({ dir }: { dir: string }) {
                             </span>
                         </li>
                     ))}
-                    {more > 0 ? <li className="text-12 text-muted">and {more} more</li> : null}
+                    {more > 0 ? (
+                        <li className="text-12 text-muted">{t("mc.releaseMenu.andMore", { count: more })}</li>
+                    ) : null}
                 </ul>
             )}
         </div>
@@ -304,6 +317,7 @@ function FolderGlance({ dir }: { dir: string }) {
 }
 
 function GitInitDialog({ dir, onCancel, onDone }: { dir: string; onCancel: () => void; onDone: () => void }) {
+    const t = useT();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
     const cancelRef = useRef<HTMLButtonElement>(null);
@@ -329,7 +343,7 @@ function GitInitDialog({ dir, onCancel, onDone }: { dir: string; onCancel: () =>
     return (
         <DialogFrame
             role="molten-git-init"
-            title="Initialize git here?"
+            title={t("mc.frame.gitInitTitle")}
             subtitle={dir}
             trapFocus
             buttons={
@@ -341,7 +355,7 @@ function GitInitDialog({ dir, onCancel, onDone }: { dir: string; onCancel: () =>
                         onClick={onCancel}
                         disabled={busy}
                     >
-                        Cancel
+                        {t("common.cancel")}
                     </button>
                     <button
                         type="button"
@@ -351,20 +365,17 @@ function GitInitDialog({ dir, onCancel, onDone }: { dir: string; onCancel: () =>
                         aria-busy={busy}
                         data-testid="mission-git-init-confirm"
                     >
-                        {busy ? "Initializing…" : "Initialize git"}
+                        {busy ? t("mc.frame.initializing") : t("mc.frame.initGit")}
                         <MoltenWave />
                     </button>
                 </>
             }
         >
-            <p className="text-12 leading-[18px] text-secondary">
-                MoltenTerm runs git init in this folder. It adds an empty repository (a .git folder): your files stay as
-                they are, nothing is committed.
-            </p>
+            <p className="text-12 leading-[18px] text-secondary">{t("mc.frame.gitInitBody")}</p>
             {error ? (
                 <>
                     <p className="text-12 text-danger" role="alert">
-                        Git could not create the repository.
+                        {t("mc.frame.gitInitFailed")}
                     </p>
                     <EmptyStateDetails text={error} />
                 </>
@@ -384,6 +395,7 @@ function GitProblemState({
     gitError: string;
     refresh: () => void;
 }) {
+    const t = useT();
     const [confirming, setConfirming] = useState(false);
     const [initialized, setInitialized] = useState(false);
     useEffect(() => {
@@ -395,17 +407,17 @@ function GitProblemState({
             <>
                 <EmptyState
                     icon="code-branch"
-                    title="This folder is not a git repository"
-                    hint="Mission Control follows a project through its git history. Initialize git here or choose another folder."
+                    title={t("mc.frame.notRepoTitle")}
+                    hint={t("mc.frame.notRepoHint")}
                     primary={{
-                        label: "Initialize git here",
+                        label: t("mc.frame.initGitHere"),
                         busy: initialized,
-                        busyLabel: "Reading the history…",
+                        busyLabel: t("mc.frame.readingHistory"),
                         onClick: () => setConfirming(true),
                         testId: "mission-git-init",
                     }}
                     secondary={{
-                        label: "Choose another folder",
+                        label: t("mc.frame.chooseFolder"),
                         onClick: () => linkProject(project.workspace),
                         testId: "mission-choose-folder",
                     }}
@@ -432,9 +444,9 @@ function GitProblemState({
         return (
             <EmptyState
                 icon="code-branch"
-                title="Git is not installed"
-                hint="Mission Control reads the project's history with git. Install git, then try again."
-                primary={{ label: "Try again", onClick: refresh }}
+                title={t("mc.frame.noGitTitle")}
+                hint={t("mc.frame.noGitHint")}
+                primary={{ label: t("mc.frame.tryAgain"), onClick: refresh }}
                 details={gitError}
             />
         );
@@ -442,10 +454,10 @@ function GitProblemState({
     return (
         <EmptyState
             icon="code-branch"
-            title="Git could not read this project"
-            hint="The history of this folder could not be read. Try again, or choose another folder."
-            primary={{ label: "Try again", onClick: refresh }}
-            secondary={{ label: "Choose another folder", onClick: () => linkProject(project.workspace) }}
+            title={t("mc.frame.gitErrorTitle")}
+            hint={t("mc.frame.gitErrorHint")}
+            primary={{ label: t("mc.frame.tryAgain"), onClick: refresh }}
+            secondary={{ label: t("mc.frame.chooseFolder"), onClick: () => linkProject(project.workspace) }}
             details={gitError}
         />
     );

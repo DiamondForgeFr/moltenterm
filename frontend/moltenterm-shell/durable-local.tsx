@@ -8,6 +8,7 @@ import { recordTEvent } from "@/app/store/global";
 import type { TermViewModel } from "@/app/view/term/term-model";
 import { fireAndForget } from "@/util/util";
 import { createContext } from "react";
+import { useT } from "./i18n/i18n";
 
 // True inside the flyover of a local terminal: Wave's "Learn More" link opens Wave's documentation, so it is hidden.
 export const DurableLocalContext = createContext(false);
@@ -22,29 +23,27 @@ function Title({ iconClass, children }: { iconClass: string; children: React.Rea
 }
 
 export function LocalDurableAttachedContent() {
+    const t = useT();
     return (
         <div className="flex flex-col gap-2 max-w-[280px]">
-            <Title iconClass="fa-sharp fa-solid fa-shield text-secondary">Durable session</Title>
-            <div className="text-12 text-secondary leading-relaxed">
-                This shell keeps running when you quit or update MoltenTerm, with its programs and history, and comes
-                back here at the next start.
-            </div>
+            <Title iconClass="fa-sharp fa-solid fa-shield text-secondary">{t("shell.durable.title")}</Title>
+            <div className="text-12 text-secondary leading-relaxed">{t("shell.durable.attached")}</div>
         </div>
     );
 }
 
 export function LocalDurableDetachedContent() {
+    const t = useT();
     return (
         <div className="flex flex-col gap-2 max-w-[280px]">
-            <Title iconClass="fa-sharp fa-solid fa-shield text-muted">Durable session (detached)</Title>
-            <div className="text-12 text-secondary leading-relaxed">
-                The shell is still running; MoltenTerm reattaches this panel to it automatically.
-            </div>
+            <Title iconClass="fa-sharp fa-solid fa-shield text-muted">{t("shell.durable.detachedTitle")}</Title>
+            <div className="text-12 text-secondary leading-relaxed">{t("shell.durable.detached")}</div>
         </div>
     );
 }
 
 export function LocalStandardSessionContent({ viewModel, onClose }: { viewModel: TermViewModel; onClose: () => void }) {
+    const t = useT();
     const handleRestartAsDurable = () => {
         recordTEvent("action:termdurable", { "action:type": "restartdurable" });
         onClose();
@@ -52,17 +51,14 @@ export function LocalStandardSessionContent({ viewModel, onClose }: { viewModel:
     };
     return (
         <div className="flex flex-col gap-2 max-w-[280px]">
-            <Title iconClass="fa-sharp fa-regular fa-shield text-muted">Standard session</Title>
-            <div className="text-12 text-secondary leading-relaxed">
-                This shell ends when MoltenTerm quits. A durable session keeps it running, with its programs and
-                history, when you quit or update MoltenTerm.
-            </div>
+            <Title iconClass="fa-sharp fa-regular fa-shield text-muted">{t("shell.durable.standardTitle")}</Title>
+            <div className="text-12 text-secondary leading-relaxed">{t("shell.durable.standard")}</div>
             <button
                 className="molten-btn-secondary mt-1 flex cursor-pointer items-center justify-center gap-2 rounded-6 px-3 py-1.5 text-12 font-medium"
                 onClick={handleRestartAsDurable}
             >
                 <i className="fa-solid fa-shield" />
-                Restart as durable
+                {t("shell.durable.restartAsDurable")}
             </button>
         </div>
     );

@@ -7,6 +7,7 @@
 // rules the rail applies when it reads them, the same as the server's, so a project group always wins at once.
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { t } from "./i18n/i18n";
 import { RailOrderRoute } from "./workspace-order";
 
 // must match pkg/molten/railorder/localgroups.go
@@ -131,7 +132,11 @@ export function groupWithChoices(
     const rtn: GroupWithChoice[] = [];
     for (const group of groups) {
         if (group.id !== own?.id) {
-            rtn.push({ id: group.id, label: `${localGroupName(group, nameOf)} (group)`, kind: "group" });
+            rtn.push({
+                id: group.id,
+                label: t("rail.group.choice", { name: localGroupName(group, nameOf) }),
+                kind: "group",
+            });
         }
     }
     for (const id of savedIds) {
@@ -145,7 +150,7 @@ export function groupWithChoices(
 
 // The refusal of FR-MC-032-AC8, as the server words it.
 export function projectGroupRefusal(workspaceName: string, productName: string): string {
-    return `${workspaceName} belongs to ${productName}, declared in its project files. Project groups come first.`;
+    return t("rail.group.projectRefusal", { workspace: workspaceName, product: productName });
 }
 
 export type RailGroupJoin = { workspaceid: string; targetid: string };

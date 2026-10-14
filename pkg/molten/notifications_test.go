@@ -25,7 +25,7 @@ func notif(fields map[string]any) map[string]any {
 func TestNotificationPublishAddsAndUpdatesByKey(t *testing.T) {
 	now := time.UnixMilli(1000)
 	ready := NotificationInput{Key: "build:gold", Source: "build", Title: "Gold is ready", Message: "Build 9c425c4",
-		Actions: []NotificationAction{{Id: "reveal", Label: "Show in Finder", Kind: "gesture", Gesture: "path:reveal", Lasting: true}}}
+		Actions: []NotificationAction{{Id: "reveal", Label: "Show in folder", Kind: "gesture", Gesture: "path:reveal", Lasting: true}}}
 	update := NotificationPublishUpdate(nil, ready, now, "a")
 	value, _ := update["molten:notif:a"].(map[string]any)
 	if value["key"] != "build:gold" || value["time"] != float64(1000) || value["updated"] != float64(1000) || value["read"] != false {

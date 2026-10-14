@@ -37,6 +37,8 @@ const (
 	InputReasonNoAgent       = "noagent"
 	InputReasonBusy          = "busy"
 	InputReasonUnavailable   = "unavailable"
+	// The agent's current effort level is not known, so its effort keys cannot be counted (Codex, #549).
+	InputReasonEffortUnknown = "effortunknown"
 
 	OfferInterrupt = "interrupt"
 	OfferGoto      = "goto"
@@ -82,6 +84,10 @@ type AgentInputRequest struct {
 	Action         string `json:"action"`
 	Mode           string `json:"mode,omitempty"`
 	ConfirmedDraft bool   `json:"confirmeddraft,omitempty"`
+	// Effort: the effort level to set (effort only, #549).
+	Effort string `json:"effort,omitempty"`
+	// Model: the model alias to switch to (model only, #573), "" to open the agent's own picker.
+	Model string `json:"model,omitempty"`
 }
 
 type AgentInputResult struct {
@@ -97,6 +103,10 @@ type AgentInputResult struct {
 	// Mode: the permission mode the agent shows after the command, "" when not seen.
 	Mode    string `json:"mode,omitempty"`
 	Presses int    `json:"presses,omitempty"`
+	// Effort: the effort level the command asked for, once sent.
+	Effort string `json:"effort,omitempty"`
+	// Submitted: a handoff's line was sent with Enter (TypeHandoffLine).
+	Submitted bool `json:"submitted,omitempty"`
 }
 
 // AgentInputState is what the terminal's input and output tell about its agent (agentinputwatch.go).
@@ -115,6 +125,12 @@ type AgentInputInfo struct {
 	Mode    string   `json:"mode,omitempty"`
 	Modes   []string `json:"modes,omitempty"`
 	Draft   bool     `json:"draft,omitempty"`
+	// Effort: the run's effort level as the agent reported it, "" when unknown; Efforts: the levels the panel offers,
+	// none when MoltenTerm cannot set one (#549).
+	Effort  string   `json:"effort,omitempty"`
+	Efforts []string `json:"efforts,omitempty"`
+	// Models: the models the panel offers to switch to without the agent's picker, none for a picker only (#573).
+	Models []agentcontinuity.ModelChoice `json:"models,omitempty"`
 }
 
 func (u *Updater) inputState(blockId string) AgentInputState {
@@ -133,7 +149,37 @@ func (u *Updater) AgentInputInfo(blockId string) AgentInputInfo {
 	}
 	in := u.inputState(blockId)
 	rtn.Agent, rtn.Mode, rtn.Modes, rtn.Draft = run.Agent, in.Mode, in.Modes, in.Draft
+	rtn.Effort = run.Settings.Effort
+	rtn.Efforts = u.offeredEfforts(run)
+	rtn.Models = agentcontinuity.ModelAliases(run.Agent)
 	return rtn
+}
+
+// effortLevels: the levels an agent takes for a model, in its order.
+func (u *Updater) effortLevels(agent string, model string) []string {
+	if u.env.EffortLevels == nil {
+		return nil
+	}
+	return u.env.EffortLevels(agent, model)
+}
+
+// offeredEfforts: Claude Code takes any level of its model; Codex's keys need its current level among its model's.
+func (u *Updater) offeredEfforts(run molten.AgentRunInfo) []string {
+	cmd, ok := agentcontinuity.FindAgentCommand(run.Agent, agentcontinuity.ActionEffort)
+	if !ok {
+		return nil
+	}
+	levels := u.effortLevels(run.Agent, run.Settings.Model)
+	if cmd.Text != "" {
+		return levels
+	}
+	if u.env.EffortKeysRemapped != nil && u.env.EffortKeysRemapped(run.Agent) {
+		return nil
+	}
+	if !slices.Contains(levels, run.Settings.Effort) {
+		return nil
+	}
+	return levels
 }
 
 func refused(reason string, message string) AgentInputResult {
@@ -176,6 +222,13 @@ func (u *Updater) AgentInput(ctx context.Context, req AgentInputRequest) AgentIn
 	if !ok {
 		return base(refused(InputReasonUnknownAction, fmt.Sprintf("%s has no command %q in MoltenTerm: nothing was typed.", name, req.Action)))
 	}
+	text := cmd.Text
+	if req.Model != "" {
+		if _, ok := agentcontinuity.ModelAlias(agent, req.Model); !ok || req.Action != agentcontinuity.ActionModel {
+			return base(refused(InputReasonUnknownAction, fmt.Sprintf("%s has no model %q that MoltenTerm can switch to: choose it in %s's /model. Nothing was typed.", name, req.Model, name)))
+		}
+		text = cmd.Text + " " + req.Model
+	}
 	if blocker := u.foregroundBlocker(st.agent, st.shell.Pid); blocker != "" {
 		r := refused(InputReasonNotForeground, fmt.Sprintf("%s is in the foreground of this terminal, not %s: nothing was typed.", blocker, name))
 		if blocker == name {
@@ -203,7 +256,9 @@ func (u *Updater) AgentInput(ctx context.Context, req AgentInputRequest) AgentIn
 	if cmd.Kind == agentcontinuity.CommandMode {
 		return base(u.stepMode(req, st, cmd, in.Mode, name))
 	}
-	text := cmd.Text
+	if cmd.Kind == agentcontinuity.CommandEffort {
+		return base(u.setEffort(req, st, cmd, name))
+	}
 	steps := []string{text}
 	shown := text
 	switch {

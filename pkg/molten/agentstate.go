@@ -29,6 +29,10 @@ const (
 	AgentStatesCommand   = "moltenagentstates"
 	AgentStateSetCommand = "moltenagentstateset"
 
+	// The last first name a pane's agent had (FR-CONT-014), kept in the block's meta so a session that outlives a
+	// restart of MoltenTerm (a durable terminal) gets it back.
+	AgentFirstNameMetaKey = "molten:agentfirstname"
+
 	AgentMessageMaxLength = 200
 	agentIdMaxLength      = 32
 )
@@ -83,6 +87,23 @@ func AgentDisplayName(id string) string {
 		return kind.Name
 	}
 	return id
+}
+
+// AgentCallName is how a sentence names a session's agent: its first name (FR-CONT-014), else the agent's name.
+func AgentCallName(firstName string, id string) string {
+	if firstName != "" {
+		return firstName
+	}
+	return AgentDisplayName(id)
+}
+
+// AgentLabel is how a list names a session's agent: "[Jérôme] Claude Code", the agent's name alone without a first
+// name. Must match agentLabel in frontend/moltenterm-shell/agent-state-model.ts.
+func AgentLabel(firstName string, id string) string {
+	if firstName == "" {
+		return AgentDisplayName(id)
+	}
+	return "[" + firstName + "] " + AgentDisplayName(id)
 }
 
 // ValidAgentId accepts the registry's ids and any short lowercase name a hook reports for an agent the registry
@@ -262,14 +283,28 @@ type AgentStateInfo struct {
 	WorkspaceId string `json:"workspaceid,omitempty"`
 	Agent       string `json:"agent,omitempty"`
 	AgentName   string `json:"agentname,omitempty"`
-	State       string `json:"state,omitempty"`
-	Message     string `json:"message,omitempty"`
-	Since       int64  `json:"since,omitempty"`
-	Version     int64  `json:"version"`
+	// FirstName: the session's first name, unique among the app's active agents (FR-CONT-014).
+	FirstName string `json:"firstname,omitempty"`
+	State     string `json:"state,omitempty"`
+	Message   string `json:"message,omitempty"`
+	Since     int64  `json:"since,omitempty"`
+	Version   int64  `json:"version"`
 	// Hooked: this agent's hooks reported in this run of MoltenTerm, in any terminal (the hook setup offer, #221).
 	Hooked bool `json:"hooked,omitempty"`
+	// Model, ModelName, Effort: the run's model and effort level as the agent last reported them (#549: Claude Code's
+	// status line, Codex's last turn), "" when unknown; never a guess.
+	Model     string `json:"model,omitempty"`
+	ModelName string `json:"modelname,omitempty"`
+	Effort    string `json:"effort,omitempty"`
 	// Cleared: the block has no agent any more.
 	Cleared bool `json:"cleared,omitempty"`
+}
+
+// AgentSettings is a run's model and effort level as its agent reports them (#549); "" fields are unknown.
+type AgentSettings struct {
+	Model     string
+	ModelName string
+	Effort    string
 }
 
 // AgentRunInfo is what the agent companion (DS-SHELL-019) needs of a block's agent: which one, and since when it runs.
@@ -286,4 +321,8 @@ type AgentRunInfo struct {
 	// reused pid apart. The keep-awake reads its tree's CPU to see background work (#493).
 	Pid        int32
 	PidStartMs int64
+	// Settings: the model and effort level the agent last reported for this run.
+	Settings AgentSettings
+	// FirstName: the session's first name (FR-CONT-014).
+	FirstName string
 }

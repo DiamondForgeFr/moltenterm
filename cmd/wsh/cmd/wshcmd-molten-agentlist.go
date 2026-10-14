@@ -14,6 +14,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlaunch"
+	"github.com/wavetermdev/waveterm/pkg/molten/handoffwire"
 )
 
 // The coding agents MoltenTerm knows (FR-CONT-006): `molten agent list` prints each one's detection and capability
@@ -26,6 +27,8 @@ const moltenAgentListTimeout = 5 * time.Second
 type MoltenAgentList struct {
 	Agents []agentcontinuity.AgentListing `json:"agents"`
 	Guides []molten.AgentStatus           `json:"guides"`
+	// Active: the agents running now, with their first names (FR-CONT-015); absent outside MoltenTerm.
+	Active []handoffwire.AgentEntry `json:"active,omitempty"`
 }
 
 func moltenAgentListings(env molten.AgentEnv) []agentcontinuity.AgentListing {

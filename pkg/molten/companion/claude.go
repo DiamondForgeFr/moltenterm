@@ -4,6 +4,8 @@
 package companion
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,6 +24,13 @@ import (
 
 const claudeSlugMax = 200
 
+// A sub-agent's facts (#601) are read from the end of its transcript; its meta files are small and few.
+const (
+	claudeSubagentTailBytes = 256 * 1024
+	claudeMaxSubagentMetas  = 200
+	claudeMaxMetaBytes      = 64 * 1024
+)
+
 var claudeSlugRegex = regexp.MustCompile(`[^A-Za-z0-9]`)
 
 // Records Claude Code writes that carry nothing for the companion; a record with a session id is known too.
@@ -30,6 +39,9 @@ var claudeQuietTypes = map[string]bool{
 	"permission-mode": true, "mode": true, "last-prompt": true, "ai-title": true, "custom-title": true,
 	"pr-link": true, "frame-link": true, "queue-operation": true, "tag": true,
 }
+
+// An agent id names a file: letters, digits, dashes and underscores only.
+var claudeAgentIdRegex = regexp.MustCompile(`^[A-Za-z0-9_-]{1,100}$`)
 
 type ClaudeAdapter struct {
 	roots []string
@@ -74,6 +86,96 @@ func (a *ClaudeAdapter) ValidLayout(rel string) bool {
 		return false
 	}
 	return parts[0] != "" && !strings.HasPrefix(parts[1], ".") && strings.HasSuffix(parts[1], ".jsonl")
+}
+
+// SubagentWritten reads when a sub-agent last wrote <slug>/<session>/subagents/agent-<id>.jsonl.
+func (a *ClaudeAdapter) SubagentWritten(sessionPath string, agentId string) int64 {
+	if !claudeAgentIdRegex.MatchString(agentId) || !strings.HasSuffix(sessionPath, ".jsonl") {
+		return 0
+	}
+	dir := strings.TrimSuffix(sessionPath, ".jsonl")
+	info, err := os.Stat(filepath.Join(dir, "subagents", "agent-"+agentId+".jsonl"))
+	if err != nil || !info.Mode().IsRegular() {
+		return 0
+	}
+	return info.ModTime().UnixMilli()
+}
+
+// SubagentIds reads the sub-agents' agent-<id>.meta.json files next to the session: each names the call that started
+// its agent (toolUseId), foreground agents included.
+func (a *ClaudeAdapter) SubagentIds(sessionPath string) map[string]string {
+	if !strings.HasSuffix(sessionPath, ".jsonl") {
+		return nil
+	}
+	dir := filepath.Join(strings.TrimSuffix(sessionPath, ".jsonl"), "subagents")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	rtn := map[string]string{}
+	read := 0
+	for _, e := range entries {
+		name := e.Name()
+		agentId, ok := strings.CutSuffix(strings.TrimPrefix(name, "agent-"), ".meta.json")
+		if !ok || !strings.HasPrefix(name, "agent-") || !claudeAgentIdRegex.MatchString(agentId) || !e.Type().IsRegular() {
+			continue
+		}
+		if read >= claudeMaxSubagentMetas {
+			break
+		}
+		read++
+		var meta struct {
+			ToolUseId string `json:"toolUseId"`
+		}
+		if readSmallJSON(filepath.Join(dir, name), claudeMaxMetaBytes, &meta) != nil || meta.ToolUseId == "" {
+			continue
+		}
+		rtn[meta.ToolUseId] = agentId
+	}
+	return rtn
+}
+
+// ReadSubagent reads the end of a sub-agent's transcript for its latest model (the model's own answers), effort and
+// branch: a sub-agent in a worktree names the worktree's branch.
+func (a *ClaudeAdapter) ReadSubagent(sessionPath string, agentId string) (SubagentFacts, bool) {
+	if !claudeAgentIdRegex.MatchString(agentId) || !strings.HasSuffix(sessionPath, ".jsonl") {
+		return SubagentFacts{}, false
+	}
+	path := filepath.Join(strings.TrimSuffix(sessionPath, ".jsonl"), "subagents", "agent-"+agentId+".jsonl")
+	if info, err := os.Lstat(path); err != nil || !info.Mode().IsRegular() {
+		return SubagentFacts{}, false
+	}
+	tail, err := readFileTail(path, claudeSubagentTailBytes)
+	if err != nil {
+		return SubagentFacts{}, false
+	}
+	var facts SubagentFacts
+	lines := bytes.Split(tail, []byte("\n"))
+	for i := len(lines) - 1; i >= 0; i-- {
+		if facts.Model != "" && facts.Effort != "" && facts.Branch != "" {
+			break
+		}
+		var rec struct {
+			GitBranch string `json:"gitBranch"`
+			Effort    string `json:"effort"`
+			Message   struct {
+				Model string `json:"model"`
+			} `json:"message"`
+		}
+		if len(lines[i]) == 0 || json.Unmarshal(lines[i], &rec) != nil {
+			continue
+		}
+		if facts.Branch == "" && rec.GitBranch != "" && rec.GitBranch != "HEAD" {
+			facts.Branch = cutString(rec.GitBranch, 300)
+		}
+		if facts.Effort == "" && rec.Effort != "" {
+			facts.Effort = cutString(rec.Effort, 40)
+		}
+		if facts.Model == "" && rec.Message.Model != "" && !strings.HasPrefix(rec.Message.Model, "<") {
+			facts.Model = cutString(rec.Message.Model, 100)
+		}
+	}
+	return facts, facts != SubagentFacts{}
 }
 
 func (a *ClaudeAdapter) projectDirs(root string, cwd string) []string {
@@ -195,6 +297,8 @@ func (a *ClaudeAdapter) Parse(rec map[string]any, s *Session) bool {
 	if s.Id == "" {
 		s.Id = str(rec, "sessionId")
 	}
+	// After the record: a prompt that comes with a new branch gives it to its own topic, not to the one before.
+	defer s.SetBranch(str(rec, "gitBranch"))
 	switch kind {
 	case "user":
 		a.parseUser(rec, s, at)
@@ -204,6 +308,28 @@ func (a *ClaudeAdapter) Parse(rec map[string]any, s *Session) bool {
 		return true
 	case "attachment":
 		a.parseAttachment(obj(rec, "attachment"), s)
+		return true
+	case "queue-operation":
+		// A background agent's end is queued for the main agent: it may reach it as a queued command (an
+		// attachment) rather than as a message of the user, so the queue tells it first.
+		if str(rec, "operation") == "enqueue" {
+			a.parseNotifications(str(rec, "content"), s)
+		}
+		return true
+	case "ai-title":
+		s.SetSessionName(str(rec, "aiTitle"), false)
+		return true
+	case "custom-title":
+		name := str(rec, "customTitle")
+		if name == "" {
+			name = str(rec, "title")
+		}
+		s.SetSessionName(name, true)
+		return true
+	case "pr-link":
+		if n, ok := num(rec, "prNumber"); ok {
+			s.AddPRLink(int(n), str(rec, "prUrl"))
+		}
 		return true
 	}
 	if claudeQuietTypes[kind] {
@@ -216,6 +342,10 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 	msg := obj(rec, "message")
 	isMeta := boolean(rec, "isMeta")
 	if text, ok := msg["content"].(string); ok {
+		if a.parseNotifications(text, s) {
+			s.StartTurn(at)
+			return
+		}
 		s.NoteCommand(commandName(text))
 		if !isMeta && !boolean(rec, "isCompactSummary") && cleanTitleText(text) != "" && !isCommandRecord(text) {
 			s.StartTurn(at)
@@ -235,8 +365,14 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 				callId = id
 			}
 			s.ResolveTool(id)
+			result := obj(rec, "toolUseResult")
+			s.SubagentResult(id, str(result, "status") == "async_launched", boolean(block, "is_error"), str(result, "resolvedModel"))
+			s.SetSubagentId(id, str(result, "agentId"))
 		case "text":
 			text := str(block, "text")
+			if a.parseNotifications(text, s) {
+				continue
+			}
 			s.NoteCommand(commandName(text))
 			if !isCommandRecord(text) && cleanTitleText(text) != "" {
 				prompt = true
@@ -299,6 +435,7 @@ func (a *ClaudeAdapter) parseEdits(result map[string]any, callId string, s *Sess
 
 func (a *ClaudeAdapter) parseAssistant(rec map[string]any, s *Session, at int64) {
 	msg := obj(rec, "message")
+	s.SetModelEffort(str(msg, "model"), str(rec, "effort"))
 	if text, ok := msg["content"].(string); ok {
 		s.AddText(text, at)
 		return
@@ -312,9 +449,31 @@ func (a *ClaudeAdapter) parseAssistant(rec map[string]any, s *Session, at int64)
 			name := str(block, "name")
 			input := obj(block, "input")
 			s.AddToolCall(str(block, "id"), name, argsJSON(input), at)
+			s.NoteActivity(name, activityTarget(input), at)
 			a.parseTasks(name, input, s)
+			a.parseSubagent(str(block, "id"), name, input, s, at)
 		}
 	}
+}
+
+// parseSubagent follows the agents the main one starts: its Agent call (Task in older versions) names them; a
+// background one's call returns at once and its end comes as a notification.
+func (a *ClaudeAdapter) parseSubagent(id string, tool string, input map[string]any, s *Session, at int64) {
+	if tool != "Agent" && tool != "Task" {
+		return
+	}
+	background := boolean(input, "run_in_background") || str(input, "run_in_background") == "true"
+	s.StartSubagent(id, str(input, "description"), str(input, "subagent_type"), str(input, "model"), str(input, "effort"), background, at)
+}
+
+// parseNotifications ends the background agents a record notifies about; true when the text holds nothing else (it
+// is the agent's own message, not a prompt of the user).
+func (a *ClaudeAdapter) parseNotifications(text string, s *Session) bool {
+	ends, only := taskNotifications(text)
+	for _, end := range ends {
+		s.EndSubagent(end[0], end[1])
+	}
+	return only
 }
 
 // parseTasks follows the task list: TodoWrite replaces it; TaskCreate and TaskUpdate change one task.
@@ -364,6 +523,11 @@ func taskIndex(v any) (int, bool) {
 // Task reminders repeat the task list as Claude Code sees it.
 func (a *ClaudeAdapter) parseAttachment(att map[string]any, s *Session) {
 	switch str(att, "type") {
+	case "queued_command":
+		if prompt, ok := att["prompt"].(string); ok {
+			a.parseNotifications(prompt, s)
+		}
+		return
 	case "task_reminder", "todo_reminder":
 	default:
 		return

@@ -1,0 +1,173 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+package reviewsession
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
+)
+
+// Ask the AI (FR-REV-003): the Review tab's question goes to the session's agent as one line typed into its terminal,
+// through the guarded path every typed prompt takes (the agent must be in the foreground, neither working nor waiting
+// for an answer). The selection and the whole question stay in the session for review_selection, so the typed line
+// only needs the reference.
+
+const (
+	// The guarded path types at most 600 bytes (termupdate's maxTypedLine); a longer question is read with
+	// review_selection.
+	maxAskLine     = 590
+	maxQuestionLen = 8000
+	askLinePrefix  = "Review question"
+)
+
+func sideName(side string) string {
+	if side == mcpreview.SideLeft {
+		return "base"
+	}
+	return "head"
+}
+
+func linesName(a *mcpreview.Anchor) string {
+	if a.StartLine > 0 && a.StartLine != a.Line {
+		return fmt.Sprintf("lines %d-%d", a.StartLine, a.Line)
+	}
+	return fmt.Sprintf("line %d", a.Line)
+}
+
+// oneLine keeps a question typable: every run of white space (new lines included) becomes one space.
+func oneLine(text string) string {
+	return strings.Join(strings.Fields(text), " ")
+}
+
+// normalDepth is the depth a question is answered in: detailed when asked, else quick (FR-REV-007 AC8).
+func normalDepth(depth string) string {
+	if depth == mcpreview.DepthDetailed {
+		return mcpreview.DepthDetailed
+	}
+	return mcpreview.DepthQuick
+}
+
+// AskLine is the line typed for a question: the selection's reference, then the question, or a pointer to
+// review_selection when the line would be too long. A detailed answer is asked in the line too, so the agent sees it
+// before reading review_selection.
+func AskLine(anchor *mcpreview.Anchor, question string, depth string) string {
+	prefix := askLinePrefix
+	if normalDepth(depth) == mcpreview.DepthDetailed {
+		prefix += " (detailed answer)"
+	}
+	ref := prefix + " on the PR"
+	if anchor != nil {
+		ref = fmt.Sprintf("%s on %s, %s side, %s (review_selection has them)", prefix, anchor.Path, sideName(anchor.Side), linesName(anchor))
+	}
+	line := ref + ": " + oneLine(question)
+	if len(line) <= maxAskLine {
+		return line
+	}
+	return ref + ": the question is long, read it with review_selection and answer it."
+}
+
+// Ask types the question into the session's terminal with its selection's reference; while the agent is busy, or
+// while other questions wait, it is queued and typed once the agent is idle (FR-REV-006 AC4, questions.go). While the
+// agent is starting, it is neither typed nor queued: the result says Starting and the Review tab sends it again (#638).
+func (m *Manager) Ask(ctx context.Context, req mcpreview.AskRequest) (mcpreview.AskResult, error) {
+	m.ensureLoaded(ctx)
+	question := strings.TrimSpace(req.Question)
+	if question == "" {
+		return mcpreview.AskResult{}, errors.New("the question is empty")
+	}
+	if len(question) > maxQuestionLen || len(req.Text) > mcpreview.MaxResultBytes {
+		return mcpreview.AskResult{}, errors.New(mcpreview.ErrTooLarge)
+	}
+	if req.Anchor != nil {
+		if err := checkAnchor(req.Anchor); err != nil {
+			return mcpreview.AskResult{}, err
+		}
+	}
+	if req.Depth != "" && req.Depth != mcpreview.DepthQuick && req.Depth != mcpreview.DepthDetailed {
+		return mcpreview.AskResult{}, errors.New(mcpreview.ErrDepth)
+	}
+	s := m.find(req.SessionKey)
+	if s == nil {
+		return askSessionEnded(), nil
+	}
+	if m.env.TypePrompt == nil {
+		return askCannotType(), nil
+	}
+	q := mcpreview.QueuedQuestion{Anchor: req.Anchor, Text: req.Text, Question: question, Depth: normalDepth(req.Depth)}
+	line := AskLine(req.Anchor, question, q.Depth)
+	var busy TypeOutcome
+	if !m.hasQuestions(s) {
+		out := m.deliverQuestion(ctx, s, q)
+		if out.Starting {
+			return mcpreview.AskResult{Starting: true, Line: line, Message: out.Message, Reason: out.Reason}, nil
+		}
+		if !out.Retry {
+			if out.Sent && m.clearQueueNote(s) {
+				m.publish(s, false)
+			}
+			return mcpreview.AskResult{Sent: out.Sent, Submitted: out.Submitted, Line: line, Message: out.Message,
+				Reason: out.Reason, Program: out.Program}, nil
+		}
+		busy = out
+	}
+	q, position := m.enqueueQuestion(s, q)
+	m.publish(s, false)
+	// Message: why the agent could not take it now; the window says it is queued.
+	message := strings.TrimSpace(busy.Message)
+	return mcpreview.AskResult{Queued: true, Busy: message != "", QuestionId: q.Id, Position: position, Line: line,
+		Message: message, Reason: busy.Reason, Program: busy.Program}, nil
+}
+
+// askSessionEnded and askCannotType answer a window's Ask, Discuss or translation request that cannot be typed: the
+// window says why in its language.
+func askSessionEnded() mcpreview.AskResult {
+	return mcpreview.AskResult{Reason: mcpreview.ReasonSessionEnded, Message: mcpreview.ErrSessionEnded}
+}
+
+func askCannotType() mcpreview.AskResult {
+	return mcpreview.AskResult{Reason: mcpreview.ReasonCannotType, Message: "MoltenTerm cannot type in the session's terminal."}
+}
+
+// deliverQuestion makes the question's selection the session's and types its line. A busy agent gets nothing: the
+// selection goes back to what it was, since the agent may be reading it for the question it is answering.
+func (m *Manager) deliverQuestion(ctx context.Context, s *session, q mcpreview.QueuedQuestion) TypeOutcome {
+	if busy := m.agentBusy(s); busy.Retry {
+		return busy
+	}
+	sel := &mcpreview.SelectionRequest{SessionKey: mcpreview.SessionKey{Id: s.rec.Id}, Anchor: q.Anchor, Text: q.Text,
+		Question: q.Question, Depth: normalDepth(q.Depth)}
+	previous := m.swapSelection(s, sel)
+	out := m.typeLine(ctx, s, AskLine(q.Anchor, q.Question, q.Depth))
+	if !out.Sent {
+		m.restoreSelection(s, sel, previous)
+	}
+	return out
+}
+
+func (m *Manager) setSelection(s *session, sel *mcpreview.SelectionRequest) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	s.selection = sel
+}
+
+func (m *Manager) swapSelection(s *session, sel *mcpreview.SelectionRequest) *mcpreview.SelectionRequest {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	previous := s.selection
+	s.selection = sel
+	return previous
+}
+
+// restoreSelection puts the previous selection back, unless the developer set another one meanwhile.
+func (m *Manager) restoreSelection(s *session, sel *mcpreview.SelectionRequest, previous *mcpreview.SelectionRequest) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if s.selection == sel {
+		s.selection = previous
+	}
+}

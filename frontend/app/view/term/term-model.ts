@@ -40,6 +40,7 @@ import * as jotai from "jotai";
 import * as React from "react";
 import { openInBrowserPanel } from "../../../moltenterm-shell/browser/browser-routing"; // MOLTENTERM-PATCH (#132, #140)
 import { terminalBodyMenuTail } from "../../../moltenterm-shell/command-panel/block-menus"; // MOLTENTERM-PATCH (#401)
+import { I18nModel, t } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { acceleratorById } from "../../../moltenterm-shell/shortcuts/format";
 import { splitMenuItems } from "../../../moltenterm-shell/split/split-menu"; // MOLTENTERM-PATCH (#370)
 import {
@@ -137,12 +138,13 @@ export class TermViewModel implements ViewModel {
         });
         this.viewText = jotai.atom((get) => {
             const termMode = get(this.termMode);
+            get(I18nModel.getInstance().localeAtom); // MOLTENTERM-PATCH (#623): the titles follow the interface language
             if (termMode == "vdom") {
                 return [
                     {
                         elemtype: "iconbutton",
                         icon: "square-terminal",
-                        title: "Switch back to Terminal",
+                        title: t("wave.term.switchToTerminal"), // MOLTENTERM-PATCH (#623)
                         click: () => {
                             this.setTermMode("term");
                         },
@@ -181,7 +183,7 @@ export class TermViewModel implements ViewModel {
                         icon: "refresh",
                         iconColor: "var(--success-color)",
                         iconSpin: true,
-                        title: "Restarting Command",
+                        title: t("wave.term.restartingCommand"), // MOLTENTERM-PATCH (#623)
                         noAction: true,
                     });
                 } else {
@@ -192,7 +194,7 @@ export class TermViewModel implements ViewModel {
                                 elemtype: "iconbutton",
                                 icon: "check",
                                 iconColor: "var(--success-color)",
-                                title: "Command Exited Successfully",
+                                title: t("wave.term.commandSucceeded"), // MOLTENTERM-PATCH (#623)
                                 noAction: true,
                             });
                         } else {
@@ -200,7 +202,7 @@ export class TermViewModel implements ViewModel {
                                 elemtype: "iconbutton",
                                 icon: "xmark-large",
                                 iconColor: "var(--error-color)",
-                                title: "Exit Code: " + fullShellProcStatus?.shellprocexitcode,
+                                title: t("wave.term.exitCode", { code: fullShellProcStatus?.shellprocexitcode }), // MOLTENTERM-PATCH (#623)
                                 noAction: true,
                             });
                         }
@@ -862,7 +864,7 @@ export class TermViewModel implements ViewModel {
         // MOLTENTERM-PATCH (#408): sections instead of separators (FR-SHELL-054): Paste joins the copy items, the
         // links under the pointer get the Link section, Magnify moved to the Panel section of the tail.
         menu.push({
-            label: "Paste",
+            label: t("appMenu.paste"), // MOLTENTERM-PATCH (#623)
             icon: "paste",
             accelerator: acceleratorById("term-paste"),
             click: () => {
@@ -882,7 +884,9 @@ export class TermViewModel implements ViewModel {
             }
             if (hoveredURL) {
                 menu.push({
-                    label: hoveredURL.hostname ? "Open URL (" + hoveredURL.hostname + ")" : "Open URL",
+                    label: hoveredURL.hostname
+                        ? t("wave.term.openUrlHost", { host: hoveredURL.hostname })
+                        : t("wave.term.openUrl"), // MOLTENTERM-PATCH (#623)
                     icon: "globe",
                     section: TermLinkSection,
                     click: () => {
@@ -890,7 +894,7 @@ export class TermViewModel implements ViewModel {
                     },
                 });
                 menu.push({
-                    label: "Open URL in external browser",
+                    label: t("wave.term.openUrlExternal"), // MOLTENTERM-PATCH (#623)
                     icon: "arrow-up-right-from-square",
                     section: TermLinkSection,
                     click: () => {
@@ -930,7 +934,7 @@ export class TermViewModel implements ViewModel {
         const canShowFileBrowser = shellIntegrationStatus === "ready" && cwd != null;
 
         fullMenu.push({
-            label: "Save session as…",
+            label: t("wave.term.saveSession"), // MOLTENTERM-PATCH (#623)
             icon: "floppy-disk",
             click: () => {
                 if (this.termRef.current) {
@@ -944,15 +948,15 @@ export class TermViewModel implements ViewModel {
                                 }
                             } catch (error) {
                                 console.error("Failed to save scrollback:", error);
-                                const errorMessage = error?.message || "An unknown error occurred";
+                                const errorMessage = error?.message || t("wave.term.unknownError"); // MOLTENTERM-PATCH (#623)
                                 modalsModel.pushModal("MessageModal", {
-                                    children: `Failed to save session scrollback: ${errorMessage}`,
+                                    children: t("wave.term.saveSessionFailed", { error: errorMessage }), // MOLTENTERM-PATCH (#623)
                                 });
                             }
                         });
                     } else {
                         modalsModel.pushModal("MessageModal", {
-                            children: "No scrollback content to save.",
+                            children: t("wave.term.saveSessionEmpty"), // MOLTENTERM-PATCH (#623)
                         });
                     }
                 }
@@ -969,14 +973,14 @@ export class TermViewModel implements ViewModel {
             };
         });
         submenu.unshift({
-            label: "Default",
+            label: t("wave.term.default"), // MOLTENTERM-PATCH (#623)
             type: "checkbox",
             checked: curThemeName == null,
             click: () => this.setTerminalTheme(null),
         });
         const transparencySubMenu: ContextMenuItem[] = [];
         transparencySubMenu.push({
-            label: "Default",
+            label: t("wave.term.default"), // MOLTENTERM-PATCH (#623)
             type: "checkbox",
             checked: transparencyMeta == null,
             click: () => {
@@ -987,7 +991,7 @@ export class TermViewModel implements ViewModel {
             },
         });
         transparencySubMenu.push({
-            label: "Transparent Background",
+            label: t("wave.term.transparentBackground"), // MOLTENTERM-PATCH (#623)
             type: "checkbox",
             checked: transparencyMeta == 0.5,
             click: () => {
@@ -998,7 +1002,7 @@ export class TermViewModel implements ViewModel {
             },
         });
         transparencySubMenu.push({
-            label: "No Transparency",
+            label: t("wave.term.noTransparency"), // MOLTENTERM-PATCH (#623)
             type: "checkbox",
             checked: transparencyMeta == 0,
             click: () => {
@@ -1025,7 +1029,7 @@ export class TermViewModel implements ViewModel {
             }
         );
         fontSizeSubMenu.unshift({
-            label: "Default (" + defaultFontSize + "px)",
+            label: t("wave.term.defaultFontSize", { size: defaultFontSize }), // MOLTENTERM-PATCH (#623)
             type: "checkbox",
             checked: overrideFontSize == null,
             click: () => {
@@ -1043,7 +1047,7 @@ export class TermViewModel implements ViewModel {
         const effectiveCursorBlink = overrideCursorBlink === true;
         const cursorSubMenu: ContextMenuItem[] = [
             {
-                label: "Default",
+                label: t("wave.term.default"), // MOLTENTERM-PATCH (#623)
                 type: "checkbox",
                 checked: isCursorDefault,
                 click: () => {
@@ -1054,7 +1058,7 @@ export class TermViewModel implements ViewModel {
                 },
             },
             {
-                label: "Block",
+                label: t("wave.term.cursorBlock"), // MOLTENTERM-PATCH (#623)
                 type: "checkbox",
                 checked: !isCursorDefault && effectiveCursor === "block" && !effectiveCursorBlink,
                 click: () => {
@@ -1065,7 +1069,7 @@ export class TermViewModel implements ViewModel {
                 },
             },
             {
-                label: "Block (Blinking)",
+                label: t("wave.term.cursorBlockBlink"), // MOLTENTERM-PATCH (#623)
                 type: "checkbox",
                 checked: !isCursorDefault && effectiveCursor === "block" && effectiveCursorBlink,
                 click: () => {
@@ -1076,7 +1080,7 @@ export class TermViewModel implements ViewModel {
                 },
             },
             {
-                label: "Bar",
+                label: t("wave.term.cursorBar"), // MOLTENTERM-PATCH (#623)
                 type: "checkbox",
                 checked: !isCursorDefault && effectiveCursor === "bar" && !effectiveCursorBlink,
                 click: () => {
@@ -1087,7 +1091,7 @@ export class TermViewModel implements ViewModel {
                 },
             },
             {
-                label: "Bar (Blinking)",
+                label: t("wave.term.cursorBarBlink"), // MOLTENTERM-PATCH (#623)
                 type: "checkbox",
                 checked: !isCursorDefault && effectiveCursor === "bar" && effectiveCursorBlink,
                 click: () => {
@@ -1098,7 +1102,7 @@ export class TermViewModel implements ViewModel {
                 },
             },
             {
-                label: "Underline",
+                label: t("wave.term.cursorUnderline"), // MOLTENTERM-PATCH (#623)
                 type: "checkbox",
                 checked: !isCursorDefault && effectiveCursor === "underline" && !effectiveCursorBlink,
                 click: () => {
@@ -1109,7 +1113,7 @@ export class TermViewModel implements ViewModel {
                 },
             },
             {
-                label: "Underline (Blinking)",
+                label: t("wave.term.cursorUnderlineBlink"), // MOLTENTERM-PATCH (#623)
                 type: "checkbox",
                 checked: !isCursorDefault && effectiveCursor === "underline" && effectiveCursorBlink,
                 click: () => {
@@ -1121,22 +1125,22 @@ export class TermViewModel implements ViewModel {
             },
         ];
         fullMenu.push({
-            label: "Themes",
+            label: t("wave.term.themes"), // MOLTENTERM-PATCH (#623)
             icon: "palette",
             submenu: submenu,
         });
         fullMenu.push({
-            label: "Font size",
+            label: t("wave.term.fontSize"), // MOLTENTERM-PATCH (#623)
             icon: "text-height",
             submenu: fontSizeSubMenu,
         });
         fullMenu.push({
-            label: "Cursor",
+            label: t("wave.term.cursor"), // MOLTENTERM-PATCH (#623)
             icon: "i-cursor",
             submenu: cursorSubMenu,
         });
         fullMenu.push({
-            label: "Transparency",
+            label: t("wave.term.transparency"), // MOLTENTERM-PATCH (#623)
             icon: "circle-half-stroke",
             submenu: transparencySubMenu,
         });
@@ -1144,7 +1148,7 @@ export class TermViewModel implements ViewModel {
         const advancedSubmenu: ContextMenuItem[] = [];
         if (canShowFileBrowser) {
             advancedSubmenu.push({
-                label: "File Browser",
+                label: t("wave.term.fileBrowser"), // MOLTENTERM-PATCH (#623)
                 click: () => {
                     const blockData = globalStore.get(this.blockAtom);
                     const connection = blockData?.meta?.connection;
@@ -1165,10 +1169,12 @@ export class TermViewModel implements ViewModel {
 
         const allowBracketedPaste = blockData?.meta?.["term:allowbracketedpaste"];
         advancedSubmenu.push({
-            label: "Allow Bracketed Paste Mode",
+            label: t("wave.term.bracketedPaste"), // MOLTENTERM-PATCH (#623)
             submenu: [
                 {
-                    label: "Default (" + (defaultAllowBracketedPaste ? "On" : "Off") + ")",
+                    label: t("wave.term.defaultValue", {
+                        value: t(defaultAllowBracketedPaste ? "common.on" : "common.off"),
+                    }), // MOLTENTERM-PATCH (#623)
                     type: "checkbox",
                     checked: allowBracketedPaste == null,
                     click: () => {
@@ -1179,7 +1185,7 @@ export class TermViewModel implements ViewModel {
                     },
                 },
                 {
-                    label: "On",
+                    label: t("common.on"), // MOLTENTERM-PATCH (#623)
                     type: "checkbox",
                     checked: allowBracketedPaste === true,
                     click: () => {
@@ -1190,7 +1196,7 @@ export class TermViewModel implements ViewModel {
                     },
                 },
                 {
-                    label: "Off",
+                    label: t("common.off"), // MOLTENTERM-PATCH (#623)
                     type: "checkbox",
                     checked: allowBracketedPaste === false,
                     click: () => {
@@ -1203,15 +1209,15 @@ export class TermViewModel implements ViewModel {
             ],
         });
         advancedSubmenu.push({
-            label: "Force Restart Controller",
+            label: t("wave.term.forceRestart"), // MOLTENTERM-PATCH (#623)
             click: () => fireAndForget(() => this.forceRestartController()),
         });
         const isClearOnStart = blockData?.meta?.["cmd:clearonstart"];
         advancedSubmenu.push({
-            label: "Clear Output On Restart",
+            label: t("wave.term.clearOnRestart"), // MOLTENTERM-PATCH (#623)
             submenu: [
                 {
-                    label: "On",
+                    label: t("common.on"), // MOLTENTERM-PATCH (#623)
                     type: "checkbox",
                     checked: isClearOnStart,
                     click: () => {
@@ -1222,7 +1228,7 @@ export class TermViewModel implements ViewModel {
                     },
                 },
                 {
-                    label: "Off",
+                    label: t("common.off"), // MOLTENTERM-PATCH (#623)
                     type: "checkbox",
                     checked: !isClearOnStart,
                     click: () => {
@@ -1236,10 +1242,10 @@ export class TermViewModel implements ViewModel {
         });
         const runOnStart = blockData?.meta?.["cmd:runonstart"];
         advancedSubmenu.push({
-            label: "Run On Startup",
+            label: t("wave.term.runOnStartup"), // MOLTENTERM-PATCH (#623)
             submenu: [
                 {
-                    label: "On",
+                    label: t("common.on"), // MOLTENTERM-PATCH (#623)
                     type: "checkbox",
                     checked: runOnStart,
                     click: () => {
@@ -1250,7 +1256,7 @@ export class TermViewModel implements ViewModel {
                     },
                 },
                 {
-                    label: "Off",
+                    label: t("common.off"), // MOLTENTERM-PATCH (#623)
                     type: "checkbox",
                     checked: !runOnStart,
                     click: () => {
@@ -1264,10 +1270,10 @@ export class TermViewModel implements ViewModel {
         });
         const debugConn = blockData?.meta?.["term:conndebug"];
         advancedSubmenu.push({
-            label: "Debug Connection",
+            label: t("wave.term.debugConnection"), // MOLTENTERM-PATCH (#623)
             submenu: [
                 {
-                    label: "Off",
+                    label: t("common.off"), // MOLTENTERM-PATCH (#623)
                     type: "checkbox",
                     checked: !debugConn,
                     click: () => {
@@ -1278,7 +1284,7 @@ export class TermViewModel implements ViewModel {
                     },
                 },
                 {
-                    label: "Info",
+                    label: t("wave.term.debugInfo"), // MOLTENTERM-PATCH (#623)
                     type: "checkbox",
                     checked: debugConn == "info",
                     click: () => {
@@ -1289,7 +1295,7 @@ export class TermViewModel implements ViewModel {
                     },
                 },
                 {
-                    label: "Verbose",
+                    label: t("wave.term.debugVerbose"), // MOLTENTERM-PATCH (#623)
                     type: "checkbox",
                     checked: debugConn == "debug",
                     click: () => {
@@ -1305,20 +1311,20 @@ export class TermViewModel implements ViewModel {
         const isDurable = globalStore.get(getBlockTermDurableAtom(this.blockId));
         if (isDurable) {
             advancedSubmenu.push({
-                label: "Session Durability",
+                label: t("wave.term.durability"), // MOLTENTERM-PATCH (#623)
                 submenu: [
                     {
-                        label: "Restart Session in Standard Mode",
+                        label: t("wave.term.restartStandard"), // MOLTENTERM-PATCH (#623)
                         click: () => fireAndForget(() => this.restartSessionWithDurability(false)),
                     },
                 ],
             });
         } else if (isDurable === false) {
             advancedSubmenu.push({
-                label: "Session Durability",
+                label: t("wave.term.durability"), // MOLTENTERM-PATCH (#623)
                 submenu: [
                     {
-                        label: "Restart Session in Durable Mode",
+                        label: t("wave.term.restartDurable"), // MOLTENTERM-PATCH (#623)
                         click: () => fireAndForget(() => this.restartSessionWithDurability(true)),
                     },
                 ],
@@ -1326,14 +1332,14 @@ export class TermViewModel implements ViewModel {
         }
 
         fullMenu.push({
-            label: "Advanced",
+            label: t("wave.term.advanced"), // MOLTENTERM-PATCH (#623)
             icon: "sliders",
             submenu: advancedSubmenu,
         });
         if (blockData?.meta?.["term:vdomtoolbarblockid"]) {
             fullMenu.push({ type: "separator" });
             fullMenu.push({
-                label: "Close Toolbar",
+                label: t("wave.term.closeToolbar"), // MOLTENTERM-PATCH (#623)
                 click: () => {
                     RpcApi.DeleteSubBlockCommand(TabRpcClient, { blockid: blockData.meta["term:vdomtoolbarblockid"] });
                 },

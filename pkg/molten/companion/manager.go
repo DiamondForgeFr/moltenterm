@@ -5,6 +5,7 @@ package companion
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -62,6 +64,10 @@ const (
 	maxLeases   = 8
 	// The companion's history lists at most this many sessions.
 	maxHistory = 30
+	// The sessions a pane showed before its current one, kept per pane while wavesrv runs (#600).
+	maxEarlier = 10
+	// How often the background agents whose end was never recorded are checked for activity.
+	subagentSweepInterval = time.Minute
 	// Records larger than this are not decoded unless they may carry a file change: a tool's result only ends its
 	// call, read from its id.
 	largeRecordBytes = 1024 * 1024
@@ -72,6 +78,8 @@ const (
 const idleTickInterval = 2 * time.Second
 
 var largeRecordMarkers = [][]byte{[]byte(`"structuredPatch"`), []byte(`"bashEditDiff"`), []byte(`"FileChange"`), []byte(`"patch_apply_begin"`)}
+var asyncLaunchedMarker = []byte(`"async_launched"`)
+var taskNotificationMarker = []byte(`<task-notification>`)
 var resultIdRegex = regexp.MustCompile(`"(?:tool_use_id|call_id)"\s*:\s*"([^"]{1,200})"`)
 
 type SessionInfo struct {
@@ -84,6 +92,30 @@ type SessionInfo struct {
 	Title   string `json:"title,omitempty"`
 	Command string `json:"command,omitempty"`
 	Started int64  `json:"started,omitempty"`
+	// Name: the agent's own name of the session (Claude Code's title, or the user's /rename), when it gave one.
+	Name string `json:"name,omitempty"`
+	// Branch: the branch the agent's records last named.
+	Branch string `json:"branch,omitempty"`
+	// Model, Effort: the main agent's as its latest answer records them (the status line's win in the view, #549).
+	Model  string `json:"model,omitempty"`
+	Effort string `json:"effort,omitempty"`
+	// Ticket, Complexity: the ticket the main agent works on and its complexity label (#601).
+	Ticket     int    `json:"ticket,omitempty"`
+	Complexity string `json:"complexity,omitempty"`
+	// Earlier: the user chose an earlier session of the pane in the history; the agent's hook reported a newer one.
+	Earlier bool `json:"earlier,omitempty"`
+	// LivePath: with Earlier, the session the agent runs now.
+	LivePath string `json:"livepath,omitempty"`
+}
+
+// EarlierSession is a session the pane showed before the one it shows now (a /clear, a resume, another agent run).
+type EarlierSession struct {
+	Path    string `json:"path"`
+	Title   string `json:"title,omitempty"`
+	Command string `json:"command,omitempty"`
+	Started int64  `json:"started,omitempty"`
+	// Until: when the pane moved on from it.
+	Until int64 `json:"until,omitempty"`
 }
 
 // CompanionView is what the companion view shows of a block; the earlier answers and the diffs are fetched on demand.
@@ -107,6 +139,12 @@ type CompanionView struct {
 	Usage *usage.UsagePage `json:"usage,omitempty"`
 	// Integration: what MoltenTerm's launcher added to this run, or why nothing (FR-SHELL-036).
 	Integration *molten.AgentIntegrationReport `json:"integration,omitempty"`
+	// The recap (#555): the latest topics of the session, the sub-agents its agent started, its latest call.
+	Topics    []TopicInfo    `json:"topics,omitempty"`
+	Subagents []SubagentInfo `json:"subagents,omitempty"`
+	Activity  *ActivityInfo  `json:"activity,omitempty"`
+	// Earlier: the pane's earlier sessions, newest first, the one shown left out (#600).
+	Earlier []EarlierSession `json:"earlier,omitempty"`
 }
 
 type blockInfo struct {
@@ -119,12 +157,16 @@ type sessionReport struct {
 	agent string
 	path  string
 	at    time.Time
+	// pending: the transcript did not exist yet when the hook reported it (SessionStart after /clear).
+	pending bool
 }
 
 type sessionPick struct {
 	agent   string
 	started int64
 	path    string
+	// at: a pick made after the hook's report shows that session instead (an earlier session of the pane).
+	at time.Time
 }
 
 type sessionClaim struct {
@@ -139,6 +181,7 @@ type Manager struct {
 	reports  map[string]sessionReport
 	picks    map[string]sessionPick
 	claims   map[string]sessionClaim
+	earlier  map[string][]EarlierSession
 	version  int64
 	// When each block's plan gauges were last published.
 	usagePublished map[string]time.Time
@@ -153,12 +196,17 @@ type Manager struct {
 	// Session ids reported by an agent and not found among its transcripts, with when: not looked up again for a
 	// while (Codex reports its thread id at every turn's end).
 	idMisses map[string]time.Time
+	// The complexity of the tickets the agents work on (#601, tickets.go), by folder and ticket, and the gh calls running.
+	complexities  map[string]*complexityEntry
+	ticketLookups int
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
 	runOf         func(blockId string) (molten.AgentRunInfo, bool)
+	setSettings   func(blockId string, agent string, settings molten.AgentSettings)
 	integrationOf func(blockId string) (molten.AgentIntegrationReport, bool)
 	allRuns       func() []molten.AgentRunInfo
 	blockInfo     func(blockId string) (blockInfo, error)
+	ticketLabels  func(ctx context.Context, dir string, number int) ([]string, error)
 	publish       func(view CompanionView)
 	publishUsage  func(info UsageInfo)
 	writeGauges   func(agents []string) error
@@ -176,6 +224,7 @@ func MakeManager() *Manager {
 		reports:        map[string]sessionReport{},
 		picks:          map[string]sessionPick{},
 		claims:         map[string]sessionClaim{},
+		earlier:        map[string][]EarlierSession{},
 		usagePublished: map[string]time.Time{},
 		usageVisible:   map[string]bool{},
 		statusLines:    map[string]*statusLineGate{},
@@ -217,6 +266,18 @@ func (m *Manager) Open(blockId string, viewId string) (CompanionView, error) {
 		return CompanionView{}, err
 	}
 	return w.view(false), nil
+}
+
+// Refresh makes an open companion look again at once: which session is the pane's (a link that came while nobody
+// looked, a newer session of the folder), what was appended, which background agents went quiet. A view asks for it
+// when it opens or shows, and on a bounded interval while it shows (#600, AC5 and AC6).
+func (m *Manager) Refresh(blockId string) {
+	w := m.watcher(blockId)
+	if w == nil {
+		return
+	}
+	w.refreshAsked.Store(true)
+	w.poke()
 }
 
 func (m *Manager) lease(blockId string, viewId string) (*watcher, error) {
@@ -293,6 +354,7 @@ func (m *Manager) ForgetBlock(blockId string) {
 	m.stopLocked(blockId)
 	delete(m.reports, blockId)
 	delete(m.picks, blockId)
+	delete(m.earlier, blockId)
 	delete(m.usagePublished, blockId)
 	delete(m.usageVisible, blockId)
 	delete(m.statusLines, blockId)
@@ -382,6 +444,10 @@ func (m *Manager) confidentPath(blockId string) string {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if r, ok := m.reports[blockId]; ok && m.reportCurrentLocked(blockId, r) {
+		if r.pending {
+			// A new session whose transcript does not exist yet: nothing of it can be read or resumed.
+			return ""
+		}
 		return r.path
 	}
 	if p, ok := m.picks[blockId]; ok {
@@ -459,23 +525,105 @@ func (m *Manager) ReportSession(req molten.AgentSessionRequest) error {
 		}
 		reqPath = found
 	}
-	path, err := ValidateSessionPath(adapter, reqPath)
+	path, pending, err := ValidateReportedSessionPath(adapter, reqPath)
 	if err != nil {
 		return err
 	}
+	if err := m.recordReport(req.BlockId, agent, path, pending); err != nil {
+		return err
+	}
+	if !pending {
+		m.readSettings(req.BlockId, agent, adapter, path)
+	}
+	return nil
+}
+
+func (m *Manager) recordReport(blockId string, agent string, path string, pending bool) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	if m.reportedByOtherLocked(req.BlockId, path) {
+	if m.reportedByOtherLocked(blockId, path) {
 		return fmt.Errorf("this session belongs to another terminal")
 	}
-	if _, ok := m.reports[req.BlockId]; !ok && len(m.reports) >= maxReports {
+	prev, had := m.reports[blockId]
+	if !had && len(m.reports) >= maxReports {
 		m.evictOldestReportLocked()
 	}
-	m.reports[req.BlockId] = sessionReport{agent: agent, path: path, at: m.now()}
-	if w := m.watchers[req.BlockId]; w != nil {
+	now := m.now()
+	if had && !prev.pending && prev.path != path {
+		// Kept even while no companion is open: the history still offers the session the pane moved on from.
+		m.addEarlierLocked(blockId, EarlierSession{Path: prev.path, Until: now.UnixMilli()})
+	}
+	m.reports[blockId] = sessionReport{agent: agent, path: path, at: now, pending: pending}
+	if w := m.watchers[blockId]; w != nil {
 		w.poke()
 	}
 	return nil
+}
+
+// addEarlierLocked keeps a session the pane moved on from, newest first; what is already known of it is kept.
+func (m *Manager) addEarlierLocked(blockId string, s EarlierSession) {
+	if s.Path == "" {
+		return
+	}
+	list := m.earlier[blockId]
+	rtn := make([]EarlierSession, 0, len(list)+1)
+	for _, e := range list {
+		if e.Path != s.Path {
+			rtn = append(rtn, e)
+			continue
+		}
+		if s.Title == "" {
+			s.Title = e.Title
+		}
+		if s.Command == "" {
+			s.Command = e.Command
+		}
+		if s.Started == 0 {
+			s.Started = e.Started
+		}
+	}
+	rtn = append([]EarlierSession{s}, rtn...)
+	if len(rtn) > maxEarlier {
+		rtn = rtn[:maxEarlier]
+	}
+	m.earlier[blockId] = rtn
+}
+
+func (m *Manager) addEarlier(blockId string, s EarlierSession) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.addEarlierLocked(blockId, s)
+}
+
+// earlierOf lists the pane's earlier sessions, the one it shows (current) left out.
+func (m *Manager) earlierOf(blockId string, current string) []EarlierSession {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	var rtn []EarlierSession
+	for _, e := range m.earlier[blockId] {
+		if e.Path != current {
+			rtn = append(rtn, e)
+		}
+	}
+	return rtn
+}
+
+// readSettings reads the run's model and effort from the session an agent just reported, when its transcript is the
+// only place they are written (Codex's notify links the session at each turn's end, #549): one bounded read per
+// report, in the background, never a poll.
+func (m *Manager) readSettings(blockId string, agent string, adapter Adapter, path string) {
+	reader, ok := adapter.(SettingsReader)
+	if !ok || m.setSettings == nil {
+		return
+	}
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:companion:settings", recover())
+		}()
+		if settings, ok := reader.ReadSettings(path); ok {
+			m.setSettings(blockId, agent, settings)
+		}
+	}()
 }
 
 const (
@@ -545,18 +693,53 @@ func (m *Manager) evictOldestReportLocked() {
 	delete(m.reports, oldestId)
 }
 
+// report is the block's hook report; a pending one is checked again, and becomes a plain one once its transcript
+// exists.
 func (m *Manager) report(blockId string) (sessionReport, bool) {
+	r, ok := m.storedReport(blockId)
+	if !ok || !r.pending {
+		return r, ok
+	}
+	adapter := m.adapterFor(r.agent)
+	if adapter == nil {
+		return r, ok
+	}
+	resolved, err := ValidateSessionPath(adapter, r.path)
+	if err != nil {
+		return r, ok
+	}
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	cur, still := m.reports[blockId]
+	if !still || cur.path != r.path || cur.at != r.at {
+		return cur, still
+	}
+	cur.path, cur.pending = resolved, false
+	m.reports[blockId] = cur
+	return cur, true
+}
+
+func (m *Manager) storedReport(blockId string) (sessionReport, bool) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	r, ok := m.reports[blockId]
 	return r, ok
 }
 
-// Pick links the session the user chose in the picker.
+// Pick links the session the user chose in the picker. An empty path drops the pick: the companion goes back to the
+// session the agent's hook reports (Back to the current session).
 func (m *Manager) Pick(blockId string, viewId string, path string) (CompanionView, error) {
 	w, err := m.lease(blockId, viewId)
 	if err != nil {
 		return CompanionView{}, err
+	}
+	if path == "" {
+		m.lock.Lock()
+		delete(m.picks, blockId)
+		m.lock.Unlock()
+		w.refreshAsked.Store(true)
+		w.poke()
+		return w.view(false), nil
 	}
 	run, ok := w.currentRun()
 	if !ok {
@@ -574,7 +757,7 @@ func (m *Manager) Pick(blockId string, viewId string, path string) (CompanionVie
 		return CompanionView{}, fmt.Errorf("this session belongs to another terminal")
 	}
 	m.lock.Lock()
-	m.picks[blockId] = sessionPick{agent: run.Agent, started: run.Started, path: resolved}
+	m.picks[blockId] = sessionPick{agent: run.Agent, started: run.Started, path: resolved, at: m.now()}
 	m.lock.Unlock()
 	w.poke()
 	return w.view(false), nil
@@ -610,15 +793,49 @@ func (m *Manager) Sessions(blockId string, viewId string) ([]Candidate, error) {
 	if hasCurrent {
 		rtn = append(rtn, current)
 	}
-	if info.cwd == "" {
-		return rtn, nil
+	var found []Candidate
+	if info.cwd != "" {
+		found = adapter.Discover(info.cwd, time.UnixMilli(run.Started))
 	}
-	for _, c := range adapter.Discover(info.cwd, time.UnixMilli(run.Started)) {
+	byPath := map[string]Candidate{}
+	for _, c := range found {
+		c.Path = canonicalPath(c.Path)
+		byPath[c.Path] = c
+	}
+	listed := map[string]bool{current.Path: hasCurrent}
+	if live := w.livePath(); live != "" && !listed[live] {
+		c, ok := byPath[live]
+		if !ok {
+			c = earlierCandidate(EarlierSession{Path: live})
+		}
+		if c.Path != "" {
+			c.Live = true
+			listed[c.Path] = true
+			rtn = append(rtn, c)
+		}
+	}
+	// The pane's earlier sessions come right after its current one, those of an earlier run of the agent included.
+	for _, e := range m.earlierOf(blockId, current.Path) {
+		if listed[e.Path] || m.heldByOther(blockId, e.Path) {
+			continue
+		}
+		c, ok := byPath[e.Path]
+		if !ok {
+			c = earlierCandidate(e)
+			if c.Path == "" {
+				continue
+			}
+		}
+		c.Earlier = true
+		listed[c.Path] = true
+		rtn = append(rtn, c)
+	}
+	for _, c := range found {
 		if len(rtn) >= maxHistory {
 			break
 		}
 		c.Path = canonicalPath(c.Path)
-		if hasCurrent && c.Path == current.Path {
+		if listed[c.Path] {
 			continue
 		}
 		if m.heldByOther(blockId, c.Path) {
@@ -628,6 +845,23 @@ func (m *Manager) Sessions(blockId string, viewId string) ([]Candidate, error) {
 		rtn = append(rtn, c)
 	}
 	return rtn, nil
+}
+
+// earlierCandidate describes an earlier session of the pane that discovery no longer lists (written before the
+// agent's current run); empty when its transcript is gone.
+func earlierCandidate(e EarlierSession) Candidate {
+	info, err := os.Stat(e.Path)
+	if err != nil || !info.Mode().IsRegular() {
+		return Candidate{}
+	}
+	return Candidate{
+		Path:     e.Path,
+		Id:       strings.TrimSuffix(filepath.Base(e.Path), ".jsonl"),
+		Started:  e.Started,
+		Modified: info.ModTime().UnixMilli(),
+		Prompt:   e.Title,
+		Command:  e.Command,
+	}
 }
 
 func (m *Manager) pick(blockId string) (sessionPick, bool) {
@@ -721,6 +955,9 @@ type watcher struct {
 	guess      string
 	session    *Session
 	version    int64
+	// earlier: the session shown is an earlier one of the pane the user chose; the hook reports a newer one, live.
+	earlier bool
+	live    string
 	// integration: the launcher's report for the current run, nil without one.
 	integration *molten.AgentIntegrationReport
 
@@ -743,6 +980,11 @@ type watcher struct {
 	limitsReady   bool
 	// reread: the plan limits were forgotten, so the session is read again from its start (guarded by lock).
 	reread bool
+	// refreshAsked: a view asked to look again now (Refresh); quietAt: when the background agents were last checked.
+	refreshAsked atomic.Bool
+	quietAt      time.Time
+	// factsAsked: a refresh asked to read the running sub-agents' own transcripts and to look tickets up (#601).
+	factsAsked bool
 }
 
 func makeWatcher(m *Manager, blockId string) *watcher {
@@ -878,6 +1120,10 @@ func (w *watcher) refreshInfo(force bool) error {
 // step does one pass: which agent runs, which session is its, what was appended. It tells whether unread bytes
 // remain.
 func (w *watcher) step() bool {
+	if w.refreshAsked.Swap(false) {
+		w.discoveredAt, w.infoAt, w.quietAt = time.Time{}, time.Time{}, time.Time{}
+		w.factsAsked = true
+	}
 	w.refreshIntegration()
 	run, ok := w.resolveRun()
 	if !ok {
@@ -917,7 +1163,79 @@ func (w *watcher) step() bool {
 	if w.follower == nil {
 		return false
 	}
-	return w.read()
+	more := w.read()
+	if !more {
+		w.settleSubagents()
+		w.readAgentFacts()
+	}
+	return more
+}
+
+// settleSubagents checks, at most once a subagentSweepInterval, the background agents whose end the transcript did
+// not tell: one silent for long is no longer shown as at work (#600). A few stats, only while the companion is open.
+func (w *watcher) settleSubagents() {
+	now := w.m.now()
+	if !w.quietAt.IsZero() && now.Sub(w.quietAt) < subagentSweepInterval {
+		return
+	}
+	w.quietAt = now
+	writer, _ := w.adapter.(SubagentWriter)
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.session == nil {
+		return
+	}
+	path := w.path
+	var lastWrite func(string) int64
+	if writer != nil {
+		lastWrite = func(agentId string) int64 { return writer.SubagentWritten(path, agentId) }
+	}
+	w.session.QuietSubagents(now.UnixMilli(), lastWrite)
+}
+
+// readAgentFacts gives the agents their ticket and its complexity (#601). Only a refresh (a view that shows asked)
+// reads the running sub-agents' own transcripts and may start a gh lookup; any other pass answers from the cache.
+func (w *watcher) readAgentFacts() {
+	fetch := w.factsAsked
+	w.factsAsked = false
+	reader, _ := w.adapter.(SubagentReader)
+	dir := w.info.cwd
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.session == nil {
+		return
+	}
+	if fetch && reader != nil {
+		w.readSubagents(reader)
+	}
+	w.session.ResolveTickets(func(number int, wanted bool) (string, bool) {
+		return w.m.ticketComplexity(dir, number, fetch && wanted)
+	})
+}
+
+// readSubagents reads the running sub-agents' own transcripts: the meta files only while one's agent id is unknown.
+func (w *watcher) readSubagents(reader SubagentReader) {
+	running := w.session.runningSubagents()
+	var ids map[string]string
+	for _, sa := range running {
+		agentId := sa.agentId
+		if agentId == "" {
+			if ids == nil {
+				ids = reader.SubagentIds(w.path)
+				if ids == nil {
+					ids = map[string]string{}
+				}
+			}
+			agentId = ids[sa.callId]
+			w.session.SetSubagentId(sa.callId, agentId)
+		}
+		if agentId == "" {
+			continue
+		}
+		if facts, ok := reader.ReadSubagent(w.path, agentId); ok {
+			w.session.SetSubagentFacts(sa.callId, facts)
+		}
+	}
 }
 
 // refreshIntegration follows the launcher's report of the block's run; a new or gone report is a new view.
@@ -963,14 +1281,34 @@ func (w *watcher) noRun() {
 }
 
 func (w *watcher) unlink() {
+	w.retire()
+	w.giveBack()
+}
+
+// giveBack drops the link without keeping the session among the pane's earlier ones: it is another terminal's.
+func (w *watcher) giveBack() {
 	w.closeFollower()
 	w.m.releaseClaims(w.blockId)
 	w.lock.Lock()
 	defer w.lock.Unlock()
-	w.path, w.linkedBy, w.guess, w.session, w.ended = "", "", "", nil, false
+	w.path, w.linkedBy, w.guess, w.session, w.ended, w.earlier, w.live = "", "", "", nil, false, false, ""
 	w.linkedStarted = 0
 	w.discoveredAt = time.Time{}
 	w.version++
+}
+
+// retire keeps the session the companion leaves among the pane's earlier ones, unless it was only a guess (which
+// may be another pane's).
+func (w *watcher) retire() {
+	w.lock.Lock()
+	// An earlier session the user looks at is already among them, and the session it replaced is the agent's own.
+	if w.path == "" || w.session == nil || w.linkedBy == LinkGuessed || w.earlier {
+		w.lock.Unlock()
+		return
+	}
+	e := EarlierSession{Path: w.path, Title: w.session.Title(), Command: w.session.FirstCommand(), Started: w.session.StartedAt(), Until: w.m.now().UnixMilli()}
+	w.lock.Unlock()
+	w.m.addEarlier(w.blockId, e)
 }
 
 // link finds the session to follow, the most reliable source first: the agent hook's report, the user's pick, then
@@ -978,18 +1316,33 @@ func (w *watcher) unlink() {
 func (w *watcher) link(run molten.AgentRunInfo) {
 	if w.follower != nil && w.m.claimOwner(w.path) != w.blockId {
 		// Another terminal's hook or pick took the session discovery had linked here.
-		w.unlink()
+		w.giveBack()
 	}
 	if by, _ := w.linkKind(); w.follower != nil && weakLink(by) && w.m.reportedByOther(w.blockId, w.path) {
 		// Another terminal's hook reports it while that terminal's companion is closed (no claim of its own).
-		w.unlink()
+		w.giveBack()
 	}
+	pick, picked := w.m.pick(w.blockId)
+	picked = picked && pick.agent == run.Agent && pick.started == run.Started
 	if report, ok := w.m.report(w.blockId); ok && report.agent == run.Agent && !report.at.Before(time.UnixMilli(run.Started).Add(-reportSlack)) {
+		if picked && pick.at.After(report.at) && pick.path != report.path {
+			// The user chose an earlier session of the pane after the hook's report: it shows until the next report
+			// or Back to the current session.
+			w.setEarlier(true, report.path)
+			w.follow(pick.path, LinkPicked, 0, "")
+			return
+		}
+		if report.pending {
+			w.waitForReported(report.path)
+			return
+		}
 		w.follow(report.path, LinkHook, 0, "")
+		w.setEarlier(false, "")
 		return
 	}
-	if pick, ok := w.m.pick(w.blockId); ok && pick.agent == run.Agent && pick.started == run.Started {
+	if picked {
 		w.follow(pick.path, LinkPicked, 0, "")
+		w.setEarlier(false, "")
 		return
 	}
 	now := w.m.now()
@@ -1170,6 +1523,39 @@ func chooseCandidate(free []Candidate, written int, runStarted int64, runsInFold
 	return nil, true
 }
 
+// waitForReported: the hook reported a session whose transcript does not exist yet (Claude Code's SessionStart after
+// /clear comes before the new session's first record). The session shown until then is the pane's previous one, so
+// it is left (kept among the earlier sessions) and the companion waits; each step looks for the file again.
+func (w *watcher) waitForReported(path string) {
+	w.lock.Lock()
+	following := w.path != "" && w.path != path
+	w.lock.Unlock()
+	if following {
+		w.unlink()
+	}
+	w.setStatus(StatusSearching, "A new session started. It shows here once the agent writes its first message.")
+}
+
+func (w *watcher) livePath() string {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if !w.earlier {
+		return ""
+	}
+	return w.live
+}
+
+// setEarlier tells whether the session shown is an earlier one the user chose, and live the one the agent runs then.
+func (w *watcher) setEarlier(earlier bool, live string) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.earlier == earlier && w.live == live {
+		return
+	}
+	w.earlier, w.live = earlier, live
+	w.version++
+}
+
 func (w *watcher) follow(path string, linkedBy string, started int64, guess string) {
 	w.lock.Lock()
 	same := w.path == path && w.follower != nil
@@ -1192,6 +1578,7 @@ func (w *watcher) follow(path string, linkedBy string, started int64, guess stri
 		w.setStatus(StatusSearching, "This session is followed by another terminal.")
 		return
 	}
+	w.retire()
 	w.closeFollower()
 	f, err := openFollower(resolved)
 	if err != nil {
@@ -1201,9 +1588,12 @@ func (w *watcher) follow(path string, linkedBy string, started int64, guess stri
 	}
 	w.follower = f
 	w.linkedStarted = started
+	w.quietAt = time.Time{}
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	w.path, w.linkedBy, w.guess, w.session = resolved, linkedBy, guess, MakeSession()
+	// Another session's answer may have the same index and revision: the first event of this one carries its text.
+	w.latestStarted = false
 	w.status, w.message = StatusLoading, ""
 	w.version++
 }
@@ -1226,6 +1616,13 @@ func parseRecordLine(adapter Adapter, s *Session, line []byte) {
 		if !carries {
 			if m := resultIdRegex.FindSubmatch(line); m != nil {
 				s.ResolveTool(string(m[1]))
+				s.SubagentResult(string(m[1]), bytes.Contains(line, asyncLaunchedMarker), false, "")
+			}
+			if bytes.Contains(line, taskNotificationMarker) {
+				ends, _ := taskNotifications(string(line))
+				for _, end := range ends {
+					s.EndSubagent(end[0], end[1])
+				}
 			}
 			s.countLine(true, true)
 			return
@@ -1321,10 +1718,13 @@ func (w *watcher) view(elide bool) CompanionView {
 		v.AgentName = molten.AgentDisplayName(w.agent)
 		v.Usage = usage.PageOf(w.agent)
 	}
+	v.Earlier = w.m.earlierOf(w.blockId, w.path)
 	if w.path == "" || w.session == nil {
 		return v
 	}
 	v.Session = &SessionInfo{
+		Earlier:  w.earlier,
+		LivePath: w.live,
 		Path:     w.path,
 		Format:   w.session.Format,
 		LinkedBy: w.linkedBy,
@@ -1332,7 +1732,12 @@ func (w *watcher) view(elide bool) CompanionView {
 		Title:    w.session.Title(),
 		Command:  w.session.FirstCommand(),
 		Started:  w.session.StartedAt(),
+		Name:     w.session.Name(),
+		Branch:   w.session.Branch(),
+		Model:    w.session.Model(),
+		Effort:   w.session.Effort(),
 	}
+	v.Session.Ticket, v.Session.Complexity = w.session.Ticket()
 	if w.status == StatusUnsupportedFormat {
 		return v
 	}
@@ -1350,6 +1755,9 @@ func (w *watcher) view(elide bool) CompanionView {
 	v.Files = w.session.Files()
 	v.Todos = w.session.Todos()
 	v.Pending = w.session.Pending()
+	v.Topics = w.session.Topics()
+	v.Subagents = w.session.Subagents()
+	v.Activity = w.session.Activity()
 	return v
 }
 

@@ -20,6 +20,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity/checkpoint"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/browseragent"
 	"github.com/wavetermdev/waveterm/pkg/molten/browsers"
@@ -61,6 +62,7 @@ const (
 	ReleaseMilestoneCommand = "moltenmissionreleasemilestone"
 	BranchesPlanCommand     = "moltenmissionbranchesplan"
 	BranchesCleanCommand    = "moltenmissionbranchesclean"
+	BranchesAutoDeleteCmd   = "moltenmissionbranchesautodelete"
 	WorkCommand             = "moltenmissionwork"
 	GitInitCommand          = "moltenmissiongitinit"
 	UpdateEvent             = "molten:mission:update"
@@ -99,6 +101,10 @@ type Snapshot struct {
 	Refreshing bool            `json:"refreshing,omitempty"`
 	// Read and validated on every request (FR-MC-008): the agent writing the file sees the panels follow at once.
 	Pipeline *molten.PipelineReport `json:"pipeline,omitempty"`
+	// The branch pull requests target when the project declares one (FR-REV-001), read with the pipeline.
+	PrTarget string `json:"prtarget,omitempty"`
+	// The workflow files' names, sizes and times (#637): the Jobs tab reads them again when it moves.
+	WorkflowsStamp string `json:"workflowsstamp,omitempty"`
 }
 
 type GetRequest struct {
@@ -376,6 +382,8 @@ func (c *Collector) get(dir string, ask refreshAsk) (Snapshot, error) {
 	if !snap.Missing {
 		report := molten.ValidatePipeline(dir)
 		snap.Pipeline = &report
+		snap.PrTarget = molten.PrTargetBranch(dir)
+		snap.WorkflowsStamp = WorkflowsStamp(dir)
 	}
 	return snap, nil
 }
@@ -484,6 +492,8 @@ func (c *Collector) refresh(dir string, plan refreshPlan) {
 	snap := c.applyRefresh(dir, plan, gitSnap, gitErr, githubSnap)
 	report := molten.ValidatePipeline(dir)
 	snap.Pipeline = &report
+	snap.PrTarget = molten.PrTargetBranch(dir)
+	snap.WorkflowsStamp = WorkflowsStamp(dir)
 	c.saveCache(snap)
 	if c.publish != nil {
 		c.publish(snap)
@@ -609,7 +619,8 @@ func Start() {
 	})
 	// What runs now is also work for the keep-awake (FR-SHELL-023).
 	useCurrentWork(runs, ci)
-	if err := registerRoute(collector, runs, ci, panes, MakeWorktrees(ExecRunner, nil), groups); err != nil {
+	reviews := MakeReviews(collector, ExecRunner, publishReviews)
+	if err := registerRoute(collector, runs, ci, panes, MakeWorktrees(ExecRunner, nil), groups, reviews); err != nil {
 		log.Printf("molten: mission control collector not started: %v\n", err)
 	}
 	// The agent states (FR-SHELL-011) start with Mission Control, so wavesrv's startup keeps one MoltenTerm entry point.
@@ -630,6 +641,8 @@ func Start() {
 	})
 	// The agent sessions of `molten mcp browser` (FR-BRW-008).
 	browseragent.Start()
+	// Handing work from one agent to another by first name (FR-CONT-015).
+	agenthandoff.Start()
 	for _, start := range starters {
 		start()
 	}

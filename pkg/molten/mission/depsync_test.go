@@ -47,6 +47,7 @@ func makeDepSyncFixture(t *testing.T) *depSyncFixture {
 	depCommit(t, f.clock, f.site, "chore: sync script", map[string]string{".molten/project.json": depSyncSitePipeline, "scripts/sync.sh": depSyncScript})
 	data := t.TempDir()
 	runs := MakeRuns(filepath.Join(data, "runs"), MakeTrustStore(filepath.Join(data, "trust.json")), nil)
+	t.Cleanup(func() { waitRunsIdle(t, runs) })
 	links := []molten.GroupLink{{WorkspaceId: "w-app", WorkspaceName: "App", Dir: f.app}, {WorkspaceId: "w-site", WorkspaceName: "Site", Dir: f.site}}
 	groups := MakeGroups(nil, nil, runs, plainRunner, func(ctx context.Context) ([]molten.GroupLink, error) { return links, nil }, nil, nil)
 	trees := filepath.Join(data, "worktrees")

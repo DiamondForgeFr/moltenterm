@@ -6,6 +6,7 @@
 
 import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
+import { useT } from "../i18n/i18n";
 import { CompanionView, usageAction } from "./companion-model";
 
 export function openUsagePage(view: CompanionView, open: (url: string) => Promise<void> = openLink): boolean {
@@ -33,6 +34,7 @@ export function UsageButton({
     // The session bar's compact "Usage", or a button that says what it opens.
     variant?: "bar" | "button";
 }) {
+    const t = useT();
     const action = usageAction(view);
     if (action == null) {
         return null;
@@ -52,7 +54,7 @@ export function UsageButton({
             data-testid="companion-usage"
         >
             <i className="fa fa-solid fa-gauge" aria-hidden="true" />
-            <span>{variant === "button" ? action.title : "Usage"}</span>
+            <span>{variant === "button" ? action.title : t("companion.usage.button")}</span>
         </button>
     );
 }

@@ -2,14 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The page language Settings, Secrets and Tips share (#534): a centred column, a header with a title and one line,
-// and cards holding a group of rows. One place, so the three read as the same app.
+// and blocks holding a group of rows. One place, so the three read as the same app. The blocks are the DiamondForge
+// suite's (suite/suite.tsx, #658): the group's name in a chip on the top border, its icon on the corner.
 
 import { cn } from "@/util/util";
+import { BlockRows, SectionBlock, SuiteIcon } from "../suite/suite";
 
-// The centred column; a wide pane leaves room on both sides instead of pushing everything to the left.
+// The centred reading column: 800 px of content at most (#658, the width of a Notulia settings block), so a row's
+// control or "Selected" stays within reach of its label on a wide window. The side padding leaves room for the
+// blocks' corner icons.
 export function PageColumn({ children, className }: { children: React.ReactNode; className?: string }) {
     return (
-        <div className={cn("mx-auto flex w-full max-w-[760px] flex-col px-8 pt-6 pb-12 @max-w600:px-3", className)}>
+        <div className={cn("mx-auto flex w-full max-w-[864px] flex-col px-8 pt-6 pb-12 @max-w600:px-5", className)}>
             {children}
         </div>
     );
@@ -23,14 +27,20 @@ export function PageHeader({
 }: {
     title: string;
     description?: React.ReactNode;
-    icon?: string;
+    // A Font Awesome name, or a suite icon.
+    icon?: string | SuiteIcon;
     children?: React.ReactNode;
 }) {
+    const Icon = typeof icon === "string" ? null : icon;
     return (
         <header className="flex items-start gap-3 pb-2">
             {icon ? (
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-6 bg-surface-2 text-accent">
-                    <i className={`fa fa-solid fa-${icon} text-icon-16`} aria-hidden />
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-4 bg-surface-2 text-accent">
+                    {Icon ? (
+                        <Icon className="h-4 w-4" aria-hidden />
+                    ) : (
+                        <i className={`fa fa-solid fa-${icon} text-icon-16`} aria-hidden />
+                    )}
                 </span>
             ) : null}
             <div className="min-w-0 flex-1">
@@ -42,32 +52,45 @@ export function PageHeader({
     );
 }
 
-// A group of rows: its heading above, the rows in one card divided by lines.
+// A group of rows: a suite block, its name in the chip, the hint as its description line, the rows flush inside.
 export function PageCard({
     title,
     hint,
+    icon,
+    glow,
+    titleCase,
+    footer,
     children,
     className,
     label,
 }: {
     title?: string;
     hint?: React.ReactNode;
+    icon?: SuiteIcon;
+    // The turning light, while the block holds the row a search jumped to.
+    glow?: boolean;
+    titleCase?: "upper" | "as-is";
+    // An action straddling the bottom border (Secrets' "Add a secret").
+    footer?: React.ReactNode;
     children: React.ReactNode;
     className?: string;
     label?: string;
 }) {
     return (
-        <section aria-label={label ?? title} className={cn("flex flex-col pt-6", className)}>
-            {title ? (
-                <div className="flex items-baseline gap-2 px-1 pb-2">
-                    <h3 className="text-12 font-semibold text-primary">{title}</h3>
-                    {hint ? <span className="truncate text-12 text-muted">{hint}</span> : null}
-                </div>
-            ) : null}
-            <div className="flex flex-col rounded-6 border border-line bg-surface-2/40 shadow-e1">{children}</div>
-        </section>
+        <SectionBlock
+            title={title}
+            aria-label={title ? undefined : label}
+            icon={icon}
+            description={hint}
+            glow={glow}
+            titleCase={titleCase}
+            footer={footer}
+            className={className}
+        >
+            <BlockRows>{children}</BlockRows>
+        </SectionBlock>
     );
 }
 
-// A row of a card: label and description on the left, the control on the right.
-export const PageRowClass = "flex items-center gap-4 border-b border-line px-4 py-3 last:border-b-0";
+// A row of a card: label and description on the left, the control on the right; flush with the block's edges.
+export const PageRowClass = "flex items-center gap-4 px-5 py-3";

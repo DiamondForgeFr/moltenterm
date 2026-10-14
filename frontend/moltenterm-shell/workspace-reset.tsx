@@ -16,6 +16,7 @@ import { RunningList } from "./busy-close";
 import { RunningItem } from "./busy-close-model";
 import { busyCloseEnabled, readWorkspaceRunning } from "./busy-close-store";
 import { DialogFrame, useEscape } from "./dialog-frame";
+import { t, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import { resetLossText } from "./workspace-reset-model";
 
@@ -54,7 +55,7 @@ export function askResetWorkspace(workspaceId: string): void {
         } catch (e) {
             console.log("panes of the workspace to reset", e);
         }
-        const name = ws.name || "Unsaved workspace";
+        const name = ws.name || t("workspace.reset.unsaved");
         const running = busyCloseEnabled() ? await readWorkspaceRunning(workspaceId, name) : [];
         globalStore.set(ResetRequestAtom, {
             workspaceId,
@@ -68,6 +69,7 @@ export function askResetWorkspace(workspaceId: string): void {
 
 export function WorkspaceResetHost() {
     const request = useAtomValue(ResetRequestAtom);
+    const t = useT();
     const cancel = () => globalStore.set(ResetRequestAtom, null);
     useEscape(request != null, cancel);
     if (request == null) {
@@ -81,25 +83,23 @@ export function WorkspaceResetHost() {
     return (
         <DialogFrame
             role="workspace-reset"
-            title={`Reset the workspace "${request.name}"?`}
-            subtitle="It is your only workspace, so it is reset rather than deleted."
+            title={t("workspace.reset.title", { name: request.name })}
+            subtitle={t("workspace.reset.subtitle")}
             buttons={
                 <>
                     <button type="button" className={PlainButton} onClick={cancel} autoFocus={busy}>
-                        Cancel
+                        {t("common.cancel")}
                     </button>
                     <button type="button" className={DangerButton} onClick={reset} autoFocus={!busy}>
-                        Reset workspace
+                        {t("workspace.reset.button")}
                         <MoltenWave />
                     </button>
                 </>
             }
         >
             <p>{resetLossText(request.tabCount, request.paneCount)}</p>
-            <RunningList items={request.running} heading="Resetting stops:" />
-            <p className="text-secondary">
-                The workspace starts again with one new tab. Its name, icon, colour and project link are kept.
-            </p>
+            <RunningList items={request.running} heading={t("workspace.reset.stops")} />
+            <p className="text-secondary">{t("workspace.reset.kept")}</p>
         </DialogFrame>
     );
 }

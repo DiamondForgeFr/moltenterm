@@ -37,7 +37,8 @@ what is missing, and only after the user agreed.
      The project's own release scripts come first; a project that releases from a trunk and a release branch, with
      its version in files `versions.files` can declare, can use the `molten release` commands instead
      ("Generic release commands" in `pipeline-format.md`);
-   - `steps`: anything else project-specific the user wants in a panel.
+   - `steps`: anything else project-specific the user wants in a panel; a `cd` step that deploys names its target
+     with `environment` (`dev`, `staging`, `prod`, …), so the Project tab offers "Deploy to <environment>".
    - `icon`: the project's square app icon (not a wide logo), relative to the project folder, when it is not at a
      usual place such as `icon.svg` or `build/icon.png`.
    - `group`: ask the user whether this repository belongs to a product made of several repositories (an app, its

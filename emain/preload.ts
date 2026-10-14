@@ -117,14 +117,35 @@ contextBridge.exposeInMainWorld("api", {
     moltentermGetWindowActivity: () => ipcRenderer.sendSync("moltenterm-window-activity-get"),
     onMoltentermWindowActivity: (callback) =>
         ipcRenderer.on("moltenterm-window-activity", (_event, activity) => callback(activity)),
-    // MOLTENTERM-PATCH (#459): hidden browser pages frozen and discarded (emain/moltenterm-webview-lifecycle.ts)
-    moltentermWebviewShown: (blockId: string, browserTabId: string, webContentsId: number, shown: boolean) =>
-        ipcRenderer.send("moltenterm-webview-shown", blockId, browserTabId, webContentsId, shown),
-    onMoltentermWebviewDiscard: (callback: (blockId: string, browserTabId: string, webContentsId: number, scroll: any) => void) => {
+    // MOLTENTERM-PATCH (#459, #618): hidden browser pages frozen and discarded (emain/moltenterm-webview-lifecycle.ts)
+    moltentermWebviewShown: (
+        blockId: string,
+        browserTabId: string,
+        webContentsId: number,
+        shown: boolean,
+        offCarpet?: boolean
+    ) => ipcRenderer.send("moltenterm-webview-shown", blockId, browserTabId, webContentsId, shown, offCarpet === true),
+    onMoltentermWebviewDiscard: (
+        callback: (blockId: string, browserTabId: string, webContentsId: number, scroll: any) => void
+    ) => {
         const listener = (_event, blockId, browserTabId, webContentsId, scroll) =>
             callback(blockId, browserTabId, webContentsId, scroll);
         ipcRenderer.on("moltenterm-webview-discard", listener);
         return () => ipcRenderer.removeListener("moltenterm-webview-discard", listener);
+    },
+    // MOLTENTERM-PATCH (#623): the OS preferred languages (app.getPreferredSystemLanguages) and the renderer's resolved
+    // interface language, for the app menu and dialogs (emain/moltenterm-i18n.ts)
+    moltentermSystemLanguages: () => ipcRenderer.sendSync("moltenterm-system-languages"),
+    moltentermSetLocale: (locale: string) => ipcRenderer.send("moltenterm-set-locale", locale),
+    // MOLTENTERM-PATCH (#624): the language packs' dictionaries, so the app menu and dialogs speak a pack's language
+    moltentermSetLanguagePacks: (packs: any[]) => ipcRenderer.send("moltenterm-set-language-packs", packs),
+    // MOLTENTERM-PATCH (#605): a system notification while no window is in front (emain/moltenterm-system-notify.ts)
+    moltentermSystemNotify: (req: any) => ipcRenderer.invoke("moltenterm-system-notify", req),
+    moltentermSystemNotifyClose: (id: string) => ipcRenderer.send("moltenterm-system-notify-close", id),
+    onMoltentermSystemNotifyClick: (callback: (id: string) => void) => {
+        const listener = (_event, id) => callback(id);
+        ipcRenderer.on("moltenterm-system-notify-click", listener);
+        return () => ipcRenderer.removeListener("moltenterm-system-notify-click", listener);
     },
 });
 

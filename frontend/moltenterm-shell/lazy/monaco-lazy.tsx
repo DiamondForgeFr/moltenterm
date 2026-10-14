@@ -7,6 +7,7 @@
 
 import type * as MonacoReact from "@/app/monaco/monaco-react";
 import { ComponentProps, lazy, Suspense } from "react";
+import { t } from "../i18n/i18n";
 import { LazyViewLoading } from "./lazy-view";
 
 const LazyCodeEditor = lazy(() => import("@/app/monaco/monaco-react").then((m) => ({ default: m.MonacoCodeEditor })));
@@ -14,7 +15,7 @@ const LazyDiffViewer = lazy(() => import("@/app/monaco/monaco-react").then((m) =
 
 export function MonacoCodeEditor(props: ComponentProps<typeof MonacoReact.MonacoCodeEditor>) {
     return (
-        <Suspense fallback={<LazyViewLoading label="Loading editor…" />}>
+        <Suspense fallback={<LazyViewLoading label={t("lazy.loadingEditor")} />}>
             <LazyCodeEditor {...props} />
         </Suspense>
     );
@@ -22,7 +23,7 @@ export function MonacoCodeEditor(props: ComponentProps<typeof MonacoReact.Monaco
 
 export function MonacoDiffViewer(props: ComponentProps<typeof MonacoReact.MonacoDiffViewer>) {
     return (
-        <Suspense fallback={<LazyViewLoading label="Loading diff…" />}>
+        <Suspense fallback={<LazyViewLoading label={t("lazy.loadingDiff")} />}>
             <LazyDiffViewer {...props} />
         </Suspense>
     );

@@ -27,6 +27,7 @@ import { splitFocusedPanel } from "../../moltenterm-shell/split/split"; // MOLTE
 import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
 import { closeTabAskingFirst, interceptTerminalClose } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#114, #134, #489)
 import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
+import { registerCarpetKeys } from "../../moltenterm-shell/view360/carpet-keys"; // MOLTENTERM-PATCH (#617)
 import { isWindows } from "@/util/platformutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
@@ -778,6 +779,8 @@ function registerGlobalKeys() {
     }
     // MOLTENTERM-PATCH (#111): Cmd+Shift+K toggles the command palette (Cmd+K stays the terminal's clear).
     registerCommandPaletteKeys(globalKeyMap);
+    // MOLTENTERM-PATCH (#617): previous / next panel on the carpet in 360 view (FR-SHELL-068)
+    registerCarpetKeys(globalKeyMap);
     const allKeys = Array.from(globalKeyMap.keys());
     // special case keys, handled by web view
     allKeys.push("Cmd:l", "Cmd:r", "Cmd:ArrowRight", "Cmd:ArrowLeft", "Cmd:o");

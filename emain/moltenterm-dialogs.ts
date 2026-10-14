@@ -8,6 +8,7 @@ import {
     MoltentermImageExtensions,
     MoltentermWorkspaceIconExtensions,
 } from "../frontend/util/moltenterm-dialogs";
+import { mt } from "./moltenterm-i18n";
 
 // Answers the chosen path, or null when the user cancels. The dialog is attached to the asking window, so it stays
 // in front of it.
@@ -20,8 +21,10 @@ export function initMoltentermDialogs() {
         const options: electron.OpenDialogOptions = {
             title: opts?.title,
             defaultPath: opts?.defaultPath || undefined,
+            // The system's own label follows the bundle's localizations, not the interface language (FR-I18N-001).
+            buttonLabel: mt("dialog.chooseFolder"),
             properties: image ? ["openFile"] : ["openDirectory", "createDirectory"],
-            filters: image ? [{ name: "Images", extensions }] : undefined,
+            filters: image ? [{ name: mt("dialog.images"), extensions }] : undefined,
         };
         const result =
             win == null

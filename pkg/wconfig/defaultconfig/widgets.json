@@ -40,6 +40,16 @@
             }
         }
     },
+    "defwidget@reviews": {
+        "display:order": -2.3,
+        "icon": "code-pull-request",
+        "label": "reviews",
+        "blockdef": {
+            "meta": {
+                "view": "molten-reviews"
+            }
+        }
+    },
     "defwidget@sysinfo": {
         "display:order": -2,
         "icon": "chart-line",

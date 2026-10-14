@@ -14,6 +14,9 @@ export function shortcutLabel(accelerator: string): string {
         .replace(/(?:Command|Cmd)\+/g, "⌘");
 }
 
+// The English labels of the edit roles: what identifies a role row (keys, the command panel). The text a menu shows
+// comes from MenuRoleKeys in the interface language (menu-text.ts in the renderer, mt() in Electron main), since this
+// module stays free of the renderer's language model: Electron main imports it.
 export const MenuRoleLabels: Record<string, string> = {
     undo: "Undo",
     redo: "Redo",
@@ -24,8 +27,23 @@ export const MenuRoleLabels: Record<string, string> = {
     delete: "Delete",
     selectAll: "Select all",
 };
+export const MenuRoleKeys: Record<string, string> = {
+    undo: "menu.roles.undo",
+    redo: "menu.roles.redo",
+    cut: "menu.roles.cut",
+    copy: "menu.roles.copy",
+    paste: "menu.roles.paste",
+    pasteAndMatchStyle: "menu.roles.pasteAndMatchStyle",
+    delete: "menu.roles.delete",
+    selectAll: "menu.roles.selectAll",
+};
 export function menuLabel(item: ContextMenuItem): string {
     return item.label ?? MenuRoleLabels[item.role] ?? item.role ?? "";
+}
+// The key of a section heading the host draws from an item's `section` (DS-SHELL-095): sections stay English ids, so
+// grouping and the Developer section compare them unchanged; only the drawn heading is translated.
+export function menuSectionKey(section: string): string {
+    return `menu.sections.${section.toLowerCase().replace(/[^a-z0-9]+/g, "")}`;
 }
 export function visibleMenuItems(items: ContextMenuItem[]): ContextMenuItem[] {
     return items.filter((item) => item.visible !== false);

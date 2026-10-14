@@ -33,13 +33,14 @@ export type FirstRunStepContext = {
     openBeside: (blockdef: BlockDef) => Promise<string>;
 };
 
+// The texts are keys of the interface dictionaries (FR-I18N-001), translated where they are shown.
 export type FirstRunStep = {
     id: FirstRunStepId;
-    title: string;
+    titleKey: string;
     // short name in the stepper
-    label: string;
+    labelKey: string;
     // one line, shown in the stepper's tooltip and on the summary page
-    summary: string;
+    summaryKey: string;
     component: React.FC<{ ctx: FirstRunStepContext }>;
     // A step that cannot do its job yet is left out, never shown as "not ready" (FR-SHELL-053-AC4).
     hidden?: boolean;
@@ -52,23 +53,23 @@ export type FirstRunStep = {
 export const FirstRunSteps: FirstRunStep[] = [
     {
         id: "agent",
-        title: "Your agent",
-        label: "Your agent",
-        summary: "The coding agents MoltenTerm finds on this machine, and the one you work with.",
+        titleKey: "onboarding.steps.agent.title",
+        labelKey: "onboarding.steps.agent.label",
+        summaryKey: "onboarding.steps.agent.summary",
         component: AgentStep,
     },
     {
         id: "morph",
-        title: "Your first morph",
-        label: "First morph",
-        summary: "Ask your agent to reshape MoltenTerm, and see the change land.",
+        titleKey: "onboarding.steps.morph.title",
+        labelKey: "onboarding.steps.morph.label",
+        summaryKey: "onboarding.steps.morph.summary",
         component: MorphStep,
     },
     {
         id: "project",
-        title: "Your project and your sessions",
-        label: "Your project",
-        summary: "Link a workspace to your project folder and find your agent sessions.",
+        titleKey: "onboarding.steps.project.title",
+        labelKey: "onboarding.steps.project.label",
+        summaryKey: "onboarding.steps.project.summary",
         component: ProjectStep,
     },
 ];

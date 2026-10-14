@@ -29,6 +29,7 @@ import { ElectronWshClient } from "./emain-wsh";
 import { initMoltentermBrowserAgent, isAgentInput } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#300, #302)
 import { initMoltentermContextMenu } from "./moltenterm-contextmenu";
 import { initMoltentermDialogs } from "./moltenterm-dialogs"; // MOLTENTERM-PATCH (#30)
+import { mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
 import { initMoltentermUpdate } from "./moltenterm-update"; // MOLTENTERM-PATCH (#64)
 
 const electronApp = electron.app;
@@ -520,9 +521,9 @@ export function initIpcHandlers() {
             return false;
         }
         const result = await electron.dialog.showSaveDialog(ww, {
-            title: "Save Scrollback",
+            title: mt("dialog.saveScrollback.title"), // MOLTENTERM-PATCH (#623)
             defaultPath: fileName || "session.log",
-            filters: [{ name: "Text Files", extensions: ["txt", "log"] }],
+            filters: [{ name: mt("dialog.saveScrollback.filter"), extensions: ["txt", "log"] }],
         });
         if (result.canceled || !result.filePath) {
             return false;

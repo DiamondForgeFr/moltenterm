@@ -14,13 +14,18 @@ import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { addLanguageRequest } from "../../molten/morph-templates";
 import { writeSettings } from "../command-panel/bindings";
 import "../command-panel/command-panel.css";
 import { themeOptions } from "../command-panel/providers/terminal";
 import { EmptyState } from "../empty-state";
+import { I18nModel, useT } from "../i18n/i18n";
+import { languageName } from "../i18n/i18n-core";
 import { platformShortcuts } from "../shortcuts/registry";
 import { filterShortcuts } from "../shortcuts/shortcuts-search";
 import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
+import { OptionList, OptionRow } from "../suite/suite";
+import { suiteIcon } from "../suite/suite-icons";
 import {
     ProjectMetaKey,
     readWorkspaceFolder,
@@ -32,17 +37,23 @@ import {
     clampSetting,
     effectiveSetting,
     groupEntries,
+    groupSlug,
     isChanged,
     jsonSummary,
+    localizeCatalog,
+    localizeSection,
     searchSettings,
     sectionEntries,
     sectionTitle,
+    SettingChoice,
+    settingChoices,
     SettingEntry,
     SettingOption,
     settingsCatalog,
     SettingsSectionId,
     SettingsSections,
 } from "./settings-catalog";
+import { settingsGroupIcon, settingsOptionIcon, SettingsSectionConcepts } from "./settings-icons";
 import { ModsSection } from "./settings-mods";
 import { readSettingsSection, SettingsSectionMetaKey } from "./settings-open";
 import { PageCard, PageColumn, PageHeader } from "./settings-page";
@@ -60,27 +71,30 @@ export type SettingsScreenProps = {
     initialSection?: SettingsSectionId;
 };
 
-// The files' one-liners where Wave gives none.
-const FileDescriptions: Record<string, string> = {
-    "settings.json": "Every setting of this screen, and the ones it does not show.",
-    "connections.json": "SSH hosts and their options.",
-    "widgets.json": "The custom tools of the rail.",
-    "backgrounds.json": "The backgrounds tabs can use.",
-    secrets: "Values kept in the system's keychain.",
+// The files' one-liners where Wave gives none, as keys under settings.files.
+const FileDescriptionKeys: Record<string, string> = {
+    "settings.json": "settings.files.settings.description",
+    "connections.json": "settings.files.connections.description",
+    "widgets.json": "settings.files.widgets.description",
+    "backgrounds.json": "settings.files.backgrounds.description",
+    secrets: "settings.files.secrets.description",
 };
 
 // Wave's file names in sentence case (DS-SHELL-079).
-const FileNames: Record<string, string> = {
-    "backgrounds.json": "Tab backgrounds",
+const FileNameKeys: Record<string, string> = {
+    "backgrounds.json": "settings.files.backgrounds.name",
 };
 
 // An empty field says what empty means: a number the app picks itself, a text nobody set.
-const PlaceholderFor: Partial<Record<string, string>> = { number: "Auto", text: "Not set" };
+const PlaceholderKeyFor: Partial<Record<string, string>> = { number: "settings.auto", text: "settings.notSet" };
+
+// The select filled with the interface languages (settingsmeta.OptionsLanguages).
+const LanguagesOptions = "languages";
 
 const InputClass =
-    "h-row rounded-4 border border-line-strong bg-transparent px-2 text-12 text-primary outline-none placeholder:text-muted focus:border-accent";
+    "h-row max-w-full min-w-0 rounded-4 border border-line-strong bg-transparent px-2 text-12 text-primary outline-none placeholder:text-muted focus:border-accent";
 const GhostButton =
-    "molten-btn-ghost inline-flex h-row shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2 text-12";
+    "molten-btn-ghost inline-flex h-row shrink-0 cursor-pointer items-center gap-1.5 rounded-4 px-2 text-12";
 
 // The section each screen was last on, so a remount (a tab switch) keeps it.
 const LastSection = new Map<string, SettingsSectionId>();
@@ -139,7 +153,7 @@ function Toggle({ entry, on, onSet }: { entry: SettingEntry; on: boolean; onSet:
             aria-checked={on}
             aria-label={entry.label}
             onClick={() => onSet(!on)}
-            className="inline-flex h-row cursor-pointer items-center rounded-6 px-1"
+            className="inline-flex h-row cursor-pointer items-center rounded-4 px-1"
         >
             <span className={cn("molten-cmdpanel-switch", on && "is-on")} aria-hidden />
         </button>
@@ -157,6 +171,7 @@ function Select({
     options: SettingOption[];
     onSet: (v: unknown) => void;
 }) {
+    const t = useT();
     const current = value == null ? "" : String(value);
     const list = [...options];
     if (current !== "" && !list.some((o) => o.value === current)) {
@@ -170,7 +185,7 @@ function Select({
             className={cn(InputClass, "max-w-56 cursor-pointer bg-surface-2 pr-1")}
         >
             {entry.unsetLabel != null || current === "" ? (
-                <option value="">{entry.unsetLabel ?? "Default"}</option>
+                <option value="">{entry.unsetLabel ?? t("settings.default")}</option>
             ) : null}
             {list.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -241,6 +256,7 @@ function TextField({
 }
 
 function NumberField({ entry, value, onSet }: { entry: SettingEntry; value: unknown; onSet: (v: unknown) => void }) {
+    const t = useT();
     return (
         <span className="inline-flex items-center gap-1.5">
             <TextField
@@ -249,7 +265,7 @@ function NumberField({ entry, value, onSet }: { entry: SettingEntry; value: unkn
                 onSet={onSet}
                 parse={(raw) => clampSetting(entry, raw)}
                 className="w-20 text-right tabular-nums"
-                placeholder={entry.defaultValue != null ? String(entry.defaultValue) : PlaceholderFor[entry.control]}
+                placeholder={entry.defaultValue != null ? String(entry.defaultValue) : t(PlaceholderKeyFor.number)}
             />
             {entry.unit ? <span className="text-12 text-muted">{entry.unit}</span> : null}
         </span>
@@ -318,7 +334,7 @@ function MultiChoice({ entry, value, onSet }: { entry: SettingEntry; value: unkn
                             onSet(next.length ? next : null);
                         }}
                         className={cn(
-                            "inline-flex h-row cursor-pointer items-center gap-1.5 rounded-6 border px-2 text-12 transition-colors duration-120 ease-mt",
+                            "inline-flex h-row cursor-pointer items-center gap-1.5 rounded-4 border px-2 text-12 transition-colors duration-120 ease-mt",
                             on
                                 ? "border-accent/60 bg-accent/15 text-primary"
                                 : "border-line-strong text-secondary hover:bg-surface-2 hover:text-primary"
@@ -330,6 +346,30 @@ function MultiChoice({ entry, value, onSet }: { entry: SettingEntry; value: unkn
                 );
             })}
         </span>
+    );
+}
+
+// A language MoltenTerm does not ship comes from the developer's agent (FR-I18N-002): the button copies the ready
+// /morph request of the language pack template.
+function AddLanguageButton() {
+    const t = useT();
+    const [copied, setCopied] = useState(false);
+    useEffect(() => {
+        if (!copied) return;
+        const timer = setTimeout(() => setCopied(false), 2000);
+        return () => clearTimeout(timer);
+    }, [copied]);
+    const onClick = () => {
+        fireAndForget(async () => {
+            await navigator.clipboard.writeText(addLanguageRequest());
+            setCopied(true);
+        });
+    };
+    return (
+        <button type="button" className={GhostButton} title={t("language.addHint")} onClick={onClick}>
+            <i className={cn("fa-solid", copied ? "fa-check" : "fa-language")} />
+            {copied ? t("language.addCopied") : t("language.add")}
+        </button>
     );
 }
 
@@ -346,11 +386,28 @@ function Control({
     onSet: (v: unknown) => void;
     onOpenJson: () => void;
 }) {
+    const t = useT();
+    const languages = useAtomValue(I18nModel.getInstance().languagesAtom, { store: globalStore });
+    const systemLocale = useAtomValue(I18nModel.getInstance().systemLocaleAtom, { store: globalStore });
     const shown = effectiveSetting(entry, value);
     switch (entry.control) {
         case "toggle":
             return <Toggle entry={entry} on={!!shown} onSet={onSet} />;
-        case "select":
+        case "select": {
+            if (entry.optionsFrom === LanguagesOptions) {
+                // Each language in its own name; the empty choice follows the OS and stores nothing (FR-I18N-001).
+                return (
+                    <span className="inline-flex items-center gap-2">
+                        <Select
+                            entry={{ ...entry, unsetLabel: t("language.system", { name: languageName(systemLocale) }) }}
+                            value={shown}
+                            options={languages.map((l) => ({ value: l.code, label: l.name }))}
+                            onSet={onSet}
+                        />
+                        <AddLanguageButton />
+                    </span>
+                );
+            }
             return (
                 <Select
                     entry={entry}
@@ -359,6 +416,7 @@ function Control({
                     onSet={onSet}
                 />
             );
+        }
         case "number":
             return <NumberField entry={entry} value={value} onSet={onSet} />;
         case "slider":
@@ -370,9 +428,7 @@ function Control({
                     value={value}
                     onSet={onSet}
                     className="w-72"
-                    placeholder={
-                        entry.defaultValue != null ? String(entry.defaultValue) : PlaceholderFor[entry.control]
-                    }
+                    placeholder={entry.defaultValue != null ? String(entry.defaultValue) : t(PlaceholderKeyFor.text)}
                 />
             );
         case "path":
@@ -382,7 +438,7 @@ function Control({
                     value={value}
                     onSet={onSet}
                     className="w-64 font-mono text-11"
-                    placeholder="Not set"
+                    placeholder={t("settings.notSet")}
                 />
             );
         case "multi":
@@ -390,24 +446,30 @@ function Control({
         default:
             return (
                 <span className="inline-flex items-center gap-2">
-                    <span className="text-12 text-muted">{jsonSummary(value)}</span>
+                    <span className="text-12 text-muted">{jsonSummary(value, t)}</span>
                     <button type="button" className={GhostButton} onClick={onOpenJson}>
-                        Edit in JSON
+                        {t("settings.editInJson")}
                     </button>
                 </span>
             );
     }
 }
 
+function SectionIcon({ id, className }: { id: SettingsSectionId; className?: string }) {
+    const Icon = suiteIcon(SettingsSectionConcepts[id]);
+    return <Icon className={className} aria-hidden />;
+}
+
 function WorkspacePill({ name }: { name: string }) {
+    const t = useT();
     return (
         <span
             className="molten-cmdpanel-scope inline-flex h-5 max-w-40 shrink-0 items-center gap-1 rounded-full px-2 text-11"
-            title={`Applies to the workspace ${name} only`}
+            title={t("settings.workspacePill.title", { name })}
         >
             <i className="fa fa-solid fa-layer-group text-11" aria-hidden />
             <span className="truncate">{name}</span>
-            <span className="sr-only">workspace only</span>
+            <span className="sr-only">{t("settings.workspacePill.srOnly")}</span>
         </span>
     );
 }
@@ -422,65 +484,115 @@ type RowProps = {
     onOpenJson: () => void;
 };
 
+function useChoices(entry: SettingEntry): SettingChoice[] {
+    const t = useT();
+    const languages = useAtomValue(I18nModel.getInstance().languagesAtom, { store: globalStore });
+    const systemLocale = useAtomValue(I18nModel.getInstance().systemLocaleAtom, { store: globalStore });
+    return settingChoices(entry, languages, t("language.system", { name: languageName(systemLocale) }));
+}
+
+function ChoiceRows({
+    entry,
+    name,
+    choices,
+    value,
+    onSet,
+}: {
+    entry: SettingEntry;
+    name: string;
+    choices: SettingChoice[];
+    value: unknown;
+    onSet: (v: unknown) => void;
+}) {
+    const t = useT();
+    const shown = effectiveSetting(entry, value);
+    const current = shown == null ? "" : String(shown);
+    return (
+        <OptionList aria-label={entry.label} data-setting-control>
+            {choices.map((c) => (
+                <OptionRow
+                    key={c.value}
+                    name={name}
+                    value={c.value}
+                    label={c.label}
+                    icon={settingsOptionIcon(entry.key, c.value)}
+                    selected={c.value === current}
+                    selectedLabel={t("common.selected")}
+                    onSelect={() => onSet(c.value === "" ? null : c.value)}
+                />
+            ))}
+        </OptionList>
+    );
+}
+
 const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlighted, onOpenJson }: RowProps) => {
-    const [error, setError] = useState<string>(null);
+    const t = useT();
+    const [errorKey, setErrorKey] = useState<string>(null);
+    const choices = useChoices(entry);
     const changed = isChanged(entry, value);
+    const error = errorKey != null ? t(errorKey) : null;
     const set = async (v: unknown) => {
-        setError(null);
+        setErrorKey(null);
         try {
             await writeValue(entry, v);
         } catch (e) {
             console.error("settings: write failed", entry.key, e);
-            setError(
-                entry.scope === "workspace"
-                    ? "This folder could not be used. Check that it exists."
-                    : "This value was not saved. Check settings.json under Advanced."
-            );
+            setErrorKey(entry.scope === "workspace" ? "settings.error.folder" : "settings.error.notSaved");
         }
     };
+    const reset = changed ? (
+        <button
+            type="button"
+            className={cn(GhostButton, "px-1.5")}
+            aria-label={t("settings.reset.label", { label: entry.label })}
+            title={t("settings.reset.title")}
+            onClick={() => fireAndForget(() => set(null))}
+        >
+            <i className="fa fa-solid fa-rotate-left text-icon-14" aria-hidden />
+        </button>
+    ) : null;
     return (
         <div
             id={rowId}
             data-setting={entry.key}
             className={cn(
-                "molten-settings-row flex items-center gap-4 border-b border-line px-4 py-3 transition-colors duration-240 ease-mt first:rounded-t-6 last:rounded-b-6 last:border-b-0",
+                "molten-settings-row flex flex-col transition-colors duration-240 ease-mt",
                 highlighted && "bg-surface-2"
             )}
         >
-            <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate text-12 font-medium text-primary" title={entry.key}>
-                        {entry.label}
-                    </span>
-                    {entry.scope === "workspace" ? <WorkspacePill name={workspaceName} /> : null}
+            <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 px-5", choices ? "pt-3 pb-2" : "py-3")}>
+                <div className="min-w-0 flex-1 basis-48">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-12 font-medium text-primary" title={entry.key}>
+                            {entry.label}
+                        </span>
+                        {entry.scope === "workspace" ? <WorkspacePill name={workspaceName} /> : null}
+                    </div>
+                    {entry.description ? (
+                        <div className="truncate text-12 text-muted" title={entry.description}>
+                            {entry.description}
+                        </div>
+                    ) : null}
+                    {error ? (
+                        <div role="alert" className="text-12 text-danger">
+                            {error}
+                        </div>
+                    ) : null}
                 </div>
-                {entry.description ? (
-                    <div className="truncate text-12 text-muted" title={entry.description}>
-                        {entry.description}
-                    </div>
-                ) : null}
-                {error ? (
-                    <div role="alert" className="text-12 text-danger">
-                        {error}
-                    </div>
-                ) : null}
+                <div className="ml-auto flex max-w-full shrink-0 items-center gap-1">
+                    {reset}
+                    {choices == null ? (
+                        <span data-setting-control className="contents">
+                            <Control entry={entry} value={value} themes={themes} onSet={set} onOpenJson={onOpenJson} />
+                        </span>
+                    ) : entry.optionsFrom === LanguagesOptions ? (
+                        <AddLanguageButton />
+                    ) : null}
+                </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1">
-                {changed ? (
-                    <button
-                        type="button"
-                        className={cn(GhostButton, "px-1.5")}
-                        aria-label={`Reset ${entry.label}`}
-                        title="Reset to the default"
-                        onClick={() => fireAndForget(() => set(null))}
-                    >
-                        <i className="fa fa-solid fa-rotate-left text-icon-14" aria-hidden />
-                    </button>
-                ) : null}
-                <span data-setting-control className="contents">
-                    <Control entry={entry} value={value} themes={themes} onSet={set} onOpenJson={onOpenJson} />
-                </span>
-            </div>
+            {choices != null ? (
+                <ChoiceRows entry={entry} name={`${rowId}-choice`} choices={choices} value={value} onSet={set} />
+            ) : null}
         </div>
     );
 });
@@ -488,31 +600,30 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
 SettingRow.displayName = "SettingRow";
 
 function FileRows({ files, onOpenFile }: { files: SettingsFile[]; onOpenFile: (path: string) => void }) {
+    const t = useT();
     return (
-        <PageCard title="JSON files" hint="Edited in place, checked before they are saved.">
+        <PageCard title={t("settings.files.title")} hint={t("settings.files.hint")} icon={suiteIcon("files")}>
             {files
                 .filter((f) => f.path !== "secrets")
                 .map((f) => (
-                    <div
-                        key={f.path}
-                        className="flex items-center gap-4 border-b border-line px-4 py-3 last:border-b-0"
-                        data-file={f.path}
-                    >
+                    <div key={f.path} className="flex items-center gap-4 px-5 py-3" data-file={f.path}>
                         <div className="min-w-0 flex-1">
                             <div className="flex min-w-0 items-baseline gap-2">
                                 <span className="truncate text-12 font-medium text-primary">
-                                    {FileNames[f.path] ?? f.name}
+                                    {FileNameKeys[f.path] != null ? t(FileNameKeys[f.path]) : f.name}
                                 </span>
                                 {f.path !== "secrets" ? (
                                     <span className="truncate font-mono text-11 text-muted">{f.path}</span>
                                 ) : null}
                             </div>
                             <div className="truncate text-12 text-muted">
-                                {FileDescriptions[f.path] ?? f.description ?? ""}
+                                {FileDescriptionKeys[f.path] != null
+                                    ? t(FileDescriptionKeys[f.path])
+                                    : (f.description ?? "")}
                             </div>
                         </div>
                         <button type="button" className={GhostButton} onClick={() => onOpenFile(f.path)}>
-                            Open
+                            {t("common.open")}
                             <i className="fa fa-solid fa-arrow-right text-11" aria-hidden />
                         </button>
                     </div>
@@ -522,11 +633,16 @@ function FileRows({ files, onOpenFile }: { files: SettingsFile[]; onOpenFile: (p
 }
 
 function KeyboardShortcuts() {
+    const t = useT();
     const mac = isMacOS();
     const sections = useMemo(() => filterShortcuts(platformShortcuts(mac), "", mac), [mac]);
     return (
-        <PageCard title="Shortcuts" hint="Every key MoltenTerm answers, by area.">
-            <div className="flex flex-col gap-3 px-4 py-3">
+        <PageCard
+            title={t("settings.shortcuts.title")}
+            hint={t("settings.shortcuts.hint")}
+            icon={suiteIcon("keyboard")}
+        >
+            <div className="flex flex-col gap-3 px-5 py-3">
                 <ShortcutSections
                     sections={sections}
                     mac={mac}
@@ -538,6 +654,7 @@ function KeyboardShortcuts() {
 }
 
 export function SettingsScreen({ blockId, files, onOpenFile, model, initialSection }: SettingsScreenProps) {
+    const t = useT();
     const settings = useAtomValue(atoms.settingsAtom) as Record<string, unknown>;
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const workspace = useAtomValue(atoms.workspace);
@@ -551,14 +668,22 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     const searchRef = useRef<HTMLInputElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
 
-    const catalog = useMemo(() => settingsCatalog(platformName()), []);
+    // Rebuilt when the language changes, so the rows and the search speak the shown language.
+    const catalog = useMemo(() => localizeCatalog(settingsCatalog(platformName()), t), [t]);
+    // A group's icon follows its English name, which the interface language does not change.
+    const groupSlugByKey = useMemo(
+        () => new Map(settingsCatalog(platformName()).map((e) => [e.key, groupSlug(e.group)])),
+        []
+    );
+    const sections = useMemo(() => SettingsSections.map((s) => localizeSection(s, t)), [t]);
+    const currentSection = sections.find((s) => s.id === section);
     const themes = useMemo(
         () => themeOptions(fullConfig?.termthemes).map((o) => ({ value: String(o.value), label: o.label })),
         [fullConfig?.termthemes]
     );
     const results = useMemo(() => searchSettings(catalog, query), [catalog, query]);
     const searching = query.trim() !== "";
-    const workspaceName = workspace?.name || "This workspace";
+    const workspaceName = workspace?.name || t("settings.thisWorkspace");
     const rowId = (key: string) => `molten-setting-${blockId}-${key.replace(/[^a-z0-9]/gi, "-")}`;
     const openSettingsJson = () => onOpenFile("settings.json");
 
@@ -582,14 +707,24 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
             const offset = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
             scroller.scrollTo({ top: scroller.scrollTop + offset - scroller.clientHeight / 2 + row.clientHeight / 2 });
         }
-        row?.querySelector<HTMLElement>("[data-setting-control] :is(input, select, button)")?.focus({
-            preventScroll: true,
-        });
+        // Option rows focus the chosen one.
+        const control =
+            row?.querySelector<HTMLElement>("[data-setting-control] input:checked") ??
+            row?.querySelector<HTMLElement>("[data-setting-control] :is(input, select, button)");
+        control?.focus({ preventScroll: true });
         setHighlight(jumpTo);
         setJumpTo(null);
-        const t = setTimeout(() => setHighlight(null), 1600);
-        return () => clearTimeout(t);
     }, [jumpTo]);
+
+    // Its own effect: clearing jumpTo re-runs the one above, whose cleanup would cancel the timer and leave the row
+    // lit, and the block's turning light running, for good.
+    useEffect(() => {
+        if (highlight == null) {
+            return;
+        }
+        const timer = setTimeout(() => setHighlight(null), 1600);
+        return () => clearTimeout(timer);
+    }, [highlight]);
 
     const jump = (entry: SettingEntry) => {
         LastSection.set(blockId, entry.section);
@@ -627,150 +762,166 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     const activeId = searching && results[active] ? `${rowId(results[active].key)}-result` : undefined;
 
     return (
-        <div className="@container flex h-full w-full min-h-0 bg-surface-1 text-primary" onKeyDown={onRootKey}>
-            <nav
-                aria-label="Settings sections"
-                className="flex w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line p-2 @max-w600:w-12"
-            >
-                {SettingsSections.map((s) => {
-                    const current = !searching && s.id === section;
-                    return (
-                        <button
-                            key={s.id}
-                            type="button"
-                            aria-current={current ? "page" : undefined}
-                            title={s.title}
-                            onClick={() => {
-                                setQuery("");
-                                setSection(s.id);
-                            }}
-                            className={cn(
-                                "flex h-row w-full cursor-pointer items-center gap-2 rounded-6 px-2 text-left text-12 transition-colors duration-120 ease-mt",
-                                current
-                                    ? "bg-surface-2 font-medium text-primary"
-                                    : "text-secondary hover:bg-surface-2 hover:text-primary"
-                            )}
-                        >
-                            <i className={`fa fa-solid fa-${s.icon} w-4 text-center text-icon-14`} aria-hidden />
-                            <span className="truncate @max-w600:hidden">{s.title}</span>
-                        </button>
-                    );
-                })}
-            </nav>
-            <div ref={contentRef} className="min-w-0 flex-1 overflow-y-auto">
-                <PageColumn>
-                    <div className="relative">
-                        <i
-                            className="fa fa-solid fa-magnifying-glass pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-11 text-muted"
-                            aria-hidden
-                        />
-                        <input
-                            ref={searchRef}
-                            type="text"
-                            role="combobox"
-                            aria-expanded={searching}
-                            aria-controls={`molten-settings-results-${blockId}`}
-                            aria-activedescendant={activeId}
-                            aria-label="Search settings"
-                            placeholder="Search settings"
-                            value={query}
-                            spellCheck={false}
-                            onChange={(e) => setQuery(e.target.value)}
-                            onKeyDown={onSearchKey}
-                            className={cn(InputClass, "h-row-lg w-full pl-7 text-13")}
-                        />
-                    </div>
-                    {searching ? (
-                        results.length === 0 ? (
-                            <EmptyState
-                                compact
-                                className="pt-10"
-                                icon="magnifying-glass"
-                                title={`No setting matches "${query.trim()}"`}
-                                hint="Try another word, or edit the JSON files under Advanced."
-                                secondary={{ label: "Clear the search", onClick: () => setQuery("") }}
+        <div
+            className="@container flex h-full w-full min-h-0 justify-center bg-surface-1 text-primary"
+            onKeyDown={onRootKey}
+        >
+            {/* The section list and the reading column stay together, centred (#658): on a wide window the list no
+                longer sits at the far edge with an empty field between it and the rows. */}
+            <div className="flex h-full min-h-0 w-full max-w-[1056px]">
+                <nav
+                    aria-label={t("settings.sectionsLabel")}
+                    className="flex w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line p-2 @max-w600:w-12"
+                >
+                    {sections.map((s) => {
+                        const current = !searching && s.id === section;
+                        return (
+                            <button
+                                key={s.id}
+                                type="button"
+                                aria-current={current ? "page" : undefined}
+                                title={s.title}
+                                onClick={() => {
+                                    setQuery("");
+                                    setSection(s.id);
+                                }}
+                                className={cn(
+                                    "relative flex h-row w-full cursor-pointer items-center gap-2 rounded-3 px-2 text-left text-12 transition-colors duration-120 ease-mt",
+                                    current
+                                        ? "bg-surface-2 font-medium text-primary before:absolute before:top-1.5 before:bottom-1.5 before:-left-2 before:w-0.5 before:rounded-full before:bg-accent"
+                                        : "text-secondary hover:bg-surface-2 hover:text-primary"
+                                )}
+                            >
+                                <SectionIcon id={s.id} className={cn("h-3.5 w-4 shrink-0", current && "text-accent")} />
+                                <span className="truncate @max-w600:hidden">{s.title}</span>
+                            </button>
+                        );
+                    })}
+                </nav>
+                <div ref={contentRef} className="min-w-0 flex-1 overflow-y-auto">
+                    <PageColumn>
+                        <div className="relative">
+                            <i
+                                className="fa fa-solid fa-magnifying-glass pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-11 text-muted"
+                                aria-hidden
                             />
+                            <input
+                                ref={searchRef}
+                                type="text"
+                                role="combobox"
+                                aria-expanded={searching}
+                                aria-controls={`molten-settings-results-${blockId}`}
+                                aria-activedescendant={activeId}
+                                aria-label={t("settings.search.label")}
+                                placeholder={t("settings.search.label")}
+                                value={query}
+                                spellCheck={false}
+                                onChange={(e) => setQuery(e.target.value)}
+                                onKeyDown={onSearchKey}
+                                className={cn(InputClass, "h-row-lg w-full pl-7 text-13")}
+                            />
+                        </div>
+                        {searching ? (
+                            results.length === 0 ? (
+                                <EmptyState
+                                    compact
+                                    className="pt-10"
+                                    icon="magnifying-glass"
+                                    title={t("settings.search.none", { query: query.trim() })}
+                                    hint={t("settings.search.noneHint")}
+                                    secondary={{ label: t("settings.search.clear"), onClick: () => setQuery("") }}
+                                />
+                            ) : (
+                                <>
+                                    <div className="px-2 pt-4 pb-1 text-11 text-muted" aria-live="polite">
+                                        {results.length === 1
+                                            ? t("settings.search.count.one")
+                                            : t("settings.search.count.other", { count: results.length })}
+                                    </div>
+                                    <ul
+                                        id={`molten-settings-results-${blockId}`}
+                                        role="listbox"
+                                        aria-label={t("settings.search.results")}
+                                        className="flex flex-col"
+                                    >
+                                        {results.map((entry, i) => (
+                                            <li
+                                                key={entry.key}
+                                                id={`${rowId(entry.key)}-result`}
+                                                role="option"
+                                                aria-selected={i === active}
+                                                onMouseMove={() => setActive(i)}
+                                                onClick={() => jump(entry)}
+                                                className={cn(
+                                                    "flex cursor-pointer items-center gap-4 rounded-4 px-2 py-2",
+                                                    i === active ? "bg-surface-2" : ""
+                                                )}
+                                            >
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex min-w-0 items-center gap-2">
+                                                        <span className="truncate text-12 font-medium text-primary">
+                                                            {entry.label}
+                                                        </span>
+                                                        {entry.scope === "workspace" ? (
+                                                            <WorkspacePill name={workspaceName} />
+                                                        ) : null}
+                                                    </div>
+                                                    <div className="truncate text-12 text-muted">
+                                                        {entry.description}
+                                                    </div>
+                                                </div>
+                                                <span className="shrink-0 text-11 text-muted">
+                                                    {sectionTitle(entry.section, t)}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </>
+                            )
                         ) : (
                             <>
-                                <div className="px-2 pt-4 pb-1 text-11 text-muted" aria-live="polite">
-                                    {results.length === 1 ? "1 setting" : `${results.length} settings`}
+                                <div className="pt-6">
+                                    <PageHeader
+                                        title={currentSection?.title ?? section}
+                                        description={currentSection?.description}
+                                        icon={suiteIcon(SettingsSectionConcepts[section])}
+                                    />
                                 </div>
-                                <ul
-                                    id={`molten-settings-results-${blockId}`}
-                                    role="listbox"
-                                    aria-label="Matching settings"
-                                    className="flex flex-col"
-                                >
-                                    {results.map((entry, i) => (
-                                        <li
-                                            key={entry.key}
-                                            id={`${rowId(entry.key)}-result`}
-                                            role="option"
-                                            aria-selected={i === active}
-                                            onMouseMove={() => setActive(i)}
-                                            onClick={() => jump(entry)}
-                                            className={cn(
-                                                "flex cursor-pointer items-center gap-4 rounded-6 px-2 py-2",
-                                                i === active ? "bg-surface-2" : ""
-                                            )}
-                                        >
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex min-w-0 items-center gap-2">
-                                                    <span className="truncate text-12 font-medium text-primary">
-                                                        {entry.label}
-                                                    </span>
-                                                    {entry.scope === "workspace" ? (
-                                                        <WorkspacePill name={workspaceName} />
-                                                    ) : null}
-                                                </div>
-                                                <div className="truncate text-12 text-muted">{entry.description}</div>
-                                            </div>
-                                            <span className="shrink-0 text-11 text-muted">
-                                                {sectionTitle(entry.section)}
-                                            </span>
-                                        </li>
-                                    ))}
-                                </ul>
+                                {section === "advanced" ? <FileRows files={files} onOpenFile={onOpenFile} /> : null}
+                                {groupEntries(entries).map((g) => (
+                                    <PageCard
+                                        key={g.group}
+                                        title={g.group}
+                                        icon={suiteIcon(settingsGroupIcon(groupSlugByKey.get(g.entries[0].key)))}
+                                        glow={highlight != null && g.entries.some((e) => e.key === highlight)}
+                                    >
+                                        {g.entries.map((entry) => (
+                                            <SettingRow
+                                                key={entry.key}
+                                                entry={entry}
+                                                rowId={rowId(entry.key)}
+                                                value={readValue(entry, settings, workspace)}
+                                                workspaceName={workspaceName}
+                                                themes={themes}
+                                                highlighted={highlight === entry.key}
+                                                onOpenJson={openSettingsJson}
+                                            />
+                                        ))}
+                                    </PageCard>
+                                ))}
+                                {section === "keyboard" ? <KeyboardShortcuts /> : null}
+                                {section === "mods" ? <ModsSection /> : null}
+                                {section === "secrets" ? (
+                                    model != null ? (
+                                        <SecretsSection model={model} />
+                                    ) : (
+                                        <p className="pt-6 text-12 text-muted">{t("settings.secretsElsewhere")}</p>
+                                    )
+                                ) : null}
                             </>
-                        )
-                    ) : (
-                        <>
-                            <div className="pt-6">
-                                <PageHeader
-                                    title={sectionTitle(section)}
-                                    description={SettingsSections.find((s) => s.id === section)?.description}
-                                    icon={SettingsSections.find((s) => s.id === section)?.icon}
-                                />
-                            </div>
-                            {section === "advanced" ? <FileRows files={files} onOpenFile={onOpenFile} /> : null}
-                            {groupEntries(entries).map((g) => (
-                                <PageCard key={g.group} title={g.group}>
-                                    {g.entries.map((entry) => (
-                                        <SettingRow
-                                            key={entry.key}
-                                            entry={entry}
-                                            rowId={rowId(entry.key)}
-                                            value={readValue(entry, settings, workspace)}
-                                            workspaceName={workspaceName}
-                                            themes={themes}
-                                            highlighted={highlight === entry.key}
-                                            onOpenJson={openSettingsJson}
-                                        />
-                                    ))}
-                                </PageCard>
-                            ))}
-                            {section === "keyboard" ? <KeyboardShortcuts /> : null}
-                            {section === "mods" ? <ModsSection /> : null}
-                            {section === "secrets" ? (
-                                model != null ? (
-                                    <SecretsSection model={model} />
-                                ) : (
-                                    <p className="pt-6 text-12 text-muted">Secrets open from the Settings pane.</p>
-                                )
-                            ) : null}
-                        </>
-                    )}
-                </PageColumn>
+                        )}
+                    </PageColumn>
+                </div>
             </div>
         </div>
     );

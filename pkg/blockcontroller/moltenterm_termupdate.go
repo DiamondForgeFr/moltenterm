@@ -26,6 +26,14 @@ const replaceSettle = 100 * time.Millisecond
 func init() {
 	termupdate.UseShell(termupdate.Shell{Replace: replaceTerminalShell, SendInput: typeIntoTerminal})
 	mission.UseStarter(termupdate.Start)
+	mission.UseAgentLine(typeJobDescribeLine)
+}
+
+// The CI/CD panel's "Ask the agent to describe it" (#637) takes the handoff's guarded path: typed only when the agent
+// is idle in the foreground, and sent with Enter unless the user has a draft in its prompt.
+func typeJobDescribeLine(ctx context.Context, blockId string, line string) mission.JobDescribeResult {
+	out := termupdate.TypeHandoffLine(ctx, blockId, line)
+	return mission.JobDescribeResult{Sent: out.Result == termupdate.InputSent, Submitted: out.Submitted, Message: out.Message}
 }
 
 func typeIntoTerminal(blockId string, data []byte) error {

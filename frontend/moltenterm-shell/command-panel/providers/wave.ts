@@ -5,6 +5,7 @@
 // named after the panel (FR-SHELL-047-AC7). A fallback: it steps aside when a native widget provider matches.
 
 import { getBlockComponentModel } from "@/app/store/global";
+import { t } from "../../i18n/i18n";
 import { CommandProvider, PanelContext, PanelSection } from "../panel-types";
 import { adaptMenuItems } from "../wave-adapter";
 
@@ -14,7 +15,7 @@ export function waveSections(ctx: PanelContext): PanelSection[] {
     const adapted = adaptMenuItems(items, `wave:${ctx.view}:`);
     return [
         { id: `widget:${ctx.view}`, kind: "widget", title: ctx.panelName, items: adapted.items },
-        { id: "developer", kind: "developer", title: "Developer", items: adapted.developer },
+        { id: "developer", kind: "developer", title: t("cmdpanel.section.developer"), items: adapted.developer },
     ];
 }
 

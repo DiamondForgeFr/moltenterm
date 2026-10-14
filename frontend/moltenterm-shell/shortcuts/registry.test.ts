@@ -28,6 +28,7 @@ function sourceConstant(file: string, name: string): string {
 const CommandPaletteKey = sourceConstant("../palette/palette-keys.ts", "CommandPaletteKey");
 const CompanionKey = sourceConstant("../companion/companion-open.ts", "CompanionKey");
 const CommandPanelKey = sourceConstant("../command-panel/command-panel-keys.ts", "CommandPanelKey");
+const PinKey = sourceConstant("../view360/view360-pin.tsx", "PinKey");
 
 // The bindings registerGlobalKeys sets, read from Wave's key model: string literals, the digit loops expanded.
 function keyModelBindings(): string[] {
@@ -65,6 +66,7 @@ describe("shortcut registry (TC-SHELL-086)", () => {
             CommandPaletteKey,
             CompanionKey,
             CommandPanelKey,
+            PinKey,
             ShortcutsSheetKey,
             ShortcutsSheetAltKey,
         ];

@@ -9,6 +9,7 @@
 
 import { atoms, globalStore } from "@/app/store/global";
 import { DefaultTermTheme } from "@/app/view/term/termutil";
+import { t } from "../../i18n/i18n";
 import { menuLabel } from "../../menu/menu-model";
 import { compositeBinding, metaBinding, settingsBinding } from "../bindings";
 import { CommandProvider, PanelChoiceOption, PanelContext, PanelItem, PanelSection } from "../panel-types";
@@ -17,13 +18,13 @@ import { adaptMenuItems } from "../wave-adapter";
 export const TerminalFontSizeDefault = 12;
 export const TerminalTransparencyDefault = 0.5;
 
-const CursorOptions: { value: string; label: string }[] = [
-    { value: "block:false", label: "Block" },
-    { value: "block:true", label: "Block, blinking" },
-    { value: "bar:false", label: "Bar" },
-    { value: "bar:true", label: "Bar, blinking" },
-    { value: "underline:false", label: "Underline" },
-    { value: "underline:true", label: "Underline, blinking" },
+const CursorOptions: { value: string; labelKey: string }[] = [
+    { value: "block:false", labelKey: "cmdpanel.terminal.cursorBlock" },
+    { value: "block:true", labelKey: "cmdpanel.terminal.cursorBlockBlink" },
+    { value: "bar:false", labelKey: "cmdpanel.terminal.cursorBar" },
+    { value: "bar:true", labelKey: "cmdpanel.terminal.cursorBarBlink" },
+    { value: "underline:false", labelKey: "cmdpanel.terminal.cursorUnderline" },
+    { value: "underline:true", labelKey: "cmdpanel.terminal.cursorUnderlineBlink" },
 ];
 
 export function cursorValue(style: unknown, blink: unknown): string {
@@ -83,7 +84,7 @@ export function terminalSections(ctx: PanelContext): PanelSection[] {
             {
                 id: "term:theme",
                 type: "choice",
-                label: "Theme",
+                label: t("cmdpanel.terminal.theme"),
                 icon: "palette",
                 keywords: ["colors", "colours", "scheme"],
                 options: themeOptions(fullConfig?.termthemes),
@@ -96,7 +97,7 @@ export function terminalSections(ctx: PanelContext): PanelSection[] {
             {
                 id: "term:fontsize",
                 type: "number",
-                label: "Font size",
+                label: t("cmdpanel.preview.fontSize"),
                 icon: "text-height",
                 keywords: ["text size", "zoom"],
                 min: 6,
@@ -113,10 +114,10 @@ export function terminalSections(ctx: PanelContext): PanelSection[] {
             {
                 id: "term:cursor",
                 type: "choice",
-                label: "Cursor",
+                label: t("cmdpanel.terminal.cursor"),
                 icon: "i-cursor",
                 keywords: ["caret", "blink"],
-                options: CursorOptions.map((o) => ({ id: `cursor:${o.value}`, label: o.label, value: o.value })),
+                options: CursorOptions.map((o) => ({ id: `cursor:${o.value}`, label: t(o.labelKey), value: o.value })),
                 defaultValue: "block:false",
                 scopes: [
                     compositeBinding<string>(
@@ -141,7 +142,7 @@ export function terminalSections(ctx: PanelContext): PanelSection[] {
             {
                 id: "term:transparency",
                 type: "number",
-                label: "Transparency",
+                label: t("cmdpanel.terminal.transparency"),
                 icon: "circle-half-stroke",
                 keywords: ["opacity", "background"],
                 min: 0,
@@ -155,22 +156,22 @@ export function terminalSections(ctx: PanelContext): PanelSection[] {
                     settingsBinding<number>("term:transparency", TerminalTransparencyDefault),
                 ],
             },
-            waveAction(waveItems, "Save session as…", {
+            waveAction(waveItems, t("wave.term.saveSession"), {
                 id: "term:savesession",
-                label: "Save session as…",
+                label: t("cmdpanel.terminal.saveSession"),
                 icon: "floppy-disk",
                 keywords: ["scrollback", "output", "log"],
             }),
-            waveAction(waveItems, "File Browser", {
+            waveAction(waveItems, t("wave.term.fileBrowser"), {
                 id: "term:filebrowser",
-                label: "Open a file browser here",
+                label: t("cmdpanel.terminal.fileBrowser"),
                 icon: "folder-tree",
                 keywords: ["files", "preview"],
             }),
             {
                 id: "term:clearonstart",
                 type: "toggle",
-                label: "Clear output on restart",
+                label: t("cmdpanel.terminal.clearOnStart"),
                 icon: "eraser",
                 defaultValue: false,
                 scopes: [metaBinding<boolean>(blockId, "cmd:clearonstart")],
@@ -178,14 +179,14 @@ export function terminalSections(ctx: PanelContext): PanelSection[] {
             {
                 id: "term:runonstart",
                 type: "toggle",
-                label: "Run on startup",
+                label: t("cmdpanel.terminal.runOnStart"),
                 icon: "play",
                 defaultValue: false,
                 scopes: [metaBinding<boolean>(blockId, "cmd:runonstart")],
             },
-            waveAction(waveItems, "Close Toolbar", {
+            waveAction(waveItems, t("wave.term.closeToolbar"), {
                 id: "term:closetoolbar",
-                label: "Close the toolbar",
+                label: t("cmdpanel.terminal.closeToolbar"),
                 icon: "xmark",
             }),
         ] as PanelItem[]
@@ -195,7 +196,7 @@ export function terminalSections(ctx: PanelContext): PanelSection[] {
     const shown = items.filter((i) => i.id !== "term:runonstart" || meta.controller === "cmd");
 
     const debug = adaptMenuItems(
-        [findWaveItem(waveItems, "Debug Connection")].filter((i) => i != null),
+        [findWaveItem(waveItems, t("wave.term.debugConnection"))].filter((i) => i != null),
         "term:dev:"
     );
     const developer = (
@@ -203,7 +204,7 @@ export function terminalSections(ctx: PanelContext): PanelSection[] {
             {
                 id: "term:bracketedpaste",
                 type: "toggle",
-                label: "Bracketed paste",
+                label: t("cmdpanel.terminal.bracketedPaste"),
                 icon: "paste",
                 keywords: ["paste mode"],
                 defaultValue: true,
@@ -212,21 +213,25 @@ export function terminalSections(ctx: PanelContext): PanelSection[] {
                     settingsBinding<boolean>("term:allowbracketedpaste", true),
                 ],
             },
-            waveAction(waveItems, "Force Restart Controller", {
+            waveAction(waveItems, t("wave.term.forceRestart"), {
                 id: "term:forcerestart",
-                label: "Force restart",
+                label: t("cmdpanel.terminal.forceRestart"),
                 icon: "rotate-right",
                 destructive: true,
                 keywords: ["controller", "restart shell"],
             }),
             // The adapter files Debug Connection under its own developer items.
-            ...[...debug.items, ...debug.developer].map((i) => ({ ...i, label: "Debug connection", icon: "bug" })),
+            ...[...debug.items, ...debug.developer].map((i) => ({
+                ...i,
+                label: t("cmdpanel.terminal.debugConnection"),
+                icon: "bug",
+            })),
         ] as PanelItem[]
     ).filter((i) => i != null);
 
     return [
-        { id: "widget:terminal", kind: "widget", title: "Terminal", items: shown },
-        { id: "developer", kind: "developer", title: "Developer", items: developer },
+        { id: "widget:terminal", kind: "widget", title: t("cmdpanel.terminal.title"), items: shown },
+        { id: "developer", kind: "developer", title: t("cmdpanel.section.developer"), items: developer },
     ];
 }
 

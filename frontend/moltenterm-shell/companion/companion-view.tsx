@@ -15,10 +15,14 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import { atom, PrimitiveAtom, useAtom, useAtomValue } from "jotai";
 import { memo, useEffect, useMemo, useState } from "react";
+import { agentLabel } from "../agent-state-model";
 import { useBlockAgentState } from "../agent-state-ui";
 import { EmptyState, EmptyStateAction } from "../empty-state";
-import { always, TabActivity } from "../tab-activity";
+import { I18nModel, t as translate, useT } from "../i18n/i18n";
+import { always, TabActivity, whileShown } from "../tab-activity";
+import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { attachCompanion, companionAgent, startCompanionAgent, tabAttachCandidates } from "./companion-attach";
+import { FilesSection } from "./companion-files";
 import { PlanUsageSection } from "./companion-gauges";
 import { IntegratedBadge, IntegrationDetails } from "./companion-integration";
 import {
@@ -26,10 +30,7 @@ import {
     CompanionAnswerCommand,
     CompanionCandidate,
     CompanionCloseCommand,
-    CompanionDiff,
-    CompanionDiffCommand,
     CompanionEvent,
-    CompanionFile,
     companionMarkdown,
     CompanionOpenCommand,
     CompanionPickCommand,
@@ -39,9 +40,6 @@ import {
     CompanionTodo,
     CompanionToolCall,
     CompanionView,
-    diffLineKind,
-    displayPath,
-    firstChangedLine,
     formatArgs,
     integrationProblem,
     isIntegrated,
@@ -53,7 +51,8 @@ import {
     statusMessage,
     todoCounts,
 } from "./companion-model";
-import { openChangedFile } from "./companion-open";
+import { AgentsSection, RecentTopicsSection } from "./companion-recap";
+import { SectionTitle, SessionSections } from "./companion-section";
 import { CompanionSessions } from "./companion-session-store";
 import { GuessNotice, SessionBar, SessionHistoryList } from "./companion-session-ui";
 import { WorkspaceTaskSection } from "./companion-task";
@@ -64,6 +63,7 @@ export { MoltentermCompanionView };
 const RpcTimeoutMs = 5000;
 // The lease wavesrv keeps a follower for is 45 s.
 const LeaseRenewMs = 15000;
+const RefreshMs = 10000;
 
 function companionCall<T>(command: string, data: any): Promise<T> {
     return TabRpcClient.wshRpcCall(command, data, { route: CompanionRoute, timeout: RpcTimeoutMs });
@@ -74,7 +74,10 @@ export class CompanionViewModel implements ViewModel {
     blockId: string;
     nodeModel: BlockNodeModel;
     viewIcon = atom("book-open");
-    viewName = atom("Companion");
+    viewName = atom((get) => {
+        get(I18nModel.getInstance().localeAtom);
+        return translate("companion.viewName");
+    });
     noPadding = atom(true);
     // The folder's sessions to pick from, opened by Choose from the folder's sessions, the session bar or the command
     // panel's Linked session (FR-SHELL-049).
@@ -107,6 +110,7 @@ function useCompanion(target: string): {
     const [view, setViewState] = useState<CompanionView>(null);
     const [error, setError] = useState<string>(null);
     const viewId = useMemo(() => crypto.randomUUID(), [target]);
+    const panelId = usePanelBlockId();
     const setView = (next: CompanionView) => {
         if (next?.blockid !== target) {
             return;
@@ -135,11 +139,15 @@ function useCompanion(target: string): {
         } catch (e) {
             console.log("companion: no event bus", e);
         }
-        const open = () =>
+        const open = (refresh: boolean) =>
             fireAndForget(async () => {
                 try {
                     accept(
-                        await companionCall<CompanionView>(CompanionOpenCommand, { blockid: target, viewid: viewId })
+                        await companionCall<CompanionView>(CompanionOpenCommand, {
+                            blockid: target,
+                            viewid: viewId,
+                            refresh,
+                        })
                     );
                     if (!cancelled) {
                         setError(null);
@@ -150,12 +158,17 @@ function useCompanion(target: string): {
                     }
                 }
             });
-        open();
+        open(true);
         // The lease must not lapse while the view is hidden: wavesrv would drop the follower.
-        const stopRenew = TabActivity.getInstance().every(always(LeaseRenewMs), open, "companion-lease");
+        const stopRenew = TabActivity.getInstance().every(always(LeaseRenewMs), () => open(false), "companion-lease");
+        // While it shows, the companion looks again on a bounded interval, on top of the file watch: a session link
+        // that came while nobody looked, agents gone quiet (#600). Paused while hidden; a view that shows again runs
+        // it at once, overdue. The same holds while its panel is off-screen on the carpet (#618).
+        const stopRefresh = everyInPanel(panelId, whileShown(RefreshMs), () => open(true), "companion-refresh");
         return () => {
             cancelled = true;
             stopRenew();
+            stopRefresh();
             unsubscribe();
             fireAndForget(async () => {
                 try {
@@ -165,7 +178,7 @@ function useCompanion(target: string): {
                 }
             });
         };
-    }, [target, viewId]);
+    }, [target, viewId, panelId]);
     // An event left out the latest answer this view has no copy of: ask for it.
     const missing = needsLatest(view);
     useEffect(() => {
@@ -196,6 +209,7 @@ function useCompanion(target: string): {
 }
 
 function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
+    const t = useT();
     const target = useAtomValue(model.targetAtom);
     const agentState = useBlockAgentState(target);
     const terminal = useAtomValueSafe(target ? getWaveObjectAtom<Block>(makeORef("block", target)) : null);
@@ -219,19 +233,22 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         setIntegrationOpen(false);
     }, [target, view?.agent]);
     const startAction: EmptyStateAction = {
-        label: `Start ${agent.name} here`,
-        busyLabel: "Starting…",
+        label: t("companion.startHere", { name: agent.name }),
+        busyLabel: t("companion.starting"),
         busy: actions.busy,
-        onClick: () => actions.run(`${agent.name} did not start.`, () => startCompanionAgent(model.blockId, target)),
+        onClick: () =>
+            actions.run(t("companion.didNotStart", { name: agent.name }), () =>
+                startCompanionAgent(model.blockId, target)
+            ),
         testId: "companion-start-agent",
     };
     const attachAction: EmptyStateAction = {
-        label: "Attach to a terminal",
+        label: t("companion.attach"),
         menu: true,
         disabled: actions.busy,
         onClick: (e) =>
             showAttachMenu(e, target, (id) =>
-                actions.run("The companion could not attach.", () => attachCompanion(model.blockId, id))
+                actions.run(t("companion.attachFailed"), () => attachCompanion(model.blockId, id))
             ),
         testId: "companion-attach",
     };
@@ -239,8 +256,8 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         return (
             <EmptyState
                 icon="link-slash"
-                title="No terminal"
-                hint={`Attach this companion to a terminal to follow its agent, or start ${agent.name} here.`}
+                title={t("companion.noTerminal")}
+                hint={t("companion.noTerminalHint", { name: agent.name })}
                 primary={attachAction}
                 secondary={startAction}
                 alert={actions.alert}
@@ -253,8 +270,8 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         return (
             <EmptyState
                 icon="triangle-exclamation"
-                title="The companion is not available"
-                hint="MoltenTerm could not reach it. It tries again every 15 seconds."
+                title={t("companion.unavailable")}
+                hint={t("companion.unavailableHint")}
                 details={error}
             />
         );
@@ -287,7 +304,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 title={message.title}
                 hint={message.detail}
                 primary={startAction}
-                secondary={{ ...attachAction, label: "Attach to another terminal" }}
+                secondary={{ ...attachAction, label: t("companion.attachOther") }}
                 alert={actions.alert}
                 details={actions.raw}
                 testId="companion-noagent"
@@ -304,7 +321,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 secondary={
                     view?.status === "searching"
                         ? {
-                              label: "Choose from the folder's sessions",
+                              label: t("companion.chooseSession"),
                               onClick: () => setHistory(true),
                               testId: "companion-history-open",
                           }
@@ -322,21 +339,47 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     }
     return (
         <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
-            <SessionBar view={view} onHistory={() => setHistory(true)} onIntegration={() => setIntegrationOpen(true)} />
+            <SessionBar
+                view={view}
+                name={agentState?.firstname ? agentLabel(agentState) : view.agentname}
+                onHistory={() => setHistory(true)}
+                onIntegration={() => setIntegrationOpen(true)}
+                onBackToCurrent={() =>
+                    fireAndForget(async () => {
+                        try {
+                            setView(
+                                await companionCall<CompanionView>(CompanionPickCommand, {
+                                    blockid: target,
+                                    viewid: viewId,
+                                    path: "",
+                                })
+                            );
+                        } catch (e) {
+                            console.log("companion: back to the current session", e);
+                        }
+                    })
+                }
+            />
             <GuessNotice session={session} onHistory={() => setHistory(true)} />
             <IntegrationNotice view={view} className="mx-3 mt-2" />
-            {usage}
-            <PermissionCard pending={view.pending} agentState={agentState?.state} />
-            <AnswerSection key={view.session?.path} target={target} view={view} />
-            <TodoSection todos={view.todos} />
-            <FilesSection
-                key={`files:${view.session?.path}`}
-                target={target}
-                companionId={model.blockId}
-                files={view.files}
-                folder={folder}
+            <SessionSections
+                usage={usage}
+                agents={<AgentsSection view={view} agentState={agentState} now={Date.now()} />}
+                permission={<PermissionCard pending={view.pending} agentState={agentState?.state} />}
+                topics={<RecentTopicsSection view={view} now={Date.now()} />}
+                answer={<AnswerSection key={view.session?.path} target={target} view={view} />}
+                todos={<TodoSection todos={view.todos} />}
+                task={<WorkspaceTaskSection target={target} companionId={model.blockId} companion={view} />}
+                files={
+                    <FilesSection
+                        key={`files:${view.session?.path}`}
+                        target={target}
+                        companionId={model.blockId}
+                        files={view.files}
+                        folder={folder}
+                    />
+                }
             />
-            <WorkspaceTaskSection target={target} companionId={model.blockId} />
         </div>
     );
 }
@@ -396,7 +439,7 @@ function showAttachMenu(e: React.MouseEvent<HTMLButtonElement>, current: string,
     const candidates = tabAttachCandidates(current);
     const items: ContextMenuItem[] =
         candidates.length === 0
-            ? [{ label: "No terminal in this tab", enabled: false }]
+            ? [{ label: translate("companion.noTerminalInTab"), enabled: false }]
             : candidates.map((c) => ({
                   label: c.label,
                   type: c.current ? "checkbox" : "normal",
@@ -479,6 +522,7 @@ function IntegrationNotice({ view, className }: { view: CompanionView; className
 }
 
 function PermissionCard({ pending, agentState }: { pending: CompanionToolCall[]; agentState: string }) {
+    const t = useT();
     const request = permissionRequest(pending, agentState);
     if (request == null) {
         return null;
@@ -489,23 +533,14 @@ function PermissionCard({ pending, agentState }: { pending: CompanionToolCall[];
             data-testid="companion-permission"
         >
             <div className="mb-1 text-12 font-medium text-warning">
-                Permission request · <span className="font-mono">{request.tool}</span>
+                {t("companion.permissionRequest")} · <span className="font-mono">{request.tool}</span>
             </div>
             {request.args ? (
                 <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-11 text-secondary">
                     {formatArgs(request.args)}
                 </pre>
             ) : null}
-            <div className="mt-1 text-11 text-muted">Answer it in the terminal.</div>
-        </div>
-    );
-}
-
-function SectionTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
-    return (
-        <div className="flex items-center gap-2 px-3 pt-3 pb-1">
-            <div className="text-11 font-semibold tracking-wide text-muted uppercase">{children}</div>
-            <div className="ml-auto flex items-center gap-1">{right}</div>
+            <div className="mt-1 text-11 text-muted">{t("companion.answerInTerminal")}</div>
         </div>
     );
 }
@@ -540,6 +575,7 @@ function NavButton({
 
 // The latest answer follows the session; browsing back pins an earlier one until "Latest".
 function AnswerSection({ target, view }: { target: string; view: CompanionView }) {
+    const t = useT();
     const [pinned, setPinned] = useState<number>(null);
     const [earlier, setEarlier] = useState<CompanionAnswer>(null);
     const [error, setError] = useState<string>(null);
@@ -585,8 +621,8 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
     if (latest == null) {
         return (
             <>
-                <SectionTitle>Answer</SectionTitle>
-                <div className="px-3 text-12 text-muted">No answer yet in this session.</div>
+                <SectionTitle>{t("companion.answer.title")}</SectionTitle>
+                <div className="px-3 text-12 text-muted">{t("companion.answer.none")}</div>
             </>
         );
     }
@@ -596,7 +632,7 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
                 right={
                     <>
                         <NavButton
-                            label="Earlier answer"
+                            label={t("companion.answer.earlier")}
                             icon="chevron-left"
                             disabled={pos <= 0}
                             onClick={() => go(-1)}
@@ -605,7 +641,7 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
                             {pos + 1} / {answers.length}
                         </span>
                         <NavButton
-                            label="Later answer"
+                            label={t("companion.answer.later")}
                             icon="chevron-right"
                             disabled={pos < 0 || pos >= answers.length - 1}
                             onClick={() => go(1)}
@@ -616,21 +652,25 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
                                 onClick={() => setPinned(null)}
                                 className="cursor-pointer rounded-6 px-1.5 py-0.5 text-11 text-accent hover:bg-hover"
                             >
-                                Latest
+                                {t("companion.answer.latestButton")}
                             </button>
                         ) : null}
                         <CopyButton
-                            title="Copy the answer as markdown"
+                            title={t("companion.answer.copy")}
                             onClick={() => fireAndForget(() => navigator.clipboard.writeText(shown?.markdown ?? ""))}
                         />
                     </>
                 }
             >
-                {pinned == null ? "Latest answer" : "Earlier answer"}
+                {pinned == null ? t("companion.answer.latest") : t("companion.answer.earlier")}
             </SectionTitle>
             {error ? <div className="px-3 text-12 text-error">{error}</div> : null}
             <div className="px-3" data-testid="companion-answer">
-                {shown ? <AnswerMarkdown markdown={markdown} /> : <div className="text-12 text-muted">Loading…</div>}
+                {shown ? (
+                    <AnswerMarkdown markdown={markdown} />
+                ) : (
+                    <div className="text-12 text-muted">{t("companion.loading")}</div>
+                )}
             </div>
         </>
     );
@@ -648,6 +688,7 @@ const TodoIcons: Record<string, string> = {
 };
 
 function TodoSection({ todos }: { todos: CompanionTodo[] }) {
+    const t = useT();
     if (todos == null || todos.length === 0) {
         return null;
     }
@@ -655,14 +696,14 @@ function TodoSection({ todos }: { todos: CompanionTodo[] }) {
     return (
         <>
             <SectionTitle right={<span className="text-11 text-muted tabular-nums">{`${done} / ${total}`}</span>}>
-                Tasks
+                {t("companion.tasks")}
             </SectionTitle>
             <ul className="flex flex-col gap-1 px-3" data-testid="companion-todos">
-                {todos.map((t, i) => (
+                {todos.map((todo, i) => (
                     <li key={i} className="flex items-start gap-2 text-12">
-                        <i className={cn("mt-0.5 fa-fw", TodoIcons[t.status] ?? TodoIcons.pending)} />
-                        <span className={cn(t.status === "completed" ? "text-muted line-through" : "text-primary")}>
-                            {t.text}
+                        <i className={cn("mt-0.5 fa-fw", TodoIcons[todo.status] ?? TodoIcons.pending)} />
+                        <span className={cn(todo.status === "completed" ? "text-muted line-through" : "text-primary")}>
+                            {todo.text}
                         </span>
                     </li>
                 ))}
@@ -670,183 +711,3 @@ function TodoSection({ todos }: { todos: CompanionTodo[] }) {
         </>
     );
 }
-
-const KindLabels: Record<string, { text: string; className: string; title: string }> = {
-    add: { text: "A", className: "text-success", title: "Added" },
-    update: { text: "M", className: "text-warning", title: "Modified" },
-    delete: { text: "D", className: "text-error", title: "Deleted" },
-};
-
-function FilesSection({
-    target,
-    companionId,
-    files,
-    folder,
-}: {
-    target: string;
-    companionId: string;
-    files: CompanionFile[];
-    folder: string;
-}) {
-    const [open, setOpen] = useState<string>(null);
-    if (files == null || files.length === 0) {
-        return (
-            <>
-                <SectionTitle>Files changed</SectionTitle>
-                <div className="px-3 pb-3 text-12 text-muted">No file changed in this session yet.</div>
-            </>
-        );
-    }
-    return (
-        <>
-            <SectionTitle right={<span className="text-11 text-muted tabular-nums">{files.length}</span>}>
-                Files changed
-            </SectionTitle>
-            <ul className="flex flex-col px-1 pb-3" data-testid="companion-files">
-                {files.map((f) => (
-                    <FileRow
-                        key={f.path}
-                        target={target}
-                        companionId={companionId}
-                        file={f}
-                        folder={folder}
-                        open={open === f.path}
-                        onToggle={() => setOpen(open === f.path ? null : f.path)}
-                    />
-                ))}
-            </ul>
-        </>
-    );
-}
-
-function FileRow({
-    target,
-    companionId,
-    file,
-    folder,
-    open,
-    onToggle,
-}: {
-    target: string;
-    companionId: string;
-    file: CompanionFile;
-    folder: string;
-    open: boolean;
-    onToggle: () => void;
-}) {
-    const kind = KindLabels[file.kind] ?? KindLabels.update;
-    // The preview opens at the line the first change of the file starts.
-    const openAtChange = () =>
-        fireAndForget(async () => {
-            let line = 0;
-            try {
-                const d = await companionCall<CompanionDiff>(CompanionDiffCommand, {
-                    blockid: target,
-                    path: file.path,
-                });
-                line = firstChangedLine(d?.diff);
-            } catch {
-                // Without its diff the file still opens, at its top.
-            }
-            openChangedFile(file.path, line, companionId);
-        });
-    return (
-        <li className="flex flex-col">
-            <div className="group flex items-center gap-2 rounded-6 px-2 py-1 hover:bg-hover">
-                <button
-                    type="button"
-                    onClick={onToggle}
-                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
-                    title={file.path}
-                    aria-expanded={open}
-                >
-                    <i
-                        className={cn(
-                            "fa fa-solid fa-fw text-11 text-muted",
-                            open ? "fa-chevron-down" : "fa-chevron-right"
-                        )}
-                    />
-                    <span
-                        className={cn("w-3 shrink-0 font-mono text-11 font-semibold", kind.className)}
-                        title={kind.title}
-                    >
-                        {kind.text}
-                    </span>
-                    <span className="truncate font-mono text-12 text-primary">{displayPath(file.path, folder)}</span>
-                </button>
-                <span className="shrink-0 font-mono text-11 tabular-nums">
-                    <span className="text-success">+{file.added}</span>{" "}
-                    <span className="text-error">−{file.removed}</span>
-                </span>
-                {file.kind !== "delete" ? (
-                    <button
-                        type="button"
-                        onClick={openAtChange}
-                        className="cursor-pointer rounded-6 px-1 text-11 text-secondary hover:text-primary"
-                        title="Open in the preview"
-                        aria-label={`Open ${file.path} in the preview`}
-                    >
-                        <i className="fa fa-solid fa-arrow-up-right-from-square" />
-                    </button>
-                ) : null}
-            </div>
-            {open ? <FileDiffView target={target} path={file.path} edits={file.edits} /> : null}
-        </li>
-    );
-}
-
-// The diff is fetched when opened, and again when the agent edits the file once more.
-function FileDiffView({ target, path, edits }: { target: string; path: string; edits: number }) {
-    const [diff, setDiff] = useState<CompanionDiff>(null);
-    const [error, setError] = useState<string>(null);
-    useEffect(() => {
-        let cancelled = false;
-        fireAndForget(async () => {
-            try {
-                const d = await companionCall<CompanionDiff>(CompanionDiffCommand, { blockid: target, path });
-                if (!cancelled) {
-                    setDiff(d);
-                    setError(null);
-                }
-            } catch (e) {
-                if (!cancelled) {
-                    setError(String(e?.message ?? e));
-                }
-            }
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [target, path, edits]);
-    if (error) {
-        return <div className="px-3 text-12 text-error">{error}</div>;
-    }
-    if (diff == null) {
-        return <div className="px-3 text-12 text-muted">Loading…</div>;
-    }
-    const lines = diff.diff ? diff.diff.replace(/\n$/, "").split("\n") : [];
-    return (
-        <div
-            className="mx-2 mb-2 overflow-x-auto rounded-4 border border-border bg-black/20"
-            data-testid="companion-diff"
-        >
-            {diff.truncated ? <div className="px-2 py-1 text-11 text-muted">Earlier edits are not kept.</div> : null}
-            {lines.length === 0 ? <div className="px-2 py-1 text-11 text-muted">No diff recorded.</div> : null}
-            <pre className="m-0 py-1 font-mono text-11 leading-[1.45]">
-                {lines.map((line, i) => (
-                    <div key={i} className={cn("px-2 whitespace-pre", DiffLineClasses[diffLineKind(line)])}>
-                        {line || " "}
-                    </div>
-                ))}
-            </pre>
-        </div>
-    );
-}
-
-const DiffLineClasses: Record<string, string> = {
-    add: "bg-success/10 text-success",
-    del: "bg-error/10 text-error",
-    hunk: "text-accent/80",
-    meta: "text-muted",
-    ctx: "text-secondary",
-};

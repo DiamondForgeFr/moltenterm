@@ -12,6 +12,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
@@ -30,7 +31,10 @@ type routeLink struct {
 	panes     *Panes
 	worktrees *Worktrees
 	groups    *Groups
+	reviews   *Reviews
 	output    chan []byte
+	// localSource tells whether a request's source is a local terminal or a window on the link it came in on.
+	localSource func(source string, ingressLinkId baseds.LinkId) bool
 }
 
 type ciLogRequest struct {
@@ -104,16 +108,24 @@ func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debu
 	if req.Command == "" || req.ReqId == "" {
 		return true
 	}
-	go l.answer(req)
+	go l.answer(req, ingressLinkId)
 	return true
 }
 
-func (l *routeLink) answer(req wshutil.RpcMessage) {
+func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) {
 	defer func() {
 		panichandler.PanicHandler("molten:mission:route", recover())
 	}()
 	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := l.handle(req.Command, req.Source, req.Data)
+	var data any
+	var err error
+	// FR-REV-014 AC4: the review list is answered to local terminals and windows only, never to a remote shell's wsh.
+	// Source checks take the router's lock, which is why this runs here and not in SendRpcMessage.
+	if req.Command == ReviewsCommand && (l.localSource == nil || !l.localSource(req.Source, ingressLinkId)) {
+		err = fmt.Errorf("the reviews are answered to MoltenTerm's windows and local terminals only")
+	} else {
+		data, err = l.handle(req.Command, req.Source, req.Data)
+	}
 	if err != nil {
 		resp.Error = err.Error()
 	} else {
@@ -223,6 +235,15 @@ func (l *routeLink) handleRun(command string, source string, data any) (any, err
 			return nil, err
 		}
 		return l.runs.CleanBranches(req)
+	case BranchesAutoDeleteCmd:
+		if !isWindowSource(source) {
+			return nil, fmt.Errorf("the repository setting can only be changed from a MoltenTerm window")
+		}
+		var req BranchesAutoDeleteRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return nil, l.runs.AnswerAutoDelete(req)
 	case ReleaseStartCommand:
 		var req ReleaseStartRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -281,6 +302,27 @@ func (l *routeLink) handleGithubRun(command string, source string, data any) (an
 	return nil, l.collector.RerunGithubRun(req)
 }
 
+func handleJobs(command string, source string, data any) (any, error) {
+	if command == JobsCommand {
+		var req JobsRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return ReadCiCatalogue(req.Dir)
+	}
+	// Typing into an agent's prompt is the user's click in a window; an agent asks another one itself.
+	if !isWindowSource(source) {
+		return nil, fmt.Errorf("an agent can only be asked to describe a job from a MoltenTerm window")
+	}
+	var req JobDescribeRequest
+	if err := utilfn.ReUnmarshal(&req, data); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return DescribeJob(ctx, req)
+}
+
 func (l *routeLink) handle(command string, source string, data any) (any, error) {
 	if command == SpawnsCommand {
 		return spawns.Snapshot(), nil
@@ -302,6 +344,13 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 			return nil, err
 		}
 		return ensureProjectTab(req)
+	}
+	if command == ReviewsCommand {
+		var req ReviewsRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.reviews.Get(req)
 	}
 	if command == GroupsCommand {
 		var req GroupsRequest
@@ -340,6 +389,9 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 	}
 	if command == GithubRunLogCommand || command == GithubRunRerunCommand {
 		return l.handleGithubRun(command, source, data)
+	}
+	if command == JobsCommand || command == JobDescribeCommand {
+		return handleJobs(command, source, data)
 	}
 	if strings.HasPrefix(command, "moltenmissionci") {
 		return l.handleCi(command, data)
@@ -386,8 +438,11 @@ func (l *routeLink) handleWorktree(command string, source string, data any) (any
 	return l.worktrees.Remove(req)
 }
 
-func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups) error {
-	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, output: make(chan []byte, routeQueueSize)}
+func registerRoute(collector *Collector, runs *Runs, ci *Ci, panes *Panes, worktrees *Worktrees, groups *Groups, reviews *Reviews) error {
+	link := &routeLink{collector: collector, runs: runs, ci: ci, panes: panes, worktrees: worktrees, groups: groups, reviews: reviews, output: make(chan []byte, routeQueueSize),
+		localSource: func(source string, ingressLinkId baseds.LinkId) bool {
+			return localroute.OnLink(wshutil.DefaultRouter, source, ingressLinkId)
+		}}
 	_, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId)
 	return err
 }

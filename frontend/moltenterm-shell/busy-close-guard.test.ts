@@ -5,6 +5,9 @@
 // asks twice. The reader and the dialog are replaced by stubs; the worktree rule is the real one.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+// Loaded once while the file is collected, which has no timeout: each test's fresh import then only re-evaluates it,
+// instead of the first test paying for the module graph within its own 5 s timeout on a loaded machine (#651).
+import "./worktree-close";
 
 const app = vi.hoisted(() => ({
     objects: {} as Record<string, any>,

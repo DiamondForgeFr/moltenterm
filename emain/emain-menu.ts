@@ -4,7 +4,7 @@
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import * as electron from "electron";
-import { MenuRoleLabels } from "../frontend/moltenterm-shell/menu/menu-model"; // MOLTENTERM-PATCH (#371)
+import { MenuRoleKeys, MenuRoleLabels } from "../frontend/moltenterm-shell/menu/menu-model"; // MOLTENTERM-PATCH (#371, #623)
 import { fireAndForget } from "../frontend/util/util";
 import { focusedBuilderWindow, getBuilderWindowById } from "./emain-builder";
 import { openBuilderWindow } from "./emain-ipc";
@@ -29,6 +29,7 @@ import {
     liveContextMenuHost,
 } from "./moltenterm-contextmenu";
 import { contextMenuRole } from "./moltenterm-contextmenu-policy";
+import { mt, onMainLocaleChange } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623): the menus follow app:language
 import { makeMoltentermGettingStartedMenuItem } from "./moltenterm-onboarding"; // MOLTENTERM-PATCH (#161)
 import { makeMoltentermSafeModeMenuItem } from "./moltenterm-safemode"; // MOLTENTERM-PATCH (#20)
 import { makeMoltentermEditWorkspaceMenuItem } from "./moltenterm-workspace-menu"; // MOLTENTERM-PATCH (#294)
@@ -61,7 +62,7 @@ async function getWorkspaceMenu(ww?: WaveBrowserWindow): Promise<Electron.MenuIt
     const workspaceList = await RpcApi.WorkspaceListCommand(ElectronWshClient);
     const workspaceMenu: Electron.MenuItemConstructorOptions[] = [
         {
-            label: "Create Workspace",
+            label: mt("appMenu.createWorkspace"), // MOLTENTERM-PATCH (#623)
             click: (_, window) => fireAndForget(() => createWorkspace((window as WaveBrowserWindow) ?? ww)),
         },
         // MOLTENTERM-PATCH (#294): the workspace edit sheet of the window's workspace
@@ -103,37 +104,46 @@ function makeEditMenu(fullConfig?: FullConfigType): Electron.MenuItemConstructor
             pasteAccelerator = "";
         }
     }
+    // MOLTENTERM-PATCH (#623): role items carry their label in the interface language (Electron's follow the bundle's)
     return [
         {
             role: "undo",
+            label: mt("appMenu.undo"),
             accelerator: unamePlatform === "darwin" ? "Command+Z" : "",
         },
         {
             role: "redo",
+            label: mt("appMenu.redo"),
             accelerator: unamePlatform === "darwin" ? "Command+Shift+Z" : "",
         },
         { type: "separator" },
         {
             role: "cut",
+            label: mt("appMenu.cut"),
             accelerator: unamePlatform === "darwin" ? "Command+X" : "",
         },
         {
             role: "copy",
+            label: mt("appMenu.copy"),
             accelerator: unamePlatform === "darwin" ? "Command+C" : "",
         },
         {
             role: "paste",
+            label: mt("appMenu.paste"),
             accelerator: pasteAccelerator,
         },
         {
             role: "pasteAndMatchStyle",
+            label: mt("appMenu.pasteAndMatchStyle"),
             accelerator: unamePlatform === "darwin" ? "Command+Shift+V" : "",
         },
         {
             role: "delete",
+            label: mt("appMenu.delete"),
         },
         {
             role: "selectAll",
+            label: mt("appMenu.selectAll"),
             accelerator: unamePlatform === "darwin" ? "Command+A" : "",
         },
     ];
@@ -146,12 +156,13 @@ function makeFileMenu(
 ): Electron.MenuItemConstructorOptions[] {
     const fileMenu: Electron.MenuItemConstructorOptions[] = [
         {
-            label: "New Window",
+            label: mt("appMenu.newWindow"), // MOLTENTERM-PATCH (#623)
             accelerator: "CommandOrControl+Shift+N",
             click: () => fireAndForget(callbacks.createNewWaveWindow),
         },
         {
             role: "close",
+            label: mt("appMenu.closeWindow"), // MOLTENTERM-PATCH (#623)
             accelerator: "",
             click: () => {
                 focusedWaveWindow?.close();
@@ -161,7 +172,7 @@ function makeFileMenu(
     const featureWaveAppBuilder = fullConfig?.settings?.["feature:waveappbuilder"];
     if (isDev || featureWaveAppBuilder) {
         fileMenu.splice(1, 0, {
-            label: "New WaveApp Builder Window",
+            label: mt("appMenu.newBuilderWindow"), // MOLTENTERM-PATCH (#623)
             accelerator: unamePlatform === "darwin" ? "Command+Shift+B" : "Alt+Shift+B",
             click: () => openBuilderWindow(""),
         });
@@ -188,7 +199,7 @@ function makeFileMenu(
 function makeAppMenuItems(webContents: electron.WebContents): Electron.MenuItemConstructorOptions[] {
     const appMenuItems: Electron.MenuItemConstructorOptions[] = [
         {
-            label: `About ${electron.app.getName()}`, // MOLTENTERM-PATCH (#4, #191): the gold's own name
+            label: mt("appMenu.about", { app: electron.app.getName() }), // MOLTENTERM-PATCH (#4, #191, #623): the gold's own name
             click: (_, window) => {
                 (getWindowWebContents(window) ?? webContents)?.send("menu-item-about");
             },
@@ -201,15 +212,16 @@ function makeAppMenuItems(webContents: electron.WebContents): Electron.MenuItemC
         { type: "separator" },
     ];
     if (unamePlatform === "darwin") {
+        // MOLTENTERM-PATCH (#623): labels in the interface language
         appMenuItems.push(
-            { role: "services" },
+            { role: "services", label: mt("appMenu.services") },
             { type: "separator" },
-            { role: "hide" },
-            { role: "hideOthers" },
+            { role: "hide", label: mt("appMenu.hide", { app: electron.app.getName() }) },
+            { role: "hideOthers", label: mt("appMenu.hideOthers") },
             { type: "separator" }
         );
     }
-    appMenuItems.push({ role: "quit" });
+    appMenuItems.push({ role: "quit", label: mt("appMenu.quit", { app: electron.app.getName() }) }); // MOLTENTERM-PATCH (#623)
     return appMenuItems;
 }
 
@@ -222,22 +234,22 @@ function makeViewMenu(
     const devToolsAccel = unamePlatform === "darwin" ? "Option+Command+I" : "Alt+Shift+I";
     return [
         {
-            label: isBuilderWindowFocused ? "Reload Window" : "Reload Tab",
+            label: mt(isBuilderWindowFocused ? "appMenu.reloadWindow" : "appMenu.reloadTab"), // MOLTENTERM-PATCH (#623)
             accelerator: "Shift+CommandOrControl+R",
             click: (_, window) => {
                 (getWindowWebContents(window) ?? webContents)?.reloadIgnoringCache();
             },
         },
         {
-            label: "Relaunch All Windows",
+            label: mt("appMenu.relaunchAllWindows"), // MOLTENTERM-PATCH (#623)
             click: () => callbacks.relaunchBrowserWindows(),
         },
         {
-            label: "Clear Tab Cache",
+            label: mt("appMenu.clearTabCache"), // MOLTENTERM-PATCH (#623)
             click: () => clearTabCache(),
         },
         {
-            label: "Toggle DevTools",
+            label: mt("appMenu.toggleDevTools"), // MOLTENTERM-PATCH (#623)
             accelerator: devToolsAccel,
             click: (_, window) => {
                 const wc = getWindowWebContents(window) ?? webContents;
@@ -246,7 +258,7 @@ function makeViewMenu(
         },
         { type: "separator" },
         {
-            label: "Reset Zoom",
+            label: mt("appMenu.resetZoom"), // MOLTENTERM-PATCH (#623)
             accelerator: "CommandOrControl+0",
             click: (_, window) => {
                 const wc = getWindowWebContents(window) ?? webContents;
@@ -256,7 +268,7 @@ function makeViewMenu(
             },
         },
         {
-            label: "Zoom In",
+            label: mt("appMenu.zoomIn"), // MOLTENTERM-PATCH (#623)
             accelerator: "CommandOrControl+=",
             click: (_, window) => {
                 const wc = getWindowWebContents(window) ?? webContents;
@@ -278,7 +290,7 @@ function makeViewMenu(
             acceleratorWorksWhenHidden: true,
         },
         {
-            label: "Zoom Out",
+            label: mt("appMenu.zoomOut"), // MOLTENTERM-PATCH (#623)
             accelerator: "CommandOrControl+-",
             click: (_, window) => {
                 const wc = getWindowWebContents(window) ?? webContents;
@@ -300,10 +312,10 @@ function makeViewMenu(
             acceleratorWorksWhenHidden: true,
         },
         {
-            label: "Launch On Full Screen",
+            label: mt("appMenu.fullScreenOnLaunch"), // MOLTENTERM-PATCH (#623)
             submenu: [
                 {
-                    label: "On",
+                    label: mt("common.on"), // MOLTENTERM-PATCH (#623)
                     type: "radio",
                     checked: fullscreenOnLaunch,
                     click: () => {
@@ -311,7 +323,7 @@ function makeViewMenu(
                     },
                 },
                 {
-                    label: "Off",
+                    label: mt("common.off"), // MOLTENTERM-PATCH (#623)
                     type: "radio",
                     checked: !fullscreenOnLaunch,
                     click: () => {
@@ -326,7 +338,7 @@ function makeViewMenu(
         },
         { type: "separator" },
         {
-            label: "Toggle Widgets Bar",
+            label: mt("appMenu.toggleWidgetsBar"), // MOLTENTERM-PATCH (#623)
             click: () => {
                 fireAndForget(async () => {
                     const workspaceId = focusedWaveWindow?.workspaceId;
@@ -367,27 +379,29 @@ async function makeFullAppMenu(callbacks: AppMenuCallbacks, workspaceOrBuilderId
     } catch (e) {
         console.error("getWorkspaceMenu error:", e);
     }
+    // MOLTENTERM-PATCH (#623): the menus' titles and role items in the interface language
     const windowMenu: Electron.MenuItemConstructorOptions[] = [
-        { role: "minimize", accelerator: "" },
-        { role: "zoom" },
+        { role: "minimize", label: mt("appMenu.minimize"), accelerator: "" },
+        { role: "zoom", label: mt("appMenu.zoom") },
         { type: "separator" },
-        { role: "front" },
+        { role: "front", label: mt("appMenu.front") },
     ];
     const menuTemplate: Electron.MenuItemConstructorOptions[] = [
         { role: "appMenu", submenu: appMenuItems },
-        { role: "fileMenu", submenu: fileMenu },
-        { role: "editMenu", submenu: editMenu },
-        { role: "viewMenu", submenu: viewMenu },
+        { role: "fileMenu", label: mt("appMenu.file"), submenu: fileMenu },
+        { role: "editMenu", label: mt("appMenu.edit"), submenu: editMenu },
+        { role: "viewMenu", label: mt("appMenu.view"), submenu: viewMenu },
     ];
     if (workspaceMenu != null && !isBuilderWindowFocused) {
         menuTemplate.push({
-            label: "Workspace",
+            label: mt("appMenu.workspace"), // MOLTENTERM-PATCH (#623)
             id: "workspace-menu",
             submenu: workspaceMenu,
         });
     }
     menuTemplate.push({
         role: "windowMenu",
+        label: mt("appMenu.window"), // MOLTENTERM-PATCH (#623)
         submenu: windowMenu,
     });
     return electron.Menu.buildFromTemplate(menuTemplate);
@@ -443,7 +457,10 @@ function convertMenuDefArrToMenu(
     const menuItems: electron.MenuItem[] = [];
     for (const menuDef of menuDefArr) {
         const menuItemTemplate: electron.MenuItemConstructorOptions = {
-            label: menuDef.label ?? MenuRoleLabels[menuDef.role],
+            // MOLTENTERM-PATCH (#623): an edit role's label in the interface language
+            label:
+                menuDef.label ??
+                (MenuRoleKeys[menuDef.role] ? mt(MenuRoleKeys[menuDef.role]) : MenuRoleLabels[menuDef.role]),
             type: menuDef.type === "header" ? "normal" : menuDef.type,
             visible: menuDef.visible,
             click: () => {
@@ -552,19 +569,27 @@ electron.ipcMain.on("builder-appmenu-show", (event, builderId: string) => {
     event.returnValue = true;
 });
 
-const dockMenu = electron.Menu.buildFromTemplate([
-    {
-        label: "New Window",
-        click() {
-            fireAndForget(createNewWaveWindow);
+// MOLTENTERM-PATCH (#623): built on each call, in the interface language; the app and dock menus are rebuilt when it changes
+function makeDockMenu(): electron.Menu {
+    return electron.Menu.buildFromTemplate([
+        {
+            label: mt("appMenu.newWindow"),
+            click() {
+                fireAndForget(createNewWaveWindow);
+            },
         },
-    },
-]);
+    ]);
+}
 
 function makeDockTaskbar() {
     if (unamePlatform == "darwin") {
-        electron.app.dock.setMenu(dockMenu);
+        electron.app.dock.setMenu(makeDockMenu());
     }
 }
+
+onMainLocaleChange(() => {
+    makeAndSetAppMenu();
+    makeDockTaskbar();
+});
 
 export { initMenuEventSubscriptions, makeDockTaskbar };

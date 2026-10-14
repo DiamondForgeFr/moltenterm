@@ -12,6 +12,7 @@ import clsx from "clsx";
 import * as jotai from "jotai";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import * as React from "react";
+import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { BlockEnv } from "./blockenv";
 
 function formatElapsedTime(elapsedMs: number): string {
@@ -54,6 +55,7 @@ const StalledOverlay = React.memo(
         overlayRefCallback: (el: HTMLDivElement | null) => void;
     }) => {
         const [elapsedTime, setElapsedTime] = React.useState<string>("");
+        const t = useT(); // MOLTENTERM-PATCH (#623)
 
         const waveEnv = useWaveEnv<BlockEnv>();
         const handleDisconnect = React.useCallback(() => {
@@ -87,19 +89,19 @@ const StalledOverlay = React.memo(
                 <div className="flex items-center gap-3 w-full pt-2.5 pb-2.5 pr-2 pl-3">
                     <i
                         className="fa-solid fa-triangle-exclamation text-warning text-base shrink-0"
-                        title="Connection Stalled"
+                        title={t("wave.conn.stalledTitle")} // MOLTENTERM-PATCH (#623)
                     ></i>
                     <div className="text-[11px] font-semibold leading-4 tracking-[0.11px] text-white min-w-0 flex-1 break-words @max-xxs:hidden">
-                        Connection to "{connName}" is stalled
-                        {elapsedTime && ` (no activity for ${elapsedTime})`}
+                        {t("wave.conn.stalled", { name: connName })}
+                        {elapsedTime && t("wave.conn.noActivityFor", { elapsed: elapsedTime })}
                     </div>
                     <div className="flex-1 hidden @max-xxs:block"></div>
                     <Button
                         className="outlined grey text-[11px] py-[3px] px-[7px] @max-w350:text-[12px] @max-w350:py-[5px] @max-w350:px-[6px]"
                         onClick={handleDisconnect}
-                        title="Disconnect"
+                        title={t("wave.conn.disconnect")} // MOLTENTERM-PATCH (#623)
                     >
-                        <span className="@max-w350:hidden!">Disconnect</span>
+                        <span className="@max-w350:hidden!">{t("wave.conn.disconnect")}</span>
                         <i className="fa-solid fa-link-slash hidden! @max-w350:inline!"></i>
                     </Button>
                 </div>
@@ -127,9 +129,9 @@ export const ConnStatusOverlay = React.memo(
         const [overlayRefCallback, _, domRect] = useDimensionsWithCallbackRef(30);
         const width = domRect?.width;
         const [showError, setShowError] = React.useState(false);
-        const wshConfigEnabled =
-            jotai.useAtomValue(waveEnv.getConnConfigKeyAtom(connName, "conn:wshenabled")) ?? true;
+        const wshConfigEnabled = jotai.useAtomValue(waveEnv.getConnConfigKeyAtom(connName, "conn:wshenabled")) ?? true;
         const [showWshError, setShowWshError] = React.useState(false);
+        const t = useT(); // MOLTENTERM-PATCH (#623)
 
         React.useEffect(() => {
             if (width) {
@@ -171,10 +173,10 @@ export const ConnStatusOverlay = React.memo(
             }
         }, [connName, waveEnv]);
 
-        let statusText = `Disconnected from "${connName}"`;
+        let statusText = t("wave.conn.disconnected", { name: connName }); // MOLTENTERM-PATCH (#623)
         let showReconnect = true;
         if (connStatus.status == "connecting") {
-            statusText = `Connecting to "${connName}"...`;
+            statusText = t("wave.conn.connecting", { name: connName }); // MOLTENTERM-PATCH (#623)
             showReconnect = false;
         }
         if (connStatus.status == "connected") {
@@ -186,7 +188,7 @@ export const ConnStatusOverlay = React.memo(
             reconDisplay = <i className="fa-sharp fa-solid fa-rotate-right"></i>;
             reconClassName = clsx(reconClassName, "text-[12px] py-[5px] px-[6px]");
         } else {
-            reconDisplay = "Reconnect";
+            reconDisplay = t("wave.conn.reconnect"); // MOLTENTERM-PATCH (#623)
             reconClassName = clsx(reconClassName, "text-[11px] py-[3px] px-[7px]");
         }
         const showIcon = connStatus.status != "connecting";
@@ -239,14 +241,18 @@ export const ConnStatusOverlay = React.memo(
                                     className="connstatus-error"
                                     options={{ scrollbars: { autoHide: "leave" } }}
                                 >
-                                    <CopyButton className="copy-button" onClick={handleCopy} title="Copy" />
+                                    <CopyButton
+                                        className="copy-button"
+                                        onClick={handleCopy}
+                                        title={t("wave.conn.copy")}
+                                    />
                                     {showError ? <div>error: {connStatus.error}</div> : null}
                                     {showWshError ? <div>unable to use wsh: {connStatus.wsherror}</div> : null}
                                 </OverlayScrollbarsComponent>
                             )}
                             {showWshError && (
                                 <Button className={reconClassName} onClick={handleDisableWsh}>
-                                    always disable wsh
+                                    {t("wave.conn.alwaysDisableWsh")}
                                 </Button>
                             )}
                         </div>

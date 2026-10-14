@@ -6,6 +6,7 @@
 // components so the rules can be tested without the app.
 
 import { AgentStateInfo, agentStateUrgency } from "../agent-state-model";
+import { t } from "../i18n/i18n";
 import { CiBranch, CiRunRecord, CiState, CiVerdictStatus } from "../mission/ci-model";
 import { CheckState, mergeStateLabel, PullRequest, summarizeChecks } from "../mission/github";
 import { MissionGit, RunRecord } from "../mission/mission-model";
@@ -155,8 +156,8 @@ export function projectWork(ci: CiState, runs: readonly RunRecord[], release: Re
         rtn.push({
             id: `ci:${ciRun.id}`,
             kind: "ci",
-            label: `CI on ${ciRun.branch || "HEAD"}`,
-            detail: `${done}/${ciRun.jobs.length} jobs`,
+            label: t("project.now.ciOn", { branch: ciRun.branch || "HEAD" }),
+            detail: t("project.work.jobs", { done, total: ciRun.jobs.length }),
             startedat: ciRun.startedat,
         });
     }
@@ -168,7 +169,8 @@ export function projectWork(ci: CiState, runs: readonly RunRecord[], release: Re
         rtn.push({
             id: `run:${run.id}`,
             kind,
-            label: kind === "build" ? `Build ${run.title || run.stepid}` : run.title || run.stepid,
+            label:
+                kind === "build" ? t("project.work.build", { name: run.title || run.stepid }) : run.title || run.stepid,
             detail: run.phases?.length ? run.phases[run.phases.length - 1] : "",
             startedat: run.startedat,
         });
@@ -177,8 +179,8 @@ export function projectWork(ci: CiState, runs: readonly RunRecord[], release: Re
         rtn.push({
             id: `release:${release.tag}`,
             kind: "release",
-            label: `Release ${release.tag}`,
-            detail: release.channel === "rc" ? "candidate" : "public",
+            label: t("project.work.release", { tag: release.tag }),
+            detail: release.channel === "rc" ? t("project.work.candidate") : t("project.work.public"),
             startedat: release.startedat,
         });
     }

@@ -9,6 +9,7 @@ import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { isMacOS } from "@/util/platformutil";
 import { atom } from "jotai";
 import { useMemo } from "react";
+import { I18nModel, t, useT } from "../i18n/i18n";
 import { PageCard, PageColumn, PageHeader, PageRowClass } from "../settings/settings-page";
 import { platformShortcuts } from "../shortcuts/registry";
 import { filterShortcuts } from "../shortcuts/shortcuts-search";
@@ -16,52 +17,21 @@ import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
 
 export const MoltentermTipsView = "tips";
 
-type Tip = { code?: string; title: string; text: string; icon?: string };
+type Tip = { id: string; code?: string; icon?: string };
 
+// Titles and texts are keys (tips.items.<id>.title and .text), translated where shown.
 const ReshapeTips: Tip[] = [
-    {
-        code: "/morph <what you want>",
-        title: "Reshape MoltenTerm with your agent",
-        text: "In Claude Code, Codex or another agent, ask for a panel, a command or a layout: the agent writes a mod and MoltenTerm asks before it runs it. ($morph in Codex, /skill:morph in Kimi Code.)",
-    },
-    {
-        code: "molten undo",
-        title: "Take a change back",
-        text: "Every morph is versioned; undo returns to the previous state.",
-    },
-    {
-        code: "molten copy <text>",
-        title: "Show text to copy",
-        text: "A box with a Copy button, next to the terminal. Agents use it for tokens and commands.",
-    },
-    {
-        code: "molten help",
-        title: "Every molten command",
-        text: "Mods, history, agents, sessions and docs, from any MoltenTerm terminal.",
-    },
+    { id: "morph", code: "/morph <what you want>" },
+    { id: "undo", code: "molten undo" },
+    { id: "copy", code: "molten copy <text>" },
+    { id: "help", code: "molten help" },
 ];
 
 const WorkTips: Tip[] = [
-    {
-        icon: "layer-group",
-        title: "Sessions survive",
-        text: "Terminals and agents keep running when MoltenTerm quits or updates. The Sessions icon on the rail lists every one still running.",
-    },
-    {
-        icon: "magnifying-glass",
-        title: "The command palette",
-        text: "Open panels, folders, agents and workspaces by typing a few letters.",
-    },
-    {
-        icon: "table-columns",
-        title: "Split where you work",
-        text: "Split the focused panel to add a terminal, a browser or any view beside it; drag a session onto a panel to show it there.",
-    },
-    {
-        icon: "compass",
-        title: "Getting started",
-        text: "The first run (your agent, a first morph, your project) is in the app menu and the command palette.",
-    },
+    { id: "sessions", icon: "layer-group" },
+    { id: "palette", icon: "magnifying-glass" },
+    { id: "split", icon: "table-columns" },
+    { id: "gettingStarted", icon: "compass" },
 ];
 
 export class TipsViewModel implements ViewModel {
@@ -69,7 +39,10 @@ export class TipsViewModel implements ViewModel {
     blockId: string;
     nodeModel: BlockNodeModel;
     viewIcon = atom("lightbulb");
-    viewName = atom("Tips");
+    viewName = atom((get) => {
+        get(I18nModel.getInstance().localeAtom);
+        return t("tips.viewName");
+    });
     noPadding = atom(true);
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
@@ -83,6 +56,7 @@ export class TipsViewModel implements ViewModel {
 }
 
 function TipRow({ tip }: { tip: Tip }) {
+    const t = useT();
     return (
         <div className={PageRowClass}>
             {tip.icon ? (
@@ -91,8 +65,8 @@ function TipRow({ tip }: { tip: Tip }) {
                 </span>
             ) : null}
             <div className="min-w-0 flex-1">
-                <div className="text-12 font-medium text-primary">{tip.title}</div>
-                <div className="text-12 leading-5 text-muted">{tip.text}</div>
+                <div className="text-12 font-medium text-primary">{t(`tips.items.${tip.id}.title`)}</div>
+                <div className="text-12 leading-5 text-muted">{t(`tips.items.${tip.id}.text`)}</div>
             </div>
             {tip.code ? (
                 <code className="shrink-0 rounded-4 bg-surface-2 px-1.5 py-0.5 font-mono text-11 text-primary @max-w600:hidden">
@@ -104,28 +78,25 @@ function TipRow({ tip }: { tip: Tip }) {
 }
 
 function TipsView(_props: ViewComponentProps<TipsViewModel>) {
+    const t = useT();
     const mac = isMacOS();
     const sections = useMemo(() => filterShortcuts(platformShortcuts(mac), "", mac), [mac]);
     return (
         <div className="@container h-full w-full overflow-y-auto bg-surface-1 text-primary" data-testid="molten-tips">
             <PageColumn>
-                <PageHeader
-                    title="Tips"
-                    icon="lightbulb"
-                    description="The few gestures that make MoltenTerm yours, and every shortcut."
-                />
-                <PageCard title="Reshape it" hint="From any MoltenTerm terminal.">
+                <PageHeader title={t("tips.title")} icon="lightbulb" description={t("tips.description")} />
+                <PageCard title={t("tips.reshape.title")} hint={t("tips.reshape.hint")}>
                     {ReshapeTips.map((tip) => (
-                        <TipRow key={tip.title} tip={tip} />
+                        <TipRow key={tip.id} tip={tip} />
                     ))}
                 </PageCard>
-                <PageCard title="Work in it">
+                <PageCard title={t("tips.work.title")}>
                     {WorkTips.map((tip) => (
-                        <TipRow key={tip.title} tip={tip} />
+                        <TipRow key={tip.id} tip={tip} />
                     ))}
                 </PageCard>
-                <PageCard title="Shortcuts" hint="The same list as Settings > Keyboard.">
-                    <div className="flex flex-col gap-3 px-4 py-3">
+                <PageCard title={t("tips.shortcuts.title")} hint={t("tips.shortcuts.hint")}>
+                    <div className="flex flex-col gap-3 px-5 py-3">
                         <ShortcutSections
                             sections={sections}
                             mac={mac}
