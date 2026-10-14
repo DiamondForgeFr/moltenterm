@@ -78,7 +78,7 @@ func liveEnv(hooks Hooks) Env {
 	dataDir := wavebase.GetWaveDataDir()
 	return Env{
 		DataDir:    dataDir,
-		MoltenPath: agentlaunch.MoltenPath(dataDir),
+		MoltenPath: func() string { return agentlaunch.MoltenPath(dataDir) },
 		Now:        time.Now,
 		Git: func(ctx context.Context, dir string, args ...string) ([]byte, error) {
 			return mission.ExecRunner(ctx, dir, "git", args...)

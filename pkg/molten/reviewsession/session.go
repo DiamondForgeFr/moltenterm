@@ -103,7 +103,7 @@ type ReviewBlock struct {
 type Env struct {
 	DataDir string
 	// MoltenPath: MoltenTerm's molten command, which serves `molten mcp review`; "" when it is not installed.
-	MoltenPath string
+	MoltenPath func() string
 	Now        func() time.Time
 	Git        GitRunner
 	// AgentInstalled tells whether an agent's program is on the login PATH.
@@ -353,7 +353,11 @@ func (m *Manager) Start(ctx context.Context, callerTab string, req mcpreview.Sta
 	if agent == "" {
 		return mcpreview.StartResult{Status: mcpreview.StatusNoAgent, Message: why}, nil
 	}
-	if m.env.MoltenPath == "" {
+	moltenPath := ""
+	if m.env.MoltenPath != nil {
+		moltenPath = m.env.MoltenPath()
+	}
+	if moltenPath == "" {
 		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Message: "MoltenTerm's molten command is not installed: the review tools cannot be given to the agent."}, nil
 	}
 	tabId := req.TabId
@@ -382,7 +386,7 @@ func (m *Manager) Start(ctx context.Context, callerTab string, req mcpreview.Sta
 		HeadRef: req.HeadRef, HeadOid: head, BaseRef: req.BaseRef, Worktree: tree, WorktreeKind: kind, Agent: agent,
 		StartedAt: m.env.Now().UnixMilli(),
 	}
-	rec.Command, err = m.agentCommand(agent)
+	rec.Command, err = m.agentCommand(agent, moltenPath)
 	if err != nil {
 		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Message: err.Error()}, nil
 	}
@@ -427,7 +431,7 @@ func (m *Manager) typeCommand(s *session) {
 }
 
 // agentCommand is the command line of the agent's review run.
-func (m *Manager) agentCommand(agent string) (string, error) {
+func (m *Manager) agentCommand(agent string, moltenPath string) (string, error) {
 	if m.env.Guide == nil || m.env.WriteFile == nil {
 		return "", errors.New("the review guide is not available")
 	}
@@ -435,20 +439,20 @@ func (m *Manager) agentCommand(agent string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("the review guide could not be read: %w", err)
 	}
-	if agent == molten.AgentIdCodex {
-		return CommandLine("codex", CodexReviewArgs(m.env.MoltenPath, string(guide))), nil
+	guidePath, err := m.env.WriteFile("review-guide", ".md", guide)
+	if err != nil {
+		return "", fmt.Errorf("the review guide could not be written: %w", err)
 	}
-	mcp, err := claudeReviewMcpJSON(m.env.MoltenPath)
+	if agent == molten.AgentIdCodex {
+		return CommandLine("codex", CodexReviewArgs(moltenPath, guidePath)), nil
+	}
+	mcp, err := claudeReviewMcpJSON(moltenPath)
 	if err != nil {
 		return "", err
 	}
 	mcpPath, err := m.env.WriteFile("review-mcp", ".json", mcp)
 	if err != nil {
 		return "", fmt.Errorf("the review tools' configuration could not be written: %w", err)
-	}
-	guidePath, err := m.env.WriteFile("review-guide", ".md", guide)
-	if err != nil {
-		return "", fmt.Errorf("the review guide could not be written: %w", err)
 	}
 	return CommandLine("claude", ClaudeReviewArgs(mcpPath, guidePath)), nil
 }
