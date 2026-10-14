@@ -24,6 +24,8 @@ import { languageName } from "../i18n/i18n-core";
 import { platformShortcuts } from "../shortcuts/registry";
 import { filterShortcuts } from "../shortcuts/shortcuts-search";
 import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
+import { OptionList, OptionRow } from "../suite/suite";
+import { suiteIcon } from "../suite/suite-icons";
 import {
     ProjectMetaKey,
     readWorkspaceFolder,
@@ -35,6 +37,7 @@ import {
     clampSetting,
     effectiveSetting,
     groupEntries,
+    groupSlug,
     isChanged,
     jsonSummary,
     localizeCatalog,
@@ -42,12 +45,15 @@ import {
     searchSettings,
     sectionEntries,
     sectionTitle,
+    SettingChoice,
+    settingChoices,
     SettingEntry,
     SettingOption,
     settingsCatalog,
     SettingsSectionId,
     SettingsSections,
 } from "./settings-catalog";
+import { settingsGroupIcon, settingsOptionIcon, SettingsSectionIcons } from "./settings-icons";
 import { ModsSection } from "./settings-mods";
 import { readSettingsSection, SettingsSectionMetaKey } from "./settings-open";
 import { PageCard, PageColumn, PageHeader } from "./settings-page";
@@ -88,7 +94,7 @@ const LanguagesOptions = "languages";
 const InputClass =
     "h-row rounded-4 border border-line-strong bg-transparent px-2 text-12 text-primary outline-none placeholder:text-muted focus:border-accent";
 const GhostButton =
-    "molten-btn-ghost inline-flex h-row shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2 text-12";
+    "molten-btn-ghost inline-flex h-row shrink-0 cursor-pointer items-center gap-1.5 rounded-4 px-2 text-12";
 
 // The section each screen was last on, so a remount (a tab switch) keeps it.
 const LastSection = new Map<string, SettingsSectionId>();
@@ -147,7 +153,7 @@ function Toggle({ entry, on, onSet }: { entry: SettingEntry; on: boolean; onSet:
             aria-checked={on}
             aria-label={entry.label}
             onClick={() => onSet(!on)}
-            className="inline-flex h-row cursor-pointer items-center rounded-6 px-1"
+            className="inline-flex h-row cursor-pointer items-center rounded-4 px-1"
         >
             <span className={cn("molten-cmdpanel-switch", on && "is-on")} aria-hidden />
         </button>
@@ -328,7 +334,7 @@ function MultiChoice({ entry, value, onSet }: { entry: SettingEntry; value: unkn
                             onSet(next.length ? next : null);
                         }}
                         className={cn(
-                            "inline-flex h-row cursor-pointer items-center gap-1.5 rounded-6 border px-2 text-12 transition-colors duration-120 ease-mt",
+                            "inline-flex h-row cursor-pointer items-center gap-1.5 rounded-4 border px-2 text-12 transition-colors duration-120 ease-mt",
                             on
                                 ? "border-accent/60 bg-accent/15 text-primary"
                                 : "border-line-strong text-secondary hover:bg-surface-2 hover:text-primary"
@@ -449,6 +455,11 @@ function Control({
     }
 }
 
+function SectionIcon({ id, className }: { id: SettingsSectionId; className?: string }) {
+    const Icon = suiteIcon(SettingsSectionIcons[id]);
+    return <Icon className={className} aria-hidden />;
+}
+
 function WorkspacePill({ name }: { name: string }) {
     const t = useT();
     return (
@@ -473,9 +484,51 @@ type RowProps = {
     onOpenJson: () => void;
 };
 
+function useChoices(entry: SettingEntry): SettingChoice[] {
+    const t = useT();
+    const languages = useAtomValue(I18nModel.getInstance().languagesAtom, { store: globalStore });
+    const systemLocale = useAtomValue(I18nModel.getInstance().systemLocaleAtom, { store: globalStore });
+    return settingChoices(entry, languages, t("language.system", { name: languageName(systemLocale) }));
+}
+
+function ChoiceRows({
+    entry,
+    name,
+    choices,
+    value,
+    onSet,
+}: {
+    entry: SettingEntry;
+    name: string;
+    choices: SettingChoice[];
+    value: unknown;
+    onSet: (v: unknown) => void;
+}) {
+    const t = useT();
+    const shown = effectiveSetting(entry, value);
+    const current = shown == null ? "" : String(shown);
+    return (
+        <OptionList aria-label={entry.label} data-setting-control>
+            {choices.map((c) => (
+                <OptionRow
+                    key={c.value}
+                    name={name}
+                    value={c.value}
+                    label={c.label}
+                    icon={settingsOptionIcon(entry.key, c.value)}
+                    selected={c.value === current}
+                    selectedLabel={t("common.selected")}
+                    onSelect={() => onSet(c.value === "" ? null : c.value)}
+                />
+            ))}
+        </OptionList>
+    );
+}
+
 const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlighted, onOpenJson }: RowProps) => {
     const t = useT();
     const [errorKey, setErrorKey] = useState<string>(null);
+    const choices = useChoices(entry);
     const changed = isChanged(entry, value);
     const error = errorKey != null ? t(errorKey) : null;
     const set = async (v: unknown) => {
@@ -487,49 +540,59 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
             setErrorKey(entry.scope === "workspace" ? "settings.error.folder" : "settings.error.notSaved");
         }
     };
+    const reset = changed ? (
+        <button
+            type="button"
+            className={cn(GhostButton, "px-1.5")}
+            aria-label={t("settings.reset.label", { label: entry.label })}
+            title={t("settings.reset.title")}
+            onClick={() => fireAndForget(() => set(null))}
+        >
+            <i className="fa fa-solid fa-rotate-left text-icon-14" aria-hidden />
+        </button>
+    ) : null;
     return (
         <div
             id={rowId}
             data-setting={entry.key}
             className={cn(
-                "molten-settings-row flex items-center gap-4 border-b border-line px-4 py-3 transition-colors duration-240 ease-mt first:rounded-t-6 last:rounded-b-6 last:border-b-0",
+                "molten-settings-row flex flex-col transition-colors duration-240 ease-mt",
                 highlighted && "bg-surface-2"
             )}
         >
-            <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate text-12 font-medium text-primary" title={entry.key}>
-                        {entry.label}
-                    </span>
-                    {entry.scope === "workspace" ? <WorkspacePill name={workspaceName} /> : null}
+            <div className={cn("flex items-center gap-4 px-5", choices ? "pt-3 pb-2" : "py-3")}>
+                <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-12 font-medium text-primary" title={entry.key}>
+                            {entry.label}
+                        </span>
+                        {entry.scope === "workspace" ? <WorkspacePill name={workspaceName} /> : null}
+                    </div>
+                    {entry.description ? (
+                        <div className="truncate text-12 text-muted" title={entry.description}>
+                            {entry.description}
+                        </div>
+                    ) : null}
+                    {error ? (
+                        <div role="alert" className="text-12 text-danger">
+                            {error}
+                        </div>
+                    ) : null}
                 </div>
-                {entry.description ? (
-                    <div className="truncate text-12 text-muted" title={entry.description}>
-                        {entry.description}
-                    </div>
-                ) : null}
-                {error ? (
-                    <div role="alert" className="text-12 text-danger">
-                        {error}
-                    </div>
-                ) : null}
+                <div className="flex shrink-0 items-center gap-1">
+                    {reset}
+                    {choices == null ? (
+                        <span data-setting-control className="contents">
+                            <Control entry={entry} value={value} themes={themes} onSet={set} onOpenJson={onOpenJson} />
+                        </span>
+                    ) : entry.optionsFrom === LanguagesOptions ? (
+                        <AddLanguageButton />
+                    ) : null}
+                </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1">
-                {changed ? (
-                    <button
-                        type="button"
-                        className={cn(GhostButton, "px-1.5")}
-                        aria-label={t("settings.reset.label", { label: entry.label })}
-                        title={t("settings.reset.title")}
-                        onClick={() => fireAndForget(() => set(null))}
-                    >
-                        <i className="fa fa-solid fa-rotate-left text-icon-14" aria-hidden />
-                    </button>
-                ) : null}
-                <span data-setting-control className="contents">
-                    <Control entry={entry} value={value} themes={themes} onSet={set} onOpenJson={onOpenJson} />
-                </span>
-            </div>
+            {choices != null ? (
+                <ChoiceRows entry={entry} name={`${rowId}-choice`} choices={choices} value={value} onSet={set} />
+            ) : null}
         </div>
     );
 });
@@ -539,15 +602,11 @@ SettingRow.displayName = "SettingRow";
 function FileRows({ files, onOpenFile }: { files: SettingsFile[]; onOpenFile: (path: string) => void }) {
     const t = useT();
     return (
-        <PageCard title={t("settings.files.title")} hint={t("settings.files.hint")}>
+        <PageCard title={t("settings.files.title")} hint={t("settings.files.hint")} icon={suiteIcon("files")}>
             {files
                 .filter((f) => f.path !== "secrets")
                 .map((f) => (
-                    <div
-                        key={f.path}
-                        className="flex items-center gap-4 border-b border-line px-4 py-3 last:border-b-0"
-                        data-file={f.path}
-                    >
+                    <div key={f.path} className="flex items-center gap-4 px-5 py-3" data-file={f.path}>
                         <div className="min-w-0 flex-1">
                             <div className="flex min-w-0 items-baseline gap-2">
                                 <span className="truncate text-12 font-medium text-primary">
@@ -578,8 +637,12 @@ function KeyboardShortcuts() {
     const mac = isMacOS();
     const sections = useMemo(() => filterShortcuts(platformShortcuts(mac), "", mac), [mac]);
     return (
-        <PageCard title={t("settings.shortcuts.title")} hint={t("settings.shortcuts.hint")}>
-            <div className="flex flex-col gap-3 px-4 py-3">
+        <PageCard
+            title={t("settings.shortcuts.title")}
+            hint={t("settings.shortcuts.hint")}
+            icon={suiteIcon("keyboard")}
+        >
+            <div className="flex flex-col gap-3 px-5 py-3">
                 <ShortcutSections
                     sections={sections}
                     mac={mac}
@@ -607,6 +670,11 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
 
     // Rebuilt when the language changes, so the rows and the search speak the shown language.
     const catalog = useMemo(() => localizeCatalog(settingsCatalog(platformName()), t), [t]);
+    // A group's icon follows its English name, which the interface language does not change.
+    const groupSlugByKey = useMemo(
+        () => new Map(settingsCatalog(platformName()).map((e) => [e.key, groupSlug(e.group)])),
+        []
+    );
     const sections = useMemo(() => SettingsSections.map((s) => localizeSection(s, t)), [t]);
     const currentSection = sections.find((s) => s.id === section);
     const themes = useMemo(
@@ -639,14 +707,24 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
             const offset = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
             scroller.scrollTo({ top: scroller.scrollTop + offset - scroller.clientHeight / 2 + row.clientHeight / 2 });
         }
-        row?.querySelector<HTMLElement>("[data-setting-control] :is(input, select, button)")?.focus({
-            preventScroll: true,
-        });
+        // Option rows focus the chosen one.
+        const control =
+            row?.querySelector<HTMLElement>("[data-setting-control] input:checked") ??
+            row?.querySelector<HTMLElement>("[data-setting-control] :is(input, select, button)");
+        control?.focus({ preventScroll: true });
         setHighlight(jumpTo);
         setJumpTo(null);
+    }, [jumpTo]);
+
+    // Its own effect: clearing jumpTo re-runs the one above, whose cleanup would cancel the timer and leave the row
+    // lit, and the block's turning light running, for good.
+    useEffect(() => {
+        if (highlight == null) {
+            return;
+        }
         const timer = setTimeout(() => setHighlight(null), 1600);
         return () => clearTimeout(timer);
-    }, [jumpTo]);
+    }, [highlight]);
 
     const jump = (entry: SettingEntry) => {
         LastSection.set(blockId, entry.section);
@@ -702,13 +780,13 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                 setSection(s.id);
                             }}
                             className={cn(
-                                "flex h-row w-full cursor-pointer items-center gap-2 rounded-6 px-2 text-left text-12 transition-colors duration-120 ease-mt",
+                                "relative flex h-row w-full cursor-pointer items-center gap-2 rounded-3 px-2 text-left text-12 transition-colors duration-120 ease-mt",
                                 current
-                                    ? "bg-surface-2 font-medium text-primary"
+                                    ? "bg-surface-2 font-medium text-primary before:absolute before:top-1.5 before:bottom-1.5 before:-left-2 before:w-0.5 before:rounded-full before:bg-accent"
                                     : "text-secondary hover:bg-surface-2 hover:text-primary"
                             )}
                         >
-                            <i className={`fa fa-solid fa-${s.icon} w-4 text-center text-icon-14`} aria-hidden />
+                            <SectionIcon id={s.id} className={cn("h-3.5 w-4 shrink-0", current && "text-accent")} />
                             <span className="truncate @max-w600:hidden">{s.title}</span>
                         </button>
                     );
@@ -769,7 +847,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                             onMouseMove={() => setActive(i)}
                                             onClick={() => jump(entry)}
                                             className={cn(
-                                                "flex cursor-pointer items-center gap-4 rounded-6 px-2 py-2",
+                                                "flex cursor-pointer items-center gap-4 rounded-4 px-2 py-2",
                                                 i === active ? "bg-surface-2" : ""
                                             )}
                                         >
@@ -798,12 +876,17 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                 <PageHeader
                                     title={currentSection?.title ?? section}
                                     description={currentSection?.description}
-                                    icon={currentSection?.icon}
+                                    icon={suiteIcon(SettingsSectionIcons[section])}
                                 />
                             </div>
                             {section === "advanced" ? <FileRows files={files} onOpenFile={onOpenFile} /> : null}
                             {groupEntries(entries).map((g) => (
-                                <PageCard key={g.group} title={g.group}>
+                                <PageCard
+                                    key={g.group}
+                                    title={g.group}
+                                    icon={suiteIcon(settingsGroupIcon(groupSlugByKey.get(g.entries[0].key)))}
+                                    glow={highlight != null && g.entries.some((e) => e.key === highlight)}
+                                >
                                     {g.entries.map((entry) => (
                                         <SettingRow
                                             key={entry.key}

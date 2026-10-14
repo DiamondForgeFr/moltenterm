@@ -8,6 +8,7 @@ vi.mock("../workspace-project", () => ({ ProjectMetaKey: "molten:project", Works
 import builtinDefaults from "../../../pkg/wconfig/defaultconfig/settings.json";
 import settingsSchema from "../../../schema/settings.json";
 import { translate } from "../i18n/i18n-core";
+import { SuiteIcons } from "../suite/suite-icons";
 import {
     buildCatalog,
     clampSetting,
@@ -21,6 +22,7 @@ import {
     searchSettings,
     sectionEntries,
     sectionTitle,
+    settingChoices,
     SettingEntry,
     settingsCatalog,
     SettingsSchema,
@@ -28,6 +30,7 @@ import {
     UnknownGroup,
     WorkspaceSettings,
 } from "./settings-catalog";
+import { settingsGroupIcon, SettingsSectionIcons } from "./settings-icons";
 
 const schema = settingsSchema as SettingsSchema;
 const props = schema.$defs.SettingsType.properties;
@@ -265,5 +268,49 @@ describe("settings in the interface language (FR-I18N-001)", () => {
             options: [{ value: "a", label: "Alpha" }],
         });
         expect(groupSlug("Quitting and closing")).toBe("quittingAndClosing");
+    });
+});
+
+describe("short choices as option rows (#658)", () => {
+    const langs = [
+        { code: "en", name: "English" },
+        { code: "fr", name: "Français" },
+    ];
+
+    it("shows a select of four choices or fewer as rows, the unset choice first", () => {
+        expect(settingChoices(entry("app:tabbar"), langs, "System").map((c) => c.value)).toEqual(["top", "left"]);
+        expect(settingChoices(entry("term:cursor"), langs, "System")).toHaveLength(3);
+        expect(settingChoices(entry("browser:installed"), langs, "System")).toBeNull();
+        expect(settingChoices(entry("term:theme"), langs, "System")).toBeNull();
+        expect(settingChoices(entry("app:focusfollowscursor"), langs, "System")).not.toBeNull();
+    });
+
+    it("lists the languages after the system's while they fit", () => {
+        expect(settingChoices(entry("app:language"), langs, "System (English)")).toEqual([
+            { value: "", label: "System (English)" },
+            { value: "en", label: "English" },
+            { value: "fr", label: "Français" },
+        ]);
+        const many = ["en", "fr", "de", "es"].map((code) => ({ code, name: code }));
+        expect(settingChoices(entry("app:language"), many, "System")).toBeNull();
+    });
+
+    it("keeps toggles, numbers and texts as they are", () => {
+        const toggle = catalog().find((e) => e.control === "toggle");
+        expect(settingChoices(toggle, langs, "System")).toBeNull();
+    });
+
+    it("gives every section and group a suite icon", () => {
+        for (const id of Object.values(SettingsSectionIcons)) {
+            expect(SuiteIcons[id]).toBeTruthy();
+        }
+        for (const e of catalog()) {
+            expect([e.group, settingsGroupIcon(groupSlug(e.group)) !== "tools" || e.group === UnknownGroup]).toEqual([
+                e.group,
+                true,
+            ]);
+        }
+        expect(settingsGroupIcon("360View")).toBe("overview");
+        expect(settingsGroupIcon("ciCd")).toBe("ci");
     });
 });

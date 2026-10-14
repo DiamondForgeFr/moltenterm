@@ -16,7 +16,8 @@ import { workspaceColourStops } from "./accent";
 import { DialogFrame, useEscape } from "./dialog-frame";
 import { t as translateNow, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
-import { Segment, SegmentedControl } from "./segmented-control";
+import { SectionBlock, ToggleGroup, ToggleOption } from "./suite/suite";
+import { suiteIcon, SuiteIconName } from "./suite/suite-icons";
 import {
     colourChoiceCss,
     colourChoiceForeground,
@@ -51,31 +52,33 @@ import {
 import { askResetWorkspace } from "./workspace-reset";
 import { canCloseWorkspace } from "./workspace-reset-model";
 
-const SectionHeadingClass = "mb-2 text-12 font-semibold tracking-wide text-secondary uppercase";
 const FieldLabelClass = "mb-1 text-12 text-secondary";
 const DangerButtonClass =
-    "shrink-0 cursor-pointer rounded-6 border border-error px-3 py-1.5 text-12 text-primary transition-colors duration-120 ease-mt hover:bg-error/15";
+    "shrink-0 cursor-pointer rounded-3 border border-error px-3 py-1.5 text-12 text-primary transition-colors duration-120 ease-mt hover:bg-error/15";
 const SecondaryButtonClass =
-    "shrink-0 cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
+    "shrink-0 cursor-pointer rounded-3 border border-border px-3 py-1.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
 const GhostButtonClass =
-    "shrink-0 cursor-pointer rounded-6 px-2 py-0.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
+    "shrink-0 cursor-pointer rounded-3 px-2 py-0.5 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-60";
 
 const FocusRingClass =
     "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
-function Section({ title, first, children }: { title: string; first?: boolean; children: React.ReactNode }) {
-    const id = useId();
+// Each section is a DiamondForge suite block (#658): its name in the chip on the top border, its icon on the corner.
+function Section({
+    title,
+    icon,
+    tone,
+    children,
+}: {
+    title: string;
+    icon: SuiteIconName;
+    tone?: "danger";
+    children: React.ReactNode;
+}) {
     return (
-        <section
-            aria-labelledby={id}
-            data-section={title}
-            className={cn("min-w-0", !first && "border-t border-border pt-3")}
-        >
-            <h3 id={id} className={SectionHeadingClass}>
-                {title}
-            </h3>
+        <SectionBlock title={title} icon={suiteIcon(icon)} tone={tone} data-section={title} className="min-w-0">
             {children}
-        </section>
+        </SectionBlock>
     );
 }
 
@@ -229,7 +232,7 @@ function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; o
                 ref={confirmRef}
                 type="button"
                 onClick={onConfirm}
-                className="molten-btn molten-btn-warning shrink-0 cursor-pointer rounded-6 px-2 py-1 text-12"
+                className="molten-btn molten-btn-warning shrink-0 cursor-pointer rounded-3 px-2 py-1 text-12"
             >
                 {t("workspace.edit.replace")}
                 <MoltenWave />
@@ -242,7 +245,7 @@ function ReplaceImageConfirm({ onConfirm, onCancel }: { onConfirm: () => void; o
 }
 
 const ImageTileClass =
-    "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-6 border text-icon-20 transition-colors duration-120 ease-mt motion-reduce:transition-none";
+    "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-3 border text-icon-20 transition-colors duration-120 ease-mt motion-reduce:transition-none";
 
 // The Image side of the Icon field (DS-SHELL-101): the project's images first, then the imported one, then the tile
 // that imports another (a pick or a drop; wavesrv checks and copies the file, FR-SHELL-031). The result is one line,
@@ -278,7 +281,7 @@ export function ImagePane({
                 data-role="icon-drop"
                 data-over={over ? "true" : undefined}
                 className={cn(
-                    "-m-1 flex flex-wrap items-center gap-1.5 rounded-6 p-1 transition-colors duration-120 ease-mt motion-reduce:transition-none",
+                    "-m-1 flex flex-wrap items-center gap-1.5 rounded-3 p-1 transition-colors duration-120 ease-mt motion-reduce:transition-none",
                     over && "bg-accent/10 outline outline-1 outline-accent outline-dashed"
                 )}
             >
@@ -382,7 +385,7 @@ function RailBadgePreview({
 
 type IconMode = "symbol" | "image";
 
-const IconModes: Segment<IconMode>[] = [
+const IconModes: ToggleOption<IconMode>[] = [
     { value: "symbol", label: "workspace.edit.symbol" },
     { value: "image", label: "workspace.edit.image" },
 ];
@@ -538,7 +541,7 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
         setResult({ ok: false, text });
     });
     return (
-        <Section title={t("workspace.edit.identity")} first>
+        <Section title={t("workspace.edit.identity")} icon="identity">
             <div className="flex min-w-0 items-start gap-3">
                 <RailBadgePreview ws={ws} over={drop.over} dropHandlers={drop.handlers} />
                 <div className="min-w-0 flex-1">
@@ -570,9 +573,9 @@ function IdentitySection({ ws, nameRef }: { ws: Workspace; nameRef: React.RefObj
                         <div id={iconLabelId} className="text-12 text-secondary">
                             {t("workspace.edit.icon")}
                         </div>
-                        <SegmentedControl<IconMode>
+                        <ToggleGroup<IconMode>
                             label={t("workspace.edit.iconKind")}
-                            segments={IconModes.map((s) => ({ ...s, label: t(s.label) }))}
+                            options={IconModes.map((s) => ({ ...s, label: t(s.label) }))}
                             selected={mode}
                             onSelect={(next) => setMode(next)}
                         />
@@ -655,7 +658,7 @@ export function IconChoices({
                     tabIndex={tabIndex}
                     onClick={() => onSelect(icon)}
                     className={cn(
-                        "flex h-8 w-8 cursor-pointer items-center justify-center rounded-6 border text-icon-16 transition-colors duration-120 ease-mt motion-reduce:transition-none",
+                        "flex h-8 w-8 cursor-pointer items-center justify-center rounded-3 border text-icon-16 transition-colors duration-120 ease-mt motion-reduce:transition-none",
                         FocusRingClass,
                         checked
                             ? "border-accent bg-accent/10 text-primary"
@@ -907,7 +910,7 @@ export function DangerSection({ ws, closable, onClose }: { ws: Workspace; closab
         }
     };
     return (
-        <Section title={t("workspace.edit.dangerZone")}>
+        <Section title={t("workspace.edit.dangerZone")} icon="danger" tone="danger">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 flex-1 basis-48 text-12 text-muted">{action.text}</div>
                 <button
@@ -955,11 +958,12 @@ export function WorkspaceEditSheet({
             subtitleClass="font-mono text-11"
             widthClass="w-[560px]"
             trapFocus
+            suite
             onBackdrop={onClose}
             buttons={
                 <button
                     type="button"
-                    className="molten-btn cursor-pointer rounded-6 px-4 py-1.5 text-12"
+                    className="molten-btn cursor-pointer rounded-3 px-4 py-1.5 text-12"
                     onClick={onClose}
                 >
                     {t("workspace.edit.done")}
@@ -968,10 +972,10 @@ export function WorkspaceEditSheet({
             }
         >
             <IdentitySection ws={ws} nameRef={nameRef} />
-            <Section title={t("workspace.edit.project")}>
+            <Section title={t("workspace.edit.project")} icon="project">
                 <WorkspaceProjectBlock ws={ws} />
             </Section>
-            <Section title={t("workspace.edit.folder")}>
+            <Section title={t("workspace.edit.folder")} icon="folder">
                 <WorkspaceFolderLine ws={ws} />
             </Section>
             <DangerSection ws={ws} closable={closable} onClose={onClose} />

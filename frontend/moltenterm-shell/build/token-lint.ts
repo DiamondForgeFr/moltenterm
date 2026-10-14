@@ -131,14 +131,20 @@ function splitTop(value: string, sep: RegExp): string[] {
 
 const TimeRe = /^-?\d*\.?\d+m?s$/;
 
+// The DiamondForge suite kit (suite/suite.css, #658) reads its own --df-* slots, which tokens.css maps onto the
+// --mt-* scale: a kit size, weight or duration is a token too.
 function badFontSize(value: string): boolean {
-    return !/^(?:var\(--mt-(?:text|icon)-\d+\)|inherit|initial|unset|100%|1em)(?:\s*!important)?$/.test(value);
+    return !/^(?:var\(--mt-(?:text|icon)-\d+\)|var\(--df-text-[a-z-]+\)|inherit|initial|unset|100%|1em)(?:\s*!important)?$/.test(
+        value
+    );
 }
 
 function badWeight(value: string): boolean {
     const v = value.replace(/\s*!important$/, "");
-    return !(Weights.has(v) || /^(?:normal|inherit|var\(--mt-weight-[a-z]+\))$/.test(v));
+    return !(Weights.has(v) || /^(?:normal|inherit|var\(--(?:mt|df)-weight-[a-z]+\))$/.test(v));
 }
+
+const TokenDurationVar = /^var\(--(?:mt|df)-duration-/;
 
 function badRadius(value: string): string {
     const v = value.replace(/\s*!important$/, "");
@@ -165,8 +171,8 @@ function badDurations(value: string): string[] {
         if (/^(?:none|inherit|initial|unset)(?:\s*!important)?$/.test(item)) {
             continue;
         }
-        const duration = splitTop(item, /\s/).find((tok) => TimeRe.test(tok) || /^var\(--mt-duration-/.test(tok));
-        if (duration == null || /^var\(--mt-duration-/.test(duration) || /^0m?s$/.test(duration)) {
+        const duration = splitTop(item, /\s/).find((tok) => TimeRe.test(tok) || TokenDurationVar.test(tok));
+        if (duration == null || TokenDurationVar.test(duration) || /^0m?s$/.test(duration)) {
             continue;
         }
         bad.push(duration);

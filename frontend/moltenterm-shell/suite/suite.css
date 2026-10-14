@@ -1,0 +1,494 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* DiamondForge suite kit (#658): the blocks, label chips, turning light, option rows and toggle groups that Notulia,
+   MoltenTerm and the DiamondForge site share. Self-contained on purpose: plain CSS, no Tailwind, no app variable.
+   It is extracted as is into the shared UI kit later (suite-language.md, "Extraction plan").
+
+   An app maps the --df-* slots on its own :root: the accent (--df-accent, --df-accent-fg), the neutrals and, if it
+   wants, the type sizes and durations. The defaults below are Notulia's dark values, declared under :where() so any
+   app rule wins whatever the import order. The dimensions are Notulia's (SettingsFieldset, OptionRow, .glow-ring). */
+
+/* Tailwind's layer order, declared again so the kit's components sit above any base reset and below utilities,
+   whichever sheet loads first: an app's utility classes can still adjust a block (a margin, a width). */
+@layer theme, base, components, utilities;
+
+:where(:root) {
+    --df-accent: oklch(0.74 0.18 285);
+    --df-accent-fg: oklch(0.13 0.04 285);
+    --df-danger: oklch(0.72 0.2 27);
+    --df-danger-fg: oklch(0.13 0.02 27);
+
+    --df-page: oklch(0.135 0.005 270);
+    --df-surface: oklch(0.155 0.005 270);
+    --df-line: oklch(1 0 0 / 6%);
+    --df-hover: oklch(0.19 0.005 270 / 70%);
+    --df-text: oklch(0.97 0.002 270);
+    --df-text-muted: oklch(0.66 0.01 270);
+    --df-font: inherit;
+
+    /* Sharp editorial corners: 2–4 px, never more. Dots, pills and avatars stay round. */
+    --df-radius-sm: 2px;
+    --df-radius-md: 3px;
+    --df-radius-lg: 4px;
+
+    --df-text-chip: 11px;
+    --df-text-desc: 12px;
+    --df-text-row: 14px;
+    --df-text-meta: 11px;
+    --df-text-tile-icon: 20px;
+    --df-text-toggle: 12px;
+    --df-weight-medium: 500;
+    --df-weight-semibold: 600;
+
+    --df-block-gap: 32px;
+    --df-block-pad: 20px;
+    --df-block-pad-top: 40px;
+    --df-block-content-gap: 16px;
+    --df-pocket-height: 36px;
+    --df-pocket-left: 32px;
+    --df-pocket-pad: 6px;
+    --df-chip-height: 24px;
+    --df-chip-pad: 10px;
+    --df-chip-tracking: 0.08em;
+    --df-tile-size: 36px;
+    --df-tile-offset: -16px;
+    --df-tile-fg: #ffffff;
+    --df-row-pad-x: 20px;
+    --df-row-pad-y: 12px;
+    --df-row-gap: 12px;
+    --df-radio-size: 16px;
+    --df-radio-dot: 8px;
+    --df-toggle-height: 24px;
+    --df-toggle-pad: 10px;
+    --df-toggle-gap: 6px;
+
+    --df-duration-fast: 120ms;
+    --df-duration-fade: 350ms;
+    --df-glow-duration: 8s;
+    --df-glow-width: 1px;
+    /* Where the light rests when it does not turn (reduced motion): the top-right corner. */
+    --df-glow-rest: 90deg;
+}
+
+/* Notulia's light theme, for an app that has one: on its root or any subtree. */
+:where(.df-light, [data-df-theme="light"]) {
+    --df-accent: oklch(0.5 0.22 285);
+    --df-accent-fg: oklch(0.99 0 0);
+    --df-danger: oklch(0.58 0.24 27);
+    --df-danger-fg: oklch(0.99 0 0);
+    --df-page: oklch(0.985 0.003 270);
+    --df-surface: oklch(0.99 0.002 270);
+    --df-line: oklch(0.91 0.005 270);
+    --df-hover: oklch(0.95 0.004 270 / 70%);
+    --df-text: oklch(0.13 0.01 270);
+    --df-text-muted: oklch(0.48 0.014 270);
+}
+
+/* ── Turning light ────────────────────────────────────────────────────────────────────────────────────────────────
+   A light travelling around a frame's border: a conic gradient turning behind a 1 px ring masked out of the frame.
+   The turn is a transform, which the compositor runs off the main thread; a registered angle animating the gradient
+   itself cost about 10 % of the main thread (one style recalculation and paint per frame, measured in #658). The
+   turning square is twice the frame's width, not Notulia's 99 999 px: it covers any frame up to √3 times taller than
+   wide. Nothing runs while the frame is not highlighted (no animation, opacity 0); under reduced motion the light
+   stands still on the top-right corner. Markup: <span class="df-glow" aria-hidden> inside a positioned, rounded frame,
+   lit by .df-glow-on on the frame (or data-on on the ring). */
+@layer components {
+    .df-glow {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        overflow: hidden;
+        border-radius: inherit;
+        padding: var(--df-glow-width);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity var(--df-duration-fade) ease;
+        -webkit-mask:
+            linear-gradient(#fff 0 0) content-box,
+            linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask:
+            linear-gradient(#fff 0 0) content-box,
+            linear-gradient(#fff 0 0);
+        mask-composite: exclude;
+    }
+
+    .df-glow::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 200%;
+        aspect-ratio: 1;
+        background: conic-gradient(
+            transparent 0%,
+            transparent 72%,
+            color-mix(in srgb, var(--df-accent) 35%, transparent) 86%,
+            color-mix(in srgb, var(--df-accent) 85%, transparent) 96%,
+            transparent 100%
+        );
+        transform: translate(-50%, -50%) rotate(var(--df-glow-rest));
+    }
+
+    .df-glow-on > .df-glow,
+    .df-glow[data-on] {
+        opacity: 1;
+    }
+
+    .df-glow-on > .df-glow::before,
+    .df-glow[data-on]::before {
+        animation: df-glow-turn var(--df-glow-duration) linear infinite;
+    }
+
+    @keyframes df-glow-turn {
+        from {
+            transform: translate(-50%, -50%) rotate(0deg);
+        }
+        to {
+            transform: translate(-50%, -50%) rotate(360deg);
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .df-glow-on > .df-glow::before,
+        .df-glow[data-on]::before {
+            animation: none;
+        }
+    }
+
+    .df-reduced-motion .df-glow::before {
+        animation: none !important;
+    }
+
+    /* ── Section block ────────────────────────────────────────────────────────────────────────────────────────────────
+   A bordered group whose top border breaks around an uppercase label chip, sunk halfway: the chip's top half rises
+   above the line, a pocket wraps its bottom half and the border dives around it. An optional icon tile sits on the
+   top-left corner; an optional action straddles the bottom border on the right. */
+    .df-block {
+        position: relative;
+        margin-top: var(--df-block-gap);
+        padding: var(--df-block-pad);
+        padding-top: var(--df-block-pad-top);
+        border: 1px solid var(--df-line);
+        border-radius: var(--df-radius-lg);
+        background: var(--df-surface);
+        color: var(--df-text);
+        font-family: var(--df-font);
+    }
+
+    .df-block[data-untitled] {
+        padding-top: var(--df-block-pad);
+    }
+
+    .df-block[data-footer] {
+        margin-bottom: 24px;
+    }
+
+    .df-block[data-tone="danger"] {
+        --df-accent: var(--df-danger);
+        --df-accent-fg: var(--df-danger-fg);
+    }
+
+    .df-block-body {
+        display: flex;
+        flex-direction: column;
+        gap: var(--df-block-content-gap);
+        min-width: 0;
+    }
+
+    .df-block-desc {
+        margin: 0;
+        font-size: var(--df-text-desc);
+        line-height: 1.4;
+        color: var(--df-text-muted);
+    }
+
+    .df-pocket {
+        position: absolute;
+        top: calc(var(--df-pocket-height) / -2);
+        left: var(--df-pocket-left);
+        display: inline-flex;
+        align-items: center;
+        gap: var(--df-pocket-pad);
+        height: var(--df-pocket-height);
+        max-width: calc(100% - var(--df-pocket-left) - 24px);
+        padding: 0 var(--df-pocket-pad);
+    }
+
+    .df-pocket::before {
+        content: "";
+        position: absolute;
+        inset: calc(var(--df-pocket-height) / 2 - 1px) 0 0 0;
+        border: 1px solid var(--df-line);
+        border-top: 0;
+        border-radius: 0 0 var(--df-radius-md) var(--df-radius-md);
+        background: var(--df-surface);
+    }
+
+    .df-pocket-bottom {
+        top: auto;
+        bottom: calc(var(--df-pocket-height) / -2);
+        left: auto;
+        right: var(--df-pocket-left);
+    }
+
+    .df-pocket-bottom::before {
+        inset: 0 0 calc(var(--df-pocket-height) / 2 - 1px) 0;
+        border-top: 1px solid var(--df-line);
+        border-bottom: 0;
+        border-radius: var(--df-radius-md) var(--df-radius-md) 0 0;
+    }
+
+    .df-pocket > * {
+        position: relative;
+    }
+
+    /* The label chip: the active-tab look of Notulia's configuration. */
+    .df-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        height: var(--df-chip-height);
+        padding: 0 var(--df-chip-pad);
+        border: 1px solid color-mix(in srgb, var(--df-accent) 60%, transparent);
+        border-radius: var(--df-radius-md);
+        background: linear-gradient(to bottom, var(--df-accent), color-mix(in srgb, var(--df-accent) 85%, transparent));
+        box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--df-accent) 40%, transparent);
+        color: var(--df-accent-fg);
+        font-size: var(--df-text-chip);
+        font-weight: var(--df-weight-semibold);
+        line-height: 1;
+        letter-spacing: var(--df-chip-tracking);
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .df-block[data-chip-case="as-is"] .df-chip {
+        text-transform: none;
+        letter-spacing: normal;
+    }
+
+    .df-chip-text {
+        margin: 0;
+        font: inherit;
+        letter-spacing: inherit;
+    }
+
+    .df-chip > .df-chip-text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* The block's identity icon in an accent square on the corner. */
+    .df-icon-tile {
+        position: absolute;
+        top: var(--df-tile-offset);
+        left: var(--df-tile-offset);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: var(--df-tile-size);
+        height: var(--df-tile-size);
+        border-radius: var(--df-radius-lg);
+        background: linear-gradient(to bottom right, var(--df-accent), color-mix(in srgb, var(--df-accent) 75%, black));
+        box-shadow:
+            0 0 0 2px var(--df-page),
+            0 4px 10px -2px color-mix(in srgb, var(--df-accent) 25%, transparent);
+        color: var(--df-tile-fg);
+        font-size: var(--df-text-tile-icon);
+    }
+
+    .df-icon-tile > svg {
+        width: 1em;
+        height: 1em;
+    }
+
+    /* Rows flush with the block's edges, under its description: they own the block's bottom. */
+    .df-block-rows {
+        display: flex;
+        flex-direction: column;
+        margin: 0 calc(var(--df-block-pad) * -1) calc(var(--df-block-pad) * -1);
+        border-top: 1px solid color-mix(in srgb, var(--df-line) 60%, transparent);
+        border-radius: 0 0 var(--df-radius-lg) var(--df-radius-lg);
+        overflow: hidden;
+    }
+
+    .df-block-rows > * + * {
+        border-top: 1px solid color-mix(in srgb, var(--df-line) 60%, transparent);
+    }
+
+    .df-block-body > .df-block-rows:first-child {
+        margin-top: calc(var(--df-block-pad) - var(--df-block-pad-top));
+        border-top: 0;
+    }
+
+    .df-block[data-untitled] > .df-block-body > .df-block-rows:first-child {
+        margin-top: calc(var(--df-block-pad) * -1);
+        border-radius: var(--df-radius-lg);
+    }
+
+    /* ── Option rows ──────────────────────────────────────────────────────────────────────────────────────────────────
+   One choice of an exclusive set: radio, optional icon, label, and the "Selected" mark on the right, over a faint
+   accent wash. A real radio inside a label: the arrows move the choice with no script. */
+    .df-option-row {
+        display: flex;
+        align-items: center;
+        gap: var(--df-row-gap);
+        padding: var(--df-row-pad-y) var(--df-row-pad-x);
+        color: var(--df-text);
+        cursor: pointer;
+        transition: background-color var(--df-duration-fast) ease;
+    }
+
+    /* Option rows stacked inside a row or a block, divided by hairlines. */
+    .df-option-list {
+        display: flex;
+        flex-direction: column;
+        border-top: 1px solid color-mix(in srgb, var(--df-line) 60%, transparent);
+    }
+
+    .df-option-list > * + * {
+        border-top: 1px solid color-mix(in srgb, var(--df-line) 60%, transparent);
+    }
+
+    .df-option-row:not([data-selected], [data-disabled]):hover {
+        background: var(--df-hover);
+    }
+
+    .df-option-row[data-selected] {
+        background: color-mix(in srgb, var(--df-accent) 7%, transparent);
+    }
+
+    .df-option-row[data-disabled] {
+        cursor: default;
+        opacity: 0.6;
+    }
+
+    .df-sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .df-radio {
+        display: flex;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        width: var(--df-radio-size);
+        height: var(--df-radio-size);
+        border: 1px solid color-mix(in srgb, var(--df-text-muted) 50%, transparent);
+        border-radius: 9999px;
+        transition: border-color var(--df-duration-fast) ease;
+    }
+
+    .df-radio::after {
+        content: "";
+        width: var(--df-radio-dot);
+        height: var(--df-radio-dot);
+        border-radius: 9999px;
+        background: var(--df-accent);
+        transform: scale(0);
+    }
+
+    .df-option-row[data-selected] .df-radio {
+        border-color: var(--df-accent);
+    }
+
+    .df-option-row[data-selected] .df-radio::after {
+        transform: scale(1);
+    }
+
+    .df-option-row :focus-visible + .df-radio {
+        outline: 2px solid color-mix(in srgb, var(--df-accent) 40%, transparent);
+        outline-offset: 2px;
+    }
+
+    .df-option-icon {
+        flex-shrink: 0;
+        width: 14px;
+        height: 14px;
+        color: var(--df-text-muted);
+    }
+
+    .df-option-label {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: var(--df-text-row);
+        font-weight: var(--df-weight-medium);
+    }
+
+    .df-option-meta {
+        margin-left: 8px;
+        font-size: var(--df-text-meta);
+        font-weight: normal;
+        color: var(--df-text-muted);
+    }
+
+    .df-option-selected {
+        flex-shrink: 0;
+        font-size: var(--df-text-meta);
+        font-weight: var(--df-weight-medium);
+        color: var(--df-accent);
+    }
+
+    /* ── Toggle group ─────────────────────────────────────────────────────────────────────────────────────────────────
+   Exclusive choices as separate bordered rectangles; the chosen one is outlined in the accent. */
+    .df-toggle-group {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: var(--df-toggle-gap);
+    }
+
+    .df-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: var(--df-toggle-height);
+        padding: 0 var(--df-toggle-pad);
+        border: 1px solid var(--df-line);
+        border-radius: var(--df-radius-md);
+        background: transparent;
+        color: var(--df-text-muted);
+        font: inherit;
+        font-size: var(--df-text-toggle);
+        white-space: nowrap;
+        cursor: pointer;
+        transition:
+            border-color var(--df-duration-fast) ease,
+            color var(--df-duration-fast) ease,
+            background-color var(--df-duration-fast) ease;
+    }
+
+    .df-toggle:hover {
+        background: var(--df-hover);
+        color: var(--df-text);
+    }
+
+    .df-toggle[aria-checked="true"] {
+        border-color: var(--df-accent);
+        background: color-mix(in srgb, var(--df-accent) 7%, transparent);
+        color: color-mix(in srgb, var(--df-accent) 70%, var(--df-text));
+    }
+
+    .df-toggle:focus-visible {
+        outline: 2px solid color-mix(in srgb, var(--df-accent) 60%, transparent);
+        outline-offset: 1px;
+    }
+
+    .df-toggle > svg {
+        width: 14px;
+        height: 14px;
+    }
+}

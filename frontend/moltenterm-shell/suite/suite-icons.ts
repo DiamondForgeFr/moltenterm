@@ -1,0 +1,148 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+// The suite's icons (#658): one Lucide icon per concept, so a concept looks the same in every DiamondForge app.
+// lucide-react is pinned to Notulia's version (0.563.0). Named imports only, so the bundle keeps the icons used here.
+//
+// "notulia": the icon Notulia already uses for that concept (pages/ConfigPage.tsx, components/Layout.tsx, ...).
+// "proposed": a concept Notulia does not have yet, proposed by MoltenTerm; the shared kit settles it.
+
+import {
+    AppWindow,
+    Bell,
+    Bot,
+    BotMessageSquare,
+    BrainCircuit,
+    Bug,
+    CircleDot,
+    CircleHelp,
+    ClipboardCheck,
+    Clock,
+    Database,
+    DatabaseBackup,
+    ExternalLink,
+    FileBraces,
+    FileText,
+    FolderGit2,
+    FolderOpen,
+    GitBranch,
+    GitPullRequest,
+    Globe,
+    Hammer,
+    Headphones,
+    IdCard,
+    Inbox,
+    Keyboard,
+    Languages,
+    Layers,
+    LayoutGrid,
+    Lightbulb,
+    Link2,
+    Lock,
+    LogOut,
+    Map as MapIcon,
+    Maximize2,
+    MessageSquareText,
+    Orbit,
+    PackageCheck,
+    Palette,
+    PanelsTopLeft,
+    Plug,
+    Puzzle,
+    Radar,
+    Radio,
+    RefreshCw,
+    Rocket,
+    Search,
+    Send,
+    Settings,
+    Settings2,
+    ShieldCheck,
+    Sparkles,
+    SquareTerminal,
+    Terminal,
+    Trash2,
+    TriangleAlert,
+    Type,
+    Wand2,
+    Workflow,
+    Wrench,
+    Zap,
+} from "lucide-react";
+import type { SuiteIcon } from "./suite";
+
+export type SuiteIconEntry = { icon: SuiteIcon; source: "notulia" | "proposed" };
+
+const n = (icon: SuiteIcon): SuiteIconEntry => ({ icon, source: "notulia" });
+const p = (icon: SuiteIcon): SuiteIconEntry => ({ icon, source: "proposed" });
+
+export const SuiteIcons = {
+    // Shared with Notulia.
+    wizard: n(Wand2),
+    appearance: n(Palette),
+    language: n(Languages),
+    ai: n(Sparkles),
+    agent: n(Bot),
+    behaviour: n(CircleDot),
+    window: n(AppWindow),
+    display: n(LayoutGrid),
+    verification: n(ShieldCheck),
+    thinking: n(BrainCircuit),
+    data: n(Database),
+    imports: n(Inbox),
+    publishing: n(Send),
+    backup: n(DatabaseBackup),
+    folder: n(FolderOpen),
+    danger: n(TriangleAlert),
+    delete: n(Trash2),
+    notifications: n(Bell),
+    settings: n(Settings),
+    configuration: n(Settings2),
+    help: n(CircleHelp),
+    connections: n(Link2),
+    integration: n(Plug),
+    git: n(GitBranch),
+    search: n(Search),
+    web: n(Globe),
+    secrets: n(Lock),
+    debugging: n(Bug),
+    schedule: n(Clock),
+    tools: n(Wrench),
+    builder: n(Hammer),
+    release: n(PackageCheck),
+    ci: n(Workflow),
+    tips: n(Lightbulb),
+    audio: n(Headphones),
+    recording: n(Radio),
+    notes: n(FileText),
+    actions: n(ClipboardCheck),
+    ask: n(MessageSquareText),
+    updates: n(RefreshCw),
+    openExternal: n(ExternalLink),
+    // Proposed by MoltenTerm.
+    terminal: p(SquareTerminal),
+    shell: p(Terminal),
+    keyboard: p(Keyboard),
+    mods: p(Puzzle),
+    power: p(Zap),
+    magnify: p(Maximize2),
+    companion: p(BotMessageSquare),
+    review: p(GitPullRequest),
+    lineMap: p(MapIcon),
+    overview: p(Orbit),
+    text: p(Type),
+    quitting: p(LogOut),
+    panels: p(PanelsTopLeft),
+    identity: p(IdCard),
+    project: p(FolderGit2),
+    workspace: p(Layers),
+    files: p(FileBraces),
+    startup: p(Rocket),
+    mission: p(Radar),
+} satisfies Record<string, SuiteIconEntry>;
+
+export type SuiteIconName = keyof typeof SuiteIcons;
+
+export function suiteIcon(name: SuiteIconName): SuiteIcon {
+    return SuiteIcons[name]?.icon;
+}

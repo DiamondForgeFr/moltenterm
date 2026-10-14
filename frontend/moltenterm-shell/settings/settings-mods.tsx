@@ -17,6 +17,8 @@ import {
 import { MoltenHost, MoltenModStatus } from "../../molten/molten-host";
 import { EmptyState } from "../empty-state";
 import { TFunction, t as translateNow, useT } from "../i18n/i18n";
+import { suiteIcon } from "../suite/suite-icons";
+import { PageCard } from "./settings-page";
 
 // The states with a label of their own, under settings.mods.state.
 const KnownStates = new Set(["active", "pending", "loading", "disabled", "untrusted", "safemode", "failed", "refused"]);
@@ -54,7 +56,7 @@ const ModRow = memo(({ mod }: { mod: MoltenModStatus }) => {
     const failed = mod.state === "failed" || mod.state === "refused";
     const over = mod.usage?.over;
     return (
-        <div className="flex flex-col gap-1 border-b border-line px-2 py-2.5 last:border-b-0" data-mod={mod.id}>
+        <div className="flex flex-col gap-1 px-5 py-2.5" data-mod={mod.id}>
             <div className="flex min-w-0 items-center gap-2">
                 <span className="truncate text-12 font-medium text-primary">{mod.name ?? mod.id}</span>
                 <span className="truncate font-mono text-11 text-muted">{mod.id}</span>
@@ -98,31 +100,34 @@ export function ModsSection() {
     useEffect(() => {
         host.checkBudgets();
     }, [host]);
+    const intro = (
+        <>
+            {t("settings.mods.intro", {
+                seconds: MoltenBudgetWindowMs / 1000,
+                cpu: MoltenBudgetCpuPct,
+                mb: MoltenBudgetMemoryMB,
+            })}{" "}
+            {t("settings.mods.disableHint")} <span className="font-mono">molten mod disable &lt;id&gt;</span>.
+        </>
+    );
     return (
-        <section aria-label={t("settings.mods.label")} className="flex flex-col">
-            <p className="px-2 pt-2 text-12 text-muted">
-                {t("settings.mods.intro", {
-                    seconds: MoltenBudgetWindowMs / 1000,
-                    cpu: MoltenBudgetCpuPct,
-                    mb: MoltenBudgetMemoryMB,
-                })}{" "}
-                {t("settings.mods.disableHint")} <span className="font-mono">molten mod disable &lt;id&gt;</span>.
-            </p>
+        <PageCard
+            title={t("settings.mods.label")}
+            label={t("settings.mods.label")}
+            hint={intro}
+            icon={suiteIcon("mods")}
+        >
             {mods.length === 0 ? (
                 <EmptyState
                     compact
-                    className="pt-6"
+                    className="py-6"
                     icon="puzzle-piece"
                     title={t("settings.mods.none")}
                     hint={t("settings.mods.noneHint")}
                 />
             ) : (
-                <div className="pt-3">
-                    {mods.map((mod) => (
-                        <ModRow key={mod.id} mod={mod} />
-                    ))}
-                </div>
+                mods.map((mod) => <ModRow key={mod.id} mod={mod} />)
             )}
-        </section>
+        </PageCard>
     );
 }

@@ -17,7 +17,8 @@
         "on": "On",
         "off": "Off",
         "open": "Open",
-        "confirm": "Confirm"
+        "confirm": "Confirm",
+        "selected": "Selected"
     },
     "i18n": {
         "unknownLanguage": {
