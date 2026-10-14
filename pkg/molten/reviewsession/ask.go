@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 )
 
@@ -97,19 +96,9 @@ func (m *Manager) Ask(ctx context.Context, req mcpreview.AskRequest) (mcpreview.
 	}
 	q, position := m.enqueueQuestion(s, q)
 	m.publish(s, false)
-	message := fmt.Sprintf("Queued: %s sends it when %s is idle.", queuePlace(position), molten.AgentDisplayName(m.recOf(s).Agent))
-	if busy != "" {
-		message = strings.TrimSpace(busy) + " " + message
-	}
-	return mcpreview.AskResult{Queued: true, Busy: busy != "", QuestionId: q.Id, Position: position, Line: line, Message: message}, nil
-}
-
-// queuePlace names a place in the queue for the developer.
-func queuePlace(position int) string {
-	if position <= 1 {
-		return "MoltenTerm"
-	}
-	return fmt.Sprintf("after %d other questions, MoltenTerm", position-1)
+	// Message: why the agent could not take it now; the window says it is queued.
+	return mcpreview.AskResult{Queued: true, Busy: busy != "", QuestionId: q.Id, Position: position, Line: line,
+		Message: strings.TrimSpace(busy)}, nil
 }
 
 // deliverQuestion makes the question's selection the session's and types its line. A busy agent gets nothing: the
