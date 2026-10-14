@@ -142,16 +142,16 @@ func liveEnv(hooks Hooks) Env {
 		Gh: func(ctx context.Context, dir string, args ...string) ([]byte, error) {
 			return mission.ExecRunner(ctx, dir, "gh", args...)
 		},
-		TypePrompt: func(ctx context.Context, blockId string, line string) (bool, bool, string) {
+		TypePrompt: func(ctx context.Context, blockId string, line string) TypeOutcome {
 			out := termupdate.TypeHandoffLine(ctx, blockId, line)
 			if out.Result == termupdate.InputSent {
-				return true, false, out.Message
+				return TypeOutcome{Sent: true, Submitted: out.Submitted, Message: out.Message}
 			}
 			switch out.Reason {
 			case termupdate.InputReasonWorking, termupdate.InputReasonWaiting, termupdate.InputReasonBusy, termupdate.InputReasonNotForeground:
-				return false, true, out.Message
+				return TypeOutcome{Retry: true, Message: out.Message}
 			}
-			return false, false, out.Message
+			return TypeOutcome{Message: out.Message}
 		},
 		SaveRecord: func(ctx context.Context, blockId string, rec any) error {
 			oref := waveobj.MakeORef(waveobj.OType_Block, blockId)

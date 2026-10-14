@@ -139,9 +139,9 @@ type Env struct {
 	Language func() string
 	// Gh runs the developer's gh (the PR's sources, read-only).
 	Gh GhRunner
-	// TypePrompt types a prompt into the agent of a terminal and submits it, only when the agent is its foreground
-	// program and neither working nor waiting (retry: try again later).
-	TypePrompt func(ctx context.Context, blockId string, line string) (sent bool, retry bool, message string)
+	// TypePrompt types a prompt into the agent of a terminal, only when the agent is its foreground program and neither
+	// working nor waiting, and submits it unless the prompt may hold an unsent draft of the developer's.
+	TypePrompt func(ctx context.Context, blockId string, line string) TypeOutcome
 	// SaveRecord writes a session's record back to its terminal block's meta.
 	SaveRecord func(ctx context.Context, blockId string, rec any) error
 }
