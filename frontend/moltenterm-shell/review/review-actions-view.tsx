@@ -1,0 +1,420 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+// The line selection's views (FR-REV-003): the actions next to the selected lines, the inline comment box, the file's
+// comments under its header (line, file-level and outdated ones, with their state), and Ask the AI's box in the AI
+// panel. Every text shown here is the developer's or the diff's, rendered as text.
+
+import { cn, fireAndForget } from "@/util/util";
+import { useAtomValue } from "jotai";
+import { useEffect, useRef, useState } from "react";
+import { MoltenWave } from "../molten-button";
+import { ReviewComment } from "./review-client";
+import { anchorLabel, commentsOfFile, CommentStateLabels, linesLabel, sideLabel } from "./review-selection";
+import type { ReviewComposer, ReviewTabModel } from "./review-tab-model";
+
+import "./review.css";
+
+const SmallButton =
+    "flex h-6 cursor-pointer items-center gap-1.5 rounded-6 border border-border bg-modalbg px-2 text-12 whitespace-nowrap text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
+
+const IsMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform ?? "");
+const AltKey = IsMac ? "⌥" : "Alt+";
+
+// SelectionOverlay floats over the diff: the selection's actions, or the comment box.
+export function SelectionOverlay({ model }: { model: ReviewTabModel }) {
+    const selection = useAtomValue(model.selectionAtom);
+    const composer = useAtomValue(model.composerAtom);
+    const pos = useAtomValue(model.overlayAtom);
+    if (pos == null || !pos.visible) {
+        return null;
+    }
+    if (composer != null) {
+        return (
+            <CommentBox key={composer.id ?? "new"} model={model} composer={composer} top={pos.top} left={pos.left} />
+        );
+    }
+    if (selection == null) {
+        return null;
+    }
+    return (
+        <div
+            className="absolute z-10 flex items-center gap-1 rounded-6 border border-border bg-modalbg p-1 shadow-lg"
+            style={{ top: pos.top + 2, left: pos.left }}
+            role="toolbar"
+            aria-label={`Selected: ${anchorLabel(selection.anchor)}`}
+            data-testid="review-selection-actions"
+        >
+            <button
+                type="button"
+                className={SmallButton}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => model.askSelection()}
+                title={`Ask the AI about ${linesLabel(selection.anchor)} (${AltKey}A)`}
+                data-testid="review-ask"
+            >
+                <i className="fa fa-solid fa-sparkles text-11 text-accent" />
+                Ask the AI
+                <kbd className="text-10 text-muted">{AltKey}A</kbd>
+            </button>
+            <button
+                type="button"
+                className={SmallButton}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => model.openComposer()}
+                title={
+                    selection.linecomment
+                        ? `Comment ${linesLabel(selection.anchor)} (${AltKey}C)`
+                        : `${selection.filereason} (${AltKey}C)`
+                }
+                data-testid="review-comment"
+            >
+                <i className="fa fa-solid fa-comment text-11" />
+                {selection.linecomment ? "Comment" : "Comment (file)"}
+                <kbd className="text-10 text-muted">{AltKey}C</kbd>
+            </button>
+        </div>
+    );
+}
+
+function CommentBox({
+    model,
+    composer,
+    top,
+    left,
+}: {
+    model: ReviewTabModel;
+    composer: ReviewComposer;
+    top: number;
+    left: number;
+}) {
+    const [text, setText] = useState(composer.text);
+    const ref = useRef<HTMLTextAreaElement>(null);
+    useEffect(() => {
+        ref.current?.focus();
+    }, []);
+    const save = () => {
+        if (text.trim() === "" || composer.saving) {
+            return;
+        }
+        fireAndForget(() => model.saveComment(composer, text));
+    };
+    const onKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            model.closeComposer();
+            return;
+        }
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            save();
+        }
+    };
+    const where =
+        composer.subject === "file"
+            ? `File-level comment quoting ${linesLabel(composer.anchor)} (${sideLabel(composer.anchor.side)})`
+            : `Comment on ${linesLabel(composer.anchor)} (${sideLabel(composer.anchor.side)})`;
+    return (
+        <div
+            className="absolute z-10 flex w-[380px] max-w-[calc(100%-24px)] flex-col gap-1.5 rounded-6 border border-border bg-modalbg p-2 text-12 shadow-lg"
+            style={{ top: top + 2, left }}
+            data-testid="review-comment-box"
+        >
+            <div className="flex items-center gap-1.5 text-secondary">
+                <i className="fa fa-solid fa-comment text-11" />
+                <span className="min-w-0 truncate">{composer.id ? `Edit: ${where}` : where}</span>
+            </div>
+            {composer.filereason && !composer.id ? (
+                <div className="text-11 text-muted">{composer.filereason}</div>
+            ) : null}
+            <textarea
+                ref={ref}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={onKeyDown}
+                rows={4}
+                placeholder="Your comment, in your language"
+                className="w-full resize-y rounded-4 border border-border bg-background px-2 py-1.5 text-12 text-primary outline-none focus:border-accent/60"
+                data-testid="review-comment-text"
+            />
+            {composer.error ? <div className="text-11 text-error">{composer.error}</div> : null}
+            <div className="flex items-center justify-end gap-1.5">
+                <span className="mr-auto text-11 text-muted">{IsMac ? "⌘" : "Ctrl+"}Enter to save, Esc to cancel</span>
+                <button type="button" className={SmallButton} onClick={() => model.closeComposer()}>
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
+                    disabled={text.trim() === "" || composer.saving}
+                    onClick={save}
+                    data-testid="review-comment-save"
+                >
+                    {composer.id ? "Save" : "Save draft"}
+                    <MoltenWave />
+                </button>
+            </div>
+        </div>
+    );
+}
+
+// CommentsStrip lists the file's comments under its header: the ones in the gutter, the file-level ones and the
+// outdated ones, which only show here with their excerpt.
+export function CommentsStrip({ model, path }: { model: ReviewTabModel; path: string }) {
+    const state = useAtomValue(model.stateAtom);
+    const [open, setOpen] = useState(true);
+    const comments = commentsOfFile(state, path);
+    if (comments.length === 0) {
+        return null;
+    }
+    return (
+        <div
+            className="max-h-[35%] shrink-0 overflow-auto border-b border-border text-12"
+            data-testid="review-comments"
+        >
+            <button
+                type="button"
+                className="flex w-full cursor-pointer items-center gap-1.5 px-3 py-1 text-left text-secondary hover:bg-hover"
+                onClick={() => setOpen(!open)}
+                aria-expanded={open}
+            >
+                <i
+                    className={cn(
+                        "fa fa-solid fa-chevron-right w-2.5 text-10 transition-transform duration-120 ease-mt",
+                        open && "rotate-90"
+                    )}
+                />
+                <i className="fa fa-solid fa-comment text-11" />
+                {comments.length === 1 ? "1 comment" : `${comments.length} comments`}
+            </button>
+            {open ? (
+                <ul className="flex flex-col">
+                    {comments.map((c) => (
+                        <CommentRow key={c.id} model={model} comment={c} />
+                    ))}
+                </ul>
+            ) : null}
+        </div>
+    );
+}
+
+function CommentRow({ model, comment }: { model: ReviewTabModel; comment: ReviewComment }) {
+    const [editing, setEditing] = useState(false);
+    const [text, setText] = useState(comment.original.text);
+    const [error, setError] = useState<string>(null);
+    const editable = comment.state !== "published" && comment.state !== "dropped";
+    const where = `${sideLabel(comment.anchor.side)} · ${linesLabel(comment.anchor)}`;
+    const save = () => {
+        fireAndForget(async () => {
+            const err = await model.updateCommentText(comment, text);
+            setError(err);
+            if (err == null) {
+                setEditing(false);
+            }
+        });
+    };
+    return (
+        <li
+            className="flex flex-col gap-1 border-t border-border/50 px-3 py-1.5"
+            data-testid="review-comment-row"
+            data-state={comment.state}
+            data-outdated={comment.outdated ? "true" : undefined}
+        >
+            <div className="flex items-center gap-1.5">
+                <span className={cn("rounded-4 px-1 text-10 font-medium", `molten-review-badge-${comment.state}`)}>
+                    {CommentStateLabels[comment.state] ?? comment.state}
+                </span>
+                {comment.outdated ? (
+                    <span className="rounded-4 border border-warning/50 px-1 text-10 text-warning">Outdated</span>
+                ) : null}
+                <button
+                    type="button"
+                    className="min-w-0 cursor-pointer truncate text-left text-muted hover:text-primary disabled:cursor-default disabled:hover:text-muted"
+                    onClick={() => model.revealComment(comment)}
+                    disabled={comment.outdated}
+                    title={comment.outdated ? "Its lines are not in the head shown any more" : "Show the lines"}
+                >
+                    {comment.subject === "file" ? `File-level, quoting ${where}` : where}
+                </button>
+                {editable && !editing ? (
+                    <span className="ml-auto flex shrink-0 gap-1">
+                        <button
+                            type="button"
+                            className="cursor-pointer px-1 text-muted hover:text-primary"
+                            onClick={() => setEditing(true)}
+                            title="Edit the comment"
+                            aria-label="Edit the comment"
+                        >
+                            <i className="fa fa-solid fa-pen text-11" />
+                        </button>
+                        <button
+                            type="button"
+                            className="cursor-pointer px-1 text-muted hover:text-error"
+                            onClick={() => fireAndForget(async () => setError(await model.deleteComment(comment)))}
+                            title="Delete the comment"
+                            aria-label="Delete the comment"
+                            data-testid="review-comment-delete"
+                        >
+                            <i className="fa fa-solid fa-trash text-11" />
+                        </button>
+                    </span>
+                ) : null}
+            </div>
+            {comment.outdated || comment.subject === "file" ? (
+                <pre className="max-h-24 overflow-auto rounded-4 bg-panel px-2 py-1 font-mono text-11 whitespace-pre-wrap text-muted">
+                    {comment.anchor.excerpt}
+                </pre>
+            ) : null}
+            {editing ? (
+                <div className="flex flex-col gap-1">
+                    <textarea
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        rows={3}
+                        className="w-full resize-y rounded-4 border border-border bg-background px-2 py-1 text-12 outline-none focus:border-accent/60"
+                    />
+                    <div className="flex justify-end gap-1.5">
+                        <button type="button" className={SmallButton} onClick={() => setEditing(false)}>
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
+                            disabled={text.trim() === ""}
+                            onClick={save}
+                        >
+                            Save
+                            <MoltenWave />
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                <div className="whitespace-pre-wrap text-primary">{comment.original.text}</div>
+            )}
+            {error ? <div className="text-11 text-error">{error}</div> : null}
+        </li>
+    );
+}
+
+// AskBox is Ask the AI's box in the AI panel (AC2): the selection named, the question, what sending did.
+export function AskBox({ model }: { model: ReviewTabModel }) {
+    const ask = useAtomValue(model.askAtom);
+    const [question, setQuestion] = useState("");
+    const ref = useRef<HTMLTextAreaElement>(null);
+    useEffect(() => {
+        if (ask?.seq) {
+            ref.current?.focus();
+        }
+    }, [ask?.seq]);
+    if (ask == null) {
+        return null;
+    }
+    const send = () => {
+        fireAndForget(async () => {
+            if (await model.sendAsk(question)) {
+                setQuestion("");
+            }
+        });
+    };
+    const onKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            send();
+        }
+    };
+    const excerpt = (ask.text ?? "").split("\n");
+    return (
+        <section className="flex flex-col gap-1.5" aria-label="Ask the AI" data-testid="review-ask-box">
+            <div className="flex items-center gap-1.5 font-medium">
+                <i className="fa fa-solid fa-sparkles text-11 text-accent" />
+                Ask the AI
+            </div>
+            {ask.anchor ? (
+                <div className="flex flex-col gap-1 rounded-4 border border-border px-2 py-1.5">
+                    <div className="flex items-center gap-1.5">
+                        <span
+                            className="min-w-0 flex-1 truncate font-mono text-11"
+                            title={anchorLabel(ask.anchor)}
+                            data-testid="review-ask-anchor"
+                        >
+                            {anchorLabel(ask.anchor)}
+                        </span>
+                        <button
+                            type="button"
+                            className="cursor-pointer px-1 text-muted hover:text-primary"
+                            onClick={() => model.clearAskSelection()}
+                            title="Ask about the whole PR instead"
+                            aria-label="Remove the selection"
+                        >
+                            <i className="fa fa-solid fa-xmark text-11" />
+                        </button>
+                    </div>
+                    <pre className="max-h-20 overflow-hidden font-mono text-11 whitespace-pre-wrap text-muted">
+                        {excerpt.slice(0, 4).join("\n")}
+                        {excerpt.length > 4 ? "\n…" : ""}
+                    </pre>
+                </div>
+            ) : (
+                <div className="text-11 text-muted">About the whole PR.</div>
+            )}
+            <textarea
+                ref={ref}
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={onKeyDown}
+                rows={3}
+                placeholder="Your question, in your language"
+                className="w-full resize-y rounded-4 border border-border bg-background px-2 py-1.5 text-12 text-primary outline-none focus:border-accent/60"
+                data-testid="review-ask-question"
+            />
+            <div className="flex items-center gap-1.5">
+                <span className="mr-auto text-11 text-muted">Enter to send, Shift+Enter for a new line</span>
+                <button
+                    type="button"
+                    className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
+                    disabled={question.trim() === "" || ask.sending}
+                    onClick={send}
+                    data-testid="review-ask-send"
+                >
+                    {ask.sending ? "Sending…" : "Send"}
+                    <MoltenWave />
+                </button>
+            </div>
+            <AskOutcome ask={ask} />
+        </section>
+    );
+}
+
+function AskOutcome({
+    ask,
+}: {
+    ask: { result?: { sent: boolean; submitted?: boolean; busy?: boolean; message?: string }; error?: string };
+}) {
+    if (ask.error) {
+        return (
+            <p className="text-11 text-error" data-testid="review-ask-outcome">
+                {ask.error}
+            </p>
+        );
+    }
+    const result = ask.result;
+    if (result == null) {
+        return null;
+    }
+    if (result.sent) {
+        return (
+            <p className="text-11 text-success" data-testid="review-ask-outcome">
+                {result.submitted
+                    ? "Sent to the review session: the answer comes in its terminal."
+                    : "Typed in the agent's prompt after your draft there: press Enter in its terminal to send it."}
+            </p>
+        );
+    }
+    return (
+        <p className={cn("text-11", result.busy ? "text-warning" : "text-error")} data-testid="review-ask-outcome">
+            {result.message || "The question could not be typed."}
+            {result.busy ? " Your question is kept: send it again when the agent is idle." : ""}
+        </p>
+    );
+}

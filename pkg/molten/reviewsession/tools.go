@@ -341,7 +341,11 @@ func (m *Manager) toolSelection(s *session) mcpbrowser.CallResult {
 	if sel == nil {
 		return textResult("No lines are selected in the Review tab.")
 	}
-	return jsonResult(map[string]any{"anchor": sel.Anchor, "text": sel.Text})
+	out := map[string]any{"anchor": sel.Anchor, "text": sel.Text}
+	if sel.Question != "" {
+		out["question"] = sel.Question
+	}
+	return jsonResult(out)
 }
 
 func checkAnchor(a *mcpreview.Anchor) error {

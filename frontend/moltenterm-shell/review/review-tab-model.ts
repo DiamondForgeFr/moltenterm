@@ -4,7 +4,8 @@
 // The Review tab's state (FR-REV-002, DS-REV-002, DS-REV-012): one per molten-review block. It reads the PR from the
 // block's meta, the file list and one file at a time from wavesrv, the viewed marks and the heads shown from the review
 // store, and the PR's head as GitHub has it from the Reviews answer (Mission Control's collector, no poller of its
-// own). It also keeps the Monaco diff editor, where line selection (FR-REV-003, #581) plugs in.
+// own). It also keeps the Monaco diff editor and its line selection (FR-REV-003): the Ask the AI and Comment actions,
+// the comments in the gutter and their anchors after a push.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { atoms } from "@/app/store/global";
@@ -19,8 +20,12 @@ import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
 import { ReviewsAnswer } from "../reviews/reviews-model";
 import { TabActivity, whileShown } from "../tab-activity";
 import {
+    deleteReviewComment,
     openReviewAiPane,
+    relocateReviewComments,
     ReviewBriefing,
+    ReviewComment,
+    ReviewCommentSubject,
     reviewCompare,
     ReviewFile,
     reviewFile,
@@ -37,10 +42,12 @@ import {
     reviewState,
     ReviewWorktree,
     reviewWorktree,
+    saveReviewComment,
     setReviewShown,
     setReviewViewed,
     subscribeReviewState,
 } from "./review-client";
+import { attachDiffActions, DiffActions } from "./review-diff-actions";
 import { mergeRunning } from "./review-merge";
 import {
     buildFileTree,
@@ -53,9 +60,13 @@ import {
     treeFiles,
     TreeNode,
 } from "./review-model";
+import { developerLanguage, ReviewSelection } from "./review-selection";
 import {
     askReviewBriefing,
+    askReviewSession,
     getReviewSession,
+    ReviewAnchor,
+    ReviewAskResult,
     ReviewBriefResult,
     ReviewSessionInfo,
     setReviewSessionHead,
@@ -93,6 +104,31 @@ export type ReviewValidateState = {
     error?: string;
     override: boolean;
     clicked?: string;
+};
+
+// Where the selection's toolbar or the comment box shows over the diff, in pixels from its top left corner.
+export type ReviewOverlayPos = { top: number; left: number; visible: boolean };
+
+// The inline comment box: a new comment on the selection, or the text of an existing one (id).
+export type ReviewComposer = {
+    id?: string;
+    anchor: ReviewAnchor;
+    subject: ReviewCommentSubject;
+    filereason?: string;
+    text: string;
+    saving?: boolean;
+    error?: string;
+};
+
+// Ask the AI's box in the AI panel: the selection it is about (none: the PR) and what sending did.
+export type ReviewAsk = {
+    anchor?: ReviewAnchor;
+    text?: string;
+    // Bumped by each Ask the AI, so the box takes the focus again.
+    seq: number;
+    sending?: boolean;
+    result?: ReviewAskResult;
+    error?: string;
 };
 
 export type ReviewAiState = {
@@ -152,6 +188,11 @@ export abstract class ReviewTabModel implements ViewModel {
     briefAskAtom = atom({ status: "idle" }) as PrimitiveAtom<ReviewBriefAsk>;
     renderMsAtom = atom(null) as PrimitiveAtom<number>;
     validateAtom = atom({ open: false, loading: false, override: false }) as PrimitiveAtom<ReviewValidateState>;
+    // FR-REV-003: the lines selected in the diff, where their actions show, the comment box and Ask the AI's box.
+    selectionAtom = atom(null) as PrimitiveAtom<ReviewSelection>;
+    overlayAtom = atom(null) as PrimitiveAtom<ReviewOverlayPos>;
+    composerAtom = atom(null) as PrimitiveAtom<ReviewComposer>;
+    askAtom = atom(null) as PrimitiveAtom<ReviewAsk>;
 
     treeAtom: Atom<TreeNode[]>;
     orderedFilesAtom: Atom<ReviewFile[]>;
@@ -162,6 +203,7 @@ export abstract class ReviewTabModel implements ViewModel {
 
     // The Monaco diff editor on screen (MonacoDiffViewer's onMount); FR-REV-003's selection reads it.
     diffEditor: MonacoTypes.editor.IStandaloneDiffEditor = null;
+    diffActions: DiffActions = null;
     started = false;
     cleanups: (() => void)[] = [];
     fileSeq = 0;
@@ -390,6 +432,7 @@ export abstract class ReviewTabModel implements ViewModel {
             globalStore.set(this.filesAtom, result);
             if (mode === "full") {
                 this.headShown(result.headoid);
+                fireAndForget(() => this.relocate(result.headoid, result.baseoid));
             }
             const files = globalStore.get(this.orderedFilesAtom);
             const selected = globalStore.get(this.selectedAtom);
@@ -584,7 +627,11 @@ export abstract class ReviewTabModel implements ViewModel {
         globalStore.set(this.sideBySideAtom, sideBySide);
     }
 
-    onDiffMount(diff: MonacoTypes.editor.IStandaloneDiffEditor, askedAt: number): () => void {
+    onDiffMount(
+        diff: MonacoTypes.editor.IStandaloneDiffEditor,
+        monacoApi: typeof MonacoTypes,
+        askedAt: number
+    ): () => void {
         this.diffEditor = diff;
         const sub = diff.onDidUpdateDiff(() => {
             sub.dispose();
@@ -593,12 +640,179 @@ export abstract class ReviewTabModel implements ViewModel {
             console.log(`[review] ${globalStore.get(this.selectedAtom)} rendered in ${ms} ms`);
             this.revealPending(diff);
         });
+        this.diffActions = monacoApi != null ? attachDiffActions(this, diff, monacoApi) : null;
         return () => {
             sub.dispose();
+            this.diffActions?.dispose();
+            this.diffActions = null;
+            this.clearSelection();
             if (this.diffEditor === diff) {
                 this.diffEditor = null;
             }
         };
+    }
+
+    // The anchors' head: the head the diff's right side shows.
+    shownHead(): string {
+        return globalStore.get(this.filesAtom)?.headoid ?? globalStore.get(this.headAtom);
+    }
+
+    clearSelection() {
+        globalStore.set(this.selectionAtom, null);
+        globalStore.set(this.composerAtom, null);
+        globalStore.set(this.overlayAtom, null);
+    }
+
+    // askSelection is Ask the AI (AC2): the AI panel opens (its session starts) with the selection named and a box
+    // for the question.
+    askSelection() {
+        const sel = globalStore.get(this.selectionAtom);
+        const previous = globalStore.get(this.askAtom);
+        globalStore.set(this.askAtom, {
+            anchor: sel?.anchor,
+            text: sel?.text,
+            seq: (previous?.seq ?? 0) + 1,
+        });
+        globalStore.set(this.composerAtom, null);
+        if (globalStore.get(this.aiPaneIdAtom) == null || globalStore.get(this.aiAtom).session == null) {
+            fireAndForget(() => this.openAi());
+        }
+    }
+
+    clearAskSelection() {
+        globalStore.set(this.askAtom, (ask) => (ask ? { ...ask, anchor: null, text: null, result: null } : ask));
+    }
+
+    // sendAsk sends the question to the review session with the selection's reference; the session starts first when
+    // it is not running.
+    async sendAsk(question: string): Promise<boolean> {
+        const ask = globalStore.get(this.askAtom);
+        if (ask == null || question.trim() === "" || ask.sending) {
+            return false;
+        }
+        const pr = this.pr();
+        globalStore.set(this.askAtom, { ...ask, sending: true, error: null, result: null });
+        try {
+            if (globalStore.get(this.aiAtom).session == null) {
+                await this.startSession();
+            }
+            const session = globalStore.get(this.aiAtom).session;
+            if (session == null) {
+                const ai = globalStore.get(this.aiAtom);
+                throw new Error(ai.message || "The review session is not running.");
+            }
+            const result = await askReviewSession({ id: session.id }, ask.anchor, ask.text, question.trim());
+            globalStore.set(this.askAtom, (cur) => ({ ...cur, sending: false, result }));
+            return result.sent;
+        } catch (e) {
+            console.log(`[review] ${pr.repo}#${pr.number}: the question could not be sent`, e);
+            globalStore.set(this.askAtom, (cur) => ({ ...cur, sending: false, error: String(e?.message ?? e) }));
+            return false;
+        }
+    }
+
+    // openComposer is Comment (AC3, AC4): a line comment inside a hunk, a file-level one quoting the lines elsewhere.
+    openComposer() {
+        const sel = globalStore.get(this.selectionAtom);
+        if (sel == null) {
+            return;
+        }
+        globalStore.set(this.composerAtom, {
+            anchor: sel.anchor,
+            subject: sel.linecomment ? "line" : "file",
+            filereason: sel.filereason,
+            text: "",
+        });
+    }
+
+    editComment(comment: ReviewComment) {
+        globalStore.set(this.composerAtom, {
+            id: comment.id,
+            anchor: comment.anchor,
+            subject: comment.subject,
+            text: comment.original.text,
+        });
+    }
+
+    closeComposer() {
+        globalStore.set(this.composerAtom, null);
+    }
+
+    async saveComment(composer: ReviewComposer, text: string): Promise<boolean> {
+        const pr = this.pr();
+        globalStore.set(this.composerAtom, { ...composer, text, saving: true, error: null });
+        try {
+            const state = await saveReviewComment(pr.repo, pr.number, {
+                id: composer.id,
+                anchor: composer.id ? undefined : composer.anchor,
+                subject: composer.id ? undefined : composer.subject,
+                text,
+                lang: composer.id ? undefined : developerLanguage(navigator.language),
+            });
+            globalStore.set(this.stateAtom, state);
+            this.clearSelection();
+            this.diffActions?.collapseSelection();
+            return true;
+        } catch (e) {
+            globalStore.set(this.composerAtom, (cur) =>
+                cur ? { ...cur, text, saving: false, error: String(e?.message ?? e) } : cur
+            );
+            return false;
+        }
+    }
+
+    // A comment's own text changes from the comments list (its anchor stays).
+    async updateCommentText(comment: ReviewComment, text: string): Promise<string> {
+        const pr = this.pr();
+        try {
+            const state = await saveReviewComment(pr.repo, pr.number, { id: comment.id, text });
+            globalStore.set(this.stateAtom, state);
+            return null;
+        } catch (e) {
+            return String(e?.message ?? e);
+        }
+    }
+
+    async deleteComment(comment: ReviewComment): Promise<string> {
+        const pr = this.pr();
+        try {
+            const state = await deleteReviewComment(pr.repo, pr.number, comment.id);
+            globalStore.set(this.stateAtom, state);
+            if (globalStore.get(this.composerAtom)?.id === comment.id) {
+                globalStore.set(this.composerAtom, null);
+            }
+            return null;
+        } catch (e) {
+            return String(e?.message ?? e);
+        }
+    }
+
+    revealComment(comment: ReviewComment) {
+        this.diffActions?.reveal(comment);
+    }
+
+    // relocate re-anchors the comments made on another head to the head shown (AC5); nothing to do, no call.
+    async relocate(headoid: string, baseoid: string) {
+        const pr = this.pr();
+        const comments = globalStore.get(this.stateAtom)?.comments ?? [];
+        const stale = comments.some(
+            (c) => c.state !== "published" && c.state !== "dropped" && c.anchor?.headoid !== headoid
+        );
+        if (!stale || !headoid || !baseoid) {
+            return;
+        }
+        try {
+            const state = await relocateReviewComments({
+                repo: pr.repo,
+                number: pr.number,
+                dir: pr.dir,
+                headoid,
+                baseoid,
+            });
+            globalStore.set(this.stateAtom, state);
+        } catch (e) {
+            console.log("[review] the comments could not be moved to the new head", e);
+        }
     }
 
     applySession(session: ReviewSessionInfo) {

@@ -8,7 +8,7 @@
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { ReviewCleanupResult } from "./review-cleanup";
-import { reviewScope } from "./review-session";
+import { ReviewAnchor, reviewScope } from "./review-session";
 
 // must match pkg/molten/review/route.go
 export const ReviewRoute = "molten:review";
@@ -25,6 +25,9 @@ const MergePlanCommand = "moltenreviewmergeplan";
 const MergeCommand = "moltenreviewmerge";
 const MergeCancelCommand = "moltenreviewmergecancel";
 const AiPaneCommand = "moltenreviewaipane";
+const CommentCommand = "moltenreviewcomment";
+const UncommentCommand = "moltenreviewcommentdelete";
+const RelocateCommand = "moltenreviewrelocate";
 
 // A file list or a compare may fetch the PR's branches; a worktree may be created.
 const GitTimeoutMs = 95_000;
@@ -75,8 +78,12 @@ export type ReviewFileResult = {
     oldlines?: number;
     newlines?: number;
     binary?: boolean;
+    // The hunks of the diff GitHub shows: a line comment goes inside one (FR-REV-003).
+    hunks?: ReviewHunk[];
     ms: number;
 };
+
+export type ReviewHunk = { oldstart: number; oldlines: number; newstart: number; newlines: number };
 
 export type ReviewCompareResult = { commits: number; rewritten?: boolean };
 
@@ -169,6 +176,7 @@ export type ReviewState = {
     rounds: ReviewRound[];
     // What the last cleanup after the merge did (FR-REV-013, review-cleanup.ts).
     cleanup?: ReviewCleanupResult;
+    comments?: ReviewComment[];
     updatedat?: number;
     merge?: ReviewMergeRecord;
 };
@@ -273,6 +281,58 @@ export function reviewMerge(repo: string, num: number, planid: string, override:
 
 export function reviewMergeCancel(repo: string, num: number): Promise<void> {
     return call(MergeCancelCommand, { repo, number: num });
+}
+
+// must match pkg/molten/review/comments.go
+export type ReviewCommentSubject = "line" | "file";
+export type ReviewCommentState = "draft" | "staged" | "translated" | "published" | "dropped";
+export type ReviewCommentText = { lang?: string; text: string };
+
+export type ReviewComment = {
+    id: string;
+    round?: string;
+    anchor: ReviewAnchor;
+    // line: a GitHub line comment on the anchor; file: a file-level comment quoting the anchor's excerpt.
+    subject: ReviewCommentSubject;
+    kind: "comment" | "change";
+    state: ReviewCommentState;
+    original: ReviewCommentText;
+    translation?: ReviewCommentText;
+    githubcommentid?: number;
+    author: string;
+    // The lines are not in the head shown any more; the comment keeps its excerpt.
+    outdated?: boolean;
+    createdat: number;
+    updatedat?: number;
+};
+
+export type ReviewCommentRequest = {
+    // Set: changes that comment's text; otherwise a new draft on the anchor.
+    id?: string;
+    anchor?: ReviewAnchor;
+    subject?: ReviewCommentSubject;
+    kind?: "comment" | "change";
+    text: string;
+    lang?: string;
+};
+
+export function saveReviewComment(repo: string, num: number, req: ReviewCommentRequest): Promise<ReviewState> {
+    return call(CommentCommand, { repo, number: num, ...req });
+}
+
+export function deleteReviewComment(repo: string, num: number, id: string): Promise<ReviewState> {
+    return call(UncommentCommand, { repo, number: num, id });
+}
+
+// relocateReviewComments moves the comments made on other heads to the head shown, or marks them outdated.
+export function relocateReviewComments(req: {
+    repo: string;
+    number: number;
+    dir: string;
+    headoid: string;
+    baseoid: string;
+}): Promise<ReviewState> {
+    return call(RelocateCommand, req, GitTimeoutMs);
 }
 
 // subscribeReviewState follows a PR's review store (another window, the CLI); returns the unsubscribe function.

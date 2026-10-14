@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { EmptyState } from "../empty-state";
 import { MoltenWave } from "../molten-button";
 import { TabActivity, whileShown } from "../tab-activity";
+import { AskBox } from "./review-actions-view";
 import { ReviewPrInfo, ReviewPrMetaKey } from "./review-client";
 import { briefingNote, MoltentermReviewAiView, parseFileLink, reviewKey } from "./review-model";
 import { ReviewAiState, ReviewBriefAsk, ReviewTabModel, ReviewTabModels } from "./review-tab-model";
@@ -95,6 +96,7 @@ function AiPanel({ review }: { review: ReviewTabModel }) {
             data-testid="review-ai"
         >
             <AiStatus ai={ai} onRetry={() => fireAndForget(() => review.openAi())} onShowTerminal={focusTerminal} />
+            <AskBox model={review} />
             <section className="flex flex-col gap-2" data-slot="review-cards" aria-label="Briefing and explanations">
                 <BriefingCard review={review} ai={ai} />
             </section>

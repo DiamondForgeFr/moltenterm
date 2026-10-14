@@ -36,6 +36,8 @@ const (
 	// The Review tab moved to a new head of the PR; asking for a new briefing types a prompt into the agent.
 	SetHeadCommand = "moltenreviewsethead"
 	BriefCommand   = "moltenreviewbrief"
+	// Ask the AI (FR-REV-003): the selection is set and the question typed into the session's terminal.
+	AskCommand = "moltenreviewask"
 
 	// The agent's environment carries the session token (DS-REV-004); the MCP server sends it with each hello.
 	SessionTokenVarName = "MOLTEN_REVIEW_SESSION"
@@ -264,6 +266,28 @@ type SelectionRequest struct {
 	SessionKey
 	Anchor *Anchor `json:"anchor,omitempty"`
 	Text   string  `json:"text,omitempty"`
+	// Question: the developer's question on the selection (Ask the AI), whole even when the typed line could not hold it.
+	Question string `json:"question,omitempty"`
+}
+
+// AskRequest is Ask the AI (FR-REV-003): the selection becomes the session's (review_selection) and the question is
+// typed into the agent's terminal with the selection's reference. No anchor: a question on the PR.
+type AskRequest struct {
+	SessionKey
+	Anchor   *Anchor `json:"anchor,omitempty"`
+	Text     string  `json:"text,omitempty"`
+	Question string  `json:"question"`
+}
+
+// AskResult: Sent, the line was typed (Submitted: with Enter; otherwise it waits in the agent's prompt behind a draft
+// of the developer's). Busy: the agent is working or waiting for an answer, nothing was typed; ask again when it is
+// idle. Message says what happened in words.
+type AskResult struct {
+	Sent      bool   `json:"sent"`
+	Submitted bool   `json:"submitted,omitempty"`
+	Busy      bool   `json:"busy,omitempty"`
+	Line      string `json:"line,omitempty"`
+	Message   string `json:"message,omitempty"`
 }
 
 // Post is what the agent posted through an output tool: a card of the AI panel, a comment proposal, a translation or

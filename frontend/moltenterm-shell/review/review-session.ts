@@ -20,6 +20,7 @@ export const ReviewSelectionCommand = "moltenreviewselection";
 export const ReviewPostsCommand = "moltenreviewposts";
 export const ReviewSetHeadCommand = "moltenreviewsethead";
 export const ReviewBriefCommand = "moltenreviewbrief";
+export const ReviewAskCommand = "moltenreviewask";
 
 // Starting may fetch the PR's branch and create its worktree.
 const StartTimeoutMs = 100_000;
@@ -152,6 +153,21 @@ export function setReviewSessionHead(
 // askReviewBriefing types a briefing request into the agent's terminal, when the agent is idle.
 export function askReviewBriefing(key: ReviewSessionKey): Promise<ReviewBriefResult> {
     return call(ReviewBriefCommand, key, BriefTimeoutMs);
+}
+
+// sent: typed into the agent's prompt (submitted: with Enter). busy: the agent works or waits for an answer, nothing
+// was typed.
+export type ReviewAskResult = { sent: boolean; submitted?: boolean; busy?: boolean; line?: string; message?: string };
+
+// askReviewSession is Ask the AI (FR-REV-003): the selection becomes the session's and the question is typed into the
+// agent's terminal with the selection's reference.
+export function askReviewSession(
+    key: ReviewSessionKey,
+    anchor: ReviewAnchor,
+    text: string,
+    question: string
+): Promise<ReviewAskResult> {
+    return call(ReviewAskCommand, { ...key, anchor: anchor ?? undefined, text: text || undefined, question });
 }
 
 export async function reviewSessionPosts(key: ReviewSessionKey): Promise<ReviewPost[]> {

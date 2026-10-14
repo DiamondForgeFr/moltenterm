@@ -18,8 +18,8 @@ import (
 
 // The review store (DS-REV-007): one JSON file per PR under <data>/molten/reviews/<repo-key>/<N>.json, written under a
 // per-PR lock, never in the project. This story keeps the viewed files and the heads the Review tab showed; the rounds
-// are FR-REV-010's (publish), read here for the "since last round" view, and the comments, briefing and explanations
-// come with their stories.
+// are FR-REV-010's (publish), read here for the "since last round" view, the comments are comments.go's (FR-REV-003), and
+// the briefing and explanations come with their stories.
 
 var repoPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 
@@ -60,10 +60,12 @@ type State struct {
 	// GitHub.
 	Viewed map[string]string `json:"viewed"`
 	// LastHead: the head the Review tab showed last.
-	LastHead  string  `json:"lasthead,omitempty"`
-	Since     *Since  `json:"since,omitempty"`
-	Rounds    []Round `json:"rounds"`
-	UpdatedAt int64   `json:"updatedat,omitempty"`
+	LastHead string  `json:"lasthead,omitempty"`
+	Since    *Since  `json:"since,omitempty"`
+	Rounds   []Round `json:"rounds"`
+	// Comments: the developer's review comments (FR-REV-003, comments.go).
+	Comments  []Comment `json:"comments"`
+	UpdatedAt int64     `json:"updatedat,omitempty"`
 	// Merge: the last Validate's merge and its outcome (FR-REV-012, merge.go).
 	Merge *MergeRecord `json:"merge,omitempty"`
 	// Cleanup: what the last cleanup after the merge did (FR-REV-013).
@@ -131,7 +133,7 @@ func (s *Store) prLock(k PrKey) *sync.Mutex {
 }
 
 func (s *Store) read(k PrKey) (State, error) {
-	rtn := State{Repo: k.Repo, Number: k.Number, Viewed: map[string]string{}, Rounds: []Round{}}
+	rtn := State{Repo: k.Repo, Number: k.Number, Viewed: map[string]string{}, Rounds: []Round{}, Comments: []Comment{}}
 	data, err := os.ReadFile(s.fileOf(k))
 	if errors.Is(err, os.ErrNotExist) {
 		return rtn, nil
@@ -140,13 +142,16 @@ func (s *Store) read(k PrKey) (State, error) {
 		return rtn, err
 	}
 	if err := json.Unmarshal(data, &rtn); err != nil {
-		return State{Repo: k.Repo, Number: k.Number, Viewed: map[string]string{}, Rounds: []Round{}}, nil
+		return State{Repo: k.Repo, Number: k.Number, Viewed: map[string]string{}, Rounds: []Round{}, Comments: []Comment{}}, nil
 	}
 	if rtn.Viewed == nil {
 		rtn.Viewed = map[string]string{}
 	}
 	if rtn.Rounds == nil {
 		rtn.Rounds = []Round{}
+	}
+	if rtn.Comments == nil {
+		rtn.Comments = []Comment{}
 	}
 	return rtn, nil
 }
