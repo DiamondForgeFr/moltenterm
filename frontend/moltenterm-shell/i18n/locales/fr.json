@@ -446,7 +446,8 @@
             "magnifiedPanel": "Panneau agrandi",
             "connections": "Connexions",
             "debugging": "Débogage",
-            "appBuilder": "Créateur d'apps"
+            "appBuilder": "Créateur d'apps",
+            "360View": "Vue 360"
         },
         "items": {
             "molten:folder": {
@@ -921,6 +922,15 @@
             "tsunami:gopath": {
                 "label": "Binaire Go",
                 "description": "Le binaire Go avec lequel les apps se construisent."
+            },
+            "moltenterm:view360": {
+                "label": "Vue 360",
+                "description": "Quand un onglet fixe sa première colonne et pose les autres sur un tapis latéral. Le bouton 360 de l'onglet l'emporte.",
+                "options": {
+                    "auto": "Automatique",
+                    "always": "Toujours",
+                    "never": "Jamais"
+                }
             }
         },
         "mods": {
@@ -3456,7 +3466,23 @@
     },
     "view360": {
         "carpet": "tapis",
-        "empty": "Les panneaux que vous ouvrez se placent ici"
+        "empty": "Les panneaux que vous ouvrez se placent ici",
+        "ui": {
+            "toggleLabel": "360",
+            "toggleAutoMark": "A",
+            "tooltipOn": "La vue 360 est active : la première colonne reste fixe, les autres panneaux défilent latéralement sur le tapis.",
+            "tooltipOff": "La vue 360 est désactivée : tous les panneaux se partagent la largeur de l'onglet.",
+            "tooltipAuto": "Automatique : bascule d'elle-même quand un panneau devient trop étroit pour être lu.",
+            "tooltipManual": "Choisi pour cet onglet. Clic droit pour suivre de nouveau le réglage.",
+            "tooltipSetting": "D'après le réglage Vue 360.",
+            "tooltipSingle": "La vue 360 demande un deuxième panneau à côté du premier.",
+            "menuOn": "Activée",
+            "menuOff": "Désactivée",
+            "menuFollow": "Suivre le réglage",
+            "pillText": "Trop étroit pour être lu",
+            "pillAction": "Passer en vue 360",
+            "pillClose": "Masquer jusqu'à l'ajout d'un panneau"
+        }
     },
     "termcopy": {
         "terminal": "Terminal",
@@ -3824,7 +3850,8 @@
                 "staged": "Prêt",
                 "translated": "Traduit",
                 "published": "Publié",
-                "dropped": "Abandonné"
+                "dropped": "Abandonné",
+                "proposed": "Proposition"
             },
             "hoverHeading": "Commentaire : {state}",
             "fileLevelQuoting": "Au niveau du fichier, citant {lines}",
@@ -3832,7 +3859,26 @@
             "outdatedTitle": "Ses lignes ne sont plus dans le head affiché",
             "showLines": "Afficher les lignes",
             "edit": "Modifier le commentaire",
-            "delete": "Supprimer le commentaire"
+            "delete": "Supprimer le commentaire",
+            "kind": {
+                "comment": "Commentaire",
+                "change": "Demande de modification"
+            },
+            "event": {
+                "created": "Écrit",
+                "proposed": "Proposé par l'agent",
+                "edited": "Modifié",
+                "kind": "Type modifié",
+                "staged": "Prêt",
+                "unstaged": "Remis en brouillon",
+                "dropped": "Abandonné",
+                "restored": "Rétabli",
+                "accepted": "Proposition acceptée",
+                "rewritten": "Réécriture de l'agent utilisée",
+                "translated": "Traduit",
+                "published": "Publié"
+            },
+            "hoverHeadingChange": "Demande de modification : {state}"
         },
         "comments": {
             "one": "1 commentaire",
@@ -3851,7 +3897,9 @@
             "edit": "Modifier : {where}",
             "placeholder": "Votre commentaire, dans votre langue",
             "keys": "{key}Entrée pour enregistrer, Échap pour annuler",
-            "saveDraft": "Enregistrer le brouillon"
+            "saveDraft": "Enregistrer le brouillon",
+            "placeholderChange": "Ce qui doit être retravaillé, dans votre langue",
+            "placeholderComment": "Votre commentaire ou votre question pour l'auteur, dans votre langue"
         },
         "diff": {
             "askLines": "Interroger l'IA sur ces lignes",
@@ -3981,6 +4029,65 @@
             "readingFile": "Lecture de {path}…",
             "lines": "{count} lignes",
             "loadDiff": "Charger le diff"
+        },
+        "cmt": {
+            "action": {
+                "stage": "Marquer prêt",
+                "unstage": "Remettre en brouillon",
+                "drop": "Abandonner",
+                "restore": "Rétablir",
+                "accept": "Accepter"
+            },
+            "actionTitle": {
+                "stage": "Le préparer pour la prochaine publication",
+                "unstage": "Le garder en brouillon, hors de la prochaine publication",
+                "drop": "L'abandonner : il reste dans l'historique de cette PR et peut être rétabli",
+                "restore": "Le faire revenir",
+                "accept": "Faire de la proposition de l'agent l'un de vos commentaires, prêt pour la prochaine publication"
+            },
+            "kindTitle": {
+                "comment": "Une remarque ou une question pour l'auteur de la PR",
+                "change": "Une demande de modification : ce que l'agent doit retravailler"
+            },
+            "kind": "Type",
+            "proposedNote": "Proposé par votre agent : il ne devient le vôtre qu'une fois accepté.",
+            "editTitle": "Modifier le texte ou le type",
+            "edit": "Modifier",
+            "discussTitle": "Discuter de ce commentaire avec votre agent, dans la session de revue",
+            "discuss": "Discuter",
+            "history": "Historique ({count})",
+            "discussSent": "Envoyé à votre agent : sa réponse arrive sous ce commentaire.",
+            "notSent": "Le commentaire n'a pas pu être envoyé.",
+            "kept": "Votre message est conservé : renvoyez-le quand l'agent sera libre.",
+            "messagePlaceholder": "Votre message à l'agent, dans votre langue (facultatif)",
+            "byAgent": "Votre agent",
+            "byYou": "Vous",
+            "askedOpinion": "Vous avez demandé à votre agent ce qu'il pense de ce commentaire.",
+            "rewriteProposed": "Réécriture proposée",
+            "useRewrite": "Utiliser cette réécriture",
+            "ignore": "Ignorer",
+            "used": "Utilisée",
+            "ignored": "Ignorée",
+            "agentSuffix": "(agent)",
+            "panelAria": "Commentaires de revue",
+            "panelTitle": "Commentaires",
+            "stagedCount": "{count} prêt(s) pour la prochaine publication",
+            "empty": "Sélectionnez des lignes dans le diff et cliquez sur Commenter ; les propositions de votre agent s'affichent aussi ici.",
+            "group": {
+                "proposals": "Propositions de votre agent",
+                "staged": "Prêts",
+                "drafts": "Brouillons",
+                "dropped": "Abandonnés"
+            },
+            "showDropped": "Afficher les abandonnés ({count})",
+            "hideDropped": "Masquer les abandonnés ({count})",
+            "sessionNotRunning": "La session de revue ne tourne pas."
+        },
+        "publish": {
+            "noneStaged": "Aucun commentaire prêt : marquez des brouillons prêts ou acceptez des propositions d'abord",
+            "title": "Afficher les commentaires prêts dans le panneau IA (la publication sur GitHub n'est pas encore disponible)",
+            "label": "Publier la revue ({count})",
+            "checkAndPost": "Vérifiez les traductions, puis publiez une revue GitHub avec les commentaires prêts"
         }
     }
 }

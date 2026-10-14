@@ -6,6 +6,7 @@
 // selection inside one hunk of its side can carry a line comment; elsewhere Comment is a file-level comment quoting
 // the lines, and Ask the AI works everywhere.
 
+import { t } from "../i18n/i18n";
 import {
     ReviewComment,
     ReviewCommentAction,
@@ -94,7 +95,7 @@ export function makeSelection(
             anchor,
             text,
             linecomment: false,
-            filereason: "Line comments are made on All changes: this one is file-level and quotes the lines.",
+            filereason: t("review.selection.reasonSince"),
         };
     }
     if (!inHunk(hunks, anchor.side as ReviewSide, start, anchor.line)) {
@@ -102,21 +103,30 @@ export function makeSelection(
             anchor,
             text,
             linecomment: false,
-            filereason: "These lines are outside the diff's hunks: the comment is file-level and quotes them.",
+            filereason: t("review.selection.reasonOutside"),
         };
     }
     return { anchor, text, linecomment: true };
 }
 
 export function sideLabel(side: string): string {
-    return side === "LEFT" ? "base" : "head";
+    return side === "LEFT" ? t("review.selection.base") : t("review.selection.head");
 }
 
 export function linesLabel(anchor: ReviewAnchor): string {
     if (anchor.startline != null && anchor.startline !== anchor.line) {
-        return `lines ${anchor.startline}–${anchor.line}`;
+        return t("review.selection.lines", { start: anchor.startline, end: anchor.line });
     }
-    return `line ${anchor.line}`;
+    return t("review.selection.line", { line: anchor.line });
+}
+
+// A label table read through keys at each access, so it follows a language switch.
+function keyedLabels<K extends string>(prefix: string, keys: readonly K[]): Record<K, string> {
+    const rtn = {} as Record<K, string>;
+    for (const key of keys) {
+        Object.defineProperty(rtn, key, { enumerable: true, get: () => t(`${prefix}.${key}`) });
+    }
+    return rtn;
 }
 
 // anchorLabel names a selection: file, side, lines.
@@ -124,35 +134,31 @@ export function anchorLabel(anchor: ReviewAnchor): string {
     return `${anchor.path} · ${sideLabel(anchor.side)} · ${linesLabel(anchor)}`;
 }
 
-export const CommentStateLabels: Record<ReviewCommentState, string> = {
-    draft: "Draft",
-    staged: "Staged",
-    translated: "Translated",
-    published: "Published",
-    dropped: "Dropped",
-    proposed: "Proposal",
-};
+export const CommentStateLabels: Record<ReviewCommentState, string> = keyedLabels<ReviewCommentState>(
+    "review.comment.state",
+    ["draft", "staged", "translated", "published", "dropped", "proposed"]
+);
 
-export const CommentKindLabels: Record<ReviewCommentKind, string> = {
-    comment: "Comment",
-    change: "Change request",
-};
+export const CommentKindLabels: Record<ReviewCommentKind, string> = keyedLabels<ReviewCommentKind>(
+    "review.comment.kind",
+    ["comment", "change"]
+);
 
 // What a comment's history entries say, by event (FR-REV-009 AC5).
-export const CommentEventLabels: Record<string, string> = {
-    created: "Written",
-    proposed: "Proposed by the agent",
-    edited: "Edited",
-    kind: "Kind changed",
-    staged: "Staged",
-    unstaged: "Unstaged",
-    dropped: "Dropped",
-    restored: "Restored",
-    accepted: "Proposal accepted",
-    rewritten: "Agent's rewrite used",
-    translated: "Translated",
-    published: "Published",
-};
+export const CommentEventLabels: Record<string, string> = keyedLabels("review.comment.event", [
+    "created",
+    "proposed",
+    "edited",
+    "kind",
+    "staged",
+    "unstaged",
+    "dropped",
+    "restored",
+    "accepted",
+    "rewritten",
+    "translated",
+    "published",
+]);
 
 // commentActions: what the developer can do with a comment in its state (FR-REV-009 AC1, AC3). Published comments
 // stay as they are; a proposal is accepted (it becomes staged) or dropped.

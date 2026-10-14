@@ -11,6 +11,7 @@ import { getLayoutModelForStaticTab } from "@/layout/lib/layoutModelHooks";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useState, type MouseEvent } from "react";
+import { useLocale } from "../i18n/i18n";
 import { normalizeView360Setting } from "./view360-decision";
 import type { View360Model } from "./view360-model";
 import { View360Text } from "./view360-text";
@@ -44,6 +45,7 @@ function TwoPanelsIcon() {
 }
 
 function ToggleButton({ view360 }: { view360: View360Model }) {
+    useLocale();
     const decision = useAtomValue(view360.decisionAtom);
     const columnCount = useAtomValue(view360.columnCountAtom);
     const manual = useAtomValue(view360.manualAtom);

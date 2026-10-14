@@ -192,6 +192,7 @@ function ReviewHeader({ model }: { model: ReviewViewModel }) {
 
 // PublishButton carries the count of staged comments (FR-REV-009 AC4) and opens the Publish sheet (FR-REV-010).
 function PublishButton({ model }: { model: ReviewViewModel }) {
+    const t = useT();
     const staged = useAtomValue(model.stagedCountAtom);
     const record = useAtomValue(model.stateAtom)?.publish;
     const unfinished = record?.state === "partial" || record?.state === "failed";
@@ -201,16 +202,12 @@ function PublishButton({ model }: { model: ReviewViewModel }) {
             className={ToolbarButton}
             disabled={staged === 0 && !unfinished}
             onClick={() => fireAndForget(() => model.openPublish())}
-            title={
-                staged === 0 && !unfinished
-                    ? "No comment is staged: stage drafts or accept proposals first"
-                    : "Check the translations, then post one GitHub review with the staged comments"
-            }
+            title={staged === 0 && !unfinished ? t("review.publish.noneStaged") : t("review.publish.checkAndPost")}
             data-testid="review-publish"
             data-count={staged}
         >
             <i className="fa fa-solid fa-paper-plane text-11" />
-            Publish review ({staged})
+            {t("review.publish.label", { count: staged })}
         </button>
     );
 }

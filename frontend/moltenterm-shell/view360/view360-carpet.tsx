@@ -10,7 +10,7 @@ import { CSSProperties, memo, useEffect, useState } from "react";
 import { MoltenWave } from "../molten-button";
 import { CarpetMarginPx, Rect } from "./carpet-model";
 import { View360Radar } from "./view360-radar";
-import { useT } from "../i18n/i18n";
+import { useLocale, useT } from "../i18n/i18n";
 import { View360Text } from "./view360-text";
 import "./view360.css";
 
@@ -47,6 +47,7 @@ View360Underlay.displayName = "View360Underlay";
 // its readable minimum, a pill floats at the bottom centre of the tab; nothing is resized or closed.
 function TightPill({ layoutModel }: { layoutModel: LayoutModel }) {
     const view360 = layoutModel.moltenView360;
+    useLocale();
     const show = useAtomValue(view360.pillAtom);
     if (!show) {
         return null;
