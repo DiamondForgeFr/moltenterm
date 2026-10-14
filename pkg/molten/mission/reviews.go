@@ -329,6 +329,15 @@ func ticketOfBranch(branch string, res []*regexp.Regexp) int {
 	return 0
 }
 
+// TicketOfBranch is the ticket a PR's head branch names (the project's branchNaming patterns, else type/N-...), 0
+// when it names none.
+func TicketOfBranch(dir string, branch string) int {
+	return ticketOfBranch(branch, branchTicketRes(readBranchNaming(dir)))
+}
+
+// ReviewRollup is one entry of a PR's statusCheckRollup as gh returns it.
+type ReviewRollup = ghReviewRollup
+
 func readBranchNaming(dir string) map[string]string {
 	var sf struct {
 		Workflow struct {

@@ -21,7 +21,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 100
+            "order": 101
           }
         },
         "app:globalhotkey": {
@@ -40,7 +40,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 116
+            "order": 117
           }
         },
         "app:defaultnewblock": {
@@ -201,7 +201,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 101
+            "order": 102
           }
         },
         "term:fontsize": {
@@ -569,6 +569,18 @@
             "order": 99
           }
         },
+        "review:language": {
+          "type": "string",
+          "description": "The language of the code review session's briefing and answers, as a language name or code (fr, French, en...); unset, the OS locale's",
+          "x-moltenterm": {
+            "section": "agents",
+            "group": "Code review",
+            "label": "Review language",
+            "description": "Language of the review briefing and answers (fr, French...); empty: this computer's.",
+            "control": "text",
+            "order": 100
+          }
+        },
         "companion:usagegauges": {
           "items": {
             "type": "string"
@@ -722,7 +734,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 102
+            "order": 103
           }
         },
         "web:openlinksinternally": {
@@ -861,35 +873,35 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 103
+            "order": 104
           }
         },
         "autoupdate:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 110
+            "order": 111
           }
         },
         "autoupdate:intervalms": {
           "type": "number",
           "x-moltenterm": {
             "hidden": true,
-            "order": 111
+            "order": 112
           }
         },
         "autoupdate:installonquit": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 112
+            "order": 113
           }
         },
         "autoupdate:channel": {
           "type": "string",
           "x-moltenterm": {
             "hidden": true,
-            "order": 113
+            "order": 114
           }
         },
         "markdown:fontsize": {
@@ -1207,21 +1219,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 104
+            "order": 105
           }
         },
         "widget:showhelp": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 115
+            "order": 116
           }
         },
         "window:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 105
+            "order": 106
           }
         },
         "window:fullscreenonlaunch": {
@@ -1503,21 +1515,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 106
+            "order": 107
           }
         },
         "telemetry:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 114
+            "order": 115
           }
         },
         "conn:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 107
+            "order": 108
           }
         },
         "conn:askbeforewshinstall": {
@@ -1560,7 +1572,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 108
+            "order": 109
           }
         },
         "debug:pprofport": {
@@ -1613,7 +1625,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 109
+            "order": 110
           }
         },
         "tsunami:scaffoldpath": {

@@ -21,6 +21,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/wps"
+	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
 
@@ -39,6 +40,7 @@ const (
 	StateCommand    = "moltenreviewstate"
 	ViewedCommand   = "moltenreviewviewed"
 	ShownCommand    = "moltenreviewshown"
+	AiPaneCommand   = "moltenreviewaipane"
 	// Validate (FR-REV-012): the plan, the merge and its cancel are a MoltenTerm window's only.
 	MergePlanCommand   = "moltenreviewmergeplan"
 	MergeCommand       = "moltenreviewmerge"
@@ -136,8 +138,31 @@ func Start() {
 		link := &routeLink{service: service, output: make(chan []byte, routeQueueSize), localSource: localSourceOnLink}
 		if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId); err != nil {
 			log.Printf("%s route not started: %v\n", logPrefix, err)
+			return
 		}
+		rpcClient := wshclient.GetBareRpcClient()
+		rpcClient.EventListener.On(mcpreview.Event, func(event *wps.WaveEvent) {
+			var update mcpreview.Update
+			if utilfn.ReUnmarshal(&update, event.Data) != nil {
+				return
+			}
+			service.SessionPosted(update)
+		})
+		wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{Event: mcpreview.Event, AllScopes: true}, nil)
 	})
+}
+
+// SessionPosted keeps what the review session posts that outlives it: the briefing (FR-REV-005 AC4).
+func (s *Service) SessionPosted(update mcpreview.Update) {
+	post := update.Post
+	if post == nil || post.Kind != mcpreview.PostBriefing {
+		return
+	}
+	k := PrKey{Repo: update.Repo, Number: update.Number}
+	b := Briefing{Markdown: post.Markdown, HeadOid: post.HeadOid, Agent: post.Agent, At: post.At}
+	if _, err := s.changed(s.store.SetBriefing(k, b)); err != nil {
+		log.Printf("%s %s#%d: the briefing could not be kept: %v\n", logPrefix, k.Repo, k.Number, err)
+	}
 }
 
 func localSourceOnLink(source string, ingressLinkId baseds.LinkId) bool {
@@ -258,6 +283,12 @@ func (l *routeLink) handle(ctx context.Context, command string, source string, d
 			return nil, err
 		}
 		return OpenTab(ctx, req)
+	case AiPaneCommand:
+		req, err := decode[AiPaneRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return OpenAiPane(ctx, req)
 	case WorktreeCommand:
 		req, err := decode[WorktreeRequest](data)
 		if err != nil {

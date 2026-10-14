@@ -72,6 +72,8 @@ type session struct {
 	nextPost  int
 	// baseOid: the merge base of the head with the base branch, read once per head.
 	baseOid string
+	// sources: the PR's sources for review_context, read once per head (context.go).
+	sources *prSources
 }
 
 func (s *session) key() string {
@@ -113,8 +115,9 @@ type Env struct {
 	// WriteFile writes a generated file (content-addressed) and returns its path.
 	WriteFile func(prefix string, ext string, data []byte) (string, error)
 	Guide     func() ([]byte, error)
-	// CreateTerminal creates a terminal block in the tab and puts it in the tab's layout.
-	CreateTerminal func(ctx context.Context, tabId string, meta waveobj.MetaMapType) (string, error)
+	// CreateTerminal creates a terminal block in the tab and puts it in the tab's layout: split under afterBlockId
+	// when it is in the tab, else added.
+	CreateTerminal func(ctx context.Context, tabId string, afterBlockId string, meta waveobj.MetaMapType) (string, error)
 	// StartAndType starts the terminal's shell, waits for its first prompt and types the line with Enter.
 	StartAndType func(ctx context.Context, tabId string, blockId string, line string) error
 	// CloseTerminal deletes the terminal block (its shell and agent end with it).
@@ -132,6 +135,15 @@ type Env struct {
 	ReadFile func(path string) []byte
 	// Locale is the developer's language (the OS locale), e.g. "fr".
 	Locale func() string
+	// Language is the review:language setting, "" when unset (then Locale decides).
+	Language func() string
+	// Gh runs the developer's gh (the PR's sources, read-only).
+	Gh GhRunner
+	// TypePrompt types a prompt into the agent of a terminal and submits it, only when the agent is its foreground
+	// program and neither working nor waiting (retry: try again later).
+	TypePrompt func(ctx context.Context, blockId string, line string) (sent bool, retry bool, message string)
+	// SaveRecord writes a session's record back to its terminal block's meta.
+	SaveRecord func(ctx context.Context, blockId string, rec any) error
 }
 
 // conn is one molten-review server connected to its session.
@@ -386,7 +398,11 @@ func (m *Manager) Start(ctx context.Context, callerTab string, req mcpreview.Sta
 		HeadRef: req.HeadRef, HeadOid: head, BaseRef: req.BaseRef, Worktree: tree, WorktreeKind: kind, Agent: agent,
 		StartedAt: m.env.Now().UnixMilli(),
 	}
-	rec.Command, err = m.agentCommand(agent, moltenPath)
+	prompt := ""
+	if req.Brief {
+		prompt = mcpreview.BriefingPrompt(head, false)
+	}
+	rec.Command, err = m.agentCommand(agent, moltenPath, prompt)
 	if err != nil {
 		return mcpreview.StartResult{Status: mcpreview.StatusFailed, Message: err.Error()}, nil
 	}
@@ -397,7 +413,7 @@ func (m *Manager) Start(ctx context.Context, callerTab string, req mcpreview.Sta
 		waveobj.MetaKey_CmdEnv:     map[string]any{mcpreview.SessionTokenVarName: token},
 		mcpreview.SessionMetaKey:   rec,
 	}
-	blockId, err := m.env.CreateTerminal(ctx, tabId, meta)
+	blockId, err := m.env.CreateTerminal(ctx, tabId, req.AfterBlockId, meta)
 	if err != nil {
 		return mcpreview.StartResult{}, fmt.Errorf("the session's terminal could not be created: %w", err)
 	}
@@ -430,8 +446,8 @@ func (m *Manager) typeCommand(s *session) {
 	m.setState(s, mcpreview.StateRunning, "")
 }
 
-// agentCommand is the command line of the agent's review run.
-func (m *Manager) agentCommand(agent string, moltenPath string) (string, error) {
+// agentCommand is the command line of the agent's review run; prompt, when set, is its first prompt.
+func (m *Manager) agentCommand(agent string, moltenPath string, prompt string) (string, error) {
 	if m.env.Guide == nil || m.env.WriteFile == nil {
 		return "", errors.New("the review guide is not available")
 	}
@@ -444,7 +460,7 @@ func (m *Manager) agentCommand(agent string, moltenPath string) (string, error) 
 		return "", fmt.Errorf("the review guide could not be written: %w", err)
 	}
 	if agent == molten.AgentIdCodex {
-		return CommandLine("codex", CodexReviewArgs(moltenPath, guidePath)), nil
+		return CommandLine("codex", withPrompt(CodexReviewArgs(moltenPath, guidePath), prompt)), nil
 	}
 	mcp, err := claudeReviewMcpJSON(moltenPath)
 	if err != nil {
@@ -454,7 +470,16 @@ func (m *Manager) agentCommand(agent string, moltenPath string) (string, error) 
 	if err != nil {
 		return "", fmt.Errorf("the review tools' configuration could not be written: %w", err)
 	}
-	return CommandLine("claude", ClaudeReviewArgs(mcpPath, guidePath)), nil
+	return CommandLine("claude", withPrompt(ClaudeReviewArgs(mcpPath, guidePath), prompt)), nil
+}
+
+// withPrompt adds the first prompt after "--", so neither CLI reads it as an option or a value of the variadic
+// --disallowedTools (agentcontinuity's FreshArgs do the same).
+func withPrompt(args []string, prompt string) []string {
+	if prompt == "" {
+		return args
+	}
+	return append(args, "--", prompt)
 }
 
 func newToken() (string, error) {

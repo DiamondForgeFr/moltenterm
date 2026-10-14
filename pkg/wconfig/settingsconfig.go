@@ -123,6 +123,9 @@ type SettingsType struct {
 	AgentIntegrate    *bool    `json:"agent:integrate,omitempty" jsonschema_description:"Add MoltenTerm's integration (state hooks, session link, status line relay, browser server) to claude and codex started in a local terminal, for that run only; nothing of yours is edited. Default true; false turns it off for every agent from the next launch"`
 	AgentIntegrateOff []string `json:"agent:integrateoff,omitempty" jsonschema_description:"Agents (claude, codex) started without MoltenTerm's integration, from the next launch; the others keep it"`
 
+	// MOLTENTERM-PATCH (#583): the language the review session talks and briefs in (FR-REV-005, pkg/molten/reviewsession).
+	ReviewLanguage string `json:"review:language,omitempty" jsonschema_description:"The language of the code review session's briefing and answers, as a language name or code (fr, French, en...); unset, the OS locale's"`
+
 	// MOLTENTERM-PATCH (#261): the coding agents whose plan usage gauges the agent companion shows (FR-SHELL-027, pkg/molten/usage).
 	CompanionUsageGauges []string `json:"companion:usagegauges,omitempty" jsonschema_description:"Coding agents (claude, codex) whose plan usage gauges the agent companion shows; empty shows none. Set from the companion's Show plan usage"`
 	// MOLTENTERM-PATCH (#262): Claude Code's experimental plan usage source, off unless confirmed in the companion (FR-SHELL-028).

@@ -23,6 +23,7 @@ const ShownCommand = "moltenreviewshown";
 const MergePlanCommand = "moltenreviewmergeplan";
 const MergeCommand = "moltenreviewmerge";
 const MergeCancelCommand = "moltenreviewmergecancel";
+const AiPaneCommand = "moltenreviewaipane";
 
 // A file list or a compare may fetch the PR's branches; a worktree may be created.
 const GitTimeoutMs = 95_000;
@@ -153,11 +154,14 @@ export type ReviewMergeRecord = {
     cleanup?: ReviewCleanupStep[];
     cleanuprunning?: boolean;
 };
+// The review session's latest briefing (FR-REV-005); headoid: the head the agent briefed.
+export type ReviewBriefing = { markdown: string; headoid?: string; agent?: string; at: number };
 
 // must match State in pkg/molten/review/store.go
 export type ReviewState = {
     repo: string;
     number: number;
+    briefing?: ReviewBriefing;
     viewed: Record<string, string>;
     lasthead?: string;
     since?: ReviewSince;
@@ -188,6 +192,15 @@ function call<T>(command: string, data: any, timeout = CallTimeoutMs): Promise<T
 
 export function openReviewTab(workspaceid: string, pr: ReviewPrInfo): Promise<{ tabid: string; created?: boolean }> {
     return call(OpenCommand, { workspaceid, pr });
+}
+
+// openReviewAiPane returns the PR's AI panel in the tab, creating it right of the review block (DS-REV-012).
+export function openReviewAiPane(
+    tabid: string,
+    blockid: string,
+    pr: ReviewPrInfo
+): Promise<{ blockid: string; created?: boolean }> {
+    return call(AiPaneCommand, { tabid, blockid, pr });
 }
 
 export function reviewFiles(req: ReviewFilesRequest): Promise<ReviewFilesResult> {

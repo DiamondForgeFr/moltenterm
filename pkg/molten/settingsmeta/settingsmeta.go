@@ -168,7 +168,7 @@ var settings = []Setting{
 	{Key: "web:defaultsearch", Section: SectionBrowser, Group: "Browser panel", Label: "Search engine", Description: "The search URL, with {query} where the words go.", Control: ControlText},
 	{Key: "moltenterm:hiddenpagefreeze", Section: SectionBrowser, Group: "Browser panel", Label: "Pause hidden pages", Description: "A page not on screen stops running until shown, unless an agent drives it or it plays audio.", Control: ControlToggle, Default: true},
 	{Key: "moltenterm:hiddenpagediscardmin", Section: SectionBrowser, Group: "Browser panel", Label: "Unload hidden pages after", Description: "A page not on screen this long is unloaded, then reloads when shown; 0 keeps pages loaded.", Control: ControlNumber, Range: rng(0, 1440, 1), Unit: "min", Default: 10},
-	{Key: "browser:agentsites", Section: SectionBrowser, Group: "Agents",Label: "Agent site permissions", Description: "Sites agents may use or are blocked from in the browser panel.", Control: ControlJSON},
+	{Key: "browser:agentsites", Section: SectionBrowser, Group: "Agents", Label: "Agent site permissions", Description: "Sites agents may use or are blocked from in the browser panel.", Control: ControlJSON},
 
 	// Mission Control
 	{Key: "linemap:animation", Section: SectionMission, Group: "Line map", Label: "Animate the line map", Description: "Play the load sequence and the moving trains; reduced motion turns it off.", Control: ControlToggle, Default: true},
@@ -218,6 +218,8 @@ var settings = []Setting{
 	// section first.
 	{Key: "agent:integrate", Section: SectionAgents, Group: "Integration", Label: "Agent integration", Description: "claude and codex get MoltenTerm's hooks and browser for each run; your files are not edited.", Control: ControlToggle, Default: true},
 	{Key: "agent:integrateoff", Section: SectionAgents, Group: "Integration", Label: "Without integration", Description: "Agents started without the integration while the others keep it.", Control: ControlMulti, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
+	// Agents, Code review (FR-REV-005).
+	{Key: "review:language", Section: SectionAgents, Group: "Code review", Label: "Review language", Description: "Language of the review briefing and answers (fr, French...); empty: this computer's.", Control: ControlText},
 
 	// Hidden: namespace resets (only meaningful in the JSON file), Wave's inert updater (MoltenTerm has its own update
 	// flow, #5), telemetry (forced off, FR-FORK-003) and Wave-only surfaces MoltenTerm does not show.

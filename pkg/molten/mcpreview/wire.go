@@ -33,6 +33,9 @@ const (
 	ListCommand      = "moltenreviewlist"
 	SelectionCommand = "moltenreviewselection"
 	PostsCommand     = "moltenreviewposts"
+	// The Review tab moved to a new head of the PR; asking for a new briefing types a prompt into the agent.
+	SetHeadCommand = "moltenreviewsethead"
+	BriefCommand   = "moltenreviewbrief"
 
 	// The agent's environment carries the session token (DS-REV-004); the MCP server sends it with each hello.
 	SessionTokenVarName = "MOLTEN_REVIEW_SESSION"
@@ -167,6 +170,49 @@ type StartRequest struct {
 	BaseRef string `json:"baseref,omitempty"`
 	// Agent: claude or codex; empty, the first installed in the agent registry's order.
 	Agent string `json:"agent,omitempty"`
+	// Brief: the agent starts by briefing the PR (FR-REV-005); false when the review store has a briefing of this head.
+	Brief bool `json:"brief,omitempty"`
+	// AfterBlockId: the session's terminal is split under this block (the AI panel, DS-REV-012); empty, it is added
+	// to the tab.
+	AfterBlockId string `json:"afterblockid,omitempty"`
+}
+
+// SetHeadRequest moves a running session to the head the Review tab shows now; Brief asks the agent for a new
+// briefing of it.
+type SetHeadRequest struct {
+	SessionKey
+	HeadOid string `json:"headoid"`
+	Brief   bool   `json:"brief,omitempty"`
+}
+
+// What asking the agent for a briefing did.
+const (
+	BriefAsked = "asked"
+	// Busy: the agent is working or waiting for an answer, or another program is in the foreground; nothing was typed.
+	BriefBusy   = "busy"
+	BriefFailed = "failed"
+)
+
+type BriefResult struct {
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
+}
+
+// BriefingPrompt is what MoltenTerm asks the agent, as its first prompt or typed into its terminal after a push.
+func BriefingPrompt(headOid string, moved bool) string {
+	if moved {
+		return "MoltenTerm: the pull request moved to the head " + shortOid(headOid) + ". Read review_context again and " +
+			"post a new briefing of the whole PR with review_post_briefing, following the briefing section of the review guide."
+	}
+	return "MoltenTerm: brief this pull request. Read review_context, then post the briefing with review_post_briefing, " +
+		"following the briefing section of the review guide, in the developerlanguage it names."
+}
+
+func shortOid(oid string) string {
+	if len(oid) > 8 {
+		return oid[:8]
+	}
+	return oid
 }
 
 // SessionKey names a PR's session: by its id, or by repo and number.
@@ -234,17 +280,23 @@ type Post struct {
 	CommentKind   string   `json:"commentkind,omitempty"`
 	CommentId     string   `json:"commentid,omitempty"`
 	ExplanationId string   `json:"explanationid,omitempty"`
+	// HeadOid: the head the session reviewed when the agent posted; Agent: the agent's id.
+	HeadOid string `json:"headoid,omitempty"`
+	Agent   string `json:"agent,omitempty"`
 }
 
 type PostsResult struct {
 	Posts []Post `json:"posts"`
 }
 
-// Update is the event's data: a session that changed, ended, or got a post.
+// Update is the event's data: a session that changed, ended, or got a post (with its PR, so the review store can
+// keep it).
 type Update struct {
 	Session *SessionInfo `json:"session,omitempty"`
 	Ended   bool         `json:"ended,omitempty"`
 	Post    *Post        `json:"post,omitempty"`
+	Repo    string       `json:"repo,omitempty"`
+	Number  int          `json:"number,omitempty"`
 }
 
 // ScopeOf is the event scope of a PR's session.

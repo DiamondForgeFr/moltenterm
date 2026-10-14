@@ -11,6 +11,7 @@ import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import * as WOS from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
+import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import type * as MonacoTypes from "monaco-editor";
@@ -18,6 +19,8 @@ import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
 import { ReviewsAnswer } from "../reviews/reviews-model";
 import { TabActivity, whileShown } from "../tab-activity";
 import {
+    openReviewAiPane,
+    ReviewBriefing,
     reviewCompare,
     ReviewFile,
     reviewFile,
@@ -38,9 +41,27 @@ import {
     setReviewViewed,
     subscribeReviewState,
 } from "./review-client";
-import { buildFileTree, firstFile, isViewed, MoltentermReviewView, treeFiles, TreeNode } from "./review-model";
 import { mergeRunning } from "./review-merge";
-import { getReviewSession, ReviewSessionInfo, startReviewSession, subscribeReviewSession } from "./review-session";
+import {
+    buildFileTree,
+    FileLink,
+    firstFile,
+    isViewed,
+    MoltentermReviewAiView,
+    MoltentermReviewView,
+    reviewKey,
+    treeFiles,
+    TreeNode,
+} from "./review-model";
+import {
+    askReviewBriefing,
+    getReviewSession,
+    ReviewBriefResult,
+    ReviewSessionInfo,
+    setReviewSessionHead,
+    startReviewSession,
+    subscribeReviewSession,
+} from "./review-session";
 
 // The PR's head is asked from the collector at most this often while the tab shows (it reads GitHub at most once a
 // minute per project, NFR-REV-002).
@@ -75,11 +96,31 @@ export type ReviewValidateState = {
 };
 
 export type ReviewAiState = {
-    open: boolean;
     status: "idle" | "starting" | "running" | "noagent" | "failed";
     message?: string;
     session?: ReviewSessionInfo;
 };
+
+// What asking the agent for a briefing gave (FR-REV-005 AC4).
+export type ReviewBriefAsk = { status: "idle" | "asking" | ReviewBriefResult["status"]; message?: string; at?: number };
+
+// The Review tabs' models by PR (reviewKey), so the AI panel, a block of its own, reaches its PR's review.
+export const ReviewTabModels = atom(new Map<string, ReviewTabModel>()) as PrimitiveAtom<Map<string, ReviewTabModel>>;
+
+function registerModel(key: string, model: ReviewTabModel) {
+    globalStore.set(ReviewTabModels, (models) => new Map(models).set(key, model));
+}
+
+function unregisterModel(key: string, model: ReviewTabModel) {
+    if (globalStore.get(ReviewTabModels).get(key) !== model) {
+        return;
+    }
+    globalStore.set(ReviewTabModels, (models) => {
+        const next = new Map(models);
+        next.delete(key);
+        return next;
+    });
+}
 
 // The view (review-view.tsx) subclasses it with its component.
 export abstract class ReviewTabModel implements ViewModel {
@@ -107,13 +148,17 @@ export abstract class ReviewTabModel implements ViewModel {
     sideBySideAtom = atom(null) as PrimitiveAtom<boolean>;
     newCommitsAtom = atom(null) as PrimitiveAtom<ReviewNewCommits>;
     worktreeAtom = atom({ state: "pending" }) as PrimitiveAtom<ReviewWorktreeState>;
-    aiAtom = atom({ open: false, status: "idle" }) as PrimitiveAtom<ReviewAiState>;
+    aiAtom = atom({ status: "idle" }) as PrimitiveAtom<ReviewAiState>;
+    briefAskAtom = atom({ status: "idle" }) as PrimitiveAtom<ReviewBriefAsk>;
     renderMsAtom = atom(null) as PrimitiveAtom<number>;
     validateAtom = atom({ open: false, loading: false, override: false }) as PrimitiveAtom<ReviewValidateState>;
 
     treeAtom: Atom<TreeNode[]>;
     orderedFilesAtom: Atom<ReviewFile[]>;
     viewedCountAtom: Atom<number>;
+    briefingAtom: Atom<ReviewBriefing>;
+    // The AI panel's block in this tab, null when it is closed (DS-REV-012).
+    aiPaneIdAtom: Atom<string>;
 
     // The Monaco diff editor on screen (MonacoDiffViewer's onMount); FR-REV-003's selection reads it.
     diffEditor: MonacoTypes.editor.IStandaloneDiffEditor = null;
@@ -123,6 +168,11 @@ export abstract class ReviewTabModel implements ViewModel {
     // The base branch's tip as GitHub gave it with the head shown.
     baseOid: string = null;
     checkingHead = false;
+    // The head the session was last moved to (one request per head).
+    sessionHeadAsked: string = null;
+    // A line a briefing link asked for, shown once its file's diff is on screen.
+    pendingReveal: FileLink = null;
+    registeredKey: string = null;
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
         this.blockId = blockId;
@@ -139,6 +189,28 @@ export abstract class ReviewTabModel implements ViewModel {
             const state = get(this.stateAtom);
             return (get(this.filesAtom)?.files ?? []).filter((f) => isViewed(state, f)).length;
         });
+        this.briefingAtom = atom((get) => get(this.stateAtom)?.briefing ?? null);
+        this.aiPaneIdAtom = atom((get) => {
+            const pr = get(this.prAtom);
+            const tabId = get(atoms.staticTabId);
+            if (pr == null || !tabId) {
+                return null;
+            }
+            const tab = get(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", tabId)));
+            const key = reviewKey(pr.repo, pr.number);
+            for (const id of tab?.blockids ?? []) {
+                const meta = get(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", id)))?.meta;
+                const paneOf = meta?.[ReviewPrMetaKey] as ReviewPrInfo;
+                if (
+                    meta?.view === MoltentermReviewAiView &&
+                    paneOf != null &&
+                    reviewKey(paneOf.repo, paneOf.number) === key
+                ) {
+                    return id;
+                }
+            }
+            return null;
+        });
     }
 
     pr(): ReviewPrInfo {
@@ -152,11 +224,15 @@ export abstract class ReviewTabModel implements ViewModel {
             return () => {};
         }
         this.started = true;
+        this.registeredKey = reviewKey(pr.repo, pr.number);
+        registerModel(this.registeredKey, this);
         this.cleanups.push(
             subscribeReviewState(pr.repo, pr.number, (state) => this.applyState(state)),
             subscribeReviewSession(pr.repo, pr.number, (update) => {
                 if (update.ended) {
                     globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "idle", session: null }));
+                    globalStore.set(this.briefAskAtom, { status: "idle" });
+                    this.sessionHeadAsked = null;
                     return;
                 }
                 if (update.session != null) {
@@ -184,6 +260,10 @@ export abstract class ReviewTabModel implements ViewModel {
         this.cleanups = [];
         this.started = false;
         this.diffEditor = null;
+        if (this.registeredKey != null) {
+            unregisterModel(this.registeredKey, this);
+            this.registeredKey = null;
+        }
     }
 
     // open shows the head the developer read last (the store's), else the PR's newest; a newer head shows as new
@@ -204,7 +284,6 @@ export abstract class ReviewTabModel implements ViewModel {
         fireAndForget(async () => {
             const session = await getReviewSession({ repo: pr.repo, number: pr.number });
             if (session != null) {
-                globalStore.set(this.aiAtom, (ai) => ({ ...ai, open: true }));
                 this.applySession(session);
             }
         });
@@ -359,6 +438,80 @@ export abstract class ReviewTabModel implements ViewModel {
         } catch (e) {
             globalStore.set(this.worktreeAtom, { state: "failed", error: String(e?.message ?? e) });
         }
+        await this.syncSessionHead();
+    }
+
+    // syncSessionHead moves a running session to the head shown, once the worktree followed it, and asks for a new
+    // briefing when the kept one is of another head (FR-REV-005 AC4, #580's follow-up).
+    async syncSessionHead() {
+        const session = globalStore.get(this.aiAtom).session;
+        const head = globalStore.get(this.headAtom);
+        if (session == null || !head || session.headoid === head || this.sessionHeadAsked === head) {
+            return;
+        }
+        if (globalStore.get(this.worktreeAtom).state === "pending") {
+            return;
+        }
+        this.sessionHeadAsked = head;
+        const brief = globalStore.get(this.briefingAtom)?.headoid !== head;
+        try {
+            const result = await setReviewSessionHead({ id: session.id }, head, brief);
+            if (brief) {
+                this.applyBriefAsk(result);
+            }
+        } catch (e) {
+            this.sessionHeadAsked = null;
+            console.log("[review] the session could not follow the new head", e);
+        }
+    }
+
+    applyBriefAsk(result: ReviewBriefResult) {
+        globalStore.set(this.briefAskAtom, { status: result.status, message: result.message, at: Date.now() });
+    }
+
+    // askBriefing asks the running session for a new briefing (the card's Ask again, or after a busy refresh).
+    async askBriefing() {
+        const session = globalStore.get(this.aiAtom).session;
+        if (session == null) {
+            await this.openAi();
+            return;
+        }
+        globalStore.set(this.briefAskAtom, { status: "asking" });
+        try {
+            this.applyBriefAsk(await askReviewBriefing({ id: session.id }));
+        } catch (e) {
+            globalStore.set(this.briefAskAtom, { status: "failed", message: String(e?.message ?? e) });
+        }
+    }
+
+    // revealFile shows a file of the PR at a line, from a briefing link; false when the PR has no such file.
+    revealFile(link: FileLink): boolean {
+        const files = globalStore.get(this.filesAtom)?.files ?? [];
+        const file = files.find((f) => f.path === link.path) ?? files.find((f) => f.path.endsWith("/" + link.path));
+        if (file == null) {
+            return false;
+        }
+        this.pendingReveal = { path: file.path, line: link.line };
+        if (globalStore.get(this.selectedAtom) === file.path && this.diffEditor != null) {
+            this.revealPending(this.diffEditor);
+        } else {
+            this.selectFile(file.path);
+        }
+        return true;
+    }
+
+    revealPending(diff: MonacoTypes.editor.IStandaloneDiffEditor) {
+        const reveal = this.pendingReveal;
+        if (reveal == null || reveal.path !== globalStore.get(this.selectedAtom)) {
+            return;
+        }
+        this.pendingReveal = null;
+        if (!(reveal.line > 0)) {
+            return;
+        }
+        const editor = diff.getModifiedEditor();
+        editor.revealLineInCenter(reveal.line);
+        editor.setSelection({ startLineNumber: reveal.line, startColumn: 1, endLineNumber: reveal.line, endColumn: 1 });
     }
 
     async setMode(mode: ReviewMode) {
@@ -438,6 +591,7 @@ export abstract class ReviewTabModel implements ViewModel {
             const ms = Math.round(performance.now() - askedAt);
             globalStore.set(this.renderMsAtom, ms);
             console.log(`[review] ${globalStore.get(this.selectedAtom)} rendered in ${ms} ms`);
+            this.revealPending(diff);
         });
         return () => {
             sub.dispose();
@@ -450,24 +604,47 @@ export abstract class ReviewTabModel implements ViewModel {
     applySession(session: ReviewSessionInfo) {
         const status = session.state === "failed" ? "failed" : session.state === "starting" ? "starting" : "running";
         globalStore.set(this.aiAtom, (ai) => ({ ...ai, status, session, message: session.message }));
+        fireAndForget(() => this.syncSessionHead());
     }
 
-    // The AI panel (DS-REV-012): opening it starts the PR's review session (FR-REV-004), whose terminal wavesrv puts in
-    // this tab; the session ends when the tab closes. The cards (#583 and after) show above it.
+    // The AI panel (DS-REV-012) is a pane of its own right of this block, the session's terminal split under it, so the
+    // briefing and the explanation cards sit above the agent's terminal. Closing it keeps the session; the session
+    // ends when its terminal or the tab closes.
     async toggleAi() {
-        const ai = globalStore.get(this.aiAtom);
-        if (ai.open) {
-            globalStore.set(this.aiAtom, { ...ai, open: false });
+        const paneId = globalStore.get(this.aiPaneIdAtom);
+        if (paneId == null) {
+            await this.openAi();
             return;
         }
-        globalStore.set(this.aiAtom, { ...ai, open: true });
-        if (ai.session == null && ai.status !== "starting") {
-            await this.startSession();
+        const layout = getLayoutModelForStaticTab();
+        const node = layout?.getNodeByBlockId(paneId);
+        if (node != null) {
+            await layout.closeNode(node.id);
         }
     }
 
-    async startSession() {
+    // openAi opens the AI panel and starts the PR's review session when it has none (FR-REV-004).
+    async openAi() {
         const pr = this.pr();
+        let paneId = globalStore.get(this.aiPaneIdAtom);
+        try {
+            if (paneId == null) {
+                paneId = (await openReviewAiPane(globalStore.get(atoms.staticTabId), this.blockId, pr)).blockid;
+            }
+        } catch (e) {
+            console.log("[review] the AI panel could not be opened", e);
+        }
+        const ai = globalStore.get(this.aiAtom);
+        if (ai.session == null && ai.status !== "starting") {
+            await this.startSession(paneId);
+        }
+    }
+
+    async startSession(afterBlockId?: string) {
+        const pr = this.pr();
+        const head = globalStore.get(this.headAtom) ?? pr.headoid;
+        // A briefing kept for this head is shown again; the agent is asked for one otherwise (FR-REV-005 AC4).
+        const brief = globalStore.get(this.briefingAtom)?.headoid !== head || head == null;
         globalStore.set(this.aiAtom, (ai) => ({ ...ai, status: "starting", message: null }));
         try {
             const result = await startReviewSession({
@@ -477,9 +654,14 @@ export abstract class ReviewTabModel implements ViewModel {
                 number: pr.number,
                 title: pr.title,
                 headref: pr.headref,
-                headoid: globalStore.get(this.headAtom) ?? pr.headoid,
+                headoid: head,
                 baseref: pr.baseref,
+                brief,
+                afterblockid: afterBlockId ?? globalStore.get(this.aiPaneIdAtom) ?? undefined,
             });
+            if (result.status === "started" && brief) {
+                globalStore.set(this.briefAskAtom, { status: "asked", at: Date.now() });
+            }
             switch (result.status) {
                 case "started":
                 case "attached":
