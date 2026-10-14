@@ -21,6 +21,8 @@ import { createRef } from "react";
 import { PreviewView } from "./preview";
 import { makeDirectoryDefaultMenuItems } from "./preview-directory-utils";
 import type { PreviewEnv } from "./previewenv";
+import { I18nModel } from "../../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
+import { translate } from "../../../moltenterm-shell/i18n/i18n-core"; // MOLTENTERM-PATCH (#623)
 
 // TODO drive this using config
 const BOOKMARKS: { label: string; path: string }[] = [
@@ -222,7 +224,7 @@ export class PreviewModel implements ViewModel {
             const blockData = get(this.blockAtom);
             return blockData?.meta?.edit ?? false;
         });
-        this.viewName = atom("Preview");
+        this.viewName = atom((get) => translate(get(I18nModel.getInstance().localeAtom), "wave.block.viewPreview")); // MOLTENTERM-PATCH (#623)
         this.hideViewName = atom(true);
         this.viewText = atom((get) => {
             let headerPath = get(this.metaFilePath);
