@@ -20,6 +20,8 @@ const SmallButton =
 
 const IsMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform ?? "");
 const AltKey = IsMac ? "⌥" : "Alt+";
+// After the session's terminal was inserted and focused.
+const FocusBackMs = 400;
 
 // SelectionOverlay floats over the diff: the selection's actions, or the comment box.
 export function SelectionOverlay({ model }: { model: ReviewTabModel }) {
@@ -301,12 +303,19 @@ function CommentRow({ model, comment }: { model: ReviewTabModel; comment: Review
 export function AskBox({ model }: { model: ReviewTabModel }) {
     const ask = useAtomValue(model.askAtom);
     const [question, setQuestion] = useState("");
+    const ai = useAtomValue(model.aiAtom);
     const ref = useRef<HTMLTextAreaElement>(null);
+    const sessionBlock = ai.session?.blockid;
+    // The session's terminal takes the focus when it is inserted: the question box takes it back, or the question
+    // would be typed straight into the agent.
     useEffect(() => {
-        if (ask?.seq) {
-            ref.current?.focus();
+        if (!ask?.seq) {
+            return;
         }
-    }, [ask?.seq]);
+        ref.current?.focus();
+        const timer = setTimeout(() => ref.current?.focus(), FocusBackMs);
+        return () => clearTimeout(timer);
+    }, [ask?.seq, sessionBlock]);
     if (ask == null) {
         return null;
     }
