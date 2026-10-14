@@ -314,7 +314,7 @@ export function activeCue(tab: AgentTab, now: number): AgentActionCue {
 export class BrowserAgentModel {
     blockId: string;
     tabsAtom = atom({}) as PrimitiveAtom<AgentTabs>;
-    // The agents of the workspace connected to MoltenTerm's browser, as last listed (FR-BRW-011).
+    // The agents of the panel's tab connected to MoltenTerm's browser, as last listed (FR-BRW-011).
     sessionsAtom = atom([]) as PrimitiveAtom<AgentSession[]>;
     unsubscribe: () => void = null;
     // A snapshot must not overwrite an event or a user action that arrived while it was in flight.
@@ -407,7 +407,7 @@ export class BrowserAgentModel {
         });
     }
 
-    // The agents of the panel's workspace connected to MoltenTerm's browser (FR-BRW-011).
+    // The agents of the panel's tab connected to MoltenTerm's browser (FR-BRW-011, #594).
     async listSessions(): Promise<AgentSession[]> {
         const res: { sessions: AgentSession[] } = await TabRpcClient.wshRpcCall(
             BrowserAgentListCommand,

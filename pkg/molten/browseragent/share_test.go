@@ -58,6 +58,31 @@ func TestListSessionsOfThePanelsWorkspace(t *testing.T) {
 	}
 }
 
+// #594: two tabs of one workspace, each with an agent and a browser panel; each panel lists its own tab's agent.
+func TestListSessionsOfThePanelsTabOnly(t *testing.T) {
+	m, env, _ := makeWorld(t)
+	env.addBlock("term-r", "t3", "ws1", TermView)
+	env.addPanel("p3", "t3", "ws1", molten.BrowserPanelTab{Id: "other-tab", Url: "https://x.example/"})
+	sa := hello(t, m, "proc:a", "tok-a", "claude-code")
+	sr := hello(t, m, "proc:r", "tok-r", "claude-code")
+	for _, tc := range []struct {
+		panel string
+		want  string
+		block string
+	}{
+		{"p1", sa, "term-a"},
+		{"p3", sr, "term-r"},
+	} {
+		res, err := m.ListSessions(context.Background(), "tab:t1", ListRequest{BlockId: tc.panel})
+		if err != nil {
+			t.Fatalf("list %s: %v", tc.panel, err)
+		}
+		if len(res.Sessions) != 1 || res.Sessions[0].SessionId != tc.want || res.Sessions[0].BlockId != tc.block {
+			t.Fatalf("panel %s lists only its tab's agent: %+v", tc.panel, res)
+		}
+	}
+}
+
 func TestShareAddsTheTabToTheSessionsScope(t *testing.T) {
 	m, env, sink := makeWorld(t)
 	sa := hello(t, m, "proc:a", "tok-a", "Claude Code")
@@ -94,6 +119,8 @@ func TestShareRefusals(t *testing.T) {
 	m, env, _ := makeWorld(t)
 	sa := hello(t, m, "proc:a", "tok-a", "a")
 	sc := hello(t, m, "proc:c", "tok-c", "c")
+	env.addBlock("term-r", "t3", "ws1", TermView)
+	sr := hello(t, m, "proc:r", "tok-r", "r")
 	env.addPanel("p2", "t1", "ws1", molten.BrowserPanelTab{Id: "handed", Url: "https://x.example/", Engine: "chrome"})
 	for _, tc := range []struct {
 		name   string
@@ -103,6 +130,7 @@ func TestShareRefusals(t *testing.T) {
 	}{
 		{"from a terminal", "proc:a", ShareRequest{BlockId: "p1", BrowserTabId: "user-tab", SessionId: sa}, errShareNotUi},
 		{"another workspace", "tab:t1", ShareRequest{BlockId: "p1", BrowserTabId: "user-tab", SessionId: sc}, errShareElsewhere},
+		{"another tab of the workspace", "tab:t1", ShareRequest{BlockId: "p1", BrowserTabId: "user-tab", SessionId: sr}, errShareOtherTab},
 		{"handed off", "tab:t1", ShareRequest{BlockId: "p2", BrowserTabId: "handed", SessionId: sa}, errShareOtherEngine},
 		{"no such tab", "tab:t1", ShareRequest{BlockId: "p1", BrowserTabId: "nope", SessionId: sa}, errShareTabGone},
 		{"no such panel", "tab:t1", ShareRequest{BlockId: "nope", BrowserTabId: "user-tab", SessionId: sa}, errSharePanelUnknown},
@@ -115,6 +143,9 @@ func TestShareRefusals(t *testing.T) {
 	}
 	if ids := listedIds(t, call(m, "proc:c", sc, mcpbrowser.ToolTabsContext, `{}`)); len(ids) != 0 {
 		t.Fatalf("a refused share adds nothing: %v", ids)
+	}
+	if ids := listedIds(t, call(m, "proc:r", sr, mcpbrowser.ToolTabsContext, `{}`)); len(ids) != 0 {
+		t.Fatalf("a share refused to another tab's agent adds nothing: %v", ids)
 	}
 }
 

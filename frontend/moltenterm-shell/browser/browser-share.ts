@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Share with agent (FR-BRW-011, DS-BRW-017): a tab the user opened can be given to one of the agents running in the
-// workspace's panes. The agents are the workspace's agent states (the companion's and the command panel's source),
-// joined with the agents connected to MoltenTerm's browser server (wavesrv's sessions). Sharing, moving and the Share
-// and tell line all happen in wavesrv (pkg/molten/browseragent/share.go); these rules only build the menu.
+// panes of the browser panel's own tab (#594). The agents are the tab's agent states (the companion's and the command
+// panel's source), joined with the agents connected to MoltenTerm's browser server (wavesrv's sessions). Sharing,
+// moving and the Share and tell line all happen in wavesrv (pkg/molten/browseragent/share.go); these rules only build
+// the menu.
 
 import type { AgentStateInfo } from "../agent-state-model";
 import { agentName, AgentSession, AgentTab, OriginShared } from "./browser-agent";
@@ -28,7 +29,7 @@ export type ShareActions = {
     openAgentSettings: () => void;
 };
 
-export const NoAgentReason = "No agent is running in this workspace";
+export const NoAgentReason = "No agent is running in this tab";
 export const ShareLabel = "Share with agent";
 export const ShareTellLabel = "Share and tell";
 
@@ -38,6 +39,13 @@ export function setupReason(agent: string): string {
 
 export function isSharedTab(tab: AgentTab): boolean {
     return tab?.origin === OriginShared;
+}
+
+// Only the agents beside the browser panel, in the panes of its tab, are offered the page (#594): an agent of another
+// tab is out of sight. Used for the agent states and the browser sessions alike; wavesrv refuses the rest anyway.
+export function ofTab<T extends { blockid?: string }>(items: T[], tabBlockIds: string[]): T[] {
+    const inTab = new Set(tabBlockIds ?? []);
+    return (items ?? []).filter((item) => item?.blockid != null && inTab.has(item.blockid));
 }
 
 // The agents of the workspace: one per pane running an agent, then the connected panes MoltenTerm detected no agent

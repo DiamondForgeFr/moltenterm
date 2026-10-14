@@ -15,7 +15,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 )
 
-// Sharing a tab the user opened with an agent of the workspace (FR-BRW-011, DS-BRW-017). Only a MoltenTerm window can
+// Sharing a tab the user opened with an agent in the same workspace tab (FR-BRW-011, DS-BRW-017). Only a MoltenTerm window can
 // share, move or tell: an agent can never give itself a tab. A shared tab joins the session's scope and nothing else;
 // site permissions still apply (ensureSite) and JavaScript is never implied.
 
@@ -33,18 +33,19 @@ const (
 	errShareOtherEngine  = "This page is open in another browser: open it in MoltenTerm to share it"
 	errShareSessionGone  = "This agent's browser session has ended"
 	errShareElsewhere    = "This agent runs in another workspace"
+	errShareOtherTab     = "This agent runs in another tab: share the page from a browser panel in its tab"
 	errShareNotShared    = "This tab is not shared with an agent"
 	errShareNoPage       = "Open a page in this tab first"
 	errShareTooManyTabs  = "This agent already holds too many tabs"
 	errSharePanelUnknown = "MoltenTerm could not read the browser panel"
 )
 
-// ListRequest names the panel whose workspace's agents are listed.
+// ListRequest names the panel whose tab's agents are listed.
 type ListRequest struct {
 	BlockId string `json:"blockid"`
 }
 
-// SessionEntry is one agent connected to MoltenTerm's browser in a pane of the workspace. Must match
+// SessionEntry is one agent connected to MoltenTerm's browser in a pane of the panel's tab. Must match
 // frontend/moltenterm-shell/browser/browser-share.ts.
 type SessionEntry struct {
 	SessionId string `json:"sessionid"`
@@ -98,14 +99,30 @@ func (m *Manager) sessionRefs() []sessionRef {
 	return rtn
 }
 
-// inWorkspace: the session's pane is a local terminal in the workspace now.
-func (m *Manager) inWorkspace(ctx context.Context, blockId string, workspaceId string) bool {
+// paneOf: where the session's pane is now, when it is a local terminal.
+func (m *Manager) paneOf(ctx context.Context, blockId string) (BlockLocation, bool) {
 	loc, err := m.env.LocateBlock(ctx, blockId)
-	return err == nil && loc.View == TermView && loc.Local && loc.WorkspaceId == workspaceId
+	if err != nil || loc.View != TermView || !loc.Local {
+		return BlockLocation{}, false
+	}
+	return loc, true
 }
 
-// ListSessions lists the agents of the panel's workspace connected to MoltenTerm's browser, the newest session per
-// pane (an agent restarted without a bye leaves an older one until its route goes).
+// shareRefusal: why the session's pane cannot take a tab of the panel, "" when it can. Only an agent beside the panel,
+// in the same tab, is offered the page (#594): the user cannot see an agent of another tab next to it.
+func (m *Manager) shareRefusal(ctx context.Context, blockId string, panel Panel) string {
+	loc, ok := m.paneOf(ctx, blockId)
+	if !ok || loc.WorkspaceId != panel.WorkspaceId {
+		return errShareElsewhere
+	}
+	if loc.TabId != panel.TabId {
+		return errShareOtherTab
+	}
+	return ""
+}
+
+// ListSessions lists the agents of the panel's tab connected to MoltenTerm's browser, the newest session per pane (an
+// agent restarted without a bye leaves an older one until its route goes).
 func (m *Manager) ListSessions(ctx context.Context, source string, req ListRequest) (ListResult, error) {
 	if !isUiSource(source) {
 		return ListResult{}, errors.New(errShareNotUi)
@@ -123,7 +140,7 @@ func (m *Manager) ListSessions(ctx context.Context, source string, req ListReque
 	}
 	rtn := ListResult{Sessions: []SessionEntry{}}
 	for blockId, ref := range newest {
-		if !m.inWorkspace(ctx, blockId, panel.WorkspaceId) {
+		if m.shareRefusal(ctx, blockId, panel) != "" {
 			continue
 		}
 		rtn.Sessions = append(rtn.Sessions, SessionEntry{SessionId: ref.id, BlockId: blockId, AgentName: ref.agentName})
@@ -153,8 +170,8 @@ func (m *Manager) Share(ctx context.Context, source string, req ShareRequest) (S
 	if !ok {
 		return ShareResult{}, errors.New(errShareSessionGone)
 	}
-	if !m.inWorkspace(ctx, s.blockId, panel.WorkspaceId) {
-		return ShareResult{}, errors.New(errShareElsewhere)
+	if refusal := m.shareRefusal(ctx, s.blockId, panel); refusal != "" {
+		return ShareResult{}, errors.New(refusal)
 	}
 	key := TabKey{PanelId: req.BlockId, BrowserTabId: req.BrowserTabId}
 	outcome := m.shareTab(s.id, key, req.Move)

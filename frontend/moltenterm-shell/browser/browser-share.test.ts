@@ -7,6 +7,7 @@ import { AgentTab, controlBarView } from "./browser-agent";
 import {
     moveQuestion,
     NoAgentReason,
+    ofTab,
     ShareActions,
     ShareAgent,
     shareAgents,
@@ -141,5 +142,44 @@ describe("share with agent (FR-BRW-011)", () => {
             "---",
             "Share with agent",
         ]);
+    });
+});
+
+describe("share with agent: the panel's tab only (#594)", () => {
+    const states = [
+        state("term-a", "claude", "Claude Code", "idle"),
+        { ...state("term-o", "claude", "Claude Code", "idle"), tabid: "tab-2" },
+    ];
+    const sessions = [
+        { sessionid: "s-a", blockid: "term-a", agentname: "Claude Code" },
+        { sessionid: "s-o", blockid: "term-o", agentname: "Claude Code" },
+    ];
+
+    it("keeps only the agent states and the sessions of the panes in the panel's tab", () => {
+        const tabBlocks = ["web-1", "term-a", "term-b"];
+        expect(ofTab(states, tabBlocks).map((s) => s.blockid)).toEqual(["term-a"]);
+        expect(ofTab(sessions, tabBlocks).map((s) => s.sessionid)).toEqual(["s-a"]);
+        const list = shareAgents(ofTab(states, tabBlocks), ofTab(sessions, tabBlocks), paneTitle);
+        expect(list.map((a) => [a.blockId, a.sessionId])).toEqual([["term-a", "s-a"]]);
+    });
+
+    it("lists each tab's own agent from each panel (AC1)", () => {
+        expect(ofTab(sessions, ["web-2", "term-o"]).map((s) => s.sessionid)).toEqual(["s-o"]);
+    });
+
+    it("leaves the entry disabled with the tab's no-agent reason when only another tab has agents", () => {
+        const { actions } = recorder();
+        const list = shareAgents(ofTab(states, ["web-1"]), ofTab(sessions, ["web-1"]), paneTitle);
+        expect(list).toEqual([]);
+        expect(shareMenuItems(tab, null, list, "", actions)).toEqual([
+            { label: "Share with agent", icon: "share-nodes", enabled: false, sublabel: NoAgentReason },
+        ]);
+        expect(NoAgentReason).toBe("No agent is running in this tab");
+    });
+
+    it("keeps nothing without the tab's panes or entries without a pane", () => {
+        expect(ofTab(states, null)).toEqual([]);
+        expect(ofTab(null, ["term-a"])).toEqual([]);
+        expect(ofTab([{ sessionid: "s-z", blockid: "", agentname: "x" }], ["term-a"])).toEqual([]);
     });
 });
