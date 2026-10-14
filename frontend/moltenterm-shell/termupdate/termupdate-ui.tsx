@@ -11,6 +11,7 @@ import { useAtomValue } from "jotai";
 import { useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { useProposalRequest } from "../header/header-proposals";
+import { t as translate, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { TermUpdateOutcome } from "./termupdate-model";
 import { TermUpdates } from "./termupdate-store";
@@ -40,7 +41,7 @@ export function TermUpdateHost({ blockId }: { blockId: string }) {
             try {
                 finish(await store.run(blockId, confirmed));
             } catch (e) {
-                finish({ status: "failed", message: `The terminal could not be updated: ${String(e)}` });
+                finish({ status: "failed", message: translate("termupdate.failedUpdate", { error: String(e) }) });
             } finally {
                 setPending(false);
             }
@@ -52,7 +53,7 @@ export function TermUpdateHost({ blockId }: { blockId: string }) {
             try {
                 outcome = await store.check(blockId);
             } catch (e) {
-                outcome = { status: "failed", message: `The terminal could not be checked: ${String(e)}` };
+                outcome = { status: "failed", message: translate("termupdate.failedCheck", { error: String(e) }) };
             }
             setPending(false);
             if (outcome.status === "ready") {
@@ -90,20 +91,21 @@ function TermUpdateDialog({
     onConfirm: () => void;
     onClose: () => void;
 }) {
+    const t = useT();
     useEscape(!pending, onClose);
     const { outcome } = state;
-    const name = outcome.agentname || outcome.agent || "the agent";
+    const name = outcome.agentname || outcome.agent || t("termupdate.theAgent");
     if (state.kind === "confirm") {
         return (
             <DialogFrame
                 role="molten-termupdate-dialog"
-                title={`Restart ${name}?`}
-                subtitle="It was started before MoltenTerm's update, without its browser and hooks."
+                title={t("termupdate.dialog.title", { agent: name })}
+                subtitle={t("termupdate.dialog.subtitle")}
                 trapFocus
                 buttons={
                     <>
                         <button type="button" className={PlainButton} onClick={onClose} disabled={pending}>
-                            Cancel
+                            {t("common.cancel")}
                         </button>
                         <button
                             type="button"
@@ -113,29 +115,23 @@ function TermUpdateDialog({
                             autoFocus
                         >
                             {pending ? <i className="fa fa-solid fa-spinner fa-spin mr-1.5" /> : null}
-                            Restart {name}
+                            {t("termupdate.dialog.restart", { agent: name })}
                             <MoltenWave />
                         </button>
                     </>
                 }
             >
-                <p className="text-secondary">
-                    MoltenTerm types {name}'s exit command, waits for it to exit, starts a fresh shell in the same
-                    folder and starts {name} again on the same conversation, with MoltenTerm's integration.
-                </p>
-                <p className="text-muted">
-                    Before that, Escape answers No to a question {name} may be asking and an unsent draft in its input
-                    is cleared. Nothing is killed: if {name} does not exit, it keeps running.
-                </p>
+                <p className="text-secondary">{t("termupdate.dialog.body", { agent: name })}</p>
+                <p className="text-muted">{t("termupdate.dialog.note", { agent: name })}</p>
             </DialogFrame>
         );
     }
     const title =
         outcome.status === "updated"
-            ? "Terminal updated"
+            ? t("termupdate.result.updated")
             : outcome.status === "busy" || outcome.status === "agentbusy"
-              ? "Not now"
-              : "Terminal not updated";
+              ? t("termupdate.result.notNow")
+              : t("termupdate.result.notUpdated");
     return (
         <DialogFrame
             role="molten-termupdate-dialog"
@@ -143,7 +139,7 @@ function TermUpdateDialog({
             onBackdrop={onClose}
             buttons={
                 <button type="button" className={PlainButton} onClick={onClose} autoFocus>
-                    Close
+                    {t("common.close")}
                 </button>
             }
         >

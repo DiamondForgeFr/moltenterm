@@ -5,6 +5,7 @@
 // the components so the rules can be tested without the app.
 
 import type { GoldManifest, GoldNote } from "@/util/moltenterm-gold";
+import { t } from "../i18n/i18n";
 
 // Client meta keys, shared by every window: the build the user put off, and the build already announced.
 export const UpdateSkippedMetaKey = "molten:update:skipped";
@@ -39,7 +40,7 @@ export function shouldOffer(manifest: GoldManifest, skipped: number): boolean {
 }
 
 export function updateLabel(manifest: GoldManifest): string {
-    return `${manifest.commit?.slice(0, 7) ?? "?"} · build ${manifest.buildId}`;
+    return t("update.label", { commit: manifest.commit?.slice(0, 7) ?? "?", build: manifest.buildId });
 }
 
 export type RunningTerminal = { workspace: string; tab: string; command: string };
@@ -55,33 +56,35 @@ export function summarizeTerminals(sources: readonly TerminalSource[]): Terminal
         kept: sources.filter((s) => s.durable).length,
         running: sources
             .filter((s) => !s.durable && s.shellState === "running-command")
-            .map((s) => ({ workspace: s.workspace, tab: s.tab, command: s.lastCommand || "a command" })),
+            .map((s) => ({ workspace: s.workspace, tab: s.tab, command: s.lastCommand || t("update.aCommand") })),
     };
 }
 
 function terminals(n: number): string {
-    return n === 1 ? "1 terminal" : `${n} terminals`;
+    return n === 1 ? t("update.terminals.one") : t("update.terminals.other", { count: n });
 }
 
 export function restartWarning(summary: TerminalSummary): string {
     if (summary == null || summary.total === 0) {
-        return "No terminal is open.";
+        return t("update.restart.noTerminal");
     }
     const kept = summary.kept ?? 0;
     const closed = summary.total - kept;
-    const keptText = kept > 0 ? `${terminals(kept)} keep running and reattach after the restart` : "";
+    const keptText = kept > 0 ? t("update.restart.kept", { terminals: terminals(kept) }) : "";
     if (closed === 0) {
-        return `Your ${keptText}.`;
+        return t("update.restart.allKept", { kept: keptText });
     }
     const prefix = keptText
-        ? `${keptText[0].toUpperCase()}${keptText.slice(1)}; restarting closes `
-        : "Restarting closes ";
+        ? t("update.restart.keptThenCloses", { kept: `${keptText[0].toUpperCase()}${keptText.slice(1)}` })
+        : t("update.restart.closes");
     if (summary.running.length === 0) {
-        return `${prefix}${terminals(closed)}, none running a command.`;
+        return t("update.restart.noneRunning", { prefix, closed: terminals(closed) });
     }
     const running =
-        summary.running.length === 1 ? "1 is running a command" : `${summary.running.length} are running a command`;
-    return `${prefix}${terminals(closed)}, and ${running}:`;
+        summary.running.length === 1
+            ? t("update.restart.runningOne")
+            : t("update.restart.runningOther", { count: summary.running.length });
+    return t("update.restart.running", { prefix, closed: terminals(closed), running });
 }
 
 // At launch: an update was installed when this build is newer than the last one that ran (never on a first run).

@@ -6,10 +6,12 @@
 // commit, and only a release candidate or a public release shows its version number in the badge.
 
 import { MoltentermWaveBaseVersion } from "@/util/moltenterm-identity";
+import { t } from "../i18n/i18n";
 import type { MoltentermBuildInfo } from "./build-info";
 
 export type BuildChannel = "dev" | "local" | "gold" | "rc" | "public";
 
+// The channels (the keys are compared); their labels are build.channels.<channel>, translated where shown.
 export const BuildChannelLabels: Record<BuildChannel, string> = {
     dev: "dev",
     local: "local build",
@@ -17,6 +19,10 @@ export const BuildChannelLabels: Record<BuildChannel, string> = {
     rc: "release candidate",
     public: "release",
 };
+
+export function buildChannelLabel(channel: BuildChannel): string {
+    return t(`build.channels.${channel}`);
+}
 
 export type BuildIdentity = {
     channel: BuildChannel;
@@ -42,15 +48,17 @@ export function isReleaseChannel(channel: BuildChannel): boolean {
 function changesLine(build: MoltentermBuildInfo): string {
     const count = build?.changesSinceRelease ?? -1;
     if (!build?.releaseTag) {
-        return count >= 0 || build?.commit ? "no release yet" : "";
+        return count >= 0 || build?.commit ? t("build.noReleaseYet") : "";
     }
     if (count < 0) {
-        return `after ${build.releaseTag}`;
+        return t("build.after", { tag: build.releaseTag });
     }
     if (count === 0) {
-        return `exactly ${build.releaseTag}`;
+        return t("build.exactly", { tag: build.releaseTag });
     }
-    return `${count} change${count === 1 ? "" : "s"} since ${build.releaseTag}`;
+    return count === 1
+        ? t("build.changesSinceOne", { tag: build.releaseTag })
+        : t("build.changesSinceOther", { count, tag: build.releaseTag });
 }
 
 // The dev server wins, then a channel the launcher set (Mission Control marks a gold copy), then the build's own.
@@ -61,14 +69,19 @@ export function makeBuildIdentity(
 ): BuildIdentity {
     const channel: BuildChannel = opts.isDev ? "dev" : asBuildChannel(opts.runtimeChannel || build?.channel || "local");
     const version = opts.version || build?.version || "";
-    const channelLabel = BuildChannelLabels[channel];
-    const buildLine = [channelLabel, build?.buildId ? `build ${build.buildId}` : "", changesLine(build)]
+    const channelLabel = buildChannelLabel(channel);
+    const buildLine = [channelLabel, build?.buildId ? t("build.buildId", { id: build.buildId }) : "", changesLine(build)]
         .filter((s) => s)
         .join(" · ");
     let commitLine = "";
     if (build?.commit) {
-        const branch = build.branch ? ` on ${build.branch}` : "";
-        commitLine = `commit ${build.shortCommit || build.commit.slice(0, 7)}${branch}${build.dirty ? " (uncommitted changes)" : ""}`;
+        const commit = build.shortCommit || build.commit.slice(0, 7);
+        commitLine = build.branch
+            ? t("build.commitOnBranch", { commit, branch: build.branch })
+            : t("build.commit", { commit });
+        if (build.dirty) {
+            commitLine = t("build.dirty", { line: commitLine });
+        }
     }
     return {
         channel,

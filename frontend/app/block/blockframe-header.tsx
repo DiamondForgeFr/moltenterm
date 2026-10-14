@@ -34,8 +34,8 @@ import {
 import { useT } from "../../moltenterm-shell/i18n/i18n"; // MOLTENTERM-PATCH (#623)
 import { formatShortcutById } from "../../moltenterm-shell/shortcuts/format"; // MOLTENTERM-PATCH (#371)
 import { splitPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
-import { SplitDownLabel, SplitRightLabel } from "../../moltenterm-shell/split/split-menu"; // MOLTENTERM-PATCH (#370)
 import { PinHeaderButton } from "../../moltenterm-shell/view360/view360-pin"; // MOLTENTERM-PATCH (#616)
+import { splitDownLabel, splitRightLabel } from "../../moltenterm-shell/split/split-menu"; // MOLTENTERM-PATCH (#370, #623)
 import { BlockEnv } from "./blockenv";
 import { BlockFrameProps } from "./blocktypes";
 
@@ -131,7 +131,7 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
         const splitHorizontalDecl: IconButtonDecl = {
             elemtype: "iconbutton",
             icon: "columns",
-            title: `${SplitRightLabel} (${formatShortcutById("split-right")})`,
+            title: `${splitRightLabel()} (${formatShortcutById("split-right")})`,
             click: (e) => {
                 e.stopPropagation();
                 util.fireAndForget(() => splitPanel(blockId, "right"));
@@ -140,7 +140,7 @@ const HeaderEndIcons = React.memo(({ viewModel, nodeModel, blockId, termHeader }
         const splitVerticalDecl: IconButtonDecl = {
             elemtype: "iconbutton",
             icon: "grip-lines",
-            title: `${SplitDownLabel} (${formatShortcutById("split-down")})`,
+            title: `${splitDownLabel()} (${formatShortcutById("split-down")})`,
             click: (e) => {
                 e.stopPropagation();
                 util.fireAndForget(() => splitPanel(blockId, "down"));

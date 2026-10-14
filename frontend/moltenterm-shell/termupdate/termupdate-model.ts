@@ -4,6 +4,8 @@
 // Outdated terminals (FR-SHELL-041, DS-SHELL-076): what wavesrv's terminal update route answers and the words the
 // header chip, its dialog and the palette use. Pure functions, tested without the app.
 
+import { t } from "../i18n/i18n";
+
 // must match pkg/molten/termupdate/termupdate.go
 export const TermUpdateRoute = "molten:termupdate";
 export const TermUpdateEvent = "molten:termupdate";
@@ -63,25 +65,23 @@ export function outdatedOfBlock(data: OutdatedData, blockId: string): OutdatedTe
 }
 
 // The chip's hover: why this terminal is behind, and what the action does.
-export function outdatedTitle(t: OutdatedTerminal): string {
-    if (t == null) {
+export function outdatedTitle(term: OutdatedTerminal): string {
+    if (term == null) {
         return "";
     }
-    const name = t.agentname || t.agent;
+    const name = term.agentname || term.agent;
     const lines: string[] = [];
     if (name) {
-        lines.push(`Started before the update: ${name} runs without MoltenTerm's browser and hooks.`);
-    } else if (t.reason === "nogeneration") {
-        lines.push(
-            "This shell was started by an older MoltenTerm: agents started here miss MoltenTerm's browser and hooks."
-        );
+        lines.push(t("termupdate.title.agentStarted", { agent: name }));
+    } else if (term.reason === "nogeneration") {
+        lines.push(t("termupdate.title.olderShell"));
     } else {
-        lines.push("This shell still has an older MoltenTerm environment.");
+        lines.push(t("termupdate.title.olderEnv"));
     }
     if (name) {
-        lines.push(`Update terminal restarts ${name} in a fresh shell, on the same conversation.`);
+        lines.push(t("termupdate.title.agentAction", { agent: name }));
     } else {
-        lines.push("Update terminal replaces the shell in the same folder; the scrollback stays.");
+        lines.push(t("termupdate.title.shellAction"));
     }
     return lines.join("\n");
 }
@@ -91,9 +91,7 @@ export function updateAllDetail(count: number): string {
     if (count <= 0) {
         return "";
     }
-    return count === 1
-        ? "1 terminal started before MoltenTerm's update"
-        : `${count} terminals started before MoltenTerm's update`;
+    return count === 1 ? t("termupdate.detail.one") : t("termupdate.detail.other", { count });
 }
 
 // The palette's summary once it ran: what was updated, what was left and why.
@@ -105,14 +103,23 @@ export function updateAllSummary(results: { blockid: string; outcome: TermUpdate
     const updated = results.filter((r) => r.outcome?.status === "updated").length;
     const left = results.filter((r) => r.outcome?.status !== "updated" && r.outcome?.status !== "uptodate");
     const title =
-        updated === 1 ? "1 terminal updated" : updated > 1 ? `${updated} terminals updated` : "No terminal updated";
+        updated === 1
+            ? t("termupdate.summary.updatedOne")
+            : updated > 1
+              ? t("termupdate.summary.updatedOther", { count: updated })
+              : t("termupdate.summary.updatedNone");
     if (left.length === 0) {
         return { title, message: "", kind: "success" };
     }
     // Terminals left for the same reason (several running Claude Code) make one sentence.
-    const reasons = Array.from(new Set(left.map((r) => r.outcome?.message || "it could not be updated")));
-    const lead = left.length === 1 ? "1 terminal was left as it is" : `${left.length} terminals were left as they are`;
-    return { title, message: `${lead}: ${reasons.join(" ")}`, kind: "warning" };
+    const reasons = Array.from(new Set(left.map((r) => r.outcome?.message || t("termupdate.summary.couldNotUpdate"))));
+    const lead =
+        left.length === 1 ? t("termupdate.summary.leftOne") : t("termupdate.summary.leftOther", { count: left.length });
+    return {
+        title,
+        message: t("termupdate.summary.leftMessage", { lead, reasons: reasons.join(" ") }),
+        kind: "warning",
+    };
 }
 
 // Terminals the palette updates without asking: those with no agent (an agent needs its own confirmation).

@@ -15,6 +15,7 @@ import { deleteLayoutModelForTab, getLayoutModelForStaticTab, LayoutTreeActionTy
 import { goHistory } from "@/util/historyutil";
 import { atom, PrimitiveAtom } from "jotai";
 import type { DragEvent } from "react";
+import { t } from "../i18n/i18n";
 import { DurableSessions } from "../sessions/sessions-store";
 import { DragItem, DropAction, DropTarget, halfSizes, SessionDragType, tabDraggedOut } from "./drop-model";
 import { DropSession, DropState } from "./drop-session";
@@ -205,7 +206,7 @@ function tabName(tabId: string): string {
     if (shown) {
         return shown;
     }
-    return globalStore.get(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", tabId)))?.name ?? "Tab";
+    return globalStore.get(WOS.getWaveObjectAtom<Tab>(WOS.makeORef("tab", tabId)))?.name ?? t("split.tab");
 }
 
 // The tab drag of the tab bar, per mouse move. Below the strip, the tab is dragged onto the panels: true then, and

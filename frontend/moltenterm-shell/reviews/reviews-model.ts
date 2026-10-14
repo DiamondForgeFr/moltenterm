@@ -4,6 +4,7 @@
 // The Reviews view's data (FR-REV-001, DS-REV-001): wavesrv derives the list from Mission Control's collector
 // (pkg/molten/mission/reviews.go); this side only words it. The pure helpers live here so they can be tested.
 
+import { t } from "../i18n/i18n";
 import { CheckState } from "../mission/github";
 
 export const MoltentermReviewsView = "molten-reviews";
@@ -74,46 +75,46 @@ export type Tone = "success" | "failure" | "pending" | "neutral";
 export function mergeLabel(merge: ReviewMerge, base: string): { label: string; tone: Tone; title: string } {
     switch (merge) {
         case "clean":
-            return { label: "clean", tone: "success", title: "Can be rebased and merged as it is." };
+            return { label: t("reviews.merge.clean"), tone: "success", title: t("reviews.merge.cleanTitle") };
         case "behind":
             return {
-                label: "behind: will be rebased",
+                label: t("reviews.merge.behind"),
                 tone: "pending",
-                title: `Behind ${base}: it is rebased on ${base} at the merge.`,
+                title: t("reviews.merge.behindTitle", { base }),
             };
         case "conflicts":
             return {
-                label: "conflicts",
+                label: t("reviews.merge.conflicts"),
                 tone: "failure",
-                title: `Conflicts with ${base}: the branch needs a rebase before it can be merged.`,
+                title: t("reviews.merge.conflictsTitle", { base }),
             };
         case "blocked":
             return {
-                label: "blocked",
+                label: t("reviews.merge.blocked"),
                 tone: "failure",
-                title: "GitHub blocks the merge: a required check or review is missing.",
+                title: t("reviews.merge.blockedTitle"),
             };
         case "failing":
-            return { label: "checks failing", tone: "failure", title: "Mergeable, but some checks fail." };
+            return { label: t("reviews.merge.failing"), tone: "failure", title: t("reviews.merge.failingTitle") };
     }
-    return { label: "merge state pending", tone: "neutral", title: "GitHub is still computing the merge state." };
+    return { label: t("reviews.merge.pending"), tone: "neutral", title: t("reviews.merge.pendingTitle") };
 }
 
 export function ciLabel(ci: ReviewCi): { label: string; tone: Tone; title: string } {
     const checks = ci?.checks ?? [];
-    const title = checks.map((c) => `${c.name}: ${c.state}`).join("\n") || "No check reported on this pull request.";
+    const title = checks.map((c) => `${c.name}: ${c.state}`).join("\n") || t("reviews.ci.noneTitle");
     if (checks.length === 0) {
-        return { label: "no checks", tone: "neutral", title };
+        return { label: t("reviews.ci.none"), tone: "neutral", title };
     }
     const parts: string[] = [];
     if (ci.failure > 0) {
-        parts.push(`${ci.failure} failing`);
+        parts.push(t("reviews.ci.failing", { count: ci.failure }));
     }
     if (ci.pending > 0) {
-        parts.push(`${ci.pending} running`);
+        parts.push(t("reviews.ci.running", { count: ci.pending }));
     }
     if (ci.success > 0) {
-        parts.push(`${ci.success} passed`);
+        parts.push(t("reviews.ci.passed", { count: ci.success }));
     }
     const tone: Tone =
         ci.state === "failure"
@@ -123,25 +124,31 @@ export function ciLabel(ci: ReviewCi): { label: string; tone: Tone; title: strin
               : ci.state === "success"
                 ? "success"
                 : "neutral";
-    return { label: `CI ${parts.join(", ") || `${checks.length} skipped`}`, tone, title };
+    return {
+        label: t("reviews.ci.label", {
+            parts: parts.join(", ") || t("reviews.ci.skipped", { count: checks.length }),
+        }),
+        tone,
+        title,
+    };
 }
 
 export function reportLabel(report: ReviewReport): { label: string; tone: Tone; title: string } {
     switch (report?.state) {
         case "present":
             return {
-                label: "test report",
+                label: t("reviews.report.present"),
                 tone: "success",
-                title: `Test report posted on the ${report.where === "ticket" ? "ticket" : "pull request"}: open it`,
+                title: report.where === "ticket" ? t("reviews.report.onTicket") : t("reviews.report.onPr"),
             };
         case "missing":
             return {
-                label: "no test report",
+                label: t("reviews.report.missing"),
                 tone: "pending",
-                title: "No test report on the pull request or its ticket yet.",
+                title: t("reviews.report.missingTitle"),
             };
     }
-    return { label: "test report…", tone: "neutral", title: "The test report is being looked for." };
+    return { label: t("reviews.report.looking"), tone: "neutral", title: t("reviews.report.lookingTitle") };
 }
 
 // The row's main line: the ticket and its title when the PR names one, else the PR's own title.
@@ -155,14 +162,18 @@ export function reviewHeadline(pr: ReviewPr): { ticket: string; title: string } 
 export function reviewAriaLabel(pr: ReviewPr): string {
     const head = reviewHeadline(pr);
     const parts = [
-        head.ticket ? `Ticket ${head.ticket}: ${head.title}` : head.title,
-        `pull request #${pr.number}`,
+        head.ticket ? t("reviews.aria.ticket", { ticket: head.ticket, title: head.title }) : head.title,
+        t("reviews.aria.pr", { number: pr.number }),
         ciLabel(pr.ci).label,
         reportLabel(pr.report).label,
         mergeLabel(pr.merge, pr.base).label,
     ];
     if (pr.unpublished > 0) {
-        parts.push(`${pr.unpublished} unpublished comment${pr.unpublished > 1 ? "s" : ""}`);
+        parts.push(
+            pr.unpublished > 1
+                ? t("reviews.aria.unpublished", { count: pr.unpublished })
+                : t("reviews.aria.unpublishedOne")
+        );
     }
     return parts.join(", ");
 }
@@ -173,28 +184,20 @@ export type ReviewsEmpty = { icon: string; title: string; hint: string; details?
 export function reviewsEmptyState(answer: ReviewsAnswer): ReviewsEmpty {
     switch (answer?.state) {
         case "nogh":
-            return {
-                icon: "terminal",
-                title: "GitHub CLI (gh) is not installed",
-                hint: "Reviews reads your pull requests through your own gh: install it (cli.github.com), run gh auth login, then refresh.",
-            };
+            return { icon: "terminal", title: t("reviews.empty.noghTitle"), hint: t("reviews.empty.noghHint") };
         case "loggedout":
             return {
                 icon: "right-to-bracket",
-                title: "gh is logged out",
-                hint: "Run gh auth login in a terminal, then refresh. MoltenTerm never asks for a token.",
+                title: t("reviews.empty.loggedoutTitle"),
+                hint: t("reviews.empty.loggedoutHint"),
             };
         case "norepo":
-            return {
-                icon: "code-branch",
-                title: "This project has no GitHub remote",
-                hint: "Reviews lists the pull requests of the project's GitHub repository: add its remote, or link the workspace to another folder.",
-            };
+            return { icon: "code-branch", title: t("reviews.empty.norepoTitle"), hint: t("reviews.empty.norepoHint") };
         case "error":
             return {
                 icon: "triangle-exclamation",
-                title: "GitHub could not be read",
-                hint: "gh could not answer. Try again in a moment.",
+                title: t("reviews.empty.errorTitle"),
+                hint: t("reviews.empty.errorHint"),
                 details: answer.message,
             };
     }

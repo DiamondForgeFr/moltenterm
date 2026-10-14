@@ -13,6 +13,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "../empty-state";
+import { I18nModel, t as translate, useLocale, useT } from "../i18n/i18n";
 import { CiIcon, CiIconState } from "../mission/ci-icon";
 import { ActiveProject, MissionFrame, MissionHeader } from "../mission/mission-frame";
 import { MissionSnapshot } from "../mission/mission-model";
@@ -61,7 +62,10 @@ export class ReviewsViewModel implements ViewModel {
     blockId: string;
     nodeModel: BlockNodeModel;
     viewIcon = atom("code-pull-request");
-    viewName = atom("Reviews");
+    viewName = atom((get) => {
+        get(I18nModel.getInstance().localeAtom);
+        return translate("reviews.viewName");
+    });
     noPadding = atom(true);
 
     constructor({ blockId, nodeModel }: ViewModelInitType) {
@@ -75,14 +79,16 @@ export class ReviewsViewModel implements ViewModel {
 }
 
 function ReviewsView() {
+    const t = useT();
     return (
-        <MissionFrame title="Reviews">
+        <MissionFrame title={t("reviews.viewName")}>
             {({ project, snapshot }) => <ReviewsContent project={project} snapshot={snapshot} />}
         </MissionFrame>
     );
 }
 
 function ReviewsContent({ project, snapshot }: { project: ActiveProject; snapshot: MissionSnapshot }) {
+    const t = useT();
     const { answer, error, refresh } = useReviews(project.dir, snapshot);
     const headerSnapshot = useMemo(
         () => (snapshot == null ? null : { ...snapshot, refreshing: snapshot.refreshing || answer?.refreshing }),
@@ -94,9 +100,9 @@ function ReviewsContent({ project, snapshot }: { project: ActiveProject; snapsho
                 {answer?.target ? (
                     <span
                         className="text-11 text-muted"
-                        title={`Pull requests into ${answer.target} (${answer.targetfrom})`}
+                        title={t("reviews.intoTitle", { target: answer.target, from: answer.targetfrom })}
                     >
-                        into <code>{answer.target}</code>
+                        {t("reviews.into")} <code>{answer.target}</code>
                     </span>
                 ) : null}
             </MissionHeader>
@@ -116,13 +122,14 @@ function ReviewsBody({
     error: string;
     refresh: () => void;
 }) {
+    const t = useT();
     if (answer == null && error) {
         return (
             <EmptyState
                 icon="triangle-exclamation"
-                title="Reviews could not answer"
-                hint="MoltenTerm could not read this project's pull requests. Try again in a moment."
-                primary={{ label: "Try again", onClick: refresh }}
+                title={t("reviews.failedTitle")}
+                hint={t("reviews.failedHint")}
+                primary={{ label: t("reviews.tryAgain"), onClick: refresh }}
                 details={error}
             />
         );
@@ -137,7 +144,7 @@ function ReviewsBody({
                 icon={empty.icon}
                 title={empty.title}
                 hint={empty.hint}
-                primary={{ label: "Try again", onClick: refresh }}
+                primary={{ label: t("reviews.tryAgain"), onClick: refresh }}
                 details={empty.details}
                 testId={`reviews-empty-${answer.state}`}
             />
@@ -160,6 +167,7 @@ function Loading() {
 }
 
 function ReviewsList({ dir, answer }: { dir: string; answer: ReviewsAnswer }) {
+    const t = useT();
     const model = ReviewsModel.getInstance();
     const focus = useAtomValue(model.focusAtom);
     const [draftsOpen, setDraftsOpen] = useState(false);
@@ -224,20 +232,20 @@ function ReviewsList({ dir, answer }: { dir: string; answer: ReviewsAnswer }) {
             onKeyDown={onKeyDown}
             data-role="molten-reviews"
         >
-            {answer.prserror ? <Problem text={`The pull requests could not be read: ${answer.prserror}`} /> : null}
+            {answer.prserror ? <Problem text={t("reviews.prsError", { error: answer.prserror })} /> : null}
             {answer.reportserror ? (
                 <div className="text-11 text-muted" title={answer.reportserror}>
-                    The test reports could not be read; they show as unknown.
+                    {t("reviews.reportsError")}
                 </div>
             ) : null}
-            <section className="flex flex-col gap-2" aria-label="Waiting for review">
+            <section className="flex flex-col gap-2" aria-label={t("reviews.waiting")}>
                 <h2 className="text-13 leading-5 font-semibold">
-                    Waiting for review
+                    {t("reviews.waiting")}
                     <span className="ml-2 text-12 font-normal text-muted">{answer.ready.length}</span>
                 </h2>
                 {answer.ready.length === 0 ? (
                     <p className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted">
-                        No pull request waiting for review into <code>{answer.target}</code>.
+                        {t("reviews.noneWaiting")} <code>{answer.target}</code>.
                     </p>
                 ) : (
                     <div className="overflow-hidden rounded-4 border border-border" role="list">
@@ -248,7 +256,7 @@ function ReviewsList({ dir, answer }: { dir: string; answer: ReviewsAnswer }) {
                 )}
             </section>
             {answer.drafts.length > 0 ? (
-                <section className="flex flex-col gap-2" aria-label="In testing">
+                <section className="flex flex-col gap-2" aria-label={t("reviews.inTesting")}>
                     <button
                         type="button"
                         onClick={() => setDraftsOpen(!draftsOpen)}
@@ -263,9 +271,11 @@ function ReviewsList({ dir, answer }: { dir: string; answer: ReviewsAnswer }) {
                             )}
                             aria-hidden
                         />
-                        In testing
+                        {t("reviews.inTesting")}
                         <span className="text-12 font-normal text-muted">
-                            {answer.drafts.length} draft{answer.drafts.length > 1 ? "s" : ""}
+                            {answer.drafts.length > 1
+                                ? t("reviews.drafts", { count: answer.drafts.length })
+                                : t("reviews.draftOne")}
                         </span>
                     </button>
                     {draftsOpen ? (
@@ -319,6 +329,8 @@ function ReviewRow({
     onSelect: () => void;
     onOpen: () => void;
 }) {
+    const t = useT();
+    useLocale();
     const head = reviewHeadline(pr);
     const ci = ciLabel(pr.ci);
     const report = reportLabel(pr.report);
@@ -348,7 +360,7 @@ function ReviewRow({
                 selected && "bg-hover/60",
                 marked && "ring-2 ring-accent/70 ring-inset"
             )}
-            title="Open the review"
+            title={t("reviews.openReview")}
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -358,15 +370,16 @@ function ReviewRow({
                     </div>
                     <div className="truncate text-12 text-muted">
                         PR #{pr.number} · <code>{pr.branch}</code>
-                        {pr.author ? ` · ${pr.author}` : ""} · opened {timeAgo(pr.createdat || pr.updatedat)} · updated{" "}
-                        {timeAgo(pr.updatedat)}
+                        {pr.author ? ` · ${pr.author}` : ""} ·{" "}
+                        {t("reviews.opened", { when: timeAgo(pr.createdat || pr.updatedat) })} ·{" "}
+                        {t("reviews.updated", { when: timeAgo(pr.updatedat) })}
                     </div>
                 </div>
                 <button
                     type="button"
                     onClick={openOnGithub}
                     className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
-                    title="Open the pull request on GitHub"
+                    title={t("reviews.openOnGithub")}
                 >
                     <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
                     GitHub
@@ -396,9 +409,9 @@ function ReviewRow({
                 )}
                 <ToneChip label={merge.label} tone={merge.tone} title={merge.title} testId="reviews-merge" />
                 {pr.unpublished > 0 ? (
-                    <span className={cn(Chip, ToneClasses.pending)} title="Comments written here, not published yet">
+                    <span className={cn(Chip, ToneClasses.pending)} title={t("reviews.unpublishedTitle")}>
                         <i className="fa fa-solid fa-comment text-11" />
-                        {pr.unpublished} unpublished
+                        {t("reviews.unpublished", { count: pr.unpublished })}
                     </span>
                 ) : null}
             </div>

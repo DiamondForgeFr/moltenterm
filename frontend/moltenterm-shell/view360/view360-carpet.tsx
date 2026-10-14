@@ -10,6 +10,7 @@ import { CSSProperties, memo, useEffect, useState } from "react";
 import { MoltenWave } from "../molten-button";
 import { CarpetMarginPx, Rect } from "./carpet-model";
 import { View360Radar } from "./view360-radar";
+import { useT } from "../i18n/i18n";
 import { View360Text } from "./view360-text";
 import "./view360.css";
 
@@ -24,6 +25,7 @@ function rectStyle(rect: Rect): CSSProperties {
 }
 
 export const View360Underlay = memo(({ layoutModel }: { layoutModel: LayoutModel }) => {
+    const t = useT();
     const layout = useAtomValue(layoutModel.moltenView360.layoutAtom);
     // The automatic switch's glow on the carpet edge (DS-SHELL-117), only for a switch made while it is drawn.
     const signal = useAtomValue(layoutModel.moltenView360.signalAtom);
@@ -33,9 +35,9 @@ export const View360Underlay = memo(({ layoutModel }: { layoutModel: LayoutModel
     }
     return (
         <div className="mt-carpet-surface" style={rectStyle(layout.surface)} data-testid="mt-carpet">
-            <span className="mt-carpet-label">carpet</span>
-            {layout.columns.length === 0 && <span className="mt-carpet-empty">Panels you open are laid here</span>}
             {signal !== mountSignal && <span key={signal} className="mt-carpet-glow" aria-hidden="true" />}
+            <span className="mt-carpet-label">{t("view360.carpet")}</span>
+            {layout.columns.length === 0 && <span className="mt-carpet-empty">{t("view360.empty")}</span>}
         </div>
     );
 });

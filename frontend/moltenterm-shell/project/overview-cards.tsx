@@ -19,6 +19,7 @@ import {
     agentStateTitle,
 } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
+import { useLocale, useT } from "../i18n/i18n";
 import { AdapterSteps } from "../mission/adapter-steps";
 import { latestRun, MissionSnapshot, toTreeData } from "../mission/mission-model";
 import { ReleaseRunSection } from "../mission/release-run-panel";
@@ -126,22 +127,25 @@ function SubHeading({ children }: { children: React.ReactNode }) {
 }
 
 export function NextReleaseCard({ snapshot }: ProjectCardProps) {
+    const locale = useLocale();
     const { state } = useReleaseState(snapshot);
     const github = snapshot?.github;
     const view = useMemo(
         () => nextReleaseView(state, snapshot?.git, github?.milestones, github?.state),
-        [state, snapshot?.git, github]
+        [state, snapshot?.git, github, locale]
     );
     return <NextPublicRelease view={view} />;
 }
 
 export function ReleasesCard({ snapshot }: ProjectCardProps) {
+    const locale = useLocale();
     const { tree, state } = useReleaseState(snapshot);
-    const view = useMemo(() => releasesView(state, tree?.tagPrefix), [state, tree?.tagPrefix]);
+    const view = useMemo(() => releasesView(state, tree?.tagPrefix), [state, tree?.tagPrefix, locale]);
     return <ReleaseHistory view={view} />;
 }
 
 function AgentLine({ info }: { info: AgentStateInfo }) {
+    const t = useT();
     useWorkingBeat(info.state === "working");
     const [block] = useWaveObjectValue<Block>(makeORef("block", info.blockid));
     const meta = block?.meta;
@@ -160,7 +164,7 @@ function AgentLine({ info }: { info: AgentStateInfo }) {
         <button
             type="button"
             onClick={goTo}
-            title={`${agentStateTitle(info)}\nClick to go to its pane`}
+            title={`${agentStateTitle(info)}\n${t("project.agents.goToPane")}`}
             className="-mx-1 flex min-w-0 cursor-pointer items-center gap-2.5 rounded-6 px-1 py-0.5 text-left text-13 hover:bg-hover"
             data-testid="project-agent"
         >
@@ -187,14 +191,11 @@ function AgentLine({ info }: { info: AgentStateInfo }) {
 }
 
 function Agents({ workspaceId }: { workspaceId: string }) {
+    const t = useT();
     const data = useAtomValue(AgentStates.getInstance().dataAtom);
     const agents = useMemo(() => workspaceAgents(data.states, workspaceId), [data, workspaceId]);
     if (agents.length === 0) {
-        return (
-            <p className="text-12 text-muted">
-                No coding agent in this workspace. Start one from the palette ({paletteShortcut()}).
-            </p>
-        );
+        return <p className="text-12 text-muted">{t("project.agents.none", { keys: paletteShortcut() })}</p>;
     }
     return (
         <div className="flex flex-col" data-testid="project-agents">
@@ -202,7 +203,9 @@ function Agents({ workspaceId }: { workspaceId: string }) {
                 <AgentLine key={info.blockid} info={info} />
             ))}
             {agents.length > MaxAgentsShown ? (
-                <span className="pt-0.5 text-11 text-muted">and {agents.length - MaxAgentsShown} more</span>
+                <span className="pt-0.5 text-11 text-muted">
+                    {t("project.agents.more", { count: agents.length - MaxAgentsShown })}
+                </span>
             ) : null}
         </div>
     );
@@ -221,6 +224,7 @@ export function NowCard({
     startBuild,
     snapshot,
 }: ProjectCardProps) {
+    const t = useT();
     const trunk = snapshot?.git?.trunk;
     const lastBuild = latestRun(runs, "build");
     const delivered = useDeliveredManifest(project.dir, lastBuild);
@@ -281,7 +285,7 @@ export function NowCard({
             ) : null}
             <div className="h-px bg-border" />
             <div className="flex flex-col gap-1.5">
-                <SubHeading>Agents</SubHeading>
+                <SubHeading>{t("project.agents.heading")}</SubHeading>
                 <Agents workspaceId={project.workspace?.oid} />
             </div>
         </div>
@@ -289,13 +293,12 @@ export function NowCard({
 }
 
 export function StepsCard({ project, projectName, pipeline, runs }: ProjectCardProps) {
+    const t = useT();
     const declared = (pipeline?.steps ?? []).some((s) => s.section === OverviewSection);
     if (!declared) {
         return (
             <p className="text-12 text-muted">
-                {pipeline
-                    ? `No project step for the overview: the pipeline declares none in its "${OverviewSection}" section.`
-                    : "The project's own steps show here once the pipeline is connected."}
+                {pipeline ? t("project.steps.none", { section: OverviewSection }) : t("project.steps.noPipeline")}
             </p>
         );
     }

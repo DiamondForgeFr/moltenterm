@@ -9,6 +9,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
+import { t } from "../i18n/i18n";
 import { addMoltentermNotification } from "../notifications-store";
 import {
     applyOutdated,
@@ -118,22 +119,22 @@ export class TermUpdates {
     async updateAll(): Promise<void> {
         const terminals = globalStore.get(this.dataAtom).terminals;
         const results: { blockid: string; outcome: TermUpdateOutcome }[] = [];
-        for (const t of terminals) {
-            if (t.agent) {
-                const name = t.agentname || t.agent;
+        for (const term of terminals) {
+            if (term.agent) {
+                const name = term.agentname || term.agent;
                 results.push({
-                    blockid: t.blockid,
+                    blockid: term.blockid,
                     outcome: {
                         status: "needconfirm",
-                        message: `${name} runs in one of them: use Update terminal in its header to restart ${name} on its conversation.`,
+                        message: t("termupdate.agentRunsInOne", { agent: name }),
                     },
                 });
                 continue;
             }
             try {
-                results.push({ blockid: t.blockid, outcome: await this.run(t.blockid, false) });
+                results.push({ blockid: term.blockid, outcome: await this.run(term.blockid, false) });
             } catch (e) {
-                results.push({ blockid: t.blockid, outcome: { status: "failed", message: String(e) } });
+                results.push({ blockid: term.blockid, outcome: { status: "failed", message: String(e) } });
             }
         }
         const summary = updateAllSummary(results);

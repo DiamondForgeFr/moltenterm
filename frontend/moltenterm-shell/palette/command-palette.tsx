@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
+import { useLocale, useT } from "../i18n/i18n";
 import { formatShortcutById } from "../shortcuts/format";
 import { cancelSplit, consumeSplit, isPendingSplit, readSplitFrom } from "../split/split";
 import { pickerFitsInline, PickerMinPx, pickerPopoverRect, SplitFromMetaKey } from "../split/split-model";
@@ -154,6 +155,7 @@ function usePaletteEntries(picker: PickerSource) {
         fireAndForget(() => BrowserEngineModel.getInstance().ensureLoaded());
     }, []);
     const outdatedTerminals = useAtomValue(TermUpdates.getInstance().countAtom);
+    const locale = useLocale();
     const installedBrowser = browserList?.chosen ?? null;
     const hasBrowserPanel = (tab?.blockids ?? []).some(
         (blockId) => WOS.getObjectValue<Block>(WOS.makeORef("block", blockId))?.meta?.view === MoltentermBrowserView
@@ -193,9 +195,10 @@ function usePaletteEntries(picker: PickerSource) {
             hasBrowserPanel,
             outdatedTerminals,
             picker,
+            locale,
         ]
     );
-    const titles = useMemo(() => paletteGroupTitles(folder, home), [folder, home]);
+    const titles = useMemo(() => paletteGroupTitles(folder, home), [folder, home, locale]);
     return { entries, titles };
 }
 
@@ -321,6 +324,7 @@ function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteR
 }
 
 export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, onClose }: CommandPaletteProps) {
+    const t = useT();
     const picker = usePickerSource(host, blockId);
     const { entries, titles } = usePaletteEntries(picker);
     const [query, setQuery] = useState("");
@@ -473,7 +477,7 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
             )}
             style={pickerInPane && !inPopover ? { minHeight: PickerMinPx } : undefined}
             role="dialog"
-            aria-label="Command palette"
+            aria-label={t("palette.ariaPalette")}
             data-role={pickerInPane ? (inPopover ? "split-picker-popover" : "split-picker") : undefined}
         >
             <div className="flex items-center gap-2 border-b border-border px-3.5 py-2.5">
@@ -483,11 +487,11 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                     type="text"
                     value={query}
                     spellCheck={false}
-                    placeholder="Open an agent, a panel, a folder…"
+                    placeholder={t("palette.placeholder")}
                     onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={onKeyDown}
                     className="min-w-0 flex-1 bg-transparent text-13 leading-5 text-primary outline-none placeholder:text-muted"
-                    aria-label="Search the command palette"
+                    aria-label={t("palette.ariaSearch")}
                     aria-controls="molten-palette-list"
                 />
             </div>
@@ -517,10 +521,19 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                 ))}
             </div>
             <div className="flex flex-wrap gap-x-3.5 gap-y-1 border-t border-border px-3.5 py-2 text-11 text-muted">
-                <span>↑↓ choose</span>
-                <span>↵ {inPlace === "replace" ? "open here" : "open"}</span>
-                {blockId && picker == null && <span>⇥ open to the right</span>}
-                <span>esc {host === "modal" ? "close" : picker != null ? "cancel the split" : "clear"}</span>
+                <span>↑↓ {t("palette.footer.choose")}</span>
+                <span>↵ {t(inPlace === "replace" ? "palette.footer.openHere" : "palette.footer.open")}</span>
+                {blockId && picker == null && <span>⇥ {t("palette.footer.openRight")}</span>}
+                <span>
+                    esc{" "}
+                    {t(
+                        host === "modal"
+                            ? "palette.footer.close"
+                            : picker != null
+                              ? "palette.footer.cancelSplit"
+                              : "palette.footer.clear"
+                    )}
+                </span>
             </div>
         </div>
     );

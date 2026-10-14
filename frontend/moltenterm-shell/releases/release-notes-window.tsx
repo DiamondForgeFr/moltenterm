@@ -15,6 +15,7 @@ import { BuildIdentity, isReleaseChannel } from "../build/build-identity";
 import type { MoltentermBuildChange } from "../build/build-info";
 import { currentBuildIdentity, readBuildInfo } from "../build/current-build";
 import { DialogFrame, useEscape } from "../dialog-frame";
+import { getLocale, useT } from "../i18n/i18n";
 import { readableSubject } from "../mission/versions";
 import { BuildChanges, BundledReleaseNotes } from "./release-notes-bundle";
 import { entryFor, groupBuildChanges, groupReleases, ReleaseNoteEntry, visibleEntries } from "./release-notes-catalog";
@@ -90,7 +91,7 @@ function formatDate(date: string): string {
     const d = /^\d{4}-\d{2}-\d{2}$/.test(date ?? "") ? new Date(`${date}T12:00:00Z`) : null;
     return d == null || Number.isNaN(d.getTime())
         ? ""
-        : d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+        : d.toLocaleDateString(getLocale(), { day: "numeric", month: "long", year: "numeric" });
 }
 
 function ChangeList({ title, changes }: { title: string; changes: MoltentermBuildChange[] }) {
@@ -119,34 +120,47 @@ function ChangeList({ title, changes }: { title: string; changes: MoltentermBuil
 }
 
 function ThisBuildPane({ identity }: { identity: BuildIdentity }) {
+    const t = useT();
     const build = readBuildInfo();
     const groups = useMemo(() => groupBuildChanges(BuildChanges as MoltentermBuildChange[]), []);
-    const since = build?.releaseTag ? `since ${build.releaseTag}` : "before the first release";
     const listed = BuildChanges.length;
     // Before the first release, git's count includes the upstream history the list leaves out.
     const total = build?.releaseTag ? Math.max(listed, build.changesSinceRelease ?? 0) : listed;
     return (
-        <article aria-label="This build" className="flex flex-col gap-3">
+        <article aria-label={t("releases.thisBuild")} className="flex flex-col gap-3">
             <header>
-                <h2 className="text-15 font-semibold text-primary">This build</h2>
+                <h2 className="text-15 font-semibold text-primary">{t("releases.thisBuild")}</h2>
                 <div className="mt-0.5 text-12 text-secondary">{identity.buildLine}</div>
                 {identity.commitLine ? <div className="font-mono text-11 text-muted">{identity.commitLine}</div> : null}
                 {build?.builtAt ? (
-                    <div className="text-11 text-muted">built {new Date(build.builtAt).toLocaleString("en-GB")}</div>
+                    <div className="text-11 text-muted">
+                        {t("releases.built", { date: new Date(build.builtAt).toLocaleString(getLocale()) })}
+                    </div>
                 ) : null}
             </header>
             {total === 0 ? (
-                <div className="text-12 text-muted">No change {since}.</div>
+                <div className="text-12 text-muted">
+                    {build?.releaseTag
+                        ? t("releases.noChangeSince", { tag: build.releaseTag })
+                        : t("releases.noChangeBefore")}
+                </div>
             ) : (
                 <>
                     <div className="text-12 text-secondary">
                         {build?.releaseTag
-                            ? `${total === 1 ? "1 change" : `${total} changes`} ${since}${total > listed ? `, the newest ${listed} listed` : ""}.`
-                            : `No release yet: the newest ${listed === 1 ? "change" : `${listed} changes`}.`}
+                            ? t(total > listed ? "releases.changesSinceListed" : "releases.changesSince", {
+                                  changes:
+                                      total === 1 ? t("releases.oneChange") : t("releases.changes", { count: total }),
+                                  tag: build.releaseTag,
+                                  listed,
+                              })
+                            : listed === 1
+                              ? t("releases.noReleaseNewestOne")
+                              : t("releases.noReleaseNewest", { count: listed })}
                     </div>
-                    <ChangeList title="New" changes={groups.features} />
-                    <ChangeList title="Fixed" changes={groups.fixes} />
-                    <ChangeList title="Other" changes={groups.other} />
+                    <ChangeList title={t("releases.new")} changes={groups.features} />
+                    <ChangeList title={t("releases.fixed")} changes={groups.fixes} />
+                    <ChangeList title={t("releases.other")} changes={groups.other} />
                 </>
             )}
         </article>
@@ -159,13 +173,16 @@ const NotesMarkdown = memo(({ notes }: { notes: string }) => {
 NotesMarkdown.displayName = "NotesMarkdown";
 
 function EntryPane({ entry }: { entry: ReleaseNoteEntry }) {
+    const t = useT();
     const date = formatDate(entry.date);
     return (
         <article aria-label={`MoltenTerm ${entry.version}`} className="flex flex-col gap-2">
             <header>
                 <h2 className="text-15 font-semibold text-primary">MoltenTerm {entry.version}</h2>
                 <div className="text-11 text-muted">
-                    {[entry.prerelease ? "Release candidate" : "Release", date].filter((s) => s).join(" · ")}
+                    {[entry.prerelease ? t("releases.candidate") : t("releases.release"), date]
+                        .filter((s) => s)
+                        .join(" · ")}
                 </div>
             </header>
             <div className="molten-release-notes min-w-0">
@@ -176,6 +193,7 @@ function EntryPane({ entry }: { entry: ReleaseNoteEntry }) {
 }
 
 export function ReleaseNotesWindow() {
+    const t = useT();
     const model = ReleaseNotesModel.getInstance();
     const requested = useAtomValue(model.requestedVersionAtom);
     const offered = useAtomValue(model.offeredAtom);
@@ -231,12 +249,16 @@ export function ReleaseNotesWindow() {
     const installed = (entry: ReleaseNoteEntry) =>
         isReleaseChannel(identity.channel) && entry.version === identity.version;
     const subtitle = isReleaseChannel(identity.channel)
-        ? `MoltenTerm ${identity.version}, based on Wave Terminal ${identity.waveBase}`
-        : `MoltenTerm ${identity.channelLabel} on ${identity.version || "an unknown version"}, based on Wave Terminal ${identity.waveBase}`;
+        ? t("releases.subtitleRelease", { version: identity.version, wave: identity.waveBase })
+        : t("releases.subtitleBuild", {
+              channel: identity.channelLabel,
+              version: identity.version || t("releases.unknownVersion"),
+              wave: identity.waveBase,
+          });
     return (
         <DialogFrame
             role="release-notes"
-            title="Release notes"
+            title={t("releases.title")}
             subtitle={subtitle}
             widthClass="w-[780px]"
             trapFocus={true}
@@ -247,19 +269,19 @@ export function ReleaseNotesWindow() {
                     onClick={() => model.close()}
                     className="cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary"
                 >
-                    Close
+                    {t("common.close")}
                 </button>
             }
         >
             <div className="-mx-4 -my-3 flex h-[min(62vh,520px)] min-h-0" data-testid="release-notes-window">
                 {history.rows.length === 0 ? (
-                    <div className="px-4 py-3 text-12 text-muted">No release notes in this build yet.</div>
+                    <div className="px-4 py-3 text-12 text-muted">{t("releases.empty")}</div>
                 ) : (
                     <>
                         <div
                             ref={listRef}
                             role="navigation"
-                            aria-label="Versions"
+                            aria-label={t("releases.versions")}
                             onKeyDown={move}
                             className="flex w-[200px] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border p-2"
                         >
@@ -271,7 +293,7 @@ export function ReleaseNotesWindow() {
                                             className="mt-1 flex items-center gap-1.5 px-2 py-1 text-12 text-muted"
                                         >
                                             <span className="font-mono">{row.base}</span>
-                                            <span className="text-11">upcoming</span>
+                                            <span className="text-11">{t("releases.upcoming")}</span>
                                         </div>
                                     );
                                 }
@@ -294,8 +316,8 @@ export function ReleaseNotesWindow() {
                                     >
                                         {row.kind === "build" ? (
                                             <>
-                                                <span>This build</span>
-                                                <Badge tone="accent">Installed</Badge>
+                                                <span>{t("releases.thisBuild")}</span>
+                                                <Badge tone="accent">{t("releases.installed")}</Badge>
                                             </>
                                         ) : (
                                             <>
@@ -303,11 +325,11 @@ export function ReleaseNotesWindow() {
                                                     {row.entry.version}
                                                 </span>
                                                 {row.offered ? (
-                                                    <Badge tone="accent">Offered</Badge>
+                                                    <Badge tone="accent">{t("releases.offered")}</Badge>
                                                 ) : installed(row.entry) ? (
-                                                    <Badge tone="accent">Installed</Badge>
+                                                    <Badge tone="accent">{t("releases.installed")}</Badge>
                                                 ) : row.entry.prerelease ? (
-                                                    <Badge>Candidate</Badge>
+                                                    <Badge>{t("releases.candidateBadge")}</Badge>
                                                 ) : null}
                                             </>
                                         )}

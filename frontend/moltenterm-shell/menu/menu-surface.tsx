@@ -23,7 +23,9 @@ import {
     useTypeahead,
 } from "@floating-ui/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { t } from "../i18n/i18n";
 import { actionableMenuItem, layoutMenuItems, menuItemRole, menuLabel, shortcutLabel } from "./menu-model";
+import { menuDisplayLabel } from "./menu-text";
 import "./menu.css";
 
 type MenuProps = {
@@ -93,7 +95,7 @@ function MenuBranch({
         const moved = keys.indexOf(previous[activeIndex]);
         setActiveIndex(moved < 0 ? null : moved);
     }, [keys]);
-    labelsRef.current = visible.map((entry) => (actionableMenuItem(entry) ? menuLabel(entry) : null));
+    labelsRef.current = visible.map((entry) => (actionableMenuItem(entry) ? menuDisplayLabel(entry) : null));
     const { refs, floatingStyles, context, isPositioned } = useFloating({
         nodeId,
         open,
@@ -230,7 +232,7 @@ function MenuBranch({
                             className="molten-menu"
                             role="menu"
                             tabIndex={-1}
-                            aria-label={item ? menuLabel(item) : "Context menu"}
+                            aria-label={item ? menuDisplayLabel(item) : t("menu.contextMenu")}
                         >
                             {visible.map((entry, index) => {
                                 if (entry.type === "separator")
@@ -238,7 +240,7 @@ function MenuBranch({
                                 if (entry.type === "header")
                                     return (
                                         <div key={keys[index]} className="molten-menu-header" role="presentation">
-                                            {menuLabel(entry)}
+                                            {menuDisplayLabel(entry)}
                                         </div>
                                     );
                                 const props = getItemProps({
@@ -306,7 +308,7 @@ function MenuItemContent({ item, submenu }: { item: ContextMenuItem; submenu?: b
                 ) : null}
             </span>
             <span className="molten-menu-label">
-                <span>{menuLabel(item)}</span>
+                <span>{menuDisplayLabel(item)}</span>
                 {item.sublabel && <span className="molten-menu-sublabel">{item.sublabel}</span>}
             </span>
             <span className="molten-menu-shortcut">{shortcutLabel(item.accelerator)}</span>
