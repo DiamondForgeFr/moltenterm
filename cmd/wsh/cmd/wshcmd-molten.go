@@ -210,7 +210,7 @@ var moltenAgentCmd = &cobra.Command{
 
 var moltenAgentListCmd = &cobra.Command{
 	Use:     "list",
-	Short:   "list the coding agents: installed, version, briefing, models and capabilities, and where the molten guides are installed",
+	Short:   "list the agents running now by first name (--active for those only), then the coding agents: installed, version, briefing, models and capabilities, and where the molten guides are installed",
 	Args:    cobra.NoArgs,
 	RunE:    moltenWrap(moltenAgentListRun),
 	PreRunE: preRunSetupRpcClient,
@@ -1020,6 +1020,18 @@ func moltenAgentEnv() (molten.AgentEnv, error) {
 }
 
 func moltenAgentListRun(cmd *cobra.Command, args []string) error {
+	// The agents running now, by first name (FR-CONT-015): first, since they are who an agent hands work to.
+	active, activeErr := moltenActiveAgents()
+	if moltenAgentListActive {
+		if activeErr != nil {
+			return activeErr
+		}
+		if moltenJson {
+			return moltenWriteJson(active)
+		}
+		WriteStdout("%s", formatMoltenActiveAgents(active))
+		return nil
+	}
 	env, err := moltenAgentEnv()
 	if err != nil {
 		return err
@@ -1030,9 +1042,17 @@ func moltenAgentListRun(cmd *cobra.Command, args []string) error {
 	}
 	listings := moltenAgentListings(env)
 	if moltenJson {
-		return moltenWriteJson(MoltenAgentList{Agents: listings, Guides: statuses})
+		rtn := MoltenAgentList{Agents: listings, Guides: statuses}
+		if activeErr == nil {
+			rtn.Active = active.Agents
+		}
+		return moltenWriteJson(rtn)
 	}
-	WriteStdout("%s\nMolten guides:\n%s", formatMoltenAgentListings(listings), formatMoltenAgents(statuses))
+	activeText := ""
+	if activeErr == nil {
+		activeText = "Running now:\n" + formatMoltenActiveAgents(active) + "\n"
+	}
+	WriteStdout("%s%s\nMolten guides:\n%s", activeText, formatMoltenAgentListings(listings), formatMoltenAgents(statuses))
 	return nil
 }
 

@@ -20,6 +20,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity/checkpoint"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthandoff"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/browseragent"
 	"github.com/wavetermdev/waveterm/pkg/molten/browsers"
@@ -636,6 +637,8 @@ func Start() {
 	})
 	// The agent sessions of `molten mcp browser` (FR-BRW-008).
 	browseragent.Start()
+	// Handing work from one agent to another by first name (FR-CONT-015).
+	agenthandoff.Start()
 	for _, start := range starters {
 		start()
 	}

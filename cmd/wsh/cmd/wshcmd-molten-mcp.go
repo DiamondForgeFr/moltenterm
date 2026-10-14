@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/wavetermdev/waveterm/pkg/molten/handoffwire"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
@@ -180,11 +181,85 @@ type moltenMcpRpcBackend struct {
 	client    mcpbrowser.ClientInfo
 	sessionId string
 	startErr  string
+	// firstName: the pane's agent name, for the browser server's instructions.
+	firstName string
 }
 
 func (b *moltenMcpRpcBackend) Start(ctx context.Context, client mcpbrowser.ClientInfo) {
 	b.setClient(client)
 	b.hello()
+	if b.protocol.route == mcpbrowser.RouteId {
+		b.setFirstName(moltenMcpOwnFirstName(b.token))
+	}
+}
+
+func (b *moltenMcpRpcBackend) setFirstName(name string) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.firstName = name
+}
+
+// Instructions tells the agent its first name (FR-CONT-014) in the browser server's instructions.
+func (b *moltenMcpRpcBackend) Instructions(base string) string {
+	if b.protocol.route != mcpbrowser.RouteId {
+		return base
+	}
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	return mcpbrowser.ServerInstructions + mcpbrowser.AgentInstructions(b.firstName)
+}
+
+// moltenMcpOwnFirstName asks the handoff route for the pane's agent name, "" when it has none yet.
+func moltenMcpOwnFirstName(token string) string {
+	var list handoffwire.ListResult
+	err := moltenHandoffRequest(handoffwire.ListCommand, handoffwire.ListRequest{Token: token, WaitName: true}, moltenHandoffListTimeoutMs, &list)
+	if err != nil || list.You == nil {
+		return ""
+	}
+	return list.You.FirstName
+}
+
+// moltenMcpAgentTool runs list_agents and send_to_agent on the handoff route (FR-CONT-015).
+func moltenMcpAgentTool(token string, tool string, args json.RawMessage) mcpbrowser.CallResult {
+	if tool == mcpbrowser.ToolListAgents {
+		var list handoffwire.ListResult
+		if err := moltenHandoffRequest(handoffwire.ListCommand, handoffwire.ListRequest{Token: token}, moltenHandoffListTimeoutMs, &list); err != nil {
+			return mcpbrowser.ErrorResult(moltenHandoffError(err))
+		}
+		return mcpbrowser.TextResult(mcpbrowser.FormatAgentList(moltenMcpAgentList(list)))
+	}
+	var in mcpbrowser.SendToAgentArgs
+	if err := json.Unmarshal(args, &in); err != nil {
+		return mcpbrowser.ErrorResult("send_to_agent takes {name, brief: {goal, context, files, links, reply}}")
+	}
+	var brief handoffwire.Brief
+	if len(in.Brief) > 0 {
+		if err := json.Unmarshal(in.Brief, &brief); err != nil {
+			return mcpbrowser.ErrorResult(fmt.Sprintf("brief could not be read: %v", err))
+		}
+	}
+	var result handoffwire.SendResult
+	err := moltenHandoffRequest(handoffwire.SendCommand, handoffwire.SendRequest{Token: token, To: in.Name, Brief: brief}, moltenHandoffSendTimeoutMs, &result)
+	if err != nil {
+		return mcpbrowser.ErrorResult(moltenHandoffError(err))
+	}
+	return mcpbrowser.TextResult(result.Message)
+}
+
+func moltenMcpAgentList(list handoffwire.ListResult) mcpbrowser.AgentList {
+	entry := func(e handoffwire.AgentEntry) mcpbrowser.AgentListEntry {
+		return mcpbrowser.AgentListEntry{FirstName: e.FirstName, AgentName: e.AgentName, State: e.State, Project: e.Project,
+			Folder: e.Folder, Workspace: e.Workspace, Tab: e.Tab, You: e.You}
+	}
+	rtn := mcpbrowser.AgentList{Agents: []mcpbrowser.AgentListEntry{}}
+	if list.You != nil {
+		you := entry(*list.You)
+		rtn.You = &you
+	}
+	for _, e := range list.Agents {
+		rtn.Agents = append(rtn.Agents, entry(e))
+	}
+	return rtn
 }
 
 func (b *moltenMcpRpcBackend) setClient(client mcpbrowser.ClientInfo) {
@@ -243,6 +318,9 @@ func (b *moltenMcpRpcBackend) session() (string, string) {
 }
 
 func (b *moltenMcpRpcBackend) CallTool(ctx context.Context, tool string, args json.RawMessage) mcpbrowser.CallResult {
+	if b.protocol.route == mcpbrowser.RouteId && mcpbrowser.IsAgentTool(tool) {
+		return moltenMcpAgentTool(b.token, tool, args)
+	}
 	sessionId, _ := b.session()
 	if sessionId == "" {
 		b.hello()

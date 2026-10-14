@@ -71,6 +71,21 @@ func TestTypeLineRefusals(t *testing.T) {
 	}
 }
 
+func TestHandoffLineSubmitsWithoutADraft(t *testing.T) {
+	f := claudeInputTerm()
+	f.state.Draft = false
+	out := MakeUpdater(f.env()).typeLine(context.Background(), "b1", "[From Camille] do it", true)
+	if out.Result != InputSent || !out.Submitted || strings.Join(f.input, "|") != "\x1b[200~[From Camille] do it\x1b[201~|\r" {
+		t.Fatalf("got %+v, typed %q", out, f.input)
+	}
+	g := claudeInputTerm()
+	g.state.Draft = true
+	out = MakeUpdater(g.env()).typeLine(context.Background(), "b1", "[From Camille] do it", true)
+	if out.Result != InputSent || out.Submitted || strings.Join(g.input, "|") != "\x1b[200~[From Camille] do it\x1b[201~" {
+		t.Fatalf("a draft must not be sent: %+v, typed %q", out, g.input)
+	}
+}
+
 func TestTypeShareLineBeforeStart(t *testing.T) {
 	setRunningUpdater(nil)
 	if out := TypeShareLine(context.Background(), "b1", "x"); out.Result != InputRefused || out.Reason != InputReasonUnavailable {

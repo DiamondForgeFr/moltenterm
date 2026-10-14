@@ -105,6 +105,8 @@ type AgentInputResult struct {
 	Presses int    `json:"presses,omitempty"`
 	// Effort: the effort level the command asked for, once sent.
 	Effort string `json:"effort,omitempty"`
+	// Submitted: a handoff's line was sent with Enter (TypeHandoffLine).
+	Submitted bool `json:"submitted,omitempty"`
 }
 
 // AgentInputState is what the terminal's input and output tell about its agent (agentinputwatch.go).

@@ -224,6 +224,7 @@ var startOnce sync.Once
 func Start() {
 	startOnce.Do(func() {
 		manager := MakeManager(MakeWaveEnv())
+		setRunningManager(manager)
 		link := &routeLink{
 			manager:      manager,
 			output:       make(chan []byte, routeQueueSize),
