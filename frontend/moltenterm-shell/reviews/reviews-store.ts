@@ -43,18 +43,23 @@ export class ReviewsModel {
         if (!dir || pr == null || !workspaceId || !repoName) {
             return;
         }
-        const { tabid } = await openReviewTab(workspaceId, {
-            dir,
-            repo: repoName,
-            number: pr.number,
-            title: pr.tickettitle || pr.title,
-            url: pr.url,
-            headref: pr.branch,
-            baseref: pr.base,
-            headoid: pr.headoid,
-            baseoid: pr.baseoid,
-            ticket: pr.ticket,
-        });
-        getApi().setActiveTab(tabid);
+        getApi().setActiveTab(await openPullRequestTab(workspaceId, dir, pr, repoName));
     }
+}
+
+// openPullRequestTab returns the PR's Review tab in the workspace, created the first time (a row's click, `molten review`).
+export async function openPullRequestTab(workspaceId: string, dir: string, pr: ReviewPr, repo: string): Promise<string> {
+    const { tabid } = await openReviewTab(workspaceId, {
+        dir,
+        repo,
+        number: pr.number,
+        title: pr.tickettitle || pr.title,
+        url: pr.url,
+        headref: pr.branch,
+        baseref: pr.base,
+        headoid: pr.headoid,
+        baseoid: pr.baseoid,
+        ticket: pr.ticket,
+    });
+    return tabid;
 }
