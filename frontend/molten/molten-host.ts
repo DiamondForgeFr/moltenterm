@@ -813,6 +813,8 @@ export class MoltenHost {
         }
         runtime.status.state = "active";
         this.publish();
+        // At once, not only at the end of the sync: what the next mods report already speaks the pack's language.
+        this.applyLanguages();
     }
 
     clock(): MoltenTimerClock {
