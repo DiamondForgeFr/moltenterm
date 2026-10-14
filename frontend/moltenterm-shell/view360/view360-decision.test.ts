@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
     anyColumnTooTight,
     autoWants,
+    countLeaves,
     decideView360,
     FirstColumnMinPx,
     LeaveMarginPx,
@@ -58,6 +59,18 @@ describe("360 view decision (FR-SHELL-066, DS-SHELL-116)", () => {
                 children: [row(leaf("a"), leaf("b"))],
             }).length
         ).toBe(2);
+    });
+
+    it("counts the panels, splits included", () => {
+        expect(countLeaves(null)).toBe(0);
+        expect(countLeaves(leaf("a"))).toBe(1);
+        const stack: LayoutNode = {
+            id: "s",
+            flexDirection: FlexDirection.Column,
+            size: 10,
+            children: [leaf("a"), leaf("b")],
+        };
+        expect(countLeaves(row(stack, leaf("c")))).toBe(3);
     });
 
     it("needs the first column's minimum plus a side minimum and a gap per other column", () => {
