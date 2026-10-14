@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import { I18nModel } from "../i18n/i18n";
 import {
     applySessions,
     cleanupConfirmText,
@@ -13,6 +14,7 @@ import {
     flattenGroups,
     formatAge,
     groupSessions,
+    lastActive,
     middleTruncate,
     moveSelection,
     nextSelection,
@@ -136,6 +138,22 @@ describe("text", () => {
         expect(formatAge(now + 5000, now)).toBe("now");
         expect(outputText(session("x", { lastoutputat: now - 1000 }), now)).toBe("output just now");
         expect(outputText(session("x", { lastoutputat: now - 180_000 }), now)).toBe("output 3 min ago");
+    });
+
+    it("formats ages in the interface language (#665)", () => {
+        const now = 10_000_000;
+        try {
+            I18nModel.getInstance().setLanguageSetting("fr");
+            expect(formatAge(now - 2000, now)).toBe("maintenant");
+            expect(formatAge(now - 3 * 86400_000, now + 1000)).toBe("3 j");
+            expect(outputText(session("x", { lastoutputat: now - 1000 }), now)).toBe("sortie à l'instant");
+            expect(outputText(session("x", { lastoutputat: now - 180_000 }), now)).toBe("sortie il y a 3 min");
+            expect(lastActive(session("x", { startedat: now - 1000 }), now)).toBe("maintenant");
+            expect(lastActive(session("x", { startedat: now - 42_000 }), now)).toBe("il y a 42 s");
+            expect(lastActive(session("x", { startedat: now - 74 * 60_000 }), now)).toBe("il y a 1 h 14 min");
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
     });
 
     it("labels reasons and connections", () => {
