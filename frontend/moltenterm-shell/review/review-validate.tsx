@@ -14,7 +14,8 @@ import { MoltenWave } from "../molten-button";
 import { SegmentedControl } from "../segmented-control";
 import { cleanupNeedsConfirmation, ReviewCleanupResult } from "./review-cleanup";
 import { ReviewMergeMethod, ReviewMergePlan, ReviewMergeRecord } from "./review-client";
-import { CloseReviewTabButton } from "./review-done-view";
+import { mergedFooter } from "./review-done";
+import { MergedFooterButtons } from "./review-done-view";
 import {
     canCancelMerge,
     canClickMerge,
@@ -99,6 +100,7 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
                     model={model}
                     plan={plan}
                     record={record}
+                    cleanup={cleanup}
                     method={method}
                     enabled={enabled}
                     disabledReason={disabledReason}
@@ -163,6 +165,7 @@ function SheetButtons({
     plan,
     method,
     record,
+    cleanup,
     enabled,
     disabledReason,
     loading,
@@ -170,6 +173,7 @@ function SheetButtons({
     model: ReviewTabModel;
     plan: ReviewMergePlan;
     record: ReviewMergeRecord;
+    cleanup: ReviewCleanupResult;
     method: ReviewMergeMethod;
     enabled: boolean;
     disabledReason: string;
@@ -193,6 +197,10 @@ function SheetButtons({
                 </button>
             </>
         );
+    }
+    const footer = mergedFooter(record, cleanup);
+    if (footer != null) {
+        return <MergedFooterButtons model={model} footer={footer} plainClass={PlainButton} />;
     }
     if (record != null) {
         const ended = !mergeRunning(record);
@@ -218,7 +226,6 @@ function SheetButtons({
                         {t("review.validate.again")}
                     </button>
                 ) : null}
-                {record.state === "merged" ? <CloseReviewTabButton model={model} className={PlainButton} /> : null}
                 <button type="button" className={PlainButton} onClick={() => model.closeValidate()}>
                     {t("common.close")}
                 </button>

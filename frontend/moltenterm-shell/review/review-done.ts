@@ -6,6 +6,7 @@
 // Validate, and the top tab a done mark, from the block's meta so every window's tab bar sees it.
 
 import type { TFunction } from "../i18n/i18n";
+import type { ReviewCleanupResult } from "./review-cleanup";
 import type { ReviewMergeRecord, ReviewPrStateResult } from "./review-client";
 
 // The block meta key the tab bar reads (tab-identity.ts); its value is a ReviewDoneMeta, absent while the PR is open.
@@ -121,6 +122,27 @@ export function reviewDoneTabTitle(t: TFunction, meta: ReviewDoneMeta): string {
         return "";
     }
     return meta.state === "merged" ? t("review.done.tabMerged") : t("review.done.tabClosed");
+}
+
+export type MergedFooter = "cleaning" | "needs" | "failed" | "done";
+
+// mergedFooter is what the Validate result's footer says once the PR is merged, when it proposes to close the tab:
+// the cleanup still running, a kept worktree waiting for the developer, a failed step, or all done. null: no proposal.
+export function mergedFooter(record: ReviewMergeRecord, cleanup: ReviewCleanupResult): MergedFooter {
+    if (record?.state !== "merged") {
+        return null;
+    }
+    if (record.cleanuprunning || cleanup == null) {
+        return "cleaning";
+    }
+    const steps = cleanup.steps ?? [];
+    if (steps.some((s) => s.state === "skipped" && (s.code === "kept" || s.code === "inuse"))) {
+        return "needs";
+    }
+    if (steps.some((s) => s.state === "failed")) {
+        return "failed";
+    }
+    return "done";
 }
 
 // shouldReadPrState says whether the tab asks GitHub for the PR's state: once when it opens, then whenever the PR is
