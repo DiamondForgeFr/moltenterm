@@ -20,6 +20,7 @@ import { timeAgo } from "../mission/time-format";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { ValidateSheet } from "../review/review-validate";
+import { RowAgentBar, YoursMarker } from "./reviews-agent-bar";
 import { useReviews } from "./reviews-client";
 import { MarkReadyButton, MarkReadyConfirm, useMarkReady } from "./reviews-mark-ready";
 import {
@@ -44,6 +45,7 @@ import {
 } from "./reviews-model";
 import { NotesSection } from "./reviews-notes-view";
 import { ReviewsModel } from "./reviews-store";
+import { UpcomingSection } from "./reviews-upcoming";
 
 export { MoltentermReviewsView };
 
@@ -334,6 +336,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     </div>
                 )}
             </section>
+            <UpcomingSection dir={dir} reviews={answer} />
             {answer.repo ? <NotesSection dir={dir} repo={answer.repo} blockId={blockId} /> : null}
         </div>
     );
@@ -465,6 +468,7 @@ function ReviewRow({
                     <div className="truncate text-13 leading-5 font-medium">
                         {head.ticket ? <span className="mr-1.5 text-accent">{head.ticket}</span> : null}
                         {head.title}
+                        <YoursMarker dir={dir} branch={pr.branch} draft={pr.draft} />
                     </div>
                     <div className="truncate text-12 text-muted">
                         PR #{pr.number} · <code>{pr.branch}</code>
@@ -594,6 +598,7 @@ function ReviewRow({
                     ) : null}
                 </div>
             ) : null}
+            <RowAgentBar dir={dir} branch={pr.branch} />
         </div>
     );
 }

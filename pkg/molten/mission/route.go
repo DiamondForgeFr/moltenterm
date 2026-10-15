@@ -270,6 +270,13 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		}
 		return l.reviews.Get(req)
 	}
+	if command == UpcomingCommand {
+		var req UpcomingRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.reviews.Upcoming(req)
+	}
 	if command == GroupsCommand {
 		var req GroupsRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
