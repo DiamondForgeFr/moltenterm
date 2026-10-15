@@ -20,7 +20,8 @@ import type { AgentStateInfo } from "../agent-state-model";
 import { getLocale, I18nModel, t } from "../i18n/i18n";
 import { MoltentermNotifications } from "../notifications-store";
 import { ReviewsEvent, reviewsGet } from "../reviews/reviews-client";
-import { ReviewsAnswer } from "../reviews/reviews-model";
+import { ReviewsAnswer, splitReviews } from "../reviews/reviews-model";
+import { ReviewsModel } from "../reviews/reviews-store";
 import { whileShown } from "../tab-activity";
 import { openFileInPreview } from "../term-copy/term-copy";
 import { everyInPanel } from "../view360/offcarpet-model";
@@ -258,6 +259,8 @@ export abstract class ReviewTabModel implements ViewModel {
     answerFocusAtom = atom(null) as PrimitiveAtom<ReviewAnswerFocus>;
     // FR-REV-007 AC8: the depth of the next answers, quick by default.
     depthAtom = atom("quick") as PrimitiveAtom<ReviewDepth>;
+    // The project's last Reviews answer: whether the PR is a draft (#687).
+    reviewsAnswerAtom = atom(null) as PrimitiveAtom<ReviewsAnswer>;
 
     treeAtom: Atom<TreeNode[]>;
     orderedFilesAtom: Atom<ReviewFile[]>;
@@ -267,6 +270,8 @@ export abstract class ReviewTabModel implements ViewModel {
     stagedCountAtom: Atom<number>;
     // The AI panel's block in this tab, null when it is closed (DS-REV-012).
     aiPaneIdAtom: Atom<string>;
+    // A draft is analysed like any PR; Validate waits until it is marked ready for review (#687).
+    draftAtom: Atom<boolean>;
 
     // The Monaco diff editor on screen (MonacoDiffViewer's onMount); FR-REV-003's selection reads it.
     diffEditor: MonacoTypes.editor.IStandaloneDiffEditor = null;
@@ -303,6 +308,15 @@ export abstract class ReviewTabModel implements ViewModel {
         });
         this.briefingAtom = atom((get) => get(this.stateAtom)?.briefing ?? null);
         this.stagedCountAtom = atom((get) => stagedCount(get(this.stateAtom)));
+        this.draftAtom = atom((get) => {
+            const pr = get(this.prAtom);
+            const answer = get(this.reviewsAnswerAtom);
+            if (pr == null || answer == null) {
+                return false;
+            }
+            const readied = get(ReviewsModel.getInstance().readiedAtom);
+            return splitReviews(answer, readied).drafts.some((p) => p.number === pr.number);
+        });
         this.aiPaneIdAtom = atom((get) => {
             const pr = get(this.prAtom);
             const tabId = get(atoms.staticTabId);
@@ -418,6 +432,7 @@ export abstract class ReviewTabModel implements ViewModel {
         if (answer == null || answer.dir !== pr?.dir) {
             return null;
         }
+        globalStore.set(this.reviewsAnswerAtom, answer);
         return [...(answer.ready ?? []), ...(answer.drafts ?? [])].find((p) => p.number === pr.number) ?? null;
     }
 

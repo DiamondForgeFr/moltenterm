@@ -7,6 +7,7 @@
 
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import type { MarkReadyResult } from "../reviews/reviews-model";
 import type { ReviewCleanupResult, ReviewCleanupStepResult } from "./review-cleanup";
 import { ReviewAnchor, ReviewDepth, reviewScope } from "./review-session";
 
@@ -612,6 +613,13 @@ export function askReviewRebase(req: {
     tabid?: string;
 }): Promise<ReviewRestartResult> {
     return call(RebaseCommand, req, RestartTimeoutMs);
+}
+
+const MarkReadyCommand = "moltenreviewmarkready";
+
+// markReviewReady is the developer's click on Mark ready for review (#687): gh pr ready on the draft PR.
+export function markReviewReady(req: { repo: string; number: number; dir: string }): Promise<MarkReadyResult> {
+    return call(MarkReadyCommand, req, GitTimeoutMs);
 }
 
 // subscribeReviewState follows a PR's review store (another window, the CLI); returns the unsubscribe function.
