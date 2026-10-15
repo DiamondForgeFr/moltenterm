@@ -4,7 +4,8 @@
 // The Reviews view (FR-REV-001, DS-REV-012): the pull requests of the workspace's project waiting for the developer's
 // review, each with its ticket, CI, test report and merge state, read through the developer's gh by Mission Control's
 // collector. Drafts wait below in their own group, where they open and can be marked ready for review (#687). A row
-// opens the PR's review; the keyboard walks the rows (arrows, Home, End) and Enter opens one.
+// opens the PR's assisted review, which its hover/focus link names (#708); the keyboard walks the rows (arrows, Home,
+// End) and Enter opens one.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -21,7 +22,7 @@ import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { ValidateSheet } from "../review/review-validate";
 import { useReviews } from "./reviews-client";
-import { MarkReadyButton, MarkReadyConfirm, useMarkReady } from "./reviews-mark-ready";
+import { MarkReadyButton, MarkReadyConfirm, MarkReadyState, useMarkReady } from "./reviews-mark-ready";
 import {
     ciLabel,
     mergeLabel,
@@ -372,7 +373,97 @@ function stopRow(e: React.SyntheticEvent) {
 const SecondaryButton =
     "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary";
 
-function ReviewRow({
+// The link is always laid out and only fades in, so showing it never moves the chips (#708).
+const AssistedLinkClasses =
+    "flex shrink-0 cursor-pointer items-center gap-1 rounded-4 px-1 text-12 leading-5 font-medium text-accent outline-none " +
+    "translate-x-1 opacity-0 transition-[opacity,translate] duration-120 ease-mt " +
+    "group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100 " +
+    "focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent/70 " +
+    "hover:underline motion-reduce:translate-x-0";
+
+// The row's click opens the assisted review (the PR's Review tab); this link names it on hover and keyboard focus
+// and does the same. On a narrow panel it keeps an icon and the arrow, named for assistive technologies.
+export function AssistedReviewLink({ number, onOpen }: { number: number; onOpen: () => void }) {
+    const t = useT();
+    return (
+        <button
+            type="button"
+            onClick={(e) => {
+                e.stopPropagation();
+                onOpen();
+            }}
+            onKeyDown={stopRow}
+            aria-label={t("reviews.assistedReviewAria", { number })}
+            className={AssistedLinkClasses}
+            data-testid="reviews-assisted-review"
+        >
+            <i className="fa fa-solid fa-sparkles text-11 @xs:hidden" aria-hidden />
+            <span className="hidden @xs:inline">{t("reviews.assistedReview")}</span>
+            <i className="fa fa-solid fa-arrow-right text-11" aria-hidden />
+        </button>
+    );
+}
+
+// The row's two buttons: GitHub (secondary) opens the PR's page, Validate (primary) merges through its plan sheet, or
+// Mark ready on a draft. Neither opens the assisted review.
+export function ReviewRowActions({
+    pr,
+    blocked,
+    markReady,
+    onValidate,
+}: {
+    pr: ReviewPr;
+    blocked: string;
+    markReady: MarkReadyState;
+    onValidate: () => void;
+}) {
+    const t = useT();
+    const validate = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (blocked) {
+            return;
+        }
+        onValidate();
+    };
+    const openOnGithub = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        fireAndForget(() => openWebLink(pr.url));
+    };
+    return (
+        <div className="flex shrink-0 items-center gap-1.5">
+            <button
+                type="button"
+                onClick={openOnGithub}
+                onKeyDown={stopRow}
+                className={SecondaryButton}
+                title={t("reviews.openOnGithub")}
+                data-testid="reviews-github"
+            >
+                <i className="fa fa-brands fa-github text-12" aria-hidden />
+                GitHub
+                <i className="fa fa-solid fa-arrow-up-right-from-square text-10 text-muted" aria-hidden />
+            </button>
+            {pr.draft ? (
+                <MarkReadyButton state={markReady} className="px-2.5 py-1" />
+            ) : (
+                <button
+                    type="button"
+                    onClick={validate}
+                    onKeyDown={stopRow}
+                    aria-disabled={blocked ? true : undefined}
+                    className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
+                    title={blocked || t("reviews.validate.title")}
+                    data-testid="reviews-validate"
+                >
+                    {t("reviews.validate.button")}
+                    <MoltenWave />
+                </button>
+            )}
+        </div>
+    );
+}
+
+export function ReviewRow({
     pr,
     selected,
     marked,
@@ -411,13 +502,6 @@ function ReviewRow({
     useEffect(() => {
         setOutcome(null);
     }, [pr.headoid]);
-    const validate = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (blocked) {
-            return;
-        }
-        onValidate();
-    };
     const askRebase = (e: React.MouseEvent, start: boolean) => {
         e.stopPropagation();
         if (asking) {
@@ -437,10 +521,6 @@ function ReviewRow({
         e.stopPropagation();
         fireAndForget(() => openWebLink(pr.report.url));
     };
-    const openOnGithub = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        fireAndForget(() => openWebLink(pr.url));
-    };
     return (
         <div
             role="listitem"
@@ -454,11 +534,10 @@ function ReviewRow({
             }}
             onFocus={onSelect}
             className={cn(
-                "group flex cursor-pointer flex-col gap-1.5 border-b border-border px-3 py-2.5 outline-none last:border-b-0 hover:bg-hover focus-visible:bg-hover",
+                "group @container flex cursor-pointer flex-col gap-1.5 border-b border-border px-3 py-2.5 outline-none last:border-b-0 hover:bg-hover focus-visible:bg-hover",
                 selected && "bg-hover/60",
                 marked && "ring-2 ring-accent/70 ring-inset"
             )}
-            title={t("reviews.openReview")}
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -473,34 +552,7 @@ function ReviewRow({
                         {t("reviews.updated", { when: timeAgo(pr.updatedat) })}
                     </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                    <button
-                        type="button"
-                        onClick={openOnGithub}
-                        onKeyDown={stopRow}
-                        className={SecondaryButton}
-                        title={t("reviews.openOnGithub")}
-                    >
-                        <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
-                        GitHub
-                    </button>
-                    {pr.draft ? (
-                        <MarkReadyButton state={markReady} className="px-2.5 py-1" />
-                    ) : (
-                        <button
-                            type="button"
-                            onClick={validate}
-                            onKeyDown={stopRow}
-                            aria-disabled={blocked ? true : undefined}
-                            className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
-                            title={blocked || t("reviews.validate.title")}
-                            data-testid="reviews-validate"
-                        >
-                            {t("reviews.validate.button")}
-                            <MoltenWave />
-                        </button>
-                    )}
-                </div>
+                <ReviewRowActions pr={pr} blocked={blocked} markReady={markReady} onValidate={onValidate} />
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
                 <ToneChip
@@ -541,20 +593,25 @@ function ReviewRow({
                         {t("reviews.rebase.chip", { name: rebaseAsk.name })}
                     </span>
                 ) : null}
-                {conflicts && !asked ? (
-                    <button
-                        type="button"
-                        onClick={(e) => askRebase(e, false)}
-                        onKeyDown={stopRow}
-                        aria-busy={asking || undefined}
-                        className={cn(SecondaryButton, "ml-auto py-0.5 text-11")}
-                        title={t("reviews.rebase.buttonTitle", { base: pr.base, branch: pr.branch })}
-                        data-testid="reviews-rebase"
-                    >
-                        <i className={cn("fa fa-solid text-11", asking ? "fa-spinner fa-spin" : "fa-code-branch")} />
-                        {asking ? t("reviews.rebase.asking") : t("reviews.rebase.button")}
-                    </button>
-                ) : null}
+                <div className="ml-auto flex items-center gap-1.5">
+                    {conflicts && !asked ? (
+                        <button
+                            type="button"
+                            onClick={(e) => askRebase(e, false)}
+                            onKeyDown={stopRow}
+                            aria-busy={asking || undefined}
+                            className={cn(SecondaryButton, "py-0.5 text-11")}
+                            title={t("reviews.rebase.buttonTitle", { base: pr.base, branch: pr.branch })}
+                            data-testid="reviews-rebase"
+                        >
+                            <i
+                                className={cn("fa fa-solid text-11", asking ? "fa-spinner fa-spin" : "fa-code-branch")}
+                            />
+                            {asking ? t("reviews.rebase.asking") : t("reviews.rebase.button")}
+                        </button>
+                    ) : null}
+                    <AssistedReviewLink number={pr.number} onOpen={onOpen} />
+                </div>
             </div>
             <MarkReadyConfirm state={markReady} />
             {outcomeShown ? (
