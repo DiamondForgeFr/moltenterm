@@ -17,6 +17,7 @@ import {
     NotificationAction,
     notificationLocation,
     notificationTabToActivate,
+    notificationTitle,
     openCount,
     parseNotifications,
     pruneIds,
@@ -28,6 +29,7 @@ import {
     unreadCount,
     visibleActions,
 } from "./notifications-model";
+import { translate } from "./i18n/i18n-core";
 
 function entry(id: string, time: number, extra: Partial<MoltentermNotification> = {}): MoltentermNotification {
     return { id, time, updated: time, title: `t${id}`, source: "agent", kind: "info", read: false, ...extra };
@@ -261,5 +263,27 @@ describe("location (#80)", () => {
         expect(notificationTabToActivate(entry("1", 1, { tabid: "b1" }), shown, "b1")).toBeNull();
         expect(notificationTabToActivate(entry("1", 1, { tabid: "a1", workspaceid: "wsB" }), shown, "b1")).toBeNull();
         expect(notificationTabToActivate(entry("1", 1), shown, "b1")).toBeNull();
+    });
+});
+
+describe("notificationTitle (#727)", () => {
+    const fr = (key: string, vars?: Record<string, string>) => translate("fr", key, vars);
+    const en = (key: string, vars?: Record<string, string>) => translate("en", key, vars);
+    const waiting = { title: "Pauline is waiting for you", titlecode: "agentwaiting", titlevars: { name: "Pauline" } };
+
+    it("translates the agent titles wavesrv sends with a code", () => {
+        expect(notificationTitle(waiting, fr)).toBe("Pauline vous attend");
+        expect(notificationTitle(waiting, en)).toBe("Pauline is waiting for you");
+        const done = { title: "Pauline is done", titlecode: "agentdone", titlevars: { name: "Pauline" } };
+        expect(notificationTitle(done, fr)).toBe("Pauline a terminé");
+        expect(notificationTitle({ title: "A terminal needs your attention", titlecode: "bell" }, fr)).toBe(
+            "Un terminal demande votre attention"
+        );
+    });
+
+    it("shows a title without a known code as published", () => {
+        expect(notificationTitle({ title: "Claude needs your permission" }, fr)).toBe("Claude needs your permission");
+        expect(notificationTitle({ title: "Later", titlecode: "somethingnew" }, fr)).toBe("Later");
+        expect(notificationTitle({ title: "Proto", titlecode: "constructor" }, fr)).toBe("Proto");
     });
 });

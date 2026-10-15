@@ -309,3 +309,28 @@ func TestHookedAgentRepublishesItsTerminals(t *testing.T) {
 		t.Fatalf("a new Claude Code terminal starts hooked: %+v", last)
 	}
 }
+
+// The window translates the waiting and done titles from their code and the agent's name (#727).
+func TestAgentNoticeTitleCodes(t *testing.T) {
+	h := makeAgentHarness()
+	h.states.names = agentnames.MakeAllocator([]string{"Pauline"})
+	h.out("b1", cmdMark("claude"))
+	signal, _, err := h.states.report(molten.AgentStateRequest{BlockId: "b1", State: molten.AgentStateWaiting})
+	if err != nil || signal == nil {
+		t.Fatalf("waiting: %v %v", signal, err)
+	}
+	if signal.TitleCode != molten.NotificationTitleAgentWaiting || signal.TitleName != "Pauline" {
+		t.Fatalf("waiting signal %+v", signal)
+	}
+	if vars := notificationTitleVars(*signal); vars["name"] != "Pauline" {
+		t.Fatalf("title vars %v", vars)
+	}
+	h.clock = h.clock.Add(10 * time.Second)
+	signal, _, _ = h.states.report(molten.AgentStateRequest{BlockId: "b1", State: molten.AgentStateDone})
+	if signal == nil || signal.TitleCode != molten.NotificationTitleAgentDone || signal.TitleName != "Pauline" {
+		t.Fatalf("done signal %+v", signal)
+	}
+	if vars := notificationTitleVars(AttentionSignal{Title: "from the agent"}); vars != nil {
+		t.Fatalf("a signal without a code has no vars: %v", vars)
+	}
+}

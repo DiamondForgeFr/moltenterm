@@ -13,7 +13,7 @@ import { showPanel } from "../review/review-panels";
 import { AgentBar, useBranchAgent } from "./reviews-agent-bar";
 import type { ReviewsAnswer } from "./reviews-model";
 import { useUpcomingAnswer, useUpcomingWatch } from "./reviews-upcoming-client";
-import { aheadText, UpcomingBranch, upcomingRows } from "./reviews-upcoming-model";
+import { aheadText, boardStatusText, UpcomingBranch, upcomingRows } from "./reviews-upcoming-model";
 
 const Chip = "inline-flex items-center gap-1 rounded-3 border px-1.5 py-0.5 text-11 leading-4 whitespace-nowrap";
 
@@ -129,7 +129,7 @@ function UpcomingRow({ dir, branch, repoUrl }: { dir: string; branch: UpcomingBr
                             title={t("reviewsAgents.upcoming.statusTitle")}
                             data-testid="reviews-upcoming-status"
                         >
-                            {branch.status}
+                            {boardStatusText(t, branch.status)}
                         </span>
                     ) : null}
                 </div>

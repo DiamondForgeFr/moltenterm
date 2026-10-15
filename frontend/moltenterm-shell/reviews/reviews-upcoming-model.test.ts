@@ -4,10 +4,13 @@
 import { describe, expect, it } from "vitest";
 import { AgentStatesData } from "../agent-state-model";
 import { t } from "../i18n/i18n";
+import { translate } from "../i18n/i18n-core";
 import type { ReviewPr, ReviewsAnswer } from "./reviews-model";
 import {
     aheadText,
     barTimeText,
+    BoardStatusKeys,
+    boardStatusText,
     branchAgent,
     draftIsYours,
     durationText,
@@ -143,5 +146,29 @@ describe("the bar's time line", () => {
         expect(aheadText(t, 0)).toBe("no commit yet");
         expect(aheadText(t, 1)).toBe("1 commit ahead");
         expect(aheadText(t, 3)).toBe("3 commits ahead");
+    });
+});
+
+describe("boardStatusText (#727)", () => {
+    const fr = (key: string, vars?: Record<string, any>) => translate("fr", key, vars);
+
+    it("translates the workflow's statuses, whatever their case", () => {
+        expect(boardStatusText(fr, "In progress")).toBe("En cours");
+        expect(boardStatusText(fr, "In Progress")).toBe("En cours");
+        expect(boardStatusText(fr, "AI Testing")).toBe("Tests IA");
+        expect(boardStatusText(fr, "In Review")).toBe("En revue");
+        expect(boardStatusText(t, "AI Testing")).toBe("AI testing");
+    });
+
+    it("shows a column the workflow does not declare as the board names it", () => {
+        expect(boardStatusText(fr, "Blocked by legal")).toBe("Blocked by legal");
+        expect(boardStatusText(fr, "constructor")).toBe("constructor");
+    });
+
+    it("has a key in both languages for each status", () => {
+        for (const key of Object.values(BoardStatusKeys)) {
+            expect(translate("fr", key)).not.toBe(key);
+            expect(translate("en", key)).not.toBe(key);
+        }
     });
 });

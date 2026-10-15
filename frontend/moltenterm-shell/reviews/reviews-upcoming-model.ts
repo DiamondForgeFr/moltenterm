@@ -196,6 +196,30 @@ export function barStateText(t: TFunction, state: BarState): string {
 }
 
 // "3 commits ahead", for the upcoming row.
+// The board columns the SaaSFoundry workflows declare (.saasfoundry.json → workflow statuses), by their name in
+// lower case with single spaces: the board writes "In progress" or "In Progress" (#727).
+export const BoardStatusKeys: Record<string, string> = {
+    backlog: "reviewsAgents.upcoming.boardStatus.backlog",
+    ready: "reviewsAgents.upcoming.boardStatus.ready",
+    "in progress": "reviewsAgents.upcoming.boardStatus.inProgress",
+    "ai drafting": "reviewsAgents.upcoming.boardStatus.aiDrafting",
+    "human review": "reviewsAgents.upcoming.boardStatus.humanReview",
+    spawning: "reviewsAgents.upcoming.boardStatus.spawning",
+    "ai testing": "reviewsAgents.upcoming.boardStatus.aiTesting",
+    "human testing": "reviewsAgents.upcoming.boardStatus.humanTesting",
+    "in review": "reviewsAgents.upcoming.boardStatus.inReview",
+    done: "reviewsAgents.upcoming.boardStatus.done",
+};
+
+// A board status in the user's language; a column the workflow does not declare is shown as the board names it.
+export function boardStatusText(t: TFunction, status: string): string {
+    const name = (status ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+    if (!Object.prototype.hasOwnProperty.call(BoardStatusKeys, name)) {
+        return status;
+    }
+    return t(BoardStatusKeys[name]);
+}
+
 export function aheadText(t: TFunction, ahead: number): string {
     if (!ahead) {
         return t("reviewsAgents.upcoming.noCommit");

@@ -395,9 +395,9 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 	}
 	name := molten.AgentCallName(rec.firstName, rec.agent)
 	if req.State == molten.AgentStateWaiting {
-		return &AttentionSignal{Title: name + " is waiting for you", Message: message}, "warning", nil
+		return &AttentionSignal{Title: name + " is waiting for you", Message: message, TitleCode: molten.NotificationTitleAgentWaiting, TitleName: name}, "warning", nil
 	}
-	return &AttentionSignal{Title: name + " is done", Message: message}, "success", nil
+	return &AttentionSignal{Title: name + " is done", Message: message, TitleCode: molten.NotificationTitleAgentDone, TitleName: name}, "success", nil
 }
 
 // allowNotice tells whether a notification for the block may be raised now: not when the other source (a hook, or
