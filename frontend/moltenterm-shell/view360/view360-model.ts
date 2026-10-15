@@ -38,6 +38,7 @@ import {
     CarpetMarginPx,
     carpetNodeTransform,
     CarpetScrollVar,
+    carpetSplitPlace,
     clampColumnPx,
     clampFixedPx,
     clampScroll,
@@ -525,8 +526,9 @@ export class View360Model {
 
     // ---- actions ---------------------------------------------------------------------------------------------------
 
-    // In 360 view a panel opened any way (insert, or a split beside another panel) is laid at the end of the carpet;
-    // vertical splits stay in their column. Returns the action the layout should run instead, or the action itself.
+    // In 360 view a panel opened any way is laid at the end of the carpet, except a split beside a panel, which lands
+    // right before or after that panel's column (#677, carpetSplitPlace); vertical splits stay in their column.
+    // Returns the action the layout should run instead, or the action itself.
     rewriteAction(action: LayoutTreeAction, rootNode: LayoutNode): LayoutTreeAction {
         if (!this.wanted || rootNode == null) {
             return action;
@@ -546,9 +548,18 @@ export class View360Model {
             }
             case LayoutTreeActionType.SplitHorizontal: {
                 const split = action as LayoutTreeSplitHorizontalAction;
-                newNode = split.newNode;
-                focused = !!split.focused;
-                break;
+                if (split.newNode == null) {
+                    return action;
+                }
+                const place = carpetSplitPlace(rootNode, split.targetNodeId, split.position);
+                const beside: LayoutTreeSplitHorizontalAction = {
+                    type: LayoutTreeActionType.SplitHorizontal,
+                    targetNodeId: place.targetNodeId,
+                    newNode: split.newNode,
+                    position: place.position,
+                    focused: !!split.focused,
+                };
+                return beside;
             }
             default:
                 return action;

@@ -43,6 +43,8 @@ export type PaletteRun =
     | { kind: "shortcuts" }
     // The workspace's last closed pane or tab, back (#512).
     | { kind: "reopenclosed" }
+    // The split placement mode on the pane the palette was opened from, or the focused one (#677).
+    | { kind: "splitplace" }
     // The command panel of the pane the palette was opened from, or one of its items (FR-SHELL-047: every action of
     // the panel is also a palette command).
     | { kind: "panelcommands" }

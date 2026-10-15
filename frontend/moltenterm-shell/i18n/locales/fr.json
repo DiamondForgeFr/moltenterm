@@ -261,6 +261,8 @@
             "projectTabDetail": "où en est le projet : agents, branches, CI, versions, actions",
             "newTab": "Nouvel onglet",
             "reopenClosed": "Rouvrir le dernier panneau ou onglet fermé",
+            "splitPlace": "Diviser le panneau…",
+            "splitPlaceDetail": "choisir le côté : gauche, droite, haut ou bas",
             "newWorkspace": "Nouvel espace de travail",
             "editWorkspace": "Modifier l'espace de travail…",
             "editWorkspaceDetail": "nom, icône, couleur, projet, dossier",
@@ -1490,6 +1492,9 @@
         "items": {
             "split-right": "Diviser à droite",
             "split-down": "Diviser en bas",
+            "split-left": "Diviser à gauche",
+            "split-up": "Diviser en haut",
+            "split-place": "Diviser… (choisir le côté)",
             "split-chord": "Diviser dans une direction",
             "new-panel": "Nouveau panneau terminal",
             "close-panel": "Fermer le panneau",
@@ -3745,8 +3750,20 @@
     "split": {
         "right": "Diviser à droite",
         "down": "Diviser en bas",
+        "left": "Diviser à gauche",
+        "up": "Diviser en haut",
         "dragToSize": "glisser pour redimensionner",
-        "tab": "Onglet"
+        "tab": "Onglet",
+        "place": {
+            "menu": "Diviser…",
+            "title": "Diviser le panneau",
+            "announce": "Choisissez où va le nouveau panneau : flèches, puis Entrée. Échap annule.",
+            "hint": "←↑→↓ choisir · ↵ diviser · Échap annuler",
+            "left": "Nouveau panneau à gauche",
+            "right": "Nouveau panneau à droite",
+            "up": "Nouveau panneau au-dessus",
+            "down": "Nouveau panneau en dessous"
+        }
     },
     "reopen": {
         "nothing": "Rien à rouvrir",

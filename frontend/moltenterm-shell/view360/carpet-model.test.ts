@@ -1,7 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
+import { splitHorizontal } from "@/layout/lib/layoutTree";
+import { FlexDirection, LayoutTreeActionType, type LayoutNode, type LayoutTreeState } from "@/layout/lib/types";
 import { describe, expect, it } from "vitest";
 import {
     CarpetColumnGapPx,
@@ -19,6 +20,7 @@ import {
     carpetColumnKind,
     carpetColumnRect,
     carpetNodeTransform,
+    carpetSplitPlace,
     clampColumnPx,
     clampFixedPx,
     clampScroll,
@@ -71,6 +73,48 @@ describe("splitCarpetColumns", () => {
     it("leaves a single panel or an empty tab alone", () => {
         expect(splitCarpetColumns(leaf("term"))).toBeNull();
         expect(splitCarpetColumns(null)).toBeNull();
+    });
+});
+
+describe("carpetSplitPlace (#677)", () => {
+    // Runs the placed split through Wave's own reducer and reads the carpet order back.
+    function carpetAfter(root: LayoutNode, targetNodeId: string, position: "before" | "after"): string[] {
+        const place = carpetSplitPlace(root, targetNodeId, position);
+        const state = { rootNode: root } as LayoutTreeState;
+        splitHorizontal(state, {
+            type: LayoutTreeActionType.SplitHorizontal,
+            targetNodeId: place.targetNodeId,
+            newNode: leaf("new"),
+            position: place.position,
+        });
+        return splitCarpetColumns(state.rootNode).carpet.map((c) => c.id);
+    }
+
+    function tab(): LayoutNode {
+        const stack = group("stack", FlexDirection.Column, [leaf("s1"), leaf("s2")]);
+        return group("root", FlexDirection.Row, [leaf("term"), leaf("web"), stack, leaf("preview")]);
+    }
+
+    it("puts a left split before its panel on the carpet, a right split after it", () => {
+        expect(carpetAfter(tab(), "web", "before")).toEqual(["new", "web", "stack", "preview"]);
+        expect(carpetAfter(tab(), "web", "after")).toEqual(["web", "new", "stack", "preview"]);
+        expect(carpetAfter(tab(), "preview", "before")).toEqual(["web", "stack", "new", "preview"]);
+    });
+
+    it("places beside the whole column of a panel stacked in it", () => {
+        expect(carpetAfter(tab(), "s2", "before")).toEqual(["web", "new", "stack", "preview"]);
+        expect(carpetAfter(tab(), "s1", "after")).toEqual(["web", "stack", "new", "preview"]);
+    });
+
+    it("keeps the fixed zone's panel: a split from it opens the carpet", () => {
+        expect(carpetAfter(tab(), "term", "before")).toEqual(["new", "web", "stack", "preview"]);
+        expect(carpetAfter(tab(), "term", "after")).toEqual(["new", "web", "stack", "preview"]);
+        expect(splitCarpetColumns(tab()).fixed.id).toBe("term");
+    });
+
+    it("wraps a lone panel with the new one after it, and sends an unknown source to the end", () => {
+        expect(carpetSplitPlace(leaf("only"), "only", "before")).toEqual({ targetNodeId: "only", position: "after" });
+        expect(carpetSplitPlace(tab(), "nowhere", "before")).toEqual({ targetNodeId: "preview", position: "after" });
     });
 });
 

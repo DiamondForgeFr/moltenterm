@@ -85,6 +85,32 @@ export const Shortcuts: Shortcut[] = [
         keys: "Shift:Cmd:d",
         keywords: ["add panel", "new panel", "pane"],
     },
+    // #677: Cmd-based keys collide (Cmd+Option+D hides the Dock, Ctrl+Cmd+D looks a word up, Cmd is Alt off macOS),
+    // so the left and up splits take the Ctrl+Shift family of the panel keys.
+    {
+        id: "split-left",
+        label: "Split left",
+        category: "Panels",
+        scope: "global",
+        keys: "Ctrl:Shift:d",
+        keywords: ["add panel", "new panel", "pane"],
+    },
+    {
+        id: "split-up",
+        label: "Split up",
+        category: "Panels",
+        scope: "global",
+        keys: "Ctrl:Shift:e",
+        keywords: ["add panel", "new panel", "pane"],
+    },
+    {
+        id: "split-place",
+        label: "Split… (choose the side)",
+        category: "Panels",
+        scope: "global",
+        keys: "Shift:Cmd:s",
+        keywords: ["add panel", "new panel", "pane", "split left", "split up", "placement"],
+    },
     {
         id: "split-chord",
         label: "Split in a direction",

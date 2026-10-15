@@ -10,6 +10,7 @@ import { t } from "../i18n/i18n";
 import { MoltentermLineMapView } from "../mission/line-map-model";
 import { MoltentermProjectView } from "../project/project-model";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
+import { formatShortcutById } from "../shortcuts/format";
 import { panelKindRank, terminalBlockDefFrom } from "../split/split-model";
 import { AgentCopyProfiles } from "../term-copy/agent-copy-profiles";
 import { updateAllDetail } from "../termupdate/termupdate-model";
@@ -252,6 +253,16 @@ export function actionEntries(workspaces: PaletteWorkspace[], projectLinked = fa
             hint: "⇧⌘T",
             keywords: ["undo close", "restore", "closed tab", "closed panel"],
             run: { kind: "reopenclosed" },
+        },
+        {
+            id: "action:splitplace",
+            group: "actions",
+            label: t("palette.actions.splitPlace"),
+            detail: t("palette.actions.splitPlaceDetail"),
+            icon: "table-cells-large",
+            hint: formatShortcutById("split-place") || undefined,
+            keywords: ["split", "new panel", "add panel", "left", "right", "up", "down"],
+            run: { kind: "splitplace" },
         },
         {
             id: "action:newworkspace",

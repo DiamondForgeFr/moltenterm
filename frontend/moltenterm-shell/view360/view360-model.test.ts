@@ -108,7 +108,7 @@ describe("View360Model", () => {
         });
     });
 
-    it("lays a split beside the fixed zone at the end of the carpet too", () => {
+    it("lays a split from the fixed zone as the carpet's first column, on either side (#677)", () => {
         const root: LayoutNode = {
             id: "root",
             flexDirection: FlexDirection.Row,
@@ -116,13 +116,56 @@ describe("View360Model", () => {
             children: [leaf("a"), leaf("b")],
         };
         const { model } = makeModel(true, root);
-        const split: LayoutTreeSplitHorizontalAction = {
+        for (const position of ["before", "after"] as const) {
+            const split: LayoutTreeSplitHorizontalAction = {
+                type: LayoutTreeActionType.SplitHorizontal,
+                targetNodeId: "a",
+                newNode: leaf("new"),
+                position,
+            };
+            const rewritten = model.rewriteAction(split, root) as LayoutTreeSplitHorizontalAction;
+            expect([rewritten.targetNodeId, rewritten.position]).toEqual(["a", "after"]);
+        }
+    });
+
+    it("lays a split from a carpet panel right before or after its column (#677)", () => {
+        const stack: LayoutNode = {
+            id: "stack",
+            flexDirection: FlexDirection.Column,
+            size: 10,
+            children: [leaf("s1"), leaf("s2")],
+        };
+        const root: LayoutNode = {
+            id: "root",
+            flexDirection: FlexDirection.Row,
+            size: 10,
+            children: [leaf("a"), stack, leaf("c")],
+        };
+        const { model } = makeModel(true, root);
+        const newNode = leaf("new");
+        const splitLeft: LayoutTreeSplitHorizontalAction = {
             type: LayoutTreeActionType.SplitHorizontal,
-            targetNodeId: "a",
-            newNode: leaf("new"),
+            targetNodeId: "s2",
+            newNode,
+            position: "before",
+            focused: true,
+        };
+        const left = model.rewriteAction(splitLeft, root);
+        expect(left).toEqual({
+            type: LayoutTreeActionType.SplitHorizontal,
+            targetNodeId: "stack",
+            newNode,
+            position: "before",
+            focused: true,
+        });
+        const splitRight: LayoutTreeSplitHorizontalAction = {
+            type: LayoutTreeActionType.SplitHorizontal,
+            targetNodeId: "s1",
+            newNode,
             position: "after",
         };
-        expect((model.rewriteAction(split, root) as LayoutTreeSplitHorizontalAction).targetNodeId).toBe("b");
+        const right = model.rewriteAction(splitRight, root) as LayoutTreeSplitHorizontalAction;
+        expect([right.targetNodeId, right.position]).toEqual(["stack", "after"]);
     });
 
     it("wraps a lone panel so the new one becomes the first carpet column", () => {
