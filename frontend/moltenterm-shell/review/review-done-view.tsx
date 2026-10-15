@@ -10,9 +10,11 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { deleteLayoutModelForTab } from "@/layout/index";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
+import { useEffect, useRef } from "react";
 import { useLocale, useT } from "../i18n/i18n";
+import { MoltenWave } from "../molten-button";
 import { closeTabAskingFirst } from "../worktree-close";
-import { ReviewDone, reviewDoneDetail, reviewDoneLabel } from "./review-done";
+import { MergedFooter, ReviewDone, reviewDoneDetail, reviewDoneLabel } from "./review-done";
 import type { ReviewTabModel } from "./review-tab-model";
 
 const DoneChip = "flex h-6 items-center gap-1.5 rounded-4 border px-2 text-12 whitespace-nowrap";
@@ -58,21 +60,60 @@ export function ReviewDoneState({ model }: { model: ReviewTabModel }) {
 }
 
 // Closes the Review tab, through the same path as the tab's own close (its panels' guards included).
-export function CloseReviewTabButton({ model, className }: { model: ReviewTabModel; className: string }) {
+function closeReviewTab(model: ReviewTabModel) {
+    model.closeValidate();
+    const workspaceId = globalStore.get(atoms.workspaceId);
+    const tabId = globalStore.get(atoms.staticTabId);
+    fireAndForget(async () => {
+        if (await closeTabAskingFirst(getApi().closeTab, workspaceId, tabId, false)) {
+            deleteLayoutModelForTab(tabId);
+        }
+    });
+}
+
+// The Validate result's footer once the PR is merged (#686): the tab has done its job, so closing it is the primary
+// action, focused so Enter takes it; Keep it open only closes the sheet.
+export function MergedFooterButtons({
+    model,
+    footer,
+    plainClass,
+}: {
+    model: ReviewTabModel;
+    footer: MergedFooter;
+    plainClass: string;
+}) {
     const t = useT();
-    const onClick = () => {
-        model.closeValidate();
-        const workspaceId = globalStore.get(atoms.workspaceId);
-        const tabId = globalStore.get(atoms.staticTabId);
-        fireAndForget(async () => {
-            if (await closeTabAskingFirst(getApi().closeTab, workspaceId, tabId, false)) {
-                deleteLayoutModelForTab(tabId);
-            }
-        });
-    };
+    const closeRef = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        closeRef.current?.focus();
+    }, []);
     return (
-        <button type="button" className={cn(className, "mr-auto")} onClick={onClick} data-testid="review-close-tab">
-            {t("review.done.closeTab")}
-        </button>
+        <>
+            <span
+                className="mr-auto min-w-0 text-12 text-secondary"
+                data-testid="review-merged-line"
+                data-state={footer}
+            >
+                {t(`review.done.footer.${footer}`)}
+            </span>
+            <button
+                type="button"
+                className={cn(plainClass, "shrink-0 whitespace-nowrap")}
+                onClick={() => model.closeValidate()}
+                data-testid="review-keep-tab"
+            >
+                {t("review.done.keepOpen")}
+            </button>
+            <button
+                ref={closeRef}
+                type="button"
+                className="molten-btn flex shrink-0 cursor-pointer items-center gap-1.5 rounded-4 px-3 py-1 text-12 whitespace-nowrap"
+                onClick={() => closeReviewTab(model)}
+                data-testid="review-close-tab"
+            >
+                {t("review.done.closeTab")}
+                <MoltenWave />
+            </button>
+        </>
     );
 }

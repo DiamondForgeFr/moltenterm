@@ -4398,7 +4398,14 @@
             "showResult": "Click to see the validation's result.",
             "tabMerged": "Merged: you can close this tab",
             "tabClosed": "Closed without merge: you can close this tab",
-            "closeTab": "Close the tab"
+            "closeTab": "Close the review tab",
+            "keepOpen": "Keep it open",
+            "footer": {
+                "cleaning": "Merged. The cleanup is finishing; this review tab is no longer needed.",
+                "needs": "Merged. A kept worktree waits for you above; this review tab is then no longer needed.",
+                "failed": "Merged, but a cleanup step failed above. This review tab is no longer needed.",
+                "done": "Merged and cleaned up. This review tab is no longer needed."
+            }
         },
         "validate": {
             "button": "Validate",

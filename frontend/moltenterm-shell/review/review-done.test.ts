@@ -4,9 +4,11 @@
 import { describe, expect, it } from "vitest";
 import type { TFunction } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
+import type { ReviewCleanupResult, ReviewCleanupStepResult } from "./review-cleanup";
 import type { ReviewMergeRecord, ReviewPrStateResult } from "./review-client";
 import {
     isReviewDone,
+    mergedFooter,
     readReviewDoneMeta,
     reviewDoneDetail,
     reviewDoneLabel,
@@ -96,6 +98,42 @@ describe("review done state (#686)", () => {
         expect(reviewDoneTabTitle(en, { state: "closed" })).toBe("Closed without merge: you can close this tab");
         expect(reviewDoneTabTitle(fr, { state: "merged" })).toBe("Fusionnée : vous pouvez fermer cet onglet");
         expect(reviewDoneTabTitle(en, null)).toBe("");
+    });
+
+    it("proposes to close the tab in the Validate result once merged, saying where the cleanup is", () => {
+        const cleanup = (steps: ReviewCleanupStepResult[]): ReviewCleanupResult => ({
+            repo: "o/r",
+            number: 7,
+            steps,
+            startedat: 2,
+            endedat: 3,
+        });
+        const merged = record({ state: "merged" });
+        for (const state of ["checking", "updating", "waitingci", "merging", "refused", "failed", "cancelled"]) {
+            expect(mergedFooter(record({ state: state as ReviewMergeRecord["state"] }), null)).toBeNull();
+        }
+        expect(mergedFooter(null, null)).toBeNull();
+        expect(mergedFooter(merged, null)).toBe("cleaning");
+        expect(mergedFooter(record({ state: "merged", cleanuprunning: true }), cleanup([]))).toBe("cleaning");
+        expect(
+            mergedFooter(
+                merged,
+                cleanup([{ id: "review-worktree", state: "skipped", code: "kept" } as ReviewCleanupStepResult])
+            )
+        ).toBe("needs");
+        expect(
+            mergedFooter(merged, cleanup([{ id: "local-branch", state: "failed" } as ReviewCleanupStepResult]))
+        ).toBe("failed");
+        expect(mergedFooter(merged, cleanup([{ id: "local-branch", state: "done" } as ReviewCleanupStepResult]))).toBe(
+            "done"
+        );
+        expect(en("review.done.footer.done")).toBe("Merged and cleaned up. This review tab is no longer needed.");
+        for (const footer of ["cleaning", "needs", "failed", "done"]) {
+            expect(en(`review.done.footer.${footer}`)).not.toBe(`review.done.footer.${footer}`);
+            expect(fr(`review.done.footer.${footer}`)).not.toBe(en(`review.done.footer.${footer}`));
+        }
+        expect(en("review.done.closeTab")).toBe("Close the review tab");
+        expect(en("review.done.keepOpen")).toBe("Keep it open");
     });
 
     it("asks GitHub once, then at most every recheck, never once merged", () => {
