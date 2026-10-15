@@ -4197,26 +4197,6 @@
             "daysAgo": "il y a {count} jours",
             "moved": "{when}, sur {oid} : la PR a bougé depuis"
         },
-        "cleanup": {
-            "step": {
-                "pr": "PR fusionnée",
-                "ticketClose": "Ticket fermé",
-                "ticketDone": "Ticket passé en Done",
-                "reviewWorktree": "Worktree de revue supprimé",
-                "agentWorktree": "Worktree de l'agent supprimé",
-                "localBranch": "Branche locale supprimée",
-                "remoteBranch": "Branche distante supprimée",
-                "otherPrs": "Autres PR ouvertes mises à jour"
-            },
-            "state": {
-                "planned": "prévu",
-                "done": "fait",
-                "skipped": "ignoré",
-                "failed": "échoué"
-            },
-            "prRebased": "rebasée par GitHub",
-            "removeAgentWorktree": "Supprimer quand même le worktree de l'agent"
-        },
         "comment": {
             "state": {
                 "draft": "Brouillon",
@@ -4307,13 +4287,6 @@
             "markViewed": "Marquer comme vu"
         },
         "merge": {
-            "check": {
-                "ok": "Réussi",
-                "info": "Note",
-                "warn": "Avertissement",
-                "pending": "En attente",
-                "fail": "Échoué"
-            },
             "reading": "Lecture de la pull request…",
             "running": "Une fusion de cette pull request est en cours",
             "checkFails": "Une vérification ne passe pas",
@@ -4356,16 +4329,252 @@
             "recheckTitle": "Relire la pull request",
             "recheck": "Revérifier",
             "mergeTitle": "Fusionner, lié au head {oid}",
-            "plannedOnBefore": "Planifié sur le head",
-            "plannedOnAfter": " : tout push après ce plan fait refuser la fusion.",
-            "checks": "Vérifications",
             "mergeAnyway": "Fusionner quand même : j'ai lu les avertissements ci-dessus.",
-            "steps": "Étapes",
-            "thenCleanup": "Puis le nettoyage",
             "mergeDisabled": "Fusion désactivée : {reason}",
-            "rebasedHead": "Rebasée par GitHub : head",
+            "rebasedHead": "GitHub a d'abord rebasé la branche : head fusionné {oid}.",
             "cleaningUp": "Nettoyage après la fusion…",
-            "cleanup": "Nettoyage"
+            "stepsLabel": "Étapes de la validation",
+            "andMore": "{names} et {count} de plus",
+            "notRun": "Non lancé : rien n'a été fusionné.",
+            "showFolder": "Afficher le worktree de l'agent dans son dossier",
+            "showReviewFolder": "Afficher le worktree de revue dans son dossier",
+            "state": {
+                "todo": "À faire",
+                "running": "En cours",
+                "done": "Fait",
+                "skipped": "Ignoré",
+                "needs": "À vous",
+                "failed": "Échec"
+            },
+            "step": {
+                "checks": "Vérifications",
+                "merge": "Rebaser et fusionner dans {base}",
+                "ticket": "Ticket",
+                "cleanup": "Nettoyage",
+                "others": "Autres pull requests ouvertes"
+            },
+            "check": {
+                "open": "Ouverte et prête pour la revue",
+                "ci": "CI au vert, statuts local-* compris",
+                "conflict": "Aucun conflit avec la base",
+                "blocked": "Pas bloquée par les règles du dépôt",
+                "behind": "À jour avec la base",
+                "comments": "Aucun commentaire non publié",
+                "restart": "Aucune reprise du travail en cours"
+            },
+            "checkCode": {
+                "notopen": "La pull request est {state}.",
+                "draft": "La pull request est un brouillon : marquez-la prête pour la revue d'abord.",
+                "failing": "{count} en échec : {names}",
+                "running": "{count} encore en cours : {names}",
+                "nocheck": "Aucune vérification signalée sur cette pull request.",
+                "passed": "{count} réussies",
+                "passedLocal": "{count} réussies, dont {local} locales",
+                "conflicting": "La branche est en conflit avec {base} : elle doit être rebasée (Reprendre le travail peut la confier à un agent).",
+                "computing": "GitHub calcule encore si elle fusionne proprement : revérifiez dans un instant.",
+                "blocked": "GitHub bloque la fusion : une vérification ou une revue obligatoire manque.",
+                "behind": "En retard sur {base} : GitHub la rebase d'abord, puis la fusion attend la CI sur le nouveau head.",
+                "unpublished": {
+                    "one": "1 commentaire écrit ici n'est pas publié : il reste ici, non publié.",
+                    "other": "{count} commentaires écrits ici ne sont pas publiés : ils restent ici, non publiés."
+                },
+                "inflight": "Une reprise du travail a été envoyée sur ce head et rien n'a été poussé depuis : un agent y travaille peut-être encore."
+            },
+            "checks": {
+                "allPass": {
+                    "one": "La vérification passe.",
+                    "other": "Les {count} vérifications passent."
+                },
+                "problems": {
+                    "one": "1 vérification demande votre attention.",
+                    "other": "{count} vérifications demandent votre attention."
+                },
+                "passedBefore": "Vérifiée avant la fusion.",
+                "show": "Afficher",
+                "hide": "Masquer"
+            },
+            "plan": {
+                "behind": "GitHub rebasera d'abord {head} sur {base}, puis attendra que la CI passe à nouveau sur le nouveau head.",
+                "merge": "{head} sera rebasée et fusionnée dans {base}, puis supprimée sur GitHub.",
+                "bound": "Lié au head {oid} : tout push après ce plan fait refuser la fusion."
+            },
+            "outcome": {
+                "merged": "Rebasée et fusionnée dans {base} à {head}.",
+                "reread": "La pull request n'a pas pu être relue avant la fusion : rien n'a été fusionné.",
+                "mergedaway": "La pull request a été fusionnée hors de MoltenTerm.",
+                "headmoved": "De nouveaux commits ont été poussés depuis le plan (head {to}, le plan portait sur {from}) : relisez-les, puis validez à nouveau.",
+                "githubheadmoved": "GitHub a refusé la fusion car la branche a bougé : relisez les nouveaux commits, puis validez à nouveau.",
+                "check": "Non fusionnée : {reason}",
+                "newwarning": "Non fusionnée : un nouvel avertissement est apparu depuis le plan. Validez à nouveau.",
+                "mergeerror": "La fusion a échoué et n'est pas retentée.",
+                "updateerror": "GitHub n'a pas pu rebaser la branche sur sa base : rien n'a été fusionné.",
+                "stopped": "Arrêtée pendant l'attente de la CI : rien n'a été fusionné.",
+                "citimeout": "La CI n'a pas fini sur le head rebasé en {minutes} minutes : rien n'a été fusionné.",
+                "pollerror": "La pull request n'a pas pu être lue pendant l'attente de la CI : rien n'a été fusionné.",
+                "cifailed": "La CI a échoué sur le head rebasé ({names}) : rien n'a été fusionné.",
+                "conflict": "La branche rebasée est en conflit avec sa base : rien n'a été fusionné.",
+                "basemoved": "La base a encore bougé pendant la CI : rien n'a été fusionné. Validez à nouveau.",
+                "rebasedblocked": "GitHub bloque la fusion du head rebasé : une vérification ou une revue obligatoire manque. Rien n'a été fusionné.",
+                "state": {
+                    "refused": "La fusion a été refusée.",
+                    "failed": "La fusion a échoué.",
+                    "cancelled": "La fusion a été arrêtée."
+                }
+            },
+            "error": {
+                "running": "Une fusion de cette pull request est déjà en cours.",
+                "stale": "Ce plan n'est plus à jour : validez à nouveau.",
+                "old": "Ce plan a plus de 30 minutes : validez à nouveau.",
+                "blocked": "Le plan ne permet pas la fusion : revérifiez.",
+                "confirm": "Confirmez les avertissements pour fusionner quand même.",
+                "nomerge": "Aucune fusion de cette pull request n'est en cours."
+            },
+            "loss": {
+                "files": {
+                    "one": "1 fichier non commité serait perdu : {names}",
+                    "other": "{count} fichiers non commités seraient perdus : {names}"
+                },
+                "commits": {
+                    "one": "1 commit n'est pas dans la pull request fusionnée et serait perdu : {names}",
+                    "other": "{count} commits ne sont pas dans la pull request fusionnée et seraient perdus : {names}"
+                },
+                "unknownCommits": "Git n'a pas pu dire si ses commits ont été fusionnés : ils pourraient être perdus.",
+                "nFiles": {
+                    "one": "1 fichier",
+                    "other": "{count} fichiers"
+                },
+                "nCommits": {
+                    "one": "1 commit",
+                    "other": "{count} commits"
+                },
+                "button": "Supprimer et perdre {what}",
+                "buttonBoth": "Supprimer et perdre {files} et {commits}",
+                "buttonUnknown": "Supprimer le worktree et sa branche"
+            },
+            "cleanup": {
+                "plan": "Les worktrees et les branches seront supprimés, sauf si l'un contient du travail absent de la pull request fusionnée.",
+                "fetchFailed": "Le fetch après la fusion a échoué : les branches ont été vérifiées avec ce que cet ordinateur avait déjà.",
+                "prNotMerged": "GitHub n'indique pas la pull request comme fusionnée : le nettoyage n'a pas été lancé.",
+                "prUnreadable": "La pull request fusionnée n'a pas pu être lue : le nettoyage n'a pas été lancé.",
+                "notConfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                "ignoredGone": {
+                    "one": "1 élément ignoré par git est parti avec lui ({names}) : rien à perdre, un build ou une installation le recrée.",
+                    "other": "{count} éléments ignorés par git sont partis avec lui ({names}) : rien à perdre, un build ou une installation les recrée."
+                },
+                "ticket-close": {
+                    "label": "Fermer le ticket",
+                    "plan": {
+                        "none": "#{ticket} sera fermé.",
+                        "noticket": "Rien à faire : aucun ticket trouvé pour cette pull request."
+                    },
+                    "did": {
+                        "closed": "#{ticket} fermé.",
+                        "alreadyclosed": "Rien à faire : #{ticket} était déjà fermé.",
+                        "noticket": "Rien à faire : aucun ticket trouvé pour cette pull request.",
+                        "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                        "none": "#{ticket} n'a pas pu être fermé."
+                    }
+                },
+                "ticket-done": {
+                    "label": "Passer le ticket en Done",
+                    "plan": {
+                        "none": "#{ticket} passera en Done.",
+                        "noticket": "Rien à faire : aucun ticket trouvé pour cette pull request.",
+                        "nosfworkflow": "Rien à faire : le projet n'a pas de tableau de workflow (sf-workflow)."
+                    },
+                    "did": {
+                        "moveddone": "#{ticket} passé en Done.",
+                        "alreadydone": "Rien à faire : #{ticket} était déjà en Done.",
+                        "noticket": "Rien à faire : aucun ticket trouvé pour cette pull request.",
+                        "nosfworkflow": "Rien à faire : le projet n'a pas de tableau de workflow (sf-workflow).",
+                        "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                        "none": "#{ticket} n'a pas pu passer en Done."
+                    }
+                },
+                "review-worktree": {
+                    "label": "Worktree de revue",
+                    "plan": {
+                        "willremove": "La copie de cette pull request faite par MoltenTerm sera supprimée.",
+                        "noreviewtree": "Rien à faire : cette revue a utilisé le worktree de l'agent.",
+                        "none": "La copie de cette pull request faite par MoltenTerm sera supprimée."
+                    },
+                    "did": {
+                        "removed": "Supprimé.",
+                        "noreviewtree": "Rien à faire : cette revue a utilisé le worktree de l'agent.",
+                        "notaworktree": "Laissé tel quel : {path} n'est pas un worktree du projet.",
+                        "kept": "Conservé : il contient des modifications faites pendant la revue, dans {path}.",
+                        "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                        "none": "Le worktree de revue n'a pas pu être supprimé."
+                    }
+                },
+                "agent-worktree": {
+                    "label": "Worktree de l'agent",
+                    "plan": {
+                        "willremove": "{path} sera supprimé.",
+                        "noagenttree": "Rien à faire : aucun worktree n'a {branch} extraite.",
+                        "none": "Le worktree de l'agent sera supprimé."
+                    },
+                    "did": {
+                        "removed": "{path} supprimé.",
+                        "noagenttree": "Rien à faire : aucun worktree n'a {branch} extraite.",
+                        "refusedhome": "Laissé tel quel : MoltenTerm ne supprime jamais le dossier personnel.",
+                        "refusedrepo": "Laissé tel quel : {path} contient son dépôt.",
+                        "locked": "Laissé tel quel : le worktree est verrouillé.",
+                        "kept": "Conservé, avec {branch} : supprimer {path} perdrait du travail.",
+                        "alreadygone": "Rien à faire : il était déjà supprimé.",
+                        "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                        "none": "Le worktree de l'agent n'a pas pu être supprimé."
+                    }
+                },
+                "local-branch": {
+                    "label": "Branche locale",
+                    "plan": {
+                        "none": "{branch} sera supprimée."
+                    },
+                    "did": {
+                        "deleted": "{branch} supprimée.",
+                        "nolocalbranch": "Rien à faire : il n'y a pas de branche locale {branch}.",
+                        "treefailed": "Conservée : elle attend le worktree de l'agent, qui n'a pas pu être supprimé.",
+                        "inkepttree": "Conservée avec le worktree de l'agent.",
+                        "inmaincheckout": "Conservée : {branch} est extraite dans le dossier principal du projet.",
+                        "moved": "Conservée : {branch} a bougé depuis que vous avez choisi de la supprimer.",
+                        "kept": "Conservée : {branch} contient des commits absents de la pull request fusionnée.",
+                        "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                        "none": "{branch} n'a pas pu être supprimée."
+                    }
+                },
+                "remote-branch": {
+                    "label": "Branche distante",
+                    "plan": {
+                        "none": "origin/{branch} sera supprimée avec la fusion."
+                    },
+                    "did": {
+                        "deletedbymerge": "origin/{branch} supprimée par la fusion.",
+                        "deleted": "origin/{branch} supprimée.",
+                        "pushedafter": "Conservée : origin/{branch} a des commits poussés après la fusion.",
+                        "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                        "none": "origin/{branch} n'a pas pu être supprimée."
+                    }
+                }
+            },
+            "others": {
+                "plan": "Les autres pull requests ouvertes sur {base} seront rebasées par GitHub ; celles en conflit seront signalées.",
+                "none": "Rien à faire : aucune autre pull request ouverte sur {base}.",
+                "updatedCount": {
+                    "one": "1 rebasée par GitHub",
+                    "other": "{count} rebasées par GitHub"
+                },
+                "flaggedCount": {
+                    "one": "1 laissée pour plus tard",
+                    "other": "{count} laissées pour plus tard"
+                },
+                "listFailed": "Les pull requests ouvertes n'ont pas pu être listées.",
+                "rebased": "Rebasée par GitHub.",
+                "agentBusy": "Laissée pour plus tard : son agent travaille. Mettez-la à jour quand il aura fini.",
+                "needsRebase": "Doit être rebasée : elle est en conflit avec {base} (Reprendre le travail peut la confier à un agent).",
+                "failed": "GitHub n'a pas pu la rebaser.",
+                "open": "Ouvrir"
+            }
         },
         "view": {
             "viewName": "Revue",

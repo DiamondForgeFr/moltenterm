@@ -79,11 +79,11 @@ func TestFormatMoltenReviewShowAndPublishPlan(t *testing.T) {
 	pr := moltenReviewPr{Number: 12, Title: "feat(#5): x", Ticket: 5, TicketTitle: "Ticket five", Branch: "feature/5-x", Merge: "clean"}
 	pr.Report.State = "present"
 	st := moltenReviewState{Comments: testReviewComments(), Rounds: []moltenReviewRound{{HeadOid: "abcdef0123", PublishedAt: 1, GithubUrl: "https://x/r"}},
-		Merge: &moltenReviewMerge{State: "merged", StartedAt: 1}, Cleanup: &moltenReviewCleanup{Steps: []moltenReviewCleanupStep{{Id: "ticket-done", State: "skipped", Reason: "no sf-workflow"}}}}
+		Merge: &moltenReviewMerge{State: "merged", StartedAt: 1}, Cleanup: &moltenReviewCleanup{Steps: []moltenReviewCleanupStep{{Id: "ticket-done", State: "skipped", Code: "nosfworkflow"}}}}
 	t2 := moltenReviewTarget{Repo: "a/b", Target: "develop", Pr: pr, State: st}
 	out := formatMoltenReviewShow(t2)
 	for _, want := range []string{"PR #12  Ticket five", "ticket:   #5", "feature/5-x into develop (a/b)", "test report, clean", "briefing: none",
-		"1 staged, 1 draft, 1 proposed", "proposals: 1", "round:    on abcdef0", "https://x/r", "merge:    merged", "skipped  Ticket moved to Done: no sf-workflow"} {
+		"1 staged, 1 draft, 1 proposed", "proposals: 1", "round:    on abcdef0", "https://x/r", "merge:    merged", "skipped  Ticket moved to Done: the project does not use sf-workflow"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("show: missing %q in:\n%s", want, out)
 		}
@@ -96,24 +96,25 @@ func TestFormatMoltenReviewShowAndPublishPlan(t *testing.T) {
 
 func TestFormatMoltenReviewPlanAndOutcome(t *testing.T) {
 	plan := moltenReviewPlan{Title: "x", HeadRef: "feature/5-x", BaseRef: "develop", HeadOid: "abcdef0123", CanMerge: true, CreatedAt: 10,
-		Checks:   []moltenReviewCheck{{Label: "CI passed", State: "ok"}, {Id: "comments", Label: "Comments published", State: "warn", Detail: "2 unpublished"}},
-		Steps:    []moltenReviewCheck{{Label: "Rebase and merge into develop", Detail: "Bound to head abcdef0"}},
+		Checks:   []moltenReviewCheck{{Id: "ci", State: "ok", Code: "passed", Count: 2, Local: 1}, {Id: "comments", State: "warn", Code: "unpublished", Count: 2}},
+		Steps:    []moltenReviewStep{{Id: "merge"}},
 		Cleanup:  []moltenReviewCleanupStep{{Id: "pr", State: "planned"}},
 		Warnings: []string{"comments"}}
 	out := formatMoltenReviewPlan(12, plan)
-	for _, want := range []string{"Validate PR #12", "feature/5-x into develop, head abcdef0", "ok   CI passed", "warn Comments published: 2 unpublished",
-		"1. Rebase and merge into develop (Bound to head abcdef0)", "planned  PR merged", "warning: Comments published (the sheet asks you to confirm it before Merge)"} {
+	for _, want := range []string{"Validate PR #12", "feature/5-x into develop, head abcdef0", "ok   CI is green, local-* statuses included: 2 passed, 1 of them local", "warn No unpublished comment: 2 comment(s) not published",
+		"1. Rebase and merge into develop, then delete feature/5-x on GitHub (bound to head abcdef0)", "planned  PR merged", "warning: No unpublished comment (the sheet asks you to confirm it before Merge)"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("plan: missing %q in:\n%s", want, out)
 		}
 	}
-	plan.CanMerge, plan.Reason = false, "CI is failing"
-	if out := formatMoltenReviewPlan(12, plan); !strings.Contains(out, "cannot merge: CI is failing") {
+	plan.CanMerge, plan.Blocking = false, "ci"
+	plan.Checks[0] = moltenReviewCheck{Id: "ci", State: "fail", Code: "failing", Count: 1, Names: []string{"lint"}}
+	if out := formatMoltenReviewPlan(12, plan); !strings.Contains(out, "cannot merge: CI is green, local-* statuses included (1 failing: lint)") {
 		t.Errorf("blocked plan:\n%s", out)
 	}
-	state := moltenReviewState{Merge: &moltenReviewMerge{State: "merged", MergedOid: "1234567890", StartedAt: 20, EndedAt: 30},
-		Cleanup: &moltenReviewCleanup{StartAt: 31, EndAt: 40, Steps: []moltenReviewCleanupStep{{Id: "remote-branch", State: "done"}}}}
-	if out := formatMoltenReviewMerged(state, 20); !strings.Contains(out, "Merge: merged as 1234567") || !strings.Contains(out, "done     Remote branch deleted") {
+	state := moltenReviewState{Merge: &moltenReviewMerge{State: "merged", Code: "merged", Head: "abcdef0123", MergedOid: "1234567890", StartedAt: 20, EndedAt: 30},
+		Cleanup: &moltenReviewCleanup{StartAt: 31, EndAt: 40, Steps: []moltenReviewCleanupStep{{Id: "remote-branch", State: "done", Code: "deletedbymerge", Branch: "feature/5-x"}}}}
+	if out := formatMoltenReviewMerged(state, 20); !strings.Contains(out, "Merge: merged as 1234567") || !strings.Contains(out, "done     Remote branch deleted: origin/feature/5-x was deleted by the merge") || !strings.Contains(out, "rebased and merged at abcdef0") {
 		t.Errorf("outcome:\n%s", out)
 	}
 	if out := formatMoltenReviewMerged(state, 99); !strings.Contains(out, "could not be read") {

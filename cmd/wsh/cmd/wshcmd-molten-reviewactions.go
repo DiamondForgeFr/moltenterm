@@ -95,23 +95,47 @@ type moltenReviewRound struct {
 }
 
 type moltenReviewMerge struct {
-	State          string `json:"state"`
-	Refused        string `json:"refused,omitempty"`
-	Message        string `json:"message,omitempty"`
-	PlanHead       string `json:"planhead"`
-	Head           string `json:"head,omitempty"`
-	MergedOid      string `json:"mergedoid,omitempty"`
-	Updated        bool   `json:"updated,omitempty"`
-	StartedAt      int64  `json:"startedat"`
-	EndedAt        int64  `json:"endedat,omitempty"`
-	CleanupRunning bool   `json:"cleanuprunning,omitempty"`
+	State          string             `json:"state"`
+	Refused        string             `json:"refused,omitempty"`
+	Code           string             `json:"code,omitempty"`
+	Error          string             `json:"error,omitempty"`
+	Blocking       *moltenReviewCheck `json:"blocking,omitempty"`
+	Names          []string           `json:"names,omitempty"`
+	MovedFrom      string             `json:"movedfrom,omitempty"`
+	MovedTo        string             `json:"movedto,omitempty"`
+	Minutes        int                `json:"minutes,omitempty"`
+	PlanHead       string             `json:"planhead"`
+	Head           string             `json:"head,omitempty"`
+	MergedOid      string             `json:"mergedoid,omitempty"`
+	Updated        bool               `json:"updated,omitempty"`
+	StartedAt      int64              `json:"startedat"`
+	EndedAt        int64              `json:"endedat,omitempty"`
+	CleanupRunning bool               `json:"cleanuprunning,omitempty"`
+}
+
+type moltenReviewLoss struct {
+	Changes     []string `json:"changes"`
+	ChangeCount int      `json:"changecount"`
+	Commits     []struct {
+		Sha     string `json:"sha"`
+		Subject string `json:"subject"`
+	} `json:"commits"`
+	CommitCount int `json:"commitcount"`
 }
 
 type moltenReviewCleanupStep struct {
-	Id      string `json:"id"`
-	State   string `json:"state"`
-	Reason  string `json:"reason,omitempty"`
-	Message string `json:"message,omitempty"`
+	Id      string            `json:"id"`
+	State   string            `json:"state"`
+	Code    string            `json:"code,omitempty"`
+	Error   string            `json:"error,omitempty"`
+	Ticket  int               `json:"ticket,omitempty"`
+	Branch  string            `json:"branch,omitempty"`
+	Base    string            `json:"base,omitempty"`
+	Path    string            `json:"path,omitempty"`
+	Loss    *moltenReviewLoss `json:"loss,omitempty"`
+	Updated int               `json:"updated,omitempty"`
+	Flagged int               `json:"flagged,omitempty"`
+	Failed  int               `json:"failed,omitempty"`
 }
 
 type moltenReviewCleanup struct {
@@ -160,10 +184,18 @@ type moltenReviewState struct {
 }
 
 type moltenReviewCheck struct {
-	Id     string `json:"id"`
-	Label  string `json:"label"`
-	State  string `json:"state"`
-	Detail string `json:"detail,omitempty"`
+	Id      string   `json:"id"`
+	State   string   `json:"state"`
+	Code    string   `json:"code,omitempty"`
+	Count   int      `json:"count,omitempty"`
+	Local   int      `json:"local,omitempty"`
+	Names   []string `json:"names,omitempty"`
+	Base    string   `json:"base,omitempty"`
+	PrState string   `json:"prstate,omitempty"`
+}
+
+type moltenReviewStep struct {
+	Id string `json:"id"`
 }
 
 type moltenReviewPlan struct {
@@ -173,10 +205,10 @@ type moltenReviewPlan struct {
 	BaseRef   string                    `json:"baseref"`
 	HeadOid   string                    `json:"headoid"`
 	Checks    []moltenReviewCheck       `json:"checks"`
-	Steps     []moltenReviewCheck       `json:"steps"`
+	Steps     []moltenReviewStep        `json:"steps"`
 	Cleanup   []moltenReviewCleanupStep `json:"cleanup"`
 	CanMerge  bool                      `json:"canmerge"`
-	Reason    string                    `json:"reason,omitempty"`
+	Blocking  string                    `json:"blocking,omitempty"`
 	Warnings  []string                  `json:"warnings"`
 	CreatedAt int64                     `json:"createdat"`
 }
@@ -825,8 +857,8 @@ func formatMoltenReviewShow(t moltenReviewTarget) string {
 	}
 	if m := st.Merge; m != nil {
 		fmt.Fprintf(&sb, "merge:    %s (%s)", m.State, moltenReviewTime(m.StartedAt))
-		if m.Message != "" {
-			fmt.Fprintf(&sb, ": %s", m.Message)
+		if text := moltenReviewMergeText(*m); text != "" {
+			fmt.Fprintf(&sb, ": %s", text)
 		}
 		sb.WriteString("\n")
 	}
@@ -900,11 +932,8 @@ func formatMoltenReviewCleanupSteps(sb *strings.Builder, steps []moltenReviewCle
 			label = s.Id
 		}
 		fmt.Fprintf(sb, "  %-8s %s", s.State, label)
-		switch {
-		case s.Reason != "":
-			fmt.Fprintf(sb, ": %s", s.Reason)
-		case s.Message != "":
-			fmt.Fprintf(sb, ": %s", s.Message)
+		if detail := moltenReviewCleanupDetail(s); detail != "" {
+			fmt.Fprintf(sb, ": %s", detail)
 		}
 		sb.WriteString("\n")
 	}
@@ -923,19 +952,15 @@ func formatMoltenReviewPlan(number int, plan moltenReviewPlan) string {
 		if mark == "" {
 			mark = c.State
 		}
-		fmt.Fprintf(&sb, "  %s %s", mark, c.Label)
-		if c.Detail != "" {
-			fmt.Fprintf(&sb, ": %s", c.Detail)
+		fmt.Fprintf(&sb, "  %s %s", mark, moltenReviewCheckLabel(c))
+		if detail := moltenReviewCheckDetail(c); detail != "" {
+			fmt.Fprintf(&sb, ": %s", detail)
 		}
 		sb.WriteString("\n")
 	}
 	sb.WriteString("steps:\n")
 	for i, s := range plan.Steps {
-		fmt.Fprintf(&sb, "  %d. %s", i+1, s.Label)
-		if s.Detail != "" {
-			fmt.Fprintf(&sb, " (%s)", s.Detail)
-		}
-		sb.WriteString("\n")
+		fmt.Fprintf(&sb, "  %d. %s\n", i+1, moltenReviewStepText(s.Id, plan))
 	}
 	if len(plan.Cleanup) > 0 {
 		sb.WriteString("then the cleanup:\n")
@@ -943,16 +968,20 @@ func formatMoltenReviewPlan(number int, plan moltenReviewPlan) string {
 	}
 	// Warnings name their checks by id: the check's label is what the sheet asks to confirm.
 	for _, w := range plan.Warnings {
-		label := w
-		for _, c := range plan.Checks {
-			if c.Id == w {
-				label = c.Label
-			}
-		}
+		label := moltenReviewCheckLabel(moltenReviewCheck{Id: w})
 		fmt.Fprintf(&sb, "warning: %s (the sheet asks you to confirm it before Merge)\n", label)
 	}
 	if !plan.CanMerge {
-		fmt.Fprintf(&sb, "cannot merge: %s\n", plan.Reason)
+		reason := plan.Blocking
+		for _, c := range plan.Checks {
+			if c.Id == plan.Blocking {
+				reason = moltenReviewCheckLabel(c)
+				if detail := moltenReviewCheckDetail(c); detail != "" {
+					reason += " (" + detail + ")"
+				}
+			}
+		}
+		fmt.Fprintf(&sb, "cannot merge: %s\n", reason)
 	}
 	return sb.String()
 }
@@ -971,8 +1000,8 @@ func formatMoltenReviewMerged(state moltenReviewState, started int64) string {
 	if m.MergedOid != "" {
 		fmt.Fprintf(&sb, " as %s", moltenReviewShort(m.MergedOid))
 	}
-	if m.Message != "" {
-		fmt.Fprintf(&sb, ": %s", m.Message)
+	if text := moltenReviewMergeText(*m); text != "" {
+		fmt.Fprintf(&sb, ": %s", text)
 	}
 	sb.WriteString("\n")
 	if c := state.Cleanup; c != nil && c.StartAt >= started {

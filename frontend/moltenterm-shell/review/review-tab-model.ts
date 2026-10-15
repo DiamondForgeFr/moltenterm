@@ -1336,8 +1336,8 @@ export abstract class ReviewTabModel implements ViewModel {
         }
     }
 
-    // The agent worktree the merge's cleanup kept for its risk (FR-REV-013): removed on the developer's second
-    // confirmation of the plan shown; the outcome comes back in the review store.
+    // The agent worktree the merge's cleanup kept because removing it loses work (FR-REV-013, #672): removed with its
+    // branch when the developer chooses to lose what the sheet named; the outcome comes back in the review store.
     async confirmCleanupWorktree(risk: ReviewWorktreeRisk) {
         const pr = this.pr();
         const ticket = globalStore.get(this.validateAtom).plan?.ticket;

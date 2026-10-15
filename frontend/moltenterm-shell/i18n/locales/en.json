@@ -4197,26 +4197,6 @@
             "daysAgo": "{count} days ago",
             "moved": "{when}, on {oid}: the PR moved since"
         },
-        "cleanup": {
-            "step": {
-                "pr": "PR merged",
-                "ticketClose": "Ticket closed",
-                "ticketDone": "Ticket moved to Done",
-                "reviewWorktree": "Review worktree removed",
-                "agentWorktree": "Agent worktree removed",
-                "localBranch": "Local branch deleted",
-                "remoteBranch": "Remote branch deleted",
-                "otherPrs": "Other open PRs brought up to date"
-            },
-            "state": {
-                "planned": "planned",
-                "done": "done",
-                "skipped": "skipped",
-                "failed": "failed"
-            },
-            "prRebased": "rebased by GitHub",
-            "removeAgentWorktree": "Remove the agent worktree anyway"
-        },
         "comment": {
             "state": {
                 "draft": "Draft",
@@ -4307,13 +4287,6 @@
             "markViewed": "Mark as viewed"
         },
         "merge": {
-            "check": {
-                "ok": "Passed",
-                "info": "Note",
-                "warn": "Warning",
-                "pending": "Waiting",
-                "fail": "Failed"
-            },
             "reading": "Reading the pull request…",
             "running": "A merge of this pull request is running",
             "checkFails": "A check does not pass",
@@ -4356,16 +4329,252 @@
             "recheckTitle": "Read the pull request again",
             "recheck": "Re-check",
             "mergeTitle": "Merge, bound to head {oid}",
-            "plannedOnBefore": "Planned on head",
-            "plannedOnAfter": ": anything pushed after this plan makes the merge refuse.",
-            "checks": "Checks",
             "mergeAnyway": "Merge anyway: I have read the warnings above.",
-            "steps": "Steps",
-            "thenCleanup": "Then the cleanup",
             "mergeDisabled": "Merge is disabled: {reason}",
-            "rebasedHead": "Rebased by GitHub: head",
+            "rebasedHead": "GitHub rebased the branch first: merged head {oid}.",
             "cleaningUp": "Cleaning up after the merge…",
-            "cleanup": "Cleanup"
+            "stepsLabel": "Validation steps",
+            "andMore": "{names} and {count} more",
+            "notRun": "Not run: nothing was merged.",
+            "showFolder": "Show the agent worktree in its folder",
+            "showReviewFolder": "Show the review worktree in its folder",
+            "state": {
+                "todo": "To do",
+                "running": "Running",
+                "done": "Done",
+                "skipped": "Skipped",
+                "needs": "Needs you",
+                "failed": "Failed"
+            },
+            "step": {
+                "checks": "Checks",
+                "merge": "Rebase and merge into {base}",
+                "ticket": "Ticket",
+                "cleanup": "Cleanup",
+                "others": "Other open pull requests"
+            },
+            "check": {
+                "open": "Open and ready for review",
+                "ci": "CI is green, local-* statuses included",
+                "conflict": "No conflict with the base",
+                "blocked": "Not blocked by the repository's rules",
+                "behind": "Up to date with the base",
+                "comments": "No unpublished comment",
+                "restart": "No restart of the work in flight"
+            },
+            "checkCode": {
+                "notopen": "The pull request is {state}.",
+                "draft": "The pull request is a draft: mark it ready for review first.",
+                "failing": "{count} failing: {names}",
+                "running": "{count} still running: {names}",
+                "nocheck": "No check reported on this pull request.",
+                "passed": "{count} passed",
+                "passedLocal": "{count} passed, {local} of them local",
+                "conflicting": "The branch conflicts with {base}: it needs a rebase (Restart work can hand it to an agent).",
+                "computing": "GitHub is still computing whether it merges cleanly: re-check in a moment.",
+                "blocked": "GitHub blocks the merge: a required check or review is missing.",
+                "behind": "Behind {base}: GitHub rebases it first, then the merge waits for CI on the new head.",
+                "unpublished": {
+                    "one": "1 comment written here is not published: it stays here, unpublished.",
+                    "other": "{count} comments written here are not published: they stay here, unpublished."
+                },
+                "inflight": "Restart work was sent on this head and nothing was pushed since: an agent may still be working on it."
+            },
+            "checks": {
+                "allPass": {
+                    "one": "The check passes.",
+                    "other": "All {count} checks pass."
+                },
+                "problems": {
+                    "one": "1 check needs your attention.",
+                    "other": "{count} checks need your attention."
+                },
+                "passedBefore": "Checked before the merge.",
+                "show": "Show",
+                "hide": "Hide"
+            },
+            "plan": {
+                "behind": "GitHub will first rebase {head} on {base}, then wait for CI to pass again on the new head.",
+                "merge": "{head} will be rebased and merged into {base}, then deleted on GitHub.",
+                "bound": "Bound to head {oid}: anything pushed after this plan makes the merge refuse."
+            },
+            "outcome": {
+                "merged": "Rebased and merged into {base} at {head}.",
+                "reread": "The pull request could not be read again before the merge: nothing was merged.",
+                "mergedaway": "The pull request was merged outside MoltenTerm.",
+                "headmoved": "New commits were pushed since the plan (head {to}, the plan was made for {from}): review them, then Validate again.",
+                "githubheadmoved": "GitHub refused the merge because the branch moved: review the new commits, then Validate again.",
+                "check": "Not merged: {reason}",
+                "newwarning": "Not merged: a new warning appeared since the plan. Validate again.",
+                "mergeerror": "The merge failed and is not retried.",
+                "updateerror": "GitHub could not rebase the branch on its base: nothing was merged.",
+                "stopped": "Stopped while waiting for CI: nothing was merged.",
+                "citimeout": "CI did not finish on the rebased head within {minutes} minutes: nothing was merged.",
+                "pollerror": "The pull request could not be read while waiting for CI: nothing was merged.",
+                "cifailed": "CI failed on the rebased head ({names}): nothing was merged.",
+                "conflict": "The rebased branch conflicts with its base: nothing was merged.",
+                "basemoved": "The base moved again while CI ran: nothing was merged. Validate again.",
+                "rebasedblocked": "GitHub blocks the merge of the rebased head: a required check or review is missing. Nothing was merged.",
+                "state": {
+                    "refused": "The merge was refused.",
+                    "failed": "The merge failed.",
+                    "cancelled": "The merge was stopped."
+                }
+            },
+            "error": {
+                "running": "A merge of this pull request is already running.",
+                "stale": "This plan is no longer current: Validate again.",
+                "old": "This plan is more than 30 minutes old: Validate again.",
+                "blocked": "The plan does not allow the merge: re-check.",
+                "confirm": "Confirm the warnings to merge anyway.",
+                "nomerge": "No merge of this pull request is running."
+            },
+            "loss": {
+                "files": {
+                    "one": "1 uncommitted file would be lost: {names}",
+                    "other": "{count} uncommitted files would be lost: {names}"
+                },
+                "commits": {
+                    "one": "1 commit is not in the merged pull request and would be lost: {names}",
+                    "other": "{count} commits are not in the merged pull request and would be lost: {names}"
+                },
+                "unknownCommits": "Git could not tell whether its commits were merged: they may be lost.",
+                "nFiles": {
+                    "one": "1 file",
+                    "other": "{count} files"
+                },
+                "nCommits": {
+                    "one": "1 commit",
+                    "other": "{count} commits"
+                },
+                "button": "Remove and lose {what}",
+                "buttonBoth": "Remove and lose {files} and {commits}",
+                "buttonUnknown": "Remove the worktree and its branch"
+            },
+            "cleanup": {
+                "plan": "The worktrees and branches will be removed, unless one holds work that is not in the merged pull request.",
+                "fetchFailed": "The fetch after the merge failed: the branches were checked against what this computer already had.",
+                "prNotMerged": "GitHub does not show the pull request as merged: the cleanup did not run.",
+                "prUnreadable": "The merged pull request could not be read: the cleanup did not run.",
+                "notConfirmed": "Not run: the merge could not be confirmed.",
+                "ignoredGone": {
+                    "one": "1 git-ignored item went with it ({names}): nothing to lose, a build or an install makes it again.",
+                    "other": "{count} git-ignored items went with it ({names}): nothing to lose, a build or an install makes them again."
+                },
+                "ticket-close": {
+                    "label": "Close the ticket",
+                    "plan": {
+                        "none": "#{ticket} will be closed.",
+                        "noticket": "Nothing to do: no ticket found for this pull request."
+                    },
+                    "did": {
+                        "closed": "#{ticket} closed.",
+                        "alreadyclosed": "Nothing to do: #{ticket} was already closed.",
+                        "noticket": "Nothing to do: no ticket found for this pull request.",
+                        "prunconfirmed": "Not run: the merge could not be confirmed.",
+                        "none": "#{ticket} could not be closed."
+                    }
+                },
+                "ticket-done": {
+                    "label": "Move the ticket to Done",
+                    "plan": {
+                        "none": "#{ticket} will move to Done.",
+                        "noticket": "Nothing to do: no ticket found for this pull request.",
+                        "nosfworkflow": "Nothing to do: the project has no workflow board (sf-workflow)."
+                    },
+                    "did": {
+                        "moveddone": "#{ticket} moved to Done.",
+                        "alreadydone": "Nothing to do: #{ticket} was already Done.",
+                        "noticket": "Nothing to do: no ticket found for this pull request.",
+                        "nosfworkflow": "Nothing to do: the project has no workflow board (sf-workflow).",
+                        "prunconfirmed": "Not run: the merge could not be confirmed.",
+                        "none": "#{ticket} could not be moved to Done."
+                    }
+                },
+                "review-worktree": {
+                    "label": "Review worktree",
+                    "plan": {
+                        "willremove": "MoltenTerm's checkout of this pull request will be removed.",
+                        "noreviewtree": "Nothing to do: this review used the agent's worktree.",
+                        "none": "MoltenTerm's checkout of this pull request will be removed."
+                    },
+                    "did": {
+                        "removed": "Removed.",
+                        "noreviewtree": "Nothing to do: this review used the agent's worktree.",
+                        "notaworktree": "Left as it is: {path} is not a worktree of the project.",
+                        "kept": "Kept: it holds changes made during the review, in {path}.",
+                        "prunconfirmed": "Not run: the merge could not be confirmed.",
+                        "none": "The review worktree could not be removed."
+                    }
+                },
+                "agent-worktree": {
+                    "label": "Agent worktree",
+                    "plan": {
+                        "willremove": "{path} will be removed.",
+                        "noagenttree": "Nothing to do: no worktree has {branch} checked out.",
+                        "none": "The agent worktree will be removed."
+                    },
+                    "did": {
+                        "removed": "{path} removed.",
+                        "noagenttree": "Nothing to do: no worktree has {branch} checked out.",
+                        "refusedhome": "Left as it is: MoltenTerm never removes the home folder.",
+                        "refusedrepo": "Left as it is: {path} holds its repository.",
+                        "locked": "Left as it is: the worktree is locked.",
+                        "kept": "Kept, with {branch}: removing {path} would lose work.",
+                        "alreadygone": "Nothing to do: it was already removed.",
+                        "prunconfirmed": "Not run: the merge could not be confirmed.",
+                        "none": "The agent worktree could not be removed."
+                    }
+                },
+                "local-branch": {
+                    "label": "Local branch",
+                    "plan": {
+                        "none": "{branch} will be deleted."
+                    },
+                    "did": {
+                        "deleted": "{branch} deleted.",
+                        "nolocalbranch": "Nothing to do: there is no local branch {branch}.",
+                        "treefailed": "Kept: it waits for the agent worktree, which could not be removed.",
+                        "inkepttree": "Kept with the agent worktree.",
+                        "inmaincheckout": "Kept: {branch} is checked out in the project's main folder.",
+                        "moved": "Kept: {branch} moved since you chose to remove it.",
+                        "kept": "Kept: {branch} holds commits that are not in the merged pull request.",
+                        "prunconfirmed": "Not run: the merge could not be confirmed.",
+                        "none": "{branch} could not be deleted."
+                    }
+                },
+                "remote-branch": {
+                    "label": "Remote branch",
+                    "plan": {
+                        "none": "origin/{branch} will be deleted with the merge."
+                    },
+                    "did": {
+                        "deletedbymerge": "origin/{branch} deleted by the merge.",
+                        "deleted": "origin/{branch} deleted.",
+                        "pushedafter": "Kept: origin/{branch} has commits pushed after the merge.",
+                        "prunconfirmed": "Not run: the merge could not be confirmed.",
+                        "none": "origin/{branch} could not be deleted."
+                    }
+                }
+            },
+            "others": {
+                "plan": "The other open pull requests on {base} will be rebased by GitHub; those that conflict will be flagged.",
+                "none": "Nothing to do: no other open pull request on {base}.",
+                "updatedCount": {
+                    "one": "1 rebased by GitHub",
+                    "other": "{count} rebased by GitHub"
+                },
+                "flaggedCount": {
+                    "one": "1 left for later",
+                    "other": "{count} left for later"
+                },
+                "listFailed": "The open pull requests could not be listed.",
+                "rebased": "Rebased by GitHub.",
+                "agentBusy": "Left for later: its agent is working. Update it once the agent finishes.",
+                "needsRebase": "Needs a rebase: it conflicts with {base} (Restart work can hand it to an agent).",
+                "failed": "GitHub could not rebase it.",
+                "open": "Open"
+            }
         },
         "view": {
             "viewName": "Review",

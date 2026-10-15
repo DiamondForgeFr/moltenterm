@@ -4,6 +4,7 @@
 package review
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -34,6 +35,8 @@ type cleanupFixture struct {
 	agent   string
 	dataDir string
 	headOid string
+	// prHead: the head gh says it merged; headOid when empty.
+	prHead string
 
 	lock      sync.Mutex
 	ghCalls   [][]string
@@ -136,7 +139,7 @@ func (f *cleanupFixture) gh(args []string) ([]byte, error) {
 	switch key {
 	case "pr view":
 		return []byte(fmt.Sprintf(`{"state":%q,"headRefName":"feature/7-thing","headRefOid":%q,"baseRefName":"develop","closingIssuesReferences":[]}`,
-			f.prState, f.headOid)), nil
+			f.prState, cmp.Or(f.prHead, f.headOid))), nil
 	case "issue view":
 		return []byte(fmt.Sprintf(`{"state":%q}`, f.issue)), nil
 	case "pr list":
@@ -219,7 +222,7 @@ func expectStep(t *testing.T, result CleanupResult, id string, state string) *Cl
 		t.Fatalf("step %s did not run: %+v", id, result.Steps)
 	}
 	if step.State != state {
-		t.Errorf("step %s: %s (%s%s), want %s", id, step.State, step.Reason, step.Message, state)
+		t.Errorf("step %s: %s (%s%s), want %s", id, step.State, step.Code, step.Error, state)
 	}
 	return step
 }
@@ -262,7 +265,7 @@ func TestCleanupAfterMerge(t *testing.T) {
 	expectStep(t, result, CleanupStepReviewTree, CleanupStateDone)
 	expectStep(t, result, CleanupStepAgentTree, CleanupStateDone)
 	expectStep(t, result, CleanupStepLocalBranch, CleanupStateDone)
-	expectStep(t, result, CleanupStepRemoteBranch, CleanupStateSkipped)
+	expectStep(t, result, CleanupStepRemoteBranch, CleanupStateDone)
 	others := expectStep(t, result, CleanupStepOtherPrs, CleanupStateDone)
 	if exists(review) || exists(f.agent) {
 		t.Errorf("worktrees left: review %v, agent %v", exists(review), exists(f.agent))
@@ -307,12 +310,12 @@ func TestCleanupKeepsDirtyAgentWorktree(t *testing.T) {
 	result := f.cleanup(CleanupRequest{})
 
 	agent := expectStep(t, result, CleanupStepAgentTree, CleanupStateSkipped)
-	if agent.Confirm == nil || agent.Confirm.ChangeCount != 1 || agent.Worktree == nil || !strings.Contains(agent.Reason, "uncommitted") {
+	if agent.Confirm == nil || agent.Confirm.ChangeCount != 1 || agent.Code != CleanupCodeKept || agent.Loss == nil || agent.Loss.ChangeCount != 1 || !slices.Equal(agent.Loss.Changes, []string{"b.txt"}) || agent.Loss.CommitCount != 0 {
 		t.Fatalf("agent worktree step: %+v", agent)
 	}
 	branch := expectStep(t, result, CleanupStepLocalBranch, CleanupStateSkipped)
-	if !strings.Contains(branch.Reason, "kept agent worktree") {
-		t.Errorf("branch reason: %q", branch.Reason)
+	if branch.Code != CleanupCodeInKeptTree {
+		t.Errorf("branch code: %q", branch.Code)
 	}
 	// The rest is done all the same.
 	expectStep(t, result, CleanupStepTicketClose, CleanupStateDone)
@@ -347,31 +350,140 @@ func TestCleanupKeepsDirtyAgentWorktree(t *testing.T) {
 
 func TestCleanupKeepsUnmergedWork(t *testing.T) {
 	f := makeCleanupFixture(t, false)
-	// A commit made after the merge, never pushed: the branch holds work that is not on develop.
+	// A commit made after the merge, never pushed: the branch holds work that is not in the merged PR.
 	f.write(f.agent, "e.txt", "late work\n")
 	f.git(f.agent, "add", "e.txt")
 	f.git(f.agent, "commit", "--quiet", "-m", "late")
+	late := f.git(f.agent, "rev-parse", "HEAD")
 
 	result := f.cleanup(CleanupRequest{})
 
 	agent := expectStep(t, result, CleanupStepAgentTree, CleanupStateSkipped)
-	if agent.Confirm == nil || !strings.Contains(agent.Reason, "commit") {
-		t.Errorf("agent worktree step: %+v", agent)
+	if agent.Confirm == nil || agent.Code != CleanupCodeKept || agent.Loss == nil || agent.Loss.ChangeCount != 0 ||
+		agent.Loss.CommitCount != 1 || agent.Loss.Commits[0].Sha != late || agent.Loss.Commits[0].Subject != "late" {
+		t.Fatalf("agent worktree step: %+v %+v", agent, agent.Loss)
 	}
-	expectStep(t, result, CleanupStepTicketDone, CleanupStateSkipped)
-	if step := result.Step(CleanupStepTicketDone); !strings.Contains(step.Reason, "sf-workflow") {
-		t.Errorf("ticket done reason: %q", step.Reason)
+	if step := expectStep(t, result, CleanupStepTicketDone, CleanupStateSkipped); step.Code != CleanupCodeNoSfWorkflow {
+		t.Errorf("ticket done code: %q", step.Code)
+	}
+	if !exists(f.agent) {
+		t.Fatalf("the worktree with a late commit was removed")
 	}
 
-	// Removing the worktree after the confirmation still keeps the branch: its content is not on develop.
+	// The developer chooses to lose it: the worktree and its branch go, the tip being the one they saw.
 	final := f.cleanup(CleanupRequest{Steps: []string{CleanupStepAgentTree, CleanupStepLocalBranch}, WorktreeConfirmed: agent.Confirm})
 	expectStep(t, final, CleanupStepAgentTree, CleanupStateDone)
-	branch := expectStep(t, final, CleanupStepLocalBranch, CleanupStateSkipped)
-	if !strings.Contains(branch.Reason, "not on develop") {
-		t.Errorf("branch reason: %q", branch.Reason)
+	expectStep(t, final, CleanupStepLocalBranch, CleanupStateDone)
+	if exists(f.agent) || f.git(f.dir, "branch", "--list", "feature/7-thing") != "" {
+		t.Errorf("the confirmed worktree or its branch is still there")
 	}
-	if out := f.git(f.dir, "branch", "--list", "feature/7-thing"); out == "" {
-		t.Errorf("the branch with unmerged work was deleted")
+}
+
+// The three cases of #672: only git-ignored files, uncommitted work, and a rebase merge whose commits have new ids.
+func TestCleanupRemovesIgnoredOnlyWorktree(t *testing.T) {
+	f := makeCleanupFixture(t, true)
+	f.write(f.dir, ".git/info/exclude", "node_modules/\ndist/\n.task/\ntest-results.xml\n.env\n")
+	f.write(f.agent, "node_modules/x/index.js", "x\n")
+	f.write(f.agent, "dist/app.js", "x\n")
+	f.write(f.agent, ".task/checksum", "x\n")
+	f.write(f.agent, "test-results.xml", "<x/>\n")
+	f.write(f.agent, ".env", "TOKEN=1\n")
+
+	result := f.cleanup(CleanupRequest{})
+
+	agent := expectStep(t, result, CleanupStepAgentTree, CleanupStateDone)
+	if agent.Code != CleanupCodeRemoved || agent.Loss == nil || agent.Loss.IgnoredCount != 5 || !agent.Loss.Nothing() {
+		t.Fatalf("agent worktree step: %+v %+v", agent, agent.Loss)
+	}
+	expectStep(t, result, CleanupStepLocalBranch, CleanupStateDone)
+	if exists(f.agent) || f.git(f.dir, "branch", "--list", "feature/7-thing") != "" {
+		t.Errorf("an agent worktree holding only ignored files was kept")
+	}
+}
+
+func TestCleanupKeepsUntrackedWork(t *testing.T) {
+	f := makeCleanupFixture(t, true)
+	f.write(f.agent, "notes.md", "draft\n")
+	f.write(f.agent, "src/new.ts", "x\n")
+
+	result := f.cleanup(CleanupRequest{})
+
+	agent := expectStep(t, result, CleanupStepAgentTree, CleanupStateSkipped)
+	if agent.Loss == nil || agent.Loss.ChangeCount != 2 || !slices.Equal(agent.Loss.Changes, []string{"notes.md", "src/"}) {
+		t.Fatalf("agent worktree loss: %+v", agent.Loss)
+	}
+	expectStep(t, result, CleanupStepLocalBranch, CleanupStateSkipped)
+	if !exists(f.agent) {
+		t.Fatalf("untracked work was removed")
+	}
+}
+
+// Without the merged head (GitHub's refs/pull/N/head out of reach), the commits are compared by patch: the rebase merge
+// gave them new ids on develop, and nothing is lost.
+func TestCleanupRebaseMergeWithoutMergedHead(t *testing.T) {
+	f := makeCleanupFixture(t, false)
+	f.prHead = strings.Repeat("f", 40)
+
+	result := f.cleanup(CleanupRequest{})
+
+	agent := expectStep(t, result, CleanupStepAgentTree, CleanupStateDone)
+	if agent.Loss == nil || agent.Loss.CommitCount != 0 {
+		t.Fatalf("agent worktree loss: %+v", agent.Loss)
+	}
+	expectStep(t, result, CleanupStepLocalBranch, CleanupStateDone)
+}
+
+// A squash merge, then a later edit on develop of a file the PR added: by patch or by content the branch's commits
+// look unmerged, but every one of them is in the head GitHub merged, so nothing is lost (#673 adds squash merges).
+func TestCleanupCommitsAreJudgedByTheMergedHead(t *testing.T) {
+	f := makeCleanupFixture(t, false)
+	f.write(f.agent, "x.txt", "x\n")
+	f.git(f.agent, "add", "x.txt")
+	f.git(f.agent, "commit", "--quiet", "-m", "x")
+	f.write(f.agent, "y.txt", "y\n")
+	f.git(f.agent, "add", "y.txt")
+	f.git(f.agent, "commit", "--quiet", "-m", "y")
+	f.git(f.agent, "push", "--quiet", "origin", "feature/7-thing")
+	f.prHead = f.git(f.agent, "rev-parse", "HEAD")
+	merger := filepath.Join(f.root, "merger")
+	f.git(merger, "pull", "--quiet", "origin", "develop")
+	f.git(merger, "fetch", "--quiet", "origin", "feature/7-thing")
+	f.git(merger, "merge", "--quiet", "--squash", "FETCH_HEAD")
+	f.git(merger, "commit", "--quiet", "-m", "feat(#7): thing (squash)")
+	f.write(merger, "x.txt", "x edited later\n")
+	f.git(merger, "commit", "--quiet", "-am", "later edit")
+	f.git(merger, "push", "--quiet", "origin", "develop", ":feature/7-thing")
+
+	result := f.cleanup(CleanupRequest{})
+
+	agent := expectStep(t, result, CleanupStepAgentTree, CleanupStateDone)
+	if agent.Loss == nil || agent.Loss.CommitCount != 0 {
+		t.Fatalf("agent worktree loss: %+v", agent.Loss)
+	}
+	expectStep(t, result, CleanupStepLocalBranch, CleanupStateDone)
+}
+
+func TestCleanupPlanSaysWhatWillGo(t *testing.T) {
+	f := makeCleanupFixture(t, false)
+	steps := f.cleaner().Plan(context.Background(), MergedPr{Dir: f.dir, Repo: cleanupRepo, Number: 7, HeadRef: "feature/7-thing", BaseRef: "develop"})
+	byId := map[string]CleanupStepResult{}
+	for _, s := range steps {
+		if s.State != CleanupStatePlanned {
+			t.Errorf("planned: %+v", s)
+		}
+		byId[s.Id] = s
+	}
+	if s := byId[CleanupStepAgentTree]; s.Code != CleanupCodeWillRemove || realOf(s.Path) != realOf(f.agent) {
+		t.Errorf("agent worktree: %+v", s)
+	}
+	if s := byId[CleanupStepReviewTree]; s.Code != CleanupCodeNoReviewTree {
+		t.Errorf("review worktree: %+v", s)
+	}
+	if s := byId[CleanupStepTicketClose]; s.Code != CleanupCodeNoTicket {
+		t.Errorf("ticket: %+v", s)
+	}
+	if s := byId[CleanupStepLocalBranch]; s.Branch != "feature/7-thing" || s.Base != "develop" {
+		t.Errorf("branch: %+v", s)
 	}
 }
 
@@ -387,8 +499,8 @@ func TestCleanupFailureStopsOnlyItsDependents(t *testing.T) {
 	expectStep(t, result, CleanupStepTicketDone, CleanupStateDone)
 	expectStep(t, result, CleanupStepAgentTree, CleanupStateDone)
 	expectStep(t, result, CleanupStepLocalBranch, CleanupStateDone)
-	if step := result.Step(CleanupStepTicketClose); !strings.Contains(step.Message, "502") {
-		t.Errorf("failure message: %q", step.Message)
+	if step := result.Step(CleanupStepTicketClose); !strings.Contains(step.Error, "502") {
+		t.Errorf("failure message: %q", step.Error)
 	}
 }
 

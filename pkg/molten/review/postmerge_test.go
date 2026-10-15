@@ -47,7 +47,7 @@ func TestValidateRunsTheCleanupOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Cleanup) != len(CleanupSteps) || plan.Cleanup[1].Id != CleanupStepTicketClose || plan.Cleanup[1].Message != "#590" {
+	if len(plan.Cleanup) != len(CleanupSteps) || plan.Cleanup[1].Id != CleanupStepTicketClose || plan.Cleanup[1].Ticket != 590 {
 		t.Fatalf("the plan lists the cleanup's steps: %+v", plan.Cleanup)
 	}
 	for _, step := range plan.Cleanup {
