@@ -7,10 +7,11 @@
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { isMacOS } from "@/util/platformutil";
+import { cn } from "@/util/util";
 import { atom } from "jotai";
 import { useMemo } from "react";
 import { I18nModel, t, useT } from "../i18n/i18n";
-import { PageCard, PageColumn, PageHeader, PageRowClass } from "../settings/settings-page";
+import { flowColumnsClass, PageCard, PageFill, PageFlow, PageHeader, PageRowClass } from "../settings/settings-page";
 import { platformShortcuts } from "../shortcuts/registry";
 import { filterShortcuts } from "../shortcuts/shortcuts-search";
 import { ShortcutSections } from "../shortcuts/shortcuts-sheet";
@@ -82,21 +83,28 @@ function TipsView(_props: ViewComponentProps<TipsViewModel>) {
     const mac = isMacOS();
     const sections = useMemo(() => filterShortcuts(platformShortcuts(mac), "", mac), [mac]);
     return (
-        <div className="@container h-full w-full overflow-y-auto bg-surface-1 text-primary" data-testid="molten-tips">
-            <PageColumn>
+        <div
+            className="@container/page h-full w-full overflow-y-auto bg-surface-1 text-primary"
+            data-testid="molten-tips"
+        >
+            {/* As Settings (#674): the page fills the panel, the two tip blocks side by side when it is wide, the
+                shortcuts block below them across the full width, its groups in columns. */}
+            <PageFill width={2}>
                 <PageHeader title={t("tips.title")} icon="lightbulb" description={t("tips.description")} />
-                <PageCard title={t("tips.reshape.title")} hint={t("tips.reshape.hint")}>
-                    {ReshapeTips.map((tip) => (
-                        <TipRow key={tip.id} tip={tip} />
-                    ))}
-                </PageCard>
-                <PageCard title={t("tips.work.title")}>
-                    {WorkTips.map((tip) => (
-                        <TipRow key={tip.id} tip={tip} />
-                    ))}
-                </PageCard>
+                <PageFlow columns={2}>
+                    <PageCard title={t("tips.reshape.title")} hint={t("tips.reshape.hint")}>
+                        {ReshapeTips.map((tip) => (
+                            <TipRow key={tip.id} tip={tip} />
+                        ))}
+                    </PageCard>
+                    <PageCard title={t("tips.work.title")}>
+                        {WorkTips.map((tip) => (
+                            <TipRow key={tip.id} tip={tip} />
+                        ))}
+                    </PageCard>
+                </PageFlow>
                 <PageCard title={t("tips.shortcuts.title")} hint={t("tips.shortcuts.hint")}>
-                    <div className="flex flex-col gap-3 px-5 py-3">
+                    <div className={cn("px-5 pt-3 [&>section]:pb-3", flowColumnsClass(3))}>
                         <ShortcutSections
                             sections={sections}
                             mac={mac}
@@ -104,7 +112,7 @@ function TipsView(_props: ViewComponentProps<TipsViewModel>) {
                         />
                     </div>
                 </PageCard>
-            </PageColumn>
+            </PageFill>
         </div>
     );
 }
