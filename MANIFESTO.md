@@ -81,20 +81,43 @@ a project gains from having its state and its actions in one place.*
 
 ## Mods
 
-A **mod** is a folder with a manifest. It can contribute any of the following:
+A **mod** is a folder with a manifest. What it can contribute grows with the mod API.
 
-- **Theme**: colours, typography, density.
+**Today (mod API version 1):**
+
+- **Commands**: `molten <command>`, run from a terminal by you or your agent.
+- **Boxes and notifications**: a box next to a terminal, with buttons; a notification in the tab.
+- **Interface texts**: a language pack adds a language or changes any text of the interface.
+- **Agent parts**: for Claude Code, a band above the prompt, a status line, slash commands and hooks inside its
+  sessions.
+
+**Planned** (the stories of [#718](https://github.com/DiamondForgeFr/moltenterm/issues/718)):
+
+- **Theme**: colours, typography, density
+  ([#721](https://github.com/DiamondForgeFr/moltenterm/issues/721)).
+- **Hide or replace** any part of the interface
+  ([#722](https://github.com/DiamondForgeFr/moltenterm/issues/722)).
+- **Settings, rail tools, agent presets and terminal themes** carried by the mod
+  ([#723](https://github.com/DiamondForgeFr/moltenterm/issues/723)).
+- **Commands and keybindings** in the palette and the command panel
+  ([#724](https://github.com/DiamondForgeFr/moltenterm/issues/724)).
+- **Hooks**: code that reacts to events, for example "an agent finished" or "a tab opened", and reads the
+  workspace's state ([#725](https://github.com/DiamondForgeFr/moltenterm/issues/725)).
+- **Dashboard cards and status bar items**
+  ([#726](https://github.com/DiamondForgeFr/moltenterm/issues/726)).
 - **Layout**: workspaces, tabs, panes and their sizes.
-- **Panels**: interface components shown in a pane.
-- **Dashboard cards and actions.**
-- **Commands and keybindings.**
-- **Hooks**: code that reacts to events, for example "an agent finished" or "a tab opened".
-- **Agent presets**: which CLI, with which prompt, in which workspace.
+- **Panels**: interface components shown in a pane (sandboxing is an open question, below).
+
+Whatever a mod adds through the API, the host owns it: it goes when the mod stops or on `molten undo`. What a mod
+changes in the page outside the API is not undone yet
+([#719](https://github.com/DiamondForgeFr/moltenterm/issues/719)).
 
 Mods come in two tiers:
 
-- **Declarative** (themes, layouts, cards bound to commands): data only, safe to install from anyone.
-- **Code** (panels, hooks): they declare permissions (files, shell, network, browser) and require explicit trust.
+- **Declarative** (language packs today; themes, layouts, cards bound to commands as they land): data only, safe to
+  install from anyone.
+- **Code** (commands and boxes today; panels, hooks): they declare permissions (files, shell, network, browser) and
+  require explicit trust.
 
 A **morph pack** is a pinned set of mods plus settings and layouts. It is a complete version of MoltenTerm that
 someone can install, fork and publish again.

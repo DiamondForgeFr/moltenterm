@@ -46,9 +46,18 @@ The dictionary has the shape of MoltenTerm's English one: nested objects of stri
 - Do not name the user's machine or OS in a text unless English does ("this computer" stays as neutral as English).
 - `molten` itself stays English: never try to translate command output.
 
+## Which language to change
+
+A request to change some texts ("rename the Tips entry") without naming a language targets the language the
+interface speaks now: the `interface language:` line of `molten i18n status` (`active` with `--json`). It is the
+`app:language` setting, or the system's language when that is not set, so it may not be English. An `en` pack does
+nothing while the interface speaks French, and the reverse. Change that language, and tell the user which one you
+changed; change other languages only when asked.
+
 ## Steps
 
-1. `molten i18n status` lists the languages, where each comes from, and how many strings each lacks.
+1. `molten i18n status` lists the languages, where each comes from, and how many strings each lacks; its first line
+   gives the interface language.
 2. Find an existing pack for the language with `molten mod list --json` (its `languages` field). Edit that pack rather
    than creating a second one: two packs for one language are allowed, but only the most recently enabled is used.
 3. A new language: `molten mod new lang-<code> --language <code> --language-name "<own name>"`. It prints the folder

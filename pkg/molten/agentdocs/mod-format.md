@@ -4,8 +4,8 @@
 preconfigured morphs (`language-pack.md`) and complete example mods, all matching the installed version.
 
 A mod changes MoltenTerm from the outside: it is a folder in the configuration directory that MoltenTerm loads when a
-tab opens. Mods only see `MoltenApi`, described below, and never Wave's internal modules. This page documents API
-version 1.
+tab opens. Mods use only `MoltenApi`, described below, and never Wave's internal modules: they cannot import them,
+and reaching them through the page is unsupported (see Not in API version 1 yet). This page documents API version 1.
 
 ## Folder
 
@@ -316,5 +316,22 @@ The usual loop for an agent: `molten mod new <id>`, edit `main.js`, `molten mod 
 
 ## Not in API version 1 yet
 
-Free-form panels (Mission Control, #31). `molten mod remove` also moves the folder to the system trash on macOS
-(`<data>/molten/removed/` elsewhere), and `molten undo` brings the mod back.
+A mod cannot restyle, hide or replace what MoltenTerm shows, add a panel or a card, put a command in the palette or
+on a key, or react to events. These are the next steps, each declared by the mod and owned by the host (undone on
+disable and `molten undo`, skipped in safe mode, recorded in `molten history`):
+
+| Planned capability | What it will allow | Story |
+| --- | --- | --- |
+| Themes | override the colour, typography and density tokens and the accent, as data in `mod.json` | #721 |
+| Hide list | hide named parts of the interface (the 360 radar, a status bar item…) | #722 |
+| Settings, widgets, presets, terminal themes | carry settings, rail tools, agent presets and terminal themes in the mod | #723 |
+| Palette, command panel, keys | show a mod command in the palette and the command panel, and bind it to a key | #724 |
+| Events and state | react to "an agent finished", "a tab opened"…, read the workspace, project and agents | #725 |
+| Cards and status bar items | add Mission Control cards and status bar items, drawn by the host like boxes | #726 |
+
+Layouts and free-form panels come later. Until then, use only `api`: a mod that reaches into the page (`document`,
+injected styles, MoltenTerm's internal objects) is unsupported, breaks on any update, and what it changes stays on
+screen after the mod stops or is undone (#719 makes the host undo it).
+
+`molten mod remove` also moves the folder to the system trash on macOS (`<data>/molten/removed/` elsewhere), and
+`molten undo` brings the mod back.
