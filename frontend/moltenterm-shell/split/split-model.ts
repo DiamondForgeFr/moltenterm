@@ -4,8 +4,6 @@
 // Split any panel, then choose its content (FR-SHELL-042, DS-SHELL-064): the rules, pure so they are tested without
 // the app. split.ts carries them out on the layout.
 
-import { t } from "../i18n/i18n";
-
 export type SplitDirection = "right" | "down" | "left" | "up";
 
 // The block meta key of a new panel's picker: the panel it was split from (DS-SHELL-066).
@@ -33,38 +31,11 @@ export function splitAxis(direction: SplitDirection): {
     }
 }
 
-// The new panel's share of the source panel, kept so neither panel goes below the layout's minimum. A source too
-// small for two panels splits in half (Wave's own minimum then applies).
-export function clampFraction(fraction: number, sourcePx: number, minPx = MinPanelPx): number {
-    const f = Number.isFinite(fraction) ? fraction : HalfSplit;
-    if (!(sourcePx > 2 * minPx)) {
-        return HalfSplit;
-    }
-    const min = minPx / sourcePx;
-    return Math.min(Math.max(f, min), 1 - min);
-}
-
 // The layout sizes of the source and the new panel: the new one takes its share of the source's own size, so the
 // other panels of the row or column keep theirs (Wave's split gives the new panel a default size and shrinks them all).
 export function splitSizes(sourceSize: number, fraction: number): { source: number; added: number } {
     const f = Number.isFinite(fraction) ? Math.min(Math.max(fraction, 0), 1) : HalfSplit;
     return { source: sourceSize * (1 - f), added: sourceSize * f };
-}
-
-// Whether a split puts the new panel beside the source (left, right) or above / below it (up, down).
-export function isHorizontalSplit(direction: SplitDirection): boolean {
-    return direction === "left" || direction === "right";
-}
-
-// The new panel's share from where a handle drag was released, in the source panel's own coordinates: the right handle
-// leaves the new panel on the right of the line, the bottom handle below it, the left handle on its left, the top
-// handle above it.
-export function dragFraction(direction: SplitDirection, pointer: number, start: number, length: number): number {
-    if (!(length > 0)) {
-        return HalfSplit;
-    }
-    const at = pointer - start;
-    return splitAxis(direction).position === "before" ? at / length : (length - at) / length;
 }
 
 // What Enter on Terminal opens: a shell in the source panel's folder and on its connection, as Wave's Cmd+D did
@@ -126,62 +97,4 @@ export function pickerPopoverRect(
     const left = Math.min(Math.max(centred, PopoverMarginPx), win.width - PopoverMarginPx - width);
     const top = Math.min(Math.max(panel.top, PopoverMarginPx), win.height - PopoverMarginPx - height);
     return { left, top, width, height };
-}
-
-// The edge handle's name and tooltip (DS-SHELL-083): the keys come from the shortcut registry, so a rebinding shows.
-export function splitHandleText(edge: SplitDirection, keys: string): { label: string; tip: string } {
-    const label = t(`split.${edge}`);
-    return { label, tip: [keys ? `${label} ${keys}` : label, t("split.dragToSize")].join(" · ") };
-}
-
-// The shortcut registry's entry of each split direction.
-export function splitShortcutId(direction: SplitDirection): string {
-    return `split-${direction}`;
-}
-
-// The edge handle shows only where a split would fit and nothing else claims the pointer (DS-SHELL-065).
-export function handlesAllowed(opts: {
-    preview: boolean;
-    ephemeral: boolean;
-    magnified: boolean;
-    resizing: boolean;
-    width: number;
-    height: number;
-    edge: SplitDirection;
-}): boolean {
-    if (opts.preview || opts.ephemeral || opts.magnified || opts.resizing) {
-        return false;
-    }
-    const length = isHorizontalSplit(opts.edge) ? opts.width : opts.height;
-    return length >= 2 * MinPanelPx;
-}
-
-// Which edge the pointer is near, inside the panel: hotPx from an edge, past the inset that leaves the layout's resize
-// gutter alone. A corner belongs to the nearer edge.
-export function nearEdge(
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    hotPx: number,
-    insetPx: number
-): SplitDirection {
-    if (x < 0 || y < 0 || x > width || y > height) {
-        return null;
-    }
-    const distances: [SplitDirection, number][] = [
-        ["right", width - x],
-        ["down", height - y],
-        ["left", x],
-        ["up", y],
-    ];
-    let best: SplitDirection = null;
-    let bestDistance = Infinity;
-    for (const [edge, distance] of distances) {
-        if (distance >= insetPx && distance <= hotPx + insetPx && distance < bestDistance) {
-            best = edge;
-            bestDistance = distance;
-        }
-    }
-    return best;
 }

@@ -70,8 +70,8 @@ export function dropZoneAt(x: number, y: number, rect: Rect, centerOffered: bool
     return centerOffered ? "center" : null;
 }
 
-// The ghost of the new panel for a zone, in the panel's own coordinates: the half on that side, as the split handle's
-// ghost at 50 % (DS-SHELL-083); the whole panel for the centre.
+// The ghost of the new panel for a zone, in the panel's own coordinates: the half on that side, as the split placement
+// mode shows it (#677); the whole panel for the centre.
 export function zoneGhostRect(zone: DropZone, width: number, height: number): Rect {
     const halfW = width / 2;
     const halfH = height / 2;

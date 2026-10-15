@@ -3767,9 +3767,6 @@
     "split": {
         "right": "Split right",
         "down": "Split down",
-        "left": "Split left",
-        "up": "Split up",
-        "dragToSize": "drag to size",
         "tab": "Tab",
         "place": {
             "menu": "Split…",

@@ -37,7 +37,7 @@ describe("split placement mode (#677)", () => {
         expect(splitPanel).toHaveBeenCalledWith("b1", "left");
     });
 
-    it("starts with the edge handle's side chosen", () => {
+    it("starts with a side already chosen", () => {
         enterSplitPlacement("b1", "left");
         confirmSplitPlacement();
         expect(splitPanel).toHaveBeenCalledWith("b1", "left");
