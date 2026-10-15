@@ -156,7 +156,12 @@ func checkoutReviewTree(ctx context.Context, git GitRunner, dataDir string, proj
 		return err
 	}
 	hooks := []string{"-c", "core.hooksPath=" + noHooks}
-	if _, err := os.Stat(filepath.Join(tree, ".git")); err == nil {
+	// A .git file whose .git/worktrees/<name> was pruned still stats fine, but every checkout in it fails.
+	_, statErr := os.Stat(filepath.Join(tree, ".git"))
+	if statErr == nil {
+		_, statErr = git(ctx, tree, "rev-parse", "--git-dir")
+	}
+	if statErr == nil {
 		if _, err := git(ctx, tree, append(hooks, "checkout", "--quiet", "--detach", "--force", headOid)...); err != nil {
 			return fmt.Errorf("the review worktree could not move to %s: %w", headOid[:12], err)
 		}
