@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // The radar scrubber of the carpet (FR-SHELL-068, DS-SHELL-119): one tick per carpet column, in carpet order, coloured
-// by its panel kind; the ticks of the columns in view are framed by a pill; the tick of a column that needs attention
-// pulses. Kept apart from the component so the rules are tested without the app.
+// by its panel kind; the ticks of the columns in view are framed by a window (#678); the tick of a column that needs
+// attention pulses. Kept apart from the component so the rules are tested without the app.
 
 import type { AgentStateInfo } from "../agent-state-model";
 import { MoltentermBrowserView } from "../browser/browser-model";
@@ -80,6 +80,12 @@ export const RadarText = {
     },
     get untitled() {
         return t("view360.radar.untitled");
+    },
+    get window() {
+        return t("view360.radar.window");
+    },
+    get windowHint() {
+        return t("view360.radar.windowHint");
     },
     morePanels: (n: number) =>
         n === 1 ? t("view360.radar.morePanelsOne") : t("view360.radar.morePanels", { count: n }),
@@ -211,6 +217,11 @@ export function radarHint(tick: RadarTick): string {
         parts.push(RadarText.clickToGo);
     }
     return parts.join(" · ");
+}
+
+// The hover card's line for the window (#678): what it is and what it does, in one line under a panel's title.
+export function radarWindowLine(): string {
+    return `${RadarText.window} — ${RadarText.windowHint}`;
 }
 
 // The column the previous / next shortcut goes to. From the fixed zone (current null) next goes to the first column

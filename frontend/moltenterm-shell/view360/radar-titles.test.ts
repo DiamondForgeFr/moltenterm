@@ -6,7 +6,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { I18nModel } from "../i18n/i18n";
 import { panelTitle } from "../tab-identity";
 import { registerMoltentermViews } from "../views";
-import { buildRadarTicks, RadarBlockFacts, RadarColumnInput, RadarText } from "./radar-model";
+import { buildRadarTicks, RadarBlockFacts, RadarColumnInput, RadarText, radarWindowLine } from "./radar-model";
 
 // Wave's views, read from its block registry so a view it adds later is checked too.
 function waveViewTypes(): string[] {
@@ -61,6 +61,17 @@ describe("radar titles (#642)", () => {
         I18nModel.getInstance().setLanguageSetting("fr");
         expect(radarTitleOf("molten-review-ai")).toBe("Revue IA");
         expect(radarTitleOf("tips")).toBe("Astuces");
+    });
+
+    it("names the window and what it does in the interface language (#678)", () => {
+        I18nModel.getInstance().setLanguageSetting("en");
+        expect(RadarText.window).toBe("Visible area");
+        expect(radarWindowLine()).toBe("Visible area — drag to move, click a panel to jump to it");
+        I18nModel.getInstance().setLanguageSetting("fr");
+        expect(RadarText.window).toBe("Zone visible");
+        expect(radarWindowLine()).toBe(
+            "Zone visible — faites glisser pour la déplacer, cliquez sur un panneau pour y aller"
+        );
     });
 
     it("shows the generic panel name for a view it does not know", () => {
