@@ -449,11 +449,20 @@ describe("Validate's stepper", () => {
                 "conflict",
                 "basemoved",
                 "rebasedblocked",
+                "queueclosed",
+                "queuetimeout",
+                "queuestopped",
             ];
             for (const code of outcomes) {
                 expect(mergeOutcomeText(t, { ...merged, state: "failed", code }, "develop"), code).not.toMatch(
                     /review\./
                 );
+            }
+            for (const method of ["merge", "squash", "rebase"]) {
+                expect(mergeOutcomeText(t, { ...merged, method }, "develop"), method).not.toMatch(/review\./);
+                for (const state of ["updating", "queued"] as const) {
+                    expect(mergeOutcomeText(t, { ...merged, method, state }, "develop"), state).not.toMatch(/review\./);
+                }
             }
             for (const state of ["refused", "failed", "cancelled"] as const) {
                 expect(mergeOutcomeText(t, { ...merged, state, code: undefined }, "develop")).not.toMatch(/review\./);
@@ -464,9 +473,80 @@ describe("Validate's stepper", () => {
             for (const s of ["todo", "running", "done", "skipped", "needs", "failed"]) {
                 expect(t(`review.validate.state.${s}`)).not.toMatch(/review\./);
             }
-            for (const code of ["running", "stale", "old", "blocked", "confirm", "nomerge"]) {
+            for (const code of ["running", "stale", "old", "blocked", "confirm", "nomerge", "method"]) {
                 expect(t(`review.validate.error.${code}`)).not.toMatch(/review\./);
             }
         }
+    });
+});
+
+// #673: the merge step follows the method chosen, and says what narrowed the methods.
+describe("Validate's merge method", () => {
+    const all = { methods: ["merge", "squash", "rebase"] as ReviewMergePlan["methods"], method: "merge" as const };
+    const mergeOf = (over: Partial<ReviewMergePlan>, method?: "merge" | "squash" | "rebase", t = en) =>
+        step(
+            buildValidateSteps(t, {
+                plan: plan(over),
+                record: null,
+                cleanup: null,
+                headref: "x",
+                baseref: "develop",
+                method,
+            }),
+            "merge"
+        );
+
+    it("words the step and its consequence for each method", () => {
+        expect(mergeOf(all).title).toBe("Create a merge commit on develop");
+        expect(mergeOf(all, "squash").title).toBe("Squash into one commit on develop");
+        expect(mergeOf(all, "rebase").title).toBe("Rebase onto develop");
+        expect(mergeOf(all, "squash").lines[0]).toMatch(
+            /one commit on develop, with the title and message this repository sets/
+        );
+        expect(mergeOf(all, "merge").lines[0]).toMatch(/with a merge commit that keeps its commits/);
+        expect(mergeOf(all, "squash", fr).title).toBe("Squasher en un seul commit sur develop");
+    });
+
+    it("updates a branch behind its base the way the method merges", () => {
+        expect(mergeOf({ ...all, behind: true }, "rebase").lines[0]).toMatch(
+            /^GitHub will first rebase feature\/672-x on develop/
+        );
+        expect(mergeOf({ ...all, behind: true }, "squash").lines[0]).toMatch(
+            /^GitHub will first merge develop into feature\/672-x/
+        );
+    });
+
+    it("says what narrowed the methods", () => {
+        expect(mergeOf({ methods: ["squash"], method: "squash" }).lines[0]).toBe(
+            "This repository allows only: Squash."
+        );
+        expect(mergeOf({ methods: ["squash", "rebase"], method: "squash", methodrule: "ruleset" }).lines[0]).toBe(
+            "The rules of develop allow: Squash, Rebase."
+        );
+        expect(mergeOf({ methods: ["squash", "rebase"], method: "squash", methodrule: "linear" }).lines[0]).toMatch(
+            /requires a linear history/
+        );
+        const queue = mergeOf({
+            methods: ["squash"],
+            method: "squash",
+            methodrule: "queue",
+            queue: true,
+            behind: true,
+        });
+        expect(queue.title).toBe("Merge queue of develop");
+        expect(queue.lines[0]).toBe("develop merges through a merge queue, with Squash: the queue sets the method.");
+        expect(queue.lines.join(" ")).not.toMatch(/will first/);
+    });
+
+    it("reports the merge in the method it used", () => {
+        expect(mergeOutcomeText(en, { ...merged, method: "squash" }, "develop")).toBe(
+            "Squashed into one commit on develop, from aaaaaaa."
+        );
+        expect(mergeOutcomeText(en, { ...merged, method: "merge", state: "updating" }, "develop")).toBe(
+            "GitHub is merging develop into the branch…"
+        );
+        expect(mergeOutcomeText(en, { ...merged, method: "", code: "merged" }, "develop")).toBe(
+            "Rebased and merged into develop at aaaaaaa."
+        );
     });
 });

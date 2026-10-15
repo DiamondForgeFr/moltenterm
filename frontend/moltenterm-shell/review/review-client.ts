@@ -159,6 +159,8 @@ export type ReviewMergeCheck = {
     prstate?: string;
 };
 export type ReviewMergeStep = { id: "update" | "waitci" | "merge" };
+// must match MergeMethod… in pkg/molten/review/mergemethod.go, in GitHub's order
+export type ReviewMergeMethod = "merge" | "squash" | "rebase";
 
 export type ReviewMergePlan = {
     id: string;
@@ -175,6 +177,12 @@ export type ReviewMergePlan = {
     mergestate?: string;
     mergeable?: string;
     behind?: boolean;
+    // The merge methods the repository and the base's rules allow, the default, and what narrowed them (#673).
+    methods?: ReviewMergeMethod[];
+    method?: ReviewMergeMethod;
+    methodrule?: "queue" | "ruleset" | "linear";
+    // A merge queue merges the PR, with its own method.
+    queue?: boolean;
     checks: ReviewMergeCheck[];
     steps: ReviewMergeStep[];
     // The cleanup after the merge, every step planned.
@@ -191,6 +199,7 @@ export type ReviewMergeState =
     | "updating"
     | "waitingci"
     | "merging"
+    | "queued"
     | "merged"
     | "refused"
     | "failed"
@@ -357,8 +366,14 @@ export function reviewMergePlan(req: {
     return call(MergePlanCommand, req, GitTimeoutMs);
 }
 
-export function reviewMerge(repo: string, num: number, planid: string, override: boolean): Promise<ReviewMergeRecord> {
-    return call(MergeCommand, { repo, number: num, planid, override: override || undefined });
+export function reviewMerge(
+    repo: string,
+    num: number,
+    planid: string,
+    override: boolean,
+    method?: ReviewMergeMethod
+): Promise<ReviewMergeRecord> {
+    return call(MergeCommand, { repo, number: num, planid, override: override || undefined, method });
 }
 
 export function reviewMergeCancel(repo: string, num: number): Promise<void> {

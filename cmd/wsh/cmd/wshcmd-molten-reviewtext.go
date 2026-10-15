@@ -61,7 +61,7 @@ func moltenReviewCheckDetail(c moltenReviewCheck) string {
 	case "blocked":
 		return "a required check or review is missing"
 	case "behind":
-		return "behind " + c.Base + ": GitHub rebases it first, then the merge waits for CI"
+		return "behind " + c.Base + ": GitHub updates it first, then the merge waits for CI"
 	case "unpublished":
 		return fmt.Sprintf("%d comment(s) not published", c.Count)
 	case "inflight":
@@ -70,13 +70,58 @@ func moltenReviewCheckDetail(c moltenReviewCheck) string {
 	return ""
 }
 
+var moltenReviewMethodNames = map[string]string{"merge": "a merge commit", "squash": "a squash", "rebase": "a rebase"}
+
+var moltenReviewMethodDone = map[string]string{"merge": "merged with a merge commit", "squash": "squashed and merged", "rebase": "rebased and merged"}
+
+// moltenReviewMethodOf: a merge recorded before #673 was a rebase.
+func moltenReviewMethodOf(method string) string {
+	if moltenReviewMethodNames[method] == "" {
+		return "rebase"
+	}
+	return method
+}
+
+// moltenReviewMethodLine names the methods the plan offers and what narrowed them (#673).
+func moltenReviewMethodLine(plan moltenReviewPlan) string {
+	method := moltenReviewMethodOf(plan.Method)
+	switch plan.MethodRule {
+	case "queue":
+		return fmt.Sprintf("method: %s, set by the merge queue of %s", method, plan.BaseRef)
+	case "ruleset":
+		return fmt.Sprintf("method: %s (the rules of %s allow %s)", method, plan.BaseRef, strings.Join(plan.Methods, ", "))
+	case "linear":
+		return fmt.Sprintf("method: %s (%s requires a linear history: no merge commit)", method, plan.BaseRef)
+	}
+	if len(plan.Methods) > 1 {
+		return fmt.Sprintf("method: %s (allowed: %s; the sheet can choose another)", method, strings.Join(plan.Methods, ", "))
+	}
+	if plan.Method != "" {
+		return fmt.Sprintf("method: %s, the only one the repository allows", method)
+	}
+	return ""
+}
+
 func moltenReviewStepText(id string, plan moltenReviewPlan) string {
+	method := moltenReviewMethodOf(plan.Method)
 	switch id {
 	case "update":
-		return fmt.Sprintf("GitHub rebases %s on %s", plan.HeadRef, plan.BaseRef)
+		if method == "rebase" {
+			return fmt.Sprintf("GitHub rebases %s on %s", plan.HeadRef, plan.BaseRef)
+		}
+		return fmt.Sprintf("GitHub merges %s into %s", plan.BaseRef, plan.HeadRef)
 	case "waitci":
-		return "Wait for CI on the rebased head"
+		return "Wait for CI on the updated head"
 	case "merge":
+		if plan.Queue {
+			return fmt.Sprintf("Add to the merge queue of %s, which merges with %s (bound to head %s)", plan.BaseRef, moltenReviewMethodNames[method], moltenReviewShort(plan.HeadOid))
+		}
+		switch method {
+		case "merge":
+			return fmt.Sprintf("Merge into %s with a merge commit, then delete %s on GitHub (bound to head %s)", plan.BaseRef, plan.HeadRef, moltenReviewShort(plan.HeadOid))
+		case "squash":
+			return fmt.Sprintf("Squash into one commit on %s, then delete %s on GitHub (bound to head %s)", plan.BaseRef, plan.HeadRef, moltenReviewShort(plan.HeadOid))
+		}
 		return fmt.Sprintf("Rebase and merge into %s, then delete %s on GitHub (bound to head %s)", plan.BaseRef, plan.HeadRef, moltenReviewShort(plan.HeadOid))
 	}
 	return id
@@ -86,7 +131,7 @@ func moltenReviewMergeText(m moltenReviewMerge) string {
 	text := ""
 	switch m.Code {
 	case "merged":
-		text = "rebased and merged at " + moltenReviewShort(m.Head)
+		text = moltenReviewMethodDone[moltenReviewMethodOf(m.Method)] + " at " + moltenReviewShort(m.Head)
 	case "reread":
 		text = "the pull request could not be read again before the merge"
 	case "mergedaway":
@@ -108,21 +153,27 @@ func moltenReviewMergeText(m moltenReviewMerge) string {
 	case "mergeerror":
 		text = "the merge failed and is not retried"
 	case "updateerror":
-		text = "GitHub could not rebase the branch on its base"
+		text = "GitHub could not update the branch with its base"
 	case "stopped":
 		text = "stopped while waiting for CI: nothing was merged"
 	case "citimeout":
-		text = fmt.Sprintf("CI did not finish on the rebased head within %d minutes: nothing was merged", m.Minutes)
+		text = fmt.Sprintf("CI did not finish on the updated head within %d minutes: nothing was merged", m.Minutes)
 	case "pollerror":
 		text = "the pull request could not be read while waiting for CI"
 	case "cifailed":
-		text = "CI failed on the rebased head (" + moltenReviewNames(m.Names) + "): nothing was merged"
+		text = "CI failed on the updated head (" + moltenReviewNames(m.Names) + "): nothing was merged"
 	case "conflict":
-		text = "the rebased branch conflicts with its base: nothing was merged"
+		text = "the updated branch conflicts with its base: nothing was merged"
 	case "basemoved":
 		text = "the base moved again while CI ran: nothing was merged, Validate again"
 	case "rebasedblocked":
-		text = "GitHub blocks the merge of the rebased head: a required check or review is missing"
+		text = "GitHub blocks the merge of the updated head: a required check or review is missing"
+	case "queueclosed":
+		text = "the pull request was closed while in the merge queue: nothing was merged"
+	case "queuetimeout":
+		text = fmt.Sprintf("the merge queue did not merge it within %d minutes: it may still be in the queue", m.Minutes)
+	case "queuestopped":
+		text = "stopped waiting for the merge queue: the pull request stays in the queue"
 	}
 	if m.Error != "" {
 		if text != "" {

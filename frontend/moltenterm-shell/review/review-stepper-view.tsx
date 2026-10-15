@@ -179,7 +179,17 @@ function KeptButtons({ actions }: { actions: KeptActions }) {
     );
 }
 
-function StepItem({ step, last, extra }: { step: ValidateStep; last: boolean; extra?: React.ReactNode }) {
+function StepItem({
+    step,
+    last,
+    top,
+    extra,
+}: {
+    step: ValidateStep;
+    last: boolean;
+    top?: React.ReactNode;
+    extra?: React.ReactNode;
+}) {
     const t = useT();
     const [open, setOpen] = useState(false);
     const showRows = step.rows.length > 0 && (!step.collapsed || open);
@@ -213,6 +223,7 @@ function StepItem({ step, last, extra }: { step: ValidateStep; last: boolean; ex
                         {t(`review.validate.state.${step.state}`)}
                     </span>
                 </div>
+                {top}
                 {step.lines.map((line, i) => (
                     <div key={i} className="break-words text-secondary">
                         {line}
@@ -245,11 +256,14 @@ function StepItem({ step, last, extra }: { step: ValidateStep; last: boolean; ex
 export function ValidateStepper({
     steps,
     checksExtra,
+    mergeTop,
     kept,
 }: {
     steps: ValidateStep[];
     // Under the checks: the confirmation of their warnings.
     checksExtra?: React.ReactNode;
+    // Under the merge step's title: the choice of the merge method (#673).
+    mergeTop?: React.ReactNode;
     kept?: KeptActions;
 }) {
     const t = useT();
@@ -260,6 +274,7 @@ export function ValidateStepper({
                     key={step.id}
                     step={step}
                     last={i === steps.length - 1}
+                    top={step.id === "merge" ? mergeTop : null}
                     extra={
                         step.id === "checks" ? (
                             checksExtra

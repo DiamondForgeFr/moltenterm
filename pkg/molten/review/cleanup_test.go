@@ -501,6 +501,30 @@ func TestCleanupCommitsAreJudgedByTheMergedHead(t *testing.T) {
 	expectStep(t, result, CleanupStepLocalBranch, CleanupStateDone)
 }
 
+// A merge commit (#673): the branch's commits are on develop as they are, and the cleanup removes everything.
+func TestCleanupAfterAMergeCommit(t *testing.T) {
+	f := makeCleanupFixture(t, false)
+	f.write(f.agent, "x.txt", "x\n")
+	f.git(f.agent, "add", "x.txt")
+	f.git(f.agent, "commit", "--quiet", "-m", "x")
+	f.git(f.agent, "push", "--quiet", "origin", "feature/7-thing")
+	f.prHead = f.git(f.agent, "rev-parse", "HEAD")
+	merger := filepath.Join(f.root, "merger")
+	f.git(merger, "pull", "--quiet", "origin", "develop")
+	f.git(merger, "fetch", "--quiet", "origin", "feature/7-thing")
+	f.git(merger, "merge", "--quiet", "--no-ff", "-m", "Merge pull request #7", "FETCH_HEAD")
+	f.git(merger, "push", "--quiet", "origin", "develop", ":feature/7-thing")
+
+	result := f.cleanup(CleanupRequest{})
+
+	agent := expectStep(t, result, CleanupStepAgentTree, CleanupStateDone)
+	if agent.Loss == nil || agent.Loss.CommitCount != 0 {
+		t.Fatalf("agent worktree loss: %+v", agent.Loss)
+	}
+	expectStep(t, result, CleanupStepLocalBranch, CleanupStateDone)
+	expectStep(t, result, CleanupStepRemoteBranch, CleanupStateDone)
+}
+
 func TestCleanupPlanSaysWhatWillGo(t *testing.T) {
 	f := makeCleanupFixture(t, false)
 	steps := f.cleaner().Plan(context.Background(), MergedPr{Dir: f.dir, Repo: cleanupRepo, Number: 7, HeadRef: "feature/7-thing", BaseRef: "develop"})

@@ -4336,13 +4336,20 @@
             "checkFails": "A check does not pass",
             "confirmWarnings": "Confirm the warnings to merge anyway",
             "updateThenMerge": "Update, then merge",
-            "rebaseAndMerge": "Rebase and merge",
             "state": {
                 "checking": "Reading the pull request again…",
                 "updating": "GitHub is rebasing the branch on {base}…",
-                "waitingci": "Waiting for CI on the rebased head…",
+                "waitingci": "Waiting for CI on the updated head…",
                 "merging": "Merging…",
-                "merged": "Merged"
+                "merged": "Merged",
+                "updatingMerge": "GitHub is merging {base} into the branch…",
+                "queued": "In the merge queue of {base}: waiting for GitHub to merge it…"
+            },
+            "button": {
+                "merge": "Merge",
+                "squash": "Squash and merge",
+                "rebase": "Rebase and merge",
+                "queue": "Add to the merge queue"
             }
         },
         "select": {
@@ -4363,7 +4370,7 @@
         },
         "validate": {
             "button": "Validate",
-            "buttonTitle": "Rebase and merge this pull request: shows the plan first",
+            "buttonTitle": "Merge this pull request: shows the plan first",
             "title": "Validate #{number}",
             "subtitle": "Rebase and merge {head} into {base}",
             "readingGithub": "Reading the pull request on GitHub…",
@@ -4375,7 +4382,6 @@
             "mergeTitle": "Merge, bound to head {oid}",
             "mergeAnyway": "Merge anyway: I have read the warnings above.",
             "mergeDisabled": "Merge is disabled: {reason}",
-            "rebasedHead": "GitHub rebased the branch first: merged head {oid}.",
             "cleaningUp": "Cleaning up after the merge…",
             "stepsLabel": "Validation steps",
             "andMore": "{names} and {count} more",
@@ -4392,7 +4398,12 @@
             },
             "step": {
                 "checks": "Checks",
-                "merge": "Rebase and merge into {base}",
+                "merge": {
+                    "merge": "Create a merge commit on {base}",
+                    "squash": "Squash into one commit on {base}",
+                    "rebase": "Rebase onto {base}",
+                    "queue": "Merge queue of {base}"
+                },
                 "ticket": "Ticket",
                 "cleanup": "Cleanup",
                 "others": "Other open pull requests"
@@ -4438,12 +4449,30 @@
                 "hide": "Hide"
             },
             "plan": {
-                "behind": "GitHub will first rebase {head} on {base}, then wait for CI to pass again on the new head.",
-                "merge": "{head} will be rebased and merged into {base}, then deleted on GitHub.",
-                "bound": "Bound to head {oid}: anything pushed after this plan makes the merge refuse."
+                "behind": {
+                    "rebase": "GitHub will first rebase {head} on {base}, then wait for CI to pass again on the new head.",
+                    "merge": "GitHub will first merge {base} into {head}, then wait for CI to pass again on the new head."
+                },
+                "merge": {
+                    "merge": "{head} will be merged into {base} with a merge commit that keeps its commits, then deleted on GitHub.",
+                    "squash": "The commits of {head} will become one commit on {base}, with the title and message this repository sets on GitHub; {head} is then deleted on GitHub.",
+                    "rebase": "{head} will be rebased and merged into {base}, then deleted on GitHub.",
+                    "queue": "The pull request joins the merge queue, which brings it up to date and merges it; MoltenTerm waits until it is merged."
+                },
+                "bound": "Bound to head {oid}: anything pushed after this plan makes the merge refuse.",
+                "rule": {
+                    "queue": "{base} merges through a merge queue, with {method}: the queue sets the method.",
+                    "ruleset": "The rules of {base} allow: {methods}.",
+                    "linear": "{base} requires a linear history: no merge commit.",
+                    "only": "This repository allows only: {method}."
+                }
             },
             "outcome": {
-                "merged": "Rebased and merged into {base} at {head}.",
+                "merged": {
+                    "merge": "Merged into {base} with a merge commit, at {head}.",
+                    "squash": "Squashed into one commit on {base}, from {head}.",
+                    "rebase": "Rebased and merged into {base} at {head}."
+                },
                 "reread": "The pull request could not be read again before the merge: nothing was merged.",
                 "mergedaway": "The pull request was merged outside MoltenTerm.",
                 "headmoved": "New commits were pushed since the plan (head {to}, the plan was made for {from}): review them, then Validate again.",
@@ -4451,19 +4480,22 @@
                 "check": "Not merged: {reason}",
                 "newwarning": "Not merged: a new warning appeared since the plan. Validate again.",
                 "mergeerror": "The merge failed and is not retried.",
-                "updateerror": "GitHub could not rebase the branch on its base: nothing was merged.",
+                "updateerror": "GitHub could not update the branch with its base: nothing was merged.",
                 "stopped": "Stopped while waiting for CI: nothing was merged.",
-                "citimeout": "CI did not finish on the rebased head within {minutes} minutes: nothing was merged.",
+                "citimeout": "CI did not finish on the updated head within {minutes} minutes: nothing was merged.",
                 "pollerror": "The pull request could not be read while waiting for CI: nothing was merged.",
-                "cifailed": "CI failed on the rebased head ({names}): nothing was merged.",
-                "conflict": "The rebased branch conflicts with its base: nothing was merged.",
+                "cifailed": "CI failed on the updated head ({names}): nothing was merged.",
+                "conflict": "The updated branch conflicts with its base: nothing was merged.",
                 "basemoved": "The base moved again while CI ran: nothing was merged. Validate again.",
-                "rebasedblocked": "GitHub blocks the merge of the rebased head: a required check or review is missing. Nothing was merged.",
+                "rebasedblocked": "GitHub blocks the merge of the updated head: a required check or review is missing. Nothing was merged.",
                 "state": {
                     "refused": "The merge was refused.",
                     "failed": "The merge failed.",
                     "cancelled": "The merge was stopped."
-                }
+                },
+                "queueclosed": "The pull request was closed while in the merge queue: nothing was merged.",
+                "queuetimeout": "The merge queue did not merge it within {minutes} minutes: MoltenTerm stopped waiting, the pull request may still be in the queue.",
+                "queuestopped": "Stopped waiting for the merge queue: the pull request stays in the queue, and GitHub may still merge it."
             },
             "error": {
                 "running": "A merge of this pull request is already running.",
@@ -4471,7 +4503,8 @@
                 "old": "This plan is more than 30 minutes old: Validate again.",
                 "blocked": "The plan does not allow the merge: re-check.",
                 "confirm": "Confirm the warnings to merge anyway.",
-                "nomerge": "No merge of this pull request is running."
+                "nomerge": "No merge of this pull request is running.",
+                "method": "This merge method is not allowed for this repository any more: Validate again."
             },
             "loss": {
                 "files": {
@@ -4640,7 +4673,19 @@
                     "one": "Close the panel and remove the worktree and its branch",
                     "other": "Close the panels and remove the worktree and its branch"
                 }
-            }
+            },
+            "updatedHead": "GitHub updated the branch first: merged head {oid}.",
+            "method": {
+                "merge": "Merge commit",
+                "squash": "Squash",
+                "rebase": "Rebase"
+            },
+            "methodTitle": {
+                "merge": "Keep every commit and add a merge commit on the base",
+                "squash": "Turn the pull request into one commit on the base",
+                "rebase": "Replay every commit on top of the base, without a merge commit"
+            },
+            "methodLabel": "Merge method"
         },
         "view": {
             "viewName": "Review",

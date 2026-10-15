@@ -6,6 +6,7 @@ import { ReviewMergePlan, ReviewMergeRecord } from "./review-client";
 import {
     canCancelMerge,
     canClickMerge,
+    chosenMethod,
     mergeButtonLabel,
     mergeCleanup,
     mergeDisabledReason,
@@ -72,11 +73,29 @@ describe("Validate's plan sheet", () => {
     });
 
     it("says what happens to a PR behind its base", () => {
-        expect(mergeButtonLabel(plan({ behind: true }))).toBe("Update, then merge");
-        expect(mergeButtonLabel(plan())).toBe("Rebase and merge");
+        expect(mergeButtonLabel(plan({ behind: true }), "squash")).toBe("Update, then merge");
+        expect(mergeButtonLabel(plan(), "rebase")).toBe("Rebase and merge");
+    });
+
+    // #673 AC2: the button names the method; a merge queue merges by itself.
+    it("names the merge method", () => {
+        expect(mergeButtonLabel(plan(), "squash")).toBe("Squash and merge");
+        expect(mergeButtonLabel(plan(), "merge")).toBe("Merge");
+        expect(mergeButtonLabel(plan({ queue: true, behind: true }), "squash")).toBe("Add to the merge queue");
+    });
+
+    // #673: the method picked holds while the plan allows it; else the plan's default; a plan from before #673 rebases.
+    it("chooses the method the merge uses", () => {
+        const all = plan({ methods: ["merge", "squash", "rebase"], method: "squash" });
+        expect(chosenMethod(all, null)).toBe("squash");
+        expect(chosenMethod(all, "rebase")).toBe("rebase");
+        expect(chosenMethod(plan({ methods: ["merge"], method: "merge" }), "rebase")).toBe("merge");
+        expect(chosenMethod(plan(), null)).toBe("rebase");
     });
 
     it("lets the wait stop, never the merge call", () => {
+        expect(canCancelMerge(record({ state: "queued" }))).toBe(true);
+        expect(mergeRunning(record({ state: "queued" }))).toBe(true);
         expect(canCancelMerge(record({ state: "waitingci" }))).toBe(true);
         expect(canCancelMerge(record({ state: "updating" }))).toBe(true);
         expect(canCancelMerge(record({ state: "merging" }))).toBe(false);
