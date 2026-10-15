@@ -429,6 +429,30 @@ func TestMorphGuideClaudeCodePart(t *testing.T) {
 	}
 }
 
+// #720: every agent's /morph names the planned capability an out-of-reach request waits for, and a text change
+// targets the current interface language (audit #713, probe P1).
+func TestMorphGuideNamesPlannedCapabilities(t *testing.T) {
+	for _, p := range AgentProfiles {
+		content, err := p.Render("1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"Out of reach for now", "#721", "#722", "#723", "#724", "#725", "#726"} {
+			if !strings.Contains(content, want) {
+				t.Errorf("%s: the guide lacks %q", p.Id, want)
+			}
+		}
+	}
+	format, _ := agentdocs.Files.ReadFile("mod-format.md")
+	if strings.Contains(string(format), "#31") || !strings.Contains(string(format), "#726") {
+		t.Error("mod-format.md must name the planned capabilities, not the closed #31")
+	}
+	pack, _ := agentdocs.Files.ReadFile("language-pack.md")
+	if !strings.Contains(string(pack), "interface language:") {
+		t.Error("language-pack.md must tell the agent to target the current interface language")
+	}
+}
+
 // #383: an agent that has the guide runs the project's local CI through Mission Control, for every agent, from the
 // one rule file.
 func TestPipelineGuideSaysToRunTheLocalCiThroughMolten(t *testing.T) {
