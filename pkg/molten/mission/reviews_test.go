@@ -87,6 +87,38 @@ func TestBuildReviewsListsReadyPrsOfTheTarget(t *testing.T) {
 	}
 }
 
+// #683: the row's merge state reads mergeable first, as the Validate plan does (pkg/molten/review/merge.go).
+func TestReviewMergeOfPr(t *testing.T) {
+	cases := []struct {
+		mergeable, state, want string
+	}{
+		{"MERGEABLE", "CLEAN", ReviewMergeClean},
+		{"MERGEABLE", "HAS_HOOKS", ReviewMergeClean},
+		{"MERGEABLE", "BEHIND", ReviewMergeBehind},
+		{"CONFLICTING", "DIRTY", ReviewMergeConflicts},
+		{"CONFLICTING", "BLOCKED", ReviewMergeConflicts},
+		{"", "DIRTY", ReviewMergeConflicts},
+		{"UNKNOWN", "CLEAN", ReviewMergeUnknown},
+		{"MERGEABLE", "UNKNOWN", ReviewMergeUnknown},
+		{"", "", ReviewMergeUnknown},
+		{"MERGEABLE", "BLOCKED", ReviewMergeBlocked},
+		{"MERGEABLE", "UNSTABLE", ReviewMergeFailing},
+		{"MERGEABLE", "DRAFT", ReviewMergeClean},
+		{"CONFLICTING", "DRAFT", ReviewMergeConflicts},
+		{"", "DRAFT", ReviewMergeUnknown},
+	}
+	for _, c := range cases {
+		if got := ReviewMergeOfPr(c.mergeable, c.state); got != c.want {
+			t.Errorf("ReviewMergeOfPr(%q, %q) = %q, want %q", c.mergeable, c.state, got, c.want)
+		}
+	}
+	answer := BuildReviews(reviewsSnapshot(reviewsProject(t, reviewsSfManifest),
+		`[{"number":1,"headRefName":"feature/4-a","baseRefName":"develop","mergeable":"CONFLICTING","mergeStateStatus":"BLOCKED"}]`))
+	if pr := answer.Ready[0]; pr.Merge != ReviewMergeConflicts || pr.Mergeable != "CONFLICTING" || pr.MergeState != "BLOCKED" {
+		t.Fatalf("a conflicting PR shows its conflict even when GitHub says blocked: %+v", pr)
+	}
+}
+
 func TestBuildReviewsFallsBackToTheTrunk(t *testing.T) {
 	dir := reviewsProject(t, "")
 	answer := BuildReviews(reviewsSnapshot(dir, `[{"number":1,"headRefName":"feature/4-a","baseRefName":"trunk-from-git"}]`))

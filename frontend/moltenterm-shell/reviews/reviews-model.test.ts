@@ -8,12 +8,16 @@ import {
     mergeLabel,
     navigableRows,
     nextRow,
+    rebaseAskKey,
+    rebaseAskShown,
+    rebaseOutcome,
     reportLabel,
     reviewAriaLabel,
     reviewHeadline,
     ReviewPr,
     ReviewsAnswer,
     reviewsEmptyState,
+    validateBlocked,
 } from "./reviews-model";
 
 function pr(number: number, extra: Partial<ReviewPr> = {}): ReviewPr {
@@ -45,12 +49,73 @@ function answer(extra: Partial<ReviewsAnswer> = {}): ReviewsAnswer {
 }
 
 describe("reviews model", () => {
-    it("words the merge states of FR-REV-001-AC2", () => {
-        expect(mergeLabel("clean", "develop").label).toBe("clean");
-        expect(mergeLabel("behind", "develop")).toMatchObject({ label: "behind: will be rebased", tone: "pending" });
-        expect(mergeLabel("conflicts", "develop")).toMatchObject({ label: "conflicts", tone: "failure" });
+    it("words the merge states of FR-REV-001-AC2 and #683", () => {
+        expect(mergeLabel("clean", "develop")).toMatchObject({ label: "ready to merge", tone: "success" });
+        expect(mergeLabel("behind", "develop")).toMatchObject({
+            label: "behind develop: GitHub updates it",
+            tone: "neutral",
+        });
+        expect(mergeLabel("conflicts", "develop")).toMatchObject({ label: "conflicts with develop", tone: "pending" });
         expect(mergeLabel("blocked", "develop")).toMatchObject({ label: "blocked", tone: "failure" });
-        expect(mergeLabel("unknown", "develop").tone).toBe("neutral");
+        expect(mergeLabel("unknown", "develop")).toMatchObject({ label: "checking…", tone: "neutral" });
+    });
+
+    it("says why a row's Validate cannot open the sheet (#683 AC1)", () => {
+        const failing = { state: "failure" as const, success: 1, failure: 2, pending: 0, checks: [] };
+        const running = { state: "pending" as const, success: 0, failure: 0, pending: 1, checks: [] };
+        expect(validateBlocked(pr(1))).toBe("");
+        expect(validateBlocked(pr(1, { merge: "behind" }))).toBe("");
+        expect(validateBlocked(pr(1, { merge: "unknown", ci: running }))).toBe("");
+        expect(validateBlocked(pr(1, { merge: "conflicts" }))).toBe("Conflicts with develop: ask for a rebase first.");
+        expect(validateBlocked(pr(1, { merge: "blocked" }))).toContain("GitHub blocks the merge");
+        expect(validateBlocked(pr(1, { ci: failing }))).toBe("Failing checks (2): fix them first.");
+        expect(validateBlocked(pr(1, { draft: true, merge: "conflicts" }))).toContain("draft");
+    });
+
+    it("keeps a rebase asked until the PR's head changes (#683 AC3)", () => {
+        const ask = { name: "Jérôme", head: "aaa", at: 1 };
+        expect(rebaseAskKey("/p", 4)).toBe("/p#4");
+        expect(rebaseAskShown(ask, pr(4, { headoid: "aaa" }))).toBe(true);
+        expect(rebaseAskShown(ask, pr(4, { headoid: "bbb" }))).toBe(false);
+        expect(rebaseAskShown(null, pr(4, { headoid: "aaa" }))).toBe(false);
+    });
+
+    it("routes Ask for a rebase's answer (#683 AC2)", () => {
+        expect(rebaseOutcome({ status: "sent", firstname: "Jérôme", agentname: "Codex" })).toMatchObject({
+            kind: "asked",
+            name: "Jérôme",
+            text: "Rebase asked to Jérôme.",
+        });
+        expect(rebaseOutcome({ status: "started", agentname: "Claude Code" })).toMatchObject({
+            kind: "asked",
+            name: "Claude Code",
+        });
+        expect(rebaseOutcome({ status: "typed", firstname: "Rita" })).toMatchObject({ kind: "asked", note: true });
+        expect(rebaseOutcome({ status: "offer", branch: "feature/4-x" })).toMatchObject({
+            kind: "offer",
+            text: "No agent works on feature/4-x. Start one with the rebase brief?",
+        });
+        expect(
+            rebaseOutcome({
+                status: "busy",
+                reason: "agentbusy",
+                agentstate: "working",
+                firstname: "Rita",
+                branch: "b",
+            })
+        ).toMatchObject({ kind: "info", text: "Rita is working on b: ask again once it is done." });
+        expect(
+            rebaseOutcome({ status: "busy", reason: "agentbusy", agentstate: "waiting", firstname: "Rita" }).text
+        ).toContain("waiting for your answer");
+        expect(rebaseOutcome({ status: "noagent", worktree: "/x/work-4", briefpath: "/d/b.md" }).text).toContain(
+            "work-4"
+        );
+        expect(rebaseOutcome({ status: "failed", reason: "maincheckout", branch: "b" }).kind).toBe("failed");
+        expect(rebaseOutcome(null, "boom")).toMatchObject({
+            kind: "failed",
+            text: "The rebase could not be asked: boom",
+        });
+        expect(rebaseOutcome(null)).toBeNull();
     });
 
     it("sums the checks, failing first", () => {
