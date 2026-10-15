@@ -92,7 +92,9 @@ describe("Reviews row (#708)", () => {
         expect(link).toContain("motion-reduce:translate-x-0");
         expect(link).not.toMatch(/\b(hidden|absolute)\b/);
         expect(html).toContain("Assisted review</span>");
-        expect(html).toMatch(/role="listitem"[^>]*class="group @container/);
+        expect(html).toMatch(/role="listitem"[^>]*class="group /);
+        expect(html).toMatch(/@container\/link[^"]*grow[^"]*basis-10[^"]*"><button[^>]*reviews-assisted-review/);
+        expect(html).toContain("hidden whitespace-nowrap @[6.25rem]/link:inline");
         expect(html).not.toMatch(/role="listitem"[^>]*title=/);
     });
 
