@@ -12,6 +12,7 @@
 // view (no JavaScript) is shown on top of the window instead, so the window is never shown empty.
 
 import { WebContentsView } from "electron";
+import { mainLocale, mt } from "./moltenterm-i18n";
 
 export const ViewPendingChannel = "moltenterm-view-pending";
 export const ViewPendingActionChannel = "moltenterm-view-pending-action";
@@ -178,18 +179,30 @@ function escapeHtml(s: string): string {
 
 // The colours are DS-SHELL's neutral tokens with the default molten accent (frontend/moltenterm-shell/
 // moltenterm-shell.css); the page has no access to the workspace's own accent.
+// The texts are translated before they are escaped: the workspace name is a placeholder value, so it is escaped with
+// the sentence around it.
 export function makePendingPageHtml(state: ViewPendingState): string {
-    const name = escapeHtml(state.workspaceName || "Workspace");
+    const rawName = state.workspaceName || mt("shell.pending.workspace");
+    const name = escapeHtml(rawName);
     const failed = state.phase === "failed";
-    const caption = failed
-        ? "Its view did not answer in time, even after a retry."
-        : state.phase === "retrying"
-          ? "Still opening. Your machine is busy."
-          : "Opening…";
+    const caption = escapeHtml(
+        failed
+            ? mt("shell.pending.noAnswer")
+            : state.phase === "retrying"
+              ? mt("shell.pending.stillOpening")
+              : mt("shell.pending.opening")
+    );
+    const title = escapeHtml(
+        state.workspaceName
+            ? mt("shell.pending.didNotOpen", { name: state.workspaceName })
+            : mt("shell.pending.workspaceDidNotOpen")
+    );
+    const openingLabel = escapeHtml(mt("shell.pending.openingName", { name: rawName }));
+    const reload = escapeHtml(mt("shell.pending.reload"));
     const body = failed
-        ? `<div class="name">${name} did not open</div><p class="caption">${caption}</p><a class="btn" href="${PendingPageReloadUrl}">Reload</a>`
-        : `<div class="name">${name}</div><div class="line" role="progressbar" aria-label="Opening ${name}"><span></span></div><p class="caption">${caption}</p>`;
-    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>MoltenTerm</title><style>
+        ? `<div class="name">${title}</div><p class="caption">${caption}</p><a class="btn" href="${PendingPageReloadUrl}">${reload}</a>`
+        : `<div class="name">${name}</div><div class="line" role="progressbar" aria-label="${openingLabel}"><span></span></div><p class="caption">${caption}</p>`;
+    return `<!doctype html><html lang="${escapeHtml(mainLocale())}"><head><meta charset="utf-8"><title>MoltenTerm</title><style>
 :root{--accent:rgb(255,124,13);--bg:color-mix(in srgb,var(--accent) 4%,rgb(31,31,31));--text:color-mix(in srgb,var(--accent) 3%,rgb(247,247,247));--muted:color-mix(in srgb,var(--accent) 6%,rgb(146,146,146));--line:color-mix(in srgb,color-mix(in srgb,var(--accent) 6%,rgb(198,198,198)) 16%,transparent)}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-user-select:none;user-select:none;cursor:default}
 body{display:flex;align-items:center;justify-content:center}

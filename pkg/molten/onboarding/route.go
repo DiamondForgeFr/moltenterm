@@ -5,14 +5,12 @@ package onboarding
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -24,10 +22,9 @@ import (
 // companion (pkg/molten/companion/route.go): nothing is declared in pkg/wshrpc. Steps that need wavesrv (#162's agent
 // detection, #165's folder scan) add their commands with HandleCommand.
 
-const routeQueueSize = 64
 const routeTimeout = 5 * time.Second
 
-// CommandHandler answers one command of the route; source is the router's stamp of the caller.
+// CommandHandler answers one command of the route; source is the verified window source of the caller.
 type CommandHandler func(ctx context.Context, source string, data any) (any, error)
 
 var handlersLock sync.Mutex
@@ -55,61 +52,12 @@ type panelRequest struct {
 	WorkspaceId string `json:"workspaceid"`
 }
 
-type routeLink struct {
-	output chan []byte
-}
+// Every command, the ones steps add included, answers windows only.
+var firstRunRoute = localroute.Route{Id: RouteId, Policy: localroute.Policy{Default: localroute.AllowWindow}, Handler: handle}
 
-func (l *routeLink) GetPeerInfo() string {
-	return RouteId
-}
-
-func (l *routeLink) RecvRpcMessage() ([]byte, bool) {
-	msg, ok := <-l.output
-	return msg, ok
-}
-
-func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debugStr string) bool {
-	var req wshutil.RpcMessage
-	if err := json.Unmarshal(msg, &req); err != nil {
-		return true
-	}
-	if req.Command == "" || req.ReqId == "" {
-		return true
-	}
-	go l.answer(req)
-	return true
-}
-
-func (l *routeLink) answer(req wshutil.RpcMessage) {
-	defer func() {
-		panichandler.PanicHandler("molten:onboarding:route", recover())
-	}()
-	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := handle(req.Command, req.Source, req.Data)
-	if err != nil {
-		resp.Error = err.Error()
-	} else {
-		resp.Data = data
-	}
-	out, err := json.Marshal(resp)
-	if err != nil {
-		return
-	}
-	l.output <- out
-}
-
-// isWindowSource tells a MoltenTerm window apart from a local terminal: the router stamps the source of every leaf link
-// that has a route of its own, so a local terminal cannot pass for a tab (as for the companion's route). Every command,
-// the ones steps add included, answers windows only.
-func isWindowSource(source string) bool {
-	return strings.HasPrefix(source, wshutil.RoutePrefix_Tab)
-}
-
-func handle(command string, source string, data any) (any, error) {
-	if !isWindowSource(source) {
-		return nil, fmt.Errorf("the first run answers MoltenTerm windows only")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), routeTimeout)
+func handle(ctx context.Context, command string, caller localroute.Caller, data any) (any, error) {
+	source := caller.Source
+	ctx, cancel := context.WithTimeout(ctx, routeTimeout)
 	defer cancel()
 	switch command {
 	case StateCommand:
@@ -156,8 +104,7 @@ func handleBlockClose(event *wps.WaveEvent) {
 
 // StartRoute registers the route and follows closed blocks; wavesrv calls it once, after the start rules.
 func StartRoute() {
-	link := &routeLink{output: make(chan []byte, routeQueueSize)}
-	if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId); err != nil {
+	if _, err := localroute.Register(wshutil.DefaultRouter, firstRunRoute); err != nil {
 		log.Printf("molten: first run route not started: %v\n", err)
 		return
 	}

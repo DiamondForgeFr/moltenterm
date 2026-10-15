@@ -4,13 +4,11 @@
 package browsers
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"log"
-	"strings"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 )
@@ -28,66 +26,33 @@ const (
 	SiteCommand     = "moltenbrowsersite"
 )
 
-const routeQueueSize = 32
-
-type routeLink struct {
-	opener *Opener
-	output chan []byte
-}
-
-func (l *routeLink) GetPeerInfo() string {
-	return RouteId
-}
-
-func (l *routeLink) RecvRpcMessage() ([]byte, bool) {
-	msg, ok := <-l.output
-	return msg, ok
-}
-
-func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debugStr string) bool {
-	var req wshutil.RpcMessage
-	if err := json.Unmarshal(msg, &req); err != nil {
-		return true
+// route: `molten open` and `molten browsers` also run on a remote host, the page opening on this computer
+// (wshcmd-molten-open.go), so those two answer any caller. Bringing a tab forward and the per-site choices are a
+// window's (#662).
+func route(opener *Opener) localroute.Route {
+	return localroute.Route{
+		Id: RouteId,
+		Policy: localroute.Policy{
+			Default:  localroute.AllowWindow,
+			Commands: map[string]string{ListCommand: localroute.AllowAny, OpenCommand: localroute.AllowAny},
+			Refusals: map[string]string{SiteCommand: "per-site choices can only be changed from a MoltenTerm window or in settings.json"},
+		},
+		Handler: func(_ context.Context, command string, _ localroute.Caller, data any) (any, error) {
+			return handle(opener, command, data)
+		},
 	}
-	if req.Command == "" || req.ReqId == "" {
-		return true
-	}
-	go l.answer(req)
-	return true
 }
 
-func (l *routeLink) answer(req wshutil.RpcMessage) {
-	defer func() {
-		panichandler.PanicHandler("molten:browser:route", recover())
-	}()
-	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := l.handle(req.Command, req.Source, req.Data)
-	if err != nil {
-		resp.Error = err.Error()
-	} else {
-		resp.Data = data
-	}
-	out, err := json.Marshal(resp)
-	if err != nil {
-		return
-	}
-	l.output <- out
-}
-
-func (l *routeLink) handle(command string, source string, data any) (any, error) {
+func handle(opener *Opener, command string, data any) (any, error) {
 	if command == ListCommand {
-		return l.opener.List(), nil
+		return opener.List(), nil
 	}
 	if command == SiteCommand {
-		// The router stamps the source of every link with a route of its own: a terminal cannot pass for a window.
-		if !strings.HasPrefix(source, wshutil.RoutePrefix_Tab) {
-			return nil, fmt.Errorf("per-site choices can only be changed from a MoltenTerm window or in settings.json")
-		}
 		var req SiteRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
-		return l.opener.SetSite(req)
+		return opener.SetSite(req)
 	}
 	if command != OpenCommand && command != ActivateCommand {
 		return nil, fmt.Errorf("unknown browser command %q", command)
@@ -100,15 +65,14 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 		return nil, fmt.Errorf("no page to open")
 	}
 	if command == ActivateCommand {
-		return l.opener.Activate(req), nil
+		return opener.Activate(req), nil
 	}
-	return l.opener.Open(req), nil
+	return opener.Open(req), nil
 }
 
 // StartRoute registers the opener on wavesrv's router; Mission Control's Start calls it once.
 func StartRoute(settings func() Settings, saveSites func(sites map[string]string) error) {
-	link := &routeLink{opener: MakeOpener(settings, saveSites), output: make(chan []byte, routeQueueSize)}
-	if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, RouteId); err != nil {
+	if _, err := localroute.Register(wshutil.DefaultRouter, route(MakeOpener(settings, saveSites))); err != nil {
 		log.Printf("molten: browser route not started: %v\n", err)
 	}
 }

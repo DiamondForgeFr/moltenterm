@@ -51,14 +51,20 @@ export function splitSizes(sourceSize: number, fraction: number): { source: numb
     return { source: sourceSize * (1 - f), added: sourceSize * f };
 }
 
+// Whether a split puts the new panel beside the source (left, right) or above / below it (up, down).
+export function isHorizontalSplit(direction: SplitDirection): boolean {
+    return direction === "left" || direction === "right";
+}
+
 // The new panel's share from where a handle drag was released, in the source panel's own coordinates: the right handle
-// leaves the new panel on the right of the line, the bottom handle below it.
-export function dragFraction(direction: "right" | "down", pointer: number, start: number, length: number): number {
+// leaves the new panel on the right of the line, the bottom handle below it, the left handle on its left, the top
+// handle above it.
+export function dragFraction(direction: SplitDirection, pointer: number, start: number, length: number): number {
     if (!(length > 0)) {
         return HalfSplit;
     }
     const at = pointer - start;
-    return (length - at) / length;
+    return splitAxis(direction).position === "before" ? at / length : (length - at) / length;
 }
 
 // What Enter on Terminal opens: a shell in the source panel's folder and on its connection, as Wave's Cmd+D did
@@ -123,9 +129,14 @@ export function pickerPopoverRect(
 }
 
 // The edge handle's name and tooltip (DS-SHELL-083): the keys come from the shortcut registry, so a rebinding shows.
-export function splitHandleText(edge: "right" | "down", keys: string): { label: string; tip: string } {
-    const label = edge === "right" ? t("split.right") : t("split.down");
+export function splitHandleText(edge: SplitDirection, keys: string): { label: string; tip: string } {
+    const label = t(`split.${edge}`);
     return { label, tip: [keys ? `${label} ${keys}` : label, t("split.dragToSize")].join(" · ") };
+}
+
+// The shortcut registry's entry of each split direction.
+export function splitShortcutId(direction: SplitDirection): string {
+    return `split-${direction}`;
 }
 
 // The edge handle shows only where a split would fit and nothing else claims the pointer (DS-SHELL-065).
@@ -136,17 +147,17 @@ export function handlesAllowed(opts: {
     resizing: boolean;
     width: number;
     height: number;
-    edge: "right" | "down";
+    edge: SplitDirection;
 }): boolean {
     if (opts.preview || opts.ephemeral || opts.magnified || opts.resizing) {
         return false;
     }
-    const length = opts.edge === "right" ? opts.width : opts.height;
+    const length = isHorizontalSplit(opts.edge) ? opts.width : opts.height;
     return length >= 2 * MinPanelPx;
 }
 
-// Which edge the pointer is near, inside the panel: hotPx from the right or the bottom edge, past the inset that
-// leaves the layout's resize gutter alone. The corner belongs to the nearer edge.
+// Which edge the pointer is near, inside the panel: hotPx from an edge, past the inset that leaves the layout's resize
+// gutter alone. A corner belongs to the nearer edge.
 export function nearEdge(
     x: number,
     y: number,
@@ -154,22 +165,23 @@ export function nearEdge(
     height: number,
     hotPx: number,
     insetPx: number
-): "right" | "down" {
+): SplitDirection {
     if (x < 0 || y < 0 || x > width || y > height) {
         return null;
     }
-    const fromRight = width - x;
-    const fromBottom = height - y;
-    const right = fromRight >= insetPx && fromRight <= hotPx + insetPx;
-    const bottom = fromBottom >= insetPx && fromBottom <= hotPx + insetPx;
-    if (right && bottom) {
-        return fromRight <= fromBottom ? "right" : "down";
+    const distances: [SplitDirection, number][] = [
+        ["right", width - x],
+        ["down", height - y],
+        ["left", x],
+        ["up", y],
+    ];
+    let best: SplitDirection = null;
+    let bestDistance = Infinity;
+    for (const [edge, distance] of distances) {
+        if (distance >= insetPx && distance <= hotPx + insetPx && distance < bestDistance) {
+            best = edge;
+            bestDistance = distance;
+        }
     }
-    if (right) {
-        return "right";
-    }
-    if (bottom) {
-        return "down";
-    }
-    return null;
+    return best;
 }

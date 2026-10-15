@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({
+    app: { getPreferredSystemLanguages: () => ["en"] },
     WebContentsView: class {
         handlers = new Map<string, (...args: any[]) => void>();
         openHandler: (details: { url: string }) => { action: string } = null;
@@ -18,6 +19,7 @@ vi.mock("electron", () => ({
     },
 }));
 
+import { noteLanguageSetting } from "./moltenterm-i18n";
 import {
     makePendingPage,
     makePendingPageHtml,
@@ -147,6 +149,35 @@ describe("pending page (#450)", () => {
         const failed = makePendingPageHtml({ phase: "failed", workspaceName: "A" });
         expect(failed).toContain('href="moltenterm-pending://reload"');
         expect(failed).toContain("prefers-reduced-motion");
+    });
+
+    it("reads in the interface language and never names the machine (#665)", () => {
+        try {
+            noteLanguageSetting({ "app:language": "fr" });
+            const retrying = makePendingPageHtml({ phase: "retrying", workspaceName: "A" });
+            expect(retrying).toContain('<html lang="fr">');
+            expect(retrying).toContain("Ouverture en cours. Cet ordinateur est occupé.");
+            expect(retrying).toContain('aria-label="Ouverture de A"');
+            const failed = makePendingPageHtml({ phase: "failed", workspaceName: "A" });
+            expect(failed).toContain("A ne s&#39;est pas ouvert");
+            expect(failed).toContain(">Recharger</a>");
+            expect(failed).not.toMatch(/Reload<|did not open|Opening/);
+            const unnamed = makePendingPageHtml({ phase: "failed", workspaceName: "" });
+            expect(unnamed).toContain("Cet espace de travail ne s&#39;est pas ouvert");
+        } finally {
+            noteLanguageSetting({ "app:language": "en" });
+        }
+        const en = makePendingPageHtml({ phase: "retrying", workspaceName: "A" });
+        expect(en).toContain("This computer is busy.");
+        expect(en).not.toMatch(/machine/i);
+    });
+
+    it("escapes the workspace name inside translated sentences", () => {
+        const failed = makePendingPageHtml({ phase: "failed", workspaceName: '<img src=x>"' });
+        expect(failed).not.toContain("<img");
+        expect(failed).toContain("&#60;img src=x&#62;&#34; did not open");
+        const loading = makePendingPageHtml({ phase: "loading", workspaceName: '"><b>' });
+        expect(loading).toContain('aria-label="Opening &#34;&#62;&#60;b&#62;"');
     });
 
     it("never opens a window: a Cmd-click or middle-click on Reload is denied and still reloads (#500)", () => {

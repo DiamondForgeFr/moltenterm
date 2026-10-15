@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -23,7 +22,8 @@ import (
 
 // The cleanup after a merge (FR-REV-013, DS-REV-010 steps 2 to 5): the ticket closed and Done, the review worktree and
 // the branch's agent worktree removed when it is safe, the branch deleted when its content is on the base, and the
-// other open PRs on the same base brought up to date by GitHub. Validate (FR-REV-012) calls it right after its merge;
+// other open PRs on the same base read once GitHub knows whether they still merge: those the merge put in conflict go to
+// their agent for a rebase (#691), the others are left alone. Validate (FR-REV-012) calls it right after its merge;
 // it also runs on its own for a PR merged earlier. Each step reports done, skipped (why) or failed (the message), and a
 // failure stops only the steps that depend on it. Every removal goes through the safety checks Mission Control already
 // has: nothing uncommitted or unpushed is deleted without the second confirmation of the plan the developer saw.
@@ -46,15 +46,59 @@ const (
 	CleanupStateSkipped = "skipped"
 	CleanupStateFailed  = "failed"
 
+	// What became of another open PR (#691): a conflicting one goes to its agent (rebase-asked, or rebase-typed when the
+	// prompt waits for Enter), waits for a busy agent (agent-busy), or needs one started (needs-agent); needs-rebase: asking
+	// failed; checking: GitHub had not told whether it merges cleanly in time.
+	CleanupFlagRebaseAsked = "rebase-asked"
+	CleanupFlagRebaseTyped = "rebase-typed"
 	CleanupFlagAgentBusy   = "agent-busy"
+	CleanupFlagNeedsAgent  = "needs-agent"
 	CleanupFlagNeedsRebase = "needs-rebase"
+	CleanupFlagChecking    = "checking"
+
+	// What a step did or why it was skipped (#672: the sheet writes the sentences from these codes and the data).
+	CleanupCodeMerged         = "merged"
+	CleanupCodeNotMerged      = "notmerged"
+	CleanupCodePrUnconfirmed  = "prunconfirmed"
+	CleanupCodeNoTicket       = "noticket"
+	CleanupCodeClosed         = "closed"
+	CleanupCodeAlreadyClosed  = "alreadyclosed"
+	CleanupCodeNoSfWorkflow   = "nosfworkflow"
+	CleanupCodeMovedDone      = "moveddone"
+	CleanupCodeAlreadyDone    = "alreadydone"
+	CleanupCodeNoReviewTree   = "noreviewtree"
+	CleanupCodeNotAWorktree   = "notaworktree"
+	CleanupCodeNoAgentTree    = "noagenttree"
+	CleanupCodeRefusedHome    = "refusedhome"
+	CleanupCodeRefusedRepo    = "refusedrepo"
+	CleanupCodeLocked         = "locked"
+	CleanupCodeKept           = "kept"
+	CleanupCodeInUse          = "inuse"
+	CleanupCodeAlreadyGone    = "alreadygone"
+	CleanupCodeRemoved        = "removed"
+	CleanupCodeWillRemove     = "willremove"
+	CleanupCodeNoLocalBranch  = "nolocalbranch"
+	CleanupCodeTreeFailed     = "treefailed"
+	CleanupCodeInKeptTree     = "inkepttree"
+	CleanupCodeInMainCheckout = "inmaincheckout"
+	CleanupCodeMoved          = "moved"
+	CleanupCodeDeleted        = "deleted"
+	CleanupCodeDeletedByMerge = "deletedbymerge"
+	CleanupCodePushedAfter    = "pushedafter"
+	CleanupCodeNoOtherPr      = "noother"
+	CleanupCodeOtherPrs       = "otherprs"
 
 	CleanupWorkflowCliPath = ".claude/skills/sf-workflow/workflow-cli.sh"
 
-	cleanupTimeout           = 5 * time.Minute
-	cleanupFetchRetry        = 2 * time.Second
-	cleanupOtherPrsLimit     = "100"
-	cleanupMergeStateDirty   = "DIRTY"
+	cleanupTimeout         = 5 * time.Minute
+	cleanupFetchRetry      = 2 * time.Second
+	cleanupOtherPrsLimit   = "100"
+	cleanupMergeStateDirty = "DIRTY"
+	cleanupConflicting     = "CONFLICTING"
+	cleanupMergeable       = "MERGEABLE"
+	// Right after the merge GitHub says UNKNOWN until it has computed each PR's mergeability again.
+	cleanupMergeablePoll     = 5 * time.Second
+	cleanupMergeableWait     = 2 * time.Minute
 	cleanupPrStateMerged     = "MERGED"
 	cleanupIssueStateClosed  = "CLOSED"
 	cleanupWorkflowDoneMatch = "status: Done"
@@ -63,8 +107,6 @@ const (
 // CleanupSteps is the steps' order; a request naming some of them runs those only.
 var CleanupSteps = []string{CleanupStepPr, CleanupStepTicketClose, CleanupStepTicketDone, CleanupStepReviewTree,
 	CleanupStepAgentTree, CleanupStepLocalBranch, CleanupStepRemoteBranch, CleanupStepOtherPrs}
-
-var conflictRe = regexp.MustCompile(`(?i)conflict`)
 
 // cleanupRunner runs git, gh and the workflow CLI for the cleanup in wavesrv (a test build may replace it).
 var cleanupRunner mission.Runner = mission.ExecRunner
@@ -78,31 +120,59 @@ type CleanupRequest struct {
 	Ticket int `json:"ticket,omitempty"`
 	// Steps: run these steps only (a retry, or the agent worktree after its second confirmation); all when empty.
 	Steps []string `json:"steps,omitempty"`
-	// WorktreeConfirmed: the agent worktree's risk the developer confirmed a second time (the step's Confirm).
+	// WorktreeConfirmed: the developer chose to lose what the kept agent worktree holds (the step's Confirm). The
+	// worktree goes, and its branch too while its tip is still the one confirmed.
 	WorktreeConfirmed *mission.WorktreeRisk `json:"worktreeconfirmed,omitempty"`
 }
 
-// CleanupPr is what the cleanup did to another open PR on the same base.
+// CleanupPanel is a terminal still open in a worktree: the cleanup never pulls a folder from under it (#672).
+type CleanupPanel struct {
+	BlockId   string `json:"blockid"`
+	Tab       string `json:"tab,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
+	// Agent: the state of the agent running in it (molten.AgentState…), "" when none.
+	Agent string `json:"agent,omitempty"`
+}
+
+// CleanupPr is another open PR on the same base after the merge: unaffected (done, no flag), or conflicting and what
+// became of its rebase (Flag), or still being checked by GitHub.
 type CleanupPr struct {
 	Number  int    `json:"number"`
 	Branch  string `json:"branch"`
+	Url     string `json:"url,omitempty"`
+	Title   string `json:"title,omitempty"`
+	HeadOid string `json:"headoid,omitempty"`
 	State   string `json:"state"`
-	Reason  string `json:"reason,omitempty"`
-	Message string `json:"message,omitempty"`
-	// Flag: CleanupFlagAgentBusy (update after the agent finishes) or CleanupFlagNeedsRebase (Restart work offers it).
-	Flag string `json:"flag,omitempty"`
+	// Flag: CleanupFlag…; Agent: the first name (else the name) of the agent asked or busy; Error: why asking failed.
+	Flag  string `json:"flag,omitempty"`
+	Agent string `json:"agent,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 type CleanupStepResult struct {
 	Id    string `json:"id"`
 	State string `json:"state"`
-	// Reason: why the step was skipped; Message: the error of a failed step, or what a done step did.
-	Reason  string `json:"reason,omitempty"`
-	Message string `json:"message,omitempty"`
-	// The agent worktree kept for a second confirmation: its plan, and the risk to send back as WorktreeConfirmed.
-	Worktree *mission.WorktreePlan `json:"worktree,omitempty"`
-	Confirm  *mission.WorktreeRisk `json:"confirm,omitempty"`
-	Prs      []CleanupPr           `json:"prs,omitempty"`
+	// Code: what the step did or why it was skipped (CleanupCode…), written by the sheet from the data below; Error:
+	// the raw error of a failed step (or of the fetch after the merge check).
+	Code   string `json:"code,omitempty"`
+	Error  string `json:"error,omitempty"`
+	Ticket int    `json:"ticket,omitempty"`
+	Branch string `json:"branch,omitempty"`
+	Base   string `json:"base,omitempty"`
+	Path   string `json:"path,omitempty"`
+	// Loss: what removing the worktree or the branch loses (kept), or the ignored files that went with it (removed).
+	Loss *WorktreeLoss `json:"loss,omitempty"`
+	// Confirm: the kept agent worktree's risk, sent back as WorktreeConfirmed to remove it and lose its work.
+	Confirm *mission.WorktreeRisk `json:"confirm,omitempty"`
+	// Panels: the MoltenTerm terminals still open in a kept worktree (an agent, a shell, a durable job).
+	Panels []CleanupPanel `json:"panels,omitempty"`
+	// The other PRs, and the counts: unaffected, conflicting (Failed: those whose rebase could not be asked), and still
+	// checking.
+	Prs         []CleanupPr `json:"prs,omitempty"`
+	Unaffected  int         `json:"unaffected,omitempty"`
+	Conflicting int         `json:"conflicting,omitempty"`
+	Checking    int         `json:"checking,omitempty"`
+	Failed      int         `json:"failed,omitempty"`
 }
 
 type CleanupResult struct {
@@ -136,8 +206,14 @@ type CleanupEnv struct {
 	AgentState func(blockId string) string
 	// EndSession ends the PR's review session (reviewsession.EndSession).
 	EndSession func(ctx context.Context, repo string, number int) error
-	DataDir    string
-	Now        func() time.Time
+	// AskRebase hands a conflicting PR to the agent on its branch (Restarter.AskRebase, #683); never with Start.
+	AskRebase func(ctx context.Context, req RebaseRequest) (RestartResult, error)
+	// MergeablePoll, MergeableWait: how often, and how long at most, the other PRs are read again while GitHub computes
+	// whether they still merge cleanly.
+	MergeablePoll time.Duration
+	MergeableWait time.Duration
+	DataDir       string
+	Now           func() time.Time
 }
 
 type Cleaner struct {
@@ -148,6 +224,12 @@ type Cleaner struct {
 func MakeCleaner(env CleanupEnv) *Cleaner {
 	if env.Now == nil {
 		env.Now = time.Now
+	}
+	if env.MergeablePoll <= 0 {
+		env.MergeablePoll = cleanupMergeablePoll
+	}
+	if env.MergeableWait <= 0 {
+		env.MergeableWait = cleanupMergeableWait
 	}
 	terminals := func(ctx context.Context, path string, exclude []string) []mission.WorktreeTerminal {
 		if env.Terminals == nil {
@@ -177,7 +259,20 @@ type mergedPrFacts struct {
 type openPrFacts struct {
 	Number      int    `json:"number"`
 	HeadRefName string `json:"headRefName"`
+	HeadRefOid  string `json:"headRefOid"`
+	Title       string `json:"title"`
+	Mergeable   string `json:"mergeable"`
 	MergeState  string `json:"mergeStateStatus"`
+	Url         string `json:"url"`
+}
+
+func (pr openPrFacts) conflicting() bool {
+	return pr.Mergeable == cleanupConflicting || pr.MergeState == cleanupMergeStateDirty
+}
+
+// settled: GitHub has told whether the PR merges cleanly.
+func (pr openPrFacts) settled() bool {
+	return pr.Mergeable == cleanupMergeable || pr.conflicting()
 }
 
 type cleanupRun struct {
@@ -189,7 +284,12 @@ type cleanupRun struct {
 	ticket int
 	// The linked worktree on the PR's branch, "" when none.
 	agentTree string
-	result    CleanupResult
+	// confirmedTip: the agent worktree went on the developer's choice to lose its work; its branch goes too while its
+	// tip is still this one.
+	confirmedTip   string
+	mergedHeadRead bool
+	mergedHeadOid  string
+	result         CleanupResult
 }
 
 func (r *cleanupRun) gh(args ...string) ([]byte, error) {
@@ -197,7 +297,7 @@ func (r *cleanupRun) gh(args ...string) ([]byte, error) {
 }
 
 func (r *cleanupRun) git(dir string, args ...string) (string, error) {
-	out, err := r.c.env.Run(r.ctx, dir, "git", append([]string{"-c", "core.hooksPath=/dev/null"}, args...)...)
+	out, err := r.c.env.Run(r.ctx, dir, "git", append([]string{"-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"}, args...)...)
 	return strings.TrimSpace(string(out)), err
 }
 
@@ -210,16 +310,16 @@ func (r *cleanupRun) add(step CleanupStepResult) *CleanupStepResult {
 	return &r.result.Steps[len(r.result.Steps)-1]
 }
 
-func done(id string, message string) CleanupStepResult {
-	return CleanupStepResult{Id: id, State: CleanupStateDone, Message: message}
+func done(id string, code string) CleanupStepResult {
+	return CleanupStepResult{Id: id, State: CleanupStateDone, Code: code}
 }
 
-func skipped(id string, reason string) CleanupStepResult {
-	return CleanupStepResult{Id: id, State: CleanupStateSkipped, Reason: reason}
+func skipped(id string, code string) CleanupStepResult {
+	return CleanupStepResult{Id: id, State: CleanupStateSkipped, Code: code}
 }
 
 func failed(id string, err error) CleanupStepResult {
-	return CleanupStepResult{Id: id, State: CleanupStateFailed, Message: err.Error()}
+	return CleanupStepResult{Id: id, State: CleanupStateFailed, Error: err.Error()}
 }
 
 func (req CleanupRequest) check() error {
@@ -251,11 +351,11 @@ func (c *Cleaner) Run(ctx context.Context, req CleanupRequest) (CleanupResult, e
 		r.result.EndAt = c.env.Now().UnixMilli()
 	}()
 	// Every step needs the merged PR: without it, nothing is touched.
-	if err := r.readPr(); err != nil {
-		r.add(failed(CleanupStepPr, err))
+	if step, ok := r.readPr(); !ok {
+		r.add(step)
 		for _, id := range CleanupSteps[1:] {
 			if r.wanted(id) {
-				r.add(skipped(id, "the merged PR could not be confirmed"))
+				r.add(skipped(id, CleanupCodePrUnconfirmed))
 			}
 		}
 		r.result.EndAt = c.env.Now().UnixMilli()
@@ -283,27 +383,28 @@ func (c *Cleaner) Run(ctx context.Context, req CleanupRequest) (CleanupResult, e
 		r.add(r.deleteRemoteBranch())
 	}
 	if r.wanted(CleanupStepOtherPrs) {
-		r.add(r.updateOtherPrs())
+		r.add(r.checkOtherPrs())
 	}
 	r.result.EndAt = c.env.Now().UnixMilli()
 	return r.result, nil
 }
 
 // readPr confirms the PR is merged and reads its branches and ticket, then fetches: the content checks compare with
-// the base as GitHub has it now, and a pruned remote branch shows the merge deleted it.
-func (r *cleanupRun) readPr() error {
+// the base as GitHub has it now, and a pruned remote branch shows the merge deleted it. ok false: the PR step failed.
+func (r *cleanupRun) readPr() (CleanupStepResult, bool) {
 	out, err := r.gh("pr", "view", strconv.Itoa(r.req.Number), "--json", "state,headRefName,headRefOid,baseRefName,closingIssuesReferences")
 	if err != nil {
-		return err
+		return failed(CleanupStepPr, err), false
 	}
 	if err := json.Unmarshal(out, &r.pr); err != nil {
-		return fmt.Errorf("gh pr view: unreadable answer")
+		return failed(CleanupStepPr, errors.New("gh pr view: unreadable answer")), false
 	}
 	if r.pr.State != cleanupPrStateMerged {
-		return fmt.Errorf("PR #%d is not merged (%s)", r.req.Number, strings.ToLower(r.pr.State))
+		step := CleanupStepResult{Id: CleanupStepPr, State: CleanupStateFailed, Code: CleanupCodeNotMerged, Error: strings.ToLower(r.pr.State)}
+		return step, false
 	}
 	if !reviewsession.ValidRef(r.pr.HeadRefName) || !reviewsession.ValidRef(r.pr.BaseRefName) {
-		return fmt.Errorf("PR #%d: unusual branch names", r.req.Number)
+		return failed(CleanupStepPr, fmt.Errorf("PR #%d: unusual branch names", r.req.Number)), false
 	}
 	r.ticket = r.req.Ticket
 	if r.ticket <= 0 && len(r.pr.Closing) > 0 {
@@ -312,15 +413,15 @@ func (r *cleanupRun) readPr() error {
 	if r.ticket <= 0 {
 		r.ticket = mission.TicketOfBranch(r.dir, r.pr.HeadRefName)
 	}
-	if r.wanted(CleanupStepPr) {
-		r.add(done(CleanupStepPr, fmt.Sprintf("PR #%d is merged into %s", r.req.Number, r.pr.BaseRefName)))
-	}
+	step := done(CleanupStepPr, CleanupCodeMerged)
+	step.Base = r.pr.BaseRefName
 	if err := r.fetch(); err != nil {
-		if step := r.result.Step(CleanupStepPr); step != nil {
-			step.Message += "; the fetch failed: " + err.Error()
-		}
+		step.Error = err.Error()
 	}
-	return nil
+	if r.wanted(CleanupStepPr) {
+		r.add(step)
+	}
+	return step, true
 }
 
 // fetch tries twice: right after Validate's merge, the Review tab's refresh fetches the same repository, and git
@@ -336,22 +437,37 @@ func (r *cleanupRun) fetch() error {
 
 func (r *cleanupRun) closeTicket() CleanupStepResult {
 	if r.ticket <= 0 {
-		return skipped(CleanupStepTicketClose, "no ticket found for the PR")
+		return skipped(CleanupStepTicketClose, CleanupCodeNoTicket)
 	}
 	out, err := r.gh("issue", "view", strconv.Itoa(r.ticket), "--json", "state")
 	if err != nil {
-		return failed(CleanupStepTicketClose, err)
+		return withTicket(failed(CleanupStepTicketClose, err), r.ticket)
 	}
 	var issue struct {
 		State string `json:"state"`
 	}
 	if json.Unmarshal(out, &issue) == nil && issue.State == cleanupIssueStateClosed {
-		return skipped(CleanupStepTicketClose, fmt.Sprintf("#%d is already closed", r.ticket))
+		return withTicket(skipped(CleanupStepTicketClose, CleanupCodeAlreadyClosed), r.ticket)
 	}
 	if _, err := r.gh("issue", "close", strconv.Itoa(r.ticket)); err != nil {
-		return failed(CleanupStepTicketClose, err)
+		return withTicket(failed(CleanupStepTicketClose, err), r.ticket)
 	}
-	return done(CleanupStepTicketClose, fmt.Sprintf("#%d closed", r.ticket))
+	return withTicket(done(CleanupStepTicketClose, CleanupCodeClosed), r.ticket)
+}
+
+func withTicket(step CleanupStepResult, ticket int) CleanupStepResult {
+	step.Ticket = ticket
+	return step
+}
+
+func withBranch(step CleanupStepResult, branch string, base string) CleanupStepResult {
+	step.Branch, step.Base = branch, base
+	return step
+}
+
+func withPath(step CleanupStepResult, path string) CleanupStepResult {
+	step.Path = path
+	return step
 }
 
 // UsesSfWorkflow tells whether the project moves its tickets with sf-workflow's CLI.
@@ -368,20 +484,20 @@ func UsesSfWorkflow(dir string) bool {
 // without sf-workflow has no board MoltenTerm moves.
 func (r *cleanupRun) ticketDone() CleanupStepResult {
 	if r.ticket <= 0 {
-		return skipped(CleanupStepTicketDone, "no ticket found for the PR")
+		return skipped(CleanupStepTicketDone, CleanupCodeNoTicket)
 	}
 	if !UsesSfWorkflow(r.dir) {
-		return skipped(CleanupStepTicketDone, "the project does not use sf-workflow")
+		return withTicket(skipped(CleanupStepTicketDone, CleanupCodeNoSfWorkflow), r.ticket)
 	}
 	cli := filepath.Join(r.dir, CleanupWorkflowCliPath)
 	ticket := strconv.Itoa(r.ticket)
 	if out, err := r.c.env.Run(r.ctx, r.dir, "bash", cli, "status", ticket); err == nil && strings.Contains(string(out), cleanupWorkflowDoneMatch) {
-		return skipped(CleanupStepTicketDone, fmt.Sprintf("#%d is already Done", r.ticket))
+		return withTicket(skipped(CleanupStepTicketDone, CleanupCodeAlreadyDone), r.ticket)
 	}
 	if _, err := r.c.env.Run(r.ctx, r.dir, "bash", cli, "update-status", ticket, "Done"); err != nil {
-		return failed(CleanupStepTicketDone, err)
+		return withTicket(failed(CleanupStepTicketDone, err), r.ticket)
 	}
-	return done(CleanupStepTicketDone, fmt.Sprintf("#%d moved to Done", r.ticket))
+	return withTicket(done(CleanupStepTicketDone, CleanupCodeMovedDone), r.ticket)
 }
 
 // worktreeEntries reads the project's worktrees as path → branch (refs/heads/… or "" when detached).
@@ -412,8 +528,24 @@ func samePath(a string, b string) bool {
 	return ra == rb
 }
 
+// statusChanges reads the uncommitted changes of a folder: changes to tracked files and untracked files that are not
+// ignored, as git status names them.
+func (r *cleanupRun) statusChanges(dir string) ([]string, int, error) {
+	status, err := r.git(dir, "status", "--porcelain", "--untracked-files=normal")
+	if err != nil {
+		return nil, 0, err
+	}
+	var paths []string
+	for _, line := range strings.Split(status, "\n") {
+		if len(line) > 3 {
+			paths = append(paths, line[3:])
+		}
+	}
+	return firstOf(paths), len(paths), nil
+}
+
 // removeReviewTree ends the review session and removes MoltenTerm's detached checkout of the PR. It only ever holds the
-// PR's commits, now merged; uncommitted changes in it keep it all the same.
+// PR's commits, now merged; uncommitted changes in it keep it all the same, and the step names them.
 func (r *cleanupRun) removeReviewTree() CleanupStepResult {
 	if r.c.env.EndSession != nil {
 		if err := r.c.env.EndSession(r.ctx, r.req.Repo, r.req.Number); err != nil {
@@ -422,7 +554,7 @@ func (r *cleanupRun) removeReviewTree() CleanupStepResult {
 	}
 	tree := reviewsession.ReviewTreeDir(r.c.env.DataDir, r.dir, r.req.Number)
 	if _, err := os.Stat(tree); errors.Is(err, os.ErrNotExist) {
-		return skipped(CleanupStepReviewTree, "no review worktree of this PR (none was made, or the review read the agent's worktree)")
+		return skipped(CleanupStepReviewTree, CleanupCodeNoReviewTree)
 	}
 	entries, err := r.worktreeEntries()
 	if err != nil {
@@ -435,19 +567,30 @@ func (r *cleanupRun) removeReviewTree() CleanupStepResult {
 		}
 	}
 	if !listed {
-		return skipped(CleanupStepReviewTree, tree+" is not a worktree of the project: left as it is")
+		return withPath(skipped(CleanupStepReviewTree, CleanupCodeNotAWorktree), tree)
 	}
-	status, err := r.git(tree, "status", "--porcelain", "--untracked-files=normal")
+	changes, count, err := r.statusChanges(tree)
 	if err != nil {
 		return failed(CleanupStepReviewTree, err)
 	}
-	if status != "" {
-		return skipped(CleanupStepReviewTree, "the review worktree holds uncommitted changes: kept at "+tree)
+	var panels []CleanupPanel
+	if r.c.env.Terminals != nil {
+		panels = r.panelsOf(r.c.env.Terminals(r.ctx, tree))
 	}
-	if _, err := r.git(r.dir, "worktree", "remove", "--", tree); err != nil {
+	if count > 0 || len(panels) > 0 {
+		code := CleanupCodeKept
+		if count == 0 {
+			code = CleanupCodeInUse
+		}
+		step := withPath(skipped(CleanupStepReviewTree, code), tree)
+		step.Loss = &WorktreeLoss{Changes: changes, ChangeCount: count, Commits: []LossCommit{}, Ignored: []string{}}
+		step.Panels = panels
+		return step
+	}
+	if _, err := r.git(r.dir, "worktree", "remove", "--force", "--", tree); err != nil {
 		return failed(CleanupStepReviewTree, err)
 	}
-	return done(CleanupStepReviewTree, "removed "+tree)
+	return withPath(done(CleanupStepReviewTree, CleanupCodeRemoved), tree)
 }
 
 // findAgentTree is the linked worktree that has the PR's branch checked out; never the main checkout.
@@ -468,100 +611,128 @@ func riskOf(plan mission.WorktreePlan) *mission.WorktreeRisk {
 	return &mission.WorktreeRisk{Sha: plan.Sha, ChangeCount: plan.ChangeCount, Unpushed: plan.Unpushed, IgnoredFileCount: plan.IgnoredFileCount}
 }
 
-func keptReason(plan mission.WorktreePlan) string {
-	var why []string
-	if plan.ChangeCount > 0 {
-		why = append(why, fmt.Sprintf("%d uncommitted change(s)", plan.ChangeCount))
+func refusalCode(refused string) string {
+	if strings.Contains(refused, "home") {
+		return CleanupCodeRefusedHome
 	}
-	if plan.UnpushedAtRisk() {
-		if plan.Unpushed == mission.UnknownCount {
-			why = append(why, "commits git could not count")
-		} else {
-			why = append(why, fmt.Sprintf("%d commit(s) not on the base or a remote", plan.Unpushed))
-		}
-	}
-	if plan.IgnoredFileCount > 0 {
-		why = append(why, fmt.Sprintf("%d ignored file(s)", plan.IgnoredFileCount))
-	}
-	if len(plan.Terminals) > 0 {
-		why = append(why, fmt.Sprintf("%d open terminal(s)", len(plan.Terminals)))
-	}
-	return "the agent worktree holds " + strings.Join(why, ", ") + ": kept until you confirm"
+	return CleanupCodeRefusedRepo
 }
 
-// removeAgentTree goes through Mission Control's worktree plan: anything at risk keeps the worktree until the developer
-// confirms that plan a second time, and a worktree that changed since is kept again.
+// panelsOf names the terminals open in a worktree, with the state of the agent running in each.
+func (r *cleanupRun) panelsOf(terminals []mission.WorktreeTerminal) []CleanupPanel {
+	var rtn []CleanupPanel
+	for _, term := range terminals {
+		panel := CleanupPanel{BlockId: term.BlockId, Tab: term.Tab, Workspace: term.Workspace}
+		if r.c.env.AgentState != nil {
+			panel.Agent = r.c.env.AgentState(term.BlockId)
+		}
+		rtn = append(rtn, panel)
+	}
+	return rtn
+}
+
+// agentLoss is what removing the agent worktree and its branch would lose.
+func (r *cleanupRun) agentLoss(plan mission.WorktreePlan) WorktreeLoss {
+	commits, count := r.commitsAtRisk("refs/heads/" + r.pr.HeadRefName)
+	return worktreeLossOf(plan, commits, count)
+}
+
+// removeAgentTree removes the agent worktree after the merge unless it holds real work (loss.go): uncommitted changes,
+// untracked files that are not ignored, or commits that are not in the merged PR. Then it is kept, with the loss named,
+// until the developer chooses to lose it (WorktreeConfirmed); a worktree that changed since is kept again. Removal goes
+// through Mission Control's worktree removal, which reads the worktree again first.
 func (r *cleanupRun) removeAgentTree() CleanupStepResult {
 	if r.agentTree == "" {
-		return skipped(CleanupStepAgentTree, "no worktree has "+r.pr.HeadRefName+" checked out")
+		return withBranch(skipped(CleanupStepAgentTree, CleanupCodeNoAgentTree), r.pr.HeadRefName, "")
 	}
-	plan, err := r.c.worktrees.Plan(mission.WorktreeRequest{Dir: r.agentTree})
+	tree := r.agentTree
+	plan, err := r.c.worktrees.Plan(mission.WorktreeRequest{Dir: tree})
 	if err != nil {
-		return failed(CleanupStepAgentTree, err)
+		return withPath(failed(CleanupStepAgentTree, err), tree)
 	}
 	if plan.Refused != "" {
-		return skipped(CleanupStepAgentTree, "MoltenTerm does not remove "+r.agentTree+": "+plan.Refused)
+		return withPath(skipped(CleanupStepAgentTree, refusalCode(plan.Refused)), tree)
 	}
 	if plan.Locked {
-		return skipped(CleanupStepAgentTree, "the agent worktree is locked")
+		return withPath(skipped(CleanupStepAgentTree, CleanupCodeLocked), tree)
 	}
-	if plan.NeedsConfirmation() && r.req.WorktreeConfirmed == nil {
-		step := skipped(CleanupStepAgentTree, keptReason(plan))
-		step.Worktree, step.Confirm = &plan, riskOf(plan)
+	loss := r.agentLoss(plan)
+	panels := r.panelsOf(plan.Terminals)
+	confirmed := r.req.WorktreeConfirmed
+	// A terminal still open in the folder keeps it, even after the developer chose to lose its work: the sheet closes
+	// those panels first, so one found here was opened since.
+	if len(panels) > 0 || (confirmed == nil && !loss.Nothing()) {
+		code := CleanupCodeKept
+		if loss.Nothing() {
+			code = CleanupCodeInUse
+		}
+		step := withBranch(withPath(skipped(CleanupStepAgentTree, code), tree), r.pr.HeadRefName, r.pr.BaseRefName)
+		step.Loss, step.Confirm, step.Panels = &loss, riskOf(plan), panels
 		return step
 	}
-	res, err := r.c.worktrees.Remove(mission.WorktreeRemoveRequest{Dir: r.agentTree, Confirmed: r.req.WorktreeConfirmed})
+	if confirmed == nil {
+		// Nothing to lose: what the plan saw is confirmed here, and the removal reads the worktree again.
+		confirmed = riskOf(plan)
+	}
+	res, err := r.c.worktrees.Remove(mission.WorktreeRemoveRequest{Dir: tree, Confirmed: confirmed})
 	if err != nil {
-		step := failed(CleanupStepAgentTree, err)
-		if again, perr := r.c.worktrees.Plan(mission.WorktreeRequest{Dir: r.agentTree}); perr == nil && !again.Missing {
-			step.Worktree, step.Confirm = &again, riskOf(again)
+		step := withBranch(withPath(failed(CleanupStepAgentTree, err), tree), r.pr.HeadRefName, r.pr.BaseRefName)
+		if again, perr := r.c.worktrees.Plan(mission.WorktreeRequest{Dir: tree}); perr == nil && !again.Missing {
+			againLoss := r.agentLoss(again)
+			step.Loss, step.Confirm = &againLoss, riskOf(again)
 		}
 		return step
 	}
 	r.agentTree = ""
-	if res.Gone {
-		return skipped(CleanupStepAgentTree, "the agent worktree was already removed")
+	if r.req.WorktreeConfirmed != nil {
+		r.confirmedTip = r.req.WorktreeConfirmed.Sha
 	}
-	return done(CleanupStepAgentTree, "removed "+res.Real)
+	if res.Gone {
+		return withPath(skipped(CleanupStepAgentTree, CleanupCodeAlreadyGone), tree)
+	}
+	step := withPath(done(CleanupStepAgentTree, CleanupCodeRemoved), res.Real)
+	step.Loss = &loss
+	return step
 }
 
-// deleteLocalBranch deletes the PR's local branch when what it holds is on the base: its tip is the head GitHub merged,
-// or its content is on origin/<base> (a rebase merge gives new commit ids, so ancestry cannot tell).
+// deleteLocalBranch deletes the PR's local branch when it holds no commit outside the merged PR (loss.go), or when
+// the developer chose to lose the kept worktree's work and the branch tip is still the one they saw.
 func (r *cleanupRun) deleteLocalBranch(agentStep *CleanupStepResult) CleanupStepResult {
 	branch := r.pr.HeadRefName
+	base := r.pr.BaseRefName
 	tip, err := r.git(r.dir, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch)
 	if err != nil || tip == "" {
-		return skipped(CleanupStepLocalBranch, "no local branch "+branch)
+		return withBranch(skipped(CleanupStepLocalBranch, CleanupCodeNoLocalBranch), branch, base)
 	}
 	if r.agentTree != "" {
 		if agentStep != nil && agentStep.State == CleanupStateFailed {
-			return skipped(CleanupStepLocalBranch, "depends on the agent worktree, which could not be removed")
+			return withBranch(skipped(CleanupStepLocalBranch, CleanupCodeTreeFailed), branch, base)
 		}
-		return skipped(CleanupStepLocalBranch, branch+" is checked out in the kept agent worktree")
+		return withBranch(skipped(CleanupStepLocalBranch, CleanupCodeInKeptTree), branch, base)
 	}
 	entries, err := r.worktreeEntries()
 	if err != nil {
 		return failed(CleanupStepLocalBranch, err)
 	}
 	if len(entries) > 0 && entries[0][1] == "refs/heads/"+branch {
-		return skipped(CleanupStepLocalBranch, branch+" is checked out in the project's main checkout")
+		return withBranch(skipped(CleanupStepLocalBranch, CleanupCodeInMainCheckout), branch, base)
 	}
-	base := "refs/remotes/origin/" + r.pr.BaseRefName
-	mergedHead := reviewsession.IsOid(r.pr.HeadRefOid) && tip == r.pr.HeadRefOid
-	if !mergedHead {
-		on := mission.BranchContentOn(r.ctx, r.c.env.Run, r.dir, base, "refs/heads/"+branch)
-		if on == nil {
-			return skipped(CleanupStepLocalBranch, "could not tell whether "+branch+" is on "+r.pr.BaseRefName+": kept")
+	if r.confirmedTip == "" || tip != r.confirmedTip {
+		if r.confirmedTip != "" {
+			return withBranch(skipped(CleanupStepLocalBranch, CleanupCodeMoved), branch, base)
 		}
-		if !*on {
-			return skipped(CleanupStepLocalBranch, branch+" has work that is not on "+r.pr.BaseRefName+": kept")
+		commits, count := r.commitsAtRisk("refs/heads/" + branch)
+		if count != 0 {
+			step := withBranch(skipped(CleanupStepLocalBranch, CleanupCodeKept), branch, base)
+			step.Loss = &WorktreeLoss{Changes: []string{}, Commits: commits, CommitCount: count, Ignored: []string{}}
+			return step
 		}
 	}
-	// -D: a rebase-merged branch is not an ancestor of the base; its content was checked instead.
+	// -D: a rebase- or squash-merged branch is not an ancestor of the base; its commits were checked instead.
 	if _, err := r.git(r.dir, "branch", "-D", branch); err != nil {
 		return failed(CleanupStepLocalBranch, err)
 	}
-	return done(CleanupStepLocalBranch, "deleted "+branch)
+	return withBranch(done(CleanupStepLocalBranch, CleanupCodeDeleted), branch, base)
 }
 
 // deleteRemoteBranch: the merge deletes it (gh pr merge --delete-branch, or the repository's automatic deletion); one
@@ -570,15 +741,15 @@ func (r *cleanupRun) deleteRemoteBranch() CleanupStepResult {
 	branch := r.pr.HeadRefName
 	tip, err := r.git(r.dir, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+branch)
 	if err != nil || tip == "" {
-		return skipped(CleanupStepRemoteBranch, "origin/"+branch+" was deleted by the merge")
+		return withBranch(done(CleanupStepRemoteBranch, CleanupCodeDeletedByMerge), branch, "")
 	}
 	if !reviewsession.IsOid(r.pr.HeadRefOid) || tip != r.pr.HeadRefOid {
-		return skipped(CleanupStepRemoteBranch, "origin/"+branch+" has commits pushed after the merge: kept")
+		return withBranch(skipped(CleanupStepRemoteBranch, CleanupCodePushedAfter), branch, "")
 	}
 	if _, err := r.git(r.dir, "push", "--quiet", "origin", "--delete", branch); err != nil {
 		return failed(CleanupStepRemoteBranch, err)
 	}
-	return done(CleanupStepRemoteBranch, "deleted origin/"+branch)
+	return withBranch(done(CleanupStepRemoteBranch, CleanupCodeDeleted), branch, "")
 }
 
 // Cleanup runs the cleanup of a merged PR and records its outcome in the review store, which the Review tab and the
@@ -598,78 +769,107 @@ func (s *Service) Cleanup(ctx context.Context, req CleanupRequest) (CleanupResul
 	return result, nil
 }
 
-// busyAgent tells whether an agent works or waits in a worktree that has the branch checked out.
-func (r *cleanupRun) busyAgent(entries [][2]string, branch string) bool {
-	if r.c.env.Terminals == nil || r.c.env.AgentState == nil {
-		return false
-	}
-	for _, e := range entries {
-		if e[1] != "refs/heads/"+branch {
-			continue
-		}
-		for _, t := range r.c.env.Terminals(r.ctx, e[0]) {
-			state := r.c.env.AgentState(t.BlockId)
-			if state == molten.AgentStateWorking || state == molten.AgentStateWaiting {
-				return true
+// otherPrs reads the other open PRs on the base, and reads them again while GitHub has not told whether some still
+// merge cleanly, for MergeableWait at most. A later read that fails keeps the last list.
+func (r *cleanupRun) otherPrs(base string) ([]openPrFacts, error) {
+	deadline := r.c.env.Now().Add(r.c.env.MergeableWait)
+	var last []openPrFacts
+	for {
+		out, err := r.gh("pr", "list", "--state", "open", "--base", base, "--limit", cleanupOtherPrsLimit,
+			"--json", "number,headRefName,headRefOid,title,mergeable,mergeStateStatus,url")
+		if err == nil {
+			var prs []openPrFacts
+			if jerr := json.Unmarshal(out, &prs); jerr != nil {
+				err = errors.New("gh pr list: unreadable answer")
+			} else {
+				last = slices.DeleteFunc(prs, func(pr openPrFacts) bool { return pr.Number == r.req.Number })
 			}
 		}
+		if err != nil && last == nil {
+			return nil, err
+		}
+		pending := slices.ContainsFunc(last, func(pr openPrFacts) bool { return !pr.settled() })
+		if !pending || !r.c.env.Now().Before(deadline) || !sleepCtx(r.ctx, r.c.env.MergeablePoll) {
+			return last, nil
+		}
 	}
-	return false
 }
 
-// updateOtherPrs asks GitHub to rebase every other open PR on the same base (gh pr update-branch --rebase), server
-// side: no local rebase or force push. A PR whose agent is busy is left for later; a conflict needs an agent.
-func (r *cleanupRun) updateOtherPrs() CleanupStepResult {
-	out, err := r.gh("pr", "list", "--state", "open", "--base", r.pr.BaseRefName, "--limit", cleanupOtherPrsLimit,
-		"--json", "number,headRefName,mergeStateStatus")
+// askRebase hands a PR the merge put in conflict to the agent on its branch, through Ask for a rebase's routing
+// (rebase.go): a busy agent is not interrupted, and with no agent nothing starts; the window offers to start one.
+func (r *cleanupRun) askRebase(pr openPrFacts, item *CleanupPr) {
+	if r.c.env.AskRebase == nil {
+		item.State, item.Flag, item.Error = CleanupStateFailed, CleanupFlagNeedsRebase, "Ask for a rebase is not available"
+		return
+	}
+	res, err := r.c.env.AskRebase(r.ctx, RebaseRequest{
+		PrKey:    PrKey{Repo: r.req.Repo, Number: pr.Number},
+		Dir:      r.dir,
+		HeadRef:  pr.HeadRefName,
+		BaseRef:  r.pr.BaseRefName,
+		HeadOid:  pr.HeadRefOid,
+		Title:    pr.Title,
+		Url:      pr.Url,
+		MergedPr: r.req.Number,
+	})
+	item.Agent = res.FirstName
+	if item.Agent == "" {
+		item.Agent = res.AgentName
+	}
+	switch {
+	case err != nil:
+		item.State, item.Flag, item.Error = CleanupStateFailed, CleanupFlagNeedsRebase, err.Error()
+	case res.Status == RestartSent || res.Status == RestartStarted:
+		item.State, item.Flag = CleanupStateDone, CleanupFlagRebaseAsked
+	case res.Status == RestartTyped:
+		item.State, item.Flag = CleanupStateDone, CleanupFlagRebaseTyped
+	case res.Status == RestartBusy:
+		item.State, item.Flag = CleanupStateSkipped, CleanupFlagAgentBusy
+	case res.Status == RebaseOffer:
+		item.State, item.Flag = CleanupStateSkipped, CleanupFlagNeedsAgent
+	default:
+		item.State, item.Flag, item.Error = CleanupStateFailed, CleanupFlagNeedsRebase, res.Message
+		if item.Error == "" {
+			item.Error = res.Status
+		}
+	}
+}
+
+// checkOtherPrs leaves alone the other open PRs on the base that still merge cleanly: Validate brings a PR up to date
+// when it merges it, and rebasing them all would rewrite their history and restart their CI at each merge (#691).
+// Those the merge put in conflict go to their agent for a rebase.
+func (r *cleanupRun) checkOtherPrs() CleanupStepResult {
+	base := r.pr.BaseRefName
+	prs, err := r.otherPrs(base)
 	if err != nil {
 		return failed(CleanupStepOtherPrs, err)
 	}
-	var prs []openPrFacts
-	if err := json.Unmarshal(out, &prs); err != nil {
-		return failed(CleanupStepOtherPrs, errors.New("gh pr list: unreadable answer"))
-	}
-	entries, _ := r.worktreeEntries()
-	step := CleanupStepResult{Id: CleanupStepOtherPrs, Prs: []CleanupPr{}}
-	updated, flagged, failures := 0, 0, 0
+	step := CleanupStepResult{Id: CleanupStepOtherPrs, Base: base, Code: CleanupCodeOtherPrs, Prs: []CleanupPr{}}
 	for _, pr := range prs {
-		if pr.Number == r.req.Number {
-			continue
-		}
-		item := CleanupPr{Number: pr.Number, Branch: pr.HeadRefName}
+		item := CleanupPr{Number: pr.Number, Branch: pr.HeadRefName, Url: pr.Url, Title: pr.Title, HeadOid: pr.HeadRefOid}
 		switch {
-		case r.busyAgent(entries, pr.HeadRefName):
-			item.State, item.Flag, item.Reason = CleanupStateSkipped, CleanupFlagAgentBusy, "update after the agent finishes"
-			flagged++
-		case pr.MergeState == cleanupMergeStateDirty:
-			item.State, item.Flag, item.Reason = CleanupStateSkipped, CleanupFlagNeedsRebase, "needs a rebase: conflicts with "+r.pr.BaseRefName
-			flagged++
-		default:
-			_, err := r.gh("pr", "update-branch", strconv.Itoa(pr.Number), "--rebase")
-			switch {
-			case err == nil:
-				item.State = CleanupStateDone
-				updated++
-			case conflictRe.MatchString(err.Error()):
-				item.State, item.Flag, item.Reason = CleanupStateSkipped, CleanupFlagNeedsRebase, "needs a rebase: conflicts with "+r.pr.BaseRefName
-				item.Message = err.Error()
-				flagged++
-			default:
-				item.State, item.Message = CleanupStateFailed, err.Error()
-				failures++
+		case pr.conflicting():
+			step.Conflicting++
+			r.askRebase(pr, &item)
+			if item.State == CleanupStateFailed {
+				step.Failed++
 			}
+		case pr.settled():
+			item.State = CleanupStateDone
+			step.Unaffected++
+		default:
+			item.State, item.Flag = CleanupStateSkipped, CleanupFlagChecking
+			step.Checking++
 		}
 		step.Prs = append(step.Prs, item)
 	}
 	switch {
 	case len(step.Prs) == 0:
-		step.State, step.Reason = CleanupStateSkipped, "no other open PR on "+r.pr.BaseRefName
-	case failures > 0:
+		step.State, step.Code = CleanupStateSkipped, CleanupCodeNoOtherPr
+	case step.Failed > 0:
 		step.State = CleanupStateFailed
-		step.Message = fmt.Sprintf("%d updated, %d flagged, %d failed", updated, flagged, failures)
 	default:
 		step.State = CleanupStateDone
-		step.Message = fmt.Sprintf("%d updated, %d flagged", updated, flagged)
 	}
 	return step
 }

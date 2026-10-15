@@ -2,6 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ipcRenderer } from "electron";
+// MOLTENTERM-PATCH (#676)
+import {
+    canScrollX,
+    CarpetWheelChannel,
+    CarpetWheelMessage,
+    CarpetWheelState,
+    CarpetWheelStateChannel,
+    horizontalWheelDelta,
+    routeHorizontalWheel,
+} from "../frontend/moltenterm-shell/view360/carpet-wheel";
 
 // MOLTENTERM-PATCH (#371): a single trusted request after the page can suppress its own menu.
 document.addEventListener("contextmenu", (event) => {
@@ -57,5 +67,39 @@ function moltentermNoteInput(event: Event) {
 }
 window.addEventListener("mousedown", moltentermNoteInput, true);
 window.addEventListener("keydown", moltentermNoteInput, true);
+
+// MOLTENTERM-PATCH (#676): in 360 view the page's wheel never reaches the host's carpet. The host says whether this
+// panel lies on a scrollable carpet and has the focus; a horizontal scroll the panel should not keep is cancelled here
+// and handed to the host. The blocking listener only exists while the panel is on the carpet, so pages elsewhere keep
+// their scrolling off the main thread.
+let moltentermCarpetWheel: CarpetWheelState = { onCarpet: false, focused: false };
+function moltentermOnCarpetWheel(event: WheelEvent) {
+    if (!event.isTrusted) {
+        return;
+    }
+    const delta = horizontalWheelDelta(event);
+    if (delta == null) {
+        return;
+    }
+    const panelCanScroll = moltentermCarpetWheel.focused && canScrollX(event.target, delta);
+    if (routeHorizontalWheel(moltentermCarpetWheel.focused, panelCanScroll) === "panel") {
+        return;
+    }
+    event.preventDefault();
+    const message: CarpetWheelMessage = { delta, deltaMode: event.deltaMode };
+    ipcRenderer.sendToHost(CarpetWheelChannel, message);
+}
+ipcRenderer.on(CarpetWheelStateChannel, (_event, state: CarpetWheelState) => {
+    const was = moltentermCarpetWheel.onCarpet;
+    moltentermCarpetWheel = { onCarpet: !!state?.onCarpet, focused: !!state?.focused };
+    if (moltentermCarpetWheel.onCarpet === was) {
+        return;
+    }
+    if (moltentermCarpetWheel.onCarpet) {
+        window.addEventListener("wheel", moltentermOnCarpetWheel, { capture: true, passive: false });
+    } else {
+        window.removeEventListener("wheel", moltentermOnCarpetWheel, { capture: true });
+    }
+});
 
 console.log("loaded wave preload-webview.ts");

@@ -93,8 +93,10 @@ type RestartResult struct {
 	BlockId         string `json:"blockid,omitempty"`
 	Agent           string `json:"agent,omitempty"`
 	AgentName       string `json:"agentname,omitempty"`
-	BriefPath       string `json:"briefpath,omitempty"`
-	State           *State `json:"state,omitempty"`
+	// FirstName: the reused agent's first name (FR-CONT-014), the one the developer calls it by.
+	FirstName string `json:"firstname,omitempty"`
+	BriefPath string `json:"briefpath,omitempty"`
+	State     *State `json:"state,omitempty"`
 }
 
 // RestartTypeOutcome is what typing the prompt into a running agent did; Retry: the agent cannot take it now.
@@ -475,6 +477,7 @@ func (r *Restarter) reuseAgent(ctx context.Context, tree string, line string, re
 		if run.State == molten.AgentStateWorking || run.State == molten.AgentStateWaiting {
 			// Two agents in one worktree would undo each other's work.
 			result.Status, result.BlockId, result.Agent, result.AgentName = RestartBusy, t.BlockId, run.Agent, name
+			result.FirstName = run.FirstName
 			result.Reason, result.AgentState = RestartReasonAgentBusy, run.State
 			result.Message = fmt.Sprintf("%s is %s in %s: restart the work once it is done.", name, stateWords(run.State), tree)
 			return true
@@ -488,6 +491,7 @@ func (r *Restarter) reuseAgent(ctx context.Context, tree string, line string, re
 	run := idle[0]
 	name := molten.AgentDisplayName(run.Agent)
 	result.BlockId, result.Agent, result.AgentName = run.BlockId, run.Agent, name
+	result.FirstName = run.FirstName
 	if r.env.TypePrompt == nil {
 		result.Status, result.Reason, result.Message = RestartFailed, RestartReasonTerminal, "MoltenTerm cannot type in terminals yet: nothing was sent."
 		return true

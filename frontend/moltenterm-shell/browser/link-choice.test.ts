@@ -14,7 +14,6 @@ import {
     choiceOnNavigate,
     choiceSite,
     interfaceLinkTarget,
-    isWebUrl,
     LinkTargetOS,
     LinkTargetPanel,
     makeEngineChoice,
@@ -48,7 +47,7 @@ describe("one entry point for interface links (DS-BRW-006)", () => {
         ]) {
             expect(interfaceLinkTarget(url, true, true)).toBe(LinkTargetOS);
         }
-        expect(isWebUrl("https://")).toBe(false);
+        expect(interfaceLinkTarget("https://", true, true)).toBe(LinkTargetOS);
     });
 
     it("ships web:openlinksinternally on in MoltenTerm's default settings", () => {

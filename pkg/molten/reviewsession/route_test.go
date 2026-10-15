@@ -4,40 +4,39 @@
 package reviewsession
 
 import (
-	"context"
 	"strings"
 	"testing"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 )
 
-// DS-REV-011: only a window starts, ends or selects; a terminal (where an agent runs) may only read; a source the
-// router did not tie to its link ("") is refused; the MCP hello comes from a local terminal only.
+// DS-REV-011: only a window starts, ends or selects; a terminal (where an agent runs) may only read; a remote host,
+// forging a window's source or not, gets nothing (#662); the MCP hello comes from a local terminal only.
 func TestRouteSources(t *testing.T) {
-	l := &routeLink{manager: MakeManager(Env{})}
-	ctx := context.Background()
+	e := routetest.Make(t)
+	link, err := localroute.MakeLink(e.Router, (&routeLink{manager: MakeManager(Env{})}).route())
+	if err != nil {
+		t.Fatal(err)
+	}
 	start := map[string]any{"repo": "o/r", "number": 1}
-	for _, source := range []string{"", "proc:abc", "conn:host"} {
-		if _, err := l.handle(ctx, mcpreview.StartCommand, source, start); err == nil {
-			t.Errorf("start from %q accepted", source)
-		}
-		if _, err := l.handle(ctx, mcpreview.EndCommand, source, map[string]any{"id": "x"}); err == nil {
-			t.Errorf("end from %q accepted", source)
-		}
+	for _, command := range []string{mcpreview.StartCommand, mcpreview.EndCommand, mcpreview.SelectionCommand, mcpreview.SetHeadCommand,
+		mcpreview.BriefCommand, mcpreview.AskCommand, mcpreview.AskCancelCommand} {
+		routetest.MustRefuse(t, link, e.NonWindows(), command, start)
 	}
-	if _, err := l.handle(ctx, mcpreview.ListCommand, "proc:abc", nil); err != nil {
-		t.Errorf("list from a local terminal: %v", err)
+	for _, command := range []string{mcpreview.ListCommand, mcpreview.GetCommand, mcpreview.PostsCommand} {
+		routetest.MustRefuse(t, link, e.NonLocal(), command, start)
 	}
-	if _, err := l.handle(ctx, mcpreview.ListCommand, "", nil); err == nil {
-		t.Error("list from an unknown source accepted")
+	if _, errStr := routetest.Ask(t, link, e.Terminal(), mcpreview.ListCommand, nil); errStr != "" {
+		t.Errorf("list from a local terminal: %s", errStr)
 	}
-	for _, source := range []string{"", "tab:t1"} {
-		if _, err := l.handle(ctx, mcpreview.HelloCommand, source, map[string]any{"token": "t", "sessiontoken": "s"}); err == nil || !strings.Contains(err.Error(), mcpreview.ErrNotInMoltenTerm) {
-			t.Errorf("hello from %q: %v", source, err)
-		}
+	notTerminals := append([]routetest.From{e.Window(), e.Electron()}, e.Forged()...)
+	for _, command := range []string{mcpreview.HelloCommand, mcpreview.CallCommand, mcpreview.ByeCommand} {
+		routetest.MustRefuseWith(t, link, notTerminals, command, map[string]any{"token": "t", "sessiontoken": "s"}, mcpreview.ErrNotInMoltenTerm)
 	}
 	// A window's start is checked as a request: a bad one is refused before anything runs.
-	if _, err := l.handle(ctx, mcpreview.StartCommand, "tab:t1", start); err == nil || !strings.Contains(err.Error(), "projectdir") {
-		t.Errorf("start from a window: %v", err)
+	if _, errStr := routetest.Ask(t, link, e.Window(), mcpreview.StartCommand, start); !strings.Contains(errStr, "projectdir") {
+		t.Errorf("start from a window: %q", errStr)
 	}
 }

@@ -16,10 +16,12 @@ import {
     popupTitle,
     WindowOpenDeny,
     WindowOpenPopup,
+    WindowOpenSystem,
 } from "../frontend/moltenterm-shell/browser/browser-popup";
 import type { WaveTabView } from "./emain-tabview";
 import { getWaveWindowById } from "./emain-window";
 import { isBackgroundMode } from "./moltenterm-background";
+import { openExternalLink } from "./moltenterm-external-links";
 
 // Received by emain/preload.ts, which dispatches it to the panel webview that opened the popup.
 export const SignInRefusedChannel = "moltenterm-signin-refused";
@@ -41,6 +43,11 @@ function handleWindowOpen(
     }
     const kind = classifyWindowOpen(details);
     if (kind === WindowOpenDeny) {
+        console.log("molten popup: window.open of a non-web page dropped");
+        return { action: "deny" };
+    }
+    if (kind === WindowOpenSystem) {
+        void openExternalLink(details.url, source);
         return { action: "deny" };
     }
     if (kind !== WindowOpenPopup) {
@@ -85,11 +92,24 @@ function parentWindowOf(tabView: WaveTabView, source: WebContents): Electron.Bas
 }
 
 const popupWindows = new Map<number, BrowserWindow>();
+// Each popup's panel tab (its first opener's webview): a site permission a popup asks for is asked in that tab (#663).
+const popupGuests = new Map<number, WebContents>();
+
+// The panel tab's webview a popup belongs to, or null when wcId is not a popup of the browser panel.
+export function popupGuestOf(wcId: number): WebContents {
+    const guest = popupGuests.get(wcId);
+    return alive(guest) ? guest : null;
+}
+
+export function isPanelPopup(wcId: number): boolean {
+    return popupGuests.has(wcId);
+}
 
 function configurePopup(tabView: WaveTabView, guest: WebContents, win: BrowserWindow): void {
     const wc = win.webContents;
     const wcId = wc.id;
     popupWindows.set(wcId, win);
+    popupGuests.set(wcId, guest);
     if (isBackgroundMode()) {
         win.show();
     }
@@ -142,6 +162,7 @@ function configurePopup(tabView: WaveTabView, guest: WebContents, win: BrowserWi
     const parent: Electron.BaseWindow = win.getParentWindow();
     win.on("closed", () => {
         popupWindows.delete(wcId);
+        popupGuests.delete(wcId);
         if (parent != null && !parent.isDestroyed()) {
             parent.focus();
         }

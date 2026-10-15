@@ -5,13 +5,13 @@
 // both editable, where it lands, and an optional summary. Post review is the only way anything reaches GitHub
 // (NFR-REV-003); the outcome, with the link to the review, comes back from the review store.
 
-import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { useLocale } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { openWebLink } from "../open-web-link";
 import { ReviewComment, ReviewCommentText, ReviewPublishRecord, ReviewState, ReviewSummaryId } from "./review-client";
 import { shortOid } from "./review-model";
 import {
@@ -375,7 +375,7 @@ function PublishOutcome({
                     <button
                         type="button"
                         className="ml-auto cursor-pointer text-12 text-accent hover:underline"
-                        onClick={() => fireAndForget(() => openLink(record.url))}
+                        onClick={() => fireAndForget(() => openWebLink(record.url))}
                         data-testid="publish-open-review"
                     >
                         {PublishText.openOnGithub}

@@ -98,6 +98,9 @@ contextBridge.exposeInMainWorld("api", {
     // MOLTENTERM-PATCH (#300): a browser panel tab's webview, for the agents' DevTools controller (emain/moltenterm-browseragent.ts)
     moltentermRegisterWebview: (blockId: string, browserTabId: string, webContentsId: number) =>
         ipcRenderer.send("moltenterm-webview-registered", blockId, browserTabId, webContentsId),
+    // MOLTENTERM-PATCH (#663): the user's answer to a page's permission question (emain/moltenterm-site-permissions.ts)
+    moltentermSitePermissionAnswer: (requestId: string, decision: string) =>
+        ipcRenderer.send("moltenterm-site-permission-answer", requestId, decision),
     // MOLTENTERM-PATCH (#161): the app menu's Getting Started (emain/moltenterm-onboarding.ts)
     onMoltentermGettingStarted: (callback: () => void) =>
         ipcRenderer.on("moltenterm-getting-started", () => callback()),
@@ -163,6 +166,40 @@ ipcRenderer.on("webview-new-window", (e, webContentsId, details) => {
 ipcRenderer.on("moltenterm-signin-refused", (e, webContentsId, refusal) => {
     const source = document.querySelector(`webview[data-webcontentsid="${webContentsId}"]`) as HTMLElement;
     source?.dispatchEvent(new CustomEvent("moltenterm-signin-refused", { detail: refusal }));
+});
+
+// MOLTENTERM-PATCH (#663): a page of the browser panel asks for the camera, the microphone, the location or
+// notifications (emain/moltenterm-site-permissions.ts). The panel tab's webview shows the question; a webview no panel
+// handles (a Wave web block) refuses at once.
+function webviewByContentsId(webContentsId: number): HTMLElement {
+    const tagged = document.querySelector(`webview[data-webcontentsid="${webContentsId}"]`) as HTMLElement;
+    if (tagged != null) {
+        return tagged;
+    }
+    for (const el of Array.from(document.querySelectorAll("webview"))) {
+        try {
+            if ((el as WebviewTag).getWebContentsId() === webContentsId) {
+                return el as HTMLElement;
+            }
+        } catch {
+            // not attached yet
+        }
+    }
+    return null;
+}
+ipcRenderer.on("moltenterm-site-permission-ask", (e, requestId, webContentsId, site, kinds) => {
+    const source = webviewByContentsId(webContentsId);
+    const event = new CustomEvent("moltenterm-site-permission", {
+        detail: { requestid: requestId, site, kinds },
+        cancelable: true,
+    });
+    const handled = source != null && !source.dispatchEvent(event);
+    if (!handled) {
+        ipcRenderer.send("moltenterm-site-permission-answer", requestId, "dismiss");
+    }
+});
+ipcRenderer.on("moltenterm-site-permission-done", (e, requestId) => {
+    window.dispatchEvent(new CustomEvent("moltenterm-site-permission-done", { detail: { requestid: requestId } }));
 });
 
 ipcRenderer.on("webcontentsid-from-blockid", (e, blockId, responseCh) => {

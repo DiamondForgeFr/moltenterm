@@ -10,33 +10,26 @@
 // MoltenTerm's isolated world only (Molten.inspect, Molten.setField). JavaScript in the page's world comes with its
 // opt-in (FR-BRW-012). DOM.setFileInputFiles is not listed either: no tool supplies files, and a file input opens the
 // user's own file chooser after the user's Allow (FR-BRW-010).
+//
+// The list is exactly the methods pkg/molten/browseragent sends (#663): Page.navigate in particular stays out, so a
+// navigation always goes through Molten.navigate and its checks. moltenterm-browseragent-policy.test.ts reads the Go
+// sources and fails when a method is allowed but unused, or used but not allowed.
 
 export const CdpProtocolVersion = "1.3";
 
 export const CdpAllowedMethods: ReadonlySet<string> = new Set([
-    "Page.navigate",
     "Page.getNavigationHistory",
-    "Page.navigateToHistoryEntry",
-    "Page.captureScreenshot",
     "Page.getLayoutMetrics",
-    "Page.createIsolatedWorld",
     "Accessibility.getFullAXTree",
     "Accessibility.disable",
-    "Accessibility.getPartialAXTree",
-    "Accessibility.queryAXTree",
     "DOM.getDocument",
     "DOM.describeNode",
-    "DOM.resolveNode",
     "DOM.getBoxModel",
     "DOM.scrollIntoViewIfNeeded",
     "Input.dispatchMouseEvent",
     "Input.dispatchKeyEvent",
     "Input.insertText",
     "Emulation.setDeviceMetricsOverride",
-    "Emulation.clearDeviceMetricsOverride",
-    "Runtime.enable",
-    "Log.enable",
-    "Network.enable",
 ]);
 
 export function cdpMethodAllowed(method: unknown): boolean {

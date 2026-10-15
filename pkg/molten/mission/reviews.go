@@ -41,6 +41,11 @@ const (
 	ReviewMergeFailing   = "failing"
 	ReviewMergeUnknown   = "unknown"
 
+	// What GitHub's mergeability says of a conflict with the base, for the review list and the Validate plan alike.
+	ReviewConflictNone        = ""
+	ReviewConflictConflicting = "conflicting"
+	ReviewConflictComputing   = "computing"
+
 	ReviewReportPresent = "present"
 	ReviewReportMissing = "missing"
 	ReviewReportUnknown = "unknown"
@@ -80,6 +85,8 @@ var testReportHeadingRe = regexp.MustCompile(`(?i)\btest report\b`)
 type ReviewsRequest struct {
 	Dir   string `json:"dir"`
 	Force bool   `json:"force,omitempty"`
+	// Passive: the rail's counts (#688), read through Collector.WarmReviews; never starts the reports query.
+	Passive bool `json:"passive,omitempty"`
 }
 
 type ReviewCheck struct {
@@ -120,7 +127,8 @@ type ReviewPr struct {
 	TicketFrom  string `json:"ticketfrom,omitempty"`
 	TicketTitle string `json:"tickettitle,omitempty"`
 	TicketUrl   string `json:"ticketurl,omitempty"`
-	// GitHub's mergeStateStatus as read, and what the review makes of it (ReviewMerge…).
+	// GitHub's mergeable and mergeStateStatus as read, and what the review makes of them (ReviewMerge…).
+	Mergeable  string       `json:"mergeable,omitempty"`
 	MergeState string       `json:"mergestate,omitempty"`
 	Merge      string       `json:"merge"`
 	Ci         ReviewCi     `json:"ci"`
@@ -170,6 +178,7 @@ type ghReviewPr struct {
 	IsCrossRepository bool   `json:"isCrossRepository"`
 	CreatedAt         string `json:"createdAt"`
 	UpdatedAt         string `json:"updatedAt"`
+	Mergeable         string `json:"mergeable"`
 	MergeStateStatus  string `json:"mergeStateStatus"`
 	Author            struct {
 		Login string `json:"login"`
@@ -283,6 +292,34 @@ func ReviewMergeOf(mergeState string) string {
 	return ReviewMergeUnknown
 }
 
+// ReviewConflictOf reads a conflict with the base from GitHub's mergeable and mergeStateStatus (gh's words). GitHub
+// computes mergeable lazily after a push to the head or the base: UNKNOWN means it is still computing.
+func ReviewConflictOf(mergeable string, mergeState string) string {
+	state := strings.ToUpper(mergeState)
+	switch {
+	case strings.EqualFold(mergeable, "CONFLICTING") || state == "DIRTY":
+		return ReviewConflictConflicting
+	case strings.EqualFold(mergeable, "UNKNOWN") || state == "UNKNOWN" || state == "":
+		return ReviewConflictComputing
+	}
+	return ReviewConflictNone
+}
+
+// ReviewMergeOfPr is a row's merge state (#683): the conflict as the Validate plan reads it first, so the row and the
+// plan agree, then mergeStateStatus. A draft has no merge state of its own; mergeable still tells it is clean.
+func ReviewMergeOfPr(mergeable string, mergeState string) string {
+	switch ReviewConflictOf(mergeable, mergeState) {
+	case ReviewConflictConflicting:
+		return ReviewMergeConflicts
+	case ReviewConflictComputing:
+		return ReviewMergeUnknown
+	}
+	if strings.EqualFold(mergeState, "DRAFT") && strings.EqualFold(mergeable, "MERGEABLE") {
+		return ReviewMergeClean
+	}
+	return ReviewMergeOf(mergeState)
+}
+
 var branchPatternFieldRe = regexp.MustCompile(`\\\{([A-Za-z]+)\\\}`)
 
 // branchTicketRes turns the project's branch patterns (`feature/{N}-{description}`) into expressions that read the
@@ -376,8 +413,9 @@ func makeReviewPr(pr ghReviewPr, ticketRes []*regexp.Regexp) ReviewPr {
 		Draft:      pr.IsDraft,
 		CreatedAt:  pr.CreatedAt,
 		UpdatedAt:  pr.UpdatedAt,
+		Mergeable:  pr.Mergeable,
 		MergeState: pr.MergeStateStatus,
-		Merge:      ReviewMergeOf(pr.MergeStateStatus),
+		Merge:      ReviewMergeOfPr(pr.Mergeable, pr.MergeStateStatus),
 		Ci:         SummarizeReviewChecks(pr.StatusCheckRollup),
 		Report:     ReviewReport{State: ReviewReportUnknown},
 	}
@@ -501,6 +539,15 @@ func (r *Reviews) Get(req ReviewsRequest) (ReviewsAnswer, error) {
 		return ReviewsAnswer{}, err
 	}
 	dir := filepath.Clean(req.Dir)
+	if req.Passive {
+		snap, err := r.collector.WarmReviews(dir)
+		if err != nil {
+			return ReviewsAnswer{}, err
+		}
+		answer := BuildReviews(snap)
+		r.applyKnownReports(&answer)
+		return answer, nil
+	}
 	maxAge := DefaultMaxAgeSec * time.Second
 	if req.Force {
 		maxAge = 0
@@ -514,6 +561,12 @@ func (r *Reviews) Get(req ReviewsRequest) (ReviewsAnswer, error) {
 		go r.readReports(dir)
 	}
 	return answer, nil
+}
+
+func (r *Reviews) applyKnownReports(answer *ReviewsAnswer) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	r.applyLocked(answer, r.reports[answer.Dir])
 }
 
 // prepareReports fills the answer with the reports known and says whether a query starts now.

@@ -93,13 +93,13 @@ func TestHandoffRouteAnswersTerminalsOnly(t *testing.T) {
 	service.handoff = f.env()
 	link := &routeLink{service: service}
 	data := map[string]any{"token": "good", "action": HandoffMerge, "dir": "/p", "number": 7}
-	if _, err := link.handle(context.Background(), HandoffCommand, wshutil.RoutePrefix_Tab+"x", data); err == nil {
+	if _, err := callAs(link, wshutil.RoutePrefix_Tab+"x", HandoffCommand, data); err == nil {
 		t.Error("a window does not hand off to itself")
 	}
-	if _, err := link.handle(context.Background(), HandoffCommand, "", data); err == nil {
+	if _, err := callAs(link, "", HandoffCommand, data); err == nil {
 		t.Error("a remote source was answered")
 	}
-	if _, err := link.handle(context.Background(), HandoffCommand, wshutil.RoutePrefix_Proc+"x", data); err != nil {
+	if _, err := callAs(link, wshutil.RoutePrefix_Proc+"x", HandoffCommand, data); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.published) != 1 {
@@ -114,15 +114,15 @@ func TestMergePlanShownToTerminalsWithoutItsId(t *testing.T) {
 	link := &routeLink{service: service}
 	terminal := wshutil.RoutePrefix_Proc + "x"
 	key := map[string]any{"repo": testRepo, "number": 7}
-	data, err := link.handle(context.Background(), MergePlanShownCommand, terminal, key)
+	data, err := callAs(link, terminal, MergePlanShownCommand, key)
 	if err != nil || data.(*MergePlan) != nil {
 		t.Fatalf("no plan yet: %v %v", data, err)
 	}
-	made, err := link.handle(context.Background(), MergePlanCommand, wshutil.RoutePrefix_Tab+"x", map[string]any{"repo": testRepo, "number": 7, "dir": "/tmp"})
+	made, err := callAs(link, wshutil.RoutePrefix_Tab+"x", MergePlanCommand, map[string]any{"repo": testRepo, "number": 7, "dir": "/tmp"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err = link.handle(context.Background(), MergePlanShownCommand, terminal, key)
+	data, err = callAs(link, terminal, MergePlanShownCommand, key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestMergePlanShownToTerminalsWithoutItsId(t *testing.T) {
 	if shown == nil || shown.Id != "" || shown.HeadOid != made.(MergePlan).HeadOid || len(shown.Checks) == 0 {
 		t.Fatalf("shown: %+v", shown)
 	}
-	if _, err := link.handle(context.Background(), MergeCommand, terminal, map[string]any{"repo": testRepo, "number": 7, "planid": made.(MergePlan).Id}); err == nil {
+	if _, err := callAs(link, terminal, MergeCommand, map[string]any{"repo": testRepo, "number": 7, "planid": made.(MergePlan).Id}); err == nil {
 		t.Error("a terminal merged with the plan's id")
 	}
 	if len(gh.writes()) != 0 {

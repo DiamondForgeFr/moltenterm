@@ -10,7 +10,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/wavetermdev/waveterm/pkg/wshutil"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
 )
 
 type recordedCall struct {
@@ -135,22 +136,24 @@ func TestRerunGithubRun(t *testing.T) {
 
 func TestGithubRunRouteRerunOnlyFromAWindow(t *testing.T) {
 	rec := &ghRecorder{outputs: map[string]string{"gh run view 3 --log": "ok\n"}}
-	l := &routeLink{collector: MakeCollector(t.TempDir(), rec.runner(), nil)}
-	req := map[string]any{"dir": t.TempDir(), "runid": 3}
-	if _, err := l.handle(GithubRunRerunCommand, "proc:term", req); err == nil {
-		t.Fatal("a terminal cannot start a GitHub run again")
-	}
-	if len(rec.calls) != 0 {
-		t.Fatalf("calls = %+v", rec.calls)
-	}
-	if _, err := l.handle(GithubRunRerunCommand, wshutil.RoutePrefix_Tab+"t1", req); err != nil {
-		t.Fatal(err)
-	}
-	out, err := l.handle(GithubRunLogCommand, "proc:term", req)
+	e := routetest.Make(t)
+	link, err := localroute.MakeLink(e.Router, (&routeLink{collector: MakeCollector(t.TempDir(), rec.runner(), nil)}).route())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if log, ok := out.(GithubRunLog); !ok || log.Text != "ok\n" {
+	req := map[string]any{"dir": t.TempDir(), "runid": 3}
+	routetest.MustRefuseWith(t, link, e.NonWindows(), GithubRunRerunCommand, req, "from a MoltenTerm window")
+	if len(rec.calls) != 0 {
+		t.Fatalf("calls = %+v", rec.calls)
+	}
+	if _, errStr := routetest.Ask(t, link, e.Window(), GithubRunRerunCommand, req); errStr != "" {
+		t.Fatal(errStr)
+	}
+	out, errStr := routetest.Ask(t, link, e.Terminal(), GithubRunLogCommand, req)
+	if errStr != "" {
+		t.Fatal(errStr)
+	}
+	if log, ok := out.(map[string]any); !ok || log["text"] != "ok\n" {
 		t.Fatalf("log = %#v", out)
 	}
 	if rec.calls[0].args != "gh run rerun 3" {

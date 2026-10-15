@@ -87,6 +87,38 @@ func TestBuildReviewsListsReadyPrsOfTheTarget(t *testing.T) {
 	}
 }
 
+// #683: the row's merge state reads mergeable first, as the Validate plan does (pkg/molten/review/merge.go).
+func TestReviewMergeOfPr(t *testing.T) {
+	cases := []struct {
+		mergeable, state, want string
+	}{
+		{"MERGEABLE", "CLEAN", ReviewMergeClean},
+		{"MERGEABLE", "HAS_HOOKS", ReviewMergeClean},
+		{"MERGEABLE", "BEHIND", ReviewMergeBehind},
+		{"CONFLICTING", "DIRTY", ReviewMergeConflicts},
+		{"CONFLICTING", "BLOCKED", ReviewMergeConflicts},
+		{"", "DIRTY", ReviewMergeConflicts},
+		{"UNKNOWN", "CLEAN", ReviewMergeUnknown},
+		{"MERGEABLE", "UNKNOWN", ReviewMergeUnknown},
+		{"", "", ReviewMergeUnknown},
+		{"MERGEABLE", "BLOCKED", ReviewMergeBlocked},
+		{"MERGEABLE", "UNSTABLE", ReviewMergeFailing},
+		{"MERGEABLE", "DRAFT", ReviewMergeClean},
+		{"CONFLICTING", "DRAFT", ReviewMergeConflicts},
+		{"", "DRAFT", ReviewMergeUnknown},
+	}
+	for _, c := range cases {
+		if got := ReviewMergeOfPr(c.mergeable, c.state); got != c.want {
+			t.Errorf("ReviewMergeOfPr(%q, %q) = %q, want %q", c.mergeable, c.state, got, c.want)
+		}
+	}
+	answer := BuildReviews(reviewsSnapshot(reviewsProject(t, reviewsSfManifest),
+		`[{"number":1,"headRefName":"feature/4-a","baseRefName":"develop","mergeable":"CONFLICTING","mergeStateStatus":"BLOCKED"}]`))
+	if pr := answer.Ready[0]; pr.Merge != ReviewMergeConflicts || pr.Mergeable != "CONFLICTING" || pr.MergeState != "BLOCKED" {
+		t.Fatalf("a conflicting PR shows its conflict even when GitHub says blocked: %+v", pr)
+	}
+}
+
 func TestBuildReviewsFallsBackToTheTrunk(t *testing.T) {
 	dir := reviewsProject(t, "")
 	answer := BuildReviews(reviewsSnapshot(dir, `[{"number":1,"headRefName":"feature/4-a","baseRefName":"trunk-from-git"}]`))
@@ -303,5 +335,68 @@ func TestReviewsGetPublishesReports(t *testing.T) {
 	}
 	if graphql.Load() != 1 {
 		t.Fatalf("one query: %d", graphql.Load())
+	}
+}
+
+// #688: the rail's passive ask reads GitHub only for a project whose origin is on GitHub, and never starts the
+// reports query.
+func TestReviewsPassiveGet(t *testing.T) {
+	for _, withOrigin := range []bool{false, true} {
+		dir := makeGitFlowRepo(t)
+		os.WriteFile(filepath.Join(dir, ".saasfoundry.json"), []byte(reviewsSfManifest), 0644)
+		if withOrigin {
+			gitRun(t, dir, "remote", "add", "origin", "https://github.com/acme/app.git")
+		}
+		var ghCalls, graphql atomic.Int32
+		run := func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
+			if name != "gh" {
+				return plainRunner(ctx, d, name, args...)
+			}
+			ghCalls.Add(1)
+			switch {
+			case args[0] == "repo":
+				return []byte(`{"nameWithOwner":"acme/app","url":"https://github.com/acme/app"}`), nil
+			case args[0] == "pr":
+				return []byte(reviewsPrs), nil
+			case args[0] == "api" && args[1] == "graphql":
+				graphql.Add(1)
+			}
+			return []byte(`[]`), nil
+		}
+		collector := MakeCollector("", run, nil)
+		reviews := MakeReviews(collector, run, nil)
+		// Generous: it only bounds a failing run.
+		deadline := time.Now().Add(time.Minute)
+		var answer ReviewsAnswer
+		for time.Now().Before(deadline) {
+			var err error
+			answer, err = reviews.Get(ReviewsRequest{Dir: dir, Passive: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			snap, _ := collector.Cached(filepath.Clean(dir))
+			settled := snap.Git != nil && !snap.Refreshing
+			if settled && (!withOrigin || answer.State == GithubStateOk) {
+				break
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		if !withOrigin {
+			// Once git is known, the next ask is the one that would read GitHub.
+			reviews.Get(ReviewsRequest{Dir: dir, Passive: true})
+			if snap, _ := collector.Cached(filepath.Clean(dir)); snap.Refreshing {
+				t.Fatal("no GitHub origin: a refresh started")
+			}
+			if ghCalls.Load() != 0 || answer.State != "" {
+				t.Fatalf("no GitHub origin: %d gh calls, state %q", ghCalls.Load(), answer.State)
+			}
+			continue
+		}
+		if answer.State != GithubStateOk || len(answer.Ready) != 3 {
+			t.Fatalf("GitHub origin: %+v", answer)
+		}
+		if graphql.Load() != 0 {
+			t.Fatal("a passive ask never starts the reports query")
+		}
 	}
 }

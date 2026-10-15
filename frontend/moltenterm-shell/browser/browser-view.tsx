@@ -13,7 +13,7 @@ import { OptMagnifyButton } from "@/app/block/blockutil";
 import { Button } from "@/app/element/button";
 import { IconButton } from "@/app/element/iconbutton";
 import { ContextMenuModel } from "@/app/store/contextmenu";
-import { atoms, getApi, getSettingsKeyAtom, refocusNode } from "@/app/store/global";
+import { atoms, getApi, getSettingsKeyAtom, openLink as openInterfaceLink, refocusNode } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { uxCloseBlock } from "@/app/store/keymodel";
 import * as WOS from "@/app/store/wos";
@@ -43,6 +43,7 @@ import { TabActivity } from "../tab-activity";
 import { isShowing } from "../tab-activity-model";
 import { PanelMeta, panelTitle } from "../tab-identity";
 import { showToast } from "../toast-store";
+import { attachCarpetWheel } from "../view360/carpet-wheel-webview";
 import { isOffCarpet, offCarpetAtom, setKeepLive } from "../view360/offcarpet-model";
 import { PinHeaderButton } from "../view360/view360-pin";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
@@ -110,7 +111,7 @@ import {
     toBrowserUrl,
     updateTab,
 } from "./browser-model";
-import type { SignInBar } from "./browser-popup";
+import { pageOpenTarget, WindowOpenSystem, WindowOpenTab, type SignInBar } from "./browser-popup";
 import { noteBrowserPanelFocus } from "./browser-routing";
 import {
     isSharedTab,
@@ -129,6 +130,7 @@ import "./browser.css";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
+import { isSiteAsk, SitePermissionBar, SitePermissionModel } from "./site-permission-bar";
 
 export { MoltentermBrowserView };
 
@@ -173,6 +175,7 @@ export class BrowserViewModel implements ViewModel {
     engines = BrowserEngineModel.getInstance();
     // Sign-in refusals per tab (FR-BRW-003).
     signIn = new BrowserSignInModel();
+    sitePermissions = new SitePermissionModel();
     // Load state and favicon per tab (#210).
     loads = new BrowserLoadModel();
     // The page that failed to load per tab, drawn as MoltenTerm's error page (FR-SHELL-051).
@@ -282,6 +285,7 @@ export class BrowserViewModel implements ViewModel {
         this.webviews.delete(id);
         this.lifecycle.forget(id);
         this.signIn.forget(id);
+        this.sitePermissions.forgetTab(id);
         this.loads.forget(id);
         this.errors.forget(id);
         this.choices.forget(id);
@@ -345,7 +349,17 @@ export class BrowserViewModel implements ViewModel {
     }
 
     // A page's new window (window.open, target=_blank): a new tab, unless its site is set to the installed browser.
+    // Only a web page or an empty page becomes a tab; mail goes to the system, anything else is dropped (#663).
     openLink(url: string): void {
+        const target = pageOpenTarget(url);
+        if (target === WindowOpenSystem) {
+            fireAndForget(() => openInterfaceLink(url));
+            return;
+        }
+        if (target !== WindowOpenTab) {
+            console.log("molten browser: a page's link to a non-web page dropped");
+            return;
+        }
         if (!this.engines.needsRouting(url)) {
             this.newTab(url);
             return;
@@ -513,9 +527,11 @@ export class BrowserViewModel implements ViewModel {
 
     showLinkMenu(url: string, event?: React.MouseEvent): void {
         const chosen = this.engines.chosen();
-        const menu: ContextMenuItem[] = [
-            { label: t("browser.menu.openLinkNewTab"), icon: "plus", click: () => this.newTab(url) },
-        ];
+        const menu: ContextMenuItem[] = [];
+        // A page's link to a file or a data: page never becomes a tab (#663); Copy link address still works.
+        if (pageOpenTarget(url) === WindowOpenTab) {
+            menu.push({ label: t("browser.menu.openLinkNewTab"), icon: "plus", click: () => this.newTab(url) });
+        }
         if (chosen != null && siteOf(url) != null) {
             menu.push({
                 label: t("browser.menu.openLinkIn", { browser: chosen.name }),
@@ -701,6 +717,7 @@ export class BrowserViewModel implements ViewModel {
         this.webviews.delete(id);
         this.lifecycle.forget(id);
         this.signIn.forget(id);
+        this.sitePermissions.forgetTab(id);
         this.loads.forget(id);
         this.errors.forget(id);
         this.choices.forget(id);
@@ -1085,6 +1102,14 @@ function TabWebview({
             // not attached yet: dom-ready reports it
         }
     }, [model, tab.id, shown, offCarpet]);
+    // In 360 view, the page hands its horizontal scroll to the carpet (#676).
+    useEffect(() => {
+        const webview = ref.current;
+        if (webview == null) {
+            return;
+        }
+        return attachCarpetWheel(webview, model.blockId);
+    }, [model, tab.id]);
     // The src is set once: later navigation happens inside the page, and re-rendering with a new src would reload it.
     const [initialUrl] = useState(tab.url);
     // MOLTENTERM-PATCH (#371): hidden mounted tabs are never valid edit/image targets.
@@ -1118,6 +1143,14 @@ function TabWebview({
         };
         // A popup this tab opened was refused by its sign-in provider (emain/moltenterm-popups.ts closed it).
         const onSignInRefused = (e: any) => model.signIn.notePopupRefused(tab.id, e.detail, webview.getURL());
+        // A page asks for the camera, the microphone, the location or notifications (emain/moltenterm-site-permissions.ts,
+        // #663); handling the event tells the preload the panel shows the question.
+        const onSitePermission = (e: any) => {
+            if (!isSiteAsk(e.detail)) return;
+            e.preventDefault();
+            model.sitePermissions.add(tab.id, e.detail);
+        };
+        const onSitePermissionDone = (e: any) => model.sitePermissions.remove(e.detail?.requestid);
         const onTitle = (e: any) => model.setState(updateTab(model.state(), tab.id, { title: e.title }));
         // emain turns window.open and target=_blank into this event (emain/preload.ts dispatches it to this webview).
         const onNewWindow = (e: any) => {
@@ -1197,6 +1230,8 @@ function TabWebview({
         webview.addEventListener("page-title-updated", onTitle);
         webview.addEventListener("new-window", onNewWindow);
         webview.addEventListener("moltenterm-signin-refused", onSignInRefused);
+        webview.addEventListener("moltenterm-site-permission", onSitePermission);
+        window.addEventListener("moltenterm-site-permission-done", onSitePermissionDone);
         webview.addEventListener("focus", onFocus);
         webview.addEventListener("blur", onBlur);
         webview.addEventListener("dom-ready", onDomReady);
@@ -1223,6 +1258,8 @@ function TabWebview({
             webview.removeEventListener("page-title-updated", onTitle);
             webview.removeEventListener("new-window", onNewWindow);
             webview.removeEventListener("moltenterm-signin-refused", onSignInRefused);
+            webview.removeEventListener("moltenterm-site-permission", onSitePermission);
+            window.removeEventListener("moltenterm-site-permission-done", onSitePermissionDone);
             webview.removeEventListener("focus", onFocus);
             webview.removeEventListener("blur", onBlur);
             webview.removeEventListener("dom-ready", onDomReady);
@@ -1907,6 +1944,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                 }
                 onDismiss={() => model.dismissChoice(state.activeId)}
             />
+            <SitePermissionBar permissions={model.sitePermissions} tabId={state.activeId} />
             <AgentPermissionBar agents={model.agents} tabId={state.activeId} />
             <AgentControlBar agents={model.agents} tabId={state.activeId} />
             <div className="relative min-h-0 flex-1">

@@ -14,7 +14,13 @@ import { useAtomValue } from "jotai";
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { HoldToCloseButton } from "../../moltenterm-shell/hold-to-close"; // MOLTENTERM-PATCH (#255)
 import "../../moltenterm-shell/tab-bar.css"; // MOLTENTERM-PATCH (#410)
-import { TabAgentMark, TabIcon, useTabIdentity } from "../../moltenterm-shell/tab-identity-ui"; // MOLTENTERM-PATCH (#410)
+import {
+    TabAgentMark,
+    TabIcon,
+    TabReviewMark,
+    useTabIdentity,
+    useTabTooltip,
+} from "../../moltenterm-shell/tab-identity-ui"; // MOLTENTERM-PATCH (#410, #686)
 import { useTabTreesTooltip } from "../../moltenterm-shell/worktree-ui"; // MOLTENTERM-PATCH (#114)
 import { makeORef } from "../store/wos";
 import "./tab.scss";
@@ -312,6 +318,7 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
     const badges = useAtomValue(getTabBadgeAtom(id, env));
     const trees = useTabTreesTooltip(id); // MOLTENTERM-PATCH (#114)
     const identity = useTabIdentity(id, tabData?.name ?? ""); // MOLTENTERM-PATCH (#410)
+    const tabTitle = useTabTooltip(identity, trees.title); // MOLTENTERM-PATCH (#686): a Review tab's done hint first
 
     const rawFlagColor = tabData?.meta?.["tab:flagcolor"];
     let flagColor: string | null = null;
@@ -378,10 +385,16 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
             isNew={isNew}
             badges={badges}
             flagColor={flagColor}
-            agentDot={<TabAgentMark info={identity.agent} />} // MOLTENTERM-PATCH (#109, #410): shaped per state
+            // MOLTENTERM-PATCH (#109, #410, #686): a Review tab's done mark, then the agent mark shaped per state
+            agentDot={
+                <>
+                    <TabReviewMark done={identity.reviewDone} />
+                    <TabAgentMark info={identity.agent} />
+                </>
+            }
             icon={identity.icon} // MOLTENTERM-PATCH (#410)
             pinned={identity.pinned} // MOLTENTERM-PATCH (#113, #410)
-            treesTitle={trees.title}
+            treesTitle={tabTitle} // MOLTENTERM-PATCH (#114, #686)
             onTreesHover={trees.onMouseEnter}
             onClick={handleTabClick}
             onClose={onClose}

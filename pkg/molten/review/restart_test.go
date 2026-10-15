@@ -387,7 +387,7 @@ func TestRestartWithoutAnAgent(t *testing.T) {
 
 func TestRestartIsAWindowsOnly(t *testing.T) {
 	l := &routeLink{service: &Service{}}
-	if _, err := l.handle(context.Background(), RestartCommand, "proc:block-1", map[string]any{}); err == nil {
+	if _, err := callAs(l, "proc:block-1", RestartCommand, map[string]any{}); err == nil {
 		t.Errorf("a terminal must not restart the work")
 	}
 }

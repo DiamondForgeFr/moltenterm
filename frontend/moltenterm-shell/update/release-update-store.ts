@@ -6,8 +6,9 @@
 // tells one window only to announce a release. The announcement goes to the notification center, once per release,
 // and a status bar entry leads to its release page. No timer runs.
 
-import { getApi, getSettingsKeyAtom, openLink } from "@/app/store/global";
+import { getApi, getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import { GitHubReleaseLink } from "@/util/moltenterm-web-link";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
 import { t } from "../i18n/i18n";
@@ -16,7 +17,8 @@ import {
     registerNotificationGesture,
     resolveMoltentermNotification,
 } from "../notifications-store";
-import { isSafeReleaseUrl, notesAsText, ReleaseCheck, releaseFeedEnabled, ReleaseOffer } from "./release-feed";
+import { openWebLink } from "../open-web-link";
+import { notesAsText, ReleaseCheck, releaseFeedEnabled, ReleaseOffer } from "./release-feed";
 
 export const ReleaseNotifySettingKey = "moltenterm:releasenotify";
 const ReleaseDownloadGesture = "release:download";
@@ -42,10 +44,7 @@ export function sameOffer(a: ReleaseOffer, b: ReleaseOffer): boolean {
 }
 
 export function openReleasePage(url: string) {
-    if (!isSafeReleaseUrl(url)) {
-        return;
-    }
-    fireAndForget(() => openLink(url));
+    fireAndForget(() => openWebLink(url, GitHubReleaseLink));
 }
 
 export class ReleaseUpdateModel {

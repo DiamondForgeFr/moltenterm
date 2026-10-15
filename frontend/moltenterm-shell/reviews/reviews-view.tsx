@@ -3,11 +3,10 @@
 
 // The Reviews view (FR-REV-001, DS-REV-012): the pull requests of the workspace's project waiting for the developer's
 // review, each with its ticket, CI, test report and merge state, read through the developer's gh by Mission Control's
-// collector. Drafts wait below in a collapsed "In testing" group. A row opens the PR's review; the keyboard walks the
-// rows (arrows, Home, End) and Enter opens one.
+// collector. Drafts wait below in their own group, where they open and can be marked ready for review (#687). A row
+// opens the PR's review; the keyboard walks the rows (arrows, Home, End) and Enter opens one.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
-import { openLink } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
@@ -18,20 +17,29 @@ import { CiIcon, CiIconState } from "../mission/ci-icon";
 import { ActiveProject, MissionFrame, MissionHeader } from "../mission/mission-frame";
 import { MissionSnapshot } from "../mission/mission-model";
 import { timeAgo } from "../mission/time-format";
+import { MoltenWave } from "../molten-button";
+import { openWebLink } from "../open-web-link";
 import { useReviews } from "./reviews-client";
+import { MarkReadyButton, MarkReadyConfirm, useMarkReady } from "./reviews-mark-ready";
 import {
     ciLabel,
     mergeLabel,
     MoltentermReviewsView,
     navigableRows,
     nextRow,
+    RebaseAsk,
+    rebaseAskKey,
+    rebaseAskShown,
+    RebaseOutcome,
     reportLabel,
     reviewAriaLabel,
     reviewHeadline,
     ReviewPr,
     ReviewsAnswer,
     reviewsEmptyState,
+    splitReviews,
     Tone,
+    validateBlocked,
 } from "./reviews-model";
 import { NotesSection } from "./reviews-notes-view";
 import { ReviewsModel } from "./reviews-store";
@@ -183,17 +191,20 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const t = useT();
     const model = ReviewsModel.getInstance();
     const focus = useAtomValue(model.focusAtom);
-    const [draftsOpen, setDraftsOpen] = useState(false);
+    const asks = useAtomValue(model.rebaseAsksAtom);
+    const readied = useAtomValue(model.readiedAtom);
+    const [draftsOpen, setDraftsOpen] = useState(true);
     const [selected, setSelected] = useState<number>(null);
     const [marked, setMarked] = useState<number>(null);
     const listRef = useRef<HTMLDivElement>(null);
-    const rows = navigableRows(answer, draftsOpen);
+    const split = useMemo(() => splitReviews(answer, readied), [answer, readied]);
+    const rows = navigableRows(split, draftsOpen);
     useEffect(() => {
         if (focus == null || focus.dir !== dir) {
             return;
         }
-        const isDraft = answer.drafts.some((pr) => pr.number === focus.number);
-        if (!isDraft && !answer.ready.some((pr) => pr.number === focus.number)) {
+        const isDraft = split.drafts.some((pr) => pr.number === focus.number);
+        if (!isDraft && !split.ready.some((pr) => pr.number === focus.number)) {
             return;
         }
         globalStore.set(model.focusAtom, null);
@@ -204,7 +215,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         setMarked(focus.number);
         const timer = setTimeout(() => setMarked(null), FocusMarkMs);
         return () => clearTimeout(timer);
-    }, [focus, dir, answer, model]);
+    }, [focus, dir, split, model]);
     useEffect(() => {
         if (selected == null) {
             return;
@@ -237,6 +248,11 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         marked: marked === pr.number,
         onSelect: () => setSelected(pr.number),
         onOpen: () => open(pr),
+        onValidate: () => fireAndForget(() => model.openValidate(dir, pr, answer.repo)),
+        onAskRebase: (start: boolean) => model.askRebase(dir, pr, answer.repo, start),
+        rebaseAsk: asks[rebaseAskKey(dir, pr.number)],
+        dir,
+        repo: answer.repo,
     });
     return (
         <div
@@ -254,52 +270,57 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
             <section className="flex flex-col gap-2" aria-label={t("reviews.waiting")}>
                 <h2 className="text-13 leading-5 font-semibold">
                     {t("reviews.waiting")}
-                    <span className="ml-2 text-12 font-normal text-muted">{answer.ready.length}</span>
+                    <span className="ml-2 text-12 font-normal text-muted">{split.ready.length}</span>
                 </h2>
-                {answer.ready.length === 0 ? (
+                {split.ready.length === 0 ? (
                     <p className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted">
                         {t("reviews.noneWaiting")} <code>{answer.target}</code>.
                     </p>
                 ) : (
                     <div className="overflow-hidden rounded-4 border border-border" role="list">
-                        {answer.ready.map((pr) => (
+                        {split.ready.map((pr) => (
                             <ReviewRow key={pr.number} {...rowProps(pr)} />
                         ))}
                     </div>
                 )}
             </section>
-            {answer.drafts.length > 0 ? (
-                <section className="flex flex-col gap-2" aria-label={t("reviews.inTesting")}>
-                    <button
-                        type="button"
-                        onClick={() => setDraftsOpen(!draftsOpen)}
-                        aria-expanded={draftsOpen}
-                        className="flex w-fit cursor-pointer items-center gap-1.5 rounded-4 text-13 leading-5 font-semibold text-secondary hover:text-primary"
-                        data-testid="reviews-drafts-toggle"
+            <section className="flex flex-col gap-2" aria-label={t("reviews.draftsTitle")}>
+                <button
+                    type="button"
+                    onClick={() => setDraftsOpen(!draftsOpen)}
+                    aria-expanded={draftsOpen}
+                    className="flex w-fit cursor-pointer items-center gap-1.5 rounded-4 text-13 leading-5 font-semibold hover:text-primary"
+                    data-testid="reviews-drafts-toggle"
+                >
+                    <i
+                        className={cn(
+                            "fa fa-solid fa-chevron-right text-11 text-muted transition-transform duration-120 ease-mt",
+                            draftsOpen && "rotate-90"
+                        )}
+                        aria-hidden
+                    />
+                    {t("reviews.draftsTitle")}
+                    <span className="ml-0.5 text-12 font-normal text-muted">{split.drafts.length}</span>
+                </button>
+                {!draftsOpen ? null : split.drafts.length === 0 ? (
+                    <p
+                        className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted"
+                        data-testid="reviews-drafts-empty"
                     >
-                        <i
-                            className={cn(
-                                "fa fa-solid fa-chevron-right text-11 transition-transform duration-120 ease-mt",
-                                draftsOpen && "rotate-90"
-                            )}
-                            aria-hidden
-                        />
-                        {t("reviews.inTesting")}
-                        <span className="text-12 font-normal text-muted">
-                            {answer.drafts.length > 1
-                                ? t("reviews.drafts", { count: answer.drafts.length })
-                                : t("reviews.draftOne")}
-                        </span>
-                    </button>
-                    {draftsOpen ? (
-                        <div className="overflow-hidden rounded-4 border border-border" role="list">
-                            {answer.drafts.map((pr) => (
-                                <ReviewRow key={pr.number} {...rowProps(pr)} />
-                            ))}
-                        </div>
-                    ) : null}
-                </section>
-            ) : null}
+                        {t("reviews.noneDrafts")} <code>{answer.target}</code>.
+                    </p>
+                ) : (
+                    <div
+                        className="overflow-hidden rounded-4 border border-border"
+                        role="list"
+                        data-testid="reviews-drafts"
+                    >
+                        {split.drafts.map((pr) => (
+                            <ReviewRow key={pr.number} {...rowProps(pr)} />
+                        ))}
+                    </div>
+                )}
+            </section>
             {answer.repo ? <NotesSection dir={dir} repo={answer.repo} blockId={blockId} /> : null}
         </div>
     );
@@ -330,32 +351,82 @@ function ToneChip({
     );
 }
 
+// The row's own buttons: their click and their keys stay theirs, the row's click and Enter open the review.
+function stopRow(e: React.SyntheticEvent) {
+    e.stopPropagation();
+}
+
+const SecondaryButton =
+    "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary";
+
 function ReviewRow({
     pr,
     selected,
     marked,
     onSelect,
     onOpen,
+    onValidate,
+    onAskRebase,
+    rebaseAsk,
+    dir,
+    repo,
 }: {
     pr: ReviewPr;
     selected: boolean;
     marked: boolean;
     onSelect: () => void;
     onOpen: () => void;
+    onValidate: () => void;
+    onAskRebase: (start: boolean) => Promise<RebaseOutcome>;
+    rebaseAsk: RebaseAsk;
+    dir: string;
+    repo: string;
 }) {
     const t = useT();
     useLocale();
+    const [asking, setAsking] = useState(false);
+    const [outcome, setOutcome] = useState<RebaseOutcome>(null);
     const head = reviewHeadline(pr);
     const ci = ciLabel(pr.ci);
     const report = reportLabel(pr.report);
     const merge = mergeLabel(pr.merge, pr.base);
+    const blocked = validateBlocked(pr);
+    const asked = rebaseAskShown(rebaseAsk, pr);
+    const conflicts = pr.merge === "conflicts";
+    const outcomeShown = outcome != null && (outcome.kind !== "asked" || outcome.note);
+    const markReady = useMarkReady(dir, pr.number, repo);
+    useEffect(() => {
+        setOutcome(null);
+    }, [pr.headoid]);
+    const validate = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (blocked) {
+            return;
+        }
+        onValidate();
+    };
+    const askRebase = (e: React.MouseEvent, start: boolean) => {
+        e.stopPropagation();
+        if (asking) {
+            return;
+        }
+        setAsking(true);
+        setOutcome(null);
+        fireAndForget(async () => {
+            try {
+                setOutcome(await onAskRebase(start));
+            } finally {
+                setAsking(false);
+            }
+        });
+    };
     const openReport = (e: React.MouseEvent) => {
         e.stopPropagation();
-        fireAndForget(() => openLink(pr.report.url));
+        fireAndForget(() => openWebLink(pr.report.url));
     };
     const openOnGithub = (e: React.MouseEvent) => {
         e.stopPropagation();
-        fireAndForget(() => openLink(pr.url));
+        fireAndForget(() => openWebLink(pr.url));
     };
     return (
         <div
@@ -389,15 +460,34 @@ function ReviewRow({
                         {t("reviews.updated", { when: timeAgo(pr.updatedat) })}
                     </div>
                 </div>
-                <button
-                    type="button"
-                    onClick={openOnGithub}
-                    className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
-                    title={t("reviews.openOnGithub")}
-                >
-                    <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
-                    GitHub
-                </button>
+                <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                        type="button"
+                        onClick={openOnGithub}
+                        onKeyDown={stopRow}
+                        className={SecondaryButton}
+                        title={t("reviews.openOnGithub")}
+                    >
+                        <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
+                        GitHub
+                    </button>
+                    {pr.draft ? (
+                        <MarkReadyButton state={markReady} className="px-2.5 py-1" />
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={validate}
+                            onKeyDown={stopRow}
+                            aria-disabled={blocked ? true : undefined}
+                            className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
+                            title={blocked || t("reviews.validate.title")}
+                            data-testid="reviews-validate"
+                        >
+                            {t("reviews.validate.button")}
+                            <MoltenWave />
+                        </button>
+                    )}
+                </div>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
                 <ToneChip
@@ -428,7 +518,69 @@ function ReviewRow({
                         {t("reviews.unpublished", { count: pr.unpublished })}
                     </span>
                 ) : null}
+                {asked ? (
+                    <span
+                        className={cn(Chip, ToneClasses.neutral)}
+                        title={t("reviews.rebase.chipTitle")}
+                        data-testid="reviews-rebase-asked"
+                    >
+                        <i className="fa fa-solid fa-code-branch text-11" />
+                        {t("reviews.rebase.chip", { name: rebaseAsk.name })}
+                    </span>
+                ) : null}
+                {conflicts && !asked ? (
+                    <button
+                        type="button"
+                        onClick={(e) => askRebase(e, false)}
+                        onKeyDown={stopRow}
+                        aria-busy={asking || undefined}
+                        className={cn(SecondaryButton, "ml-auto py-0.5 text-11")}
+                        title={t("reviews.rebase.buttonTitle", { base: pr.base, branch: pr.branch })}
+                        data-testid="reviews-rebase"
+                    >
+                        <i className={cn("fa fa-solid text-11", asking ? "fa-spinner fa-spin" : "fa-code-branch")} />
+                        {asking ? t("reviews.rebase.asking") : t("reviews.rebase.button")}
+                    </button>
+                ) : null}
             </div>
+            <MarkReadyConfirm state={markReady} />
+            {outcomeShown ? (
+                <div
+                    className={cn(
+                        "flex flex-wrap items-center gap-2 text-12 leading-4",
+                        outcome.kind === "failed" ? "text-error" : "text-secondary"
+                    )}
+                    role="status"
+                    data-testid="reviews-rebase-outcome"
+                >
+                    <span className="min-w-0">{outcome.text}</span>
+                    {outcome.kind === "offer" ? (
+                        <>
+                            <button
+                                type="button"
+                                onClick={(e) => askRebase(e, true)}
+                                onKeyDown={stopRow}
+                                className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
+                                data-testid="reviews-rebase-start"
+                            >
+                                {t("reviews.rebase.start")}
+                                <MoltenWave />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOutcome(null);
+                                }}
+                                onKeyDown={stopRow}
+                                className={SecondaryButton}
+                            >
+                                {t("common.cancel")}
+                            </button>
+                        </>
+                    ) : null}
+                </div>
+            ) : null}
         </div>
     );
 }

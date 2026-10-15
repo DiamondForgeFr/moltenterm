@@ -8,6 +8,7 @@ import {
     DefaultTabIcon,
     isGenericTabName,
     panelIcon,
+    panelReviewDone,
     panelTitle,
     tabDisplayName,
 } from "./tab-identity";
@@ -56,5 +57,17 @@ describe("tab identity (FR-SHELL-056, DS-SHELL-098)", () => {
         expect(agentGlyph("claude", presets)).toBe("asterisk");
         expect(agentGlyph("codex", presets)).toBe(DefaultAgentGlyph);
         expect(agentGlyph("other", null)).toBe(DefaultAgentGlyph);
+    });
+
+    it("marks a Review tab whose PR is finished, and no other tab (#686)", () => {
+        expect(panelReviewDone({ view: "molten-review", "molten:reviewdone": { state: "merged" } })).toEqual({
+            state: "merged",
+        });
+        expect(panelReviewDone({ view: "molten-review", "molten:reviewdone": { state: "closed" } })).toEqual({
+            state: "closed",
+        });
+        expect(panelReviewDone({ view: "molten-review" })).toBeNull();
+        expect(panelReviewDone({ view: "term", "molten:reviewdone": { state: "merged" } })).toBeNull();
+        expect(panelReviewDone(null)).toBeNull();
     });
 });

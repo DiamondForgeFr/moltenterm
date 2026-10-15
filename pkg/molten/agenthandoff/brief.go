@@ -44,9 +44,14 @@ const (
 	maxUrlLen       = 2048
 )
 
-// Files a snapshot never copies: they may hold secrets (UR-CONT-005), whatever the sender asked.
-var secretFileNames = []string{".env", ".npmrc", ".netrc", ".pgpass", "id_rsa", "id_ed25519", "id_ecdsa", "credentials"}
-var secretFileExts = []string{".pem", ".key", ".p12", ".pfx", ".keystore", ".jks"}
+// Files a brief never quotes nor copies: they may hold secrets (UR-CONT-005), whatever the sender asked.
+var secretFileNames = []string{".env", ".npmrc", ".netrc", ".pgpass", ".pypirc", ".git-credentials", ".htpasswd", "id_rsa",
+	"id_ed25519", "id_ecdsa", "id_dsa", "credentials", "kubeconfig"}
+var secretFileExts = []string{".pem", ".key", ".p12", ".pfx", ".keystore", ".jks", ".ppk", ".tfvars", ".tfvars.json",
+	".tfstate", ".kubeconfig"}
+
+// Folders whose every file may hold secrets (~/.ssh/config, ~/.kube/config…).
+var secretDirNames = []string{".ssh", ".gnupg", ".aws", ".kube", ".password-store", "keychains"}
 
 var errGoalRequired = errors.New("brief.goal is required: say what the receiver must do and the expected result")
 
@@ -228,7 +233,16 @@ func within(path string, dir string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 
+// mayHoldSecrets checks the path as given and, through a link, the file it points to.
 func mayHoldSecrets(path string) bool {
+	if pathMayHoldSecrets(path) {
+		return true
+	}
+	real, err := filepath.EvalSymlinks(path)
+	return err == nil && real != path && pathMayHoldSecrets(real)
+}
+
+func pathMayHoldSecrets(path string) bool {
 	base := strings.ToLower(filepath.Base(path))
 	for _, name := range secretFileNames {
 		if base == name || strings.HasPrefix(base, name+".") {
@@ -240,7 +254,15 @@ func mayHoldSecrets(path string) bool {
 			return true
 		}
 	}
-	return false
+	for _, part := range strings.Split(strings.ToLower(filepath.ToSlash(filepath.Dir(path))), "/") {
+		for _, dir := range secretDirNames {
+			if part == dir {
+				return true
+			}
+		}
+	}
+	slashed := strings.ToLower(filepath.ToSlash(path))
+	return strings.Contains(slashed, "/.config/gh/") || strings.HasSuffix(slashed, "/.docker/config.json")
 }
 
 // fileFacts is what writing the brief found about one file.
@@ -399,7 +421,13 @@ func gatherFiles(dir string, to Party, files []FileRef) []fileFacts {
 			continue
 		}
 		facts.isDir = info.IsDir()
-		if !facts.isDir && f.Lines != "" {
+		secret := mayHoldSecrets(f.Path)
+		// The secrets rule comes before the quote: a quote pastes the content into the brief, wherever the file is.
+		switch {
+		case facts.isDir || f.Lines == "":
+		case secret:
+			facts.quoteErr = "it may hold secrets"
+		default:
 			facts.quoted, facts.quoteErr = quoteLines(f.Path, f.Lines)
 		}
 		readable := within(f.Path, to.ProjectDir) || within(f.Path, to.Folder)
@@ -407,7 +435,7 @@ func gatherFiles(dir string, to Party, files []FileRef) []fileFacts {
 		case readable:
 		case facts.isDir:
 			facts.skipped = "a folder is not copied"
-		case mayHoldSecrets(f.Path):
+		case secret:
 			facts.skipped = "not copied: it may hold secrets"
 		case info.Size() > maxSnapshotSize:
 			facts.skipped = fmt.Sprintf("not copied: larger than %d MB", maxSnapshotSize>>20)

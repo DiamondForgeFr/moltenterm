@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
 )
@@ -276,18 +277,17 @@ func TestPlanGaugesClearedWhenTurnedOffInSettings(t *testing.T) {
 func TestPlanGaugesRoute(t *testing.T) {
 	m, g, _ := gaugesTestManager(t)
 	l := &routeLink{m: m}
-	tab := "tab:t1"
-	if _, err := l.handle(molten.CompanionUsageGaugesCommand, "block:b1", map[string]any{"blockid": "b1", "on": true}); err == nil {
-		t.Error("only a window turns gauges on")
-	}
+	tab := localroute.Caller{Source: "tab:t1", IsWindow: true, TabId: "t1"}
+	terminal := localroute.Caller{Source: "proc:p1", IsLocalTerminal: true, BlockId: "b1"}
 	out, err := l.handle(molten.CompanionUsageGaugesCommand, tab, map[string]any{"blockid": "b1", "on": true})
 	if err != nil || out.(UsageInfo).Reason != usage.ReasonNotSetUp {
 		t.Fatalf("window: %+v %v", out, err)
 	}
-	if _, err := l.handle(molten.AgentStatusLineCommand, "conn:host", map[string]any{"blockid": "b1"}); err == nil {
-		t.Error("a remote host's relay is refused")
+	other := localroute.Caller{Source: "proc:p2", IsLocalTerminal: true, BlockId: "b2"}
+	if _, err := l.handle(molten.AgentStatusLineCommand, other, statusLineReport("b1", 6)); err == nil {
+		t.Error("another terminal's relay is refused")
 	}
-	if _, err := l.handle(molten.AgentStatusLineCommand, "block:b1", statusLineReport("b1", 7)); err != nil {
+	if _, err := l.handle(molten.AgentStatusLineCommand, terminal, statusLineReport("b1", 7)); err != nil {
 		t.Errorf("a terminal's relay: %v", err)
 	}
 	out, err = l.handle(molten.CompanionUsageCommand, tab, map[string]any{"blockid": "b1", "refresh": true})

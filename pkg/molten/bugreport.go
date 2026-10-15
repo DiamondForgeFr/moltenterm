@@ -77,8 +77,7 @@ type bugRedaction struct {
 // Most specific first, so a narrower redaction wins when a line matches several (from plan-feedback-bug.js).
 var bugRedactions = []bugRedaction{
 	{regexp.MustCompile(`\bey[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b`), "<jwt>"},
-	{regexp.MustCompile(`\bgh[pousr]_[A-Za-z0-9]{30,}\b`), "<github-token>"},
-	{regexp.MustCompile(`\bgithub_pat_[A-Za-z0-9_]{20,}\b`), "<github-token>"},
+	{GitHubTokenRe, GitHubTokenMask},
 	{regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{20,}\b`), "<api-key>"},
 	{regexp.MustCompile(`\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{20,}\b`), "<stripe-key>"},
 	{regexp.MustCompile(`\bxox[abpors]-[A-Za-z0-9-]{10,}\b`), "<slack-token>"},

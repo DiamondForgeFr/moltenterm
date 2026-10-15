@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentdocs"
@@ -63,13 +62,7 @@ func Start(hooks Hooks) {
 	startOnce.Do(func() {
 		manager := MakeManager(liveEnv(hooks))
 		liveManager.Store(manager)
-		link := &routeLink{
-			manager:     manager,
-			output:      make(chan []byte, routeQueueSize),
-			localSource: localSourceOnLink,
-			pending:     make(map[string]context.CancelFunc),
-		}
-		if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, mcpreview.RouteId); err != nil {
+		if _, err := localroute.Register(wshutil.DefaultRouter, (&routeLink{manager: manager}).route()); err != nil {
 			log.Printf("%s route not started: %v\n", logPrefix, err)
 			return
 		}
@@ -87,10 +80,6 @@ func Start(hooks Hooks) {
 		wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{Event: wps.Event_BlockClose, AllScopes: true}, nil)
 		wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{Event: wps.Event_RouteDown, AllScopes: true}, nil)
 	})
-}
-
-func localSourceOnLink(source string, ingressLinkId baseds.LinkId) bool {
-	return localroute.OnLink(wshutil.DefaultRouter, source, ingressLinkId)
 }
 
 func liveEnv(hooks Hooks) Env {

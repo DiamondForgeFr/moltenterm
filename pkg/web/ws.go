@@ -232,7 +232,8 @@ func registerConn(wsConnId string, stableId string, wproxy *wshutil.WshRpcProxy)
 			wshutil.DefaultRouter.UnregisterLink(curConnInfo.LinkId)
 		}
 	}
-	linkId := wshutil.DefaultRouter.RegisterTrustedRouter(wproxy)
+	// MOLTENTERM-PATCH (#662): only this websocket (the windows and Electron main) carries window sources.
+	linkId := wshutil.DefaultRouter.RegisterWindowRouter(wproxy)
 	RouteToConnMap[stableId] = &StableConnInfo{
 		ConnId: wsConnId,
 		LinkId: linkId,

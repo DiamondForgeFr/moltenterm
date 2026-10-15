@@ -101,6 +101,30 @@ export function splitCarpetColumns(root: LayoutNode): CarpetColumns {
     return { fixed: root, carpet: [] };
 }
 
+// Where a split beside a panel lands in 360 view (#677): a new top-level column right before or after the source's
+// column, so a left split sits before it on the carpet and a right split after it. Nothing goes before the fixed
+// zone's column (it would take its place): a split from there becomes the carpet's first column either way. A source
+// outside the tree goes to the end of the carpet; a tree that is not a row yet is wrapped, the new panel after it.
+export function carpetSplitPlace(
+    root: LayoutNode,
+    targetNodeId: string,
+    position: "before" | "after"
+): { targetNodeId: string; position: "before" | "after" } {
+    if (root.flexDirection !== FlexDirection.Row || !root.children?.length) {
+        return { targetNodeId: root.id, position: "after" };
+    }
+    const contains = (node: LayoutNode): boolean =>
+        node.id === targetNodeId || (node.children ?? []).some((child) => contains(child));
+    const index = root.children.findIndex(contains);
+    if (index === -1) {
+        return { targetNodeId: root.children[root.children.length - 1].id, position: "after" };
+    }
+    if (index === 0) {
+        return { targetNodeId: root.children[0].id, position: "after" };
+    }
+    return { targetNodeId: root.children[index].id, position };
+}
+
 // The leaf a column's kind is taken from: its top (first) leaf.
 export function columnLeadLeaf(column: LayoutNode): LayoutNode {
     let node = column;

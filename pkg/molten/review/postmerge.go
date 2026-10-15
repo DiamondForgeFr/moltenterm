@@ -5,9 +5,12 @@ package review
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"sync"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 )
 
 // The cleanup after the merge (FR-REV-013, DS-REV-010 steps 2 to 5) plugs in here: Validate (FR-REV-012, merge.go)
@@ -65,24 +68,49 @@ func currentPostMerge() PostMerge {
 	return postMerge
 }
 
-// Plan lists every step of the cleanup: which ones apply is only known once the PR is merged (the branch, the
-// worktrees and the other PRs then), and each one reports done, skipped or failed.
+// Plan lists every step of the cleanup with what it will do, from read-only facts (the ticket, sf-workflow, the
+// worktrees on the branch); whether a worktree holds work is only known after the merge, and each step then reports
+// done, skipped or failed.
 func (s *Service) Plan(ctx context.Context, pr MergedPr) []CleanupStepResult {
 	if s.cleaner == nil {
 		return nil
 	}
+	return s.cleaner.Plan(ctx, pr)
+}
+
+func (c *Cleaner) Plan(ctx context.Context, pr MergedPr) []CleanupStepResult {
+	r := &cleanupRun{c: c, ctx: ctx, dir: filepath.Clean(pr.Dir), pr: mergedPrFacts{HeadRefName: pr.HeadRef, BaseRefName: pr.BaseRef}}
+	agentTree := ""
+	if reviewsession.ValidRef(pr.HeadRef) {
+		agentTree = r.findAgentTree()
+	}
 	rtn := make([]CleanupStepResult, 0, len(CleanupSteps))
 	for _, id := range CleanupSteps {
-		step := CleanupStepResult{Id: id, State: CleanupStatePlanned}
+		step := CleanupStepResult{Id: id, State: CleanupStatePlanned, Ticket: pr.Ticket, Branch: pr.HeadRef, Base: pr.BaseRef}
 		switch id {
-		case CleanupStepTicketClose, CleanupStepTicketDone:
-			if pr.Ticket > 0 {
-				step.Message = fmt.Sprintf("#%d", pr.Ticket)
+		case CleanupStepTicketClose:
+			if pr.Ticket <= 0 {
+				step.Code = CleanupCodeNoTicket
 			}
-		case CleanupStepLocalBranch, CleanupStepRemoteBranch:
-			step.Message = pr.HeadRef + ", when its content is on " + pr.BaseRef
-		case CleanupStepOtherPrs:
-			step.Message = "rebased by GitHub on " + pr.BaseRef
+		case CleanupStepTicketDone:
+			if pr.Ticket <= 0 {
+				step.Code = CleanupCodeNoTicket
+			} else if !UsesSfWorkflow(r.dir) {
+				step.Code = CleanupCodeNoSfWorkflow
+			}
+		case CleanupStepReviewTree:
+			tree := reviewsession.ReviewTreeDir(c.env.DataDir, r.dir, pr.Number)
+			if _, err := os.Stat(tree); err != nil {
+				step.Code = CleanupCodeNoReviewTree
+			} else {
+				step.Code, step.Path = CleanupCodeWillRemove, tree
+			}
+		case CleanupStepAgentTree:
+			if agentTree == "" {
+				step.Code = CleanupCodeNoAgentTree
+			} else {
+				step.Code, step.Path = CleanupCodeWillRemove, agentTree
+			}
 		}
 		rtn = append(rtn, step)
 	}

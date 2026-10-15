@@ -7,6 +7,7 @@
 
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import type { MarkReadyResult } from "../reviews/reviews-model";
 import type { ReviewCleanupResult, ReviewCleanupStepResult } from "./review-cleanup";
 import { ReviewAnchor, ReviewDepth, reviewScope } from "./review-session";
 
@@ -19,6 +20,7 @@ const FileCommand = "moltenreviewfile";
 const CompareCommand = "moltenreviewcompare";
 const WorktreeCommand = "moltenreviewworktree";
 const StateCommand = "moltenreviewstate";
+const PrStateCommand = "moltenreviewprstate";
 const ViewedCommand = "moltenreviewviewed";
 const ShownCommand = "moltenreviewshown";
 const MergePlanCommand = "moltenreviewmergeplan";
@@ -36,6 +38,7 @@ const TranslationCommand = "moltenreviewtranslation";
 const SummaryCommand = "moltenreviewsummary";
 const PublishCommand = "moltenreviewpublish";
 const RestartCommand = "moltenreviewrestart";
+const RebaseCommand = "moltenreviewrebase";
 
 // A file list or a compare may fetch the PR's branches; a worktree may be created.
 const GitTimeoutMs = 95_000;
@@ -120,7 +123,8 @@ export type ReviewRound = {
 };
 
 // must match RestartResult in pkg/molten/review/restart.go
-export type ReviewRestartStatus = "started" | "sent" | "typed" | "busy" | "noagent" | "failed";
+// offer: Ask for a rebase found no agent on the branch (pkg/molten/review/rebase.go).
+export type ReviewRestartStatus = "started" | "sent" | "typed" | "busy" | "noagent" | "failed" | "offer";
 
 export type ReviewRestartResult = {
     status: ReviewRestartStatus;
@@ -136,6 +140,7 @@ export type ReviewRestartResult = {
     blockid?: string;
     agent?: string;
     agentname?: string;
+    firstname?: string;
     briefpath?: string;
     state?: ReviewState;
 };
@@ -144,8 +149,20 @@ export type ReviewSince = { from: string; to: string; published?: boolean };
 
 // must match pkg/molten/review/merge.go and postmerge.go
 export type ReviewCheckState = "ok" | "info" | "warn" | "pending" | "fail";
-export type ReviewMergeCheck = { id: string; label: string; state: ReviewCheckState; detail?: string };
-export type ReviewMergeStep = { id: string; label: string; detail?: string };
+// The sheet writes a check from its id, its code and the data (review-stepper.ts).
+export type ReviewMergeCheck = {
+    id: string;
+    state: ReviewCheckState;
+    code?: string;
+    count?: number;
+    local?: number;
+    names?: string[];
+    base?: string;
+    prstate?: string;
+};
+export type ReviewMergeStep = { id: "update" | "waitci" | "merge" };
+// must match MergeMethod… in pkg/molten/review/mergemethod.go, in GitHub's order
+export type ReviewMergeMethod = "merge" | "squash" | "rebase";
 
 export type ReviewMergePlan = {
     id: string;
@@ -162,12 +179,19 @@ export type ReviewMergePlan = {
     mergestate?: string;
     mergeable?: string;
     behind?: boolean;
+    // The merge methods the repository and the base's rules allow, the default, and what narrowed them (#673).
+    methods?: ReviewMergeMethod[];
+    method?: ReviewMergeMethod;
+    methodrule?: "queue" | "ruleset" | "linear";
+    // A merge queue merges the PR, with its own method.
+    queue?: boolean;
     checks: ReviewMergeCheck[];
     steps: ReviewMergeStep[];
     // The cleanup after the merge, every step planned.
     cleanup: ReviewCleanupStepResult[];
     canmerge: boolean;
-    reason?: string;
+    // The id of the first check that fails or waits.
+    blocking?: string;
     warnings: string[];
     createdat: number;
 };
@@ -177,6 +201,7 @@ export type ReviewMergeState =
     | "updating"
     | "waitingci"
     | "merging"
+    | "queued"
     | "merged"
     | "refused"
     | "failed"
@@ -190,6 +215,15 @@ export type ReviewMergeRecord = {
     mergedoid?: string;
     state: ReviewMergeState;
     refused?: "headmoved" | "basemoved" | "check" | "mergedaway";
+    // What the sheet writes about the outcome, and its data; error: gh's raw error.
+    code?: string;
+    error?: string;
+    blocking?: ReviewMergeCheck;
+    names?: string[];
+    movedfrom?: string;
+    movedto?: string;
+    minutes?: number;
+    // The English text of records made before #672.
     message?: string;
     updated?: boolean;
     overridden?: string[];
@@ -309,6 +343,20 @@ export function reviewState(repo: string, num: number): Promise<ReviewState> {
     return call(StateCommand, { repo, number: num });
 }
 
+// must match PrStateResult in pkg/molten/review/prstate.go
+export type ReviewPrStateResult = {
+    state: "open" | "merged" | "closed";
+    baseref?: string;
+    mergedoid?: string;
+    mergedat?: string;
+    closedat?: string;
+};
+
+// reviewPrState reads the PR's state on GitHub (#686): merged or closed outside MoltenTerm.
+export function reviewPrState(dir: string, repo: string, num: number): Promise<ReviewPrStateResult> {
+    return call(PrStateCommand, { dir, repo, number: num });
+}
+
 export function setReviewViewed(
     repo: string,
     num: number,
@@ -334,8 +382,14 @@ export function reviewMergePlan(req: {
     return call(MergePlanCommand, req, GitTimeoutMs);
 }
 
-export function reviewMerge(repo: string, num: number, planid: string, override: boolean): Promise<ReviewMergeRecord> {
-    return call(MergeCommand, { repo, number: num, planid, override: override || undefined });
+export function reviewMerge(
+    repo: string,
+    num: number,
+    planid: string,
+    override: boolean,
+    method?: ReviewMergeMethod
+): Promise<ReviewMergeRecord> {
+    return call(MergeCommand, { repo, number: num, planid, override: override || undefined, method });
 }
 
 export function reviewMergeCancel(repo: string, num: number): Promise<void> {
@@ -556,6 +610,31 @@ export function restartReviewWork(req: {
     afterblockid?: string;
 }): Promise<ReviewRestartResult> {
     return call(RestartCommand, req, RestartTimeoutMs);
+}
+
+// askReviewRebase is the developer's click on Ask for a rebase in the Reviews list (#683): the agent on the PR's branch
+// gets the rebase; with start, a new agent starts in the Review tab tabid when none works there.
+export function askReviewRebase(req: {
+    repo: string;
+    number: number;
+    dir: string;
+    headref: string;
+    baseref: string;
+    headoid?: string;
+    title?: string;
+    url?: string;
+    ticket?: number;
+    start?: boolean;
+    tabid?: string;
+}): Promise<ReviewRestartResult> {
+    return call(RebaseCommand, req, RestartTimeoutMs);
+}
+
+const MarkReadyCommand = "moltenreviewmarkready";
+
+// markReviewReady is the developer's click on Mark ready for review (#687): gh pr ready on the draft PR.
+export function markReviewReady(req: { repo: string; number: number; dir: string }): Promise<MarkReadyResult> {
+    return call(MarkReadyCommand, req, GitTimeoutMs);
 }
 
 // subscribeReviewState follows a PR's review store (another window, the CLI); returns the unsubscribe function.

@@ -499,7 +499,7 @@ func TestPublishCommandsAreWindowOnly(t *testing.T) {
 	terminal := wshutil.RoutePrefix_Proc + "x"
 	data := map[string]any{"repo": testRepo, "number": 7, "dir": f.dir, "headoid": oidA, "aswritten": true, "id": "x", "text": "y"}
 	for _, command := range []string{PublishCommand, TranslateCommand, TranslationCommand, SummaryCommand, PublishInfoCommand} {
-		if _, err := link.handle(context.Background(), command, terminal, data); err == nil {
+		if _, err := callAs(link, terminal, command, data); err == nil {
 			t.Errorf("%s answered a terminal", command)
 		}
 	}
@@ -507,7 +507,7 @@ func TestPublishCommandsAreWindowOnly(t *testing.T) {
 		t.Errorf("a terminal reached GitHub or the session: %v %v", f.gh.calls, f.asked)
 	}
 	window := wshutil.RoutePrefix_Tab + "x"
-	if _, err := link.handle(context.Background(), PublishCommand, window, data); err != nil {
+	if _, err := callAs(link, window, PublishCommand, data); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.gh.reviews) != 1 {

@@ -2,22 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import { GitHubReleaseLink, isWebLink } from "../../util/moltenterm-web-link";
 import { parseVersion } from "../releases/versions";
 import {
     dueForCheck,
     feedReleasesOf,
-    isSafeReleaseUrl,
     GithubRelease,
     isNewerRelease,
     notesAsText,
     pickReleaseOffer,
     ReleaseCheckIntervalMs,
-    ReleaseRetryIntervalMs,
     releaseFeedEnabled,
     releaseFeedUrl,
-    releaseNotesOf,
     ReleaseNotesMaxChars,
+    releaseNotesOf,
     releaseNotificationTitle,
+    ReleaseRetryIntervalMs,
 } from "./release-feed";
 
 const Rules = { tagprefix: "v", firstpublic: "1.0.0" };
@@ -66,7 +66,12 @@ describe("release notification (#188)", () => {
     });
 
     it("offers a public build only public releases, newer than itself", () => {
-        const releases = [release("v1.0.0"), release("v1.0.1-1"), release("v1.0.1", { draft: true }), release("v0.9.0")];
+        const releases = [
+            release("v1.0.0"),
+            release("v1.0.1-1"),
+            release("v1.0.1", { draft: true }),
+            release("v0.9.0"),
+        ];
         expect(pickReleaseOffer(releases, "public", "1.0.0", Rules)).toBeNull();
         const offer = pickReleaseOffer([...releases, release("v1.0.1")], "public", "1.0.0", Rules);
         expect(offer.tag).toBe("v1.0.1");
@@ -86,7 +91,9 @@ describe("release notification (#188)", () => {
         expect(pickReleaseOffer([release("v1.1.0", { prerelease: true })], "public", "1.0.0", Rules)).toBeNull();
         expect(pickReleaseOffer([release("v0.14.5")], "rc", "0.1.0", Rules)).toBeNull();
         expect(pickReleaseOffer([release("nightly")], "rc", "1.0.0-0", Rules)).toBeNull();
-        expect(pickReleaseOffer([release("v1.0.1", { html_url: "javascript:alert(1)" })], "public", "1.0.0", Rules)).toBeNull();
+        expect(
+            pickReleaseOffer([release("v1.0.1", { html_url: "javascript:alert(1)" })], "public", "1.0.0", Rules)
+        ).toBeNull();
         expect(pickReleaseOffer([null, { tag_name: null } as any], "public", "1.0.0", Rules)).toBeNull();
     });
 
@@ -102,34 +109,53 @@ describe("release notification (#188)", () => {
 
     it("asks the repository's Releases API, or a loopback test feed only", () => {
         const repo = "https://github.com/DiamondForgeFr/moltenterm";
-        expect(releaseFeedUrl(repo, {})).toBe("https://api.github.com/repos/DiamondForgeFr/moltenterm/releases?per_page=30");
+        expect(releaseFeedUrl(repo, {})).toBe(
+            "https://api.github.com/repos/DiamondForgeFr/moltenterm/releases?per_page=30"
+        );
         const test = { MOLTENTERM_BACKGROUND: "1" };
-        expect(releaseFeedUrl(repo, { ...test, MOLTENTERM_RELEASE_FEED_URL: "http://127.0.0.1:9/feed.json" })).toBe("http://127.0.0.1:9/feed.json");
-        expect(releaseFeedUrl(repo, { MOLTENTERM_RELEASE_FEED_URL: "http://127.0.0.1:9/feed.json" })).toContain("api.github.com");
-        expect(releaseFeedUrl(repo, { ...test, MOLTENTERM_RELEASE_FEED_URL: "http://localhost:9/feed" })).toContain("api.github.com");
-        expect(releaseFeedUrl(repo, { ...test, MOLTENTERM_RELEASE_FEED_URL: "https://evil.example/feed" })).toContain("api.github.com");
+        expect(releaseFeedUrl(repo, { ...test, MOLTENTERM_RELEASE_FEED_URL: "http://127.0.0.1:9/feed.json" })).toBe(
+            "http://127.0.0.1:9/feed.json"
+        );
+        expect(releaseFeedUrl(repo, { MOLTENTERM_RELEASE_FEED_URL: "http://127.0.0.1:9/feed.json" })).toContain(
+            "api.github.com"
+        );
+        expect(releaseFeedUrl(repo, { ...test, MOLTENTERM_RELEASE_FEED_URL: "http://localhost:9/feed" })).toContain(
+            "api.github.com"
+        );
+        expect(releaseFeedUrl(repo, { ...test, MOLTENTERM_RELEASE_FEED_URL: "https://evil.example/feed" })).toContain(
+            "api.github.com"
+        );
         expect(releaseFeedUrl(repo, { ...test, MOLTENTERM_RELEASE_FEED_URL: "::" })).toContain("api.github.com");
     });
 
     it("turns the notes into plain text for the notification", () => {
-        const notes = "## New\n\n- Workspaces **remember** their agents.\n- A [browser](https://x) panel\n\n## Fixed\n\n- The status bar";
-        expect(notesAsText(notes)).toBe("New: Workspaces remember their agents; A browser panel. Fixed: The status bar.");
+        const notes =
+            "## New\n\n- Workspaces **remember** their agents.\n- A [browser](https://x) panel\n\n## Fixed\n\n- The status bar";
+        expect(notesAsText(notes)).toBe(
+            "New: Workspaces remember their agents; A browser panel. Fixed: The status bar."
+        );
         expect(notesAsText("Just one sentence!")).toBe("Just one sentence!");
         expect(notesAsText("")).toBe("");
     });
 
     it("opens only release pages on github.com, and keeps only what it reads of the feed", () => {
-        expect(isSafeReleaseUrl("https://github.com/DiamondForgeFr/moltenterm/releases/tag/v1.0.0")).toBe(true);
-        expect(isSafeReleaseUrl("https://evil.example/DiamondForgeFr/moltenterm/releases/tag/v1")).toBe(false);
-        expect(isSafeReleaseUrl("https://github.com/DiamondForgeFr/moltenterm/issues/1")).toBe(false);
-        expect(isSafeReleaseUrl("http://github.com/a/b/releases/tag/v1")).toBe(false);
+        expect(isWebLink("https://github.com/DiamondForgeFr/moltenterm/releases/tag/v1.0.0", GitHubReleaseLink)).toBe(
+            true
+        );
+        expect(isWebLink("https://evil.example/DiamondForgeFr/moltenterm/releases/tag/v1", GitHubReleaseLink)).toBe(
+            false
+        );
+        expect(isWebLink("https://github.com/DiamondForgeFr/moltenterm/issues/1", GitHubReleaseLink)).toBe(false);
+        expect(isWebLink("http://github.com/a/b/releases/tag/v1", GitHubReleaseLink)).toBe(false);
         const kept = feedReleasesOf([
             { tag_name: "v1.0.1", body: 42, html_url: ["x"], prerelease: "yes", extra: 1 },
             { tag_name: "v1.0.2", draft: true },
             "junk",
             null,
         ]);
-        expect(kept).toEqual([{ tag_name: "v1.0.1", prerelease: false, html_url: undefined, body: undefined, published_at: undefined }]);
+        expect(kept).toEqual([
+            { tag_name: "v1.0.1", prerelease: false, html_url: undefined, body: undefined, published_at: undefined },
+        ]);
         expect(feedReleasesOf({})).toEqual([]);
         // An unsafe link on the newest release falls back to the next one.
         const offer = pickReleaseOffer(

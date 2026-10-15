@@ -1,40 +1,51 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Validate (FR-REV-012, DS-REV-010): the Review tab's header button and its plan sheet. The sheet shows what the merge
-// checked and what it will do, bound to the head it read; Merge is the only way to start it (NFR-REV-003), and the
-// merge's progress and outcome come back from the review store.
+// Validate (FR-REV-012, DS-REV-010): the Review tab's header button and its sheet. The sheet is a stepper in the order
+// things happen (#672): before the merge it is the plan, each step saying what it will do, bound to the head it read;
+// Merge is the only way to start it (NFR-REV-003), and the merge's progress and the cleanup's outcome then fill the same
+// steps from the review store.
 
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
+import { useEffect } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { ReviewCleanupResult } from "./review-cleanup";
-import { CleanupSteps } from "./review-cleanup-steps";
-import { ReviewMergeCheck, ReviewMergePlan, ReviewMergeRecord } from "./review-client";
+import { ReviewsModel } from "../reviews/reviews-store";
+import { SegmentedControl } from "../segmented-control";
+import { cleanupNeedsConfirmation, ReviewCleanupResult } from "./review-cleanup";
+import { ReviewMergeMethod, ReviewMergePlan, ReviewMergeRecord } from "./review-client";
+import { mergedFooter } from "./review-done";
+import { MergedFooterButtons } from "./review-done-view";
 import {
     canCancelMerge,
     canClickMerge,
-    CheckLooks,
+    chosenMethod,
     mergeButtonLabel,
     mergeCleanup,
     mergeDisabledReason,
     mergeRunning,
-    mergeStateLabel,
-    mergeStateTone,
     sheetRecord,
+    validateErrorText,
 } from "./review-merge";
 import { shortOid } from "./review-model";
+import { buildValidateSteps } from "./review-stepper";
+import { ValidateStepper } from "./review-stepper-view";
+import { DraftActions } from "./review-tab-draft";
 import { ReviewTabModel } from "./review-tab-model";
 
 const PlainButton =
-    "cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
+    "cursor-pointer rounded-4 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50";
 
 export function ValidateButton({ model }: { model: ReviewTabModel }) {
     const t = useT();
     const state = useAtomValue(model.stateAtom);
+    const draft = useAtomValue(model.draftAtom);
     const running = mergeRunning(state?.merge);
+    if (draft && !running) {
+        return <DraftActions model={model} />;
+    }
     return (
         <button
             type="button"
@@ -60,14 +71,28 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
     const pr = useAtomValue(model.prAtom);
     const state = useAtomValue(model.stateAtom);
     useEscape(v.open, () => model.closeValidate());
+    const storedCleanup = state?.cleanup;
+    useEffect(() => {
+        ReviewsModel.getInstance().noteCleanupRebases(pr?.dir, storedCleanup);
+    }, [pr?.dir, storedCleanup]);
     if (!v.open || pr == null) {
         return null;
     }
     const plan = v.plan;
-    const record = sheetRecord(state?.merge, v.clicked ?? null);
+    // Reopened from the Validated state (#686), the sheet shows the merge as the store has it.
+    const record = v.result ? (state?.merge ?? null) : sheetRecord(state?.merge, v.clicked ?? null);
     const baseref = plan?.baseref ?? pr.baseref;
+    const method = chosenMethod(plan, v.method);
     const enabled = canClickMerge(plan, v.override, state?.merge) && record == null && v.clicked == null;
     const disabledReason = mergeDisabledReason(plan, v.override, state?.merge);
+    const cleanup: ReviewCleanupResult = record != null ? mergeCleanup(record, state?.cleanup) : null;
+    const steps = buildValidateSteps(t, { plan, record, cleanup, headref: pr.headref, baseref, method });
+    const locked = record != null || v.clicked != null;
+    const keptAgent = cleanupNeedsConfirmation(cleanup?.steps);
+    const keptReview = cleanup?.steps?.find(
+        (s) => s.id === "review-worktree" && (s.code === "kept" || s.code === "inuse")
+    );
+    const warnings = plan?.warnings ?? [];
     return (
         <DialogFrame
             role="review-validate"
@@ -75,49 +100,71 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
             subtitle={t("review.validate.subtitle", { head: pr.headref, base: baseref })}
             widthClass="w-[640px]"
             trapFocus
+            suite
             buttons={
                 <SheetButtons
                     model={model}
                     plan={plan}
                     record={record}
+                    cleanup={cleanup}
+                    method={method}
                     enabled={enabled}
                     disabledReason={disabledReason}
                     loading={v.loading}
                 />
             }
         >
-            {v.error ? (
-                <div
-                    className="rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 text-error"
-                    data-testid="validate-error"
-                >
-                    {v.error}
-                </div>
-            ) : null}
-            {record != null ? (
-                <MergeProgress
-                    model={model}
-                    record={record}
-                    cleanup={mergeCleanup(record, state?.cleanup)}
-                    confirming={v.confirming}
-                    baseref={baseref}
+            <div className="flex flex-col gap-3 pt-4" data-testid="validate-plan">
+                {v.error ? (
+                    <div
+                        className="rounded-4 border border-error/40 bg-error/10 px-2 py-1.5 break-words text-error"
+                        data-testid="validate-error"
+                    >
+                        {validateErrorText(v.error)}
+                    </div>
+                ) : null}
+                <ValidateStepper
+                    steps={steps}
+                    mergeTop={
+                        !locked && !plan?.queue && (plan?.methods?.length ?? 0) > 1 ? (
+                            <MethodPicker plan={plan} method={method} onSelect={(m) => model.setValidateMethod(m)} />
+                        ) : null
+                    }
+                    checksExtra={
+                        warnings.length > 0 && record == null ? (
+                            <label
+                                className={cn(
+                                    "mt-2 flex items-start gap-2 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5",
+                                    locked ? "opacity-60" : "cursor-pointer"
+                                )}
+                            >
+                                <input
+                                    type="checkbox"
+                                    className="mt-0.5 cursor-pointer"
+                                    checked={v.override}
+                                    disabled={locked}
+                                    onChange={(e) => model.setValidateOverride(e.target.checked)}
+                                    data-testid="validate-override"
+                                />
+                                <span>{t("review.validate.mergeAnyway")}</span>
+                            </label>
+                        ) : null
+                    }
+                    kept={{
+                        steps: [keptReview, keptAgent],
+                        busy: v.confirming,
+                        onRemove: (step) => fireAndForget(() => model.removeKeptWorktree(step)),
+                    }}
+                    onStartAgent={(other) =>
+                        ReviewsModel.getInstance().startCleanupAgent(pr.dir, pr.repo, cleanup?.base || baseref, other)
+                    }
                 />
-            ) : null}
-            {plan == null && v.loading ? (
-                <div className="flex items-center gap-2 text-muted">
-                    <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
-                    {t("review.validate.readingGithub")}
-                </div>
-            ) : null}
-            {plan != null ? (
-                <PlanBody
-                    plan={plan}
-                    override={v.override}
-                    onOverride={(o) => model.setValidateOverride(o)}
-                    locked={record != null || v.clicked != null}
-                    disabledReason={record == null ? disabledReason : ""}
-                />
-            ) : null}
+                {record == null && plan != null && !plan.canmerge ? (
+                    <div className="text-error" data-testid="validate-reason">
+                        {t("review.validate.mergeDisabled", { reason: disabledReason })}
+                    </div>
+                ) : null}
+            </div>
         </DialogFrame>
     );
 }
@@ -125,7 +172,9 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
 function SheetButtons({
     model,
     plan,
+    method,
     record,
+    cleanup,
     enabled,
     disabledReason,
     loading,
@@ -133,6 +182,8 @@ function SheetButtons({
     model: ReviewTabModel;
     plan: ReviewMergePlan;
     record: ReviewMergeRecord;
+    cleanup: ReviewCleanupResult;
+    method: ReviewMergeMethod;
     enabled: boolean;
     disabledReason: string;
     loading: boolean;
@@ -146,7 +197,7 @@ function SheetButtons({
                 </button>
                 <button
                     type="button"
-                    className="molten-btn cursor-pointer rounded-6 px-3 py-1 text-12"
+                    className="molten-btn cursor-pointer rounded-4 px-3 py-1 text-12"
                     onClick={() => fireAndForget(() => model.reviewNewCommits())}
                     data-testid="validate-review-new"
                 >
@@ -155,6 +206,10 @@ function SheetButtons({
                 </button>
             </>
         );
+    }
+    const footer = mergedFooter(record, cleanup);
+    if (footer != null) {
+        return <MergedFooterButtons model={model} footer={footer} plainClass={PlainButton} />;
     }
     if (record != null) {
         const ended = !mergeRunning(record);
@@ -204,153 +259,45 @@ function SheetButtons({
             </button>
             <button
                 type="button"
-                className="molten-btn flex cursor-pointer items-center gap-1.5 rounded-6 px-3 py-1 text-12 disabled:cursor-default disabled:opacity-50"
+                className="molten-btn flex cursor-pointer items-center gap-1.5 rounded-4 px-3 py-1 text-12 disabled:cursor-default disabled:opacity-50"
                 disabled={!enabled}
                 title={enabled ? t("review.validate.mergeTitle", { oid: shortOid(plan?.headoid) }) : disabledReason}
                 onClick={() => fireAndForget(() => model.merge())}
                 data-testid="validate-merge"
             >
                 <i className="fa fa-solid fa-code-merge text-11" />
-                {mergeButtonLabel(plan)}
+                {mergeButtonLabel(plan, method)}
                 <MoltenWave />
             </button>
         </>
     );
 }
 
-function PlanBody({
+// The merge method (#673): only the ones the repository and the base's rules allow, the last one used preselected.
+function MethodPicker({
     plan,
-    override,
-    onOverride,
-    locked,
-    disabledReason,
+    method,
+    onSelect,
 }: {
     plan: ReviewMergePlan;
-    override: boolean;
-    onOverride: (override: boolean) => void;
-    locked: boolean;
-    disabledReason: string;
+    method: ReviewMergeMethod;
+    onSelect: (method: ReviewMergeMethod) => void;
 }) {
     const t = useT();
-    const warnings = plan.warnings ?? [];
+    const segments = (plan.methods ?? []).map((m) => ({
+        value: m,
+        label: t(`review.validate.method.${m}`),
+        title: t(`review.validate.methodTitle.${m}`),
+    }));
     return (
-        <div className="flex flex-col gap-3" data-testid="validate-plan">
-            <div className="text-muted">
-                {t("review.validate.plannedOnBefore")} <code title={plan.headoid}>{shortOid(plan.headoid)}</code>
-                {t("review.validate.plannedOnAfter")}
-            </div>
-            <section>
-                <div className="mb-1.5 font-medium text-muted">{t("review.validate.checks")}</div>
-                <div className="flex flex-col gap-1">
-                    {plan.checks.map((c) => (
-                        <CheckRow key={c.id} check={c} />
-                    ))}
-                </div>
-            </section>
-            {warnings.length > 0 ? (
-                <label
-                    className={cn(
-                        "flex items-start gap-2 rounded-6 border border-warning/40 bg-warning/10 px-2 py-1.5",
-                        locked ? "opacity-60" : "cursor-pointer"
-                    )}
-                >
-                    <input
-                        type="checkbox"
-                        className="mt-0.5 cursor-pointer"
-                        checked={override}
-                        disabled={locked}
-                        onChange={(e) => onOverride(e.target.checked)}
-                        data-testid="validate-override"
-                    />
-                    <span>{t("review.validate.mergeAnyway")}</span>
-                </label>
-            ) : null}
-            <section>
-                <div className="mb-1.5 font-medium text-muted">{t("review.validate.steps")}</div>
-                <ol className="flex list-decimal flex-col gap-1 pl-5">
-                    {plan.steps.map((s) => (
-                        <li key={s.id} data-testid={`validate-step-${s.id}`}>
-                            <span className="text-primary">{s.label}</span>
-                            {s.detail ? <div className="text-muted">{s.detail}</div> : null}
-                        </li>
-                    ))}
-                </ol>
-            </section>
-            {plan.cleanup.length > 0 && !locked ? (
-                <section data-testid="validate-cleanup-plan">
-                    <div className="mb-1.5 font-medium text-muted">{t("review.validate.thenCleanup")}</div>
-                    <CleanupSteps steps={plan.cleanup} />
-                </section>
-            ) : null}
-            {disabledReason && !plan.canmerge ? (
-                <div className="text-error" data-testid="validate-reason">
-                    {t("review.validate.mergeDisabled", { reason: disabledReason })}
-                </div>
-            ) : null}
-        </div>
-    );
-}
-
-function CheckRow({ check }: { check: ReviewMergeCheck }) {
-    const look = CheckLooks[check.state] ?? CheckLooks.pending;
-    return (
-        <div className="flex items-start gap-2" data-testid={`validate-check-${check.id}`} data-state={check.state}>
-            <i className={cn("fa fa-solid mt-0.5 w-3.5 text-11", look.icon, look.tone)} title={look.word} />
-            <div className="min-w-0">
-                <div className="text-primary">{check.label}</div>
-                {check.detail ? <div className="text-muted">{check.detail}</div> : null}
-            </div>
-        </div>
-    );
-}
-
-function MergeProgress({
-    model,
-    record,
-    cleanup,
-    confirming,
-    baseref,
-}: {
-    model: ReviewTabModel;
-    record: ReviewMergeRecord;
-    cleanup: ReviewCleanupResult;
-    confirming: boolean;
-    baseref: string;
-}) {
-    const t = useT();
-    const running = mergeRunning(record);
-    return (
-        <div
-            className="flex flex-col gap-1.5 rounded-6 border border-border px-3 py-2"
-            data-testid="validate-progress"
-            data-state={record.state}
-        >
-            <div className={cn("flex items-center gap-2 text-13 leading-5", mergeStateTone(record.state))}>
-                {running ? <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" /> : null}
-                <span>{mergeStateLabel(record, baseref)}</span>
-            </div>
-            {record.head && record.head !== record.planhead ? (
-                <div className="text-muted">
-                    {t("review.validate.rebasedHead")} <code title={record.head}>{shortOid(record.head)}</code>
-                </div>
-            ) : null}
-            {record.cleanuprunning || cleanup != null ? (
-                <div className="mt-1 flex flex-col gap-1" data-testid="validate-cleanup">
-                    <div className="flex items-center gap-2 font-medium text-muted">
-                        {record.cleanuprunning ? (
-                            <i className="fa fa-solid fa-circle-notch fa-spin mt-step-spin text-11" />
-                        ) : null}
-                        {record.cleanuprunning ? t("review.validate.cleaningUp") : t("review.validate.cleanup")}
-                    </div>
-                    {cleanup != null ? (
-                        <CleanupSteps
-                            steps={cleanup.steps}
-                            busy={confirming}
-                            onConfirmWorktree={(risk) => fireAndForget(() => model.confirmCleanupWorktree(risk))}
-                        />
-                    ) : null}
-                </div>
-            ) : null}
+        <div className="mt-1 mb-1 flex items-center gap-2" data-testid="validate-method">
+            <span className="text-12 text-secondary">{t("review.validate.methodLabel")}</span>
+            <SegmentedControl
+                label={t("review.validate.methodLabel")}
+                segments={segments}
+                selected={method}
+                onSelect={onSelect}
+            />
         </div>
     );
 }

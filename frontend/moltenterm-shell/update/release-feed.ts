@@ -6,6 +6,7 @@
 // Nothing is downloaded or installed (that waits for signed builds, #507). Shared by emain (the request and its cache)
 // and the renderer (the notification), and kept free of both so that the rules are tested alone.
 
+import { GitHubReleaseLink, isWebLink } from "../../util/moltenterm-web-link";
 import { compareVersions, releaseOf, Version, VersionRules } from "../releases/versions";
 
 // At most one request a day, whatever the number of windows and restarts.
@@ -158,7 +159,7 @@ export function pickReleaseOffer(
         if (channel === "public" && (v.rc !== 0 || release.prerelease)) {
             continue;
         }
-        if (!isNewerRelease(v, ownVersion) || !isSafeReleaseUrl(release.html_url)) {
+        if (!isNewerRelease(v, ownVersion) || !isWebLink(release.html_url, GitHubReleaseLink)) {
             continue;
         }
         if (bestVersion == null || compareVersions(v, bestVersion) > 0) {
@@ -176,16 +177,6 @@ export function pickReleaseOffer(
         notes: releaseNotesOf(best.body),
         publishedat: best.published_at ?? "",
     };
-}
-
-// The download link is opened from the notification: only a release page on github.com is ever handed on.
-export function isSafeReleaseUrl(url: string): boolean {
-    try {
-        const u = new URL(url);
-        return u.protocol === "https:" && u.hostname === "github.com" && /^\/[^/]+\/[^/]+\/releases\//.test(u.pathname);
-    } catch {
-        return false;
-    }
 }
 
 // The Releases API of the repository the app comes from. A test instance (MOLTENTERM_BACKGROUND=1, UPSTREAM.md) may

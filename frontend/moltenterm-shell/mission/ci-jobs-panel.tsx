@@ -6,7 +6,6 @@
 // job without a description can be described by the workspace's agent, as a change the developer reviews. The
 // catalogue is read when the tab opens and again when the snapshot says a workflow file or the pipeline changed.
 
-import { openLink } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
@@ -14,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { agentCallName, agentLabel, AgentStateInfo } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { useT } from "../i18n/i18n";
+import { openWebLink } from "../open-web-link";
 import { workspaceAgents } from "../project/project-model";
 import { openFileInPreview } from "../term-copy/term-copy";
 import { CiIcon, githubRunIconState, LocalCiIcon } from "./ci-icon";
@@ -275,7 +275,7 @@ function WorkflowBlock({
                     {last ? (
                         <button
                             type="button"
-                            onClick={() => fireAndForget(() => openLink(last.url))}
+                            onClick={() => fireAndForget(() => openWebLink(last.url))}
                             className="flex shrink-0 cursor-pointer items-center gap-1 text-12 text-muted hover:text-primary"
                             title={t("mc.jobs.ui.lastRunTitle", { title: last.displayTitle ?? "" })}
                         >

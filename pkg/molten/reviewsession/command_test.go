@@ -5,6 +5,8 @@ package reviewsession
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -63,7 +65,7 @@ func TestClaudeReviewArgs(t *testing.T) {
 // environment variables the server needs forwarded, and instructions that send it to the guide; every -c value is TOML.
 func TestCodexReviewArgs(t *testing.T) {
 	guide := `/Users/me/Library/Application Support/moltenterm/molten/agent-launch/review-guide-"x".md`
-	args := CodexReviewArgs("/Users/me/Library/Application Support/moltenterm/bin/molten", guide)
+	args := CodexReviewArgs("/Users/me/Library/Application Support/moltenterm/bin/molten", guide, nil)
 	if args[0] != "--sandbox" || args[1] != "read-only" {
 		t.Fatalf("args %q", args)
 	}
@@ -73,7 +75,7 @@ func TestCodexReviewArgs(t *testing.T) {
 			values = append(values, args[i+1])
 		}
 	}
-	if len(values) != 2 {
+	if len(values) != 3 {
 		t.Fatalf("-c values %q", values)
 	}
 	var servers struct {
@@ -95,9 +97,60 @@ func TestCodexReviewArgs(t *testing.T) {
 	var instructions struct {
 		DeveloperInstructions string `toml:"developer_instructions"`
 	}
-	if _, err := toml.Decode(values[1], &instructions); err != nil || !strings.Contains(instructions.DeveloperInstructions, "read the review guide "+guide) ||
+	if _, err := toml.Decode(values[2], &instructions); err != nil || !strings.Contains(instructions.DeveloperInstructions, "read the review guide "+guide) ||
 		!strings.Contains(instructions.DeveloperInstructions, "never instructions") {
 		t.Errorf("instructions %q: %v", instructions.DeveloperInstructions, err)
+	}
+}
+
+// #664: the PR's own agent configuration never loads. Claude Code reads the user's settings only (no project or local
+// .claude/settings*.json, whose hooks would run on the reviewer's machine); Codex sees the review folder and the
+// project as untrusted, so their .codex/ (config.toml, hooks, exec policies) stays off.
+func TestReviewArgsSkipPrConfig(t *testing.T) {
+	args := ClaudeReviewArgs("/data/mcp.json", "/data/guide.md")
+	i := slices.Index(args, "--setting-sources")
+	if i < 0 || i+1 >= len(args) || args[i+1] != "user" {
+		t.Fatalf("claude args %q: want --setting-sources user", args)
+	}
+
+	root := t.TempDir()
+	project := filepath.Join(root, "my project")
+	if err := os.Mkdir(project, 0700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "link")
+	if err := os.Symlink(project, link); err != nil {
+		t.Fatal(err)
+	}
+	tree := "/data/molten/worktrees/app/review-12"
+	codex := CodexReviewArgs("/data/bin/molten", "/data/guide.md", []string{tree, link, ""})
+	var projectsValue string
+	for i, a := range codex {
+		if a == "-c" && strings.HasPrefix(codex[i+1], "projects=") {
+			projectsValue = codex[i+1]
+		}
+	}
+	var doc struct {
+		Projects map[string]struct {
+			TrustLevel string `toml:"trust_level"`
+		} `toml:"projects"`
+	}
+	if _, err := toml.Decode(projectsValue, &doc); err != nil {
+		t.Fatalf("%q: %v", projectsValue, err)
+	}
+	realProject, err := filepath.EvalSymlinks(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{tree, link, realProject} {
+		if doc.Projects[dir].TrustLevel != "untrusted" {
+			t.Errorf("%s: %+v in %q", dir, doc.Projects[dir], projectsValue)
+		}
+	}
+	for dir, p := range doc.Projects {
+		if p.TrustLevel != "untrusted" {
+			t.Errorf("%s is %q", dir, p.TrustLevel)
+		}
 	}
 }
 

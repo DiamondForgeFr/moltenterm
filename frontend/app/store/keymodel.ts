@@ -22,16 +22,17 @@ import { getActiveTabModel } from "@/app/store/tab-model";
 import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import { deleteLayoutModelForTab, getLayoutModelForStaticTab, NavigateDirection } from "@/layout/index";
 import * as keyutil from "@/util/keyutil";
-import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
-import { splitFocusedPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
 import { MoltentermNoAI } from "@/util/moltenterm-noai"; // MOLTENTERM-PATCH (#25)
-import { closeTabAskingFirst, interceptTerminalClose } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#114, #134, #489)
-import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
-import { registerCarpetKeys } from "../../moltenterm-shell/view360/carpet-keys"; // MOLTENTERM-PATCH (#617)
 import { isWindows } from "@/util/platformutil";
 import { CHORD_TIMEOUT } from "@/util/sharedconst";
 import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
+import { registerCommandPaletteKeys } from "../../moltenterm-shell/palette/palette-keys"; // MOLTENTERM-PATCH (#111)
+import { recordPaneClose, reopenKeys, reopenLastClosed } from "../../moltenterm-shell/reopen/reopen-store"; // MOLTENTERM-PATCH (#512)
+import { splitFocusedPanel } from "../../moltenterm-shell/split/split"; // MOLTENTERM-PATCH (#370)
+import { enterSplitPlacementFocused } from "../../moltenterm-shell/split/split-place"; // MOLTENTERM-PATCH (#677)
+import { registerCarpetKeys } from "../../moltenterm-shell/view360/carpet-keys"; // MOLTENTERM-PATCH (#617)
+import { closeTabAskingFirst, interceptTerminalClose } from "../../moltenterm-shell/worktree-close"; // MOLTENTERM-PATCH (#114, #134, #489)
 import { modalsModel } from "./modalmodel";
 import { isBuilderWindow, isTabWindow } from "./windowtype";
 
@@ -540,6 +541,19 @@ function registerGlobalKeys() {
     });
     globalKeyMap.set("Shift:Cmd:d", () => {
         handleSplitVertical("after");
+        return true;
+    });
+    // MOLTENTERM-PATCH (#677): split left and up directly, and the split placement mode (frontend/moltenterm-shell/split/)
+    globalKeyMap.set("Ctrl:Shift:d", () => {
+        handleSplitHorizontal("before");
+        return true;
+    });
+    globalKeyMap.set("Ctrl:Shift:e", () => {
+        handleSplitVertical("before");
+        return true;
+    });
+    globalKeyMap.set("Shift:Cmd:s", () => {
+        enterSplitPlacementFocused();
         return true;
     });
     globalKeyMap.set("Cmd:i", () => {

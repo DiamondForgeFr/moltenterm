@@ -5,7 +5,6 @@ package termupdate
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"reflect"
@@ -13,11 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentcontinuity"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/shellutil"
@@ -33,7 +32,6 @@ import (
 // states (attention/agentroute.go); the outdated terminals are published on an event whenever the list changes.
 
 const (
-	routeQueueSize = 64
 	// The list follows the agent states and the generation reports at once; the pass also catches shells that
 	// started or ended.
 	publishInterval = 15 * time.Second
@@ -305,54 +303,16 @@ func (s *service) publishLoop() {
 	}
 }
 
-type routeLink struct {
-	s      *service
-	output chan []byte
+// route: every command acts on a terminal at a window's click. Typing into an agent, raising its permission mode,
+// restarting or interrupting it is never a terminal's own call, so an agent cannot step itself or another one up (#662).
+func (s *service) route() localroute.Route {
+	return localroute.Route{Id: Route, Policy: localroute.Policy{Default: localroute.AllowWindow}, Handler: s.handle}
 }
 
-func (l *routeLink) GetPeerInfo() string {
-	return Route
-}
-
-func (l *routeLink) RecvRpcMessage() ([]byte, bool) {
-	msg, ok := <-l.output
-	return msg, ok
-}
-
-func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debugStr string) bool {
-	var req wshutil.RpcMessage
-	if err := json.Unmarshal(msg, &req); err != nil {
-		return true
-	}
-	if req.Command == "" || req.ReqId == "" {
-		return true
-	}
-	go l.answer(req)
-	return true
-}
-
-func (l *routeLink) answer(req wshutil.RpcMessage) {
-	defer func() {
-		panichandler.PanicHandler("molten:termupdate:route", recover())
-	}()
-	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := l.handle(req.Command, req.Data)
-	if err != nil {
-		resp.Error = err.Error()
-	} else {
-		resp.Data = data
-	}
-	out, err := json.Marshal(resp)
-	if err != nil {
-		return
-	}
-	l.output <- out
-}
-
-func (l *routeLink) handle(command string, data any) (any, error) {
+func (s *service) handle(_ context.Context, command string, _ localroute.Caller, data any) (any, error) {
 	switch command {
 	case ListCommand:
-		return l.s.snapshot(), nil
+		return s.snapshot(), nil
 	case CheckCommand, RunCommand:
 		var req Request
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -364,10 +324,10 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 		defer cancel()
 		if command == CheckCommand {
-			return l.s.updater.Check(ctx, req), nil
+			return s.updater.Check(ctx, req), nil
 		}
-		out := l.s.updater.Run(ctx, req)
-		l.s.trigger()
+		out := s.updater.Run(ctx, req)
+		s.trigger()
 		return out, nil
 	case AgentInputInfoCommand:
 		var req AgentInputRequest
@@ -377,7 +337,7 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		if req.BlockId == "" {
 			return nil, fmt.Errorf("no terminal given")
 		}
-		return l.s.updater.AgentInputInfo(req.BlockId), nil
+		return s.updater.AgentInputInfo(req.BlockId), nil
 	case AgentInputCommand:
 		var req AgentInputRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -388,7 +348,7 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 		defer cancel()
-		return l.s.updater.AgentInput(ctx, req), nil
+		return s.updater.AgentInput(ctx, req), nil
 	case AgentRestartCommand:
 		var req AgentRestartRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -399,8 +359,8 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 		defer cancel()
-		out := l.s.updater.RestartAgent(ctx, req)
-		l.s.trigger()
+		out := s.updater.RestartAgent(ctx, req)
+		s.trigger()
 		return out, nil
 	}
 	return nil, fmt.Errorf("unknown terminal update command %q", command)
@@ -413,8 +373,7 @@ func Start() {
 	attention.OnShellMark(s.observe)
 	attention.OnTerminalInput(s.inputs.input)
 	attention.OnTerminalOutput(s.inputs.output)
-	link := &routeLink{s: s, output: make(chan []byte, routeQueueSize)}
-	if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, Route); err != nil {
+	if _, err := localroute.Register(wshutil.DefaultRouter, s.route()); err != nil {
 		log.Printf("molten: terminal update route not started: %v\n", err)
 		return
 	}

@@ -5,7 +5,6 @@ package keepawake
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -13,9 +12,9 @@ import (
 	"time"
 
 	goproc "github.com/shirou/gopsutil/v4/process"
-	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
@@ -37,7 +36,6 @@ import (
 // connection's router link.
 
 const (
-	routeQueueSize = 64
 	// The rules are applied this often while there is something to follow, and at once on an agent state, a shell
 	// mark, a block's close, a workspace change or a new setting; the windows show the grace to the second.
 	tickInterval  = 2 * time.Second
@@ -365,120 +363,60 @@ func (s *service) blockClosed(event *wps.WaveEvent) {
 }
 
 type routeLink struct {
-	s      *service
-	output chan []byte
+	s *service
 }
 
-func (l *routeLink) GetPeerInfo() string {
-	return Route
-}
-
-func (l *routeLink) RecvRpcMessage() ([]byte, bool) {
-	msg, ok := <-l.output
-	return msg, ok
-}
-
-func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debugStr string) bool {
-	var req wshutil.RpcMessage
-	if err := json.Unmarshal(msg, &req); err != nil {
-		return true
+// route: the state names the terminals' command lines, for MoltenTerm's windows and Electron main only; the coffee
+// and the overrides are the user's own click in a window (`molten awake --until-work-ends --workspace`, FR-SHELL-024,
+// will be the coffee's command path). The shims and the coffee approvals (FR-SHELL-063) come from a local terminal's
+// own link: a remote host's sleep is not this computer's (DS-SHELL-024), and a remote agent is never approved here.
+func (l *routeLink) route() localroute.Route {
+	return localroute.Route{
+		Id: Route,
+		Policy: localroute.Policy{
+			Default: localroute.AllowWindow,
+			Commands: map[string]string{
+				StateCommand:      localroute.AllowUi,
+				ShimCommand:       localroute.AllowLocalTerminal,
+				PermissionCommand: localroute.AllowLocalTerminal,
+			},
+			Refusals: map[string]string{
+				StateCommand:      "the keep-awake state is read by MoltenTerm's windows",
+				CoffeeCommand:     "a coffee is turned on or off from a MoltenTerm window",
+				OverrideCommand:   "a session's sleep policy is set from a MoltenTerm window",
+				ShimCommand:       "the sleep shims report from a local MoltenTerm terminal",
+				PermissionCommand: "permission requests come from a local MoltenTerm terminal",
+			},
+		},
+		Handler: l.handle,
 	}
-	if req.Command == "" || req.ReqId == "" {
-		return true
-	}
-	// The router calls this under its own lock: who asks is read in the answer's goroutine (IsLeafSource takes it).
-	go l.answer(req, ingressLinkId)
-	return true
 }
 
-const (
-	fromOther    = ""
-	fromWindow   = "window"
-	fromElectron = "electron"
-	fromTerminal = "terminal"
-)
-
-// sourceKind reads who asks from the link a request came in through: a window or Electron main when its source is a
-// route bound to that very link (their websocket), a local terminal when the source is the one the router stamped on
-// the terminal's own leaf link. Anything else (a remote connection's router link, a forged source) is other.
-func sourceKind(source string, ingressLinkId baseds.LinkId) string {
-	router := wshutil.DefaultRouter
-	switch {
-	case strings.HasPrefix(source, wshutil.RoutePrefix_Tab) && router.IsSourceOnLink(ingressLinkId, source):
-		return fromWindow
-	case source == wshutil.ElectronRoute && router.IsSourceOnLink(ingressLinkId, source):
-		return fromElectron
-	case strings.HasPrefix(source, wshutil.RoutePrefix_Proc) && router.IsLeafSource(ingressLinkId, source):
-		return fromTerminal
-	}
-	return fromOther
-}
-
-func (l *routeLink) answer(req wshutil.RpcMessage, ingressLinkId baseds.LinkId) {
-	defer func() {
-		panichandler.PanicHandler("molten:keepawake:route", recover())
-	}()
-	from := sourceKind(req.Source, ingressLinkId)
-	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := l.handle(req.Command, from, req.Data)
-	if err != nil {
-		resp.Error = err.Error()
-	} else {
-		resp.Data = data
-	}
-	out, err := json.Marshal(resp)
-	if err != nil {
-		return
-	}
-	l.output <- out
-}
-
-func (l *routeLink) handle(command string, from string, data any) (any, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), storeTimeout)
+func (l *routeLink) handle(ctx context.Context, command string, _ localroute.Caller, data any) (any, error) {
+	ctx, cancel := context.WithTimeout(ctx, storeTimeout)
 	defer cancel()
 	switch command {
 	case StateCommand:
-		// The state names the terminals' command lines: MoltenTerm's windows and Electron main only.
-		if from != fromWindow && from != fromElectron {
-			return nil, fmt.Errorf("the keep-awake state is read by MoltenTerm's windows")
-		}
 		return l.s.keeper.State(), nil
 	case CoffeeCommand:
-		// The coffee is the user's own click; `molten awake --until-work-ends --workspace` (FR-SHELL-024) will be its
-		// command path.
-		if from != fromWindow {
-			return nil, fmt.Errorf("a coffee is turned on or off from a MoltenTerm window")
-		}
 		var req CoffeeRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
 		return l.s.keeper.SetCoffee(ctx, req.WorkspaceId, req.On)
 	case OverrideCommand:
-		if from != fromWindow {
-			return nil, fmt.Errorf("a session's sleep policy is set from a MoltenTerm window")
-		}
 		var req OverrideRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
 		return l.s.keeper.SetOverride(ctx, req)
 	case ShimCommand:
-		// Only a local terminal's own link: a remote host's sleep is not this computer's (DS-SHELL-024).
-		if from != fromTerminal {
-			return nil, fmt.Errorf("the sleep shims report from a local MoltenTerm terminal")
-		}
 		var req ShimRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
 		return l.s.keeper.Shim(ctx, req)
 	case PermissionCommand:
-		// The coffee approvals (FR-SHELL-063): from a local terminal's own link only, as the shims; a remote host's
-		// agent is never approved from here.
-		if from != fromTerminal {
-			return nil, fmt.Errorf("permission requests come from a local MoltenTerm terminal")
-		}
 		var req PermissionRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
@@ -496,8 +434,7 @@ func Start(hooks Hooks) {
 	startOnce.Do(func() {
 		s := makeService(hooks)
 		attention.OnShellMark(s.observeMark)
-		link := &routeLink{s: s, output: make(chan []byte, routeQueueSize)}
-		if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, Route); err != nil {
+		if _, err := localroute.Register(wshutil.DefaultRouter, (&routeLink{s: s}).route()); err != nil {
 			log.Printf("molten: keep-awake route not started: %v\n", err)
 			return
 		}

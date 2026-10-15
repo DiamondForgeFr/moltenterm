@@ -4,11 +4,11 @@
 // The CI local tab (FR-MC-011), as Notulia's: pick a branch (marked by what the CI says about it now, the Now card's
 // rule), run what is not green yet or everything again, follow the runs and each job's live log.
 
-import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { openWebLink } from "../open-web-link";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { LocalCiIcon } from "./ci-icon";
@@ -303,7 +303,7 @@ function RunRow({
                         icon="fa-brands fa-github"
                         label={commit ? t("mc.ci.openCommit") : t("mc.ci.notOnGithub")}
                         disabled={commit == null}
-                        onClick={() => commit && fireAndForget(() => openLink(commit))}
+                        onClick={() => commit && fireAndForget(() => openWebLink(commit))}
                         testId="ci-row-github"
                     />
                 </RowActions>

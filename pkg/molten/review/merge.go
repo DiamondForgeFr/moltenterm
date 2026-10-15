@@ -6,24 +6,25 @@ package review
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 // Validate (FR-REV-012, DS-REV-010): GitHub does not let the developer approve their own PR, so validating one is a
-// rebase and merge from MoltenTerm. Validate builds a plan from one fresh gh pr view and the review store: the checks
-// and the steps. The plan is kept here under an id and bound to the head it read. Merge runs only on the developer's
+// merge from MoltenTerm, with a method the repository allows (#673, mergemethod.go). Validate builds a plan from one
+// fresh gh pr view and the review store: the checks and the steps. The plan is kept here under an id and bound to the head it read. Merge runs only on the developer's
 // click on that plan, reads the PR again, refuses when anything was pushed since, and lets GitHub refuse too
-// (--match-head-commit). A PR behind its base is rebased by GitHub first and merged once CI passed on the new head.
+// (--match-head-commit). A PR behind its base is updated by GitHub first and merged once CI passed on the new head.
 // The merge is never retried: a refusal or a failure asks for a new Validate. Its progress and outcome are kept in the
 // review store; the cleanup after a merge is the PostMerge hook's (FR-REV-013, postmerge.go).
 
@@ -52,6 +53,8 @@ const (
 	MergeUpdating  = "updating"
 	MergeWaitingCi = "waitingci"
 	MergeMerging   = "merging"
+	// queued: a merge queue merges the PR; Validate waits until it did.
+	MergeQueued    = "queued"
 	MergeMerged    = "merged"
 	MergeRefused   = "refused"
 	MergeFailed    = "failed"
@@ -62,6 +65,52 @@ const (
 	RefusedBaseMoved  = "basemoved"
 	RefusedCheck      = "check"
 	RefusedMergedAway = "mergedaway"
+
+	// What the sheet writes under a check (#672: Go gives codes and data, the frontend writes the sentences).
+	CheckCodeNotOpen     = "notopen"
+	CheckCodeDraft       = "draft"
+	CheckCodeFailing     = "failing"
+	CheckCodeRunning     = "running"
+	CheckCodeNoCheck     = "nocheck"
+	CheckCodePassed      = "passed"
+	CheckCodeConflicting = "conflicting"
+	CheckCodeComputing   = "computing"
+	CheckCodeBlocked     = "blocked"
+	CheckCodeBehind      = "behind"
+	CheckCodeUnpublished = "unpublished"
+	CheckCodeInFlight    = "inflight"
+
+	// What the sheet writes about a merge's outcome (MergeRecord.Code).
+	MergeCodeMerged         = "merged"
+	MergeCodeReread         = "reread"
+	MergeCodeMergedAway     = "mergedaway"
+	MergeCodeHeadMoved      = "headmoved"
+	MergeCodeGithubMoved    = "githubheadmoved"
+	MergeCodeCheck          = "check"
+	MergeCodeNewWarning     = "newwarning"
+	MergeCodeMergeError     = "mergeerror"
+	MergeCodeUpdateError    = "updateerror"
+	MergeCodeStopped        = "stopped"
+	MergeCodeCiTimeout      = "citimeout"
+	MergeCodePollError      = "pollerror"
+	MergeCodeCiFailed       = "cifailed"
+	MergeCodeConflict       = "conflict"
+	MergeCodeBaseMoved      = "basemoved"
+	MergeCodeRebasedBlocked = "rebasedblocked"
+	MergeCodeQueueClosed    = "queueclosed"
+	MergeCodeQueueTimeout   = "queuetimeout"
+	MergeCodeQueueStopped   = "queuestopped"
+
+	// The errors of the merge commands, as codes the sheet translates (mergeErrorPrefix + code).
+	MergeErrRunning  = "running"
+	MergeErrStale    = "stale"
+	MergeErrOld      = "old"
+	MergeErrBlocked  = "blocked"
+	MergeErrConfirm  = "confirm"
+	MergeErrNotFound = "nomerge"
+	MergeErrMethod   = "method"
+
+	mergeErrorPrefix = "molten-review-merge:"
 )
 
 const (
@@ -79,23 +128,29 @@ const (
 
 var prViewFields = "number,title,url,state,isDraft,headRefName,baseRefName,headRefOid,mergeable,mergeStateStatus,statusCheckRollup,closingIssuesReferences,mergeCommit"
 
-// DS-REV-011: gh's messages are kept, but never a token in gh's formats.
-var ghTokenRe = regexp.MustCompile(`\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})`)
-
 // GhRunner runs gh in a folder; tests fake it.
 type GhRunner func(ctx context.Context, dir string, args ...string) ([]byte, error)
 
+// MergeCheck is one pre-merge check. The sheet names it by its id and writes its detail from Code and the data.
 type MergeCheck struct {
-	Id     string `json:"id"`
-	Label  string `json:"label"`
-	State  string `json:"state"`
-	Detail string `json:"detail,omitempty"`
+	Id    string `json:"id"`
+	State string `json:"state"`
+	Code  string `json:"code,omitempty"`
+	// Count: failing or running checks, passed ones, unpublished comments; Local: the passed local-* statuses.
+	Count   int      `json:"count,omitempty"`
+	Local   int      `json:"local,omitempty"`
+	Names   []string `json:"names,omitempty"`
+	Base    string   `json:"base,omitempty"`
+	PrState string   `json:"prstate,omitempty"`
 }
 
+// MergeStep is a step of the merge; the sheet writes it from the plan's branches and head.
 type MergeStep struct {
-	Id     string `json:"id"`
-	Label  string `json:"label"`
-	Detail string `json:"detail,omitempty"`
+	Id string `json:"id"`
+}
+
+func mergeError(code string) error {
+	return errors.New(mergeErrorPrefix + code)
 }
 
 type MergePlanRequest struct {
@@ -119,14 +174,21 @@ type MergePlan struct {
 	PrState    string `json:"prstate"`
 	MergeState string `json:"mergestate,omitempty"`
 	Mergeable  string `json:"mergeable,omitempty"`
-	// Behind: GitHub rebases the branch first, then CI runs again on the new head before the merge (AC3).
-	Behind  bool                `json:"behind,omitempty"`
-	Checks  []MergeCheck        `json:"checks"`
-	Steps   []MergeStep         `json:"steps"`
-	Cleanup []CleanupStepResult `json:"cleanup"`
-	// CanMerge: no check fails or waits; Reason: the first one that does (AC4).
+	// Behind: GitHub updates the branch first (a rebase for a rebase merge, a merge of the base otherwise), then CI
+	// runs again on the new head before the merge (AC3).
+	Behind bool `json:"behind,omitempty"`
+	// Methods: the merge methods allowed, in GitHub's order; Method: the default (#673). MethodRule: what narrowed them
+	// (MethodRule…); Queue: a merge queue merges the PR, with its own method.
+	Methods    []string            `json:"methods"`
+	Method     string              `json:"method"`
+	MethodRule string              `json:"methodrule,omitempty"`
+	Queue      bool                `json:"queue,omitempty"`
+	Checks     []MergeCheck        `json:"checks"`
+	Steps      []MergeStep         `json:"steps"`
+	Cleanup    []CleanupStepResult `json:"cleanup"`
+	// CanMerge: no check fails or waits; Blocking: the id of the first one that does (AC4).
 	CanMerge bool   `json:"canmerge"`
-	Reason   string `json:"reason,omitempty"`
+	Blocking string `json:"blocking,omitempty"`
 	// Warnings the developer confirms to merge anyway (unpublished comments, a restart in flight).
 	Warnings  []string `json:"warnings"`
 	CreatedAt int64    `json:"createdat"`
@@ -139,6 +201,8 @@ type MergeRequest struct {
 	PlanId string `json:"planid"`
 	// Override: the developer confirmed the plan's warnings.
 	Override bool `json:"override,omitempty"`
+	// Method: one of the plan's Methods; empty takes the plan's default.
+	Method string `json:"method,omitempty"`
 }
 
 // MergeRecord is the merge's progress and outcome, kept in the review store (AC5).
@@ -151,13 +215,22 @@ type MergeRecord struct {
 	Head      string `json:"head,omitempty"`
 	MergedOid string `json:"mergedoid,omitempty"`
 	State     string `json:"state"`
-	// Refused: why (Refused…); Message: what the developer reads.
-	Refused    string   `json:"refused,omitempty"`
-	Message    string   `json:"message,omitempty"`
-	Updated    bool     `json:"updated,omitempty"`
-	Overridden []string `json:"overridden,omitempty"`
-	StartedAt  int64    `json:"startedat"`
-	EndedAt    int64    `json:"endedat,omitempty"`
+	// Refused: why (Refused…). Code: what the developer reads (MergeCode…), written by the sheet from the data below;
+	// Error: the raw gh error, tokens masked.
+	Refused string `json:"refused,omitempty"`
+	Code    string `json:"code,omitempty"`
+	Error   string `json:"error,omitempty"`
+	// Blocking: the check that fails now; Names: the failing checks on the rebased head; MovedFrom/MovedTo: the head
+	// expected and the one found; Minutes: the CI wait that ran out.
+	Blocking   *MergeCheck `json:"blocking,omitempty"`
+	Names      []string    `json:"names,omitempty"`
+	MovedFrom  string      `json:"movedfrom,omitempty"`
+	MovedTo    string      `json:"movedto,omitempty"`
+	Minutes    int         `json:"minutes,omitempty"`
+	Updated    bool        `json:"updated,omitempty"`
+	Overridden []string    `json:"overridden,omitempty"`
+	StartedAt  int64       `json:"startedat"`
+	EndedAt    int64       `json:"endedat,omitempty"`
 	// CleanupRunning: the post-merge hook runs; its outcome is the store's State.Cleanup.
 	CleanupRunning bool `json:"cleanuprunning,omitempty"`
 }
@@ -210,20 +283,25 @@ type Merger struct {
 	running map[PrKey]*runningMerge
 	// done is closed when a merge's goroutine ends; tests wait on it.
 	done map[PrKey]chan struct{}
+	// What GitHub said of the repositories' merge methods and of their base branches' rules, for the session.
+	repoMethods map[string]repoMethods
+	branchRules map[string]branchRules
 }
 
 func MakeMerger(store *Store, gh GhRunner, publish func(k PrKey, state State)) *Merger {
 	return &Merger{
-		gh:        gh,
-		store:     store,
-		publish:   publish,
-		now:       time.Now,
-		pollEvery: defaultPollEvery,
-		ciTimeout: defaultCiTimeout,
-		sleep:     sleepCtx,
-		plans:     map[PrKey]MergePlan{},
-		running:   map[PrKey]*runningMerge{},
-		done:      map[PrKey]chan struct{}{},
+		gh:          gh,
+		store:       store,
+		publish:     publish,
+		now:         time.Now,
+		pollEvery:   defaultPollEvery,
+		ciTimeout:   defaultCiTimeout,
+		sleep:       sleepCtx,
+		plans:       map[PrKey]MergePlan{},
+		running:     map[PrKey]*runningMerge{},
+		done:        map[PrKey]chan struct{}{},
+		repoMethods: map[string]repoMethods{},
+		branchRules: map[string]branchRules{},
 	}
 }
 
@@ -246,7 +324,7 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 }
 
 func maskTokens(text string) string {
-	return ghTokenRe.ReplaceAllString(text, "<github-token>")
+	return molten.MaskGitHubTokens(text)
 }
 
 func shortHead(oid string) string {
@@ -305,6 +383,7 @@ func namesIn(checks []mission.ReviewCheck, state string) []string {
 	return rtn
 }
 
+// listNames is for the log only; the sheet lists the names itself.
 func listNames(names []string) string {
 	const shown = 3
 	if len(names) <= shown {
@@ -314,7 +393,7 @@ func listNames(names []string) string {
 }
 
 func ciCheck(ci mission.ReviewCi) MergeCheck {
-	check := MergeCheck{Id: CheckIdCi, Label: "CI is green, local-* statuses included"}
+	check := MergeCheck{Id: CheckIdCi}
 	local := 0
 	for _, c := range ci.Checks {
 		if c.Local {
@@ -323,20 +402,15 @@ func ciCheck(ci mission.ReviewCi) MergeCheck {
 	}
 	switch ci.State {
 	case mission.ReviewCheckFailure:
-		check.State = CheckFail
-		check.Detail = fmt.Sprintf("%d failing: %s", ci.Failure, listNames(namesIn(ci.Checks, mission.ReviewCheckFailure)))
+		check.State, check.Code, check.Count = CheckFail, CheckCodeFailing, ci.Failure
+		check.Names = namesIn(ci.Checks, mission.ReviewCheckFailure)
 	case mission.ReviewCheckPending:
-		check.State = CheckPending
-		check.Detail = fmt.Sprintf("%d still running: %s", ci.Pending, listNames(namesIn(ci.Checks, mission.ReviewCheckPending)))
+		check.State, check.Code, check.Count = CheckPending, CheckCodeRunning, ci.Pending
+		check.Names = namesIn(ci.Checks, mission.ReviewCheckPending)
 	case mission.ReviewCheckNone:
-		check.State = CheckOk
-		check.Detail = "No check reported on this pull request"
+		check.State, check.Code = CheckOk, CheckCodeNoCheck
 	default:
-		check.State = CheckOk
-		check.Detail = fmt.Sprintf("%d passed", ci.Success)
-		if local > 0 {
-			check.Detail += fmt.Sprintf(", %d of them local", local)
-		}
+		check.State, check.Code, check.Count, check.Local = CheckOk, CheckCodePassed, ci.Success, local
 	}
 	return check
 }
@@ -345,51 +419,39 @@ func ciCheck(ci mission.ReviewCi) MergeCheck {
 // merge; warnings need the developer's confirmation.
 func evaluate(pr ghMergePr, ci mission.ReviewCi, unpublished int, restart *Round) []MergeCheck {
 	var checks []MergeCheck
-	open := MergeCheck{Id: CheckIdOpen, Label: "Open and ready for review", State: CheckOk}
+	open := MergeCheck{Id: CheckIdOpen, State: CheckOk}
 	switch {
 	case !strings.EqualFold(pr.State, "OPEN"):
-		open.State = CheckFail
-		open.Detail = fmt.Sprintf("The pull request is %s", strings.ToLower(pr.State))
+		open.State, open.Code, open.PrState = CheckFail, CheckCodeNotOpen, strings.ToLower(pr.State)
 	case pr.IsDraft:
-		open.State = CheckFail
-		open.Detail = "The pull request is a draft: mark it ready for review first"
+		open.State, open.Code = CheckFail, CheckCodeDraft
 	}
 	checks = append(checks, open, ciCheck(ci))
 	mergeState := strings.ToUpper(pr.MergeStateStatus)
-	conflict := MergeCheck{Id: CheckIdConflict, Label: "No conflict with the base", State: CheckOk}
-	switch {
-	case strings.EqualFold(pr.Mergeable, "CONFLICTING") || mergeState == "DIRTY":
-		conflict.State = CheckFail
-		conflict.Detail = fmt.Sprintf("The branch conflicts with %s: it needs a rebase (Restart work can hand it to an agent)", pr.BaseRefName)
-	case strings.EqualFold(pr.Mergeable, "UNKNOWN") || mergeState == "UNKNOWN" || mergeState == "":
-		conflict.State = CheckPending
-		conflict.Detail = "GitHub is still computing whether it merges cleanly: re-check in a moment"
+	conflict := MergeCheck{Id: CheckIdConflict, State: CheckOk, Base: pr.BaseRefName}
+	switch mission.ReviewConflictOf(pr.Mergeable, pr.MergeStateStatus) {
+	case mission.ReviewConflictConflicting:
+		conflict.State, conflict.Code = CheckFail, CheckCodeConflicting
+	case mission.ReviewConflictComputing:
+		conflict.State, conflict.Code = CheckPending, CheckCodeComputing
 	}
 	checks = append(checks, conflict)
-	blocked := MergeCheck{Id: CheckIdBlocked, Label: "Not blocked by the repository's rules", State: CheckOk}
+	blocked := MergeCheck{Id: CheckIdBlocked, State: CheckOk}
 	if mergeState == "BLOCKED" {
-		blocked.State = CheckFail
-		blocked.Detail = "GitHub blocks the merge: a required check or review is missing"
+		blocked.State, blocked.Code = CheckFail, CheckCodeBlocked
 	}
 	checks = append(checks, blocked)
 	if mergeState == "BEHIND" {
-		checks = append(checks, MergeCheck{
-			Id:     CheckIdBehind,
-			Label:  "Up to date with the base",
-			State:  CheckInfo,
-			Detail: fmt.Sprintf("Behind %s: GitHub rebases it first, then the merge waits for CI on the new head", pr.BaseRefName),
-		})
+		checks = append(checks, MergeCheck{Id: CheckIdBehind, State: CheckInfo, Code: CheckCodeBehind, Base: pr.BaseRefName})
 	}
-	comments := MergeCheck{Id: CheckIdComments, Label: "No unpublished comment", State: CheckOk}
+	comments := MergeCheck{Id: CheckIdComments, State: CheckOk}
 	if unpublished > 0 {
-		comments.State = CheckWarn
-		comments.Detail = fmt.Sprintf("%d comment(s) written in MoltenTerm are not published: they stay here, unpublished", unpublished)
+		comments.State, comments.Code, comments.Count = CheckWarn, CheckCodeUnpublished, unpublished
 	}
 	checks = append(checks, comments)
-	restartCheck := MergeCheck{Id: CheckIdRestart, Label: "No restart of the work in flight", State: CheckOk}
+	restartCheck := MergeCheck{Id: CheckIdRestart, State: CheckOk}
 	if restart != nil {
-		restartCheck.State = CheckWarn
-		restartCheck.Detail = "Restart work was sent on this head and nothing was pushed since: an agent may still be working on it"
+		restartCheck.State, restartCheck.Code = CheckWarn, CheckCodeInFlight
 	}
 	checks = append(checks, restartCheck)
 	return checks
@@ -408,17 +470,13 @@ func restartInFlight(state State, head string) *Round {
 	return &last
 }
 
-func blockingOf(checks []MergeCheck) (bool, string) {
+func blockingOf(checks []MergeCheck) *MergeCheck {
 	for _, c := range checks {
 		if c.State == CheckFail || c.State == CheckPending {
-			reason := c.Detail
-			if reason == "" {
-				reason = c.Label
-			}
-			return true, reason
+			return &c
 		}
 	}
-	return false, ""
+	return nil
 }
 
 func warningsOf(checks []MergeCheck) []string {
@@ -476,7 +534,7 @@ func (m *Merger) Plan(ctx context.Context, req MergePlanRequest) (MergePlan, err
 		return MergePlan{}, err
 	}
 	checks := evaluate(pr, ci, unpublished, restartInFlight(state, pr.HeadRefOid))
-	blocked, reason := blockingOf(checks)
+	blocking := blockingOf(checks)
 	plan := MergePlan{
 		Id:         uuid.NewString(),
 		Repo:       req.Repo,
@@ -493,12 +551,16 @@ func (m *Merger) Plan(ctx context.Context, req MergePlanRequest) (MergePlan, err
 		Mergeable:  pr.Mergeable,
 		Behind:     strings.EqualFold(pr.MergeStateStatus, "BEHIND"),
 		Checks:     checks,
-		CanMerge:   !blocked,
-		Reason:     reason,
+		CanMerge:   blocking == nil,
 		Warnings:   warningsOf(checks),
 		CreatedAt:  m.now().UnixMilli(),
 		ciNames:    checkNames(ci.Checks),
 	}
+	if blocking != nil {
+		plan.Blocking = blocking.Id
+	}
+	methods := m.planMethods(ctx, req.Dir, req.Repo, pr.BaseRefName)
+	plan.Methods, plan.Method, plan.MethodRule, plan.Queue = methods.methods, methods.method, methods.rule, methods.queue
 	plan.Steps = planSteps(plan)
 	plan.Cleanup = currentPostMerge().Plan(ctx, plan.mergedPr("", ""))
 	if plan.Cleanup == nil {
@@ -510,18 +572,11 @@ func (m *Merger) Plan(ctx context.Context, req MergePlanRequest) (MergePlan, err
 
 func planSteps(plan MergePlan) []MergeStep {
 	var steps []MergeStep
-	if plan.Behind {
-		steps = append(steps,
-			MergeStep{Id: StepUpdate, Label: fmt.Sprintf("GitHub rebases %s on %s", plan.HeadRef, plan.BaseRef), Detail: "gh pr update-branch --rebase"},
-			MergeStep{Id: StepWaitCi, Label: "Wait for CI on the rebased head", Detail: "The merge goes on only when every check passed again"},
-		)
+	// A merge queue brings the branch up to date itself.
+	if plan.Behind && !plan.Queue {
+		steps = append(steps, MergeStep{Id: StepUpdate}, MergeStep{Id: StepWaitCi})
 	}
-	steps = append(steps, MergeStep{
-		Id:     StepMerge,
-		Label:  fmt.Sprintf("Rebase and merge into %s, then delete %s on GitHub", plan.BaseRef, plan.HeadRef),
-		Detail: fmt.Sprintf("Bound to head %s: refused if anything is pushed after this plan", shortHead(plan.HeadOid)),
-	})
-	return steps
+	return append(steps, MergeStep{Id: StepMerge})
 }
 
 func (p MergePlan) mergedPr(head string, merged string) MergedPr {
@@ -543,21 +598,27 @@ func (m *Merger) takePlan(req MergeRequest) (MergePlan, *runningMerge, chan stru
 	defer m.lock.Unlock()
 	k := req.PrKey
 	if m.running[k] != nil {
-		return MergePlan{}, nil, nil, fmt.Errorf("a merge of #%d is already running", k.Number)
+		return MergePlan{}, nil, nil, mergeError(MergeErrRunning)
 	}
 	plan, ok := m.plans[k]
 	if !ok || plan.Id != req.PlanId {
-		return MergePlan{}, nil, nil, fmt.Errorf("this plan is no longer current: Validate again")
+		return MergePlan{}, nil, nil, mergeError(MergeErrStale)
 	}
 	if m.now().Sub(time.UnixMilli(plan.CreatedAt)) > planMaxAge {
 		delete(m.plans, k)
-		return MergePlan{}, nil, nil, fmt.Errorf("this plan is more than %d minutes old: Validate again", int(planMaxAge.Minutes()))
+		return MergePlan{}, nil, nil, mergeError(MergeErrOld)
 	}
 	if !plan.CanMerge {
-		return MergePlan{}, nil, nil, fmt.Errorf("the plan does not allow the merge: %s", plan.Reason)
+		return MergePlan{}, nil, nil, mergeError(MergeErrBlocked)
 	}
 	if len(plan.Warnings) > 0 && !req.Override {
-		return MergePlan{}, nil, nil, fmt.Errorf("confirm the plan's warnings to merge anyway")
+		return MergePlan{}, nil, nil, mergeError(MergeErrConfirm)
+	}
+	if req.Method != "" && !hasMethod(plan.Methods, req.Method) {
+		return MergePlan{}, nil, nil, mergeError(MergeErrMethod)
+	}
+	if req.Method != "" {
+		plan.Method = req.Method
 	}
 	delete(m.plans, k)
 	run := &runningMerge{planId: plan.Id}
@@ -584,9 +645,15 @@ func (m *Merger) Merge(req MergeRequest) (MergeRecord, error) {
 	if err != nil {
 		return MergeRecord{}, err
 	}
-	record := MergeRecord{PlanId: plan.Id, Method: MergeMethodRebase, PlanHead: plan.HeadOid, Head: plan.HeadOid, State: MergeChecking, StartedAt: m.now().UnixMilli()}
+	record := MergeRecord{PlanId: plan.Id, Method: plan.Method, PlanHead: plan.HeadOid, Head: plan.HeadOid, State: MergeChecking, StartedAt: m.now().UnixMilli()}
 	if req.Override {
 		record.Overridden = plan.Warnings
+	}
+	// The developer's choice is the repository's next default, whatever GitHub then answers.
+	if !plan.Queue {
+		if err := m.store.SetLastMergeMethod(plan.Repo, plan.Method); err != nil {
+			log.Printf("%s %s: the merge method could not be kept: %v\n", logPrefix, plan.Repo, err)
+		}
 	}
 	m.record(req.PrKey, record)
 	ctx, cancel := context.WithTimeout(context.Background(), m.ciTimeout+10*time.Minute)
@@ -612,7 +679,7 @@ func (m *Merger) Cancel(k PrKey) error {
 	defer m.lock.Unlock()
 	run := m.running[k]
 	if run == nil || run.cancel == nil {
-		return fmt.Errorf("no merge of #%d is running", k.Number)
+		return mergeError(MergeErrNotFound)
 	}
 	run.cancel()
 	return nil
@@ -642,45 +709,53 @@ func (m *Merger) record(k PrKey, record MergeRecord) {
 	}
 }
 
-func (m *Merger) end(k PrKey, record MergeRecord, state string, refused string, message string) MergeRecord {
+// end records the outcome: its state, why it was refused, and the code the sheet writes it from. The record's data
+// (Blocking, Names, MovedFrom, ...) are set by the caller; err is the raw error, if any.
+func (m *Merger) end(k PrKey, record MergeRecord, state string, refused string, code string, err error) MergeRecord {
 	record.State = state
 	record.Refused = refused
-	record.Message = maskTokens(message)
+	record.Code = code
+	if err != nil {
+		record.Error = maskTokens(err.Error())
+	}
 	m.record(k, record)
-	log.Printf("%s %s#%d merge %s: %s\n", logPrefix, k.Repo, k.Number, state, record.Message)
+	log.Printf("%s %s#%d merge %s: %s %s\n", logPrefix, k.Repo, k.Number, state, code, record.Error)
 	return record
 }
 
-func headMovedMessage(head string, planHead string) string {
-	return fmt.Sprintf("New commits were pushed since the plan (head %s, the plan was made for %s): review them, then Validate again", shortHead(head), shortHead(planHead))
+func headMoved(record MergeRecord, head string, expected string) MergeRecord {
+	record.MovedFrom = expected
+	record.MovedTo = head
+	return record
 }
 
 func (m *Merger) run(ctx context.Context, plan MergePlan, record MergeRecord) {
 	k := PrKey{Repo: plan.Repo, Number: plan.Number}
 	pr, ci, unpublished, state, err := m.inputs(ctx, plan.Dir, k)
 	if err != nil {
-		m.end(k, record, MergeFailed, "", "The pull request could not be read again before the merge: "+err.Error())
+		m.end(k, record, MergeFailed, "", MergeCodeReread, err)
 		return
 	}
 	if strings.EqualFold(pr.State, "MERGED") {
-		m.end(k, record, MergeRefused, RefusedMergedAway, "The pull request was merged outside MoltenTerm")
+		m.end(k, record, MergeRefused, RefusedMergedAway, MergeCodeMergedAway, nil)
 		return
 	}
 	if pr.HeadRefOid != plan.HeadOid {
-		m.end(k, record, MergeRefused, RefusedHeadMoved, headMovedMessage(pr.HeadRefOid, plan.HeadOid))
+		m.end(k, headMoved(record, pr.HeadRefOid, plan.HeadOid), MergeRefused, RefusedHeadMoved, MergeCodeHeadMoved, nil)
 		return
 	}
 	checks := evaluate(pr, ci, unpublished, restartInFlight(state, pr.HeadRefOid))
-	if blocked, reason := blockingOf(checks); blocked {
-		m.end(k, record, MergeRefused, RefusedCheck, "Not merged: "+reason)
+	if blocking := blockingOf(checks); blocking != nil {
+		record.Blocking = blocking
+		m.end(k, record, MergeRefused, RefusedCheck, MergeCodeCheck, nil)
 		return
 	}
 	if !record.overrides(warningsOf(checks)) {
-		m.end(k, record, MergeRefused, RefusedCheck, "Not merged: a new warning appeared since the plan, Validate again")
+		m.end(k, record, MergeRefused, RefusedCheck, MergeCodeNewWarning, nil)
 		return
 	}
 	head := plan.HeadOid
-	if strings.EqualFold(pr.MergeStateStatus, "BEHIND") {
+	if strings.EqualFold(pr.MergeStateStatus, "BEHIND") && !plan.Queue {
 		var ok bool
 		head, record, ok = m.updateAndWait(ctx, plan, record)
 		if !ok {
@@ -690,20 +765,30 @@ func (m *Merger) run(ctx context.Context, plan MergePlan, record MergeRecord) {
 	record.State = MergeMerging
 	record.Head = head
 	m.record(k, record)
-	_, err = m.runGh(ctx, plan.Dir, plan.Repo, "pr", "merge", strconv.Itoa(plan.Number), "--rebase", "--delete-branch", "--match-head-commit", head)
+	_, err = m.runGh(ctx, plan.Dir, plan.Repo, mergeArgs(strconv.Itoa(plan.Number), record.Method, plan.Queue, head)...)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "head branch was modified") {
-			m.end(k, record, MergeRefused, RefusedHeadMoved, "GitHub refused the merge because the branch moved: review the new commits, then Validate again")
+			m.end(k, record, MergeRefused, RefusedHeadMoved, MergeCodeGithubMoved, err)
 			return
 		}
-		m.end(k, record, MergeFailed, "", "The merge failed and is not retried: "+err.Error())
+		m.forgetMethods(plan.Repo)
+		m.end(k, record, MergeFailed, "", MergeCodeMergeError, err)
 		return
 	}
-	if after, err := m.viewPr(ctx, plan.Dir, k); err == nil && after.MergeCommit != nil {
+	after, err := m.viewPr(ctx, plan.Dir, k)
+	if err == nil && strings.EqualFold(after.State, "OPEN") {
+		// A merge queue (one the plan saw, or a branch protection's) took the PR: GitHub merges it later.
+		var ok bool
+		after, record, ok = m.waitQueue(ctx, plan, record, head)
+		if !ok {
+			return
+		}
+	}
+	if err == nil && after.MergeCommit != nil {
 		record.MergedOid = after.MergeCommit.Oid
 	}
 	record.CleanupRunning = true
-	record = m.end(k, record, MergeMerged, "", fmt.Sprintf("Rebased and merged into %s at %s", plan.BaseRef, shortHead(head)))
+	record = m.end(k, record, MergeMerged, "", MergeCodeMerged, nil)
 	m.cleanup(plan, record, head)
 }
 
@@ -731,14 +816,15 @@ func (m *Merger) cleanup(plan MergePlan, record MergeRecord, head string) {
 	m.record(k, record)
 }
 
-// updateAndWait has GitHub rebase the branch on its base (gh pr update-branch --rebase), then waits until CI passed
-// on the new head (AC3). Another head move while waiting refuses: only GitHub's rebase of the planned head is merged.
+// updateAndWait has GitHub update the branch with its base (gh pr update-branch, --rebase for a rebase merge), then
+// waits until CI passed on the new head (AC3). Another head move while waiting refuses: only GitHub's update of the
+// planned head is merged.
 func (m *Merger) updateAndWait(ctx context.Context, plan MergePlan, record MergeRecord) (string, MergeRecord, bool) {
 	k := PrKey{Repo: plan.Repo, Number: plan.Number}
 	record.State = MergeUpdating
 	m.record(k, record)
-	if _, err := m.runGh(ctx, plan.Dir, plan.Repo, "pr", "update-branch", strconv.Itoa(plan.Number), "--rebase"); err != nil {
-		m.end(k, record, MergeFailed, "", "GitHub could not rebase the branch on its base: "+err.Error())
+	if _, err := m.runGh(ctx, plan.Dir, plan.Repo, updateBranchArgs(strconv.Itoa(plan.Number), record.Method)...); err != nil {
+		m.end(k, record, MergeFailed, "", MergeCodeUpdateError, err)
 		return "", record, false
 	}
 	record.Updated = true
@@ -750,18 +836,19 @@ func (m *Merger) updateAndWait(ctx context.Context, plan MergePlan, record Merge
 	blockedPolls := 0
 	for {
 		if !m.sleep(ctx, m.pollEvery) {
-			m.end(k, record, MergeCancelled, "", "Stopped while waiting for CI: nothing was merged")
+			m.end(k, record, MergeCancelled, "", MergeCodeStopped, nil)
 			return "", record, false
 		}
 		if m.now().After(deadline) {
-			m.end(k, record, MergeFailed, "", fmt.Sprintf("CI did not finish on the rebased head within %d minutes: nothing was merged", int(m.ciTimeout.Minutes())))
+			record.Minutes = int(m.ciTimeout.Minutes())
+			m.end(k, record, MergeFailed, "", MergeCodeCiTimeout, nil)
 			return "", record, false
 		}
 		pr, err := m.viewPr(ctx, plan.Dir, k)
 		if err != nil {
 			errors++
 			if errors >= maxPollErrors {
-				m.end(k, record, MergeFailed, "", "The pull request could not be read while waiting for CI: "+err.Error())
+				m.end(k, record, MergeFailed, "", MergeCodePollError, err)
 				return "", record, false
 			}
 			continue
@@ -776,44 +863,54 @@ func (m *Merger) updateAndWait(ctx context.Context, plan MergePlan, record Merge
 			record.Head = newHead
 			m.record(k, record)
 		} else if pr.HeadRefOid != newHead {
-			m.end(k, record, MergeRefused, RefusedHeadMoved, headMovedMessage(pr.HeadRefOid, newHead))
+			m.end(k, headMoved(record, pr.HeadRefOid, newHead), MergeRefused, RefusedHeadMoved, MergeCodeHeadMoved, nil)
 			return "", record, false
 		}
-		done, outcome, refused, message := ciOnNewHead(pr, plan.ciNames)
-		if !done && refused != "" {
+		verdict := ciOnNewHead(pr, plan.ciNames)
+		if !verdict.done && verdict.refused != "" {
 			// Every check passed but GitHub still blocks: past a short grace, a missing review will not come by itself.
 			blockedPolls++
 			if blockedPolls >= maxBlockedPolls {
-				m.end(k, record, MergeRefused, refused, message+": nothing was merged")
+				m.end(k, record, MergeRefused, verdict.refused, verdict.code, nil)
 				return "", record, false
 			}
 			continue
 		}
 		blockedPolls = 0
-		if !done {
+		if !verdict.done {
 			continue
 		}
-		if outcome != "" {
-			m.end(k, record, outcome, refused, message)
+		if verdict.outcome != "" {
+			record.Names = verdict.names
+			m.end(k, record, verdict.outcome, verdict.refused, verdict.code, nil)
 			return "", record, false
 		}
 		return newHead, record, true
 	}
 }
 
+// ciVerdict: done when the wait is over; outcome is set when the merge must stop, with its code.
+type ciVerdict struct {
+	done    bool
+	outcome string
+	refused string
+	code    string
+	names   []string
+}
+
 // ciOnNewHead tells whether the rebased head can be merged: every check the plan saw has run again and passed, and
-// GitHub says it merges cleanly. outcome is set when the merge must stop.
-func ciOnNewHead(pr ghMergePr, planChecks []string) (bool, string, string, string) {
+// GitHub says it merges cleanly.
+func ciOnNewHead(pr ghMergePr, planChecks []string) ciVerdict {
 	ci, err := mission.ParseReviewChecks(pr.StatusCheckRollup)
 	if err != nil {
-		return false, "", "", ""
+		return ciVerdict{}
 	}
 	if failing := namesIn(ci.Checks, mission.ReviewCheckFailure); len(failing) > 0 {
-		return true, MergeFailed, "", "CI failed on the rebased head (" + listNames(failing) + "): nothing was merged"
+		return ciVerdict{done: true, outcome: MergeFailed, code: MergeCodeCiFailed, names: failing}
 	}
 	mergeState := strings.ToUpper(pr.MergeStateStatus)
 	if strings.EqualFold(pr.Mergeable, "CONFLICTING") || mergeState == "DIRTY" {
-		return true, MergeFailed, "", "The rebased branch conflicts with its base: nothing was merged"
+		return ciVerdict{done: true, outcome: MergeFailed, code: MergeCodeConflict}
 	}
 	present := map[string]bool{}
 	for _, c := range ci.Checks {
@@ -821,21 +918,21 @@ func ciOnNewHead(pr ghMergePr, planChecks []string) (bool, string, string, strin
 	}
 	for _, name := range planChecks {
 		if !present[name] {
-			return false, "", "", ""
+			return ciVerdict{}
 		}
 	}
 	if ci.Pending > 0 {
-		return false, "", "", ""
+		return ciVerdict{}
 	}
 	switch mergeState {
 	case "BEHIND":
-		return true, MergeRefused, RefusedBaseMoved, "The base moved again while CI ran: nothing was merged, Validate again"
+		return ciVerdict{done: true, outcome: MergeRefused, refused: RefusedBaseMoved, code: MergeCodeBaseMoved}
 	case "CLEAN", "HAS_HOOKS", "UNSTABLE":
-		return true, "", "", ""
+		return ciVerdict{done: true}
 	}
 	if mergeState == "BLOCKED" {
-		return false, "", RefusedCheck, "GitHub blocks the merge of the rebased head: a required check or review is missing"
+		return ciVerdict{refused: RefusedCheck, code: MergeCodeRebasedBlocked}
 	}
 	// UNKNOWN: GitHub has not caught up with the finished checks yet.
-	return false, "", "", ""
+	return ciVerdict{}
 }

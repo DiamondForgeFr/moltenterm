@@ -74,6 +74,13 @@ type fakeGh struct {
 	viewed   int
 	calls    [][]string
 	mergeErr error
+	// repo, rules: what gh api answers about the repository and the base's rules; repo "" allows rebase only.
+	repo     string
+	repoErr  error
+	rules    string
+	apiCalls []string
+	// queue: a merge queue takes the PR; the script says when it is merged.
+	queue bool
 	// onCall changes the views when a write is made (GitHub rebasing the branch).
 	onCall func(g *fakeGh, args []string)
 }
@@ -81,6 +88,22 @@ type fakeGh struct {
 func (g *fakeGh) run(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
+	if len(args) == 2 && args[0] == "api" {
+		g.apiCalls = append(g.apiCalls, args[1])
+		if strings.Contains(args[1], "/rules/branches/") {
+			if g.rules == "" {
+				return []byte("[]"), nil
+			}
+			return []byte(g.rules), nil
+		}
+		if g.repoErr != nil {
+			return nil, g.repoErr
+		}
+		if g.repo == "" {
+			return []byte(`{"allow_merge_commit":false,"allow_squash_merge":false,"allow_rebase_merge":true}`), nil
+		}
+		return []byte(g.repo), nil
+	}
 	if len(args) < 2 || args[len(args)-2] != "--repo" || args[len(args)-1] != testRepo {
 		return nil, fmt.Errorf("gh called without --repo: %v", args)
 	}
@@ -97,9 +120,27 @@ func (g *fakeGh) run(ctx context.Context, dir string, args ...string) ([]byte, e
 		g.onCall(g, args)
 	}
 	if args[0] == "pr" && args[1] == "merge" {
+		if g.mergeErr == nil && !g.queue {
+			g.mergeNow()
+		}
 		return nil, g.mergeErr
 	}
 	return nil, nil
+}
+
+// mergeNow: without a merge queue, GitHub merges at once; a script whose next read is still open gets a merged one.
+func (g *fakeGh) mergeNow() {
+	i := g.viewed
+	if i >= len(g.views) {
+		i = len(g.views) - 1
+	}
+	next := g.views[i]
+	if next.State != "OPEN" {
+		return
+	}
+	next.State = "MERGED"
+	keep := min(g.viewed, len(g.views))
+	g.views = append(g.views[:keep:keep], next)
 }
 
 func (g *fakeGh) writes() [][]string {
@@ -118,7 +159,7 @@ func (h *fakeHook) Plan(ctx context.Context, pr MergedPr) []CleanupStepResult {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	h.planned++
-	return []CleanupStepResult{{Id: CleanupStepTicketClose, State: CleanupStatePlanned, Message: fmt.Sprintf("#%d", pr.Ticket)}}
+	return []CleanupStepResult{{Id: CleanupStepTicketClose, State: CleanupStatePlanned, Ticket: pr.Ticket}}
 }
 
 func (h *fakeHook) Run(ctx context.Context, pr MergedPr) {
@@ -166,19 +207,19 @@ func TestMergePlanClean(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !plan.CanMerge || plan.Reason != "" || len(plan.Warnings) != 0 {
+	if !plan.CanMerge || plan.Blocking != "" || len(plan.Warnings) != 0 {
 		t.Fatalf("plan should allow the merge: %+v", plan)
 	}
 	if plan.HeadOid != oidA || plan.Ticket != 590 || plan.Behind {
 		t.Errorf("plan: %+v", plan)
 	}
-	if ci := checkOf(plan, CheckIdCi); ci.State != CheckOk || !strings.Contains(ci.Detail, "2 passed, 1 of them local") {
+	if ci := checkOf(plan, CheckIdCi); ci.State != CheckOk || ci.Code != CheckCodePassed || ci.Count != 2 || ci.Local != 1 {
 		t.Errorf("ci check: %+v", ci)
 	}
-	if len(plan.Steps) != 1 || plan.Steps[0].Id != StepMerge || !strings.Contains(plan.Steps[0].Detail, "aaaaaaa") {
+	if len(plan.Steps) != 1 || plan.Steps[0].Id != StepMerge {
 		t.Errorf("steps: %+v", plan.Steps)
 	}
-	if len(plan.Cleanup) != 1 || plan.Cleanup[0].Message != "#590" {
+	if len(plan.Cleanup) != 1 || plan.Cleanup[0].Ticket != 590 {
 		t.Errorf("cleanup from the hook: %+v", plan.Cleanup)
 	}
 	if len(gh.writes()) != 0 {
@@ -215,7 +256,7 @@ func TestMergePlanBlocks(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if plan.CanMerge || plan.Reason == "" {
+			if plan.CanMerge || plan.Blocking != tc.check {
 				t.Fatalf("merge should be disabled with a reason: %+v", plan)
 			}
 			if c := checkOf(plan, tc.check); c.State != tc.state {
@@ -258,10 +299,10 @@ func TestMergeUnpublishedCommentIsAWarning(t *testing.T) {
 	if !plan.CanMerge || len(plan.Warnings) != 1 || plan.Warnings[0] != CheckIdComments {
 		t.Fatalf("warning expected: %+v", plan)
 	}
-	if c := checkOf(plan, CheckIdComments); !strings.HasPrefix(c.Detail, "2 comment(s)") {
+	if c := checkOf(plan, CheckIdComments); c.Code != CheckCodeUnpublished || c.Count != 2 {
 		t.Errorf("comments: %+v", c)
 	}
-	if _, err := m.Merge(MergeRequest{PrKey: testKey, PlanId: plan.Id}); err == nil || !strings.Contains(err.Error(), "warnings") {
+	if _, err := m.Merge(MergeRequest{PrKey: testKey, PlanId: plan.Id}); err == nil || err.Error() != mergeErrorPrefix+MergeErrConfirm {
 		t.Fatalf("merge without the override must be refused: %v", err)
 	}
 	rec, err := m.Merge(MergeRequest{PrKey: testKey, PlanId: plan.Id, Override: true})
@@ -336,7 +377,7 @@ func TestMergeRefusedAfterAPush(t *testing.T) {
 	}
 	m.wait(testKey)
 	state, _ := m.store.Get(testKey)
-	if state.Merge.State != MergeRefused || state.Merge.Refused != RefusedHeadMoved || !strings.Contains(state.Merge.Message, "review them") {
+	if state.Merge.State != MergeRefused || state.Merge.Refused != RefusedHeadMoved || state.Merge.Code != MergeCodeHeadMoved || state.Merge.MovedFrom != oidA || state.Merge.MovedTo == "" {
 		t.Fatalf("refused on the push: %+v", state.Merge)
 	}
 	if len(gh.writes()) != 0 || len(hook.runs) != 0 {
@@ -368,7 +409,7 @@ func TestMergeGithubRefusalIsNotRetried(t *testing.T) {
 	m2.Merge(MergeRequest{PrKey: testKey, PlanId: plan2.Id})
 	m2.wait(testKey)
 	state2, _ := m2.store.Get(testKey)
-	if state2.Merge.State != MergeFailed || strings.Contains(state2.Merge.Message, "ghp_") || !strings.Contains(state2.Merge.Message, "<github-token>") {
+	if state2.Merge.State != MergeFailed || state2.Merge.Code != MergeCodeMergeError || strings.Contains(state2.Merge.Error, "ghp_") || !strings.Contains(state2.Merge.Error, "<github-token>") {
 		t.Fatalf("failed with the token masked: %+v", state2.Merge)
 	}
 	if len(gh2.writes()) != 1 {
@@ -467,7 +508,7 @@ func TestMergeBehindCiFailsOrCancel(t *testing.T) {
 	m.Merge(MergeRequest{PrKey: testKey, PlanId: plan.Id})
 	m.wait(testKey)
 	state, _ := m.store.Get(testKey)
-	if state.Merge.State != MergeFailed || !strings.Contains(state.Merge.Message, "CI failed on the rebased head") {
+	if state.Merge.State != MergeFailed || state.Merge.Code != MergeCodeCiFailed || len(state.Merge.Names) == 0 {
 		t.Fatalf("failed: %+v", state.Merge)
 	}
 
@@ -533,12 +574,12 @@ func TestMergeCommandsAreWindowOnly(t *testing.T) {
 	link := &routeLink{service: service}
 	terminal := wshutil.RoutePrefix_Proc + "x"
 	for _, command := range []string{MergePlanCommand, MergeCommand, MergeCancelCommand} {
-		if _, err := link.handle(context.Background(), command, terminal, map[string]any{"repo": testRepo, "number": 7, "dir": "/tmp"}); err == nil {
+		if _, err := callAs(link, terminal, command, map[string]any{"repo": testRepo, "number": 7, "dir": "/tmp"}); err == nil {
 			t.Errorf("%s answered a terminal", command)
 		}
 	}
 	window := wshutil.RoutePrefix_Tab + "x"
-	data, err := link.handle(context.Background(), MergePlanCommand, window, map[string]any{"repo": testRepo, "number": 7, "dir": "/tmp"})
+	data, err := callAs(link, window, MergePlanCommand, map[string]any{"repo": testRepo, "number": 7, "dir": "/tmp"})
 	if err != nil {
 		t.Fatal(err)
 	}

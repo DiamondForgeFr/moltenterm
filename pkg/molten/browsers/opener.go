@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
@@ -148,11 +149,31 @@ func (o *Opener) launch(b Browser, page string) error {
 	if err != nil {
 		return fmt.Errorf("%s could not start: %w", b.Name, err)
 	}
-	log.Printf("molten: browser hand-off: %s %s\n", name, strings.Join(args, " "))
+	log.Printf("molten: browser hand-off: %s (%s) %s\n", b.Name, name, logSafeUrl(page))
 	if err := o.Run(name, args); err != nil {
-		return fmt.Errorf("%s could not start: %w", b.Name, err)
+		msg := err.Error()
+		if page != "" {
+			msg = strings.ReplaceAll(msg, page, logSafeUrl(page))
+		}
+		return fmt.Errorf("%s could not start: %s", b.Name, msg)
 	}
 	return nil
+}
+
+// logSafeUrl is what the log keeps of a page: its scheme and host. The path and the query may carry an OAuth code
+// or a signed link (#664).
+func logSafeUrl(page string) string {
+	if page == "" {
+		return "(no page)"
+	}
+	u, err := url.Parse(page)
+	if err != nil || u.Scheme == "" {
+		return "(unreadable address)"
+	}
+	if u.Host == "" {
+		return u.Scheme + ":"
+	}
+	return u.Scheme + "://" + u.Hostname()
 }
 
 // ExecRunner runs the command: `open` is waited for (it fails when the app cannot be launched); a browser started

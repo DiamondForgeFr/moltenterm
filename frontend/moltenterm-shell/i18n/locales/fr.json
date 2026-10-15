@@ -100,7 +100,12 @@
             "filter": "Fichiers texte"
         },
         "chooseFolder": "Choisir",
-        "images": "Images"
+        "images": "Images",
+        "openExternal": {
+            "message": "Ouvrir ce lien avec une autre application ?",
+            "detail": "{url}\n\nCe n'est pas une page web : l'application associée aux liens « {scheme} » va le traiter. Ne l'ouvrez que si vous faites confiance à sa provenance.",
+            "open": "Ouvrir"
+        }
     },
     "wave": {
         "tab": {
@@ -256,6 +261,8 @@
             "projectTabDetail": "où en est le projet : agents, branches, CI, versions, actions",
             "newTab": "Nouvel onglet",
             "reopenClosed": "Rouvrir le dernier panneau ou onglet fermé",
+            "splitPlace": "Diviser le panneau…",
+            "splitPlaceDetail": "choisir le côté : gauche, droite, haut ou bas",
             "newWorkspace": "Nouvel espace de travail",
             "editWorkspace": "Modifier l'espace de travail…",
             "editWorkspaceDetail": "nom, icône, couleur, projet, dossier",
@@ -729,6 +736,10 @@
             "browser:sites": {
                 "label": "Navigateur par site",
                 "description": "Les sites qui s'ouvrent toujours dans le navigateur de MoltenTerm ou dans celui installé."
+            },
+            "browser:sitepermissions": {
+                "label": "Autorisations des sites",
+                "description": "Ce que chaque site peut utiliser : caméra, micro, position, notifications."
             },
             "browser:agentsites": {
                 "label": "Permissions des agents par site",
@@ -1481,6 +1492,9 @@
         "items": {
             "split-right": "Diviser à droite",
             "split-down": "Diviser en bas",
+            "split-left": "Diviser à gauche",
+            "split-up": "Diviser en haut",
+            "split-place": "Diviser… (choisir le côté)",
             "split-chord": "Diviser dans une direction",
             "new-panel": "Nouveau panneau terminal",
             "close-panel": "Fermer le panneau",
@@ -1669,6 +1683,20 @@
             "siteDetail": "Il pourra lire les pages de ce site et y agir, avec vos connexions.",
             "allowOnce": "Autoriser une fois",
             "always": "Toujours pour ce site",
+            "block": "Bloquer"
+        },
+        "sitePermission": {
+            "aria": "Demande d'autorisation d'un site",
+            "title": "{site} veut {what}",
+            "detail": "Votre réponse est retenue pour ce site.",
+            "what": {
+                "camera": "utiliser votre caméra",
+                "microphone": "utiliser votre micro",
+                "cameraMicrophone": "utiliser votre caméra et votre micro",
+                "location": "connaître votre position",
+                "notifications": "afficher des notifications"
+            },
+            "allow": "Autoriser",
             "block": "Bloquer"
         },
         "engine": {
@@ -3283,7 +3311,9 @@
             "didNotOpen": "{name} ne s'est pas ouvert",
             "workspaceDidNotOpen": "Cet espace de travail ne s'est pas ouvert",
             "noAnswer": "Sa vue n'a pas répondu à temps, même après un nouvel essai.",
-            "reload": "Recharger"
+            "reload": "Recharger",
+            "workspace": "Espace de travail",
+            "openingName": "Ouverture de {name}"
         },
         "emptyState": {
             "details": "Détails"
@@ -3421,6 +3451,17 @@
             "editWidgets": "Modifier widgets.json",
             "label": "Outils",
             "reviews": "Revues · pull requests qui attendent votre revue",
+            "reviewsCounts": "Revues — {counts}",
+            "reviewsCount": {
+                "waiting": {
+                    "one": "1 en attente de revue",
+                    "other": "{count} en attente de revue"
+                },
+                "mergeable": {
+                    "one": "1 prête à fusionner",
+                    "other": "{count} prêtes à fusionner"
+                }
+            },
             "moreWidgets": "{count} widgets de plus",
             "apps": "Apps",
             "tips": "Astuces",
@@ -3720,8 +3761,20 @@
     "split": {
         "right": "Diviser à droite",
         "down": "Diviser en bas",
+        "left": "Diviser à gauche",
+        "up": "Diviser en haut",
         "dragToSize": "glisser pour redimensionner",
-        "tab": "Onglet"
+        "tab": "Onglet",
+        "place": {
+            "menu": "Diviser…",
+            "title": "Diviser le panneau",
+            "announce": "Choisissez où va le nouveau panneau : flèches, puis Entrée. Échap annule.",
+            "hint": "←↑→↓ choisir · ↵ diviser · Échap annuler",
+            "left": "Nouveau panneau à gauche",
+            "right": "Nouveau panneau à droite",
+            "up": "Nouveau panneau au-dessus",
+            "down": "Nouveau panneau en dessous"
+        }
     },
     "reopen": {
         "nothing": "Rien à rouvrir",
@@ -3760,7 +3813,9 @@
             "notification": "une notification attend",
             "untitled": "Panneau",
             "morePanelsOne": "+1 panneau",
-            "morePanels": "+{count} panneaux"
+            "morePanels": "+{count} panneaux",
+            "window": "Zone visible",
+            "windowHint": "faites glisser pour la déplacer, cliquez sur un panneau pour y aller"
         },
         "pin": {
             "pinBeside": "Épingler à côté",
@@ -3799,9 +3854,8 @@
         "reportsError": "Les rapports de test n'ont pas pu être lus ; ils apparaissent comme inconnus.",
         "waiting": "En attente de revue",
         "noneWaiting": "Aucune pull request en attente de revue vers",
-        "inTesting": "En test",
-        "draftOne": "1 brouillon",
-        "drafts": "{count} brouillons",
+        "draftsTitle": "Brouillons",
+        "noneDrafts": "Aucune pull request en brouillon vers",
         "openReview": "Ouvrir la revue",
         "opened": "ouverte {when}",
         "updated": "mise à jour {when}",
@@ -3809,18 +3863,63 @@
         "unpublishedTitle": "Commentaires écrits ici, pas encore publiés",
         "unpublished": "{count} non publié(s)",
         "merge": {
-            "clean": "propre",
-            "cleanTitle": "Peut être rebasée et fusionnée telle quelle.",
-            "behind": "en retard : sera rebasée",
-            "behindTitle": "En retard sur {base} : elle est rebasée sur {base} à la fusion.",
-            "conflicts": "conflits",
+            "clean": "prête à fusionner",
+            "cleanTitle": "Aucun conflit : peut être rebasée et fusionnée telle quelle.",
+            "behind": "en retard sur {base} : GitHub la met à jour",
+            "behindTitle": "En retard sur {base} : GitHub la rebase sur {base} à la fusion, puis la CI tourne à nouveau.",
+            "conflicts": "conflits avec {base}",
             "conflictsTitle": "Conflits avec {base} : la branche doit être rebasée avant de pouvoir être fusionnée.",
             "blocked": "bloquée",
             "blockedTitle": "GitHub bloque la fusion : une vérification ou une revue obligatoire manque.",
             "failing": "vérifications en échec",
             "failingTitle": "Fusionnable, mais certaines vérifications échouent.",
-            "pending": "état de fusion en attente",
-            "pendingTitle": "GitHub calcule encore l'état de fusion."
+            "pending": "vérification…",
+            "pendingTitle": "GitHub calcule encore si elle fusionne sans conflit."
+        },
+        "validate": {
+            "button": "Valider",
+            "title": "Rebaser et fusionner : ouvre la feuille Valider avec le plan",
+            "draft": "Brouillon : passez-le d'abord en prêt pour la revue.",
+            "conflicts": "Conflits avec {base} : demandez d'abord un rebase.",
+            "blocked": "GitHub bloque la fusion : une vérification ou une revue obligatoire manque.",
+            "failing": "Vérifications en échec ({count}) : corrigez-les d'abord."
+        },
+        "rebase": {
+            "button": "Demander un rebase",
+            "buttonTitle": "Confier le rebase sur {base} à l'agent qui travaille sur {branch}, ou en démarrer un",
+            "asking": "Demande…",
+            "chip": "Rebase demandé à {name}",
+            "chipTitle": "Affiché jusqu'à ce que la tête de la pull request change.",
+            "asked": "Rebase demandé à {name}.",
+            "typed": "Tapé dans l'invite de {name}, après ce qui s'y trouvait : appuyez sur Entrée dans son terminal pour l'envoyer.",
+            "offer": "Aucun agent ne travaille sur {branch}. En démarrer un avec la consigne de rebase ?",
+            "start": "Démarrer un agent",
+            "noagent": "Aucun agent de code pris en charge n'est installé : démarrez-en un dans {folder} et donnez-lui la consigne {brief}",
+            "working": "{name} travaille sur {branch} : redemandez une fois son travail terminé.",
+            "waiting": "{name} attend votre réponse : redemandez une fois son travail terminé.",
+            "inflight": "Un agent est déjà en cours de contact pour cette pull request.",
+            "notready": "{name} ne peut pas prendre le rebase maintenant : {message}",
+            "maincheckout": "{branch} est extraite dans le dossier principal du projet, où MoltenTerm ne démarre jamais d'agent : passez ce dossier sur une autre branche, puis redemandez.",
+            "terminal": "MoltenTerm n'atteint pas encore ses terminaux : réessayez dans un instant.",
+            "failed": "Le rebase n'a pas pu être demandé : {message}"
+        },
+        "ready": {
+            "button": "Prête pour la revue",
+            "buttonTitle": "Passer ce brouillon en revue sur GitHub",
+            "sending": "Passage en revue…",
+            "confirm": "GitHub préviendra les relecteurs ; la PR passe dans En attente de revue.",
+            "confirmButton": "Passer en revue",
+            "dismiss": "Fermer",
+            "draftChip": "Brouillon",
+            "draftChipTitle": "Cette pull request est un brouillon : l'analyse IA fonctionne, Valider attend qu'elle soit prête pour la revue.",
+            "failed": {
+                "closed": "Cette pull request est fermée : seul un brouillon ouvert peut passer en revue.",
+                "permission": "GitHub a refusé : votre compte ne peut pas modifier cette pull request.",
+                "auth": "gh est déconnecté : lancez gh auth login dans un terminal, puis réessayez.",
+                "notfound": "GitHub ne connaît plus cette pull request.",
+                "nogh": "gh n'est pas installé sur cet ordinateur.",
+                "error": "La pull request n'a pas pu passer en revue : {message}"
+            }
         },
         "ci": {
             "noneTitle": "Aucune vérification signalée sur cette pull request.",
@@ -3885,6 +3984,11 @@
         "notInPaneTitle": "Hors panneau",
         "notInPane": "hors panneau",
         "age": {
+            "now": "maintenant",
+            "seconds": "{count} s",
+            "minutes": "{count} min",
+            "hours": "{count} h",
+            "hoursMinutes": "{hours} h {minutes} min",
             "days": "{count} j"
         },
         "outputNow": "sortie à l'instant",
@@ -4165,26 +4269,6 @@
             "daysAgo": "il y a {count} jours",
             "moved": "{when}, sur {oid} : la PR a bougé depuis"
         },
-        "cleanup": {
-            "step": {
-                "pr": "PR fusionnée",
-                "ticketClose": "Ticket fermé",
-                "ticketDone": "Ticket passé en Done",
-                "reviewWorktree": "Worktree de revue supprimé",
-                "agentWorktree": "Worktree de l'agent supprimé",
-                "localBranch": "Branche locale supprimée",
-                "remoteBranch": "Branche distante supprimée",
-                "otherPrs": "Autres PR ouvertes mises à jour"
-            },
-            "state": {
-                "planned": "prévu",
-                "done": "fait",
-                "skipped": "ignoré",
-                "failed": "échoué"
-            },
-            "prRebased": "rebasée par GitHub",
-            "removeAgentWorktree": "Supprimer quand même le worktree de l'agent"
-        },
         "comment": {
             "state": {
                 "draft": "Brouillon",
@@ -4275,25 +4359,25 @@
             "markViewed": "Marquer comme vu"
         },
         "merge": {
-            "check": {
-                "ok": "Réussi",
-                "info": "Note",
-                "warn": "Avertissement",
-                "pending": "En attente",
-                "fail": "Échoué"
-            },
             "reading": "Lecture de la pull request…",
             "running": "Une fusion de cette pull request est en cours",
             "checkFails": "Une vérification ne passe pas",
             "confirmWarnings": "Confirmez les avertissements pour fusionner quand même",
             "updateThenMerge": "Mettre à jour, puis fusionner",
-            "rebaseAndMerge": "Rebaser et fusionner",
             "state": {
                 "checking": "Nouvelle lecture de la pull request…",
                 "updating": "GitHub rebase la branche sur {base}…",
-                "waitingci": "Attente de la CI sur le head rebasé…",
+                "waitingci": "Attente de la CI sur le head mis à jour…",
                 "merging": "Fusion…",
-                "merged": "Fusionnée"
+                "merged": "Fusionnée",
+                "updatingMerge": "GitHub fusionne {base} dans la branche…",
+                "queued": "Dans la file de fusion de {base} : attente de la fusion par GitHub…"
+            },
+            "button": {
+                "merge": "Fusionner",
+                "squash": "Squasher et fusionner",
+                "rebase": "Rebaser et fusionner",
+                "queue": "Ajouter à la file de fusion"
             }
         },
         "select": {
@@ -4312,11 +4396,33 @@
             "line": "ligne {line}",
             "lines": "lignes {start}–{end}"
         },
+        "done": {
+            "validated": "Validée",
+            "mergedGithub": "Fusionnée sur GitHub",
+            "closed": "Fermée sans fusion",
+            "mergedInto": "Fusionnée dans {base}",
+            "mergedIntoAt": "Fusionnée dans {base} en {oid}",
+            "mergedIntoTime": "Fusionnée dans {base}, {time}",
+            "mergedIntoAtTime": "Fusionnée dans {base} en {oid}, {time}",
+            "closedTitle": "Fermée sur GitHub sans fusion",
+            "closedAt": "Fermée sur GitHub sans fusion, {time}",
+            "showResult": "Cliquez pour voir le résultat de la validation.",
+            "tabMerged": "Fusionnée : vous pouvez fermer cet onglet",
+            "tabClosed": "Fermée sans fusion : vous pouvez fermer cet onglet",
+            "closeTab": "Fermer l'onglet de revue",
+            "keepOpen": "Le garder ouvert",
+            "footer": {
+                "cleaning": "Fusionnée. Le nettoyage se termine ; cet onglet de revue n'est plus utile.",
+                "needs": "Fusionnée. Un worktree conservé vous attend ci-dessus ; cet onglet de revue ne sera ensuite plus utile.",
+                "failed": "Fusionnée, mais une étape du nettoyage a échoué ci-dessus. Cet onglet de revue n'est plus utile.",
+                "done": "Fusionnée et nettoyée. Cet onglet de revue n'est plus utile."
+            }
+        },
         "validate": {
             "button": "Valider",
-            "buttonTitle": "Rebaser et fusionner cette pull request : affiche d'abord le plan",
+            "buttonTitle": "Fusionner cette pull request : affiche d'abord le plan",
             "title": "Valider #{number}",
-            "subtitle": "Rebaser et fusionner {head} dans {base}",
+            "subtitle": "Fusionner {head} dans {base}",
             "readingGithub": "Lecture de la pull request sur GitHub…",
             "reviewNewCommits": "Relire les nouveaux commits",
             "stopWaiting": "Arrêter d'attendre",
@@ -4324,16 +4430,324 @@
             "recheckTitle": "Relire la pull request",
             "recheck": "Revérifier",
             "mergeTitle": "Fusionner, lié au head {oid}",
-            "plannedOnBefore": "Planifié sur le head",
-            "plannedOnAfter": " : tout push après ce plan fait refuser la fusion.",
-            "checks": "Vérifications",
             "mergeAnyway": "Fusionner quand même : j'ai lu les avertissements ci-dessus.",
-            "steps": "Étapes",
-            "thenCleanup": "Puis le nettoyage",
             "mergeDisabled": "Fusion désactivée : {reason}",
-            "rebasedHead": "Rebasée par GitHub : head",
             "cleaningUp": "Nettoyage après la fusion…",
-            "cleanup": "Nettoyage"
+            "stepsLabel": "Étapes de la validation",
+            "andMore": "{names} et {count} de plus",
+            "notRun": "Non lancé : rien n'a été fusionné.",
+            "showFolder": "Afficher le worktree de l'agent dans son dossier",
+            "showReviewFolder": "Afficher le worktree de revue dans son dossier",
+            "state": {
+                "todo": "À faire",
+                "running": "En cours",
+                "done": "Fait",
+                "skipped": "Ignoré",
+                "needs": "À vous",
+                "failed": "Échec"
+            },
+            "step": {
+                "checks": "Vérifications",
+                "merge": {
+                    "merge": "Créer un commit de fusion sur {base}",
+                    "squash": "Squasher en un seul commit sur {base}",
+                    "rebase": "Rebaser sur {base}",
+                    "queue": "File de fusion de {base}"
+                },
+                "ticket": "Ticket",
+                "cleanup": "Nettoyage",
+                "others": "Autres pull requests ouvertes"
+            },
+            "check": {
+                "open": "Ouverte et prête pour la revue",
+                "ci": "CI au vert, statuts local-* compris",
+                "conflict": "Aucun conflit avec la base",
+                "blocked": "Pas bloquée par les règles du dépôt",
+                "behind": "À jour avec la base",
+                "comments": "Aucun commentaire non publié",
+                "restart": "Aucune reprise du travail en cours"
+            },
+            "checkCode": {
+                "notopen": "La pull request est {state}.",
+                "draft": "La pull request est un brouillon : marquez-la prête pour la revue d'abord.",
+                "failing": "{count} en échec : {names}",
+                "running": "{count} encore en cours : {names}",
+                "nocheck": "Aucune vérification signalée sur cette pull request.",
+                "passed": "{count} réussies",
+                "passedLocal": "{count} réussies, dont {local} locales",
+                "conflicting": "La branche est en conflit avec {base} : elle doit être rebasée (Reprendre le travail peut la confier à un agent).",
+                "computing": "GitHub calcule encore si elle fusionne proprement : revérifiez dans un instant.",
+                "blocked": "GitHub bloque la fusion : une vérification ou une revue obligatoire manque.",
+                "behind": "En retard sur {base} : GitHub la rebase d'abord, puis la fusion attend la CI sur le nouveau head.",
+                "unpublished": {
+                    "one": "1 commentaire écrit ici n'est pas publié : il reste ici, non publié.",
+                    "other": "{count} commentaires écrits ici ne sont pas publiés : ils restent ici, non publiés."
+                },
+                "inflight": "Une reprise du travail a été envoyée sur ce head et rien n'a été poussé depuis : un agent y travaille peut-être encore."
+            },
+            "checks": {
+                "allPass": {
+                    "one": "La vérification passe.",
+                    "other": "Les {count} vérifications passent."
+                },
+                "problems": {
+                    "one": "1 vérification demande votre attention.",
+                    "other": "{count} vérifications demandent votre attention."
+                },
+                "passedBefore": "Vérifiée avant la fusion.",
+                "show": "Afficher",
+                "hide": "Masquer"
+            },
+            "plan": {
+                "behind": {
+                    "rebase": "GitHub rebasera d'abord {head} sur {base}, puis attendra que la CI passe à nouveau sur le nouveau head.",
+                    "merge": "GitHub fusionnera d'abord {base} dans {head}, puis attendra que la CI passe à nouveau sur le nouveau head."
+                },
+                "merge": {
+                    "merge": "{head} sera fusionnée dans {base} avec un commit de fusion qui garde ses commits, puis supprimée sur GitHub.",
+                    "squash": "Les commits de {head} deviendront un seul commit sur {base}, avec le titre et le message que ce dépôt définit sur GitHub ; {head} est ensuite supprimée sur GitHub.",
+                    "rebase": "{head} sera rebasée et fusionnée dans {base}, puis supprimée sur GitHub.",
+                    "queue": "La pull request rejoint la file de fusion, qui la met à jour et la fusionne ; MoltenTerm attend qu'elle soit fusionnée."
+                },
+                "bound": "Lié au head {oid} : tout push après ce plan fait refuser la fusion.",
+                "rule": {
+                    "queue": "{base} fusionne par une file de fusion, en {method} : la file impose la méthode.",
+                    "ruleset": "Les règles de {base} autorisent : {methods}.",
+                    "linear": "{base} exige un historique linéaire : pas de commit de fusion.",
+                    "only": "Ce dépôt n'autorise que : {method}."
+                }
+            },
+            "outcome": {
+                "merged": {
+                    "merge": "Fusionnée dans {base} avec un commit de fusion, à {head}.",
+                    "squash": "Squashée en un seul commit sur {base}, depuis {head}.",
+                    "rebase": "Rebasée et fusionnée dans {base} à {head}."
+                },
+                "reread": "La pull request n'a pas pu être relue avant la fusion : rien n'a été fusionné.",
+                "mergedaway": "La pull request a été fusionnée hors de MoltenTerm.",
+                "headmoved": "De nouveaux commits ont été poussés depuis le plan (head {to}, le plan portait sur {from}) : relisez-les, puis validez à nouveau.",
+                "githubheadmoved": "GitHub a refusé la fusion car la branche a bougé : relisez les nouveaux commits, puis validez à nouveau.",
+                "check": "Non fusionnée : {reason}",
+                "newwarning": "Non fusionnée : un nouvel avertissement est apparu depuis le plan. Validez à nouveau.",
+                "mergeerror": "La fusion a échoué et n'est pas retentée.",
+                "updateerror": "GitHub n'a pas pu mettre la branche à jour avec sa base : rien n'a été fusionné.",
+                "stopped": "Arrêtée pendant l'attente de la CI : rien n'a été fusionné.",
+                "citimeout": "La CI n'a pas fini sur le head mis à jour en {minutes} minutes : rien n'a été fusionné.",
+                "pollerror": "La pull request n'a pas pu être lue pendant l'attente de la CI : rien n'a été fusionné.",
+                "cifailed": "La CI a échoué sur le head mis à jour ({names}) : rien n'a été fusionné.",
+                "conflict": "La branche mise à jour est en conflit avec sa base : rien n'a été fusionné.",
+                "basemoved": "La base a encore bougé pendant la CI : rien n'a été fusionné. Validez à nouveau.",
+                "rebasedblocked": "GitHub bloque la fusion du head mis à jour : une vérification ou une revue obligatoire manque. Rien n'a été fusionné.",
+                "state": {
+                    "refused": "La fusion a été refusée.",
+                    "failed": "La fusion a échoué.",
+                    "cancelled": "La fusion a été arrêtée."
+                },
+                "queueclosed": "La pull request a été fermée pendant qu'elle était dans la file de fusion : rien n'a été fusionné.",
+                "queuetimeout": "La file de fusion ne l'a pas fusionnée en {minutes} minutes : MoltenTerm a cessé d'attendre, la pull request est peut-être encore dans la file.",
+                "queuestopped": "Attente de la file de fusion arrêtée : la pull request reste dans la file, et GitHub peut encore la fusionner."
+            },
+            "error": {
+                "running": "Une fusion de cette pull request est déjà en cours.",
+                "stale": "Ce plan n'est plus à jour : validez à nouveau.",
+                "old": "Ce plan a plus de 30 minutes : validez à nouveau.",
+                "blocked": "Le plan ne permet pas la fusion : revérifiez.",
+                "confirm": "Confirmez les avertissements pour fusionner quand même.",
+                "nomerge": "Aucune fusion de cette pull request n'est en cours.",
+                "method": "Cette méthode de fusion n'est plus autorisée pour ce dépôt : validez à nouveau."
+            },
+            "loss": {
+                "files": {
+                    "one": "1 fichier non commité serait perdu : {names}",
+                    "other": "{count} fichiers non commités seraient perdus : {names}"
+                },
+                "commits": {
+                    "one": "1 commit n'est pas dans la pull request fusionnée et serait perdu : {names}",
+                    "other": "{count} commits ne sont pas dans la pull request fusionnée et seraient perdus : {names}"
+                },
+                "unknownCommits": "Git n'a pas pu dire si ses commits ont été fusionnés : ils pourraient être perdus.",
+                "nFiles": {
+                    "one": "1 fichier",
+                    "other": "{count} fichiers"
+                },
+                "nCommits": {
+                    "one": "1 commit",
+                    "other": "{count} commits"
+                },
+                "button": "Supprimer et perdre {what}",
+                "buttonUnknown": "Supprimer le worktree et sa branche",
+                "and": "{first} et {second}"
+            },
+            "cleanup": {
+                "plan": "Les worktrees et les branches seront supprimés, sauf si l'un contient du travail absent de la pull request fusionnée ou qu'un panneau y travaille encore.",
+                "fetchFailed": "Le fetch après la fusion a échoué : les branches ont été vérifiées avec ce que cet ordinateur avait déjà.",
+                "prNotMerged": "GitHub n'indique pas la pull request comme fusionnée : le nettoyage n'a pas été lancé.",
+                "prUnreadable": "La pull request fusionnée n'a pas pu être lue : le nettoyage n'a pas été lancé.",
+                "notConfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                "ignoredGone": {
+                    "one": "1 élément ignoré par git est parti avec lui ({names}) : rien à perdre, un build ou une installation le recrée.",
+                    "other": "{count} éléments ignorés par git sont partis avec lui ({names}) : rien à perdre, un build ou une installation les recrée."
+                },
+                "ticket-close": {
+                    "label": "Fermer le ticket",
+                    "plan": {
+                        "none": "#{ticket} sera fermé.",
+                        "noticket": "Rien à faire : aucun ticket trouvé pour cette pull request."
+                    },
+                    "did": {
+                        "closed": "#{ticket} fermé.",
+                        "alreadyclosed": "Rien à faire : #{ticket} était déjà fermé.",
+                        "noticket": "Rien à faire : aucun ticket trouvé pour cette pull request.",
+                        "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                        "none": "#{ticket} n'a pas pu être fermé."
+                    }
+                },
+                "ticket-done": {
+                    "label": "Passer le ticket en Done",
+                    "plan": {
+                        "none": "#{ticket} passera en Done.",
+                        "noticket": "Rien à faire : aucun ticket trouvé pour cette pull request.",
+                        "nosfworkflow": "Rien à faire : le projet n'a pas de tableau de workflow (sf-workflow)."
+                    },
+                    "did": {
+                        "moveddone": "#{ticket} passé en Done.",
+                        "alreadydone": "Rien à faire : #{ticket} était déjà en Done.",
+                        "noticket": "Rien à faire : aucun ticket trouvé pour cette pull request.",
+                        "nosfworkflow": "Rien à faire : le projet n'a pas de tableau de workflow (sf-workflow).",
+                        "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                        "none": "#{ticket} n'a pas pu passer en Done."
+                    }
+                },
+                "review-worktree": {
+                    "label": "Worktree de revue",
+                    "plan": {
+                        "willremove": "La copie de cette pull request faite par MoltenTerm sera supprimée.",
+                        "noreviewtree": "Rien à faire : cette revue a utilisé le worktree de l'agent.",
+                        "none": "La copie de cette pull request faite par MoltenTerm sera supprimée."
+                    },
+                    "did": {
+                        "removed": "Supprimé.",
+                        "noreviewtree": "Rien à faire : cette revue a utilisé le worktree de l'agent.",
+                        "notaworktree": "Laissé tel quel : {path} n'est pas un worktree du projet.",
+                        "kept": "Conservé : il contient des modifications faites pendant la revue, dans {path}.",
+                        "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                        "none": "Le worktree de revue n'a pas pu être supprimé.",
+                        "inuse": "Conservé : un panneau travaille encore dans {path}."
+                    }
+                },
+                "agent-worktree": {
+                    "label": "Worktree de l'agent",
+                    "plan": {
+                        "willremove": "{path} sera supprimé.",
+                        "noagenttree": "Rien à faire : aucun worktree n'a {branch} extraite.",
+                        "none": "Le worktree de l'agent sera supprimé."
+                    },
+                    "did": {
+                        "removed": "{path} supprimé.",
+                        "noagenttree": "Rien à faire : aucun worktree n'a {branch} extraite.",
+                        "refusedhome": "Laissé tel quel : MoltenTerm ne supprime jamais le dossier personnel.",
+                        "refusedrepo": "Laissé tel quel : {path} contient son dépôt.",
+                        "locked": "Laissé tel quel : le worktree est verrouillé.",
+                        "kept": "Conservé, avec {branch} : supprimer {path} perdrait du travail.",
+                        "alreadygone": "Rien à faire : il était déjà supprimé.",
+                        "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                        "none": "Le worktree de l'agent n'a pas pu être supprimé.",
+                        "inuse": "Conservé, avec {branch} : un panneau travaille encore dans {path}."
+                    }
+                },
+                "local-branch": {
+                    "label": "Branche locale",
+                    "plan": {
+                        "none": "{branch} sera supprimée."
+                    },
+                    "did": {
+                        "deleted": "{branch} supprimée.",
+                        "nolocalbranch": "Rien à faire : il n'y a pas de branche locale {branch}.",
+                        "treefailed": "Conservée : elle attend le worktree de l'agent, qui n'a pas pu être supprimé.",
+                        "inkepttree": "Conservée avec le worktree de l'agent.",
+                        "inmaincheckout": "Conservée : {branch} est extraite dans le dossier principal du projet.",
+                        "moved": "Conservée : {branch} a bougé depuis que vous avez choisi de la supprimer.",
+                        "kept": "Conservée : {branch} contient des commits absents de la pull request fusionnée.",
+                        "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                        "none": "{branch} n'a pas pu être supprimée."
+                    }
+                },
+                "remote-branch": {
+                    "label": "Branche distante",
+                    "plan": {
+                        "none": "origin/{branch} sera supprimée avec la fusion."
+                    },
+                    "did": {
+                        "deletedbymerge": "origin/{branch} supprimée par la fusion.",
+                        "deleted": "origin/{branch} supprimée.",
+                        "pushedafter": "Conservée : origin/{branch} a des commits poussés après la fusion.",
+                        "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
+                        "none": "origin/{branch} n'a pas pu être supprimée."
+                    }
+                }
+            },
+            "others": {
+                "plan": "Les autres pull requests ouvertes sur {base} restent telles quelles ; celles que ce merge met en conflit partent à leur agent pour un rebase.",
+                "none": "Rien à faire : aucune autre pull request ouverte sur {base}.",
+                "unaffectedCount": {
+                    "one": "1 non concernée",
+                    "other": "{count} non concernées"
+                },
+                "conflictingCount": {
+                    "one": "1 désormais en conflit avec {base}",
+                    "other": "{count} désormais en conflit avec {base}"
+                },
+                "checkingCount": {
+                    "one": "1 encore en cours de vérification par GitHub",
+                    "other": "{count} encore en cours de vérification par GitHub"
+                },
+                "listFailed": "Les pull requests ouvertes n'ont pas pu être listées.",
+                "unaffected": "Non concernée : elle se merge toujours proprement.",
+                "asked": "En conflit avec {base} → rebase demandé à {name}.",
+                "askedUnnamed": "En conflit avec {base} → rebase demandé à l'agent de sa branche.",
+                "typed": "En conflit avec {base} → rebase tapé dans l'invite de {name} : appuyez sur Entrée dans son terminal pour l'envoyer.",
+                "typedUnnamed": "En conflit avec {base} → rebase tapé dans l'invite de son agent : appuyez sur Entrée dans son terminal pour l'envoyer.",
+                "agentBusy": "En conflit avec {base}. {name} est occupé et n'a pas été interrompu : demandez le rebase plus tard depuis Revues.",
+                "agentBusyUnnamed": "En conflit avec {base}. Son agent est occupé et n'a pas été interrompu : demandez le rebase plus tard depuis Revues.",
+                "needsAgent": "En conflit avec {base}, et aucun agent ne travaille sur sa branche → démarrez un agent.",
+                "notAsked": "En conflit avec {base} : le rebase n'a pas pu être demandé. Demandez-le depuis Revues.",
+                "checking": "GitHub n'avait pas fini de vérifier si elle se merge toujours proprement dans {base} : Revues l'indiquera.",
+                "start": "Démarrer un agent",
+                "starting": "Démarrage…",
+                "open": "Ouvrir"
+            },
+            "panels": {
+                "agent": "Un agent tourne encore dans ce dossier : {panel}",
+                "terminal": "Un terminal est encore ouvert dans ce dossier : {panel}",
+                "untitled": "un onglet sans titre",
+                "inWorkspace": "{tab} (espace {workspace})",
+                "show": "Afficher le panneau",
+                "showNamed": "Afficher {panel}",
+                "button": {
+                    "one": "Fermer le panneau et supprimer",
+                    "other": "Fermer les panneaux et supprimer"
+                },
+                "buttonLoss": {
+                    "one": "Fermer le panneau, supprimer et perdre {what}",
+                    "other": "Fermer les panneaux, supprimer et perdre {what}"
+                },
+                "buttonUnknown": {
+                    "one": "Fermer le panneau et supprimer le worktree et sa branche",
+                    "other": "Fermer les panneaux et supprimer le worktree et sa branche"
+                }
+            },
+            "updatedHead": "GitHub a d'abord mis la branche à jour : head fusionné {oid}.",
+            "method": {
+                "merge": "Commit de fusion",
+                "squash": "Squash",
+                "rebase": "Rebase"
+            },
+            "methodTitle": {
+                "merge": "Garder chaque commit et ajouter un commit de fusion sur la base",
+                "squash": "Faire de la pull request un seul commit sur la base",
+                "rebase": "Rejouer chaque commit au-dessus de la base, sans commit de fusion"
+            },
+            "methodLabel": "Méthode de fusion"
         },
         "view": {
             "viewName": "Revue",

@@ -5,17 +5,14 @@ package companion
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
-	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
-	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -29,7 +26,6 @@ import (
 // The companion views and `molten agent session` reach the companion through a leaf of wavesrv's router answering
 // plain command names, like the agent states (pkg/molten/attention/agentroute.go): nothing is declared in pkg/wshrpc.
 
-const routeQueueSize = 64
 const blockReadTimeout = 2 * time.Second
 
 type blockRequest struct {
@@ -56,68 +52,40 @@ type diffRequest struct {
 }
 
 type routeLink struct {
-	m      *Manager
-	output chan []byte
+	m *Manager
 }
 
-func (l *routeLink) GetPeerInfo() string {
-	return molten.CompanionRoute
-}
-
-func (l *routeLink) RecvRpcMessage() ([]byte, bool) {
-	msg, ok := <-l.output
-	return msg, ok
-}
-
-func (l *routeLink) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debugStr string) bool {
-	var req wshutil.RpcMessage
-	if err := json.Unmarshal(msg, &req); err != nil {
-		return true
+// route: a session's transcript and plan usage are read by MoltenTerm's windows only. The two reports a terminal
+// sends, from the agent's hook or status line, come from a local terminal's own link and name its own block: an agent
+// cannot point another terminal's companion at a file of its choosing (#662).
+func (l *routeLink) route() localroute.Route {
+	return localroute.Route{
+		Id: molten.CompanionRoute,
+		Policy: localroute.Policy{
+			Default: localroute.AllowWindow,
+			Commands: map[string]string{
+				molten.CompanionSessionCommand: localroute.AllowLocalTerminal,
+				molten.AgentStatusLineCommand:  localroute.AllowLocalTerminal,
+			},
+			Refusals: map[string]string{
+				molten.CompanionSessionCommand: "no companion for a remote terminal",
+				molten.AgentStatusLineCommand:  "no companion for a remote terminal",
+			},
+		},
+		Handler: func(_ context.Context, command string, caller localroute.Caller, data any) (any, error) {
+			return l.handle(command, caller, data)
+		},
 	}
-	if req.Command == "" || req.ReqId == "" {
-		return true
-	}
-	go l.answer(req)
-	return true
 }
 
-func (l *routeLink) answer(req wshutil.RpcMessage) {
-	defer func() {
-		panichandler.PanicHandler("molten:companion:route", recover())
-	}()
-	resp := wshutil.RpcMessage{ResId: req.ReqId}
-	data, err := l.handle(req.Command, req.Source, req.Data)
-	if err != nil {
-		resp.Error = err.Error()
-	} else {
-		resp.Data = data
+func ownBlock(caller localroute.Caller, blockId string) error {
+	if !caller.IsLocalTerminal || blockId == caller.BlockId {
+		return nil
 	}
-	out, err := json.Marshal(resp)
-	if err != nil {
-		return
-	}
-	l.output <- out
+	return fmt.Errorf("a terminal reports for its own block only")
 }
 
-// isWindowSource tells a request from a MoltenTerm window apart from one sent by a terminal or a remote host: the
-// router stamps the source of every link that has a route of its own, so a terminal cannot pass for a tab. Only
-// windows read a session.
-func isWindowSource(source string) bool {
-	return strings.HasPrefix(source, wshutil.RoutePrefix_Tab)
-}
-
-// fromTerminal: the commands a terminal's wsh sends, from the agent's hook or status line.
-func fromTerminal(command string) bool {
-	return command == molten.CompanionSessionCommand || command == molten.AgentStatusLineCommand
-}
-
-func (l *routeLink) handle(command string, source string, data any) (any, error) {
-	if !fromTerminal(command) && !isWindowSource(source) {
-		return nil, fmt.Errorf("the companion answers MoltenTerm windows only")
-	}
-	if fromTerminal(command) && strings.HasPrefix(source, wshutil.RoutePrefix_Conn) {
-		return nil, fmt.Errorf("no companion for a remote terminal")
-	}
+func (l *routeLink) handle(command string, caller localroute.Caller, data any) (any, error) {
 	switch command {
 	case molten.CompanionOpenCommand:
 		var req blockRequest
@@ -183,10 +151,16 @@ func (l *routeLink) handle(command string, source string, data any) (any, error)
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
+		if err := ownBlock(caller, req.BlockId); err != nil {
+			return nil, err
+		}
 		return l.m.HandleStatusLine(req)
 	case molten.CompanionSessionCommand:
 		var req molten.AgentSessionRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		if err := ownBlock(caller, req.BlockId); err != nil {
 			return nil, err
 		}
 		return nil, l.m.ReportSession(req)
@@ -266,8 +240,7 @@ func Start() {
 	wconfig.GetWatcher().RegisterUpdateHandler(func(config wconfig.FullConfigType) {
 		m.settingsChanged(&config.Settings)
 	})
-	link := &routeLink{m: m, output: make(chan []byte, routeQueueSize)}
-	if _, err := wshutil.DefaultRouter.RegisterTrustedLeaf(link, molten.CompanionRoute); err != nil {
+	if _, err := localroute.Register(wshutil.DefaultRouter, (&routeLink{m: m}).route()); err != nil {
 		log.Printf("molten: agent companion route not started: %v\n", err)
 		return
 	}

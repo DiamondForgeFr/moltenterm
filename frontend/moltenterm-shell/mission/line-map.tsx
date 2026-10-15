@@ -11,12 +11,12 @@
 // never shares an element with a load-sequence one (the sequence fades a wrapper instead): when the sequence ends and
 // its rules stop matching, a glint or a dash must not jump.
 
-import { atoms, openLink } from "@/app/store/global";
+import { atoms } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { t as translate, useLocale, useT } from "../i18n/i18n";
-import { checkWebUrl } from "../project/project-model";
+import { openWebLink } from "../open-web-link";
 import { ciVerdictView } from "../status-bar-model";
 import { filterBranches } from "../widget-options";
 import { CiBranch } from "./ci-model";
@@ -1044,10 +1044,10 @@ export function LineMap({
         (item: MapItem): React.SVGProps<SVGGElement> => {
             const url = model ? itemUrl(item, model) : null;
             const open = () => {
-                if (!url || !checkWebUrl(url)) {
+                if (!url) {
                     return;
                 }
-                fireAndForget(() => openLink(url));
+                fireAndForget(() => openWebLink(url));
             };
             return {
                 tabIndex: 0,

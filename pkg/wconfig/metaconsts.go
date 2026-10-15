@@ -95,6 +95,7 @@ const (
 	ConfigKey_BrowserDefault                 = "browser:default"
 	ConfigKey_BrowserSites                   = "browser:sites"
 	ConfigKey_BrowserAgentSites              = "browser:agentsites"
+	ConfigKey_BrowserSitePermissions         = "browser:sitepermissions"
 
 	ConfigKey_AutoUpdateClear                = "autoupdate:*"
 	ConfigKey_AutoUpdateEnabled              = "autoupdate:enabled"

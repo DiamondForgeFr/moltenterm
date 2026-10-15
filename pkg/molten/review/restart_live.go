@@ -30,6 +30,14 @@ func (s *Service) Restart(ctx context.Context, req RestartRequest) (RestartResul
 	return result, err
 }
 
+// AskRebase is the developer's click on Ask for a rebase in the Reviews list (#683).
+func (s *Service) AskRebase(ctx context.Context, req RebaseRequest) (RestartResult, error) {
+	if s.restarter == nil {
+		return RestartResult{}, fmt.Errorf("Ask for a rebase is not available")
+	}
+	return s.restarter.AskRebase(ctx, req)
+}
+
 // liveRestartEnv: Mission Control's worktree terminals, the agent states, the guarded typing path of the handoffs and
 // the review sessions' way of opening a terminal.
 func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {
