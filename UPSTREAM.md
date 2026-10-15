@@ -121,6 +121,12 @@ instead of waiting for them through `needs`, so its check is pending from the fi
 ready cannot satisfy the ruleset with its draft's result while the full run is still going. Run the same commands
 locally before pushing: the ledger check reads the working tree, so it also sees uncommitted changes.
 
+`.github/workflows/pr-review-sync.yml` comes from the SaaSFoundryAI harness, with one local change (#709): its
+`sync-review` job runs only for ticket branches (`feature/{N}-…`, `fix/{N}-…`) and is skipped for the others, such as
+release sync-backs and `rc-*` branches, which have no ticket to sync. Keep this change when a harness update rewrites
+the file, until the harness ships it. It runs from the default branch (`pull_request_target`), so it takes effect once
+it reaches `main`.
+
 ## Releases
 
 Releases are cut from Mission Control (Project tab › Release, then each step on its click in the release panel) or

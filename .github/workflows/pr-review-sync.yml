@@ -15,18 +15,36 @@ concurrency:
 
 jobs:
   sync-review:
-    if: github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'closed' && github.event.pull_request.merged == true || github.event.action != 'closed' && github.event.pull_request.draft == false)
+    # Moltenterm divergence from the SaaSFoundryAI template (#709): only ticket
+    # branches (workflow.branchNaming feature/{N}-…, fix/{N}-…) have a ticket to
+    # sync. Release sync-backs and rc-* branches carry none, and the sync failed
+    # them red. Expressions have no regex, so the prefix check here makes those
+    # runs show as skipped and the first step checks the ticket number.
+    if: github.event.pull_request.head.repo.full_name == github.repository && (startsWith(github.event.pull_request.head.ref, 'feature/') || startsWith(github.event.pull_request.head.ref, 'fix/')) && (github.event.action == 'closed' && github.event.pull_request.merged == true || github.event.action != 'closed' && github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Check that the head branch names a ticket
+        id: branch
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        shell: bash
+        run: |
+          if [[ "$HEAD_REF" =~ ^(feature|fix)/[0-9]+(-|$) ]]; then
+            echo "ticket=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::$HEAD_REF names no ticket under workflow.branchNaming: nothing to sync."
+          fi
       # workflow_sha is the trusted commit that supplied this default-branch
       # workflow. github.sha would instead point at the PR base (master for an
       # RC) and could load a stale lifecycle CLI.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: steps.branch.outputs.ticket == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.workflow_sha }}
           persist-credentials: false
       - name: Sync the linked ticket through the guarded workflow
+        if: steps.branch.outputs.ticket == 'true'
         env:
           GH_TOKEN: ${{ secrets.SF_PROJECTS_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
