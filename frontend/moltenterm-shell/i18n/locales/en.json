@@ -3843,6 +3843,42 @@
             "sendTo": "Send to…"
         }
     },
+    "reviewsAgents": {
+        "agent": "Agent",
+        "background": "Background agent",
+        "state": {
+            "working": "working",
+            "waiting": "waiting for you",
+            "done": "done",
+            "idle": "idle",
+            "background": "probably active"
+        },
+        "duration": {
+            "lessThanMinute": "less than a minute",
+            "minutes": "{count} min",
+            "hours": "{hours} h {minutes}",
+            "days": "{count} d"
+        },
+        "forSince": "for {duration} · since {since}",
+        "lastChange": "last change {duration} ago",
+        "goTo": "Go to",
+        "goToTitle": "Show {name}'s panel",
+        "parent": "{name}'s session",
+        "parentTitle": "Show {name}'s panel: it probably started this agent",
+        "yours": "Yours",
+        "yoursTitle": "No agent works on this draft: it is yours to finish or validate.",
+        "upcoming": {
+            "title": "Upcoming",
+            "none": "No ticket branch is waiting for its pull request.",
+            "aheadOne": "1 commit ahead",
+            "ahead": "{count} commits ahead",
+            "remote": "on origin only",
+            "statusTitle": "The ticket's status on the board",
+            "openTicket": "Open the ticket",
+            "openAgent": "Go to the agent working on it",
+            "ticketsError": "The tickets' titles and statuses could not be read."
+        }
+    },
     "reviews": {
         "viewName": "Reviews",
         "into": "into",

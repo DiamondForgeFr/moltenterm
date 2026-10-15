@@ -3843,6 +3843,42 @@
             "sendTo": "Envoyer vers…"
         }
     },
+    "reviewsAgents": {
+        "agent": "Agent",
+        "background": "Agent en arrière-plan",
+        "state": {
+            "working": "au travail",
+            "waiting": "vous attend",
+            "done": "terminé",
+            "idle": "inactif",
+            "background": "probablement actif"
+        },
+        "duration": {
+            "lessThanMinute": "moins d'une minute",
+            "minutes": "{count} min",
+            "hours": "{hours} h {minutes}",
+            "days": "{count} j"
+        },
+        "forSince": "depuis {duration} · commencé à {since}",
+        "lastChange": "dernier changement il y a {duration}",
+        "goTo": "Y aller",
+        "goToTitle": "Afficher le panneau de {name}",
+        "parent": "Session de {name}",
+        "parentTitle": "Afficher le panneau de {name} : il a probablement lancé cet agent",
+        "yours": "À vous",
+        "yoursTitle": "Aucun agent ne travaille sur ce brouillon : c'est à vous de le finir ou de le valider.",
+        "upcoming": {
+            "title": "À venir",
+            "none": "Aucune branche de ticket n'attend sa pull request.",
+            "aheadOne": "1 commit d'avance",
+            "ahead": "{count} commits d'avance",
+            "remote": "sur origin seulement",
+            "statusTitle": "Le statut du ticket sur le tableau",
+            "openTicket": "Ouvrir le ticket",
+            "openAgent": "Aller à l'agent qui y travaille",
+            "ticketsError": "Les titres et statuts des tickets n'ont pas pu être lus."
+        }
+    },
     "reviews": {
         "viewName": "Revues",
         "into": "vers",

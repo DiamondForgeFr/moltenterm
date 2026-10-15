@@ -497,6 +497,8 @@ type Reviews struct {
 	now       func() time.Time
 	publish   func(ReviewsAnswer)
 	reports   map[string]*reviewReportsState
+	// The upcoming work and the agents on each branch (#712), made on the first ask.
+	upcoming *Upcoming
 }
 
 func MakeReviews(collector *Collector, run Runner, publish func(ReviewsAnswer)) *Reviews {
