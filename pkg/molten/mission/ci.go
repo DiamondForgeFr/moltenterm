@@ -656,7 +656,12 @@ func (c *Ci) prepare(rec CiRunRecord, pipeline *molten.Pipeline) (string, error)
 		}
 		return err
 	}
-	if _, err := os.Stat(filepath.Join(tree, ".git")); err != nil {
+	// A .git file whose .git/worktrees/<name> was pruned still stats fine, but every checkout in it fails.
+	_, statErr := os.Stat(filepath.Join(tree, ".git"))
+	if statErr == nil {
+		_, statErr = c.run(ctx, tree, "git", "rev-parse", "--git-dir")
+	}
+	if statErr != nil {
 		os.RemoveAll(tree)
 		step(rec.Dir, "worktree", "prune")
 		if err := os.MkdirAll(filepath.Dir(tree), 0700); err != nil {
