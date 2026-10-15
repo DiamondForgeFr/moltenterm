@@ -335,7 +335,7 @@ func commandTimeout(command string) time.Duration {
 		return publishTimeout
 	case CleanupCommand:
 		return cleanupTimeout
-	case RestartCommand:
+	case RestartCommand, RebaseCommand:
 		return restartTimeout
 	}
 	return controlTimeout
@@ -518,6 +518,13 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.Restart(ctx, req)
+	case RebaseCommand:
+		// The developer's click on Ask for a rebase (#683): like Restart work, never an agent's from a terminal.
+		req, err := decode[RebaseRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.AskRebase(ctx, req)
 	case NoteKeepCommand:
 		req, err := decode[NoteKeepRequest](data)
 		if err != nil {

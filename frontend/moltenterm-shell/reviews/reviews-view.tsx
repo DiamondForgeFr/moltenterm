@@ -17,6 +17,7 @@ import { CiIcon, CiIconState } from "../mission/ci-icon";
 import { ActiveProject, MissionFrame, MissionHeader } from "../mission/mission-frame";
 import { MissionSnapshot } from "../mission/mission-model";
 import { timeAgo } from "../mission/time-format";
+import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
 import { useReviews } from "./reviews-client";
 import {
@@ -25,6 +26,10 @@ import {
     MoltentermReviewsView,
     navigableRows,
     nextRow,
+    RebaseAsk,
+    rebaseAskKey,
+    rebaseAskShown,
+    RebaseOutcome,
     reportLabel,
     reviewAriaLabel,
     reviewHeadline,
@@ -32,6 +37,7 @@ import {
     ReviewsAnswer,
     reviewsEmptyState,
     Tone,
+    validateBlocked,
 } from "./reviews-model";
 import { NotesSection } from "./reviews-notes-view";
 import { ReviewsModel } from "./reviews-store";
@@ -183,6 +189,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const t = useT();
     const model = ReviewsModel.getInstance();
     const focus = useAtomValue(model.focusAtom);
+    const asks = useAtomValue(model.rebaseAsksAtom);
     const [draftsOpen, setDraftsOpen] = useState(false);
     const [selected, setSelected] = useState<number>(null);
     const [marked, setMarked] = useState<number>(null);
@@ -237,6 +244,9 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         marked: marked === pr.number,
         onSelect: () => setSelected(pr.number),
         onOpen: () => open(pr),
+        onValidate: () => fireAndForget(() => model.openValidate(dir, pr, answer.repo)),
+        onAskRebase: (start: boolean) => model.askRebase(dir, pr, answer.repo, start),
+        rebaseAsk: asks[rebaseAskKey(dir, pr.number)],
     });
     return (
         <div
@@ -330,25 +340,70 @@ function ToneChip({
     );
 }
 
+// The row's own buttons: their click and their keys stay theirs, the row's click and Enter open the review.
+function stopRow(e: React.SyntheticEvent) {
+    e.stopPropagation();
+}
+
+const SecondaryButton =
+    "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary";
+
 function ReviewRow({
     pr,
     selected,
     marked,
     onSelect,
     onOpen,
+    onValidate,
+    onAskRebase,
+    rebaseAsk,
 }: {
     pr: ReviewPr;
     selected: boolean;
     marked: boolean;
     onSelect: () => void;
     onOpen: () => void;
+    onValidate: () => void;
+    onAskRebase: (start: boolean) => Promise<RebaseOutcome>;
+    rebaseAsk: RebaseAsk;
 }) {
     const t = useT();
     useLocale();
+    const [asking, setAsking] = useState(false);
+    const [outcome, setOutcome] = useState<RebaseOutcome>(null);
     const head = reviewHeadline(pr);
     const ci = ciLabel(pr.ci);
     const report = reportLabel(pr.report);
     const merge = mergeLabel(pr.merge, pr.base);
+    const blocked = validateBlocked(pr);
+    const asked = rebaseAskShown(rebaseAsk, pr);
+    const conflicts = pr.merge === "conflicts";
+    const outcomeShown = outcome != null && (outcome.kind !== "asked" || outcome.note);
+    useEffect(() => {
+        setOutcome(null);
+    }, [pr.headoid]);
+    const validate = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (blocked) {
+            return;
+        }
+        onValidate();
+    };
+    const askRebase = (e: React.MouseEvent, start: boolean) => {
+        e.stopPropagation();
+        if (asking) {
+            return;
+        }
+        setAsking(true);
+        setOutcome(null);
+        fireAndForget(async () => {
+            try {
+                setOutcome(await onAskRebase(start));
+            } finally {
+                setAsking(false);
+            }
+        });
+    };
     const openReport = (e: React.MouseEvent) => {
         e.stopPropagation();
         fireAndForget(() => openWebLink(pr.report.url));
@@ -389,15 +444,30 @@ function ReviewRow({
                         {t("reviews.updated", { when: timeAgo(pr.updatedat) })}
                     </div>
                 </div>
-                <button
-                    type="button"
-                    onClick={openOnGithub}
-                    className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
-                    title={t("reviews.openOnGithub")}
-                >
-                    <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
-                    GitHub
-                </button>
+                <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                        type="button"
+                        onClick={openOnGithub}
+                        onKeyDown={stopRow}
+                        className={SecondaryButton}
+                        title={t("reviews.openOnGithub")}
+                    >
+                        <i className="fa fa-solid fa-arrow-up-right-from-square text-11" />
+                        GitHub
+                    </button>
+                    <button
+                        type="button"
+                        onClick={validate}
+                        onKeyDown={stopRow}
+                        aria-disabled={blocked ? true : undefined}
+                        className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
+                        title={blocked || t("reviews.validate.title")}
+                        data-testid="reviews-validate"
+                    >
+                        {t("reviews.validate.button")}
+                        <MoltenWave />
+                    </button>
+                </div>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
                 <ToneChip
@@ -428,7 +498,68 @@ function ReviewRow({
                         {t("reviews.unpublished", { count: pr.unpublished })}
                     </span>
                 ) : null}
+                {asked ? (
+                    <span
+                        className={cn(Chip, ToneClasses.neutral)}
+                        title={t("reviews.rebase.chipTitle")}
+                        data-testid="reviews-rebase-asked"
+                    >
+                        <i className="fa fa-solid fa-code-branch text-11" />
+                        {t("reviews.rebase.chip", { name: rebaseAsk.name })}
+                    </span>
+                ) : null}
+                {conflicts && !asked ? (
+                    <button
+                        type="button"
+                        onClick={(e) => askRebase(e, false)}
+                        onKeyDown={stopRow}
+                        aria-busy={asking || undefined}
+                        className={cn(SecondaryButton, "ml-auto py-0.5 text-11")}
+                        title={t("reviews.rebase.buttonTitle", { base: pr.base, branch: pr.branch })}
+                        data-testid="reviews-rebase"
+                    >
+                        <i className={cn("fa fa-solid text-11", asking ? "fa-spinner fa-spin" : "fa-code-branch")} />
+                        {asking ? t("reviews.rebase.asking") : t("reviews.rebase.button")}
+                    </button>
+                ) : null}
             </div>
+            {outcomeShown ? (
+                <div
+                    className={cn(
+                        "flex flex-wrap items-center gap-2 text-12 leading-4",
+                        outcome.kind === "failed" ? "text-error" : "text-secondary"
+                    )}
+                    role="status"
+                    data-testid="reviews-rebase-outcome"
+                >
+                    <span className="min-w-0">{outcome.text}</span>
+                    {outcome.kind === "offer" ? (
+                        <>
+                            <button
+                                type="button"
+                                onClick={(e) => askRebase(e, true)}
+                                onKeyDown={stopRow}
+                                className="molten-btn cursor-pointer rounded-6 px-2.5 py-1 text-12"
+                                data-testid="reviews-rebase-start"
+                            >
+                                {t("reviews.rebase.start")}
+                                <MoltenWave />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOutcome(null);
+                                }}
+                                onKeyDown={stopRow}
+                                className={SecondaryButton}
+                            >
+                                {t("common.cancel")}
+                            </button>
+                        </>
+                    ) : null}
+                </div>
+            ) : null}
         </div>
     );
 }

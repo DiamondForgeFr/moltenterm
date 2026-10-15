@@ -36,6 +36,7 @@ const TranslationCommand = "moltenreviewtranslation";
 const SummaryCommand = "moltenreviewsummary";
 const PublishCommand = "moltenreviewpublish";
 const RestartCommand = "moltenreviewrestart";
+const RebaseCommand = "moltenreviewrebase";
 
 // A file list or a compare may fetch the PR's branches; a worktree may be created.
 const GitTimeoutMs = 95_000;
@@ -120,7 +121,8 @@ export type ReviewRound = {
 };
 
 // must match RestartResult in pkg/molten/review/restart.go
-export type ReviewRestartStatus = "started" | "sent" | "typed" | "busy" | "noagent" | "failed";
+// offer: Ask for a rebase found no agent on the branch (pkg/molten/review/rebase.go).
+export type ReviewRestartStatus = "started" | "sent" | "typed" | "busy" | "noagent" | "failed" | "offer";
 
 export type ReviewRestartResult = {
     status: ReviewRestartStatus;
@@ -136,6 +138,7 @@ export type ReviewRestartResult = {
     blockid?: string;
     agent?: string;
     agentname?: string;
+    firstname?: string;
     briefpath?: string;
     state?: ReviewState;
 };
@@ -576,6 +579,24 @@ export function restartReviewWork(req: {
     afterblockid?: string;
 }): Promise<ReviewRestartResult> {
     return call(RestartCommand, req, RestartTimeoutMs);
+}
+
+// askReviewRebase is the developer's click on Ask for a rebase in the Reviews list (#683): the agent on the PR's branch
+// gets the rebase; with start, a new agent starts in the Review tab tabid when none works there.
+export function askReviewRebase(req: {
+    repo: string;
+    number: number;
+    dir: string;
+    headref: string;
+    baseref: string;
+    headoid?: string;
+    title?: string;
+    url?: string;
+    ticket?: number;
+    start?: boolean;
+    tabid?: string;
+}): Promise<ReviewRestartResult> {
+    return call(RebaseCommand, req, RestartTimeoutMs);
 }
 
 // subscribeReviewState follows a PR's review store (another window, the CLI); returns the unsubscribe function.

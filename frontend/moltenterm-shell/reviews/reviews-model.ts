@@ -43,6 +43,7 @@ export type ReviewPr = {
     ticketfrom?: "closing" | "branch";
     tickettitle?: string;
     ticketurl?: string;
+    mergeable?: string;
     mergestate?: string;
     merge: ReviewMerge;
     ci: ReviewCi;
@@ -71,21 +72,22 @@ export type ReviewsAnswer = {
 
 export type Tone = "success" | "failure" | "pending" | "neutral";
 
-// FR-REV-001-AC2: clean, behind (GitHub rebases it at the merge), conflicts, blocked.
+// FR-REV-001-AC2, #683: ready to merge, behind (GitHub updates it at the merge), conflicts (a warning: an agent can
+// rebase it), blocked, checking while GitHub computes the mergeability.
 export function mergeLabel(merge: ReviewMerge, base: string): { label: string; tone: Tone; title: string } {
     switch (merge) {
         case "clean":
             return { label: t("reviews.merge.clean"), tone: "success", title: t("reviews.merge.cleanTitle") };
         case "behind":
             return {
-                label: t("reviews.merge.behind"),
-                tone: "pending",
+                label: t("reviews.merge.behind", { base }),
+                tone: "neutral",
                 title: t("reviews.merge.behindTitle", { base }),
             };
         case "conflicts":
             return {
-                label: t("reviews.merge.conflicts"),
-                tone: "failure",
+                label: t("reviews.merge.conflicts", { base }),
+                tone: "pending",
                 title: t("reviews.merge.conflictsTitle", { base }),
             };
         case "blocked":
@@ -98,6 +100,116 @@ export function mergeLabel(merge: ReviewMerge, base: string): { label: string; t
             return { label: t("reviews.merge.failing"), tone: "failure", title: t("reviews.merge.failingTitle") };
     }
     return { label: t("reviews.merge.pending"), tone: "neutral", title: t("reviews.merge.pendingTitle") };
+}
+
+// validateBlocked is why a row's Validate cannot open the sheet, "" when it can (#683). It names the checks the Validate
+// plan fails on and the row already knows (pkg/molten/review/merge.go's evaluate); running checks and a merge state
+// still computing do not block: the sheet waits for them.
+export function validateBlocked(pr: ReviewPr): string {
+    if (pr.draft) {
+        return t("reviews.validate.draft");
+    }
+    if (pr.merge === "conflicts") {
+        return t("reviews.validate.conflicts", { base: pr.base });
+    }
+    if (pr.merge === "blocked") {
+        return t("reviews.validate.blocked");
+    }
+    if (pr.ci?.state === "failure") {
+        return t("reviews.validate.failing", { count: pr.ci.failure });
+    }
+    return "";
+}
+
+// A rebase asked from a row: to whom, and on which head. It shows until the PR's head changes (the agent pushed).
+export type RebaseAsk = { name: string; head: string; at: number };
+
+export function rebaseAskKey(dir: string, number: number): string {
+    return `${dir}#${number}`;
+}
+
+export function rebaseAskShown(ask: RebaseAsk, pr: ReviewPr): boolean {
+    if (ask == null) {
+        return false;
+    }
+    return !ask.head || !pr.headoid || ask.head === pr.headoid;
+}
+
+// must match RestartResult in pkg/molten/review/restart.go, as Ask for a rebase answers it (rebase.go)
+export type RebaseResult = {
+    status: string;
+    reason?: string;
+    agentstate?: string;
+    branch?: string;
+    message?: string;
+    worktree?: string;
+    agent?: string;
+    agentname?: string;
+    firstname?: string;
+    briefpath?: string;
+};
+
+// asked: the agent has it (name), note when the developer still has a step; offer: no agent on the branch, the row
+// offers to start one; info and failed: a line.
+export type RebaseOutcome = {
+    kind: "asked" | "offer" | "info" | "failed";
+    name?: string;
+    text: string;
+    note?: boolean;
+};
+
+function folderOf(path: string): string {
+    const parts = (path ?? "").split(/[/\\]/).filter((p) => p !== "");
+    return parts[parts.length - 1] ?? "";
+}
+
+export function rebaseOutcome(result: RebaseResult, error?: string): RebaseOutcome {
+    if (error) {
+        return { kind: "failed", text: t("reviews.rebase.failed", { message: error }) };
+    }
+    if (result == null) {
+        return null;
+    }
+    const name = result.firstname || result.agentname || result.agent || "";
+    const vars = {
+        name,
+        branch: result.branch ?? "",
+        folder: folderOf(result.worktree),
+        brief: result.briefpath ?? "",
+        message: result.message ?? "",
+    };
+    switch (result.status) {
+        case "sent":
+        case "started":
+            return { kind: "asked", name, text: t("reviews.rebase.asked", vars) };
+        case "typed":
+            return { kind: "asked", name, text: t("reviews.rebase.typed", vars), note: true };
+        case "offer":
+            return { kind: "offer", text: t("reviews.rebase.offer", vars) };
+        case "noagent":
+            return { kind: "failed", text: t("reviews.rebase.noagent", vars) };
+        case "busy":
+            switch (result.reason) {
+                case "agentbusy":
+                    return {
+                        kind: "info",
+                        text:
+                            result.agentstate === "waiting"
+                                ? t("reviews.rebase.waiting", vars)
+                                : t("reviews.rebase.working", vars),
+                    };
+                case "inflight":
+                    return { kind: "info", text: t("reviews.rebase.inflight") };
+            }
+            return { kind: "info", text: t("reviews.rebase.notready", vars) };
+    }
+    switch (result.reason) {
+        case "maincheckout":
+            return { kind: "failed", text: t("reviews.rebase.maincheckout", vars) };
+        case "terminal":
+            return { kind: "failed", text: t("reviews.rebase.terminal") };
+    }
+    return { kind: "failed", text: t("reviews.rebase.failed", vars) };
 }
 
 export function ciLabel(ci: ReviewCi): { label: string; tone: Tone; title: string } {

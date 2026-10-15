@@ -409,10 +409,10 @@ func evaluate(pr ghMergePr, ci mission.ReviewCi, unpublished int, restart *Round
 	checks = append(checks, open, ciCheck(ci))
 	mergeState := strings.ToUpper(pr.MergeStateStatus)
 	conflict := MergeCheck{Id: CheckIdConflict, State: CheckOk, Base: pr.BaseRefName}
-	switch {
-	case strings.EqualFold(pr.Mergeable, "CONFLICTING") || mergeState == "DIRTY":
+	switch mission.ReviewConflictOf(pr.Mergeable, pr.MergeStateStatus) {
+	case mission.ReviewConflictConflicting:
 		conflict.State, conflict.Code = CheckFail, CheckCodeConflicting
-	case strings.EqualFold(pr.Mergeable, "UNKNOWN") || mergeState == "UNKNOWN" || mergeState == "":
+	case mission.ReviewConflictComputing:
 		conflict.State, conflict.Code = CheckPending, CheckCodeComputing
 	}
 	checks = append(checks, conflict)

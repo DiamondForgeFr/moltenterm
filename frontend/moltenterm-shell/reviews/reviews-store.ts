@@ -8,8 +8,17 @@ import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
 import { openMoltentermView } from "../open-view";
-import { openReviewTab } from "../review/review-client";
-import { MoltentermReviewsView, repoOfPrUrl, ReviewPr } from "./reviews-model";
+import { askReviewRebase, openReviewTab } from "../review/review-client";
+import { requestReviewSheet } from "../review/review-sheet-request";
+import {
+    MoltentermReviewsView,
+    RebaseAsk,
+    rebaseAskKey,
+    rebaseOutcome,
+    RebaseOutcome,
+    repoOfPrUrl,
+    ReviewPr,
+} from "./reviews-model";
 
 // The PR a Reviews view brings into sight and marks, asked by another surface.
 export type ReviewsFocus = { dir: string; number: number; at: number };
@@ -18,6 +27,8 @@ export class ReviewsModel {
     private static instance: ReviewsModel = null;
 
     focusAtom = atom(null) as PrimitiveAtom<ReviewsFocus>;
+    // The rebases asked from the rows (#683), by rebaseAskKey.
+    rebaseAsksAtom = atom({}) as PrimitiveAtom<Record<string, RebaseAsk>>;
 
     private constructor() {}
 
@@ -45,10 +56,76 @@ export class ReviewsModel {
         }
         getApi().setActiveTab(await openPullRequestTab(workspaceId, dir, pr, repoName));
     }
+
+    // A row's Validate (#683): the PR's Review tab with its Validate sheet, which shows the plan; merging stays the
+    // developer's click there.
+    async openValidate(dir: string, pr: ReviewPr, repo?: string): Promise<void> {
+        const workspaceId = globalStore.get(atoms.workspace)?.oid;
+        const repoName = repo || repoOfPrUrl(pr?.url);
+        if (!dir || pr == null || !workspaceId || !repoName) {
+            return;
+        }
+        const tabId = await openPullRequestTab(workspaceId, dir, pr, repoName);
+        if (!tabId) {
+            return;
+        }
+        await requestReviewSheet(tabId, { id: crypto.randomUUID(), action: "merge", at: Date.now() });
+        getApi().setActiveTab(tabId);
+    }
+
+    // A row's Ask for a rebase (#683): the agent on the PR's branch gets it; with start, the developer accepted to start
+    // one, in the PR's Review tab (Restart work's flow). An agent reached marks the row until the PR's head changes.
+    async askRebase(dir: string, pr: ReviewPr, repo: string, start: boolean): Promise<RebaseOutcome> {
+        const repoName = repo || repoOfPrUrl(pr?.url);
+        if (!dir || pr == null || !repoName) {
+            return null;
+        }
+        let tabid: string;
+        if (start) {
+            const workspaceId = globalStore.get(atoms.workspace)?.oid;
+            if (!workspaceId) {
+                return null;
+            }
+            tabid = await openPullRequestTab(workspaceId, dir, pr, repoName);
+        }
+        let outcome: RebaseOutcome;
+        try {
+            const result = await askReviewRebase({
+                repo: repoName,
+                number: pr.number,
+                dir,
+                headref: pr.branch,
+                baseref: pr.base,
+                headoid: pr.headoid,
+                title: pr.tickettitle || pr.title,
+                url: pr.url,
+                ticket: pr.ticket,
+                start: start || undefined,
+                tabid,
+            });
+            outcome = rebaseOutcome(result);
+        } catch (e) {
+            outcome = rebaseOutcome(null, String(e?.message ?? e));
+        }
+        if (outcome?.kind === "asked") {
+            const key = rebaseAskKey(dir, pr.number);
+            const asks = globalStore.get(this.rebaseAsksAtom);
+            globalStore.set(this.rebaseAsksAtom, {
+                ...asks,
+                [key]: { name: outcome.name, head: pr.headoid ?? "", at: Date.now() },
+            });
+        }
+        return outcome;
+    }
 }
 
 // openPullRequestTab returns the PR's Review tab in the workspace, created the first time (a row's click, `molten review`).
-export async function openPullRequestTab(workspaceId: string, dir: string, pr: ReviewPr, repo: string): Promise<string> {
+export async function openPullRequestTab(
+    workspaceId: string,
+    dir: string,
+    pr: ReviewPr,
+    repo: string
+): Promise<string> {
     const { tabid } = await openReviewTab(workspaceId, {
         dir,
         repo,
