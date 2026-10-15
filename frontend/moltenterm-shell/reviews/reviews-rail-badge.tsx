@@ -9,7 +9,7 @@ import { cn } from "@/util/util";
 import { railCountText, ReviewCounts } from "./reviews-model";
 
 const Badge =
-    "absolute right-0.5 min-w-[14px] rounded-full px-[3px] text-center text-11 leading-[14px] font-semibold ring-2 ring-[var(--color-background)]";
+    "absolute right-0 min-w-[14px] rounded-full px-[3px] text-center text-11 leading-[14px] font-semibold ring-2 ring-[var(--color-background)]";
 
 export function ReviewsRailBadges({ counts }: { counts: ReviewCounts }) {
     const waiting = counts?.waiting ?? 0;
@@ -18,7 +18,7 @@ export function ReviewsRailBadges({ counts }: { counts: ReviewCounts }) {
         <>
             {waiting > 0 ? (
                 <span
-                    className={cn(Badge, "molten-reviews-waiting top-0.5 bg-[var(--mt-state-working)] text-black")}
+                    className={cn(Badge, "molten-reviews-waiting top-0 bg-[var(--mt-state-working)] text-black")}
                     aria-hidden="true"
                 >
                     {railCountText(waiting)}
@@ -26,7 +26,7 @@ export function ReviewsRailBadges({ counts }: { counts: ReviewCounts }) {
             ) : null}
             {mergeable > 0 ? (
                 <span
-                    className={cn(Badge, "molten-reviews-mergeable bottom-0.5 bg-success text-black")}
+                    className={cn(Badge, "molten-reviews-mergeable bottom-0 bg-success text-black")}
                     aria-hidden="true"
                 >
                     {railCountText(mergeable)}
