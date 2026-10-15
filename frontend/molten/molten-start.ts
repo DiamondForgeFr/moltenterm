@@ -23,6 +23,7 @@ import { MoltenBuiltinMods } from "./molten-builtins";
 import { MoltenDirEntry, MoltenHost, MoltenHostEnv, MoltenRunRequest } from "./molten-host";
 import { MoltenManifestFileName, parseMoltenManifest } from "./molten-manifest";
 import { mountMoltenNotifications } from "./molten-notifications";
+import { MoltenPageGuard, MoltenPageNode } from "./molten-page";
 import { MoltenTrustModel } from "./molten-trust";
 import { validateMoltenMod } from "./molten-validate";
 
@@ -74,7 +75,18 @@ async function importModule(source: string, sourceName: string): Promise<any> {
     }
 }
 
-function makeMoltenHostEnv(): MoltenHostEnv {
+// Attributes to each mod the nodes its code adds to <html>, <head> and <body>, so the host removes them when the mod
+// stops (FR-MORPH-012).
+function makePageGuard(host: MoltenHost): MoltenPageGuard {
+    const guard = new MoltenPageGuard({
+        ownerOfUrl: (url) => modIdForScript(url, BlobOwners),
+        isLive: (modId) => host.isRunning(modId),
+    });
+    guard.install([document.documentElement, document.head, document.body] as unknown as MoltenPageNode[]);
+    return guard;
+}
+
+function makeMoltenHostEnv(page: MoltenPageGuard): MoltenHostEnv {
     const configDir = getApi().getConfigDir();
     return {
         modsDir: `${configDir}/mods`,
@@ -92,6 +104,7 @@ function makeMoltenHostEnv(): MoltenHostEnv {
             const used = (performance as any).memory?.usedJSHeapSize;
             return typeof used === "number" ? used / (1024 * 1024) : null;
         },
+        page,
     };
 }
 
@@ -142,7 +155,7 @@ export function startMoltenHost(): void {
     if (host.started) {
         return;
     }
-    const env = makeMoltenHostEnv();
+    const env = makeMoltenHostEnv(makePageGuard(host));
     const client = TabRpcClient as any;
     client[`handle_${MoltenModListRpcCommand}`] = async () => {
         await waitLoadedAtMost(host, ListWaitMs);

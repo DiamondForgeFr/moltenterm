@@ -74,6 +74,13 @@ export type MoltenHostEnv = {
     clock?: MoltenTimerClock;
     // The renderer's JS heap in MB, or null when it does not tell (best-effort memory of a mod's activation).
     heapUsedMB?: () => number;
+    // What mods' code added to the page (molten-page.ts, FR-MORPH-012): released when the mod stops.
+    page?: MoltenPageOwner;
+};
+
+export type MoltenPageOwner = {
+    // Removes the nodes the mod's code added to the page; returns how many went.
+    release: (modId: string) => number;
 };
 
 // pending: enabled, its code waits for the tab view to show (FR-PERF-014).
@@ -703,6 +710,9 @@ export class MoltenHost {
             (count) => (meter.timers = count)
         );
         runtime.timers = timers;
+        // Registered before the module runs, so it is the last disposer: the page is cleaned once the mod's own
+        // disposers, which may still touch its nodes, have run.
+        runtime.disposers.push(() => this.releasePage(manifest.id));
         runtime.disposers.push(() => timers.dispose());
         if (!this.showing && !runtime.status.background) {
             timers.pause();
@@ -815,6 +825,19 @@ export class MoltenHost {
         this.publish();
         // At once, not only at the end of the sync: what the next mods report already speaks the pack's language.
         this.applyLanguages();
+    }
+
+    // Whether the mod's code may run now (loading or active): the page guard removes at once what a stopped mod adds.
+    isRunning(id: string): boolean {
+        const runtime = this.runtimes.get(id);
+        return runtime != null && !runtime.stopped;
+    }
+
+    releasePage(id: string): void {
+        const removed = this.env?.page?.release(id) ?? 0;
+        if (removed > 0) {
+            console.log(`[molten:${id}] removed ${removed} node(s) the mod added to the page`);
+        }
     }
 
     clock(): MoltenTimerClock {
