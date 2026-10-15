@@ -11,7 +11,8 @@ import { cn, fireAndForget } from "@/util/util";
 import { useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { ReviewCleanupStepResult } from "./review-cleanup";
+import type { RebaseOutcome } from "../reviews/reviews-model";
+import { ReviewCleanupPr, ReviewCleanupStepResult } from "./review-cleanup";
 import { showPanel } from "./review-panels";
 import { keptButtonLabel, panelName, StepRow, StepState, ValidateStep } from "./review-stepper";
 
@@ -64,7 +65,52 @@ function ErrorText({ error }: { error: string }) {
     );
 }
 
-function Row({ row }: { row: StepRow }) {
+// StartAgentFn starts an agent on a PR the merge put in conflict, through Ask for a rebase's flow (#683, #691).
+export type StartAgentFn = (pr: ReviewCleanupPr) => Promise<RebaseOutcome>;
+
+function StartAgentButton({ pr, onStart }: { pr: ReviewCleanupPr; onStart: StartAgentFn }) {
+    const t = useT();
+    const [starting, setStarting] = useState(false);
+    const [outcome, setOutcome] = useState<RebaseOutcome>(null);
+    const start = () => {
+        setStarting(true);
+        fireAndForget(async () => {
+            try {
+                setOutcome(await onStart(pr));
+            } finally {
+                setStarting(false);
+            }
+        });
+    };
+    return (
+        <div className="mt-1 flex flex-col gap-1">
+            {outcome?.kind !== "asked" ? (
+                <div>
+                    <button
+                        type="button"
+                        className="molten-btn cursor-pointer rounded-4 px-2 py-1 text-12 disabled:cursor-default disabled:opacity-50"
+                        disabled={starting}
+                        onClick={start}
+                        data-testid="validate-others-start"
+                    >
+                        {starting ? t("review.validate.others.starting") : t("review.validate.others.start")}
+                        <MoltenWave />
+                    </button>
+                </div>
+            ) : null}
+            {outcome ? (
+                <div
+                    className={cn("break-words", outcome.kind === "failed" ? "text-error" : "text-secondary")}
+                    data-testid="validate-others-start-outcome"
+                >
+                    {outcome.text}
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+function Row({ row, onStartAgent }: { row: StepRow; onStartAgent?: StartAgentFn }) {
     const t = useT();
     return (
         <div className="flex items-start gap-2" data-row={row.id} data-state={row.state}>
@@ -96,6 +142,9 @@ function Row({ row }: { row: StepRow }) {
                     </div>
                 ))}
                 <ErrorText error={row.error} />
+                {row.startAgent != null && onStartAgent != null ? (
+                    <StartAgentButton pr={row.startAgent} onStart={onStartAgent} />
+                ) : null}
             </div>
         </div>
     );
@@ -184,11 +233,13 @@ function StepItem({
     last,
     top,
     extra,
+    onStartAgent,
 }: {
     step: ValidateStep;
     last: boolean;
     top?: React.ReactNode;
     extra?: React.ReactNode;
+    onStartAgent?: StartAgentFn;
 }) {
     const t = useT();
     const [open, setOpen] = useState(false);
@@ -243,7 +294,7 @@ function StepItem({
                 {showRows ? (
                     <div className="mt-1.5 flex flex-col gap-1.5">
                         {step.rows.map((row) => (
-                            <Row key={row.id} row={row} />
+                            <Row key={row.id} row={row} onStartAgent={onStartAgent} />
                         ))}
                     </div>
                 ) : null}
@@ -258,6 +309,7 @@ export function ValidateStepper({
     checksExtra,
     mergeTop,
     kept,
+    onStartAgent,
 }: {
     steps: ValidateStep[];
     // Under the checks: the confirmation of their warnings.
@@ -265,6 +317,8 @@ export function ValidateStepper({
     // Under the merge step's title: the choice of the merge method (#673).
     mergeTop?: React.ReactNode;
     kept?: KeptActions;
+    // A conflicting PR's Start an agent, in the other PRs' step (#691).
+    onStartAgent?: StartAgentFn;
 }) {
     const t = useT();
     return (
@@ -275,6 +329,7 @@ export function ValidateStepper({
                     step={step}
                     last={i === steps.length - 1}
                     top={step.id === "merge" ? mergeTop : null}
+                    onStartAgent={step.id === "others" ? onStartAgent : undefined}
                     extra={
                         step.id === "checks" ? (
                             checksExtra

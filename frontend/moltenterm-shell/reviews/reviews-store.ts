@@ -9,10 +9,12 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
 import { openMoltentermView } from "../open-view";
+import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
 import { askReviewRebase, markReviewReady, openReviewTab } from "../review/review-client";
 import { requestReviewSheet } from "../review/review-sheet-request";
 import { reviewsGet } from "./reviews-client";
 import {
+    cleanupRebaseAsks,
     markReadyError,
     MoltentermReviewsView,
     ReadiedPrs,
@@ -22,6 +24,7 @@ import {
     RebaseOutcome,
     repoOfPrUrl,
     ReviewPr,
+    reviewPrOfCleanup,
 } from "./reviews-model";
 
 // The PR a Reviews view brings into sight and marks, asked by another surface.
@@ -122,6 +125,23 @@ export class ReviewsModel {
             });
         }
         return outcome;
+    }
+
+    // The rebases the cleanup after a merge asked (#691) mark their Reviews rows like a row's click.
+    noteCleanupRebases(dir: string, cleanup: ReviewCleanupResult) {
+        if (!dir || cleanup == null) {
+            return;
+        }
+        const asks = globalStore.get(this.rebaseAsksAtom);
+        const next = cleanupRebaseAsks(asks, dir, cleanup);
+        if (next !== asks) {
+            globalStore.set(this.rebaseAsksAtom, next);
+        }
+    }
+
+    // Start an agent on a PR the merge put in conflict (#691), from the Validate sheet: Ask for a rebase with start.
+    startCleanupAgent(dir: string, repo: string, base: string, pr: ReviewCleanupPr): Promise<RebaseOutcome> {
+        return this.askRebase(dir, reviewPrOfCleanup(pr, base), repo, true);
     }
 
     // Mark ready for review (#687), from a draft's row or its Review tab: gh pr ready, then the list moves the PR to

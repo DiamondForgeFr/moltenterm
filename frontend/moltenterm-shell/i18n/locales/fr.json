@@ -4676,21 +4676,33 @@
                 }
             },
             "others": {
-                "plan": "Les autres pull requests ouvertes sur {base} seront rebasées par GitHub ; celles en conflit seront signalées.",
+                "plan": "Les autres pull requests ouvertes sur {base} restent telles quelles ; celles que ce merge met en conflit partent à leur agent pour un rebase.",
                 "none": "Rien à faire : aucune autre pull request ouverte sur {base}.",
-                "updatedCount": {
-                    "one": "1 rebasée par GitHub",
-                    "other": "{count} rebasées par GitHub"
+                "unaffectedCount": {
+                    "one": "1 non concernée",
+                    "other": "{count} non concernées"
                 },
-                "flaggedCount": {
-                    "one": "1 laissée pour plus tard",
-                    "other": "{count} laissées pour plus tard"
+                "conflictingCount": {
+                    "one": "1 désormais en conflit avec {base}",
+                    "other": "{count} désormais en conflit avec {base}"
+                },
+                "checkingCount": {
+                    "one": "1 encore en cours de vérification par GitHub",
+                    "other": "{count} encore en cours de vérification par GitHub"
                 },
                 "listFailed": "Les pull requests ouvertes n'ont pas pu être listées.",
-                "rebased": "Rebasée par GitHub.",
-                "agentBusy": "Laissée pour plus tard : son agent travaille. Mettez-la à jour quand il aura fini.",
-                "needsRebase": "Doit être rebasée : elle est en conflit avec {base} (Reprendre le travail peut la confier à un agent).",
-                "failed": "GitHub n'a pas pu la rebaser.",
+                "unaffected": "Non concernée : elle se merge toujours proprement.",
+                "asked": "En conflit avec {base} → rebase demandé à {name}.",
+                "askedUnnamed": "En conflit avec {base} → rebase demandé à l'agent de sa branche.",
+                "typed": "En conflit avec {base} → rebase tapé dans l'invite de {name} : appuyez sur Entrée dans son terminal pour l'envoyer.",
+                "typedUnnamed": "En conflit avec {base} → rebase tapé dans l'invite de son agent : appuyez sur Entrée dans son terminal pour l'envoyer.",
+                "agentBusy": "En conflit avec {base}. {name} est occupé et n'a pas été interrompu : demandez le rebase plus tard depuis Revues.",
+                "agentBusyUnnamed": "En conflit avec {base}. Son agent est occupé et n'a pas été interrompu : demandez le rebase plus tard depuis Revues.",
+                "needsAgent": "En conflit avec {base}, et aucun agent ne travaille sur sa branche → démarrez un agent.",
+                "notAsked": "En conflit avec {base} : le rebase n'a pas pu être demandé. Demandez-le depuis Revues.",
+                "checking": "GitHub n'avait pas fini de vérifier si elle se merge toujours proprement dans {base} : Revues l'indiquera.",
+                "start": "Démarrer un agent",
+                "starting": "Démarrage…",
                 "open": "Ouvrir"
             },
             "panels": {

@@ -35,6 +35,8 @@ export type StepRow = {
     lines: string[];
     error?: string;
     url?: string;
+    // A PR the merge put in conflict with no agent on its branch: the row offers to start one (#691).
+    startAgent?: ReviewCleanupPr;
 };
 
 export type ValidateStepId = "checks" | "merge" | "ticket" | "cleanup" | "others";
@@ -562,17 +564,56 @@ function cleanupStep(
     return step;
 }
 
+// otherPrText says what became of another open PR after the merge (#691): left alone, or conflicting and handed to its
+// agent for a rebase, or waiting for it.
 export function otherPrText(t: Translate, pr: ReviewCleanupPr, base: string): string {
-    if (pr.state === "done") {
-        return t("review.validate.others.rebased");
+    const vars = { base, name: pr.agent ?? "" };
+    switch (pr.flag) {
+        case "rebase-asked":
+            return pr.agent ? t("review.validate.others.asked", vars) : t("review.validate.others.askedUnnamed", vars);
+        case "rebase-typed":
+            return pr.agent ? t("review.validate.others.typed", vars) : t("review.validate.others.typedUnnamed", vars);
+        case "agent-busy":
+            return pr.agent
+                ? t("review.validate.others.agentBusy", vars)
+                : t("review.validate.others.agentBusyUnnamed", vars);
+        case "needs-agent":
+            return t("review.validate.others.needsAgent", vars);
+        case "needs-rebase":
+            return t("review.validate.others.notAsked", vars);
+        case "checking":
+            return t("review.validate.others.checking", vars);
     }
-    if (pr.flag === "agent-busy") {
-        return t("review.validate.others.agentBusy");
+    return t("review.validate.others.unaffected");
+}
+
+function otherPrRowState(pr: ReviewCleanupPr): StepState {
+    switch (pr.flag) {
+        case "rebase-asked":
+        case "rebase-typed":
+            return "done";
+        case "agent-busy":
+        case "needs-agent":
+            return "needs";
+        case "checking":
+            return "skipped";
     }
-    if (pr.flag === "needs-rebase") {
-        return t("review.validate.others.needsRebase", { base });
+    return pr.state === "failed" ? "failed" : "needs";
+}
+
+// otherPrsSummary: "3 unaffected · 1 conflicts with develop · 1 still checking".
+function otherPrsSummary(t: Translate, others: ReviewCleanupStepResult, base: string): string {
+    const counts: string[] = [];
+    if (others.unaffected > 0) {
+        counts.push(plural(t, "review.validate.others.unaffectedCount", others.unaffected));
     }
-    return t("review.validate.others.failed");
+    if (others.conflicting > 0) {
+        counts.push(plural(t, "review.validate.others.conflictingCount", others.conflicting, { base }));
+    }
+    if (others.checking > 0) {
+        counts.push(plural(t, "review.validate.others.checkingCount", others.checking));
+    }
+    return counts.join(" · ");
 }
 
 function othersStep(
@@ -607,31 +648,31 @@ function othersStep(
         );
         return step;
     }
-    step.rows = (others.prs ?? []).map((pr) => ({
-        id: `pr-${pr.number}`,
-        label: `#${pr.number} ${pr.branch}`,
-        state: pr.state === "done" ? "done" : pr.state === "failed" ? "failed" : "needs",
-        lines: [otherPrText(t, pr, others.base || base)],
-        error: pr.error,
-        url: pr.url,
-    }));
-    if (others.state === "failed" && step.rows.length === 0) {
+    const prBase = others.base || base;
+    // One row per PR the merge concerns; the unaffected ones are only counted.
+    step.rows = (others.prs ?? [])
+        .filter((pr) => !!pr.flag)
+        .map((pr) => ({
+            id: `pr-${pr.number}`,
+            label: `#${pr.number} ${pr.branch}`,
+            state: otherPrRowState(pr),
+            lines: [otherPrText(t, pr, prBase)],
+            error: pr.error,
+            url: pr.url,
+            startAgent: pr.flag === "needs-agent" ? pr : undefined,
+        }));
+    if (others.state === "failed" && (others.prs ?? []).length === 0) {
         step.state = "failed";
         step.lines.push(t("review.validate.others.listFailed"));
         step.error = others.error;
         return step;
     }
-    const counts: string[] = [];
-    if (others.updated > 0) {
-        counts.push(plural(t, "review.validate.others.updatedCount", others.updated));
+    const summary = otherPrsSummary(t, others, prBase);
+    if (summary) {
+        step.lines.push(summary);
     }
-    if (others.flagged > 0) {
-        counts.push(plural(t, "review.validate.others.flaggedCount", others.flagged));
-    }
-    if (counts.length > 0) {
-        step.lines.push(counts.join(" · "));
-    }
-    step.state = aggregate(step.rows);
+    const state = aggregate(step.rows);
+    step.state = state === "todo" || state === "skipped" ? "done" : state;
     return step;
 }
 

@@ -6,6 +6,7 @@
 
 import { t } from "../i18n/i18n";
 import { CheckState } from "../mission/github";
+import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
 
 export const MoltentermReviewsView = "molten-reviews";
 
@@ -133,6 +134,47 @@ export function rebaseAskShown(ask: RebaseAsk, pr: ReviewPr): boolean {
         return false;
     }
     return !ask.head || !pr.headoid || ask.head === pr.headoid;
+}
+
+// cleanupRebaseAsks: the rebases the cleanup after a merge asked (#691), so the Reviews rows show "Rebase asked to
+// <name>" as for a row's click. An ask already recorded since is kept.
+export function cleanupRebaseAsks(
+    asks: Record<string, RebaseAsk>,
+    dir: string,
+    cleanup: ReviewCleanupResult
+): Record<string, RebaseAsk> {
+    const others = cleanup?.steps?.find((s) => s.id === "other-prs");
+    let rtn = asks;
+    for (const pr of others?.prs ?? []) {
+        if ((pr.flag !== "rebase-asked" && pr.flag !== "rebase-typed") || !pr.agent) {
+            continue;
+        }
+        const key = rebaseAskKey(dir, pr.number);
+        const at = cleanup.endedat ?? 0;
+        if ((asks[key]?.at ?? -1) >= at) {
+            continue;
+        }
+        rtn = { ...rtn, [key]: { name: pr.agent, head: pr.headoid ?? "", at } };
+    }
+    return rtn;
+}
+
+// reviewPrOfCleanup is the Reviews row of another PR the cleanup reported, for its Start an agent (#691).
+export function reviewPrOfCleanup(pr: ReviewCleanupPr, base: string): ReviewPr {
+    return {
+        number: pr.number,
+        title: pr.title ?? "",
+        url: pr.url ?? "",
+        branch: pr.branch,
+        base,
+        headoid: pr.headoid,
+        createdat: "",
+        updatedat: "",
+        merge: "conflicts",
+        ci: null,
+        report: null,
+        unpublished: 0,
+    };
 }
 
 // must match RestartResult in pkg/molten/review/restart.go, as Ask for a rebase answers it (rebase.go)

@@ -57,12 +57,26 @@ export type ReviewWorktreeLoss = {
 // of the agent running in it, "" when none.
 export type ReviewCleanupPanel = { blockid: string; tab?: string; workspace?: string; agent?: string };
 
+// must match CleanupFlag… in pkg/molten/review/cleanup.go (#691): what became of a PR the merge put in conflict, or
+// checking when GitHub had not told whether it merges cleanly in time. No flag: unaffected.
+export type ReviewCleanupPrFlag =
+    | "rebase-asked"
+    | "rebase-typed"
+    | "agent-busy"
+    | "needs-agent"
+    | "needs-rebase"
+    | "checking";
+
+// must match CleanupPr in pkg/molten/review/cleanup.go; agent: the first name of the agent asked or busy.
 export type ReviewCleanupPr = {
     number: number;
     branch: string;
     url?: string;
+    title?: string;
+    headoid?: string;
     state: ReviewCleanupState;
-    flag?: "agent-busy" | "needs-rebase";
+    flag?: ReviewCleanupPrFlag;
+    agent?: string;
     error?: string;
 };
 
@@ -80,8 +94,9 @@ export type ReviewCleanupStepResult = {
     confirm?: ReviewWorktreeRisk;
     panels?: ReviewCleanupPanel[];
     prs?: ReviewCleanupPr[];
-    updated?: number;
-    flagged?: number;
+    unaffected?: number;
+    conflicting?: number;
+    checking?: number;
     failed?: number;
     // The English text of results made before #672.
     reason?: string;

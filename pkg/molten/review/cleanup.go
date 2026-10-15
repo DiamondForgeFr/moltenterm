@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -23,7 +22,8 @@ import (
 
 // The cleanup after a merge (FR-REV-013, DS-REV-010 steps 2 to 5): the ticket closed and Done, the review worktree and
 // the branch's agent worktree removed when it is safe, the branch deleted when its content is on the base, and the
-// other open PRs on the same base brought up to date by GitHub. Validate (FR-REV-012) calls it right after its merge;
+// other open PRs on the same base read once GitHub knows whether they still merge: those the merge put in conflict go to
+// their agent for a rebase (#691), the others are left alone. Validate (FR-REV-012) calls it right after its merge;
 // it also runs on its own for a PR merged earlier. Each step reports done, skipped (why) or failed (the message), and a
 // failure stops only the steps that depend on it. Every removal goes through the safety checks Mission Control already
 // has: nothing uncommitted or unpushed is deleted without the second confirmation of the plan the developer saw.
@@ -46,8 +46,15 @@ const (
 	CleanupStateSkipped = "skipped"
 	CleanupStateFailed  = "failed"
 
+	// What became of another open PR (#691): a conflicting one goes to its agent (rebase-asked, or rebase-typed when the
+	// prompt waits for Enter), waits for a busy agent (agent-busy), or needs one started (needs-agent); needs-rebase: asking
+	// failed; checking: GitHub had not told whether it merges cleanly in time.
+	CleanupFlagRebaseAsked = "rebase-asked"
+	CleanupFlagRebaseTyped = "rebase-typed"
 	CleanupFlagAgentBusy   = "agent-busy"
+	CleanupFlagNeedsAgent  = "needs-agent"
 	CleanupFlagNeedsRebase = "needs-rebase"
+	CleanupFlagChecking    = "checking"
 
 	// What a step did or why it was skipped (#672: the sheet writes the sentences from these codes and the data).
 	CleanupCodeMerged         = "merged"
@@ -83,10 +90,15 @@ const (
 
 	CleanupWorkflowCliPath = ".claude/skills/sf-workflow/workflow-cli.sh"
 
-	cleanupTimeout           = 5 * time.Minute
-	cleanupFetchRetry        = 2 * time.Second
-	cleanupOtherPrsLimit     = "100"
-	cleanupMergeStateDirty   = "DIRTY"
+	cleanupTimeout         = 5 * time.Minute
+	cleanupFetchRetry      = 2 * time.Second
+	cleanupOtherPrsLimit   = "100"
+	cleanupMergeStateDirty = "DIRTY"
+	cleanupConflicting     = "CONFLICTING"
+	cleanupMergeable       = "MERGEABLE"
+	// Right after the merge GitHub says UNKNOWN until it has computed each PR's mergeability again.
+	cleanupMergeablePoll     = 5 * time.Second
+	cleanupMergeableWait     = 2 * time.Minute
 	cleanupPrStateMerged     = "MERGED"
 	cleanupIssueStateClosed  = "CLOSED"
 	cleanupWorkflowDoneMatch = "status: Done"
@@ -95,8 +107,6 @@ const (
 // CleanupSteps is the steps' order; a request naming some of them runs those only.
 var CleanupSteps = []string{CleanupStepPr, CleanupStepTicketClose, CleanupStepTicketDone, CleanupStepReviewTree,
 	CleanupStepAgentTree, CleanupStepLocalBranch, CleanupStepRemoteBranch, CleanupStepOtherPrs}
-
-var conflictRe = regexp.MustCompile(`(?i)conflict`)
 
 // cleanupRunner runs git, gh and the workflow CLI for the cleanup in wavesrv (a test build may replace it).
 var cleanupRunner mission.Runner = mission.ExecRunner
@@ -124,15 +134,18 @@ type CleanupPanel struct {
 	Agent string `json:"agent,omitempty"`
 }
 
-// CleanupPr is what the cleanup did to another open PR on the same base.
+// CleanupPr is another open PR on the same base after the merge: unaffected (done, no flag), or conflicting and what
+// became of its rebase (Flag), or still being checked by GitHub.
 type CleanupPr struct {
-	Number int    `json:"number"`
-	Branch string `json:"branch"`
-	Url    string `json:"url,omitempty"`
-	State  string `json:"state"`
-	// Flag: why it was left (CleanupFlagAgentBusy: update after the agent finishes; CleanupFlagNeedsRebase: Restart
-	// work offers it); Error: gh's error.
+	Number  int    `json:"number"`
+	Branch  string `json:"branch"`
+	Url     string `json:"url,omitempty"`
+	Title   string `json:"title,omitempty"`
+	HeadOid string `json:"headoid,omitempty"`
+	State   string `json:"state"`
+	// Flag: CleanupFlag…; Agent: the first name (else the name) of the agent asked or busy; Error: why asking failed.
 	Flag  string `json:"flag,omitempty"`
+	Agent string `json:"agent,omitempty"`
 	Error string `json:"error,omitempty"`
 }
 
@@ -153,11 +166,13 @@ type CleanupStepResult struct {
 	Confirm *mission.WorktreeRisk `json:"confirm,omitempty"`
 	// Panels: the MoltenTerm terminals still open in a kept worktree (an agent, a shell, a durable job).
 	Panels []CleanupPanel `json:"panels,omitempty"`
-	// The other PRs: what was done to each, and the counts.
-	Prs     []CleanupPr `json:"prs,omitempty"`
-	Updated int         `json:"updated,omitempty"`
-	Flagged int         `json:"flagged,omitempty"`
-	Failed  int         `json:"failed,omitempty"`
+	// The other PRs, and the counts: unaffected, conflicting (Failed: those whose rebase could not be asked), and still
+	// checking.
+	Prs         []CleanupPr `json:"prs,omitempty"`
+	Unaffected  int         `json:"unaffected,omitempty"`
+	Conflicting int         `json:"conflicting,omitempty"`
+	Checking    int         `json:"checking,omitempty"`
+	Failed      int         `json:"failed,omitempty"`
 }
 
 type CleanupResult struct {
@@ -191,8 +206,14 @@ type CleanupEnv struct {
 	AgentState func(blockId string) string
 	// EndSession ends the PR's review session (reviewsession.EndSession).
 	EndSession func(ctx context.Context, repo string, number int) error
-	DataDir    string
-	Now        func() time.Time
+	// AskRebase hands a conflicting PR to the agent on its branch (Restarter.AskRebase, #683); never with Start.
+	AskRebase func(ctx context.Context, req RebaseRequest) (RestartResult, error)
+	// MergeablePoll, MergeableWait: how often, and how long at most, the other PRs are read again while GitHub computes
+	// whether they still merge cleanly.
+	MergeablePoll time.Duration
+	MergeableWait time.Duration
+	DataDir       string
+	Now           func() time.Time
 }
 
 type Cleaner struct {
@@ -203,6 +224,12 @@ type Cleaner struct {
 func MakeCleaner(env CleanupEnv) *Cleaner {
 	if env.Now == nil {
 		env.Now = time.Now
+	}
+	if env.MergeablePoll <= 0 {
+		env.MergeablePoll = cleanupMergeablePoll
+	}
+	if env.MergeableWait <= 0 {
+		env.MergeableWait = cleanupMergeableWait
 	}
 	terminals := func(ctx context.Context, path string, exclude []string) []mission.WorktreeTerminal {
 		if env.Terminals == nil {
@@ -232,8 +259,20 @@ type mergedPrFacts struct {
 type openPrFacts struct {
 	Number      int    `json:"number"`
 	HeadRefName string `json:"headRefName"`
+	HeadRefOid  string `json:"headRefOid"`
+	Title       string `json:"title"`
+	Mergeable   string `json:"mergeable"`
 	MergeState  string `json:"mergeStateStatus"`
 	Url         string `json:"url"`
+}
+
+func (pr openPrFacts) conflicting() bool {
+	return pr.Mergeable == cleanupConflicting || pr.MergeState == cleanupMergeStateDirty
+}
+
+// settled: GitHub has told whether the PR merges cleanly.
+func (pr openPrFacts) settled() bool {
+	return pr.Mergeable == cleanupMergeable || pr.conflicting()
 }
 
 type cleanupRun struct {
@@ -344,7 +383,7 @@ func (c *Cleaner) Run(ctx context.Context, req CleanupRequest) (CleanupResult, e
 		r.add(r.deleteRemoteBranch())
 	}
 	if r.wanted(CleanupStepOtherPrs) {
-		r.add(r.updateOtherPrs())
+		r.add(r.checkOtherPrs())
 	}
 	r.result.EndAt = c.env.Now().UnixMilli()
 	return r.result, nil
@@ -730,65 +769,97 @@ func (s *Service) Cleanup(ctx context.Context, req CleanupRequest) (CleanupResul
 	return result, nil
 }
 
-// busyAgent tells whether an agent works or waits in a worktree that has the branch checked out.
-func (r *cleanupRun) busyAgent(entries [][2]string, branch string) bool {
-	if r.c.env.Terminals == nil || r.c.env.AgentState == nil {
-		return false
-	}
-	for _, e := range entries {
-		if e[1] != "refs/heads/"+branch {
-			continue
-		}
-		for _, t := range r.c.env.Terminals(r.ctx, e[0]) {
-			state := r.c.env.AgentState(t.BlockId)
-			if state == molten.AgentStateWorking || state == molten.AgentStateWaiting {
-				return true
+// otherPrs reads the other open PRs on the base, and reads them again while GitHub has not told whether some still
+// merge cleanly, for MergeableWait at most. A later read that fails keeps the last list.
+func (r *cleanupRun) otherPrs(base string) ([]openPrFacts, error) {
+	deadline := r.c.env.Now().Add(r.c.env.MergeableWait)
+	var last []openPrFacts
+	for {
+		out, err := r.gh("pr", "list", "--state", "open", "--base", base, "--limit", cleanupOtherPrsLimit,
+			"--json", "number,headRefName,headRefOid,title,mergeable,mergeStateStatus,url")
+		if err == nil {
+			var prs []openPrFacts
+			if jerr := json.Unmarshal(out, &prs); jerr != nil {
+				err = errors.New("gh pr list: unreadable answer")
+			} else {
+				last = slices.DeleteFunc(prs, func(pr openPrFacts) bool { return pr.Number == r.req.Number })
 			}
 		}
+		if err != nil && last == nil {
+			return nil, err
+		}
+		pending := slices.ContainsFunc(last, func(pr openPrFacts) bool { return !pr.settled() })
+		if !pending || !r.c.env.Now().Before(deadline) || !sleepCtx(r.ctx, r.c.env.MergeablePoll) {
+			return last, nil
+		}
 	}
-	return false
 }
 
-// updateOtherPrs asks GitHub to rebase every other open PR on the same base (gh pr update-branch --rebase), server
-// side: no local rebase or force push. A PR whose agent is busy is left for later; a conflict needs an agent.
-func (r *cleanupRun) updateOtherPrs() CleanupStepResult {
+// askRebase hands a PR the merge put in conflict to the agent on its branch, through Ask for a rebase's routing
+// (rebase.go): a busy agent is not interrupted, and with no agent nothing starts; the window offers to start one.
+func (r *cleanupRun) askRebase(pr openPrFacts, item *CleanupPr) {
+	if r.c.env.AskRebase == nil {
+		item.State, item.Flag, item.Error = CleanupStateFailed, CleanupFlagNeedsRebase, "Ask for a rebase is not available"
+		return
+	}
+	res, err := r.c.env.AskRebase(r.ctx, RebaseRequest{
+		PrKey:    PrKey{Repo: r.req.Repo, Number: pr.Number},
+		Dir:      r.dir,
+		HeadRef:  pr.HeadRefName,
+		BaseRef:  r.pr.BaseRefName,
+		HeadOid:  pr.HeadRefOid,
+		Title:    pr.Title,
+		Url:      pr.Url,
+		MergedPr: r.req.Number,
+	})
+	item.Agent = res.FirstName
+	if item.Agent == "" {
+		item.Agent = res.AgentName
+	}
+	switch {
+	case err != nil:
+		item.State, item.Flag, item.Error = CleanupStateFailed, CleanupFlagNeedsRebase, err.Error()
+	case res.Status == RestartSent || res.Status == RestartStarted:
+		item.State, item.Flag = CleanupStateDone, CleanupFlagRebaseAsked
+	case res.Status == RestartTyped:
+		item.State, item.Flag = CleanupStateDone, CleanupFlagRebaseTyped
+	case res.Status == RestartBusy:
+		item.State, item.Flag = CleanupStateSkipped, CleanupFlagAgentBusy
+	case res.Status == RebaseOffer:
+		item.State, item.Flag = CleanupStateSkipped, CleanupFlagNeedsAgent
+	default:
+		item.State, item.Flag, item.Error = CleanupStateFailed, CleanupFlagNeedsRebase, res.Message
+		if item.Error == "" {
+			item.Error = res.Status
+		}
+	}
+}
+
+// checkOtherPrs leaves alone the other open PRs on the base that still merge cleanly: Validate brings a PR up to date
+// when it merges it, and rebasing them all would rewrite their history and restart their CI at each merge (#691).
+// Those the merge put in conflict go to their agent for a rebase.
+func (r *cleanupRun) checkOtherPrs() CleanupStepResult {
 	base := r.pr.BaseRefName
-	out, err := r.gh("pr", "list", "--state", "open", "--base", base, "--limit", cleanupOtherPrsLimit,
-		"--json", "number,headRefName,mergeStateStatus,url")
+	prs, err := r.otherPrs(base)
 	if err != nil {
 		return failed(CleanupStepOtherPrs, err)
 	}
-	var prs []openPrFacts
-	if err := json.Unmarshal(out, &prs); err != nil {
-		return failed(CleanupStepOtherPrs, errors.New("gh pr list: unreadable answer"))
-	}
-	entries, _ := r.worktreeEntries()
 	step := CleanupStepResult{Id: CleanupStepOtherPrs, Base: base, Code: CleanupCodeOtherPrs, Prs: []CleanupPr{}}
 	for _, pr := range prs {
-		if pr.Number == r.req.Number {
-			continue
-		}
-		item := CleanupPr{Number: pr.Number, Branch: pr.HeadRefName, Url: pr.Url}
+		item := CleanupPr{Number: pr.Number, Branch: pr.HeadRefName, Url: pr.Url, Title: pr.Title, HeadOid: pr.HeadRefOid}
 		switch {
-		case r.busyAgent(entries, pr.HeadRefName):
-			item.State, item.Flag = CleanupStateSkipped, CleanupFlagAgentBusy
-			step.Flagged++
-		case pr.MergeState == cleanupMergeStateDirty:
-			item.State, item.Flag = CleanupStateSkipped, CleanupFlagNeedsRebase
-			step.Flagged++
-		default:
-			_, err := r.gh("pr", "update-branch", strconv.Itoa(pr.Number), "--rebase")
-			switch {
-			case err == nil:
-				item.State = CleanupStateDone
-				step.Updated++
-			case conflictRe.MatchString(err.Error()):
-				item.State, item.Flag, item.Error = CleanupStateSkipped, CleanupFlagNeedsRebase, err.Error()
-				step.Flagged++
-			default:
-				item.State, item.Error = CleanupStateFailed, err.Error()
+		case pr.conflicting():
+			step.Conflicting++
+			r.askRebase(pr, &item)
+			if item.State == CleanupStateFailed {
 				step.Failed++
 			}
+		case pr.settled():
+			item.State = CleanupStateDone
+			step.Unaffected++
+		default:
+			item.State, item.Flag = CleanupStateSkipped, CleanupFlagChecking
+			step.Checking++
 		}
 		step.Prs = append(step.Prs, item)
 	}

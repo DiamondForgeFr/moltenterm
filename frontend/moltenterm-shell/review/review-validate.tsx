@@ -8,9 +8,11 @@
 
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
+import { useEffect } from "react";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { ReviewsModel } from "../reviews/reviews-store";
 import { SegmentedControl } from "../segmented-control";
 import { cleanupNeedsConfirmation, ReviewCleanupResult } from "./review-cleanup";
 import { ReviewMergeMethod, ReviewMergePlan, ReviewMergeRecord } from "./review-client";
@@ -69,6 +71,10 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
     const pr = useAtomValue(model.prAtom);
     const state = useAtomValue(model.stateAtom);
     useEscape(v.open, () => model.closeValidate());
+    const storedCleanup = state?.cleanup;
+    useEffect(() => {
+        ReviewsModel.getInstance().noteCleanupRebases(pr?.dir, storedCleanup);
+    }, [pr?.dir, storedCleanup]);
     if (!v.open || pr == null) {
         return null;
     }
@@ -149,6 +155,9 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
                         busy: v.confirming,
                         onRemove: (step) => fireAndForget(() => model.removeKeptWorktree(step)),
                     }}
+                    onStartAgent={(other) =>
+                        ReviewsModel.getInstance().startCleanupAgent(pr.dir, pr.repo, cleanup?.base || baseref, other)
+                    }
                 />
                 {record == null && plan != null && !plan.canmerge ? (
                     <div className="text-error" data-testid="validate-reason">
