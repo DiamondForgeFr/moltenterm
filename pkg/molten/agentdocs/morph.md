@@ -58,13 +58,14 @@ instead of steps 3 to 9 below (steps 1 and 2 still apply):
 <!-- not:claude-code -->
 5. Create the mod: `molten mod new <id> --name "<name>" --description "<one sentence>"`, then write `main.js` in the
    folder it prints, and list in `mod.json` the capabilities it uses. A mod is one self-contained ES module: no
-   import, only the `api` given to `activate`.
+   import, only the `api` given to `activate`, never `document` or the page (`mod-format.md` says why).
 <!-- /not -->
 <!-- only:claude-code -->
 5. Create the mod: `molten mod new <id> --name "<name>" --description "<one sentence>"`, with `--claude-code` when
    the request needs the Claude Code part. Then:
    - write `main.js` in the folder it prints, and list in `mod.json` the capabilities it uses. A mod is one
-     self-contained ES module: no import, only the `api` given to `activate`. A mod with only a Claude Code part
+     self-contained ES module: no import, only the `api` given to `activate`, never `document` or the page
+     (`mod-format.md` says why). A mod with only a Claude Code part
      keeps a `main.js` whose `activate` does nothing.
    - write the Claude Code part in the `agents/claude-code/` folder `molten mod new` printed: `hooks/register.ts`
      (or `.tsx`), `hooks/hooks.json`, `.claude-plugin/plugin.json` whose `name` stays the mod id. Use the
