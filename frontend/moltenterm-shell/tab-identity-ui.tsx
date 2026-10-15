@@ -12,8 +12,10 @@ import { atom, useAtomValue } from "jotai";
 import { useMemo } from "react";
 import { AgentStateInfo, agentStatesOfBlocks, agentStateTitle } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
+import { TFunction, useT } from "./i18n/i18n";
 import { ProjectTabMetaKey } from "./project/project-model";
-import { agentGlyph, panelIcon, PanelMeta, tabDisplayName } from "./tab-identity";
+import { ReviewDoneMeta, reviewDoneTabTitle } from "./review/review-done";
+import { agentGlyph, panelIcon, PanelMeta, panelReviewDone, tabDisplayName } from "./tab-identity";
 import { useWorkingBeat } from "./working-beat";
 
 let homeDir: string = null;
@@ -34,6 +36,8 @@ export type TabIdentity = {
     icon: string;
     pinned: boolean;
     agent: AgentStateInfo;
+    // A Review tab whose PR is merged or closed (#686).
+    reviewDone: ReviewDoneMeta;
 };
 
 // The tab's first panel decides the icon and the generic name; any agent of the tab (idle included) gives its glyph,
@@ -67,7 +71,40 @@ export function useTabIdentity(tabId: string, tabName: string): TabIdentity {
         icon,
         pinned: facts.pinned,
         agent: urgent,
+        reviewDone: panelReviewDone(facts.meta),
     };
+}
+
+// The tab's tooltip: the Review tab's done hint above the trees of its terminals.
+export function tabTooltip(t: TFunction, identity: TabIdentity, treesTitle: string): string {
+    return [reviewDoneTabTitle(t, identity.reviewDone), treesTitle].filter((s) => !!s).join("\n");
+}
+
+export function useTabTooltip(identity: TabIdentity, treesTitle: string): string {
+    const t = useT();
+    return tabTooltip(t, identity, treesTitle);
+}
+
+// The done mark of a Review tab (#686): a check in the success colour once merged, a neutral dash once closed.
+export function TabReviewMark({ done }: { done: ReviewDoneMeta }) {
+    const t = useT();
+    if (done == null) {
+        return null;
+    }
+    const title = reviewDoneTabTitle(t, done);
+    return (
+        <i
+            className={cn(
+                "fa fa-solid molten-tab-review-done",
+                done.state === "merged" ? "fa-circle-check" : "fa-circle-minus"
+            )}
+            data-state={done.state}
+            role="img"
+            aria-label={title}
+            title={title}
+            data-testid="tab-review-done"
+        />
+    );
 }
 
 export function TabIcon({ icon, title }: { icon: string; title?: string }) {

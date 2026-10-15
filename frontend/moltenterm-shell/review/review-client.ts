@@ -20,6 +20,7 @@ const FileCommand = "moltenreviewfile";
 const CompareCommand = "moltenreviewcompare";
 const WorktreeCommand = "moltenreviewworktree";
 const StateCommand = "moltenreviewstate";
+const PrStateCommand = "moltenreviewprstate";
 const ViewedCommand = "moltenreviewviewed";
 const ShownCommand = "moltenreviewshown";
 const MergePlanCommand = "moltenreviewmergeplan";
@@ -340,6 +341,20 @@ export function reviewWorktree(req: {
 
 export function reviewState(repo: string, num: number): Promise<ReviewState> {
     return call(StateCommand, { repo, number: num });
+}
+
+// must match PrStateResult in pkg/molten/review/prstate.go
+export type ReviewPrStateResult = {
+    state: "open" | "merged" | "closed";
+    baseref?: string;
+    mergedoid?: string;
+    mergedat?: string;
+    closedat?: string;
+};
+
+// reviewPrState reads the PR's state on GitHub (#686): merged or closed outside MoltenTerm.
+export function reviewPrState(dir: string, repo: string, num: number): Promise<ReviewPrStateResult> {
+    return call(PrStateCommand, { dir, repo, number: num });
 }
 
 export function setReviewViewed(
