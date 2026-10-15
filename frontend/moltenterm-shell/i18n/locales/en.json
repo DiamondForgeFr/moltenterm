@@ -3785,7 +3785,9 @@
             "notification": "a notification is waiting",
             "untitled": "Panel",
             "morePanelsOne": "+1 panel",
-            "morePanels": "+{count} panels"
+            "morePanels": "+{count} panels",
+            "window": "Visible area",
+            "windowHint": "drag to move, click a panel to jump to it"
         },
         "pin": {
             "pinBeside": "Pin beside",

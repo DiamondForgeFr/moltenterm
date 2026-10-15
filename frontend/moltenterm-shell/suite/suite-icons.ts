@@ -21,6 +21,7 @@ import {
     Database,
     DatabaseBackup,
     ExternalLink,
+    Eye,
     FileBraces,
     FileText,
     FolderGit2,
@@ -145,6 +146,7 @@ export const SuiteIcons = {
     camera: p(Video),
     microphone: p(Mic),
     location: p(MapPin),
+    visibleArea: p(Eye),
 } satisfies Record<string, SuiteIconEntry>;
 
 export type SuiteIconName = keyof typeof SuiteIcons;

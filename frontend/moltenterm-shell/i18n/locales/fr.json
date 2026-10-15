@@ -3785,7 +3785,9 @@
             "notification": "une notification attend",
             "untitled": "Panneau",
             "morePanelsOne": "+1 panneau",
-            "morePanels": "+{count} panneaux"
+            "morePanels": "+{count} panneaux",
+            "window": "Zone visible",
+            "windowHint": "faites glisser pour la déplacer, cliquez sur un panneau pour y aller"
         },
         "pin": {
             "pinBeside": "Épingler à côté",
