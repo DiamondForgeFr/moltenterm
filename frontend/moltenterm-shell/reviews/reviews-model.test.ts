@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
     ciLabel,
     isReviewable,
+    markReadyError,
     mergeLabel,
     navigableRows,
     nextRow,
@@ -17,6 +18,7 @@ import {
     ReviewPr,
     ReviewsAnswer,
     reviewsEmptyState,
+    splitReviews,
     validateBlocked,
 } from "./reviews-model";
 
@@ -69,7 +71,7 @@ describe("reviews model", () => {
         expect(validateBlocked(pr(1, { merge: "conflicts" }))).toBe("Conflicts with develop: ask for a rebase first.");
         expect(validateBlocked(pr(1, { merge: "blocked" }))).toContain("GitHub blocks the merge");
         expect(validateBlocked(pr(1, { ci: failing }))).toBe("Failing checks (2): fix them first.");
-        expect(validateBlocked(pr(1, { draft: true, merge: "conflicts" }))).toContain("draft");
+        expect(validateBlocked(pr(1, { draft: true, merge: "conflicts" }))).toContain("Draft");
     });
 
     it("keeps a rebase asked until the PR's head changes (#683 AC3)", () => {
@@ -163,8 +165,8 @@ describe("reviews model", () => {
     });
 
     it("walks the ready rows, and the drafts once their group is open", () => {
-        expect(navigableRows(answer(), false).map((r) => r.number)).toEqual([1, 2]);
-        const rows = navigableRows(answer(), true);
+        expect(navigableRows(splitReviews(answer()), false).map((r) => r.number)).toEqual([1, 2]);
+        const rows = navigableRows(splitReviews(answer()), true);
         expect(rows.map((r) => r.number)).toEqual([1, 2, 3]);
         expect(nextRow(rows, null, "ArrowDown")).toBe(1);
         expect(nextRow(rows, 1, "ArrowDown")).toBe(2);
@@ -173,6 +175,44 @@ describe("reviews model", () => {
         expect(nextRow(rows, 2, "End")).toBe(3);
         expect(nextRow(rows, 2, "Home")).toBe(1);
         expect(nextRow([], 2, "Home")).toBeNull();
+    });
+
+    it("splits drafts from the PRs waiting for review (#687 AC1)", () => {
+        const split = splitReviews(answer());
+        expect(split.ready.map((r) => r.number)).toEqual([1, 2]);
+        expect(split.drafts.map((r) => r.number)).toEqual([3]);
+        expect(splitReviews(null)).toEqual({ ready: [], drafts: [] });
+        expect(splitReviews(answer({ ready: undefined, drafts: undefined }))).toEqual({ ready: [], drafts: [] });
+    });
+
+    it("moves a draft marked ready here until a newer GitHub read (#687 AC3)", () => {
+        const a = answer({
+            githubat: 1000,
+            ready: [pr(1, { updatedat: "2026-10-12T10:00:00Z" }), pr(2, { updatedat: "2026-10-10T10:00:00Z" })],
+            drafts: [pr(3, { draft: true, updatedat: "2026-10-11T10:00:00Z" }), pr(4, { draft: true })],
+        });
+        const moved = splitReviews(a, { [rebaseAskKey("/p", 3)]: 2000 });
+        expect(moved.ready.map((r) => r.number)).toEqual([1, 3, 2]);
+        expect(moved.ready.find((r) => r.number === 3).draft).toBe(false);
+        expect(moved.drafts.map((r) => r.number)).toEqual([4]);
+        // GitHub read after the click still says draft (converted back): GitHub wins.
+        expect(
+            splitReviews({ ...a, githubat: 3000 }, { [rebaseAskKey("/p", 3)]: 2000 }).drafts.map((r) => r.number)
+        ).toEqual([3, 4]);
+        // Another project's mark moves nothing.
+        expect(splitReviews(a, { [rebaseAskKey("/q", 3)]: 2000 }).drafts.map((r) => r.number)).toEqual([3, 4]);
+    });
+
+    it("words Mark ready for review's failures in plain words (#687 AC4)", () => {
+        expect(markReadyError({ status: "ready" })).toBe("");
+        expect(markReadyError({ status: "failed", reason: "closed" })).toContain("closed");
+        expect(markReadyError({ status: "failed", reason: "permission" })).toContain("cannot change");
+        expect(markReadyError({ status: "failed", reason: "auth" })).toContain("gh auth login");
+        expect(markReadyError({ status: "failed", reason: "notfound" })).toContain("does not know");
+        expect(markReadyError({ status: "failed", reason: "nogh" })).toContain("not installed");
+        expect(markReadyError({ status: "failed", reason: "error", message: "boom" })).toContain("boom");
+        expect(markReadyError(null, "timeout")).toContain("timeout");
+        expect(validateBlocked(pr(3, { draft: true }))).toBe("Draft: mark it ready for review first.");
     });
 
     it("offers Review in Mission Control on the PRs the view lists", () => {

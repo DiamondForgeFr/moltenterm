@@ -28,6 +28,7 @@ import {
 import { shortOid } from "./review-model";
 import { buildValidateSteps } from "./review-stepper";
 import { ValidateStepper } from "./review-stepper-view";
+import { DraftActions } from "./review-tab-draft";
 import { ReviewTabModel } from "./review-tab-model";
 
 const PlainButton =
@@ -36,7 +37,11 @@ const PlainButton =
 export function ValidateButton({ model }: { model: ReviewTabModel }) {
     const t = useT();
     const state = useAtomValue(model.stateAtom);
+    const draft = useAtomValue(model.draftAtom);
     const running = mergeRunning(state?.merge);
+    if (draft && !running) {
+        return <DraftActions model={model} />;
+    }
     return (
         <button
             type="button"

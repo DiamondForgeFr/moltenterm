@@ -329,7 +329,7 @@ func (l *routeLink) route() localroute.Route {
 func commandTimeout(command string) time.Duration {
 	switch command {
 	case FilesCommand, FileCommand, CompareCommand, WorktreeCommand, MergePlanCommand, RelocateCommand, DiscussCommand,
-		PublishInfoCommand, TranslateCommand, NoteFileCommand:
+		PublishInfoCommand, TranslateCommand, NoteFileCommand, MarkReadyCommand:
 		return gitTimeout
 	case PublishCommand:
 		return publishTimeout
@@ -525,6 +525,13 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.AskRebase(ctx, req)
+	case MarkReadyCommand:
+		// The developer's click on Mark ready for review (#687): GitHub notifies the reviewers, so never a terminal's.
+		req, err := decode[MarkReadyRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.MarkReady(ctx, req)
 	case NoteKeepCommand:
 		req, err := decode[NoteKeepRequest](data)
 		if err != nil {

@@ -3843,9 +3843,8 @@
         "reportsError": "Les rapports de test n'ont pas pu être lus ; ils apparaissent comme inconnus.",
         "waiting": "En attente de revue",
         "noneWaiting": "Aucune pull request en attente de revue vers",
-        "inTesting": "En test",
-        "draftOne": "1 brouillon",
-        "drafts": "{count} brouillons",
+        "draftsTitle": "Brouillons",
+        "noneDrafts": "Aucune pull request en brouillon vers",
         "openReview": "Ouvrir la revue",
         "opened": "ouverte {when}",
         "updated": "mise à jour {when}",
@@ -3869,7 +3868,7 @@
         "validate": {
             "button": "Valider",
             "title": "Rebaser et fusionner : ouvre la feuille Valider avec le plan",
-            "draft": "Un brouillon ne peut pas être validé : passez-le d'abord en prêt pour la revue.",
+            "draft": "Brouillon : passez-le d'abord en prêt pour la revue.",
             "conflicts": "Conflits avec {base} : demandez d'abord un rebase.",
             "blocked": "GitHub bloque la fusion : une vérification ou une revue obligatoire manque.",
             "failing": "Vérifications en échec ({count}) : corrigez-les d'abord."
@@ -3892,6 +3891,24 @@
             "maincheckout": "{branch} est extraite dans le dossier principal du projet, où MoltenTerm ne démarre jamais d'agent : passez ce dossier sur une autre branche, puis redemandez.",
             "terminal": "MoltenTerm n'atteint pas encore ses terminaux : réessayez dans un instant.",
             "failed": "Le rebase n'a pas pu être demandé : {message}"
+        },
+        "ready": {
+            "button": "Prête pour la revue",
+            "buttonTitle": "Passer ce brouillon en revue sur GitHub",
+            "sending": "Passage en revue…",
+            "confirm": "GitHub préviendra les relecteurs ; la PR passe dans En attente de revue.",
+            "confirmButton": "Passer en revue",
+            "dismiss": "Fermer",
+            "draftChip": "Brouillon",
+            "draftChipTitle": "Cette pull request est un brouillon : l'analyse IA fonctionne, Valider attend qu'elle soit prête pour la revue.",
+            "failed": {
+                "closed": "Cette pull request est fermée : seul un brouillon ouvert peut passer en revue.",
+                "permission": "GitHub a refusé : votre compte ne peut pas modifier cette pull request.",
+                "auth": "gh est déconnecté : lancez gh auth login dans un terminal, puis réessayez.",
+                "notfound": "GitHub ne connaît plus cette pull request.",
+                "nogh": "gh n'est pas installé sur cet ordinateur.",
+                "error": "La pull request n'a pas pu passer en revue : {message}"
+            }
         },
         "ci": {
             "noneTitle": "Aucune vérification signalée sur cette pull request.",

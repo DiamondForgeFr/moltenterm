@@ -3843,9 +3843,8 @@
         "reportsError": "The test reports could not be read; they show as unknown.",
         "waiting": "Waiting for review",
         "noneWaiting": "No pull request waiting for review into",
-        "inTesting": "In testing",
-        "draftOne": "1 draft",
-        "drafts": "{count} drafts",
+        "draftsTitle": "Drafts",
+        "noneDrafts": "No draft pull request towards",
         "openReview": "Open the review",
         "opened": "opened {when}",
         "updated": "updated {when}",
@@ -3869,7 +3868,7 @@
         "validate": {
             "button": "Validate",
             "title": "Rebase and merge: opens the Validate sheet with the plan",
-            "draft": "A draft cannot be validated: mark it ready for review first.",
+            "draft": "Draft: mark it ready for review first.",
             "conflicts": "Conflicts with {base}: ask for a rebase first.",
             "blocked": "GitHub blocks the merge: a required check or review is missing.",
             "failing": "Failing checks ({count}): fix them first."
@@ -3892,6 +3891,24 @@
             "maincheckout": "{branch} is checked out in the project's main folder, where MoltenTerm never starts an agent: switch that folder to another branch, then ask again.",
             "terminal": "MoltenTerm cannot reach its terminals yet: try again in a moment.",
             "failed": "The rebase could not be asked: {message}"
+        },
+        "ready": {
+            "button": "Mark ready for review",
+            "buttonTitle": "Move this draft to review on GitHub",
+            "sending": "Marking ready…",
+            "confirm": "GitHub will notify the reviewers; the PR moves to Waiting for review.",
+            "confirmButton": "Mark ready",
+            "dismiss": "Dismiss",
+            "draftChip": "Draft",
+            "draftChipTitle": "This pull request is a draft: the AI analysis works on it, Validate waits until it is ready for review.",
+            "failed": {
+                "closed": "This pull request is closed: only an open draft can be marked ready.",
+                "permission": "GitHub refused: your account cannot change this pull request.",
+                "auth": "gh is signed out: run gh auth login in a terminal, then try again.",
+                "notfound": "GitHub does not know this pull request any more.",
+                "nogh": "gh is not installed on this computer.",
+                "error": "The pull request could not be marked ready: {message}"
+            }
         },
         "ci": {
             "noneTitle": "No check reported on this pull request.",

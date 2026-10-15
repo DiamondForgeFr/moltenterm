@@ -6,12 +6,16 @@
 
 import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
 import { openMoltentermView } from "../open-view";
-import { askReviewRebase, openReviewTab } from "../review/review-client";
+import { askReviewRebase, markReviewReady, openReviewTab } from "../review/review-client";
 import { requestReviewSheet } from "../review/review-sheet-request";
+import { reviewsGet } from "./reviews-client";
 import {
+    markReadyError,
     MoltentermReviewsView,
+    ReadiedPrs,
     RebaseAsk,
     rebaseAskKey,
     rebaseOutcome,
@@ -29,6 +33,8 @@ export class ReviewsModel {
     focusAtom = atom(null) as PrimitiveAtom<ReviewsFocus>;
     // The rebases asked from the rows (#683), by rebaseAskKey.
     rebaseAsksAtom = atom({}) as PrimitiveAtom<Record<string, RebaseAsk>>;
+    // The drafts marked ready from MoltenTerm (#687), by rebaseAskKey: splitReviews moves them at once.
+    readiedAtom = atom({}) as PrimitiveAtom<ReadiedPrs>;
 
     private constructor() {}
 
@@ -116,6 +122,29 @@ export class ReviewsModel {
             });
         }
         return outcome;
+    }
+
+    // Mark ready for review (#687), from a draft's row or its Review tab: gh pr ready, then the list moves the PR to
+    // Waiting for review and asks GitHub again. Answers the error in plain words, "" on success.
+    async markReady(dir: string, number: number, repo: string): Promise<string> {
+        if (!dir || !number || !repo) {
+            return markReadyError(null);
+        }
+        let error: string;
+        try {
+            error = markReadyError(await markReviewReady({ repo, number, dir }));
+        } catch (e) {
+            error = markReadyError(null, String(e?.message ?? e));
+        }
+        if (error) {
+            return error;
+        }
+        const key = rebaseAskKey(dir, number);
+        globalStore.set(this.readiedAtom, { ...globalStore.get(this.readiedAtom), [key]: Date.now() });
+        fireAndForget(async () => {
+            await reviewsGet(dir, true);
+        });
+        return "";
     }
 }
 

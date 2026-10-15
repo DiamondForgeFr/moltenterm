@@ -316,12 +316,71 @@ export function reviewsEmptyState(answer: ReviewsAnswer): ReviewsEmpty {
     return null;
 }
 
-// The rows a keyboard walks: the ready ones, then the drafts when their group is open.
-export function navigableRows(answer: ReviewsAnswer, draftsOpen: boolean): ReviewPr[] {
+export type ReviewsSplit = { ready: ReviewPr[]; drafts: ReviewPr[] };
+
+// The PRs marked ready from MoltenTerm (#687), by rebaseAskKey: when the click was made.
+export type ReadiedPrs = Record<string, number>;
+
+// splitReviews is the list's draft/ready split (#687), which the rail's counts read too (#688). The collector already
+// splits by isDraft; a PR marked ready here moves to ready at once, until a GitHub read newer than the click (githubat)
+// says otherwise: the forced refresh after the click may come back from the collector's cache.
+export function splitReviews(answer: ReviewsAnswer, readied?: ReadiedPrs): ReviewsSplit {
     if (answer == null) {
+        return { ready: [], drafts: [] };
+    }
+    const ready = answer.ready ?? [];
+    const drafts = answer.drafts ?? [];
+    const githubAt = answer.githubat ?? 0;
+    const moved = (pr: ReviewPr) => {
+        const at = readied?.[rebaseAskKey(answer.dir, pr.number)];
+        return at != null && at > githubAt;
+    };
+    if (!drafts.some(moved)) {
+        return { ready, drafts };
+    }
+    const newest = (a: ReviewPr, b: ReviewPr) => (a.updatedat < b.updatedat ? 1 : a.updatedat > b.updatedat ? -1 : 0);
+    return {
+        ready: [...ready, ...drafts.filter(moved).map((pr) => ({ ...pr, draft: false }))].sort(newest),
+        drafts: drafts.filter((pr) => !moved(pr)),
+    };
+}
+
+// The rows a keyboard walks: the ready ones, then the drafts when their group is open.
+export function navigableRows(split: ReviewsSplit, draftsOpen: boolean): ReviewPr[] {
+    if (split == null) {
         return [];
     }
-    return draftsOpen ? [...answer.ready, ...answer.drafts] : answer.ready;
+    return draftsOpen ? [...split.ready, ...split.drafts] : split.ready;
+}
+
+// must match MarkReadyResult in pkg/molten/review/markready.go
+export type MarkReadyResult = {
+    status: "ready" | "failed";
+    reason?: "closed" | "permission" | "auth" | "notfound" | "nogh" | "error";
+    message?: string;
+};
+
+// markReadyError words a failed Mark ready for review in plain words, "" when it succeeded (#687).
+export function markReadyError(result: MarkReadyResult, error?: string): string {
+    if (error) {
+        return t("reviews.ready.failed.error", { message: error });
+    }
+    if (result?.status === "ready") {
+        return "";
+    }
+    switch (result?.reason) {
+        case "closed":
+            return t("reviews.ready.failed.closed");
+        case "permission":
+            return t("reviews.ready.failed.permission");
+        case "auth":
+            return t("reviews.ready.failed.auth");
+        case "notfound":
+            return t("reviews.ready.failed.notfound");
+        case "nogh":
+            return t("reviews.ready.failed.nogh");
+    }
+    return t("reviews.ready.failed.error", { message: result?.message ?? "" });
 }
 
 export function nextRow(rows: readonly ReviewPr[], current: number, key: string): number {
