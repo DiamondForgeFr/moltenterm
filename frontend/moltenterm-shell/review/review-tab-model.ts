@@ -12,6 +12,8 @@ import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import * as WOS from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
@@ -53,6 +55,8 @@ import {
     reviewMergePlan,
     ReviewPrInfo,
     ReviewPrMetaKey,
+    reviewPrState,
+    ReviewPrStateResult,
     reviewPublishInfo,
     ReviewState,
     reviewState,
@@ -69,6 +73,14 @@ import {
     useReviewRewrite,
 } from "./review-client";
 import { attachDiffActions, DiffActions } from "./review-diff-actions";
+import {
+    readReviewDoneMeta,
+    ReviewDone,
+    reviewDoneMeta,
+    ReviewDoneMetaKey,
+    reviewDoneOf,
+    shouldReadPrState,
+} from "./review-done";
 import { chosenMethod, mergeRunning } from "./review-merge";
 import {
     buildFileTree,
@@ -106,6 +118,9 @@ import { watchReviewSheetRequests } from "./review-sheet-request";
 // The PR's head is asked from the collector at most this often while the tab shows (it reads GitHub at most once a
 // minute per project, NFR-REV-002).
 const HeadCheckMs = 30_000;
+// A PR missing from the Reviews list (merged, closed, or only outside its filter) is asked from GitHub at most this
+// often; a PR that just left the list is asked at once (#686).
+const PrStateRecheckMs = 120_000;
 
 export type ReviewMode = "full" | "since";
 
@@ -137,6 +152,8 @@ export type ReviewValidateState = {
     clicked?: string;
     // The agent worktree's removal the developer confirmed after the merge's cleanup is running.
     confirming?: boolean;
+    // The sheet reopened from the header's Validated state (#686): the merge's result, read-only.
+    result?: boolean;
 };
 
 // What asking the session for the translations did (FR-REV-010 AC1).
@@ -261,6 +278,14 @@ export abstract class ReviewTabModel implements ViewModel {
     depthAtom = atom("quick") as PrimitiveAtom<ReviewDepth>;
     // The project's last Reviews answer: whether the PR is a draft (#687).
     reviewsAnswerAtom = atom(null) as PrimitiveAtom<ReviewsAnswer>;
+    // The PR's state on GitHub, null until read (#686).
+    githubStateAtom = atom(null) as PrimitiveAtom<ReviewPrStateResult>;
+    // Whether the PR is finished: merged here or on GitHub, or closed (#686).
+    doneAtom: Atom<ReviewDone>;
+    prStateReadAt: number = null;
+    readingPrState = false;
+    // Whether the last good Reviews answer listed the PR: one that just left it is asked from GitHub at once.
+    listedLast: boolean = null;
 
     treeAtom: Atom<TreeNode[]>;
     orderedFilesAtom: Atom<ReviewFile[]>;
@@ -317,6 +342,9 @@ export abstract class ReviewTabModel implements ViewModel {
             const readied = get(ReviewsModel.getInstance().readiedAtom);
             return splitReviews(answer, readied).drafts.some((p) => p.number === pr.number);
         });
+        this.doneAtom = atom((get) =>
+            reviewDoneOf(get(this.stateAtom)?.merge, get(this.githubStateAtom), get(this.prAtom)?.baseref)
+        );
         this.aiPaneIdAtom = atom((get) => {
             const pr = get(this.prAtom);
             const tabId = get(atoms.staticTabId);
@@ -372,7 +400,8 @@ export abstract class ReviewTabModel implements ViewModel {
                 handler: (event) => this.applyReviews(event.data as ReviewsAnswer),
             }),
             everyInPanel(this.blockId, whileShown(HeadCheckMs), () => this.checkHead(), "review-head"),
-            watchReviewSheetRequests(globalStore.get(atoms.staticTabId), this)
+            watchReviewSheetRequests(globalStore.get(atoms.staticTabId), this),
+            globalStore.sub(this.doneAtom, () => this.syncDoneMeta())
         );
         const onFocus = () => this.checkHead();
         window.addEventListener("focus", onFocus);
@@ -405,6 +434,7 @@ export abstract class ReviewTabModel implements ViewModel {
         } catch (e) {
             console.log("[review] the review store could not be read", e);
         }
+        fireAndForget(() => this.readPrState());
         const latest = await this.latestPr();
         const head = state?.lasthead || latest?.headoid || pr.headoid;
         await this.loadFiles(head, latest?.baseoid || pr.baseoid);
@@ -421,10 +451,77 @@ export abstract class ReviewTabModel implements ViewModel {
         const pr = this.pr();
         try {
             const answer = await reviewsGet(pr.dir);
+            this.noticeListed(answer);
             return this.prOf(answer);
         } catch {
             return null;
         }
+    }
+
+    // noticeListed follows the PR in a good Reviews answer (#686): listed, it is open; missing, GitHub is asked whether
+    // it was merged or closed.
+    noticeListed(answer: ReviewsAnswer) {
+        const pr = this.pr();
+        if (pr == null || answer == null || answer.dir !== pr.dir || answer.state !== "ok" || answer.prserror) {
+            return;
+        }
+        const listed = this.prOf(answer) != null;
+        const left = this.listedLast === true && !listed;
+        this.listedLast = listed;
+        if (listed) {
+            const known = globalStore.get(this.githubStateAtom);
+            if (known != null && known.state !== "open") {
+                globalStore.set(this.githubStateAtom, { ...known, state: "open" });
+            }
+            return;
+        }
+        fireAndForget(() => this.readPrState(left));
+    }
+
+    async readPrState(force = false) {
+        const pr = this.pr();
+        if (pr == null || this.readingPrState) {
+            return;
+        }
+        const now = Date.now();
+        if (
+            !force &&
+            !shouldReadPrState(globalStore.get(this.githubStateAtom), this.prStateReadAt, now, PrStateRecheckMs)
+        ) {
+            return;
+        }
+        this.readingPrState = true;
+        this.prStateReadAt = now;
+        try {
+            globalStore.set(this.githubStateAtom, await reviewPrState(pr.dir, pr.repo, pr.number));
+        } catch (e) {
+            console.log("[review] the pull request's state could not be read", e);
+        } finally {
+            this.readingPrState = false;
+        }
+    }
+
+    // syncDoneMeta keeps the block's done meta in step, which the tab bar of every window reads. An unread GitHub
+    // state never clears it: a reopened tab keeps its mark until the PR is known open again.
+    syncDoneMeta() {
+        const done = globalStore.get(this.doneAtom);
+        if (done.kind === "open" && globalStore.get(this.githubStateAtom) == null) {
+            return;
+        }
+        const want = reviewDoneMeta(done);
+        const oref = WOS.makeORef("block", this.blockId);
+        const have = readReviewDoneMeta(globalStore.get(WOS.getWaveObjectAtom<Block>(oref))?.meta?.[ReviewDoneMetaKey]);
+        if (want?.state === have?.state) {
+            return;
+        }
+        fireAndForget(() =>
+            RpcApi.SetMetaCommand(TabRpcClient, { oref, meta: { [ReviewDoneMetaKey]: want } as MetaType })
+        );
+    }
+
+    // The Validated state's click (#686): the sheet shows the merge's result, read-only.
+    openValidateResult() {
+        globalStore.set(this.validateAtom, { open: true, loading: false, override: false, result: true });
     }
 
     prOf(answer: ReviewsAnswer): { headoid?: string; baseoid?: string } {
@@ -437,6 +534,7 @@ export abstract class ReviewTabModel implements ViewModel {
     }
 
     applyReviews(answer: ReviewsAnswer) {
+        this.noticeListed(answer);
         const latest = this.prOf(answer);
         if (latest?.headoid) {
             fireAndForget(() => this.noticeHead(latest.headoid, latest.baseoid));

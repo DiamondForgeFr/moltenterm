@@ -5,12 +5,13 @@
 // panel, or the agent's glyph when a coding agent runs in the tab; and, while the tab keeps Wave's generic name
 // (T1, T2…), the title of its first panel instead. A name the user typed always wins.
 
+import { MoltentermOnboardingView } from "../moltenterm-onboarding/onboarding-state";
 import { MoltentermBrowserView } from "./browser/browser-model";
 import { MoltentermCompanionView } from "./companion/companion-model";
 import { t } from "./i18n/i18n";
 import { MoltentermLineMapView } from "./mission/line-map-model";
-import { MoltentermOnboardingView } from "../moltenterm-onboarding/onboarding-state";
 import { LegacyTimelineView, MoltentermProjectView } from "./project/project-model";
+import { readReviewDoneMeta, ReviewDoneMeta, ReviewDoneMetaKey } from "./review/review-done";
 import { MoltentermReviewAiView } from "./review/review-model";
 import { MoltentermSessionsView } from "./sessions/sessions-model";
 import { pathBaseName } from "./workspace-project";
@@ -64,7 +65,16 @@ export type PanelMeta = {
     connection?: string;
     "cmd:cwd"?: string;
     "display:icon"?: string;
+    [ReviewDoneMetaKey]?: unknown;
 };
+
+// A Review tab whose PR is merged or closed shows a done mark (#686); null for any other tab.
+export function panelReviewDone(meta: PanelMeta): ReviewDoneMeta {
+    if (meta?.view !== ReviewView) {
+        return null;
+    }
+    return readReviewDoneMeta(meta[ReviewDoneMetaKey]);
+}
 
 export function isGenericTabName(name: string): boolean {
     return /^T\d+$/.test((name ?? "").trim());

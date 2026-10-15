@@ -14,6 +14,7 @@ import { MoltenWave } from "../molten-button";
 import { SegmentedControl } from "../segmented-control";
 import { cleanupNeedsConfirmation, ReviewCleanupResult } from "./review-cleanup";
 import { ReviewMergeMethod, ReviewMergePlan, ReviewMergeRecord } from "./review-client";
+import { CloseReviewTabButton } from "./review-done-view";
 import {
     canCancelMerge,
     canClickMerge,
@@ -71,7 +72,8 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
         return null;
     }
     const plan = v.plan;
-    const record = sheetRecord(state?.merge, v.clicked ?? null);
+    // Reopened from the Validated state (#686), the sheet shows the merge as the store has it.
+    const record = v.result ? (state?.merge ?? null) : sheetRecord(state?.merge, v.clicked ?? null);
     const baseref = plan?.baseref ?? pr.baseref;
     const method = chosenMethod(plan, v.method);
     const enabled = canClickMerge(plan, v.override, state?.merge) && record == null && v.clicked == null;
@@ -216,6 +218,7 @@ function SheetButtons({
                         {t("review.validate.again")}
                     </button>
                 ) : null}
+                {record.state === "merged" ? <CloseReviewTabButton model={model} className={PlainButton} /> : null}
                 <button type="button" className={PlainButton} onClick={() => model.closeValidate()}>
                     {t("common.close")}
                 </button>

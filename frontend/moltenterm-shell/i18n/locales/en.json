@@ -4385,6 +4385,21 @@
             "line": "line {line}",
             "lines": "lines {start}–{end}"
         },
+        "done": {
+            "validated": "Validated",
+            "mergedGithub": "Merged on GitHub",
+            "closed": "Closed without merge",
+            "mergedInto": "Merged into {base}",
+            "mergedIntoAt": "Merged into {base} at {oid}",
+            "mergedIntoTime": "Merged into {base}, {time}",
+            "mergedIntoAtTime": "Merged into {base} at {oid}, {time}",
+            "closedTitle": "Closed on GitHub without merge",
+            "closedAt": "Closed on GitHub without merge, {time}",
+            "showResult": "Click to see the validation's result.",
+            "tabMerged": "Merged: you can close this tab",
+            "tabClosed": "Closed without merge: you can close this tab",
+            "closeTab": "Close the tab"
+        },
         "validate": {
             "button": "Validate",
             "buttonTitle": "Merge this pull request: shows the plan first",

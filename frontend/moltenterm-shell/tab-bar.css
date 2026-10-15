@@ -197,3 +197,18 @@ body:not(.nohover) .tab.molten-tab.active:hover .tab-inner,
     margin: 0 1px;
     background: var(--mt-state-done);
 }
+
+/* A Review tab whose PR is finished (#686): a check badge once merged, a neutral dash once closed without merge. */
+.molten-tab-review-done {
+    flex-shrink: 0;
+    font-size: var(--mt-text-11);
+    line-height: 1;
+}
+
+.molten-tab-review-done[data-state="merged"] {
+    color: var(--mt-state-done);
+}
+
+.molten-tab-review-done[data-state="closed"] {
+    color: var(--mt-text-muted);
+}

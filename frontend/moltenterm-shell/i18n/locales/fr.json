@@ -4385,6 +4385,21 @@
             "line": "ligne {line}",
             "lines": "lignes {start}–{end}"
         },
+        "done": {
+            "validated": "Validée",
+            "mergedGithub": "Fusionnée sur GitHub",
+            "closed": "Fermée sans fusion",
+            "mergedInto": "Fusionnée dans {base}",
+            "mergedIntoAt": "Fusionnée dans {base} en {oid}",
+            "mergedIntoTime": "Fusionnée dans {base}, {time}",
+            "mergedIntoAtTime": "Fusionnée dans {base} en {oid}, {time}",
+            "closedTitle": "Fermée sur GitHub sans fusion",
+            "closedAt": "Fermée sur GitHub sans fusion, {time}",
+            "showResult": "Cliquez pour voir le résultat de la validation.",
+            "tabMerged": "Fusionnée : vous pouvez fermer cet onglet",
+            "tabClosed": "Fermée sans fusion : vous pouvez fermer cet onglet",
+            "closeTab": "Fermer l'onglet"
+        },
         "validate": {
             "button": "Valider",
             "buttonTitle": "Fusionner cette pull request : affiche d'abord le plan",

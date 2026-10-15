@@ -424,6 +424,12 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.changed(s.store.Shown(req))
+	case PrStateCommand:
+		req, err := decode[PrStateRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.merger.PrState(ctx, req)
 	case MergePlanCommand:
 		// A plan is what a merge is bound to: a terminal making one would replace the plan the window shows.
 		req, err := decode[MergePlanRequest](data)
