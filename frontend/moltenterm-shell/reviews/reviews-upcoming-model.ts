@@ -197,6 +197,9 @@ export function barStateText(t: TFunction, state: BarState): string {
 
 // "3 commits ahead", for the upcoming row.
 export function aheadText(t: TFunction, ahead: number): string {
+    if (!ahead) {
+        return t("reviewsAgents.upcoming.noCommit");
+    }
     if (ahead === 1) {
         return t("reviewsAgents.upcoming.aheadOne");
     }

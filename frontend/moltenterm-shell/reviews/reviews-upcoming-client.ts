@@ -9,7 +9,9 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import type { AgentStatesData } from "../agent-state-model";
+import { AgentStates } from "../agent-state-store";
 import { MissionRouteId } from "../mission/mission-client";
 import type { ReviewsAnswer } from "./reviews-model";
 import { UpcomingAnswer, UpcomingCommand } from "./reviews-upcoming-model";
@@ -72,21 +74,33 @@ export function useUpcomingAnswer(dir: string): UpcomingAnswer {
     return dir ? answers[dir] : null;
 }
 
+// The agents the windows know: one starting or closing places agents on branches anew.
+export function agentsAskKey(data: AgentStatesData): string {
+    return Object.keys(data?.states ?? {})
+        .sort()
+        .join(",");
+}
+
 // Asks while the Reviews list of the project shows; the answer lands in the per-project store the bars read.
 export function useUpcomingWatch(dir: string, reviews: ReviewsAnswer) {
     const key = upcomingAskKey(reviews);
+    const agents = agentsAskKey(useAtomValue(AgentStates.getInstance().dataAtom));
+    const lastAgents = useRef<string>(null);
     useEffect(() => {
         if (!dir || !key) {
             return;
         }
+        // An agent started or closed since the last ask: wavesrv's cached placement is out of date.
+        const force = lastAgents.current != null && lastAgents.current !== agents;
+        lastAgents.current = agents;
         fireAndForget(async () => {
             try {
-                await upcomingGet(dir);
+                await upcomingGet(dir, force);
             } catch (e) {
                 console.log("reviews: upcoming work", e);
             }
         });
-    }, [dir, key]);
+    }, [dir, key, agents]);
     useEffect(() => {
         if (!dir) {
             return;
