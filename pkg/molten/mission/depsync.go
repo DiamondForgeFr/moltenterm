@@ -579,7 +579,11 @@ func (g *Groups) removeSourceTree(s depSync, tree string, log syncLog) {
 	defer g.useTree(tree, false)
 	ctx, cancel := context.WithTimeout(context.Background(), depSyncGitTimeout)
 	defer cancel()
-	if _, err := g.run(ctx, s.sourceDir, "git", "worktree", "remove", "--force", tree); err == nil {
+	removal, err := MakeTreeRemover(g.run).Remove(ctx, s.sourceDir, tree, true)
+	if err == nil {
+		if removal.Leftover != "" {
+			log.say("the worktree %s is removed, but files written during its removal stay: %s", tree, removal.LeftoverError)
+		}
 		return
 	}
 	os.RemoveAll(tree)
@@ -599,7 +603,7 @@ func (g *Groups) removeLeftoverTrees(ctx context.Context, s depSync, parent stri
 		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), depSyncTreePrefix) || g.treeInUse(tree) {
 			continue
 		}
-		if _, err := g.run(ctx, s.sourceDir, "git", "worktree", "remove", "--force", tree); err != nil {
+		if _, err := MakeTreeRemover(g.run).Remove(ctx, s.sourceDir, tree, true); err != nil {
 			os.RemoveAll(tree)
 		}
 		removed = true

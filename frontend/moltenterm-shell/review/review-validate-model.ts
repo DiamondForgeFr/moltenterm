@@ -9,7 +9,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { reviewsGet } from "../reviews/reviews-client";
-import { removeKeptWorktree, ReviewCleanupStepResult } from "./review-cleanup";
+import { removeKeptWorktree, removeLeftover, ReviewCleanupStepResult } from "./review-cleanup";
 import {
     reviewMerge,
     reviewMergeCancel,
@@ -163,6 +163,20 @@ export class ReviewValidateModel {
         try {
             await closePanels((step.panels ?? []).map((p) => p.blockid));
             await removeKeptWorktree({ dir: pr.dir, repo: pr.repo, number: pr.number, ticket }, step);
+        } catch (e) {
+            globalStore.set(this.validateAtom, (s) => ({ ...s, error: String(e?.message ?? e) }));
+        } finally {
+            globalStore.set(this.validateAtom, (s) => ({ ...s, confirming: false }));
+        }
+    }
+
+    // A folder a worktree left once git unregistered it (#716): Remove again. The outcome comes back in the review store.
+    async removeLeftover(step: ReviewCleanupStepResult) {
+        const pr = this.pr();
+        const ticket = globalStore.get(this.validateAtom).plan?.ticket;
+        globalStore.set(this.validateAtom, (s) => ({ ...s, confirming: true, error: null }));
+        try {
+            await removeLeftover({ dir: pr.dir, repo: pr.repo, number: pr.number, ticket }, step);
         } catch (e) {
             globalStore.set(this.validateAtom, (s) => ({ ...s, error: String(e?.message ?? e) }));
         } finally {

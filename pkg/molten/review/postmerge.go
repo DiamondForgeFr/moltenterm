@@ -31,6 +31,8 @@ type MergedPr struct {
 	BaseRef   string `json:"baseref"`
 	HeadOid   string `json:"headoid"`
 	MergedOid string `json:"mergedoid,omitempty"`
+	// AgentTree: the agent worktree the plan sheet showed, "" when none (#716).
+	AgentTree string `json:"agenttree,omitempty"`
 }
 
 // PostMerge is the cleanup after the merge (FR-REV-013).
@@ -122,7 +124,7 @@ func (s *Service) Run(ctx context.Context, pr MergedPr) {
 	if s.cleaner == nil {
 		return
 	}
-	_, err := s.Cleanup(ctx, CleanupRequest{Dir: pr.Dir, Repo: pr.Repo, Number: pr.Number, Ticket: pr.Ticket})
+	_, err := s.Cleanup(ctx, CleanupRequest{Dir: pr.Dir, Repo: pr.Repo, Number: pr.Number, Ticket: pr.Ticket, PlannedAgentTree: pr.AgentTree})
 	if err != nil {
 		log.Printf("%s %s#%d: the cleanup after the merge: %v\n", logPrefix, pr.Repo, pr.Number, err)
 	}
