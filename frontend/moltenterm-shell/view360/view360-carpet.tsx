@@ -4,18 +4,18 @@
 // The carpet's surface and chrome in 360 view (FR-SHELL-065, DS-SHELL-115), drawn by the tile layout around its
 // panels: the surface under them, then the edge fades, the fixed zone's grip and the radar scrubber (#617) above them.
 
+import { globalStore } from "@/app/store/jotaiStore";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { useAtomValue } from "jotai";
 import { CSSProperties, memo, useEffect, useState } from "react";
+import { useLocale, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { CarpetMarginPx, Rect } from "./carpet-model";
+import { canScrollX, horizontalWheelDelta, routeHorizontalWheel, wheelDeltaPx } from "./carpet-wheel";
 import { CarpetSensors } from "./view360-offcarpet";
 import { View360Radar } from "./view360-radar";
-import { useLocale, useT } from "../i18n/i18n";
 import { View360Text } from "./view360-text";
 import "./view360.css";
-
-const LinePx = 16;
 
 function rectStyle(rect: Rect): CSSProperties {
     return {
@@ -86,7 +86,9 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
     const layout = useAtomValue(view360.layoutAtom);
     const active = layout != null;
 
-    // Trackpad horizontal scroll and Shift + wheel over the carpet scroll it; vertical scroll stays with the panels.
+    // Trackpad horizontal scroll and Shift + wheel over the carpet scroll it, unless the focused panel under the pointer
+    // can still scroll that way (#676); vertical scroll stays with the panels. Browser panels route their own wheel
+    // (carpet-wheel-webview.ts): it never reaches this DOM.
     useEffect(() => {
         if (!active) {
             return;
@@ -100,8 +102,8 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
             if (current == null || current.maxScroll <= 0) {
                 return;
             }
-            const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY);
-            if (!horizontal && !e.shiftKey) {
+            const delta = horizontalWheelDelta(e);
+            if (delta == null) {
                 return;
             }
             const bounds = root.getBoundingClientRect();
@@ -109,11 +111,15 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
             if (x < current.surface.left || x > current.surface.left + current.surface.width) {
                 return;
             }
-            const unit = e.deltaMode === 1 ? LinePx : e.deltaMode === 2 ? current.viewport.width : 1;
-            const delta = horizontal ? e.deltaX : e.deltaY || e.deltaX;
+            const block = e.target instanceof Element ? e.target.closest<HTMLElement>(".block[data-blockid]") : null;
+            const focusedId = globalStore.get(layoutModel.focusedNode)?.data?.blockId;
+            const focused = block != null && block.dataset.blockid === focusedId;
+            if (routeHorizontalWheel(focused, focused && canScrollX(e.target, delta, block)) === "panel") {
+                return;
+            }
             e.preventDefault();
             e.stopPropagation();
-            view360.scrollBy(delta * unit);
+            view360.scrollBy(wheelDeltaPx(delta, e.deltaMode, current.viewport.width));
         };
         // Panels laid past the carpet's right edge overflow the layout: a focus moving into one of them would let the
         // browser scroll the layout itself, shifting the fixed zone off the window. Only the carpet scrolls.

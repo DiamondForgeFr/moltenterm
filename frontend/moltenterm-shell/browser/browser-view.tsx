@@ -43,6 +43,7 @@ import { TabActivity } from "../tab-activity";
 import { isShowing } from "../tab-activity-model";
 import { PanelMeta, panelTitle } from "../tab-identity";
 import { showToast } from "../toast-store";
+import { attachCarpetWheel } from "../view360/carpet-wheel-webview";
 import { isOffCarpet, offCarpetAtom, setKeepLive } from "../view360/offcarpet-model";
 import { PinHeaderButton } from "../view360/view360-pin";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
@@ -1101,6 +1102,14 @@ function TabWebview({
             // not attached yet: dom-ready reports it
         }
     }, [model, tab.id, shown, offCarpet]);
+    // In 360 view, the page hands its horizontal scroll to the carpet (#676).
+    useEffect(() => {
+        const webview = ref.current;
+        if (webview == null) {
+            return;
+        }
+        return attachCarpetWheel(webview, model.blockId);
+    }, [model, tab.id]);
     // The src is set once: later navigation happens inside the page, and re-rendering with a new src would reload it.
     const [initialUrl] = useState(tab.url);
     // MOLTENTERM-PATCH (#371): hidden mounted tabs are never valid edit/image targets.
