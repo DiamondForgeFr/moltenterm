@@ -31,6 +31,7 @@ import { AgentStates } from "../agent-state-store";
 import { openHeaderCommandPanel } from "../command-panel/block-menus";
 import { openCommandPanelFromTrigger } from "../command-panel/command-panel-store";
 import type { BrowserCommandState } from "../command-panel/providers/browser";
+import { HeaderCloseButton } from "../header/header-close-button";
 import { Pill } from "../header/pill";
 import { I18nModel, t, useLocale, useT } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
@@ -1539,12 +1540,6 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
         title: t("browser.panel.addToLayout"),
         click: () => node.addEphemeralNodeToLayout?.(),
     };
-    const close: IconButtonDecl = {
-        elemtype: "iconbutton",
-        icon: "xmark-large",
-        title: t("common.close"),
-        click: () => uxCloseBlock(model.blockId),
-    };
     const commands: IconButtonDecl = {
         elemtype: "iconbutton",
         icon: "sliders",
@@ -1566,7 +1561,7 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
                     disabled={numLeafs <= 1}
                 />
             )}
-            <IconButton decl={close} />
+            <HeaderCloseButton magnified={magnified} onClose={() => uxCloseBlock(model.blockId)} />
         </div>
     );
 }
