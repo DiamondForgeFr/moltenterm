@@ -4372,7 +4372,7 @@
             "button": "Validate",
             "buttonTitle": "Merge this pull request: shows the plan first",
             "title": "Validate #{number}",
-            "subtitle": "Rebase and merge {head} into {base}",
+            "subtitle": "Merge {head} into {base}",
             "readingGithub": "Reading the pull request on GitHub…",
             "reviewNewCommits": "Review the new commits",
             "stopWaiting": "Stop waiting",

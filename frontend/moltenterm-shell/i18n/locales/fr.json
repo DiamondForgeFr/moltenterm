@@ -4372,7 +4372,7 @@
             "button": "Valider",
             "buttonTitle": "Fusionner cette pull request : affiche d'abord le plan",
             "title": "Valider #{number}",
-            "subtitle": "Rebaser et fusionner {head} dans {base}",
+            "subtitle": "Fusionner {head} dans {base}",
             "readingGithub": "Lecture de la pull request sur GitHub…",
             "reviewNewCommits": "Relire les nouveaux commits",
             "stopWaiting": "Arrêter d'attendre",
