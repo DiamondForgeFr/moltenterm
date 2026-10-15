@@ -3,15 +3,17 @@
 
 // Validate's stepper (#672): the steps in the order they happen, drawn like the local build panel's phases (FR-MC-013)
 // standing upright, each with its state and what it will do or did underneath. A kept worktree shows what removing it
-// would lose, one destructive button that names the loss, and Show in folder.
+// would lose and the panels still working in it, one destructive button that names what it does, Show the panel and
+// Show in folder.
 
 import { getApi, openLink } from "@/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { ReviewCleanupStepResult, ReviewWorktreeRisk } from "./review-cleanup";
-import { lossButtonLabel, StepRow, StepState, ValidateStep } from "./review-stepper";
+import { ReviewCleanupStepResult } from "./review-cleanup";
+import { showPanel } from "./review-panels";
+import { keptButtonLabel, panelName, StepRow, StepState, ValidateStep } from "./review-stepper";
 
 const NodeClasses: Record<StepState, string> = {
     todo: "border-border bg-transparent text-muted",
@@ -100,51 +102,79 @@ function Row({ row }: { row: StepRow }) {
 }
 
 type KeptActions = {
-    // The agent worktree kept for its work, when the developer may still remove it.
-    agent?: ReviewCleanupStepResult;
-    // The review worktree kept for its uncommitted changes.
-    review?: ReviewCleanupStepResult;
+    // The worktrees the cleanup kept: for work removing would lose, or for panels still open in them.
+    steps: ReviewCleanupStepResult[];
     busy?: boolean;
-    onRemoveAgent?: (risk: ReviewWorktreeRisk) => void;
+    onRemove?: (step: ReviewCleanupStepResult) => void;
 };
 
-function KeptButtons({ actions }: { actions: KeptActions }) {
-    const t = useT();
-    const { agent, review } = actions;
-    if (agent == null && review == null) {
-        return null;
+// canRemoveKept: the agent worktree can always be removed on the developer's choice; the review worktree only once its
+// panels are closed, never with changes in it (the sheet names them).
+function canRemoveKept(step: ReviewCleanupStepResult): boolean {
+    if (step.id === "agent-worktree") {
+        return step.confirm != null;
     }
+    return step.code === "inuse" && (step.panels?.length ?? 0) > 0;
+}
+
+function KeptStepButtons({ step, actions }: { step: ReviewCleanupStepResult; actions: KeptActions }) {
+    const t = useT();
+    const panels = step.panels ?? [];
     return (
-        <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="validate-kept-actions">
-            {agent != null && actions.onRemoveAgent != null ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2" data-testid={`validate-kept-${step.id}`}>
+            {canRemoveKept(step) && actions.onRemove != null ? (
                 <button
                     type="button"
                     className="molten-btn molten-btn-destructive cursor-pointer rounded-4 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
                     disabled={actions.busy}
-                    onClick={() => actions.onRemoveAgent(agent.confirm)}
-                    data-testid="validate-remove-agent"
+                    onClick={() => actions.onRemove(step)}
+                    data-testid={`validate-remove-${step.id}`}
                 >
-                    {lossButtonLabel(t, agent.loss)}
+                    {keptButtonLabel(t, step)}
                     <MoltenWave />
                 </button>
             ) : null}
-            {[agent, review]
-                .filter((s) => s?.path)
-                .map((s) => (
-                    <button
-                        key={s.id}
-                        type="button"
-                        className={PlainButton}
-                        title={s.path}
-                        onClick={() => getApi().openNativePath(s.path)}
-                        data-testid={`validate-show-${s.id}`}
-                    >
-                        <i className="fa fa-solid fa-folder-open mr-1 text-11" />
-                        {s.id === "review-worktree"
-                            ? t("review.validate.showReviewFolder")
-                            : t("review.validate.showFolder")}
-                    </button>
-                ))}
+            {panels.map((p) => (
+                <button
+                    key={p.blockid}
+                    type="button"
+                    className={PlainButton}
+                    onClick={() => fireAndForget(() => showPanel(p.blockid))}
+                    data-testid="validate-show-panel"
+                >
+                    {panels.length === 1
+                        ? t("review.validate.panels.show")
+                        : t("review.validate.panels.showNamed", { panel: panelName(t, p) })}
+                </button>
+            ))}
+            {step.path ? (
+                <button
+                    type="button"
+                    className={PlainButton}
+                    title={step.path}
+                    onClick={() => getApi().openNativePath(step.path)}
+                    data-testid={`validate-show-${step.id}`}
+                >
+                    <i className="fa fa-solid fa-folder-open mr-1 text-11" />
+                    {step.id === "review-worktree"
+                        ? t("review.validate.showReviewFolder")
+                        : t("review.validate.showFolder")}
+                </button>
+            ) : null}
+        </div>
+    );
+}
+
+function KeptButtons({ actions }: { actions: KeptActions }) {
+    const steps = (actions.steps ?? []).filter((s) => s != null);
+    if (steps.length === 0) {
+        return null;
+    }
+    return (
+        <div data-testid="validate-kept-actions">
+            {steps.map((s) => (
+                <KeptStepButtons key={s.id} step={s} actions={actions} />
+            ))}
         </div>
     );
 }

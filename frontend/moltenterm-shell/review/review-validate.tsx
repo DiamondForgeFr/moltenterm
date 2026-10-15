@@ -72,7 +72,9 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
     const steps = buildValidateSteps(t, { plan, record, cleanup, headref: pr.headref, baseref });
     const locked = record != null || v.clicked != null;
     const keptAgent = cleanupNeedsConfirmation(cleanup?.steps);
-    const keptReview = cleanup?.steps?.find((s) => s.id === "review-worktree" && s.code === "kept");
+    const keptReview = cleanup?.steps?.find(
+        (s) => s.id === "review-worktree" && (s.code === "kept" || s.code === "inuse")
+    );
     const warnings = plan?.warnings ?? [];
     return (
         <DialogFrame
@@ -125,10 +127,9 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
                         ) : null
                     }
                     kept={{
-                        agent: keptAgent,
-                        review: keptReview,
+                        steps: [keptReview, keptAgent],
                         busy: v.confirming,
-                        onRemoveAgent: (risk) => fireAndForget(() => model.confirmCleanupWorktree(risk)),
+                        onRemove: (step) => fireAndForget(() => model.removeKeptWorktree(step)),
                     }}
                 />
                 {record == null && plan != null && !plan.canmerge ? (

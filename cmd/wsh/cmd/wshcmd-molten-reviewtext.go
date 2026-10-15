@@ -185,6 +185,8 @@ func moltenReviewCleanupDetail(s moltenReviewCleanupStep) string {
 		text = "the worktree is locked"
 	case "kept":
 		text = "kept, removing it would lose " + moltenReviewLossText(s.Loss)
+	case "inuse":
+		text = "kept, a terminal is still open in it"
 	case "alreadygone":
 		text = "already removed"
 	case "removed":
@@ -211,6 +213,17 @@ func moltenReviewCleanupDetail(s moltenReviewCleanupStep) string {
 		text = "no other open PR on " + s.Base
 	case "otherprs":
 		text = fmt.Sprintf("%d updated, %d flagged, %d failed", s.Updated, s.Flagged, s.Failed)
+	}
+	if len(s.Panels) > 0 {
+		var tabs []string
+		for _, p := range s.Panels {
+			tab := p.Tab
+			if p.Agent != "" {
+				tab += " (agent " + p.Agent + ")"
+			}
+			tabs = append(tabs, tab)
+		}
+		text += "; open in: " + moltenReviewNames(tabs)
 	}
 	if s.Error != "" {
 		if text != "" {

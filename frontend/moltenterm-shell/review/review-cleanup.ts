@@ -53,6 +53,10 @@ export type ReviewWorktreeLoss = {
     ignoredcount: number;
 };
 
+// must match CleanupPanel in pkg/molten/review/cleanup.go: a terminal still open in a kept worktree; agent: the state
+// of the agent running in it, "" when none.
+export type ReviewCleanupPanel = { blockid: string; tab?: string; workspace?: string; agent?: string };
+
 export type ReviewCleanupPr = {
     number: number;
     branch: string;
@@ -74,6 +78,7 @@ export type ReviewCleanupStepResult = {
     loss?: ReviewWorktreeLoss;
     // The kept agent worktree's risk, sent back to remove it and lose its work.
     confirm?: ReviewWorktreeRisk;
+    panels?: ReviewCleanupPanel[];
     prs?: ReviewCleanupPr[];
     updated?: number;
     flagged?: number;
@@ -115,7 +120,23 @@ export function confirmAgentWorktree(
     return runReviewCleanup({ ...req, steps: ["agent-worktree", "local-branch"], worktreeconfirmed: risk });
 }
 
-// cleanupNeedsConfirmation is the agent worktree kept because removing it would lose work.
+// removeKeptWorktree removes a kept worktree once the sheet closed the panels still open in it: the agent worktree
+// with its branch (losing what the developer was shown, when it holds work), or the review worktree. wavesrv checks
+// the folder again, so a panel opened since keeps it.
+export function removeKeptWorktree(
+    req: Omit<ReviewCleanupRequest, "steps" | "worktreeconfirmed">,
+    step: ReviewCleanupStepResult
+): Promise<ReviewCleanupResult> {
+    if (step.id === "review-worktree") {
+        return runReviewCleanup({ ...req, steps: ["review-worktree"] });
+    }
+    if (step.code === "kept" && step.confirm != null) {
+        return confirmAgentWorktree(req, step.confirm);
+    }
+    return runReviewCleanup({ ...req, steps: ["agent-worktree", "local-branch"] });
+}
+
+// cleanupNeedsConfirmation is the agent worktree kept because removing it would lose work or a panel works in it.
 export function cleanupNeedsConfirmation(steps: ReviewCleanupStepResult[]): ReviewCleanupStepResult {
     const step = steps?.find((s) => s.id === "agent-worktree");
     if (step == null || step.confirm == null || step.state === "done" || step.state === "planned") {

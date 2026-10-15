@@ -4448,11 +4448,11 @@
                     "other": "{count} commits"
                 },
                 "button": "Supprimer et perdre {what}",
-                "buttonBoth": "Supprimer et perdre {files} et {commits}",
-                "buttonUnknown": "Supprimer le worktree et sa branche"
+                "buttonUnknown": "Supprimer le worktree et sa branche",
+                "and": "{first} et {second}"
             },
             "cleanup": {
-                "plan": "Les worktrees et les branches seront supprimés, sauf si l'un contient du travail absent de la pull request fusionnée.",
+                "plan": "Les worktrees et les branches seront supprimés, sauf si l'un contient du travail absent de la pull request fusionnée ou qu'un panneau y travaille encore.",
                 "fetchFailed": "Le fetch après la fusion a échoué : les branches ont été vérifiées avec ce que cet ordinateur avait déjà.",
                 "prNotMerged": "GitHub n'indique pas la pull request comme fusionnée : le nettoyage n'a pas été lancé.",
                 "prUnreadable": "La pull request fusionnée n'a pas pu être lue : le nettoyage n'a pas été lancé.",
@@ -4504,7 +4504,8 @@
                         "notaworktree": "Laissé tel quel : {path} n'est pas un worktree du projet.",
                         "kept": "Conservé : il contient des modifications faites pendant la revue, dans {path}.",
                         "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
-                        "none": "Le worktree de revue n'a pas pu être supprimé."
+                        "none": "Le worktree de revue n'a pas pu être supprimé.",
+                        "inuse": "Conservé : un panneau travaille encore dans {path}."
                     }
                 },
                 "agent-worktree": {
@@ -4523,7 +4524,8 @@
                         "kept": "Conservé, avec {branch} : supprimer {path} perdrait du travail.",
                         "alreadygone": "Rien à faire : il était déjà supprimé.",
                         "prunconfirmed": "Non lancé : la fusion n'a pas pu être confirmée.",
-                        "none": "Le worktree de l'agent n'a pas pu être supprimé."
+                        "none": "Le worktree de l'agent n'a pas pu être supprimé.",
+                        "inuse": "Conservé, avec {branch} : un panneau travaille encore dans {path}."
                     }
                 },
                 "local-branch": {
@@ -4574,6 +4576,26 @@
                 "needsRebase": "Doit être rebasée : elle est en conflit avec {base} (Reprendre le travail peut la confier à un agent).",
                 "failed": "GitHub n'a pas pu la rebaser.",
                 "open": "Ouvrir"
+            },
+            "panels": {
+                "agent": "Un agent tourne encore dans ce dossier : {panel}",
+                "terminal": "Un terminal est encore ouvert dans ce dossier : {panel}",
+                "untitled": "un onglet sans titre",
+                "inWorkspace": "{tab} (espace {workspace})",
+                "show": "Afficher le panneau",
+                "showNamed": "Afficher {panel}",
+                "button": {
+                    "one": "Fermer le panneau et supprimer",
+                    "other": "Fermer les panneaux et supprimer"
+                },
+                "buttonLoss": {
+                    "one": "Fermer le panneau, supprimer et perdre {what}",
+                    "other": "Fermer les panneaux, supprimer et perdre {what}"
+                },
+                "buttonUnknown": {
+                    "one": "Fermer le panneau et supprimer le worktree et sa branche",
+                    "other": "Fermer les panneaux et supprimer le worktree et sa branche"
+                }
             }
         },
         "view": {

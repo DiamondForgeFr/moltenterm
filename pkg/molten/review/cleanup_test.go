@@ -401,6 +401,44 @@ func TestCleanupRemovesIgnoredOnlyWorktree(t *testing.T) {
 	}
 }
 
+// A panel still working in the worktree keeps it, even with nothing to lose and after the developer chose to remove
+// it; once the panel is closed, the same step removes it.
+func TestCleanupKeepsAWorktreeAPanelWorksIn(t *testing.T) {
+	f := makeCleanupFixture(t, true)
+	f.terminals[realOf(f.agent)] = []mission.WorktreeTerminal{{BlockId: "agent-block", Tab: "Agent 7", Workspace: "app", Linked: true}}
+	f.states["agent-block"] = molten.AgentStateWorking
+
+	result := f.cleanup(CleanupRequest{})
+
+	agent := expectStep(t, result, CleanupStepAgentTree, CleanupStateSkipped)
+	if agent.Code != CleanupCodeInUse || len(agent.Panels) != 1 || agent.Confirm == nil {
+		t.Fatalf("agent worktree step: %+v", agent)
+	}
+	if p := agent.Panels[0]; p.BlockId != "agent-block" || p.Tab != "Agent 7" || p.Agent != molten.AgentStateWorking {
+		t.Errorf("panel: %+v", p)
+	}
+	expectStep(t, result, CleanupStepLocalBranch, CleanupStateSkipped)
+	if !exists(f.agent) {
+		t.Fatalf("a worktree an agent works in was removed")
+	}
+	steps := []string{CleanupStepAgentTree, CleanupStepLocalBranch}
+	again := f.cleanup(CleanupRequest{Steps: steps, WorktreeConfirmed: agent.Confirm})
+	expectStep(t, again, CleanupStepAgentTree, CleanupStateSkipped)
+	if !exists(f.agent) {
+		t.Fatalf("a confirmed removal pulled the folder from under an open panel")
+	}
+
+	f.lock.Lock()
+	delete(f.terminals, realOf(f.agent))
+	f.lock.Unlock()
+	final := f.cleanup(CleanupRequest{Steps: steps})
+	expectStep(t, final, CleanupStepAgentTree, CleanupStateDone)
+	expectStep(t, final, CleanupStepLocalBranch, CleanupStateDone)
+	if exists(f.agent) {
+		t.Errorf("the worktree is still there once its panel closed")
+	}
+}
+
 func TestCleanupKeepsUntrackedWork(t *testing.T) {
 	f := makeCleanupFixture(t, true)
 	f.write(f.agent, "notes.md", "draft\n")

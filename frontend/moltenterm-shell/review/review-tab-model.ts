@@ -25,7 +25,7 @@ import { whileShown } from "../tab-activity";
 import { openFileInPreview } from "../term-copy/term-copy";
 import { everyInPanel } from "../view360/offcarpet-model";
 import { answerKey, worktreeFilePath } from "./review-answers";
-import { confirmAgentWorktree, ReviewWorktreeRisk } from "./review-cleanup";
+import { removeKeptWorktree, ReviewCleanupStepResult } from "./review-cleanup";
 import {
     discussReviewComment,
     openReviewAiPane,
@@ -79,6 +79,7 @@ import {
     treeFiles,
     TreeNode,
 } from "./review-model";
+import { closePanels } from "./review-panels";
 import { missingTranslations } from "./review-publish";
 import { ReadyAnswer, ReadyWhat, sendWhenReady } from "./review-ready";
 import { ReviewRestartState } from "./review-restart";
@@ -1336,14 +1337,16 @@ export abstract class ReviewTabModel implements ViewModel {
         }
     }
 
-    // The agent worktree the merge's cleanup kept because removing it loses work (FR-REV-013, #672): removed with its
-    // branch when the developer chooses to lose what the sheet named; the outcome comes back in the review store.
-    async confirmCleanupWorktree(risk: ReviewWorktreeRisk) {
+    // A worktree the merge's cleanup kept (FR-REV-013, #672), because removing it loses work or a panel still works in
+    // it: the panels are closed first, then wavesrv reads the folder again and removes it (the agent worktree with its
+    // branch, losing what the sheet named). The outcome comes back in the review store.
+    async removeKeptWorktree(step: ReviewCleanupStepResult) {
         const pr = this.pr();
         const ticket = globalStore.get(this.validateAtom).plan?.ticket;
         globalStore.set(this.validateAtom, (s) => ({ ...s, confirming: true, error: null }));
         try {
-            await confirmAgentWorktree({ dir: pr.dir, repo: pr.repo, number: pr.number, ticket }, risk);
+            await closePanels((step.panels ?? []).map((p) => p.blockid));
+            await removeKeptWorktree({ dir: pr.dir, repo: pr.repo, number: pr.number, ticket }, step);
         } catch (e) {
             globalStore.set(this.validateAtom, (s) => ({ ...s, error: String(e?.message ?? e) }));
         } finally {

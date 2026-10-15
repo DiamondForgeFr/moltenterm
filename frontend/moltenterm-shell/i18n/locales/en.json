@@ -4448,11 +4448,11 @@
                     "other": "{count} commits"
                 },
                 "button": "Remove and lose {what}",
-                "buttonBoth": "Remove and lose {files} and {commits}",
-                "buttonUnknown": "Remove the worktree and its branch"
+                "buttonUnknown": "Remove the worktree and its branch",
+                "and": "{first} and {second}"
             },
             "cleanup": {
-                "plan": "The worktrees and branches will be removed, unless one holds work that is not in the merged pull request.",
+                "plan": "The worktrees and branches will be removed, unless one holds work that is not in the merged pull request or a panel still works in it.",
                 "fetchFailed": "The fetch after the merge failed: the branches were checked against what this computer already had.",
                 "prNotMerged": "GitHub does not show the pull request as merged: the cleanup did not run.",
                 "prUnreadable": "The merged pull request could not be read: the cleanup did not run.",
@@ -4504,7 +4504,8 @@
                         "notaworktree": "Left as it is: {path} is not a worktree of the project.",
                         "kept": "Kept: it holds changes made during the review, in {path}.",
                         "prunconfirmed": "Not run: the merge could not be confirmed.",
-                        "none": "The review worktree could not be removed."
+                        "none": "The review worktree could not be removed.",
+                        "inuse": "Kept: a panel still works in {path}."
                     }
                 },
                 "agent-worktree": {
@@ -4523,7 +4524,8 @@
                         "kept": "Kept, with {branch}: removing {path} would lose work.",
                         "alreadygone": "Nothing to do: it was already removed.",
                         "prunconfirmed": "Not run: the merge could not be confirmed.",
-                        "none": "The agent worktree could not be removed."
+                        "none": "The agent worktree could not be removed.",
+                        "inuse": "Kept, with {branch}: a panel still works in {path}."
                     }
                 },
                 "local-branch": {
@@ -4574,6 +4576,26 @@
                 "needsRebase": "Needs a rebase: it conflicts with {base} (Restart work can hand it to an agent).",
                 "failed": "GitHub could not rebase it.",
                 "open": "Open"
+            },
+            "panels": {
+                "agent": "An agent is still running in this folder: {panel}",
+                "terminal": "A terminal is still open in this folder: {panel}",
+                "untitled": "an untitled tab",
+                "inWorkspace": "{tab} (workspace {workspace})",
+                "show": "Show the panel",
+                "showNamed": "Show {panel}",
+                "button": {
+                    "one": "Close the panel and remove",
+                    "other": "Close the panels and remove"
+                },
+                "buttonLoss": {
+                    "one": "Close the panel, remove and lose {what}",
+                    "other": "Close the panels, remove and lose {what}"
+                },
+                "buttonUnknown": {
+                    "one": "Close the panel and remove the worktree and its branch",
+                    "other": "Close the panels and remove the worktree and its branch"
+                }
             }
         },
         "view": {

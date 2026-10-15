@@ -8,6 +8,7 @@ import type { ReviewMergeCheck, ReviewMergePlan, ReviewMergeRecord } from "./rev
 import {
     buildValidateSteps,
     checkDetail,
+    keptButtonLabel,
     lossButtonLabel,
     lossLines,
     mergeOutcomeText,
@@ -254,6 +255,41 @@ describe("Validate's stepper", () => {
         }
     });
 
+    it("keeps a worktree a panel still works in, and names the panel", () => {
+        const panels = [{ blockid: "b1", tab: "Agent 7", agent: "working" }];
+        const steps = buildValidateSteps(en, {
+            plan: plan(),
+            record: merged,
+            cleanup: cleanup(
+                {
+                    id: "agent-worktree",
+                    state: "skipped",
+                    code: "inuse",
+                    path: "/w/app-672",
+                    branch: "feature/672-x",
+                    loss: generatedOnly,
+                    panels,
+                },
+                { id: "local-branch", state: "skipped", code: "inkepttree", branch: "feature/672-x" }
+            ),
+            headref: "x",
+            baseref: "develop",
+        });
+        const agent = step(steps, "cleanup").rows.find((r) => r.id === "agent-worktree");
+        expect(agent.state).toBe("needs");
+        expect(agent.lines).toEqual([
+            "Kept, with feature/672-x: a panel still works in /w/app-672.",
+            "An agent is still running in this folder: Agent 7",
+        ]);
+        const inuse = { id: "agent-worktree", state: "skipped", code: "inuse", loss: generatedOnly, panels } as const;
+        expect(keptButtonLabel(en, inuse)).toBe("Close the panel and remove");
+        expect(keptButtonLabel(fr, inuse)).toBe("Fermer le panneau et supprimer");
+        const two = { ...inuse, panels: [...panels, { blockid: "b2", tab: "Shell" }] };
+        expect(keptButtonLabel(en, two)).toBe("Close the panels and remove");
+        const dirty = { ...inuse, code: "kept", loss: { ...generatedOnly, changes: ["a.ts"], changecount: 1 } };
+        expect(keptButtonLabel(en, dirty)).toBe("Close the panel, remove and lose 1 file");
+    });
+
     it("skips the steps after a merge that did not happen, and says why", () => {
         const refused: ReviewMergeRecord = {
             ...merged,
@@ -311,7 +347,7 @@ describe("Validate's stepper", () => {
         const cleanupCodes: Record<string, string[]> = {
             "ticket-close": ["closed", "alreadyclosed", "noticket", "prunconfirmed"],
             "ticket-done": ["moveddone", "alreadydone", "noticket", "nosfworkflow", "prunconfirmed"],
-            "review-worktree": ["removed", "noreviewtree", "notaworktree", "kept", "prunconfirmed"],
+            "review-worktree": ["removed", "noreviewtree", "notaworktree", "kept", "inuse", "prunconfirmed"],
             "agent-worktree": [
                 "removed",
                 "noagenttree",
@@ -319,6 +355,7 @@ describe("Validate's stepper", () => {
                 "refusedrepo",
                 "locked",
                 "kept",
+                "inuse",
                 "alreadygone",
                 "prunconfirmed",
             ],
