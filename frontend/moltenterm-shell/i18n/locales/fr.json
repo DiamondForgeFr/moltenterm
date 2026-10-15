@@ -3367,6 +3367,11 @@
             "stopQuestion": "Arrêter {title} ?",
             "keepIt": "Le garder"
         },
+        "title": {
+            "agentWaiting": "{name} vous attend",
+            "agentDone": "{name} a terminé",
+            "bell": "Un terminal demande votre attention"
+        },
         "settings": {
             "intro": "Ce que chaque sujet peut signaler. Les erreurs sont toujours signalées.",
             "footer": "Discret garde le message ici, déjà lu : ni badge ni toast. Désactivé ne le garde pas."
@@ -3876,6 +3881,18 @@
             "ahead": "{count} commits d'avance",
             "remote": "sur origin seulement",
             "statusTitle": "Le statut du ticket sur le tableau",
+            "boardStatus": {
+                "backlog": "Backlog",
+                "ready": "Prêt",
+                "inProgress": "En cours",
+                "aiDrafting": "Rédaction IA",
+                "humanReview": "Relecture humaine",
+                "spawning": "Découpage",
+                "aiTesting": "Tests IA",
+                "humanTesting": "Tests humains",
+                "inReview": "En revue",
+                "done": "Terminé"
+            },
             "openTicket": "Ouvrir le ticket",
             "openAgent": "Aller à l'agent qui y travaille",
             "ticketsError": "Les titres et statuts des tickets n'ont pas pu être lus."

@@ -25,6 +25,14 @@ const (
 	MaxNotificationActions = 3
 )
 
+// The title codes the window translates (#727), with TitleVars as the key's placeholders; must match
+// NotificationTitleKeys in frontend/moltenterm-shell/notifications-model.ts.
+const (
+	NotificationTitleAgentWaiting = "agentwaiting"
+	NotificationTitleAgentDone    = "agentdone"
+	NotificationTitleBell         = "bell"
+)
+
 type NotificationAction struct {
 	Id          string         `json:"id"`
 	Label       string         `json:"label"`
@@ -42,6 +50,8 @@ type NotificationInput struct {
 	Key         string               `json:"key,omitempty"`
 	Source      string               `json:"source"`
 	Title       string               `json:"title"`
+	TitleCode   string               `json:"titlecode,omitempty"`
+	TitleVars   map[string]string    `json:"titlevars,omitempty"`
 	Message     string               `json:"message,omitempty"`
 	Kind        string               `json:"kind,omitempty"`
 	WorkspaceId string               `json:"workspaceid,omitempty"`

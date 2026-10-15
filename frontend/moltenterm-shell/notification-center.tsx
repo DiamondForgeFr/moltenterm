@@ -39,6 +39,7 @@ import {
     formatAge,
     MoltentermNotification,
     NotificationAction,
+    notificationTitle,
 } from "./notifications-model";
 import { MoltentermNotifications, registerNotificationGesture, startNotificationAutoRead } from "./notifications-store";
 import { showProjectTab } from "./project/project-tab";
@@ -122,7 +123,7 @@ function NotificationRow({
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                     <span className={cn("truncate", unread && "font-semibold")}>
-                        <InlineCodeText text={entry.title} />
+                        <InlineCodeText text={notificationTitle(entry, t)} />
                     </span>
                     {unread ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" /> : null}
                     {!archived ? (

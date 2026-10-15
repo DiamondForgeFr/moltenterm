@@ -39,6 +39,10 @@ const BellTitle = "A terminal needs your attention"
 type AttentionSignal struct {
 	Title   string
 	Message string
+	// TitleCode: the window shows the title in the user's language from this code and TitleName (#727); Title stays
+	// the English text, for an older window or a code it does not know.
+	TitleCode string
+	TitleName string
 }
 
 const (
@@ -72,7 +76,7 @@ func (s *attentionScanner) feed(data []byte, emit func(scanItem)) {
 			if b == 0x1b {
 				s.state = scanEsc
 			} else if b == 0x07 {
-				emit(scanItem{signal: &AttentionSignal{Title: BellTitle, Message: "Bell"}})
+				emit(scanItem{signal: &AttentionSignal{Title: BellTitle, Message: "Bell", TitleCode: molten.NotificationTitleBell}})
 			}
 		case scanEsc:
 			switch b {
@@ -292,6 +296,13 @@ func recordAgentNotice(blockId string, signal AttentionSignal, kind string) {
 	}
 }
 
+func notificationTitleVars(signal AttentionSignal) map[string]string {
+	if signal.TitleCode == "" || signal.TitleName == "" {
+		return nil
+	}
+	return map[string]string{"name": signal.TitleName}
+}
+
 func writeAttention(ctx context.Context, blockId string, signal AttentionSignal, kind string, now time.Time) error {
 	tabId, err := wstore.DBFindTabForBlockId(ctx, blockId)
 	if err != nil {
@@ -308,6 +319,8 @@ func writeAttention(ctx context.Context, blockId string, signal AttentionSignal,
 	input := molten.NotificationInput{
 		Source:      "agent",
 		Title:       signal.Title,
+		TitleCode:   signal.TitleCode,
+		TitleVars:   notificationTitleVars(signal),
 		Message:     signal.Message,
 		Kind:        kind,
 		WorkspaceId: workspaceId,

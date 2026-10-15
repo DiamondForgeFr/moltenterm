@@ -3367,6 +3367,11 @@
             "stopQuestion": "Stop {title}?",
             "keepIt": "Keep it"
         },
+        "title": {
+            "agentWaiting": "{name} is waiting for you",
+            "agentDone": "{name} is done",
+            "bell": "A terminal needs your attention"
+        },
         "settings": {
             "intro": "What each subject may tell. Errors are always told.",
             "footer": "Quiet keeps the message here, already read: no badge and no toast. Off does not keep it."
@@ -3876,6 +3881,18 @@
             "ahead": "{count} commits ahead",
             "remote": "on origin only",
             "statusTitle": "The ticket's status on the board",
+            "boardStatus": {
+                "backlog": "Backlog",
+                "ready": "Ready",
+                "inProgress": "In progress",
+                "aiDrafting": "AI drafting",
+                "humanReview": "Human review",
+                "spawning": "Spawning",
+                "aiTesting": "AI testing",
+                "humanTesting": "Human testing",
+                "inReview": "In review",
+                "done": "Done"
+            },
             "openTicket": "Open the ticket",
             "openAgent": "Go to the agent working on it",
             "ticketsError": "The tickets' titles and statuses could not be read."

@@ -40,6 +40,9 @@ export type MoltentermNotificationInput = {
     key?: string;
     source: MoltentermNotificationSource;
     title: string;
+    // A title wavesrv publishes in English with a code the window translates (#727): titlevars fill its placeholders.
+    titlecode?: string;
+    titlevars?: Record<string, string>;
     message?: string;
     kind?: MoltentermNotificationKind;
     workspaceid?: string;
@@ -75,6 +78,26 @@ function readAction(value: any): NotificationAction {
         return value as NotificationAction;
     }
     return null;
+}
+
+// must match the NotificationTitle* codes in pkg/molten/notifications.go
+export const NotificationTitleKeys: Record<string, string> = {
+    agentwaiting: "notif.title.agentWaiting",
+    agentdone: "notif.title.agentDone",
+    bell: "notif.title.bell",
+};
+
+// The title in the user's language: a known code is translated, anything else is shown as published.
+export function notificationTitle(
+    entry: Pick<MoltentermNotificationInput, "title" | "titlecode" | "titlevars">,
+    translate: (key: string, vars?: Record<string, string>) => string = t
+): string {
+    const code = entry.titlecode ?? "";
+    const key = Object.prototype.hasOwnProperty.call(NotificationTitleKeys, code) ? NotificationTitleKeys[code] : null;
+    if (key == null) {
+        return entry.title;
+    }
+    return translate(key, entry.titlevars ?? {});
 }
 
 export function parseNotifications(meta: Record<string, any>): MoltentermNotification[] {

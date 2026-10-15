@@ -9,7 +9,7 @@
 import { getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { notificationToast } from "./notification-toasts";
-import { MoltentermNotification } from "./notifications-model";
+import { MoltentermNotification, notificationTitle } from "./notifications-model";
 import { MoltentermNotifications } from "./notifications-store";
 import { Toasts } from "./toast-store";
 
@@ -69,7 +69,7 @@ export function startHandoffSystemNotifications(
         }
         for (const entry of ask) {
             asked.add(entry.id);
-            api.moltentermSystemNotify({ id: entry.id, title: entry.title, body: entry.message ?? "" })
+            api.moltentermSystemNotify({ id: entry.id, title: notificationTitle(entry), body: entry.message ?? "" })
                 .then((outcome) => lastHandoffSystemNotify.set(entry.id, outcome))
                 .catch((e) => console.log("handoff system notification:", e));
         }
