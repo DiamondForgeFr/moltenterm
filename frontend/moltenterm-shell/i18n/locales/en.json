@@ -3787,6 +3787,8 @@
     "view360": {
         "carpet": "carpet",
         "empty": "Panels you open are laid here",
+        "addStart": "Add a panel on the left",
+        "addEnd": "Add a panel on the right",
         "ui": {
             "toggleLabel": "360",
             "toggleAutoMark": "A",

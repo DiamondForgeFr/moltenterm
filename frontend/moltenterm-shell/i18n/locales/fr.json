@@ -3787,6 +3787,8 @@
     "view360": {
         "carpet": "tapis",
         "empty": "Les panneaux que vous ouvrez se placent ici",
+        "addStart": "Ajouter un panneau à gauche",
+        "addEnd": "Ajouter un panneau à droite",
         "ui": {
             "toggleLabel": "360",
             "toggleAutoMark": "A",
