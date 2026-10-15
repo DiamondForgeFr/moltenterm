@@ -56,7 +56,7 @@ import {
 import { settingsGroupIcon, settingsOptionIcon, SettingsSectionConcepts } from "./settings-icons";
 import { ModsSection } from "./settings-mods";
 import { readSettingsSection, SettingsSectionMetaKey } from "./settings-open";
-import { PageCard, PageColumn, PageHeader } from "./settings-page";
+import { flowColumnsClass, PageCard, pageColumns, PageFill, PageFlow, PageHeader } from "./settings-page";
 import { SecretsSection } from "./settings-secrets";
 
 export type SettingsFile = { path: string; name: string; description?: string };
@@ -561,7 +561,9 @@ const SettingRow = memo(({ entry, rowId, value, workspaceName, themes, highlight
             )}
         >
             <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 px-5", choices ? "pt-3 pb-2" : "py-3")}>
-                <div className="min-w-0 flex-1 basis-48">
+                {/* 240 px before the control wraps under it: in a column of a wide page (#674) a wide field would
+                    otherwise squeeze the label to a few letters. */}
+                <div className="min-w-0 flex-1 basis-60">
                     <div className="flex min-w-0 items-center gap-2">
                         <span className="truncate text-12 font-medium text-primary" title={entry.key}>
                             {entry.label}
@@ -642,7 +644,7 @@ function KeyboardShortcuts() {
             hint={t("settings.shortcuts.hint")}
             icon={suiteIcon("keyboard")}
         >
-            <div className="flex flex-col gap-3 px-5 py-3">
+            <div className={cn("px-5 pt-3 [&>section]:pb-3", flowColumnsClass(3))}>
                 <ShortcutSections
                     sections={sections}
                     mac={mac}
@@ -759,16 +761,20 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
     };
 
     const entries = sectionEntries(catalog, section);
+    const groups = groupEntries(entries);
+    // Blocks the page lays side by side. Keyboard's block, below them, takes the full width and splits its own groups;
+    // Secrets keeps its stacked blocks in one column.
+    const flowBlocks = groups.length + (section === "advanced" ? 1 : 0) + (section === "mods" ? 1 : 0);
+    const flowColumns = pageColumns(flowBlocks);
+    // A short result list reads best as one list.
+    const resultColumns = pageColumns(results.length >= 8 ? 3 : 1);
+    const width = searching ? resultColumns : section === "keyboard" ? 3 : flowColumns;
     const activeId = searching && results[active] ? `${rowId(results[active].key)}-result` : undefined;
 
     return (
-        <div
-            className="@container flex h-full w-full min-h-0 justify-center bg-surface-1 text-primary"
-            onKeyDown={onRootKey}
-        >
-            {/* The section list and the reading column stay together, centred (#658): on a wide window the list no
-                longer sits at the far edge with an empty field between it and the rows. */}
-            <div className="flex h-full min-h-0 w-full max-w-[1056px]">
+        <div className="@container flex h-full w-full min-h-0 bg-surface-1 text-primary" onKeyDown={onRootKey}>
+            {/* The section list at the left edge, the page filling the rest of the panel (#674). */}
+            <div className="flex h-full min-h-0 w-full">
                 <nav
                     aria-label={t("settings.sectionsLabel")}
                     className="flex w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line p-2 @max-w600:w-12"
@@ -798,8 +804,8 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                         );
                     })}
                 </nav>
-                <div ref={contentRef} className="min-w-0 flex-1 overflow-y-auto">
-                    <PageColumn>
+                <div ref={contentRef} className="@container/page min-w-0 flex-1 overflow-y-auto">
+                    <PageFill width={width}>
                         <div className="relative">
                             <i
                                 className="fa fa-solid fa-magnifying-glass pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-11 text-muted"
@@ -842,7 +848,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                         id={`molten-settings-results-${blockId}`}
                                         role="listbox"
                                         aria-label={t("settings.search.results")}
-                                        className="flex flex-col"
+                                        className={flowColumnsClass(resultColumns)}
                                     >
                                         {results.map((entry, i) => (
                                             <li
@@ -887,30 +893,38 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                         icon={suiteIcon(SettingsSectionConcepts[section])}
                                     />
                                 </div>
-                                {section === "advanced" ? <FileRows files={files} onOpenFile={onOpenFile} /> : null}
-                                {groupEntries(entries).map((g) => (
-                                    <PageCard
-                                        key={g.group}
-                                        title={g.group}
-                                        icon={suiteIcon(settingsGroupIcon(groupSlugByKey.get(g.entries[0].key)))}
-                                        glow={highlight != null && g.entries.some((e) => e.key === highlight)}
-                                    >
-                                        {g.entries.map((entry) => (
-                                            <SettingRow
-                                                key={entry.key}
-                                                entry={entry}
-                                                rowId={rowId(entry.key)}
-                                                value={readValue(entry, settings, workspace)}
-                                                workspaceName={workspaceName}
-                                                themes={themes}
-                                                highlighted={highlight === entry.key}
-                                                onOpenJson={openSettingsJson}
-                                            />
+                                {flowBlocks > 0 ? (
+                                    <PageFlow columns={flowColumns}>
+                                        {section === "advanced" ? (
+                                            <FileRows files={files} onOpenFile={onOpenFile} />
+                                        ) : null}
+                                        {groups.map((g) => (
+                                            <PageCard
+                                                key={g.group}
+                                                title={g.group}
+                                                icon={suiteIcon(
+                                                    settingsGroupIcon(groupSlugByKey.get(g.entries[0].key))
+                                                )}
+                                                glow={highlight != null && g.entries.some((e) => e.key === highlight)}
+                                            >
+                                                {g.entries.map((entry) => (
+                                                    <SettingRow
+                                                        key={entry.key}
+                                                        entry={entry}
+                                                        rowId={rowId(entry.key)}
+                                                        value={readValue(entry, settings, workspace)}
+                                                        workspaceName={workspaceName}
+                                                        themes={themes}
+                                                        highlighted={highlight === entry.key}
+                                                        onOpenJson={openSettingsJson}
+                                                    />
+                                                ))}
+                                            </PageCard>
                                         ))}
-                                    </PageCard>
-                                ))}
+                                        {section === "mods" ? <ModsSection /> : null}
+                                    </PageFlow>
+                                ) : null}
                                 {section === "keyboard" ? <KeyboardShortcuts /> : null}
-                                {section === "mods" ? <ModsSection /> : null}
                                 {section === "secrets" ? (
                                     model != null ? (
                                         <SecretsSection model={model} />
@@ -920,7 +934,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                 ) : null}
                             </>
                         )}
-                    </PageColumn>
+                    </PageFill>
                 </div>
             </div>
         </div>
