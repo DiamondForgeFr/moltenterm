@@ -375,7 +375,7 @@ const SecondaryButton =
 
 // The link is always laid out and only fades in, so showing it never moves the chips (#708).
 const AssistedLinkClasses =
-    "flex shrink-0 cursor-pointer items-center gap-1 rounded-4 px-1 text-12 leading-5 font-medium text-accent outline-none " +
+    "flex shrink-0 cursor-pointer items-center gap-1 rounded-4 px-0.5 text-12 leading-5 font-medium text-accent outline-none " +
     "translate-x-1 opacity-0 transition-[opacity,translate] duration-120 ease-mt " +
     "group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100 " +
     "focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent/70 " +
@@ -394,11 +394,14 @@ export function AssistedReviewLink({ number, onOpen }: { number: number; onOpen:
             }}
             onKeyDown={stopRow}
             aria-label={t("reviews.assistedReviewAria", { number })}
+            title={t("reviews.assistedReviewAria", { number })}
             className={AssistedLinkClasses}
             data-testid="reviews-assisted-review"
         >
-            <i className="fa fa-solid fa-sparkles text-11 @xs:hidden" aria-hidden />
-            <span className="hidden @xs:inline">{t("reviews.assistedReview")}</span>
+            <span className="@[6.25rem]/link:hidden" aria-hidden>
+                <i className="fa fa-solid fa-sparkles text-11" />
+            </span>
+            <span className="hidden whitespace-nowrap @[6.25rem]/link:inline">{t("reviews.assistedReview")}</span>
             <i className="fa fa-solid fa-arrow-right text-11" aria-hidden />
         </button>
     );
@@ -534,7 +537,7 @@ export function ReviewRow({
             }}
             onFocus={onSelect}
             className={cn(
-                "group @container flex cursor-pointer flex-col gap-1.5 border-b border-border px-3 py-2.5 outline-none last:border-b-0 hover:bg-hover focus-visible:bg-hover",
+                "group flex cursor-pointer flex-col gap-1.5 border-b border-border px-3 py-2.5 outline-none last:border-b-0 hover:bg-hover focus-visible:bg-hover",
                 selected && "bg-hover/60",
                 marked && "ring-2 ring-accent/70 ring-inset"
             )}
@@ -593,23 +596,23 @@ export function ReviewRow({
                         {t("reviews.rebase.chip", { name: rebaseAsk.name })}
                     </span>
                 ) : null}
-                <div className="ml-auto flex items-center gap-1.5">
-                    {conflicts && !asked ? (
-                        <button
-                            type="button"
-                            onClick={(e) => askRebase(e, false)}
-                            onKeyDown={stopRow}
-                            aria-busy={asking || undefined}
-                            className={cn(SecondaryButton, "py-0.5 text-11")}
-                            title={t("reviews.rebase.buttonTitle", { base: pr.base, branch: pr.branch })}
-                            data-testid="reviews-rebase"
-                        >
-                            <i
-                                className={cn("fa fa-solid text-11", asking ? "fa-spinner fa-spin" : "fa-code-branch")}
-                            />
-                            {asking ? t("reviews.rebase.asking") : t("reviews.rebase.button")}
-                        </button>
-                    ) : null}
+                {conflicts && !asked ? (
+                    <button
+                        type="button"
+                        onClick={(e) => askRebase(e, false)}
+                        onKeyDown={stopRow}
+                        aria-busy={asking || undefined}
+                        className={cn(SecondaryButton, "py-0.5 text-11")}
+                        title={t("reviews.rebase.buttonTitle", { base: pr.base, branch: pr.branch })}
+                        data-testid="reviews-rebase"
+                    >
+                        <i className={cn("fa fa-solid text-11", asking ? "fa-spinner fa-spin" : "fa-code-branch")} />
+                        {asking ? t("reviews.rebase.asking") : t("reviews.rebase.button")}
+                    </button>
+                ) : null}
+                {/* Joins the chips' line as soon as an icon fits there, then takes the rest of it: the label shows
+                    when it fits, so the link never wraps to a line of its own. */}
+                <div className="@container/link flex min-w-10 grow basis-10 justify-end">
                     <AssistedReviewLink number={pr.number} onOpen={onOpen} />
                 </div>
             </div>
