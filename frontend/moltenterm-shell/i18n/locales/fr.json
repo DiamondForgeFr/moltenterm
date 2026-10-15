@@ -3761,9 +3761,6 @@
     "split": {
         "right": "Diviser à droite",
         "down": "Diviser en bas",
-        "left": "Diviser à gauche",
-        "up": "Diviser en haut",
-        "dragToSize": "glisser pour redimensionner",
         "tab": "Onglet",
         "place": {
             "menu": "Diviser…",

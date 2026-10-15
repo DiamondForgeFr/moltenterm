@@ -1,8 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: Apache-2.0
 
-// Split any panel, then choose its content (FR-SHELL-042, DS-SHELL-064): one entry point for the edge handles, the
-// menus, Cmd+D / Cmd+Shift+D and the Ctrl+Shift+S chord. The new panel opens on the picker (the command palette in
+// Split any panel, then choose its content (FR-SHELL-042, DS-SHELL-064): one entry point for the menus, the placement
+// mode, Cmd+D / Cmd+Shift+D and the Ctrl+Shift+S chord. The new panel opens on the picker (the command palette in
 // pane mode, DS-SHELL-066); cancelling it removes the panel and gives its room back to the source.
 
 import { getFocusedBlockId, WOS } from "@/app/store/global";
@@ -45,8 +45,8 @@ function prunePendingSplits() {
     }
 }
 
-// Splits the panel and opens the picker in the new one; fraction is the new panel's share of the source (the handles
-// pass the dragged size, every other way a half). Returns the new block id, null when the panel is not in the layout.
+// Splits the panel and opens the picker in the new one; fraction is the new panel's share of the source, a half by
+// default. Returns the new block id, null when the panel is not in the layout.
 export async function splitPanel(
     sourceBlockId: string,
     direction: SplitDirection,

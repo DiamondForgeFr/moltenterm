@@ -22,7 +22,7 @@ import * as jotai from "jotai";
 import * as React from "react";
 import { useBlockAgentState } from "../../moltenterm-shell/agent-state-ui"; // MOLTENTERM-PATCH (#112)
 import { openBlockBodyMenu } from "../../moltenterm-shell/split/split-body-menu"; // MOLTENTERM-PATCH (#370)
-import { SplitEdgeHandles } from "../../moltenterm-shell/split/split-handles"; // MOLTENTERM-PATCH (#370)
+import { SplitPlaceOverlay } from "../../moltenterm-shell/split/split-place-overlay"; // MOLTENTERM-PATCH (#370, #701)
 import { BlockEnv } from "./blockenv";
 import { BlockFrameProps } from "./blocktypes";
 
@@ -215,8 +215,8 @@ const BlockFrame_Default_Component = (props: BlockFrameProps) => {
                 {noHeader || <ErrorBoundary fallback={headerElemNoView}>{headerElem}</ErrorBoundary>}
                 {preview ? previewElem : children}
             </div>
-            {/* MOLTENTERM-PATCH (#370): edge split handles (FR-SHELL-042, moltenterm-shell/split/) */}
-            {preview ? null : <SplitEdgeHandles nodeModel={nodeModel} viewType={metaView} preview={preview} />}
+            {/* MOLTENTERM-PATCH (#677, #701): the split placement mode over the panel; the edge handles of #370 are gone */}
+            {preview ? null : <SplitPlaceOverlay blockId={nodeModel.blockId} />}
             {preview || viewModel == null || !connModalOpen ? null : (
                 <ChangeConnectionBlockModal
                     blockId={nodeModel.blockId}
