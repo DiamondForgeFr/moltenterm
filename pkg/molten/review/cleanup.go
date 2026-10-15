@@ -66,6 +66,7 @@ const (
 	CleanupCodeRefusedRepo    = "refusedrepo"
 	CleanupCodeLocked         = "locked"
 	CleanupCodeKept           = "kept"
+	CleanupCodeInUse          = "inuse"
 	CleanupCodeAlreadyGone    = "alreadygone"
 	CleanupCodeRemoved        = "removed"
 	CleanupCodeWillRemove     = "willremove"
@@ -114,6 +115,15 @@ type CleanupRequest struct {
 	WorktreeConfirmed *mission.WorktreeRisk `json:"worktreeconfirmed,omitempty"`
 }
 
+// CleanupPanel is a terminal still open in a worktree: the cleanup never pulls a folder from under it (#672).
+type CleanupPanel struct {
+	BlockId   string `json:"blockid"`
+	Tab       string `json:"tab,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
+	// Agent: the state of the agent running in it (molten.AgentState…), "" when none.
+	Agent string `json:"agent,omitempty"`
+}
+
 // CleanupPr is what the cleanup did to another open PR on the same base.
 type CleanupPr struct {
 	Number int    `json:"number"`
@@ -141,6 +151,8 @@ type CleanupStepResult struct {
 	Loss *WorktreeLoss `json:"loss,omitempty"`
 	// Confirm: the kept agent worktree's risk, sent back as WorktreeConfirmed to remove it and lose its work.
 	Confirm *mission.WorktreeRisk `json:"confirm,omitempty"`
+	// Panels: the MoltenTerm terminals still open in a kept worktree (an agent, a shell, a durable job).
+	Panels []CleanupPanel `json:"panels,omitempty"`
 	// The other PRs: what was done to each, and the counts.
 	Prs     []CleanupPr `json:"prs,omitempty"`
 	Updated int         `json:"updated,omitempty"`
@@ -522,9 +534,18 @@ func (r *cleanupRun) removeReviewTree() CleanupStepResult {
 	if err != nil {
 		return failed(CleanupStepReviewTree, err)
 	}
-	if count > 0 {
-		step := withPath(skipped(CleanupStepReviewTree, CleanupCodeKept), tree)
+	var panels []CleanupPanel
+	if r.c.env.Terminals != nil {
+		panels = r.panelsOf(r.c.env.Terminals(r.ctx, tree))
+	}
+	if count > 0 || len(panels) > 0 {
+		code := CleanupCodeKept
+		if count == 0 {
+			code = CleanupCodeInUse
+		}
+		step := withPath(skipped(CleanupStepReviewTree, code), tree)
 		step.Loss = &WorktreeLoss{Changes: changes, ChangeCount: count, Commits: []LossCommit{}, Ignored: []string{}}
+		step.Panels = panels
 		return step
 	}
 	if _, err := r.git(r.dir, "worktree", "remove", "--force", "--", tree); err != nil {
@@ -558,6 +579,19 @@ func refusalCode(refused string) string {
 	return CleanupCodeRefusedRepo
 }
 
+// panelsOf names the terminals open in a worktree, with the state of the agent running in each.
+func (r *cleanupRun) panelsOf(terminals []mission.WorktreeTerminal) []CleanupPanel {
+	var rtn []CleanupPanel
+	for _, term := range terminals {
+		panel := CleanupPanel{BlockId: term.BlockId, Tab: term.Tab, Workspace: term.Workspace}
+		if r.c.env.AgentState != nil {
+			panel.Agent = r.c.env.AgentState(term.BlockId)
+		}
+		rtn = append(rtn, panel)
+	}
+	return rtn
+}
+
 // agentLoss is what removing the agent worktree and its branch would lose.
 func (r *cleanupRun) agentLoss(plan mission.WorktreePlan) WorktreeLoss {
 	commits, count := r.commitsAtRisk("refs/heads/" + r.pr.HeadRefName)
@@ -584,13 +618,20 @@ func (r *cleanupRun) removeAgentTree() CleanupStepResult {
 		return withPath(skipped(CleanupStepAgentTree, CleanupCodeLocked), tree)
 	}
 	loss := r.agentLoss(plan)
+	panels := r.panelsOf(plan.Terminals)
 	confirmed := r.req.WorktreeConfirmed
-	if confirmed == nil {
-		if !loss.Nothing() {
-			step := withBranch(withPath(skipped(CleanupStepAgentTree, CleanupCodeKept), tree), r.pr.HeadRefName, r.pr.BaseRefName)
-			step.Loss, step.Confirm = &loss, riskOf(plan)
-			return step
+	// A terminal still open in the folder keeps it, even after the developer chose to lose its work: the sheet closes
+	// those panels first, so one found here was opened since.
+	if len(panels) > 0 || (confirmed == nil && !loss.Nothing()) {
+		code := CleanupCodeKept
+		if loss.Nothing() {
+			code = CleanupCodeInUse
 		}
+		step := withBranch(withPath(skipped(CleanupStepAgentTree, code), tree), r.pr.HeadRefName, r.pr.BaseRefName)
+		step.Loss, step.Confirm, step.Panels = &loss, riskOf(plan), panels
+		return step
+	}
+	if confirmed == nil {
 		// Nothing to lose: what the plan saw is confirmed here, and the removal reads the worktree again.
 		confirmed = riskOf(plan)
 	}

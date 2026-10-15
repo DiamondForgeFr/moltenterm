@@ -9,6 +9,7 @@
 
 import type { I18nVars } from "../i18n/i18n-core";
 import type {
+    ReviewCleanupPanel,
     ReviewCleanupPr,
     ReviewCleanupResult,
     ReviewCleanupStepResult,
@@ -270,7 +271,7 @@ function rowState(step: ReviewCleanupStepResult): StepState {
         case "failed":
             return "failed";
         case "skipped":
-            return step.code === "kept" ? "needs" : "skipped";
+            return step.code === "kept" || step.code === "inuse" ? "needs" : "skipped";
     }
     // planned: what has nothing to do is already known.
     if (step?.code && step.code !== "willremove") {
@@ -324,23 +325,65 @@ export function lossLines(t: Translate, loss: ReviewWorktreeLoss): string[] {
     return lines;
 }
 
-// lossButtonLabel names what the destructive button loses.
-export function lossButtonLabel(t: Translate, loss: ReviewWorktreeLoss): string {
+// lossWhat names the loss in a few words ("2 files and 1 commit"); "" when nothing is known to be lost.
+function lossWhat(t: Translate, loss: ReviewWorktreeLoss): string {
     const files = Math.max(loss?.changecount ?? 0, 0);
     const commits = Math.max(loss?.commitcount ?? 0, 0);
-    if (files > 0 && commits > 0) {
-        return t("review.validate.loss.buttonBoth", {
-            files: plural(t, "review.validate.loss.nFiles", files),
-            commits: plural(t, "review.validate.loss.nCommits", commits),
-        });
-    }
+    const parts: string[] = [];
     if (files > 0) {
-        return t("review.validate.loss.button", { what: plural(t, "review.validate.loss.nFiles", files) });
+        parts.push(plural(t, "review.validate.loss.nFiles", files));
     }
     if (commits > 0) {
-        return t("review.validate.loss.button", { what: plural(t, "review.validate.loss.nCommits", commits) });
+        parts.push(plural(t, "review.validate.loss.nCommits", commits));
+    }
+    if (parts.length === 2) {
+        return t("review.validate.loss.and", { first: parts[0], second: parts[1] });
+    }
+    return parts[0] ?? "";
+}
+
+function lossUnknown(loss: ReviewWorktreeLoss): boolean {
+    return (loss?.commitcount ?? 0) < 0;
+}
+
+// lossButtonLabel names what the destructive button loses.
+export function lossButtonLabel(t: Translate, loss: ReviewWorktreeLoss): string {
+    const what = lossWhat(t, loss);
+    if (what) {
+        return t("review.validate.loss.button", { what });
     }
     return t("review.validate.loss.buttonUnknown");
+}
+
+// keptButtonLabel is the destructive button of a kept worktree: it closes the panels still open in it first, and names
+// what removing loses.
+export function keptButtonLabel(t: Translate, step: ReviewCleanupStepResult): string {
+    const panels = step?.panels?.length ?? 0;
+    if (panels === 0) {
+        return lossButtonLabel(t, step?.loss);
+    }
+    const what = lossWhat(t, step.loss);
+    if (what) {
+        return plural(t, "review.validate.panels.buttonLoss", panels, { what });
+    }
+    if (lossUnknown(step.loss)) {
+        return plural(t, "review.validate.panels.buttonUnknown", panels);
+    }
+    return plural(t, "review.validate.panels.button", panels);
+}
+
+export function panelName(t: Translate, panel: ReviewCleanupPanel): string {
+    const tab = panel.tab || t("review.validate.panels.untitled");
+    return panel.workspace ? t("review.validate.panels.inWorkspace", { tab, workspace: panel.workspace }) : tab;
+}
+
+// panelLines says which panels still work in a kept worktree.
+export function panelLines(t: Translate, panels: ReviewCleanupPanel[]): string[] {
+    return (panels ?? []).map((p) =>
+        p.agent
+            ? t("review.validate.panels.agent", { panel: panelName(t, p) })
+            : t("review.validate.panels.terminal", { panel: panelName(t, p) })
+    );
 }
 
 function ignoredLine(t: Translate, loss: ReviewWorktreeLoss): string {
@@ -364,6 +407,7 @@ function cleanupRowText(t: Translate, step: ReviewCleanupStepResult, branch: str
         return [step.reason || step.message];
     }
     const lines = [t(key, vars)];
+    lines.push(...panelLines(t, step.panels));
     if (step.code === "kept") {
         lines.push(...lossLines(t, step.loss));
     }

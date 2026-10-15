@@ -124,18 +124,22 @@ type moltenReviewLoss struct {
 }
 
 type moltenReviewCleanupStep struct {
-	Id      string            `json:"id"`
-	State   string            `json:"state"`
-	Code    string            `json:"code,omitempty"`
-	Error   string            `json:"error,omitempty"`
-	Ticket  int               `json:"ticket,omitempty"`
-	Branch  string            `json:"branch,omitempty"`
-	Base    string            `json:"base,omitempty"`
-	Path    string            `json:"path,omitempty"`
-	Loss    *moltenReviewLoss `json:"loss,omitempty"`
-	Updated int               `json:"updated,omitempty"`
-	Flagged int               `json:"flagged,omitempty"`
-	Failed  int               `json:"failed,omitempty"`
+	Id     string            `json:"id"`
+	State  string            `json:"state"`
+	Code   string            `json:"code,omitempty"`
+	Error  string            `json:"error,omitempty"`
+	Ticket int               `json:"ticket,omitempty"`
+	Branch string            `json:"branch,omitempty"`
+	Base   string            `json:"base,omitempty"`
+	Path   string            `json:"path,omitempty"`
+	Loss   *moltenReviewLoss `json:"loss,omitempty"`
+	Panels []struct {
+		Tab   string `json:"tab,omitempty"`
+		Agent string `json:"agent,omitempty"`
+	} `json:"panels,omitempty"`
+	Updated int `json:"updated,omitempty"`
+	Flagged int `json:"flagged,omitempty"`
+	Failed  int `json:"failed,omitempty"`
 }
 
 type moltenReviewCleanup struct {
