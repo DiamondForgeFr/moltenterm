@@ -4687,21 +4687,33 @@
                 }
             },
             "others": {
-                "plan": "The other open pull requests on {base} will be rebased by GitHub; those that conflict will be flagged.",
+                "plan": "The other open pull requests on {base} are left as they are; those this merge puts in conflict go to their agent for a rebase.",
                 "none": "Nothing to do: no other open pull request on {base}.",
-                "updatedCount": {
-                    "one": "1 rebased by GitHub",
-                    "other": "{count} rebased by GitHub"
+                "unaffectedCount": {
+                    "one": "1 unaffected",
+                    "other": "{count} unaffected"
                 },
-                "flaggedCount": {
-                    "one": "1 left for later",
-                    "other": "{count} left for later"
+                "conflictingCount": {
+                    "one": "1 now conflicts with {base}",
+                    "other": "{count} now conflict with {base}"
+                },
+                "checkingCount": {
+                    "one": "1 still being checked by GitHub",
+                    "other": "{count} still being checked by GitHub"
                 },
                 "listFailed": "The open pull requests could not be listed.",
-                "rebased": "Rebased by GitHub.",
-                "agentBusy": "Left for later: its agent is working. Update it once the agent finishes.",
-                "needsRebase": "Needs a rebase: it conflicts with {base} (Restart work can hand it to an agent).",
-                "failed": "GitHub could not rebase it.",
+                "unaffected": "Unaffected: it still merges cleanly.",
+                "asked": "Conflicts with {base} → rebase asked to {name}.",
+                "askedUnnamed": "Conflicts with {base} → rebase asked to the agent on its branch.",
+                "typed": "Conflicts with {base} → rebase typed in {name}'s prompt: press Enter in its terminal to send it.",
+                "typedUnnamed": "Conflicts with {base} → rebase typed in its agent's prompt: press Enter in its terminal to send it.",
+                "agentBusy": "Conflicts with {base}. {name} is busy and was not interrupted: ask for the rebase later from Reviews.",
+                "agentBusyUnnamed": "Conflicts with {base}. Its agent is busy and was not interrupted: ask for the rebase later from Reviews.",
+                "needsAgent": "Conflicts with {base}, and no agent works on its branch → start an agent.",
+                "notAsked": "Conflicts with {base}: the rebase could not be asked. Ask for it from Reviews.",
+                "checking": "GitHub had not finished checking whether it still merges cleanly into {base}: Reviews will show it.",
+                "start": "Start an agent",
+                "starting": "Starting…",
                 "open": "Open"
             },
             "panels": {

@@ -90,10 +90,10 @@ function cleanup(agent: ReviewCleanupStepResult, local: ReviewCleanupStepResult)
                 state: "done",
                 code: "otherprs",
                 base: "develop",
-                updated: 1,
-                flagged: 1,
+                unaffected: 1,
+                conflicting: 1,
                 prs: [
-                    { number: 671, branch: "fix/662-x", state: "skipped", flag: "needs-rebase", url: "https://x/671" },
+                    { number: 671, branch: "fix/662-x", state: "skipped", flag: "needs-agent", url: "https://x/671" },
                     { number: 669, branch: "feature/669-y", state: "done" },
                 ],
             },
@@ -147,7 +147,7 @@ describe("Validate's stepper", () => {
             ["local-branch", "todo", "feature/672-x will be deleted."],
             ["remote-branch", "todo", "origin/feature/672-x will be deleted with the merge."],
         ]);
-        expect(step(steps, "others").lines[0]).toMatch(/will be rebased by GitHub/);
+        expect(step(steps, "others").lines[0]).toMatch(/are left as they are; those this merge puts in conflict/);
     });
 
     it("expands the checks on a problem and says why Merge waits", () => {
@@ -193,8 +193,13 @@ describe("Validate's stepper", () => {
         expect(step(steps, "ticket").state).toBe("done");
         const others = step(steps, "others");
         expect(others.state).toBe("needs");
-        expect(others.rows[0]).toMatchObject({ label: "#671 fix/662-x", url: "https://x/671" });
-        expect(others.rows[0].lines[0]).toMatch(/^Needs a rebase: it conflicts with develop/);
+        expect(others.rows).toHaveLength(1);
+        expect(others.rows[0]).toMatchObject({ label: "#671 fix/662-x", url: "https://x/671", state: "needs" });
+        expect(others.rows[0].startAgent?.number).toBe(671);
+        expect(others.rows[0].lines[0]).toBe(
+            "Conflicts with develop, and no agent works on its branch → start an agent."
+        );
+        expect(others.lines).toEqual(["1 unaffected · 1 now conflicts with develop"]);
     });
 
     it("names what removing a kept worktree would lose, and the button says it", () => {

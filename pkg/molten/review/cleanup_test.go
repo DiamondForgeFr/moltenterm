@@ -16,10 +16,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
 const cleanupRepo = "acme/app"
@@ -43,10 +45,17 @@ type cleanupFixture struct {
 	prState   string
 	issue     string
 	openPrs   string
-	ghFail    map[string]error
-	terminals map[string][]mission.WorktreeTerminal
-	states    map[string]string
-	ended     []int
+	// openPrsSeq: the answers of the first gh pr list calls, in order, before openPrs (GitHub computing mergeability).
+	openPrsSeq []string
+	ghFail     map[string]error
+	terminals  map[string][]mission.WorktreeTerminal
+	states     map[string]string
+	ended      []int
+	// The other PRs' agents, reached through Ask for a rebase's routing: runs by block, what was typed in each.
+	runs          map[string]molten.AgentRunInfo
+	typed         map[string]string
+	opened        int
+	mergeableWait time.Duration
 }
 
 func gitEnv() []string {
@@ -91,7 +100,8 @@ func makeCleanupFixture(t *testing.T, sfWorkflow bool) *cleanupFixture {
 	root := realOf(t.TempDir())
 	f := &cleanupFixture{t: t, root: root, remote: filepath.Join(root, "remote.git"), dir: filepath.Join(root, "app"),
 		agent: filepath.Join(root, "app-7"), dataDir: filepath.Join(root, "data"), prState: "MERGED", issue: "OPEN",
-		openPrs: "[]", ghFail: map[string]error{}, terminals: map[string][]mission.WorktreeTerminal{}, states: map[string]string{}}
+		openPrs: "[]", ghFail: map[string]error{}, terminals: map[string][]mission.WorktreeTerminal{}, states: map[string]string{},
+		runs: map[string]molten.AgentRunInfo{}, typed: map[string]string{}, mergeableWait: time.Minute}
 	f.git(root, "init", "--quiet", "--bare", "-b", "develop", f.remote)
 	f.git(root, "clone", "--quiet", f.remote, f.dir)
 	f.git(f.dir, "checkout", "--quiet", "-b", "develop")
@@ -131,11 +141,6 @@ func (f *cleanupFixture) gh(args []string) ([]byte, error) {
 	if err := f.ghFail[key]; err != nil {
 		return nil, err
 	}
-	if len(args) > 2 && args[0] == "pr" && args[1] == "update-branch" {
-		if err := f.ghFail["pr update-branch "+args[2]]; err != nil {
-			return nil, err
-		}
-	}
 	switch key {
 	case "pr view":
 		return []byte(fmt.Sprintf(`{"state":%q,"headRefName":"feature/7-thing","headRefOid":%q,"baseRefName":"develop","closingIssuesReferences":[]}`,
@@ -143,6 +148,11 @@ func (f *cleanupFixture) gh(args []string) ([]byte, error) {
 	case "issue view":
 		return []byte(fmt.Sprintf(`{"state":%q}`, f.issue)), nil
 	case "pr list":
+		if len(f.openPrsSeq) > 0 {
+			answer := f.openPrsSeq[0]
+			f.openPrsSeq = f.openPrsSeq[1:]
+			return []byte(answer), nil
+		}
 		return []byte(f.openPrs), nil
 	}
 	return []byte{}, nil
@@ -164,14 +174,50 @@ func (f *cleanupFixture) run(ctx context.Context, dir string, name string, args 
 	return out, nil
 }
 
-func (f *cleanupFixture) cleaner() *Cleaner {
-	return MakeCleaner(CleanupEnv{
-		Run: f.run,
-		Terminals: func(ctx context.Context, path string) []mission.WorktreeTerminal {
+func (f *cleanupFixture) worktreeTerminals(ctx context.Context, path string) []mission.WorktreeTerminal {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	return f.terminals[realOf(path)]
+}
+
+// restarter is the real Ask for a rebase routing (rebase.go), on fake terminals, agents and typing.
+func (f *cleanupFixture) restarter() *Restarter {
+	return MakeRestarter(nil, RestartEnv{
+		Git: func(ctx context.Context, dir string, args ...string) ([]byte, error) {
+			return f.run(ctx, dir, "git", args...)
+		},
+		DataDir:   f.dataDir,
+		Terminals: f.worktreeTerminals,
+		AgentRun: func(blockId string) (molten.AgentRunInfo, bool) {
 			f.lock.Lock()
 			defer f.lock.Unlock()
-			return f.terminals[realOf(path)]
+			run, ok := f.runs[blockId]
+			return run, ok
 		},
+		TypePrompt: func(ctx context.Context, blockId string, line string) RestartTypeOutcome {
+			f.lock.Lock()
+			defer f.lock.Unlock()
+			f.typed[blockId] = line
+			return RestartTypeOutcome{Sent: true, Submitted: true}
+		},
+		OpenTerminal: func(ctx context.Context, tabId string, afterBlockId string, meta waveobj.MetaMapType, line string) (string, error) {
+			f.lock.Lock()
+			defer f.lock.Unlock()
+			f.opened++
+			return "new-block", nil
+		},
+		AgentInstalled: func(agent string) bool { return true },
+		AgentOrder:     []string{molten.AgentIdClaude},
+	})
+}
+
+func (f *cleanupFixture) cleaner() *Cleaner {
+	return MakeCleaner(CleanupEnv{
+		Run:           f.run,
+		Terminals:     f.worktreeTerminals,
+		AskRebase:     f.restarter().AskRebase,
+		MergeablePoll: time.Millisecond,
+		MergeableWait: f.mergeableWait,
 		AgentState: func(blockId string) string {
 			f.lock.Lock()
 			defer f.lock.Unlock()
@@ -232,27 +278,56 @@ func exists(path string) bool {
 	return err == nil
 }
 
-func (f *cleanupFixture) addOtherPr(number int, branch string, state string) string {
+// addOtherPr checks the PR's branch out in its worktree, with an agent in state (and first name) in one terminal.
+func (f *cleanupFixture) addOtherPr(number int, branch string, state string, firstName string) string {
 	tree := filepath.Join(f.root, fmt.Sprintf("app-%d", number))
 	f.git(f.dir, "worktree", "add", "--quiet", "-b", branch, tree, "origin/develop")
 	blockId := fmt.Sprintf("block-%d", number)
 	f.terminals[realOf(tree)] = []mission.WorktreeTerminal{{BlockId: blockId, Linked: true}}
 	f.states[blockId] = state
+	f.runs[blockId] = molten.AgentRunInfo{Agent: molten.AgentIdClaude, Running: true, State: state, FirstName: firstName}
 	return tree
+}
+
+func (f *cleanupFixture) ghCount(prefix string) int {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	count := 0
+	for _, call := range f.ghCalls {
+		if strings.HasPrefix(strings.Join(call, " "), prefix) {
+			count++
+		}
+	}
+	return count
+}
+
+func otherPrsByNumber(step *CleanupStepResult) map[int]CleanupPr {
+	rtn := map[int]CleanupPr{}
+	for _, pr := range step.Prs {
+		rtn[pr.Number] = pr
+	}
+	return rtn
 }
 
 func TestCleanupAfterMerge(t *testing.T) {
 	f := makeCleanupFixture(t, true)
 	review := reviewsession.ReviewTreeDir(f.dataDir, f.dir, 7)
 	f.git(f.dir, "worktree", "add", "--quiet", "--detach", review, f.headOid)
-	f.addOtherPr(8, "feature/8-busy", molten.AgentStateWorking)
-	f.addOtherPr(9, "feature/9-idle", molten.AgentStateIdle)
-	f.openPrs = `[{"number":7,"headRefName":"feature/7-thing","mergeStateStatus":"CLEAN"},
-		{"number":8,"headRefName":"feature/8-busy","mergeStateStatus":"BEHIND"},
-		{"number":9,"headRefName":"feature/9-idle","mergeStateStatus":"BEHIND"},
-		{"number":10,"headRefName":"feature/10-dirty","mergeStateStatus":"DIRTY"},
-		{"number":11,"headRefName":"feature/11-late","mergeStateStatus":"BEHIND"}]`
-	f.ghFail["pr update-branch 11"] = errors.New("gh pr update-branch 11 --rebase: merge conflict between base and head")
+	f.addOtherPr(8, "feature/8-busy", molten.AgentStateWorking, "Rita")
+	f.addOtherPr(9, "feature/9-idle", molten.AgentStateIdle, "Jérôme")
+	f.addOtherPr(12, "feature/12-clean", molten.AgentStateIdle, "Paul")
+	// Right after the merge GitHub has not computed the other PRs' mergeability yet.
+	f.openPrsSeq = []string{`[{"number":7,"headRefName":"feature/7-thing","mergeable":"MERGEABLE"},
+		{"number":8,"headRefName":"feature/8-busy","mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"},
+		{"number":9,"headRefName":"feature/9-idle","mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"},
+		{"number":10,"headRefName":"feature/10-none","mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"},
+		{"number":11,"headRefName":"feature/11-behind","mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"},
+		{"number":12,"headRefName":"feature/12-clean","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}]`}
+	f.openPrs = `[{"number":8,"headRefName":"feature/8-busy","mergeable":"CONFLICTING","mergeStateStatus":"DIRTY","url":"https://x/8"},
+		{"number":9,"headRefName":"feature/9-idle","headRefOid":"0123456789abcdef0123456789abcdef01234567","title":"Fix idle","mergeable":"CONFLICTING","mergeStateStatus":"DIRTY","url":"https://x/9"},
+		{"number":10,"headRefName":"feature/10-none","mergeable":"UNKNOWN","mergeStateStatus":"DIRTY","url":"https://x/10"},
+		{"number":11,"headRefName":"feature/11-behind","mergeable":"MERGEABLE","mergeStateStatus":"BEHIND"},
+		{"number":12,"headRefName":"feature/12-clean","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}]`
 
 	result := f.cleanup(CleanupRequest{})
 
@@ -279,27 +354,108 @@ func TestCleanupAfterMerge(t *testing.T) {
 	if calls := f.workflowCalls(); calls != "status 7\nupdate-status 7 Done\n" {
 		t.Errorf("workflow calls: %q", calls)
 	}
-	want := []string{"issue close 7 --repo acme/app", "pr update-branch 9 --rebase --repo acme/app", "pr update-branch 11 --rebase --repo acme/app"}
-	if writes := f.ghWrites(); !slices.Equal(writes, want) {
+	// AC1: the PRs that still merge cleanly are left alone, never rebased by GitHub.
+	if writes := f.ghWrites(); !slices.Equal(writes, []string{"issue close 7 --repo acme/app"}) {
 		t.Errorf("gh writes: %q", writes)
 	}
-	byNumber := map[int]CleanupPr{}
-	for _, pr := range others.Prs {
-		byNumber[pr.Number] = pr
+	if n := f.ghCount("pr list"); n != 2 {
+		t.Errorf("the other PRs must be read again once GitHub computed them: %d reads", n)
 	}
-	if len(others.Prs) != 4 {
-		t.Errorf("other PRs: %+v", others.Prs)
+	byNumber := otherPrsByNumber(others)
+	if len(others.Prs) != 5 || others.Unaffected != 2 || others.Conflicting != 3 || others.Checking != 0 || others.Failed != 0 {
+		t.Errorf("other PRs: %+v", others)
 	}
-	if pr := byNumber[8]; pr.State != CleanupStateSkipped || pr.Flag != CleanupFlagAgentBusy {
+	// AC2: the idle agent on a conflicting PR's branch gets the rebase brief, by its first name.
+	idle := byNumber[9]
+	if idle.State != CleanupStateDone || idle.Flag != CleanupFlagRebaseAsked || idle.Agent != "Jérôme" || idle.Url != "https://x/9" {
+		t.Errorf("idle PR: %+v", idle)
+	}
+	line := f.typed["block-9"]
+	for _, part := range []string{"PR #9", "conflicts with develop", "Rebase it on origin/develop", "never merge develop into the branch", "--force-with-lease"} {
+		if !strings.Contains(line, part) {
+			t.Errorf("the prompt misses %q: %s", part, line)
+		}
+	}
+	briefs, _ := filepath.Glob(filepath.Join(f.dataDir, "molten", "reviews", "*", "rebase", "9-01234567.md"))
+	if len(briefs) != 1 || !strings.Contains(readText(t, briefs[0]), "after the developer merged PR #7 into develop") {
+		t.Errorf("the brief must name the merge: %v", briefs)
+	}
+	// A busy agent is not interrupted; with no agent on the branch nothing starts.
+	if pr := byNumber[8]; pr.State != CleanupStateSkipped || pr.Flag != CleanupFlagAgentBusy || pr.Agent != "Rita" {
 		t.Errorf("busy PR: %+v", pr)
 	}
-	if pr := byNumber[9]; pr.State != CleanupStateDone {
-		t.Errorf("idle PR: %+v", pr)
+	if pr := byNumber[10]; pr.State != CleanupStateSkipped || pr.Flag != CleanupFlagNeedsAgent {
+		t.Errorf("PR without an agent: %+v", pr)
 	}
-	for _, n := range []int{10, 11} {
-		if pr := byNumber[n]; pr.State != CleanupStateSkipped || pr.Flag != CleanupFlagNeedsRebase {
-			t.Errorf("conflicting PR %d: %+v", n, pr)
+	for _, n := range []int{11, 12} {
+		if pr := byNumber[n]; pr.State != CleanupStateDone || pr.Flag != "" {
+			t.Errorf("unaffected PR %d: %+v", n, pr)
 		}
+	}
+	if len(f.typed) != 1 || f.opened != 0 {
+		t.Errorf("only the idle agent is reached, nothing is started: typed %v opened %d", f.typed, f.opened)
+	}
+}
+
+// A PR GitHub has not computed by the bound is reported still checking, and nothing is asked for it.
+func TestCleanupOtherPrStillChecking(t *testing.T) {
+	f := makeCleanupFixture(t, true)
+	f.addOtherPr(9, "feature/9-idle", molten.AgentStateIdle, "Jérôme")
+	f.mergeableWait = 20 * time.Millisecond
+	f.openPrs = `[{"number":9,"headRefName":"feature/9-idle","mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"},
+		{"number":11,"headRefName":"feature/11-clean","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}]`
+
+	result := f.cleanup(CleanupRequest{})
+
+	others := expectStep(t, result, CleanupStepOtherPrs, CleanupStateDone)
+	if pr := otherPrsByNumber(others)[9]; pr.State != CleanupStateSkipped || pr.Flag != CleanupFlagChecking {
+		t.Errorf("PR still computed: %+v", pr)
+	}
+	if others.Checking != 1 || others.Unaffected != 1 || others.Conflicting != 0 {
+		t.Errorf("counts: %+v", others)
+	}
+	if n := f.ghCount("pr list"); n < 2 {
+		t.Errorf("the PRs must be read again until the bound: %d reads", n)
+	}
+	if len(f.typed) != 0 || len(f.ghWrites()) != 1 {
+		t.Errorf("nothing is asked for a PR still computed: typed %v writes %v", f.typed, f.ghWrites())
+	}
+}
+
+// Once every PR is known the step reads them no more.
+func TestCleanupOtherPrsReadOnceWhenKnown(t *testing.T) {
+	f := makeCleanupFixture(t, true)
+	f.openPrs = `[{"number":11,"headRefName":"feature/11-clean","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}]`
+
+	result := f.cleanup(CleanupRequest{})
+
+	others := expectStep(t, result, CleanupStepOtherPrs, CleanupStateDone)
+	if n := f.ghCount("pr list"); n != 1 || others.Unaffected != 1 {
+		t.Errorf("reads %d, step %+v", n, others)
+	}
+}
+
+// Asking for the rebase fails (the branch is in the main checkout's way, a brief that cannot be written…): the PR is
+// flagged with the reason and the step fails.
+func TestCleanupOtherPrRebaseNotAsked(t *testing.T) {
+	f := makeCleanupFixture(t, true)
+	f.openPrs = `[{"number":9,"headRefName":"feature/9-x","mergeable":"CONFLICTING","mergeStateStatus":"DIRTY"}]`
+	cleaner := f.cleaner()
+	cleaner.env.AskRebase = func(ctx context.Context, req RebaseRequest) (RestartResult, error) {
+		if req.Number != 9 || req.HeadRef != "feature/9-x" || req.BaseRef != "develop" || req.MergedPr != 7 || req.Start {
+			t.Errorf("request: %+v", req)
+		}
+		return RestartResult{Status: RestartFailed, Reason: RestartReasonBrief, Message: "the brief could not be written"}, nil
+	}
+
+	result, err := cleaner.Run(context.Background(), CleanupRequest{Dir: f.dir, Repo: cleanupRepo, Number: 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	others := expectStep(t, result, CleanupStepOtherPrs, CleanupStateFailed)
+	if pr := others.Prs[0]; pr.State != CleanupStateFailed || pr.Flag != CleanupFlagNeedsRebase || pr.Error != "the brief could not be written" {
+		t.Errorf("PR: %+v", pr)
 	}
 }
 

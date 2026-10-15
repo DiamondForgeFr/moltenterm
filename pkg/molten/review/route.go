@@ -189,6 +189,7 @@ func Start() {
 			Terminals:  mission.WorktreeTerminalsOf,
 			AgentState: agentStateOf,
 			EndSession: reviewsession.EndSession,
+			AskRebase:  service.AskRebase,
 			DataDir:    wavebase.GetWaveDataDir(),
 		})
 		service.restarter = MakeRestarter(service.store, liveRestartEnv(git))

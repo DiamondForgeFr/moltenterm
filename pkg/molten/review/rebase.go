@@ -38,6 +38,8 @@ type RebaseRequest struct {
 	Title   string `json:"title,omitempty"`
 	Url     string `json:"url,omitempty"`
 	Ticket  int    `json:"ticket,omitempty"`
+	// MergedPr: the merge that made this PR conflict, when the cleanup after a merge asks (#691); 0 for a row's click.
+	MergedPr int `json:"mergedpr,omitempty"`
 	// Start: the developer accepted to start an agent; it goes in the Review tab TabId.
 	Start bool   `json:"start,omitempty"`
 	TabId string `json:"tabid,omitempty"`
@@ -167,7 +169,11 @@ func rebasePromptLine(req RebaseRequest, briefPath string) string {
 func renderRebaseBrief(req RebaseRequest, tree string, ticket int) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Rebase PR #%d on %s\n\n", req.Number, req.BaseRef)
-	b.WriteString("MoltenTerm wrote this brief when the developer clicked Ask for a rebase in the Reviews list: the pull request ")
+	if req.MergedPr > 0 {
+		fmt.Fprintf(&b, "MoltenTerm wrote this brief after the developer merged PR #%d into %s: the pull request ", req.MergedPr, req.BaseRef)
+	} else {
+		b.WriteString("MoltenTerm wrote this brief when the developer clicked Ask for a rebase in the Reviews list: the pull request ")
+	}
 	fmt.Fprintf(&b, "conflicts with %s and cannot be merged until it is rebased. You work under the developer's usual permissions.\n\n", req.BaseRef)
 	fmt.Fprintf(&b, "- Pull request: #%d", req.Number)
 	if req.Title != "" {
