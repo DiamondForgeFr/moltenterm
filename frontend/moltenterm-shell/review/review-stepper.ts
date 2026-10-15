@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Validate's stepper, the pure part (#672, FR-REV-012, FR-REV-013): the five steps in the order they happen (checks,
-// rebase and merge, ticket, cleanup, other open PRs), built from the plan, the merge record and the cleanup result.
+// the merge, ticket, cleanup, other open PRs), built from the plan, the merge record and the cleanup result.
 // Before the merge every step says what it will do; then each one shows its state and what it did, skipped steps say
 // why, and a kept worktree says exactly what removing it would lose. wavesrv gives codes and data: every sentence is
 // written here, through the interface's language.
@@ -15,7 +15,13 @@ import type {
     ReviewCleanupStepResult,
     ReviewWorktreeLoss,
 } from "./review-cleanup";
-import type { ReviewCheckState, ReviewMergeCheck, ReviewMergePlan, ReviewMergeRecord } from "./review-client";
+import type {
+    ReviewCheckState,
+    ReviewMergeCheck,
+    ReviewMergeMethod,
+    ReviewMergePlan,
+    ReviewMergeRecord,
+} from "./review-client";
 
 export type Translate = (key: string, vars?: I18nVars) => string;
 
@@ -44,7 +50,7 @@ export type ValidateStep = {
     collapsed?: boolean;
 };
 
-const MergeRunningStates = ["checking", "updating", "waitingci", "merging"];
+const MergeRunningStates = ["checking", "updating", "waitingci", "merging", "queued"];
 const NamesShown = 3;
 const FilesShown = 5;
 
@@ -172,15 +178,21 @@ export function mergeOutcomeText(t: Translate, record: ReviewMergeRecord, basere
         case "checking":
             return t("review.merge.state.checking");
         case "updating":
-            return t("review.merge.state.updating", { base: baseref });
+            return methodOf(record.method) === "rebase"
+                ? t("review.merge.state.updating", { base: baseref })
+                : t("review.merge.state.updatingMerge", { base: baseref });
         case "waitingci":
             return t("review.merge.state.waitingci");
         case "merging":
             return t("review.merge.state.merging");
+        case "queued":
+            return t("review.merge.state.queued", { base: baseref });
     }
     switch (record.code) {
         case "merged":
-            return t("review.validate.outcome.merged", vars);
+            return t(`review.validate.outcome.merged.${methodOf(record.method)}`, vars);
+        case "queuetimeout":
+            return t("review.validate.outcome.queuetimeout", { minutes: record.minutes ?? 0 });
         case "check":
             return t("review.validate.outcome.check", { reason: blockingText(t, record.blocking) });
         case "cifailed":
@@ -199,6 +211,8 @@ export function mergeOutcomeText(t: Translate, record: ReviewMergeRecord, basere
         case "conflict":
         case "basemoved":
         case "rebasedblocked":
+        case "queueclosed":
+        case "queuestopped":
             return t(`review.validate.outcome.${record.code}`, vars);
     }
     if (record.message) {
@@ -209,26 +223,62 @@ export function mergeOutcomeText(t: Translate, record: ReviewMergeRecord, basere
         : t(`review.validate.outcome.state.${record.state}`);
 }
 
+// methodOf: a record or plan made before #673 has no method, and was a rebase.
+export function methodOf(method: string): ReviewMergeMethod {
+    return method === "merge" || method === "squash" ? method : "rebase";
+}
+
+// methodRuleLine says what narrowed the methods the sheet offers, "" when nothing did.
+export function methodRuleLine(t: Translate, plan: ReviewMergePlan, baseref: string): string {
+    const methods = (plan?.methods ?? []).map((m) => t(`review.validate.method.${m}`)).join(", ");
+    switch (plan?.methodrule) {
+        case "queue":
+            return t("review.validate.plan.rule.queue", {
+                base: baseref,
+                method: t(`review.validate.method.${methodOf(plan.method)}`),
+            });
+        case "ruleset":
+            return t("review.validate.plan.rule.ruleset", { base: baseref, methods });
+        case "linear":
+            return t("review.validate.plan.rule.linear", { base: baseref });
+    }
+    if (plan?.methods?.length === 1) {
+        return t("review.validate.plan.rule.only", { method: methods });
+    }
+    return "";
+}
+
 function mergeStep(
     t: Translate,
     plan: ReviewMergePlan,
     record: ReviewMergeRecord,
     baseref: string,
-    cleanup: ReviewCleanupResult
+    cleanup: ReviewCleanupResult,
+    picked: ReviewMergeMethod
 ): ValidateStep {
     const headref = plan?.headref ?? cleanup?.branch ?? "";
+    const method = methodOf(record?.method ?? picked ?? plan?.method);
+    const vars = { head: headref, base: baseref };
     const step: ValidateStep = {
         id: "merge",
-        title: t("review.validate.step.merge", { base: baseref }),
+        title: plan?.queue
+            ? t("review.validate.step.merge.queue", vars)
+            : t(`review.validate.step.merge.${method}`, vars),
         state: "todo",
         lines: [],
         rows: [],
     };
     if (record == null) {
-        if (plan?.behind) {
-            step.lines.push(t("review.validate.plan.behind", { head: headref, base: baseref }));
+        const rule = methodRuleLine(t, plan, baseref);
+        if (rule) {
+            step.lines.push(rule);
         }
-        step.lines.push(t("review.validate.plan.merge", { head: headref, base: baseref }));
+        if (plan?.behind && !plan.queue) {
+            step.lines.push(t(`review.validate.plan.behind.${method === "rebase" ? "rebase" : "merge"}`, vars));
+        }
+        step.lines.push(
+            plan?.queue ? t("review.validate.plan.merge.queue", vars) : t(`review.validate.plan.merge.${method}`, vars)
+        );
         if (plan?.headoid) {
             step.lines.push(t("review.validate.plan.bound", { oid: shortSha(plan.headoid) }));
         }
@@ -240,7 +290,7 @@ function mergeStep(
     } else if (record.state === "merged") {
         step.state = "done";
         if (record.head && record.head !== record.planhead) {
-            step.lines.push(t("review.validate.rebasedHead", { oid: shortSha(record.head) }));
+            step.lines.push(t("review.validate.updatedHead", { oid: shortSha(record.head) }));
         }
     } else if (record.state === "cancelled") {
         step.state = "skipped";
@@ -592,6 +642,8 @@ export type StepperInput = {
     cleanup: ReviewCleanupResult;
     headref: string;
     baseref: string;
+    // The merge method picked in the sheet (#673); the plan's default when absent.
+    method?: ReviewMergeMethod;
 };
 
 // buildValidateSteps is the stepper: the plan before the merge, then the merge's progress and the cleanup's outcome.
@@ -601,7 +653,7 @@ export function buildValidateSteps(t: Translate, input: StepperInput): ValidateS
     const source: ReviewCleanupStepResult[] = cleanup?.steps ?? plan?.cleanup ?? [];
     return [
         checksStep(t, plan, record),
-        mergeStep(t, plan, record, baseref, cleanup),
+        mergeStep(t, plan, record, baseref, cleanup, input.method),
         ticketStep(t, source, branch, baseref, record, cleanup),
         cleanupStep(t, source, branch, baseref, record, cleanup),
         othersStep(t, source, baseref, record, cleanup),

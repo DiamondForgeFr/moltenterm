@@ -95,6 +95,7 @@ type moltenReviewRound struct {
 }
 
 type moltenReviewMerge struct {
+	Method         string             `json:"method,omitempty"`
 	State          string             `json:"state"`
 	Refused        string             `json:"refused,omitempty"`
 	Code           string             `json:"code,omitempty"`
@@ -203,18 +204,22 @@ type moltenReviewStep struct {
 }
 
 type moltenReviewPlan struct {
-	Title     string                    `json:"title,omitempty"`
-	Ticket    int                       `json:"ticket,omitempty"`
-	HeadRef   string                    `json:"headref"`
-	BaseRef   string                    `json:"baseref"`
-	HeadOid   string                    `json:"headoid"`
-	Checks    []moltenReviewCheck       `json:"checks"`
-	Steps     []moltenReviewStep        `json:"steps"`
-	Cleanup   []moltenReviewCleanupStep `json:"cleanup"`
-	CanMerge  bool                      `json:"canmerge"`
-	Blocking  string                    `json:"blocking,omitempty"`
-	Warnings  []string                  `json:"warnings"`
-	CreatedAt int64                     `json:"createdat"`
+	Method     string                    `json:"method,omitempty"`
+	Methods    []string                  `json:"methods,omitempty"`
+	MethodRule string                    `json:"methodrule,omitempty"`
+	Queue      bool                      `json:"queue,omitempty"`
+	Title      string                    `json:"title,omitempty"`
+	Ticket     int                       `json:"ticket,omitempty"`
+	HeadRef    string                    `json:"headref"`
+	BaseRef    string                    `json:"baseref"`
+	HeadOid    string                    `json:"headoid"`
+	Checks     []moltenReviewCheck       `json:"checks"`
+	Steps      []moltenReviewStep        `json:"steps"`
+	Cleanup    []moltenReviewCleanupStep `json:"cleanup"`
+	CanMerge   bool                      `json:"canmerge"`
+	Blocking   string                    `json:"blocking,omitempty"`
+	Warnings   []string                  `json:"warnings"`
+	CreatedAt  int64                     `json:"createdat"`
 }
 
 type moltenReviewHandoffResult struct {
@@ -961,6 +966,9 @@ func formatMoltenReviewPlan(number int, plan moltenReviewPlan) string {
 			fmt.Fprintf(&sb, ": %s", detail)
 		}
 		sb.WriteString("\n")
+	}
+	if line := moltenReviewMethodLine(plan); line != "" {
+		fmt.Fprintf(&sb, "%s\n", line)
 	}
 	sb.WriteString("steps:\n")
 	for i, s := range plan.Steps {

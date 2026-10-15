@@ -47,6 +47,7 @@ import {
     ReviewLanguage,
     reviewMerge,
     reviewMergeCancel,
+    ReviewMergeMethod,
     ReviewMergePlan,
     reviewMergePlan,
     ReviewPrInfo,
@@ -67,7 +68,7 @@ import {
     useReviewRewrite,
 } from "./review-client";
 import { attachDiffActions, DiffActions } from "./review-diff-actions";
-import { mergeRunning } from "./review-merge";
+import { chosenMethod, mergeRunning } from "./review-merge";
 import {
     buildFileTree,
     FileLink,
@@ -130,6 +131,8 @@ export type ReviewValidateState = {
     plan?: ReviewMergePlan;
     error?: string;
     override: boolean;
+    // The merge method chosen in the sheet (#673): the plan's default until the developer picks another.
+    method?: ReviewMergeMethod;
     clicked?: string;
     // The agent worktree's removal the developer confirmed after the merge's cleanup is running.
     confirming?: boolean;
@@ -1295,7 +1298,9 @@ export abstract class ReviewTabModel implements ViewModel {
         globalStore.set(this.validateAtom, (v) => ({ ...v, loading: true, error: null }));
         try {
             const plan = await reviewMergePlan({ dir: pr.dir, repo: pr.repo, number: pr.number, ticket: pr.ticket });
-            globalStore.set(this.validateAtom, (v) => (v.open ? { ...v, loading: false, plan, override: false } : v));
+            globalStore.set(this.validateAtom, (v) =>
+                v.open ? { ...v, loading: false, plan, override: false, method: chosenMethod(plan, v.method) } : v
+            );
         } catch (e) {
             globalStore.set(this.validateAtom, (v) => ({ ...v, loading: false, error: String(e?.message ?? e) }));
         }
@@ -1309,6 +1314,10 @@ export abstract class ReviewTabModel implements ViewModel {
         globalStore.set(this.validateAtom, (v) => ({ ...v, override }));
     }
 
+    setValidateMethod(method: ReviewMergeMethod) {
+        globalStore.set(this.validateAtom, (v) => (v.plan?.methods?.includes(method) ? { ...v, method } : v));
+    }
+
     // merge is the developer's click (AC5): wavesrv checks the plan and the head again, then reports in the store.
     async merge() {
         const pr = this.pr();
@@ -1318,7 +1327,7 @@ export abstract class ReviewTabModel implements ViewModel {
         }
         globalStore.set(this.validateAtom, (s) => ({ ...s, clicked: v.plan.id, error: null }));
         try {
-            const record = await reviewMerge(pr.repo, pr.number, v.plan.id, v.override);
+            const record = await reviewMerge(pr.repo, pr.number, v.plan.id, v.override, chosenMethod(v.plan, v.method));
             // The store's event may have come first with a newer step of this merge.
             globalStore.set(this.stateAtom, (state) =>
                 state && state.merge?.planid !== record.planid ? { ...state, merge: record } : state

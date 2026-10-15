@@ -11,11 +11,13 @@ import { useAtomValue } from "jotai";
 import { DialogFrame, useEscape } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { SegmentedControl } from "../segmented-control";
 import { cleanupNeedsConfirmation, ReviewCleanupResult } from "./review-cleanup";
-import { ReviewMergePlan, ReviewMergeRecord } from "./review-client";
+import { ReviewMergeMethod, ReviewMergePlan, ReviewMergeRecord } from "./review-client";
 import {
     canCancelMerge,
     canClickMerge,
+    chosenMethod,
     mergeButtonLabel,
     mergeCleanup,
     mergeDisabledReason,
@@ -66,10 +68,11 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
     const plan = v.plan;
     const record = sheetRecord(state?.merge, v.clicked ?? null);
     const baseref = plan?.baseref ?? pr.baseref;
+    const method = chosenMethod(plan, v.method);
     const enabled = canClickMerge(plan, v.override, state?.merge) && record == null && v.clicked == null;
     const disabledReason = mergeDisabledReason(plan, v.override, state?.merge);
     const cleanup: ReviewCleanupResult = record != null ? mergeCleanup(record, state?.cleanup) : null;
-    const steps = buildValidateSteps(t, { plan, record, cleanup, headref: pr.headref, baseref });
+    const steps = buildValidateSteps(t, { plan, record, cleanup, headref: pr.headref, baseref, method });
     const locked = record != null || v.clicked != null;
     const keptAgent = cleanupNeedsConfirmation(cleanup?.steps);
     const keptReview = cleanup?.steps?.find(
@@ -89,6 +92,7 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
                     model={model}
                     plan={plan}
                     record={record}
+                    method={method}
                     enabled={enabled}
                     disabledReason={disabledReason}
                     loading={v.loading}
@@ -106,6 +110,11 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
                 ) : null}
                 <ValidateStepper
                     steps={steps}
+                    mergeTop={
+                        !locked && !plan?.queue && (plan?.methods?.length ?? 0) > 1 ? (
+                            <MethodPicker plan={plan} method={method} onSelect={(m) => model.setValidateMethod(m)} />
+                        ) : null
+                    }
                     checksExtra={
                         warnings.length > 0 && record == null ? (
                             <label
@@ -145,6 +154,7 @@ export function ValidateSheet({ model }: { model: ReviewTabModel }) {
 function SheetButtons({
     model,
     plan,
+    method,
     record,
     enabled,
     disabledReason,
@@ -153,6 +163,7 @@ function SheetButtons({
     model: ReviewTabModel;
     plan: ReviewMergePlan;
     record: ReviewMergeRecord;
+    method: ReviewMergeMethod;
     enabled: boolean;
     disabledReason: string;
     loading: boolean;
@@ -231,9 +242,38 @@ function SheetButtons({
                 data-testid="validate-merge"
             >
                 <i className="fa fa-solid fa-code-merge text-11" />
-                {mergeButtonLabel(plan)}
+                {mergeButtonLabel(plan, method)}
                 <MoltenWave />
             </button>
         </>
+    );
+}
+
+// The merge method (#673): only the ones the repository and the base's rules allow, the last one used preselected.
+function MethodPicker({
+    plan,
+    method,
+    onSelect,
+}: {
+    plan: ReviewMergePlan;
+    method: ReviewMergeMethod;
+    onSelect: (method: ReviewMergeMethod) => void;
+}) {
+    const t = useT();
+    const segments = (plan.methods ?? []).map((m) => ({
+        value: m,
+        label: t(`review.validate.method.${m}`),
+        title: t(`review.validate.methodTitle.${m}`),
+    }));
+    return (
+        <div className="mt-1 mb-1 flex items-center gap-2" data-testid="validate-method">
+            <span className="text-12 text-secondary">{t("review.validate.methodLabel")}</span>
+            <SegmentedControl
+                label={t("review.validate.methodLabel")}
+                segments={segments}
+                selected={method}
+                onSelect={onSelect}
+            />
+        </div>
     );
 }

@@ -107,6 +107,15 @@ func TestFormatMoltenReviewPlanAndOutcome(t *testing.T) {
 			t.Errorf("plan: missing %q in:\n%s", want, out)
 		}
 	}
+	squash := plan
+	squash.Method, squash.Methods = "squash", []string{"merge", "squash"}
+	squash.Steps = []moltenReviewStep{{Id: "update"}, {Id: "merge"}}
+	out = formatMoltenReviewPlan(12, squash)
+	for _, want := range []string{"method: squash (allowed: merge, squash", "1. GitHub merges develop into feature/5-x", "2. Squash into one commit on develop"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("squash plan: missing %q in:\n%s", want, out)
+		}
+	}
 	plan.CanMerge, plan.Blocking = false, "ci"
 	plan.Checks[0] = moltenReviewCheck{Id: "ci", State: "fail", Code: "failing", Count: 1, Names: []string{"lint"}}
 	if out := formatMoltenReviewPlan(12, plan); !strings.Contains(out, "cannot merge: CI is green, local-* statuses included (1 failing: lint)") {

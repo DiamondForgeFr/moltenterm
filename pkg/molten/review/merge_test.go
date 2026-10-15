@@ -74,6 +74,13 @@ type fakeGh struct {
 	viewed   int
 	calls    [][]string
 	mergeErr error
+	// repo, rules: what gh api answers about the repository and the base's rules; repo "" allows rebase only.
+	repo     string
+	repoErr  error
+	rules    string
+	apiCalls []string
+	// queue: a merge queue takes the PR; the script says when it is merged.
+	queue bool
 	// onCall changes the views when a write is made (GitHub rebasing the branch).
 	onCall func(g *fakeGh, args []string)
 }
@@ -81,6 +88,22 @@ type fakeGh struct {
 func (g *fakeGh) run(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
+	if len(args) == 2 && args[0] == "api" {
+		g.apiCalls = append(g.apiCalls, args[1])
+		if strings.Contains(args[1], "/rules/branches/") {
+			if g.rules == "" {
+				return []byte("[]"), nil
+			}
+			return []byte(g.rules), nil
+		}
+		if g.repoErr != nil {
+			return nil, g.repoErr
+		}
+		if g.repo == "" {
+			return []byte(`{"allow_merge_commit":false,"allow_squash_merge":false,"allow_rebase_merge":true}`), nil
+		}
+		return []byte(g.repo), nil
+	}
 	if len(args) < 2 || args[len(args)-2] != "--repo" || args[len(args)-1] != testRepo {
 		return nil, fmt.Errorf("gh called without --repo: %v", args)
 	}
@@ -97,9 +120,27 @@ func (g *fakeGh) run(ctx context.Context, dir string, args ...string) ([]byte, e
 		g.onCall(g, args)
 	}
 	if args[0] == "pr" && args[1] == "merge" {
+		if g.mergeErr == nil && !g.queue {
+			g.mergeNow()
+		}
 		return nil, g.mergeErr
 	}
 	return nil, nil
+}
+
+// mergeNow: without a merge queue, GitHub merges at once; a script whose next read is still open gets a merged one.
+func (g *fakeGh) mergeNow() {
+	i := g.viewed
+	if i >= len(g.views) {
+		i = len(g.views) - 1
+	}
+	next := g.views[i]
+	if next.State != "OPEN" {
+		return
+	}
+	next.State = "MERGED"
+	keep := min(g.viewed, len(g.views))
+	g.views = append(g.views[:keep:keep], next)
 }
 
 func (g *fakeGh) writes() [][]string {

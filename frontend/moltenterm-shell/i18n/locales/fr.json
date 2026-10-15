@@ -4336,13 +4336,20 @@
             "checkFails": "Une vérification ne passe pas",
             "confirmWarnings": "Confirmez les avertissements pour fusionner quand même",
             "updateThenMerge": "Mettre à jour, puis fusionner",
-            "rebaseAndMerge": "Rebaser et fusionner",
             "state": {
                 "checking": "Nouvelle lecture de la pull request…",
                 "updating": "GitHub rebase la branche sur {base}…",
-                "waitingci": "Attente de la CI sur le head rebasé…",
+                "waitingci": "Attente de la CI sur le head mis à jour…",
                 "merging": "Fusion…",
-                "merged": "Fusionnée"
+                "merged": "Fusionnée",
+                "updatingMerge": "GitHub fusionne {base} dans la branche…",
+                "queued": "Dans la file de fusion de {base} : attente de la fusion par GitHub…"
+            },
+            "button": {
+                "merge": "Fusionner",
+                "squash": "Squasher et fusionner",
+                "rebase": "Rebaser et fusionner",
+                "queue": "Ajouter à la file de fusion"
             }
         },
         "select": {
@@ -4363,7 +4370,7 @@
         },
         "validate": {
             "button": "Valider",
-            "buttonTitle": "Rebaser et fusionner cette pull request : affiche d'abord le plan",
+            "buttonTitle": "Fusionner cette pull request : affiche d'abord le plan",
             "title": "Valider #{number}",
             "subtitle": "Rebaser et fusionner {head} dans {base}",
             "readingGithub": "Lecture de la pull request sur GitHub…",
@@ -4375,7 +4382,6 @@
             "mergeTitle": "Fusionner, lié au head {oid}",
             "mergeAnyway": "Fusionner quand même : j'ai lu les avertissements ci-dessus.",
             "mergeDisabled": "Fusion désactivée : {reason}",
-            "rebasedHead": "GitHub a d'abord rebasé la branche : head fusionné {oid}.",
             "cleaningUp": "Nettoyage après la fusion…",
             "stepsLabel": "Étapes de la validation",
             "andMore": "{names} et {count} de plus",
@@ -4392,7 +4398,12 @@
             },
             "step": {
                 "checks": "Vérifications",
-                "merge": "Rebaser et fusionner dans {base}",
+                "merge": {
+                    "merge": "Créer un commit de fusion sur {base}",
+                    "squash": "Squasher en un seul commit sur {base}",
+                    "rebase": "Rebaser sur {base}",
+                    "queue": "File de fusion de {base}"
+                },
                 "ticket": "Ticket",
                 "cleanup": "Nettoyage",
                 "others": "Autres pull requests ouvertes"
@@ -4438,12 +4449,30 @@
                 "hide": "Masquer"
             },
             "plan": {
-                "behind": "GitHub rebasera d'abord {head} sur {base}, puis attendra que la CI passe à nouveau sur le nouveau head.",
-                "merge": "{head} sera rebasée et fusionnée dans {base}, puis supprimée sur GitHub.",
-                "bound": "Lié au head {oid} : tout push après ce plan fait refuser la fusion."
+                "behind": {
+                    "rebase": "GitHub rebasera d'abord {head} sur {base}, puis attendra que la CI passe à nouveau sur le nouveau head.",
+                    "merge": "GitHub fusionnera d'abord {base} dans {head}, puis attendra que la CI passe à nouveau sur le nouveau head."
+                },
+                "merge": {
+                    "merge": "{head} sera fusionnée dans {base} avec un commit de fusion qui garde ses commits, puis supprimée sur GitHub.",
+                    "squash": "Les commits de {head} deviendront un seul commit sur {base}, avec le titre et le message que ce dépôt définit sur GitHub ; {head} est ensuite supprimée sur GitHub.",
+                    "rebase": "{head} sera rebasée et fusionnée dans {base}, puis supprimée sur GitHub.",
+                    "queue": "La pull request rejoint la file de fusion, qui la met à jour et la fusionne ; MoltenTerm attend qu'elle soit fusionnée."
+                },
+                "bound": "Lié au head {oid} : tout push après ce plan fait refuser la fusion.",
+                "rule": {
+                    "queue": "{base} fusionne par une file de fusion, en {method} : la file impose la méthode.",
+                    "ruleset": "Les règles de {base} autorisent : {methods}.",
+                    "linear": "{base} exige un historique linéaire : pas de commit de fusion.",
+                    "only": "Ce dépôt n'autorise que : {method}."
+                }
             },
             "outcome": {
-                "merged": "Rebasée et fusionnée dans {base} à {head}.",
+                "merged": {
+                    "merge": "Fusionnée dans {base} avec un commit de fusion, à {head}.",
+                    "squash": "Squashée en un seul commit sur {base}, depuis {head}.",
+                    "rebase": "Rebasée et fusionnée dans {base} à {head}."
+                },
                 "reread": "La pull request n'a pas pu être relue avant la fusion : rien n'a été fusionné.",
                 "mergedaway": "La pull request a été fusionnée hors de MoltenTerm.",
                 "headmoved": "De nouveaux commits ont été poussés depuis le plan (head {to}, le plan portait sur {from}) : relisez-les, puis validez à nouveau.",
@@ -4451,19 +4480,22 @@
                 "check": "Non fusionnée : {reason}",
                 "newwarning": "Non fusionnée : un nouvel avertissement est apparu depuis le plan. Validez à nouveau.",
                 "mergeerror": "La fusion a échoué et n'est pas retentée.",
-                "updateerror": "GitHub n'a pas pu rebaser la branche sur sa base : rien n'a été fusionné.",
+                "updateerror": "GitHub n'a pas pu mettre la branche à jour avec sa base : rien n'a été fusionné.",
                 "stopped": "Arrêtée pendant l'attente de la CI : rien n'a été fusionné.",
-                "citimeout": "La CI n'a pas fini sur le head rebasé en {minutes} minutes : rien n'a été fusionné.",
+                "citimeout": "La CI n'a pas fini sur le head mis à jour en {minutes} minutes : rien n'a été fusionné.",
                 "pollerror": "La pull request n'a pas pu être lue pendant l'attente de la CI : rien n'a été fusionné.",
-                "cifailed": "La CI a échoué sur le head rebasé ({names}) : rien n'a été fusionné.",
-                "conflict": "La branche rebasée est en conflit avec sa base : rien n'a été fusionné.",
+                "cifailed": "La CI a échoué sur le head mis à jour ({names}) : rien n'a été fusionné.",
+                "conflict": "La branche mise à jour est en conflit avec sa base : rien n'a été fusionné.",
                 "basemoved": "La base a encore bougé pendant la CI : rien n'a été fusionné. Validez à nouveau.",
-                "rebasedblocked": "GitHub bloque la fusion du head rebasé : une vérification ou une revue obligatoire manque. Rien n'a été fusionné.",
+                "rebasedblocked": "GitHub bloque la fusion du head mis à jour : une vérification ou une revue obligatoire manque. Rien n'a été fusionné.",
                 "state": {
                     "refused": "La fusion a été refusée.",
                     "failed": "La fusion a échoué.",
                     "cancelled": "La fusion a été arrêtée."
-                }
+                },
+                "queueclosed": "La pull request a été fermée pendant qu'elle était dans la file de fusion : rien n'a été fusionné.",
+                "queuetimeout": "La file de fusion ne l'a pas fusionnée en {minutes} minutes : MoltenTerm a cessé d'attendre, la pull request est peut-être encore dans la file.",
+                "queuestopped": "Attente de la file de fusion arrêtée : la pull request reste dans la file, et GitHub peut encore la fusionner."
             },
             "error": {
                 "running": "Une fusion de cette pull request est déjà en cours.",
@@ -4471,7 +4503,8 @@
                 "old": "Ce plan a plus de 30 minutes : validez à nouveau.",
                 "blocked": "Le plan ne permet pas la fusion : revérifiez.",
                 "confirm": "Confirmez les avertissements pour fusionner quand même.",
-                "nomerge": "Aucune fusion de cette pull request n'est en cours."
+                "nomerge": "Aucune fusion de cette pull request n'est en cours.",
+                "method": "Cette méthode de fusion n'est plus autorisée pour ce dépôt : validez à nouveau."
             },
             "loss": {
                 "files": {
@@ -4640,7 +4673,19 @@
                     "one": "Fermer le panneau et supprimer le worktree et sa branche",
                     "other": "Fermer les panneaux et supprimer le worktree et sa branche"
                 }
-            }
+            },
+            "updatedHead": "GitHub a d'abord mis la branche à jour : head fusionné {oid}.",
+            "method": {
+                "merge": "Commit de fusion",
+                "squash": "Squash",
+                "rebase": "Rebase"
+            },
+            "methodTitle": {
+                "merge": "Garder chaque commit et ajouter un commit de fusion sur la base",
+                "squash": "Faire de la pull request un seul commit sur la base",
+                "rebase": "Rejouer chaque commit au-dessus de la base, sans commit de fusion"
+            },
+            "methodLabel": "Méthode de fusion"
         },
         "view": {
             "viewName": "Revue",

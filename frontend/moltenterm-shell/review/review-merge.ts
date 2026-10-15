@@ -7,13 +7,13 @@
 
 import { t } from "../i18n/i18n";
 import type { ReviewCleanupResult } from "./review-cleanup";
-import { ReviewMergePlan, ReviewMergeRecord, ReviewMergeState } from "./review-client";
+import { ReviewMergeMethod, ReviewMergePlan, ReviewMergeRecord, ReviewMergeState } from "./review-client";
 import { blockingText } from "./review-stepper";
 
-const RunningStates: ReviewMergeState[] = ["checking", "updating", "waitingci", "merging"];
+const RunningStates: ReviewMergeState[] = ["checking", "updating", "waitingci", "merging", "queued"];
 
 // must match mergeErrorPrefix and MergeErr… in pkg/molten/review/merge.go
-const MergeErrorRe = /molten-review-merge:(running|stale|old|blocked|confirm|nomerge)/;
+const MergeErrorRe = /molten-review-merge:(running|stale|old|blocked|confirm|nomerge|method)/;
 
 export function mergeRunning(record: ReviewMergeRecord): boolean {
     return record != null && RunningStates.includes(record.state);
@@ -58,8 +58,24 @@ export function mergeDisabledReason(plan: ReviewMergePlan, override: boolean, re
     return "";
 }
 
-export function mergeButtonLabel(plan: ReviewMergePlan): string {
-    return plan?.behind ? t("review.merge.updateThenMerge") : t("review.merge.rebaseAndMerge");
+// chosenMethod is the method the merge uses: the one picked in the sheet while the plan allows it, else the plan's
+// default (#673). Plans made before #673 had no methods: a rebase.
+export function chosenMethod(plan: ReviewMergePlan, picked: ReviewMergeMethod): ReviewMergeMethod {
+    const methods = plan?.methods ?? [];
+    if (picked != null && methods.includes(picked)) {
+        return picked;
+    }
+    return plan?.method ?? methods[0] ?? "rebase";
+}
+
+export function mergeButtonLabel(plan: ReviewMergePlan, method: ReviewMergeMethod): string {
+    if (plan?.queue) {
+        return t("review.merge.button.queue");
+    }
+    if (plan?.behind) {
+        return t("review.merge.updateThenMerge");
+    }
+    return t(`review.merge.button.${method ?? "rebase"}`);
 }
 
 // validateErrorText is what the sheet says for a refused command: wavesrv's codes in the interface's language, any other
@@ -72,9 +88,10 @@ export function validateErrorText(error: string): string {
     return t(`review.validate.error.${match[1]}`);
 }
 
-// The wait can be stopped only before the merge call: GitHub's merge is not undone.
+// The wait can be stopped only before the merge call, or while a merge queue holds the PR (it then stays in the queue):
+// GitHub's merge is not undone.
 export function canCancelMerge(record: ReviewMergeRecord): boolean {
-    return record != null && (record.state === "updating" || record.state === "waitingci");
+    return record != null && ["updating", "waitingci", "queued"].includes(record.state);
 }
 
 // mergeCleanup is the cleanup the merge ran, from the review store: none before the merge, and never an older run
