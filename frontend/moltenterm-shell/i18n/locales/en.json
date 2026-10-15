@@ -3870,6 +3870,7 @@
         "upcoming": {
             "title": "Upcoming",
             "none": "No ticket branch is waiting for its pull request.",
+            "noCommit": "no commit yet",
             "aheadOne": "1 commit ahead",
             "ahead": "{count} commits ahead",
             "remote": "on origin only",

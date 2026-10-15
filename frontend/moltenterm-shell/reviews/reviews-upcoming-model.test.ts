@@ -140,6 +140,7 @@ describe("the bar's time line", () => {
     });
 
     it("counts commits ahead", () => {
+        expect(aheadText(t, 0)).toBe("no commit yet");
         expect(aheadText(t, 1)).toBe("1 commit ahead");
         expect(aheadText(t, 3)).toBe("3 commits ahead");
     });
