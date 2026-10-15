@@ -4416,6 +4416,13 @@
                 "needs": "Fusionnée. Un worktree conservé vous attend ci-dessus ; cet onglet de revue ne sera ensuite plus utile.",
                 "failed": "Fusionnée, mais une étape du nettoyage a échoué ci-dessus. Cet onglet de revue n'est plus utile.",
                 "done": "Fusionnée et nettoyée. Cet onglet de revue n'est plus utile."
+            },
+            "done": "Terminé",
+            "footerSheet": {
+                "cleaning": "Fusionnée. Le nettoyage continue même après votre départ.",
+                "needs": "Fusionnée. Un worktree conservé vous attend ci-dessus.",
+                "failed": "Fusionnée, mais une étape du nettoyage a échoué ci-dessus.",
+                "done": "Fusionnée et nettoyée."
             }
         },
         "validate": {

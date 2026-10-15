@@ -28,7 +28,6 @@ import { whileShown } from "../tab-activity";
 import { openFileInPreview } from "../term-copy/term-copy";
 import { everyInPanel } from "../view360/offcarpet-model";
 import { answerKey, worktreeFilePath } from "./review-answers";
-import { removeKeptWorktree, ReviewCleanupStepResult } from "./review-cleanup";
 import {
     discussReviewComment,
     openReviewAiPane,
@@ -48,11 +47,6 @@ import {
     reviewFiles,
     ReviewFilesResult,
     ReviewLanguage,
-    reviewMerge,
-    reviewMergeCancel,
-    ReviewMergeMethod,
-    ReviewMergePlan,
-    reviewMergePlan,
     ReviewPrInfo,
     ReviewPrMetaKey,
     reviewPrState,
@@ -81,7 +75,6 @@ import {
     reviewDoneOf,
     shouldReadPrState,
 } from "./review-done";
-import { chosenMethod, mergeRunning } from "./review-merge";
 import {
     buildFileTree,
     FileLink,
@@ -93,7 +86,6 @@ import {
     treeFiles,
     TreeNode,
 } from "./review-model";
-import { closePanels } from "./review-panels";
 import { missingTranslations } from "./review-publish";
 import { ReadyAnswer, ReadyWhat, sendWhenReady } from "./review-ready";
 import { ReviewRestartState } from "./review-restart";
@@ -114,6 +106,8 @@ import {
 } from "./review-session";
 import { localizeAsk, localizeBrief, localizeSession, startResultText } from "./review-session-text";
 import { watchReviewSheetRequests } from "./review-sheet-request";
+import { closeThisTab } from "./review-tab-close";
+import { ReviewValidateModel } from "./review-validate-model";
 
 // The PR's head is asked from the collector at most this often while the tab shows (it reads GitHub at most once a
 // minute per project, NFR-REV-002).
@@ -139,22 +133,6 @@ export type ReviewNewCommits = { to: string; baseoid?: string; commits: number; 
 
 export type ReviewWorktreeState = { state: "pending" | "ready" | "failed"; worktree?: ReviewWorktree; error?: string };
 
-// Validate's plan sheet (FR-REV-012): the plan read on opening it, the developer's confirmation of its warnings, and
-// the plan whose merge was clicked, so the sheet follows that merge in the review store.
-export type ReviewValidateState = {
-    open: boolean;
-    loading: boolean;
-    plan?: ReviewMergePlan;
-    error?: string;
-    override: boolean;
-    // The merge method chosen in the sheet (#673): the plan's default until the developer picks another.
-    method?: ReviewMergeMethod;
-    clicked?: string;
-    // The agent worktree's removal the developer confirmed after the merge's cleanup is running.
-    confirming?: boolean;
-    // The sheet reopened from the header's Validated state (#686): the merge's result, read-only.
-    result?: boolean;
-};
 
 // What asking the session for the translations did (FR-REV-010 AC1).
 export type ReviewTranslateStatus = "idle" | "asking" | "sent" | "typed" | "busy" | "nosession" | "none" | "failed";
@@ -262,7 +240,8 @@ export abstract class ReviewTabModel implements ViewModel {
     aiAtom = atom({ status: "idle" }) as PrimitiveAtom<ReviewAiState>;
     briefAskAtom = atom({ status: "idle" }) as PrimitiveAtom<ReviewBriefAsk>;
     renderMsAtom = atom(null) as PrimitiveAtom<number>;
-    validateAtom = atom({ open: false, loading: false, override: false }) as PrimitiveAtom<ReviewValidateState>;
+    // The Validate sheet (FR-REV-012), shared with a Reviews row's Validate (#707).
+    validator: ReviewValidateModel;
     publishAtom = atom({ open: false, translate: { status: "idle" } }) as PrimitiveAtom<ReviewPublishSheet>;
     restartAtom = atom({ status: "idle" }) as PrimitiveAtom<ReviewRestartState>;
     // Restart work's sheet, opened by `molten review restart` (FR-REV-014): its click is the confirmation.
@@ -320,6 +299,11 @@ export abstract class ReviewTabModel implements ViewModel {
         this.nodeModel = nodeModel;
         const blockAtom = WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId));
         this.prAtom = atom((get) => (get(blockAtom)?.meta?.[ReviewPrMetaKey] as ReviewPrInfo) ?? null);
+        this.validator = new ReviewValidateModel(this.prAtom, this.stateAtom, {
+            inTab: true,
+            reviewNewCommits: () => this.showNewCommits(),
+            closeTab: () => closeThisTab(),
+        });
         this.viewName = atom((get) => {
             const pr = get(this.prAtom);
             get(I18nModel.getInstance().localeAtom);
@@ -517,11 +501,6 @@ export abstract class ReviewTabModel implements ViewModel {
         fireAndForget(() =>
             RpcApi.SetMetaCommand(TabRpcClient, { oref, meta: { [ReviewDoneMetaKey]: want } as MetaType })
         );
-    }
-
-    // The Validated state's click (#686): the sheet shows the merge's result, read-only.
-    openValidateResult() {
-        globalStore.set(this.validateAtom, { open: true, loading: false, override: false, result: true });
     }
 
     prOf(answer: ReviewsAnswer): { headoid?: string; baseoid?: string } {
@@ -1384,101 +1363,16 @@ export abstract class ReviewTabModel implements ViewModel {
         }
     }
 
-    // applyState takes the store's state; a merge that just ended refreshes the Reviews list once (DS-REV-001: right
-    // after a MoltenTerm action).
     applyState(state: ReviewState) {
-        const before = globalStore.get(this.stateAtom)?.merge;
-        globalStore.set(this.stateAtom, state);
-        const after = state?.merge;
-        if (after == null || !mergeRunning(before) || mergeRunning(after) || before.planid !== after.planid) {
-            return;
-        }
-        const pr = this.pr();
-        fireAndForget(async () => {
-            await reviewsGet(pr.dir, true);
-        });
+        this.validator.applyState(state);
     }
 
-    // Validate (FR-REV-012, AC1): the plan sheet opens on a fresh read of the PR. Nothing merges until Merge is
-    // clicked on it.
     async openValidate() {
-        globalStore.set(this.validateAtom, { open: true, loading: true, override: false });
-        await this.loadPlan();
+        await this.validator.openValidate();
     }
 
-    async loadPlan() {
-        const pr = this.pr();
-        globalStore.set(this.validateAtom, (v) => ({ ...v, loading: true, error: null }));
-        try {
-            const plan = await reviewMergePlan({ dir: pr.dir, repo: pr.repo, number: pr.number, ticket: pr.ticket });
-            globalStore.set(this.validateAtom, (v) =>
-                v.open ? { ...v, loading: false, plan, override: false, method: chosenMethod(plan, v.method) } : v
-            );
-        } catch (e) {
-            globalStore.set(this.validateAtom, (v) => ({ ...v, loading: false, error: String(e?.message ?? e) }));
-        }
-    }
-
-    closeValidate() {
-        globalStore.set(this.validateAtom, { open: false, loading: false, override: false });
-    }
-
-    setValidateOverride(override: boolean) {
-        globalStore.set(this.validateAtom, (v) => ({ ...v, override }));
-    }
-
-    setValidateMethod(method: ReviewMergeMethod) {
-        globalStore.set(this.validateAtom, (v) => (v.plan?.methods?.includes(method) ? { ...v, method } : v));
-    }
-
-    // merge is the developer's click (AC5): wavesrv checks the plan and the head again, then reports in the store.
-    async merge() {
-        const pr = this.pr();
-        const v = globalStore.get(this.validateAtom);
-        if (v.plan == null) {
-            return;
-        }
-        globalStore.set(this.validateAtom, (s) => ({ ...s, clicked: v.plan.id, error: null }));
-        try {
-            const record = await reviewMerge(pr.repo, pr.number, v.plan.id, v.override, chosenMethod(v.plan, v.method));
-            // The store's event may have come first with a newer step of this merge.
-            globalStore.set(this.stateAtom, (state) =>
-                state && state.merge?.planid !== record.planid ? { ...state, merge: record } : state
-            );
-        } catch (e) {
-            globalStore.set(this.validateAtom, (s) => ({ ...s, clicked: null, error: String(e?.message ?? e) }));
-        }
-    }
-
-    async cancelMerge() {
-        const pr = this.pr();
-        try {
-            await reviewMergeCancel(pr.repo, pr.number);
-        } catch (e) {
-            globalStore.set(this.validateAtom, (s) => ({ ...s, error: String(e?.message ?? e) }));
-        }
-    }
-
-    // A worktree the merge's cleanup kept (FR-REV-013, #672), because removing it loses work or a panel still works in
-    // it: the panels are closed first, then wavesrv reads the folder again and removes it (the agent worktree with its
-    // branch, losing what the sheet named). The outcome comes back in the review store.
-    async removeKeptWorktree(step: ReviewCleanupStepResult) {
-        const pr = this.pr();
-        const ticket = globalStore.get(this.validateAtom).plan?.ticket;
-        globalStore.set(this.validateAtom, (s) => ({ ...s, confirming: true, error: null }));
-        try {
-            await closePanels((step.panels ?? []).map((p) => p.blockid));
-            await removeKeptWorktree({ dir: pr.dir, repo: pr.repo, number: pr.number, ticket }, step);
-        } catch (e) {
-            globalStore.set(this.validateAtom, (s) => ({ ...s, error: String(e?.message ?? e) }));
-        } finally {
-            globalStore.set(this.validateAtom, (s) => ({ ...s, confirming: false }));
-        }
-    }
-
-    // After a refusal on new commits (AC2): the sheet closes and the tab shows the PR's new head.
-    async reviewNewCommits() {
-        this.closeValidate();
+    // After a refusal on new commits (AC2): the tab shows the PR's new head.
+    async showNewCommits() {
         try {
             const latest = this.prOf(await reviewsGet(this.pr().dir, true));
             if (latest?.headoid) {

@@ -19,6 +19,7 @@ import { MissionSnapshot } from "../mission/mission-model";
 import { timeAgo } from "../mission/time-format";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { ValidateSheet } from "../review/review-validate";
 import { useReviews } from "./reviews-client";
 import { MarkReadyButton, MarkReadyConfirm, useMarkReady } from "./reviews-mark-ready";
 import {
@@ -90,12 +91,24 @@ export class ReviewsViewModel implements ViewModel {
 function ReviewsView({ model }: ViewComponentProps<ReviewsViewModel>) {
     const t = useT();
     return (
-        <MissionFrame title={t("reviews.viewName")}>
-            {({ project, snapshot }) => (
-                <ReviewsContent project={project} snapshot={snapshot} blockId={model.blockId} />
-            )}
-        </MissionFrame>
+        <>
+            <MissionFrame title={t("reviews.viewName")}>
+                {({ project, snapshot }) => (
+                    <ReviewsContent project={project} snapshot={snapshot} blockId={model.blockId} />
+                )}
+            </MissionFrame>
+            <RowValidateSheet blockId={model.blockId} />
+        </>
     );
+}
+
+// A row's Validate sheet (#707), over this tab: no Review tab is opened for it.
+function RowValidateSheet({ blockId }: { blockId: string }) {
+    const sheet = useAtomValue(ReviewsModel.getInstance().validateSheetAtom);
+    if (sheet == null || (sheet.blockId && sheet.blockId !== blockId)) {
+        return null;
+    }
+    return <ValidateSheet model={sheet.model} />;
 }
 
 function ReviewsContent({
@@ -248,7 +261,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         marked: marked === pr.number,
         onSelect: () => setSelected(pr.number),
         onOpen: () => open(pr),
-        onValidate: () => fireAndForget(() => model.openValidate(dir, pr, answer.repo)),
+        onValidate: () => model.openValidate(dir, pr, answer.repo, blockId),
         onAskRebase: (start: boolean) => model.askRebase(dir, pr, answer.repo, start),
         rebaseAsk: asks[rebaseAskKey(dir, pr.number)],
         dir,

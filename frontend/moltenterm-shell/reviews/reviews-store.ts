@@ -10,8 +10,8 @@ import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom } from "jotai";
 import { openMoltentermView } from "../open-view";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
-import { askReviewRebase, markReviewReady, openReviewTab } from "../review/review-client";
-import { requestReviewSheet } from "../review/review-sheet-request";
+import { askReviewRebase, markReviewReady, openReviewTab, ReviewPrInfo } from "../review/review-client";
+import { openSheetValidate, ReviewValidateModel } from "../review/review-validate-model";
 import { reviewsGet } from "./reviews-client";
 import {
     cleanupRebaseAsks,
@@ -30,6 +30,8 @@ import {
 // The PR a Reviews view brings into sight and marks, asked by another surface.
 export type ReviewsFocus = { dir: string; number: number; at: number };
 
+export type ReviewsValidateSheet = { model: ReviewValidateModel; blockId?: string };
+
 export class ReviewsModel {
     private static instance: ReviewsModel = null;
 
@@ -38,6 +40,9 @@ export class ReviewsModel {
     rebaseAsksAtom = atom({}) as PrimitiveAtom<Record<string, RebaseAsk>>;
     // The drafts marked ready from MoltenTerm (#687), by rebaseAskKey: splitReviews moves them at once.
     readiedAtom = atom({}) as PrimitiveAtom<ReadiedPrs>;
+    // A row's Validate sheet, open with no Review tab (#707), in the Reviews panel blockId.
+    validateSheetAtom = atom(null) as PrimitiveAtom<ReviewsValidateSheet>;
+    stopSheet: () => void = null;
 
     private constructor() {}
 
@@ -66,20 +71,34 @@ export class ReviewsModel {
         getApi().setActiveTab(await openPullRequestTab(workspaceId, dir, pr, repoName));
     }
 
-    // A row's Validate (#683): the PR's Review tab with its Validate sheet, which shows the plan; merging stays the
-    // developer's click there.
-    async openValidate(dir: string, pr: ReviewPr, repo?: string): Promise<void> {
-        const workspaceId = globalStore.get(atoms.workspace)?.oid;
+    // A row's Validate (#683, #707): the Validate sheet opens in place, over this tab, with no Review tab; it shows the
+    // plan, and merging stays the developer's click there. blockId is the Reviews panel that shows it.
+    openValidate(dir: string, pr: ReviewPr, repo?: string, blockId?: string) {
         const repoName = repo || repoOfPrUrl(pr?.url);
-        if (!dir || pr == null || !workspaceId || !repoName) {
+        if (!dir || pr == null || !repoName) {
             return;
         }
-        const tabId = await openPullRequestTab(workspaceId, dir, pr, repoName);
-        if (!tabId) {
-            return;
-        }
-        await requestReviewSheet(tabId, { id: crypto.randomUUID(), action: "merge", at: Date.now() });
-        getApi().setActiveTab(tabId);
+        this.closeValidateSheet();
+        const opened = openSheetValidate(reviewPrInfo(dir, pr, repoName), () =>
+            this.openPullRequestReview(dir, pr, repoName)
+        );
+        const unsub = globalStore.sub(opened.model.validateAtom, () => {
+            if (!globalStore.get(opened.model.validateAtom).open) {
+                this.closeValidateSheet();
+            }
+        });
+        this.stopSheet = () => {
+            unsub();
+            opened.stop();
+        };
+        globalStore.set(this.validateSheetAtom, { model: opened.model, blockId });
+    }
+
+    closeValidateSheet() {
+        const stop = this.stopSheet;
+        this.stopSheet = null;
+        stop?.();
+        globalStore.set(this.validateSheetAtom, null);
     }
 
     // A row's Ask for a rebase (#683): the agent on the PR's branch gets it; with start, the developer accepted to start
@@ -175,7 +194,13 @@ export async function openPullRequestTab(
     pr: ReviewPr,
     repo: string
 ): Promise<string> {
-    const { tabid } = await openReviewTab(workspaceId, {
+    const { tabid } = await openReviewTab(workspaceId, reviewPrInfo(dir, pr, repo));
+    return tabid;
+}
+
+// reviewPrInfo is the PR as a Review tab and the Validate sheet know it, from a Reviews row.
+export function reviewPrInfo(dir: string, pr: ReviewPr, repo: string): ReviewPrInfo {
+    return {
         dir,
         repo,
         number: pr.number,
@@ -186,6 +211,5 @@ export async function openPullRequestTab(
         headoid: pr.headoid,
         baseoid: pr.baseoid,
         ticket: pr.ticket,
-    });
-    return tabid;
+    };
 }

@@ -71,7 +71,7 @@ export function ReviewView({ model }: ViewComponentProps<ReviewViewModel>) {
                 <FilesPanel model={model} />
                 <DiffPanel model={model} />
             </div>
-            <ValidateSheet model={model} />
+            <ValidateSheet model={model.validator} />
             <PublishSheet model={model} />
             <RestartSheet model={model} />
         </div>
