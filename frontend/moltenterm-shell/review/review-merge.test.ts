@@ -10,8 +10,8 @@ import {
     mergeCleanup,
     mergeDisabledReason,
     mergeRunning,
-    mergeStateLabel,
     sheetRecord,
+    validateErrorText,
 } from "./review-merge";
 
 function plan(over: Partial<ReviewMergePlan> = {}): ReviewMergePlan {
@@ -42,9 +42,15 @@ describe("Validate's plan sheet", () => {
     it("enables Merge only on a clean plan with its warnings confirmed", () => {
         expect(canClickMerge(plan(), false, null)).toBe(true);
         expect(canClickMerge(null, false, null)).toBe(false);
-        const blocked = plan({ canmerge: false, reason: "2 failing: build, lint" });
+        const blocked = plan({
+            canmerge: false,
+            blocking: "ci",
+            checks: [{ id: "ci", state: "fail", code: "failing", count: 2, names: ["build", "lint"] }],
+        });
         expect(canClickMerge(blocked, true, null)).toBe(false);
-        expect(mergeDisabledReason(blocked, true, null)).toBe("2 failing: build, lint");
+        expect(mergeDisabledReason(blocked, true, null)).toBe(
+            "CI is green, local-* statuses included: 2 failing: build, lint"
+        );
         const warned = plan({ warnings: ["comments"] });
         expect(canClickMerge(warned, false, null)).toBe(false);
         expect(mergeDisabledReason(warned, false, null)).toMatch(/Confirm the warnings/);
@@ -68,8 +74,6 @@ describe("Validate's plan sheet", () => {
     it("says what happens to a PR behind its base", () => {
         expect(mergeButtonLabel(plan({ behind: true }))).toBe("Update, then merge");
         expect(mergeButtonLabel(plan())).toBe("Rebase and merge");
-        expect(mergeStateLabel(record({ state: "updating" }), "develop")).toMatch(/rebasing the branch on develop/);
-        expect(mergeStateLabel(record({ state: "refused", message: "New commits" }), "develop")).toBe("New commits");
     });
 
     it("lets the wait stop, never the merge call", () => {
@@ -85,5 +89,13 @@ describe("Validate's plan sheet", () => {
         expect(mergeCleanup(record({ state: "merged", startedat: 9 }), cleanup)).toBeNull();
         expect(mergeCleanup(record({ state: "refused", startedat: 4 }), cleanup)).toBeNull();
         expect(mergeCleanup(record({ state: "merged", startedat: 4 }), null)).toBeNull();
+    });
+
+    it("translates wavesrv's refusals and keeps gh's errors as they came", () => {
+        expect(validateErrorText("molten-review-merge:stale")).toBe("This plan is no longer current: Validate again.");
+        expect(validateErrorText("rpc error: molten-review-merge:confirm")).toBe(
+            "Confirm the warnings to merge anyway."
+        );
+        expect(validateErrorText("gh: HTTP 502")).toBe("gh: HTTP 502");
     });
 });

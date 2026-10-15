@@ -144,8 +144,18 @@ export type ReviewSince = { from: string; to: string; published?: boolean };
 
 // must match pkg/molten/review/merge.go and postmerge.go
 export type ReviewCheckState = "ok" | "info" | "warn" | "pending" | "fail";
-export type ReviewMergeCheck = { id: string; label: string; state: ReviewCheckState; detail?: string };
-export type ReviewMergeStep = { id: string; label: string; detail?: string };
+// The sheet writes a check from its id, its code and the data (review-stepper.ts).
+export type ReviewMergeCheck = {
+    id: string;
+    state: ReviewCheckState;
+    code?: string;
+    count?: number;
+    local?: number;
+    names?: string[];
+    base?: string;
+    prstate?: string;
+};
+export type ReviewMergeStep = { id: "update" | "waitci" | "merge" };
 
 export type ReviewMergePlan = {
     id: string;
@@ -167,7 +177,8 @@ export type ReviewMergePlan = {
     // The cleanup after the merge, every step planned.
     cleanup: ReviewCleanupStepResult[];
     canmerge: boolean;
-    reason?: string;
+    // The id of the first check that fails or waits.
+    blocking?: string;
     warnings: string[];
     createdat: number;
 };
@@ -190,6 +201,15 @@ export type ReviewMergeRecord = {
     mergedoid?: string;
     state: ReviewMergeState;
     refused?: "headmoved" | "basemoved" | "check" | "mergedaway";
+    // What the sheet writes about the outcome, and its data; error: gh's raw error.
+    code?: string;
+    error?: string;
+    blocking?: ReviewMergeCheck;
+    names?: string[];
+    movedfrom?: string;
+    movedto?: string;
+    minutes?: number;
+    // The English text of records made before #672.
     message?: string;
     updated?: boolean;
     overridden?: string[];

@@ -1,0 +1,565 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: Apache-2.0
+
+// Validate's stepper, the pure part (#672, FR-REV-012, FR-REV-013): the five steps in the order they happen (checks,
+// rebase and merge, ticket, cleanup, other open PRs), built from the plan, the merge record and the cleanup result.
+// Before the merge every step says what it will do; then each one shows its state and what it did, skipped steps say
+// why, and a kept worktree says exactly what removing it would lose. wavesrv gives codes and data: every sentence is
+// written here, through the interface's language.
+
+import type { I18nVars } from "../i18n/i18n-core";
+import type {
+    ReviewCleanupPr,
+    ReviewCleanupResult,
+    ReviewCleanupStepResult,
+    ReviewWorktreeLoss,
+} from "./review-cleanup";
+import type { ReviewCheckState, ReviewMergeCheck, ReviewMergePlan, ReviewMergeRecord } from "./review-client";
+
+export type Translate = (key: string, vars?: I18nVars) => string;
+
+export type StepState = "todo" | "running" | "done" | "skipped" | "needs" | "failed";
+
+export type StepRow = {
+    id: string;
+    label: string;
+    state: StepState;
+    // The sentences under the row; error: a raw gh or git error, shown as such.
+    lines: string[];
+    error?: string;
+    url?: string;
+};
+
+export type ValidateStepId = "checks" | "merge" | "ticket" | "cleanup" | "others";
+
+export type ValidateStep = {
+    id: ValidateStepId;
+    title: string;
+    state: StepState;
+    lines: string[];
+    error?: string;
+    rows: StepRow[];
+    // The checks all pass: one line, the rows on demand.
+    collapsed?: boolean;
+};
+
+const MergeRunningStates = ["checking", "updating", "waitingci", "merging"];
+const NamesShown = 3;
+const FilesShown = 5;
+
+export function shortSha(oid: string): string {
+    return (oid ?? "").slice(0, 7);
+}
+
+// plural picks key.one for 1 and key.other otherwise; both take {count}.
+export function plural(t: Translate, key: string, count: number, vars?: I18nVars): string {
+    return t(`${key}.${count === 1 ? "one" : "other"}`, { count, ...vars });
+}
+
+export function listNames(t: Translate, names: string[], total?: number, shown = NamesShown): string {
+    const list = (names ?? []).slice(0, shown).join(", ");
+    const more = Math.max(total ?? names?.length ?? 0, names?.length ?? 0) - Math.min(shown, names?.length ?? 0);
+    return more > 0 ? t("review.validate.andMore", { names: list, count: more }) : list;
+}
+
+// --- checks ---
+
+export function checkLabel(t: Translate, check: ReviewMergeCheck): string {
+    return t(`review.validate.check.${check.id}`);
+}
+
+export function checkDetail(t: Translate, check: ReviewMergeCheck): string {
+    const names = listNames(t, check.names ?? []);
+    switch (check.code) {
+        case "notopen":
+            return t("review.validate.checkCode.notopen", { state: check.prstate ?? "" });
+        case "draft":
+            return t("review.validate.checkCode.draft");
+        case "failing":
+            return t("review.validate.checkCode.failing", { count: check.count ?? 0, names });
+        case "running":
+            return t("review.validate.checkCode.running", { count: check.count ?? 0, names });
+        case "nocheck":
+            return t("review.validate.checkCode.nocheck");
+        case "passed":
+            return check.local
+                ? t("review.validate.checkCode.passedLocal", { count: check.count ?? 0, local: check.local })
+                : t("review.validate.checkCode.passed", { count: check.count ?? 0 });
+        case "conflicting":
+            return t("review.validate.checkCode.conflicting", { base: check.base ?? "" });
+        case "computing":
+            return t("review.validate.checkCode.computing");
+        case "blocked":
+            return t("review.validate.checkCode.blocked");
+        case "behind":
+            return t("review.validate.checkCode.behind", { base: check.base ?? "" });
+        case "unpublished":
+            return plural(t, "review.validate.checkCode.unpublished", check.count ?? 0);
+        case "inflight":
+            return t("review.validate.checkCode.inflight");
+    }
+    return "";
+}
+
+function checkRowState(state: ReviewCheckState): StepState {
+    switch (state) {
+        case "fail":
+            return "failed";
+        case "pending":
+            return "running";
+        case "warn":
+            return "needs";
+    }
+    return "done";
+}
+
+// blockingText says why Merge is disabled: the blocking check and its detail.
+export function blockingText(t: Translate, check: ReviewMergeCheck): string {
+    if (check == null) {
+        return t("review.merge.checkFails");
+    }
+    const detail = checkDetail(t, check);
+    return detail ? `${checkLabel(t, check)}: ${detail}` : checkLabel(t, check);
+}
+
+function checksStep(t: Translate, plan: ReviewMergePlan, record: ReviewMergeRecord): ValidateStep {
+    const step: ValidateStep = {
+        id: "checks",
+        title: t("review.validate.step.checks"),
+        state: "todo",
+        lines: [],
+        rows: [],
+    };
+    if (plan == null) {
+        step.state = record != null ? "done" : "running";
+        step.lines.push(record != null ? t("review.validate.checks.passedBefore") : t("review.validate.readingGithub"));
+        return step;
+    }
+    step.rows = plan.checks.map((c) => {
+        const detail = checkDetail(t, c);
+        return { id: c.id, label: checkLabel(t, c), state: checkRowState(c.state), lines: detail ? [detail] : [] };
+    });
+    const problems = step.rows.filter((r) => r.state !== "done").length;
+    if (step.rows.some((r) => r.state === "failed")) {
+        step.state = "failed";
+    } else if (step.rows.some((r) => r.state === "running")) {
+        step.state = "running";
+    } else if (problems > 0) {
+        step.state = "needs";
+    } else {
+        step.state = "done";
+    }
+    if (problems === 0) {
+        step.collapsed = true;
+        step.lines.push(plural(t, "review.validate.checks.allPass", step.rows.length));
+    } else {
+        step.lines.push(plural(t, "review.validate.checks.problems", problems));
+    }
+    return step;
+}
+
+// --- merge ---
+
+export function mergeOutcomeText(t: Translate, record: ReviewMergeRecord, baseref: string): string {
+    const vars = {
+        base: baseref,
+        head: shortSha(record.head),
+        from: shortSha(record.movedfrom),
+        to: shortSha(record.movedto),
+    };
+    switch (record.state) {
+        case "checking":
+            return t("review.merge.state.checking");
+        case "updating":
+            return t("review.merge.state.updating", { base: baseref });
+        case "waitingci":
+            return t("review.merge.state.waitingci");
+        case "merging":
+            return t("review.merge.state.merging");
+    }
+    switch (record.code) {
+        case "merged":
+            return t("review.validate.outcome.merged", vars);
+        case "check":
+            return t("review.validate.outcome.check", { reason: blockingText(t, record.blocking) });
+        case "cifailed":
+            return t("review.validate.outcome.cifailed", { names: listNames(t, record.names ?? []) });
+        case "citimeout":
+            return t("review.validate.outcome.citimeout", { minutes: record.minutes ?? 0 });
+        case "reread":
+        case "mergedaway":
+        case "headmoved":
+        case "githubheadmoved":
+        case "newwarning":
+        case "mergeerror":
+        case "updateerror":
+        case "stopped":
+        case "pollerror":
+        case "conflict":
+        case "basemoved":
+        case "rebasedblocked":
+            return t(`review.validate.outcome.${record.code}`, vars);
+    }
+    if (record.message) {
+        return record.message;
+    }
+    return record.state === "merged"
+        ? t("review.merge.state.merged")
+        : t(`review.validate.outcome.state.${record.state}`);
+}
+
+function mergeStep(
+    t: Translate,
+    plan: ReviewMergePlan,
+    record: ReviewMergeRecord,
+    baseref: string,
+    cleanup: ReviewCleanupResult
+): ValidateStep {
+    const headref = plan?.headref ?? cleanup?.branch ?? "";
+    const step: ValidateStep = {
+        id: "merge",
+        title: t("review.validate.step.merge", { base: baseref }),
+        state: "todo",
+        lines: [],
+        rows: [],
+    };
+    if (record == null) {
+        if (plan?.behind) {
+            step.lines.push(t("review.validate.plan.behind", { head: headref, base: baseref }));
+        }
+        step.lines.push(t("review.validate.plan.merge", { head: headref, base: baseref }));
+        if (plan?.headoid) {
+            step.lines.push(t("review.validate.plan.bound", { oid: shortSha(plan.headoid) }));
+        }
+        return step;
+    }
+    step.lines.push(mergeOutcomeText(t, record, baseref));
+    if (MergeRunningStates.includes(record.state)) {
+        step.state = "running";
+    } else if (record.state === "merged") {
+        step.state = "done";
+        if (record.head && record.head !== record.planhead) {
+            step.lines.push(t("review.validate.rebasedHead", { oid: shortSha(record.head) }));
+        }
+    } else if (record.state === "cancelled") {
+        step.state = "skipped";
+    } else {
+        step.state = "failed";
+    }
+    if (record.error) {
+        step.error = record.error;
+    }
+    const pr = cleanup?.steps?.find((s) => s.id === "pr");
+    if (pr?.state === "failed") {
+        step.lines.push(
+            pr.code === "notmerged"
+                ? t("review.validate.cleanup.prNotMerged")
+                : t("review.validate.cleanup.prUnreadable")
+        );
+        step.error = pr.error ?? step.error;
+    }
+    return step;
+}
+
+// --- cleanup rows ---
+
+function rowState(step: ReviewCleanupStepResult): StepState {
+    switch (step?.state) {
+        case "done":
+            return "done";
+        case "failed":
+            return "failed";
+        case "skipped":
+            return step.code === "kept" ? "needs" : "skipped";
+    }
+    // planned: what has nothing to do is already known.
+    if (step?.code && step.code !== "willremove") {
+        return "skipped";
+    }
+    return "todo";
+}
+
+function aggregate(rows: StepRow[]): StepState {
+    if (rows.length === 0) {
+        return "todo";
+    }
+    for (const s of ["failed", "needs", "running"] as StepState[]) {
+        if (rows.some((r) => r.state === s)) {
+            return s;
+        }
+    }
+    if (rows.some((r) => r.state === "todo")) {
+        return "todo";
+    }
+    if (rows.some((r) => r.state === "done")) {
+        return "done";
+    }
+    return "skipped";
+}
+
+// lossLines names what removing a kept worktree would lose (#672).
+export function lossLines(t: Translate, loss: ReviewWorktreeLoss): string[] {
+    if (loss == null) {
+        return [];
+    }
+    const lines: string[] = [];
+    if (loss.changecount > 0) {
+        lines.push(
+            plural(t, "review.validate.loss.files", loss.changecount, {
+                names: listNames(t, loss.changes ?? [], loss.changecount, FilesShown),
+            })
+        );
+    }
+    if (loss.commitcount > 0) {
+        const subjects = (loss.commits ?? []).map((c) => `${shortSha(c.sha)} ${c.subject}`);
+        lines.push(
+            plural(t, "review.validate.loss.commits", loss.commitcount, {
+                names: listNames(t, subjects, loss.commitcount, FilesShown),
+            })
+        );
+    }
+    if (loss.commitcount < 0) {
+        lines.push(t("review.validate.loss.unknownCommits"));
+    }
+    return lines;
+}
+
+// lossButtonLabel names what the destructive button loses.
+export function lossButtonLabel(t: Translate, loss: ReviewWorktreeLoss): string {
+    const files = Math.max(loss?.changecount ?? 0, 0);
+    const commits = Math.max(loss?.commitcount ?? 0, 0);
+    if (files > 0 && commits > 0) {
+        return t("review.validate.loss.buttonBoth", {
+            files: plural(t, "review.validate.loss.nFiles", files),
+            commits: plural(t, "review.validate.loss.nCommits", commits),
+        });
+    }
+    if (files > 0) {
+        return t("review.validate.loss.button", { what: plural(t, "review.validate.loss.nFiles", files) });
+    }
+    if (commits > 0) {
+        return t("review.validate.loss.button", { what: plural(t, "review.validate.loss.nCommits", commits) });
+    }
+    return t("review.validate.loss.buttonUnknown");
+}
+
+function ignoredLine(t: Translate, loss: ReviewWorktreeLoss): string {
+    if (loss == null || !(loss.ignoredcount > 0)) {
+        return "";
+    }
+    return plural(t, "review.validate.cleanup.ignoredGone", loss.ignoredcount, {
+        names: listNames(t, loss.ignored ?? [], loss.ignoredcount),
+    });
+}
+
+function cleanupRowText(t: Translate, step: ReviewCleanupStepResult, branch: string, base: string): string[] {
+    const vars = {
+        ticket: step.ticket ?? "",
+        branch: step.branch || branch,
+        base: step.base || base,
+        path: step.path ?? "",
+    };
+    const key = `review.validate.cleanup.${step.id}.${step.state === "planned" ? "plan" : "did"}.${step.code || "none"}`;
+    if (step.code == null && (step.reason || step.message)) {
+        return [step.reason || step.message];
+    }
+    const lines = [t(key, vars)];
+    if (step.code === "kept") {
+        lines.push(...lossLines(t, step.loss));
+    }
+    if (step.id === "agent-worktree" && step.state === "done") {
+        const ignored = ignoredLine(t, step.loss);
+        if (ignored) {
+            lines.push(ignored);
+        }
+    }
+    return lines;
+}
+
+function cleanupRow(t: Translate, step: ReviewCleanupStepResult, branch: string, base: string): StepRow {
+    return {
+        id: step.id,
+        label: t(`review.validate.cleanup.${step.id}.label`),
+        state: rowState(step),
+        lines: cleanupRowText(t, step, branch, base),
+        error: step.state === "failed" ? step.error : undefined,
+    };
+}
+
+function notRun(t: Translate, step: ValidateStep, record: ReviewMergeRecord): boolean {
+    if (record == null || MergeRunningStates.includes(record.state) || record.state === "merged") {
+        return false;
+    }
+    step.state = "skipped";
+    step.lines = [t("review.validate.notRun")];
+    step.rows = [];
+    return true;
+}
+
+// settle gives a cleanup step its state: the aggregate of its rows, or, after the merge and before the cleanup
+// reported, to do (running while it runs).
+function settle(t: Translate, step: ValidateStep, record: ReviewMergeRecord, cleanup: ReviewCleanupResult) {
+    if (record != null && cleanup == null) {
+        step.state = record.cleanuprunning ? "running" : "todo";
+        if (record.cleanuprunning) {
+            step.lines.unshift(t("review.validate.cleaningUp"));
+        }
+        return;
+    }
+    step.state = aggregate(step.rows);
+}
+
+function stepsOf(source: ReviewCleanupStepResult[], ids: string[]): ReviewCleanupStepResult[] {
+    return ids.map((id) => source.find((s) => s.id === id)).filter((s) => s != null);
+}
+
+function ticketStep(
+    t: Translate,
+    source: ReviewCleanupStepResult[],
+    branch: string,
+    base: string,
+    record: ReviewMergeRecord,
+    cleanup: ReviewCleanupResult
+): ValidateStep {
+    const step: ValidateStep = {
+        id: "ticket",
+        title: t("review.validate.step.ticket"),
+        state: "todo",
+        lines: [],
+        rows: [],
+    };
+    if (notRun(t, step, record)) {
+        return step;
+    }
+    step.rows = stepsOf(source, ["ticket-close", "ticket-done"]).map((s) => cleanupRow(t, s, branch, base));
+    settle(t, step, record, cleanup);
+    return step;
+}
+
+function cleanupStep(
+    t: Translate,
+    source: ReviewCleanupStepResult[],
+    branch: string,
+    base: string,
+    record: ReviewMergeRecord,
+    cleanup: ReviewCleanupResult
+): ValidateStep {
+    const step: ValidateStep = {
+        id: "cleanup",
+        title: t("review.validate.step.cleanup"),
+        state: "todo",
+        lines: [],
+        rows: [],
+    };
+    if (notRun(t, step, record)) {
+        return step;
+    }
+    const items = stepsOf(source, ["review-worktree", "agent-worktree", "local-branch", "remote-branch"]);
+    step.rows = items.map((s) => cleanupRow(t, s, branch, base));
+    if (cleanup == null) {
+        step.lines.push(t("review.validate.cleanup.plan"));
+    }
+    const fetchError = source.find((s) => s.id === "pr" && s.state === "done" && s.error);
+    if (fetchError) {
+        step.lines.push(t("review.validate.cleanup.fetchFailed"));
+        step.error = fetchError.error;
+    }
+    settle(t, step, record, cleanup);
+    return step;
+}
+
+export function otherPrText(t: Translate, pr: ReviewCleanupPr, base: string): string {
+    if (pr.state === "done") {
+        return t("review.validate.others.rebased");
+    }
+    if (pr.flag === "agent-busy") {
+        return t("review.validate.others.agentBusy");
+    }
+    if (pr.flag === "needs-rebase") {
+        return t("review.validate.others.needsRebase", { base });
+    }
+    return t("review.validate.others.failed");
+}
+
+function othersStep(
+    t: Translate,
+    source: ReviewCleanupStepResult[],
+    base: string,
+    record: ReviewMergeRecord,
+    cleanup: ReviewCleanupResult
+): ValidateStep {
+    const step: ValidateStep = {
+        id: "others",
+        title: t("review.validate.step.others"),
+        state: "todo",
+        lines: [],
+        rows: [],
+    };
+    if (notRun(t, step, record)) {
+        return step;
+    }
+    const others = source.find((s) => s.id === "other-prs");
+    if (cleanup == null || others == null || others.state === "planned") {
+        step.lines.push(t("review.validate.others.plan", { base }));
+        settle(t, step, record, cleanup);
+        return step;
+    }
+    if (others.state === "skipped") {
+        step.state = "skipped";
+        step.lines.push(
+            others.code === "prunconfirmed"
+                ? t("review.validate.cleanup.notConfirmed")
+                : t("review.validate.others.none", { base: others.base || base })
+        );
+        return step;
+    }
+    step.rows = (others.prs ?? []).map((pr) => ({
+        id: `pr-${pr.number}`,
+        label: `#${pr.number} ${pr.branch}`,
+        state: pr.state === "done" ? "done" : pr.state === "failed" ? "failed" : "needs",
+        lines: [otherPrText(t, pr, others.base || base)],
+        error: pr.error,
+        url: pr.url,
+    }));
+    if (others.state === "failed" && step.rows.length === 0) {
+        step.state = "failed";
+        step.lines.push(t("review.validate.others.listFailed"));
+        step.error = others.error;
+        return step;
+    }
+    const counts: string[] = [];
+    if (others.updated > 0) {
+        counts.push(plural(t, "review.validate.others.updatedCount", others.updated));
+    }
+    if (others.flagged > 0) {
+        counts.push(plural(t, "review.validate.others.flaggedCount", others.flagged));
+    }
+    if (counts.length > 0) {
+        step.lines.push(counts.join(" · "));
+    }
+    step.state = aggregate(step.rows);
+    return step;
+}
+
+export type StepperInput = {
+    plan: ReviewMergePlan;
+    record: ReviewMergeRecord;
+    // The cleanup this merge ran (mergeCleanup), null before it reported.
+    cleanup: ReviewCleanupResult;
+    headref: string;
+    baseref: string;
+};
+
+// buildValidateSteps is the stepper: the plan before the merge, then the merge's progress and the cleanup's outcome.
+export function buildValidateSteps(t: Translate, input: StepperInput): ValidateStep[] {
+    const { plan, record, cleanup, baseref } = input;
+    const branch = plan?.headref ?? cleanup?.branch ?? input.headref;
+    const source: ReviewCleanupStepResult[] = cleanup?.steps ?? plan?.cleanup ?? [];
+    return [
+        checksStep(t, plan, record),
+        mergeStep(t, plan, record, baseref, cleanup),
+        ticketStep(t, source, branch, baseref, record, cleanup),
+        cleanupStep(t, source, branch, baseref, record, cleanup),
+        othersStep(t, source, baseref, record, cleanup),
+    ];
+}
