@@ -249,7 +249,12 @@ func (r *Runs) prepareBuildTree(ctx context.Context, b *buildLog) (string, error
 		}
 		return err
 	}
-	if _, err := os.Stat(filepath.Join(tree, ".git")); err != nil {
+	// A .git file whose .git/worktrees/<name> was pruned still stats fine, but every checkout in it fails.
+	_, statErr := os.Stat(filepath.Join(tree, ".git"))
+	if statErr == nil {
+		_, statErr = r.git(ctx, tree, "git", "rev-parse", "--git-dir")
+	}
+	if statErr != nil {
 		os.RemoveAll(tree)
 		step(dir, "worktree", "prune")
 		os.MkdirAll(filepath.Dir(tree), 0700)
